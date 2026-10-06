@@ -49,6 +49,8 @@ export interface EntrySettingsProps {
   extraFields?: ReactNode;
   /** Written alongside the shared values when Apply is pressed. */
   extraConfig?: ConfigEntry[];
+  /** Blocks Apply while an extra field holds a value that cannot be saved. */
+  extraInvalid?: boolean;
 }
 
 /**
@@ -69,6 +71,7 @@ export function EntrySettingsTab({
   versionsQuery,
   extraFields,
   extraConfig,
+  extraInvalid = false,
 }: EntrySettingsProps) {
   const navigate = useNavigate();
   const server = kind === 'server';
@@ -173,7 +176,10 @@ export function EntrySettingsTab({
         {extraFields}
 
         <div>
-          <Button onClick={saveConfig} disabled={setConfig.isPending}>
+          <Button
+            onClick={saveConfig}
+            disabled={setConfig.isPending || extraInvalid}
+          >
             {m['app.action.apply']()}
           </Button>
         </div>

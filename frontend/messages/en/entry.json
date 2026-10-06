@@ -141,6 +141,15 @@
       "every_interval": "Every {interval}",
       "inherits_default": "default",
       "instance_name": "Instance name",
+      "interval": {
+        "custom": "Custom…",
+        "days": "days",
+        "every": "Every",
+        "hours": "hours",
+        "minutes": "minutes",
+        "too_short": "Must be at least 5 minutes.",
+        "unit": "Unit"
+      },
       "java_arguments": "Java arguments",
       "keep_backups": "Keep backups",
       "remove": {
