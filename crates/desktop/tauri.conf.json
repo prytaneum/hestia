@@ -28,8 +28,12 @@
         "url": "splashscreen.html",
         "width": 360,
         "height": 300,
+        "minWidth": 360,
+        "minHeight": 300,
+        "maxWidth": 360,
+        "maxHeight": 300,
         "decorations": false,
-        "resizable": false,
+        "resizable": true,
         "center": true,
         "skipTaskbar": true,
         "visible": true
