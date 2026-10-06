@@ -4,6 +4,7 @@ import { Link } from '@tanstack/react-router';
 import { useState } from 'react';
 
 import type { InstanceInfo } from '@/api';
+import { RecentPlays } from '@/components/app-shell/recent-plays';
 import { entryIcon } from '@/components/icons';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -29,7 +30,8 @@ import { instanceMutations, useInstances } from '@/queries/instance';
 /**
  * The always-present quick-play strip along the bottom of the library. The
  * instance is chosen from a dropdown; the button launches it, and gives way to
- * the run control once a session is up.
+ * the run control once a session is up. Beside the picker sit the targets
+ * played lately, each a launch straight back into it.
  */
 export function PlayBar() {
   const { signedIn } = useAccounts();
@@ -88,6 +90,8 @@ export function PlayBar() {
           </DropdownMenuGroup>
         </DropdownMenuContent>
       </DropdownMenu>
+
+      <RecentPlays />
 
       <div className="ml-auto hidden items-center gap-1.5 sm:flex">
         {sel && (

@@ -18,6 +18,7 @@ export type { InstanceLaunchProgressEvent } from "./generated/InstanceLaunchProg
 export type { InstanceLaunchResult } from "./generated/InstanceLaunchResult";
 export type { InstanceListResult } from "./generated/InstanceListResult";
 export type { InstanceLogsParams } from "./generated/InstanceLogsParams";
+export type { InstanceRecentResult } from "./generated/InstanceRecentResult";
 export type { InstanceRef } from "./generated/InstanceRef";
 export type { InstanceRenameParams } from "./generated/InstanceRenameParams";
 export type { InstanceServerEditParams } from "./generated/InstanceServerEditParams";
@@ -30,5 +31,6 @@ export type { InstanceUpdateParams } from "./generated/InstanceUpdateParams";
 export type { InstanceUpdateResult } from "./generated/InstanceUpdateResult";
 export type { InstanceWorldsResult } from "./generated/InstanceWorldsResult";
 export type { QuickPlay } from "./generated/QuickPlay";
+export type { RecentPlay } from "./generated/RecentPlay";
 export type { ServerEntry } from "./generated/ServerEntry";
 export type { WorldInfo } from "./generated/WorldInfo";

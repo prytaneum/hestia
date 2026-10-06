@@ -5,4 +5,4 @@
  * world *and* connect to a server, so the two are variants rather than two
  * fields that would need a cross-check at every layer.
  */
-export type QuickPlay = { "kind": "world", "target": string } | { "kind": "server", "target": string };
+export type QuickPlay = { "kind": "world", "target": string } | { "kind": "server", "target": string } | { "kind": "realm", "target": string };

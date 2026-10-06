@@ -29,10 +29,12 @@ function processKeys(payload: Record<string, unknown>): QueryKey[] {
       keys.servers.detail(server),
     ];
   const instance = entryFromProcess(id, 'instance-');
+  // A session's exit is when what it joined is folded into the recent list.
   if (instance)
     return [
       keys.processes.list(),
       keys.instances.list(),
+      keys.instances.recent(),
       keys.instances.detail(instance),
     ];
   return [keys.processes.list()];

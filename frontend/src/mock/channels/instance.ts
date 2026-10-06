@@ -8,6 +8,7 @@ import type {
   InstanceDetails,
   InstanceInfo,
   InstanceProfile,
+  RecentPlay,
   ServerEntry,
 } from '@/api/types';
 
@@ -16,7 +17,7 @@ import * as catalog from '../state/catalog';
 import * as entries from '../state/entries';
 import * as processes from '../state/processes';
 import * as worlds from '../state/worlds';
-import { bool, type Handlers, now, ok, str } from '../support';
+import { ago, bool, type Handlers, now, ok, str } from '../support';
 import { resolve as resolveAccount } from './account';
 import { configChannels, contentChannels } from './entry';
 
@@ -34,6 +35,42 @@ const withSessions = (instance: InstanceInfo): InstanceInfo => ({
 
 const instanceId = (payload: Record<string, unknown>): string =>
   entries.findInstance(str(payload, 'instance')).id;
+
+const RECENT_LIMIT = 5;
+
+/** Every played world, plus each instance's first listed server, newest first. */
+function recentPlays(): RecentPlay[] {
+  return entries
+    .listInstances()
+    .flatMap((instance): RecentPlay[] => {
+      const base = { instance: instance.id, instanceName: instance.name };
+      const played = worlds
+        .worldsOf(instance.id)
+        .filter((world) => world.lastPlayedUnix != null)
+        .map((world) => ({
+          ...base,
+          target: { kind: 'world' as const, target: world.folder },
+          name: world.name,
+          gameMode: world.gameMode,
+          playedUnix: world.lastPlayedUnix ?? 0,
+          icon: world.icon,
+        }));
+      const joined = worlds
+        .serversOf(instance.id)
+        .slice(0, 1)
+        .map((server) => ({
+          ...base,
+          target: { kind: 'server' as const, target: server.address },
+          name: server.name,
+          gameMode: 'survival' as const,
+          playedUnix: ago(7_200),
+          icon: server.icon,
+        }));
+      return [...played, ...joined];
+    })
+    .sort((a, b) => b.playedUnix - a.playedUnix)
+    .slice(0, RECENT_LIMIT);
+}
 
 export const channels: Handlers = {
   'instance.list': () => ({
@@ -114,6 +151,8 @@ export const channels: Handlers = {
   },
 
   'instance.worlds': (p) => ({ worlds: worlds.worldsOf(instanceId(p)) }),
+
+  'instance.recent': () => ({ plays: recentPlays() }),
 
   'instance.servers': (p) => ({ servers: worlds.serversOf(instanceId(p)) }),
 

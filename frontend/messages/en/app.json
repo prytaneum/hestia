@@ -148,7 +148,9 @@
     },
     "playbar": {
       "all_instances": "All instances",
-      "quick_play": "Quick play"
+      "quick_play": "Quick play",
+      "recent": "Recently played",
+      "recent_play": "{name} · {instance} · {mode} · {when}"
     },
     "search": {
       "content": "Search content",

@@ -45,6 +45,12 @@ export const instanceQueries = {
       queryKey: keys.instances.list(),
       queryFn: () => api.list(),
     }),
+  /** The worlds, servers and Realms joined lately, across every instance. */
+  recent: () =>
+    queryOptions({
+      queryKey: keys.instances.recent(),
+      queryFn: () => api.recent(),
+    }),
   // The informational view (locations + footprint) is a directory walk, so it
   // rides its own key — fetched fresh (never seeded from the diskless list).
   info: (id: string) =>

@@ -23,6 +23,7 @@ import type {
   InstanceServerEditParams,
   InstanceServersWriteResult,
   InstanceUpdateParams,
+  RecentPlay,
   ServerEntry,
   WorldInfo,
 } from './types/instance';
@@ -111,6 +112,15 @@ export async function worlds(instance: string): Promise<WorldInfo[]> {
     instance,
   });
   return result.worlds;
+}
+
+/**
+ * What was joined lately across every instance, most recent first — each one a
+ * launch of `instance` with `target` as its quick play.
+ */
+export async function recent(): Promise<RecentPlay[]> {
+  const result = await call<{ plays: RecentPlay[] }>('instance.recent');
+  return result.plays;
 }
 
 /** The multiplayer list (`servers.dat`), in the order the game shows it. */

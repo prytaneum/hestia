@@ -16,6 +16,7 @@ describe('the daemon-topic invalidation map', () => {
       [
         keys.processes.list(),
         keys.instances.list(),
+        keys.instances.recent(),
         keys.instances.detail('modded'),
       ],
     );

@@ -137,6 +137,8 @@
       "program": "programa",
       "project": "projeto",
       "read": "ler",
+      "realm": "um Realm",
+      "realm_id": "um Realm é identificado pelo seu id numérico",
       "release": "o feed de versões",
       "remove": "remover",
       "resource_pack": "pacote de recursos",

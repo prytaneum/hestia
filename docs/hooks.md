@@ -328,6 +328,7 @@ The only named hooks. Everything else is a factory passed to `useQuery`/`useMuta
 | `.list()` / `.info(id)`                              | `instance.list\|info`                 | —                                              |
 | `.flavors()` / `.loaders(flavor)` / `.versions(flavor)` / `.profile(params)` | `instance.flavors\|loaders\|versions\|resolve` | —                  |
 | `.worlds(id)`                                        | `instance.worlds`                     | —                                              |
+| `.recent()`                                          | `instance.recent`                     | —                                              |
 | `.logs(id, opts)`                                    | `instance.logs`                       | —                                              |
 | `.config(id)` / `.configValue(id, key)`              | `instance.config.list\|get`           | —                                              |
 | `.content(id, kind)` / `.contentUpdates(id)`         | `instance.content.list\|check_updates`| —                                              |

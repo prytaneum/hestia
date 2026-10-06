@@ -105,6 +105,7 @@ export const keys = {
   instances: {
     all: ['instances'] as const,
     list: () => [...keys.instances.all, 'list'] as const,
+    recent: () => [...keys.instances.all, 'recent'] as const,
     flavors: () => [...keys.instances.all, 'flavors'] as const,
     versions: (flavor: string) =>
       [...keys.instances.all, 'versions', flavor] as const,
