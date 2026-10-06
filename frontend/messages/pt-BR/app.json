@@ -147,9 +147,15 @@
       "works_title": "Continua funcionando"
     },
     "playbar": {
-      "quick_play": "Jogo rápido",
+      "kind": {
+        "realm": "Realm",
+        "server": "Servidor",
+        "world": "Mundo"
+      },
+      "played": "em {instance} · {when}",
       "recent": "Jogados recentemente",
-      "recent_play": "{instance} · {when}"
+      "recent_play": "{kind} · {instance} · {when}",
+      "target": "{kind} · {mode}"
     },
     "search": {
       "content": "Pesquisar conteúdo",

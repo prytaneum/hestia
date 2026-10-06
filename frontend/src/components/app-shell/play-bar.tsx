@@ -42,6 +42,14 @@ const GLYPHS = {
   realm: CloudIcon,
 } as const;
 
+const KINDS = {
+  world: m['app.playbar.kind.world'],
+  server: m['app.playbar.kind.server'],
+  realm: m['app.playbar.kind.realm'],
+} as const;
+
+const msg = m as unknown as Record<string, () => string>;
+
 const keyOf = (play: RecentPlay) =>
   `${play.instance}:${play.target.kind}:${play.target.target}`;
 
@@ -97,11 +105,20 @@ export function PlayBar() {
                 size="xl"
               />
               <span className="min-w-0 flex-1 leading-tight">
-                <span className="block text-[11px] tracking-wide text-muted-foreground uppercase">
-                  {m['app.playbar.quick_play']()}
+                <span className="block truncate text-[11px] tracking-wide text-muted-foreground uppercase">
+                  {m['app.playbar.target']({
+                    kind: KINDS[play.target.kind](),
+                    mode: msg[`domain.gamemode.${play.gameMode}`](),
+                  })}
                 </span>
                 <span className="block truncate text-base font-medium">
                   {play.name}
+                </span>
+                <span className="block truncate text-[11px] text-muted-foreground">
+                  {m['app.playbar.played']({
+                    instance: instance.name,
+                    when: agoLabel(play.playedUnix),
+                  })}
                 </span>
               </span>
               <CaretUpDownIcon className="size-4 shrink-0 text-muted-foreground" />
@@ -125,8 +142,8 @@ export function PlayBar() {
       </DropdownMenu>
 
       <div className="ml-auto hidden items-center gap-1.5 sm:flex">
-        <Badge variant="secondary" className="max-w-40 truncate">
-          {instance.name}
+        <Badge variant="secondary" className="uppercase">
+          {instance.flavor}
         </Badge>
         <Badge variant="outline" className="font-mono">
           {instance.gameVersion}
@@ -161,7 +178,7 @@ export function PlayBar() {
           className="bg-ember text-ember-foreground hover:bg-ember/90"
         >
           {busy ? <Spinner /> : <PlayIcon weight="fill" />}
-          {m['app.action.play']()}
+          {m['app.action.join']()}
         </Button>
       )}
     </div>
@@ -186,6 +203,7 @@ function RecentPlayItem({
         <span className="block truncate">{play.name}</span>
         <span className="block truncate text-[11px] text-muted-foreground">
           {m['app.playbar.recent_play']({
+            kind: KINDS[play.target.kind](),
             instance: play.instanceName,
             when: agoLabel(play.playedUnix),
           })}

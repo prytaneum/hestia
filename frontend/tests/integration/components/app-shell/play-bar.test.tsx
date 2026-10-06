@@ -41,7 +41,10 @@ describe('the play bar', () => {
     const { plays } = recent({}) as { plays: { name: string }[] };
 
     await waitFor(() => expect(screen.getByText(plays[0].name)).toBeDefined());
-    expect(screen.getByText(m['app.playbar.quick_play']())).toBeDefined();
+    expect(
+      screen.getByText(new RegExp(`^${m['app.playbar.kind.world']()} · `)),
+    ).toBeDefined();
+    expect(screen.getByText(m['app.action.join']())).toBeDefined();
   });
 
   it('is absent while nothing has been played', async () => {
@@ -49,7 +52,6 @@ describe('the play bar', () => {
     bar();
 
     await recentLoaded();
-    expect(screen.queryByText(m['app.playbar.quick_play']())).toBeNull();
-    expect(screen.queryByText(m['app.action.play']())).toBeNull();
+    expect(screen.queryByText(m['app.action.join']())).toBeNull();
   });
 });

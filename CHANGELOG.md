@@ -47,7 +47,7 @@ editor, a guided first run, and fixes for SteamOS and Windows.
   a URL. A modpack's icon carries over to the entry it creates, and the library
   cards are redesigned around it.
 - **Recently played.** The play bar is now the last five worlds, servers and
-  Realms you joined, across every instance: Play launches straight back into
+  Realms you joined, across every instance: Join launches straight back into
   the most recent, and its menu switches to another. The bar appears once you
   have played something. It fills in from what the game itself reports, so a server picked in
   the in-game list counts too; it needs Minecraft 1.20 or newer. `hestia play

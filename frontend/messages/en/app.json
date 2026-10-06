@@ -147,9 +147,15 @@
       "works_title": "Still works"
     },
     "playbar": {
-      "quick_play": "Quick play",
+      "kind": {
+        "realm": "Realm",
+        "server": "Server",
+        "world": "World"
+      },
+      "played": "in {instance} · {when}",
       "recent": "Recently played",
-      "recent_play": "{instance} · {when}"
+      "recent_play": "{kind} · {instance} · {when}",
+      "target": "{kind} · {mode}"
     },
     "search": {
       "content": "Search content",
