@@ -21,6 +21,6 @@ chrono = { workspace = true }
 # `cargo test`. The virtual workspace has no root package to host it, so it lives
 # on this foundational leaf crate, which every `cargo test` compiles.
 [dev-dependencies]
-husky-rs = "0.3.3"
+husky-rs = "0.4.0"
 serde_json = { workspace = true }
 tempfile.workspace = true

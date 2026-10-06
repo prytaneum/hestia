@@ -32,8 +32,8 @@ clap = { version = "4.6.1", features = ["derive"] }
 ratatui = { version = "0.30.2", features = ["unstable-rendered-line-info"] }
 tui-markdown = { version = "0.3.8", default-features = false }
 reqwest = { version = "0.13.4", default-features = false, features = ["rustls", "json", "stream", "form", "query", "multipart"] }
-tray-icon = { version = "0.24.1", default-features = false, features = ["gtk"] }
-tao = "0.35.3"
+tray-icon = { version = "0.25.1", default-features = false }
+tao = "0.37.1"
 ksni = { version = "0.3.6", features = ["blocking"] }
 png = "0.18.1"
 image = { version = "0.25.8", default-features = false, features = ["png"] }
@@ -44,8 +44,8 @@ flate2 = "1.1.9"
 fastnbt = "2.5.0"
 zip = { version = "8.6.0", default-features = false, features = ["deflate"] }
 uuid = { version = "1.23.4", features = ["v7"] }
-junction = "1.2.0"
-sysinfo = { version = "0.37.2", default-features = false, features = ["system"] }
+junction = "2.1.0"
+sysinfo = { version = "0.39.6", default-features = false, features = ["system"] }
 discord-rich-presence = "1.1.0"
 tempfile = "3.24.0"
 

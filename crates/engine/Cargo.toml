@@ -32,8 +32,8 @@ anyhow = { workspace = true }
 async-trait = { workspace = true }
 p256 = { version = "0.14.0", features = ["ecdsa"] }
 getrandom = "0.4"
-base64 = "0.22.1"
-minisign-verify = "0.2"
+base64 = "0.23.1"
+minisign-verify = "0.3"
 
 [target.'cfg(windows)'.dependencies]
 junction = { workspace = true }
