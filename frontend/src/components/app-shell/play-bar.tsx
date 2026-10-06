@@ -53,10 +53,6 @@ const msg = m as unknown as Record<string, () => string>;
 const keyOf = (play: RecentPlay) =>
   `${play.instance}:${play.target.kind}:${play.target.target}`;
 
-/** The target's own picture, else its instance's icon — as the pinned list shows. */
-const iconOf = (play: RecentPlay, instance: { iconUrl?: string }) =>
-  pngSource(play.icon) ?? instance.iconUrl;
-
 /**
  * The quick-play strip along the bottom of the library: the world, server or
  * Realm joined most recently, and a button that launches its instance straight
@@ -100,7 +96,8 @@ export function PlayBar() {
               className="-ml-2 flex h-14 w-72 items-center gap-3 px-2 text-left transition-colors outline-none hover:bg-muted focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-inset aria-expanded:bg-muted"
             >
               <Thumbnail
-                src={iconOf(play, instance)}
+                src={pngSource(play.icon)}
+                fallback={instance.iconUrl}
                 icon={GLYPHS[play.target.kind]}
                 size="xl"
               />
@@ -132,7 +129,7 @@ export function PlayBar() {
               <RecentPlayItem
                 key={keyOf(entry.play)}
                 play={entry.play}
-                icon={iconOf(entry.play, entry.instance)}
+                instanceIcon={entry.instance.iconUrl}
                 running={runningSessions(entry.instance).length > 0}
                 onSelect={() => setSelKey(keyOf(entry.play))}
               />
@@ -187,18 +184,23 @@ export function PlayBar() {
 
 function RecentPlayItem({
   play,
-  icon,
+  instanceIcon,
   running,
   onSelect,
 }: {
   play: RecentPlay;
-  icon?: string;
+  instanceIcon?: string;
   running: boolean;
   onSelect: () => void;
 }) {
   return (
     <DropdownMenuItem onClick={onSelect}>
-      <Thumbnail src={icon} icon={GLYPHS[play.target.kind]} size="sm" />
+      <Thumbnail
+        src={pngSource(play.icon)}
+        fallback={instanceIcon}
+        icon={GLYPHS[play.target.kind]}
+        size="sm"
+      />
       <span className="min-w-0 flex-1 leading-tight">
         <span className="block truncate">{play.name}</span>
         <span className="block truncate text-[11px] text-muted-foreground">

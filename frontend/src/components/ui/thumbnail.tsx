@@ -25,6 +25,7 @@ const PIXEL_ART_WIDTH = 32;
  */
 export function Thumbnail({
   src,
+  fallback,
   icon: Glyph,
   size = 'sm',
   className,
@@ -32,6 +33,8 @@ export function Thumbnail({
 }: {
   /** A URL or data URI; the glyph stands in when it is absent or fails. */
   src?: string;
+  /** Tried when `src` is absent or fails, before the glyph. */
+  fallback?: string;
   icon: Icon;
   size?: keyof typeof sizes;
   className?: string;
@@ -40,9 +43,12 @@ export function Thumbnail({
 }) {
   // Keyed by source, not a flag: a tile whose image changes underneath it must
   // get a fresh attempt, and must not carry the old one's rendering.
-  const [broken, setBroken] = useState<string | null>(null);
+  const [broken, setBroken] = useState<string[]>([]);
   const [pixelArt, setPixelArt] = useState<string | null>(null);
   const { box, glyph } = sizes[size];
+  const shown = [src, fallback].find(
+    (candidate) => candidate && !broken.includes(candidate),
+  );
 
   return (
     <span
@@ -52,24 +58,24 @@ export function Thumbnail({
         className,
       )}
     >
-      {!src || broken === src ? (
+      {!shown ? (
         <Glyph className={glyph} />
       ) : (
         <img
-          src={src}
+          src={shown}
           alt=""
-          onError={() => setBroken(src)}
+          onError={() => setBroken((failed) => [...failed, shown])}
           onLoad={(e) =>
             setPixelArt(
               e.currentTarget.naturalWidth > 0 &&
                 e.currentTarget.naturalWidth < PIXEL_ART_WIDTH
-                ? src
+                ? shown
                 : null,
             )
           }
           className={cn(
             'size-full object-contain',
-            pixelArt === src && '[image-rendering:pixelated]',
+            pixelArt === shown && '[image-rendering:pixelated]',
           )}
         />
       )}
