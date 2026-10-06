@@ -46,9 +46,9 @@ editor, a guided first run, and fixes for SteamOS and Windows.
   pick from a set of Minecraft-themed images, upload your own, or fetch one from
   a URL. A modpack's icon carries over to the entry it creates, and the library
   cards are redesigned around it.
-- **Recently played.** The play bar shows the last five worlds, servers and
-  Realms you joined, across every instance — one click launches straight back
-  into it. It fills in from what the game itself reports, so a server picked in
+- **Recently played.** The play bar's quick play menu leads with the last five
+  worlds, servers and Realms you joined, across every instance — picking one
+  launches straight back into it. It fills in from what the game itself reports, so a server picked in
   the in-game list counts too; it needs Minecraft 1.20 or newer. `hestia play
   --recent` and `hestia instance recent` do the same from the CLI, and
   `--realm <id>` joins a Realm on start.
