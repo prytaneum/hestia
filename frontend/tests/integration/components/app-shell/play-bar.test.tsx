@@ -1,0 +1,55 @@
+import { screen, waitFor } from '@testing-library/react';
+import { afterEach, describe, expect, it } from 'vitest';
+import { PlayBar } from '@/components/app-shell/play-bar';
+import { LaunchDialogProvider } from '@/features/instances/dialogs';
+import { channels } from '@/mock/channels';
+import { m } from '@/paraglide/messages.js';
+import { queryClient } from '@/queries';
+import { keys } from '@/queries/keys';
+import {
+  renderWithProviders,
+  resetJobs,
+  resetQueryCache,
+} from '../../../support';
+
+const recent = channels['instance.recent'];
+
+afterEach(async () => {
+  channels['instance.recent'] = recent;
+  await resetJobs();
+  resetQueryCache();
+});
+
+const bar = () =>
+  renderWithProviders(
+    <LaunchDialogProvider>
+      <PlayBar />
+    </LaunchDialogProvider>,
+    { route: true },
+  );
+
+const recentLoaded = () =>
+  waitFor(() =>
+    expect(queryClient.getQueryState(keys.instances.recent())?.status).toBe(
+      'success',
+    ),
+  );
+
+describe('the play bar', () => {
+  it('leads with the most recently played target', async () => {
+    bar();
+    const { plays } = recent({}) as { plays: { name: string }[] };
+
+    await waitFor(() => expect(screen.getByText(plays[0].name)).toBeDefined());
+    expect(screen.getByText(m['app.playbar.quick_play']())).toBeDefined();
+  });
+
+  it('is absent while nothing has been played', async () => {
+    channels['instance.recent'] = () => ({ plays: [] });
+    bar();
+
+    await recentLoaded();
+    expect(screen.queryByText(m['app.playbar.quick_play']())).toBeNull();
+    expect(screen.queryByText(m['app.action.play']())).toBeNull();
+  });
+});

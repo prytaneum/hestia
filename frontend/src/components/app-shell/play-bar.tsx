@@ -1,11 +1,15 @@
-import { CaretUpDownIcon, PlayIcon } from '@phosphor-icons/react';
-import { useMutation } from '@tanstack/react-query';
+import {
+  CaretUpDownIcon,
+  CloudIcon,
+  GlobeHemisphereWestIcon,
+  HardDrivesIcon,
+  PlayIcon,
+} from '@phosphor-icons/react';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
 import { useState } from 'react';
 
-import type { InstanceInfo } from '@/api';
-import { RecentPlaysGroup } from '@/components/app-shell/recent-plays';
-import { entryIcon } from '@/components/icons';
+import type { RecentPlay } from '@/api';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -18,36 +22,58 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Spinner } from '@/components/ui/spinner';
 import { StatusDot } from '@/components/ui/status-dot';
-import { Thumbnail } from '@/components/ui/thumbnail';
+import { pngSource, Thumbnail } from '@/components/ui/thumbnail';
 import { useLaunchDialog } from '@/features/instances/dialogs';
 import { anchor } from '@/features/onboarding';
 import { EntryRunControl } from '@/features/shared/entry/components';
+import { agoLabel } from '@/lib/format';
 import { runningSessions } from '@/lib/sessions';
 import { m } from '@/paraglide/messages.js';
 import { useAccounts } from '@/queries';
-import { instanceMutations, useInstances } from '@/queries/instance';
+import {
+  instanceMutations,
+  instanceQueries,
+  useInstances,
+} from '@/queries/instance';
+
+const GLYPHS = {
+  world: GlobeHemisphereWestIcon,
+  server: HardDrivesIcon,
+  realm: CloudIcon,
+} as const;
+
+const keyOf = (play: RecentPlay) =>
+  `${play.instance}:${play.target.kind}:${play.target.target}`;
 
 /**
- * The always-present quick-play strip along the bottom of the library. The
- * instance is chosen from a dropdown; the button launches it, and gives way to
- * the run control once a session is up. The dropdown leads with the targets
- * played lately, each a launch straight back into it.
+ * The quick-play strip along the bottom of the library: the world, server or
+ * Realm joined most recently, and a button that launches its instance straight
+ * back into it. The dropdown switches to another recent target; the button
+ * gives way to the run control once a session is up. Absent until something
+ * has been played — there is nothing to go back to.
  */
 export function PlayBar() {
   const { signedIn } = useAccounts();
   const instances = useInstances();
+  const recent = useQuery(instanceQueries.recent());
   const { launch, isLaunching } = useLaunchDialog();
   const stop = useMutation(instanceMutations.stopAny());
+  const [selKey, setSelKey] = useState<string | null>(null);
 
-  const list = instances.data ?? [];
-  const [selId, setSelId] = useState<string | null>(null);
-  const sel = list.find((i) => i.id === selId) ?? list[0];
+  const plays = (recent.data ?? []).flatMap((play) => {
+    const instance = instances.data?.find((i) => i.id === play.instance);
+    return instance ? [{ play, instance }] : [];
+  });
+  const sel = plays.find(({ play }) => keyOf(play) === selKey) ?? plays[0];
+  if (!sel) return null;
 
-  const Icon = entryIcon('instance');
-  const sessions = sel ? runningSessions(sel) : [];
-  const launching = sel ? isLaunching(sel.id) : false;
-  const stopping = stop.isPending && stop.variables?.id === sel?.id;
+  const { play, instance } = sel;
+  const sessions = runningSessions(instance);
+  const launching = isLaunching(instance.id, play.target.target);
+  const stopping = stop.isPending && stop.variables?.id === instance.id;
   const busy = launching || stopping;
+  const join = (newSession: boolean) =>
+    launch(instance, { quickPlay: play.target, newSession });
 
   return (
     <div
@@ -59,16 +85,19 @@ export function PlayBar() {
           render={
             <button
               type="button"
-              disabled={list.length === 0}
-              className="-ml-2 flex h-14 w-72 items-center gap-3 px-2 text-left transition-colors outline-none hover:bg-muted focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-inset aria-expanded:bg-muted disabled:opacity-50"
+              className="-ml-2 flex h-14 w-72 items-center gap-3 px-2 text-left transition-colors outline-none hover:bg-muted focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-inset aria-expanded:bg-muted"
             >
-              <Thumbnail src={sel?.iconUrl} icon={Icon} size="xl" />
+              <Thumbnail
+                src={pngSource(play.icon)}
+                icon={GLYPHS[play.target.kind]}
+                size="xl"
+              />
               <span className="min-w-0 flex-1 leading-tight">
                 <span className="block text-[11px] tracking-wide text-muted-foreground uppercase">
                   {m['app.playbar.quick_play']()}
                 </span>
                 <span className="block truncate text-base font-medium">
-                  {sel?.name ?? '—'}
+                  {play.name}
                 </span>
               </span>
               <CaretUpDownIcon className="size-4 shrink-0 text-muted-foreground" />
@@ -76,16 +105,14 @@ export function PlayBar() {
           }
         />
         <DropdownMenuContent side="top" align="start" className="w-72">
-          <RecentPlaysGroup />
           <DropdownMenuGroup>
-            <DropdownMenuLabel>
-              {m['app.playbar.all_instances']()}
-            </DropdownMenuLabel>
-            {list.map((i) => (
-              <InstanceItem
-                key={i.id}
-                instance={i}
-                onSelect={() => setSelId(i.id)}
+            <DropdownMenuLabel>{m['app.playbar.recent']()}</DropdownMenuLabel>
+            {plays.map((entry) => (
+              <RecentPlayItem
+                key={keyOf(entry.play)}
+                play={entry.play}
+                running={runningSessions(entry.instance).length > 0}
+                onSelect={() => setSelKey(keyOf(entry.play))}
               />
             ))}
           </DropdownMenuGroup>
@@ -93,45 +120,39 @@ export function PlayBar() {
       </DropdownMenu>
 
       <div className="ml-auto hidden items-center gap-1.5 sm:flex">
-        {sel && (
-          <>
-            <Badge variant="secondary" className="uppercase">
-              {sel.flavor}
-            </Badge>
-            <Badge variant="outline" className="font-mono">
-              {sel.gameVersion}
-            </Badge>
-          </>
-        )}
+        <Badge variant="secondary" className="max-w-40 truncate">
+          {instance.name}
+        </Badge>
+        <Badge variant="outline" className="font-mono">
+          {instance.gameVersion}
+        </Badge>
       </div>
 
-      {sel && (
-        <Button
-          variant="ghost"
-          size="sm"
-          nativeButton={false}
-          render={<Link to="/instances/$id" params={{ id: sel.id }} />}
-        >
-          {m['app.action.manage']()}
-        </Button>
-      )}
+      <Button
+        variant="ghost"
+        size="sm"
+        nativeButton={false}
+        render={<Link to="/instances/$id" params={{ id: instance.id }} />}
+      >
+        {m['app.action.manage']()}
+      </Button>
 
-      {sel && sessions.length > 0 ? (
+      {sessions.length > 0 ? (
         <EntryRunControl
-          name={sel.name}
+          name={instance.name}
           sessions={sessions}
           size="sm"
           busy={stopping}
           launching={launching}
-          onNewSession={() => launch(sel, { newSession: true })}
-          onStop={(session) => stop.mutate({ id: sel.id, session })}
+          onNewSession={() => join(true)}
+          onStop={(session) => stop.mutate({ id: instance.id, session })}
         />
       ) : (
         <Button
           data-icon="inline-start"
-          disabled={!signedIn || !sel || busy}
+          disabled={!signedIn || busy}
           title={signedIn ? undefined : m['account.sign_in_to_play']()}
-          onClick={() => sel && launch(sel)}
+          onClick={() => join(false)}
           className="bg-ember text-ember-foreground hover:bg-ember/90"
         >
           {busy ? <Spinner /> : <PlayIcon weight="fill" />}
@@ -142,34 +163,32 @@ export function PlayBar() {
   );
 }
 
-function InstanceItem({
-  instance,
+function RecentPlayItem({
+  play,
+  running,
   onSelect,
 }: {
-  instance: InstanceInfo;
+  play: RecentPlay;
+  running: boolean;
   onSelect: () => void;
 }) {
-  const sessions = runningSessions(instance).length;
   return (
     <DropdownMenuItem onClick={onSelect}>
-      <span className="min-w-0 flex-1 truncate">{instance.name}</span>
-      {sessions > 0 ? (
-        <>
-          {sessions > 1 && (
-            <span
-              className="font-mono text-[10px] text-muted-foreground"
-              title={m['entry.sessions_running']({ count: sessions })}
-            >
-              ×{sessions}
-            </span>
-          )}
-          <StatusDot tone="on" />
-        </>
-      ) : (
-        <span className="font-mono text-[10px] text-muted-foreground">
-          {instance.gameVersion}
+      <Thumbnail
+        src={pngSource(play.icon)}
+        icon={GLYPHS[play.target.kind]}
+        size="sm"
+      />
+      <span className="min-w-0 flex-1 leading-tight">
+        <span className="block truncate">{play.name}</span>
+        <span className="block truncate text-[11px] text-muted-foreground">
+          {m['app.playbar.recent_play']({
+            instance: play.instanceName,
+            when: agoLabel(play.playedUnix),
+          })}
         </span>
-      )}
+      </span>
+      {running && <StatusDot tone="on" />}
     </DropdownMenuItem>
   );
 }

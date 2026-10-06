@@ -147,7 +147,6 @@
       "works_title": "Continua funcionando"
     },
     "playbar": {
-      "all_instances": "Todas as instâncias",
       "quick_play": "Jogo rápido",
       "recent": "Jogados recentemente",
       "recent_play": "{instance} · {when}"
