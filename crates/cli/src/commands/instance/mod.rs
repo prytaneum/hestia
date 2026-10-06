@@ -2,8 +2,8 @@
 //! through flavor/version pickers when arguments are omitted; files materialise
 //! on first launch.
 //!
-//! The grammar is entry-first: catalogue verbs (`create`, `list`, `versions`,
-//! `flavors`) take no entry, while everything that acts on one instance reads
+//! The grammar is entry-first: catalogue verbs (`create`, `list`, `recent`,
+//! `versions`, `flavors`) take no entry, while everything that acts on one instance reads
 //! as `instance <name> <action>`. This module is the grammar and the dispatch;
 //! each verb group lives beside it.
 
@@ -11,6 +11,7 @@ mod config;
 mod create;
 mod entry;
 pub(crate) mod lifecycle;
+pub(crate) mod recent;
 pub(crate) mod servers;
 mod transfer;
 mod update;
@@ -31,13 +32,34 @@ use crate::ui::Spinner;
 
 pub use lifecycle::{launch, Launch};
 
-/// The launch target a `--world` / `--server` pair names — the grammar's own
-/// translation of the two flags into the one thing the wire carries. clap has
-/// already refused both at once, so the pair can only spell one target.
-pub fn quick_play(world: Option<String>, server: Option<String>) -> Option<QuickPlay> {
-    world
-        .map(QuickPlay::World)
-        .or_else(|| server.map(QuickPlay::Server))
+/// What a launch joins on start — the grammar's own translation of three flags
+/// into the one thing the wire carries. clap refuses more than one of them, so
+/// together they can only spell one target.
+#[derive(clap::Args)]
+pub struct Join {
+    #[arg(long, help = "Open a save world on start, by folder (Minecraft 1.20+)")]
+    world: Option<String>,
+    #[arg(
+        long,
+        conflicts_with = "world",
+        help = "Join a server on start, by address (Minecraft 1.20+)"
+    )]
+    server: Option<String>,
+    #[arg(
+        long,
+        conflicts_with_all = ["world", "server"],
+        help = "Join a Realm on start, by its numeric id (Minecraft 1.20+)"
+    )]
+    realm: Option<String>,
+}
+
+impl Join {
+    pub fn target(self) -> Option<QuickPlay> {
+        self.world
+            .map(QuickPlay::World)
+            .or(self.server.map(QuickPlay::Server))
+            .or(self.realm.map(QuickPlay::Realm))
+    }
 }
 
 #[derive(Subcommand)]
@@ -87,6 +109,8 @@ pub enum InstanceCmd {
     /// Managed instances and their state
     #[command(visible_alias = "ls")]
     List,
+    /// The worlds, servers and Realms played lately, across every instance
+    Recent,
     /// Game versions a flavor offers (prompts for the flavor when omitted)
     Versions {
         /// Flavor id (e.g. vanilla, fabric)
@@ -131,14 +155,8 @@ enum InstanceAction {
             help = "Play without signing in: singleplayer only, on the last known account"
         )]
         offline: bool,
-        #[arg(long, help = "Open a save world on start, by folder (Minecraft 1.20+)")]
-        world: Option<String>,
-        #[arg(
-            long,
-            conflicts_with = "world",
-            help = "Join a server on start, by address (Minecraft 1.20+)"
-        )]
-        server: Option<String>,
+        #[command(flatten)]
+        join: Join,
     },
     /// Kill the instance's sessions (all, or one with --session)
     Stop {
@@ -345,6 +363,7 @@ pub async fn run(cmd: InstanceCmd) -> Result<()> {
                 } => create::run(&client, flavor, version, loader, name, memory).await,
                 InstanceCmd::Import { path, name } => transfer::import(&client, path, name).await,
                 InstanceCmd::List => entry::list(&client).await,
+                InstanceCmd::Recent => recent::list(&client).await,
                 InstanceCmd::Versions { flavor, all } => versions(&client, flavor, all).await,
                 InstanceCmd::Flavors => flavors(&client).await,
                 InstanceCmd::Entry(_) => unreachable!("handled above"),
@@ -360,8 +379,7 @@ async fn run_action(client: &Client, name: String, action: InstanceAction) -> Re
             detach,
             new_session,
             offline,
-            world,
-            server,
+            join,
         } => {
             launch(
                 client,
@@ -370,7 +388,7 @@ async fn run_action(client: &Client, name: String, action: InstanceAction) -> Re
                     account: account.as_deref().unwrap_or_default(),
                     new_session,
                     detach,
-                    quick_play: quick_play(world, server),
+                    quick_play: join.target(),
                     offline,
                 },
             )

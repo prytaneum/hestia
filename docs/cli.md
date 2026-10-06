@@ -227,14 +227,26 @@ against your shell's working directory, then sent as absolute — the daemon is 
 
 ### Playing a world or a server directly
 
-A launch normally stops at the title screen. `--world` and `--server` skip it and join on start (Minecraft's Quick Play,
-**1.20 and newer** — an older instance is refused rather than dropped at the menu):
+A launch normally stops at the title screen. `--world`, `--server` and `--realm` skip it and join on start (Minecraft's
+Quick Play, **1.20 and newer** — an older instance is refused rather than dropped at the menu):
 
 ```bash
 hestia play modded --world "New World"          # straight into a save
 hestia play modded --server smp.example.net     # straight onto a server
-hestia instance modded launch --world creative  # the same two flags on launch
+hestia play modded --realm 1234567              # straight into a Realm, by its numeric id
+hestia instance modded launch --world creative  # the same three flags on launch
 ```
+
+Whatever a session joins — from these flags or from the game's own menus — is remembered, so the last five targets
+across every instance can be gone back to without naming the instance or the target:
+
+```bash
+hestia instance recent                          # name, type, target, instance, game mode, when
+hestia play --recent                            # pick one and launch straight into it
+```
+
+A Realm's id is not shown in-game; the `TARGET` column of `instance recent` is where it surfaces once the Realm has
+been joined.
 
 The entry-first spelling picks interactively when the target is omitted, and takes an entry of the instance's own
 multiplayer list by name:

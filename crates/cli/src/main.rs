@@ -62,14 +62,14 @@ enum Command {
             help = "Play without signing in: singleplayer only, on the last known account"
         )]
         offline: bool,
-        #[arg(long, help = "Open a save world on start, by folder (Minecraft 1.20+)")]
-        world: Option<String>,
+        #[command(flatten)]
+        join: commands::instance::Join,
         #[arg(
             long,
-            conflicts_with = "world",
-            help = "Join a server on start, by address (Minecraft 1.20+)"
+            conflicts_with_all = ["instance", "world", "server", "realm"],
+            help = "Pick from what was played lately and go straight back to it"
         )]
-        server: Option<String>,
+        recent: bool,
     },
     /// Minecraft accounts (Microsoft sign-in, switching)
     #[command(visible_alias = "auth")]
@@ -312,18 +312,18 @@ async fn run_command(command: Command) -> anyhow::Result<()> {
             detach,
             new_session,
             offline,
-            world,
-            server,
+            join,
+            recent,
         } => {
-            commands::play::run(
-                instance,
+            commands::play::run(commands::play::Play {
+                reference: instance,
                 account,
                 new_session,
                 detach,
                 offline,
-                world,
-                server,
-            )
+                join,
+                recent,
+            })
             .await
         }
         Command::Account { cmd } => commands::account::run(cmd).await,

@@ -1,37 +1,47 @@
 //! `hestia play` — the happy path: launch an instance. With no argument the
 //! sole instance launches directly; several prompt an interactive pick.
 //!
-//! `--world` / `--server` skip the menus and join on start (Quick Play), the
-//! same targets the entry-first `instance <name> world|server play` verbs take.
+//! `--world` / `--server` / `--realm` skip the menus and join on start (Quick
+//! Play), the same targets the entry-first `instance <name> world|server play`
+//! verbs take. `--recent` picks both the instance and the target from what was
+//! played lately.
 
 use anyhow::{bail, Result};
 
 use crate::commands::instance;
 use crate::ui;
 
-pub async fn run(
-    reference: Option<String>,
-    account: Option<String>,
-    new_session: bool,
-    detach: bool,
-    offline: bool,
-    world: Option<String>,
-    server: Option<String>,
-) -> Result<()> {
+pub struct Play {
+    pub reference: Option<String>,
+    pub account: Option<String>,
+    pub new_session: bool,
+    pub detach: bool,
+    pub offline: bool,
+    pub join: instance::Join,
+    pub recent: bool,
+}
+
+pub async fn run(play: Play) -> Result<()> {
     let client = super::connect().await?;
-    let reference = match reference {
-        Some(reference) => reference,
-        None => pick_instance(&client).await?,
+    let (reference, quick_play) = if play.recent {
+        let recent = instance::recent::pick(&client).await?;
+        (recent.instance, Some(recent.target))
+    } else {
+        let reference = match play.reference {
+            Some(reference) => reference,
+            None => pick_instance(&client).await?,
+        };
+        (reference, play.join.target())
     };
     instance::launch(
         &client,
         instance::Launch {
             reference: &reference,
-            account: account.as_deref().unwrap_or_default(),
-            new_session,
-            detach,
-            quick_play: instance::quick_play(world, server),
-            offline,
+            account: play.account.as_deref().unwrap_or_default(),
+            new_session: play.new_session,
+            detach: play.detach,
+            quick_play,
+            offline: play.offline,
         },
     )
     .await
