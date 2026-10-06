@@ -53,6 +53,12 @@ editor, a guided first run, and fixes for SteamOS and Windows.
   the in-game list counts too; it needs Minecraft 1.20 or newer. `hestia play
   --recent` and `hestia instance recent` do the same from the CLI, and
   `--realm <id>` joins a Realm on start.
+- **A world seed at server create.** The create wizard takes a seed alongside
+  the other details, and a server's settings show it afterwards. It only applies
+  to a world that has not been generated yet; left empty, the game picks one.
+- **A custom backup interval.** The schedule is no longer limited to the 6 hour,
+  12 hour and daily presets: pick Custom and set any number of minutes, hours or
+  days, down to the daemon's five-minute floor.
 - **The tray now appears on every Linux desktop that has one**, SteamOS
   included. It reached the status area through libappindicator — a library most
   desktops do not ship — so where it was absent no icon appeared, and the daemon
