@@ -21,7 +21,6 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Spinner } from '@/components/ui/spinner';
-import { StatusDot } from '@/components/ui/status-dot';
 import { pngSource, Thumbnail } from '@/components/ui/thumbnail';
 import { useLaunchDialog } from '@/features/instances/dialogs';
 import { anchor } from '@/features/onboarding';
@@ -47,8 +46,6 @@ const KINDS = {
   server: m['app.playbar.kind.server'],
   realm: m['app.playbar.kind.realm'],
 } as const;
-
-const msg = m as unknown as Record<string, () => string>;
 
 const keyOf = (play: RecentPlay) =>
   `${play.instance}:${play.target.kind}:${play.target.target}`;
@@ -102,19 +99,13 @@ export function PlayBar() {
                 size="xl"
               />
               <span className="min-w-0 flex-1 leading-tight">
-                <span className="block truncate text-[11px] tracking-wide text-muted-foreground uppercase">
-                  {m['app.playbar.target']({
-                    kind: KINDS[play.target.kind](),
-                    mode: msg[`domain.gamemode.${play.gameMode}`](),
-                  })}
-                </span>
                 <span className="block truncate text-base font-medium">
                   {play.name}
                 </span>
-                <span className="block truncate text-[11px] text-muted-foreground">
-                  {m['app.playbar.played']({
+                <span className="block truncate text-xs text-muted-foreground">
+                  {m['app.playbar.recent_play']({
+                    kind: KINDS[play.target.kind](),
                     instance: instance.name,
-                    when: agoLabel(play.playedUnix),
                   })}
                 </span>
               </span>
@@ -130,7 +121,6 @@ export function PlayBar() {
                 key={keyOf(entry.play)}
                 play={entry.play}
                 instanceIcon={entry.instance.iconUrl}
-                running={runningSessions(entry.instance).length > 0}
                 onSelect={() => setSelKey(keyOf(entry.play))}
               />
             ))}
@@ -185,12 +175,10 @@ export function PlayBar() {
 function RecentPlayItem({
   play,
   instanceIcon,
-  running,
   onSelect,
 }: {
   play: RecentPlay;
   instanceIcon?: string;
-  running: boolean;
   onSelect: () => void;
 }) {
   return (
@@ -207,11 +195,12 @@ function RecentPlayItem({
           {m['app.playbar.recent_play']({
             kind: KINDS[play.target.kind](),
             instance: play.instanceName,
-            when: agoLabel(play.playedUnix),
           })}
         </span>
       </span>
-      {running && <StatusDot tone="on" />}
+      <span className="shrink-0 self-start text-[11px] text-muted-foreground">
+        {agoLabel(play.playedUnix)}
+      </span>
     </DropdownMenuItem>
   );
 }

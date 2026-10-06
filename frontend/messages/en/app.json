@@ -152,10 +152,8 @@
         "server": "Server",
         "world": "World"
       },
-      "played": "in {instance} · {when}",
       "recent": "Recently played",
-      "recent_play": "{kind} · {instance} · {when}",
-      "target": "{kind} · {mode}"
+      "recent_play": "{kind} · {instance}"
     },
     "search": {
       "content": "Search content",
