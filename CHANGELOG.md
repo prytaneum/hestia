@@ -9,16 +9,43 @@ that release's notes, rendered as markdown.
 
 ## 1.0.0-beta.2
 
-A guided first run, and two Linux fixes found on SteamOS.
+Shared settings rebuilt around what the game actually writes, a new icon
+editor, a guided first run, and fixes for SteamOS and Windows.
 
 - **A welcome flow, guided tours and a getting-started checklist.** First launch
   now opens a short welcome rather than a one-off overlay, and each surface has
   a spotlight tour anchored to the real controls — the shell, browsing content,
-  an instance, a server, profiles and skins. A tour can be skipped at any point
+  an instance, a server and skins. A tour can be skipped at any point
   instead of having to be turned down before it starts. The library carries a
   checklist for the first four things worth doing: sign in, create an instance,
   play it, host a server. It ticks itself off from your actual state and leaves
   once you are through.
+- **Sync is a catalogue of units, each merged the way its file needs.**
+  Settings, the server list, the command history and the creative hotbars are
+  shared through one store and reconciled against what each instance last
+  agreed on, so only a side that actually changed wins. The merge writes the
+  game's own file back: comments, key order and unknown `servers.dat` tags
+  survive, and an unreadable file is skipped rather than replaced. A unit starts
+  from an instance you name, keeps a copy of each instance's own file before
+  sharing lands, and runs when a session exits and over idle instances too — not
+  only at launch.
+- **Sync respects the game version.** Options follow a typed catalogue that knows
+  which keys each version writes; a unit is skipped below the version that has
+  its file (options 1.13, hotbars 1.12, command history 1.20.2), and hotbars are
+  kept per item-format era so a pre- and post-1.20.5 instance never trade a file
+  the other cannot read. Keys that describe the machine or the moment — display,
+  audio, `lastServer` — are never shared, and any key can be pinned local to one
+  instance.
+- **Resource packs and datapacks sync by identity.** A shared pack is installed
+  wherever it fits and enabled or removed everywhere at once; `hestia sync
+  packs` manages the library from the CLI. Screenshots are not copied at all —
+  every instance's folder reads as one page.
+- **Content profiles are gone.** Named profiles added a layer most entries never
+  used; installed content is managed in the pool directly.
+- **A new icon editor.** Build an entry's icon from a background and a symbol,
+  pick from a set of Minecraft-themed images, upload your own, or fetch one from
+  a URL. A modpack's icon carries over to the entry it creates, and the library
+  cards are redesigned around it.
 - **The tray now appears on every Linux desktop that has one**, SteamOS
   included. It reached the status area through libappindicator — a library most
   desktops do not ship — so where it was absent no icon appeared, and the daemon
@@ -32,6 +59,12 @@ A guided first run, and two Linux fixes found on SteamOS.
   failed to start the webview and the window came up blank. That library now
   comes from the host, where it belongs, and the image is rebuilt around the
   corrected AppDir rather than repacked.
+- **Windows: the daemon no longer reads as down under load.** A busy named
+  pipe is retried instead of failing the connection, and the daemon re-arms the
+  pipe even after a connection fails, so its name never disappears between
+  clients. A portable build also resolves one install
+  scope however its path is spelled.
+- **Dependency security updates**, including the patched `rustls` advisory.
 
 ## 1.0.0-beta.1
 
