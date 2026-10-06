@@ -86,6 +86,11 @@ pub fn describe(saves_dir: &Path, folder: &str) -> WorldInfo {
     world
 }
 
+/// A save's own `icon.png`, base64-encoded; empty when it has none.
+pub fn icon(saves_dir: &Path, folder: &str) -> String {
+    read_icon(&saves_dir.join(folder).join(ICON))
+}
+
 fn read_level(path: &Path) -> Option<LevelData> {
     let bytes = std::fs::read(path).ok()?;
     // level.dat is gzipped, but a hand-unpacked save can be plain NBT; try the

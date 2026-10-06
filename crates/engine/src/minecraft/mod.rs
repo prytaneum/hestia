@@ -11,6 +11,7 @@ mod neoforge;
 mod paper;
 pub(crate) mod ping;
 mod provider;
+pub(crate) mod quickplay;
 pub(crate) mod rcon;
 pub(crate) mod servers;
 mod spigot;

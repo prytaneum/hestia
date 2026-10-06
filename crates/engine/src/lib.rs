@@ -18,6 +18,7 @@ mod java;
 mod minecraft;
 mod net;
 mod process;
+mod recent;
 mod reclaim;
 mod registry;
 mod schema;

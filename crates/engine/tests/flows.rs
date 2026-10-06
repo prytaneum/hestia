@@ -500,6 +500,70 @@ async fn joining_a_world_that_is_not_there_is_refused_before_any_work() {
 }
 
 #[tokio::test]
+async fn joining_a_realm_by_anything_but_its_id_is_refused() {
+    let home = tempfile::tempdir().expect("temp home");
+    let (engine, id) = launchable(home.path()).await;
+    let (cancel, report) = (Cancel::new(), |_: &ProvisionProgress| {});
+
+    let refused = engine
+        .prepare_instance(
+            launch(&id, Some(QuickPlay::Realm("Our Realm".into()))),
+            &job(&cancel, &report),
+        )
+        .await
+        .map(|_| ())
+        .expect_err("a realm name is not an id");
+
+    assert!(matches!(
+        engine::error_info(refused),
+        ErrorInfo::InvalidValue { .. }
+    ));
+}
+
+#[tokio::test]
+async fn what_a_session_joined_is_offered_again_until_it_cannot_be_joined() {
+    let home = tempfile::tempdir().expect("temp home");
+    let (engine, id) = launchable(home.path()).await;
+    let (cancel, report) = (Cancel::new(), |_: &ProvisionProgress| {});
+    let prepared = engine
+        .prepare_instance(launch(&id, None), &job(&cancel, &report))
+        .await
+        .expect("prepare");
+    let args = &prepared.plan.args;
+    let log = args
+        .iter()
+        .position(|a| a == "--quickPlayPath")
+        .map(|i| std::path::PathBuf::from(&args[i + 1]))
+        .expect("a 1.20+ launch names its quick play log");
+    assert_eq!(
+        log.parent(),
+        prepared.log_file.parent(),
+        "the log sits with the session's own files, outside data/"
+    );
+    assert!(engine.recent_plays().is_empty(), "nothing joined yet");
+
+    let saves = home.path().join("instances/modded/data/saves");
+    std::fs::create_dir_all(saves.join("New World")).expect("create the save");
+    std::fs::write(
+        &log,
+        r#"[{"type":"singleplayer","id":"New World","name":"Home","lastPlayedTime":"2026-10-06T10:00:00.000000Z","gamemode":"creative"}]"#,
+    )
+    .expect("the game writes its log");
+
+    let plays = engine.recent_plays();
+    assert_eq!(plays.len(), 1);
+    assert_eq!(plays[0].instance, id);
+    assert_eq!(plays[0].target, QuickPlay::World("New World".into()));
+    assert_eq!(plays[0].name, "Home");
+
+    std::fs::remove_dir_all(saves.join("New World")).expect("delete the save");
+    assert!(
+        engine.recent_plays().is_empty(),
+        "a deleted world is not offered"
+    );
+}
+
+#[tokio::test]
 async fn a_cancelled_launch_stops_at_a_checkpoint() {
     let home = tempfile::tempdir().expect("temp home");
     let (engine, id) = launchable(home.path()).await;

@@ -16,7 +16,11 @@ use crate::instances::InstanceRecord;
 use crate::minecraft::launch::{self, InstancePaths, LaunchAccount, LaunchPlan};
 use crate::minecraft::log4j;
 use crate::minecraft::materialize::{self, OnProgress};
-use crate::minecraft::{ping, world};
+use crate::minecraft::{ping, quickplay, world};
+
+/// Per-session files under the instance root, not `data/`, so a backup and an
+/// export leave them behind.
+pub(super) const SESSION_DIR: &str = "logs";
 
 impl Engine {
     /// The instance's save worlds under `data/saves/`, each described from its
@@ -282,13 +286,16 @@ impl Engine {
         // Per-session logging lives under the instance root (not data/, so it is
         // outside backups): each concurrent session gets its own file the
         // supervisor can tail independently.
-        let session_dir = self.instances.instance_dir(&record).join("logs");
+        let session_dir = self.instances.instance_dir(&record).join(SESSION_DIR);
         std::fs::create_dir_all(&session_dir)
             .with_context(|| format!("cannot create {}", session_dir.display()))?;
         let log_file = session_dir.join(format!("session-{session_seq}.log"));
         let log_config = session_dir.join(format!("session-{session_seq}.xml"));
         std::fs::write(&log_config, log4j::session_config(&log_file))
             .with_context(|| format!("cannot write {}", log_config.display()))?;
+
+        let quick_play_log = launch::supports_quick_play(&record.profile.game_version)
+            .then(|| quickplay::log_path(&session_dir, session_seq));
 
         let jvm = record
             .jvm
@@ -304,6 +311,7 @@ impl Engine {
                 assets_root: &assets_root,
                 game_assets: mapped_assets.as_deref().unwrap_or(&assets_root),
                 log_config: Some(&log_config),
+                quick_play_log: quick_play_log.as_deref(),
             },
             &account,
             &jvm,
@@ -408,6 +416,14 @@ fn validate_quick_play(game_version: &str, data_dir: &Path, target: &QuickPlay) 
                 bail!(ErrorInfo::InvalidValue {
                     field: Field::Address,
                     reason: Reason::ServerAddress,
+                });
+            }
+        }
+        QuickPlay::Realm(id) => {
+            if id.parse::<i64>().is_err() {
+                bail!(ErrorInfo::InvalidValue {
+                    field: Field::Realm,
+                    reason: Reason::RealmId,
                 });
             }
         }

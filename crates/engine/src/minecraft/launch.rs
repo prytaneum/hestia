@@ -200,6 +200,9 @@ pub struct InstancePaths<'a> {
     /// game's own log to a private file; `None` keeps the version's default
     /// (`logs/latest.log`).
     pub log_config: Option<&'a Path>,
+    /// Where the game reports what the session joins
+    /// (`crate::minecraft::quickplay`); `None` for a client too old to.
+    pub quick_play_log: Option<&'a Path>,
 }
 
 /// The server invocation, run from the server's data directory. A profile without a
@@ -331,10 +334,15 @@ pub fn instance_plan(
     args.extend(profile.game_args.iter().map(|a| substitute(a, &vars)));
     // The manifest declares these behind feature rules, which resolve to
     // nothing here (see `meta::rules_allow`), so the pair is appended directly.
+    if let Some(log) = paths.quick_play_log {
+        args.push(super::quickplay::ARGUMENT.to_string());
+        args.push(log.to_string_lossy().into_owned());
+    }
     if let Some(quick_play) = quick_play {
         let (flag, target) = match quick_play {
             QuickPlay::World(folder) => ("--quickPlaySingleplayer", folder),
             QuickPlay::Server(address) => ("--quickPlayMultiplayer", address),
+            QuickPlay::Realm(id) => ("--quickPlayRealms", id),
         };
         args.push(flag.to_string());
         args.push(target.clone());
@@ -608,6 +616,7 @@ mod tests {
             assets_root: Path::new("/assets"),
             game_assets: Path::new("/assets"),
             log_config: None,
+            quick_play_log: None,
         };
         let plan = instance_plan(
             &profile,
@@ -646,6 +655,7 @@ mod tests {
             assets_root: Path::new("/assets"),
             game_assets: Path::new("/assets"),
             log_config: None,
+            quick_play_log: None,
         };
         let plan_for = |target: QuickPlay| {
             instance_plan(
@@ -674,6 +684,43 @@ mod tests {
         assert_eq!(
             server[server.len() - 2..],
             ["--quickPlayMultiplayer", "smp.example.net:25566"]
+        );
+        let realm = plan_for(QuickPlay::Realm("1234567".into()));
+        assert_eq!(realm[realm.len() - 2..], ["--quickPlayRealms", "1234567"]);
+    }
+
+    #[test]
+    fn instance_plan_names_the_quick_play_log_whether_or_not_it_joins_anything() {
+        let profile = InstanceProfile {
+            client: Artifact::default(),
+            main_class: "net.minecraft.client.main.Main".into(),
+            ..Default::default()
+        };
+        let paths = InstancePaths {
+            game_dir: Path::new("/inst"),
+            natives_dir: Path::new("/inst/natives"),
+            client_jar: Path::new("/versions/client.jar"),
+            libraries_root: Path::new("/libraries"),
+            assets_root: Path::new("/assets"),
+            game_assets: Path::new("/assets"),
+            log_config: None,
+            quick_play_log: Some(Path::new("/logs/session-1.quickplay.json")),
+        };
+
+        let args = instance_plan(
+            &profile,
+            Path::new("java"),
+            &paths,
+            &account(),
+            &JavaSettings::default(),
+            None,
+        )
+        .args;
+
+        assert_eq!(
+            args[args.len() - 2..],
+            ["--quickPlayPath", "/logs/session-1.quickplay.json"],
+            "a session that opens to the title screen still reports what it joins from there"
         );
     }
 
@@ -707,6 +754,7 @@ mod tests {
             assets_root: Path::new("/assets"),
             game_assets: Path::new("/assets"),
             log_config: Some(log),
+            quick_play_log: None,
         };
         let plan = instance_plan(
             &profile,
@@ -747,6 +795,7 @@ mod tests {
             assets_root: Path::new("/assets"),
             game_assets: Path::new("/assets"),
             log_config: None,
+            quick_play_log: None,
         };
         let plan = instance_plan(
             &profile,
@@ -783,6 +832,7 @@ mod tests {
             assets_root: Path::new("/assets"),
             game_assets: mirrored,
             log_config: None,
+            quick_play_log: None,
         };
         let plan = instance_plan(
             &profile,
@@ -858,6 +908,7 @@ mod tests {
             assets_root: Path::new("/assets"),
             game_assets: Path::new("/assets"),
             log_config: None,
+            quick_play_log: None,
         };
         let plan = instance_plan(
             &profile,

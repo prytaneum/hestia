@@ -65,6 +65,10 @@ impl Rules {
         if relative == crate::instances::InstanceRecord::NAME || SKIP_ROOTS.contains(&relative) {
             return true;
         }
+        // Where and when its owner played is not part of the instance.
+        if relative == crate::recent::FILE {
+            return true;
+        }
         if relative
             .strip_prefix("data/")
             .is_some_and(|rest| SKIP_DATA.contains(&rest))
@@ -118,6 +122,7 @@ mod tests {
             "logs",
             "backups",
             "instance.json",
+            "recent.json",
             "data/logs",
             "data/crash-reports",
             "data/.fabric",

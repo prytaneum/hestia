@@ -15,11 +15,12 @@ use proto::instance::{
     InstanceConfigSetParams, InstanceCreate, InstanceCreateParams, InstanceDetails,
     InstanceFlavors, InstanceInfo, InstanceInfoQuery, InstanceLaunch, InstanceLaunchDoneEvent,
     InstanceLaunchParams, InstanceList, InstanceLoaders, InstanceLogs, InstanceLogsParams,
-    InstanceRef, InstanceRemove, InstanceRename, InstanceRenameParams, InstanceResolve,
-    InstanceServerEdit, InstanceServerEditParams, InstanceServerRef, InstanceServerRemove,
-    InstanceServers, InstanceServersArrange, InstanceServersArrangeParams,
+    InstanceRecent, InstanceRef, InstanceRemove, InstanceRename, InstanceRenameParams,
+    InstanceResolve, InstanceServerEdit, InstanceServerEditParams, InstanceServerRef,
+    InstanceServerRemove, InstanceServers, InstanceServersArrange, InstanceServersArrangeParams,
     InstanceServersWriteResult, InstanceStop, InstanceStopParams, InstanceUpdate,
-    InstanceUpdateParams, InstanceVersions, InstanceWorlds, QuickPlay, ServerEntry, WorldInfo,
+    InstanceUpdateParams, InstanceVersions, InstanceWorlds, QuickPlay, RecentPlay, ServerEntry,
+    WorldInfo,
 };
 use proto::minecraft::{
     ConfigEntry, Flavor, GameVersion, InstanceProfile, LoadersParams, ProvisionProgress,
@@ -163,6 +164,16 @@ impl Instance<'_> {
             .call::<InstanceWorlds>(&instance_ref(instance))
             .await?
             .worlds)
+    }
+
+    /// What was joined lately across every instance, most recent first — each
+    /// one a launch of `instance` with `target` as its quick play.
+    pub async fn recent(&self) -> Result<Vec<RecentPlay>, IpcError> {
+        Ok(self
+            .session
+            .call::<InstanceRecent>(&proto::Empty {})
+            .await?
+            .plays)
     }
 
     /// The instance's multiplayer list (`servers.dat`), in the order the game

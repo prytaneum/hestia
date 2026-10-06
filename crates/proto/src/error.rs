@@ -75,6 +75,7 @@ pub enum Field {
     BackupRetention,
     JavaVersion,
     Order,
+    Realm,
 }
 
 impl fmt::Display for Field {
@@ -97,6 +98,7 @@ impl fmt::Display for Field {
             Field::Port => "a port",
             Field::Players => "players",
             Field::Order => "a list order",
+            Field::Realm => "a realm",
             Field::BackupInterval => "backup-interval",
             Field::BackupRetention => "backup-retention",
             Field::JavaVersion => "a java version",
@@ -123,6 +125,7 @@ pub enum Reason {
     AbsolutePath,
     ServerAddress,
     ListOrder,
+    RealmId,
 }
 
 impl fmt::Display for Reason {
@@ -145,6 +148,7 @@ impl fmt::Display for Reason {
             }
             Reason::ServerAddress => "a server address looks like host or host:port",
             Reason::ListOrder => "the order must name every server in the list exactly once",
+            Reason::RealmId => "a realm is named by its numeric id",
         })
     }
 }

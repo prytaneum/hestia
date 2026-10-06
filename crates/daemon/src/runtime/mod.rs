@@ -136,6 +136,7 @@ impl Runtime {
             {
                 tracing::warn!(instance = %instance_id, error = %e, "failed to record playtime");
             }
+            session_engine.record_plays(&instance_id);
             session_engine.finish_instance_sync(&info.id);
         });
         let processes = engine.processes().clone();

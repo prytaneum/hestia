@@ -7,11 +7,11 @@ use proto::instance::{
     AddressPing, InstanceConfigGet, InstanceConfigGetResult, InstanceConfigList,
     InstanceConfigListResult, InstanceConfigSet, InstanceCreate, InstanceCreateResult,
     InstanceFlavors, InstanceInfoQuery, InstanceLaunch, InstanceLaunchResult, InstanceList,
-    InstanceListResult, InstanceLoaders, InstanceLogs, InstanceRemove, InstanceRename,
-    InstanceResolve, InstanceServerEdit, InstanceServerRemove, InstanceServers,
-    InstanceServersArrange, InstanceServersResult, InstanceServersWriteResult, InstanceStop,
-    InstanceUpdate, InstanceUpdateResult, InstanceVersions, InstanceWorlds, InstanceWorldsResult,
-    ServerEntry,
+    InstanceListResult, InstanceLoaders, InstanceLogs, InstanceRecent, InstanceRecentResult,
+    InstanceRemove, InstanceRename, InstanceResolve, InstanceServerEdit, InstanceServerRemove,
+    InstanceServers, InstanceServersArrange, InstanceServersResult, InstanceServersWriteResult,
+    InstanceStop, InstanceUpdate, InstanceUpdateResult, InstanceVersions, InstanceWorlds,
+    InstanceWorldsResult, ServerEntry,
 };
 use proto::minecraft::{ConfigEntry, FlavorsResult, LoadersResult, VersionsResult};
 use proto::process::ProcessLogsResult;
@@ -144,6 +144,12 @@ pub(super) fn register(on: &mut Channels<'_>) {
                 reference: p.instance.clone(),
             })?;
         Ok(InstanceWorldsResult { worlds })
+    });
+
+    on.handle::<InstanceRecent, _, _>(|_: Empty, ctx| async move {
+        Ok(InstanceRecentResult {
+            plays: ctx.runtime.engine().recent_plays(),
+        })
     });
 
     on.handle::<InstanceServers, _, _>(|p, ctx| async move {

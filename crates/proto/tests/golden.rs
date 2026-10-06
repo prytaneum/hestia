@@ -18,7 +18,7 @@ use proto::content::{
 };
 use proto::daemon::{DaemonStatusResult, DaemonStopParams};
 use proto::download::DownloadSpec;
-use proto::instance::{InstanceInfo, InstanceLaunchParams, ServerEntry};
+use proto::instance::{InstanceInfo, InstanceLaunchParams, RecentPlay, ServerEntry};
 use proto::java::{JavaInstallProgress, JavaRuntime};
 use proto::minecraft::ProvisionProgress;
 use proto::process::{
@@ -110,6 +110,7 @@ golden!(
     "instance_launch_quick_play.json"
 );
 golden!(server_entry, ServerEntry, "server_entry.json");
+golden!(recent_play, RecentPlay, "recent_play.json");
 golden!(backup_info, BackupInfo, "backup_info.json");
 golden!(
     provision_progress,

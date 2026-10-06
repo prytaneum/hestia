@@ -268,6 +268,42 @@ impl Contract for InstanceWorlds {
     type Result = InstanceWorldsResult;
 }
 
+/// Something a session joined, as the game's own Quick Play log reported it —
+/// the launch that returns to it is `instance` started with `target`.
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
+#[serde(rename_all = "camelCase")]
+pub struct RecentPlay {
+    /// The instance's stable id.
+    pub instance: String,
+    pub instance_name: String,
+    pub target: QuickPlay,
+    /// The world's, server's or Realm's display name.
+    pub name: String,
+    pub game_mode: GameMode,
+    pub played_unix: i64,
+    /// The world's or the listed server's icon, base64-encoded PNG; empty when
+    /// it has none. Inlined for the same reason a world's is — see
+    /// [`WorldInfo::icon`].
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub icon: String,
+}
+
+#[derive(Serialize, Deserialize, Default, Debug, Clone)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
+#[serde(default, rename_all = "camelCase")]
+pub struct InstanceRecentResult {
+    /// Across every instance, most recent first, capped.
+    pub plays: Vec<RecentPlay>,
+}
+
+pub struct InstanceRecent;
+impl Contract for InstanceRecent {
+    const CHANNEL: &'static str = "instance.recent";
+    type Params = Empty;
+    type Result = InstanceRecentResult;
+}
+
 /// One entry of the instance's multiplayer list, as `servers.dat` stores it.
 /// The file is the game's, not ours: it is read on demand and rewritten whole,
 /// so an entry carries every field back that it came with.
@@ -550,6 +586,8 @@ pub enum QuickPlay {
     World(String),
     /// `host` or `host:port`, as `--quickPlayMultiplayer` takes it.
     Server(String),
+    /// A Realm's numeric id, as `--quickPlayRealms` takes it.
+    Realm(String),
 }
 
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
