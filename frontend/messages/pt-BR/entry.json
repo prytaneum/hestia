@@ -30,6 +30,8 @@
         "port": "Porta",
         "port_auto": "auto",
         "port_hint": "Em branco escolhe a menor porta livre.",
+        "seed": "Semente do mundo",
+        "seed_random": "aleatória",
         "title": "Propriedades do servidor"
       },
       "provisioning_instance": "Provisionando sua instância…",
@@ -148,6 +150,7 @@
         "server": "Remover servidor",
         "server_title": "Remover servidor?"
       },
+      "seed_hint": "Só se aplica a um mundo que ainda não foi gerado.",
       "server_name": "Nome do servidor"
     },
     "stop": {

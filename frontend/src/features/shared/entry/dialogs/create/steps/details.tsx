@@ -56,6 +56,15 @@ export function DetailsStep({ form, kind }: { form: WizardForm; kind: Kind }) {
             )}
           </form.AppField>
 
+          <form.AppField name="details.seed">
+            {(field: WizardForm) => (
+              <field.TextField
+                label={m['entry.create.properties.seed']()}
+                placeholder={m['entry.create.properties.seed_random']()}
+              />
+            )}
+          </form.AppField>
+
           {/* Hardcore forces difficulty=hard and gamemode=survival, so both
               selects are pinned and disabled while it is on — matching the
               daemon's invariant and Minecraft's own create-world screen. */}

@@ -2,7 +2,7 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
 
 import type { ConfigEntry, ServerInfo } from '@/api';
-import { Field, FieldLabel } from '@/components/ui/field';
+import { Field, FieldDescription, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import {
   Select,
@@ -95,6 +95,35 @@ function useBackupSchedule(config?: ConfigEntry[]) {
   return { fields, entries };
 }
 
+/** Written only when edited, so Apply never rewrites a seed the user left alone. */
+function useWorldSeed(config?: ConfigEntry[]) {
+  const loaded = config !== undefined;
+  const stored = configValue(config, 'level-seed');
+  const [seed, setSeed] = useDraft(stored, `${loaded}:${stored}`);
+
+  const fields = (
+    <Field>
+      <FieldLabel htmlFor="level-seed">
+        {m['entry.create.properties.seed']()}
+      </FieldLabel>
+      <Input
+        id="level-seed"
+        value={seed}
+        onChange={(e) => setSeed(e.target.value)}
+        placeholder={m['entry.create.properties.seed_random']()}
+        className="font-mono"
+      />
+      <FieldDescription>{m['entry.settings.seed_hint']()}</FieldDescription>
+    </Field>
+  );
+
+  const trimmed = seed.trim();
+  const entries: ConfigEntry[] =
+    trimmed === stored ? [] : [{ key: 'level-seed', value: trimmed }];
+
+  return { fields, entries };
+}
+
 export function ServerSettingsTab({
   server,
   config,
@@ -110,6 +139,7 @@ export function ServerSettingsTab({
   const remove = useMutation(serverMutations.remove(server.id));
   const update = useJobMutation(serverMutations.update(server.id));
   const backups = useBackupSchedule(config);
+  const seed = useWorldSeed(config);
 
   return (
     <EntrySettingsTab
@@ -130,8 +160,13 @@ export function ServerSettingsTab({
       remove={remove}
       update={update}
       versionsQuery={serverQueries.versions(server.flavor)}
-      extraFields={backups.fields}
-      extraConfig={backups.entries}
+      extraFields={
+        <>
+          {seed.fields}
+          {backups.fields}
+        </>
+      }
+      extraConfig={[...seed.entries, ...backups.entries]}
     />
   );
 }

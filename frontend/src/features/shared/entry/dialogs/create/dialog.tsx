@@ -340,6 +340,8 @@ function serverParams(value: WizardValues, memoryEntries: ConfigEntry[]) {
     { key: 'hardcore', value: String(d.hardcore) },
     { key: 'online-mode', value: String(d.onlineMode) },
   ];
+  const seed = d.seed.trim();
+  if (seed) config.push({ key: 'level-seed', value: seed });
   return {
     ...instanceParams(value, memoryEntries),
     eula: true,

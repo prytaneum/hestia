@@ -10,6 +10,7 @@ const details = (over: Record<string, unknown> = {}) => ({
   name: 'smp',
   memory: 4,
   motd: '',
+  seed: '',
   gamemode: 'survival',
   difficulty: 'normal',
   maxPlayers: '20',

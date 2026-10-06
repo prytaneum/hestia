@@ -30,6 +30,8 @@
         "port": "Port",
         "port_auto": "auto",
         "port_hint": "Blank picks the lowest free.",
+        "seed": "World seed",
+        "seed_random": "random",
         "title": "Server properties"
       },
       "provisioning_instance": "Provisioning your instance…",
@@ -148,6 +150,7 @@
         "server": "Remove server",
         "server_title": "Remove server?"
       },
+      "seed_hint": "Only applies to a world that has not been generated yet.",
       "server_name": "Server name"
     },
     "stop": {

@@ -27,6 +27,7 @@ export function detailsStepSchema(kind: Kind) {
     name: z.string(),
     memory: z.number().min(2).max(32),
     motd: z.string(),
+    seed: z.string(),
     gamemode: z.string(),
     difficulty: z.string(),
     maxPlayers: z
@@ -71,6 +72,7 @@ export function createWizardDefaults(
       name: '',
       memory: defaultMemoryGb,
       motd: 'A Minecraft Server',
+      seed: '',
       gamemode: 'survival',
       difficulty: 'normal',
       maxPlayers: '20',
