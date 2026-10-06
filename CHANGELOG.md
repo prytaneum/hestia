@@ -46,6 +46,12 @@ editor, a guided first run, and fixes for SteamOS and Windows.
   pick from a set of Minecraft-themed images, upload your own, or fetch one from
   a URL. A modpack's icon carries over to the entry it creates, and the library
   cards are redesigned around it.
+- **Recently played.** The play bar shows the last five worlds, servers and
+  Realms you joined, across every instance — one click launches straight back
+  into it. It fills in from what the game itself reports, so a server picked in
+  the in-game list counts too; it needs Minecraft 1.20 or newer. `hestia play
+  --recent` and `hestia instance recent` do the same from the CLI, and
+  `--realm <id>` joins a Realm on start.
 - **The tray now appears on every Linux desktop that has one**, SteamOS
   included. It reached the status area through libappindicator — a library most
   desktops do not ship — so where it was absent no icon appeared, and the daemon

@@ -31,7 +31,7 @@ servers/<dir>/                    instances/<dir>/
 ├── content.json    install index├── modpack.json     if from a pack
 ├── modpack.json    if from a pack├── mods/ resourcepacks/ shaderpacks/
 ├── mods/  plugins/ managed      ├── logs/session-N.log
-├── backups/                     │
+├── backups/                     ├── recent.json      what was joined lately
 └── data/           the game dir  └── data/            the game dir
     server.properties, eula.txt,      saves/, options.txt, config/,
     world/, logs/, libraries/,        screenshots/, logs/,
@@ -333,16 +333,34 @@ appear in the listing, so a failure yields the folder alone with `read: false`
 ## Joining directly
 
 A launch can name what the session should open: `InstanceLaunchParams.quickPlay`
-carries either a world folder or a server address, and the launch plan appends
-Minecraft's own `--quickPlaySingleplayer` / `--quickPlayMultiplayer`. One target
-or none — it is a variant, not two fields that every layer would have to
-cross-check.
+carries a world folder, a server address or a Realm id, and the launch plan
+appends Minecraft's own `--quickPlaySingleplayer` / `--quickPlayMultiplayer` /
+`--quickPlayRealms`. One target or none — it is a variant, not a field per kind
+that every layer would have to cross-check.
 
 The target is validated **before** anything is materialised: a game version older
 than 1.20 has no such arguments and is refused (`QuickPlayUnsupported`), as is a
-world folder that is not there or an address that does not parse. Refusing is the
-point — an ignored argument would drop the player at the title screen and call
-the launch a success ([0058](../decisions/0058-joining-directly-is-a-launch-parameter.md)).
+world folder that is not there, an address that does not parse, or a Realm id
+that is not a number. Refusing is the point — an ignored argument would drop the
+player at the title screen and call the launch a success
+([0058](../decisions/0058-joining-directly-is-a-launch-parameter.md)).
+
+## Recently played
+
+`instance.recent` answers the last five things joined across every instance,
+most recent first — each a `RecentPlay` naming the instance and the `QuickPlay`
+target that returns to it, with the display name, game mode, time and icon a
+front-end shows.
+
+The source is the game. Every 1.20+ launch passes `--quickPlayPath
+<entry>/logs/session-<seq>.quickplay.json`, and the client rewrites that file on
+each login with what it entered — whether the launch asked for a target or the
+player picked one in the menus. The file only ever holds the latest join, so the
+history is kept beside it: `engine.record_plays` folds each session's log into
+the instance's `recent.json` when the session exits, and again before the list
+is read. A target that can no longer be joined (a deleted world, an instance
+moved below 1.20) is left out of the list
+([0074](../decisions/0074-the-game-reports-what-was-played.md)).
 
 ## The multiplayer list
 
@@ -380,6 +398,7 @@ refused: the daemon cannot make the write durable, but it can say so
 - [0023 — An unfinished record says which kind of unfinished](../decisions/0023-server-phase-over-a-ready-bool.md)
 - [0025 — The properties schema is generated, not maintained](../decisions/0025-properties-schema-is-generated.md)
 - [0058 — Joining directly is a launch parameter, not a second launch path](../decisions/0058-joining-directly-is-a-launch-parameter.md)
+- [0074 — The game reports what was played; the launcher only keeps the history](../decisions/0074-the-game-reports-what-was-played.md)
 - [0038 — An instance runs many sessions; a server runs one](../decisions/0038-an-instance-runs-many-sessions.md)
 - [0039 — Per-session logs come from a generated Log4j2 config](../decisions/0039-per-session-log4j-config.md)
 - [0053 — Server provisioning is front-loaded by design](../decisions/0053-server-provisioning-is-front-loaded.md)

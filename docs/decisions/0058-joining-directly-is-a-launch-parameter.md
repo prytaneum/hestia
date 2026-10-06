@@ -23,17 +23,19 @@ any launch, because it *is* one.
 
 Three consequences worth writing down:
 
-- **The target is a variant, not two fields.** `QuickPlay::World(folder) |
-  Server(address)`. A launch cannot open a world *and* connect to a server, so
-  the type says so once rather than every layer re-checking a pair of options.
+- **The target is a variant, not a field per kind.** `QuickPlay::World(folder) |
+  Server(address) | Realm(id)`. A launch cannot open a world *and* connect to a
+  server, so the type says so once rather than every layer re-checking a set of
+  options. (`Realm` arrived with the recent list —
+  [0074](0074-the-game-reports-what-was-played.md).)
 - **A version that cannot honour it is refused.** The manifest declares these
   args behind feature rules that resolve to nothing here, so support is decided
   by version: below 1.20 (and for any version string that does not read as a
   release triple, such as a snapshot) the launch fails with
   `QuickPlayUnsupported`. The alternative — launch anyway, land on the title
   screen — reports success for something that did not happen.
-- **Validation happens before the work.** The world folder must exist and the
-  address must parse *before* Java, jars, libraries and assets are materialised.
+- **Validation happens before the work.** The world folder must exist, the
+  address must parse and a Realm id must be a number *before* Java, jars, libraries and assets are materialised.
   A typo should cost a moment, not a download.
 
 The multiplayer list came along with it, because a server target is only useful
