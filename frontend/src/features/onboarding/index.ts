@@ -9,8 +9,8 @@ export {
 export {
   anchor,
   type TourAnchor,
-  TourButton,
   type TourId,
   TourProvider,
+  useAutoTour,
   useTour,
 } from './tour';

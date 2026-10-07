@@ -46,7 +46,7 @@ export const tours: Record<TourId, readonly TourStep[]> = {
       body: m['onboarding.tour.browse.search.body'],
     },
     {
-      anchor: 'page-actions',
+      anchor: 'browse-kinds',
       title: m['onboarding.tour.browse.filters.title'],
       body: m['onboarding.tour.browse.filters.body'],
     },

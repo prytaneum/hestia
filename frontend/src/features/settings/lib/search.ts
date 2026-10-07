@@ -90,6 +90,16 @@ const INDEX: Entry[] = [
     ),
   },
   {
+    id: 'tutorial',
+    tab: 'general',
+    group: 'general',
+    text: text(
+      m['settings.tutorial.label'],
+      m['settings.tutorial.hint'],
+      m['settings.tutorial.replay'],
+    ),
+  },
+  {
     id: 'update',
     tab: 'general',
     group: 'updates',

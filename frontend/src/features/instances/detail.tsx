@@ -35,7 +35,7 @@ import {
   InstanceServersTab,
   InstanceSettingsTab,
 } from '@/features/instances/tabs';
-import { anchor, TourButton } from '@/features/onboarding';
+import { anchor, useAutoTour } from '@/features/onboarding';
 import {
   EntryIconMenu,
   EntryRunControl,
@@ -120,6 +120,7 @@ function InstanceDetail({
 }: DetailProps & { instance: Instance }) {
   const id = instance.id;
   const info = useQuery(instanceQueries.info(id));
+  useAutoTour('instance', Boolean(info.data));
   const config = useQuery(instanceQueries.config(id));
   const worlds = useQuery(instanceQueries.worlds(id));
   const [addingContent, setAddingContent] = useState(false);
@@ -197,7 +198,6 @@ function InstanceDetail({
         }
         actions={
           <span className="flex items-center gap-2" {...anchor('entry-run')}>
-            <TourButton id="instance" ready={Boolean(info.data)} />
             <Button
               variant="outline"
               size="icon"

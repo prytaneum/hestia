@@ -27,7 +27,7 @@
       "back": "Back",
       "browse": {
         "filters": {
-          "body": "One menu narrows by kind — mods, resource packs, shaders, data packs, modpacks — and by source. Modrinth works out of the box; CurseForge appears once you add an API key in Settings.",
+          "body": "The chips narrow by kind — mods, resource packs, shaders, data packs, modpacks. Modrinth works out of the box; CurseForge appears once you add an API key in Settings, with a filter beside the search to switch source.",
           "title": "Narrow it down"
         },
         "search": {
@@ -52,7 +52,6 @@
       },
       "next": "Next",
       "progress": "Step {current} of {total}",
-      "replay": "Show the tour for this page",
       "server": {
         "address": {
           "body": "The address and port your friends connect to, beside the loader and version it runs.",
@@ -122,7 +121,7 @@
       },
       "next": "Next",
       "ready": {
-        "body": "Take a short tour of the app, or dive straight in. You can replay it any time from the ? button on any page.",
+        "body": "Take a short tour of the app, or dive straight in. You can replay it any time from Settings.",
         "title": "Ready when you are"
       },
       "skip": "Skip",

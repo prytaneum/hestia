@@ -22,7 +22,7 @@ import { StatusDot } from '@/components/ui/status-dot';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { WarningNotice } from '@/components/warning-notice';
 import { ContentInstallDialog, serverTarget } from '@/features/content/install';
-import { anchor, TourButton } from '@/features/onboarding';
+import { anchor, useAutoTour } from '@/features/onboarding';
 import {
   ServerBackupsTab,
   ServerConsoleTab,
@@ -106,6 +106,7 @@ function ServerDetail({
 }: DetailProps & { server: Server }) {
   const id = server.id;
   const info = useQuery(serverQueries.info(id));
+  useAutoTour('server', Boolean(info.data));
   const config = useQuery(serverQueries.config(id));
   const [addingContent, setAddingContent] = useState(false);
   const start = useMutation(serverMutations.start(id));
@@ -162,7 +163,6 @@ function ServerDetail({
         }
         actions={
           <span className="flex items-center gap-2" {...anchor('entry-run')}>
-            <TourButton id="server" ready={Boolean(info.data)} />
             <Button
               variant="outline"
               size="icon"

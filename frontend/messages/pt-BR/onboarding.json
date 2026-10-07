@@ -27,7 +27,7 @@
       "back": "Voltar",
       "browse": {
         "filters": {
-          "body": "Um menu só filtra por tipo — mods, pacotes de recursos, shaders, data packs, modpacks — e por fonte. O Modrinth funciona de imediato; o CurseForge aparece assim que você adiciona uma chave de API nas Configurações.",
+          "body": "Os chips filtram por tipo — mods, pacotes de recursos, shaders, data packs, modpacks. O Modrinth funciona de imediato; o CurseForge aparece assim que você adiciona uma chave de API nas Configurações, com um filtro ao lado da busca para trocar de fonte.",
           "title": "Refine a busca"
         },
         "search": {
@@ -52,7 +52,6 @@
       },
       "next": "Avançar",
       "progress": "Passo {current} de {total}",
-      "replay": "Mostrar o tour desta página",
       "server": {
         "address": {
           "body": "O endereço e a porta que seus amigos usam para entrar, ao lado do loader e da versão em execução.",
@@ -122,7 +121,7 @@
       },
       "next": "Avançar",
       "ready": {
-        "body": "Faça um tour rápido pelo app, ou vá direto ao ponto. Dá para repetir quando quiser pelo botão ? em qualquer página.",
+        "body": "Faça um tour rápido pelo app, ou vá direto ao ponto. Dá para repetir quando quiser nas Configurações.",
         "title": "Quando você quiser"
       },
       "skip": "Pular",

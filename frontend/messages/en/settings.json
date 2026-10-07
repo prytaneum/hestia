@@ -111,6 +111,12 @@
       "java": "Java",
       "storage": "Storage"
     },
+    "tutorial": {
+      "hint": "Each page walks you through itself again the next time you open it.",
+      "label": "Tutorial",
+      "replay": "Replay tutorial",
+      "reset": "The tutorial will replay as you open each page"
+    },
     "update": {
       "available": "Version {version} is available",
       "channel_hint": "Beta builds arrive first and can be unstable. Switching back to stable waits for the next stable release to overtake the beta you are on.",

@@ -1,4 +1,13 @@
-import { Field, FieldDescription, FieldLabel } from '@/components/ui/field';
+import { ArrowCounterClockwiseIcon } from '@phosphor-icons/react';
+import { toast } from 'sonner';
+
+import { Button } from '@/components/ui/button';
+import {
+  Field,
+  FieldContent,
+  FieldDescription,
+  FieldLabel,
+} from '@/components/ui/field';
 import {
   Select,
   SelectContent,
@@ -7,6 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { useOnboarding } from '@/features/onboarding';
 import {
   SavedInput,
   Setting,
@@ -132,6 +142,10 @@ export function GeneralTab() {
             onChange={(checked) => commit('discord.enabled', checked)}
           />
         </Setting>
+
+        <Setting id="tutorial">
+          <TutorialField />
+        </Setting>
       </SettingsSection>
 
       <SettingsSection group="updates" legend={m['settings.update.title']()}>
@@ -144,6 +158,32 @@ export function GeneralTab() {
         </Setting>
       </SettingsSection>
     </>
+  );
+}
+
+function TutorialField() {
+  const onboarding = useOnboarding();
+  return (
+    <Field orientation="horizontal">
+      <FieldContent>
+        <FieldLabel className="font-normal">
+          {m['settings.tutorial.label']()}
+        </FieldLabel>
+        <FieldDescription>{m['settings.tutorial.hint']()}</FieldDescription>
+      </FieldContent>
+      <Button
+        variant="outline"
+        size="sm"
+        data-icon="inline-start"
+        onClick={() => {
+          onboarding.update({ seen: [] });
+          toast.success(m['settings.tutorial.reset']());
+        }}
+      >
+        <ArrowCounterClockwiseIcon />
+        {m['settings.tutorial.replay']()}
+      </Button>
+    </Field>
   );
 }
 

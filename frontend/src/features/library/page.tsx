@@ -20,7 +20,7 @@ import {
   useLaunchDialog,
 } from '@/features/instances/dialogs';
 import { useArchiveDrop, useOpenedArchive } from '@/features/instances/hooks';
-import { anchor, GettingStarted, TourButton } from '@/features/onboarding';
+import { anchor, GettingStarted, useAutoTour } from '@/features/onboarding';
 import type { EntryCardModel } from '@/features/shared/entry/components';
 import {
   EntryCollection,
@@ -145,6 +145,7 @@ export function LibraryPage({
 
   const loading =
     !ready || servers.isPending || (signedIn && instances.isPending);
+  useAutoTour('shell', !loading);
 
   return (
     <Page
@@ -161,7 +162,6 @@ export function LibraryPage({
       searchPlaceholder={m['app.search.library']()}
       actions={
         <>
-          <TourButton id="shell" ready={!loading} />
           <ViewToggle view={view} onView={onViewChange} />
           <DropdownMenu>
             <DropdownMenuTrigger

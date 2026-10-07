@@ -17,7 +17,7 @@ import {
   useSourceOptions,
 } from '@/features/content/components';
 import { mergeHits } from '@/features/content/lib';
-import { TourButton } from '@/features/onboarding';
+import { anchor, useAutoTour } from '@/features/onboarding';
 import { KindChips } from '@/features/shared/content/components';
 import { contentKinds, kindInfo } from '@/features/shared/content/lib';
 import { m } from '@/paraglide/messages.js';
@@ -38,6 +38,7 @@ export function BrowsePage({
   const { query } = useSearch();
   const q = query.trim();
   const offline = useOffline();
+  useAutoTour('browse');
   const sources = useSourceOptions(kind, source);
   // The default source is the absence of the param, not an empty one.
   const sourceParam = source ? { source } : {};
@@ -82,26 +83,20 @@ export function BrowsePage({
       search
       searchPlaceholder={m['app.search.content_or_link']()}
       actions={
-        <>
-          <TourButton id="browse" />
-          <FilterMenu
-            groups={[
-              sourceGroup(sources.list, sources.active, (next) =>
-                onSourceChange?.(next),
-              ),
-            ]}
-          />
-        </>
+        <FilterMenu
+          groups={[
+            sourceGroup(sources.list, sources.active, (next) =>
+              onSourceChange?.(next),
+            ),
+          ]}
+        />
       }
       skeleton={<CardGridSkeleton grid={GRID} count={8} card="h-24" />}
     >
       <div className="flex h-full flex-col">
-        <KindChips
-          kinds={contentKinds}
-          kind={kind}
-          onKindChange={goToKind}
-          className="mb-5 shrink-0"
-        />
+        <div className="mb-5 shrink-0" {...anchor('browse-kinds')}>
+          <KindChips kinds={contentKinds} kind={kind} onKindChange={goToKind} />
+        </div>
         <div className="min-h-0 flex-1">
           {offline ? (
             <OfflineState />

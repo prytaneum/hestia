@@ -111,6 +111,12 @@
       "java": "Java",
       "storage": "Armazenamento"
     },
+    "tutorial": {
+      "hint": "Cada página apresenta o seu tour de novo na próxima vez que você a abrir.",
+      "label": "Tutorial",
+      "replay": "Repetir tutorial",
+      "reset": "O tutorial será repetido conforme você abrir cada página"
+    },
     "update": {
       "available": "A versão {version} está disponível",
       "channel_hint": "As versões beta chegam primeiro e podem ser instáveis. Ao voltar para o estável, é preciso esperar o próximo lançamento estável ultrapassar a beta em uso.",

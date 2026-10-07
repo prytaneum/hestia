@@ -9,7 +9,7 @@ import { Page, Section } from '@/components/page';
 import { SignInGate } from '@/components/sign-in-gate';
 import { Button } from '@/components/ui/button';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
-import { anchor, TourButton } from '@/features/onboarding';
+import { anchor, useAutoTour } from '@/features/onboarding';
 import {
   CapeCard,
   CapeGrid,
@@ -33,6 +33,7 @@ export function SkinsPage() {
   const { signedIn, isPending: accountsPending } = useAccounts();
   const offline = useOffline();
   const list = useQuery({ ...skinQueries.list(''), enabled: signedIn });
+  useAutoTour('skins', signedIn && !list.isPending);
 
   const add = useMutation(skinMutations.add());
   const update = useMutation(skinMutations.update());
@@ -235,7 +236,6 @@ export function SkinsPage() {
       loading={accountsPending || (signedIn && list.isPending)}
       actions={
         <>
-          <TourButton id="skins" ready={signedIn && !list.isPending} />
           <input
             ref={fileRef}
             type="file"

@@ -5,6 +5,7 @@ export type TourAnchor =
   | 'play-bar'
   | 'page-search'
   | 'page-actions'
+  | 'browse-kinds'
   | 'library-new'
   | 'entry-run'
   | 'instance-content'
