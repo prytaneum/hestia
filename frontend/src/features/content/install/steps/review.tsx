@@ -122,14 +122,18 @@ function FileReviewRow({
   return (
     <div className="flex items-center justify-between gap-4 px-3 py-2 text-sm">
       <div className="min-w-0">
-        <span className="block truncate">{file.filename}</span>
+        <span className="block truncate">
+          {file.project?.title ?? file.filename}
+        </span>
         <span className="block truncate text-[11px] text-muted-foreground">
+          {file.project && `${file.versionNumber} · `}
           {file.kind
             ? m['content.install_to']({ dir: installDir(file.kind) })
             : m['content.choose_type']()}
         </span>
       </div>
       <div className="flex shrink-0 items-center gap-2">
+        {file.project && <SourceBadge source={file.project.source} />}
         <KindPicker kinds={kinds} value={file.kind} onChange={onSetKind} />
         <RemoveButton onClick={onRemove} />
       </div>

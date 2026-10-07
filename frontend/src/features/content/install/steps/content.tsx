@@ -233,6 +233,8 @@ function FileImportButton({
           detected: r.kind,
           valid: r.valid,
           reason: r.reason,
+          project: r.project,
+          versionNumber: r.versionNumber,
         };
       }),
     );

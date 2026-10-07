@@ -29,8 +29,8 @@
       "target": "Choose where this content is installed.",
       "worlds": "Choose the worlds to add this datapack to."
     },
-    "import_file": "Drop a local file, or click to choose one",
-    "import_file_hint": "Installs as-is — no updates or dependency resolution.",
+    "import_file": "Drop local files, or click to choose",
+    "import_file_hint": "Recognized files stay updatable; dependencies are not installed.",
     "install_title": "Install {name}",
     "install_to": "Installs to {dir}",
     "installed": "Installed",

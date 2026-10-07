@@ -1,6 +1,11 @@
 import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
-import type { ContentKind, InstanceInfo, ServerInfo } from '@/api';
+import type {
+  ContentKind,
+  ContentProject,
+  InstanceInfo,
+  ServerInfo,
+} from '@/api';
 import { m } from '@/paraglide/messages.js';
 import { instanceQueries, useInstances } from '@/queries/instance';
 import { serverQueries, useServers } from '@/queries/server';
@@ -58,6 +63,9 @@ export interface PickedFile {
   detected?: ContentKind;
   valid: boolean;
   reason: string;
+  /** Set when a source recognises the file; it then installs tracked. */
+  project?: ContentProject;
+  versionNumber?: string;
 }
 
 export const fileName = (path: string) => path.split(/[\\/]/).pop() ?? path;
