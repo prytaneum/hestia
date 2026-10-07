@@ -12,13 +12,12 @@ import { toast } from 'sonner';
 import type { ContentKind, InstalledContent, UntrackedFile } from '@/api';
 import { errorMessage, system } from '@/api';
 import { Empty } from '@/components/empty';
-import { FilterMenu } from '@/components/filter-menu';
 import { contentIcon } from '@/components/icons';
 import { OfflineNotice } from '@/components/offline-state';
 import { SearchInput } from '@/components/search-input';
 import { Button } from '@/components/ui/button';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
-import { kindGroup } from '@/features/shared/content/components';
+import { KindChips } from '@/features/shared/content/components';
 import { kindInfo } from '@/features/shared/content/lib';
 import { m } from '@/paraglide/messages.js';
 import { instanceMutations, instanceQueries } from '@/queries/instance';
@@ -213,22 +212,12 @@ function ContentSectionView({
 
   return (
     <>
-      <div className="mb-5 flex items-center gap-2">
+      <div className="mb-3 flex items-center gap-2">
         <SearchInput
           value={search}
           onChange={changeSearch}
           placeholder={m['app.search.content']()}
           className="w-56"
-        />
-        <FilterMenu
-          groups={[
-            kindGroup({
-              kinds,
-              kind,
-              onKindChange: changeKind,
-              count: (k) => items.filter((c) => c.kind === k).length,
-            }),
-          ]}
         />
         <div className="ml-auto">
           {selected ? (
@@ -309,6 +298,13 @@ function ContentSectionView({
           )}
         </div>
       </div>
+      <KindChips
+        kinds={kinds}
+        kind={kind}
+        onKindChange={changeKind}
+        count={(k) => items.filter((c) => c.kind === k).length}
+        className="mb-5"
+      />
       {filtered.length === 0 && search.trim() ? (
         <Empty className="flex-1" icon={MagnifyingGlassIcon}>
           {m['content.browse.nothing_matches']()}

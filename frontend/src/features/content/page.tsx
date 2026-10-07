@@ -18,7 +18,7 @@ import {
 } from '@/features/content/components';
 import { mergeHits } from '@/features/content/lib';
 import { TourButton } from '@/features/onboarding';
-import { kindGroup } from '@/features/shared/content/components';
+import { KindChips } from '@/features/shared/content/components';
 import { contentKinds, kindInfo } from '@/features/shared/content/lib';
 import { m } from '@/paraglide/messages.js';
 import { contentQueries, isContentUrl } from '@/queries/content';
@@ -86,11 +86,6 @@ export function BrowsePage({
           <TourButton id="browse" />
           <FilterMenu
             groups={[
-              kindGroup({
-                kinds: contentKinds,
-                kind,
-                onKindChange: goToKind,
-              }),
               sourceGroup(sources.list, sources.active, (next) =>
                 onSourceChange?.(next),
               ),
@@ -100,37 +95,47 @@ export function BrowsePage({
       }
       skeleton={<CardGridSkeleton grid={GRID} count={8} card="h-24" />}
     >
-      {offline ? (
-        <OfflineState />
-      ) : url ? (
-        link.isPending ? (
-          <CardGridSkeleton grid={GRID} count={1} card="h-24" />
-        ) : link.data ? (
-          <div className={GRID}>
-            <ContentCard
-              project={link.data.project}
-              pinnedVersion={link.data.versionId || undefined}
-            />
-          </div>
-        ) : (
-          <Empty icon={WarningCircleIcon} tone="destructive">
-            {errorMessage(link.error)}
-          </Empty>
-        )
-      ) : search.isPending ? (
-        <CardGridSkeleton grid={GRID} count={8} card="h-24" />
-      ) : hits.length === 0 ? (
-        <Empty icon={MagnifyingGlassIcon}>
-          {m['content.browse.nothing_matches']()}
-        </Empty>
-      ) : (
-        <ResultGrid
-          hits={hits}
-          hasMore={hasNextPage}
-          loadingMore={isFetchingNextPage}
-          onReachEnd={growFeed}
+      <div className="flex h-full flex-col">
+        <KindChips
+          kinds={contentKinds}
+          kind={kind}
+          onKindChange={goToKind}
+          className="mb-5 shrink-0"
         />
-      )}
+        <div className="min-h-0 flex-1">
+          {offline ? (
+            <OfflineState />
+          ) : url ? (
+            link.isPending ? (
+              <CardGridSkeleton grid={GRID} count={1} card="h-24" />
+            ) : link.data ? (
+              <div className={GRID}>
+                <ContentCard
+                  project={link.data.project}
+                  pinnedVersion={link.data.versionId || undefined}
+                />
+              </div>
+            ) : (
+              <Empty icon={WarningCircleIcon} tone="destructive">
+                {errorMessage(link.error)}
+              </Empty>
+            )
+          ) : search.isPending ? (
+            <CardGridSkeleton grid={GRID} count={8} card="h-24" />
+          ) : hits.length === 0 ? (
+            <Empty icon={MagnifyingGlassIcon}>
+              {m['content.browse.nothing_matches']()}
+            </Empty>
+          ) : (
+            <ResultGrid
+              hits={hits}
+              hasMore={hasNextPage}
+              loadingMore={isFetchingNextPage}
+              onReachEnd={growFeed}
+            />
+          )}
+        </div>
+      </div>
     </Page>
   );
 }

@@ -20,7 +20,7 @@ import {
   useSourceOptions,
 } from '@/features/content/components';
 import {
-  kindGroup,
+  KindChips,
   PickRow,
   PickRowSkeleton,
 } from '@/features/shared/content/components';
@@ -98,20 +98,21 @@ export function ContentStep({
             trailing={
               <FilterMenu
                 groups={[
-                  kinds.length > 1
-                    ? kindGroup({
-                        kinds,
-                        kind: activeKind,
-                        onKindChange: (next) => next && onKindChange(next),
-                        disabled: datapackBlocked,
-                        all: false,
-                      })
-                    : undefined,
                   sourceGroup(sources.list, sources.active, onSourceChange),
                 ]}
               />
             }
           />
+          {kinds.length > 1 && (
+            <KindChips
+              kinds={kinds}
+              kind={activeKind}
+              onKindChange={(next) => next && onKindChange(next)}
+              disabled={datapackBlocked}
+              all={false}
+              className="mb-3"
+            />
+          )}
 
           <FileImportButton onFiles={onAddFiles} />
         </>

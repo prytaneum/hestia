@@ -12,7 +12,7 @@ export function FilterBar({
   search: string;
   onSearch: (v: string) => void;
   placeholder: string;
-  /** A filter control beside the search field (the kind/source menu). */
+  /** A filter control beside the search field (the source menu). */
   trailing?: ReactNode;
 }) {
   return (
