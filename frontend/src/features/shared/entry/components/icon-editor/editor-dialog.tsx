@@ -18,15 +18,8 @@ import { useEffect, useMemo, useState } from 'react';
 
 import { dialog } from '@/api';
 import { type IconConfig, iconUrl } from '@/api/icons';
+import { AppDialog, DialogFooter } from '@/components/dialog';
 import { Button } from '@/components/ui/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
 import { Spinner } from '@/components/ui/spinner';
 import { cn } from '@/lib/utils';
 import { m } from '@/paraglide/messages.js';
@@ -177,162 +170,157 @@ export function IconEditorDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-3xl">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <PencilIcon className="size-4" />
-            {m['entry.icon.editor.title']()}
-          </DialogTitle>
-          <DialogDescription>
-            {m['entry.icon.editor.description']()}
-          </DialogDescription>
-        </DialogHeader>
+    <AppDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      size="2xl"
+      icon={PencilIcon}
+      title={m['entry.icon.editor.title']()}
+      description={m['entry.icon.editor.description']()}
+    >
+      <div className="flex max-h-[30rem] min-h-0 flex-1 gap-4 overflow-hidden">
+        <aside className="flex w-44 shrink-0 flex-col gap-3 overflow-y-auto">
+          <IconPreview
+            config={config}
+            customUrl={customUrl}
+            className="size-32 self-center"
+          />
 
-        <div className="flex min-h-0 max-h-[min(30rem,calc(100dvh-13rem))] gap-4 overflow-hidden">
-          <aside className="flex w-44 shrink-0 flex-col gap-3 overflow-y-auto">
-            <IconPreview
-              config={config}
-              customUrl={customUrl}
-              className="size-32 self-center"
-            />
-
-            <Button
-              type="button"
-              variant="outline"
-              className="w-full"
-              data-icon="inline-start"
-              onClick={applyRandom}
-            >
-              <ArrowsClockwiseIcon />
-              {m['entry.icon.editor.randomize']()}
-            </Button>
-
-            {entryId && (
-              <>
-                <div className="flex flex-col gap-2">
-                  <span className="text-xs font-medium">
-                    {m['entry.icon.editor.image']()}
-                  </span>
-                  <div className="flex items-center gap-2">
-                    {customUrl && (
-                      <img
-                        src={customUrl}
-                        alt=""
-                        className="size-8 shrink-0 object-cover ring-1 ring-border"
-                      />
-                    )}
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="flex-1"
-                      data-icon="inline-start"
-                      onClick={pickCustomImage}
-                    >
-                      <ImageIcon />
-                      {m['entry.icon.editor.pick_image']()}
-                    </Button>
-                  </div>
-                </div>
-
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="w-full"
-                  data-icon="inline-start"
-                  onClick={resetIcon}
-                  disabled={saving}
-                >
-                  <TrashIcon />
-                  {m['entry.icon.reset']()}
-                </Button>
-              </>
-            )}
-          </aside>
-
-          <div className="min-w-0 flex-1 overflow-y-auto">
-            <section className="mb-6">
-              <h3 className="mb-2 text-xs font-medium">
-                {m['entry.icon.editor.background']()}
-              </h3>
-              <div className="grid grid-cols-6 gap-2">
-                {backgroundOptions.map((option) => (
-                  <IconOptionTile
-                    key={option.id}
-                    selected={backgroundId === option.id}
-                    onSelect={() => {
-                      setCustomPath(null);
-                      setCustomUrl(null);
-                      setBackgroundId(option.id);
-                    }}
-                    label={option.name()}
-                    style={backgroundStyle(option.background)}
-                  />
-                ))}
-              </div>
-            </section>
-
-            <section>
-              <h3 className="mb-2 text-xs font-medium">
-                {m['entry.icon.editor.symbol']()}
-              </h3>
-              <div className="flex flex-col gap-4">
-                {symbolCategories.map((category) => (
-                  <div key={category}>
-                    <p className="mb-2 text-[10px] font-semibold tracking-wide text-muted-foreground uppercase">
-                      {categoryLabel(category)}
-                    </p>
-                    <div className="grid grid-cols-6 gap-2">
-                      {symbolOptions
-                        .filter((option) => option.category === category)
-                        .map((option) => (
-                          <IconOptionTile
-                            key={option.id}
-                            selected={symbolId === option.id}
-                            onSelect={() => {
-                              setCustomPath(null);
-                              setCustomUrl(null);
-                              setSymbolId(option.id);
-                            }}
-                            label={option.name()}
-                            className="bg-muted/50"
-                          >
-                            <img
-                              src={option.asset}
-                              alt=""
-                              className="size-full object-cover"
-                            />
-                          </IconOptionTile>
-                        ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </section>
-          </div>
-        </div>
-
-        <DialogFooter>
           <Button
             type="button"
             variant="outline"
-            onClick={() => onOpenChange(false)}
-            disabled={saving}
+            className="w-full"
+            data-icon="inline-start"
+            onClick={applyRandom}
           >
-            {m['app.action.cancel']()}
+            <ArrowsClockwiseIcon />
+            {m['entry.icon.editor.randomize']()}
           </Button>
-          <Button
-            type="button"
-            className="bg-ember text-ember-foreground hover:bg-ember/90"
-            onClick={saveIcon}
-            disabled={saving}
-          >
-            {saving ? <Spinner /> : null}
-            {m['entry.icon.editor.save']()}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+
+          {entryId && (
+            <>
+              <div className="flex flex-col gap-2">
+                <span className="text-xs font-medium">
+                  {m['entry.icon.editor.image']()}
+                </span>
+                <div className="flex items-center gap-2">
+                  {customUrl && (
+                    <img
+                      src={customUrl}
+                      alt=""
+                      className="size-8 shrink-0 object-cover ring-1 ring-border"
+                    />
+                  )}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="flex-1"
+                    data-icon="inline-start"
+                    onClick={pickCustomImage}
+                  >
+                    <ImageIcon />
+                    {m['entry.icon.editor.pick_image']()}
+                  </Button>
+                </div>
+              </div>
+
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full"
+                data-icon="inline-start"
+                onClick={resetIcon}
+                disabled={saving}
+              >
+                <TrashIcon />
+                {m['entry.icon.reset']()}
+              </Button>
+            </>
+          )}
+        </aside>
+
+        <div className="min-w-0 flex-1 overflow-y-auto">
+          <section className="mb-6">
+            <h3 className="mb-2 text-xs font-medium">
+              {m['entry.icon.editor.background']()}
+            </h3>
+            <div className="grid grid-cols-6 gap-2">
+              {backgroundOptions.map((option) => (
+                <IconOptionTile
+                  key={option.id}
+                  selected={backgroundId === option.id}
+                  onSelect={() => {
+                    setCustomPath(null);
+                    setCustomUrl(null);
+                    setBackgroundId(option.id);
+                  }}
+                  label={option.name()}
+                  style={backgroundStyle(option.background)}
+                />
+              ))}
+            </div>
+          </section>
+
+          <section>
+            <h3 className="mb-2 text-xs font-medium">
+              {m['entry.icon.editor.symbol']()}
+            </h3>
+            <div className="flex flex-col gap-4">
+              {symbolCategories.map((category) => (
+                <div key={category}>
+                  <p className="mb-2 text-[10px] font-semibold tracking-wide text-muted-foreground uppercase">
+                    {categoryLabel(category)}
+                  </p>
+                  <div className="grid grid-cols-6 gap-2">
+                    {symbolOptions
+                      .filter((option) => option.category === category)
+                      .map((option) => (
+                        <IconOptionTile
+                          key={option.id}
+                          selected={symbolId === option.id}
+                          onSelect={() => {
+                            setCustomPath(null);
+                            setCustomUrl(null);
+                            setSymbolId(option.id);
+                          }}
+                          label={option.name()}
+                          className="bg-muted/50"
+                        >
+                          <img
+                            src={option.asset}
+                            alt=""
+                            className="size-full object-cover"
+                          />
+                        </IconOptionTile>
+                      ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        </div>
+      </div>
+
+      <DialogFooter>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => onOpenChange(false)}
+          disabled={saving}
+        >
+          {m['app.action.cancel']()}
+        </Button>
+        <Button
+          type="button"
+          className="bg-ember text-ember-foreground hover:bg-ember/90"
+          onClick={saveIcon}
+          disabled={saving}
+        >
+          {saving ? <Spinner /> : null}
+          {m['entry.icon.editor.save']()}
+        </Button>
+      </DialogFooter>
+    </AppDialog>
   );
 }
 

@@ -2,16 +2,9 @@ import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
 import { type ContentProject, errorMessage } from '@/api';
+import { AppDialog, DialogBody, DialogFooter } from '@/components/dialog';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
 import { Field, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import {
@@ -113,36 +106,53 @@ export function ModpackInstallDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle>
-            {m['content.install_title']({ name: project.title })}
-          </DialogTitle>
-          <DialogDescription>
-            {m['content.modpack.target.label']()}
-          </DialogDescription>
-        </DialogHeader>
+    <AppDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      size="lg"
+      title={m['content.install_title']({ name: project.title })}
+      description={m['content.modpack.target.label']()}
+    >
+      {install.progress ? (
+        <ProvisionProgressView
+          progress={install.progress}
+          className="min-h-72"
+        />
+      ) : (
+        <DialogBody className="space-y-4">
+          <Field>
+            <FieldLabel>{m['content.modpack.target.label']()}</FieldLabel>
+            <Select
+              items={modes}
+              value={mode}
+              onValueChange={(v) => setMode(v as Mode)}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {modes.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
 
-        {install.progress ? (
-          <ProvisionProgressView
-            progress={install.progress}
-            className="min-h-72"
-          />
-        ) : (
-          <div className="space-y-4">
+          {mode === 'existing' ? (
             <Field>
-              <FieldLabel>{m['content.modpack.target.label']()}</FieldLabel>
+              <FieldLabel>{m['content.modpack.target.existing']()}</FieldLabel>
               <Select
-                items={modes}
-                value={mode}
-                onValueChange={(v) => setMode(v as Mode)}
+                items={entryOptions}
+                value={entry}
+                onValueChange={(value) => setEntry(value ?? '')}
               >
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {modes.map((option) => (
+                  {entryOptions.map((option) => (
                     <SelectItem key={option.value} value={option.value}>
                       {option.label}
                     </SelectItem>
@@ -150,69 +160,45 @@ export function ModpackInstallDialog({
                 </SelectContent>
               </Select>
             </Field>
+          ) : (
+            <Field>
+              <FieldLabel>{m['app.label.name']()}</FieldLabel>
+              <Input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder={m['content.modpack.name_placeholder']()}
+              />
+            </Field>
+          )}
 
-            {mode === 'existing' ? (
-              <Field>
-                <FieldLabel>
-                  {m['content.modpack.target.existing']()}
-                </FieldLabel>
-                <Select
-                  items={entryOptions}
-                  value={entry}
-                  onValueChange={(value) => setEntry(value ?? '')}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {entryOptions.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </Field>
-            ) : (
-              <Field>
-                <FieldLabel>{m['app.label.name']()}</FieldLabel>
-                <Input
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder={m['content.modpack.name_placeholder']()}
-                />
-              </Field>
-            )}
+          {mode === 'server' && (
+            <label
+              htmlFor="modpack-eula"
+              className="flex cursor-pointer items-start gap-2 text-xs"
+            >
+              <Checkbox
+                id="modpack-eula"
+                checked={eula}
+                onCheckedChange={(v) => setEula(v === true)}
+              />
+              <span>{m['app.validation.eula']()}</span>
+            </label>
+          )}
+        </DialogBody>
+      )}
 
-            {mode === 'server' && (
-              <label
-                htmlFor="modpack-eula"
-                className="flex cursor-pointer items-start gap-2 text-xs"
-              >
-                <Checkbox
-                  id="modpack-eula"
-                  checked={eula}
-                  onCheckedChange={(v) => setEula(v === true)}
-                />
-                <span>{m['app.validation.eula']()}</span>
-              </label>
-            )}
-          </div>
-        )}
-
-        <DialogFooter>
-          <Button
-            variant="ghost"
-            onClick={() => onOpenChange(false)}
-            disabled={install.isPending}
-          >
-            {m['app.action.cancel']()}
-          </Button>
-          <Button onClick={run} disabled={!ready || install.isPending}>
-            {m['app.action.install']()}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+      <DialogFooter>
+        <Button
+          variant="ghost"
+          onClick={() => onOpenChange(false)}
+          disabled={install.isPending}
+        >
+          {m['app.action.cancel']()}
+        </Button>
+        <Button onClick={run} disabled={!ready || install.isPending}>
+          {m['app.action.install']()}
+        </Button>
+      </DialogFooter>
+    </AppDialog>
   );
 }

@@ -1,5 +1,6 @@
 import { Dialog as DialogPrimitive } from '@base-ui/react/dialog';
 import { XIcon } from '@phosphor-icons/react';
+import { cva, type VariantProps } from 'class-variance-authority';
 import type * as React from 'react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -37,23 +38,51 @@ function DialogOverlay({
   );
 }
 
+/**
+ * The one definition of a dialog's box, shared with `AlertDialogContent`: a
+ * flex column that never outgrows the window and never shrinks below a readable
+ * width. `size` is the width; `height: 'tall'` pins the height so a stepped
+ * dialog does not resize between steps.
+ */
+const dialogContentVariants = cva(
+  'fixed top-1/2 left-1/2 z-50 flex max-h-[calc(100dvh-2rem)] w-full min-w-80 max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 flex-col gap-4 overflow-y-auto rounded-none bg-popover p-4 text-xs/relaxed text-popover-foreground ring-1 ring-foreground/10 duration-100 outline-none data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95',
+  {
+    variants: {
+      size: {
+        sm: 'sm:max-w-sm',
+        md: 'sm:max-w-md',
+        lg: 'sm:max-w-lg',
+        xl: 'sm:max-w-2xl',
+        '2xl': 'sm:max-w-3xl',
+      },
+      height: {
+        auto: '',
+        tall: 'h-[40rem]',
+      },
+    },
+    defaultVariants: { size: 'sm', height: 'auto' },
+  },
+);
+
+type DialogContentVariants = VariantProps<typeof dialogContentVariants>;
+
 function DialogContent({
   className,
   children,
+  size,
+  height,
   showCloseButton = true,
   ...props
-}: DialogPrimitive.Popup.Props & {
-  showCloseButton?: boolean;
-}) {
+}: DialogPrimitive.Popup.Props &
+  DialogContentVariants & {
+    showCloseButton?: boolean;
+  }) {
   return (
     <DialogPortal>
       <DialogOverlay />
       <DialogPrimitive.Popup
         data-slot="dialog-content"
-        className={cn(
-          'fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-none bg-popover p-4 text-xs/relaxed text-popover-foreground ring-1 ring-foreground/10 duration-100 outline-none sm:max-w-sm data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95',
-          className,
-        )}
+        className={cn(dialogContentVariants({ size, height }), className)}
         {...props}
       >
         {children}
@@ -77,11 +106,30 @@ function DialogContent({
   );
 }
 
+/**
+ * The region of a dialog that scrolls. It takes whatever height the header and
+ * footer leave, so those stay in view however long the content is. The padding
+ * and its matching negative margin keep a focus ring at the edge from being
+ * clipped by the scroll container.
+ */
+function DialogBody({ className, ...props }: React.ComponentProps<'div'>) {
+  return (
+    <div
+      data-slot="dialog-body"
+      className={cn(
+        '-m-1 min-h-0 flex-1 overflow-x-hidden overflow-y-auto p-1',
+        className,
+      )}
+      {...props}
+    />
+  );
+}
+
 function DialogHeader({ className, ...props }: React.ComponentProps<'div'>) {
   return (
     <div
       data-slot="dialog-header"
-      className={cn('flex flex-col gap-1 text-left', className)}
+      className={cn('flex shrink-0 flex-col gap-1 text-left', className)}
       {...props}
     />
   );
@@ -99,7 +147,7 @@ function DialogFooter({
     <div
       data-slot="dialog-footer"
       className={cn(
-        'flex flex-col-reverse gap-2 sm:flex-row sm:justify-end',
+        'flex shrink-0 flex-col-reverse gap-2 sm:flex-row sm:justify-end',
         className,
       )}
       {...props}
@@ -142,8 +190,10 @@ function DialogDescription({
 
 export {
   Dialog,
+  DialogBody,
   DialogClose,
   DialogContent,
+  type DialogContentVariants,
   DialogDescription,
   DialogFooter,
   DialogHeader,
@@ -151,4 +201,5 @@ export {
   DialogPortal,
   DialogTitle,
   DialogTrigger,
+  dialogContentVariants,
 };

@@ -4,17 +4,10 @@ import { useState } from 'react';
 import { z } from 'zod';
 
 import type { SyncUnit } from '@/api';
+import { AppDialog, DialogFooter } from '@/components/dialog';
 import { useAppForm } from '@/components/form';
 import { Bone } from '@/components/skeleton';
 import { Button } from '@/components/ui/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
 import { Field, FieldDescription, FieldLabel } from '@/components/ui/field';
 import { Switch } from '@/components/ui/switch';
 import { Setting } from '@/features/settings/components';
@@ -121,59 +114,55 @@ function SourcePicker({
   };
 
   return (
-    <Dialog open={unit !== null} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>{m['settings.sync.source.title']()}</DialogTitle>
-          <DialogDescription>
-            {m['settings.sync.source.description']()}
-          </DialogDescription>
-        </DialogHeader>
-
-        {sources.isPending ? (
-          <Bone className="h-24" />
-        ) : candidates.length === 0 ? (
-          <div className="flex flex-col gap-3">
-            <FieldDescription>
-              {m['settings.sync.source.none']()}
-            </FieldDescription>
-            <DialogFooter>
-              <Button onClick={startEmpty} disabled={enable.isPending}>
-                {m['settings.sync.source.empty_action']()}
-              </Button>
-            </DialogFooter>
-          </div>
-        ) : (
-          <form
-            onSubmit={(event) => {
-              event.preventDefault();
-              event.stopPropagation();
-              form.handleSubmit();
-            }}
-          >
-            <form.AppField name="source">
-              {(field) => (
-                <field.SelectField
-                  label={m['settings.sync.source.label']()}
-                  placeholder={m['settings.sync.source.placeholder']()}
-                  options={candidates.map((source) => ({
-                    value: source.name,
-                    label: source.name,
-                  }))}
-                />
-              )}
-            </form.AppField>
-            <DialogFooter className="mt-4">
-              <form.AppForm>
-                <form.SubmitButton>
-                  {m['settings.sync.source.action']()}
-                </form.SubmitButton>
-              </form.AppForm>
-            </DialogFooter>
-          </form>
-        )}
-      </DialogContent>
-    </Dialog>
+    <AppDialog
+      open={unit !== null}
+      onOpenChange={(open) => !open && onClose()}
+      title={m['settings.sync.source.title']()}
+      description={m['settings.sync.source.description']()}
+    >
+      {sources.isPending ? (
+        <Bone className="h-24" />
+      ) : candidates.length === 0 ? (
+        <div className="flex flex-col gap-3">
+          <FieldDescription>
+            {m['settings.sync.source.none']()}
+          </FieldDescription>
+          <DialogFooter>
+            <Button onClick={startEmpty} disabled={enable.isPending}>
+              {m['settings.sync.source.empty_action']()}
+            </Button>
+          </DialogFooter>
+        </div>
+      ) : (
+        <form
+          onSubmit={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            form.handleSubmit();
+          }}
+        >
+          <form.AppField name="source">
+            {(field) => (
+              <field.SelectField
+                label={m['settings.sync.source.label']()}
+                placeholder={m['settings.sync.source.placeholder']()}
+                options={candidates.map((source) => ({
+                  value: source.name,
+                  label: source.name,
+                }))}
+              />
+            )}
+          </form.AppField>
+          <DialogFooter className="mt-4">
+            <form.AppForm>
+              <form.SubmitButton>
+                {m['settings.sync.source.action']()}
+              </form.SubmitButton>
+            </form.AppForm>
+          </DialogFooter>
+        </form>
+      )}
+    </AppDialog>
   );
 }
 

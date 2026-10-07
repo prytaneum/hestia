@@ -104,7 +104,7 @@ export function VersionStep({
             field.state.meta.isTouched && field.state.meta.errors.length > 0;
           return (
             <div className="flex flex-col gap-1.5">
-              <div className="max-h-52 divide-y divide-border overflow-y-auto border border-border">
+              <div className="max-h-80 divide-y divide-border overflow-y-auto border border-border">
                 {list.length === 0 ? (
                   <p className="px-3 py-6 text-center text-xs text-muted-foreground">
                     {versionsQuery.isPending

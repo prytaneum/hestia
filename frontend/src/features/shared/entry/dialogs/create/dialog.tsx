@@ -9,18 +9,11 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
 import type { ConfigEntry, Flavor } from '@/api';
+import { AppDialog, DialogFooter } from '@/components/dialog';
 import { useAppForm } from '@/components/form';
 import { entryIcon } from '@/components/icons';
 import { StepDots } from '@/components/step-dots';
 import { Button } from '@/components/ui/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
 import { ProvisionProgressView } from '@/features/shared/entry/components';
 import {
   randomIconConfig,
@@ -208,123 +201,121 @@ export function CreateEntryDialog({
   );
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Icon className="size-4.5 text-muted-foreground" />
-            {kind === 'server' ? m['server.new']() : m['instance.new']()}
-          </DialogTitle>
-          <DialogDescription>
-            {creating
-              ? kind === 'server'
-                ? m['entry.create.provisioning_server']()
-                : m['entry.create.provisioning_instance']()
-              : STEP_HINTS[step](kind)}
-          </DialogDescription>
-        </DialogHeader>
-
-        {creating ? (
-          <ProvisionProgressView
-            progress={progress}
-            indeterminate={kind === 'instance'}
-            className="min-h-72"
-          />
-        ) : step === 'flavor' ? (
-          <form.FormGroup
-            name="flavor"
-            validators={{ onDynamic: flavorStepSchema() }}
-            onGroupSubmit={() => setStep('version')}
-          >
-            {(group) => (
-              <StepForm onSubmit={group.handleSubmit} footer={nav}>
-                <form.AppField name="flavor.flavor">
-                  {(field) => (
-                    <div className="grid gap-2">
-                      {flavors.map((f) => (
-                        <FlavorOption
-                          key={f.id}
-                          flavor={f}
-                          selected={field.state.value === f.id}
-                          onSelect={() => {
-                            field.handleChange(f.id);
-                            form.setFieldValue('version.version', '');
-                            form.setFieldValue('version.loaderVersion', '');
-                          }}
-                        />
-                      ))}
-                      {kind === 'instance' && onImport && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            onOpenChange(false);
-                            onImport();
-                          }}
-                          className="flex items-center gap-3 border border-border border-dashed px-3 py-2.5 text-left outline-none hover:bg-accent/50 focus-visible:ring-1 focus-visible:ring-ring"
-                        >
-                          <FileArrowUpIcon className="size-4 shrink-0 text-muted-foreground" />
-                          <span className="min-w-0">
-                            <span className="block font-medium text-sm">
-                              {m['instance.import.action']()}
-                            </span>
-                            <span className="block text-muted-foreground text-xs">
-                              {m['instance.import.formats']()}
-                            </span>
+    <AppDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      size="xl"
+      height="tall"
+      icon={Icon}
+      title={kind === 'server' ? m['server.new']() : m['instance.new']()}
+      description={
+        creating
+          ? kind === 'server'
+            ? m['entry.create.provisioning_server']()
+            : m['entry.create.provisioning_instance']()
+          : STEP_HINTS[step](kind)
+      }
+    >
+      {creating ? (
+        <ProvisionProgressView
+          progress={progress}
+          indeterminate={kind === 'instance'}
+          className="min-h-0 flex-1"
+        />
+      ) : step === 'flavor' ? (
+        <form.FormGroup
+          name="flavor"
+          validators={{ onDynamic: flavorStepSchema() }}
+          onGroupSubmit={() => setStep('version')}
+        >
+          {(group) => (
+            <StepForm onSubmit={group.handleSubmit} footer={nav}>
+              <form.AppField name="flavor.flavor">
+                {(field) => (
+                  <div className="grid gap-2">
+                    {flavors.map((f) => (
+                      <FlavorOption
+                        key={f.id}
+                        flavor={f}
+                        selected={field.state.value === f.id}
+                        onSelect={() => {
+                          field.handleChange(f.id);
+                          form.setFieldValue('version.version', '');
+                          form.setFieldValue('version.loaderVersion', '');
+                        }}
+                      />
+                    ))}
+                    {kind === 'instance' && onImport && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onOpenChange(false);
+                          onImport();
+                        }}
+                        className="flex items-center gap-3 border border-border border-dashed px-3 py-2.5 text-left outline-none hover:bg-accent/50 focus-visible:ring-1 focus-visible:ring-ring"
+                      >
+                        <FileArrowUpIcon className="size-4 shrink-0 text-muted-foreground" />
+                        <span className="min-w-0">
+                          <span className="block font-medium text-sm">
+                            {m['instance.import.action']()}
                           </span>
-                        </button>
-                      )}
-                      {flavors.length === 0 && (
-                        <p className="px-1 py-6 text-center text-xs text-muted-foreground">
-                          {flavorsQuery.isPending
-                            ? m['app.status.loading']()
-                            : m['entry.create.no_flavors']()}
-                        </p>
-                      )}
-                    </div>
-                  )}
-                </form.AppField>
-              </StepForm>
-            )}
-          </form.FormGroup>
-        ) : step === 'version' ? (
-          <form.FormGroup
-            name="version"
-            validators={{ onDynamic: versionStepSchema() }}
-            onGroupSubmit={() => setStep('details')}
-          >
-            {(group) => (
-              <StepForm onSubmit={group.handleSubmit} footer={nav}>
-                <form.Subscribe selector={(s) => s.values.flavor.flavor}>
-                  {(flavor) => (
-                    <VersionStep
-                      form={form}
-                      kind={kind}
-                      flavor={flavor}
-                      search={search}
-                      onSearch={setSearch}
-                      showSnapshots={showSnapshots}
-                      onShowSnapshots={setShowSnapshots}
-                    />
-                  )}
-                </form.Subscribe>
-              </StepForm>
-            )}
-          </form.FormGroup>
-        ) : (
-          <form.FormGroup
-            name="details"
-            validators={{ onDynamic: detailsStepSchema(kind) }}
-            onGroupSubmit={() => form.handleSubmit()}
-          >
-            {(group) => (
-              <StepForm onSubmit={group.handleSubmit} footer={nav}>
-                <DetailsStep form={form} kind={kind} />
-              </StepForm>
-            )}
-          </form.FormGroup>
-        )}
-      </DialogContent>
-    </Dialog>
+                          <span className="block text-muted-foreground text-xs">
+                            {m['instance.import.formats']()}
+                          </span>
+                        </span>
+                      </button>
+                    )}
+                    {flavors.length === 0 && (
+                      <p className="px-1 py-6 text-center text-xs text-muted-foreground">
+                        {flavorsQuery.isPending
+                          ? m['app.status.loading']()
+                          : m['entry.create.no_flavors']()}
+                      </p>
+                    )}
+                  </div>
+                )}
+              </form.AppField>
+            </StepForm>
+          )}
+        </form.FormGroup>
+      ) : step === 'version' ? (
+        <form.FormGroup
+          name="version"
+          validators={{ onDynamic: versionStepSchema() }}
+          onGroupSubmit={() => setStep('details')}
+        >
+          {(group) => (
+            <StepForm onSubmit={group.handleSubmit} footer={nav}>
+              <form.Subscribe selector={(s) => s.values.flavor.flavor}>
+                {(flavor) => (
+                  <VersionStep
+                    form={form}
+                    kind={kind}
+                    flavor={flavor}
+                    search={search}
+                    onSearch={setSearch}
+                    showSnapshots={showSnapshots}
+                    onShowSnapshots={setShowSnapshots}
+                  />
+                )}
+              </form.Subscribe>
+            </StepForm>
+          )}
+        </form.FormGroup>
+      ) : (
+        <form.FormGroup
+          name="details"
+          validators={{ onDynamic: detailsStepSchema(kind) }}
+          onGroupSubmit={() => form.handleSubmit()}
+        >
+          {(group) => (
+            <StepForm onSubmit={group.handleSubmit} footer={nav}>
+              <DetailsStep form={form} kind={kind} />
+            </StepForm>
+          )}
+        </form.FormGroup>
+      )}
+    </AppDialog>
   );
 }
 

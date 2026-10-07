@@ -251,6 +251,12 @@ Rules that keep it from drifting:
   nothing imports its own barrel.
 - **A dialog is a `Dialog`.** One word for the concept, matching the
   `components/ui/dialog` primitive it is built on.
+- **Every dialog is an `AppDialog`** (`components/dialog`). The parent owns the
+  chrome — the box, its `size` and `height`, the header, the close button — and
+  a dialog supplies only its content: a `DialogBody` (the part that scrolls) and
+  a `DialogFooter`. A feature never composes `DialogContent` itself, so a change
+  to how dialogs are sized happens in one place. `ConfirmDialog` is the same box
+  over the alert primitive.
 - **Vocabulary two features share lives in `features/shared/`,** which is a leaf:
   `features/shared/*` may not import `features/<feature>/*`. `shared/entry` is
   what a server and an instance both are (cards, the create wizard, the detail

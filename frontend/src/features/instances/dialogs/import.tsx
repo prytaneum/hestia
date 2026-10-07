@@ -5,16 +5,9 @@ import { toast } from 'sonner';
 
 import type { ImportFormat } from '@/api';
 import { dialog, errorMessage } from '@/api';
+import { AppDialog, DialogBody, DialogFooter } from '@/components/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
 import { Field, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Spinner } from '@/components/ui/spinner';
@@ -93,15 +86,13 @@ export function ImportInstanceDialog({
   const unreadable = path.length > 0 && archive.isError;
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>{m['instance.import.title']()}</DialogTitle>
-          <DialogDescription>
-            {m['instance.import.description']()}
-          </DialogDescription>
-        </DialogHeader>
-
+    <AppDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title={m['instance.import.title']()}
+      description={m['instance.import.description']()}
+    >
+      <DialogBody className="flex flex-col gap-4">
         <Button
           variant="outline"
           className="h-auto justify-start gap-3 py-3 text-left"
@@ -165,20 +156,20 @@ export function ImportInstanceDialog({
             </Field>
           </>
         )}
+      </DialogBody>
 
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            {m['app.action.cancel']()}
-          </Button>
-          <Button
-            onClick={start}
-            disabled={!archive.data || archive.isFetching || !name.trim()}
-          >
-            {m['app.action.import']()}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+      <DialogFooter>
+        <Button variant="outline" onClick={() => onOpenChange(false)}>
+          {m['app.action.cancel']()}
+        </Button>
+        <Button
+          onClick={start}
+          disabled={!archive.data || archive.isFetching || !name.trim()}
+        >
+          {m['app.action.import']()}
+        </Button>
+      </DialogFooter>
+    </AppDialog>
   );
 }
 

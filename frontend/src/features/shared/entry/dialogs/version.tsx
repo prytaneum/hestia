@@ -5,15 +5,9 @@ import { toast } from 'sonner';
 
 import type { GameVersion } from '@/api';
 import { errorMessage } from '@/api';
+import { AppDialog, DialogBody, DialogFooter } from '@/components/dialog';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
 import {
   Select,
   SelectContent,
@@ -79,56 +73,55 @@ export function ChangeVersionDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={(next) => !pending && onOpenChange(next)}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>{m['entry.settings.change_version']()}</DialogTitle>
-        </DialogHeader>
-        <div className="flex flex-col gap-4">
-          <Select
-            value={version}
-            onValueChange={(v) => setVersion(v ?? '')}
+    <AppDialog
+      open={open}
+      onOpenChange={(next) => !pending && onOpenChange(next)}
+      title={m['entry.settings.change_version']()}
+    >
+      <DialogBody className="flex flex-col gap-4">
+        <Select
+          value={version}
+          onValueChange={(v) => setVersion(v ?? '')}
+          disabled={pending}
+        >
+          <SelectTrigger className="w-full">
+            <SelectValue placeholder={m['app.label.version']()} />
+          </SelectTrigger>
+          <SelectContent>
+            {options.map((v) => (
+              <SelectItem key={v.id} value={v.id} className="font-mono">
+                {v.id}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <label
+          htmlFor="allow-downgrade"
+          className="flex cursor-pointer items-center gap-2 text-xs text-muted-foreground"
+        >
+          <Checkbox
+            id="allow-downgrade"
+            checked={downgrade}
+            onCheckedChange={(c) => setDowngrade(c === true)}
             disabled={pending}
-          >
-            <SelectTrigger className="w-full">
-              <SelectValue placeholder={m['app.label.version']()} />
-            </SelectTrigger>
-            <SelectContent>
-              {options.map((v) => (
-                <SelectItem key={v.id} value={v.id} className="font-mono">
-                  {v.id}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <label
-            htmlFor="allow-downgrade"
-            className="flex cursor-pointer items-center gap-2 text-xs text-muted-foreground"
-          >
-            <Checkbox
-              id="allow-downgrade"
-              checked={downgrade}
-              onCheckedChange={(c) => setDowngrade(c === true)}
-              disabled={pending}
-            />
-            {m['entry.settings.allow_downgrade']()}
-          </label>
-        </div>
-        <DialogFooter>
-          <Button
-            variant="outline"
-            onClick={() => onOpenChange(false)}
-            disabled={pending}
-          >
-            {m['app.action.cancel']()}
-          </Button>
-          <Button onClick={apply} disabled={!version || pending}>
-            {pending
-              ? m['app.status.preparing']()
-              : m['entry.settings.change_version']()}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+          />
+          {m['entry.settings.allow_downgrade']()}
+        </label>
+      </DialogBody>
+      <DialogFooter>
+        <Button
+          variant="outline"
+          onClick={() => onOpenChange(false)}
+          disabled={pending}
+        >
+          {m['app.action.cancel']()}
+        </Button>
+        <Button onClick={apply} disabled={!version || pending}>
+          {pending
+            ? m['app.status.preparing']()
+            : m['entry.settings.change_version']()}
+        </Button>
+      </DialogFooter>
+    </AppDialog>
   );
 }

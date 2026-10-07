@@ -1,15 +1,8 @@
 import { UploadSimpleIcon } from '@phosphor-icons/react';
 import { useEffect, useRef, useState } from 'react';
 import type { Cape, Skin, SkinVariant } from '@/api';
+import { AppDialog, DialogBody, DialogFooter } from '@/components/dialog';
 import { Button } from '@/components/ui/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
 import { Field, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
@@ -72,154 +65,145 @@ export function EditSkinDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl">
-        <DialogHeader>
-          <DialogTitle>
-            {adding ? m['skin.add']() : m['skin.edit']()}
-          </DialogTitle>
-          <DialogDescription>
-            {adding
-              ? m['skin.add_description']()
-              : m['skin.edit_description']()}
-          </DialogDescription>
-        </DialogHeader>
-
-        <div className="flex gap-4">
-          {/* biome-ignore lint/a11y/noStaticElementInteractions: drop target
+    <AppDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      size="xl"
+      title={adding ? m['skin.add']() : m['skin.edit']()}
+      description={
+        adding ? m['skin.add_description']() : m['skin.edit_description']()
+      }
+    >
+      <DialogBody className="flex gap-4">
+        {/* biome-ignore lint/a11y/noStaticElementInteractions: drop target
               only — the upload button beside it is the accessible path. */}
-          <div
-            className="grid w-48 shrink-0 place-items-center self-stretch bg-muted/40 ring-1 ring-border"
-            onDragOver={(e) => e.preventDefault()}
-            onDrop={(e) => {
-              e.preventDefault();
-              if (adding) pickTexture(e.dataTransfer.files[0]);
-            }}
-          >
-            {texture ? (
-              <SkinModel
-                texture={texture}
-                capeTexture={capes.find((c) => c.id === capeId)?.texture}
-                variant={variant}
-                width={192}
-                height={288}
-              />
-            ) : (
-              <span className="px-4 text-center text-xs text-muted-foreground">
-                {m['skin.upload_hint']()}
-              </span>
-            )}
-          </div>
-
-          <div className="flex min-w-0 flex-1 flex-col gap-4">
-            <Field>
-              <FieldLabel htmlFor="skin-name">
-                {m['app.label.name']()}
-              </FieldLabel>
-              <Input
-                id="skin-name"
-                value={name}
-                placeholder={m['skin.name_placeholder']()}
-                onChange={(e) => setName(e.target.value)}
-              />
-            </Field>
-
-            {adding && (
-              <Field>
-                <FieldLabel>{m['skin.texture']()}</FieldLabel>
-                <input
-                  ref={fileRef}
-                  type="file"
-                  accept="image/png"
-                  className="hidden"
-                  onChange={(e) => {
-                    pickTexture(e.target.files?.[0]);
-                    e.target.value = '';
-                  }}
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="w-fit"
-                  data-icon="inline-start"
-                  onClick={() => fileRef.current?.click()}
-                >
-                  <UploadSimpleIcon />
-                  {texture
-                    ? m['skin.replace_texture']()
-                    : m['skin.upload_texture']()}
-                </Button>
-              </Field>
-            )}
-
-            <Field>
-              <FieldLabel>{m['skin.arm_style']()}</FieldLabel>
-              <ToggleGroup
-                variant="outline"
-                size="sm"
-                value={[variant]}
-                onValueChange={(vals: string[]) => {
-                  const next = vals[vals.length - 1];
-                  if (next) setVariant(next as SkinVariant);
-                }}
-              >
-                <ToggleGroupItem value="classic">
-                  {m['skin.wide']()}
-                </ToggleGroupItem>
-                <ToggleGroupItem value="slim">
-                  {m['skin.slim']()}
-                </ToggleGroupItem>
-              </ToggleGroup>
-            </Field>
-
-            {capes.length > 0 && (
-              <Field>
-                <FieldLabel>{m['skin.cape']()}</FieldLabel>
-                <CapeGrid>
-                  <CapeCard
-                    label={m['skin.no_cape']()}
-                    equipped={capeId === undefined}
-                    onEquip={() => setCapeId(undefined)}
-                  />
-                  {capes.map((cape) => (
-                    <CapeCard
-                      key={cape.id}
-                      label={cape.name}
-                      texture={cape.texture}
-                      equipped={capeId === cape.id}
-                      onEquip={() => setCapeId(cape.id)}
-                    />
-                  ))}
-                </CapeGrid>
-              </Field>
-            )}
-          </div>
+        <div
+          className="grid w-48 shrink-0 place-items-center self-stretch bg-muted/40 ring-1 ring-border"
+          onDragOver={(e) => e.preventDefault()}
+          onDrop={(e) => {
+            e.preventDefault();
+            if (adding) pickTexture(e.dataTransfer.files[0]);
+          }}
+        >
+          {texture ? (
+            <SkinModel
+              texture={texture}
+              capeTexture={capes.find((c) => c.id === capeId)?.texture}
+              variant={variant}
+              width={192}
+              height={288}
+            />
+          ) : (
+            <span className="px-4 text-center text-xs text-muted-foreground">
+              {m['skin.upload_hint']()}
+            </span>
+          )}
         </div>
 
-        <DialogFooter>
-          <Button
-            variant="outline"
-            disabled={saving}
-            onClick={() => onOpenChange(false)}
-          >
-            {m['app.action.cancel']()}
-          </Button>
-          <Button
-            disabled={!canSave}
-            className="bg-ember text-ember-foreground hover:bg-ember/90"
-            onClick={() =>
-              onSave({ name: name.trim(), variant, texture, capeId })
-            }
-          >
-            {saving
-              ? m['skin.saving']()
-              : adding
-                ? m['skin.add']()
-                : m['app.action.save_skin']()}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        <div className="flex min-w-0 flex-1 flex-col gap-4">
+          <Field>
+            <FieldLabel htmlFor="skin-name">{m['app.label.name']()}</FieldLabel>
+            <Input
+              id="skin-name"
+              value={name}
+              placeholder={m['skin.name_placeholder']()}
+              onChange={(e) => setName(e.target.value)}
+            />
+          </Field>
+
+          {adding && (
+            <Field>
+              <FieldLabel>{m['skin.texture']()}</FieldLabel>
+              <input
+                ref={fileRef}
+                type="file"
+                accept="image/png"
+                className="hidden"
+                onChange={(e) => {
+                  pickTexture(e.target.files?.[0]);
+                  e.target.value = '';
+                }}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="w-fit"
+                data-icon="inline-start"
+                onClick={() => fileRef.current?.click()}
+              >
+                <UploadSimpleIcon />
+                {texture
+                  ? m['skin.replace_texture']()
+                  : m['skin.upload_texture']()}
+              </Button>
+            </Field>
+          )}
+
+          <Field>
+            <FieldLabel>{m['skin.arm_style']()}</FieldLabel>
+            <ToggleGroup
+              variant="outline"
+              size="sm"
+              value={[variant]}
+              onValueChange={(vals: string[]) => {
+                const next = vals[vals.length - 1];
+                if (next) setVariant(next as SkinVariant);
+              }}
+            >
+              <ToggleGroupItem value="classic">
+                {m['skin.wide']()}
+              </ToggleGroupItem>
+              <ToggleGroupItem value="slim">{m['skin.slim']()}</ToggleGroupItem>
+            </ToggleGroup>
+          </Field>
+
+          {capes.length > 0 && (
+            <Field>
+              <FieldLabel>{m['skin.cape']()}</FieldLabel>
+              <CapeGrid>
+                <CapeCard
+                  label={m['skin.no_cape']()}
+                  equipped={capeId === undefined}
+                  onEquip={() => setCapeId(undefined)}
+                />
+                {capes.map((cape) => (
+                  <CapeCard
+                    key={cape.id}
+                    label={cape.name}
+                    texture={cape.texture}
+                    equipped={capeId === cape.id}
+                    onEquip={() => setCapeId(cape.id)}
+                  />
+                ))}
+              </CapeGrid>
+            </Field>
+          )}
+        </div>
+      </DialogBody>
+
+      <DialogFooter>
+        <Button
+          variant="outline"
+          disabled={saving}
+          onClick={() => onOpenChange(false)}
+        >
+          {m['app.action.cancel']()}
+        </Button>
+        <Button
+          disabled={!canSave}
+          className="bg-ember text-ember-foreground hover:bg-ember/90"
+          onClick={() =>
+            onSave({ name: name.trim(), variant, texture, capeId })
+          }
+        >
+          {saving
+            ? m['skin.saving']()
+            : adding
+              ? m['skin.add']()
+              : m['app.action.save_skin']()}
+        </Button>
+      </DialogFooter>
+    </AppDialog>
   );
 }

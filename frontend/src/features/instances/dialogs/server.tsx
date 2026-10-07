@@ -2,14 +2,8 @@ import { useMutation } from '@tanstack/react-query';
 import { useState } from 'react';
 
 import type { ServerEntry } from '@/api';
+import { AppDialog, DialogBody, DialogFooter } from '@/components/dialog';
 import { Button } from '@/components/ui/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Spinner } from '@/components/ui/spinner';
@@ -66,56 +60,55 @@ export function ServerEntryDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>
-            {server
-              ? m['instance.servers.edit.title']({ name: server.name })
-              : m['instance.servers.add.title']()}
-          </DialogTitle>
-        </DialogHeader>
-        <div className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="server-name">{m['app.label.name']()}</Label>
-            <Input
-              id="server-name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="server-address">{m['app.label.address']()}</Label>
-            <Input
-              id="server-address"
-              value={address}
-              placeholder="mc.example.net"
-              onChange={(e) => setAddress(e.target.value)}
-            />
-          </div>
-          <div className="flex items-center justify-between gap-3">
-            <Label htmlFor="server-textures">
-              {m['instance.servers.textures']()}
-            </Label>
-            <Switch
-              id="server-textures"
-              checked={acceptTextures}
-              onCheckedChange={setAcceptTextures}
-            />
-          </div>
+    <AppDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title={
+        server
+          ? m['instance.servers.edit.title']({ name: server.name })
+          : m['instance.servers.add.title']()
+      }
+    >
+      <DialogBody className="space-y-4">
+        <div className="space-y-2">
+          <Label htmlFor="server-name">{m['app.label.name']()}</Label>
+          <Input
+            id="server-name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+          />
         </div>
-        <DialogFooter>
-          <Button variant="ghost" onClick={() => onOpenChange(false)}>
-            {m['app.action.cancel']()}
-          </Button>
-          <Button
-            disabled={!name.trim() || !address.trim() || edit.isPending}
-            onClick={submit}
-          >
-            {edit.isPending ? <Spinner /> : m['app.action.apply']()}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        <div className="space-y-2">
+          <Label htmlFor="server-address">{m['app.label.address']()}</Label>
+          <Input
+            id="server-address"
+            value={address}
+            placeholder="mc.example.net"
+            onChange={(e) => setAddress(e.target.value)}
+          />
+        </div>
+        <div className="flex items-center justify-between gap-3">
+          <Label htmlFor="server-textures">
+            {m['instance.servers.textures']()}
+          </Label>
+          <Switch
+            id="server-textures"
+            checked={acceptTextures}
+            onCheckedChange={setAcceptTextures}
+          />
+        </div>
+      </DialogBody>
+      <DialogFooter>
+        <Button variant="ghost" onClick={() => onOpenChange(false)}>
+          {m['app.action.cancel']()}
+        </Button>
+        <Button
+          disabled={!name.trim() || !address.trim() || edit.isPending}
+          onClick={submit}
+        >
+          {edit.isPending ? <Spinner /> : m['app.action.apply']()}
+        </Button>
+      </DialogFooter>
+    </AppDialog>
   );
 }

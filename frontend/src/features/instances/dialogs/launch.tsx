@@ -8,13 +8,7 @@ import {
 } from 'react';
 
 import type { InstanceInfo, QuickPlay } from '@/api';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
+import { AppDialog } from '@/components/dialog';
 import { ProvisionProgressView } from '@/features/shared/entry/components';
 import { toastWarnings } from '@/lib/warnings';
 import { m } from '@/paraglide/messages.js';
@@ -111,27 +105,20 @@ export function LaunchDialogProvider({
   return (
     <Ctx.Provider value={value}>
       {children}
-      <Dialog
+      <AppDialog
         open={open}
         onOpenChange={(next) => {
           if (!next) setTarget(null);
         }}
+        size="lg"
+        title={m['instance.launch.title']({ name: target?.name ?? '' })}
+        description={m['instance.launch.preparing']()}
       >
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>
-              {m['instance.launch.title']({ name: target?.name ?? '' })}
-            </DialogTitle>
-            <DialogDescription>
-              {m['instance.launch.preparing']()}
-            </DialogDescription>
-          </DialogHeader>
-          <ProvisionProgressView
-            progress={mutation.progress}
-            className="min-h-72"
-          />
-        </DialogContent>
-      </Dialog>
+        <ProvisionProgressView
+          progress={mutation.progress}
+          className="min-h-72"
+        />
+      </AppDialog>
     </Ctx.Provider>
   );
 }

@@ -5,17 +5,10 @@ import { toast } from 'sonner';
 
 import type { ArchiveEntry, ExportFormat } from '@/api';
 import { dialog, errorMessage, system } from '@/api';
+import { AppDialog, DialogFooter } from '@/components/dialog';
 import { Bone } from '@/components/skeleton';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
 import {
   Select,
   SelectContent,
@@ -131,91 +124,90 @@ export function ExportInstanceDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle>{m['instance.export.title']({ name })}</DialogTitle>
-          <DialogDescription>
-            {format === 'hestia'
-              ? m['instance.export.hint_hestia']()
-              : m['instance.export.hint_mrpack']()}
-          </DialogDescription>
-        </DialogHeader>
+    <AppDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      size="lg"
+      title={m['instance.export.title']({ name })}
+      description={
+        format === 'hestia'
+          ? m['instance.export.hint_hestia']()
+          : m['instance.export.hint_mrpack']()
+      }
+    >
+      <div className="flex items-center gap-2">
+        <span className="text-muted-foreground text-xs">
+          {m['instance.export.format']()}
+        </span>
+        <Select
+          items={formats}
+          value={format}
+          onValueChange={(value) => setFormat(value as ExportFormat)}
+        >
+          <SelectTrigger className="w-44" size="sm">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {formats.map((option) => (
+              <SelectItem key={option.value} value={option.value}>
+                {option.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
 
-        <div className="flex items-center gap-2">
-          <span className="text-muted-foreground text-xs">
-            {m['instance.export.format']()}
-          </span>
-          <Select
-            items={formats}
-            value={format}
-            onValueChange={(value) => setFormat(value as ExportFormat)}
-          >
-            <SelectTrigger className="w-44" size="sm">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {formats.map((option) => (
-                <SelectItem key={option.value} value={option.value}>
-                  {option.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div className="max-h-72 overflow-y-auto border">
-          {contents.isPending ? (
-            <div className="flex flex-col gap-2 p-3">
-              <Bone className="h-4 w-2/3" />
-              <Bone className="h-4 w-1/2" />
-              <Bone className="h-4 w-3/5" />
-            </div>
-          ) : tree.length === 0 ? (
-            <p className="p-4 text-center text-muted-foreground text-sm">
-              {m['instance.export.empty']()}
-            </p>
-          ) : (
-            <ul className="p-1">
-              {tree.map((node) => (
-                <Row
-                  key={node.path}
-                  node={node}
-                  depth={0}
-                  excluded={excluded}
-                  expanded={expanded}
-                  onToggle={toggle}
-                  onExpand={(path) =>
-                    setExpanded((current) => {
-                      const next = new Set(current);
-                      if (!next.delete(path)) next.add(path);
-                      return next;
-                    })
-                  }
-                />
-              ))}
-            </ul>
-          )}
-        </div>
-
-        <DialogFooter className="sm:justify-between">
-          <span className="text-muted-foreground text-xs">
-            {m['instance.export.selected']({
-              selected: bytes(selected),
-              total: bytes(total),
-            })}
-          </span>
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={() => onOpenChange(false)}>
-              {m['app.action.cancel']()}
-            </Button>
-            <Button onClick={start} disabled={contents.isPending}>
-              {m['app.action.export']()}
-            </Button>
+      <div className="max-h-72 min-h-24 overflow-y-auto border">
+        {contents.isPending ? (
+          <div className="flex flex-col gap-2 p-3">
+            <Bone className="h-4 w-2/3" />
+            <Bone className="h-4 w-1/2" />
+            <Bone className="h-4 w-3/5" />
           </div>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        ) : tree.length === 0 ? (
+          <p className="p-4 text-center text-muted-foreground text-sm">
+            {m['instance.export.empty']()}
+          </p>
+        ) : (
+          <ul className="p-1">
+            {tree.map((node) => (
+              <Row
+                key={node.path}
+                node={node}
+                depth={0}
+                excluded={excluded}
+                expanded={expanded}
+                onToggle={toggle}
+                onExpand={(path) =>
+                  setExpanded((current) => {
+                    const next = new Set(current);
+                    if (!next.delete(path)) next.add(path);
+                    return next;
+                  })
+                }
+              />
+            ))}
+          </ul>
+        )}
+      </div>
+
+      <DialogFooter className="sm:justify-between">
+        <span className="text-muted-foreground text-xs">
+          {m['instance.export.selected']({
+            selected: bytes(selected),
+            total: bytes(total),
+          })}
+        </span>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            {m['app.action.cancel']()}
+          </Button>
+          <Button onClick={start} disabled={contents.isPending}>
+            {m['app.action.export']()}
+          </Button>
+        </div>
+      </DialogFooter>
+    </AppDialog>
   );
 }
 

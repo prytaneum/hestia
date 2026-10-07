@@ -1,4 +1,5 @@
 import type { Flavor } from '@/api';
+import { DialogBody } from '@/components/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { kindInfo } from '@/features/shared/content/lib';
@@ -52,16 +53,14 @@ export function StepForm({
 }) {
   return (
     <form
-      className="flex min-h-0 flex-col gap-4"
+      className="flex min-h-0 flex-1 flex-col gap-4"
       onSubmit={(e) => {
         e.preventDefault();
         e.stopPropagation();
         onSubmit();
       }}
     >
-      <div className="min-h-[18rem] max-h-[58vh] overflow-x-hidden overflow-y-auto p-1">
-        {children}
-      </div>
+      <DialogBody>{children}</DialogBody>
       {footer}
     </form>
   );
