@@ -24,6 +24,8 @@ import {
   PickRow,
   PickRowSkeleton,
 } from '@/features/shared/content/components';
+import { useFileDrop } from '@/hooks/use-file-drop';
+import { cn } from '@/lib/utils';
 import { m } from '@/paraglide/messages.js';
 import { contentQueries, isContentUrl } from '@/queries/content';
 import { instanceQueries } from '@/queries/instance';
@@ -219,28 +221,33 @@ function FileImportButton({
 }: {
   onFiles: (files: PickedFile[]) => void;
 }) {
+  const stage = async (paths: string[]) => {
+    if (paths.length === 0) return;
+    const files = await Promise.all(
+      paths.map(async (path): Promise<PickedFile> => {
+        const r = await contentApi.inspect(path);
+        return {
+          path,
+          filename: r.filename || fileName(path),
+          kind: r.kind,
+          detected: r.kind,
+          valid: r.valid,
+          reason: r.reason,
+        };
+      }),
+    );
+    onFiles(files);
+  };
+  const over = useFileDrop(dialog.CONTENT_EXTENSIONS, stage);
+
   return (
     <button
       type="button"
-      onClick={async () => {
-        const paths = await dialog.pickContentFiles();
-        if (paths.length === 0) return;
-        const files = await Promise.all(
-          paths.map(async (path): Promise<PickedFile> => {
-            const r = await contentApi.inspect(path);
-            return {
-              path,
-              filename: r.filename || fileName(path),
-              kind: r.kind,
-              detected: r.kind,
-              valid: r.valid,
-              reason: r.reason,
-            };
-          }),
-        );
-        onFiles(files);
-      }}
-      className="mb-2 flex w-full items-center gap-3 border border-dashed border-border p-3 text-left outline-none transition-colors hover:bg-muted/60 focus-visible:ring-1 focus-visible:ring-ring"
+      onClick={async () => stage(await dialog.pickContentFiles())}
+      className={cn(
+        'mb-2 flex w-full items-center gap-3 border border-dashed border-border p-3 text-left outline-none transition-colors hover:bg-muted/60 focus-visible:ring-1 focus-visible:ring-ring',
+        over && 'border-primary bg-muted/60',
+      )}
     >
       <UploadSimpleIcon className="size-4 shrink-0 text-muted-foreground" />
       <span className="min-w-0 flex-1">

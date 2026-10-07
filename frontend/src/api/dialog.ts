@@ -7,7 +7,7 @@
 import { open, save } from '@tauri-apps/plugin-dialog';
 
 /** Single-file content is a jar or zip; a `.mrpack` is a modpack, not offered here. */
-const CONTENT_EXTENSIONS = ['jar', 'zip'];
+export const CONTENT_EXTENSIONS = ['jar', 'zip'];
 
 /**
  * Pick content files and return their absolute paths (empty if the dialog was
@@ -36,7 +36,7 @@ export async function pickImage(): Promise<string | null> {
 }
 
 /** The archive formats an instance import accepts, by extension. */
-const ARCHIVE_EXTENSIONS = ['hestia', 'mrpack', 'zip'];
+export const ARCHIVE_EXTENSIONS = ['hestia', 'mrpack', 'zip'];
 
 /** Pick one instance archive to import, or null when dismissed. */
 export async function pickInstanceArchive(): Promise<string | null> {

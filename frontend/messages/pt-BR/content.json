@@ -29,7 +29,7 @@
       "target": "Escolha onde este conteúdo será instalado.",
       "worlds": "Escolha os mundos que receberão este datapack."
     },
-    "import_file": "Importar um arquivo local",
+    "import_file": "Solte um arquivo local ou clique para escolher",
     "import_file_hint": "Instala como está — sem atualizações nem resolução de dependências.",
     "install_title": "Instalar {name}",
     "install_to": "Instala em {dir}",
