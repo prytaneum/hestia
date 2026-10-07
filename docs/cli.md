@@ -204,8 +204,8 @@ Two formats out:
 | `hestia` (default) | the whole instance — pool, configs, worlds, and a resolved record | keeping a copy, or moving it to another machine; imports back **offline**, exactly as it was |
 | `mrpack` | mods as links to where they came from, everything else in `overrides/` | sharing with someone on another launcher |
 
-An `.mrpack` can only reference content hestia knows the origin of. A mod installed from a local file has no download to
-point at, so it is embedded in the archive instead and the export says so — it still installs, it is just no longer a
+An `.mrpack` can only reference content hestia knows the origin of. A local file that no source recognised has no
+download to point at, so it is embedded in the archive instead and the export says so — it still installs, it is just no longer a
 pack Modrinth would publish.
 
 Import takes a file and works out the rest:
@@ -346,7 +346,8 @@ hestia instance modded mod add sodium      # install a mod (resolves required
 hestia instance modded mod add https://modrinth.com/mod/lithium  # a page URL
 hestia instance modded mod add jei -S curseforge     # from another source (a
                                  #   page URL names its own, so -S is for slugs)
-hestia instance modded mod add --file ./my-mod.jar   # import a local file
+hestia instance modded mod add --file ./my-mod.jar   # import a local file; one
+                                 #   Modrinth or CurseForge published is tracked
 hestia instance modded mod list  # installed mods (+ any untracked jars in the
                                  #   game dir)
 hestia instance modded mod update [sodium ...]   # newest compatible (all, or

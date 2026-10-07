@@ -2,7 +2,7 @@
 //! dependencies), a source page URL, or a local file. A batch is per-item — a
 //! selector that cannot be installed records a failure and the rest proceeds.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::path::Path;
 
 use anyhow::{bail, Context, Result};
@@ -15,7 +15,7 @@ use proto::minecraft::{ProvisionPhase, ProvisionProgress};
 
 use super::entry::{content_loader, content_target, datapack_worlds, side_gate, EntryContent};
 use super::phase_progress;
-use crate::content::{inspect, install, record};
+use crate::content::{inspect, install, record, Identified, LocalFile};
 use crate::engine::Engine;
 use crate::minecraft::materialize::{self, OnProgress};
 
@@ -102,8 +102,22 @@ impl Engine {
         }
 
         let mut items = Vec::new();
-        for item in files {
-            match add_file_content(ctx, spec.kind, item, &worlds) {
+        // A path that cannot be hashed is left for the import itself to refuse,
+        // which names why.
+        let local: Vec<Option<LocalFile>> = files
+            .iter()
+            .map(|item| LocalFile::read(Path::new(&item.path)).ok())
+            .collect();
+        let hashed: Vec<LocalFile> = local.iter().flatten().cloned().collect();
+        let identified = if hashed.is_empty() {
+            HashMap::new()
+        } else {
+            on_progress.report(&phase_progress(ProvisionPhase::Resolving));
+            self.content.identify(&hashed).await
+        };
+        for (item, file) in files.into_iter().zip(&local) {
+            let known = file.as_ref().and_then(|f| identified.get(&f.sha1));
+            match add_file_content(ctx, spec.kind, item, &worlds, known) {
                 Ok(installed) => items.push(installed),
                 Err(e) => failures.push(failure(&item.path, "", crate::error_info(e))),
             }
@@ -406,24 +420,30 @@ impl Engine {
 }
 
 /// Import a local file: copy it into the managed directory and mirror it into
-/// the game's load dirs. No provenance beyond the hash, so it can never update.
+/// the game's load dirs. One a source recognises (`known`) is recorded as that
+/// release, so it updates like any installed item; one nobody recognises has no
+/// provenance beyond the hash and can never update. Either way only the file
+/// asked for is installed — its dependencies are not resolved.
 fn add_file_content(
     ctx: &EntryContent,
     kind: ContentKind,
     item: &ContentAddItem,
     worlds: &[String],
+    known: Option<&Identified>,
 ) -> Result<InstalledContent> {
     let source = Path::new(&item.path);
     if !source.is_file() {
         bail!("no file at {}", source.display());
     }
-    let filename = if item.filename.is_empty() {
+    let filename = if !item.filename.is_empty() {
+        item.filename.clone()
+    } else if let Some(known) = known {
+        known.file.artifact.filename.clone()
+    } else {
         source
             .file_name()
             .map(|n| n.to_string_lossy().into_owned())
             .unwrap_or_default()
-    } else {
-        item.filename.clone()
     };
     materialize::validate_filename(&filename)?;
     // Reject an unreadable archive or a modpack; the detected kind is advisory
@@ -444,11 +464,31 @@ fn add_file_content(
     }
     std::fs::copy(source, &managed)
         .with_context(|| format!("cannot import {}", source.display()))?;
-    let installed = record::assemble(
-        record::Project::untracked(kind, filename.clone()),
-        record::Release::local(filename, install::sha1_file(&managed)?),
-        record::Holding::fresh(worlds),
-    );
+    let sha1 = install::sha1_file(&managed)?;
+    let (project, release) = match known {
+        Some(known) => (
+            record::Project {
+                kind,
+                project_id: known.project.id.clone(),
+                slug: known.project.slug.clone(),
+                title: known.project.title.clone(),
+                icon_url: known.project.icon_url.clone(),
+            },
+            record::Release {
+                source: known.version.source.clone(),
+                version_id: known.version.id.clone(),
+                version_number: known.version.version_number.clone(),
+                filename,
+                sha1,
+                url: known.file.artifact.url.clone(),
+            },
+        ),
+        None => (
+            record::Project::untracked(kind, filename.clone()),
+            record::Release::local(filename, sha1),
+        ),
+    };
+    let installed = record::assemble(project, release, record::Holding::fresh(worlds));
     install::apply_files(&ctx.entry_dir, &ctx.data_dir, &installed, &ctx.worlds())?;
     Ok(installed)
 }

@@ -15,17 +15,18 @@ pub(crate) mod pack;
 pub(crate) mod provider;
 pub(crate) mod record;
 
+use std::collections::{BTreeSet, HashMap};
 use std::path::Path;
 
 use anyhow::{Context, Result};
 use proto::content::{
-    ContentInspectResult, ContentKind, ContentProject, ContentSource, ContentVersion,
+    ContentFile, ContentInspectResult, ContentKind, ContentProject, ContentSource, ContentVersion,
     ResolvedModpack, ResolvedUrl, SearchQuery, SearchResult, VersionQuery,
 };
 
 use crate::config::ContentSettings;
 use provider::ContentProvider;
-pub(crate) use provider::UrlRef;
+pub(crate) use provider::{LocalFile, UrlRef};
 
 /// Bring an entry's content documents forward. Reading one is what migrates it,
 /// so this is a read of each — called after an import lands a tree written by
@@ -33,6 +34,68 @@ pub(crate) use provider::UrlRef;
 pub(crate) fn migrate(entry_dir: &Path) {
     install::load(entry_dir);
     modpack::load(entry_dir);
+}
+
+/// A local file a source recognised: the release it is, of what, and which of
+/// that release's published files it is.
+#[derive(Debug, Clone)]
+pub struct Identified {
+    pub project: ContentProject,
+    pub version: ContentVersion,
+    pub file: ContentFile,
+}
+
+/// A version may publish several files (a sources jar beside the mod), so the
+/// one carrying the local file's digest is preferred over the primary.
+fn published_file(version: &ContentVersion, sha1: &str) -> Option<ContentFile> {
+    version
+        .files
+        .iter()
+        .find(|f| {
+            f.artifact
+                .checksum
+                .as_ref()
+                .is_some_and(|c| c.hex.eq_ignore_ascii_case(sha1))
+        })
+        .or_else(|| install::primary_file(version).ok())
+        .cloned()
+}
+
+async fn identify_with(
+    provider: &dyn ContentProvider,
+    files: &[LocalFile],
+) -> Result<HashMap<String, Identified>> {
+    let versions = provider.identify(files).await?;
+    if versions.is_empty() {
+        return Ok(HashMap::new());
+    }
+    let ids: Vec<String> = versions
+        .values()
+        .map(|v| v.project_id.clone())
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect();
+    let projects: HashMap<String, ContentProject> = provider
+        .projects(&ids)
+        .await?
+        .into_iter()
+        .map(|p| (p.id.clone(), p))
+        .collect();
+    Ok(versions
+        .into_iter()
+        .filter_map(|(sha1, version)| {
+            let project = projects.get(&version.project_id)?.clone();
+            let file = published_file(&version, &sha1)?;
+            Some((
+                sha1,
+                Identified {
+                    project,
+                    version,
+                    file,
+                },
+            ))
+        })
+        .collect())
 }
 
 pub struct Content {
@@ -69,41 +132,85 @@ impl Content {
         }
     }
 
+    /// Ask every available source which of these files it published. A file
+    /// stays local on any failure — offline, rate-limited, unknown — so a
+    /// lookup can never be what stops an import.
+    pub async fn identify(&self, files: &[LocalFile]) -> HashMap<String, Identified> {
+        let mut found = HashMap::new();
+        for provider in self.providers.iter().filter(|p| p.available()) {
+            let pending: Vec<LocalFile> = files
+                .iter()
+                .filter(|file| !found.contains_key(&file.sha1))
+                .cloned()
+                .collect();
+            if pending.is_empty() {
+                break;
+            }
+            match identify_with(provider.as_ref(), &pending).await {
+                Ok(matched) => found.extend(matched),
+                Err(error) => tracing::warn!(
+                    source = provider.id(),
+                    files = pending.len(),
+                    error = %format!("{error:#}"),
+                    "cannot identify local files; importing them untracked"
+                ),
+            }
+        }
+        tracing::info!(
+            files = files.len(),
+            identified = found.len(),
+            "local file lookup"
+        );
+        found
+    }
+
     /// Classify a local file for import (the daemon is the only side that can
-    /// read a client-picked path).
-    pub fn inspect(&self, path: &str) -> ContentInspectResult {
+    /// read a client-picked path), naming the project it is a release of when
+    /// a source recognises it.
+    pub async fn inspect(&self, path: &str) -> ContentInspectResult {
+        let mut result = self.classify(path);
+        if !result.valid {
+            return result;
+        }
+        let Ok(file) = LocalFile::read(Path::new(path)) else {
+            return result;
+        };
+        if let Some(identified) = self
+            .identify(std::slice::from_ref(&file))
+            .await
+            .remove(&file.sha1)
+        {
+            result.version_number = identified.version.version_number;
+            result.project = Some(identified.project);
+        }
+        result
+    }
+
+    fn classify(&self, path: &str) -> ContentInspectResult {
         let p = Path::new(path);
         let filename = p
             .file_name()
             .map(|n| n.to_string_lossy().into_owned())
             .unwrap_or_default();
+        let refused = |filename, reason| ContentInspectResult {
+            filename,
+            reason,
+            ..ContentInspectResult::default()
+        };
         if !p.is_file() {
-            return ContentInspectResult {
-                valid: false,
-                kind: None,
-                filename,
-                reason: format!("no file at {}", p.display()),
-            };
+            return refused(filename, format!("no file at {}", p.display()));
         }
         match inspect::classify(p) {
-            Ok(inspect::Detected::Kind(kind)) => ContentInspectResult {
+            Ok(detected) => ContentInspectResult {
                 valid: true,
-                kind: Some(kind),
+                kind: match detected {
+                    inspect::Detected::Kind(kind) => Some(kind),
+                    inspect::Detected::Unknown => None,
+                },
                 filename,
-                reason: String::new(),
+                ..ContentInspectResult::default()
             },
-            Ok(inspect::Detected::Unknown) => ContentInspectResult {
-                valid: true,
-                kind: None,
-                filename,
-                reason: String::new(),
-            },
-            Err(e) => ContentInspectResult {
-                valid: false,
-                kind: None,
-                filename,
-                reason: format!("{e:#}"),
-            },
+            Err(e) => refused(filename, format!("{e:#}")),
         }
     }
 

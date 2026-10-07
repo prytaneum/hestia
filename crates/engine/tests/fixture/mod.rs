@@ -2,9 +2,13 @@
 //! real seams; these are the second adapter behind them, so a flow can be
 //! driven without reaching Mojang, Modrinth or a JDK mirror.
 
+use std::collections::HashMap;
+
 use anyhow::{bail, Result};
 use async_trait::async_trait;
-use engine::{Content, ContentProvider, InstanceProvider, Minecraft, ServerProvider, UrlRef};
+use engine::{
+    Content, ContentProvider, InstanceProvider, LocalFile, Minecraft, ServerProvider, UrlRef,
+};
 use proto::content::{
     ContentKind, ContentProject, ContentVersion, ResolvedModpack, SearchQuery, SearchResult,
     VersionQuery,
@@ -177,6 +181,21 @@ impl ContentProvider for Source {
     }
     async fn versions(&self, _query: &VersionQuery) -> Result<Vec<ContentVersion>> {
         Ok(self.versions.clone())
+    }
+    /// Recognises a file by the name one of its versions published it under —
+    /// a stand-in for a platform's hash index.
+    async fn identify(&self, files: &[LocalFile]) -> Result<HashMap<String, ContentVersion>> {
+        Ok(files
+            .iter()
+            .filter_map(|file| {
+                let name = file.path.file_name()?.to_str()?;
+                let version = self
+                    .versions
+                    .iter()
+                    .find(|v| v.files.iter().any(|f| f.artifact.filename == name))?;
+                Some((file.sha1.clone(), version.clone()))
+            })
+            .collect())
     }
     fn parse_url(&self, _url: &str) -> Option<UrlRef> {
         None

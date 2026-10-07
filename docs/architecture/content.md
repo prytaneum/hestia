@@ -186,6 +186,16 @@ modpack) and otherwise honours the requested kind, so a review-step override
 installs where you asked
 ([0015](../decisions/0015-local-imports-are-inspected.md)).
 
+A local file is also **identified**. `ContentProvider::identify` hands each
+source the files and gets back the version each one is — Modrinth by sha1,
+CurseForge by its own fingerprint — and a recognised file is recorded as that
+release rather than as source `file`, so it updates and exports like anything
+installed from a source. The bytes installed are still the local ones, its
+dependencies are not resolved, and a lookup that fails (offline, unknown file)
+leaves the import untracked rather than failing it. `content.inspect` runs the
+same lookup, which is how the review step names the match before install
+([0075](../decisions/0075-a-local-file-is-identified-by-its-hash.md)).
+
 ## Datapacks are the exception
 
 A datapack loads from *inside a world*, not a flat directory — and a world is

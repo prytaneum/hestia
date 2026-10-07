@@ -784,6 +784,8 @@ pub struct ContentInspectParams {
 /// A local file's import classification: `valid` when installable as
 /// single-file content, `kind` the detected kind (absent for a valid archive of
 /// an unrecognised shape — the caller then chooses), and `reason` set when not.
+/// `project` is set when a source recognises the file as one of its releases —
+/// it then installs tracked, as `version_number` of that project.
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
 #[serde(default, rename_all = "camelCase")]
@@ -792,6 +794,8 @@ pub struct ContentInspectResult {
     pub kind: Option<ContentKind>,
     pub filename: String,
     pub reason: String,
+    pub project: Option<ContentProject>,
+    pub version_number: String,
 }
 
 pub struct ContentInspect;

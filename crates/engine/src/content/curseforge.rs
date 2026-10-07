@@ -7,6 +7,7 @@
 //! key resolves — the `content.curseforge-key` setting, else one baked in at
 //! build time — and `Content` leaves it out of the source list until then.
 
+use std::collections::HashMap;
 use std::sync::RwLock;
 
 use anyhow::{bail, Context, Result};
@@ -24,7 +25,7 @@ use std::io::{Cursor, Read};
 
 use crate::config::ContentSettings;
 
-use super::provider::{ContentProvider, FileRef, UrlRef};
+use super::provider::{ContentProvider, FileRef, LocalFile, UrlRef};
 
 const API: &str = "https://api.curseforge.com/v1";
 const SITE: &str = "curseforge.com";
@@ -330,6 +331,34 @@ impl ContentProvider for CurseForge {
 
     async fn versions_by_id(&self, ids: &[String]) -> Result<Vec<ContentVersion>> {
         Ok(self.files(ids).await?.iter().map(parse_file).collect())
+    }
+
+    /// One `POST /fingerprints` for the lot. CurseForge indexes by its own
+    /// fingerprint, so each answer is mapped back to the sha1 it was asked for.
+    async fn identify(&self, files: &[LocalFile]) -> Result<HashMap<String, ContentVersion>> {
+        let mut sha1_of = HashMap::with_capacity(files.len());
+        for file in files {
+            let bytes = std::fs::read(&file.path)
+                .with_context(|| format!("cannot read {}", file.path.display()))?;
+            sha1_of.insert(u64::from(fingerprint(&bytes)), file.sha1.clone());
+        }
+        let fingerprints: Vec<u64> = sha1_of.keys().copied().collect();
+        let mut out = HashMap::with_capacity(files.len());
+        for chunk in fingerprints.chunks(BATCH) {
+            let body = self
+                .post(
+                    &format!("/fingerprints/{GAME}"),
+                    json!({ "fingerprints": chunk }),
+                )
+                .await?;
+            let matches = data(&body).get("exactMatches").and_then(Value::as_array);
+            for file in matches.into_iter().flatten().filter_map(|m| m.get("file")) {
+                if let Some(sha1) = sha1_of.get(&u64_field(file, "fileFingerprint")) {
+                    out.insert(sha1.clone(), parse_file(file));
+                }
+            }
+        }
+        Ok(out)
     }
 
     async fn resolve_modpack(&self, version_id: &str) -> Result<ResolvedModpack> {
@@ -789,6 +818,35 @@ fn artifact_of(f: &Value) -> Artifact {
     }
 }
 
+/// CurseForge's file fingerprint: 32-bit MurmurHash2, seed 1, over the bytes
+/// with whitespace (tab, LF, CR, space) removed. The stripping is theirs, not a
+/// normalisation of ours — the index is keyed by exactly this.
+fn fingerprint(bytes: &[u8]) -> u32 {
+    const M: u32 = 0x5bd1_e995;
+    let data: Vec<u8> = bytes
+        .iter()
+        .copied()
+        .filter(|b| !matches!(b, 9 | 10 | 13 | 32))
+        .collect();
+    let mut hash = 1 ^ data.len() as u32;
+    let mut words = data.chunks_exact(4);
+    for word in &mut words {
+        let mut k = u32::from_le_bytes([word[0], word[1], word[2], word[3]]).wrapping_mul(M);
+        k ^= k >> 24;
+        hash = hash.wrapping_mul(M) ^ k.wrapping_mul(M);
+    }
+    let tail = words.remainder();
+    if !tail.is_empty() {
+        for (i, byte) in tail.iter().enumerate() {
+            hash ^= u32::from(*byte) << (8 * i);
+        }
+        hash = hash.wrapping_mul(M);
+    }
+    hash ^= hash >> 13;
+    hash = hash.wrapping_mul(M);
+    hash ^ (hash >> 15)
+}
+
 fn class_id(kind: ContentKind) -> Option<u64> {
     CLASSES
         .iter()
@@ -953,6 +1011,15 @@ mod tests {
         assert!(cf
             .parse_url("https://www.curseforge.com/minecraft/mc-mods")
             .is_none());
+    }
+
+    #[test]
+    fn fingerprints_ignore_whitespace_and_cover_every_tail_length() {
+        assert_eq!(fingerprint(b"hello world\n\tfingerprint me"), 1_693_071_057);
+        assert_eq!(fingerprint(b"a b\rc"), 1_621_425_345);
+        assert_eq!(fingerprint(b"abcd"), 3_376_380_438);
+        assert_eq!(fingerprint(b"abcdefg"), 184_182_053);
+        assert_eq!(fingerprint(b""), 1_540_447_798);
     }
 
     #[test]

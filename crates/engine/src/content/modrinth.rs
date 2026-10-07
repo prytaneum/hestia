@@ -5,6 +5,8 @@
 //! here; the rest of the engine never sees a Modrinth-specific shape. No API key
 //! is required.
 
+use std::collections::HashMap;
+
 use anyhow::{bail, Context, Result};
 use async_trait::async_trait;
 use proto::content::{
@@ -18,7 +20,7 @@ use proto::minecraft::Artifact;
 use serde_json::Value;
 
 use super::pack;
-use super::provider::{ContentProvider, FileRef, UrlRef};
+use super::provider::{ContentProvider, FileRef, LocalFile, UrlRef};
 
 const API: &str = "https://api.modrinth.com/v2";
 /// Only for an organization's name: v2 has no organization route.
@@ -30,6 +32,9 @@ const CDN: &str = "cdn.modrinth.com";
 /// Ids per bulk request. The whole query goes in the URL, so a big pack's ids
 /// are chunked rather than sent as one over-long line.
 const BULK_LIMIT: usize = 100;
+/// Digests per hash lookup. These travel in the body, so the bound is the
+/// platform's own request size rather than a URL's length.
+const HASH_LIMIT: usize = 800;
 
 /// The site's project-type path segments (`modrinth.com/<type>/<slug>`) and the
 /// kind each names.
@@ -200,6 +205,23 @@ impl ContentProvider for Modrinth {
             let body = get_json(&format!("{API}/versions"), &params).await?;
             if let Some(arr) = body.as_array() {
                 out.extend(arr.iter().map(|v| parse_version(self.id(), v)));
+            }
+        }
+        Ok(out)
+    }
+
+    /// One `POST /version_files` for the lot; Modrinth indexes by sha1 itself.
+    async fn identify(&self, files: &[LocalFile]) -> Result<HashMap<String, ContentVersion>> {
+        let mut out = HashMap::with_capacity(files.len());
+        for chunk in files.chunks(HASH_LIMIT) {
+            let hashes: Vec<&str> = chunk.iter().map(|f| f.sha1.as_str()).collect();
+            let body = serde_json::json!({ "hashes": hashes, "algorithm": "sha1" });
+            let found = post_json(&format!("{API}/version_files"), &body).await?;
+            if let Some(map) = found.as_object() {
+                out.extend(
+                    map.iter()
+                        .map(|(sha1, v)| (sha1.clone(), parse_version(self.id(), v))),
+                );
             }
         }
         Ok(out)
@@ -586,6 +608,20 @@ async fn get_json(url: &str, query: &[(&str, String)]) -> Result<Value> {
     let response = crate::net::send(
         Some(Service::Modrinth),
         crate::net::client().get(url).query(query),
+    )
+    .await?;
+    let response = crate::net::require_success(Service::Modrinth, response)?;
+    response
+        .json()
+        .await
+        .with_context(|| format!("{url} returned malformed JSON"))
+}
+
+async fn post_json(url: &str, body: &Value) -> Result<Value> {
+    tracing::debug!(url, "modrinth POST");
+    let response = crate::net::send(
+        Some(Service::Modrinth),
+        crate::net::client().post(url).json(body),
     )
     .await?;
     let response = crate::net::require_success(Service::Modrinth, response)?;

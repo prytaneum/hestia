@@ -184,6 +184,68 @@ async fn a_batch_installs_its_roots_and_their_required_dependencies_once() {
     assert_eq!(installed.len(), 3, "two roots plus the shared dependency");
 }
 
+fn local_mod(dir: &std::path::Path, name: &str) -> String {
+    use std::io::Write;
+    let path = dir.join(name);
+    let mut zip = zip::ZipWriter::new(std::fs::File::create(&path).expect("create the jar"));
+    zip.start_file("fabric.mod.json", zip::write::SimpleFileOptions::default())
+        .expect("start the manifest");
+    zip.write_all(name.as_bytes()).expect("write the manifest");
+    zip.finish().expect("finish the jar");
+    path.to_string_lossy().into_owned()
+}
+
+#[tokio::test]
+async fn a_local_file_a_source_recognises_installs_tracked_and_alone() {
+    let home = tempfile::tempdir().expect("temp home");
+    let drops = tempfile::tempdir().expect("temp drops");
+    let files = fixture::Files::serve().await;
+    let source = fixture::Source {
+        projects: vec![
+            fixture::project("sodium", ContentKind::Mod),
+            fixture::project("fabric-api", ContentKind::Mod),
+        ],
+        versions: vec![
+            fixture::version("sodium", &files, "1.21", &["fabric-api"]),
+            fixture::version("fabric-api", &files, "1.21", &[]),
+        ],
+    };
+    let (engine, id) = instance(home.path(), source).await;
+    let (cancel, report) = (Cancel::new(), |_: &ProvisionProgress| {});
+    let spec = ContentAddSpec {
+        kind: ContentKind::Mod,
+        items: ["sodium.jar", "homemade.jar"]
+            .iter()
+            .map(|name| ContentAddItem {
+                path: local_mod(drops.path(), name),
+                ..ContentAddItem::default()
+            })
+            .collect(),
+        ..ContentAddSpec::default()
+    };
+
+    let (installed, failures) = engine
+        .add_entry_content(EntryRef::Instance(&id), &spec, &job(&cancel, &report))
+        .await
+        .expect("the batch runs");
+
+    assert!(failures.is_empty(), "no item should fail: {failures:?}");
+    assert_eq!(installed.len(), 2, "a dependency is not pulled in");
+    let sodium = &installed[0];
+    assert_eq!(sodium.source, "fixture");
+    assert_eq!(sodium.project_id, "sodium");
+    assert_eq!(sodium.version_id, "sodium-1");
+    assert_eq!(sodium.version_number, "1.0.0");
+    assert!(
+        !sodium.sha1.is_empty(),
+        "the local bytes are what is hashed"
+    );
+    let homemade = &installed[1];
+    assert_eq!(homemade.source, "file");
+    assert!(homemade.project_id.is_empty());
+    assert_eq!(homemade.filename, "homemade.jar");
+}
+
 #[tokio::test]
 async fn a_root_that_fails_does_not_stop_the_batch() {
     let home = tempfile::tempdir().expect("temp home");

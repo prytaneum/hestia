@@ -3,12 +3,16 @@
 //! aggregate holds a boxed registry of each. Adding a platform is a new impl plus
 //! one line in `Content::new`.
 
+use std::collections::HashMap;
+use std::path::{Path, PathBuf};
+
 use anyhow::Result;
 use async_trait::async_trait;
 use proto::content::{
     ContentKind, ContentProject, ContentVersion, ResolvedModpack, SearchQuery, VersionQuery,
 };
 
+use super::install;
 use crate::config::ContentSettings;
 
 /// A project reference recognised in a platform's own site URL, optionally
@@ -28,6 +32,23 @@ pub struct UrlRef {
 pub struct FileRef {
     pub project_id: String,
     pub version_id: String,
+}
+
+/// A file on disk awaiting identification. `sha1` is the key every source
+/// answers under, whatever it hashes the bytes with itself.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LocalFile {
+    pub path: PathBuf,
+    pub sha1: String,
+}
+
+impl LocalFile {
+    pub fn read(path: &Path) -> Result<Self> {
+        Ok(LocalFile {
+            path: path.to_path_buf(),
+            sha1: install::sha1_file(path)?,
+        })
+    }
 }
 
 #[async_trait]
@@ -73,6 +94,15 @@ pub trait ContentProvider: Send + Sync {
         let _ = ids;
         Ok(Vec::new())
     }
+    /// The versions that published these files, keyed by each file's sha1.
+    /// What turns a jar the user already has into a tracked item. A platform
+    /// indexes its files by a hash of its own choosing, so it is handed the
+    /// files rather than one digest.
+    async fn identify(&self, files: &[LocalFile]) -> Result<HashMap<String, ContentVersion>> {
+        let _ = files;
+        Ok(HashMap::new())
+    }
+
     /// A modpack version's manifest, without its archive.
     async fn resolve_modpack(&self, version_id: &str) -> Result<ResolvedModpack>;
     /// The modpack version's whole archive. Installing needs the bytes as well
