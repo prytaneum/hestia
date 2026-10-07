@@ -8,9 +8,10 @@ use proto::backup::{
     ServerBackupRemove, ServerBackupRestore, ServerBackupRestoreParams,
 };
 use proto::content::{
-    ContentAddSpec, ContentFailure, ContentKind, ContentUpdate, InstalledContent, ServerContentAdd,
-    ServerContentAddParams, ServerContentCheckUpdates, ServerContentCheckUpdatesParams,
-    ServerContentEnable, ServerContentEnableParams, ServerContentList, ServerContentListParams,
+    ContentAddSpec, ContentFailure, ContentKind, ContentMatch, ContentUpdate, InstalledContent,
+    ServerContentAdd, ServerContentAddParams, ServerContentCheckUpdates,
+    ServerContentCheckUpdatesParams, ServerContentEnable, ServerContentEnableParams,
+    ServerContentList, ServerContentListParams, ServerContentMatches, ServerContentMatchesParams,
     ServerContentRemove, ServerContentRemoveParams, ServerContentSetVersion,
     ServerContentSetVersionParams, ServerContentUpdate, ServerContentUpdateParams, UntrackedFile,
 };
@@ -415,6 +416,24 @@ impl Server<'_> {
         Ok(result.updates)
     }
 
+    pub async fn content_matches(
+        &self,
+        server: &str,
+        kind: ContentKind,
+        item: &str,
+    ) -> Result<Vec<ContentMatch>, IpcError> {
+        let params = ServerContentMatchesParams {
+            server: server.to_string(),
+            kind,
+            item: item.to_string(),
+        };
+        let result = self
+            .session
+            .call_with_timeout::<ServerContentMatches>(&params, Duration::from_secs(120))
+            .await?;
+        Ok(result.matches)
+    }
+
     /// Re-pin one item to a specific published `version` (id or number).
     pub async fn content_set_version(
         &self,
@@ -422,6 +441,7 @@ impl Server<'_> {
         kind: ContentKind,
         item: &str,
         version: &str,
+        source: &str,
         on_progress: impl Fn(&ProvisionProgress) + Send + Sync + 'static,
     ) -> Result<Vec<InstalledContent>, IpcError> {
         let id = job_id("server-content-set-version");
@@ -430,6 +450,7 @@ impl Server<'_> {
             kind,
             item: item.to_string(),
             version: version.to_string(),
+            source: source.to_string(),
             id: id.clone(),
         };
         let session = self.session;

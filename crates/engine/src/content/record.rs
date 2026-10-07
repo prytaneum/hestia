@@ -138,6 +138,14 @@ pub(crate) fn repin(item: &InstalledContent, release: Release) -> InstalledConte
     assemble(Project::from(item), release, Holding::from(item))
 }
 
+pub(crate) fn resource(
+    item: &InstalledContent,
+    project: Project,
+    release: Release,
+) -> InstalledContent {
+    assemble(project, release, Holding::from(item))
+}
+
 /// Put a resolved record where an existing one stood, under `holding`.
 pub(crate) fn rehold(item: &InstalledContent, holding: Holding) -> InstalledContent {
     assemble(Project::from(item), Release::from(item), holding)

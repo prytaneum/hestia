@@ -94,6 +94,8 @@ export const keys = {
       [...keys.servers.content(id), kind] as const,
     contentUpdates: (id: string, kind: ContentKind) =>
       [...keys.servers.content(id), 'updates', kind] as const,
+    contentMatches: (id: string, kind: ContentKind, item: string) =>
+      [...keys.servers.content(id), 'matches', kind, item] as const,
     modpack: (id: string) => [...keys.servers.detail(id), 'modpack'] as const,
   },
   // An archive is identified by its path, not by any entry — an inspect
@@ -137,6 +139,8 @@ export const keys = {
       [...keys.instances.content(id), kind] as const,
     contentUpdates: (id: string, kind: ContentKind) =>
       [...keys.instances.content(id), 'updates', kind] as const,
+    contentMatches: (id: string, kind: ContentKind, item: string) =>
+      [...keys.instances.content(id), 'matches', kind, item] as const,
     modpack: (id: string) => [...keys.instances.detail(id), 'modpack'] as const,
     exportContents: (id: string) =>
       [...keys.instances.detail(id), 'export-contents'] as const,

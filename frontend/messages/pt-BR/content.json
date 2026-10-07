@@ -14,8 +14,10 @@
     },
     "change_version": {
       "action": "Trocar versão…",
-      "description": "Escolha qualquer versão publicada; a troca é aplicada no próximo início.",
-      "title": "Trocar versão — {name}"
+      "description": "Escolha qualquer versão publicada, de qualquer fonte que tenha este arquivo; a troca é aplicada no próximo início.",
+      "title": "Trocar versão — {name}",
+      "track_action": "Rastrear de uma fonte…",
+      "unrecognized": "Nenhuma fonte reconhece este arquivo."
     },
     "check_updates": "Verificar atualizações",
     "checking_updates": "Verificando…",

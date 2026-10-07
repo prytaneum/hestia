@@ -574,6 +574,8 @@ pub struct ServerContentSetVersionParams {
     pub kind: ContentKind,
     pub item: String,
     pub version: String,
+    /// Empty keeps the item's own source.
+    pub source: String,
     pub id: String,
 }
 
@@ -585,7 +587,34 @@ pub struct InstanceContentSetVersionParams {
     pub kind: ContentKind,
     pub item: String,
     pub version: String,
+    /// Empty keeps the item's own source.
+    pub source: String,
     pub id: String,
+}
+
+#[derive(Serialize, Deserialize, Default, Debug, Clone)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
+#[serde(default, rename_all = "camelCase")]
+pub struct ServerContentMatchesParams {
+    pub server: String,
+    pub kind: ContentKind,
+    pub item: String,
+}
+
+#[derive(Serialize, Deserialize, Default, Debug, Clone)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
+#[serde(default, rename_all = "camelCase")]
+pub struct InstanceContentMatchesParams {
+    pub instance: String,
+    pub kind: ContentKind,
+    pub item: String,
+}
+
+#[derive(Serialize, Deserialize, Default, Debug, Clone)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
+#[serde(default, rename_all = "camelCase")]
+pub struct ContentMatchesResult {
+    pub matches: Vec<ContentMatch>,
 }
 
 pub struct ServerContentAdd;
@@ -670,6 +699,20 @@ impl Contract for InstanceContentCheckUpdates {
     const CHANNEL: &'static str = "instance.content.check_updates";
     type Params = InstanceContentCheckUpdatesParams;
     type Result = ContentUpdatesResult;
+}
+
+pub struct ServerContentMatches;
+impl Contract for ServerContentMatches {
+    const CHANNEL: &'static str = "server.content.matches";
+    type Params = ServerContentMatchesParams;
+    type Result = ContentMatchesResult;
+}
+
+pub struct InstanceContentMatches;
+impl Contract for InstanceContentMatches {
+    const CHANNEL: &'static str = "instance.content.matches";
+    type Params = InstanceContentMatchesParams;
+    type Result = ContentMatchesResult;
 }
 
 pub struct ServerContentSetVersion;

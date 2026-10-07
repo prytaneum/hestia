@@ -348,6 +348,10 @@ hestia instance modded mod add jei -S curseforge     # from another source (a
                                  #   page URL names its own, so -S is for slugs)
 hestia instance modded mod add --file ./my-mod.jar   # import a local file; one
                                  #   Modrinth or CurseForge published is tracked
+hestia instance modded mod set-version sodium 0.6.0   # re-pin to a version
+hestia instance modded mod set-version sodium 0.6.0 -S curseforge
+                                 # ...taken from another source that carries
+                                 #   the installed file
 hestia instance modded mod list  # installed mods (+ any untracked jars in the
                                  #   game dir)
 hestia instance modded mod update [sodium ...]   # newest compatible (all, or

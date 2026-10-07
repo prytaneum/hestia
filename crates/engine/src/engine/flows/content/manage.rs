@@ -7,7 +7,7 @@ use proto::minecraft::ProvisionPhase;
 
 use super::entry::{content_loader, EntryContent};
 use super::phase_progress;
-use crate::content::{install, record};
+use crate::content::{install, record, Identified, LocalFile};
 use crate::engine::Engine;
 use crate::minecraft::materialize::OnProgress;
 
@@ -86,6 +86,104 @@ impl Engine {
         Ok(updated)
     }
 
+    pub(super) async fn content_matches(
+        &self,
+        ctx: &EntryContent,
+        kind: ContentKind,
+        reference: &str,
+    ) -> Result<Vec<Identified>> {
+        let item = installed_item(&install::load(&ctx.entry_dir), kind, reference)?;
+        self.identified(ctx, &item).await
+    }
+
+    async fn identified(
+        &self,
+        ctx: &EntryContent,
+        item: &InstalledContent,
+    ) -> Result<Vec<Identified>> {
+        let file = LocalFile::read(&install::managed_path(&ctx.entry_dir, item)?)?;
+        Ok(self
+            .content
+            .identify(std::slice::from_ref(&file))
+            .await
+            .remove(&file.sha1)
+            .unwrap_or_default())
+    }
+
+    /// Sources share no project ids, so the installed file's hash finds it there.
+    pub(super) async fn move_content_source(
+        &self,
+        ctx: &EntryContent,
+        kind: ContentKind,
+        reference: &str,
+        source: &str,
+        pin: &str,
+        on_progress: OnProgress<'_>,
+    ) -> Result<Vec<InstalledContent>> {
+        let item = installed_item(&install::load(&ctx.entry_dir), kind, reference)?;
+        if item.source == source {
+            return self
+                .update_content(ctx, kind, &[reference.to_string()], pin, on_progress)
+                .await;
+        }
+        on_progress.report(&phase_progress(ProvisionPhase::Resolving));
+        let known = self
+            .identified(ctx, &item)
+            .await?
+            .into_iter()
+            .find(|m| m.version.source == source)
+            .with_context(|| format!("'{}' is not published on {source}", item.title))?;
+        let loader = content_loader(kind, &ctx.flavor);
+        let versions = self
+            .content
+            .versions(&VersionQuery {
+                source: source.to_string(),
+                project: known.project.id.clone(),
+                loader: loader.clone(),
+                game_version: Some(ctx.game_version.clone()),
+            })
+            .await?;
+        let version = install::pick_version(&versions, &ctx.game_version, loader.as_deref(), pin)
+            .with_context(|| format!("cannot move '{}' to {source}", item.title))?
+            .clone();
+        let release = self
+            .fetch_release(ctx, item.kind, &known.project.title, &version, on_progress)
+            .await?;
+        let moved = record::resource(
+            &item,
+            record::Project {
+                kind: item.kind,
+                project_id: known.project.id.clone(),
+                slug: known.project.slug.clone(),
+                title: known.project.title.clone(),
+                icon_url: known.project.icon_url.clone(),
+            },
+            release,
+        );
+        if moved.filename != item.filename {
+            install::remove_files(&ctx.entry_dir, &ctx.data_dir, &item, &ctx.worlds());
+        }
+        install::apply_files(&ctx.entry_dir, &ctx.data_dir, &moved, &ctx.worlds())?;
+        tracing::info!(
+            title = %moved.title,
+            from = %item.source,
+            to = %moved.source,
+            version = %moved.version_number,
+            "content source changed"
+        );
+
+        let mut index = install::load(&ctx.entry_dir);
+        match index
+            .iter_mut()
+            .find(|i| i.kind == item.kind && i.filename == item.filename)
+        {
+            Some(entry) => *entry = moved.clone(),
+            None => index.push(moved.clone()),
+        }
+        install::save(&ctx.entry_dir, index)?;
+        Ok(vec![moved])
+    }
+
     pub(super) async fn content_updates(
         &self,
         ctx: &EntryContent,
@@ -131,6 +229,23 @@ impl Engine {
         }
         Ok(out)
     }
+}
+
+fn installed_item(
+    index: &[InstalledContent],
+    kind: ContentKind,
+    reference: &str,
+) -> Result<InstalledContent> {
+    index
+        .iter()
+        .find(|i| i.kind == kind && install::matches(i, reference))
+        .cloned()
+        .ok_or_else(|| {
+            proto::error::ErrorInfo::ContentNotFound {
+                reference: reference.to_string(),
+            }
+            .into()
+        })
 }
 
 /// The items an update acts on: every one of the kind for an empty batch, or

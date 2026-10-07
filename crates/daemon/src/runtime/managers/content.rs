@@ -30,6 +30,7 @@ pub enum ContentJob {
         kind: ContentKind,
         item: String,
         version: String,
+        source: String,
     },
 }
 
@@ -120,8 +121,16 @@ impl ContentJob {
                 kind,
                 item,
                 version,
+                source,
             } => engine
-                .set_entry_content_version(entry.as_ref(), kind, &item, &version, on_progress)
+                .set_entry_content_version(
+                    entry.as_ref(),
+                    kind,
+                    &item,
+                    &version,
+                    &source,
+                    on_progress,
+                )
                 .await
                 .map(|items| (items, Vec::new())),
         }

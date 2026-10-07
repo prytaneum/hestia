@@ -1,7 +1,12 @@
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 
-import type { ContentVersion, InstalledContent } from '@/api';
+import {
+  type ContentMatch,
+  type ContentVersion,
+  content as contentApi,
+  type InstalledContent,
+} from '@/api';
 import { OfflineState } from '@/components/offline-state';
 import { SearchInput } from '@/components/search-input';
 import { CardGridSkeleton } from '@/components/skeleton';
@@ -15,10 +20,17 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { agoLabel } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { m } from '@/paraglide/messages.js';
-import { contentQueries } from '@/queries/content';
+import { contentQueries, useContentSources } from '@/queries/content';
 import { useOffline } from '@/queries/net';
 
 /**
@@ -30,6 +42,8 @@ export function ContentVersionDialog({
   item,
   loader,
   gameVersion,
+  matches,
+  matchesLoading,
   onOpenChange,
   onPick,
 }: {
@@ -37,16 +51,40 @@ export function ContentVersionDialog({
   item: InstalledContent | null;
   loader?: string;
   gameVersion?: string;
+  matches: ContentMatch[];
+  matchesLoading: boolean;
   onOpenChange: (open: boolean) => void;
   onPick: (item: InstalledContent, version: ContentVersion) => void;
 }) {
   const [search, setSearch] = useState('');
   const [pickedId, setPickedId] = useState<string | null>(null);
+  const [chosen, setChosen] = useState<string | null>(null);
+
+  const names = useContentSources().data ?? [];
+  const tracked = !!item?.projectId && item.source !== contentApi.LOCAL_SOURCE;
+  const sources = [
+    ...(tracked && item
+      ? [{ source: item.source, project: item.projectId, title: item.title }]
+      : []),
+    ...matches
+      .filter((match) => !tracked || match.project.source !== item?.source)
+      .map(({ project }) => ({
+        source: project.source,
+        project: project.id,
+        title: project.title,
+      })),
+  ];
+  const active = sources.find((s) => s.source === chosen) ?? sources[0];
+  const moving = !!active && active.source !== item?.source;
+  const options = sources.map((s) => ({
+    value: s.source,
+    label: `${names.find((n) => n.id === s.source)?.name ?? s.source} · ${s.title}`,
+  }));
 
   const versions = useQuery(
     contentQueries.versions({
-      source: item?.source ?? '',
-      project: item?.projectId ?? '',
+      source: active?.source ?? '',
+      project: active?.project ?? '',
       loader,
       gameVersion,
     }),
@@ -66,6 +104,7 @@ export function ContentVersionDialog({
     if (!next) {
       setSearch('');
       setPickedId(null);
+      setChosen(null);
     }
     onOpenChange(next);
   };
@@ -83,6 +122,32 @@ export function ContentVersionDialog({
         </DialogHeader>
 
         <div className="flex flex-col gap-3">
+          {(options.length > 1 || (moving && options.length > 0)) && (
+            <div className="flex items-center gap-2">
+              <span className="shrink-0 text-xs text-muted-foreground">
+                {m['content.browse.source']()}
+              </span>
+              <Select
+                items={options}
+                value={active?.source}
+                onValueChange={(value) => {
+                  setChosen(String(value));
+                  setPickedId(null);
+                }}
+              >
+                <SelectTrigger size="sm" className="min-w-0 flex-1">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {options.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
           <SearchInput
             value={search}
             onChange={setSearch}
@@ -92,6 +157,10 @@ export function ContentVersionDialog({
           <div className="max-h-64 divide-y divide-border overflow-y-auto border border-border">
             {offline && shown.length === 0 ? (
               <OfflineState />
+            ) : !active && !matchesLoading ? (
+              <p className="px-3 py-6 text-center text-xs text-muted-foreground">
+                {m['content.change_version.unrecognized']()}
+              </p>
             ) : versions.isPending ? (
               <CardGridSkeleton
                 grid="divide-y divide-border"
@@ -104,7 +173,8 @@ export function ContentVersionDialog({
               </p>
             ) : (
               shown.map((v) => {
-                const current = v.versionNumber === item?.versionNumber;
+                const current =
+                  !moving && v.versionNumber === item?.versionNumber;
                 const selected = pickedId === v.id;
                 return (
                   <button
@@ -159,7 +229,10 @@ export function ContentVersionDialog({
             {m['app.action.cancel']()}
           </Button>
           <Button
-            disabled={!picked || picked.versionNumber === item?.versionNumber}
+            disabled={
+              !picked ||
+              (!moving && picked.versionNumber === item?.versionNumber)
+            }
             onClick={() => {
               if (item && picked) onPick(item, picked);
               close(false);

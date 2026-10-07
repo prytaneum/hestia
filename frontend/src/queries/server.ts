@@ -103,6 +103,12 @@ export const serverQueries = {
       queryKey: keys.servers.contentList(id, kind),
       queryFn: () => api.content.list(id, kind),
     }),
+  contentMatches: (id: string, kind: ContentKind, item: string) =>
+    queryOptions({
+      queryKey: keys.servers.contentMatches(id, kind, item),
+      queryFn: () => api.content.matches(id, kind, item),
+      enabled: item.length > 0,
+    }),
   contentUpdates: (id: string, kind: ContentKind) =>
     queryOptions({
       queryKey: keys.servers.contentUpdates(id, kind),

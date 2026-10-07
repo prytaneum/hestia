@@ -26,6 +26,13 @@ before anything is installed.
   and no longer recognises the file at install leaves it untracked rather than
   falling through to another.
 
+- **The same lookup moves an installed item between sources.** Sources share no
+  project ids, so the installed file's hash is the only honest bridge: `matches`
+  lists the sources that recognise it, and `set_version` with a `source` re-pins
+  the item to a version from that one, replacing its project and release while
+  keeping how the entry holds it. A local file becomes tracked the same way. A
+  source that does not carry the installed file is not offered — there is no
+  proof it is the same mod.
 - **The provider is handed the file, not a digest.** Modrinth indexes by sha1
   (`POST /version_files`); CurseForge by its own fingerprint, a MurmurHash2
   over the bytes with whitespace stripped (`POST /fingerprints`). A

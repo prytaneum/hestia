@@ -128,6 +128,12 @@ export const instanceQueries = {
       queryKey: keys.instances.contentList(id, kind),
       queryFn: () => api.content.list(id, kind),
     }),
+  contentMatches: (id: string, kind: ContentKind, item: string) =>
+    queryOptions({
+      queryKey: keys.instances.contentMatches(id, kind, item),
+      queryFn: () => api.content.matches(id, kind, item),
+      enabled: item.length > 0,
+    }),
   contentUpdates: (id: string, kind: ContentKind) =>
     queryOptions({
       queryKey: keys.instances.contentUpdates(id, kind),

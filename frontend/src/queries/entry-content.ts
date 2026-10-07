@@ -46,6 +46,7 @@ export interface EntryContentApi {
     kind: ContentKind,
     item: string,
     version: string,
+    source: string,
     job: JobRun,
   ): Promise<ContentDoneEvent>;
 }
@@ -114,7 +115,7 @@ export function entryContentFactories(cfg: EntryContentConfig) {
     setVersion: (id: string) =>
       jobMutation<
         ContentDoneEvent,
-        { kind: ContentKind; item: string; version: string }
+        { kind: ContentKind; item: string; version: string; source: string }
       >({
         mutationKey: [...cfg.contentKey(id), 'set-version'],
         meta: ({ kind }) => ({
@@ -122,8 +123,8 @@ export function entryContentFactories(cfg: EntryContentConfig) {
           label: `pin ${kind}`,
           entry: { kind: cfg.kind, id },
         }),
-        run: ({ kind, item, version }, job) =>
-          cfg.api.setVersion(id, kind, item, version, job),
+        run: ({ kind, item, version, source }, job) =>
+          cfg.api.setVersion(id, kind, item, version, source, job),
         invalidates: () => invalidates(id),
       }),
   };

@@ -14,7 +14,7 @@ mod manage;
 
 use anyhow::{bail, Context, Result};
 use proto::content::{
-    ContentAddSpec, ContentFailure, ContentKind, InstalledContent, UntrackedFile,
+    ContentAddSpec, ContentFailure, ContentKind, ContentMatch, InstalledContent, UntrackedFile,
 };
 
 pub(in crate::engine) use self::entry::EntryRef;
@@ -109,6 +109,7 @@ impl Engine {
         kind: ContentKind,
         item: &str,
         version: &str,
+        source: &str,
         on_progress: OnProgress<'_>,
     ) -> Result<Vec<InstalledContent>> {
         if item.is_empty() || version.is_empty() {
@@ -116,9 +117,30 @@ impl Engine {
                 fields: vec![proto::error::Field::Item, proto::error::Field::Version]
             });
         }
-        let items = [item.to_string()];
-        self.change_version(entry, kind, &items, version, on_progress)
+        if source.is_empty() {
+            let items = [item.to_string()];
+            return self
+                .change_version(entry, kind, &items, version, on_progress)
+                .await;
+        }
+        let (_, ctx) = self.content_ctx(entry)?;
+        self.move_content_source(&ctx, kind, item, source, version, on_progress)
             .await
+    }
+
+    pub async fn entry_content_matches(
+        &self,
+        entry: EntryRef<'_>,
+        kind: ContentKind,
+        item: &str,
+    ) -> Result<Vec<ContentMatch>> {
+        let (_, ctx) = self.content_ctx(entry)?;
+        Ok(self
+            .content_matches(&ctx, kind, item)
+            .await?
+            .into_iter()
+            .map(ContentMatch::from)
+            .collect())
     }
 
     /// The version-change path shared by update (empty pin) and set-version

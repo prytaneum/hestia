@@ -105,6 +105,8 @@ export function contentChannels(prefix: string, resolve: Resolve): Handlers {
         ),
       ),
 
+    [`${prefix}.content.matches`]: () => ({ matches: [] }),
+
     [`${prefix}.content.check_updates`]: (p) => ({
       updates: content.updates(resolve(p), kindOf(p)),
     }),

@@ -2,12 +2,13 @@
 //! resolution) and the per-entry install surface for servers and instances.
 
 use proto::content::{
-    ContentInspect, ContentJobResult, ContentListResult, ContentProjectGet, ContentResolveUrl,
-    ContentSearch, ContentSources, ContentUpdatesResult, ContentVersions, ContentVersionsResult,
-    InstanceContentAdd, InstanceContentCheckUpdates, InstanceContentEnable, InstanceContentList,
-    InstanceContentRemove, InstanceContentSetVersion, InstanceContentUpdate, ModpackResolve,
-    ServerContentAdd, ServerContentCheckUpdates, ServerContentEnable, ServerContentList,
-    ServerContentRemove, ServerContentSetVersion, ServerContentUpdate, SourcesResult,
+    ContentInspect, ContentJobResult, ContentListResult, ContentMatchesResult, ContentProjectGet,
+    ContentResolveUrl, ContentSearch, ContentSources, ContentUpdatesResult, ContentVersions,
+    ContentVersionsResult, InstanceContentAdd, InstanceContentCheckUpdates, InstanceContentEnable,
+    InstanceContentList, InstanceContentMatches, InstanceContentRemove, InstanceContentSetVersion,
+    InstanceContentUpdate, ModpackResolve, ServerContentAdd, ServerContentCheckUpdates,
+    ServerContentEnable, ServerContentList, ServerContentMatches, ServerContentRemove,
+    ServerContentSetVersion, ServerContentUpdate, SourcesResult,
 };
 use proto::error::{ErrorInfo, Field};
 use proto::Empty;
@@ -196,6 +197,17 @@ fn register_server(on: &mut Channels<'_>) {
         Ok(ContentUpdatesResult { updates })
     });
 
+    on.handle::<ServerContentMatches, _, _>(|p, ctx| async move {
+        let record = server_for(&ctx, &p.server, Intent::Read)?;
+        let matches = ctx
+            .runtime
+            .engine()
+            .entry_content_matches(engine::EntryRef::Server(&record.id), p.kind, &p.item)
+            .await
+            .map_err(crate::runtime::engine_error)?;
+        Ok(ContentMatchesResult { matches })
+    });
+
     on.handle::<ServerContentSetVersion, _, _>(|p, ctx| async move {
         if p.item.is_empty() || p.version.is_empty() {
             return Err(ErrorInfo::FieldsRequired {
@@ -209,6 +221,7 @@ fn register_server(on: &mut Channels<'_>) {
                 kind: p.kind,
                 item: p.item,
                 version: p.version,
+                source: p.source,
             },
             p.id,
         ) {
@@ -315,6 +328,17 @@ fn register_instance(on: &mut Channels<'_>) {
         Ok(ContentUpdatesResult { updates })
     });
 
+    on.handle::<InstanceContentMatches, _, _>(|p, ctx| async move {
+        let record = instance_for(&ctx, &p.instance, Intent::Read)?;
+        let matches = ctx
+            .runtime
+            .engine()
+            .entry_content_matches(engine::EntryRef::Instance(&record.id), p.kind, &p.item)
+            .await
+            .map_err(crate::runtime::engine_error)?;
+        Ok(ContentMatchesResult { matches })
+    });
+
     on.handle::<InstanceContentSetVersion, _, _>(|p, ctx| async move {
         if p.item.is_empty() || p.version.is_empty() {
             return Err(ErrorInfo::FieldsRequired {
@@ -328,6 +352,7 @@ fn register_instance(on: &mut Channels<'_>) {
                 kind: p.kind,
                 item: p.item,
                 version: p.version,
+                source: p.source,
             },
             p.id,
         ) {

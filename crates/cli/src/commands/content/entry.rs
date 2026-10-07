@@ -149,19 +149,20 @@ impl<'a> ContentEntry<'a> {
         kind: ContentKind,
         item: &str,
         version: &str,
+        source: &str,
         on_progress: impl Fn(&ProvisionProgress) + Send + Sync + 'static,
     ) -> Result<Vec<InstalledContent>, IpcError> {
         match self.kind {
             EntryKind::Server => {
                 self.client
                     .server()
-                    .content_set_version(&self.id, kind, item, version, on_progress)
+                    .content_set_version(&self.id, kind, item, version, source, on_progress)
                     .await
             }
             EntryKind::Instance => {
                 self.client
                     .instance()
-                    .content_set_version(&self.id, kind, item, version, on_progress)
+                    .content_set_version(&self.id, kind, item, version, source, on_progress)
                     .await
             }
         }

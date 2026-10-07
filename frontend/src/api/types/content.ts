@@ -13,6 +13,7 @@ export type { ContentJobResult } from "./generated/ContentJobResult";
 export type { ContentKind } from "./generated/ContentKind";
 export type { ContentListResult } from "./generated/ContentListResult";
 export type { ContentMatch } from "./generated/ContentMatch";
+export type { ContentMatchesResult } from "./generated/ContentMatchesResult";
 export type { ContentProgressEvent } from "./generated/ContentProgressEvent";
 export type { ContentProject } from "./generated/ContentProject";
 export type { ContentSource } from "./generated/ContentSource";
@@ -27,6 +28,7 @@ export type { InstanceContentAddParams } from "./generated/InstanceContentAddPar
 export type { InstanceContentCheckUpdatesParams } from "./generated/InstanceContentCheckUpdatesParams";
 export type { InstanceContentEnableParams } from "./generated/InstanceContentEnableParams";
 export type { InstanceContentListParams } from "./generated/InstanceContentListParams";
+export type { InstanceContentMatchesParams } from "./generated/InstanceContentMatchesParams";
 export type { InstanceContentRemoveParams } from "./generated/InstanceContentRemoveParams";
 export type { InstanceContentSetVersionParams } from "./generated/InstanceContentSetVersionParams";
 export type { InstanceContentUpdateParams } from "./generated/InstanceContentUpdateParams";
@@ -44,6 +46,7 @@ export type { ServerContentAddParams } from "./generated/ServerContentAddParams"
 export type { ServerContentCheckUpdatesParams } from "./generated/ServerContentCheckUpdatesParams";
 export type { ServerContentEnableParams } from "./generated/ServerContentEnableParams";
 export type { ServerContentListParams } from "./generated/ServerContentListParams";
+export type { ServerContentMatchesParams } from "./generated/ServerContentMatchesParams";
 export type { ServerContentRemoveParams } from "./generated/ServerContentRemoveParams";
 export type { ServerContentSetVersionParams } from "./generated/ServerContentSetVersionParams";
 export type { ServerContentUpdateParams } from "./generated/ServerContentUpdateParams";

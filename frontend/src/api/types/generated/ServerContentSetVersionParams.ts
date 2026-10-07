@@ -6,4 +6,8 @@ import type { ContentKind } from "./ContentKind";
  * The swap re-installs that version like an update, applying at the next
  * start/launch; runs as a content job.
  */
-export type ServerContentSetVersionParams = { server: string, kind: ContentKind, item: string, version: string, id: string, };
+export type ServerContentSetVersionParams = { server: string, kind: ContentKind, item: string, version: string, 
+/**
+ * Empty keeps the item's own source.
+ */
+source: string, id: string, };

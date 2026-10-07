@@ -8,6 +8,7 @@ import {
   SwapIcon,
   TrashIcon,
 } from '@phosphor-icons/react';
+import { useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
 import { useState } from 'react';
 
@@ -37,6 +38,8 @@ import { ContentVersionDialog } from '@/features/shared/content/dialogs';
 import { kindInfo } from '@/features/shared/content/lib';
 import { cn } from '@/lib/utils';
 import { m } from '@/paraglide/messages.js';
+import { instanceQueries } from '@/queries/instance';
+import { serverQueries } from '@/queries/server';
 import { useContent } from '../hooks';
 import {
   kindLoader,
@@ -59,6 +62,18 @@ export function ContentListResult({
 }) {
   const { entry, handlers, entryWorlds } = useContent();
   const [changing, setChanging] = useState<InstalledContent | null>(null);
+  const isServer = entry.kind === 'server';
+  const changingKind = changing?.kind ?? 'mod';
+  const changingFile = changing?.filename ?? '';
+  const serverMatches = useQuery({
+    ...serverQueries.contentMatches(entry.id, changingKind, changingFile),
+    enabled: isServer && changingFile.length > 0,
+  });
+  const instanceMatches = useQuery({
+    ...instanceQueries.contentMatches(entry.id, changingKind, changingFile),
+    enabled: !isServer && changingFile.length > 0,
+  });
+  const matches = isServer ? serverMatches : instanceMatches;
 
   if (items.length === 0) {
     return (
@@ -92,6 +107,8 @@ export function ContentListResult({
         item={changing}
         loader={changing ? kindLoader(changing.kind, entry.flavor) : undefined}
         gameVersion={entry.gameVersion || undefined}
+        matches={matches.data ?? []}
+        matchesLoading={matches.isLoading}
         onOpenChange={(open) => !open && setChanging(null)}
         onPick={(item, version) => handlers.onSetVersion(item, version)}
       />
@@ -149,8 +166,7 @@ function ContentRow({
   const [removing, setRemoving] = useState(false);
   const selecting = checked !== undefined;
   const Icon = contentIcon(item.kind);
-  // A local-file import has no project page to open and no versions to move
-  // between — its only action is enable/disable and removal.
+  // A local-file import has no project page to open.
   const platform = item.source !== contentApi.LOCAL_SOURCE && !!item.projectId;
   const loadedWorlds = worlds.filter((world) =>
     worldEnabled(item, world),
@@ -263,6 +279,12 @@ function ContentRow({
                     {m['content.change_version.action']()}
                   </DropdownMenuItem>
                 </>
+              )}
+              {item.source === contentApi.LOCAL_SOURCE && (
+                <DropdownMenuItem disabled={busy} onClick={onChangeVersion}>
+                  <SwapIcon />
+                  {m['content.change_version.track_action']()}
+                </DropdownMenuItem>
               )}
               <DropdownMenuItem
                 onClick={() => handlers.onEnable(item, !item.enabled)}

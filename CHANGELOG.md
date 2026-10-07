@@ -62,9 +62,12 @@ editor, a guided first run, and fixes for SteamOS and Windows.
 - **Local files are recognised.** A mod or pack imported from disk is looked up
   on Modrinth and CurseForge by its hash; one they published is installed as
   that release, with its name, icon and updates, instead of as a bare file. The
-  Add content dialog also takes files dropped onto it, several at a time.
-  Dependencies are not pulled in, and a file nobody recognises installs as
-  before.
+  Add content dialog also takes files dropped onto it, several at a time, and
+  its review step shows what each one resolved to and lets you pick which
+  source tracks it — or keep it local. Change version can switch an installed
+  item to another source that carries the same file, which is also how a local
+  file starts being tracked later. Dependencies are not pulled in, and a file
+  nobody recognises installs as before.
 - **The tray now appears on every Linux desktop that has one**, SteamOS
   included. It reached the status area through libappindicator — a library most
   desktops do not ship — so where it was absent no icon appeared, and the daemon

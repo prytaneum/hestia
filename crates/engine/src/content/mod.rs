@@ -43,6 +43,15 @@ pub struct Identified {
     pub file: ContentFile,
 }
 
+impl From<Identified> for ContentMatch {
+    fn from(identified: Identified) -> Self {
+        ContentMatch {
+            project: identified.project,
+            version_number: identified.version.version_number,
+        }
+    }
+}
+
 fn published_file(version: &ContentVersion, sha1: &str) -> Option<ContentFile> {
     version
         .files
@@ -173,10 +182,7 @@ impl Content {
             .remove(&file.sha1)
             .unwrap_or_default()
             .into_iter()
-            .map(|identified| ContentMatch {
-                project: identified.project,
-                version_number: identified.version.version_number,
-            })
+            .map(ContentMatch::from)
             .collect();
         result
     }

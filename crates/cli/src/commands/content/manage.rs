@@ -94,6 +94,9 @@ pub enum ContentCmd {
         item: String,
         /// Version id or version number to pin
         version: String,
+        /// Take the version from this source instead of the item's own
+        #[arg(short = 'S', long)]
+        source: Option<String>,
     },
 }
 
@@ -136,8 +139,13 @@ pub async fn run_entry(
         ContentCmd::Disable { item, world } => {
             set_enabled(client, entry, kind, reference, item, world, false).await
         }
-        ContentCmd::SetVersion { item, version } => {
-            set_version(client, entry, kind, reference, item, version).await
+        ContentCmd::SetVersion {
+            item,
+            version,
+            source,
+        } => {
+            let source = source.unwrap_or_default();
+            set_version(client, entry, kind, reference, item, version, source).await
         }
     }
 }
@@ -490,6 +498,7 @@ async fn set_version(
     reference: &str,
     item: String,
     version: String,
+    source: String,
 ) -> Result<()> {
     let EntryInfo { id, name, .. } = resolve_entry(client, entry, reference).await?;
     let handle = ContentEntry::new(client, entry, id);
@@ -498,7 +507,7 @@ async fn set_version(
     let progress = reporter.clone();
     let updated = {
         let result = handle
-            .set_version(kind, &item, &version, move |p| progress.update(p))
+            .set_version(kind, &item, &version, &source, move |p| progress.update(p))
             .await;
         reporter.finish();
         result?

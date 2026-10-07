@@ -114,8 +114,9 @@ export function ContentSection({
     onSetVersion: (item, version) =>
       setVersion.mutate({
         kind: item.kind,
-        item: installedRef(item),
+        item: item.filename,
         version: version.id,
+        source: version.source,
       }),
     onRemoveMany: (rows) => void runBatches(rows, remove.mutateAsync),
     onUpdateMany: (rows) => void runBatches(rows, update.mutateAsync),

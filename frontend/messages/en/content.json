@@ -14,8 +14,10 @@
     },
     "change_version": {
       "action": "Change version…",
-      "description": "Pick any published version; the swap applies at the next launch.",
-      "title": "Change version — {name}"
+      "description": "Pick any published version, from any source that carries this file; the swap applies at the next launch.",
+      "title": "Change version — {name}",
+      "track_action": "Track from a source…",
+      "unrecognized": "No source recognizes this file."
     },
     "check_updates": "Check for updates",
     "checking_updates": "Checking…",

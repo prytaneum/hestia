@@ -12,6 +12,7 @@ import type {
   ContentDoneEvent,
   ContentKind,
   ContentListResult,
+  ContentMatch,
   ContentUpdate,
 } from './types/content';
 import type {
@@ -307,12 +308,26 @@ export const content = {
     return result.updates;
   },
 
+  async matches(
+    instance: string,
+    kind: ContentKind,
+    item: string,
+  ): Promise<ContentMatch[]> {
+    const result = await call<{ matches: ContentMatch[] }>(
+      'instance.content.matches',
+      { instance, kind, item },
+      { timeoutMs: 120_000 },
+    );
+    return result.matches;
+  },
+
   /** Re-pin one item to a specific published version (id or number). */
   setVersion(
     instance: string,
     kind: ContentKind,
     item: string,
     version: string,
+    source: string,
     job: JobRun,
   ): Promise<ContentDoneEvent> {
     return runJob<ContentDoneEvent>({
@@ -328,6 +343,7 @@ export const content = {
           kind,
           item,
           version,
+          source,
           id: job.id,
         }),
     });

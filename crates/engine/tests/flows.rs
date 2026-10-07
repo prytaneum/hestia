@@ -247,7 +247,7 @@ async fn a_local_file_a_source_recognises_installs_tracked_and_alone() {
 }
 
 #[tokio::test]
-async fn a_recognised_file_stays_local_when_asked_to() {
+async fn a_file_kept_local_can_later_move_to_a_source_that_recognises_it() {
     let home = tempfile::tempdir().expect("temp home");
     let drops = tempfile::tempdir().expect("temp drops");
     let files = fixture::Files::serve().await;
@@ -275,6 +275,36 @@ async fn a_recognised_file_stays_local_when_asked_to() {
     assert!(failures.is_empty(), "no item should fail: {failures:?}");
     assert_eq!(installed[0].source, proto::content::LOCAL_SOURCE);
     assert!(installed[0].project_id.is_empty());
+
+    let matches = engine
+        .entry_content_matches(EntryRef::Instance(&id), ContentKind::Mod, "sodium.jar")
+        .await
+        .expect("the installed file is looked up");
+    assert_eq!(matches.len(), 1);
+    assert_eq!(matches[0].project.id, "sodium");
+
+    let moved = engine
+        .set_entry_content_version(
+            EntryRef::Instance(&id),
+            ContentKind::Mod,
+            "sodium.jar",
+            "1.0.0",
+            "fixture",
+            &job(&cancel, &report),
+        )
+        .await
+        .expect("the item moves to the source that recognises it");
+    assert_eq!(moved[0].source, "fixture");
+    assert_eq!(moved[0].project_id, "sodium");
+    let (listed, _) = engine
+        .entry_content(EntryRef::Instance(&id), ContentKind::Mod)
+        .expect("list");
+    assert_eq!(
+        listed.len(),
+        1,
+        "the move replaces the record, not adds one"
+    );
+    assert_eq!(listed[0].source, "fixture");
 }
 
 #[tokio::test]
