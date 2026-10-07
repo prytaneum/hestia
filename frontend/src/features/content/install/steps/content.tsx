@@ -233,8 +233,8 @@ function FileImportButton({
           detected: r.kind,
           valid: r.valid,
           reason: r.reason,
-          project: r.project,
-          versionNumber: r.versionNumber,
+          matches: r.matches,
+          track: r.matches[0]?.project.source ?? contentApi.LOCAL_SOURCE,
         };
       }),
     );

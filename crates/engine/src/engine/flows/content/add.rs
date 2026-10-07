@@ -2,13 +2,13 @@
 //! dependencies), a source page URL, or a local file. A batch is per-item — a
 //! selector that cannot be installed records a failure and the rest proceeds.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::path::Path;
 
 use anyhow::{bail, Context, Result};
 use proto::content::{
     ContentAddItem, ContentAddSpec, ContentFailure, ContentKind, ContentProject, DependencyKind,
-    InstalledContent, VersionQuery,
+    InstalledContent, VersionQuery, LOCAL_SOURCE,
 };
 use proto::error::ErrorInfo;
 use proto::minecraft::{ProvisionPhase, ProvisionProgress};
@@ -102,21 +102,32 @@ impl Engine {
         }
 
         let mut items = Vec::new();
-        // A path that cannot be hashed is left for the import itself to refuse,
-        // which names why.
+        let tracked_from = |item: &ContentAddItem| match item.source.is_empty() {
+            true => spec.source.clone(),
+            false => item.source.clone(),
+        };
         let local: Vec<Option<LocalFile>> = files
             .iter()
-            .map(|item| LocalFile::read(Path::new(&item.path)).ok())
+            .map(|item| match tracked_from(item) == LOCAL_SOURCE {
+                true => None,
+                false => LocalFile::read(Path::new(&item.path)).ok(),
+            })
             .collect();
         let hashed: Vec<LocalFile> = local.iter().flatten().cloned().collect();
-        let identified = if hashed.is_empty() {
-            HashMap::new()
-        } else {
+        if !hashed.is_empty() {
             on_progress.report(&phase_progress(ProvisionPhase::Resolving));
-            self.content.identify(&hashed).await
-        };
+        }
+        let identified = self.content.identify(&hashed).await;
         for (item, file) in files.into_iter().zip(&local) {
-            let known = file.as_ref().and_then(|f| identified.get(&f.sha1));
+            let matches = file.as_ref().and_then(|f| identified.get(&f.sha1));
+            let known = matches.and_then(|m| chosen_match(m, &tracked_from(item)));
+            if matches.is_some() && known.is_none() {
+                tracing::warn!(
+                    file = %item.path,
+                    source = %tracked_from(item),
+                    "the chosen source does not recognise this file; importing it untracked"
+                );
+            }
             match add_file_content(ctx, spec.kind, item, &worlds, known) {
                 Ok(installed) => items.push(installed),
                 Err(e) => failures.push(failure(&item.path, "", crate::error_info(e))),
@@ -420,10 +431,7 @@ impl Engine {
 }
 
 /// Import a local file: copy it into the managed directory and mirror it into
-/// the game's load dirs. One a source recognises (`known`) is recorded as that
-/// release, so it updates like any installed item; one nobody recognises has no
-/// provenance beyond the hash and can never update. Either way only the file
-/// asked for is installed — its dependencies are not resolved.
+/// the game's load dirs.
 fn add_file_content(
     ctx: &EntryContent,
     kind: ContentKind,
@@ -491,6 +499,13 @@ fn add_file_content(
     let installed = record::assemble(project, release, record::Holding::fresh(worlds));
     install::apply_files(&ctx.entry_dir, &ctx.data_dir, &installed, &ctx.worlds())?;
     Ok(installed)
+}
+
+fn chosen_match<'a>(matches: &'a [Identified], source: &str) -> Option<&'a Identified> {
+    match source.is_empty() {
+        true => matches.first(),
+        false => matches.iter().find(|m| m.version.source == source),
+    }
 }
 
 /// Whether a fetched project satisfies the requested kind. Datapacks accept

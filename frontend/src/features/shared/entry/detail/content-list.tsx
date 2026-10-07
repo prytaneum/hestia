@@ -11,7 +11,7 @@ import {
 import { Link } from '@tanstack/react-router';
 import { useState } from 'react';
 
-import type { InstalledContent } from '@/api';
+import { content as contentApi, type InstalledContent } from '@/api';
 import { Empty } from '@/components/empty';
 import { contentIcon, contentKindLabel } from '@/components/icons';
 import {
@@ -151,7 +151,7 @@ function ContentRow({
   const Icon = contentIcon(item.kind);
   // A local-file import has no project page to open and no versions to move
   // between — its only action is enable/disable and removal.
-  const platform = item.source !== 'file' && !!item.projectId;
+  const platform = item.source !== contentApi.LOCAL_SOURCE && !!item.projectId;
   const loadedWorlds = worlds.filter((world) =>
     worldEnabled(item, world),
   ).length;

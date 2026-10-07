@@ -81,6 +81,11 @@
     "select_version": "Selecionar versão",
     "selected_count": "{count} selecionado(s)",
     "stop_to_install": "Pare para instalar",
+    "track": {
+      "label": "Rastrear de",
+      "local": "Arquivo local — sem atualizações",
+      "unrecognized": "Não encontrado em nenhuma fonte — instala como arquivo local."
+    },
     "untracked": {
       "reveal": "Mostrar no gerenciador de arquivos",
       "show_less": "Mostrar menos",

@@ -1,14 +1,4 @@
-/**
- * Dropping files from the desktop onto the window.
- *
- * The webview's drag-drop event is the only way to learn a real filesystem
- * path from a drop — an HTML `DataTransfer` hands back a sandboxed `File`, and
- * the daemon needs a path it can open itself.
- *
- * Only files carrying an accepted extension arm the drop: what a file really
- * is gets decided by the daemon reading it, but lighting a target up for a
- * dragged screenshot would be a lie about what will happen.
- */
+/** Only the webview's drag-drop event yields a real path; a DOM drop hands back a sandboxed `File`. */
 import { getCurrentWebview } from '@tauri-apps/api/webview';
 import { useEffect, useRef, useState } from 'react';
 import { logger } from '@/lib/log';
@@ -25,8 +15,6 @@ export function useFileDrop(
   onDrop: (paths: string[]) => void,
 ): boolean {
   const [over, setOver] = useState(false);
-  // Held in refs so a caller passing an inline closure or array does not tear
-  // the listener down and set it up again on every render.
   const handler = useRef(onDrop);
   handler.current = onDrop;
   const accepted = useRef(extensions);

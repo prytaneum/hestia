@@ -192,8 +192,10 @@ CurseForge by its own fingerprint — and a recognised file is recorded as that
 release rather than as source `file`, so it updates and exports like anything
 installed from a source. The bytes installed are still the local ones, its
 dependencies are not resolved, and a lookup that fails (offline, unknown file)
-leaves the import untracked rather than failing it. `content.inspect` runs the
-same lookup, which is how the review step names the match before install
+leaves the import untracked rather than failing it. Every source is asked, and
+the add item's `source` says which match to track (`file` for none);
+`content.inspect` runs the same lookup, which is how the review step lists the
+matches to choose from before install
 ([0075](../decisions/0075-a-local-file-is-identified-by-its-hash.md)).
 
 ## Datapacks are the exception

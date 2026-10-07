@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
 import type {
   ContentKind,
-  ContentProject,
+  ContentMatch,
   InstanceInfo,
   ServerInfo,
 } from '@/api';
@@ -63,9 +63,8 @@ export interface PickedFile {
   detected?: ContentKind;
   valid: boolean;
   reason: string;
-  /** Set when a source recognises the file; it then installs tracked. */
-  project?: ContentProject;
-  versionNumber?: string;
+  matches: ContentMatch[];
+  track: string;
 }
 
 export const fileName = (path: string) => path.split(/[\\/]/).pop() ?? path;

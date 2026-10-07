@@ -81,6 +81,11 @@
     "select_version": "Select version",
     "selected_count": "{count} selected",
     "stop_to_install": "Stop to install",
+    "track": {
+      "label": "Track from",
+      "local": "Local file — no updates",
+      "unrecognized": "Not found on any source — installs as a local file."
+    },
     "untracked": {
       "reveal": "Show in file manager",
       "show_less": "Show less",

@@ -60,6 +60,7 @@ export const channels: Handlers = {
       kind: valid ? 'mod' : undefined,
       filename,
       reason: valid ? '' : 'not a jar or zip',
+      matches: [],
     };
   },
 };

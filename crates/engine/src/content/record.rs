@@ -43,7 +43,7 @@ pub(crate) struct Release {
 impl Release {
     pub(crate) fn local(filename: String, sha1: String) -> Self {
         Release {
-            source: "file".to_string(),
+            source: proto::content::LOCAL_SOURCE.to_string(),
             version_id: String::new(),
             version_number: String::new(),
             filename,

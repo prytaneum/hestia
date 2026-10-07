@@ -12,6 +12,7 @@ export type { ContentInspectResult } from "./generated/ContentInspectResult";
 export type { ContentJobResult } from "./generated/ContentJobResult";
 export type { ContentKind } from "./generated/ContentKind";
 export type { ContentListResult } from "./generated/ContentListResult";
+export type { ContentMatch } from "./generated/ContentMatch";
 export type { ContentProgressEvent } from "./generated/ContentProgressEvent";
 export type { ContentProject } from "./generated/ContentProject";
 export type { ContentSource } from "./generated/ContentSource";

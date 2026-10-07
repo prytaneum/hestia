@@ -182,8 +182,6 @@ impl ContentProvider for Source {
     async fn versions(&self, _query: &VersionQuery) -> Result<Vec<ContentVersion>> {
         Ok(self.versions.clone())
     }
-    /// Recognises a file by the name one of its versions published it under —
-    /// a stand-in for a platform's hash index.
     async fn identify(&self, files: &[LocalFile]) -> Result<HashMap<String, ContentVersion>> {
         Ok(files
             .iter()

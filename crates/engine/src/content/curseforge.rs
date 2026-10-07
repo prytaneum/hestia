@@ -333,8 +333,6 @@ impl ContentProvider for CurseForge {
         Ok(self.files(ids).await?.iter().map(parse_file).collect())
     }
 
-    /// One `POST /fingerprints` for the lot. CurseForge indexes by its own
-    /// fingerprint, so each answer is mapped back to the sha1 it was asked for.
     async fn identify(&self, files: &[LocalFile]) -> Result<HashMap<String, ContentVersion>> {
         let mut sha1_of = HashMap::with_capacity(files.len());
         for file in files {
@@ -818,9 +816,7 @@ fn artifact_of(f: &Value) -> Artifact {
     }
 }
 
-/// CurseForge's file fingerprint: 32-bit MurmurHash2, seed 1, over the bytes
-/// with whitespace (tab, LF, CR, space) removed. The stripping is theirs, not a
-/// normalisation of ours — the index is keyed by exactly this.
+/// CurseForge's index key: MurmurHash2, seed 1, over the bytes minus whitespace.
 fn fingerprint(bytes: &[u8]) -> u32 {
     const M: u32 = 0x5bd1_e995;
     let data: Vec<u8> = bytes

@@ -20,8 +20,8 @@ use std::path::Path;
 
 use anyhow::{Context, Result};
 use proto::content::{
-    ContentFile, ContentInspectResult, ContentKind, ContentProject, ContentSource, ContentVersion,
-    ResolvedModpack, ResolvedUrl, SearchQuery, SearchResult, VersionQuery,
+    ContentFile, ContentInspectResult, ContentKind, ContentMatch, ContentProject, ContentSource,
+    ContentVersion, ResolvedModpack, ResolvedUrl, SearchQuery, SearchResult, VersionQuery,
 };
 
 use crate::config::ContentSettings;
@@ -36,8 +36,6 @@ pub(crate) fn migrate(entry_dir: &Path) {
     modpack::load(entry_dir);
 }
 
-/// A local file a source recognised: the release it is, of what, and which of
-/// that release's published files it is.
 #[derive(Debug, Clone)]
 pub struct Identified {
     pub project: ContentProject,
@@ -45,8 +43,6 @@ pub struct Identified {
     pub file: ContentFile,
 }
 
-/// A version may publish several files (a sources jar beside the mod), so the
-/// one carrying the local file's digest is preferred over the primary.
 fn published_file(version: &ContentVersion, sha1: &str) -> Option<ContentFile> {
     version
         .files
@@ -132,27 +128,24 @@ impl Content {
         }
     }
 
-    /// Ask every available source which of these files it published. A file
-    /// stays local on any failure — offline, rate-limited, unknown — so a
-    /// lookup can never be what stops an import.
-    pub async fn identify(&self, files: &[LocalFile]) -> HashMap<String, Identified> {
-        let mut found = HashMap::new();
+    /// A failed source is logged, not returned: a lookup must not stop an import.
+    pub async fn identify(&self, files: &[LocalFile]) -> HashMap<String, Vec<Identified>> {
+        let mut found: HashMap<String, Vec<Identified>> = HashMap::new();
+        if files.is_empty() {
+            return found;
+        }
         for provider in self.providers.iter().filter(|p| p.available()) {
-            let pending: Vec<LocalFile> = files
-                .iter()
-                .filter(|file| !found.contains_key(&file.sha1))
-                .cloned()
-                .collect();
-            if pending.is_empty() {
-                break;
-            }
-            match identify_with(provider.as_ref(), &pending).await {
-                Ok(matched) => found.extend(matched),
+            match identify_with(provider.as_ref(), files).await {
+                Ok(matched) => {
+                    for (sha1, identified) in matched {
+                        found.entry(sha1).or_default().push(identified);
+                    }
+                }
                 Err(error) => tracing::warn!(
                     source = provider.id(),
-                    files = pending.len(),
+                    files = files.len(),
                     error = %format!("{error:#}"),
-                    "cannot identify local files; importing them untracked"
+                    "cannot identify local files on this source"
                 ),
             }
         }
@@ -165,8 +158,7 @@ impl Content {
     }
 
     /// Classify a local file for import (the daemon is the only side that can
-    /// read a client-picked path), naming the project it is a release of when
-    /// a source recognises it.
+    /// read a client-picked path).
     pub async fn inspect(&self, path: &str) -> ContentInspectResult {
         let mut result = self.classify(path);
         if !result.valid {
@@ -175,14 +167,17 @@ impl Content {
         let Ok(file) = LocalFile::read(Path::new(path)) else {
             return result;
         };
-        if let Some(identified) = self
+        result.matches = self
             .identify(std::slice::from_ref(&file))
             .await
             .remove(&file.sha1)
-        {
-            result.version_number = identified.version.version_number;
-            result.project = Some(identified.project);
-        }
+            .unwrap_or_default()
+            .into_iter()
+            .map(|identified| ContentMatch {
+                project: identified.project,
+                version_number: identified.version.version_number,
+            })
+            .collect();
         result
     }
 

@@ -66,6 +66,9 @@ export function resolveModpack(
   );
 }
 
+/** Wire value of `proto::content::LOCAL_SOURCE`. */
+export const LOCAL_SOURCE = 'file';
+
 /** Classify a daemon-local file for import (detected kind + validity). */
 export function inspect(path: string): Promise<ContentInspectResult> {
   return call('content.inspect', { path });

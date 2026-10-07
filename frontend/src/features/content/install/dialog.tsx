@@ -161,7 +161,9 @@ export function ContentInstallDialog({
               source: p.source,
               version: versionIds[projectKey(p)] ?? '',
             })),
-          ...files.filter((f) => f.kind === k).map((f) => ({ path: f.path })),
+          ...files
+            .filter((f) => f.kind === k)
+            .map((f) => ({ path: f.path, source: f.track })),
         ];
         const done = await add.mutateAsync({
           kind: k,
@@ -267,6 +269,9 @@ export function ContentInstallDialog({
                       }
                       onSetFileKind={(path, kind) =>
                         dispatch({ type: 'setFileKind', path, kind })
+                      }
+                      onSetFileTrack={(path, track) =>
+                        dispatch({ type: 'setFileTrack', path, track })
                       }
                       worlds={needsWorlds ? worlds : undefined}
                     />

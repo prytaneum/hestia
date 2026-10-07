@@ -2,7 +2,12 @@ import { XIcon } from '@phosphor-icons/react';
 import { useQuery } from '@tanstack/react-query';
 import { useRef } from 'react';
 
-import type { ContentKind, ContentProject, ContentVersion } from '@/api';
+import {
+  type ContentKind,
+  type ContentProject,
+  type ContentVersion,
+  content as contentApi,
+} from '@/api';
 import { contentKindLabel } from '@/components/icons';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -14,6 +19,13 @@ import {
   ComboboxList,
 } from '@/components/ui/combobox';
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
   projectKey,
   projectRef,
   SourceBadge,
@@ -22,7 +34,7 @@ import { kindInfo } from '@/features/shared/content/lib';
 import { agoLabel } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { m } from '@/paraglide/messages.js';
-import { contentQueries } from '@/queries/content';
+import { contentQueries, useContentSources } from '@/queries/content';
 
 import { useTarget } from '../hooks';
 import type { PickedFile } from '../lib';
@@ -35,6 +47,7 @@ export function ReviewStep({
   onRemoveProject,
   onRemoveFile,
   onSetFileKind,
+  onSetFileTrack,
   worlds,
 }: {
   picked: ContentProject[];
@@ -44,6 +57,7 @@ export function ReviewStep({
   onRemoveProject: (p: ContentProject) => void;
   onRemoveFile: (path: string) => void;
   onSetFileKind: (path: string, kind: ContentKind) => void;
+  onSetFileTrack: (path: string, track: string) => void;
   worlds?: string[];
 }) {
   const target = useTarget();
@@ -80,6 +94,7 @@ export function ReviewStep({
             key={f.path}
             file={f}
             onSetKind={(kind) => onSetFileKind(f.path, kind)}
+            onSetTrack={(track) => onSetFileTrack(f.path, track)}
             onRemove={() => onRemoveFile(f.path)}
           />
         ))}
@@ -97,10 +112,12 @@ function installDir(kind: ContentKind): string {
 function FileReviewRow({
   file,
   onSetKind,
+  onSetTrack,
   onRemove,
 }: {
   file: PickedFile;
   onSetKind: (kind: ContentKind) => void;
+  onSetTrack: (track: string) => void;
   onRemove: () => void;
 }) {
   const kinds = useTarget()?.accepts ?? [];
@@ -119,24 +136,73 @@ function FileReviewRow({
     );
   }
 
+  const tracked = file.matches.find((mt) => mt.project.source === file.track);
+
   return (
-    <div className="flex items-center justify-between gap-4 px-3 py-2 text-sm">
-      <div className="min-w-0">
-        <span className="block truncate">
-          {file.project?.title ?? file.filename}
-        </span>
-        <span className="block truncate text-[11px] text-muted-foreground">
-          {file.project && `${file.versionNumber} · `}
-          {file.kind
-            ? m['content.install_to']({ dir: installDir(file.kind) })
-            : m['content.choose_type']()}
-        </span>
+    <div className="flex flex-col gap-2 px-3 py-2 text-sm">
+      <div className="flex items-center justify-between gap-4">
+        <div className="min-w-0">
+          <span className="block truncate">
+            {tracked?.project.title ?? file.filename}
+          </span>
+          <span className="block truncate text-[11px] text-muted-foreground">
+            {file.kind
+              ? m['content.install_to']({ dir: installDir(file.kind) })
+              : m['content.choose_type']()}
+          </span>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          <KindPicker kinds={kinds} value={file.kind} onChange={onSetKind} />
+          <RemoveButton onClick={onRemove} />
+        </div>
       </div>
-      <div className="flex shrink-0 items-center gap-2">
-        {file.project && <SourceBadge source={file.project.source} />}
-        <KindPicker kinds={kinds} value={file.kind} onChange={onSetKind} />
-        <RemoveButton onClick={onRemove} />
-      </div>
+      {file.matches.length > 0 ? (
+        <TrackPicker file={file} onChange={onSetTrack} />
+      ) : (
+        <span className="text-[11px] text-muted-foreground">
+          {m['content.track.unrecognized']()}
+        </span>
+      )}
+    </div>
+  );
+}
+
+function TrackPicker({
+  file,
+  onChange,
+}: {
+  file: PickedFile;
+  onChange: (track: string) => void;
+}) {
+  const sources = useContentSources().data ?? [];
+  const options = [
+    ...file.matches.map(({ project, versionNumber }) => ({
+      value: project.source,
+      label: `${sources.find((s) => s.id === project.source)?.name ?? project.source} · ${project.title} ${versionNumber}`,
+    })),
+    { value: contentApi.LOCAL_SOURCE, label: m['content.track.local']() },
+  ];
+  return (
+    <div className="flex items-center gap-2">
+      <span className="shrink-0 text-[11px] text-muted-foreground">
+        {m['content.track.label']()}
+      </span>
+      <Select
+        items={options}
+        value={file.track}
+        onValueChange={(value) => onChange(String(value))}
+      >
+        <SelectTrigger size="sm" className="min-w-0 flex-1">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {options.map((option) => (
+            <SelectItem key={option.value} value={option.value}>
+              {option.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
     </div>
   );
 }

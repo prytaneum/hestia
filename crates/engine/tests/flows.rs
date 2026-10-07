@@ -247,6 +247,37 @@ async fn a_local_file_a_source_recognises_installs_tracked_and_alone() {
 }
 
 #[tokio::test]
+async fn a_recognised_file_stays_local_when_asked_to() {
+    let home = tempfile::tempdir().expect("temp home");
+    let drops = tempfile::tempdir().expect("temp drops");
+    let files = fixture::Files::serve().await;
+    let source = fixture::Source {
+        projects: vec![fixture::project("sodium", ContentKind::Mod)],
+        versions: vec![fixture::version("sodium", &files, "1.21", &[])],
+    };
+    let (engine, id) = instance(home.path(), source).await;
+    let (cancel, report) = (Cancel::new(), |_: &ProvisionProgress| {});
+    let spec = ContentAddSpec {
+        kind: ContentKind::Mod,
+        items: vec![ContentAddItem {
+            path: local_mod(drops.path(), "sodium.jar"),
+            source: proto::content::LOCAL_SOURCE.to_string(),
+            ..ContentAddItem::default()
+        }],
+        ..ContentAddSpec::default()
+    };
+
+    let (installed, failures) = engine
+        .add_entry_content(EntryRef::Instance(&id), &spec, &job(&cancel, &report))
+        .await
+        .expect("the batch runs");
+
+    assert!(failures.is_empty(), "no item should fail: {failures:?}");
+    assert_eq!(installed[0].source, proto::content::LOCAL_SOURCE);
+    assert!(installed[0].project_id.is_empty());
+}
+
+#[tokio::test]
 async fn a_root_that_fails_does_not_stop_the_batch() {
     let home = tempfile::tempdir().expect("temp home");
     let files = fixture::Files::serve().await;

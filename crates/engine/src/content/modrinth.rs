@@ -32,8 +32,6 @@ const CDN: &str = "cdn.modrinth.com";
 /// Ids per bulk request. The whole query goes in the URL, so a big pack's ids
 /// are chunked rather than sent as one over-long line.
 const BULK_LIMIT: usize = 100;
-/// Digests per hash lookup. These travel in the body, so the bound is the
-/// platform's own request size rather than a URL's length.
 const HASH_LIMIT: usize = 800;
 
 /// The site's project-type path segments (`modrinth.com/<type>/<slug>`) and the
@@ -210,7 +208,6 @@ impl ContentProvider for Modrinth {
         Ok(out)
     }
 
-    /// One `POST /version_files` for the lot; Modrinth indexes by sha1 itself.
     async fn identify(&self, files: &[LocalFile]) -> Result<HashMap<String, ContentVersion>> {
         let mut out = HashMap::with_capacity(files.len());
         for chunk in files.chunks(HASH_LIMIT) {

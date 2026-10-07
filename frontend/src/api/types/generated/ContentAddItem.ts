@@ -5,6 +5,6 @@
  * optionally pinned by `version`), `url` (a project/version page URL on a
  * supported source), or `path` (a daemon-local file to import). `source`
  * overrides the batch's for this item, so one batch may mix platforms; a URL
- * always names its own source.
+ * always names its own source; for a `path` it picks whose match to track.
  */
 export type ContentAddItem = { project: string, version: string, url: string, path: string, filename: string, source: string, };

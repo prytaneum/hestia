@@ -10,12 +10,21 @@ are ordinary platform releases the user happened to download by hand.
 An import now asks the sources which of the files they published.
 `ContentProvider::identify` takes the files and answers with the version each
 one is, keyed by sha1; `Content::identify` runs it across every available
-source (first to recognise a file wins), bulk-fetches the matched projects, and
-`content.add` records a recognised file as that release. It is then an ordinary
-tracked item: it has a title and icon, `check_updates` sees it, and an export
-links it instead of embedding it. `content.inspect` runs the same lookup for
-one file, so the desktop's review step names the match before anything is
-installed.
+source, bulk-fetches the matched projects, and `content.add` records a
+recognised file as that release. It is then an ordinary tracked item: it has a
+title and icon, `check_updates` sees it, and an export links it instead of
+embedding it. `content.inspect` runs the same lookup for one file and returns
+every source's match, so the desktop's review step names what was resolved
+before anything is installed.
+
+- **Which source tracks a file is the user's choice.** The same jar is often on
+  both platforms, and they are not interchangeable — updates, changelogs and
+  what an export links all follow the source. So every source is asked even
+  after one answers, the review step preselects the first match and offers the
+  rest, and the item's `source` carries the pick: empty for the first match, a
+  source id for that one, `file` to keep it untracked. A source that was picked
+  and no longer recognises the file at install leaves it untracked rather than
+  falling through to another.
 
 - **The provider is handed the file, not a digest.** Modrinth indexes by sha1
   (`POST /version_files`); CurseForge by its own fingerprint, a MurmurHash2

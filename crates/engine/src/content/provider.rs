@@ -34,8 +34,6 @@ pub struct FileRef {
     pub version_id: String,
 }
 
-/// A file on disk awaiting identification. `sha1` is the key every source
-/// answers under, whatever it hashes the bytes with itself.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LocalFile {
     pub path: PathBuf,
@@ -94,10 +92,7 @@ pub trait ContentProvider: Send + Sync {
         let _ = ids;
         Ok(Vec::new())
     }
-    /// The versions that published these files, keyed by each file's sha1.
-    /// What turns a jar the user already has into a tracked item. A platform
-    /// indexes its files by a hash of its own choosing, so it is handed the
-    /// files rather than one digest.
+    /// The version each file is a release of, keyed by the file's sha1.
     async fn identify(&self, files: &[LocalFile]) -> Result<HashMap<String, ContentVersion>> {
         let _ = files;
         Ok(HashMap::new())
