@@ -58,10 +58,8 @@ export function Page({
           )}
         </div>
       </div>
-      <div className="flex min-h-0 flex-1 flex-col p-5">
-        <div className="min-h-0 flex-1">
-          {loading && skeleton ? skeleton : children}
-        </div>
+      <div className="min-h-0 flex-1 overflow-y-auto p-5">
+        {loading && skeleton ? skeleton : children}
       </div>
     </div>
   );
