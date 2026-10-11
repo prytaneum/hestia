@@ -1,5 +1,6 @@
 import { Outlet, useLocation } from '@tanstack/react-router';
 
+import { FileDropOverlay } from '@/components/app-shell/file-drop-overlay';
 import { OfflineOverlay } from '@/components/app-shell/offline-overlay';
 import { PlayBar } from '@/components/app-shell/play-bar';
 import { SearchProvider } from '@/components/app-shell/search-context';
@@ -33,6 +34,7 @@ export function AppLayout() {
             </div>
           </div>
           <WelcomeDialog />
+          <FileDropOverlay />
           <OfflineOverlay />
         </TourProvider>
       </LaunchDialogProvider>

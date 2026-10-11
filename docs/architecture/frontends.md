@@ -264,6 +264,14 @@ Rules that keep it from drifting:
   browse pages and the entry content tabs resolve against. Everything else is
   one-directional — `library → instances`, `instances → content`,
   `servers → content` — so the feature graph is acyclic.
+- **A dropped file goes through one pipeline** (`lib/file-drop`). The webview
+  raises a single window-wide drag-drop event, so no surface listens for it
+  itself: bootstrap starts the one listener, a surface registers with
+  `useDropTarget({ extensions, onDrop, enabled, label })`, and the drop goes to
+  the most recently enabled target that accepts the file — a dialog over a page
+  wins, and a file it does not take falls through to the page. A target with a
+  `label` gets the shell's `FileDropOverlay`; one without highlights itself from
+  the boolean the hook returns.
 
 ## Two kinds of offline
 

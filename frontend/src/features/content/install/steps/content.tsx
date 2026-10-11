@@ -24,7 +24,7 @@ import {
   PickRow,
   PickRowSkeleton,
 } from '@/features/shared/content/components';
-import { useFileDrop } from '@/hooks/use-file-drop';
+import { useDropTarget } from '@/hooks/use-drop-target';
 import { cn } from '@/lib/utils';
 import { m } from '@/paraglide/messages.js';
 import { contentQueries, isContentUrl } from '@/queries/content';
@@ -240,7 +240,10 @@ function FileImportButton({
     );
     onFiles(files);
   };
-  const over = useFileDrop(dialog.CONTENT_EXTENSIONS, stage);
+  const over = useDropTarget({
+    extensions: dialog.CONTENT_EXTENSIONS,
+    onDrop: stage,
+  });
 
   return (
     <button

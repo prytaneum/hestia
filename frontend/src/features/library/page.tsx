@@ -2,6 +2,7 @@ import { FileArrowUpIcon, PlusIcon } from '@phosphor-icons/react';
 import { useMutation } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
 import { useCallback, useMemo, useState } from 'react';
+import { dialog } from '@/api';
 import { useSearch } from '@/components/app-shell/search-context';
 import { FilterMenu } from '@/components/filter-menu';
 import { entryIcon } from '@/components/icons';
@@ -19,7 +20,7 @@ import {
   ImportInstanceDialog,
   useLaunchDialog,
 } from '@/features/instances/dialogs';
-import { useArchiveDrop, useOpenedArchive } from '@/features/instances/hooks';
+import { useOpenedArchive } from '@/features/instances/hooks';
 import { anchor, GettingStarted, useAutoTour } from '@/features/onboarding';
 import type { EntryCardModel } from '@/features/shared/entry/components';
 import {
@@ -34,6 +35,7 @@ import {
   ViewToggle,
 } from '@/features/shared/entry/components';
 import { CreateEntryDialog } from '@/features/shared/entry/dialogs';
+import { useDropTarget } from '@/hooks/use-drop-target';
 import { m } from '@/paraglide/messages.js';
 import { useAccounts } from '@/queries';
 import { instanceMutations, useInstances } from '@/queries/instance';
@@ -82,7 +84,12 @@ export function LibraryPage({
     },
     [signedIn],
   );
-  const dropTarget = useArchiveDrop(openImport);
+  useDropTarget({
+    extensions: dialog.ARCHIVE_EXTENSIONS,
+    label: m['instance.import.drop'](),
+    enabled: signedIn,
+    onDrop: ([archive]) => openImport(archive),
+  });
   // A `.hestia` file opened from the file manager lands here too — the shell
   // hands it over, and this is the page that can answer it.
   useOpenedArchive(openImport);
@@ -290,14 +297,6 @@ export function LibraryPage({
         onOpenChange={setImporting}
         initialPath={dropped}
       />
-      {dropTarget && signedIn && (
-        <div className="pointer-events-none fixed inset-0 z-50 grid place-items-center bg-background/80 backdrop-blur-xs">
-          <div className="flex flex-col items-center gap-3 border-2 border-dashed border-primary px-10 py-8">
-            <FileArrowUpIcon className="size-8 text-primary" />
-            <p className="font-medium text-sm">{m['instance.import.drop']()}</p>
-          </div>
-        </div>
-      )}
     </Page>
   );
 }

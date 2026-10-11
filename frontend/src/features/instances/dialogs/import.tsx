@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Field, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Spinner } from '@/components/ui/spinner';
-import { useArchiveDrop } from '@/features/instances/hooks';
+import { useDropTarget } from '@/hooks/use-drop-target';
 import { cn } from '@/lib/utils';
 import { toastWarnings } from '@/lib/warnings';
 import { m } from '@/paraglide/messages.js';
@@ -67,13 +67,11 @@ export function ImportInstanceDialog({
     if (picked) select(picked);
   };
 
-  // The dialog takes a drop itself: it is opened from pages that have no drop
-  // target of their own, and the listener is window-wide, so it must stay
-  // inert while the dialog is closed.
-  const dropping =
-    useArchiveDrop((dropped) => {
-      if (open) select(dropped);
-    }) && open;
+  const dropping = useDropTarget({
+    extensions: dialog.ARCHIVE_EXTENSIONS,
+    enabled: open,
+    onDrop: ([archive]) => select(archive),
+  });
 
   const start = () => {
     onOpenChange(false);
