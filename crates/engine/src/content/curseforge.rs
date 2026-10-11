@@ -29,7 +29,7 @@ use super::provider::{ContentProvider, FileRef, LocalFile, UrlRef};
 
 const API: &str = "https://api.curseforge.com/v1";
 const SITE: &str = "curseforge.com";
-const ID: &str = "curseforge";
+pub(crate) const ID: &str = "curseforge";
 const NAME: &str = "CurseForge";
 
 /// CurseForge's own id for Minecraft; every catalogue call is scoped to it.
@@ -399,15 +399,20 @@ impl ContentProvider for CurseForge {
             serde_json::from_str(&text).context("manifest.json is malformed")?
         };
 
-        let mut resolved = parse_manifest(&manifest)?;
-        resolved.source = ID.to_string();
+        let mut resolved = self.resolve_manifest(&manifest).await?;
         resolved.version_id = u64_field(&file, "id").to_string();
         resolved.project_id = u64_field(&file, "modId").to_string();
         // The manifest's own `version` is free text; an update compares against
         // what the platform published.
         resolved.version_number = display;
-        resolved.files = self.resolve_manifest_files(&manifest).await?;
         Ok((resolved, bytes))
+    }
+
+    async fn resolve_manifest(&self, manifest: &Value) -> Result<ResolvedModpack> {
+        let mut resolved = parse_manifest(manifest)?;
+        resolved.source = ID.to_string();
+        resolved.files = self.resolve_manifest_files(manifest).await?;
+        Ok(resolved)
     }
 }
 

@@ -43,6 +43,35 @@ pub struct Identified {
     pub file: ContentFile,
 }
 
+impl Identified {
+    /// The record of local bytes recognised as this release: the source's
+    /// project and version, over the file as it is on disk.
+    pub(crate) fn recorded(
+        &self,
+        kind: ContentKind,
+        filename: String,
+        sha1: String,
+    ) -> (record::Project, record::Release) {
+        (
+            record::Project {
+                kind,
+                project_id: self.project.id.clone(),
+                slug: self.project.slug.clone(),
+                title: self.project.title.clone(),
+                icon_url: self.project.icon_url.clone(),
+            },
+            record::Release {
+                source: self.version.source.clone(),
+                version_id: self.version.id.clone(),
+                version_number: self.version.version_number.clone(),
+                filename,
+                sha1,
+                url: self.file.artifact.url.clone(),
+            },
+        )
+    }
+}
+
 impl From<Identified> for ContentMatch {
     fn from(identified: Identified) -> Self {
         ContentMatch {
@@ -300,6 +329,15 @@ impl Content {
             "modpack resolved"
         );
         Ok(resolved)
+    }
+
+    /// A pack manifest only `source` can resolve, from an archive read off disk.
+    pub async fn resolve_manifest(
+        &self,
+        source: &str,
+        manifest: &serde_json::Value,
+    ) -> Result<ResolvedModpack> {
+        self.provider(source)?.resolve_manifest(manifest).await
     }
 
     /// The pack version's whole archive alongside its manifest — what installing

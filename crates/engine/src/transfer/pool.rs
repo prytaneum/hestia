@@ -34,9 +34,9 @@ const ADOPTED_KINDS: &[ContentKind] = &[
 ];
 
 /// Move the game directory's loose content files into the entry's managed
-/// directories and index them, then re-mirror. Items carry no provenance — the
-/// archive is their only source — so each is recorded exactly as a local-file
-/// import is, and the caller warns that they can never be updated.
+/// directories and index them, then re-mirror. Items arrive with no provenance,
+/// so each is recorded as a local file; the import flow asks the sources about
+/// them afterwards and warns about whatever stays that way.
 ///
 /// Returns the filenames adopted, in the order they were found.
 pub(crate) fn adopt(entry_dir: &Path, data_dir: &Path) -> Result<Vec<String>> {

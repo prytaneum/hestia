@@ -6,11 +6,13 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
-use anyhow::Result;
+use anyhow::{bail, Result};
 use async_trait::async_trait;
 use proto::content::{
     ContentKind, ContentProject, ContentVersion, ResolvedModpack, SearchQuery, VersionQuery,
 };
+
+use serde_json::Value;
 
 use super::install;
 use crate::config::ContentSettings;
@@ -98,6 +100,13 @@ pub trait ContentProvider: Send + Sync {
         Ok(HashMap::new())
     }
 
+    /// A pack manifest in this platform's own format, read from an archive
+    /// that names its files by id — which this platform alone can turn into
+    /// downloads. The pack's own project and version ids are left empty: the
+    /// manifest does not carry them.
+    async fn resolve_manifest(&self, _manifest: &Value) -> Result<ResolvedModpack> {
+        bail!("{} has no pack manifest of its own", self.name())
+    }
     /// A modpack version's manifest, without its archive.
     async fn resolve_modpack(&self, version_id: &str) -> Result<ResolvedModpack>;
     /// The modpack version's whole archive. Installing needs the bytes as well

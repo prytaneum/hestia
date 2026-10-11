@@ -15,7 +15,6 @@
 use anyhow::Result;
 use proto::error::ErrorInfo;
 use proto::transfer::ImportFormat;
-use proto::warning::WarningInfo;
 use serde_json::Value;
 
 use super::archive::Reader;
@@ -100,14 +99,7 @@ impl Format for Prism {
             &|_| true,
         )?;
         let adopted = pool::adopt(target.entry_dir, target.data_dir)?;
-        let warnings = match adopted.is_empty() {
-            true => Vec::new(),
-            false => vec![WarningInfo::ImportFilesUntracked {
-                count: adopted.len() as u32,
-                files: adopted,
-            }],
-        };
-        Ok(Landed { files, warnings })
+        Ok(Landed { files, adopted })
     }
 }
 

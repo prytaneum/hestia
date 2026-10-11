@@ -4,7 +4,8 @@
 //! `server-overrides/`, or the single tree a CurseForge `manifest.json` names —
 //! so no caller is told which platform served it. Only the `.mrpack` index is
 //! parsed here; a CurseForge manifest names files by id, which its API alone
-//! resolves, so that half lives in `curseforge.rs`.
+//! resolves, so that half lives in `curseforge.rs` and the archive only hands
+//! the manifest over.
 //!
 //! Deliberately platform-agnostic. A pack picked off disk has no source, and the
 //! provider that serves packs over HTTP parses the same bytes.
@@ -101,17 +102,28 @@ impl Archive {
         Archive::open(bytes)
     }
 
-    /// The pack's manifest. Ids are left empty — only the platform that served
-    /// the archive knows them, and a pack read off disk has none.
+    /// The manifest of an archive whose files only its platform can resolve,
+    /// with that platform's source id. `None` for a `.mrpack`, which
+    /// [`Self::index`] reads whole.
+    pub fn platform_manifest(&mut self) -> Result<Option<(&'static str, Value)>> {
+        let Format::CurseForge { .. } = self.format else {
+            return Ok(None);
+        };
+        let entry = self
+            .zip
+            .by_name(MANIFEST)
+            .context("cannot read the modpack manifest")?;
+        let manifest = serde_json::from_reader(entry).map_err(|e| {
+            anyhow::Error::from(proto::error::ErrorInfo::ModpackInvalid {
+                detail: format!("{MANIFEST} is malformed: {e}"),
+            })
+        })?;
+        Ok(Some((super::curseforge::ID, manifest)))
+    }
+
+    /// The `.mrpack` manifest. Ids are left empty — only the platform that
+    /// served the archive knows them, and a pack read off disk has none.
     pub fn index(&mut self) -> Result<ResolvedModpack> {
-        if let Format::CurseForge { .. } = self.format {
-            bail!(proto::error::ErrorInfo::ModpackInvalid {
-                detail: "a CurseForge pack names its files by id, which only \
-                         CurseForge can resolve — install it from the source \
-                         rather than from a file"
-                    .to_string(),
-            });
-        }
         let entry = self.zip.by_name(INDEX).map_err(|_| {
             anyhow::Error::from(proto::error::ErrorInfo::ModpackInvalid {
                 detail: format!("{INDEX} is missing from the archive"),
@@ -635,13 +647,22 @@ mod tests {
     }
 
     #[test]
-    fn a_curseforge_pack_cannot_be_read_without_its_platform() {
+    fn a_curseforge_pack_hands_its_manifest_to_its_platform() {
         let mut pack = archive(&[(
             "manifest.json",
             r#"{"manifestType":"minecraftModpack","manifestVersion":1}"#,
         )]);
         // Its files are project/file ids, so the archive alone resolves nothing.
         assert!(pack.index().is_err());
+        let (source, manifest) = pack.platform_manifest().unwrap().expect("a manifest");
+        assert_eq!(source, "curseforge");
+        assert_eq!(manifest["manifestVersion"], 1);
+    }
+
+    #[test]
+    fn an_mrpack_has_no_manifest_to_hand_over() {
+        let mut pack = archive(&[("modrinth.index.json", "{}")]);
+        assert!(pack.platform_manifest().unwrap().is_none());
     }
 
     #[test]

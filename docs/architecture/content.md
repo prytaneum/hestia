@@ -231,9 +231,11 @@ Only the second difference needed the platform: `pack.rs` detects which format a
 zip is and answers with that format's override trees, so the install flow
 extracts either without being told where the archive came from — while the
 id-based file list stays in `curseforge.rs`, since resolving those ids into
-downloads *is* an API call. A CurseForge pack installed from a **local file** is
-refused for exactly that reason, naming it: the archive alone cannot say what its
-files are.
+downloads *is* an API call. A CurseForge pack installed from a **local file**
+goes the same way round: the archive hands its manifest to the platform it names
+(`ContentProvider::resolve_manifest`), so it installs whenever CurseForge can
+serve and is refused as `ContentSourceUnavailable` — naming the key to set —
+when it cannot.
 
 A pack decomposes into three things Hestia already has, and each goes where it
 belongs:

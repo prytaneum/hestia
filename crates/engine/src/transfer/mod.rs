@@ -112,7 +112,9 @@ pub(crate) struct Target<'a> {
 #[derive(Default)]
 pub(crate) struct Landed {
     pub(crate) files: u64,
-    pub(crate) warnings: Vec<WarningInfo>,
+    /// Pool items taken from the archive's own bytes, by filename. They land
+    /// with no provenance; the flow asks the sources about them afterwards.
+    pub(crate) adopted: Vec<String>,
 }
 
 /// One archive format hestia can read. Implementations are stateless — they

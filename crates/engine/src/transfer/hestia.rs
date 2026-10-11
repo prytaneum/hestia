@@ -97,7 +97,7 @@ impl Format for Hestia {
         })?;
         Ok(Landed {
             files,
-            warnings: Vec::new(),
+            adopted: Vec::new(),
         })
     }
 }

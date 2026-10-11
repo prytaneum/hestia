@@ -1,8 +1,10 @@
 //! What happens to content already in the pool: listing it, moving it to
 //! another version, checking whether one exists, toggling it, and removing it.
 
+use std::path::Path;
+
 use anyhow::{bail, Context, Result};
-use proto::content::{ContentKind, InstalledContent, UntrackedFile, VersionQuery};
+use proto::content::{ContentKind, InstalledContent, UntrackedFile, VersionQuery, LOCAL_SOURCE};
 use proto::minecraft::ProvisionPhase;
 
 use super::entry::{content_loader, EntryContent};
@@ -108,6 +110,40 @@ impl Engine {
             .await
             .remove(&file.sha1)
             .unwrap_or_default())
+    }
+
+    /// Record each of the pool's local items that a source publishes as that
+    /// release, by hash. For a pool that arrived without provenance — another
+    /// launcher's jars — rather than one the user chose to keep local. Returns
+    /// how many were recognised.
+    pub(in crate::engine::flows) async fn recognise_pool(&self, entry_dir: &Path) -> Result<usize> {
+        let mut index = install::load(entry_dir);
+        let local = |item: &InstalledContent| item.source == LOCAL_SOURCE && !item.sha1.is_empty();
+        let files: Vec<LocalFile> = index
+            .iter()
+            .filter(|item| local(item))
+            .filter_map(|item| {
+                Some(LocalFile {
+                    path: install::managed_path(entry_dir, item).ok()?,
+                    sha1: item.sha1.clone(),
+                })
+            })
+            .collect();
+        let found = self.content.identify(&files).await;
+        let mut recognised = 0;
+        for item in index.iter_mut().filter(|item| local(item)) {
+            let Some(known) = found.get(&item.sha1).and_then(|matches| matches.first()) else {
+                continue;
+            };
+            let (project, release) =
+                known.recorded(item.kind, item.filename.clone(), item.sha1.clone());
+            *item = record::resource(item, project, release);
+            recognised += 1;
+        }
+        if recognised > 0 {
+            install::save(entry_dir, index)?;
+        }
+        Ok(recognised)
     }
 
     /// Sources share no project ids, so the installed file's hash finds it there.

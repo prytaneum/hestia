@@ -430,8 +430,8 @@ hestia sources                   # the sources that can serve, and what each has
 A pack pins its own loader and game version, so installing one *builds* the entry it wants. The one argument takes any
 of the three ways to name a pack — an existing path is a `.mrpack`, a scheme is a URL, anything else is a project on the
 source (`-S`); omit it on a terminal and a searchable picker opens over live search results. A CurseForge pack installs
-from the source or a page URL, but not from a file: its manifest names its mods by id, which only CurseForge can
-resolve.
+from a file too, but only with the CurseForge source configured: its manifest names its mods by id, which only
+CurseForge can resolve.
 
 ```bash
 hestia modpack install fabulously-optimized     # → a new instance

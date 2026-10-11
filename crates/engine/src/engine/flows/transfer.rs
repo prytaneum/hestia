@@ -15,7 +15,7 @@
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
-use proto::content::ContentFailure;
+use proto::content::{ContentFailure, LOCAL_SOURCE};
 use proto::error::{ErrorInfo, Field, Reason};
 use proto::modpack::{ModpackRef, ModpackTarget};
 use proto::transfer::{ArchiveEntry, ArchiveInfo, ExportFormat, ImportFormat};
@@ -190,7 +190,7 @@ impl Engine {
 
         let mark = schema::notices::mark();
         crate::content::migrate(&entry_dir);
-        let mut warnings = landed.warnings;
+        let mut warnings = self.untracked_adoptions(&entry_dir, &landed.adopted).await;
         warnings.extend(quarantined_under(mark, &entry_dir));
 
         Ok(ImportOutcome {
@@ -199,6 +199,36 @@ impl Engine {
             failures: Vec::new(),
             warnings,
         })
+    }
+
+    /// Ask the sources about what an import adopted from the archive's own
+    /// bytes, and warn about whatever none of them publishes — the only items
+    /// that stay without an update path. A lookup that cannot run leaves them
+    /// all untracked rather than failing an import that has already landed.
+    async fn untracked_adoptions(&self, entry_dir: &Path, adopted: &[String]) -> Vec<WarningInfo> {
+        if adopted.is_empty() {
+            return Vec::new();
+        }
+        if let Err(e) = self.recognise_pool(entry_dir).await {
+            tracing::warn!(error = %format!("{e:#}"), "cannot record recognised imports");
+        }
+        let files: Vec<String> = crate::content::install::load(entry_dir)
+            .into_iter()
+            .filter(|item| item.source == LOCAL_SOURCE && adopted.contains(&item.filename))
+            .map(|item| item.filename)
+            .collect();
+        tracing::info!(
+            adopted = adopted.len(),
+            untracked = files.len(),
+            "imported content looked up"
+        );
+        match files.is_empty() {
+            true => Vec::new(),
+            false => vec![WarningInfo::ImportFilesUntracked {
+                count: files.len() as u32,
+                files,
+            }],
+        }
     }
 
     /// Register the instance an archive describes. The three routes are the

@@ -474,23 +474,7 @@ fn add_file_content(
         .with_context(|| format!("cannot import {}", source.display()))?;
     let sha1 = install::sha1_file(&managed)?;
     let (project, release) = match known {
-        Some(known) => (
-            record::Project {
-                kind,
-                project_id: known.project.id.clone(),
-                slug: known.project.slug.clone(),
-                title: known.project.title.clone(),
-                icon_url: known.project.icon_url.clone(),
-            },
-            record::Release {
-                source: known.version.source.clone(),
-                version_id: known.version.id.clone(),
-                version_number: known.version.version_number.clone(),
-                filename,
-                sha1,
-                url: known.file.artifact.url.clone(),
-            },
-        ),
+        Some(known) => known.recorded(kind, filename, sha1),
         None => (
             record::Project::untracked(kind, filename.clone()),
             record::Release::local(filename, sha1),

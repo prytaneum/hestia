@@ -447,6 +447,67 @@ async fn a_pack_read_off_disk_tracks_whatever_a_source_recognises() {
 }
 
 #[tokio::test]
+async fn another_launchers_jars_are_tracked_where_a_source_publishes_them() {
+    use std::io::Write;
+    let home = tempfile::tempdir().expect("temp home");
+    let drops = tempfile::tempdir().expect("temp drops");
+    let files = fixture::Files::serve().await;
+    let source = fixture::Source {
+        projects: vec![fixture::project("sodium", ContentKind::Mod)],
+        versions: vec![fixture::version("sodium", &files, "1.21", &[])],
+    };
+    let engine = fixture::engine(
+        home.path(),
+        vec![fixture::Flavor::resolving("fabric")],
+        vec![source],
+    );
+    let path = drops.path().join("cozy.zip");
+    let options = zip::write::SimpleFileOptions::default();
+    let mut zip = zip::ZipWriter::new(std::fs::File::create(&path).expect("create the archive"));
+    for (name, body) in [
+        ("instance.cfg", "name=Cozy\n"),
+        (
+            "mmc-pack.json",
+            r#"{"components":[
+                {"uid":"net.minecraft","version":"1.21"},
+                {"uid":"net.fabricmc.fabric-loader","version":"0.16.9"}]}"#,
+        ),
+        (".minecraft/mods/sodium.jar", "sodium"),
+        (".minecraft/mods/homemade.jar", "homemade"),
+    ] {
+        zip.start_file(name, options).expect("start a member");
+        zip.write_all(body.as_bytes()).expect("write a member");
+    }
+    zip.finish().expect("finish the archive");
+    let (cancel, report) = (Cancel::new(), |_: &ProvisionProgress| {});
+
+    let outcome = engine
+        .import_instance(&path.to_string_lossy(), "", &job(&cancel, &report))
+        .await
+        .expect("the instance imports");
+
+    let (listed, _) = engine
+        .entry_content(EntryRef::Instance(&outcome.record.id), ContentKind::Mod)
+        .expect("list");
+    let source_of = |filename: &str| {
+        listed
+            .iter()
+            .find(|i| i.filename == filename)
+            .map(|i| i.source.as_str())
+    };
+    assert_eq!(source_of("sodium.jar"), Some("fixture"));
+    assert_eq!(source_of("homemade.jar"), Some("file"));
+    match outcome.warnings.as_slice() {
+        [proto::warning::WarningInfo::ImportFilesUntracked { files, .. }] => assert_eq!(
+            files,
+            &["homemade.jar"],
+            "only what no source publishes is reported as untracked"
+        ),
+        other => panic!("expected one untracked warning, got {other:?}"),
+    }
+}
+
+#[tokio::test]
 async fn a_root_that_fails_does_not_stop_the_batch() {
     let home = tempfile::tempdir().expect("temp home");
     let files = fixture::Files::serve().await;

@@ -41,6 +41,19 @@ is recorded as that release, so the pack updates too.
 costs nothing and works before the download; the hash lookup needs the bytes
 (CurseForge fingerprints them), so it is the fallback, not the rule.
 
-**Not covered:** a CurseForge zip read off disk is still refused — its manifest
-names files by id, which only the API resolves — and the loose jars of a
-Prism/MultiMC import are still adopted without provenance.
+The same rule reaches the two other ways bytes arrive without a source:
+
+- **A CurseForge zip read off disk installs.** Its manifest names files by id,
+  so the archive hands it to the platform (`ContentProvider::resolve_manifest`)
+  and the answer is an ordinary resolved pack. It needs CurseForge configured,
+  and says so when it is not.
+- **A Prism/MultiMC import's jars are looked up after they are adopted.** The
+  format module stays a parse and a file copy; the flow runs the hash lookup
+  over the pool it produced, and `ImportFilesUntracked` names only what no
+  source publishes.
+
+**Not covered:** `instance import` does not detect a CurseForge zip — its
+marker, `manifest.json`, is too generic a name to identify an archive by — so
+one installs through `modpack install`. And an entry whose pack was installed
+before this keeps its override jars as pack-owned files until the pack is
+updated; there is no migration, as the project carries none yet.

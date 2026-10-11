@@ -135,8 +135,10 @@ overrode its launcher's defaults, its memory and JVM arguments.
 
 Its `.minecraft/` becomes `data/`, and the loose jars in it are **adopted into
 the content pool** (`transfer/pool.rs`): moved to the managed directory, indexed,
-and mirrored back. They carry no provenance — the archive is their only source —
-so the import returns `ImportFilesUntracked` saying they can never be updated. A
+and mirrored back. They arrive with no provenance, so the flow then asks the
+sources about them by hash — the lookup a local-file import makes — and records
+each recognised jar as that release. `ImportFilesUntracked` names only what no
+source publishes, the files that can never be updated. A
 `.disabled` suffix becomes hestia's `enabled` flag, which is the same fact
 spelled the way this launcher spells it.
 

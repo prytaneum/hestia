@@ -135,7 +135,12 @@ impl Engine {
         if !reference.path.is_empty() {
             let path = Path::new(&reference.path);
             let mut archive = pack::Archive::read(path)?;
-            let mut resolved = archive.index()?;
+            let mut resolved = match archive.platform_manifest()? {
+                Some((source, manifest)) => {
+                    self.content.resolve_manifest(source, &manifest).await?
+                }
+                None => archive.index()?,
+            };
             let project = self.published_pack(path, &mut resolved).await;
             if resolved.name.is_empty() {
                 resolved.name = match &project {
