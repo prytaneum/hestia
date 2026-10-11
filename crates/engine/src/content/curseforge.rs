@@ -18,13 +18,14 @@ use proto::content::{
     SearchSort, SideSupport, VersionQuery,
 };
 use proto::download::{Checksum, HashAlgorithm};
-use proto::error::{ErrorInfo, Service};
+use proto::error::{ArchiveFault, ErrorInfo, Service};
 use proto::minecraft::Artifact;
 use serde_json::{json, Value};
 use std::io::{Cursor, Read};
 
 use crate::config::ContentSettings;
 
+use super::pack;
 use super::provider::{ContentProvider, FileRef, LocalFile, UrlRef};
 
 const API: &str = "https://api.curseforge.com/v1";
@@ -606,9 +607,8 @@ impl CurseForge {
         for entry in &entries {
             let file_id = u64_field(entry, "fileID");
             let Some(file) = files.iter().find(|f| u64_field(f, "id") == file_id) else {
-                bail!(ErrorInfo::ModpackInvalid {
-                    detail: format!("file {file_id} is not published any more"),
-                });
+                tracing::warn!(file_id, "a modpack file is not published any more");
+                return Err(pack::invalid(ArchiveFault::FileUnpublished));
             };
             let mod_id = u64_field(file, "modId");
             let dir = dirs
@@ -645,23 +645,19 @@ pub(crate) fn parse_manifest(manifest: &Value) -> Result<ResolvedModpack> {
     let kind = str_field(manifest, "manifestType");
     let version = u64_field(manifest, "manifestVersion");
     if !is_pack_manifest(manifest) {
-        bail!(ErrorInfo::ModpackInvalid {
-            detail: format!("unsupported manifest type: {kind}"),
-        });
+        tracing::warn!(kind, "unsupported modpack manifest type");
+        return Err(pack::invalid(ArchiveFault::ManifestType));
     }
     if version != 1 {
-        bail!(ErrorInfo::ModpackInvalid {
-            detail: format!("unsupported manifest version: {version} (expected 1)"),
-        });
+        tracing::warn!(version, "unsupported modpack manifest version");
+        return Err(pack::invalid(ArchiveFault::FormatVersion));
     }
     let minecraft = manifest
         .get("minecraft")
-        .context("the modpack manifest names no Minecraft version")?;
+        .ok_or_else(|| pack::invalid(ArchiveFault::NoGameVersion))?;
     let game_version = str_field(minecraft, "version");
     if game_version.is_empty() {
-        bail!(ErrorInfo::ModpackInvalid {
-            detail: "the manifest names no Minecraft version".to_string(),
-        });
+        return Err(pack::invalid(ArchiveFault::NoGameVersion));
     }
     // `id` is `<loader>-<version>` ("neoforge-21.1.65"); the primary one is the
     // pack's loader, falling back to the first when none is marked.

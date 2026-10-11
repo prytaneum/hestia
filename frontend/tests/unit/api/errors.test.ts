@@ -20,11 +20,20 @@ describe('errorMessageFromInfo', () => {
     expect(rendered).not.toContain('{entry}');
   });
 
-  it('joins a list field into one readable value', () => {
+  it('joins a list field into one readable value, labelling each token', () => {
     const rendered = errorMessageFromInfo(
-      info({ kind: 'archive_unsupported', format: 'mrpack', component: ['a', 'b'] }),
+      info({ kind: 'mutually_exclusive', options: ['project', 'url'] }),
     );
-    expect(rendered).toContain('a, b');
+    expect(rendered).toContain('project, download URL');
+  });
+
+  it('words a closed reason instead of interpolating prose', () => {
+    const rendered = errorMessageFromInfo(
+      info({ kind: 'archive_invalid', format: 'zip', reason: 'not_an_archive' }),
+    );
+    expect(rendered).toBe(
+      'This zip archive could not be read: the file is incomplete or not a zip archive.',
+    );
   });
 
   it('is empty for a kind the catalogue does not know', () => {

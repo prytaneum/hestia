@@ -5,7 +5,7 @@ use engine::ConfigError;
 use proto::config::{
     ConfigGet, ConfigGetResult, ConfigList, ConfigListResult, ConfigSet, AUTOSTART_KEY, HOME_KEY,
 };
-use proto::error::ErrorInfo;
+use proto::error::{ErrorInfo, ValueKind};
 use proto::Empty;
 use serde_json::{json, Value};
 
@@ -15,15 +15,14 @@ use crate::runtime::Channels;
 fn config_err(e: ConfigError) -> ErrorInfo {
     match e {
         ConfigError::UnknownKey(key) => ErrorInfo::ConfigKeyUnknown { key },
-        ConfigError::TypeMismatch(detail) => ErrorInfo::ConfigTypeMismatch { detail },
-        ConfigError::InvalidValue { key, source } => ErrorInfo::ConfigRejected {
-            key,
-            detail: source.to_string(),
-        },
-        ConfigError::Rejected { key, message } => ErrorInfo::ConfigRejected {
-            key,
-            detail: message,
-        },
+        ConfigError::TypeMismatch { key, expected } => {
+            ErrorInfo::ConfigTypeMismatch { key, expected }
+        }
+        ConfigError::InvalidValue { key, source } => {
+            tracing::warn!(key, error = %source, "config value rejected");
+            ErrorInfo::ConfigRejected { key }
+        }
+        ConfigError::Rejected(info) => info,
         ConfigError::Io(e) => ErrorInfo::Internal {
             detail: e.to_string(),
         },
@@ -56,9 +55,9 @@ pub(super) fn register(on: &mut Channels<'_>) {
     on.handle::<ConfigSet, _, _>(|p, ctx| async move {
         if p.key == HOME_KEY {
             let Value::String(dir) = p.value else {
-                return Err(ErrorInfo::ConfigRejected {
+                return Err(ErrorInfo::ConfigTypeMismatch {
                     key: HOME_KEY.into(),
-                    detail: "expects a string".into(),
+                    expected: ValueKind::String,
                 });
             };
             ctx.runtime
@@ -72,9 +71,9 @@ pub(super) fn register(on: &mut Channels<'_>) {
         }
         if p.key == AUTOSTART_KEY {
             let Value::Bool(enabled) = p.value else {
-                return Err(ErrorInfo::ConfigRejected {
+                return Err(ErrorInfo::ConfigTypeMismatch {
                     key: AUTOSTART_KEY.into(),
-                    detail: "expects a boolean".into(),
+                    expected: ValueKind::Boolean,
                 });
             };
             autostart::set(enabled).map_err(crate::runtime::engine_error)?;

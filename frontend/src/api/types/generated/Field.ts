@@ -3,4 +3,4 @@
 /**
  * A required-or-invalid input, named so a front-end can label it.
  */
-export type Field = "name" | "project" | "version" | "item" | "backup" | "command" | "program" | "url" | "path" | "flavor" | "world" | "address" | "memory" | "jvm_args" | "port" | "players" | "backup_interval" | "backup_retention" | "java_version" | "order" | "realm";
+export type Field = "name" | "project" | "version" | "item" | "backup" | "command" | "program" | "url" | "path" | "flavor" | "world" | "address" | "memory" | "jvm_args" | "port" | "players" | "backup_interval" | "backup_retention" | "java_version" | "order" | "realm" | "process_id";

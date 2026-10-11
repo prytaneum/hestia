@@ -19,8 +19,9 @@ pub(super) fn register(on: &mut Channels<'_>) {
             Err(StartError::EmptyProgram) => Err(ErrorInfo::FieldRequired {
                 field: proto::error::Field::Program,
             }),
-            Err(StartError::InvalidId(_)) => Err(ErrorInfo::MalformedRequest {
-                detail: "process id may only contain letters, digits, '-', '_' and '.'".into(),
+            Err(StartError::InvalidId(_)) => Err(ErrorInfo::InvalidValue {
+                field: proto::error::Field::ProcessId,
+                reason: proto::error::Reason::ProcessIdCharset,
             }),
             Err(e @ StartError::Spawn { .. }) => Err(ErrorInfo::Internal {
                 detail: format!("cannot spawn process: {e}"),

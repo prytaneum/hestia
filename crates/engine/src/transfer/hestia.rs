@@ -14,7 +14,7 @@
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
-use proto::error::ErrorInfo;
+use proto::error::{ArchiveFault, ArchiveFormat, ErrorInfo};
 use proto::transfer::{ExportFormat, ImportFormat};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -68,7 +68,7 @@ impl Format for Hestia {
     fn read(&self, reader: &mut Reader, prefix: &str) -> Result<Blueprint> {
         let record = manifest(reader, prefix)?.record()?;
         if record.profile.game_version.is_empty() {
-            return Err(invalid(format!("{MANIFEST} pins no Minecraft version")).into());
+            return Err(invalid(ArchiveFault::NoGameVersion).into());
         }
         let profile = &record.profile;
         let descriptor = Descriptor {
@@ -105,9 +105,14 @@ impl Format for Hestia {
 fn manifest(reader: &mut Reader, prefix: &str) -> Result<Manifest> {
     let text = reader
         .read_text(&format!("{prefix}{MANIFEST}"))
-        .map_err(|e| invalid(e.to_string()))?;
-    let value = serde_json::from_str(&text)
-        .map_err(|e| invalid(format!("{MANIFEST} is malformed: {e}")))?;
+        .map_err(|e| {
+            tracing::warn!(error = %e, "cannot read {MANIFEST}");
+            invalid(ArchiveFault::ManifestMissing)
+        })?;
+    let value = serde_json::from_str(&text).map_err(|e| {
+        tracing::warn!(error = %e, "{MANIFEST} is malformed");
+        invalid(ArchiveFault::ManifestMalformed)
+    })?;
     schema::decode::<Manifest>(value)
         .map(|decoded| decoded.document)
         .map_err(unreadable)
@@ -117,19 +122,22 @@ fn manifest(reader: &mut Reader, prefix: &str) -> Result<Manifest> {
 /// a document from a newer hestia is unsupported, anything else is invalid.
 fn unreadable(error: schema::SchemaError) -> anyhow::Error {
     match error {
-        schema::SchemaError::FromTheFuture { found, .. } => ErrorInfo::ArchiveUnsupported {
-            format: "hestia".to_string(),
-            component: format!("schema {found}"),
+        schema::SchemaError::FromTheFuture { found, .. } => ErrorInfo::ArchiveTooNew {
+            format: ArchiveFormat::Hestia,
+            schema: found,
         }
         .into(),
-        other => invalid(other.to_string()).into(),
+        other => {
+            tracing::warn!(error = %other, "{MANIFEST} cannot be decoded");
+            invalid(ArchiveFault::ManifestMalformed).into()
+        }
     }
 }
 
-fn invalid(detail: String) -> ErrorInfo {
+fn invalid(reason: ArchiveFault) -> ErrorInfo {
     ErrorInfo::ArchiveInvalid {
-        format: "hestia".to_string(),
-        detail,
+        format: ArchiveFormat::Hestia,
+        reason,
     }
 }
 
@@ -298,10 +306,7 @@ mod tests {
         manifest[schema::FIELD] = Value::from(Manifest::version() + 1);
         archive_of(&path, &manifest);
 
-        assert!(matches!(
-            read_error(&path),
-            ErrorInfo::ArchiveUnsupported { .. }
-        ));
+        assert!(matches!(read_error(&path), ErrorInfo::ArchiveTooNew { .. }));
     }
 
     /// The record travels stamped with its own version, so an archive whose
@@ -321,10 +326,7 @@ mod tests {
             .unwrap(),
         );
 
-        assert!(matches!(
-            read_error(&path),
-            ErrorInfo::ArchiveUnsupported { .. }
-        ));
+        assert!(matches!(read_error(&path), ErrorInfo::ArchiveTooNew { .. }));
     }
 
     #[test]

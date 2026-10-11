@@ -2,6 +2,7 @@
 //! name any archive may carry, so [`Format::claims`] reads it before deciding.
 
 use anyhow::Result;
+use proto::error::{ArchiveFault, ArchiveFormat, ErrorInfo};
 use proto::transfer::ImportFormat;
 use serde_json::Value;
 
@@ -17,9 +18,10 @@ pub(crate) struct CurseForge;
 fn manifest(reader: &mut Reader, prefix: &str) -> Result<Value> {
     let text = reader.read_text(&format!("{prefix}{MANIFEST}"))?;
     serde_json::from_str(&text).map_err(|e| {
-        proto::error::ErrorInfo::ArchiveInvalid {
-            format: "curseforge".to_string(),
-            detail: format!("{MANIFEST} is malformed: {e}"),
+        tracing::warn!(error = %e, "{MANIFEST} is malformed");
+        ErrorInfo::ArchiveInvalid {
+            format: ArchiveFormat::CurseForge,
+            reason: ArchiveFault::ManifestMalformed,
         }
         .into()
     })

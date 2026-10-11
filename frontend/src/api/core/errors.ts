@@ -29,6 +29,7 @@ const TOKEN_TABLES = ['domain.entry_type.', 'error.token.'];
 // itself, so listing a free-text field here would be harmless.
 const TOKEN_FIELDS = new Set([
   'field',
+  'format',
   'reason',
   'entry',
   'scope',

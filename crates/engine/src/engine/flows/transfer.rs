@@ -326,8 +326,7 @@ impl Engine {
         {
             true => Ok(wanted.to_string()),
             false => Err(ErrorInfo::ArchiveUnsupported {
-                format: "instance".to_string(),
-                component: format!("the {wanted} loader"),
+                loader: wanted.to_string(),
             }
             .into()),
         }

@@ -741,29 +741,23 @@ fn check_hardcore_invariant(properties: &Path, key: &str, value: &str) -> Result
     if !bad_difficulty && !bad_gamemode {
         return Ok(());
     }
-    let detail = match key {
-        "difficulty" => {
-            "difficulty is locked to 'hard' while hardcore is enabled; disable hardcore first"
-                .into()
-        }
-        "gamemode" => {
-            "gamemode is locked to 'survival' while hardcore is enabled; disable hardcore first"
-                .into()
-        }
-        _ => {
-            let needed: Vec<&str> = [
+    let locked = |value: &str| proto::error::ErrorInfo::HardcoreLocked {
+        key: key.to_string(),
+        value: value.to_string(),
+    };
+    bail!(match key {
+        "difficulty" => locked("hard"),
+        "gamemode" => locked("survival"),
+        _ => proto::error::ErrorInfo::HardcoreRequires {
+            settings: [
                 bad_difficulty.then_some("difficulty=hard"),
                 bad_gamemode.then_some("gamemode=survival"),
             ]
             .into_iter()
             .flatten()
-            .collect();
-            format!("hardcore requires {}; set them first", needed.join(" and "))
-        }
-    };
-    bail!(proto::error::ErrorInfo::ConfigRejected {
-        key: key.to_string(),
-        detail,
+            .map(str::to_string)
+            .collect(),
+        },
     });
 }
 

@@ -14,6 +14,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use anyhow::{bail, Context, Result};
 use proto::backup::{BackupInfo, BackupKind};
+use proto::error::{ArchiveFault, ArchiveFormat, ErrorInfo};
 use serde::{Deserialize, Serialize};
 
 use crate::schema::{self, Document};
@@ -393,19 +394,28 @@ fn extract_archive(archive: &Path, dest: &Path, on_progress: OnProgress<'_>) -> 
 }
 
 fn check_manifest(text: &str) -> Result<()> {
-    let value = serde_json::from_str(text)
-        .with_context(|| format!("{MANIFEST} is malformed"))
-        .map_err(|e| unsupported(e.to_string()))?;
-    schema::decode::<Manifest>(value).map_err(|e| unsupported(e.to_string()))?;
+    let value = serde_json::from_str(text).map_err(|e| {
+        tracing::warn!(error = %e, "{MANIFEST} is malformed");
+        malformed()
+    })?;
+    schema::decode::<Manifest>(value).map_err(|e| match e {
+        schema::SchemaError::FromTheFuture { found, .. } => ErrorInfo::ArchiveTooNew {
+            format: ArchiveFormat::Backup,
+            schema: found,
+        },
+        other => {
+            tracing::warn!(error = %other, "{MANIFEST} cannot be decoded");
+            malformed()
+        }
+    })?;
     Ok(())
 }
 
-fn unsupported(detail: String) -> anyhow::Error {
-    proto::error::ErrorInfo::ArchiveUnsupported {
-        format: "backup".to_string(),
-        component: detail,
+fn malformed() -> ErrorInfo {
+    ErrorInfo::ArchiveInvalid {
+        format: ArchiveFormat::Backup,
+        reason: ArchiveFault::ManifestMalformed,
     }
-    .into()
 }
 
 /// Delete the oldest `kind` backups beyond `keep`; other kinds are untouched.
@@ -543,7 +553,7 @@ mod tests {
 
         assert!(matches!(
             error.downcast::<proto::error::ErrorInfo>().unwrap(),
-            proto::error::ErrorInfo::ArchiveUnsupported { .. }
+            ErrorInfo::ArchiveTooNew { .. }
         ));
         assert_eq!(
             std::fs::read_to_string(data.join("world/level.dat")).unwrap(),

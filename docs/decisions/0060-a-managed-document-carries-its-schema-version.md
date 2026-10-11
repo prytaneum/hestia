@@ -84,5 +84,5 @@ migrate; the manifest exists so a restore of an archive from a newer build is
 refused by name rather than scattered into the game directory.
 
 An archive is not ours to rename aside, so unlike a file in the data home a
-schema failure there is refused: `ArchiveUnsupported` for one from the future,
+schema failure there is refused: `ArchiveTooNew` for one from the future,
 `ArchiveInvalid` for anything else.

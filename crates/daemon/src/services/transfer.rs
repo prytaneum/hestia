@@ -28,9 +28,7 @@ pub(super) fn register(on: &mut Channels<'_>) {
         );
         started
             .map(|id| TransferJobResult { id })
-            .ok_or_else(|| ErrorInfo::Busy {
-                detail: format!("'{}' is already being exported", record.name),
-            })
+            .ok_or(ErrorInfo::ExportInProgress { name: record.name })
     });
 
     on.handle::<InstanceExportContents, _, _>(|p, ctx| async move {
@@ -54,9 +52,7 @@ pub(super) fn register(on: &mut Channels<'_>) {
         );
         started
             .map(|id| TransferJobResult { id })
-            .ok_or_else(|| ErrorInfo::Busy {
-                detail: "that import is already running".to_string(),
-            })
+            .ok_or(ErrorInfo::ImportInProgress)
     });
 
     on.handle::<InstanceImportInspect, _, _>(|p, ctx| async move {

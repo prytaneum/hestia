@@ -13,9 +13,10 @@
 use std::io::{Cursor, Read};
 use std::path::{Component, Path, PathBuf};
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result};
 use proto::content::{ModpackFile, ResolvedModpack, SideSupport};
 use proto::download::{Checksum, HashAlgorithm};
+use proto::error::ArchiveFault;
 use proto::minecraft::Artifact;
 use serde_json::{Map, Value};
 
@@ -90,9 +91,8 @@ pub struct Archive {
 impl Archive {
     pub fn open(bytes: Vec<u8>) -> Result<Self> {
         let mut zip = zip::ZipArchive::new(Cursor::new(bytes)).map_err(|e| {
-            anyhow::Error::from(proto::error::ErrorInfo::ModpackInvalid {
-                detail: format!("not a valid archive: {e}"),
-            })
+            tracing::warn!(error = %e, "cannot open a modpack archive");
+            invalid(ArchiveFault::NotAnArchive)
         })?;
         let (format, root) = detect(&mut zip);
         Ok(Archive { zip, format, root })
@@ -114,9 +114,8 @@ impl Archive {
             .by_name(&format!("{}{MANIFEST}", self.root))
             .context("cannot read the modpack manifest")?;
         let manifest = serde_json::from_reader(entry).map_err(|e| {
-            anyhow::Error::from(proto::error::ErrorInfo::ModpackInvalid {
-                detail: format!("{MANIFEST} is malformed: {e}"),
-            })
+            tracing::warn!(error = %e, "{MANIFEST} is malformed");
+            invalid(ArchiveFault::ManifestMalformed)
         })?;
         Ok(Some((super::curseforge::ID, manifest)))
     }
@@ -127,15 +126,10 @@ impl Archive {
         let entry = self
             .zip
             .by_name(&format!("{}{INDEX}", self.root))
-            .map_err(|_| {
-                anyhow::Error::from(proto::error::ErrorInfo::ModpackInvalid {
-                    detail: format!("{INDEX} is missing from the archive"),
-                })
-            })?;
+            .map_err(|_| invalid(ArchiveFault::ManifestMissing))?;
         let index: Value = serde_json::from_reader(entry).map_err(|e| {
-            anyhow::Error::from(proto::error::ErrorInfo::ModpackInvalid {
-                detail: format!("{INDEX} is malformed: {e}"),
-            })
+            tracing::warn!(error = %e, "{INDEX} is malformed");
+            invalid(ArchiveFault::ManifestMalformed)
         })?;
         parse_index(&index)
     }
@@ -185,9 +179,11 @@ impl Archive {
                     continue;
                 }
                 if !is_safe_path(relative) {
-                    bail!(proto::error::ErrorInfo::ModpackInvalid {
-                        detail: format!("unsafe override path: {}", entry.name())
-                    });
+                    tracing::warn!(
+                        path = entry.name(),
+                        "a modpack override escapes its directory"
+                    );
+                    return Err(invalid(ArchiveFault::UnsafePath));
                 }
                 planned.push((i, relative.to_string()));
             }
@@ -313,9 +309,8 @@ pub fn parse_index(index: &Value) -> Result<ResolvedModpack> {
         .and_then(Value::as_u64)
         .unwrap_or(0);
     if format != 1 {
-        bail!(proto::error::ErrorInfo::ModpackInvalid {
-            detail: format!("unsupported format version: {format} (expected 1)")
-        });
+        tracing::warn!(format, "unsupported modpack format version");
+        return Err(invalid(ArchiveFault::FormatVersion));
     }
 
     let mut files = Vec::new();
@@ -323,9 +318,8 @@ pub fn parse_index(index: &Value) -> Result<ResolvedModpack> {
         for f in arr {
             let path = f.get("path").and_then(Value::as_str).unwrap_or_default();
             if !is_safe_path(path) {
-                bail!(proto::error::ErrorInfo::ModpackInvalid {
-                    detail: format!("unsafe file path: {path}")
-                });
+                tracing::warn!(path, "a modpack file escapes its directory");
+                return Err(invalid(ArchiveFault::UnsafePath));
             }
             let url = f
                 .get("downloads")
@@ -374,9 +368,7 @@ pub fn parse_index(index: &Value) -> Result<ResolvedModpack> {
     let game_version = deps
         .and_then(|d| d.get("minecraft"))
         .and_then(Value::as_str)
-        .ok_or_else(|| proto::error::ErrorInfo::ModpackInvalid {
-            detail: "it pins no Minecraft version".to_string(),
-        })?
+        .ok_or_else(|| invalid(ArchiveFault::NoGameVersion))?
         .to_string();
     let (loader, loader_version) = deps
         .and_then(find_loader)
@@ -421,6 +413,10 @@ fn str_field(v: &Value, key: &str) -> String {
         .and_then(Value::as_str)
         .unwrap_or_default()
         .to_string()
+}
+
+pub(crate) fn invalid(reason: ArchiveFault) -> anyhow::Error {
+    proto::error::ErrorInfo::ModpackInvalid { reason }.into()
 }
 
 fn filename_of(path: &str) -> String {

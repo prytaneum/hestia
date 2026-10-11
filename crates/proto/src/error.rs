@@ -4,9 +4,11 @@
 //! front-end renders its own localized string from the tag + typed fields.
 //!
 //! Semantic variants translate fully with their fields; operational variants
-//! (`Io`, `Upstream`, `DownloadFailed`, `RconFailed`, `Internal`) carry an
-//! unbounded English `detail` — a per-path filesystem message is not localizable
-//! and is shown as secondary text under a translated headline.
+//! (`MalformedRequest`, `Io`, `Upstream`, `DownloadFailed`, `RconFailed`,
+//! `Internal`) carry an unbounded English `detail` — a per-path filesystem
+//! message is not localizable and is shown as secondary text under a translated
+//! headline. A semantic variant never carries prose: what it would have said is
+//! a closed enum a front-end words itself, and the specifics go to the log.
 
 use std::fmt;
 
@@ -76,6 +78,12 @@ pub enum Field {
     JavaVersion,
     Order,
     Realm,
+    ProcessId,
+}
+
+impl Field {
+    /// The ways a content item names where it comes from; exactly one is given.
+    pub const CONTENT_SOURCES: [Field; 3] = [Field::Project, Field::Url, Field::Path];
 }
 
 impl fmt::Display for Field {
@@ -102,6 +110,7 @@ impl fmt::Display for Field {
             Field::BackupInterval => "backup-interval",
             Field::BackupRetention => "backup-retention",
             Field::JavaVersion => "a java version",
+            Field::ProcessId => "a process id",
         })
     }
 }
@@ -126,6 +135,7 @@ pub enum Reason {
     ServerAddress,
     ListOrder,
     RealmId,
+    ProcessIdCharset,
 }
 
 impl fmt::Display for Reason {
@@ -149,6 +159,9 @@ impl fmt::Display for Reason {
             Reason::ServerAddress => "a server address looks like host or host:port",
             Reason::ListOrder => "the order must name every server in the list exactly once",
             Reason::RealmId => "a realm is named by its numeric id",
+            Reason::ProcessIdCharset => {
+                "a process id may only contain letters, digits, '-', '_' and '.'"
+            }
         })
     }
 }
@@ -175,6 +188,94 @@ impl fmt::Display for Unsupported {
             Unsupported::ModpackNotUpdatable => {
                 "this modpack came from a file, so there is no source to update it against"
             }
+        })
+    }
+}
+
+/// What an archive claims to be, so a refusal can name it.
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
+#[serde(rename_all = "snake_case")]
+pub enum ArchiveFormat {
+    Zip,
+    Hestia,
+    Mrpack,
+    Prism,
+    #[serde(rename = "curseforge")]
+    CurseForge,
+    Backup,
+}
+
+impl fmt::Display for ArchiveFormat {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            ArchiveFormat::Zip => "zip",
+            ArchiveFormat::Hestia => "hestia",
+            ArchiveFormat::Mrpack => "mrpack",
+            ArchiveFormat::Prism => "prism",
+            ArchiveFormat::CurseForge => "curseforge",
+            ArchiveFormat::Backup => "backup",
+        })
+    }
+}
+
+/// Why an archive or a pack could not be read.
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
+#[serde(rename_all = "snake_case")]
+pub enum ArchiveFault {
+    /// Cut short, or not a zip at all.
+    NotAnArchive,
+    ManifestMissing,
+    ManifestMalformed,
+    /// A member path that would land outside the directory it is unpacked into.
+    UnsafePath,
+    FormatVersion,
+    ManifestType,
+    NoGameVersion,
+    NoComponents,
+    /// The pack lists a file its source no longer publishes.
+    FileUnpublished,
+}
+
+impl fmt::Display for ArchiveFault {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            ArchiveFault::NotAnArchive => "the file is incomplete or not a zip archive",
+            ArchiveFault::ManifestMissing => "its manifest is missing",
+            ArchiveFault::ManifestMalformed => "its manifest is malformed",
+            ArchiveFault::UnsafePath => "it holds a file path that escapes its directory",
+            ArchiveFault::FormatVersion => "its format version is not supported",
+            ArchiveFault::ManifestType => "its manifest is of an unsupported type",
+            ArchiveFault::NoGameVersion => "it pins no Minecraft version",
+            ArchiveFault::NoComponents => "it lists no components",
+            ArchiveFault::FileUnpublished => "it lists a file that is not published any more",
+        })
+    }
+}
+
+/// The JSON kind a config key holds.
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
+#[serde(rename_all = "snake_case")]
+pub enum ValueKind {
+    Null,
+    Boolean,
+    Number,
+    String,
+    Array,
+    Object,
+}
+
+impl fmt::Display for ValueKind {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            ValueKind::Null => "null",
+            ValueKind::Boolean => "boolean",
+            ValueKind::Number => "number",
+            ValueKind::String => "string",
+            ValueKind::Array => "array",
+            ValueKind::Object => "object",
         })
     }
 }
@@ -288,15 +389,12 @@ pub enum ErrorInfo {
         reason: Reason,
     },
     MutuallyExclusive {
-        options: Vec<String>,
+        options: Vec<Field>,
     },
     NothingToDo {
         what: Task,
     },
     EulaRequired,
-    Busy {
-        detail: String,
-    },
     UnsupportedOperation {
         reason: Unsupported,
     },
@@ -318,8 +416,10 @@ pub enum ErrorInfo {
         name: String,
         url: String,
     },
-    InvalidTexture {
-        detail: String,
+    TextureNotPng,
+    TextureSizeUnsupported {
+        width: u32,
+        height: u32,
     },
     /// A launch asked to join a world or server directly, but the game only
     /// learned the Quick Play arguments in 1.20 — an older client would ignore
@@ -366,11 +466,21 @@ pub enum ErrorInfo {
         key: String,
     },
     ConfigTypeMismatch {
-        detail: String,
+        key: String,
+        expected: ValueKind,
     },
+    /// The value is the right JSON kind but not one the key accepts.
     ConfigRejected {
         key: String,
-        detail: String,
+    },
+    /// A hardcore server pins `key` to `value`; hardcore has to go first.
+    HardcoreLocked {
+        key: String,
+        value: String,
+    },
+    /// Hardcore was asked for while these `server.properties` settings forbid it.
+    HardcoreRequires {
+        settings: Vec<String>,
     },
 
     // --- conflict ---
@@ -409,6 +519,14 @@ pub enum ErrorInfo {
     BackupInProgress {
         name: String,
     },
+    ExportInProgress {
+        name: String,
+    },
+    ImportInProgress,
+    CreateInProgress,
+    JavaInstallInProgress {
+        major: i32,
+    },
     NoConsole {
         name: String,
     },
@@ -429,7 +547,7 @@ pub enum ErrorInfo {
         reference: String,
     },
     ModpackInvalid {
-        detail: String,
+        reason: ArchiveFault,
     },
     /// The pack pins a mod loader this launcher has no flavor for. Carried as
     /// the loader's own name, since the set of shipped flavors moves.
@@ -468,18 +586,19 @@ pub enum ErrorInfo {
     ArchiveUnrecognised {
         filename: String,
     },
-    /// The archive cannot be read as what it claims to be — a zip cut short or
-    /// not a zip at all, a missing or malformed manifest, or a member path
-    /// that would escape the instance directory.
+    /// The archive cannot be read as what it claims to be.
     ArchiveInvalid {
-        format: String,
-        detail: String,
+        format: ArchiveFormat,
+        reason: ArchiveFault,
     },
-    /// The archive pins a game version, loader, or component this launcher has
-    /// no flavor for.
+    /// The archive pins a loader this launcher has no flavor for.
     ArchiveUnsupported {
-        format: String,
-        component: String,
+        loader: String,
+    },
+    /// The archive was written by a newer hestia than this one reads.
+    ArchiveTooNew {
+        format: ArchiveFormat,
+        schema: u32,
     },
     ContentKindMismatch {
         title: String,
@@ -621,11 +740,15 @@ impl fmt::Display for ErrorInfo {
             }
             InvalidValue { reason, .. } => write!(f, "{reason}"),
             MutuallyExclusive { options } => {
-                write!(f, "choose exactly one of: {}", options.join(", "))
+                let joined = options
+                    .iter()
+                    .map(|x| x.to_string())
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                write!(f, "choose exactly one of: {joined}")
             }
             NothingToDo { what } => write!(f, "nothing to {what}"),
             EulaRequired => write!(f, "accept the EULA to create a server"),
-            Busy { detail } => write!(f, "{detail}"),
             UnsupportedOperation { reason } => write!(f, "{reason}"),
             ContentKindRejected {
                 entry,
@@ -653,7 +776,11 @@ impl fmt::Display for ErrorInfo {
                 "a {flavor} server is built on this computer, and that needs {name}, \
                  which Hestia cannot install for you — get it from {url}, then try again"
             ),
-            InvalidTexture { detail } => write!(f, "{detail}"),
+            TextureNotPng => write!(f, "the skin texture is not a PNG file"),
+            TextureSizeUnsupported { width, height } => write!(
+                f,
+                "a skin texture must be 64×64 (or the legacy 64×32), got {width}×{height}"
+            ),
             QuickPlayUnsupported { version } => write!(
                 f,
                 "joining a world or server on launch needs Minecraft 1.20 or newer; this instance \
@@ -675,8 +802,17 @@ impl fmt::Display for ErrorInfo {
             VersionNotFound { reference } => write!(f, "no version matches '{reference}'"),
             ConfigKeyUnknown { key } => write!(f, "unknown config key '{key}'"),
             ConfigKeyUnset { key } => write!(f, "'{key}' is not set"),
-            ConfigTypeMismatch { detail } => write!(f, "{detail}"),
-            ConfigRejected { key, detail } => write!(f, "invalid value for {key}: {detail}"),
+            ConfigTypeMismatch { key, expected } => write!(f, "{key} expects a {expected}"),
+            ConfigRejected { key } => write!(f, "invalid value for {key}"),
+            HardcoreLocked { key, value } => write!(
+                f,
+                "{key} is locked to '{value}' while hardcore is enabled; disable hardcore first"
+            ),
+            HardcoreRequires { settings } => write!(
+                f,
+                "hardcore requires {}; set them first",
+                settings.join(" and ")
+            ),
             AlreadyExists { entry, name } => write!(f, "a {entry} named '{name}' already exists"),
             PortUnavailable { port } => write!(f, "port {port} is unavailable"),
             EntryRunning { name, .. } => write!(f, "{name} is running — stop it first"),
@@ -692,6 +828,12 @@ impl fmt::Display for ErrorInfo {
             BackupInProgress { name } => {
                 write!(f, "{name} has a backup or restore in progress")
             }
+            ExportInProgress { name } => write!(f, "{name} is being exported"),
+            ImportInProgress => write!(f, "that import is already running"),
+            CreateInProgress => write!(f, "that server is already being created"),
+            JavaInstallInProgress { major } => {
+                write!(f, "java {major} is already being installed")
+            }
             NoConsole { name } => write!(f, "{name} has no console yet — restart it"),
             NoGamePort { name } => write!(f, "{name} has no game port allocated"),
             SignInRequired => write!(f, "sign in with a Microsoft account first"),
@@ -701,7 +843,7 @@ impl fmt::Display for ErrorInfo {
             LoginDeclined => write!(f, "the sign-in was declined"),
             LoginTimedOut => write!(f, "the sign-in timed out — try again"),
             NotAModpack { reference } => write!(f, "'{reference}' is not a modpack"),
-            ModpackInvalid { detail } => write!(f, "this modpack could not be read: {detail}"),
+            ModpackInvalid { reason } => write!(f, "this modpack could not be read: {reason}"),
             ModpackLoaderUnsupported { loader } => {
                 write!(
                     f,
@@ -733,12 +875,17 @@ impl fmt::Display for ErrorInfo {
                 "'{filename}' is not an instance hestia can import — it carries no hestia, \
                  Modrinth, CurseForge or Prism manifest"
             ),
-            ArchiveInvalid { format, detail } => {
-                write!(f, "this {format} archive could not be read: {detail}")
+            ArchiveInvalid { format, reason } => {
+                write!(f, "this {format} archive could not be read: {reason}")
             }
-            ArchiveUnsupported { format, component } => write!(
+            ArchiveUnsupported { loader } => write!(
                 f,
-                "this {format} archive needs {component}, which hestia does not have"
+                "this archive needs the {loader} loader, which hestia does not have"
+            ),
+            ArchiveTooNew { format, schema } => write!(
+                f,
+                "this {format} archive was written by a newer hestia (schema {schema}) — \
+                 update hestia to read it"
             ),
             ContentKindMismatch {
                 title,

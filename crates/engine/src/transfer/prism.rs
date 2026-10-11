@@ -13,7 +13,7 @@
 //! to ask.
 
 use anyhow::Result;
-use proto::error::ErrorInfo;
+use proto::error::{ArchiveFault, ArchiveFormat, ErrorInfo};
 use proto::transfer::ImportFormat;
 use serde_json::Value;
 
@@ -106,17 +106,21 @@ impl Format for Prism {
 fn describe(reader: &mut Reader, prefix: &str) -> Result<Instance> {
     let config = reader
         .read_text(&format!("{prefix}{CONFIG}"))
-        .map_err(|e| invalid(e.to_string()))?;
-    let pack = reader
-        .read_text(&format!("{prefix}{PACK}"))
-        .map_err(|_| invalid(format!("{PACK} is missing from the archive")))?;
+        .map_err(|e| {
+            tracing::warn!(error = %e, "cannot read {CONFIG}");
+            invalid(ArchiveFault::ManifestMissing)
+        })?;
+    let pack = reader.read_text(&format!("{prefix}{PACK}")).map_err(|e| {
+        tracing::warn!(error = %e, "cannot read {PACK}");
+        invalid(ArchiveFault::ManifestMissing)
+    })?;
     read(&config, &pack)
 }
 
-fn invalid(detail: String) -> ErrorInfo {
+fn invalid(reason: ArchiveFault) -> ErrorInfo {
     ErrorInfo::ArchiveInvalid {
-        format: "prism".to_string(),
-        detail,
+        format: ArchiveFormat::Prism,
+        reason,
     }
 }
 
@@ -165,18 +169,15 @@ fn overridden(config: &[(String, String)], key: &str) -> bool {
 
 pub(crate) fn read(config_text: &str, pack_text: &str) -> Result<Instance> {
     let config = parse_config(config_text);
-    let pack: Value = serde_json::from_str(pack_text).map_err(|e| ErrorInfo::ArchiveInvalid {
-        format: "prism".to_string(),
-        detail: format!("{PACK} is malformed: {e}"),
+    let pack: Value = serde_json::from_str(pack_text).map_err(|e| {
+        tracing::warn!(error = %e, "{PACK} is malformed");
+        invalid(ArchiveFault::ManifestMalformed)
     })?;
 
     let components = pack
         .get("components")
         .and_then(Value::as_array)
-        .ok_or_else(|| ErrorInfo::ArchiveInvalid {
-            format: "prism".to_string(),
-            detail: format!("{PACK} lists no components"),
-        })?;
+        .ok_or_else(|| invalid(ArchiveFault::NoComponents))?;
 
     let mut game_version = String::new();
     let mut loader = None;
@@ -204,11 +205,7 @@ pub(crate) fn read(config_text: &str, pack_text: &str) -> Result<Instance> {
     }
 
     if game_version.is_empty() {
-        return Err(ErrorInfo::ArchiveInvalid {
-            format: "prism".to_string(),
-            detail: format!("{PACK} pins no Minecraft version"),
-        }
-        .into());
+        return Err(invalid(ArchiveFault::NoGameVersion).into());
     }
 
     Ok(Instance {

@@ -125,7 +125,7 @@ impl Engine {
             .count();
         if picked != 1 {
             bail!(ErrorInfo::MutuallyExclusive {
-                options: vec!["a project".into(), "a url".into(), "a file".into()],
+                options: proto::error::Field::CONTENT_SOURCES.to_vec(),
             });
         }
         job.report(&phase_progress(ProvisionPhase::Resolving));

@@ -181,7 +181,7 @@ fn require_pack_ref(pack: &ModpackRef) -> Result<(), ErrorInfo> {
             field: Field::Project,
         }),
         _ => Err(ErrorInfo::MutuallyExclusive {
-            options: vec!["a project".into(), "a url".into(), "a file".into()],
+            options: Field::CONTENT_SOURCES.to_vec(),
         }),
     }
 }

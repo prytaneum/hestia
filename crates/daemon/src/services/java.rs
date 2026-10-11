@@ -63,9 +63,7 @@ pub(super) fn register(on: &mut Channels<'_>) {
         }
         match ctx.runtime.java_installs().start(p.major, p.id, p.force) {
             Some(id) => Ok(JavaInstallResult { id }),
-            None => Err(ErrorInfo::Busy {
-                detail: format!("java {} is already being installed", p.major),
-            }),
+            None => Err(ErrorInfo::JavaInstallInProgress { major: p.major }),
         }
     });
 

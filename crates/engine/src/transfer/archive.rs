@@ -14,6 +14,7 @@ use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
+use proto::error::{ArchiveFault, ArchiveFormat};
 use proto::minecraft::{ProvisionPhase, ProvisionProgress};
 use zip::write::SimpleFileOptions;
 
@@ -213,8 +214,8 @@ impl Reader {
         let zip = zip::ZipArchive::new(file).map_err(|e| {
             tracing::warn!(path = %path.display(), error = %e, "cannot open an archive");
             proto::error::ErrorInfo::ArchiveInvalid {
-                format: "zip".to_string(),
-                detail: format!("'{}' is incomplete or not a zip ({e})", filename_of(path)),
+                format: ArchiveFormat::Zip,
+                reason: ArchiveFault::NotAnArchive,
             }
         })?;
         Ok(Reader { zip })
@@ -275,9 +276,10 @@ impl Reader {
             job.check()?;
             tick(job, ProvisionPhase::Extract, done as u64, total, &relative);
             if !is_safe_path(&relative) {
+                tracing::warn!(member = %relative, "an archive member escapes its directory");
                 anyhow::bail!(proto::error::ErrorInfo::ArchiveInvalid {
-                    format: "zip".to_string(),
-                    detail: format!("member '{relative}' escapes the instance directory"),
+                    format: ArchiveFormat::Zip,
+                    reason: ArchiveFault::UnsafePath,
                 });
             }
             if !keep(&relative) {

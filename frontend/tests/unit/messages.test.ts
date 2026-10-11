@@ -79,6 +79,46 @@ const referenced = new Set(
   ]),
 );
 
+const GENERATED = join(ROOT, 'src', 'api', 'types', 'generated');
+const ERROR_TOKEN_ENUMS = [
+  'ArchiveFault',
+  'ArchiveFormat',
+  'Field',
+  'IoOp',
+  'Reason',
+  'Service',
+  'Task',
+  'Unsupported',
+  'ValueKind',
+];
+
+function generated(type: string): string {
+  return readFileSync(join(GENERATED, `${type}.ts`), 'utf8');
+}
+
+function unionMembers(type: string): string[] {
+  const declaration = generated(type).split(`export type ${type} =`)[1] ?? '';
+  return [...declaration.matchAll(/"(\w+)"/g)].map((match) => match[1]);
+}
+
+describe('daemon error vocabulary', () => {
+  it('has a message for every error kind', () => {
+    const kinds = [...generated('ErrorInfo').matchAll(/"kind": "(\w+)"/g)].map(
+      (match) => match[1],
+    );
+    expect(kinds.length).toBeGreaterThan(0);
+    expect(kinds.filter((kind) => !(`error.kind.${kind}` in base))).toEqual([]);
+  });
+
+  it.each(ERROR_TOKEN_ENUMS)('has a label for every %s value', (type) => {
+    const members = unionMembers(type);
+    expect(members.length).toBeGreaterThan(0);
+    expect(members.filter((value) => !(`error.token.${value}` in base))).toEqual(
+      [],
+    );
+  });
+});
+
 describe('message catalogue', () => {
   it('lists more than one locale', () => {
     expect(locales).toContain(BASE_LOCALE);

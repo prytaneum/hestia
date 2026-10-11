@@ -53,11 +53,13 @@ impl Format for Mrpack {
 
     fn read(&self, reader: &mut Reader, prefix: &str) -> Result<Blueprint> {
         let text = reader.read_text(&format!("{prefix}{INDEX}"))?;
-        let index: serde_json::Value =
-            serde_json::from_str(&text).map_err(|e| proto::error::ErrorInfo::ArchiveInvalid {
-                format: "mrpack".to_string(),
-                detail: format!("{INDEX} is malformed: {e}"),
-            })?;
+        let index: serde_json::Value = serde_json::from_str(&text).map_err(|e| {
+            tracing::warn!(error = %e, "{INDEX} is malformed");
+            proto::error::ErrorInfo::ArchiveInvalid {
+                format: proto::error::ArchiveFormat::Mrpack,
+                reason: proto::error::ArchiveFault::ManifestMalformed,
+            }
+        })?;
         let pack = crate::content::pack::parse_index(&index)?;
         Ok(Blueprint {
             descriptor: Descriptor {

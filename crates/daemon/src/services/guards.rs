@@ -188,9 +188,7 @@ fn gate(ctx: &HandlerContext, what: Exclusions, entry: Gated<'_>) -> Result<(), 
     // put a state in the archive that never existed on disk. An *import* is
     // never in the way: it creates the entry it fills.
     if what.transfer && ctx.runtime.transfers().in_flight(entry.key) {
-        return Err(ErrorInfo::Busy {
-            detail: format!("'{}' is being exported", entry.name),
-        });
+        return Err(ErrorInfo::ExportInProgress { name: named() });
     }
     Ok(())
 }
@@ -245,7 +243,7 @@ pub(super) fn require_content_items(
             .count();
         if picked != 1 {
             return Err(ErrorInfo::MutuallyExclusive {
-                options: vec!["a project".into(), "a url".into(), "a file".into()],
+                options: proto::error::Field::CONTENT_SOURCES.to_vec(),
             });
         }
     }

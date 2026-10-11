@@ -65,7 +65,7 @@ impl Engine {
                     item_label(item),
                     "",
                     ErrorInfo::MutuallyExclusive {
-                        options: vec!["a project".into(), "a url".into(), "a file".into()],
+                        options: proto::error::Field::CONTENT_SOURCES.to_vec(),
                     },
                 ));
                 continue;

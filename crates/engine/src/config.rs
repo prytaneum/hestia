@@ -6,6 +6,7 @@
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
+use proto::error::{ErrorInfo, ValueKind};
 use proto::naming;
 use proto::update::UpdateChannel;
 use serde::{Deserialize, Serialize};
@@ -142,15 +143,14 @@ impl Document for Settings {
 impl Settings {
     /// Validate and canonicalise after a raw dotted-path set — the same rules
     /// the per-entry `memory`/`jvm-args` keys enforce.
-    fn normalize(&mut self) -> Result<(), String> {
+    fn normalize(&mut self) -> Result<(), ErrorInfo> {
         if !self.defaults.memory.trim().is_empty() {
-            self.defaults.memory =
-                normalize_memory(&self.defaults.memory).map_err(|e| e.to_string())?;
+            self.defaults.memory = normalize_memory(&self.defaults.memory).map_err(rejection)?;
         } else {
             self.defaults.memory = String::new();
         }
         self.defaults.jvm_args = parse_jvm_args(&self.defaults.jvm_args)
-            .map_err(|e| e.to_string())?
+            .map_err(rejection)?
             .join(" ");
         self.content.curseforge_key = self.content.curseforge_key.trim().to_string();
         Ok(())
@@ -170,19 +170,27 @@ impl Settings {
     }
 }
 
+fn rejection(error: anyhow::Error) -> ErrorInfo {
+    error
+        .downcast::<ErrorInfo>()
+        .unwrap_or_else(|other| ErrorInfo::Internal {
+            detail: format!("{other:#}"),
+        })
+}
+
 #[derive(Debug, thiserror::Error)]
 pub enum ConfigError {
     #[error("unknown config key: {0}")]
     UnknownKey(String),
-    #[error("{0}")]
-    TypeMismatch(String),
+    #[error("{key} expects a {expected}")]
+    TypeMismatch { key: String, expected: ValueKind },
     #[error("invalid value for {key}: {source}")]
     InvalidValue {
         key: String,
         source: serde_json::Error,
     },
-    #[error("invalid value for {key}: {message}")]
-    Rejected { key: String, message: String },
+    #[error("{0}")]
+    Rejected(ErrorInfo),
     #[error(transparent)]
     Io(#[from] std::io::Error),
     #[error(transparent)]
@@ -234,10 +242,10 @@ impl Config {
             let node = find_node_mut(&mut doc, key)
                 .ok_or_else(|| ConfigError::UnknownKey(key.to_string()))?;
             if !same_json_kind(node, &value) {
-                return Err(ConfigError::TypeMismatch(format!(
-                    "{key} expects a {}",
-                    kind_name(node)
-                )));
+                return Err(ConfigError::TypeMismatch {
+                    key: key.to_string(),
+                    expected: kind_of(node),
+                });
             }
             *node = value;
         }
@@ -246,12 +254,7 @@ impl Config {
                 key: key.to_string(),
                 source,
             })?;
-        settings
-            .normalize()
-            .map_err(|message| ConfigError::Rejected {
-                key: key.to_string(),
-                message,
-            })?;
+        settings.normalize().map_err(ConfigError::Rejected)?;
         inner.settings = settings;
         save_settings(&inner.path, &inner.settings)?;
         tracing::info!(key, "config updated");
@@ -319,13 +322,13 @@ fn same_json_kind(a: &Value, b: &Value) -> bool {
     std::mem::discriminant(a) == std::mem::discriminant(b)
 }
 
-fn kind_name(v: &Value) -> &'static str {
+fn kind_of(v: &Value) -> ValueKind {
     match v {
-        Value::Null => "null",
-        Value::Bool(_) => "boolean",
-        Value::Number(_) => "number",
-        Value::String(_) => "string",
-        Value::Array(_) => "array",
-        Value::Object(_) => "object",
+        Value::Null => ValueKind::Null,
+        Value::Bool(_) => ValueKind::Boolean,
+        Value::Number(_) => ValueKind::Number,
+        Value::String(_) => ValueKind::String,
+        Value::Array(_) => ValueKind::Array,
+        Value::Object(_) => ValueKind::Object,
     }
 }

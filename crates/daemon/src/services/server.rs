@@ -66,9 +66,7 @@ pub(super) fn register(on: &mut Channels<'_>) {
         }
         match ctx.runtime.server_creates().start(p) {
             Some(id) => Ok(ServerCreateResult { id }),
-            None => Err(ErrorInfo::Busy {
-                detail: "that server is already being created".into(),
-            }),
+            None => Err(ErrorInfo::CreateInProgress),
         }
     });
 

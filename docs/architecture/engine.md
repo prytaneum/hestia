@@ -105,7 +105,7 @@ import lands, on the import's own result.
 Both archive formats are documents under the same rule: the `.hestia` manifest
 carries the instance record stamped rather than inlined, and a backup archive
 leads with `hestia.backup.json`. An archive is not hestia's to rename aside, so a
-schema failure there is refused (`ArchiveUnsupported` / `ArchiveInvalid`) rather
+schema failure there is refused (`ArchiveTooNew` / `ArchiveInvalid`) rather
 than quarantined.
 
 ## Settings — `config`
