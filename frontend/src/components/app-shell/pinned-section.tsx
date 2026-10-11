@@ -1,9 +1,4 @@
-import {
-  CubeIcon,
-  HardDrivesIcon,
-  PlusIcon,
-  PushPinSlashIcon,
-} from '@phosphor-icons/react';
+import { CubeIcon, HardDrivesIcon, PlusIcon } from '@phosphor-icons/react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
 import { Reorder, type Transition } from 'motion/react';
@@ -19,6 +14,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { StatusDot } from '@/components/ui/status-dot';
 import { Thumbnail } from '@/components/ui/thumbnail';
+import { EntryContextMenu } from '@/features/shared/entry/components';
 import { cn } from '@/lib/utils';
 import { m } from '@/paraglide/messages.js';
 import { useInstances } from '@/queries/instance';
@@ -242,7 +238,6 @@ export function PinnedSection({ pathname }: { pathname: string }) {
               key={pinKey(entry)}
               entry={entry}
               pathname={pathname}
-              onUnpin={() => toggle({ kind: entry.kind, id: entry.id })}
               reorder={reorder}
             />
           ))}
@@ -255,12 +250,10 @@ export function PinnedSection({ pathname }: { pathname: string }) {
 function PinnedRow({
   entry,
   pathname,
-  onUnpin,
   reorder,
 }: {
   entry: ResolvedPin;
   pathname: string;
-  onUnpin: () => void;
   reorder: ReturnType<typeof usePinnedReorder>;
 }) {
   const key = pinKey(entry);
@@ -279,41 +272,49 @@ function PinnedRow({
       onClickCapture={reorder.onClickCapture}
       className="relative"
     >
-      <PinnedLink
-        entry={entry}
-        pathname={pathname}
-        dragging={dragging}
-        onUnpin={onUnpin}
-      />
+      <EntryContextMenu entry={entry}>
+        <PinnedLink entry={entry} pathname={pathname} dragging={dragging} />
+      </EntryContextMenu>
     </Reorder.Item>
   );
 }
 
+/** Spreads what it is not given onto the link, which the menu trigger relies on. */
 function PinnedLink({
   entry,
   pathname,
   dragging,
-  onUnpin,
+  className: triggerClass,
+  ...trigger
 }: {
   entry: ResolvedPin;
   pathname: string;
   dragging: boolean;
-  onUnpin: () => void;
-}) {
+} & React.ComponentProps<'a'>) {
   const active = pathname === `/${entry.kind}s/${entry.id}`;
-  const content = <PinnedLinkContent entry={entry} onUnpin={onUnpin} />;
-  const className = pinnedLinkClass(active, dragging);
+  const content = <PinnedLinkContent entry={entry} />;
+  const className = cn(pinnedLinkClass(active, dragging), triggerClass);
 
   if (entry.kind === 'server') {
     return (
-      <Link to="/servers/$id" params={{ id: entry.id }} className={className}>
+      <Link
+        {...trigger}
+        to="/servers/$id"
+        params={{ id: entry.id }}
+        className={className}
+      >
         {content}
       </Link>
     );
   }
 
   return (
-    <Link to="/instances/$id" params={{ id: entry.id }} className={className}>
+    <Link
+      {...trigger}
+      to="/instances/$id"
+      params={{ id: entry.id }}
+      className={className}
+    >
       {content}
     </Link>
   );
@@ -321,7 +322,7 @@ function PinnedLink({
 
 function pinnedLinkClass(active: boolean, dragging: boolean) {
   return cn(
-    'group/pin flex items-center gap-2.5 px-3 py-1.5 transition-colors outline-none focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-inset',
+    'flex items-center gap-2.5 px-3 py-1.5 transition-colors outline-none focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-inset',
     active
       ? 'bg-muted text-foreground'
       : 'text-muted-foreground hover:bg-muted/60',
@@ -329,13 +330,7 @@ function pinnedLinkClass(active: boolean, dragging: boolean) {
   );
 }
 
-function PinnedLinkContent({
-  entry,
-  onUnpin,
-}: {
-  entry: ResolvedPin;
-  onUnpin: () => void;
-}) {
+function PinnedLinkContent({ entry }: { entry: ResolvedPin }) {
   const Icon = entry.kind === 'server' ? HardDrivesIcon : CubeIcon;
   return (
     <>
@@ -348,7 +343,7 @@ function PinnedLinkContent({
           {entry.flavor} · {entry.version}
         </span>
       </span>
-      <span className="flex shrink-0 items-center gap-1.5 group-hover/pin:hidden group-focus-within/pin:hidden">
+      <span className="flex shrink-0 items-center gap-1.5">
         {entry.running && entry.kind === 'server' && (
           <ServerPinPlayers id={entry.id} />
         )}
@@ -362,19 +357,6 @@ function PinnedLinkContent({
         )}
         {entry.running && <StatusDot tone="on" />}
       </span>
-      <button
-        type="button"
-        aria-label={m['app.label.unpin']()}
-        title={m['app.label.unpin']()}
-        onClick={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          onUnpin();
-        }}
-        className="hidden shrink-0 text-muted-foreground outline-none group-focus-within/pin:block group-hover/pin:block hover:text-foreground focus-visible:ring-1 focus-visible:ring-ring"
-      >
-        <PushPinSlashIcon className="size-3.5" />
-      </button>
     </>
   );
 }

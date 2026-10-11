@@ -10,6 +10,7 @@ export {
   ViewToggle,
 } from './collection';
 export { type EntryCardModel, EntryTile } from './entry-card';
+export { EntryContextMenu, type EntryMenuTarget } from './entry-menu';
 export { EntryIconMenu } from './icon-menu';
 export {
   isMeasurable,

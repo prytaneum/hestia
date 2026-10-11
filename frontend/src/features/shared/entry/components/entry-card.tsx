@@ -1,4 +1,4 @@
-import { PlayIcon, PowerIcon, PushPinIcon } from '@phosphor-icons/react';
+import { PlayIcon, PowerIcon } from '@phosphor-icons/react';
 import { createLink } from '@tanstack/react-router';
 import { motion } from 'motion/react';
 
@@ -13,8 +13,8 @@ import { Thumbnail } from '@/components/ui/thumbnail';
 import { layoutMorph, listItem } from '@/lib/motion';
 import { cn } from '@/lib/utils';
 import { m } from '@/paraglide/messages.js';
-import { usePinned } from '@/queries/pinned';
 import type { View } from './collection';
+import { EntryContextMenu } from './entry-menu';
 import { EntryRunControl } from './run-control';
 
 export interface EntryCardModel {
@@ -78,41 +78,6 @@ function StatusBadge({
       <StatusDot tone={status.tone} />
       {status.label}
     </Badge>
-  );
-}
-
-/** Sidebar pin toggle: visible on hover, or always while pinned. */
-function PinToggle({
-  entry,
-  overlay,
-}: {
-  entry: EntryCardModel;
-  overlay?: boolean;
-}) {
-  const { ready, isPinned, toggle } = usePinned();
-  const pin = { kind: entry.kind, id: entry.id };
-  const pinned = isPinned(pin);
-  if (!ready) return null;
-
-  const label = pinned ? m['app.label.unpin']() : m['app.label.pin']();
-  return (
-    <button
-      type="button"
-      aria-label={label}
-      title={label}
-      aria-pressed={pinned}
-      onClick={(e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        toggle(pin);
-      }}
-      className={cn(
-        'grid size-6 place-items-center text-muted-foreground opacity-0 transition-opacity outline-none group-hover:opacity-100 hover:text-foreground focus-visible:opacity-100 focus-visible:ring-ring',
-        overlay && 'bg-background/80 ring-1 ring-border backdrop-blur-xs',
-      )}
-    >
-      <PushPinIcon weight={pinned ? 'fill' : 'regular'} className="size-3.5" />
-    </button>
   );
 }
 
@@ -212,88 +177,82 @@ export function EntryTile({
   const grid = view === 'grid';
 
   return (
-    <MotionLink
-      layout
-      variants={listItem}
-      exit="exit"
-      transition={layoutMorph}
-      to={detailTo(entry.kind)}
-      params={{ id: entry.id }}
-      className={cn(
-        'group relative flex overflow-hidden outline-none focus-visible:ring-1 focus-visible:ring-ring',
-        grid
-          ? 'flex-col border border-border bg-card transition-colors hover:border-ember/40'
-          : 'items-center gap-3 px-3 py-2.5 transition-colors hover:bg-muted/40 focus-visible:ring-inset',
-      )}
-    >
-      <motion.div
+    <EntryContextMenu entry={entry}>
+      <MotionLink
         layout
+        variants={listItem}
+        exit="exit"
         transition={layoutMorph}
-        className={cn('shrink-0', grid && 'w-full border-b border-border')}
+        to={detailTo(entry.kind)}
+        params={{ id: entry.id }}
+        className={cn(
+          'group relative flex overflow-hidden outline-none focus-visible:ring-1 focus-visible:ring-ring',
+          grid
+            ? 'flex-col border border-border bg-card transition-colors hover:border-ember/40'
+            : 'items-center gap-3 px-3 py-2.5 transition-colors hover:bg-muted/40 focus-visible:ring-inset',
+        )}
       >
-        <Thumbnail
-          src={entry.iconUrl}
-          icon={Icon}
-          size={grid ? 'full' : 'lg'}
-          className={cn(
-            grid &&
-              'bg-muted/40 ring-0 transition-[filter] group-hover:brightness-90',
-          )}
-        />
-      </motion.div>
+        <motion.div
+          layout
+          transition={layoutMorph}
+          className={cn('shrink-0', grid && 'w-full border-b border-border')}
+        >
+          <Thumbnail
+            src={entry.iconUrl}
+            icon={Icon}
+            size={grid ? 'full' : 'lg'}
+            className={cn(
+              grid &&
+                'bg-muted/40 ring-0 transition-[filter] group-hover:brightness-90',
+            )}
+          />
+        </motion.div>
 
-      {/* Text block: position-only. Glyphs must never be scaled, and this
-          box's own size change isn't worth animating. */}
-      <motion.div
-        layout="position"
-        transition={layoutMorph}
-        className={cn('min-w-0', grid ? 'w-full p-3 pt-2.5' : 'flex-1')}
-      >
-        <span className="block truncate text-sm font-semibold">
-          {entry.name}
-        </span>
-        <span className="mt-0.5 block truncate font-mono text-[11px] text-muted-foreground">
-          {grid
-            ? `${entry.flavor} · ${entry.version}`
-            : `${entry.flavor} · ${entry.version} · ${entry.subtitle}`}
-        </span>
-      </motion.div>
-
-      {status && (
+        {/* Text block: position-only. Glyphs must never be scaled, and this
+            box's own size change isn't worth animating. */}
         <motion.div
           layout="position"
           transition={layoutMorph}
-          className={cn(grid && 'absolute top-2 left-2')}
+          className={cn('min-w-0', grid ? 'w-full p-3 pt-2.5' : 'flex-1')}
         >
-          <StatusBadge status={status} overlay={grid} />
+          <span className="block truncate text-sm font-semibold">
+            {entry.name}
+          </span>
+          <span className="mt-0.5 block truncate font-mono text-[11px] text-muted-foreground">
+            {grid
+              ? `${entry.flavor} · ${entry.version}`
+              : `${entry.flavor} · ${entry.version} · ${entry.subtitle}`}
+          </span>
         </motion.div>
-      )}
 
-      <motion.div
-        layout="position"
-        transition={layoutMorph}
-        className={cn(grid && 'absolute top-2 right-2')}
-      >
-        <PinToggle entry={entry} overlay={grid} />
-      </motion.div>
-
-      <motion.div
-        layout="position"
-        transition={layoutMorph}
-        className={cn(
-          grid &&
-            'pointer-events-none absolute inset-x-0 top-0 aspect-square opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100 has-aria-expanded:opacity-100',
+        {status && (
+          <motion.div
+            layout="position"
+            transition={layoutMorph}
+            className={cn(grid && 'absolute top-2 left-2')}
+          >
+            <StatusBadge status={status} overlay={grid} />
+          </motion.div>
         )}
-      >
-        <div
+
+        <motion.div
+          layout="position"
+          transition={layoutMorph}
           className={cn(
-            '[&>*]:pointer-events-auto',
-            grid && 'absolute right-3 bottom-3 grid',
+            grid &&
+              'pointer-events-none absolute inset-x-0 top-0 aspect-square opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100 has-aria-expanded:opacity-100',
           )}
         >
-          <ActionButton entry={entry} square={grid} />
-        </div>
-      </motion.div>
-    </MotionLink>
+          <div
+            className={cn(
+              '[&>*]:pointer-events-auto',
+              grid && 'absolute right-3 bottom-3 grid',
+            )}
+          >
+            <ActionButton entry={entry} square={grid} />
+          </div>
+        </motion.div>
+      </MotionLink>
+    </EntryContextMenu>
   );
 }
