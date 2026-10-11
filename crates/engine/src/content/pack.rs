@@ -137,19 +137,19 @@ impl Archive {
         }
     }
 
-    /// Write the pack's own game-directory files for `side` into `dest`,
-    /// returning each with the hash it was written with. The shared `overrides/`
-    /// tree goes first so the side-specific tree wins where both name a path —
-    /// which is what having two trees means.
+    /// Write the pack's own files for `side`, returning each with the hash it
+    /// was written with. The shared `overrides/` tree goes first so the
+    /// side-specific tree wins where both name a path — which is what having
+    /// two trees means.
     ///
-    /// `keep` is asked before each file is written; answering false leaves what
-    /// is on disk untouched and omits it from the result.
+    /// `place` is asked where each file goes, by its path in the tree;
+    /// answering `None` leaves what is on disk untouched and omits it from the
+    /// result.
     pub fn extract_overrides(
         &mut self,
         side: Side,
-        dest: &Path,
         job: &Job,
-        mut keep: impl FnMut(&str) -> bool,
+        mut place: impl FnMut(&str) -> Option<PathBuf>,
     ) -> Result<Vec<WrittenOverride>> {
         let mut planned: Vec<(usize, String)> = Vec::new();
         for prefix in self.overrides_dirs(side) {
@@ -183,10 +183,9 @@ impl Archive {
         for (done, (index, relative)) in planned.into_iter().enumerate() {
             job.check()?;
             overrides_tick(job, done as u64, total, &relative);
-            if !keep(&relative) {
+            let Some(target) = place(&relative) else {
                 continue;
-            }
-            let target = dest.join(&relative);
+            };
             let sha1 = self.write_entry(index, &target)?;
             written.push(WrittenOverride {
                 path: relative,
@@ -509,7 +508,7 @@ mod tests {
         let noop = |_: &proto::minecraft::ProvisionProgress| {};
         let job = Job::new(&noop, &cancel);
         archive
-            .extract_overrides(side, dest, &job, |_| true)
+            .extract_overrides(side, &job, |path| Some(dest.join(path)))
             .unwrap()
     }
 
@@ -528,7 +527,7 @@ mod tests {
         };
         let job = Job::new(&record, &cancel);
 
-        pack.extract_overrides(Side::Client, dest_dir.path(), &job, |_| true)
+        pack.extract_overrides(Side::Client, &job, |path| Some(dest_dir.path().join(path)))
             .unwrap();
 
         let seen = seen.into_inner().unwrap();
@@ -693,7 +692,9 @@ mod tests {
         let noop = |_: &proto::minecraft::ProvisionProgress| {};
         let job = Job::new(&noop, &cancel);
         let written = pack
-            .extract_overrides(Side::Client, dest, &job, |path| path != "config/mine.toml")
+            .extract_overrides(Side::Client, &job, |path| {
+                (path != "config/mine.toml").then(|| dest.join(path))
+            })
             .unwrap();
 
         assert_eq!(
@@ -715,7 +716,7 @@ mod tests {
         let job = Job::new(&noop, &cancel);
 
         assert!(pack
-            .extract_overrides(Side::Client, dest, &job, |_| true)
+            .extract_overrides(Side::Client, &job, |path| Some(dest.join(path)))
             .is_err());
     }
 

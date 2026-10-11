@@ -9,6 +9,7 @@ use proto::content::{ContentAddItem, ContentAddSpec, ContentKind};
 use proto::error::ErrorInfo;
 use proto::instance::QuickPlay;
 use proto::minecraft::ProvisionProgress;
+use proto::modpack::{ModpackRef, ModpackTarget};
 
 fn job<'a>(cancel: &'a Cancel, report: &'a (dyn Fn(&ProvisionProgress) + Send + Sync)) -> Job<'a> {
     Job::new(report, cancel)
@@ -305,6 +306,144 @@ async fn a_file_kept_local_can_later_move_to_a_source_that_recognises_it() {
         "the move replaces the record, not adds one"
     );
     assert_eq!(listed[0].source, "fixture");
+}
+
+fn local_pack(
+    dir: &std::path::Path,
+    name: &str,
+    index: serde_json::Value,
+    jars: &[&str],
+) -> String {
+    use std::io::Write;
+    let path = dir.join(name);
+    let options = zip::write::SimpleFileOptions::default();
+    let mut zip = zip::ZipWriter::new(std::fs::File::create(&path).expect("create the pack"));
+    zip.start_file("modrinth.index.json", options)
+        .expect("start the index");
+    zip.write_all(index.to_string().as_bytes())
+        .expect("write the index");
+    for jar in jars {
+        zip.start_file(format!("overrides/mods/{jar}"), options)
+            .expect("start an override jar");
+        zip.write_all(jar.as_bytes())
+            .expect("write an override jar");
+    }
+    zip.start_file("overrides/config/cozy.toml", options)
+        .expect("start a config");
+    zip.write_all(b"cozy = true").expect("write a config");
+    zip.finish().expect("finish the pack");
+    path.to_string_lossy().into_owned()
+}
+
+#[tokio::test]
+async fn a_pack_read_off_disk_tracks_whatever_a_source_recognises() {
+    let home = tempfile::tempdir().expect("temp home");
+    let drops = tempfile::tempdir().expect("temp drops");
+    let files = fixture::Files::serve().await;
+    let mut pack_version = fixture::version("cozy", &files, "1.21", &[]);
+    pack_version.files[0].artifact.filename = "cozy.mrpack".to_string();
+    let source = fixture::Source {
+        projects: vec![
+            fixture::project("cozy", ContentKind::Modpack),
+            fixture::project("sodium", ContentKind::Mod),
+            fixture::project("iris", ContentKind::Mod),
+        ],
+        versions: vec![
+            pack_version,
+            fixture::version("sodium", &files, "1.21", &[]),
+            fixture::version("iris", &files, "1.21", &[]),
+        ],
+    };
+    let engine = fixture::engine(
+        home.path(),
+        vec![fixture::Flavor::resolving("fabric")],
+        vec![source],
+    );
+    let index = serde_json::json!({
+        "formatVersion": 1,
+        "name": "Cozy",
+        "versionId": "1.0.0",
+        "dependencies": { "minecraft": "1.21", "fabric-loader": "0.16.0" },
+        "files": [
+            { "path": "mods/sodium.jar", "downloads": [files.url("sodium.jar")] },
+            { "path": "mods/stray.jar", "downloads": [files.url("stray.jar")] },
+        ],
+    });
+    let path = local_pack(
+        drops.path(),
+        "cozy.mrpack",
+        index,
+        &["iris.jar", "homemade.jar"],
+    );
+    let (cancel, report) = (Cancel::new(), |_: &ProvisionProgress| {});
+
+    let outcome = engine
+        .install_instance_modpack(
+            &ModpackRef {
+                path,
+                ..ModpackRef::default()
+            },
+            &ModpackTarget::Create {
+                name: String::new(),
+            },
+            &job(&cancel, &report),
+        )
+        .await
+        .expect("the pack installs");
+
+    assert!(outcome.failures.is_empty(), "{:?}", outcome.failures);
+    assert_eq!(outcome.pack.source, "fixture", "the archive is a release");
+    assert_eq!(outcome.pack.project_id, "cozy");
+    assert_eq!(outcome.pack.version_id, "cozy-1");
+    let overrides: Vec<&str> = outcome
+        .pack
+        .overrides
+        .iter()
+        .map(|o| o.path.as_str())
+        .collect();
+    assert_eq!(
+        overrides,
+        ["config/cozy.toml"],
+        "an override jar is pool content, not a game-directory file"
+    );
+
+    let (listed, untracked) = engine
+        .entry_content(EntryRef::Instance(&outcome.entry), ContentKind::Mod)
+        .expect("list");
+    assert!(untracked.is_empty(), "nothing is left unaccounted for");
+    let tracked = |filename: &str| {
+        let item = listed
+            .iter()
+            .find(|i| i.filename == filename)
+            .unwrap_or_else(|| panic!("{filename} is in the pool"));
+        assert_eq!(item.origin, "modpack:cozy");
+        (item.source.as_str(), item.version_number.as_str())
+    };
+    assert_eq!(
+        tracked("sodium.jar"),
+        ("fixture", "1.0.0"),
+        "an index file is identified by its download URL"
+    );
+    assert_eq!(
+        tracked("iris.jar"),
+        ("fixture", "1.0.0"),
+        "an override jar is identified by its hash"
+    );
+    assert_eq!(tracked("stray.jar"), ("file", ""));
+    assert_eq!(tracked("homemade.jar"), ("file", ""));
+
+    let record = engine
+        .instances()
+        .get(&outcome.entry)
+        .expect("the instance the pack created");
+    assert!(
+        engine
+            .instances()
+            .data_dir(&record)
+            .join("mods/iris.jar")
+            .is_file(),
+        "an override jar still reaches the load dir, through the mirror"
+    );
 }
 
 #[tokio::test]

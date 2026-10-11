@@ -15,7 +15,7 @@ use proto::warning::WarningInfo;
 
 use super::super::content::entry::{content_target, EntryContent, EntrySide};
 use super::super::phase_progress;
-use super::{pack_display_name, FileIdentity};
+use super::{pack_display_name, Supplied};
 use crate::cancel::Job;
 use crate::config::ModpackSettings;
 use crate::content::{exclude, install, modpack, pack, record};
@@ -76,7 +76,8 @@ impl Engine {
         }
 
         let patterns = exclude::OverridePatterns::new(&settings.overrides_exclusions);
-        let (items, failures) = self.fetch_pack_content(ctx, &managed, resolved, job).await;
+        let (mut supplied, mut failures) =
+            self.fetch_pack_content(ctx, &managed, resolved, job).await;
         let mut overrides = self
             .fetch_loose_files(ctx, &loose, previous.as_ref(), &patterns, job)
             .await;
@@ -93,9 +94,16 @@ impl Engine {
         // tells the two apart.
         let installing = previous.is_none();
         let data_dir = ctx.data_dir.clone();
-        let written = archive.extract_overrides(side, &ctx.data_dir, job, |path| {
+        let pooled = |path: &str| managed_kind(path).filter(|kind| accepts.contains(kind));
+        let written = archive.extract_overrides(side, job, |path| {
             if patterns.excludes(path) {
-                return false;
+                return None;
+            }
+            // A jar shipped in an override tree is pool content like one the
+            // index names, so it goes to the managed directory the mirror
+            // reads rather than straight into the game's.
+            if let Some(kind) = pooled(path) {
+                return content_target(ctx, kind, filename(path)).ok();
             }
             let writable = installing
                 || match owned.get(path) {
@@ -109,12 +117,44 @@ impl Engine {
             if !writable {
                 kept.push(path.to_string());
             }
-            writable
+            writable.then(|| data_dir.join(path))
         })?;
-        overrides.extend(written.into_iter().map(|w| ModpackOverride {
-            path: w.path,
-            sha1: w.sha1,
-        }));
+        for file in written {
+            match pooled(&file.path) {
+                Some(kind) => {
+                    let filename = filename(&file.path).to_string();
+                    // The override tree is written last, so it wins a name the
+                    // index also supplied.
+                    supplied.retain(|s| !(s.kind == kind && s.filename == filename));
+                    supplied.push(Supplied {
+                        kind,
+                        filename,
+                        sha1: file.sha1,
+                        url: String::new(),
+                        identity: None,
+                    });
+                }
+                None => overrides.push(ModpackOverride {
+                    path: file.path,
+                    sha1: file.sha1,
+                }),
+            }
+        }
+
+        job.check()?;
+        self.recognise(ctx, &resolved.source, &mut supplied).await;
+        let mut items = Vec::new();
+        for file in supplied {
+            let item = pack_item(file);
+            match install::apply_files(&ctx.entry_dir, &ctx.data_dir, &item, &ctx.worlds()) {
+                Ok(()) => items.push(item),
+                Err(e) => failures.push(ContentFailure {
+                    item: item.filename.clone(),
+                    title: item.title.clone(),
+                    error: crate::error_info(e),
+                }),
+            }
+        }
 
         let pack = InstalledModpack {
             source: resolved.source.clone(),
@@ -189,31 +229,27 @@ impl Engine {
         files: &[(ContentKind, &ModpackFile)],
         resolved: &ResolvedModpack,
         job: &Job<'_>,
-    ) -> (Vec<InstalledContent>, Vec<ContentFailure>) {
-        let mut refs = self.identify(&resolved.source, files);
-        let catalogue = self.hydrate(&resolved.source, &mut refs).await;
+    ) -> (Vec<Supplied>, Vec<ContentFailure>) {
+        let mut refs = self.identify(files);
+        let catalogue = self.hydrate(&mut refs).await;
 
-        let mut items = Vec::new();
+        let mut supplied = Vec::new();
         let mut failures = Vec::new();
         let total = files.len() as u64;
         for (done, (kind, file)) in files.iter().enumerate() {
             if job.check().is_err() {
                 break;
             }
-            let reference = refs.remove(file.path.as_str());
-            let identity = FileIdentity {
-                project: reference
-                    .as_ref()
-                    .and_then(|r| catalogue.projects.get(r.project_id.as_str()))
-                    .cloned(),
-                version: reference
-                    .as_ref()
-                    .and_then(|r| catalogue.versions.get(r.version_id.as_str()))
-                    .cloned()
-                    .unwrap_or_default(),
-                reference,
+            let mut pending = Supplied {
+                kind: *kind,
+                filename: file.artifact.filename.clone(),
+                sha1: String::new(),
+                url: file.artifact.url.clone(),
+                identity: refs
+                    .remove(file.path.as_str())
+                    .map(|located| catalogue.identity(located)),
             };
-            let label = identity.label(file);
+            let label = pending.label();
             let relabel = |p: &ProvisionProgress| {
                 let mut progress = p.clone();
                 progress.detail = label.clone();
@@ -225,10 +261,13 @@ impl Engine {
             labeled.report(&phase_progress(ProvisionPhase::Content));
 
             match self
-                .install_pack_file(ctx, *kind, file, &resolved.source, &identity, &labeled)
+                .fetch_pack_file(ctx, *kind, file, &resolved.source, &label, &labeled)
                 .await
             {
-                Ok(item) => items.push(item),
+                Ok(sha1) => {
+                    pending.sha1 = sha1;
+                    supplied.push(pending);
+                }
                 Err(e) => failures.push(ContentFailure {
                     item: file.path.clone(),
                     title: label,
@@ -236,23 +275,25 @@ impl Engine {
                 }),
             }
         }
-        (items, failures)
+        (supplied, failures)
     }
 
-    async fn install_pack_file(
+    /// Download one index file into its managed directory, answering with its
+    /// sha1 — the index's own where it names one.
+    async fn fetch_pack_file(
         &self,
         ctx: &EntryContent,
         kind: ContentKind,
         file: &ModpackFile,
         source: &str,
-        identity: &FileIdentity,
+        label: &str,
         job: &Job<'_>,
-    ) -> Result<InstalledContent> {
+    ) -> Result<String> {
         // Routine on CurseForge, where an author may opt out of distribution:
         // one file fails, the pack still installs.
         if file.artifact.url.is_empty() {
             bail!(ErrorInfo::ContentDownloadBlocked {
-                title: identity.label(file),
+                title: label.to_string(),
                 source: source.to_string(),
             });
         }
@@ -266,40 +307,10 @@ impl Engine {
             job,
         )
         .await?;
-
-        let reference = identity.reference.as_ref();
-        let project = identity.project.as_ref();
-        let item = record::assemble(
-            record::Project {
-                kind,
-                project_id: reference.map(|r| r.project_id.clone()).unwrap_or_default(),
-                slug: project.map(|p| p.slug.clone()).unwrap_or_default(),
-                title: identity.label(file),
-                icon_url: project.map(|p| p.icon_url.clone()).unwrap_or_default(),
-            },
-            record::Release {
-                // A file the source does not recognise came from somewhere else;
-                // recording it as that source's would let `update` re-pin it to
-                // a project it never belonged to.
-                source: match reference {
-                    Some(_) => source.to_string(),
-                    None => "file".to_string(),
-                },
-                version_id: reference.map(|r| r.version_id.clone()).unwrap_or_default(),
-                version_number: identity.version.clone(),
-                filename: file.artifact.filename.clone(),
-                sha1: file
-                    .artifact
-                    .checksum
-                    .as_ref()
-                    .map(|c| c.hex.clone())
-                    .unwrap_or_default(),
-                url: file.artifact.url.clone(),
-            },
-            record::Holding::fresh(&[]),
-        );
-        install::apply_files(&ctx.entry_dir, &ctx.data_dir, &item, &ctx.worlds())?;
-        Ok(item)
+        match &file.artifact.checksum {
+            Some(checksum) => Ok(checksum.hex.clone()),
+            None => install::sha1_file(&managed),
+        }
     }
 
     /// The index files that are not managed-kind content — a pack shipping its
@@ -424,6 +435,55 @@ impl Engine {
         }
         install::save(&ctx.entry_dir, index)
     }
+}
+
+fn filename(path: &str) -> &str {
+    path.rsplit('/').next().unwrap_or(path)
+}
+
+fn pack_item(file: Supplied) -> InstalledContent {
+    let title = file.label();
+    let Supplied {
+        kind,
+        filename,
+        sha1,
+        url,
+        identity,
+    } = file;
+    let (project, release) = match identity {
+        Some(identity) => (
+            record::Project {
+                kind,
+                project_id: identity.project_id,
+                slug: identity
+                    .project
+                    .as_ref()
+                    .map(|p| p.slug.clone())
+                    .unwrap_or_default(),
+                title,
+                icon_url: identity.project.map(|p| p.icon_url).unwrap_or_default(),
+            },
+            record::Release {
+                source: identity.source,
+                version_id: identity.version_id,
+                version_number: identity.version_number,
+                filename,
+                sha1,
+                url,
+            },
+        ),
+        // A file no source recognises came from somewhere else; recording it
+        // as the pack's source would let `update` re-pin it to a project it
+        // never belonged to.
+        None => (
+            record::Project::untracked(kind, title),
+            record::Release {
+                url,
+                ..record::Release::local(filename, sha1)
+            },
+        ),
+    };
+    record::assemble(project, release, record::Holding::fresh(&[]))
 }
 
 /// The kind a pack file's path names, when it is exactly one of the managed

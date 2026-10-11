@@ -43,8 +43,11 @@ But a platform's own CDN URL carries both ids
 (`cdn.modrinth.com/data/<project>/versions/<version>/…`), so `parse_file_url`
 recovers them at no cost, and one bulk `projects` call fills in every title and
 icon. Both are provider-trait methods, so CurseForge slots in behind the same
-seam. A file the source does not serve is recorded as `source: "file"` — it
+seam. A file no source recognises is recorded as `source: "file"` — it
 installs, it is simply not updatable, exactly like a local import.
+[0076](0076-a-pack-file-is-identified-wherever-it-came-from.md) later widened
+this: the URL names its own source, a hash lookup covers what no URL does, and
+a jar in an override tree joins the pool.
 
 **What a pack cannot do:** it cannot be installed into an entry whose flavor or
 game version differs from what it pins (`ModpackEntryMismatch` names both sides

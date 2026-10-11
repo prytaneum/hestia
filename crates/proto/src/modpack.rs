@@ -119,7 +119,7 @@ pub struct ModpackUpdate {
     pub updatable: bool,
 }
 
-/// Absent when there is nothing to check: no pack, or one imported from a file,
+/// Absent when there is nothing to check: no pack, or one no source published,
 /// which has no catalogue behind it.
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]

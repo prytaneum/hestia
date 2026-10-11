@@ -36,7 +36,7 @@ pub use backup::BackupSettings;
 pub use cache::{Cache, CacheEntry, CacheUsage};
 pub use cancel::{is_cancelled, Cancel, Job};
 pub use config::{Config, ConfigError, Settings};
-pub use content::provider::{ContentProvider, LocalFile, UrlRef};
+pub use content::provider::{ContentProvider, FileRef, LocalFile, UrlRef};
 pub use content::Content;
 pub use download::Downloader;
 pub use engine::{

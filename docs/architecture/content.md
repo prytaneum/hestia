@@ -242,8 +242,8 @@ belongs:
 flowchart TD
     PACK["a .mrpack"]
     PACK --> A["loader + game version"]
-    PACK --> B["index files under a managed load dir"]
-    PACK --> C["overrides/ and everything else"]
+    PACK --> B["files under a managed load dir<br/><i>from the index or an override tree</i>"]
+    PACK --> C["the rest of overrides/ and everything else"]
 
     A --> A1["become the entry's flavor and version<br/><i>create --modpack and modpack install<br/>are one code path</i>"]
     B --> B1["ordinary pool items tagged modpack:&lt;project&gt;<br/><i>individually listable, enableable, updatable</i>"]
@@ -261,7 +261,9 @@ disk — nothing there is yours yet
 `<kind>.modpack.check_update` resolves the pack's newest published version
 through the same pick an unpinned update makes, and answers with both version
 numbers plus `updatable` — so what a front-end offers and what an update would
-install cannot disagree. A pack imported from a file has no catalogue behind it
+install cannot disagree. A pack read off disk is first asked after by hash: an
+archive a source published is recorded as that release, and updates like one
+installed from the source. One no source recognises has no catalogue behind it
 and answers with nothing to check, the same reason `fetch_update` refuses it.
 
 **A pack's mods are identified for free — or the long way round.** A pack index
@@ -274,8 +276,18 @@ pack a list of anonymous, un-updatable jars. Rather than give up the ids,
 from the answer, then asks for the projects — so both sources end with an
 identified pool and the flow reads the same either way. Best-effort in both
 halves: a pack still installs when the catalogue is unreachable, it just reads
-less well. A file the source does not serve records as `source: "file"`:
-installable, just not updatable.
+less well.
+
+Which source a file belongs to is read off **its own URL**, not the pack's
+origin: every source that can serve is asked, so a pack read off disk tracks its
+mods exactly as one installed from a source does. What no URL identifies — a jar
+shipped in an override tree, an index file hosted off-platform — is asked after
+by hash once it is on disk, the same lookup a local-file import makes; where
+several sources publish it, the pack's own wins. A jar in `overrides/mods/` is
+therefore a pool item like any other, in the managed directory rather than
+written straight into `data/`. Only a file no source recognises records as
+`source: "file"`: installable, just not updatable
+([0076](../decisions/0076-a-pack-file-is-identified-wherever-it-came-from.md)).
 
 **A pack's `env.server` is a claim, not a fact.** Packs routinely declare
 client-only mods as server-required, so a *server* install filters them using
@@ -306,3 +318,5 @@ update *does* carry the game version with it — that is what updating a pack me
 - [0014 — Enable/disable, update-check and pin extend the same model](../decisions/0014-enable-update-check-and-pin.md)
 - [0015 — A local-file import is inspected, not trusted](../decisions/0015-local-imports-are-inspected.md)
 - [0016 — Datapacks are world-of-record](../decisions/0016-datapacks-are-world-of-record.md)
+- [0075 — A local file is identified by its hash](../decisions/0075-a-local-file-is-identified-by-its-hash.md)
+- [0076 — A pack file is identified wherever it came from](../decisions/0076-a-pack-file-is-identified-wherever-it-came-from.md)

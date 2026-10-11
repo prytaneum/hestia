@@ -1,37 +1,65 @@
 //! Turning a pack *reference* into something installable: which archive it is,
 //! which flavor it needs, and what the catalogue knows about the files inside.
 
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 use std::path::Path;
 
 use anyhow::{bail, Result};
 use proto::content::{
     ContentKind, ContentProject, ContentVersion, ModpackFile, ReleaseChannel, ResolvedModpack,
-    VersionQuery,
+    VersionQuery, LOCAL_SOURCE,
 };
 use proto::error::{EntryKind, ErrorInfo};
 use proto::minecraft::ProvisionPhase;
 use proto::modpack::{InstalledModpack, ModpackRef};
 
-use super::super::content::entry::{EntryContent, EntrySide};
+use super::super::content::entry::{content_target, EntryContent, EntrySide};
 use super::super::phase_progress;
+use super::{FileIdentity, Supplied};
 use crate::cancel::Job;
-use crate::content::pack;
 use crate::content::provider::FileRef;
+use crate::content::{pack, LocalFile};
 use crate::engine::Engine;
 
 /// A pack ready to install: its manifest, the project detail it has when it came
 /// from a catalogue, and the archive its `overrides/` live in.
 pub(super) type FetchedPack = (ResolvedModpack, Option<ContentProject>, pack::Archive);
 
-/// What the catalogue knows about the pack's files, looked up in bulk. Empty
-/// where the source could not be reached — the install proceeds regardless.
+/// A pack file one source's own download URL names.
+pub(super) struct Located {
+    source: &'static str,
+    file: FileRef,
+}
+
+/// What the catalogue knows about the pack's files, looked up in bulk and keyed
+/// by source, since sources share no ids. Empty where a source could not be
+/// reached — the install proceeds regardless.
 #[derive(Default)]
 pub(super) struct Catalogue {
-    pub(super) projects: HashMap<String, ContentProject>,
+    projects: HashMap<(&'static str, String), ContentProject>,
     /// Version id → version number, so a pack's mod lists a version like every
     /// other installed item.
-    pub(super) versions: HashMap<String, String>,
+    versions: HashMap<(&'static str, String), String>,
+}
+
+impl Catalogue {
+    pub(super) fn identity(&self, located: Located) -> FileIdentity {
+        let Located { source, file } = located;
+        FileIdentity {
+            source: source.to_string(),
+            project: self
+                .projects
+                .get(&(source, file.project_id.clone()))
+                .cloned(),
+            version_number: self
+                .versions
+                .get(&(source, file.version_id.clone()))
+                .cloned()
+                .unwrap_or_default(),
+            project_id: file.project_id,
+            version_id: file.version_id,
+        }
+    }
 }
 
 impl Engine {
@@ -108,14 +136,17 @@ impl Engine {
             let path = Path::new(&reference.path);
             let mut archive = pack::Archive::read(path)?;
             let mut resolved = archive.index()?;
-            resolved.source = "file".to_string();
+            let project = self.published_pack(path, &mut resolved).await;
             if resolved.name.is_empty() {
-                resolved.name = path
-                    .file_stem()
-                    .map(|s| s.to_string_lossy().into_owned())
-                    .unwrap_or_default();
+                resolved.name = match &project {
+                    Some(project) => project.title.clone(),
+                    None => path
+                        .file_stem()
+                        .map(|s| s.to_string_lossy().into_owned())
+                        .unwrap_or_default(),
+                };
             }
-            return Ok((resolved, None, archive));
+            return Ok((resolved, project, archive));
         }
 
         let (source, project_ref, pin) = match reference.url.is_empty() {
@@ -150,6 +181,42 @@ impl Engine {
         job.check()?;
         let (resolved, bytes) = self.content.fetch_modpack(&source, &version.id).await?;
         Ok((resolved, Some(project), pack::Archive::open(bytes)?))
+    }
+
+    /// Stamp a pack read off disk with the release a source recognises its
+    /// archive as, by hash, so it updates like one installed from that source.
+    /// An archive no source published stays a local pack.
+    async fn published_pack(
+        &self,
+        path: &Path,
+        resolved: &mut ResolvedModpack,
+    ) -> Option<ContentProject> {
+        resolved.source = LOCAL_SOURCE.to_string();
+        let file = match LocalFile::read(path) {
+            Ok(file) => file,
+            Err(e) => {
+                tracing::warn!(path = %path.display(), error = %e, "cannot hash a modpack archive");
+                return None;
+            }
+        };
+        let known = self
+            .content
+            .identify(std::slice::from_ref(&file))
+            .await
+            .remove(&file.sha1)?
+            .into_iter()
+            .next()?;
+        tracing::info!(
+            source = %known.version.source,
+            project = %known.project.id,
+            version = %known.version.version_number,
+            "local modpack recognised"
+        );
+        resolved.source = known.version.source;
+        resolved.project_id = known.project.id.clone();
+        resolved.version_id = known.version.id;
+        resolved.version_number = known.version.version_number;
+        Some(known.project)
     }
 
     /// The pack an update moves to: the same project at another (or the newest)
@@ -226,16 +293,64 @@ impl Engine {
     /// Which platform file each managed pack file is, from its download URL.
     pub(super) fn identify<'a>(
         &self,
-        source: &str,
         files: &[(ContentKind, &'a ModpackFile)],
-    ) -> HashMap<&'a str, FileRef> {
+    ) -> HashMap<&'a str, Located> {
         let mut out = HashMap::new();
         for (_, file) in files {
-            if let Some(parsed) = self.content.parse_file_url(source, &file.artifact.url) {
-                out.insert(file.path.as_str(), parsed);
+            if let Some((source, file_ref)) = self.content.parse_file_url(&file.artifact.url) {
+                out.insert(
+                    file.path.as_str(),
+                    Located {
+                        source,
+                        file: file_ref,
+                    },
+                );
             }
         }
         out
+    }
+
+    /// Ask the sources, by hash, about the files no download URL identified:
+    /// the jars a pack ships in its override trees, and index files hosted off
+    /// any platform. Where several sources publish a file the pack's own wins,
+    /// so a pack's pool stays on the source the pack itself updates from.
+    pub(super) async fn recognise(
+        &self,
+        ctx: &EntryContent,
+        pack_source: &str,
+        supplied: &mut [Supplied],
+    ) {
+        let unknown: Vec<LocalFile> = supplied
+            .iter()
+            .filter(|file| file.identity.is_none() && !file.sha1.is_empty())
+            .filter_map(|file| {
+                Some(LocalFile {
+                    path: content_target(ctx, file.kind, &file.filename).ok()?,
+                    sha1: file.sha1.clone(),
+                })
+            })
+            .collect();
+        let found = self.content.identify(&unknown).await;
+        for file in supplied.iter_mut().filter(|file| file.identity.is_none()) {
+            let Some(matches) = found.get(&file.sha1) else {
+                continue;
+            };
+            let Some(known) = matches
+                .iter()
+                .find(|m| m.version.source == pack_source)
+                .or_else(|| matches.first())
+            else {
+                continue;
+            };
+            file.url = known.file.artifact.url.clone();
+            file.identity = Some(FileIdentity {
+                source: known.version.source.clone(),
+                project_id: known.project.id.clone(),
+                version_id: known.version.id.clone(),
+                version_number: known.version.version_number.clone(),
+                project: Some(known.project.clone()),
+            });
+        }
     }
 
     /// Two bulk lookups for everything the pack's files belong to — versions by
@@ -246,57 +361,59 @@ impl Engine {
     ///
     /// Versions go first: a source whose URLs name only the file (CurseForge)
     /// gets its `refs` completed from the answer before the projects are asked.
-    pub(super) async fn hydrate(
-        &self,
-        source: &str,
-        refs: &mut HashMap<&str, FileRef>,
-    ) -> Catalogue {
-        let mut wanted: Vec<String> = refs
-            .values()
-            .map(|r| r.version_id.clone())
-            .filter(|id| !id.is_empty())
-            .collect();
-        wanted.sort();
-        wanted.dedup();
-        let found = match self.content.versions_by_id(source, &wanted).await {
-            Ok(found) => found,
-            Err(e) => {
-                tracing::warn!(error = %e, count = wanted.len(), "cannot look up modpack versions");
-                Vec::new()
+    /// One pass per source the files turned out to belong to.
+    pub(super) async fn hydrate(&self, refs: &mut HashMap<&str, Located>) -> Catalogue {
+        let sources: BTreeSet<&'static str> = refs.values().map(|r| r.source).collect();
+        let mut catalogue = Catalogue::default();
+        for source in sources {
+            let mut wanted: Vec<String> = refs
+                .values()
+                .filter(|r| r.source == source)
+                .map(|r| r.file.version_id.clone())
+                .filter(|id| !id.is_empty())
+                .collect();
+            wanted.sort();
+            wanted.dedup();
+            let found = match self.content.versions_by_id(source, &wanted).await {
+                Ok(found) => found,
+                Err(e) => {
+                    tracing::warn!(source, error = %e, count = wanted.len(), "cannot look up modpack versions");
+                    Vec::new()
+                }
+            };
+            for reference in refs.values_mut().filter(|r| r.source == source) {
+                if !reference.file.project_id.is_empty() {
+                    continue;
+                }
+                if let Some(version) = found.iter().find(|v| v.id == reference.file.version_id) {
+                    reference.file.project_id = version.project_id.clone();
+                }
             }
-        };
-        for reference in refs.values_mut() {
-            if !reference.project_id.is_empty() {
-                continue;
-            }
-            if let Some(version) = found.iter().find(|v| v.id == reference.version_id) {
-                reference.project_id = version.project_id.clone();
-            }
-        }
 
-        let mut projects: Vec<String> = refs
-            .values()
-            .map(|r| r.project_id.clone())
-            .filter(|id| !id.is_empty())
-            .collect();
-        projects.sort();
-        projects.dedup();
-
-        Catalogue {
-            projects: match projects.is_empty() {
-                true => HashMap::new(),
-                false => match self.content.projects(source, &projects).await {
-                    Ok(found) => found.into_iter().map(|p| (p.id.clone(), p)).collect(),
+            let mut projects: Vec<String> = refs
+                .values()
+                .filter(|r| r.source == source)
+                .map(|r| r.file.project_id.clone())
+                .filter(|id| !id.is_empty())
+                .collect();
+            projects.sort();
+            projects.dedup();
+            if !projects.is_empty() {
+                match self.content.projects(source, &projects).await {
+                    Ok(found) => catalogue
+                        .projects
+                        .extend(found.into_iter().map(|p| ((source, p.id.clone()), p))),
                     Err(e) => {
-                        tracing::warn!(error = %e, count = projects.len(), "cannot look up modpack projects");
-                        HashMap::new()
+                        tracing::warn!(source, error = %e, count = projects.len(), "cannot look up modpack projects");
                     }
-                },
-            },
-            versions: found
-                .into_iter()
-                .map(|v| (v.id, v.version_number))
-                .collect(),
+                }
+            }
+            catalogue.versions.extend(
+                found
+                    .into_iter()
+                    .map(|v| ((source, v.id), v.version_number)),
+            );
         }
+        catalogue
     }
 }

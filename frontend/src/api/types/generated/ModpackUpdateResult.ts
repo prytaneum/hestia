@@ -2,7 +2,7 @@
 import type { ModpackUpdate } from "./ModpackUpdate";
 
 /**
- * Absent when there is nothing to check: no pack, or one imported from a file,
+ * Absent when there is nothing to check: no pack, or one no source published,
  * which has no catalogue behind it.
  */
 export type ModpackUpdateResult = { update?: ModpackUpdate, };

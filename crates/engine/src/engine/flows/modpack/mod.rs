@@ -5,12 +5,13 @@
 //!
 //! - its **loader and game version** become the entry's flavor and version, so
 //!   creating from a pack is the ordinary create with those filled in;
-//! - its **index files under a managed kind directory** become ordinary pool
-//!   items tagged `modpack:<project>`, so the launch-time mirror, the backup
-//!   heal, `content list` and per-item update all work on them unchanged;
-//! - everything else it ships — its `overrides/`, plus any index file outside a
-//!   managed kind directory — is written straight into the game directory and
-//!   recorded in `modpack.json` with the hash it was written with.
+//! - its **files under a managed kind directory** — named by the index or
+//!   shipped in an override tree — become ordinary pool items tagged
+//!   `modpack:<project>`, so the launch-time mirror, the backup heal,
+//!   `content list` and per-item update all work on them unchanged;
+//! - everything else it ships — the rest of its `overrides/`, plus any index
+//!   file outside a managed kind directory — is written straight into the game
+//!   directory and recorded in `modpack.json` with the hash it was written with.
 //!
 //! Only the third needs a record, and only because those files are the ones the
 //! user edits: the hash is what lets an update replace a file the pack still
@@ -24,7 +25,7 @@ mod resolve;
 
 use anyhow::Result;
 use proto::content::{
-    ContentFailure, ContentProject, InstalledContent, ModpackFile, ResolvedModpack,
+    ContentFailure, ContentKind, ContentProject, InstalledContent, ResolvedModpack,
 };
 use proto::error::{EntryKind, ErrorInfo};
 use proto::modpack::{
@@ -34,7 +35,6 @@ use proto::warning::WarningInfo;
 
 use super::content::entry::{EntryContent, EntryRef, EntrySide};
 use crate::cancel::Job;
-use crate::content::provider::FileRef;
 use crate::content::{install, modpack, pack};
 use crate::engine::{Engine, ServerCreateSpec, ServerUpdateSpec};
 
@@ -48,25 +48,37 @@ pub struct ModpackOutcome {
     pub warnings: Vec<WarningInfo>,
 }
 
-/// What the catalogue could be told about one pack file. A pack names its files
-/// by URL and hash alone, so both halves are absent for a file the source does
-/// not serve — and that file installs anyway, just untracked.
+/// The release a source knows one pack file to be. A pack names its files by
+/// URL and hash alone, so a file no source recognises has none — and installs
+/// anyway, just untracked.
 struct FileIdentity {
-    reference: Option<FileRef>,
+    source: String,
+    project_id: String,
+    version_id: String,
+    /// Empty, like `project`, when the catalogue could not be reached.
+    version_number: String,
     project: Option<ContentProject>,
-    /// The version *number* behind `reference.version_id`; empty when the
-    /// catalogue could not be reached.
-    version: String,
 }
 
-impl FileIdentity {
+/// A pack file now sitting in its managed directory, whichever way the pack
+/// shipped it: downloaded from the index, or unpacked from an override tree.
+struct Supplied {
+    kind: ContentKind,
+    filename: String,
+    sha1: String,
+    url: String,
+    identity: Option<FileIdentity>,
+}
+
+impl Supplied {
     /// What to call the file while it downloads and in the pool: the project's
     /// title where there is one, the filename otherwise.
-    fn label(&self, file: &ModpackFile) -> String {
-        self.project
+    fn label(&self) -> String {
+        self.identity
             .as_ref()
-            .map(|p| p.title.clone())
-            .unwrap_or_else(|| file.artifact.filename.clone())
+            .and_then(|identity| identity.project.as_ref())
+            .map(|project| project.title.clone())
+            .unwrap_or_else(|| self.filename.clone())
     }
 }
 
@@ -222,7 +234,7 @@ impl Engine {
 
     /// Whether the entry's pack has a newer published version, over the same
     /// pick an unpinned [`Self::update_entry_modpack`] makes. `None` when there
-    /// is nothing to check: no pack, or one imported from a file.
+    /// is nothing to check: no pack, or one no source published.
     pub async fn entry_modpack_update(&self, entry: EntryRef<'_>) -> Result<Option<ModpackUpdate>> {
         let (_, ctx) = self.content_ctx(entry)?;
         let Some(current) = modpack::load(&ctx.entry_dir) else {

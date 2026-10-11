@@ -97,6 +97,7 @@ the alternative you rejected — that is usually the part nobody can recover lat
 - **0016** — [Datapacks are world-of-record, not managed-dir-of-record](0016-datapacks-are-world-of-record.md)
 - **0064** — [A record of the user's is mutated, never rebuilt](0064-a-record-is-mutated-not-rebuilt.md)
 - **0075** — [A local file is identified by its hash](0075-a-local-file-is-identified-by-its-hash.md)
+- **0076** — [A pack file is identified wherever it came from](0076-a-pack-file-is-identified-wherever-it-came-from.md)
 
 ### [Accounts & skins](../architecture/accounts.md)
 

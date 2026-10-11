@@ -339,10 +339,15 @@ impl Content {
         self.provider(source)?.versions_by_id(ids).await
     }
 
-    /// What a platform's own download URL says about the file behind it, so a
-    /// pack index's bare URLs become tracked pool items.
-    pub(crate) fn parse_file_url(&self, source: &str, url: &str) -> Option<provider::FileRef> {
-        self.provider(source).ok()?.parse_file_url(url)
+    /// Which source serves a download URL, and what the URL says about the file
+    /// behind it, so a pack index's bare URLs become tracked pool items. Every
+    /// source that can serve is asked: a pack read off disk names no source,
+    /// and its files are no less a platform's for that.
+    pub(crate) fn parse_file_url(&self, url: &str) -> Option<(&'static str, provider::FileRef)> {
+        self.providers
+            .iter()
+            .filter(|p| p.available())
+            .find_map(|p| p.parse_file_url(url).map(|file| (p.id(), file)))
     }
 
     /// Recognise a project/version page URL on any registered platform's site,

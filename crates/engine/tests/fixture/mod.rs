@@ -7,7 +7,8 @@ use std::collections::HashMap;
 use anyhow::{bail, Result};
 use async_trait::async_trait;
 use engine::{
-    Content, ContentProvider, InstanceProvider, LocalFile, Minecraft, ServerProvider, UrlRef,
+    Content, ContentProvider, FileRef, InstanceProvider, LocalFile, Minecraft, ServerProvider,
+    UrlRef,
 };
 use proto::content::{
     ContentKind, ContentProject, ContentVersion, ResolvedModpack, SearchQuery, SearchResult,
@@ -197,6 +198,24 @@ impl ContentProvider for Source {
     }
     fn parse_url(&self, _url: &str) -> Option<UrlRef> {
         None
+    }
+    fn parse_file_url(&self, url: &str) -> Option<FileRef> {
+        let version = self
+            .versions
+            .iter()
+            .find(|v| v.files.iter().any(|f| f.artifact.url == url))?;
+        Some(FileRef {
+            project_id: version.project_id.clone(),
+            version_id: version.id.clone(),
+        })
+    }
+    async fn versions_by_id(&self, ids: &[String]) -> Result<Vec<ContentVersion>> {
+        Ok(self
+            .versions
+            .iter()
+            .filter(|v| ids.contains(&v.id))
+            .cloned()
+            .collect())
     }
     async fn resolve_modpack(&self, _version: &str) -> Result<ResolvedModpack> {
         bail!("the fixture source serves no packs")
