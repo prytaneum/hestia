@@ -74,6 +74,9 @@ pub enum ImportFormat {
     Mrpack,
     /// A Prism Launcher / MultiMC / PolyMC instance (`instance.cfg`).
     Prism,
+    /// A CurseForge pack (`manifest.json`), installed like a Modrinth one.
+    #[serde(rename = "curseforge")]
+    CurseForge,
 }
 
 impl ImportFormat {
@@ -82,6 +85,7 @@ impl ImportFormat {
             ImportFormat::Hestia => "hestia",
             ImportFormat::Mrpack => "mrpack",
             ImportFormat::Prism => "prism",
+            ImportFormat::CurseForge => "curseforge",
         }
     }
 }

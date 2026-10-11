@@ -5,4 +5,4 @@
  * rather than from its extension — the extension is whatever the person who
  * sent it happened to save it as.
  */
-export type ImportFormat = "hestia" | "mrpack" | "prism";
+export type ImportFormat = "hestia" | "mrpack" | "prism" | "curseforge";

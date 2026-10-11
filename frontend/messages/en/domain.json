@@ -51,6 +51,7 @@
       "survival": "Survival"
     },
     "import_format": {
+      "curseforge": "CurseForge pack",
       "hestia": "hestia archive",
       "mrpack": "Modrinth pack",
       "prism": "Prism / MultiMC"

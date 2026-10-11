@@ -30,6 +30,7 @@ use super::provider::{ContentProvider, FileRef, LocalFile, UrlRef};
 const API: &str = "https://api.curseforge.com/v1";
 const SITE: &str = "curseforge.com";
 pub(crate) const ID: &str = "curseforge";
+const PACK_MANIFEST: &str = "minecraftModpack";
 const NAME: &str = "CurseForge";
 
 /// CurseForge's own id for Minecraft; every catalogue call is scoped to it.
@@ -633,13 +634,17 @@ impl CurseForge {
     }
 }
 
+pub(crate) fn is_pack_manifest(manifest: &Value) -> bool {
+    str_field(manifest, "manifestType") == PACK_MANIFEST
+}
+
 /// Parse a CurseForge `manifest.json` (everything but its file list, which
 /// needs the API to resolve). Rejects a manifest that is not a version-1
 /// Minecraft modpack.
-fn parse_manifest(manifest: &Value) -> Result<ResolvedModpack> {
+pub(crate) fn parse_manifest(manifest: &Value) -> Result<ResolvedModpack> {
     let kind = str_field(manifest, "manifestType");
     let version = u64_field(manifest, "manifestVersion");
-    if kind != "minecraftModpack" {
+    if !is_pack_manifest(manifest) {
         bail!(ErrorInfo::ModpackInvalid {
             detail: format!("unsupported manifest type: {kind}"),
         });

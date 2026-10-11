@@ -134,6 +134,7 @@ fn source_of(format: ImportFormat) -> &'static str {
         ImportFormat::Hestia => "a hestia",
         ImportFormat::Mrpack => "a Modrinth pack",
         ImportFormat::Prism => "a Prism/MultiMC",
+        ImportFormat::CurseForge => "a CurseForge pack",
     }
 }
 

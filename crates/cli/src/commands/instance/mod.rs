@@ -95,7 +95,7 @@ pub enum InstanceCmd {
         )]
         modpack: Option<String>,
     },
-    /// Import an instance from an archive (hestia, .mrpack, or Prism/MultiMC)
+    /// Import an instance from an archive (hestia, .mrpack, CurseForge, or Prism/MultiMC)
     Import {
         /// Path to the archive; its format is detected from what is inside it
         path: PathBuf,

@@ -7,13 +7,14 @@ on a schedule under its own entry root; an instance is something you play,
 share, and carry between machines, so its archive is one portable file you write
 deliberately.
 
-Three formats come in, two go out.
+Four formats come in, two go out.
 
 | Format | Marker | In | Out | What it is |
 |---|---|---|---|---|
 | **hestia** | `hestia.instance.json` | ✅ | ✅ | the whole entry directory + a resolved record — restores exactly, needs no network |
 | **`.mrpack`** | `modrinth.index.json` | ✅ | ✅ | Modrinth's pack format: mods as *references*, everything else in `overrides/` |
 | **Prism / MultiMC** | `instance.cfg` | ✅ | — | another launcher's instance directory (`mmc-pack.json` + `.minecraft/`) |
+| **CurseForge pack** | `manifest.json` | ✅ | — | CurseForge's pack format: mods as project/file *ids*, which need the CurseForge source to resolve |
 
 ## Detection, not declaration
 
@@ -25,6 +26,14 @@ not have to know which launcher made it.
 The **shallowest** marker wins, and the registry order only breaks a tie. Depth
 has to come first: a pack index a Prism instance happens to ship inside its
 `config/` is a file that instance *uses*, not what the archive *is*.
+
+One marker is not specific enough to settle it by presence: any archive may
+carry a `manifest.json`. So a format may also **read** its marker
+(`Format::claims`), and a candidate that disowns the file falls through to the
+next. The CurseForge format claims only a manifest whose `manifestType` is
+`minecraftModpack`. Prism itself matches that name alone; the content check is
+the stricter reading of the same idea
+([0076](../decisions/0076-a-pack-file-is-identified-wherever-it-came-from.md)).
 
 ## The seam
 

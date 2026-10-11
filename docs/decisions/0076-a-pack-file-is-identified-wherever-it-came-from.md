@@ -54,8 +54,25 @@ The same rule reaches the two other ways bytes arrive without a source:
   over the pool it produced, and `ImportFilesUntracked` names only what no
   source publishes.
 
-**Not covered:** `instance import` does not detect a CurseForge zip — its
-marker, `manifest.json`, is too generic a name to identify an archive by — so
-one installs through `modpack install`. And an entry whose pack was installed
-before this keeps its override jars as pack-owned files until the pack is
-updated; there is no migration, as the project carries none yet.
+- **`instance import` recognises a CurseForge zip.** Its marker,
+  `manifest.json`, is a name any archive may carry, so `Format::claims` reads
+  it and only a `minecraftModpack` manifest is claimed. The recipe is
+  `Recipe::Pack`, the same route a `.mrpack` takes.
+
+**What other launchers do**, checked against their sources:
+
+- Prism Launcher detects by filename alone, in the order
+  `modrinth.index.json`, Technic's `bin/modpack.jar`, `manifest.json`,
+  `instance.cfg`. A local CurseForge zip is resolved through the API, gets an
+  empty managed-pack id (no update path), and blocked files are listed for the
+  user to fetch by hand. Override jars are not identified at import.
+- The Modrinth app reads `.mrpack` only, and hashes the local file to find its
+  version on Modrinth.
+
+Hestia matches both where they agree with it — an unpublished CurseForge zip
+has no update path, a blocked file fails alone, a local `.mrpack` is found by
+hash — and goes further in two places: it checks the manifest's content before
+claiming it, and identifies override jars.
+
+There is no migration for an entry whose pack was installed before this: the
+project carries none yet.

@@ -731,7 +731,7 @@ impl fmt::Display for ErrorInfo {
             ArchiveUnrecognised { filename } => write!(
                 f,
                 "'{filename}' is not an instance hestia can import — it carries no hestia, \
-                 Modrinth or Prism instance manifest"
+                 Modrinth, CurseForge or Prism manifest"
             ),
             ArchiveInvalid { format, detail } => {
                 write!(f, "this {format} archive could not be read: {detail}")

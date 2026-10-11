@@ -18,7 +18,7 @@
       "account_not_found": "Nenhuma conta corresponde a '{reference}'.",
       "already_exists": "Já existe um {entry} chamado '{name}'.",
       "archive_invalid": "Este arquivo {format} não pôde ser lido: {detail}",
-      "archive_unrecognised": "'{filename}' não é uma instância que o hestia consiga importar — não traz manifesto de instância hestia, Modrinth ou Prism.",
+      "archive_unrecognised": "'{filename}' não é uma instância que o hestia consiga importar — não traz manifesto hestia, Modrinth, CurseForge ou Prism.",
       "archive_unsupported": "Este arquivo {format} precisa de {component}, que o hestia não tem.",
       "backup_in_progress": "{name} tem um backup ou restauração em andamento.",
       "backup_not_found": "Nenhum backup corresponde a '{reference}'.",

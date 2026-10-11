@@ -27,10 +27,18 @@ use crate::instances::InstanceRecord;
 use crate::registry;
 use crate::schema;
 use crate::transfer::archive::{self, Reader};
-use crate::transfer::{self, contents, hestia, Blueprint, Descriptor, Recipe, Source, Target};
+use crate::transfer::{
+    self, contents, hestia, Blueprint, Descriptor, Detected, Recipe, Source, Target,
+};
 
 /// Where an export with no destination lands, under the data home.
 const EXPORTS: &str = "exports";
+
+fn detect(reader: &mut Reader, path: &Path) -> Result<Detected> {
+    transfer::detect(&reader.names(), &archive::filename_of(path), |candidate| {
+        candidate.format.claims(reader, &candidate.prefix)
+    })
+}
 
 /// Documents set aside since `mark` that belong to this entry — scoped by path
 /// so a concurrent operation's quarantine is not reported as this import's.
@@ -122,7 +130,7 @@ impl Engine {
     pub fn inspect_archive(&self, path: &str) -> Result<ArchiveInfo> {
         let path = daemon_local_path(path)?;
         let mut reader = Reader::open(&path)?;
-        let detected = transfer::detect(&reader.names(), &archive::filename_of(&path))?;
+        let detected = detect(&mut reader, &path)?;
         let blueprint = detected.format.read(&mut reader, &detected.prefix)?;
         let Descriptor {
             name,
@@ -150,7 +158,7 @@ impl Engine {
     ) -> Result<ImportOutcome> {
         let path = daemon_local_path(path)?;
         let mut reader = Reader::open(&path)?;
-        let detected = transfer::detect(&reader.names(), &archive::filename_of(&path))?;
+        let detected = detect(&mut reader, &path)?;
         let format = detected.format.id();
         tracing::info!(path = %path.display(), format = format.as_str(), "importing an instance");
 
@@ -162,7 +170,7 @@ impl Engine {
         // every file from its source and records the provenance. Nothing here
         // could improve on that by unpacking the archive itself.
         if matches!(recipe, Recipe::Pack) {
-            return self.import_pack(&path, &name, job).await;
+            return self.import_pack(&path, &name, format, job).await;
         }
 
         let record = self.record_for(recipe, &name, &descriptor).await?;
@@ -201,10 +209,7 @@ impl Engine {
         })
     }
 
-    /// Ask the sources about what an import adopted from the archive's own
-    /// bytes, and warn about whatever none of them publishes — the only items
-    /// that stay without an update path. A lookup that cannot run leaves them
-    /// all untracked rather than failing an import that has already landed.
+    /// A lookup that cannot run leaves them untracked rather than failing an import that has already landed.
     async fn untracked_adoptions(&self, entry_dir: &Path, adopted: &[String]) -> Vec<WarningInfo> {
         if adopted.is_empty() {
             return Vec::new();
@@ -274,7 +279,13 @@ impl Engine {
 
     /// A pack reaches the ordinary modpack install, which creates the entry and
     /// makes its mods updatable pool items.
-    async fn import_pack(&self, path: &Path, name: &str, job: &Job<'_>) -> Result<ImportOutcome> {
+    async fn import_pack(
+        &self,
+        path: &Path,
+        name: &str,
+        format: ImportFormat,
+        job: &Job<'_>,
+    ) -> Result<ImportOutcome> {
         let outcome = self
             .install_instance_modpack(
                 &ModpackRef {
@@ -292,7 +303,7 @@ impl Engine {
             .get(&outcome.entry)
             .with_context(|| format!("instance '{}' vanished after import", outcome.entry))?;
         Ok(ImportOutcome {
-            format: ImportFormat::Mrpack,
+            format,
             record,
             failures: outcome.failures,
             warnings: outcome.warnings,

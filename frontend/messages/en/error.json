@@ -18,7 +18,7 @@
       "account_not_found": "No account matches '{reference}'.",
       "already_exists": "A {entry} named '{name}' already exists.",
       "archive_invalid": "This {format} archive could not be read: {detail}",
-      "archive_unrecognised": "'{filename}' is not an instance hestia can import — it carries no hestia, Modrinth or Prism instance manifest.",
+      "archive_unrecognised": "'{filename}' is not an instance hestia can import — it carries no hestia, Modrinth, CurseForge or Prism manifest.",
       "archive_unsupported": "This {format} archive needs {component}, which hestia does not have.",
       "backup_in_progress": "{name} has a backup or restore in progress.",
       "backup_not_found": "No backup matches '{reference}'.",

@@ -102,9 +102,7 @@ impl Archive {
         Archive::open(bytes)
     }
 
-    /// The manifest of an archive whose files only its platform can resolve,
-    /// with that platform's source id. `None` for a `.mrpack`, which
-    /// [`Self::index`] reads whole.
+    /// `None` for a `.mrpack`, which [`Self::index`] reads whole.
     pub fn platform_manifest(&mut self) -> Result<Option<(&'static str, Value)>> {
         let Format::CurseForge { .. } = self.format else {
             return Ok(None);
@@ -254,7 +252,7 @@ fn detect(zip: &mut zip::ZipArchive<Cursor<Vec<u8>>>) -> Format {
     let Ok(manifest) = serde_json::from_reader::<_, Value>(entry) else {
         return Format::Mrpack;
     };
-    if str_field(&manifest, "manifestType") != "minecraftModpack" {
+    if !super::curseforge::is_pack_manifest(&manifest) {
         return Format::Mrpack;
     }
     let overrides = match manifest.get("overrides").and_then(Value::as_str) {

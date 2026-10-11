@@ -36,7 +36,7 @@
       "description": "Pick an archive and hestia works out what it is.",
       "done": "Imported “{name}”",
       "drop": "Drop to import this instance",
-      "formats": "hestia archive, Modrinth pack, or a Prism/MultiMC instance",
+      "formats": "hestia archive, Modrinth or CurseForge pack, or a Prism/MultiMC instance",
       "reading": "Reading the archive…",
       "title": "Import an instance"
     },

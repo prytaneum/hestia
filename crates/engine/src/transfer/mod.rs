@@ -32,6 +32,7 @@
 
 pub(crate) mod archive;
 pub(crate) mod contents;
+pub(crate) mod curseforge;
 pub(crate) mod exclude;
 pub(crate) mod hestia;
 pub(crate) mod mrpack;
@@ -55,7 +56,12 @@ use archive::{Reader, Written};
 /// preferred when two sit at the same depth. **This list is the registry** —
 /// adding a format is a module beside this one and a line here.
 fn formats() -> &'static [&'static dyn Format] {
-    &[&hestia::Hestia, &mrpack::Mrpack, &prism::Prism]
+    &[
+        &hestia::Hestia,
+        &mrpack::Mrpack,
+        &prism::Prism,
+        &curseforge::CurseForge,
+    ]
 }
 
 /// What an archive says it is, before anything is written. Shown to whoever is
@@ -112,8 +118,7 @@ pub(crate) struct Target<'a> {
 #[derive(Default)]
 pub(crate) struct Landed {
     pub(crate) files: u64,
-    /// Pool items taken from the archive's own bytes, by filename. They land
-    /// with no provenance; the flow asks the sources about them afterwards.
+    /// Filenames of pool items taken from the archive's own bytes.
     pub(crate) adopted: Vec<String>,
 }
 
@@ -130,6 +135,11 @@ pub(crate) trait Format: Send + Sync {
     /// to mean the archive *is* this, which is why hestia's own is
     /// `hestia.instance.json` rather than `instance.json`.
     fn marker(&self) -> &'static str;
+
+    /// For a marker name too generic to identify the format by presence alone.
+    fn claims(&self, _reader: &mut Reader, _prefix: &str) -> bool {
+        true
+    }
 
     /// Parse the archive's manifest. Reads only — nothing exists on disk yet.
     fn read(&self, reader: &mut Reader, prefix: &str) -> Result<Blueprint>;
@@ -162,15 +172,34 @@ pub(crate) struct Detected {
 /// The **shallowest** marker wins, and the registry order only breaks a tie.
 /// Depth has to come first: a pack index a Prism instance happens to ship
 /// inside its `config/` is a file that instance uses, not what the archive is.
-pub(crate) fn detect(names: &[String], filename: &str) -> Result<Detected> {
-    formats()
+///
+/// `claims` is asked of each candidate in that order, so a format whose marker
+/// name is not specific can read the file before the archive is called its.
+pub(crate) fn detect(
+    names: &[String],
+    filename: &str,
+    mut claims: impl FnMut(&Detected) -> bool,
+) -> Result<Detected> {
+    let mut candidates: Vec<(usize, Detected)> = formats()
         .iter()
         .enumerate()
         .filter_map(|(rank, format)| {
-            shallowest(names, format.marker()).map(|prefix| (prefix, rank, *format))
+            shallowest(names, format.marker()).map(|prefix| {
+                (
+                    rank,
+                    Detected {
+                        format: *format,
+                        prefix,
+                    },
+                )
+            })
         })
-        .min_by_key(|(prefix, rank, _)| (depth(prefix), *rank))
-        .map(|(prefix, _, format)| Detected { format, prefix })
+        .collect();
+    candidates.sort_by_key(|(rank, candidate)| (depth(&candidate.prefix), *rank));
+    candidates
+        .into_iter()
+        .map(|(_, candidate)| candidate)
+        .find(|candidate| claims(candidate))
         .ok_or_else(|| {
             ErrorInfo::ArchiveUnrecognised {
                 filename: filename.to_string(),
@@ -239,14 +268,24 @@ mod tests {
 
     #[test]
     fn each_format_is_recognised_by_its_own_marker() {
-        let hestia = detect(&names(&["hestia.instance.json", "data/options.txt"]), "a").unwrap();
+        let hestia = detect(
+            &names(&["hestia.instance.json", "data/options.txt"]),
+            "a",
+            |_| true,
+        )
+        .unwrap();
         assert_eq!(hestia.format.id(), ImportFormat::Hestia);
         assert!(hestia.prefix.is_empty());
 
-        let mrpack = detect(&names(&["modrinth.index.json", "overrides/config/x"]), "a").unwrap();
+        let mrpack = detect(
+            &names(&["modrinth.index.json", "overrides/config/x"]),
+            "a",
+            |_| true,
+        )
+        .unwrap();
         assert_eq!(mrpack.format.id(), ImportFormat::Mrpack);
 
-        let prism = detect(&names(&["instance.cfg", "mmc-pack.json"]), "a").unwrap();
+        let prism = detect(&names(&["instance.cfg", "mmc-pack.json"]), "a", |_| true).unwrap();
         assert_eq!(prism.format.id(), ImportFormat::Prism);
     }
 
@@ -259,6 +298,7 @@ mod tests {
                 "My Pack/.minecraft/options.txt",
             ]),
             "a",
+            |_| true,
         )
         .unwrap();
         assert_eq!(detected.format.id(), ImportFormat::Prism);
@@ -267,8 +307,12 @@ mod tests {
 
     #[test]
     fn a_marker_at_the_root_outranks_one_buried_deeper() {
-        let detected =
-            detect(&names(&["instance.cfg", "nested/deeper/instance.cfg"]), "a").unwrap();
+        let detected = detect(
+            &names(&["instance.cfg", "nested/deeper/instance.cfg"]),
+            "a",
+            |_| true,
+        )
+        .unwrap();
         assert_eq!(detected.prefix, "");
     }
 
@@ -281,6 +325,7 @@ mod tests {
                 "config/modrinth.index.json",
             ]),
             "a",
+            |_| true,
         )
         .unwrap();
         assert_eq!(detected.format.id(), ImportFormat::Prism);
@@ -288,8 +333,22 @@ mod tests {
     }
 
     #[test]
+    fn a_marker_its_format_disowns_falls_through_to_the_next_candidate() {
+        let archive = names(&["manifest.json", "pack/instance.cfg"]);
+
+        let claimed = detect(&archive, "a", |_| true).unwrap();
+        assert_eq!(claimed.format.id(), ImportFormat::CurseForge);
+
+        let disowned = detect(&archive, "a", |candidate| {
+            candidate.format.id() != ImportFormat::CurseForge
+        })
+        .unwrap();
+        assert_eq!(disowned.format.id(), ImportFormat::Prism);
+    }
+
+    #[test]
     fn an_archive_with_no_marker_is_refused_by_name() {
-        let error = detect(&names(&["random.txt"]), "holiday-photos.zip")
+        let error = detect(&names(&["random.txt"]), "holiday-photos.zip", |_| true)
             .err()
             .expect("an unmarked archive is not importable");
         assert!(error.to_string().contains("holiday-photos.zip"));

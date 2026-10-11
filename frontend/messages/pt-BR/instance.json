@@ -36,7 +36,7 @@
       "description": "Escolha um arquivo e o hestia descobre o que ele é.",
       "done": "“{name}” importada",
       "drop": "Solte para importar esta instância",
-      "formats": "arquivo hestia, pacote Modrinth ou instância Prism/MultiMC",
+      "formats": "arquivo hestia, pacote Modrinth ou CurseForge, ou instância Prism/MultiMC",
       "reading": "Lendo o arquivo…",
       "title": "Importar uma instância"
     },

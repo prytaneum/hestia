@@ -41,6 +41,7 @@ const TREE: ArchiveEntry[] = [
 const formatOf = (path: string): ImportFormat => {
   if (path.endsWith('.mrpack')) return 'mrpack';
   if (path.endsWith('.hestia')) return 'hestia';
+  if (path.includes('curseforge')) return 'curseforge';
   return 'prism';
 };
 
