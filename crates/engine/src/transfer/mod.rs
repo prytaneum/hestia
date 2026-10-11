@@ -48,6 +48,7 @@ use proto::transfer::{ExportFormat, ImportFormat};
 use proto::warning::WarningInfo;
 
 use crate::cancel::Job;
+use crate::content::pack::shallowest;
 use crate::instances::InstanceRecord;
 use crate::minecraft::launch::JavaSettings;
 use archive::{Reader, Written};
@@ -206,21 +207,6 @@ pub(crate) fn detect(
             }
             .into()
         })
-}
-
-/// The directory prefix of the shallowest member named `marker`, so a nested
-/// export is found but a marker buried deeper never outranks one at the root.
-fn shallowest(names: &[String], marker: &str) -> Option<String> {
-    names
-        .iter()
-        .filter_map(|name| match name.as_str() == marker {
-            true => Some(String::new()),
-            false => name
-                .strip_suffix(marker)
-                .filter(|prefix| prefix.ends_with('/'))
-                .map(str::to_string),
-        })
-        .min_by_key(|prefix| depth(prefix))
 }
 
 fn depth(prefix: &str) -> usize {

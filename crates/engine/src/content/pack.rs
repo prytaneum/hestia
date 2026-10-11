@@ -83,6 +83,8 @@ enum Format {
 pub struct Archive {
     zip: zip::ZipArchive<Cursor<Vec<u8>>>,
     format: Format,
+    /// The directory the pack starts at: a zip made from a folder nests it one level down.
+    root: String,
 }
 
 impl Archive {
@@ -92,8 +94,8 @@ impl Archive {
                 detail: format!("not a valid archive: {e}"),
             })
         })?;
-        let format = detect(&mut zip);
-        Ok(Archive { zip, format })
+        let (format, root) = detect(&mut zip);
+        Ok(Archive { zip, format, root })
     }
 
     pub fn read(path: &Path) -> Result<Self> {
@@ -109,7 +111,7 @@ impl Archive {
         };
         let entry = self
             .zip
-            .by_name(MANIFEST)
+            .by_name(&format!("{}{MANIFEST}", self.root))
             .context("cannot read the modpack manifest")?;
         let manifest = serde_json::from_reader(entry).map_err(|e| {
             anyhow::Error::from(proto::error::ErrorInfo::ModpackInvalid {
@@ -122,11 +124,14 @@ impl Archive {
     /// The `.mrpack` manifest. Ids are left empty — only the platform that
     /// served the archive knows them, and a pack read off disk has none.
     pub fn index(&mut self) -> Result<ResolvedModpack> {
-        let entry = self.zip.by_name(INDEX).map_err(|_| {
-            anyhow::Error::from(proto::error::ErrorInfo::ModpackInvalid {
-                detail: format!("{INDEX} is missing from the archive"),
-            })
-        })?;
+        let entry = self
+            .zip
+            .by_name(&format!("{}{INDEX}", self.root))
+            .map_err(|_| {
+                anyhow::Error::from(proto::error::ErrorInfo::ModpackInvalid {
+                    detail: format!("{INDEX} is missing from the archive"),
+                })
+            })?;
         let index: Value = serde_json::from_reader(entry).map_err(|e| {
             anyhow::Error::from(proto::error::ErrorInfo::ModpackInvalid {
                 detail: format!("{INDEX} is malformed: {e}"),
@@ -138,13 +143,13 @@ impl Archive {
     /// In write order, so a later tree wins a path the earlier one also names.
     /// CurseForge says nothing about sides, so it has the one tree.
     fn overrides_dirs(&self, side: Side) -> Vec<String> {
-        match &self.format {
-            Format::Mrpack => vec![
-                DEFAULT_OVERRIDES.to_string(),
-                side.overrides_dir().to_string(),
-            ],
-            Format::CurseForge { overrides } => vec![overrides.clone()],
-        }
+        let dirs = match &self.format {
+            Format::Mrpack => vec![DEFAULT_OVERRIDES, side.overrides_dir()],
+            Format::CurseForge { overrides } => vec![overrides.as_str()],
+        };
+        dirs.into_iter()
+            .map(|dir| format!("{}{dir}", self.root))
+            .collect()
     }
 
     /// Write the pack's own files for `side`, returning each with the hash it
@@ -242,24 +247,44 @@ impl Archive {
 
 /// Anything unrecognised stays `.mrpack`, so a caller sees the missing-index
 /// error rather than a guess.
-fn detect(zip: &mut zip::ZipArchive<Cursor<Vec<u8>>>) -> Format {
-    if zip.by_name(INDEX).is_ok() {
-        return Format::Mrpack;
+fn detect(zip: &mut zip::ZipArchive<Cursor<Vec<u8>>>) -> (Format, String) {
+    let names: Vec<String> = zip.file_names().map(str::to_string).collect();
+    if let Some(root) = shallowest(&names, INDEX) {
+        return (Format::Mrpack, root);
     }
-    let Ok(entry) = zip.by_name(MANIFEST) else {
-        return Format::Mrpack;
+    let unrecognised = (Format::Mrpack, String::new());
+    let Some(root) = shallowest(&names, MANIFEST) else {
+        return unrecognised;
+    };
+    let Ok(entry) = zip.by_name(&format!("{root}{MANIFEST}")) else {
+        return unrecognised;
     };
     let Ok(manifest) = serde_json::from_reader::<_, Value>(entry) else {
-        return Format::Mrpack;
+        return unrecognised;
     };
     if !super::curseforge::is_pack_manifest(&manifest) {
-        return Format::Mrpack;
+        return unrecognised;
     }
     let overrides = match manifest.get("overrides").and_then(Value::as_str) {
         Some(dir) if !dir.trim().is_empty() => dir.trim().to_string(),
         _ => DEFAULT_OVERRIDES.to_string(),
     };
-    Format::CurseForge { overrides }
+    (Format::CurseForge { overrides }, root)
+}
+
+/// The directory prefix of the shallowest member named `marker`, so a nested
+/// export is found but a marker buried deeper never outranks one at the root.
+pub(crate) fn shallowest(names: &[String], marker: &str) -> Option<String> {
+    names
+        .iter()
+        .filter_map(|name| match name.as_str() == marker {
+            true => Some(String::new()),
+            false => name
+                .strip_suffix(marker)
+                .filter(|root| root.ends_with('/'))
+                .map(str::to_string),
+        })
+        .min_by_key(|root| root.matches('/').count())
 }
 
 fn overrides_tick(job: &Job, current: u64, total: u64, detail: &str) {
@@ -661,6 +686,28 @@ mod tests {
     fn an_mrpack_has_no_manifest_to_hand_over() {
         let mut pack = archive(&[("modrinth.index.json", "{}")]);
         assert!(pack.platform_manifest().unwrap().is_none());
+    }
+
+    #[test]
+    fn a_pack_zipped_inside_a_folder_is_read_from_that_folder() {
+        let mut mrpack = archive(&[
+            (
+                "Cozy/modrinth.index.json",
+                r#"{"formatVersion":1,"name":"Cozy","dependencies":{"minecraft":"1.21.1"}}"#,
+            ),
+            ("Cozy/overrides/config/a.toml", "a"),
+        ]);
+        let dest_dir = temp("nested");
+        assert_eq!(mrpack.index().unwrap().name, "Cozy");
+        let written = extract(&mut mrpack, Side::Client, dest_dir.path());
+        assert_eq!(written.len(), 1);
+        assert_eq!(written[0].path, "config/a.toml");
+
+        let mut curseforge = archive(&[(
+            "Cozy/manifest.json",
+            r#"{"manifestType":"minecraftModpack","manifestVersion":1}"#,
+        )]);
+        assert!(curseforge.platform_manifest().unwrap().is_some());
     }
 
     #[test]
