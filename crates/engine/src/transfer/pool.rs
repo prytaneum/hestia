@@ -27,27 +27,11 @@ const DISABLED: &str = ".disabled";
 /// The kinds that live as single managed files in a flat load directory. A
 /// datapack is not among them: it lives inside a world, arrives with that
 /// world, and loads from there.
-///
-/// Each carries the archive extensions it loads. A load directory also holds
-/// what mods write beside a pack — Iris's `<pack>.zip.txt` options, a
-/// Respackopts `<pack>.zip.rpo` — and those are found by name next to the pack,
-/// so they are not content and must stay where they are.
-const ADOPTED_KINDS: &[(ContentKind, &[&str])] = &[
-    (ContentKind::Mod, &["jar"]),
-    (ContentKind::ResourcePack, &["zip", "jar"]),
-    (ContentKind::Shader, &["zip", "jar"]),
+const ADOPTED_KINDS: &[ContentKind] = &[
+    ContentKind::Mod,
+    ContentKind::ResourcePack,
+    ContentKind::Shader,
 ];
-
-fn has_extension(filename: &str, extensions: &[&str]) -> bool {
-    Path::new(filename)
-        .extension()
-        .and_then(|extension| extension.to_str())
-        .is_some_and(|extension| {
-            extensions
-                .iter()
-                .any(|accepted| extension.eq_ignore_ascii_case(accepted))
-        })
-}
 
 /// Move the game directory's loose content files into the entry's managed
 /// directories and index them, then re-mirror. Items arrive with no provenance,
@@ -60,7 +44,7 @@ pub(crate) fn adopt(entry_dir: &Path, data_dir: &Path) -> Result<Vec<String>> {
     let known: Vec<String> = items.iter().map(|i| i.filename.clone()).collect();
     let mut adopted = Vec::new();
 
-    for (kind, extensions) in ADOPTED_KINDS {
+    for kind in ADOPTED_KINDS {
         let dir = install::kind_dir(*kind)?;
         let Ok(entries) = std::fs::read_dir(data_dir.join(dir)) else {
             continue;
@@ -77,7 +61,7 @@ pub(crate) fn adopt(entry_dir: &Path, data_dir: &Path) -> Result<Vec<String>> {
                 Some(stem) => (stem.to_string(), false),
                 None => (name, true),
             };
-            if !has_extension(&filename, extensions) {
+            if !install::is_content_file(*kind, &filename) {
                 tracing::debug!(dir, file = %filename, "left in place, not a content archive");
                 continue;
             }

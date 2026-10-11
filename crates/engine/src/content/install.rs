@@ -50,6 +50,27 @@ pub(crate) fn kind_dir(kind: ContentKind) -> Result<&'static str> {
     }
 }
 
+/// Whether a file in a kind's load directory is content of that kind, by the
+/// archive extension the game loads. A load directory also holds what mods
+/// write beside a pack — Iris's `<pack>.zip.txt` options, a Respackopts
+/// `<pack>.zip.rpo` — and those are found by name next to the pack, so they
+/// are not content and must stay where they are.
+pub(crate) fn is_content_file(kind: ContentKind, filename: &str) -> bool {
+    let extensions: &[&str] = match kind {
+        ContentKind::Mod | ContentKind::Plugin => &["jar"],
+        ContentKind::ResourcePack | ContentKind::Shader | ContentKind::DataPack => &["zip", "jar"],
+        ContentKind::Modpack => &[],
+    };
+    Path::new(filename)
+        .extension()
+        .and_then(|extension| extension.to_str())
+        .is_some_and(|extension| {
+            extensions
+                .iter()
+                .any(|accepted| extension.eq_ignore_ascii_case(accepted))
+        })
+}
+
 /// Where a datapack loads from: `data/<world>/datapacks/<file>`. A pack is
 /// mirrored into one such dir per target world, from the same managed copy the
 /// other kinds keep.

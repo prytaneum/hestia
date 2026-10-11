@@ -480,8 +480,9 @@ fn pack_item(file: Supplied) -> InstalledContent {
 }
 
 /// The kind a pack file's path names, when it is exactly one of the managed
-/// load directories' own files. A nested path under one of them (or any other
-/// directory) is a game-directory file instead — the managed dirs are flat.
+/// load directories' own content files. A nested path under one of them (or
+/// any other directory) is a game-directory file instead — the managed dirs
+/// are flat — and so is a sidecar a mod wrote beside a pack.
 pub(super) fn managed_kind(path: &str) -> Option<ContentKind> {
     let mut parts = path.split('/');
     let dir = parts.next()?;
@@ -489,13 +490,14 @@ pub(super) fn managed_kind(path: &str) -> Option<ContentKind> {
     if file.is_empty() || parts.next().is_some() {
         return None;
     }
-    match dir {
-        "mods" => Some(ContentKind::Mod),
-        "plugins" => Some(ContentKind::Plugin),
-        "resourcepacks" => Some(ContentKind::ResourcePack),
-        "shaderpacks" => Some(ContentKind::Shader),
-        _ => None,
-    }
+    let kind = match dir {
+        "mods" => ContentKind::Mod,
+        "plugins" => ContentKind::Plugin,
+        "resourcepacks" => ContentKind::ResourcePack,
+        "shaderpacks" => ContentKind::Shader,
+        _ => return None,
+    };
+    install::is_content_file(kind, file).then_some(kind)
 }
 
 /// The previous pack's game-directory files that the new one no longer ships.
@@ -531,6 +533,15 @@ mod tests {
             managed_kind("shaderpacks/bsl.zip"),
             Some(ContentKind::Shader)
         );
+    }
+
+    #[test]
+    fn a_sidecar_beside_a_pack_is_a_game_directory_file() {
+        assert_eq!(managed_kind("resourcepacks/cozy.zip.rpo"), None);
+        assert_eq!(managed_kind("shaderpacks/bsl.zip.txt"), None);
+        assert_eq!(managed_kind("shaderpacks/error_logs.txt"), None);
+        assert_eq!(managed_kind("resourcepacks/nested.mrpack"), None);
+        assert_eq!(managed_kind("mods/readme.txt"), None);
     }
 
     #[test]
