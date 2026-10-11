@@ -27,11 +27,27 @@ const DISABLED: &str = ".disabled";
 /// The kinds that live as single managed files in a flat load directory. A
 /// datapack is not among them: it lives inside a world, arrives with that
 /// world, and loads from there.
-const ADOPTED_KINDS: &[ContentKind] = &[
-    ContentKind::Mod,
-    ContentKind::ResourcePack,
-    ContentKind::Shader,
+///
+/// Each carries the archive extensions it loads. A load directory also holds
+/// what mods write beside a pack — Iris's `<pack>.zip.txt` options, a
+/// Respackopts `<pack>.zip.rpo` — and those are found by name next to the pack,
+/// so they are not content and must stay where they are.
+const ADOPTED_KINDS: &[(ContentKind, &[&str])] = &[
+    (ContentKind::Mod, &["jar"]),
+    (ContentKind::ResourcePack, &["zip", "jar"]),
+    (ContentKind::Shader, &["zip", "jar"]),
 ];
+
+fn has_extension(filename: &str, extensions: &[&str]) -> bool {
+    Path::new(filename)
+        .extension()
+        .and_then(|extension| extension.to_str())
+        .is_some_and(|extension| {
+            extensions
+                .iter()
+                .any(|accepted| extension.eq_ignore_ascii_case(accepted))
+        })
+}
 
 /// Move the game directory's loose content files into the entry's managed
 /// directories and index them, then re-mirror. Items arrive with no provenance,
@@ -44,7 +60,7 @@ pub(crate) fn adopt(entry_dir: &Path, data_dir: &Path) -> Result<Vec<String>> {
     let known: Vec<String> = items.iter().map(|i| i.filename.clone()).collect();
     let mut adopted = Vec::new();
 
-    for kind in ADOPTED_KINDS {
+    for (kind, extensions) in ADOPTED_KINDS {
         let dir = install::kind_dir(*kind)?;
         let Ok(entries) = std::fs::read_dir(data_dir.join(dir)) else {
             continue;
@@ -61,6 +77,10 @@ pub(crate) fn adopt(entry_dir: &Path, data_dir: &Path) -> Result<Vec<String>> {
                 Some(stem) => (stem.to_string(), false),
                 None => (name, true),
             };
+            if !has_extension(&filename, extensions) {
+                tracing::debug!(dir, file = %filename, "left in place, not a content archive");
+                continue;
+            }
             if known.contains(&filename) {
                 continue;
             }
@@ -146,6 +166,51 @@ mod tests {
             !data_dir.join("mods/extra.jar").exists(),
             "a disabled item is not mirrored into the load directory"
         );
+    }
+
+    #[test]
+    fn a_file_beside_a_pack_is_not_content() {
+        let dir = temp("sidecar");
+        let entry_dir = dir.path();
+        let data_dir = entry_dir.join("data");
+        let sidecars = [
+            "shaderpacks/bsl.zip.txt",
+            "shaderpacks/patcher-errors.txt",
+            "resourcepacks/faithful.zip.rpo",
+            "resourcepacks/stray.mrpack",
+            "mods/notes.zip",
+            "mods/README",
+        ];
+        for sidecar in sidecars {
+            write(&data_dir, sidecar, "state");
+        }
+        write(&data_dir, "shaderpacks/bsl.zip", "zip");
+
+        let adopted = adopt(entry_dir, &data_dir).unwrap();
+
+        assert_eq!(adopted, vec!["bsl.zip".to_string()]);
+        for sidecar in sidecars {
+            assert!(data_dir.join(sidecar).is_file(), "{sidecar} stays put");
+            assert!(!entry_dir.join(sidecar).exists(), "{sidecar} is not pooled");
+        }
+    }
+
+    #[test]
+    fn an_extension_matches_whatever_its_case() {
+        let dir = temp("case");
+        let entry_dir = dir.path();
+        let data_dir = entry_dir.join("data");
+        write(&data_dir, "resourcepacks/Loud.ZIP", "zip");
+        write(&data_dir, "resourcepacks/packed.jar", "jar");
+        write(&data_dir, "shaderpacks/off.zip.disabled", "zip");
+
+        adopt(entry_dir, &data_dir).unwrap();
+
+        let items = install::load(entry_dir);
+        let named = |name: &str| items.iter().find(|i| i.filename == name);
+        assert!(named("Loud.ZIP").is_some_and(|i| i.enabled));
+        assert!(named("packed.jar").is_some_and(|i| i.enabled));
+        assert!(named("off.zip").is_some_and(|i| !i.enabled));
     }
 
     #[test]

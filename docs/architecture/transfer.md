@@ -151,6 +151,12 @@ source publishes, the files that can never be updated. A
 `.disabled` suffix becomes hestia's `enabled` flag, which is the same fact
 spelled the way this launcher spells it.
 
+Only an archive the kind loads is adopted — a `.jar` in `mods/`, a `.zip` or
+`.jar` in `resourcepacks/` and `shaderpacks/`, whatever its case. A load
+directory also holds what mods write beside a pack (Iris's `<pack>.zip.txt`
+options, a Respackopts `<pack>.zip.rpo`, a patcher's log); those stay in `data/`
+unindexed, as a folder pack does.
+
 ## An import is a create
 
 It registers a new instance and then fills it, so it owns the discipline every
