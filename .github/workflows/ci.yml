@@ -14,6 +14,9 @@ env:
   # husky-rs installs the repo's git hooks from its build script; a CI checkout
   # has nothing to commit or push, so it has no use for them.
   NO_HUSKY_HOOKS: 1
+  # Nothing here runs under a debugger: line tables keep a backtrace readable,
+  # and dropping the rest shortens every compile, link and cache restore.
+  CARGO_PROFILE_DEV_DEBUG: line-tables-only
 
 jobs:
   check:
@@ -61,11 +64,16 @@ jobs:
         run: bun run build
 
   # `check` excludes the desktop crate so it needs no webview, which left the
-  # Tauri shell's Rust unlinted everywhere. Compiling it is not free — the
-  # bundler's `externalBin` entries must exist on disk and `generate_context!`
-  # embeds frontend/dist — so it gets its own job rather than slowing `check`.
+  # Tauri shell's Rust unlinted everywhere. Compiling it is not free — it needs
+  # the webview stack and `generate_context!` embeds frontend/dist — so it gets
+  # its own job rather than slowing `check`.
   desktop:
     runs-on: ubuntu-latest
+    env:
+      # tauri-build asserts every `externalBin` exists on disk, though only the
+      # bundler reads them and this job never bundles. Emptying the list saves
+      # compiling the three sidecars just to satisfy that check.
+      TAURI_CONFIG: '{"bundle":{"externalBin":[]}}'
     steps:
       - uses: actions/checkout@v4
       - name: Install Tauri Linux dependencies
@@ -88,10 +96,6 @@ jobs:
       - name: Build the frontend
         working-directory: frontend
         run: bun install --frozen-lockfile && bun run build
-      # Debug sidecars, not release: tauri-build only checks the staged files
-      # exist, and this job never produces an installer.
-      - name: Stage sidecars
-        run: scripts/sidecars.sh --debug
       - name: clippy
         run: cargo clippy -p desktop --all-targets -- -D warnings
       - name: test

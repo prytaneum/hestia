@@ -15,9 +15,8 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  # A tag attaches installers to the Release as each platform finishes, so
-  # anything that would invalidate the release must fail before the first
-  # build starts, not once half the artifacts are already public.
+  # Anything that would invalidate the release fails here, in seconds, rather
+  # than after every platform has spent its build.
   preflight:
     runs-on: ubuntu-latest
     outputs:
@@ -127,19 +126,23 @@ jobs:
     needs: preflight
     uses: ./.github/workflows/ci.yml
 
+  # Builds beside the gate rather than after it: nothing here is public until
+  # `manifest`, which waits on both. The installers and the portable archive
+  # are separate compiles of the whole tree (scripts/package.sh), so each gets
+  # its own runner instead of queueing behind the other.
   package:
-    needs: [preflight, gate]
+    needs: preflight
     strategy:
       fail-fast: false
       matrix:
+        os: [ubuntu-latest, windows-latest]
+        part: [bundle, portable]
         include:
           - os: ubuntu-latest
             name: linux-x86_64
           - os: windows-latest
             name: windows-x86_64
     runs-on: ${{ matrix.os }}
-    permissions:
-      contents: write
     steps:
       - uses: actions/checkout@v4
 
@@ -152,9 +155,13 @@ jobs:
             patchelf file squashfs-tools
 
       - uses: dtolnay/rust-toolchain@stable
+      # A cache saved from a tag is readable only by that same tag, so saving
+      # one is upload time nothing gets back. A tag restores from the default
+      # branch: a dry run dispatched there is what warms a release.
       - uses: Swatinem/rust-cache@v2
         with:
-          key: release-${{ matrix.name }}
+          key: release-${{ matrix.name }}-${{ matrix.part }}
+          save-if: ${{ github.ref_type != 'tag' }}
 
       # Proves Cargo.lock resolves Cargo.toml as committed, so the release
       # builds the dependency set that was tested rather than a fresh solve.
@@ -167,6 +174,7 @@ jobs:
         run: bun install --frozen-lockfile
 
       - name: Install Tauri CLI
+        if: matrix.part == 'bundle'
         uses: taiki-e/install-action@v2
         with:
           tool: tauri-cli@2.11.4
@@ -174,17 +182,17 @@ jobs:
       # engine/build.rs re-runs on a changed HESTIA_CURSEFORGE_API_KEY, so a
       # warm cache still bakes in the current value. The key ends up inside a
       # public binary and is extractable — see docs/packaging.md.
-      - name: Build installers + portable archive
+      - name: Build the ${{ matrix.part }} artifacts
         shell: bash
         env:
           HESTIA_CURSEFORGE_API_KEY: ${{ secrets.CURSEFORGE_API_KEY }}
           HESTIA_CHANNEL: ${{ needs.preflight.outputs.channel }}
-        run: scripts/package.sh all
+        run: scripts/package.sh ${{ matrix.part }}
 
       # Every artifact the updater may hand back is signed here, by us — the
       # bundler signs nothing, and it never signed deb or rpm at all.
       - name: Sign the artifacts
-        if: startsWith(github.ref, 'refs/tags/')
+        if: startsWith(github.ref, 'refs/tags/') && matrix.part == 'bundle'
         shell: bash
         env:
           RELEASE_SIGNING_KEY: ${{ secrets.RELEASE_SIGNING_KEY }}
@@ -206,8 +214,8 @@ jobs:
       - name: Upload workflow artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: hestia-${{ matrix.name }}
-          if-no-files-found: ignore
+          name: hestia-${{ matrix.name }}-${{ matrix.part }}
+          if-no-files-found: error
           path: |
             target/release/bundle/deb/*.deb
             target/release/bundle/deb/*.sig
@@ -220,25 +228,16 @@ jobs:
             target/package/*.tar.gz
             target/package/*.zip
 
-      - name: Attach to GitHub Release
-        if: startsWith(github.ref, 'refs/tags/')
-        uses: softprops/action-gh-release@v2
-        with:
-          prerelease: ${{ needs.preflight.outputs.prerelease }}
-          files: |
-            target/release/bundle/deb/*.deb
-            target/release/bundle/rpm/*.rpm
-            target/release/bundle/appimage/*.AppImage
-            target/release/bundle/nsis/*-setup.exe
-            target/package/*.tar.gz
-            target/package/*.zip
-
-  # Compose `latest.json` from both platforms' signed installers and publish it
-  # to the feed API for this tag's channel. The Release keeps a copy purely as
-  # provenance — nothing reads it, since the feed is the record of what is
-  # current (docs/update-feed.md).
+  # The only job that makes anything public, and it needs the gate and every
+  # platform's build — so a tag publishes all of a release or none of it, and
+  # never code the checks did not pass.
+  #
+  # It composes `latest.json` from both platforms' signed installers and
+  # publishes it to the feed API for this tag's channel. The Release keeps a
+  # copy purely as provenance — nothing reads it, since the feed is the record
+  # of what is current (docs/update-feed.md).
   manifest:
-    needs: [preflight, package]
+    needs: [preflight, gate, package]
     if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
     permissions:
@@ -305,15 +304,20 @@ jobs:
           jq . <<<"$manifest" | tee latest.json
           printf '%s\n' "$notes" > release-notes.md
 
-      # The body lands here rather than in `package`, which runs once per
-      # platform and would race itself writing it. This job is single and last,
-      # so the notes are set once, after every installer is attached.
       - name: Attach to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           prerelease: ${{ needs.preflight.outputs.prerelease }}
           body_path: release-notes.md
-          files: latest.json
+          fail_on_unmatched_files: true
+          files: |
+            artifacts/**/*.deb
+            artifacts/**/*.rpm
+            artifacts/**/*.AppImage
+            artifacts/**/*-setup.exe
+            artifacts/**/*.tar.gz
+            artifacts/**/*.zip
+            latest.json
 
       # The publish is a PUT: the body replaces the channel's manifest, so a
       # re-run of this job is harmless and a rollback is a re-publish of the

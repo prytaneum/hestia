@@ -233,9 +233,8 @@ Testing the update path locally never means editing these constants:
 nothing to paste in and nothing to put back. A release build reads neither.
 
 `scripts/package.sh` builds unsigned, since signing is a separate step. CI refuses a **tagged** release with no key
-configured — the guard is in the `preflight` job, which runs before anything is built, because a tag attaches installers
-to the Release as each platform finishes and builds published without a `latest.json` would poll an endpoint that never
-answers.
+configured — the guard is in the `preflight` job, which runs before anything is built, so a release that could never
+publish a `latest.json` fails in seconds rather than after every platform has compiled.
 
 ### Authenticode — the path, not the requirement
 
@@ -285,7 +284,7 @@ scripts/package.sh portable
 ```
 
 `cargo tauri build` runs the frontend build itself (via `beforeBuildCommand`), so only `bun install` (in `frontend/`)
-and a staged sidecar set are prerequisites. Bundles land in `target/release/bundle/{deb,rpm,appimage,nsis}/`; portable
+and a staged sidecar set are prerequisites — for the installers only; the portable build stages nothing. Bundles land in `target/release/bundle/{deb,rpm,appimage,nsis}/`; portable
 archives in `target/package/`. On Windows use `scripts\win.ps1 package`.
 
 On Linux the AppImage is rebuilt after the bundler runs, so **`squashfs-tools`** is a prerequisite there. The
@@ -313,14 +312,20 @@ A tagged release without the secret warns rather than fails.
   excluding the `desktop` crate so no webview is needed, and needing no system libraries on either platform. `frontend` runs the Bun chain — `generate:messages` (`src/paraglide/` is generated and
   untracked, so it precedes anything resolving those imports), then `check` (biome), `typecheck` (tsc), `test` (vitest)
   and `build`. `desktop` covers what `check` excludes: it installs the WebKitGTK stack, builds the frontend
-  (`generate_context!` embeds `frontend/dist`) and stages debug sidecars (tauri-build requires the `externalBin` files
-  to exist), then runs clippy and the crate's tests. `deny` runs `cargo-deny`. The workflow also declares
+  (`generate_context!` embeds `frontend/dist`), then runs clippy and the crate's tests. tauri-build requires the
+  `externalBin` files to exist, but only the bundler reads them, so the job empties that list through `TAURI_CONFIG`
+  instead of compiling sidecars it never ships. `deny` runs `cargo-deny`. The workflow also declares
   `workflow_call`, so the release can reuse it verbatim.
-- [`release.yml`](../.github/workflows/release.yml) — on a `v*` tag: `preflight` → `gate` → `package` → `manifest`.
+- [`release.yml`](../.github/workflows/release.yml) — on a `v*` tag: `preflight`, then `gate` and `package` side by
+  side, then `manifest`.
   `preflight` refuses the release before anything is compiled if the tag, `Cargo.toml` and `tauri.conf.json` disagree on
   the version, if `CHANGELOG.md` has no matching section, if the updater signing key is missing, or if a stable release
   has no feed credentials to publish itself with. `gate` calls
-  `ci.yml`, since that workflow's own triggers cover branches but not tags. `package` then verifies `Cargo.lock` is
-  current (`cargo fetch --locked`), runs `scripts/package.sh all` on a Linux and a Windows runner, and attaches every
-  artifact to the GitHub Release. A manual `workflow_dispatch` is a dry run: the same gates run, but it uploads workflow
-  artifacts without touching a Release.
+  `ci.yml`, since that workflow's own triggers cover branches but not tags. `package` verifies `Cargo.lock` is
+  current (`cargo fetch --locked`) and runs four jobs at once — `scripts/package.sh bundle` and
+  `scripts/package.sh portable`, each on a Linux and a Windows runner, because the two are separate compiles of the
+  whole tree — uploading the results as workflow artifacts. It does not wait for `gate`, and it publishes nothing:
+  `manifest` needs both, and is the one job that attaches artifacts to the GitHub Release, so a tag publishes a whole
+  release or none of it. A manual `workflow_dispatch` is a dry run: the same gates run, but it uploads workflow
+  artifacts without touching a Release. A tag can only restore a build cache saved on the default branch, so a dry
+  run dispatched there is what makes the tagged build a warm one.
