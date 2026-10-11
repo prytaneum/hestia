@@ -6,7 +6,10 @@ import { FilterMenu } from '@/components/filter-menu';
 import { Page } from '@/components/page';
 import { SignInGate } from '@/components/sign-in-gate';
 import { Button } from '@/components/ui/button';
-import { useLaunchDialog } from '@/features/instances/dialogs';
+import {
+  ImportInstanceDialog,
+  useLaunchDialog,
+} from '@/features/instances/dialogs';
 import type { EntryCardModel } from '@/features/shared/entry/components';
 import {
   EntryCollection,
@@ -40,6 +43,7 @@ export function InstancesPage({
   const { launch, isLaunching } = useLaunchDialog();
   const stop = useMutation(instanceMutations.stopAny());
   const [creating, setCreating] = useState(false);
+  const [importing, setImporting] = useState(false);
 
   const cards: EntryCardModel[] = useMemo(
     () =>
@@ -105,7 +109,9 @@ export function InstancesPage({
             kind="instance"
             open={creating}
             onOpenChange={setCreating}
+            onImport={() => setImporting(true)}
           />
+          <ImportInstanceDialog open={importing} onOpenChange={setImporting} />
         </>
       ) : (
         <SignInGate
