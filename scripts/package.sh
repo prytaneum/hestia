@@ -82,19 +82,22 @@ portable() {
   # installers bundle.
   out="target/portable"
 
-  # tauri-build asserts the externalBin files exist, and generate_context!
-  # embeds frontend/dist — the shell serves it, so a stale one must not ship.
-  scripts/sidecars.sh
+  # generate_context! embeds frontend/dist — the shell serves it, so a stale
+  # one must not ship.
   (cd frontend && bun run build)
 
-  # Split like the installers (sidecars.sh, then cargo tauri build): one
+  # Two invocations, like the installers (sidecars.sh, then cargo tauri build): one
   # invocation unifies the shell's features into the tray, which then imports
   # a comctl32 v6 entry point no manifest asks for and cannot load.
   log "building portable binaries"
   cargo build --release --target-dir "$out" \
     -p cli -p daemon -p tray \
     --features cli/portable,daemon/portable,tray/portable
-  cargo build --release --target-dir "$out" \
+  # tauri-build asserts every externalBin exists on disk, but only the bundler
+  # ships them and the archive copies its own — so the list is emptied rather
+  # than compiling an installer sidecar set nothing here reads.
+  TAURI_CONFIG='{"bundle":{"externalBin":[]}}' \
+    cargo build --release --target-dir "$out" \
     -p desktop --features desktop/portable,desktop/custom-protocol
 
   rm -rf "$stage"
