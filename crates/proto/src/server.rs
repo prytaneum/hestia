@@ -291,7 +291,6 @@ pub struct ServerPingResult {
     /// `data:` prefix stripped, so it reads the same as a cached
     /// [`crate::instance::ServerEntry::icon`]. Empty when the server sends
     /// none, or sends one this build will not inline.
-    #[serde(skip_serializing_if = "String::is_empty")]
     pub favicon: String,
 }
 

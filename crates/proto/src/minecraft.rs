@@ -143,7 +143,6 @@ pub struct ServerProfile {
     /// one — the module path, system properties and launch target it needs are
     /// far past what a command line can carry — and the file names its own
     /// libraries relatively, so it is only valid from that directory.
-    #[serde(skip_serializing_if = "String::is_empty")]
     pub args_file: String,
 }
 
@@ -260,11 +259,8 @@ pub struct ProvisionProgress {
     pub phase: ProvisionPhase,
     pub current: u64,
     pub total: u64,
-    #[serde(skip_serializing_if = "String::is_empty")]
     pub detail: String,
-    #[serde(skip_serializing_if = "u64_is_zero")]
     pub item: u64,
-    #[serde(skip_serializing_if = "u64_is_zero")]
     pub items: u64,
 }
 
@@ -286,10 +282,6 @@ impl ProvisionProgress {
             unit
         }
     }
-}
-
-fn u64_is_zero(value: &u64) -> bool {
-    *value == 0
 }
 
 #[cfg(test)]

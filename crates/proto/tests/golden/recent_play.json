@@ -6,6 +6,7 @@
     "target": "1234567"
   },
   "name": "Our Realm",
+  "icon": "",
   "gameMode": "survival",
   "playedUnix": 1791280800
 }

@@ -1,6 +1,7 @@
 {
   "id": "login-1",
   "method": "device_code",
+  "url": "",
   "userCode": "ABCD-EFGH",
   "verificationUri": "https://www.microsoft.com/link"
 }

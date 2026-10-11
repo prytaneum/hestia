@@ -2,5 +2,7 @@
   "phase": "assets",
   "current": 1234,
   "total": 4321,
-  "detail": "1.21.1"
+  "detail": "1.21.1",
+  "item": 0,
+  "items": 0
 }

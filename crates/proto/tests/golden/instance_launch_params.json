@@ -2,5 +2,6 @@
   "instance": "aether-3f9a2c7d",
   "account": "steve",
   "id": "instance-launch-1",
-  "newSession": true
+  "newSession": true,
+  "offline": false
 }

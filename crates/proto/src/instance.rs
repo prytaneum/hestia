@@ -247,7 +247,6 @@ pub struct WorldInfo {
     /// empty when the save has none. Inlined rather than served as a path: the
     /// alternative widens the webview's asset-protocol reach to the whole data
     /// home, which also holds `accounts.json`.
-    #[serde(skip_serializing_if = "String::is_empty")]
     pub icon: String,
 }
 
@@ -283,7 +282,7 @@ pub struct RecentPlay {
     /// The world's or the listed server's icon, base64-encoded PNG; empty when
     /// it has none. Inlined for the same reason a world's is — see
     /// [`WorldInfo::icon`].
-    #[serde(default, skip_serializing_if = "String::is_empty")]
+    #[serde(default)]
     pub icon: String,
 }
 
@@ -315,7 +314,6 @@ pub struct ServerEntry {
     pub address: String,
     /// The server's cached icon, base64-encoded PNG; empty when it has none.
     /// Inlined for the same reason a world's is — see [`WorldInfo::icon`].
-    #[serde(skip_serializing_if = "String::is_empty")]
     pub icon: String,
     /// Whether the game auto-accepts the server's resource pack.
     pub accept_textures: bool,
@@ -348,7 +346,6 @@ impl Contract for InstanceServers {
 pub struct InstanceServerEditParams {
     pub instance: String,
     /// The existing entry to rewrite; empty appends a new one.
-    #[serde(skip_serializing_if = "String::is_empty")]
     pub server: String,
     pub name: String,
     pub address: String,
@@ -552,13 +549,12 @@ impl Contract for InstanceConfigList {
 pub struct InstanceLaunchParams {
     pub instance: String,
     /// Account name or uuid; empty picks the sole signed-in account.
-    #[serde(skip_serializing_if = "String::is_empty")]
     pub account: String,
     /// Client-supplied job id; empty asks the daemon to allocate one.
     pub id: String,
     /// Launch another session even when one is already running. Off by default:
     /// a running instance is refused unless the caller opts into concurrency.
-    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    #[serde(default)]
     pub new_session: bool,
     /// Skip the menus and join a world or a server on start. Absent launches to
     /// the title screen; the game only understands this from 1.20 on, so an
@@ -568,7 +564,7 @@ pub struct InstanceLaunchParams {
     /// Launch without contacting Microsoft, using the signed-in account's name
     /// and uuid with an unusable token. Singleplayer works; the game refuses
     /// multiplayer, which is what an unauthenticated session is entitled to.
-    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    #[serde(default)]
     pub offline: bool,
 }
 

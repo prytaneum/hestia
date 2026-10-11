@@ -75,9 +75,10 @@ impl Contract for InstanceList {
 ```
 
 Add `pub mod instances;` to `crates/proto/src/lib.rs`. Use `#[serde(default)]` on payloads so an older/newer peer that
-omits a field still decodes (additive fields need no protocol bump). **Never skip a list when it is empty**
-(`skip_serializing_if = "Vec::is_empty"`): the generated TypeScript type declares it a present array, so an omitted one
-arrives as `undefined` and throws when iterated. `tests/lists.rs` enforces it.
+omits a field still decodes (additive fields need no protocol bump). **Only an `Option` is skipped when
+absent** (`skip_serializing_if = "Option::is_none"`): the generated TypeScript type declares every other field present,
+so a list, string, number or flag omitted when empty arrives as `undefined` — and a list throws when iterated.
+`tests/omission.rs` enforces it.
 
 **The wire is camelCase.** Every fielded proto struct carries
 `#[serde(rename_all = "camelCase")]`, so the socket speaks camelCase and the front-ends consume it with no key

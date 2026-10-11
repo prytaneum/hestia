@@ -2,5 +2,6 @@
   "playersOnline": 3,
   "playersMax": 20,
   "motd": "A cozy survival server",
-  "version": "1.21.4"
+  "version": "1.21.4",
+  "favicon": ""
 }

@@ -34,7 +34,6 @@ pub enum SkinSource {
 pub struct Skin {
     /// The texture hash — the stable identity a library row and an equip name.
     pub key: String,
-    #[serde(skip_serializing_if = "String::is_empty")]
     pub name: String,
     pub variant: SkinVariant,
     /// An https texture URL, or a data URL for a library blob.

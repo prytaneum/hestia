@@ -37,11 +37,8 @@ pub struct AccountLoginBeginParams {
 pub struct AccountLoginBeginResult {
     pub id: String,
     pub method: LoginMethod,
-    #[serde(skip_serializing_if = "String::is_empty")]
     pub url: String,
-    #[serde(skip_serializing_if = "String::is_empty")]
     pub user_code: String,
-    #[serde(skip_serializing_if = "String::is_empty")]
     pub verification_uri: String,
 }
 
@@ -57,7 +54,7 @@ impl Contract for AccountLoginBegin {
 #[serde(rename_all = "camelCase")]
 pub struct AccountLoginCompleteParams {
     pub id: String,
-    #[serde(default, skip_serializing_if = "String::is_empty")]
+    #[serde(default)]
     pub code: String,
 }
 
@@ -81,7 +78,6 @@ impl Contract for AccountLoginComplete {
 pub struct AccountListResult {
     pub accounts: Vec<Account>,
     /// The account launches use when none is named.
-    #[serde(skip_serializing_if = "String::is_empty")]
     pub default_uuid: String,
 }
 

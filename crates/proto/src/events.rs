@@ -7,7 +7,7 @@ use crate::contract::Contract;
 #[serde(rename_all = "camelCase")]
 pub struct EventsSubscribeParams {
     /// Empty subscribes to every event.
-    #[serde(default, skip_serializing_if = "String::is_empty")]
+    #[serde(default)]
     pub id: String,
 }
 
