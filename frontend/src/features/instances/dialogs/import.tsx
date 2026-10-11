@@ -11,6 +11,8 @@ import { Button } from '@/components/ui/button';
 import { Field, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Spinner } from '@/components/ui/spinner';
+import { useArchiveDrop } from '@/features/instances/hooks';
+import { cn } from '@/lib/utils';
 import { toastWarnings } from '@/lib/warnings';
 import { m } from '@/paraglide/messages.js';
 import { useJobMutation } from '@/queries/jobs';
@@ -55,12 +57,23 @@ export function ImportInstanceDialog({
     );
   }, [archive.data, renamed]);
 
-  const choose = async () => {
-    const picked = await dialog.pickInstanceArchive();
-    if (!picked) return;
-    setPath(picked);
+  const select = (archivePath: string) => {
+    setPath(archivePath);
     setRenamed(false);
   };
+
+  const choose = async () => {
+    const picked = await dialog.pickInstanceArchive();
+    if (picked) select(picked);
+  };
+
+  // The dialog takes a drop itself: it is opened from pages that have no drop
+  // target of their own, and the listener is window-wide, so it must stay
+  // inert while the dialog is closed.
+  const dropping =
+    useArchiveDrop((dropped) => {
+      if (open) select(dropped);
+    }) && open;
 
   const start = () => {
     onOpenChange(false);
@@ -95,7 +108,10 @@ export function ImportInstanceDialog({
       <DialogBody className="flex flex-col gap-4">
         <Button
           variant="outline"
-          className="h-auto justify-start gap-3 py-3 text-left"
+          className={cn(
+            'h-auto justify-start gap-3 py-3 text-left',
+            dropping && 'border-primary border-dashed bg-primary/5',
+          )}
           onClick={choose}
         >
           <FileArrowUpIcon className="size-5 shrink-0 text-muted-foreground" />
