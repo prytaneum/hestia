@@ -1,4 +1,4 @@
-import { FileArrowUpIcon, WarningIcon } from '@phosphor-icons/react';
+import { WarningIcon } from '@phosphor-icons/react';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
@@ -6,13 +6,12 @@ import { toast } from 'sonner';
 import type { ImportFormat } from '@/api';
 import { dialog, errorMessage, errorMessageFromInfo } from '@/api';
 import { AppDialog, DialogBody, DialogFooter } from '@/components/dialog';
+import { FileDropButton } from '@/components/file-drop-button';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Field, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Spinner } from '@/components/ui/spinner';
-import { useDropzone } from '@/hooks/use-dropzone';
-import { cn } from '@/lib/utils';
 import { toastWarnings } from '@/lib/warnings';
 import { m } from '@/paraglide/messages.js';
 import { useJobMutation } from '@/queries/jobs';
@@ -62,17 +61,6 @@ export function ImportInstanceDialog({
     setRenamed(false);
   };
 
-  const choose = async () => {
-    const picked = await dialog.pickInstanceArchive();
-    if (picked) select(picked);
-  };
-
-  const { getRootProps, isDragActive } = useDropzone<HTMLDivElement>({
-    accept: dialog.ARCHIVE_EXTENSIONS,
-    multiple: false,
-    onDrop: ([archive]) => select(archive),
-  });
-
   const start = () => {
     onOpenChange(false);
     run.mutate(
@@ -103,25 +91,14 @@ export function ImportInstanceDialog({
       title={m['instance.import.title']()}
       description={m['instance.import.description']()}
     >
-      <DialogBody {...getRootProps()} className="flex flex-col gap-4">
-        <Button
-          variant="outline"
-          className={cn(
-            'h-auto justify-start gap-3 py-3 text-left',
-            isDragActive && 'border-primary border-dashed bg-primary/5',
-          )}
-          onClick={choose}
-        >
-          <FileArrowUpIcon className="size-5 shrink-0 text-muted-foreground" />
-          <span className="min-w-0 flex-1">
-            <span className="block truncate font-medium">
-              {path ? fileName(path) : m['instance.import.choose']()}
-            </span>
-            <span className="block truncate text-muted-foreground text-xs">
-              {path || m['instance.import.formats']()}
-            </span>
-          </span>
-        </Button>
+      <DialogBody className="flex flex-col gap-4">
+        <FileDropButton
+          title={path ? fileName(path) : m['instance.import.choose']()}
+          hint={path || m['instance.import.formats']()}
+          accept={dialog.ARCHIVE_EXTENSIONS}
+          pick={dialog.pickInstanceArchive}
+          onFiles={([archive]) => select(archive)}
+        />
 
         {archive.isFetching && (
           <p className="flex items-center gap-2 text-muted-foreground text-sm">

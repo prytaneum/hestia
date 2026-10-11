@@ -200,9 +200,9 @@ export function LibraryPage({
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 disabled={!signedIn}
-                onClick={() => {
-                  setDropped('');
-                  setImporting(true);
+                onClick={async () => {
+                  const [archive] = await dialog.pickInstanceArchive();
+                  if (archive) openImport(archive);
                 }}
               >
                 <FileArrowUpIcon />
@@ -289,10 +289,7 @@ export function LibraryPage({
         kind={newKind}
         open={creating}
         onOpenChange={setCreating}
-        onImport={() => {
-          setDropped('');
-          setImporting(true);
-        }}
+        onImport={openImport}
       />
       <ImportInstanceDialog
         open={importing}

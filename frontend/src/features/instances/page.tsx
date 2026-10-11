@@ -47,15 +47,16 @@ export function InstancesPage({
   const [creating, setCreating] = useState(false);
   const [importing, setImporting] = useState(false);
   const [dropped, setDropped] = useState('');
+  const openImport = (archive: string) => {
+    setDropped(archive);
+    setImporting(true);
+  };
   const { getRootProps } = useDropzone<HTMLDivElement>({
     accept: dialog.ARCHIVE_EXTENSIONS,
     multiple: false,
     disabled: !signedIn,
     label: m['instance.import.drop'](),
-    onDrop: ([archive]) => {
-      setDropped(archive);
-      setImporting(true);
-    },
+    onDrop: ([archive]) => openImport(archive),
   });
 
   const cards: EntryCardModel[] = useMemo(
@@ -123,10 +124,7 @@ export function InstancesPage({
             kind="instance"
             open={creating}
             onOpenChange={setCreating}
-            onImport={() => {
-              setDropped('');
-              setImporting(true);
-            }}
+            onImport={openImport}
           />
           <ImportInstanceDialog
             open={importing}

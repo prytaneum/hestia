@@ -1,15 +1,13 @@
-import {
-  CaretLeftIcon,
-  CaretRightIcon,
-  FileArrowUpIcon,
-} from '@phosphor-icons/react';
+import { CaretLeftIcon, CaretRightIcon } from '@phosphor-icons/react';
 import { revalidateLogic } from '@tanstack/react-form';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
 import type { ConfigEntry, Flavor } from '@/api';
+import { dialog } from '@/api';
 import { AppDialog, DialogFooter } from '@/components/dialog';
+import { FileDropButton } from '@/components/file-drop-button';
 import { useAppForm } from '@/components/form';
 import { entryIcon } from '@/components/icons';
 import { StepDots } from '@/components/step-dots';
@@ -63,8 +61,8 @@ export function CreateEntryDialog({
   kind: Kind;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /** Leave the wizard for the import dialog — an instance can also arrive whole. */
-  onImport?: () => void;
+  /** Leave the wizard to import this archive — an instance can also arrive whole. */
+  onImport?: (archive: string) => void;
 }) {
   const [step, setStep] = useState<Step>('flavor');
   const [search, setSearch] = useState('');
@@ -246,24 +244,16 @@ export function CreateEntryDialog({
                       />
                     ))}
                     {kind === 'instance' && onImport && (
-                      <button
-                        type="button"
-                        onClick={() => {
+                      <FileDropButton
+                        title={m['instance.import.action']()}
+                        hint={m['instance.import.formats']()}
+                        accept={dialog.ARCHIVE_EXTENSIONS}
+                        pick={dialog.pickInstanceArchive}
+                        onFiles={([archive]) => {
                           onOpenChange(false);
-                          onImport();
+                          onImport(archive);
                         }}
-                        className="flex items-center gap-3 border border-border border-dashed px-3 py-2.5 text-left outline-none hover:bg-accent/50 focus-visible:ring-1 focus-visible:ring-ring"
-                      >
-                        <FileArrowUpIcon className="size-4 shrink-0 text-muted-foreground" />
-                        <span className="min-w-0">
-                          <span className="block font-medium text-sm">
-                            {m['instance.import.action']()}
-                          </span>
-                          <span className="block text-muted-foreground text-xs">
-                            {m['instance.import.formats']()}
-                          </span>
-                        </span>
-                      </button>
+                      />
                     )}
                     {flavors.length === 0 && (
                       <p className="px-1 py-6 text-center text-xs text-muted-foreground">

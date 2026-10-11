@@ -39,14 +39,14 @@ export async function pickImage(): Promise<string | null> {
 /** The archive formats an instance import accepts, by extension. */
 export const ARCHIVE_EXTENSIONS = ['hestia', 'mrpack', 'zip'];
 
-/** Pick one instance archive to import, or null when dismissed. */
-export async function pickInstanceArchive(): Promise<string | null> {
+/** Pick one instance archive to import; empty when dismissed. */
+export async function pickInstanceArchive(): Promise<string[]> {
   const selection = await open({
     multiple: false,
     directory: false,
     filters: [{ name: 'Instance archives', extensions: ARCHIVE_EXTENSIONS }],
   });
-  return typeof selection === 'string' ? selection : null;
+  return typeof selection === 'string' ? [selection] : [];
 }
 
 /**
