@@ -100,10 +100,7 @@ pub trait ContentProvider: Send + Sync {
         Ok(HashMap::new())
     }
 
-    /// A pack manifest in this platform's own format, read from an archive
-    /// that names its files by id — which this platform alone can turn into
-    /// downloads. The pack's own project and version ids are left empty: the
-    /// manifest does not carry them.
+    /// Leaves the pack's own project and version ids empty: a manifest carries neither.
     async fn resolve_manifest(&self, _manifest: &Value) -> Result<ResolvedModpack> {
         bail!("{} has no pack manifest of its own", self.name())
     }

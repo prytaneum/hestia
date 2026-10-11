@@ -60,8 +60,6 @@ struct FileIdentity {
     project: Option<ContentProject>,
 }
 
-/// A pack file now sitting in its managed directory, whichever way the pack
-/// shipped it: downloaded from the index, or unpacked from an override tree.
 struct Supplied {
     kind: ContentKind,
     filename: String,

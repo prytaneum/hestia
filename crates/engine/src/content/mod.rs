@@ -44,8 +44,6 @@ pub struct Identified {
 }
 
 impl Identified {
-    /// The record of local bytes recognised as this release: the source's
-    /// project and version, over the file as it is on disk.
     pub(crate) fn recorded(
         &self,
         kind: ContentKind,
@@ -331,7 +329,6 @@ impl Content {
         Ok(resolved)
     }
 
-    /// A pack manifest only `source` can resolve, from an archive read off disk.
     pub async fn resolve_manifest(
         &self,
         source: &str,
@@ -377,10 +374,7 @@ impl Content {
         self.provider(source)?.versions_by_id(ids).await
     }
 
-    /// Which source serves a download URL, and what the URL says about the file
-    /// behind it, so a pack index's bare URLs become tracked pool items. Every
-    /// source that can serve is asked: a pack read off disk names no source,
-    /// and its files are no less a platform's for that.
+    /// Every source that can serve is asked: a pack read off disk names none.
     pub(crate) fn parse_file_url(&self, url: &str) -> Option<(&'static str, provider::FileRef)> {
         self.providers
             .iter()

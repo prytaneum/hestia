@@ -25,15 +25,13 @@ use crate::engine::Engine;
 /// from a catalogue, and the archive its `overrides/` live in.
 pub(super) type FetchedPack = (ResolvedModpack, Option<ContentProject>, pack::Archive);
 
-/// A pack file one source's own download URL names.
 pub(super) struct Located {
     source: &'static str,
     file: FileRef,
 }
 
-/// What the catalogue knows about the pack's files, looked up in bulk and keyed
-/// by source, since sources share no ids. Empty where a source could not be
-/// reached — the install proceeds regardless.
+/// What the catalogue knows about the pack's files, keyed by source since
+/// sources share no ids. Empty where one could not be reached.
 #[derive(Default)]
 pub(super) struct Catalogue {
     projects: HashMap<(&'static str, String), ContentProject>,
@@ -191,10 +189,7 @@ impl Engine {
         Ok((resolved, Some(project), pack::Archive::open(bytes)?))
     }
 
-    /// Stamp a pack read off disk with the release a source recognises its
-    /// archive as, by hash, so it updates like one installed from that source.
-    /// An archive no source published keeps the source its manifest came
-    /// with and no project, which is what leaves it without an update path.
+    /// An archive no source published keeps no project, which is what leaves it without an update path.
     async fn published_pack(
         &self,
         path: &Path,
@@ -318,10 +313,7 @@ impl Engine {
         out
     }
 
-    /// Ask the sources, by hash, about the files no download URL identified:
-    /// the jars a pack ships in its override trees, and index files hosted off
-    /// any platform. Where several sources publish a file the pack's own wins,
-    /// so a pack's pool stays on the source the pack itself updates from.
+    /// Where several sources publish a file the pack's own wins, keeping its pool on the source it updates from.
     pub(super) async fn recognise(
         &self,
         ctx: &EntryContent,
@@ -369,7 +361,6 @@ impl Engine {
     ///
     /// Versions go first: a source whose URLs name only the file (CurseForge)
     /// gets its `refs` completed from the answer before the projects are asked.
-    /// One pass per source the files turned out to belong to.
     pub(super) async fn hydrate(&self, refs: &mut HashMap<&str, Located>) -> Catalogue {
         let sources: BTreeSet<&'static str> = refs.values().map(|r| r.source).collect();
         let mut catalogue = Catalogue::default();

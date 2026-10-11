@@ -99,9 +99,7 @@ impl Engine {
             if patterns.excludes(path) {
                 return None;
             }
-            // A jar shipped in an override tree is pool content like one the
-            // index names, so it goes to the managed directory the mirror
-            // reads rather than straight into the game's.
+            // Pool content like an index file, so it goes where the mirror reads.
             if let Some(kind) = pooled(path) {
                 return content_target(ctx, kind, filename(path)).ok();
             }
@@ -123,8 +121,7 @@ impl Engine {
             match pooled(&file.path) {
                 Some(kind) => {
                     let filename = filename(&file.path).to_string();
-                    // The override tree is written last, so it wins a name the
-                    // index also supplied.
+                    // Written last, so it wins a name the index also supplied.
                     supplied.retain(|s| !(s.kind == kind && s.filename == filename));
                     supplied.push(Supplied {
                         kind,
@@ -278,8 +275,6 @@ impl Engine {
         (supplied, failures)
     }
 
-    /// Download one index file into its managed directory, answering with its
-    /// sha1 — the index's own where it names one.
     async fn fetch_pack_file(
         &self,
         ctx: &EntryContent,
@@ -472,9 +467,7 @@ fn pack_item(file: Supplied) -> InstalledContent {
                 url,
             },
         ),
-        // A file no source recognises came from somewhere else; recording it
-        // as the pack's source would let `update` re-pin it to a project it
-        // never belonged to.
+        // The pack's source here would let `update` re-pin it to a project it never belonged to.
         None => (
             record::Project::untracked(kind, title),
             record::Release {

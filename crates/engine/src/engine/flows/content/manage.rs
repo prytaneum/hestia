@@ -112,10 +112,7 @@ impl Engine {
             .unwrap_or_default())
     }
 
-    /// Record each of the pool's local items that a source publishes as that
-    /// release, by hash. For a pool that arrived without provenance — another
-    /// launcher's jars — rather than one the user chose to keep local. Returns
-    /// how many were recognised.
+    /// For a pool that arrived without provenance, never one the user chose to keep local.
     pub(in crate::engine::flows) async fn recognise_pool(&self, entry_dir: &Path) -> Result<usize> {
         let mut index = install::load(entry_dir);
         let local = |item: &InstalledContent| item.source == LOCAL_SOURCE && !item.sha1.is_empty();
