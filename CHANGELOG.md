@@ -10,7 +10,8 @@ that release's notes, rendered as markdown.
 ## 1.0.0-beta.2
 
 Shared settings rebuilt around what the game actually writes, a new icon
-editor, a guided first run, and fixes for SteamOS and Windows.
+editor, a guided first run, packs you can import from a file, and fixes for
+SteamOS and Windows.
 
 - **A welcome flow, guided tours and a getting-started checklist.** First launch
   now opens a short welcome rather than a one-off overlay, and each surface has
@@ -68,6 +69,18 @@ editor, a guided first run, and fixes for SteamOS and Windows.
   item to another source that carries the same file, which is also how a local
   file starts being tracked later. Dependencies are not pulled in, and a file
   nobody recognises installs as before.
+- **Packs are identified however they arrived.** A modpack imported from a file
+  — a `.mrpack` or a CurseForge archive — now resolves its files through the
+  same sources as one installed from a source: a mod a source serves is tracked
+  as that release, and a jar shipped in an override tree joins the pool too
+  rather than landing as an anonymous file. `hestia instance import` recognises
+  a CurseForge pack by its manifest, and a pack nested inside another archive
+  is read.
+- **Files drop where they belong.** Every surface that takes one — an instance
+  import, the content installer, a skin, an entry's icon — accepts a dragged
+  file as well as a picked one, through one shared control.
+- **An entry menu.** Right-clicking a library entry opens its actions, and a
+  pinned entry can be played straight from its row.
 - **The tray now appears on every Linux desktop that has one**, SteamOS
   included. It reached the status area through libappindicator — a library most
   desktops do not ship — so where it was absent no icon appeared, and the daemon
