@@ -1,7 +1,9 @@
 import { CaretLeftIcon, CaretRightIcon } from '@phosphor-icons/react';
+import { useEffect } from 'react';
 import {
   type ContentKind,
   type ContentProject,
+  errorMessage,
   errorMessageFromInfo,
 } from '@/api';
 import { AppDialog, DialogBody, DialogFooter } from '@/components/dialog';
@@ -19,7 +21,7 @@ import { instanceMutations } from '@/queries/instance';
 import { useJobDisplay, useJobMutation } from '@/queries/jobs';
 import { serverMutations } from '@/queries/server';
 import { TargetCtx, useInstallWizard } from './hooks';
-import { type Target, targetTakesKind, useTargets } from './lib';
+import { inspectFiles, type Target, targetTakesKind, useTargets } from './lib';
 import { ContentStep } from './steps/content';
 import { ReviewStep } from './steps/review';
 import { TargetStep } from './steps/target';
@@ -37,12 +39,15 @@ export function ContentInstallDialog({
   project,
   pinnedVersion,
   entry,
+  files: initialFiles,
   open,
   onOpenChange,
 }: {
   project?: ContentProject;
   pinnedVersion?: string;
   entry?: Target;
+  /** Local files to open on, already staged — a drop onto the entry's page. */
+  files?: string[];
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
@@ -67,6 +72,24 @@ export function ContentInstallDialog({
     installing,
     error,
   } = state;
+
+  // Declared after the wizard, whose own effect resets the state on open; the
+  // inspection answers later still, so the staged files survive that reset.
+  useEffect(() => {
+    if (!open || !initialFiles?.length) return;
+    let cancelled = false;
+    inspectFiles(initialFiles)
+      .then((inspected) => {
+        if (!cancelled) dispatch({ type: 'addFiles', files: inspected });
+      })
+      .catch((error: unknown) => {
+        if (cancelled) return;
+        dispatch({ type: 'installError', message: errorMessage(error) });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, initialFiles, dispatch]);
 
   const addServer = useJobMutation(serverMutations.content.add(targetId));
   const addInstance = useJobMutation(instanceMutations.content.add(targetId));

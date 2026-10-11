@@ -12,6 +12,7 @@
       "source": "Source",
       "subtitle": "Discover mods, packs and shaders"
     },
+    "drop": "Drop to add to {name}",
     "change_version": {
       "action": "Change version…",
       "description": "Pick any published version, from any source that carries this file; the swap applies at the next launch.",

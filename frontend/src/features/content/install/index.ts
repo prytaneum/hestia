@@ -1,4 +1,5 @@
 export { ContentInstallDialog } from './dialog';
+export { useEntryInstall } from './hooks';
 export {
   instanceTarget,
   serverTarget,

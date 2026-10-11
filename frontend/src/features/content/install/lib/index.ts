@@ -1,6 +1,7 @@
 export {
   entryTypeLabel,
   fileName,
+  inspectFiles,
   instanceTarget,
   type PickedFile,
   serverTarget,

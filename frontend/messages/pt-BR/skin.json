@@ -29,6 +29,7 @@
     "slim": "Fino",
     "subtitle": "Seu personagem do Minecraft",
     "texture": "Textura",
+    "texture_unreadable": "Não foi possível ler essa textura.",
     "unnamed": "Skin sem nome",
     "upload_hint": "Envie uma textura para visualizá-la",
     "upload_texture": "Enviar textura",

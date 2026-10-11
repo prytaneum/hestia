@@ -3,6 +3,10 @@
  * for the cape picker, and file reading for uploads. Full-body card renders
  * are posed snapshots in `skin-render` — cards never blit skin layouts here.
  */
+import { convertFileSrc } from '@tauri-apps/api/core';
+
+/** The one format a skin texture comes in, by extension. */
+export const TEXTURE_EXTENSIONS = ['png'];
 
 const textures = new Map<string, Promise<HTMLImageElement>>();
 
@@ -48,11 +52,22 @@ export function drawCapeFront(
 }
 
 /** Reads a skin file into a data URL for previewing before it is saved. */
-export function readTextureFile(file: File): Promise<string> {
+export function readTextureFile(file: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => resolve(reader.result as string);
     reader.onerror = () => reject(new Error('failed to read file'));
     reader.readAsDataURL(file);
   });
+}
+
+/**
+ * Reads a dropped skin into a data URL. A drop yields a path rather than a
+ * `File`, and the shell puts a dropped path on the asset protocol's scope, so
+ * the webview can fetch it.
+ */
+export async function readTexturePath(path: string): Promise<string> {
+  const response = await fetch(convertFileSrc(path));
+  if (!response.ok) throw new Error('failed to read file');
+  return readTextureFile(await response.blob());
 }

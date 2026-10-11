@@ -12,6 +12,7 @@
       "source": "Fonte",
       "subtitle": "Descubra mods, pacotes e shaders"
     },
+    "drop": "Solte para adicionar a {name}",
     "change_version": {
       "action": "Trocar versão…",
       "description": "Escolha qualquer versão publicada, de qualquer fonte que tenha este arquivo; a troca é aplicada no próximo início.",

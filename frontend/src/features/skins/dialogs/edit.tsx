@@ -1,5 +1,6 @@
 import { UploadSimpleIcon } from '@phosphor-icons/react';
 import { useEffect, useRef, useState } from 'react';
+import { toast } from 'sonner';
 import type { Cape, Skin, SkinVariant } from '@/api';
 import { AppDialog, DialogBody, DialogFooter } from '@/components/dialog';
 import { Button } from '@/components/ui/button';
@@ -7,7 +8,13 @@ import { Field, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { CapeCard, CapeGrid, SkinModel } from '@/features/skins/components';
-import { readTextureFile } from '@/features/skins/lib';
+import {
+  readTextureFile,
+  readTexturePath,
+  TEXTURE_EXTENSIONS,
+} from '@/features/skins/lib';
+import { useDropTarget } from '@/hooks/use-drop-target';
+import { cn } from '@/lib/utils';
 import { m } from '@/paraglide/messages.js';
 
 export interface SkinDraft {
@@ -64,6 +71,16 @@ export function EditSkinDialog({
     setTexture(await readTextureFile(file));
   };
 
+  const dropping = useDropTarget({
+    extensions: TEXTURE_EXTENSIONS,
+    enabled: open && adding,
+    onDrop: ([path]) => {
+      readTexturePath(path)
+        .then(setTexture)
+        .catch(() => toast.error(m['skin.texture_unreadable']()));
+    },
+  });
+
   return (
     <AppDialog
       open={open}
@@ -75,15 +92,11 @@ export function EditSkinDialog({
       }
     >
       <DialogBody className="flex gap-4">
-        {/* biome-ignore lint/a11y/noStaticElementInteractions: drop target
-              only — the upload button beside it is the accessible path. */}
         <div
-          className="grid w-48 shrink-0 place-items-center self-stretch bg-muted/40 ring-1 ring-border"
-          onDragOver={(e) => e.preventDefault()}
-          onDrop={(e) => {
-            e.preventDefault();
-            if (adding) pickTexture(e.dataTransfer.files[0]);
-          }}
+          className={cn(
+            'grid w-48 shrink-0 place-items-center self-stretch bg-muted/40 ring-1 ring-border',
+            dropping && 'ring-2 ring-primary',
+          )}
         >
           {texture ? (
             <SkinModel

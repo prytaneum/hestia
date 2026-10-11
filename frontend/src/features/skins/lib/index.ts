@@ -7,4 +7,6 @@ export {
   HEAD,
   loadTexture,
   readTextureFile,
+  readTexturePath,
+  TEXTURE_EXTENSIONS,
 } from './texture';

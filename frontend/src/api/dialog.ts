@@ -23,14 +23,15 @@ export async function pickContentFiles(): Promise<string[]> {
   return typeof selection === 'string' ? [selection] : [];
 }
 
+/** The image formats an entry icon accepts, by extension. */
+export const IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'webp', 'gif'];
+
 /** Pick one image and return its absolute path, or null when dismissed. */
 export async function pickImage(): Promise<string | null> {
   const selection = await open({
     multiple: false,
     directory: false,
-    filters: [
-      { name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'webp', 'gif'] },
-    ],
+    filters: [{ name: 'Images', extensions: IMAGE_EXTENSIONS }],
   });
   return typeof selection === 'string' ? selection : null;
 }

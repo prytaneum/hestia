@@ -24,6 +24,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   ContentInstallDialog,
   instanceTarget,
+  useEntryInstall,
 } from '@/features/content/install';
 import { SessionList, WorldRow } from '@/features/instances/components';
 import {
@@ -123,7 +124,7 @@ function InstanceDetail({
   useAutoTour('instance', Boolean(info.data));
   const config = useQuery(instanceQueries.config(id));
   const worlds = useQuery(instanceQueries.worlds(id));
-  const [addingContent, setAddingContent] = useState(false);
+  const install = useEntryInstall(instance.name, tab === 'content');
   const [exporting, setExporting] = useState(false);
   const [focus, setFocus] = useState<string | null>(null);
   const [logSession, setLogSession] = useState<string | null>(null);
@@ -397,7 +398,7 @@ function InstanceDetail({
                 size="sm"
                 variant="outline"
                 data-icon="inline-start"
-                onClick={() => setAddingContent(true)}
+                onClick={install.start}
               >
                 <PlusIcon weight="bold" />
                 {m['content.add']()}
@@ -465,8 +466,9 @@ function InstanceDetail({
 
       <ContentInstallDialog
         entry={instanceTarget(instance)}
-        open={addingContent}
-        onOpenChange={setAddingContent}
+        files={install.files}
+        open={install.open}
+        onOpenChange={install.onOpenChange}
       />
       <ExportInstanceDialog
         id={id}

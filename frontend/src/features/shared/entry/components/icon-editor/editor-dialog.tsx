@@ -21,6 +21,7 @@ import { type IconConfig, iconUrl } from '@/api/icons';
 import { AppDialog, DialogFooter } from '@/components/dialog';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
+import { useDropTarget } from '@/hooks/use-drop-target';
 import { cn } from '@/lib/utils';
 import { m } from '@/paraglide/messages.js';
 import { iconMutations, iconQueries } from '@/queries/icons';
@@ -115,12 +116,23 @@ export function IconEditorDialog({
     [selectedBackground, symbolId],
   );
 
-  const pickCustomImage = async () => {
-    const path = await dialog.pickImage();
-    if (!path) return;
+  const applyCustomImage = (path: string) => {
     setCustomPath(path);
     setCustomUrl(convertFileSrc(path));
   };
+
+  const pickCustomImage = async () => {
+    const path = await dialog.pickImage();
+    if (path) applyCustomImage(path);
+  };
+
+  // Only an existing entry can carry its own image; the create wizard has no
+  // entry to record one against.
+  const dropping = useDropTarget({
+    extensions: dialog.IMAGE_EXTENSIONS,
+    enabled: open && Boolean(entryId),
+    onDrop: ([image]) => applyCustomImage(image),
+  });
 
   const applyRandom = () => {
     const rolled = randomIconConfig(config);
@@ -183,7 +195,10 @@ export function IconEditorDialog({
           <IconPreview
             config={config}
             customUrl={customUrl}
-            className="size-32 self-center"
+            className={cn(
+              'size-32 self-center',
+              dropping && 'outline-2 outline-primary outline-dashed',
+            )}
           />
 
           <Button

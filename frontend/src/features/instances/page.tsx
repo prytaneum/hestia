@@ -1,6 +1,7 @@
 import { PlusIcon } from '@phosphor-icons/react';
 import { useMutation } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
+import { dialog } from '@/api';
 import { useSearch } from '@/components/app-shell/search-context';
 import { FilterMenu } from '@/components/filter-menu';
 import { Page } from '@/components/page';
@@ -22,6 +23,7 @@ import {
   ViewToggle,
 } from '@/features/shared/entry/components';
 import { CreateEntryDialog } from '@/features/shared/entry/dialogs';
+import { useDropTarget } from '@/hooks/use-drop-target';
 import { m } from '@/paraglide/messages.js';
 import { useAccounts } from '@/queries';
 import { instanceMutations, useInstances } from '@/queries/instance';
@@ -44,6 +46,16 @@ export function InstancesPage({
   const stop = useMutation(instanceMutations.stopAny());
   const [creating, setCreating] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [dropped, setDropped] = useState('');
+  useDropTarget({
+    extensions: dialog.ARCHIVE_EXTENSIONS,
+    label: m['instance.import.drop'](),
+    enabled: signedIn,
+    onDrop: ([archive]) => {
+      setDropped(archive);
+      setImporting(true);
+    },
+  });
 
   const cards: EntryCardModel[] = useMemo(
     () =>
@@ -109,9 +121,16 @@ export function InstancesPage({
             kind="instance"
             open={creating}
             onOpenChange={setCreating}
-            onImport={() => setImporting(true)}
+            onImport={() => {
+              setDropped('');
+              setImporting(true);
+            }}
           />
-          <ImportInstanceDialog open={importing} onOpenChange={setImporting} />
+          <ImportInstanceDialog
+            open={importing}
+            onOpenChange={setImporting}
+            initialPath={dropped}
+          />
         </>
       ) : (
         <SignInGate

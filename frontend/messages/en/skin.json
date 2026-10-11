@@ -29,6 +29,7 @@
     "slim": "Slim",
     "subtitle": "Your Minecraft character",
     "texture": "Texture",
+    "texture_unreadable": "That texture could not be read.",
     "unnamed": "Unnamed skin",
     "upload_hint": "Upload a texture to preview it",
     "upload_texture": "Upload texture",

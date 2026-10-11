@@ -6,7 +6,7 @@ import {
   WarningCircleIcon,
 } from '@phosphor-icons/react';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { toast } from 'sonner';
 import type { ContentKind } from '@/api';
 import { errorMessage, type ServerInfo, system } from '@/api';
@@ -21,7 +21,11 @@ import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { StatusDot } from '@/components/ui/status-dot';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { WarningNotice } from '@/components/warning-notice';
-import { ContentInstallDialog, serverTarget } from '@/features/content/install';
+import {
+  ContentInstallDialog,
+  serverTarget,
+  useEntryInstall,
+} from '@/features/content/install';
 import { anchor, useAutoTour } from '@/features/onboarding';
 import {
   ServerBackupsTab,
@@ -108,7 +112,7 @@ function ServerDetail({
   const info = useQuery(serverQueries.info(id));
   useAutoTour('server', Boolean(info.data));
   const config = useQuery(serverQueries.config(id));
-  const [addingContent, setAddingContent] = useState(false);
+  const install = useEntryInstall(server.name, tab === 'content');
   const start = useMutation(serverMutations.start(id));
   const stop = useMutation(serverMutations.stop(id));
 
@@ -324,7 +328,7 @@ function ServerDetail({
                 size="sm"
                 variant="outline"
                 data-icon="inline-start"
-                onClick={() => setAddingContent(true)}
+                onClick={install.start}
               >
                 <PlusIcon weight="bold" />
                 {m['content.add']()}
@@ -348,8 +352,9 @@ function ServerDetail({
 
       <ContentInstallDialog
         entry={serverTarget(server)}
-        open={addingContent}
-        onOpenChange={setAddingContent}
+        files={install.files}
+        open={install.open}
+        onOpenChange={install.onOpenChange}
       />
     </div>
   );

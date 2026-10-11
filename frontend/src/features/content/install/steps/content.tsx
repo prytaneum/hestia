@@ -5,7 +5,6 @@ import { useState } from 'react';
 import {
   type ContentKind,
   type ContentProject,
-  content as contentApi,
   dialog,
   errorMessage,
   type ResolvedUrl,
@@ -33,7 +32,7 @@ import { useOffline } from '@/queries/net';
 
 import { FilterBar } from '../filter-bar';
 import {
-  fileName,
+  inspectFiles,
   type PickedFile,
   type Target,
   useInstalledRefs,
@@ -222,23 +221,7 @@ function FileImportButton({
   onFiles: (files: PickedFile[]) => void;
 }) {
   const stage = async (paths: string[]) => {
-    if (paths.length === 0) return;
-    const files = await Promise.all(
-      paths.map(async (path): Promise<PickedFile> => {
-        const r = await contentApi.inspect(path);
-        return {
-          path,
-          filename: r.filename || fileName(path),
-          kind: r.kind,
-          detected: r.kind,
-          valid: r.valid,
-          reason: r.reason,
-          matches: r.matches,
-          track: r.matches[0]?.project.source ?? contentApi.LOCAL_SOURCE,
-        };
-      }),
-    );
-    onFiles(files);
+    if (paths.length > 0) onFiles(await inspectFiles(paths));
   };
   const over = useDropTarget({
     extensions: dialog.CONTENT_EXTENSIONS,

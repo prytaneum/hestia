@@ -6,6 +6,7 @@ import type {
   InstanceInfo,
   ServerInfo,
 } from '@/api';
+import { content as contentApi } from '@/api';
 import { m } from '@/paraglide/messages.js';
 import { instanceQueries, useInstances } from '@/queries/instance';
 import { serverQueries, useServers } from '@/queries/server';
@@ -68,6 +69,25 @@ export interface PickedFile {
 }
 
 export const fileName = (path: string) => path.split(/[\\/]/).pop() ?? path;
+
+/** Ask the daemon what each picked or dropped file is, ready to be staged. */
+export function inspectFiles(paths: string[]): Promise<PickedFile[]> {
+  return Promise.all(
+    paths.map(async (path): Promise<PickedFile> => {
+      const r = await contentApi.inspect(path);
+      return {
+        path,
+        filename: r.filename || fileName(path),
+        kind: r.kind,
+        detected: r.kind,
+        valid: r.valid,
+        reason: r.reason,
+        matches: r.matches,
+        track: r.matches[0]?.project.source ?? contentApi.LOCAL_SOURCE,
+      };
+    }),
+  );
+}
 
 /** Every entry, from both stores, merged into a common target shape. */
 export function useTargets(): Target[] {
