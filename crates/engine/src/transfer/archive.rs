@@ -211,10 +211,11 @@ impl Reader {
     pub(crate) fn open(path: &Path) -> Result<Reader> {
         let file = File::open(path).with_context(|| format!("cannot read {}", path.display()))?;
         let zip = zip::ZipArchive::new(file).map_err(|e| {
-            anyhow::Error::from(proto::error::ErrorInfo::ArchiveUnrecognised {
-                filename: filename_of(path),
-            })
-            .context(format!("not a zip archive: {e}"))
+            tracing::warn!(path = %path.display(), error = %e, "cannot open an archive");
+            proto::error::ErrorInfo::ArchiveInvalid {
+                format: "zip".to_string(),
+                detail: format!("'{}' is incomplete or not a zip ({e})", filename_of(path)),
+            }
         })?;
         Ok(Reader { zip })
     }
@@ -463,6 +464,25 @@ mod tests {
             .unwrap()
             .extract_under("", out.path(), &job_for(&cancel), &|_| true)
             .is_err());
+    }
+
+    #[test]
+    fn a_truncated_archive_is_invalid_rather_than_unrecognised() {
+        let dir = temp("truncated");
+        let archive = dir.path().join("pack.mrpack");
+        {
+            let mut writer = Writer::create(&archive).unwrap();
+            writer.add_bytes("modrinth.index.json", b"{}").unwrap();
+            writer.finish().unwrap();
+        }
+        let whole = std::fs::read(&archive).unwrap();
+        std::fs::write(&archive, &whole[..whole.len() / 2]).unwrap();
+
+        let error = Reader::open(&archive).err().unwrap();
+        assert!(matches!(
+            error.downcast_ref::<proto::error::ErrorInfo>(),
+            Some(proto::error::ErrorInfo::ArchiveInvalid { .. })
+        ));
     }
 
     #[test]

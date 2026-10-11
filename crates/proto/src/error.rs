@@ -468,9 +468,9 @@ pub enum ErrorInfo {
     ArchiveUnrecognised {
         filename: String,
     },
-    /// The archive is one of the formats hestia reads, but its content is
-    /// broken — a missing manifest, a malformed one, or a member path that
-    /// would escape the instance directory.
+    /// The archive cannot be read as what it claims to be — a zip cut short or
+    /// not a zip at all, a missing or malformed manifest, or a member path
+    /// that would escape the instance directory.
     ArchiveInvalid {
         format: String,
         detail: String,
