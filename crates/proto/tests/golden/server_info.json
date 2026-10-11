@@ -9,6 +9,7 @@
   "ready": true,
   "gamePort": 25565,
   "console": true,
+  "accepts": [],
   "process": {
     "id": "server-fabric-1-21-1",
     "pid": 5150,

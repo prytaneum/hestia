@@ -159,7 +159,6 @@ pub struct InstanceProfile {
     pub client: Artifact,
     pub libraries: Vec<Library>,
     /// Empty from 1.19 on, where natives are ordinary rule-gated libraries.
-    #[serde(skip_serializing_if = "Vec::is_empty")]
     pub natives: Vec<Native>,
     pub asset_index: AssetIndex,
     pub java_major: i32,

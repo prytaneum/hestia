@@ -69,7 +69,7 @@ pub struct ServerInfo {
     /// The content kinds this server can take, composed from its flavor's own
     /// loader and its side. Carried rather than re-derived, so a front-end
     /// never has to keep its own copy of the flavor table in step.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[serde(default)]
     pub accepts: Vec<ContentKind>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub process: Option<ProcessInfo>,
@@ -103,12 +103,12 @@ pub struct ServerDetails {
     /// them. A flavor can recommend its own (Paper ships a tuned G1GC set), so
     /// `config get jvm-args` reporting "unset" is true of the *setting* while
     /// the server still runs with flags — this is where that is visible.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[serde(default)]
     pub jvm_args: Vec<String>,
     pub jvm_args_source: JvmArgsSource,
     /// Standing degraded state — a create's warnings scroll past, so `info`
     /// keeps reporting the ones that are still true.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[serde(default)]
     pub warnings: Vec<WarningInfo>,
 }
 
@@ -152,7 +152,6 @@ pub struct ServerCreateParams {
     pub port: Option<u16>,
     /// Create-time settings applied after the record is registered (memory,
     /// jvm-args, and any `server.properties` key).
-    #[serde(skip_serializing_if = "Vec::is_empty")]
     pub config: Vec<ConfigEntry>,
     /// Client-supplied job id; empty asks the daemon to allocate one.
     pub id: String,
@@ -414,7 +413,7 @@ pub struct ServerCreateDoneEvent {
     pub server: ServerInfo,
     /// Degraded outcomes of a create that nonetheless succeeded — a front-end
     /// shows these under the success line.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[serde(default)]
     pub warnings: Vec<WarningInfo>,
 }
 impl Topic for ServerCreateDoneEvent {
@@ -463,7 +462,7 @@ pub struct ServerUpdateDoneEvent {
     pub id: String,
     pub server: ServerInfo,
     /// Degraded outcomes of an update that nonetheless succeeded.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[serde(default)]
     pub warnings: Vec<WarningInfo>,
 }
 impl Topic for ServerUpdateDoneEvent {

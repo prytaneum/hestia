@@ -235,7 +235,7 @@ pub struct ExportDoneEvent {
     pub path: String,
     pub size_bytes: u64,
     pub files: u64,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[serde(default)]
     pub warnings: Vec<WarningInfo>,
 }
 impl Topic for ExportDoneEvent {
@@ -288,9 +288,9 @@ pub struct ImportDoneEvent {
     pub instance: InstanceInfo,
     /// Per-item failures of an import that installs content (a pack's mods):
     /// the rest of the instance landed, these did not.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[serde(default)]
     pub failures: Vec<ContentFailure>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[serde(default)]
     pub warnings: Vec<WarningInfo>,
 }
 impl Topic for ImportDoneEvent {

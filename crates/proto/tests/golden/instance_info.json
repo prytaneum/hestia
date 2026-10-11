@@ -5,5 +5,7 @@
   "gameVersion": "1.21.1",
   "javaMajor": 21,
   "createdUnix": 1751000000,
-  "playtimeSeconds": 0
+  "playtimeSeconds": 0,
+  "accepts": [],
+  "sessions": []
 }

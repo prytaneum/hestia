@@ -203,7 +203,6 @@ pub struct ModpackRemoveResult {
     pub removed_files: u32,
     pub removed_overrides: u32,
     /// Override files left in place because the user had edited them.
-    #[serde(skip_serializing_if = "Vec::is_empty")]
     pub kept: Vec<String>,
 }
 

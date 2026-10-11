@@ -65,9 +65,8 @@ pub struct InstanceInfo {
     /// Cumulative seconds played across every session the daemon has observed.
     pub playtime_seconds: i64,
     /// The content kinds this instance can take — see [`ServerInfo::accepts`].
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[serde(default)]
     pub accepts: Vec<ContentKind>,
-    #[serde(skip_serializing_if = "Vec::is_empty")]
     pub sessions: Vec<ProcessInfo>,
 }
 
@@ -83,7 +82,6 @@ pub struct InstanceCreateParams {
     pub loader_version: Option<String>,
     /// Create-time settings applied after the record is registered (memory,
     /// jvm-args).
-    #[serde(skip_serializing_if = "Vec::is_empty")]
     pub config: Vec<ConfigEntry>,
 }
 
@@ -365,7 +363,7 @@ pub struct InstanceServerEditParams {
 #[serde(default, rename_all = "camelCase")]
 pub struct InstanceServersWriteResult {
     pub servers: Vec<ServerEntry>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[serde(default)]
     pub warnings: Vec<WarningInfo>,
 }
 
@@ -626,7 +624,7 @@ pub struct InstanceLaunchDoneEvent {
     /// Degraded outcomes of a launch that nonetheless started the game — a
     /// sync target left unshared, for instance. The session is running; these
     /// say what it is running against.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[serde(default)]
     pub warnings: Vec<WarningInfo>,
 }
 impl Topic for InstanceLaunchDoneEvent {
