@@ -1,5 +1,10 @@
-import { CubeIcon, HardDrivesIcon, PlusIcon } from '@phosphor-icons/react';
-import { useQuery } from '@tanstack/react-query';
+import {
+  CubeIcon,
+  HardDrivesIcon,
+  PlayIcon,
+  PlusIcon,
+} from '@phosphor-icons/react';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
 import { Reorder, type Transition } from 'motion/react';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -14,18 +19,21 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { StatusDot } from '@/components/ui/status-dot';
 import { Thumbnail } from '@/components/ui/thumbnail';
+import { useLaunchDialog } from '@/features/instances/dialogs';
 import { EntryContextMenu } from '@/features/shared/entry/components';
 import { cn } from '@/lib/utils';
 import { m } from '@/paraglide/messages.js';
 import { useInstances } from '@/queries/instance';
 import { type PinnedEntry, pinKey, usePinned } from '@/queries/pinned';
-import { serverQueries, useServers } from '@/queries/server';
+import { serverMutations, serverQueries, useServers } from '@/queries/server';
 
 type ResolvedPin = PinnedEntry & {
   name: string;
   flavor: string;
   version: string;
   running: boolean;
+  /** A server still provisioning cannot start; an instance is always ready. */
+  ready: boolean;
   /** Running session count — instances only; a server is always 0. */
   sessions: number;
   iconUrl?: string;
@@ -122,6 +130,7 @@ export function PinnedSection({ pathname }: { pathname: string }) {
               flavor: entry.flavor,
               version: entry.gameVersion,
               running: sessions > 0,
+              ready: true,
               sessions,
               iconUrl: entry.iconUrl,
             },
@@ -136,6 +145,7 @@ export function PinnedSection({ pathname }: { pathname: string }) {
             flavor: entry.flavor,
             version: entry.gameVersion,
             running: entry.process?.state === 'running',
+            ready: entry.ready,
             sessions: 0,
             iconUrl: entry.iconUrl,
           },
@@ -154,6 +164,18 @@ export function PinnedSection({ pathname }: { pathname: string }) {
     if (pinned.length === pinnedEntries.length) return;
     saveRef.current(pinned.map(({ kind, id }) => ({ kind, id })));
   }, [ready, instances.data, servers.data, pinned, pinnedEntries]);
+
+  const { launch, isLaunching } = useLaunchDialog();
+  const startServer = useMutation(serverMutations.startAny());
+  const play = (pin: PinnedEntry) => {
+    if (pin.kind === 'server') return startServer.mutate(pin.id);
+    const instance = instanceList.find((i) => i.id === pin.id);
+    if (instance) launch(instance);
+  };
+  const isStarting = (pin: PinnedEntry) =>
+    pin.kind === 'server'
+      ? startServer.isPending && startServer.variables === pin.id
+      : isLaunching(pin.id);
 
   const reorder = usePinnedReorder(pinned, save);
   const nothingToPin = instanceList.length === 0 && serverList.length === 0;
@@ -239,6 +261,8 @@ export function PinnedSection({ pathname }: { pathname: string }) {
               entry={entry}
               pathname={pathname}
               reorder={reorder}
+              starting={isStarting(entry)}
+              onPlay={() => play(entry)}
             />
           ))}
         </Reorder.Group>
@@ -251,13 +275,20 @@ function PinnedRow({
   entry,
   pathname,
   reorder,
+  starting,
+  onPlay,
 }: {
   entry: ResolvedPin;
   pathname: string;
   reorder: ReturnType<typeof usePinnedReorder>;
+  starting: boolean;
+  onPlay: () => void;
 }) {
   const key = pinKey(entry);
   const dragging = reorder.isDragging(key);
+  const playable = entry.ready && !entry.running;
+  const playLabel =
+    entry.kind === 'server' ? m['app.action.start']() : m['app.action.play']();
 
   return (
     <Reorder.Item
@@ -270,11 +301,31 @@ function PinnedRow({
       onDragEnd={reorder.onDragEnd}
       onPointerDown={reorder.onPointerDown}
       onClickCapture={reorder.onClickCapture}
-      className="relative"
+      className="group/pin relative"
     >
       <EntryContextMenu entry={entry}>
-        <PinnedLink entry={entry} pathname={pathname} dragging={dragging} />
+        <PinnedLink
+          entry={entry}
+          pathname={pathname}
+          dragging={dragging}
+          className={cn(
+            playable && 'group-focus-within/pin:pr-8 group-hover/pin:pr-8',
+          )}
+        />
       </EntryContextMenu>
+      {/* Beside the link, not in it: a button nested in an anchor is invalid. */}
+      {playable && (
+        <button
+          type="button"
+          aria-label={playLabel}
+          title={playLabel}
+          disabled={starting}
+          onClick={onPlay}
+          className="absolute top-1/2 right-2.5 grid size-5 -translate-y-1/2 place-items-center text-muted-foreground opacity-0 transition-[opacity,color] outline-none group-hover/pin:opacity-100 hover:text-ember focus-visible:opacity-100 focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-40"
+        >
+          <PlayIcon weight="fill" className="size-3" />
+        </button>
+      )}
     </Reorder.Item>
   );
 }
@@ -325,7 +376,7 @@ function pinnedLinkClass(active: boolean, dragging: boolean) {
     'flex items-center gap-2.5 px-3 py-1.5 transition-colors outline-none focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-inset',
     active
       ? 'bg-muted text-foreground'
-      : 'text-muted-foreground hover:bg-muted/60',
+      : 'text-muted-foreground group-hover/pin:bg-muted/60',
     dragging && 'bg-muted shadow-lg',
   );
 }
