@@ -23,7 +23,7 @@ import {
   ViewToggle,
 } from '@/features/shared/entry/components';
 import { CreateEntryDialog } from '@/features/shared/entry/dialogs';
-import { useDropTarget } from '@/hooks/use-drop-target';
+import { useDropzone } from '@/hooks/use-dropzone';
 import { m } from '@/paraglide/messages.js';
 import { useAccounts } from '@/queries';
 import { instanceMutations, useInstances } from '@/queries/instance';
@@ -47,10 +47,11 @@ export function InstancesPage({
   const [creating, setCreating] = useState(false);
   const [importing, setImporting] = useState(false);
   const [dropped, setDropped] = useState('');
-  useDropTarget({
-    extensions: dialog.ARCHIVE_EXTENSIONS,
+  const { getRootProps } = useDropzone<HTMLDivElement>({
+    accept: dialog.ARCHIVE_EXTENSIONS,
+    multiple: false,
+    disabled: !signedIn,
     label: m['instance.import.drop'](),
-    enabled: signedIn,
     onDrop: ([archive]) => {
       setDropped(archive);
       setImporting(true);
@@ -84,6 +85,7 @@ export function InstancesPage({
 
   return (
     <Page
+      {...getRootProps()}
       title={m['app.nav.instances']()}
       subtitle={m['instance.subtitle']()}
       loading={!ready || (signedIn && instances.isPending)}

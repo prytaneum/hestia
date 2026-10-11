@@ -112,7 +112,7 @@ function ServerDetail({
   const info = useQuery(serverQueries.info(id));
   useAutoTour('server', Boolean(info.data));
   const config = useQuery(serverQueries.config(id));
-  const install = useEntryInstall(server.name, tab === 'content');
+  const install = useEntryInstall(server.name);
   const start = useMutation(serverMutations.start(id));
   const stop = useMutation(serverMutations.stop(id));
 
@@ -312,7 +312,11 @@ function ServerDetail({
           <ServerConsoleTab id={id} running={running} name={server.name} />
         </TabsContent>
 
-        <TabsContent value="content" className="flex flex-col p-5">
+        <TabsContent
+          {...install.getRootProps()}
+          value="content"
+          className="flex flex-col p-5"
+        >
           <ContentSection
             entry={{
               kind: 'server',

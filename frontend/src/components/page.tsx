@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import type { ReactNode, Ref } from 'react';
 
 import { useSearch } from '@/components/app-shell/search-context';
 import { SearchInput } from '@/components/search-input';
@@ -18,8 +18,10 @@ export function Page({
   actions,
   skeleton,
   loading = false,
+  ref,
   children,
 }: {
+  ref?: Ref<HTMLDivElement>;
   title: ReactNode;
   subtitle?: ReactNode;
   search?: boolean;
@@ -30,7 +32,7 @@ export function Page({
   children: ReactNode;
 }) {
   return (
-    <div className="flex h-full flex-col">
+    <div ref={ref} className="flex h-full flex-col">
       <div className="flex items-center gap-3 border-b border-border px-5 py-3">
         <div className="min-w-0">
           <h1 className="truncate font-heading text-base font-semibold">

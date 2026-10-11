@@ -21,7 +21,7 @@ import { type IconConfig, iconUrl } from '@/api/icons';
 import { AppDialog, DialogFooter } from '@/components/dialog';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
-import { useDropTarget } from '@/hooks/use-drop-target';
+import { useDropzone } from '@/hooks/use-dropzone';
 import { cn } from '@/lib/utils';
 import { m } from '@/paraglide/messages.js';
 import { iconMutations, iconQueries } from '@/queries/icons';
@@ -128,9 +128,10 @@ export function IconEditorDialog({
 
   // Only an existing entry can carry its own image; the create wizard has no
   // entry to record one against.
-  const dropping = useDropTarget({
-    extensions: dialog.IMAGE_EXTENSIONS,
-    enabled: open && Boolean(entryId),
+  const { getRootProps, isDragActive } = useDropzone<HTMLDivElement>({
+    accept: dialog.IMAGE_EXTENSIONS,
+    multiple: false,
+    disabled: !entryId,
     onDrop: ([image]) => applyCustomImage(image),
   });
 
@@ -190,14 +191,17 @@ export function IconEditorDialog({
       title={m['entry.icon.editor.title']()}
       description={m['entry.icon.editor.description']()}
     >
-      <div className="flex max-h-[30rem] min-h-0 flex-1 gap-4 overflow-hidden">
+      <div
+        {...getRootProps()}
+        className="flex max-h-[30rem] min-h-0 flex-1 gap-4 overflow-hidden"
+      >
         <aside className="flex w-44 shrink-0 flex-col gap-3 overflow-y-auto">
           <IconPreview
             config={config}
             customUrl={customUrl}
             className={cn(
               'size-32 self-center',
-              dropping && 'outline-2 outline-primary outline-dashed',
+              isDragActive && 'outline-2 outline-primary outline-dashed',
             )}
           />
 

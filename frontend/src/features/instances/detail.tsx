@@ -124,7 +124,7 @@ function InstanceDetail({
   useAutoTour('instance', Boolean(info.data));
   const config = useQuery(instanceQueries.config(id));
   const worlds = useQuery(instanceQueries.worlds(id));
-  const install = useEntryInstall(instance.name, tab === 'content');
+  const install = useEntryInstall(instance.name);
   const [exporting, setExporting] = useState(false);
   const [focus, setFocus] = useState<string | null>(null);
   const [logSession, setLogSession] = useState<string | null>(null);
@@ -382,7 +382,11 @@ function InstanceDetail({
           </div>
         </TabsContent>
 
-        <TabsContent value="content" className="flex flex-col p-5">
+        <TabsContent
+          {...install.getRootProps()}
+          value="content"
+          className="flex flex-col p-5"
+        >
           <ContentSection
             entry={{
               kind: 'instance',

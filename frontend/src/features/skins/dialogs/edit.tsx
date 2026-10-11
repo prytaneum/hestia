@@ -13,7 +13,7 @@ import {
   readTexturePath,
   TEXTURE_EXTENSIONS,
 } from '@/features/skins/lib';
-import { useDropTarget } from '@/hooks/use-drop-target';
+import { useDropzone } from '@/hooks/use-dropzone';
 import { cn } from '@/lib/utils';
 import { m } from '@/paraglide/messages.js';
 
@@ -71,9 +71,10 @@ export function EditSkinDialog({
     setTexture(await readTextureFile(file));
   };
 
-  const dropping = useDropTarget({
-    extensions: TEXTURE_EXTENSIONS,
-    enabled: open && adding,
+  const { getRootProps, isDragActive } = useDropzone<HTMLDivElement>({
+    accept: TEXTURE_EXTENSIONS,
+    multiple: false,
+    disabled: !adding,
     onDrop: ([path]) => {
       readTexturePath(path)
         .then(setTexture)
@@ -91,11 +92,11 @@ export function EditSkinDialog({
         adding ? m['skin.add_description']() : m['skin.edit_description']()
       }
     >
-      <DialogBody className="flex gap-4">
+      <DialogBody {...getRootProps()} className="flex gap-4">
         <div
           className={cn(
             'grid w-48 shrink-0 place-items-center self-stretch bg-muted/40 ring-1 ring-border',
-            dropping && 'ring-2 ring-primary',
+            isDragActive && 'ring-2 ring-primary',
           )}
         >
           {texture ? (

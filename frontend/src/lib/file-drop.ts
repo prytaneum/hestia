@@ -1,59 +1,74 @@
 /**
- * The one pipeline every dropped file goes through.
+ * The one pipeline every dropped file goes through, behaving as
+ * `react-dropzone` does: a dropzone is an element, and a drop goes to the
+ * innermost dropzone under the pointer that accepts the file. So nothing has to
+ * know about dialogs — an open one covers the page, and the page behind it is
+ * simply not what the pointer is over.
  *
- * The webview raises a single window-wide drag-drop event, so "which surface is
- * this drop for" cannot be answered by where the pointer is. It is answered
- * here instead: surfaces register as targets, and a drag is routed to the most
- * recently enabled one that accepts what is being dragged — a dialog opened
- * over a page takes the drop the page would otherwise get, and a file the
- * dialog does not take falls through to the page.
- *
- * Only this event yields a real path; a DOM drop hands back a sandboxed `File`.
+ * The library itself cannot be used here: a path only comes from the webview's
+ * own drag-drop event (a DOM drop hands back a sandboxed `File`), and that
+ * event is window-wide. It says where the pointer is, not what it is over, so
+ * the hit test is done by hand.
  */
 import { getCurrentWebview } from '@tauri-apps/api/webview';
 import { logger } from '@/lib/log';
 
 const log = logger('drop');
 
-export interface DropTarget {
+export interface Dropzone {
   /** Accepted file extensions, without the dot. */
-  extensions: readonly string[];
+  accept: readonly string[];
   onDrop: (paths: string[]) => void;
-  /** Shown on the window-wide overlay; a target without one highlights itself. */
+  /** False takes only the first accepted file. */
+  multiple: boolean;
+  /** Shown on the window-wide overlay; a zone without one highlights itself. */
   label?: string;
 }
 
+/** A pointer position in CSS pixels, relative to the viewport. */
+export interface Point {
+  x: number;
+  y: number;
+}
+
 export type DropEvent =
-  | { type: 'enter'; paths: string[] }
-  | { type: 'over' }
-  | { type: 'drop'; paths: string[] }
+  | { type: 'enter'; paths: string[]; position: Point }
+  | { type: 'over'; position: Point }
+  | { type: 'drop'; paths: string[]; position: Point }
   | { type: 'leave' };
 
-const targets: DropTarget[] = [];
+const zones = new WeakMap<Element, Dropzone>();
 const listeners = new Set<() => void>();
-let active: DropTarget | null = null;
+let active: Dropzone | null = null;
+// `over` repeats without paths; only `enter` knows what is being dragged.
+let dragged: string[] = [];
 
-function setActive(next: DropTarget | null): void {
+function setActive(next: Dropzone | null): void {
   if (active === next) return;
   active = next;
   for (const listener of listeners) listener();
 }
 
-function accepted(target: DropTarget, paths: string[]): string[] {
-  return paths.filter((path) => {
+function accepted(zone: Dropzone, paths: string[]): string[] {
+  const matching = paths.filter((path) => {
     const lower = path.toLowerCase();
-    return target.extensions.some((extension) =>
+    return zone.accept.some((extension) =>
       lower.endsWith(`.${extension.toLowerCase()}`),
     );
   });
+  return zone.multiple ? matching : matching.slice(0, 1);
 }
 
-function route(
+function hit(
+  position: Point,
   paths: string[],
-): { target: DropTarget; paths: string[] } | null {
-  for (let index = targets.length - 1; index >= 0; index -= 1) {
-    const matching = accepted(targets[index], paths);
-    if (matching.length > 0) return { target: targets[index], paths: matching };
+): { zone: Dropzone; paths: string[] } | null {
+  let element = document.elementFromPoint(position.x, position.y);
+  while (element) {
+    const zone = zones.get(element);
+    const matching = zone ? accepted(zone, paths) : [];
+    if (zone && matching.length > 0) return { zone, paths: matching };
+    element = element.parentElement;
   }
   return null;
 }
@@ -62,49 +77,59 @@ function route(
 export function dispatchDrop(event: DropEvent): void {
   switch (event.type) {
     case 'enter':
-      setActive(route(event.paths)?.target ?? null);
+      dragged = event.paths;
+      setActive(hit(event.position, dragged)?.zone ?? null);
+      return;
+    case 'over':
+      setActive(hit(event.position, dragged)?.zone ?? null);
       return;
     case 'leave':
+      dragged = [];
       setActive(null);
       return;
     case 'drop': {
-      const hit = route(event.paths);
+      const landed = hit(event.position, event.paths);
+      dragged = [];
       setActive(null);
-      if (hit) {
-        log.debug({ files: hit.paths.length }, 'files dropped');
-        hit.target.onDrop(hit.paths);
+      if (landed) {
+        log.debug({ files: landed.paths.length }, 'files dropped');
+        landed.zone.onDrop(landed.paths);
       }
       return;
     }
-    // `over` repeats without paths; only `enter` knows what is dragged.
-    case 'over':
-      return;
   }
 }
 
-/**
- * Put a target on top of the stack. Registration order is the priority, so a
- * surface registers when it becomes able to take a drop — not when it mounts.
- */
-export function registerDropTarget(target: DropTarget): () => void {
-  targets.push(target);
+/** Make an element a dropzone until the returned cleanup is called. */
+export function registerDropzone(element: Element, zone: Dropzone): () => void {
+  zones.set(element, zone);
   return () => {
-    const index = targets.indexOf(target);
-    if (index >= 0) targets.splice(index, 1);
-    if (active === target) setActive(null);
+    zones.delete(element);
+    if (active === zone) setActive(null);
   };
 }
 
-/** The target the current drag would land on, or null when nothing is dragged. */
-export function activeDropTarget(): DropTarget | null {
+/** The dropzone the current drag would land on, or null when there is none. */
+export function activeDropzone(): Dropzone | null {
   return active;
 }
 
-export function subscribeDropTarget(listener: () => void): () => void {
+export function subscribeDropzone(listener: () => void): () => void {
   listeners.add(listener);
   return () => {
     listeners.delete(listener);
   };
+}
+
+/**
+ * The webview reports the pointer in physical pixels on Windows and in logical
+ * ones on Linux, under the same type. `elementFromPoint` takes CSS pixels.
+ */
+function toCssPixels(position: Point): Point {
+  const scale = navigator.userAgent.includes('Windows')
+    ? window.devicePixelRatio
+    : 1;
+  return { x: position.x / scale, y: position.y / scale };
 }
 
 let started = false;
@@ -115,10 +140,15 @@ export function watchFileDrops(): void {
   started = true;
   getCurrentWebview()
     .onDragDropEvent(({ payload }) => {
-      if (payload.type === 'enter' || payload.type === 'drop') {
-        dispatchDrop({ type: payload.type, paths: payload.paths });
+      if (payload.type === 'leave') {
+        dispatchDrop({ type: 'leave' });
+        return;
+      }
+      const position = toCssPixels(payload.position);
+      if (payload.type === 'over') {
+        dispatchDrop({ type: 'over', position });
       } else {
-        dispatchDrop({ type: payload.type });
+        dispatchDrop({ type: payload.type, paths: payload.paths, position });
       }
     })
     .catch((error) => log.warn('cannot listen for dropped files', error));

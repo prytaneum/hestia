@@ -23,7 +23,7 @@ import {
   PickRow,
   PickRowSkeleton,
 } from '@/features/shared/content/components';
-import { useDropTarget } from '@/hooks/use-drop-target';
+import { useDropzone } from '@/hooks/use-dropzone';
 import { cn } from '@/lib/utils';
 import { m } from '@/paraglide/messages.js';
 import { contentQueries, isContentUrl } from '@/queries/content';
@@ -223,18 +223,19 @@ function FileImportButton({
   const stage = async (paths: string[]) => {
     if (paths.length > 0) onFiles(await inspectFiles(paths));
   };
-  const over = useDropTarget({
-    extensions: dialog.CONTENT_EXTENSIONS,
+  const { getRootProps, isDragActive } = useDropzone<HTMLButtonElement>({
+    accept: dialog.CONTENT_EXTENSIONS,
     onDrop: stage,
   });
 
   return (
     <button
+      {...getRootProps()}
       type="button"
       onClick={async () => stage(await dialog.pickContentFiles())}
       className={cn(
         'mb-2 flex w-full items-center gap-3 border border-dashed border-border p-3 text-left outline-none transition-colors hover:bg-muted/60 focus-visible:ring-1 focus-visible:ring-ring',
-        over && 'border-primary bg-muted/60',
+        isDragActive && 'border-primary bg-muted/60',
       )}
     >
       <UploadSimpleIcon className="size-4 shrink-0 text-muted-foreground" />

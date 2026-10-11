@@ -1,19 +1,32 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
-  activeDropTarget,
-  type DropTarget,
+  activeDropzone,
+  type Dropzone,
   dispatchDrop,
-  registerDropTarget,
-  subscribeDropTarget,
+  registerDropzone,
+  subscribeDropzone,
 } from '@/lib/file-drop';
 
 const cleanups: (() => void)[] = [];
+const position = { x: 10, y: 10 };
 
-function target(extensions: string[], label?: string) {
+function element(parent: Element = document.body): HTMLElement {
+  const created = document.createElement('div');
+  parent.appendChild(created);
+  cleanups.push(() => created.remove());
+  return created;
+}
+
+function zone(on: Element, accept: string[], options: Partial<Dropzone> = {}) {
   const onDrop = vi.fn();
-  const registered: DropTarget = { extensions, onDrop, label };
-  cleanups.push(registerDropTarget(registered));
+  const registered: Dropzone = { accept, onDrop, multiple: true, ...options };
+  cleanups.push(registerDropzone(on, registered));
   return { registered, onDrop };
+}
+
+/** Put the pointer over an element, as far as the hit test can tell. */
+function pointAt(target: Element | null): void {
+  document.elementFromPoint = vi.fn(() => target);
 }
 
 afterEach(() => {
@@ -22,69 +35,102 @@ afterEach(() => {
 });
 
 describe('file-drop pipeline', () => {
-  it('hands a drop to the target that accepts it, with only the matching paths', () => {
-    const archives = target(['mrpack', 'zip']);
+  it('hands a drop to the zone under the pointer, with only the accepted paths', () => {
+    const root = element();
+    const archives = zone(root, ['mrpack', 'zip']);
+    pointAt(element(root));
 
-    dispatchDrop({ type: 'drop', paths: ['/a/pack.MRPACK', '/a/notes.txt'] });
+    dispatchDrop({
+      type: 'drop',
+      paths: ['/a/pack.MRPACK', '/a/notes.txt'],
+      position,
+    });
 
     expect(archives.onDrop).toHaveBeenCalledWith(['/a/pack.MRPACK']);
   });
 
-  it('routes to the most recently registered target', () => {
-    const page = target(['zip']);
-    const dialog = target(['zip']);
+  it('takes only the first accepted file when the zone is not multiple', () => {
+    const root = element();
+    const archives = zone(root, ['zip'], { multiple: false });
+    pointAt(root);
 
-    dispatchDrop({ type: 'drop', paths: ['/a/pack.zip'] });
+    dispatchDrop({ type: 'drop', paths: ['/a/one.zip', '/a/two.zip'], position });
 
-    expect(dialog.onDrop).toHaveBeenCalledOnce();
+    expect(archives.onDrop).toHaveBeenCalledWith(['/a/one.zip']);
+  });
+
+  it('prefers the innermost zone', () => {
+    const outer = element();
+    const inner = element(outer);
+    const page = zone(outer, ['zip']);
+    const button = zone(inner, ['zip']);
+    pointAt(inner);
+
+    dispatchDrop({ type: 'drop', paths: ['/a/pack.zip'], position });
+
+    expect(button.onDrop).toHaveBeenCalledOnce();
     expect(page.onDrop).not.toHaveBeenCalled();
   });
 
-  it('falls through to a lower target when the top one does not take the file', () => {
-    const page = target(['mrpack']);
-    const dialog = target(['jar']);
+  it('bubbles to an outer zone when the inner one does not take the file', () => {
+    const outer = element();
+    const inner = element(outer);
+    const page = zone(outer, ['mrpack']);
+    const button = zone(inner, ['jar']);
+    pointAt(inner);
 
-    dispatchDrop({ type: 'drop', paths: ['/a/pack.mrpack'] });
+    dispatchDrop({ type: 'drop', paths: ['/a/pack.mrpack'], position });
 
     expect(page.onDrop).toHaveBeenCalledWith(['/a/pack.mrpack']);
-    expect(dialog.onDrop).not.toHaveBeenCalled();
+    expect(button.onDrop).not.toHaveBeenCalled();
   });
 
-  it('drops nothing when no target accepts the files', () => {
-    const archives = target(['mrpack']);
+  it('never reaches a zone the pointer is not over', () => {
+    const page = zone(element(), ['zip']);
+    // A dialog is a sibling subtree portaled over the page.
+    pointAt(element());
 
-    dispatchDrop({ type: 'drop', paths: ['/a/photo.png'] });
+    dispatchDrop({ type: 'drop', paths: ['/a/pack.zip'], position });
 
-    expect(archives.onDrop).not.toHaveBeenCalled();
+    expect(page.onDrop).not.toHaveBeenCalled();
   });
 
-  it('names the target a drag would land on until the drag ends', () => {
-    const page = target(['zip'], 'Drop to import');
+  it('follows the pointer between zones while dragging', () => {
+    const left = element();
+    const right = element();
+    const first = zone(left, ['zip'], { label: 'Drop to import' });
+    const second = zone(right, ['zip']);
     const changed = vi.fn();
-    cleanups.push(subscribeDropTarget(changed));
+    cleanups.push(subscribeDropzone(changed));
 
-    dispatchDrop({ type: 'enter', paths: ['/a/pack.zip'] });
-    expect(activeDropTarget()).toBe(page.registered);
+    pointAt(left);
+    dispatchDrop({ type: 'enter', paths: ['/a/pack.zip'], position });
+    expect(activeDropzone()).toBe(first.registered);
 
-    dispatchDrop({ type: 'over' });
-    expect(activeDropTarget()).toBe(page.registered);
+    pointAt(right);
+    dispatchDrop({ type: 'over', position });
+    expect(activeDropzone()).toBe(second.registered);
 
     dispatchDrop({ type: 'leave' });
-    expect(activeDropTarget()).toBeNull();
-    expect(changed).toHaveBeenCalledTimes(2);
+    expect(activeDropzone()).toBeNull();
+    expect(changed).toHaveBeenCalledTimes(3);
   });
 
-  it('stops routing to a target once it is unregistered', () => {
-    const page = target(['zip']);
+  it('stops routing to a zone once it is unregistered', () => {
+    const root = element();
     const onDrop = vi.fn();
-    const unregister = registerDropTarget({ extensions: ['zip'], onDrop });
+    const unregister = registerDropzone(root, {
+      accept: ['zip'],
+      onDrop,
+      multiple: true,
+    });
+    pointAt(root);
 
-    dispatchDrop({ type: 'enter', paths: ['/a/pack.zip'] });
+    dispatchDrop({ type: 'enter', paths: ['/a/pack.zip'], position });
     unregister();
-    expect(activeDropTarget()).toBeNull();
+    expect(activeDropzone()).toBeNull();
 
-    dispatchDrop({ type: 'drop', paths: ['/a/pack.zip'] });
+    dispatchDrop({ type: 'drop', paths: ['/a/pack.zip'], position });
     expect(onDrop).not.toHaveBeenCalled();
-    expect(page.onDrop).toHaveBeenCalledOnce();
   });
 });

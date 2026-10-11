@@ -35,7 +35,7 @@ import {
   ViewToggle,
 } from '@/features/shared/entry/components';
 import { CreateEntryDialog } from '@/features/shared/entry/dialogs';
-import { useDropTarget } from '@/hooks/use-drop-target';
+import { useDropzone } from '@/hooks/use-dropzone';
 import { m } from '@/paraglide/messages.js';
 import { useAccounts } from '@/queries';
 import { instanceMutations, useInstances } from '@/queries/instance';
@@ -84,10 +84,11 @@ export function LibraryPage({
     },
     [signedIn],
   );
-  useDropTarget({
-    extensions: dialog.ARCHIVE_EXTENSIONS,
+  const { getRootProps } = useDropzone<HTMLDivElement>({
+    accept: dialog.ARCHIVE_EXTENSIONS,
+    multiple: false,
+    disabled: !signedIn,
     label: m['instance.import.drop'](),
-    enabled: signedIn,
     onDrop: ([archive]) => openImport(archive),
   });
   // A `.hestia` file opened from the file manager lands here too — the shell
@@ -156,6 +157,7 @@ export function LibraryPage({
 
   return (
     <Page
+      {...getRootProps()}
       title={m['app.nav.library']()}
       subtitle={m['library.subtitle']()}
       loading={loading}

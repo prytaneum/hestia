@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Field, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Spinner } from '@/components/ui/spinner';
-import { useDropTarget } from '@/hooks/use-drop-target';
+import { useDropzone } from '@/hooks/use-dropzone';
 import { cn } from '@/lib/utils';
 import { toastWarnings } from '@/lib/warnings';
 import { m } from '@/paraglide/messages.js';
@@ -67,9 +67,9 @@ export function ImportInstanceDialog({
     if (picked) select(picked);
   };
 
-  const dropping = useDropTarget({
-    extensions: dialog.ARCHIVE_EXTENSIONS,
-    enabled: open,
+  const { getRootProps, isDragActive } = useDropzone<HTMLDivElement>({
+    accept: dialog.ARCHIVE_EXTENSIONS,
+    multiple: false,
     onDrop: ([archive]) => select(archive),
   });
 
@@ -103,12 +103,12 @@ export function ImportInstanceDialog({
       title={m['instance.import.title']()}
       description={m['instance.import.description']()}
     >
-      <DialogBody className="flex flex-col gap-4">
+      <DialogBody {...getRootProps()} className="flex flex-col gap-4">
         <Button
           variant="outline"
           className={cn(
             'h-auto justify-start gap-3 py-3 text-left',
-            dropping && 'border-primary border-dashed bg-primary/5',
+            isDragActive && 'border-primary border-dashed bg-primary/5',
           )}
           onClick={choose}
         >

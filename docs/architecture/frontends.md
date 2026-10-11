@@ -264,14 +264,16 @@ Rules that keep it from drifting:
   browse pages and the entry content tabs resolve against. Everything else is
   one-directional — `library → instances`, `instances → content`,
   `servers → content` — so the feature graph is acyclic.
-- **A dropped file goes through one pipeline** (`lib/file-drop`). The webview
-  raises a single window-wide drag-drop event, so no surface listens for it
-  itself: bootstrap starts the one listener, a surface registers with
-  `useDropTarget({ extensions, onDrop, enabled, label })`, and the drop goes to
-  the most recently enabled target that accepts the file — a dialog over a page
-  wins, and a file it does not take falls through to the page. A target with a
-  `label` gets the shell's `FileDropOverlay`; one without highlights itself from
-  the boolean the hook returns.
+- **A dropped file goes through one pipeline** (`lib/file-drop`), shaped like
+  `react-dropzone`: `useDropzone({ accept, onDrop, multiple, disabled, label })`
+  returns `getRootProps()` to spread on the element that takes the drop and
+  `isDragActive` to highlight it. The drop goes to the innermost dropzone under
+  the pointer that accepts the file, so an open dialog shields the page behind
+  it with no rule of its own. The library itself does not fit: only the
+  webview's window-wide drag-drop event carries a real path, and the daemon is
+  handed paths, not bytes — so bootstrap starts that one listener and the
+  pipeline hit-tests the pointer by hand. A zone with a `label` gets the shell's
+  `FileDropOverlay`.
 
 ## Two kinds of offline
 
