@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
 import type { ImportFormat } from '@/api';
-import { dialog, errorMessage } from '@/api';
+import { dialog, errorMessage, errorMessageFromInfo } from '@/api';
 import { AppDialog, DialogBody, DialogFooter } from '@/components/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -73,7 +73,7 @@ export function ImportInstanceDialog({
           );
           for (const failure of done.failures) {
             toast.error(failure.title, {
-              description: errorMessage(failure.error),
+              description: errorMessageFromInfo(failure.error),
             });
           }
           toastWarnings(done.warnings);
