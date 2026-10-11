@@ -46,7 +46,9 @@ The same rule reaches the two other ways bytes arrive without a source:
 - **A CurseForge zip read off disk installs.** Its manifest names files by id,
   so the archive hands it to the platform (`ContentProvider::resolve_manifest`)
   and the answer is an ordinary resolved pack. It needs CurseForge configured,
-  and says so when it is not.
+  and says so when it is not. The pack itself stays without an update path:
+  CurseForge's fingerprint endpoint matches mod files but not pack archives
+  (checked against the live API), so the zip cannot be tied to its release.
 - **A Prism/MultiMC import's jars are looked up after they are adopted.** The
   format module stays a parse and a file copy; the flow runs the hash lookup
   over the pool it produced, and `ImportFilesUntracked` names only what no

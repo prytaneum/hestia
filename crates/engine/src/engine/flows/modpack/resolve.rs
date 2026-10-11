@@ -139,7 +139,10 @@ impl Engine {
                 Some((source, manifest)) => {
                     self.content.resolve_manifest(source, &manifest).await?
                 }
-                None => archive.index()?,
+                None => ResolvedModpack {
+                    source: LOCAL_SOURCE.to_string(),
+                    ..archive.index()?
+                },
             };
             let project = self.published_pack(path, &mut resolved).await;
             if resolved.name.is_empty() {
@@ -190,13 +193,13 @@ impl Engine {
 
     /// Stamp a pack read off disk with the release a source recognises its
     /// archive as, by hash, so it updates like one installed from that source.
-    /// An archive no source published stays a local pack.
+    /// An archive no source published keeps the source its manifest came
+    /// with and no project, which is what leaves it without an update path.
     async fn published_pack(
         &self,
         path: &Path,
         resolved: &mut ResolvedModpack,
     ) -> Option<ContentProject> {
-        resolved.source = LOCAL_SOURCE.to_string();
         let file = match LocalFile::read(path) {
             Ok(file) => file,
             Err(e) => {
