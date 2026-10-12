@@ -11,7 +11,6 @@ import {
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { m } from '@/paraglide/messages.js';
-import { consoleCommands, pushConsoleCommand } from '@/queries/console';
 import { serverQueries } from '@/queries/server';
 
 const LAST_WORD = /\S*$/;
@@ -62,9 +61,6 @@ export function ConsoleInput({
   const [cycle, setCycle] = useState<{ words: string[]; at: number } | null>(
     null,
   );
-  const [recall, setRecall] = useState<{ at: number; draft: string } | null>(
-    null,
-  );
   const [dismissed, setDismissed] = useState(false);
   const input = useRef<HTMLInputElement>(null);
   const listId = useId();
@@ -72,12 +68,11 @@ export function ConsoleInput({
   const edit = (next: string | ((typed: string) => string)) => {
     setLine(next);
     setCycle(null);
-    setRecall(null);
     setDismissed(false);
   };
   useTypeToFocus(input, (character) => edit((typed) => typed + character));
 
-  const asking = running && line.trim() !== '' && !cycle && !recall;
+  const asking = running && line.trim() !== '' && !cycle;
   const offered = useQuery({
     ...serverQueries.complete(id, line),
     enabled: asking,
@@ -102,30 +97,13 @@ export function ConsoleInput({
     choose(cycle ? (cycle.at + delta + words.length) % words.length : first);
   };
 
-  const recallStep = (delta: 1 | -1) => {
-    const sent = consoleCommands(id);
-    const at = recall ? recall.at + delta : sent.length - 1;
-    if ((!recall && delta > 0) || at < 0) return;
-    setCycle(null);
-    if (at >= sent.length) {
-      setLine(recall?.draft ?? '');
-      setRecall(null);
-      return;
-    }
-    setLine(sent[at]);
-    setRecall({ at, draft: recall?.draft ?? line });
-  };
-
   const onKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
     const cycling = open && words.length > 0 && !stale;
-    if (event.key === 'Tab' && cycling) {
+    const forward = event.key === 'ArrowDown' || event.key === 'Tab';
+    const back = event.key === 'ArrowUp';
+    if (cycling && (forward || back)) {
       event.preventDefault();
-      step(event.shiftKey ? -1 : 1);
-    } else if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
-      event.preventDefault();
-      const delta = event.key === 'ArrowDown' ? 1 : -1;
-      if (cycling) step(delta);
-      else recallStep(delta);
+      step(back || event.shiftKey ? -1 : 1);
     } else if (event.key === 'Escape' && open) {
       event.stopPropagation();
       setCycle(null);
@@ -136,7 +114,6 @@ export function ConsoleInput({
   const send = () => {
     const command = line.trim();
     if (!command) return;
-    pushConsoleCommand(id, command);
     edit('');
     onSend(command);
   };
