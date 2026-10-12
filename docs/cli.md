@@ -99,6 +99,20 @@ hestia server smp config set backup-interval 6h  # archive the running server
                                  #   on a schedule (m/h/d units; empty
                                  #   disables); scheduled archives beyond
                                  #   backup-retention (default 7) are pruned
+hestia server smp files ls [dir] # the game directory as a tree; paths are
+                                 #   relative to it and never leave it
+hestia server smp files cat server.properties
+hestia server smp files edit plugins/Essentials/config.yml  # $VISUAL/$EDITOR,
+                                 #   saved back if it changed
+hestia server smp files write ops.json < ops.json  # create or replace from
+                                 #   stdin (text, up to 2 MiB)
+hestia server smp files mkdir|mv|cp|rm …  # rm takes several paths; mv and cp
+                                 #   never replace what is already there
+hestia server smp files upload ./plugin.jar --to plugins  # copy local files
+                                 #   or directories in, replacing same names
+hestia server smp files zip world -o world.zip  # archive files or directories
+hestia server smp files unzip world.zip --to restored  # .zip or .tar.gz;
+                                 #   beside the archive when --to is omitted
 hestia server smp start          # immediate spawn, then attaches the console
                                  #   (-d/--detach returns immediately)
 hestia server smp attach         # interactive console: live logs, type to send
