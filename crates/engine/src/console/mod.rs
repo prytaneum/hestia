@@ -3,7 +3,7 @@
 
 mod complete;
 
-pub use complete::{alias, candidates, Typed};
+pub use complete::{candidates, is_end, redirect, Typed};
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};

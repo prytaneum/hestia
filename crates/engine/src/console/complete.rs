@@ -59,13 +59,29 @@ pub fn candidates(usage: &str, words: &str) -> Candidates {
     found
 }
 
-pub fn alias<'a>(root: &'a str, word: &str) -> Option<&'a str> {
-    following(root, "").find_map(|rest| {
-        let mut parts = rest.split_whitespace();
-        (parts.next() == Some(word) && parts.next() == Some("->"))
-            .then(|| parts.next())
-            .flatten()
-    })
+/// `tp -> teleport` redirects to a command, `run ...` to the root (an empty path).
+pub fn redirect<'a>(usage: &'a str, words: &str, word: &str) -> Option<&'a str> {
+    let mut through_argument = None;
+    for rest in following(usage, words) {
+        let parts: Vec<&str> = rest.split_whitespace().collect();
+        let target = match parts[..] {
+            [_, "->", target] => target,
+            [_, "..."] => "",
+            _ => continue,
+        };
+        if parts[0] == word {
+            return Some(target);
+        }
+        if parts[0].starts_with('<') {
+            through_argument = Some(target);
+        }
+    }
+    through_argument
+}
+
+/// A redirecting word is the last its own usage describes.
+pub fn is_end(usage: &str, words: &str) -> bool {
+    following(usage, words).next().is_none()
 }
 
 fn following<'a>(usage: &'a str, words: &str) -> impl Iterator<Item = &'a str> {
@@ -109,14 +125,32 @@ mod tests {
     }
 
     #[test]
+    fn a_redirect_is_followed_through_a_word_or_an_argument() {
+        let root = "/ban <targets> [<reason>]/xp -> experience";
+        assert_eq!(redirect(root, "", "xp"), Some("experience"));
+        assert_eq!(redirect(root, "", "ban"), None);
+
+        let execute = "/execute run .../execute as <targets> -> execute/execute if (block|biome)";
+        assert_eq!(redirect(execute, "execute", "run"), Some(""));
+        assert_eq!(redirect(execute, "execute", "as"), None);
+
+        let positioned =
+            "/execute positioned ~ <pos> -> execute/execute positioned ~ as <targets> -> execute";
+        assert_eq!(
+            redirect(positioned, "execute positioned ~", "~"),
+            Some("execute")
+        );
+        assert!(is_end("", "execute as @a"));
+        assert!(!is_end(positioned, "execute positioned ~"));
+    }
+
+    #[test]
     fn candidates_are_read_from_an_unbroken_reply() {
         let root = "/advancement (grant|revoke)/ban <targets> [<reason>]/xp -> experience";
         assert_eq!(
             candidates(root, "").literals,
             set(&["advancement", "ban", "xp"])
         );
-        assert_eq!(alias(root, "xp"), Some("experience"));
-        assert_eq!(alias(root, "ban"), None);
 
         let time = "/time set (<time>|day)/time add <time>/time pause";
         let found = candidates(time, "time");

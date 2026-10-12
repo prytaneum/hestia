@@ -26,16 +26,22 @@ impl Engine {
         let Some(typed) = Typed::parse(line) else {
             return Ok(ServerCommandCompleteResult::default());
         };
-        let mut words = typed.words.clone();
-        let root = match words.is_empty() {
-            true => String::new(),
-            false => self.consoles.usage(&id, &rcon, "").await?,
-        };
-        if let Some(command) = words.first_mut() {
-            *command = console::alias(&root, command).unwrap_or(*command);
+        let mut words = String::new();
+        let mut usage = self.consoles.usage(&id, &rcon, "").await?;
+        for word in &typed.words {
+            let through = format!("{words} {word}");
+            let through = through.trim_start();
+            let after = self.consoles.usage(&id, &rcon, through).await?;
+            let target = console::redirect(&usage, &words, word)
+                .filter(|_| console::is_end(&after, through));
+            (words, usage) = match target {
+                Some(target) => {
+                    let usage = self.consoles.usage(&id, &rcon, target).await?;
+                    (target.to_string(), usage)
+                }
+                None => (through.to_string(), after),
+            };
         }
-        let words = words.join(" ");
-        let usage = self.consoles.usage(&id, &rcon, &words).await?;
         let mut found = console::candidates(&usage, &words);
         if PLAYER_ARGUMENTS
             .iter()

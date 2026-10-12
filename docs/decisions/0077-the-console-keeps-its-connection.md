@@ -25,6 +25,12 @@ replies join their lines with nothing between them, so usages split on `/`; and
 a Bukkit server answers `help` with its own index, so `minecraft:help` is tried
 first.
 
+A redirect (`tp -> teleport`, `execute as <targets> -> execute`, `execute run
+...`) is followed by asking again: once the word that redirects has no usage of
+its own, the walk restarts from the target the previous usage named. Waiting for
+that empty reply is what lets an argument spanning several words (`~ ~ ~`)
+redirect only when it is complete.
+
 `server.command.complete` has no CLI verb of its own
 ([0041](0041-every-capability-gets-a-verb.md)): it answers a line still being
 typed, so it is reached only from the interactive `attach` console and the
@@ -34,4 +40,4 @@ desktop's console tab.
 only for vanilla commands, costs a generator run per version, and would still
 need a hardcoded value table per type. **Known limit:** an argument is offered
 as its placeholder (`<gamemode>`), except a player argument, which offers who is
-online; a redirect past the first word (`execute as … run`) is not followed.
+online.
