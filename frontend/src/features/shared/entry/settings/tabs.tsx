@@ -32,7 +32,7 @@ export function SettingsTabs({ tabs }: { tabs: SettingsTabDef[] }) {
           </TabsChip>
         ))}
       </TabsList>
-      <div className="max-w-2xl py-6">
+      <div className="max-w-2xl pt-4 pb-6">
         {tabs.map((tab) => (
           <TabsContent key={tab.id} value={tab.id}>
             <FieldGroup className="gap-8">{tab.content}</FieldGroup>
