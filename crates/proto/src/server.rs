@@ -355,6 +355,43 @@ pub struct ServerConfigGetResult {
     pub value: String,
 }
 
+/// One `server.properties` key as this server's version defines it. The key
+/// set is the server's own — it moves with the game version — so a front-end
+/// renders what it is handed and knows no key by name.
+#[derive(Serialize, Deserialize, Default, Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
+#[serde(default, rename_all = "camelCase")]
+pub struct ServerProperty {
+    pub key: String,
+    pub value: String,
+    /// What the server itself writes for this key; absent for a key its
+    /// version does not define, or before a schema has been derived.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub default: Option<String>,
+    /// Owned by hestia; a write to it is refused.
+    pub managed: bool,
+    /// A credential, sent blank.
+    pub secret: bool,
+    /// Pinned by another setting right now (hardcore fixes the difficulty and
+    /// the gamemode); a write to it is refused until that one changes.
+    pub locked: bool,
+}
+
+#[derive(Serialize, Deserialize, Default, Debug, Clone)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
+#[serde(default, rename_all = "camelCase")]
+pub struct ServerPropertiesResult {
+    /// Ordered by key.
+    pub properties: Vec<ServerProperty>,
+}
+
+pub struct ServerProperties;
+impl Contract for ServerProperties {
+    const CHANNEL: &'static str = "server.properties";
+    type Params = ServerRef;
+    type Result = ServerPropertiesResult;
+}
+
 pub struct ServerConfigGet;
 impl Contract for ServerConfigGet {
     const CHANNEL: &'static str = "server.config.get";

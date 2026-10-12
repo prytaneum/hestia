@@ -145,6 +145,15 @@ not a create failure — and a server with no schema accepts any unmanaged key
 rather than rejecting every one
 ([0025](../decisions/0025-properties-schema-is-generated.md)).
 
+The same rule holds for showing them. `server.properties` (the channel) lists
+the union of the schema's keys and the live file's, each with the value in
+effect, the version's own default, and three flags the daemon alone can answer:
+`managed` (hestia owns it), `secret` (a credential, sent blank) and `locked`
+(pinned right now by another setting — hardcore fixes the difficulty and the
+gamemode). A front-end renders that list as given and picks a control from the
+shape of the default; it holds no table of keys, so a version that adds or
+drops one needs no change anywhere.
+
 ## Launching an instance
 
 An instance is the opposite trade: cheap to create, paying at launch.

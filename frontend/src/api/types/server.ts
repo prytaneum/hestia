@@ -17,6 +17,8 @@ export type { ServerInfo } from "./generated/ServerInfo";
 export type { ServerListResult } from "./generated/ServerListResult";
 export type { ServerLogsParams } from "./generated/ServerLogsParams";
 export type { ServerPingResult } from "./generated/ServerPingResult";
+export type { ServerPropertiesResult } from "./generated/ServerPropertiesResult";
+export type { ServerProperty } from "./generated/ServerProperty";
 export type { ServerRef } from "./generated/ServerRef";
 export type { ServerRenameParams } from "./generated/ServerRenameParams";
 export type { ServerStartResult } from "./generated/ServerStartResult";

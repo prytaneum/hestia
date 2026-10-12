@@ -9,8 +9,9 @@ use proto::server::{
     ServerCommand, ServerCommandResult, ServerConfigGet, ServerConfigGetResult, ServerConfigList,
     ServerConfigListResult, ServerConfigSet, ServerCreate, ServerCreateResult, ServerDetail,
     ServerFlavors, ServerList, ServerListResult, ServerLoaders, ServerLogs, ServerPing,
-    ServerRemove, ServerRename, ServerResolve, ServerStart, ServerStartResult, ServerStatus,
-    ServerStop, ServerUpdate, ServerUpdateResult, ServerVersions,
+    ServerProperties, ServerPropertiesResult, ServerRemove, ServerRename, ServerResolve,
+    ServerStart, ServerStartResult, ServerStatus, ServerStop, ServerUpdate, ServerUpdateResult,
+    ServerVersions,
 };
 use proto::Empty;
 
@@ -262,5 +263,16 @@ pub(super) fn register(on: &mut Channels<'_>) {
             .map(|(key, value)| ConfigEntry { key, value })
             .collect();
         Ok(ServerConfigListResult { entries })
+    });
+
+    on.handle::<ServerProperties, _, _>(|p, ctx| async move {
+        let record = server_for(&ctx, &p.server, Intent::Read)?;
+        let properties = ctx
+            .runtime
+            .engine()
+            .servers()
+            .properties(&record.id)
+            .map_err(crate::runtime::engine_error)?;
+        Ok(ServerPropertiesResult { properties })
     });
 }

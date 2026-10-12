@@ -24,10 +24,10 @@ use proto::server::{
     ServerCommand, ServerCommandParams, ServerConfigGet, ServerConfigGetParams, ServerConfigList,
     ServerConfigSet, ServerConfigSetParams, ServerCreate, ServerCreateDoneEvent,
     ServerCreateParams, ServerDetail, ServerDetails, ServerFlavors, ServerInfo, ServerList,
-    ServerLoaders, ServerLogs, ServerLogsParams, ServerPing, ServerPingResult, ServerRef,
-    ServerRemove, ServerRename, ServerRenameParams, ServerResolve, ServerStart, ServerStartResult,
-    ServerStatus, ServerStop, ServerUpdate, ServerUpdateDoneEvent, ServerUpdateParams,
-    ServerVersions,
+    ServerLoaders, ServerLogs, ServerLogsParams, ServerPing, ServerPingResult, ServerProperties,
+    ServerProperty, ServerRef, ServerRemove, ServerRename, ServerRenameParams, ServerResolve,
+    ServerStart, ServerStartResult, ServerStatus, ServerStop, ServerUpdate, ServerUpdateDoneEvent,
+    ServerUpdateParams, ServerVersions,
 };
 
 pub struct Server<'a> {
@@ -293,6 +293,16 @@ impl Server<'_> {
             .call::<ServerConfigList>(&server_ref(server))
             .await?
             .entries)
+    }
+
+    /// Every `server.properties` key the server's version defines, with the
+    /// value in effect.
+    pub async fn properties(&self, server: &str) -> Result<Vec<ServerProperty>, IpcError> {
+        Ok(self
+            .session
+            .call::<ServerProperties>(&server_ref(server))
+            .await?
+            .properties)
     }
 
     /// Install a batch of content into a server, blocking until the daemon

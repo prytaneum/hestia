@@ -6,12 +6,13 @@
 //! `configs/`, `backups/`); every directory appears on demand. Listing scans
 //! the parent — the disk is the registry.
 
-use std::collections::HashSet;
+use std::collections::{BTreeSet, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
 use anyhow::{bail, Context, Result};
 use proto::minecraft::{ProvisionPhase, ProvisionProgress, ServerProfile};
+use proto::server::ServerProperty;
 use serde::{Deserialize, Serialize};
 
 use crate::backup::BackupSettings;
@@ -40,6 +41,9 @@ const GENERATE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(60)
 /// `server.properties` keys hestia owns; a `config set` to any of them is
 /// rejected (the game port is fixed at create, rcon is configured at start).
 const MANAGED_PROPERTIES: &[&str] = &["server-port", "enable-rcon", "rcon.port", "rcon.password"];
+
+/// Never sent to a front-end: nothing there needs the console's credential.
+const SECRET_PROPERTIES: &[&str] = &["rcon.password"];
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -650,6 +654,19 @@ impl Servers {
         entries.extend(read_properties(&self.data_dir(&record).join(PROPERTIES)));
         Ok(entries)
     }
+
+    /// Every `server.properties` key this server knows: the ones its version's
+    /// schema defines, plus any the live file carries beyond it, each with the
+    /// value in effect.
+    pub fn properties(&self, id: &str) -> Result<Vec<ServerProperty>> {
+        let record = self
+            .get(id)
+            .with_context(|| format!("unknown server: {id}"))?;
+        Ok(describe_properties(
+            &read_properties(&self.data_dir(&record).join(PROPERTIES)),
+            &read_properties(&self.schema_path(&record)),
+        ))
+    }
 }
 
 /// Fetch the server's launchable jar into its data directory.
@@ -694,6 +711,39 @@ fn read_properties(path: &Path) -> Vec<(String, String)> {
         .collect()
 }
 
+/// The union of the schema's keys and the live file's, ordered by key, each
+/// with the live value (the schema's default when the file has none).
+fn describe_properties(
+    live: &[(String, String)],
+    schema: &[(String, String)],
+) -> Vec<ServerProperty> {
+    let value_of = |pairs: &[(String, String)], key: &str| {
+        pairs.iter().find(|(k, _)| k == key).map(|(_, v)| v.clone())
+    };
+    let hardcore = value_of(live, "hardcore").is_some_and(|v| prop_is_true(&v));
+    let keys: BTreeSet<&String> = schema.iter().chain(live).map(|(key, _)| key).collect();
+
+    keys.into_iter()
+        .map(|key| {
+            let default = value_of(schema, key);
+            let secret = SECRET_PROPERTIES.contains(&key.as_str());
+            ServerProperty {
+                key: key.clone(),
+                value: match secret {
+                    true => String::new(),
+                    false => value_of(live, key)
+                        .or_else(|| default.clone())
+                        .unwrap_or_default(),
+                },
+                default: default.filter(|_| !secret),
+                managed: MANAGED_PROPERTIES.contains(&key.as_str()),
+                secret,
+                locked: hardcore && HARDCORE_PINNED.contains(&key.as_str()),
+            }
+        })
+        .collect()
+}
+
 fn read_property(path: &Path, key: &str) -> Option<String> {
     read_properties(path)
         .into_iter()
@@ -704,6 +754,9 @@ fn read_property(path: &Path, key: &str) -> Option<String> {
 /// The `server.properties` keys hardcore mode interlocks: enabling it forces
 /// `difficulty=hard` and `gamemode=survival`.
 const HARDCORE_KEYS: &[&str] = &["hardcore", "difficulty", "gamemode"];
+
+/// The two of those hardcore fixes while it is on.
+const HARDCORE_PINNED: &[&str] = &["difficulty", "gamemode"];
 
 fn prop_is_true(value: &str) -> bool {
     value.trim().eq_ignore_ascii_case("true")
@@ -846,6 +899,50 @@ mod tests {
             .iter()
             .map(|(k, v)| (k.to_string(), v.to_string()))
             .collect()
+    }
+
+    #[test]
+    fn properties_are_whatever_the_schema_and_the_file_carry() {
+        let described = describe_properties(
+            &schema(&[("motd", "mine"), ("retired", "leftover")]),
+            &schema(&[("motd", "A Minecraft Server"), ("pvp", "true")]),
+        );
+        let row = |key: &str| described.iter().find(|p| p.key == key).unwrap();
+
+        assert_eq!(
+            described.iter().map(|p| &p.key).collect::<Vec<_>>(),
+            ["motd", "pvp", "retired"]
+        );
+        assert_eq!(row("motd").value, "mine");
+        assert_eq!(row("motd").default.as_deref(), Some("A Minecraft Server"));
+        assert_eq!(row("pvp").value, "true");
+        assert_eq!(row("retired").default, None);
+    }
+
+    #[test]
+    fn a_managed_key_is_flagged_and_the_credential_is_withheld() {
+        let pairs = schema(&[("server-port", "25565"), ("rcon.password", "hunter2")]);
+        let described = describe_properties(&pairs, &pairs);
+        let row = |key: &str| described.iter().find(|p| p.key == key).unwrap();
+
+        assert!(row("server-port").managed);
+        assert_eq!(row("server-port").value, "25565");
+        assert!(row("rcon.password").secret);
+        assert_eq!(row("rcon.password").value, "");
+        assert_eq!(row("rcon.password").default, None);
+    }
+
+    #[test]
+    fn hardcore_locks_what_it_pins_only_while_it_is_on() {
+        let on = schema(&[("hardcore", "true"), ("difficulty", "hard"), ("motd", "")]);
+        let described = describe_properties(&on, &[]);
+        let locked =
+            |list: &[ServerProperty], key: &str| list.iter().find(|p| p.key == key).unwrap().locked;
+        assert!(locked(&described, "difficulty"));
+        assert!(!locked(&described, "motd"));
+
+        let off = schema(&[("hardcore", "false"), ("difficulty", "easy")]);
+        assert!(!locked(&describe_properties(&off, &[]), "difficulty"));
     }
 
     #[test]
