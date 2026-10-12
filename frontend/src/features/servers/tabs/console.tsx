@@ -22,7 +22,13 @@ const rowClass: Record<ConsoleEntry['kind'], string | undefined> = {
 };
 
 /** Typing anywhere on the tab lands in the command line, as in a terminal. */
-function useTypeToFocus(input: RefObject<HTMLInputElement | null>) {
+function useTypeToFocus(
+  input: RefObject<HTMLInputElement | null>,
+  onType: (character: string) => void,
+) {
+  const type = useRef(onType);
+  type.current = onType;
+
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key.length !== 1) return;
@@ -35,8 +41,13 @@ function useTypeToFocus(input: RefObject<HTMLInputElement | null>) {
       ) {
         return;
       }
-      // Focusing during keydown routes this same keystroke into the input.
-      input.current?.focus();
+      const field = input.current;
+      if (!field || field.disabled) return;
+      // The character is inserted here rather than left to the keystroke:
+      // webviews differ on whether a focus change during keydown redirects it.
+      event.preventDefault();
+      field.focus();
+      type.current(event.key);
     };
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
@@ -59,7 +70,7 @@ export function ServerConsoleTab({
   const [line, setLine] = useState('');
   const entries = useConsoleHistory(id);
   const input = useRef<HTMLInputElement>(null);
-  useTypeToFocus(input);
+  useTypeToFocus(input, (character) => setLine((typed) => typed + character));
 
   const lastLine = useRef<string | null>(null);
   lastLine.current = logs.lines.at(-1)?.line ?? null;
