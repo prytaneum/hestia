@@ -92,6 +92,11 @@ impl LogView {
         self.scroll = self.scroll.saturating_sub(by);
     }
 
+    pub fn clear(&mut self) {
+        self.lines.clear();
+        self.scroll = 0;
+    }
+
     /// Re-follow the live tail.
     pub fn follow(&mut self) {
         self.scroll = 0;

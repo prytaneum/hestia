@@ -132,7 +132,7 @@ hestia server smp start          # immediate spawn, then attaches the console
 hestia server smp attach         # interactive console: live logs, type to send
                                  #   commands, Esc detaches (alias: console).
                                  #   Tab/Shift-Tab cycle the server's own
-                                 #   completions
+                                 #   completions, Ctrl-L clears the view
 hestia server smp command say hi # one-shot console command (alias: cmd)hestia server smp logs -n 50     # captured output (-f opens the fullscreen
                                  #   log session; piped it streams plainly).
                                  #   -f follows the *server*: it works on a

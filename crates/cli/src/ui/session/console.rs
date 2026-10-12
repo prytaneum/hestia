@@ -125,7 +125,7 @@ impl Screen for ConsoleScreen {
             rows[0],
             &self.title,
             self.log.scroll(),
-            "Enter send · Tab complete · Esc detach · ↑/↓ scroll",
+            "Enter send · Tab complete · ^L clear · Esc detach · ↑/↓ scroll",
         );
         self.log.render(frame, rows[1]);
         draw_offered(frame, rows[2], &self.offered, self.cycle);
@@ -138,6 +138,7 @@ impl Screen for ConsoleScreen {
             KeyCode::Char('c' | 'd') if key.modifiers.contains(KeyModifiers::CONTROL) => {
                 return Flow::Done(None)
             }
+            KeyCode::Char('l') if key.modifiers.contains(KeyModifiers::CONTROL) => self.log.clear(),
             KeyCode::Enter => {
                 if !self.send() {
                     return Flow::Done(Some("console closed".into()));
