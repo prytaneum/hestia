@@ -3,7 +3,8 @@
   "lines": [
     {
       "stream": "stdout",
-      "line": "[Server] Done (5.231s)! For help, type \"help\""
+      "line": "[Server] Done (5.231s)! For help, type \"help\"",
+      "offset": 4096
     }
   ]
 }

@@ -249,7 +249,10 @@ pre-log4j stderr); `LogSource::Capture` redirects into a supervisor-owned
 `output.log`. Either way `tail.rs` polls the file for `process.output` events and
 `process.logs` reads its tail on demand — so log history survives daemon
 restarts, and following logs is scoped to the *entry* rather than one run of it
-([0037](../decisions/0037-following-logs-is-entry-scoped.md)).
+([0037](../decisions/0037-following-logs-is-entry-scoped.md)). Both paths stamp
+each line with the byte `offset` it starts at, so a line has the same identity
+streamed or read back; it holds within one log file, and a rotation or a new
+run starts again from zero.
 
 **Stops are polite and reach the tree.** SIGTERM first (the JVM saves and exits),
 a hard kill only after a grace period — both addressed at the whole process tree,

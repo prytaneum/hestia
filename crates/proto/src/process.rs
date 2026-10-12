@@ -89,6 +89,8 @@ pub enum LogStream {
 pub struct ProcessLogLine {
     pub stream: LogStream,
     pub line: String,
+    /// Where the line starts in its log file: its identity until the file is replaced.
+    pub offset: u64,
 }
 
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]

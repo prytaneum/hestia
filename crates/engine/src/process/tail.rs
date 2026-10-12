@@ -71,10 +71,11 @@ async fn run(
         // batch is capped at MAX_LINES_PER_EVENT so an initial backlog degrades
         // to a few bounded events instead of one huge one.
         let mut batch = Vec::new();
-        drain(&path, &mut offset, &mut pending, |line| {
+        drain(&path, &mut offset, &mut pending, |offset, line| {
             batch.push(ProcessLogLine {
                 stream: LogStream::Stdout,
                 line,
+                offset,
             });
             if batch.len() >= MAX_LINES_PER_EVENT {
                 publish(events.as_ref(), &id, std::mem::take(&mut batch));
@@ -103,7 +104,7 @@ fn publish(events: Option<&Arc<dyn ProcessEvents>>, id: &str, lines: Vec<Process
     );
 }
 
-fn drain(path: &Path, offset: &mut u64, pending: &mut Vec<u8>, mut emit: impl FnMut(String)) {
+fn drain(path: &Path, offset: &mut u64, pending: &mut Vec<u8>, mut emit: impl FnMut(u64, String)) {
     let Ok(mut file) = File::open(path) else {
         return;
     };
@@ -130,18 +131,19 @@ fn drain(path: &Path, offset: &mut u64, pending: &mut Vec<u8>, mut emit: impl Fn
         remaining -= read;
         pending.extend_from_slice(&chunk[..read]);
         while let Some(pos) = pending.iter().position(|&b| b == b'\n') {
-            let mut line: Vec<u8> = pending.drain(..=pos).collect();
-            line.pop();
-            if line.last() == Some(&b'\r') {
-                line.pop();
-            }
-            emit(String::from_utf8_lossy(&line).into_owned());
+            let start = *offset - pending.len() as u64;
+            let line: Vec<u8> = pending.drain(..=pos).collect();
+            emit(start, text(&line[..pos]));
         }
     }
 }
 
-/// The last `limit` complete lines of `path`; empty when the file is missing.
-pub fn read_last_lines(path: &Path, limit: usize) -> Vec<String> {
+fn text(line: &[u8]) -> String {
+    String::from_utf8_lossy(line.strip_suffix(b"\r").unwrap_or(line)).into_owned()
+}
+
+/// The last `limit` lines of `path` with their start offsets; empty when the file is missing.
+pub fn read_last_lines(path: &Path, limit: usize) -> Vec<(u64, String)> {
     if limit == 0 {
         return Vec::new();
     }
@@ -168,13 +170,12 @@ pub fn read_last_lines(path: &Path, limit: usize) -> Vec<String> {
         }
     }
 
-    let text = String::from_utf8_lossy(&tail);
-    let mut lines: Vec<String> = text
-        .split('\n')
-        .map(|l| l.strip_suffix('\r').unwrap_or(l).to_string())
-        .collect();
-    if lines.last().is_some_and(String::is_empty) {
-        lines.pop();
+    let mut lines = Vec::new();
+    let mut start = 0;
+    for line in tail.split_inclusive(|&b| b == b'\n') {
+        let ended = line.strip_suffix(b"\n").unwrap_or(line);
+        lines.push((pos + start as u64, text(ended)));
+        start += line.len();
     }
     if pos > 0 && !lines.is_empty() {
         lines.remove(0);
@@ -203,9 +204,21 @@ mod tests {
     fn reads_the_last_lines() {
         let file = temp_file("last", "one\ntwo\nthree\n");
         let path = file.path();
-        assert_eq!(read_last_lines(path, 2), vec!["two", "three"]);
-        assert_eq!(read_last_lines(path, 10), vec!["one", "two", "three"]);
+        let line = |offset, text: &str| (offset, text.to_string());
+        assert_eq!(read_last_lines(path, 2), [line(4, "two"), line(8, "three")]);
+        assert_eq!(read_last_lines(path, 10).len(), 3);
         assert!(read_last_lines(path, 0).is_empty());
+    }
+
+    #[test]
+    fn a_line_has_the_same_offset_tailed_or_read_back() {
+        let file = temp_file("same", "one\r\ntwø\n\nfour\n");
+        let mut tailed = Vec::new();
+        drain(file.path(), &mut 0, &mut Vec::new(), |at, l| {
+            tailed.push((at, l))
+        });
+        assert_eq!(read_last_lines(file.path(), 10), tailed);
+        assert_eq!(tailed[3], (11, "four".to_string()));
     }
 
     #[test]
@@ -220,11 +233,12 @@ mod tests {
         let mut offset = 0;
         let mut pending = Vec::new();
         let mut lines = Vec::new();
-        drain(path, &mut offset, &mut pending, |l| lines.push(l));
-        assert_eq!(lines, vec!["first", "second"]);
+        drain(path, &mut offset, &mut pending, |at, l| lines.push((at, l)));
+        let line = |offset, text: &str| (offset, text.to_string());
+        assert_eq!(lines, [line(0, "first"), line(6, "second")]);
 
         std::fs::write(path, "fresh\n").unwrap();
-        drain(path, &mut offset, &mut pending, |l| lines.push(l));
-        assert_eq!(lines, vec!["first", "second", "fresh"]);
+        drain(path, &mut offset, &mut pending, |at, l| lines.push((at, l)));
+        assert_eq!(lines[2], line(0, "fresh"));
     }
 }

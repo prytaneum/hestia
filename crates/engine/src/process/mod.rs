@@ -461,7 +461,11 @@ impl ProcessSupervisor {
         Some(
             lines
                 .into_iter()
-                .map(|line| ProcessLogLine { stream, line })
+                .map(|(offset, line)| ProcessLogLine {
+                    stream,
+                    line,
+                    offset,
+                })
                 .collect(),
         )
     }
