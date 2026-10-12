@@ -380,7 +380,7 @@ function ServerDetail({
           />
         </TabsContent>
 
-        <TabsContent value="players" className="p-5">
+        <TabsContent value="players" className="flex min-h-0 flex-col p-5">
           <ServerPlayersTab id={id} running={running} />
         </TabsContent>
 
