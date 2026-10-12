@@ -70,10 +70,9 @@
     "sync": {
       "description": "O que esta instância recebe das configurações compartilhadas. A mudança vale na próxima inicialização.",
       "keys": {
-        "action": "Manter local",
         "hint": "Configurações de jogo que esta instância mantém só para si, independentemente do que as outras compartilham.",
-        "placeholder": "guiScale",
-        "required": "Informe a configuração que ficará só desta instância."
+        "label": "Mantidas locais",
+        "placeholder": "guiScale"
       },
       "nothing_shared": "Nada é compartilhado entre instâncias ainda — ative algo em Configurações › Instâncias.",
       "title": "Configurações compartilhadas"

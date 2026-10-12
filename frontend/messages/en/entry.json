@@ -143,9 +143,10 @@
       "allow_downgrade": "Allow downgrade (worlds do not downgrade)",
       "applies_on_start": "Applies the next time it starts.",
       "backup_schedule": "Backup schedule",
+      "backup_schedule_hint": "How often a backup is taken on its own.",
       "change_version": "Change version",
       "every_interval": "Every {interval}",
-      "inherits_default": "default",
+      "follows_default": "Follows the launcher default.",
       "instance_name": "Instance name",
       "interval": {
         "custom": "Custom…",
@@ -158,6 +159,7 @@
       },
       "java_arguments": "Java arguments",
       "keep_backups": "Keep backups",
+      "keep_backups_hint": "Older scheduled backups are deleted; manual ones are kept.",
       "remove": {
         "description": "{name} and all its data — worlds, backups, and installed content — are permanently deleted. This cannot be undone.",
         "instance": "Remove instance",
@@ -170,7 +172,6 @@
         "danger": "Danger zone",
         "general": "General"
       },
-      "seed_hint": "Only applies to a world that has not been generated yet.",
       "server_name": "Server name",
       "stop_to_change": "Stop it to change these.",
       "version_backup_hint": "The server is backed up before its version changes."

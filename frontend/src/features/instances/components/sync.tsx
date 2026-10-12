@@ -1,13 +1,14 @@
-import { revalidateLogic } from '@tanstack/react-form';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { z } from 'zod';
 
-import { useAppForm } from '@/components/form';
+import {
+  SettingGroup,
+  SettingList,
+  SettingRow,
+} from '@/components/setting-controls';
 import { Bone } from '@/components/skeleton';
-import { Field, FieldDescription, FieldLabel } from '@/components/ui/field';
 import { StatusDot } from '@/components/ui/status-dot';
 import { Switch } from '@/components/ui/switch';
-import { ValueRow } from '@/features/settings/components';
+import { RowList } from '@/features/settings/components';
 import { SYNC_UNITS, stateLabel, stateTone, unitLabel } from '@/lib/sync';
 import { m } from '@/paraglide/messages.js';
 import { syncMutations, syncQueries } from '@/queries/sync';
@@ -21,112 +22,65 @@ export function InstanceSyncField({ id }: { id: string }) {
   const setUnit = useMutation(syncMutations.setInstanceUnit(id));
   const setKeys = useMutation(syncMutations.setInstanceUnsynced(id));
 
-  const mine = status.data?.find((instance) => instance.id === id);
-  const unsynced = mine?.unsynced ?? [];
-
-  const form = useAppForm({
-    defaultValues: { key: '' },
-    validationLogic: revalidateLogic(),
-    validators: {
-      onDynamic: z.object({
-        key: z.string().min(1, m['instance.sync.keys.required']()),
-      }),
-    },
-    onSubmit: async ({ value, formApi }) => {
-      if (!unsynced.includes(value.key)) {
-        await setKeys.mutateAsync([...unsynced, value.key]);
-      }
-      formApi.reset();
-    },
-  });
-
   if (status.isPending) return <Bone className="h-24" />;
 
-  const units = mine?.units ?? [];
-  if (units.every((unit) => unit.state === 'off')) {
+  const mine = status.data?.find((instance) => instance.id === id);
+  const units = (mine?.units ?? []).filter((unit) => unit.state !== 'off');
+
+  if (units.length === 0) {
     return (
-      <Field>
-        <FieldLabel>{m['instance.sync.title']()}</FieldLabel>
-        <FieldDescription>
-          {m['instance.sync.nothing_shared']()}
-        </FieldDescription>
-      </Field>
+      <SettingGroup
+        legend={m['instance.sync.title']()}
+        description={m['instance.sync.nothing_shared']()}
+      >
+        {null}
+      </SettingGroup>
     );
   }
 
   return (
-    <Field>
-      <FieldLabel>{m['instance.sync.title']()}</FieldLabel>
-      <FieldDescription>{m['instance.sync.description']()}</FieldDescription>
-
-      <div className="divide-y divide-border border border-border">
+    <SettingGroup
+      legend={m['instance.sync.title']()}
+      description={m['instance.sync.description']()}
+    >
+      <SettingList>
         {SYNC_UNITS.map((unit) => {
           const state = units.find((entry) => entry.unit === unit)?.state;
-          if (!state || state === 'off') return null;
+          if (!state) return null;
           return (
-            <div
+            <SettingRow
               key={unit}
-              className="flex items-center gap-3 px-3 py-1.5 text-xs"
+              htmlFor={`sync-${unit}`}
+              label={
+                <>
+                  <StatusDot tone={stateTone[state]} />
+                  {unitLabel[unit]()}
+                </>
+              }
+              description={stateLabel[state]()}
             >
-              <StatusDot tone={stateTone[state]} />
-              <span className="min-w-0 flex-1 truncate">
-                {unitLabel[unit]()}
-              </span>
-              <span className="text-muted-foreground">
-                {stateLabel[state]()}
-              </span>
               <Switch
+                id={`sync-${unit}`}
                 size="sm"
-                aria-label={unitLabel[unit]()}
                 checked={state !== 'overridden'}
                 disabled={setUnit.isPending || state === 'unsupported'}
                 onCheckedChange={(checked) =>
                   setUnit.mutate({ unit, shared: checked === true })
                 }
               />
-            </div>
+            </SettingRow>
           );
         })}
-      </div>
+      </SettingList>
 
-      <FieldDescription>{m['instance.sync.keys.hint']()}</FieldDescription>
-      {unsynced.length > 0 && (
-        <div className="divide-y divide-border border border-border">
-          {unsynced.map((key) => (
-            <ValueRow
-              key={key}
-              value={key}
-              pending={setKeys.isPending}
-              onRemove={() =>
-                setKeys.mutate(unsynced.filter((other) => other !== key))
-              }
-            />
-          ))}
-        </div>
-      )}
-      <form
-        className="flex items-end gap-2"
-        onSubmit={(event) => {
-          event.preventDefault();
-          event.stopPropagation();
-          form.handleSubmit();
-        }}
-      >
-        <form.AppField name="key">
-          {(field) => (
-            <field.TextField
-              placeholder={m['instance.sync.keys.placeholder']()}
-              className="flex-1"
-              inputClassName="font-mono"
-            />
-          )}
-        </form.AppField>
-        <form.AppForm>
-          <form.SubmitButton>
-            {m['instance.sync.keys.action']()}
-          </form.SubmitButton>
-        </form.AppForm>
-      </form>
-    </Field>
+      <RowList
+        label={m['instance.sync.keys.label']()}
+        description={m['instance.sync.keys.hint']()}
+        placeholder={m['instance.sync.keys.placeholder']()}
+        values={mine?.unsynced ?? []}
+        pending={setKeys.isPending}
+        onChange={(keys) => setKeys.mutate(keys)}
+      />
+    </SettingGroup>
   );
 }

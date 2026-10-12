@@ -1,8 +1,12 @@
 import { useState } from 'react';
 
 import type { ConfigEntry } from '@/api';
-import { SavedInput, SettingGroup } from '@/components/setting-controls';
-import { Field, FieldDescription, FieldLabel } from '@/components/ui/field';
+import {
+  SavedInput,
+  SettingGroup,
+  SettingList,
+  SettingRow,
+} from '@/components/setting-controls';
 import { Slider } from '@/components/ui/slider';
 import { memGb } from '@/lib/format';
 import { m } from '@/paraglide/messages.js';
@@ -29,51 +33,61 @@ export function JavaSettings({
   const inherits = defaultMemory !== '' && memory === defaultMemoryGb;
 
   return (
-    <SettingGroup legend={m['app.label.java']()}>
-      <Field>
-        <FieldLabel htmlFor="entry-memory">
-          {m['entry.settings.allocated_memory']()} —{' '}
-          {m['entry.create.gb']({ value: memory })}
-          {inherits && ` (${m['entry.settings.inherits_default']()})`}
-        </FieldLabel>
-        <Slider
-          id="entry-memory"
-          className="max-w-md"
-          min={2}
-          max={32}
-          step={1}
-          value={memory}
-          onValueChange={(v) => setDraft(Array.isArray(v) ? v[0] : v)}
-          onValueCommitted={(v) => {
-            const next = Array.isArray(v) ? v[0] : v;
-            setDraft(null);
-            // Matching the launcher default clears the override so it keeps
-            // inheriting.
-            commit(
-              'memory',
-              defaultMemory !== '' && next === defaultMemoryGb
-                ? ''
-                : `${next}G`,
-            );
-          }}
-        />
-        <FieldDescription>
-          {m['entry.settings.applies_on_start']()}
-        </FieldDescription>
-      </Field>
+    <SettingGroup
+      legend={m['app.label.java']()}
+      description={m['entry.settings.applies_on_start']()}
+    >
+      <SettingList>
+        <SettingRow
+          label={
+            <>
+              {m['entry.settings.allocated_memory']()}
+              <span className="font-mono text-muted-foreground">
+                {m['entry.create.gb']({ value: memory })}
+              </span>
+            </>
+          }
+          description={
+            inherits ? m['entry.settings.follows_default']() : undefined
+          }
+        >
+          <Slider
+            aria-label={m['entry.settings.allocated_memory']()}
+            className="data-horizontal:w-64"
+            min={2}
+            max={32}
+            step={1}
+            value={memory}
+            onValueChange={(v) => setDraft(Array.isArray(v) ? v[0] : v)}
+            onValueCommitted={(v) => {
+              const next = Array.isArray(v) ? v[0] : v;
+              setDraft(null);
+              // Matching the launcher default clears the override so it keeps
+              // inheriting.
+              commit(
+                'memory',
+                defaultMemory !== '' && next === defaultMemoryGb
+                  ? ''
+                  : `${next}G`,
+              );
+            }}
+          />
+        </SettingRow>
 
-      <Field>
-        <FieldLabel htmlFor="entry-jvm-args">
-          {m['entry.settings.java_arguments']()}
-        </FieldLabel>
-        <SavedInput
-          id="entry-jvm-args"
-          mono
-          value={configValue(config, 'jvm-args')}
-          placeholder={defaults['jvm-args'] || '-XX:+UseG1GC'}
-          onSave={(value) => save('jvm-args', value)}
-        />
-      </Field>
+        <SettingRow
+          htmlFor="entry-jvm-args"
+          label={m['entry.settings.java_arguments']()}
+        >
+          <SavedInput
+            id="entry-jvm-args"
+            trailing
+            mono
+            value={configValue(config, 'jvm-args')}
+            placeholder={defaults['jvm-args'] || '-XX:+UseG1GC'}
+            onSave={(value) => save('jvm-args', value)}
+          />
+        </SettingRow>
+      </SettingList>
     </SettingGroup>
   );
 }

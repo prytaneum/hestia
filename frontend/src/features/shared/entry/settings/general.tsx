@@ -3,14 +3,13 @@ import type { UseQueryOptions } from '@tanstack/react-query';
 import { useState } from 'react';
 
 import type { GameVersion } from '@/api';
-import { SavedInput, SettingGroup } from '@/components/setting-controls';
-import { Button } from '@/components/ui/button';
 import {
-  Field,
-  FieldContent,
-  FieldDescription,
-  FieldLabel,
-} from '@/components/ui/field';
+  SavedInput,
+  SettingGroup,
+  SettingList,
+  SettingRow,
+} from '@/components/setting-controls';
+import { Button } from '@/components/ui/button';
 import { m } from '@/paraglide/messages.js';
 import type { JobEntryKind } from '@/queries';
 import { ChangeVersionDialog, type UpdateHandle } from '../dialogs';
@@ -41,46 +40,53 @@ export function GeneralSettings({
       legend={m['entry.settings.section.general']()}
       description={running ? m['entry.settings.stop_to_change']() : undefined}
     >
-      <Field>
-        <FieldLabel htmlFor="entry-name">
-          {kind === 'server'
-            ? m['entry.settings.server_name']()
-            : m['entry.settings.instance_name']()}
-        </FieldLabel>
-        <SavedInput
-          id="entry-name"
-          value={entry.name}
-          disabled={running}
-          onSave={(name) => {
-            if (name) rename(name);
-          }}
-        />
-      </Field>
-
-      <Field orientation="horizontal">
-        <FieldContent>
-          <FieldLabel className="font-normal">
-            {m['app.label.version']()}
-          </FieldLabel>
-          <FieldDescription>
-            <span className="font-mono">
-              {entry.flavor} {entry.gameVersion}
-            </span>
-            {kind === 'server' &&
-              ` — ${m['entry.settings.version_backup_hint']()}`}
-          </FieldDescription>
-        </FieldContent>
-        <Button
-          variant="outline"
-          size="sm"
-          data-icon="inline-start"
-          disabled={running}
-          onClick={() => setChanging(true)}
+      <SettingList>
+        <SettingRow
+          htmlFor="entry-name"
+          label={
+            kind === 'server'
+              ? m['entry.settings.server_name']()
+              : m['entry.settings.instance_name']()
+          }
         >
-          <ArrowsClockwiseIcon />
-          {m['entry.settings.change_version']()}
-        </Button>
-      </Field>
+          <SavedInput
+            id="entry-name"
+            trailing
+            value={entry.name}
+            disabled={running}
+            onSave={(name) => {
+              if (name) rename(name);
+            }}
+          />
+        </SettingRow>
+
+        <SettingRow
+          label={
+            <>
+              {m['app.label.version']()}
+              <span className="font-mono text-muted-foreground">
+                {entry.flavor} {entry.gameVersion}
+              </span>
+            </>
+          }
+          description={
+            kind === 'server'
+              ? m['entry.settings.version_backup_hint']()
+              : undefined
+          }
+        >
+          <Button
+            variant="outline"
+            size="sm"
+            data-icon="inline-start"
+            disabled={running}
+            onClick={() => setChanging(true)}
+          >
+            <ArrowsClockwiseIcon />
+            {m['entry.settings.change_version']()}
+          </Button>
+        </SettingRow>
+      </SettingList>
 
       <ChangeVersionDialog
         name={entry.name}

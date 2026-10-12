@@ -1,7 +1,11 @@
 import type { ConfigEntry } from '@/api';
-import { SavedInput, SettingGroup } from '@/components/setting-controls';
+import {
+  SavedInput,
+  SettingGroup,
+  SettingList,
+  SettingRow,
+} from '@/components/setting-controls';
 import { Button } from '@/components/ui/button';
-import { Field, FieldError, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import {
   Select,
@@ -84,27 +88,26 @@ export function BackupSettings({
 
   return (
     <SettingGroup legend={m['app.label.backups']()}>
-      <Field data-invalid={issue !== null}>
-        <FieldLabel htmlFor="backup-interval">
-          {m['entry.settings.backup_schedule']()}
-        </FieldLabel>
-        <div className="flex max-w-md items-center gap-2">
-          <Select
-            items={intervals}
-            value={interval.mode}
-            onValueChange={(v) => setMode(v ?? 'off')}
-          >
-            <SelectTrigger id="backup-interval" className="flex-1">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {intervals.map((iv) => (
-                <SelectItem key={iv.value} value={iv.value}>
-                  {iv.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+      <SettingList>
+        <SettingRow
+          label={m['entry.settings.backup_schedule']()}
+          description={
+            issue ? (
+              <span className="text-destructive">{issueMessage(issue)}</span>
+            ) : (
+              m['entry.settings.backup_schedule_hint']()
+            )
+          }
+        >
+          {dirty && issue === null && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => save('backup-interval', intervalValue(interval))}
+            >
+              {m['app.action.save']()}
+            </Button>
+          )}
           {custom && (
             <>
               <Input
@@ -116,7 +119,7 @@ export function BackupSettings({
                   setInterval({ ...interval, count: e.target.value })
                 }
                 aria-invalid={issue !== null}
-                className="w-20"
+                className="w-16"
               />
               <Select
                 items={units}
@@ -141,30 +144,41 @@ export function BackupSettings({
               </Select>
             </>
           )}
-          {dirty && issue === null && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => save('backup-interval', intervalValue(interval))}
+          <Select
+            items={intervals}
+            value={interval.mode}
+            onValueChange={(v) => setMode(v ?? 'off')}
+          >
+            <SelectTrigger
+              aria-label={m['entry.settings.backup_schedule']()}
+              className="w-36"
             >
-              {m['app.action.save']()}
-            </Button>
-          )}
-        </div>
-        {issue && <FieldError>{issueMessage(issue)}</FieldError>}
-      </Field>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {intervals.map((iv) => (
+                <SelectItem key={iv.value} value={iv.value}>
+                  {iv.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </SettingRow>
 
-      <Field>
-        <FieldLabel htmlFor="backup-retention">
-          {m['entry.settings.keep_backups']()}
-        </FieldLabel>
-        <SavedInput
-          id="backup-retention"
-          type="number"
-          value={configValue(config, 'backup-retention') || DEFAULT_RETENTION}
-          onSave={(value) => save('backup-retention', value)}
-        />
-      </Field>
+        <SettingRow
+          htmlFor="backup-retention"
+          label={m['entry.settings.keep_backups']()}
+          description={m['entry.settings.keep_backups_hint']()}
+        >
+          <SavedInput
+            id="backup-retention"
+            trailing
+            type="number"
+            value={configValue(config, 'backup-retention') || DEFAULT_RETENTION}
+            onSave={(value) => save('backup-retention', value)}
+          />
+        </SettingRow>
+      </SettingList>
     </SettingGroup>
   );
 }

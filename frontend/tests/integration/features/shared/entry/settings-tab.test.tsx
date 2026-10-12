@@ -41,7 +41,7 @@ const showInstance = (running = false) =>
 
 const showProperties = (running = false) =>
   renderWithProviders(
-    <ServerPropertiesTab id={server.id} config={config()} running={running} />,
+    <ServerPropertiesTab id={server.id} running={running} />,
     { route: true },
   );
 

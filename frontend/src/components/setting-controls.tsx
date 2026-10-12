@@ -44,6 +44,46 @@ export function SettingGroup({
   );
 }
 
+/** The bordered list a group's rows sit in. */
+export function SettingList({ children }: { children: ReactNode }) {
+  return (
+    <div className="divide-y divide-border border border-border">
+      {children}
+    </div>
+  );
+}
+
+/**
+ * One setting as a row: what it is on the left, the one control that changes
+ * it on the right. `htmlFor` ties the title to that control as its label.
+ */
+export function SettingRow({
+  htmlFor,
+  label,
+  description,
+  children,
+}: {
+  htmlFor?: string;
+  label: ReactNode;
+  description?: ReactNode;
+  children: ReactNode;
+}) {
+  const Title = htmlFor ? 'label' : 'div';
+  return (
+    <div className="flex min-h-11 items-center gap-4 px-3 py-2">
+      <div className="min-w-0 flex-1">
+        <Title htmlFor={htmlFor} className="flex items-center gap-2 text-xs">
+          {label}
+        </Title>
+        {description && (
+          <div className="text-[11px] text-muted-foreground">{description}</div>
+        )}
+      </div>
+      <div className="flex shrink-0 items-center gap-2">{children}</div>
+    </div>
+  );
+}
+
 /** A binary setting that takes effect the moment it moves. */
 export function SwitchRow({
   id,
@@ -91,6 +131,7 @@ export function SavedInput({
   mono,
   placeholder,
   disabled,
+  trailing,
   confirm,
 }: {
   id: string;
@@ -100,6 +141,8 @@ export function SavedInput({
   mono?: boolean;
   placeholder?: string;
   disabled?: boolean;
+  /** Sits at the end of a row: a fixed width, with Save appearing before it. */
+  trailing?: boolean;
   confirm?: { title: string; description: string };
 }) {
   const [draft, setDraft] = useState<string | null>(null);
@@ -112,12 +155,20 @@ export function SavedInput({
   };
 
   return (
-    <div className="flex max-w-md items-center gap-2">
+    <div
+      className={cn(
+        'flex items-center gap-2',
+        trailing ? 'flex-row-reverse' : 'max-w-md',
+      )}
+    >
       <Input
         id={id}
         type={type}
         autoComplete={type === 'password' ? 'off' : undefined}
-        className={cn('flex-1', mono && 'font-mono')}
+        className={cn(
+          trailing ? (type === 'number' ? 'w-24' : 'w-64') : 'flex-1',
+          mono && 'font-mono',
+        )}
         placeholder={placeholder}
         value={current}
         disabled={disabled}

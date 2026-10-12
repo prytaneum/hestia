@@ -4,7 +4,13 @@
  * that is already `ready`. Backups live in ./backup; settings and content come
  * from ./entry.
  */
-import type { ServerDetails, ServerInfo, ServerProfile } from '@/api/types';
+import type {
+  ConfigEntry,
+  ServerDetails,
+  ServerInfo,
+  ServerProfile,
+  ServerProperty,
+} from '@/api/types';
 
 import { jobIdOf, startJob } from '../job';
 import * as catalog from '../state/catalog';
@@ -13,6 +19,36 @@ import * as processes from '../state/processes';
 import { type Handlers, num, ok, str } from '../support';
 import { channels as backupChannels } from './backup';
 import { configChannels, contentChannels } from './entry';
+
+// The daemon's own knowledge of the file, which no front-end shares: what it
+// keeps on the record instead, what it owns, and what hardcore pins.
+const RECORD_KEYS = [
+  'memory',
+  'jvm-args',
+  'backup-interval',
+  'backup-retention',
+];
+const MANAGED = ['server-port', 'enable-rcon', 'rcon.port', 'rcon.password'];
+const SECRET = ['rcon.password'];
+const HARDCORE_PINNED = ['difficulty', 'gamemode'];
+
+function properties(settings: ConfigEntry[]): ServerProperty[] {
+  const file = settings.filter((entry) => !RECORD_KEYS.includes(entry.key));
+  const hardcore = file.some((e) => e.key === 'hardcore' && e.value === 'true');
+  return file
+    .map(({ key, value }) => {
+      const secret = SECRET.includes(key);
+      return {
+        key,
+        value: secret ? '' : value,
+        default: secret ? undefined : value,
+        managed: MANAGED.includes(key),
+        secret,
+        locked: hardcore && HARDCORE_PINNED.includes(key),
+      };
+    })
+    .sort((a, b) => a.key.localeCompare(b.key));
+}
 
 /** What a vanilla server prints on the way up, down to the RCON listener. */
 const banner = (server: ServerInfo): string[] => [
@@ -189,6 +225,10 @@ export const channels: Handlers = {
       response: response ?? `Unknown or incomplete command: ${command}`,
     };
   },
+
+  'server.properties': (p) => ({
+    properties: properties(entries.entrySettings(serverId(p))),
+  }),
 
   ...configChannels('server', serverId),
   ...contentChannels('server', serverId),

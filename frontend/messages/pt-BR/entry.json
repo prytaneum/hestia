@@ -143,9 +143,10 @@
       "allow_downgrade": "Permitir downgrade (mundos não voltam de versão)",
       "applies_on_start": "Vale a partir da próxima inicialização.",
       "backup_schedule": "Agendamento de backup",
+      "backup_schedule_hint": "Com que frequência um backup é feito sozinho.",
       "change_version": "Mudar versão",
       "every_interval": "A cada {interval}",
-      "inherits_default": "padrão",
+      "follows_default": "Segue o padrão do launcher.",
       "instance_name": "Nome da instância",
       "interval": {
         "custom": "Personalizado…",
@@ -158,6 +159,7 @@
       },
       "java_arguments": "Argumentos Java",
       "keep_backups": "Manter backups",
+      "keep_backups_hint": "Backups agendados mais antigos são excluídos; os manuais são mantidos.",
       "remove": {
         "description": "{name} e todos os seus dados — mundos, backups e conteúdo instalado — serão excluídos permanentemente. Isto não pode ser desfeito.",
         "instance": "Remover instância",
@@ -170,7 +172,6 @@
         "danger": "Zona de perigo",
         "general": "Geral"
       },
-      "seed_hint": "Só se aplica a um mundo que ainda não foi gerado.",
       "server_name": "Nome do servidor",
       "stop_to_change": "Pare para alterar.",
       "version_backup_hint": "O servidor é salvo em backup antes de mudar de versão."

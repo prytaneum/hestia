@@ -29,7 +29,7 @@ export function InstanceSettingsTab({
   const update = useMutation(instanceMutations.update(instance.id));
 
   return (
-    <FieldGroup className="max-w-2xl">
+    <FieldGroup className="max-w-2xl gap-8">
       <GeneralSettings
         kind="instance"
         entry={instance}

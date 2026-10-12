@@ -1,169 +1,89 @@
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { toast } from 'sonner';
 
-import type { ConfigEntry } from '@/api';
+import type { ServerProperty } from '@/api';
 import { SearchInput } from '@/components/search-input';
-import { SavedInput, SwitchRow } from '@/components/setting-controls';
+import {
+  SavedInput,
+  SettingList,
+  SettingRow,
+} from '@/components/setting-controls';
+import { Bone } from '@/components/skeleton';
 import { Badge } from '@/components/ui/badge';
-import {
-  Field,
-  FieldDescription,
-  FieldGroup,
-  FieldLabel,
-} from '@/components/ui/field';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import {
-  hardcoreLock,
-  type Property,
-  propertyWrites,
-  serverProperties,
-} from '@/features/servers/lib';
+import { Switch } from '@/components/ui/switch';
+import { matchProperties, propertyControl } from '@/features/servers/lib';
 import { m } from '@/paraglide/messages.js';
-import { serverMutations } from '@/queries/server';
+import { serverMutations, serverQueries } from '@/queries/server';
 
-const HINTS: Record<string, () => string> = {
-  'level-seed': m['entry.settings.seed_hint'],
-};
-
-/** `domain.gamemode.*` / `domain.difficulty.*`, else the raw value. */
-function choiceLabel(key: string, value: string): string {
-  const messages = m as unknown as Record<string, (() => string) | undefined>;
-  return messages[`domain.${key}.${value}`]?.() ?? value;
-}
-
-function PropertyLabel({ property }: { property: Property }) {
-  return (
-    <>
-      <span className="font-mono">{property.key}</span>
-      {property.managed && (
-        <Badge variant="outline" className="text-[10px]">
-          {m['server.properties.managed']()}
-        </Badge>
-      )}
-    </>
-  );
-}
-
-function PropertyField({
+function PropertyControl({
   property,
-  locked,
   onCommit,
   onSave,
 }: {
-  property: Property;
-  locked: boolean;
+  property: ServerProperty;
   onCommit: (value: string) => void;
   onSave: (value: string) => void;
 }) {
-  const { key, value, control, managed, secret } = property;
-  const id = `property-${key}`;
-  const disabled = managed || locked;
-  const hint = HINTS[key]?.();
+  const id = `property-${property.key}`;
+  const disabled = property.managed || property.locked;
+  const control = propertyControl(property);
 
-  if (control.type === 'toggle') {
+  if (control === 'toggle') {
     return (
-      <SwitchRow
+      <Switch
         id={id}
-        label={<PropertyLabel property={property} />}
-        description={hint}
-        checked={value === 'true'}
+        size="sm"
+        checked={property.value === 'true'}
         disabled={disabled}
-        onChange={(checked) => onCommit(String(checked))}
+        onCheckedChange={(checked) => onCommit(String(checked === true))}
       />
     );
   }
 
-  const items =
-    control.type === 'choice'
-      ? control.options.map((option) => ({
-          value: option,
-          label: choiceLabel(key, option),
-        }))
-      : [];
-
   return (
-    <Field>
-      <FieldLabel htmlFor={id} className="font-normal">
-        <PropertyLabel property={property} />
-      </FieldLabel>
-      {control.type === 'choice' ? (
-        <Select
-          items={items}
-          value={value}
-          onValueChange={(next) => {
-            if (next && next !== value) onCommit(next);
-          }}
-          disabled={disabled}
-        >
-          <SelectTrigger id={id} className="max-w-md">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {items.map((item) => (
-              <SelectItem key={item.value} value={item.value}>
-                {item.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      ) : (
-        <SavedInput
-          id={id}
-          mono
-          type={
-            secret
-              ? 'password'
-              : control.type === 'number'
-                ? 'number'
-                : undefined
-          }
-          value={value}
-          disabled={disabled}
-          onSave={onSave}
-        />
-      )}
-      {hint && <FieldDescription>{hint}</FieldDescription>}
-    </Field>
+    <SavedInput
+      id={id}
+      trailing
+      mono
+      type={
+        property.secret
+          ? 'password'
+          : control === 'number'
+            ? 'number'
+            : undefined
+      }
+      value={property.value}
+      placeholder={property.default}
+      disabled={disabled}
+      onSave={onSave}
+    />
   );
 }
 
-/** Every `server.properties` key the server's version carries. */
+/**
+ * The server's `server.properties`, key by key, exactly as the daemon lists
+ * it for this version — nothing here knows a key by name.
+ */
 export function ServerPropertiesTab({
   id,
-  config,
   running,
 }: {
   id: string;
-  config?: ConfigEntry[];
   running: boolean;
 }) {
+  const properties = useQuery(serverQueries.properties(id));
   const setConfig = useMutation(serverMutations.setConfig(id));
   const [query, setQuery] = useState('');
 
-  const properties = serverProperties(config);
-  const values = Object.fromEntries(
-    properties.map(({ key, value }) => [key, value]),
-  );
-  const needle = query.trim().toLowerCase();
-  const shown = properties.filter(({ key }) => key.includes(needle));
+  if (properties.isPending) return <Bone className="h-64 max-w-2xl" />;
 
-  const write = async (key: string, value: string, confirm: boolean) => {
-    for (const entry of propertyWrites(properties, key, value)) {
-      await setConfig.mutateAsync(entry);
-    }
-    if (confirm) toast.success(m['app.toast.saved']());
-  };
+  const all = properties.data ?? [];
+  const shown = matchProperties(all, query);
 
   return (
     <div className="max-w-2xl">
-      <div className="mb-6 flex items-start gap-4">
+      <div className="mb-4 flex items-center gap-4">
         <p className="flex-1 text-xs text-muted-foreground">
           {m['server.properties.description']()}
           {running && ` ${m['entry.settings.applies_on_start']()}`}
@@ -178,27 +98,47 @@ export function ServerPropertiesTab({
       </div>
       {shown.length === 0 ? (
         <p className="py-8 text-sm text-muted-foreground">
-          {properties.length === 0
+          {all.length === 0
             ? m['server.properties.empty']()
             : m['server.properties.none_match']()}
         </p>
       ) : (
-        <FieldGroup>
+        <SettingList>
           {shown.map((property) => (
-            <PropertyField
+            <SettingRow
               key={property.key}
-              property={property}
-              locked={hardcoreLock(property.key, values) !== undefined}
-              // A failed write already toasts through the query client.
-              onCommit={(value) =>
-                write(property.key, value, false).catch(() => {})
+              htmlFor={`property-${property.key}`}
+              label={
+                <>
+                  <span className="font-mono">{property.key}</span>
+                  {property.managed && (
+                    <Badge variant="outline" className="text-[10px]">
+                      {m['server.properties.managed']()}
+                    </Badge>
+                  )}
+                  {property.locked && (
+                    <Badge variant="outline" className="text-[10px]">
+                      {m['server.properties.locked']()}
+                    </Badge>
+                  )}
+                </>
               }
-              onSave={(value) =>
-                write(property.key, value, true).catch(() => {})
-              }
-            />
+            >
+              <PropertyControl
+                property={property}
+                onCommit={(value) =>
+                  setConfig.mutate({ key: property.key, value })
+                }
+                onSave={(value) =>
+                  setConfig.mutate(
+                    { key: property.key, value },
+                    { onSuccess: () => toast.success(m['app.toast.saved']()) },
+                  )
+                }
+              />
+            </SettingRow>
           ))}
-        </FieldGroup>
+        </SettingList>
       )}
     </div>
   );

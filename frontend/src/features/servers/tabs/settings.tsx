@@ -30,7 +30,7 @@ export function ServerSettingsTab({
   const update = useJobMutation(serverMutations.update(server.id));
 
   return (
-    <FieldGroup className="max-w-2xl">
+    <FieldGroup className="max-w-2xl gap-8">
       <GeneralSettings
         kind="server"
         entry={server}

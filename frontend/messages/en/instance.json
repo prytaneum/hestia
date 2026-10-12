@@ -70,10 +70,9 @@
     "sync": {
       "description": "What this instance takes from the shared settings. A change applies at its next launch.",
       "keys": {
-        "action": "Keep local",
         "hint": "Game settings this instance keeps to itself, whatever the others share.",
-        "placeholder": "guiScale",
-        "required": "Name the setting to keep local."
+        "label": "Kept local",
+        "placeholder": "guiScale"
       },
       "nothing_shared": "Nothing is shared between instances yet — turn something on under Settings › Instances.",
       "title": "Shared settings"

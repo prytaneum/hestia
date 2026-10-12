@@ -26,6 +26,7 @@
     "properties": {
       "description": "As configurações do server.properties desta versão.",
       "empty": "Este servidor ainda não tem arquivo de propriedades. Inicie-o uma vez para gerá-lo.",
+      "locked": "Travado",
       "managed": "Gerenciado",
       "none_match": "Nenhuma propriedade corresponde à sua pesquisa.",
       "search": "Pesquisar propriedades",

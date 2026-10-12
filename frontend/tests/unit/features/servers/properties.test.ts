@@ -1,99 +1,52 @@
 import { describe, expect, it } from 'vitest';
-import {
-  hardcoreLock,
-  propertyWrites,
-  serverProperties,
-} from '@/features/servers/lib';
+import type { ServerProperty } from '@/api';
+import { matchProperties, propertyControl } from '@/features/servers/lib';
 
-const entry = (key: string, value: string) => ({ key, value });
+const property = (over: Partial<ServerProperty>): ServerProperty => ({
+  key: 'some-key',
+  value: '',
+  managed: false,
+  secret: false,
+  locked: false,
+  ...over,
+});
 
-describe('reading server.properties out of the config list', () => {
-  it('leaves out the settings kept on the record', () => {
-    const properties = serverProperties([
-      entry('memory', '4G'),
-      entry('jvm-args', ''),
-      entry('backup-interval', ''),
-      entry('backup-retention', ''),
-      entry('motd', 'hello'),
-    ]);
-    expect(properties.map((p) => p.key)).toEqual(['motd']);
+describe('choosing a control for a property', () => {
+  it('reads it off the shape of the default, whatever the key is', () => {
+    expect(propertyControl(property({ default: 'true' }))).toBe('toggle');
+    expect(propertyControl(property({ default: '25565' }))).toBe('number');
+    expect(propertyControl(property({ default: '-1' }))).toBe('number');
+    expect(propertyControl(property({ default: 'world' }))).toBe('text');
+    expect(propertyControl(property({ default: '' }))).toBe('text');
   });
 
-  it('reads a control off the stored value', () => {
-    const controls = Object.fromEntries(
-      serverProperties([
-        entry('pvp', 'true'),
-        entry('max-players', '20'),
-        entry('motd', 'A Minecraft Server'),
-        entry('difficulty', 'easy'),
-      ]).map((p) => [p.key, p.control.type]),
-    );
-    expect(controls).toEqual({
-      pvp: 'toggle',
-      'max-players': 'number',
-      motd: 'text',
-      difficulty: 'choice',
-    });
+  it('keeps the default’s shape when the value has drifted from it', () => {
+    expect(
+      propertyControl(property({ default: 'false', value: 'maybe' })),
+    ).toBe('toggle');
   });
 
-  it('keeps a legacy numeric gamemode a number', () => {
-    const [gamemode] = serverProperties([entry('gamemode', '0')]);
-    expect(gamemode.control.type).toBe('number');
-  });
-
-  it('marks the keys the daemon owns', () => {
-    const managed = serverProperties([
-      entry('server-port', '25565'),
-      entry('rcon.password', 'secret'),
-      entry('motd', ''),
-    ]).filter((p) => p.managed);
-    expect(managed.map((p) => p.key)).toEqual(['rcon.password', 'server-port']);
+  it('falls back to the value for a key the version does not define', () => {
+    expect(propertyControl(property({ value: 'true' }))).toBe('toggle');
+    expect(propertyControl(property({ value: 'leftover' }))).toBe('text');
   });
 });
 
-describe('the hardcore interlock', () => {
-  it('pins difficulty and gamemode while hardcore is on', () => {
-    expect(hardcoreLock('difficulty', { hardcore: 'true' })).toBe('hard');
-    expect(hardcoreLock('gamemode', { hardcore: 'true' })).toBe('survival');
-    expect(hardcoreLock('difficulty', { hardcore: 'false' })).toBeUndefined();
-    expect(hardcoreLock('motd', { hardcore: 'true' })).toBeUndefined();
-  });
-});
+describe('searching properties', () => {
+  const all = [
+    property({ key: 'max-players' }),
+    property({ key: 'rcon.port' }),
+    property({ key: 'server-port' }),
+  ];
 
-describe('the writes one change takes', () => {
-  const properties = serverProperties([
-    entry('hardcore', 'false'),
-    entry('difficulty', 'easy'),
-    entry('gamemode', 'survival'),
-    entry('motd', 'old'),
-  ]);
-
-  it('is the change itself for an ordinary key', () => {
-    expect(propertyWrites(properties, 'motd', 'new')).toEqual([
-      entry('motd', 'new'),
+  it('matches any part of the key, ignoring case', () => {
+    expect(matchProperties(all, 'PORT').map((p) => p.key)).toEqual([
+      'rcon.port',
+      'server-port',
     ]);
   });
 
-  it('moves what hardcore pins before turning it on', () => {
-    expect(propertyWrites(properties, 'hardcore', 'true')).toEqual([
-      entry('difficulty', 'hard'),
-      entry('hardcore', 'true'),
-    ]);
-  });
-
-  it('turns hardcore off on its own', () => {
-    expect(propertyWrites(properties, 'hardcore', 'false')).toEqual([
-      entry('hardcore', 'false'),
-    ]);
-  });
-
-  it('leaves a legacy numeric value for the daemon to judge', () => {
-    const legacy = serverProperties([
-      entry('hardcore', 'false'),
-      entry('difficulty', '1'),
-    ]);
-    expect(propertyWrites(legacy, 'hardcore', 'true')).toEqual([
-      entry('hardcore', 'true'),
-    ]);
+  it('keeps everything for an empty search', () => {
+    expect(matchProperties(all, '  ')).toHaveLength(3);
   });
 });

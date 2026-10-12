@@ -31,6 +31,7 @@ import type {
   ServerDetails,
   ServerInfo,
   ServerPingResult,
+  ServerProperty,
   ServerUpdateDoneEvent,
   ServerUpdateParams,
 } from './types/server';
@@ -179,6 +180,18 @@ export const config = {
     return result.entries;
   },
 };
+
+/**
+ * Every `server.properties` key the server's version defines, with the value
+ * in effect. Written through `config.set`.
+ */
+export async function properties(server: string): Promise<ServerProperty[]> {
+  const result = await call<{ properties: ServerProperty[] }>(
+    'server.properties',
+    { server },
+  );
+  return result.properties;
+}
 
 export const backup = {
   /** Archives a running server live (world saving pauses over RCON). */

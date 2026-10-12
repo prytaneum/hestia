@@ -351,7 +351,7 @@ function ServerDetail({
         </TabsContent>
 
         <TabsContent value="properties" className="p-5">
-          <ServerPropertiesTab id={id} config={config.data} running={running} />
+          <ServerPropertiesTab id={id} running={running} />
         </TabsContent>
 
         <TabsContent value="settings" className="p-5">

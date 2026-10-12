@@ -88,6 +88,8 @@ export const keys = {
     config: (id: string) => [...keys.servers.detail(id), 'config'] as const,
     configValue: (id: string, key: string) =>
       [...keys.servers.config(id), key] as const,
+    properties: (id: string) =>
+      [...keys.servers.config(id), 'properties'] as const,
     backups: (id: string) => [...keys.servers.detail(id), 'backups'] as const,
     content: (id: string) => [...keys.servers.detail(id), 'content'] as const,
     contentList: (id: string, kind: ContentKind) =>

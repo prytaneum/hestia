@@ -8,8 +8,7 @@ export {
   intervalValue,
 } from './interval';
 export {
-  hardcoreLock,
-  type Property,
-  propertyWrites,
-  serverProperties,
+  matchProperties,
+  type PropertyControl,
+  propertyControl,
 } from './properties';
