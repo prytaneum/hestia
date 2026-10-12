@@ -1,6 +1,8 @@
 //! The server console over RCON: `attach` (interactive) and the one-shot
 //! `command`'s reply rendering.
 
+use std::sync::Arc;
+
 use anyhow::{bail, Context, Result};
 use client::{Client, ProcessEvent};
 
@@ -71,12 +73,14 @@ pub(crate) async fn attach(client: Client, server: &str) -> Result<()> {
         }
     });
 
-    // The command task owns the client: the session (and with it the
+    // The driver tasks own the client: the session (and with it the
     // subscription) lives exactly as long as the console runs.
+    let client = Arc::new(client);
+    let commander = client.clone();
     let server_id = info.id.clone();
     tokio::spawn(async move {
         while let Some(command) = command_rx.recv().await {
-            let event = match client.server().command(&server_id, &command).await {
+            let event = match commander.server().command(&server_id, &command).await {
                 Ok(reply) => ui::ConsoleEvent::Reply(strip_codes(&reply)),
                 Err(e) => ui::ConsoleEvent::Notice(format!("{e:#}")),
             };
@@ -86,14 +90,55 @@ pub(crate) async fn attach(client: Client, server: &str) -> Result<()> {
         }
     });
 
+    let (line_tx, mut line_rx) = tokio::sync::mpsc::unbounded_channel::<String>();
+    let (completion_tx, completion_rx) = tokio::sync::mpsc::unbounded_channel();
+    let server_id = info.id.clone();
+    tokio::spawn(async move {
+        while let Some(mut line) = line_rx.recv().await {
+            while let Ok(newer) = line_rx.try_recv() {
+                line = newer;
+            }
+            let found = match client.server().complete(&server_id, &line).await {
+                Ok(found) => found,
+                Err(error) => {
+                    tracing::debug!(%error, "console completion failed");
+                    continue;
+                }
+            };
+            let offered = ui::Completions {
+                line,
+                completions: found.completions,
+                arguments: found.arguments,
+            };
+            if completion_tx.send(offered).is_err() {
+                break;
+            }
+        }
+    });
+
     let title = info.name.clone();
-    let closed =
-        tokio::task::spawn_blocking(move || ui::console(&title, backfill, event_rx, command_tx))
-            .await??;
+    let link = ui::ConsoleLink {
+        commands: command_tx,
+        lines: line_tx,
+        completions: completion_rx,
+    };
+    let closed = tokio::task::spawn_blocking(move || ui::console(&title, backfill, event_rx, link))
+        .await??;
     match closed {
         Some(message) => ui::show(View::note(message)),
         None => ui::show(View::note(format!("detached ('{server}' keeps running)"))),
     }
+}
+
+pub(super) async fn complete(client: &Client, server: &str, line: &str) -> Result<()> {
+    let found = client.server().complete(server, line).await?;
+    if found.completions.is_empty() && found.arguments.is_empty() {
+        return ui::show(View::note("(nothing to complete)"));
+    }
+    for candidate in found.completions.iter().chain(&found.arguments) {
+        ui::show(View::line(candidate))?;
+    }
+    Ok(())
 }
 
 pub(super) fn show_reply(reply: &str) -> Result<()> {

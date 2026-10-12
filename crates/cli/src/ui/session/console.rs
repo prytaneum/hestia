@@ -4,11 +4,11 @@
 
 use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers, MouseEvent, MouseEventKind};
 use ratatui::layout::{Constraint, Layout, Rect};
-use ratatui::style::{Color, Style};
-use ratatui::text::Span;
+use ratatui::style::{Color, Modifier, Style};
+use ratatui::text::{Line, Span};
 use ratatui::widgets::Paragraph;
 use ratatui::Frame;
-use tokio::sync::mpsc::UnboundedSender;
+use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 
 use super::{log_header, Flow, Screen};
 use crate::ui::components::log::{Kind, LogView};
@@ -24,15 +24,33 @@ pub enum ConsoleEvent {
     Closed(String),
 }
 
+#[derive(Default)]
+pub struct Completions {
+    pub line: String,
+    pub completions: Vec<String>,
+    pub arguments: Vec<String>,
+}
+
+pub struct ConsoleLink {
+    pub commands: UnboundedSender<String>,
+    pub lines: UnboundedSender<String>,
+    pub completions: UnboundedReceiver<Completions>,
+}
+
 pub struct ConsoleScreen {
     title: String,
     log: LogView,
     input: TextInput,
-    commands: UnboundedSender<String>,
+    link: ConsoleLink,
+    offered: Completions,
+    cycle: Option<usize>,
+    history: Vec<String>,
+    recall: Option<usize>,
+    draft: String,
 }
 
 impl ConsoleScreen {
-    pub fn new(title: &str, backfill: Vec<String>, commands: UnboundedSender<String>) -> Self {
+    pub fn new(title: &str, backfill: Vec<String>, link: ConsoleLink) -> Self {
         let mut log = LogView::default();
         for line in backfill {
             log.push(Kind::Output, line);
@@ -41,8 +59,75 @@ impl ConsoleScreen {
             title: title.to_string(),
             log,
             input: TextInput::default(),
-            commands,
+            link,
+            offered: Completions::default(),
+            cycle: None,
+            history: Vec::new(),
+            recall: None,
+            draft: String::new(),
         }
+    }
+
+    fn edited(&mut self) {
+        self.cycle = None;
+        self.recall = None;
+        self.offered = Completions::default();
+        if !self.input.is_empty() {
+            let _ = self.link.lines.send(self.input.text().to_string());
+        }
+    }
+
+    fn cycle(&mut self, forward: bool) {
+        let count = self.offered.completions.len();
+        if count == 0 {
+            return;
+        }
+        let next = match (self.cycle, forward) {
+            (None, true) => 0,
+            (None, false) => count - 1,
+            (Some(at), true) => (at + 1) % count,
+            (Some(at), false) => (at + count - 1) % count,
+        };
+        let text = self.input.text();
+        let word = text
+            .char_indices()
+            .rev()
+            .find(|(_, c)| c.is_whitespace())
+            .map_or(0, |(at, c)| at + c.len_utf8());
+        let completed = format!("{}{}", &text[..word], self.offered.completions[next]);
+        self.input = TextInput::with_text(&completed);
+        self.cycle = Some(next);
+    }
+
+    fn recall(&mut self, older: bool) {
+        let at = match (self.recall, older) {
+            (None, true) if !self.history.is_empty() => {
+                self.draft = self.input.text().to_string();
+                Some(self.history.len() - 1)
+            }
+            (None, _) => return,
+            (Some(at), true) => Some(at.saturating_sub(1)),
+            (Some(at), false) => Some(at + 1).filter(|at| *at < self.history.len()),
+        };
+        let line = at.map_or(self.draft.as_str(), |at| self.history[at].as_str());
+        self.input = TextInput::with_text(line);
+        self.recall = at;
+        self.cycle = None;
+        self.offered = Completions::default();
+    }
+
+    fn send(&mut self) -> bool {
+        let command = self.input.take().trim().to_string();
+        self.edited();
+        if command.is_empty() {
+            return true;
+        }
+        self.log.push(Kind::Echo, format!("» {command}"));
+        self.log.follow();
+        if self.history.last() != Some(&command) {
+            self.history.push(command.clone());
+        }
+        self.link.commands.send(command).is_ok()
     }
 }
 
@@ -59,6 +144,7 @@ impl Screen for ConsoleScreen {
             Constraint::Length(1),
             Constraint::Min(0),
             Constraint::Length(1),
+            Constraint::Length(1),
         ])
         .split(frame.area());
         log_header(
@@ -66,10 +152,12 @@ impl Screen for ConsoleScreen {
             rows[0],
             &self.title,
             self.log.scroll(),
-            "Enter send · Esc detach · ↑/↓ scroll",
+            "PgDn",
+            "Enter send · Tab complete · ↑/↓ history · Esc detach",
         );
         self.log.render(frame, rows[1]);
-        draw_input(frame, rows[2], &self.input);
+        draw_offered(frame, rows[2], &self.offered, self.cycle);
+        draw_input(frame, rows[3], &self.input);
     }
 
     fn on_key(&mut self, key: KeyEvent) -> Flow<Self::Outcome> {
@@ -79,21 +167,22 @@ impl Screen for ConsoleScreen {
                 return Flow::Done(None)
             }
             KeyCode::Enter => {
-                let command = self.input.take().trim().to_string();
-                if !command.is_empty() {
-                    self.log.push(Kind::Echo, format!("» {command}"));
-                    self.log.follow();
-                    if self.commands.send(command).is_err() {
-                        return Flow::Done(Some("console closed".into()));
-                    }
+                if !self.send() {
+                    return Flow::Done(Some("console closed".into()));
                 }
             }
-            KeyCode::Up => self.log.scroll_up(1),
-            KeyCode::Down => self.log.scroll_down(1),
+            KeyCode::Tab => self.cycle(true),
+            KeyCode::BackTab => self.cycle(false),
+            KeyCode::Up => self.recall(true),
+            KeyCode::Down => self.recall(false),
             KeyCode::PageUp => self.log.scroll_up(self.log.page()),
             KeyCode::PageDown => self.log.scroll_down(self.log.page()),
             _ => {
+                let before = self.input.text().to_string();
                 self.input.on_key(&key);
+                if self.input.text() != before {
+                    self.edited();
+                }
             }
         }
         Flow::Continue
@@ -117,6 +206,42 @@ impl Screen for ConsoleScreen {
         }
         Flow::Continue
     }
+
+    fn tick(&mut self) -> bool {
+        let mut changed = false;
+        while let Ok(offered) = self.link.completions.try_recv() {
+            let current = self.cycle.is_none() && self.recall.is_none();
+            if current && offered.line == self.input.text() {
+                self.offered = offered;
+                changed = true;
+            }
+        }
+        changed
+    }
+}
+
+fn draw_offered(frame: &mut Frame, area: Rect, offered: &Completions, cycle: Option<usize>) {
+    let dim = Style::default().fg(Color::DarkGray);
+    let chosen = Style::default()
+        .fg(Color::Cyan)
+        .add_modifier(Modifier::BOLD);
+    let first = cycle.unwrap_or(0);
+    let completions = offered
+        .completions
+        .iter()
+        .enumerate()
+        .skip(first)
+        .map(|(at, word)| (word, if cycle == Some(at) { chosen } else { dim }));
+    let arguments = offered
+        .arguments
+        .iter()
+        .map(|argument| (argument, dim.add_modifier(Modifier::ITALIC)));
+    let spans: Vec<Span> = completions
+        .chain(arguments)
+        .flat_map(|(word, style)| [Span::styled(word.as_str(), style), Span::raw("  ")])
+        .collect();
+    let [_, row] = Layout::horizontal([Constraint::Length(2), Constraint::Min(0)]).areas(area);
+    frame.render_widget(Paragraph::new(Line::from(spans)), row);
 }
 
 fn draw_input(frame: &mut Frame, area: Rect, input: &TextInput) {

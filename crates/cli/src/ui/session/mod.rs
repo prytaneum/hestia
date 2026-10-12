@@ -180,9 +180,16 @@ pub fn is_cancel(key: &KeyEvent) -> bool {
 /// The one-line header the log sessions share: a cyan title on the left and a
 /// dim right-aligned hint that flips to the scroll position while scrolled up
 /// from the tail, else shows the screen's own key hints.
-pub(super) fn log_header(frame: &mut Frame, area: Rect, title: &str, scroll: usize, actions: &str) {
+pub(super) fn log_header(
+    frame: &mut Frame,
+    area: Rect,
+    title: &str,
+    scroll: usize,
+    follow: &str,
+    actions: &str,
+) {
     let hint = if scroll > 0 {
-        format!("scrolled ↑{scroll} · ↓ follows")
+        format!("scrolled ↑{scroll} · {follow} follows")
     } else {
         actions.to_string()
     };

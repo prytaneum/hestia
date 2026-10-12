@@ -24,7 +24,7 @@ use client::proto::warning::WarningInfo;
 
 pub use components::PickerItem;
 pub use progress::{DownloadReporter, InstallReporter, ProvisionReporter, Spinner};
-pub use session::console::ConsoleEvent;
+pub use session::console::{Completions, ConsoleEvent, ConsoleLink};
 pub use session::monitor::MonitorSample;
 pub use view::View;
 
@@ -183,19 +183,19 @@ pub fn confirm(prompt: &str, yes: &str, no: &str) -> Result<bool> {
 }
 
 /// Run the attach console: live output above an input line whose entries go
-/// to `commands`. Blocking until detach or a `Closed` event, whose message it
+/// out over `link`. Blocking until detach or a `Closed` event, whose message it
 /// returns. Requires an interactive terminal.
 pub fn console(
     title: &str,
     backfill: Vec<String>,
     events: tokio::sync::mpsc::UnboundedReceiver<ConsoleEvent>,
-    commands: tokio::sync::mpsc::UnboundedSender<String>,
+    link: ConsoleLink,
 ) -> Result<Option<String>> {
     if !is_interactive() {
         bail!("no interactive terminal");
     }
     session::run(
-        session::console::ConsoleScreen::new(title, backfill, commands),
+        session::console::ConsoleScreen::new(title, backfill, link),
         Some(events),
     )
 }
