@@ -94,6 +94,26 @@
       "search": "Search properties",
       "title": "Properties"
     },
-    "subtitle": "Worlds you host"
+    "subtitle": "Worlds you host",
+    "tasks": {
+      "action": {
+        "command": "Send a console command",
+        "restart": "Restart the server"
+      },
+      "add": "Add task",
+      "add_description": "Runs on its schedule while the server is up.",
+      "command": "Command",
+      "daily_at": "Every day at {time}",
+      "description": "A restart or a console command the daemon runs on a schedule while the server is up. Backups keep their own schedule.",
+      "does": "What it does",
+      "tab": "Tasks",
+      "timing": {
+        "daily": "Every day at",
+        "daily_hint": "This computer's local time.",
+        "interval": "Every"
+      },
+      "title": "Scheduled tasks",
+      "when": "When"
+    }
   }
 }

@@ -94,6 +94,26 @@
       "search": "Pesquisar propriedades",
       "title": "Propriedades"
     },
-    "subtitle": "Mundos que você hospeda"
+    "subtitle": "Mundos que você hospeda",
+    "tasks": {
+      "action": {
+        "command": "Enviar um comando ao console",
+        "restart": "Reiniciar o servidor"
+      },
+      "add": "Adicionar tarefa",
+      "add_description": "Executa no horário enquanto o servidor estiver ligado.",
+      "command": "Comando",
+      "daily_at": "Todos os dias às {time}",
+      "description": "Uma reinicialização ou um comando de console que o daemon executa em um agendamento enquanto o servidor está ligado. Os backups mantêm o próprio agendamento.",
+      "does": "O que faz",
+      "tab": "Tarefas",
+      "timing": {
+        "daily": "Todos os dias às",
+        "daily_hint": "Horário local deste computador.",
+        "interval": "A cada"
+      },
+      "title": "Tarefas agendadas",
+      "when": "Quando"
+    }
   }
 }

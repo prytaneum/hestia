@@ -5,6 +5,7 @@ import type { ConfigEntry, ServerInfo } from '@/api';
 import {
   BackupSettings,
   PropertiesSettings,
+  TaskSettings,
 } from '@/features/servers/settings';
 import {
   DangerSettings,
@@ -84,6 +85,11 @@ export function ServerSettingsTab({
           id: 'backups',
           label: m['app.label.backups'](),
           content: <BackupSettings config={config} setConfig={setConfig} />,
+        },
+        {
+          id: 'tasks',
+          label: m['server.tasks.tab'](),
+          content: <TaskSettings id={server.id} />,
         },
       ]}
     />

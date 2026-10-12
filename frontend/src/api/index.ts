@@ -60,6 +60,7 @@ export * as server from './server';
 export * as skins from './skins';
 export * as sync from './sync';
 export * as system from './system';
+export * as tasks from './tasks';
 export type { ExportInput } from './transfer';
 export * as transfer from './transfer';
 export type * from './types';

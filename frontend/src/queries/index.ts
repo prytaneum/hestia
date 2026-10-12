@@ -58,5 +58,6 @@ export * from './process';
 export * from './server';
 export * from './skins';
 export * from './sync';
+export * from './tasks';
 export * from './transfer';
 export * from './update';
