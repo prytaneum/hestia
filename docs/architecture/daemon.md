@@ -172,6 +172,7 @@ is purely a compile-time one that keeps `make_router()` from becoming a
 | `process` | `process.start\|stop\|list\|status\|logs` |
 | `server` | `server.flavors\|loaders\|versions\|resolve`, `server.create\|update\|rename\|list\|status\|info\|remove\|start\|stop\|logs\|command\|ping`, `server.config.get\|set\|list`, `server.properties` |
 | `files` | `server.files.list\|read\|write\|mkdir\|move\|copy\|remove\|import\|compress\|extract` |
+| `players` | `server.players`, `server.players.set\|kick` — the lists are read from the server's own files; a change is a console command, so it needs the server running |
 | `instance` | the `instance.*` counterparts, plus `instance.launch\|stop\|logs`, `instance.worlds`, `instance.sync.adopt` |
 | `backup` | `server.backup.create\|list\|restore\|remove` |
 | `content` | `content.sources\|search\|project\|versions\|inspect\|resolve_url`, `content.modpack.resolve`, and the per-entry `server\|instance.content.add\|list\|remove\|update\|enable\|check_updates\|set_version` |

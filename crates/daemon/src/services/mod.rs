@@ -16,6 +16,7 @@ mod java;
 mod lifecycle;
 mod modpack;
 mod net;
+mod players;
 mod process;
 mod screenshot;
 mod server;
@@ -41,6 +42,7 @@ pub fn make_router() -> Router {
     process::register(&mut on);
     server::register(&mut on);
     files::register(&mut on);
+    players::register(&mut on);
     instance::register(&mut on);
     screenshot::register(&mut on);
     backup::register(&mut on);

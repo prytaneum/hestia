@@ -73,6 +73,7 @@ pub enum Field {
     JvmArgs,
     Port,
     Players,
+    Player,
     BackupInterval,
     BackupRetention,
     JavaVersion,
@@ -105,6 +106,7 @@ impl fmt::Display for Field {
             Field::JvmArgs => "jvm arguments",
             Field::Port => "a port",
             Field::Players => "players",
+            Field::Player => "a player name",
             Field::Order => "a list order",
             Field::Realm => "a realm",
             Field::BackupInterval => "backup-interval",
@@ -136,6 +138,7 @@ pub enum Reason {
     ListOrder,
     RealmId,
     ProcessIdCharset,
+    PlayerName,
 }
 
 impl fmt::Display for Reason {
@@ -161,6 +164,9 @@ impl fmt::Display for Reason {
             Reason::RealmId => "a realm is named by its numeric id",
             Reason::ProcessIdCharset => {
                 "a process id may only contain letters, digits, '-', '_' and '.'"
+            }
+            Reason::PlayerName => {
+                "a player name is up to 32 letters, digits, '_' or '.', with no spaces"
             }
         })
     }

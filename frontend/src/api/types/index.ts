@@ -16,6 +16,7 @@ export type * from "./job";
 export type * from "./minecraft";
 export type * from "./modpack";
 export type * from "./net";
+export type * from "./players";
 export type * from "./process";
 export type * from "./screenshot";
 export type * from "./server";

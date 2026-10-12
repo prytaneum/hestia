@@ -162,6 +162,8 @@
       "outside_entry": "está fora da pasta do servidor",
       "paper": "PaperMC",
       "path": "arquivo",
+      "player": "nome de jogador",
+      "player_name": "um nome de jogador tem até 32 letras, dígitos, '_' ou '.', sem espaços",
       "players": "jogadores",
       "plugin": "plugin",
       "port": "porta",
