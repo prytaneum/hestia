@@ -67,7 +67,7 @@ is the registry.
 
 | Setting | On | Meaning |
 |---|---|---|
-| `memory` | both | one value driving both `-Xms` and `-Xmx` |
+| `memory` | both | one value driving both `-Xms` and `-Xmx`; rejected above the machine's installed memory, which `host.info` reports so a front-end offers only that range |
 | `jvm-args` | both | extra JVM arguments |
 | `backup-interval` | server | scheduled-backup cadence (m/h/d units; empty disables) |
 | `backup-retention` | server | how many `scheduled` archives to keep |

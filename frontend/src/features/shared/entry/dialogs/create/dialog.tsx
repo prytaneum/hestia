@@ -30,6 +30,7 @@ import { memGb } from '@/lib/format';
 import { toastWarnings } from '@/lib/warnings';
 import { m } from '@/paraglide/messages.js';
 import { configQueries, launcherDefaults } from '@/queries/config';
+import { useMemoryRange } from '@/queries/host';
 import { iconMutations } from '@/queries/icons';
 import { instanceMutations, instanceQueries } from '@/queries/instance';
 import { useJobDisplay, useJobMutation } from '@/queries/jobs';
@@ -84,7 +85,11 @@ export function CreateEntryDialog({
 
   const config = useQuery(configQueries.list());
   const defaultMemory = launcherDefaults(config.data).memory ?? '';
-  const defaultMemoryGb = defaultMemory ? memGb(defaultMemory) : 4;
+  const memoryRange = useMemoryRange();
+  const defaultMemoryGb = Math.min(
+    defaultMemory ? memGb(defaultMemory) : 4,
+    memoryRange.max,
+  );
   const defaultMemoryRef = useRef(defaultMemoryGb);
   defaultMemoryRef.current = defaultMemoryGb;
 
@@ -111,7 +116,7 @@ export function CreateEntryDialog({
   const form = useAppForm({
     defaultValues: createWizardDefaults('', defaultMemoryGb),
     validationLogic: revalidateLogic(),
-    validators: { onDynamic: createWizardSchema(kind) },
+    validators: { onDynamic: createWizardSchema(kind, memoryRange) },
     onSubmit: async ({ value }) => {
       // Inherit the launcher default when the slider is left on it: store no
       // per-entry override, so a later change to the global default cascades.
@@ -295,7 +300,7 @@ export function CreateEntryDialog({
       ) : (
         <form.FormGroup
           name="details"
-          validators={{ onDynamic: detailsStepSchema(kind) }}
+          validators={{ onDynamic: detailsStepSchema(kind, memoryRange) }}
           onGroupSubmit={() => form.handleSubmit()}
         >
           {(group) => (

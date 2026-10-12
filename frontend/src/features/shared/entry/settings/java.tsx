@@ -11,6 +11,7 @@ import { Slider } from '@/components/ui/slider';
 import { memGb } from '@/lib/format';
 import { m } from '@/paraglide/messages.js';
 import type { LauncherDefaults } from '@/queries/config';
+import { useMemoryRange } from '@/queries/host';
 import { configValue, entryConfig, type SetConfig } from './config';
 
 /** Memory and JVM arguments, each following the launcher default until set. */
@@ -25,11 +26,17 @@ export function JavaSettings({
 }) {
   const { commit, save } = entryConfig(setConfig);
   const defaultMemory = defaults.memory ?? '';
-  const defaultMemoryGb = defaultMemory ? memGb(defaultMemory) : 4;
+  const memoryRange = useMemoryRange();
+  const defaultMemoryGb = Math.min(
+    defaultMemory ? memGb(defaultMemory) : 4,
+    memoryRange.max,
+  );
   const override = configValue(config, 'memory');
 
   const [draft, setDraft] = useState<number | null>(null);
-  const memory = draft ?? (override ? memGb(override) : defaultMemoryGb);
+  const memory =
+    draft ??
+    (override ? Math.min(memGb(override), memoryRange.max) : defaultMemoryGb);
   const inherits = defaultMemory !== '' && memory === defaultMemoryGb;
 
   return (
@@ -54,8 +61,8 @@ export function JavaSettings({
           <Slider
             aria-label={m['entry.settings.allocated_memory']()}
             className="data-horizontal:w-64"
-            min={2}
-            max={32}
+            min={memoryRange.min}
+            max={memoryRange.max}
             step={1}
             value={memory}
             onValueChange={(v) => setDraft(Array.isArray(v) ? v[0] : v)}

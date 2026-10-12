@@ -135,6 +135,7 @@
       "manifest_missing": "o manifesto está ausente",
       "manifest_type": "o manifesto é de um tipo não suportado",
       "memory": "memória",
+      "memory_exceeds_host": "a memória excede o que esta máquina tem instalado",
       "memory_format": "a memória deve ser como 4G ou 2048M",
       "microsoft": "Microsoft",
       "min_backups": "mantenha ao menos um backup",

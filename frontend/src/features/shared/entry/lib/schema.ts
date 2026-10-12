@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { m } from '@/paraglide/messages.js';
+import type { MemoryRange } from '@/queries/host';
 
 type Kind = 'server' | 'instance';
 
@@ -22,10 +23,10 @@ export function versionStepSchema() {
   });
 }
 
-export function detailsStepSchema(kind: Kind) {
+export function detailsStepSchema(kind: Kind, memory: MemoryRange) {
   return z.object({
     name: z.string(),
-    memory: z.number().min(2).max(32),
+    memory: z.number().min(memory.min).max(memory.max),
     motd: z.string(),
     seed: z.string(),
     gamemode: z.string(),
@@ -50,11 +51,11 @@ export function detailsStepSchema(kind: Kind) {
   });
 }
 
-export function createWizardSchema(kind: Kind) {
+export function createWizardSchema(kind: Kind, memory: MemoryRange) {
   return z.object({
     flavor: flavorStepSchema(),
     version: versionStepSchema(),
-    details: detailsStepSchema(kind),
+    details: detailsStepSchema(kind, memory),
   });
 }
 

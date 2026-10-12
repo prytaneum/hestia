@@ -11,13 +11,17 @@ import {
 import { useConfig } from '@/features/settings/use-config';
 import { memGb } from '@/lib/format';
 import { m } from '@/paraglide/messages.js';
+import { useMemoryRange } from '@/queries/host';
 
 export function JavaTab() {
   const { entries, commit, save } = useConfig();
 
   const defaultMemory = entries.defaults?.memory ?? '';
   const [memoryDraft, setMemoryDraft] = useState<number | null>(null);
-  const memoryValue = memoryDraft ?? (defaultMemory ? memGb(defaultMemory) : 4);
+  const memoryRange = useMemoryRange();
+  const memoryValue =
+    memoryDraft ??
+    Math.min(defaultMemory ? memGb(defaultMemory) : 4, memoryRange.max);
 
   return (
     <>
@@ -36,8 +40,8 @@ export function JavaTab() {
             <Slider
               id="default-memory"
               className="max-w-md"
-              min={2}
-              max={32}
+              min={memoryRange.min}
+              max={memoryRange.max}
               step={1}
               value={memoryValue}
               onValueChange={(v) => setMemoryDraft(Array.isArray(v) ? v[0] : v)}

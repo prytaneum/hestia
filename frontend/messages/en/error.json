@@ -135,6 +135,7 @@
       "manifest_missing": "its manifest is missing",
       "manifest_type": "its manifest is of an unsupported type",
       "memory": "memory",
+      "memory_exceeds_host": "memory exceeds what this machine has installed",
       "memory_format": "memory must look like 4G or 2048M",
       "microsoft": "Microsoft",
       "min_backups": "keep at least one backup",

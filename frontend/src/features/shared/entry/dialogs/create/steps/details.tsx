@@ -1,6 +1,7 @@
 import { Checkbox } from '@/components/ui/checkbox';
 import { FieldError } from '@/components/ui/field';
 import { m } from '@/paraglide/messages.js';
+import { useMemoryRange } from '@/queries/host';
 
 import {
   DIFFICULTIES,
@@ -14,6 +15,7 @@ import {
 
 /** The details step: name + memory, plus the server.properties block. */
 export function DetailsStep({ form, kind }: { form: WizardForm; kind: Kind }) {
+  const memoryRange = useMemoryRange();
   return (
     <div className="flex flex-col gap-4">
       <form.Subscribe
@@ -39,8 +41,8 @@ export function DetailsStep({ form, kind }: { form: WizardForm; kind: Kind }) {
           <field.SliderField
             label={m['app.label.memory']()}
             formatValue={(v: number) => m['entry.create.gb']({ value: v })}
-            min={2}
-            max={32}
+            min={memoryRange.min}
+            max={memoryRange.max}
             step={1}
           />
         )}

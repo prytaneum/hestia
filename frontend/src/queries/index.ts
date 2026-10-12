@@ -19,6 +19,7 @@ export * from './daemon';
 export * from './download';
 export { useDaemonEvent } from './events';
 export * from './files';
+export * from './host';
 export * from './instance';
 export { startInvalidation } from './invalidation';
 export * from './java';

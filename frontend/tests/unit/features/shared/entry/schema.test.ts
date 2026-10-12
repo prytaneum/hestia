@@ -47,18 +47,19 @@ describe('versionStepSchema', () => {
 });
 
 describe('detailsStepSchema', () => {
-  const server = detailsStepSchema('server');
-  const instance = detailsStepSchema('instance');
+  const memory = { min: 2, max: 16 };
+  const server = detailsStepSchema('server', memory);
+  const instance = detailsStepSchema('instance', memory);
 
   it('accepts a well-formed server', () => {
     expect(server.safeParse(details()).success).toBe(true);
   });
 
-  it('holds memory inside the range the sliders offer', () => {
+  it('holds memory inside the range the host can honour', () => {
     expect(server.safeParse(details({ memory: 1 })).success).toBe(false);
-    expect(server.safeParse(details({ memory: 33 })).success).toBe(false);
+    expect(server.safeParse(details({ memory: 17 })).success).toBe(false);
     expect(server.safeParse(details({ memory: 2 })).success).toBe(true);
-    expect(server.safeParse(details({ memory: 32 })).success).toBe(true);
+    expect(server.safeParse(details({ memory: 16 })).success).toBe(true);
   });
 
   it('demands a whole number of players, at least one', () => {

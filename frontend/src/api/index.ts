@@ -46,6 +46,7 @@ export * as daemon from './daemon';
 export * as dialog from './dialog';
 export * as download from './download';
 export * as files from './files';
+export * as host from './host';
 export * as instance from './instance';
 export * as java from './java';
 export * as job from './job';
