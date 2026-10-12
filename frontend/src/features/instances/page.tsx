@@ -42,7 +42,7 @@ export function InstancesPage({
   const { query } = useSearch();
   const { signedIn, ready } = useAccounts();
   const instances = useInstances();
-  const { launch, isLaunching } = useLaunchDialog();
+  const { launch, restart, isLaunching } = useLaunchDialog();
   const stop = useMutation(instanceMutations.stopAny());
   const [creating, setCreating] = useState(false);
   const [importing, setImporting] = useState(false);
@@ -73,12 +73,13 @@ export function InstancesPage({
             onStart: () => launch(instance),
             onStop: (session) => stop.mutate({ id: instance.id, session }),
             onNewSession: () => launch(instance, { newSession: true }),
+            onRestart: (session) => restart(instance, session),
           },
           instance.lastPlayedUnix,
         ),
         iconUrl: instance.iconUrl,
       })),
-    [instances.data, isLaunching, launch, stop],
+    [instances.data, isLaunching, launch, restart, stop],
   );
 
   const flavors = useMemo(() => flavorsOf(cards), [cards]);

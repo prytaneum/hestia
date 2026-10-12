@@ -190,6 +190,16 @@ export const serverMutations = {
         keys.processes.list(),
       ],
     }),
+  restart: (id: string) =>
+    mutation<{ processId: string; pid: number }>({
+      mutationKey: [...keys.servers.detail(id), 'restart'],
+      mutationFn: () => api.restart(id),
+      invalidates: () => [
+        keys.servers.list(),
+        keys.servers.detail(id),
+        keys.processes.list(),
+      ],
+    }),
   /** Id-by-variable variants for list rows, which can't call a per-id hook. */
   startAny: () =>
     mutation<{ processId: string; pid: number }, string>({

@@ -313,6 +313,7 @@ The only named hooks. Everything else is a factory passed to `useQuery`/`useMuta
 | `.update(id)` *(job)*                                | `server.update`                     | `{ version, loaderVersion?, allowDowngrade? }`   |
 | `.rename(id)` / `.remove(id)`                        | `server.rename\|remove`             | `name: string` / —                               |
 | `.start(id)` / `.stop(id)`                           | `server.start\|stop`                | —                                                |
+| `.restart(id)`                                       | `server.restart`                    | — (settles once the new process is up)           |
 | `.startAny()` / `.stopAny()`                         | `server.start\|stop`                | `id: string` — for a list row                    |
 | `.command(id)`                                       | `server.command`                    | `line: string`                                   |
 | `.setConfig(id)`                                     | `server.config.set`                 | `{ key, value }`                                 |
@@ -337,6 +338,7 @@ The only named hooks. Everything else is a factory passed to `useQuery`/`useMuta
 | `.rename(id)` / `.remove(id)`                        | `instance.rename\|remove`             | `name: string` / —                             |
 | `.launchAny()` *(job)*                               | `instance.launch`                     | `{ id, newSession?, quickPlay? }`              |
 | `.stop(id)` / `.stopAny()`                           | `instance.stop`                       | `{ session? }` / `{ id, session? }`            |
+| `.stopSettledAny()`                                  | `instance.stop` + `instance.list`     | `{ id, session }` — settles once it has exited |
 | `.setConfig(id)`                                     | `instance.config.set`                 | `{ key, value }`                               |
 | `.content.*`                                         | see **Entry content** below           |                                                |
 

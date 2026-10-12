@@ -18,6 +18,7 @@ import type {
   QuickPlay,
   ResolveParams,
 } from '../api';
+import { HestiaError } from '../api';
 import * as api from '../api/instance';
 import { CATALOG_STALE_MS, mutation } from './core';
 import { entryContentFactories } from './entry-content';
@@ -37,6 +38,26 @@ export interface LaunchVars {
 export interface StopVars {
   id: string;
   session?: string;
+}
+
+const EXIT_POLL_MS = 500;
+const EXIT_POLLS = 60;
+
+async function sessionExited(id: string, session: string): Promise<void> {
+  let name = id;
+  for (let poll = 0; poll < EXIT_POLLS; poll++) {
+    const instance = (await api.list()).find((entry) => entry.id === id);
+    const live = instance?.sessions.some(
+      (s) => s.id === session && s.state === 'running',
+    );
+    if (!live) return;
+    name = instance?.name ?? id;
+    await new Promise((resolve) => setTimeout(resolve, EXIT_POLL_MS));
+  }
+  throw new HestiaError('handler_error', `${name} did not stop in time`, {
+    kind: 'stop_timed_out',
+    name,
+  });
 }
 
 export const instanceQueries = {
@@ -248,6 +269,24 @@ export const instanceMutations = {
     mutation<void, StopVars>({
       mutationKey: [...keys.instances.all, 'stop'],
       mutationFn: ({ id, session }) => api.stop(id, session),
+      invalidates: ({ id }) => [
+        keys.instances.list(),
+        keys.instances.detail(id),
+        keys.processes.list(),
+      ],
+    }),
+  /**
+   * The first half of a restart: stops one session and settles only once the
+   * daemon no longer lists it running, so the relaunch that follows is not
+   * refused as a second session of the same game directory.
+   */
+  stopSettledAny: () =>
+    mutation<void, Required<StopVars>>({
+      mutationKey: [...keys.instances.all, 'stop', 'settled'],
+      mutationFn: async ({ id, session }) => {
+        await api.stop(id, session);
+        await sessionExited(id, session);
+      },
       invalidates: ({ id }) => [
         keys.instances.list(),
         keys.instances.detail(id),

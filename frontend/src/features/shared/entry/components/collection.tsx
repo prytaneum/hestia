@@ -26,6 +26,8 @@ export type CardActions = {
   onStop: (session?: string) => void;
   /** Instances only: launch alongside the sessions already running. */
   onNewSession?: () => void;
+  /** Instances only: stop one session and launch it again. */
+  onRestart?: (session: string) => void;
   launching?: boolean;
   stopping?: boolean;
 };
@@ -85,6 +87,7 @@ export function instanceToCard(
     onStart: actions.onStart,
     onStop: actions.onStop,
     onNewSession: actions.onNewSession,
+    onRestart: actions.onRestart,
   };
 }
 

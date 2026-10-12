@@ -1,4 +1,5 @@
 import {
+  ArrowClockwiseIcon,
   FolderOpenIcon,
   PlayIcon,
   PlusIcon,
@@ -18,6 +19,7 @@ import { Bone } from '@/components/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import { Spinner } from '@/components/ui/spinner';
 import { StatusDot } from '@/components/ui/status-dot';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { WarningNotice } from '@/components/warning-notice';
@@ -127,6 +129,7 @@ function ServerDetail({
   const install = useEntryInstall(server.name);
   const start = useMutation(serverMutations.start(id));
   const stop = useMutation(serverMutations.stop(id));
+  const restart = useMutation(serverMutations.restart(id));
 
   const running = isRunning(server);
   const ping = useQuery({ ...serverQueries.ping(id), enabled: running });
@@ -193,23 +196,45 @@ function ServerDetail({
             >
               <FolderOpenIcon className="size-4" />
             </Button>
-            {running ? (
-              <ConfirmDialog
-                trigger={
-                  <Button
-                    variant="outline"
-                    data-icon="inline-start"
-                    disabled={stop.isPending}
-                  >
-                    <PowerIcon weight="bold" />
-                    {m['app.action.stop']()}
-                  </Button>
-                }
-                title={m['entry.stop.title']({ name: server.name })}
-                description={m['entry.stop.server_description']()}
-                confirmLabel={m['app.action.stop']()}
-                onConfirm={() => stop.mutate()}
-              />
+            {running || restart.isPending ? (
+              <>
+                <ConfirmDialog
+                  trigger={
+                    <Button
+                      variant="outline"
+                      data-icon="inline-start"
+                      disabled={stop.isPending || restart.isPending}
+                    >
+                      {restart.isPending ? (
+                        <Spinner />
+                      ) : (
+                        <ArrowClockwiseIcon weight="bold" />
+                      )}
+                      {m['app.action.restart']()}
+                    </Button>
+                  }
+                  title={m['entry.restart.title']({ name: server.name })}
+                  description={m['entry.restart.server_description']()}
+                  confirmLabel={m['app.action.restart']()}
+                  onConfirm={() => restart.mutate()}
+                />
+                <ConfirmDialog
+                  trigger={
+                    <Button
+                      variant="outline"
+                      data-icon="inline-start"
+                      disabled={stop.isPending || restart.isPending}
+                    >
+                      <PowerIcon weight="bold" />
+                      {m['app.action.stop']()}
+                    </Button>
+                  }
+                  title={m['entry.stop.title']({ name: server.name })}
+                  description={m['entry.stop.server_description']()}
+                  confirmLabel={m['app.action.stop']()}
+                  onConfirm={() => stop.mutate()}
+                />
+              </>
             ) : (
               <Button
                 disabled={!server.ready || start.isPending}

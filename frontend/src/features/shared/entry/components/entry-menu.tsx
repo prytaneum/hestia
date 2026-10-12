@@ -1,4 +1,5 @@
 import {
+  ArrowClockwiseIcon,
   FolderOpenIcon,
   GearSixIcon,
   PushPinIcon,
@@ -6,12 +7,13 @@ import {
   TrashIcon,
   UploadSimpleIcon,
 } from '@phosphor-icons/react';
-import { useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import { type ReactElement, useState } from 'react';
 import { toast } from 'sonner';
 
 import { errorMessage, system } from '@/api';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import {
   ContextMenu,
   ContextMenuContent,
@@ -24,7 +26,7 @@ import { ExportInstanceDialog } from '@/features/instances/dialogs/export';
 import { m } from '@/paraglide/messages.js';
 import { instanceQueries } from '@/queries/instance';
 import { usePinned } from '@/queries/pinned';
-import { serverQueries } from '@/queries/server';
+import { serverMutations, serverQueries } from '@/queries/server';
 import { RemoveEntryDialog } from '../dialogs/remove';
 
 export interface EntryMenuTarget {
@@ -52,6 +54,8 @@ export function EntryContextMenu({
   const { ready, isPinned, toggle } = usePinned();
   const [removing, setRemoving] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [restarting, setRestarting] = useState(false);
+  const restart = useMutation(serverMutations.restart(id));
   const pinned = isPinned({ kind, id });
 
   const openFolder = () => {
@@ -95,6 +99,15 @@ export function EntryContextMenu({
           {pinned ? <PushPinSlashIcon /> : <PushPinIcon />}
           {pinned ? m['app.label.unpin']() : m['app.label.pin']()}
         </ContextMenuItem>
+        {kind === 'server' && entry.running && (
+          <ContextMenuItem
+            disabled={restart.isPending}
+            onClick={() => setRestarting(true)}
+          >
+            <ArrowClockwiseIcon />
+            {m['app.action.restart']()}
+          </ContextMenuItem>
+        )}
         <ContextMenuSeparator />
         <ContextMenuItem
           variant="destructive"
@@ -112,6 +125,19 @@ export function EntryContextMenu({
         open={removing}
         onOpenChange={setRemoving}
       />
+      {kind === 'server' && (
+        <ConfirmDialog
+          open={restarting}
+          onOpenChange={setRestarting}
+          title={m['entry.restart.title']({ name: entry.name })}
+          description={m['entry.restart.server_description']()}
+          confirmLabel={m['app.action.restart']()}
+          onConfirm={() => {
+            restart.mutate();
+            setRestarting(false);
+          }}
+        />
+      )}
       {kind === 'instance' && (
         <ExportInstanceDialog
           id={id}

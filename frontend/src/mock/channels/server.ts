@@ -84,6 +84,17 @@ const withProcess = (server: ServerInfo): ServerInfo => ({
 const serverId = (payload: Record<string, unknown>): string =>
   entries.findServer(str(payload, 'server')).id;
 
+function startServer(reference: string) {
+  const server = entries.findServer(reference);
+  const process = processes.start(
+    processes.serverProcessId(server.id),
+    `${entries.HOME}/java/${server.javaMajor}/bin/java`,
+    ['-Xmx4G', '-jar', 'server.jar', 'nogui'],
+    banner(server),
+  );
+  return { processId: process.id, pid: process.pid };
+}
+
 export const channels: Handlers = {
   'server.list': () => ({ servers: entries.listServers().map(withProcess) }),
 
@@ -189,15 +200,11 @@ export const channels: Handlers = {
     return ok();
   },
 
-  'server.start': (p) => {
-    const server = entries.findServer(str(p, 'server'));
-    const process = processes.start(
-      processes.serverProcessId(server.id),
-      `${entries.HOME}/java/${server.javaMajor}/bin/java`,
-      ['-Xmx4G', '-jar', 'server.jar', 'nogui'],
-      banner(server),
-    );
-    return { processId: process.id, pid: process.pid };
+  'server.start': (p) => startServer(str(p, 'server')),
+
+  'server.restart': (p) => {
+    processes.stop(processes.serverProcessId(serverId(p)));
+    return startServer(str(p, 'server'));
   },
 
   'server.stop': (p) => {

@@ -129,11 +129,18 @@
       "stop_timeout": "{name} did not stop in time, so it was not removed.",
       "stops_first": "It is running and will be stopped first."
     },
+    "restart": {
+      "instance_description": "The game session is closed and launched again. Unsaved progress may be lost.",
+      "server_description": "The server shuts down, disconnecting any connected players, and starts again.",
+      "session_title": "Restart session {seq}?",
+      "title": "Restart {name}?"
+    },
     "session": {
       "menu": "Session actions",
       "name": "Session {seq}",
       "new": "New session",
       "pid": "PID {pid}",
+      "restart_one": "Restart session {seq}",
       "stop_all": "Stop all sessions",
       "stop_one": "Stop session {seq}"
     },

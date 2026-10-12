@@ -129,11 +129,18 @@
       "stop_timeout": "{name} não parou a tempo e, por isso, não foi removido.",
       "stops_first": "Está em execução e será parado primeiro."
     },
+    "restart": {
+      "instance_description": "A sessão de jogo será fechada e iniciada de novo. Progresso não salvo pode ser perdido.",
+      "server_description": "O servidor será desligado, desconectando os jogadores conectados, e iniciado de novo.",
+      "session_title": "Reiniciar a sessão {seq}?",
+      "title": "Reiniciar {name}?"
+    },
     "session": {
       "menu": "Ações da sessão",
       "name": "Sessão {seq}",
       "new": "Nova sessão",
       "pid": "PID {pid}",
+      "restart_one": "Reiniciar a sessão {seq}",
       "stop_all": "Parar todas as sessões",
       "stop_one": "Parar a sessão {seq}"
     },

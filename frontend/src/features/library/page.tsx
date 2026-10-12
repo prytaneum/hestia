@@ -67,7 +67,11 @@ export function LibraryPage({
   const stopServer = useMutation(serverMutations.stopAny());
 
   const instances = useInstances();
-  const { launch: launchInstance, isLaunching } = useLaunchDialog();
+  const {
+    launch: launchInstance,
+    restart: restartInstance,
+    isLaunching,
+  } = useLaunchDialog();
   const stopInstance = useMutation(instanceMutations.stopAny());
 
   const [newKind, setNewKind] = useState<'server' | 'instance'>('instance');
@@ -134,12 +138,19 @@ export function LibraryPage({
             onStop: (session) =>
               stopInstance.mutate({ id: instance.id, session }),
             onNewSession: () => launchInstance(instance, { newSession: true }),
+            onRestart: (session) => restartInstance(instance, session),
           },
           instance.lastPlayedUnix,
         ),
         iconUrl: instance.iconUrl,
       })),
-    [instances.data, isLaunching, launchInstance, stopInstance],
+    [
+      instances.data,
+      isLaunching,
+      launchInstance,
+      restartInstance,
+      stopInstance,
+    ],
   );
 
   const serverFlavors = useMemo(() => flavorsOf(serverCards), [serverCards]);

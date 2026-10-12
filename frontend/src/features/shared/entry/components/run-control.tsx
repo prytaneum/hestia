@@ -1,5 +1,5 @@
 import { CaretDownIcon, PlayIcon, PowerIcon } from '@phosphor-icons/react';
-import { useState } from 'react';
+import { Fragment, useState } from 'react';
 
 import type { ProcessInfo } from '@/api';
 import { Button } from '@/components/ui/button';
@@ -26,14 +26,20 @@ const CARET_SIZE = {
   default: 'icon',
 } as const;
 
-/** `session` names one to stop; absent stops every session of the instance. */
-type StopTarget = { session?: string };
+/**
+ * A stop names one `session` or, absent, every session of the instance; a
+ * restart always names the one it relaunches.
+ */
+type Pending =
+  | { action: 'stop'; session?: string }
+  | { action: 'restart'; session: string };
 
 /**
- * What a running instance offers: Stop, plus the menu a further launch and the
- * per-session stops hang off. The menu appears only when there is something in
- * it — concurrent sessions are gated behind `instance.multi-session`, and with
- * that off a single-session instance has nothing but its stop.
+ * What a running instance offers: Stop, plus the menu a further launch, the
+ * restarts and the per-session stops hang off. The menu appears only when
+ * there is something in it — concurrent sessions are gated behind
+ * `instance.multi-session`, and with that off and no `onRestart` a
+ * single-session instance has nothing but its stop.
  *
  * Every handler stops propagation — the control renders inside the library's
  * card links, and the menu's portalled content still bubbles through the React
@@ -47,6 +53,7 @@ export function EntryRunControl({
   busy = false,
   launching = false,
   onNewSession,
+  onRestart,
   onStop,
 }: {
   name: string;
@@ -58,14 +65,18 @@ export function EntryRunControl({
   busy?: boolean;
   launching?: boolean;
   onNewSession: () => void;
+  /** Stop one session and launch it again; absent hides the option. */
+  onRestart?: (session: string) => void;
   onStop: (session?: string) => void;
 }) {
-  const [confirm, setConfirm] = useState<StopTarget | null>(null);
+  const [confirm, setConfirm] = useState<Pending | null>(null);
   const multiSession = useMultiSession();
   const now = Date.now() / 1000;
   const target = confirm?.session;
   const seq = target ? sessionSeq(target) : 0;
-  const menu = multiSession || sessions.length > 1;
+  const restarting = confirm?.action === 'restart';
+  const only = sessions.length === 1 ? sessions[0] : undefined;
+  const menu = multiSession || sessions.length > 1 || onRestart != null;
 
   return (
     <>
@@ -80,7 +91,7 @@ export function EntryRunControl({
           onClick={(event) => {
             event.preventDefault();
             event.stopPropagation();
-            setConfirm({});
+            setConfirm({ action: 'stop' });
           }}
         >
           <PowerIcon weight="bold" />
@@ -116,11 +127,21 @@ export function EntryRunControl({
                   <DropdownMenuSeparator />
                 </>
               )}
-              <DropdownMenuItem onClick={() => setConfirm({})}>
+              <DropdownMenuItem onClick={() => setConfirm({ action: 'stop' })}>
                 {sessions.length > 1
                   ? m['entry.session.stop_all']()
                   : m['app.action.stop']()}
               </DropdownMenuItem>
+              {onRestart && only && (
+                <DropdownMenuItem
+                  disabled={launching}
+                  onClick={() =>
+                    setConfirm({ action: 'restart', session: only.id })
+                  }
+                >
+                  {m['app.action.restart']()}
+                </DropdownMenuItem>
+              )}
               {sessions.length > 1 && (
                 <>
                   <DropdownMenuSeparator />
@@ -128,19 +149,37 @@ export function EntryRunControl({
                     {m['app.label.sessions']()}
                   </DropdownMenuLabel>
                   {sessions.map((session) => (
-                    <DropdownMenuItem
-                      key={session.id}
-                      onClick={() => setConfirm({ session: session.id })}
-                    >
-                      <span className="min-w-0 flex-1 truncate">
-                        {m['entry.session.stop_one']({
-                          seq: sessionSeq(session.id),
-                        })}
-                      </span>
-                      <span className="font-mono text-[10px] text-muted-foreground">
-                        {uptime(now - session.startedUnix)}
-                      </span>
-                    </DropdownMenuItem>
+                    <Fragment key={session.id}>
+                      <DropdownMenuItem
+                        onClick={() =>
+                          setConfirm({ action: 'stop', session: session.id })
+                        }
+                      >
+                        <span className="min-w-0 flex-1 truncate">
+                          {m['entry.session.stop_one']({
+                            seq: sessionSeq(session.id),
+                          })}
+                        </span>
+                        <span className="font-mono text-[10px] text-muted-foreground">
+                          {uptime(now - session.startedUnix)}
+                        </span>
+                      </DropdownMenuItem>
+                      {onRestart && (
+                        <DropdownMenuItem
+                          disabled={launching}
+                          onClick={() =>
+                            setConfirm({
+                              action: 'restart',
+                              session: session.id,
+                            })
+                          }
+                        >
+                          {m['entry.session.restart_one']({
+                            seq: sessionSeq(session.id),
+                          })}
+                        </DropdownMenuItem>
+                      )}
+                    </Fragment>
                   ))}
                 </>
               )}
@@ -155,24 +194,33 @@ export function EntryRunControl({
           if (!open) setConfirm(null);
         }}
         title={
-          target
-            ? m['entry.stop.session_title']({ seq })
-            : m['entry.stop.title']({ name })
+          restarting
+            ? only
+              ? m['entry.restart.title']({ name })
+              : m['entry.restart.session_title']({ seq })
+            : target
+              ? m['entry.stop.session_title']({ seq })
+              : m['entry.stop.title']({ name })
         }
         description={
-          target
-            ? m['entry.stop.session_description']({
-                count: sessions.length - 1,
-              })
-            : sessions.length > 1
-              ? m['entry.stop.sessions_description']({
-                  count: sessions.length,
+          restarting
+            ? m['entry.restart.instance_description']()
+            : target
+              ? m['entry.stop.session_description']({
+                  count: sessions.length - 1,
                 })
-              : m['entry.stop.instance_description']()
+              : sessions.length > 1
+                ? m['entry.stop.sessions_description']({
+                    count: sessions.length,
+                  })
+                : m['entry.stop.instance_description']()
         }
-        confirmLabel={m['app.action.stop']()}
+        confirmLabel={
+          restarting ? m['app.action.restart']() : m['app.action.stop']()
+        }
         onConfirm={() => {
-          onStop(target);
+          if (confirm?.action === 'restart') onRestart?.(confirm.session);
+          else onStop(target);
           setConfirm(null);
         }}
       />

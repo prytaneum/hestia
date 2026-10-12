@@ -128,7 +128,7 @@ function InstanceDetail({
   const [exporting, setExporting] = useState(false);
   const [focus, setFocus] = useState<string | null>(null);
   const [logSession, setLogSession] = useState<string | null>(null);
-  const { launch, isLaunching } = useLaunchDialog();
+  const { launch, restart, isLaunching } = useLaunchDialog();
   const stop = useMutation(instanceMutations.stop(id));
   const accepts = instance.accepts;
   // Shared with the content tab's own per-kind queries (cached), just for the
@@ -215,6 +215,7 @@ function InstanceDetail({
                 busy={stop.isPending}
                 launching={isLaunching(id)}
                 onNewSession={() => launch(instance, { newSession: true })}
+                onRestart={(session) => restart(instance, session)}
                 onStop={(session) => stop.mutate({ session })}
               />
             ) : (

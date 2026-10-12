@@ -37,6 +37,8 @@ export interface EntryCardModel {
   onStop?: (session?: string) => void;
   /** Launch alongside the running sessions; absent hides the option. */
   onNewSession?: () => void;
+  /** Stop one session and launch it again; absent hides the option. */
+  onRestart?: (session: string) => void;
   busy?: boolean;
   /** Split out of `busy` so a launch in flight still leaves stopping live. */
   launching?: boolean;
@@ -101,6 +103,7 @@ function ActionButton({
         busy={entry.stopping}
         launching={entry.launching}
         onNewSession={entry.onNewSession}
+        onRestart={entry.onRestart}
         onStop={(session) => entry.onStop?.(session)}
       />
     );

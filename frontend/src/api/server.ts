@@ -132,6 +132,13 @@ export async function stop(server: string): Promise<void> {
   await call('server.stop', { server });
 }
 
+/** Answers once the new process is up, so it waits out the old one's stop. */
+export function restart(
+  server: string,
+): Promise<{ processId: string; pid: number }> {
+  return call('server.restart', { server }, { timeoutMs: 150_000 });
+}
+
 export async function logs(
   server: string,
   tail?: number,

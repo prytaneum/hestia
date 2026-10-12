@@ -1,3 +1,4 @@
+import { useMutation } from '@tanstack/react-query';
 import {
   createContext,
   useCallback,
@@ -10,6 +11,7 @@ import {
 import type { InstanceInfo, QuickPlay } from '@/api';
 import { AppDialog } from '@/components/dialog';
 import { ProvisionProgressView } from '@/features/shared/entry/components';
+import { runningSessions } from '@/lib/sessions';
 import { toastWarnings } from '@/lib/warnings';
 import { m } from '@/paraglide/messages.js';
 import { instanceMutations } from '@/queries/instance';
@@ -26,6 +28,8 @@ interface LaunchOptions {
 
 interface LaunchDialog {
   launch: (instance: InstanceInfo, options?: LaunchOptions) => void;
+  /** Stop one session, then launch again once it has exited. */
+  restart: (instance: InstanceInfo, session: string) => void;
   /** A Quick Play matches only its own `target`, so one row spins, not all. */
   isLaunching: (id: string, target?: string) => boolean;
 }
@@ -85,7 +89,26 @@ export function LaunchDialogProvider({
       isPending && variables?.id === id && variables.quickPlay?.target === join,
     [isPending, variables],
   );
-  const value = useMemo(() => ({ launch, isLaunching }), [launch, isLaunching]);
+  const { mutate: stopSettled } = useMutation(
+    instanceMutations.stopSettledAny(),
+  );
+  const restart = useCallback(
+    (instance: InstanceInfo, session: string) => {
+      // The sessions left running make the relaunch a concurrent one.
+      const newSession = runningSessions(instance).some(
+        (other) => other.id !== session,
+      );
+      stopSettled(
+        { id: instance.id, session },
+        { onSuccess: () => launch(instance, { newSession }) },
+      );
+    },
+    [stopSettled, launch],
+  );
+  const value = useMemo(
+    () => ({ launch, restart, isLaunching }),
+    [launch, restart, isLaunching],
+  );
 
   const job = mutation.job;
   const open = target != null;
