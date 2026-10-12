@@ -254,6 +254,40 @@ impl fmt::Display for ArchiveFault {
     }
 }
 
+/// Why a path in an entry's file tree was refused.
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
+#[serde(rename_all = "snake_case")]
+pub enum FileFault {
+    /// Absolute, traversing, or reaching out of the tree through a link.
+    OutsideEntry,
+    AlreadyExists,
+    NotADirectory,
+    IsADirectory,
+    /// Past the size a file is read or written whole at.
+    TooLarge,
+    NotText,
+    /// Neither a `.zip` nor a `.tar.gz`.
+    ArchiveFormat,
+    /// A directory moved or copied to somewhere beneath itself.
+    IntoItself,
+}
+
+impl fmt::Display for FileFault {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            FileFault::OutsideEntry => "it is outside the server's directory",
+            FileFault::AlreadyExists => "something with that name already exists",
+            FileFault::NotADirectory => "it is not a directory",
+            FileFault::IsADirectory => "it is a directory",
+            FileFault::TooLarge => "it is too large to edit",
+            FileFault::NotText => "it is not a text file",
+            FileFault::ArchiveFormat => "it is not a .zip or .tar.gz archive",
+            FileFault::IntoItself => "a directory cannot be placed inside itself",
+        })
+    }
+}
+
 /// The JSON kind a config key holds.
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
@@ -458,6 +492,14 @@ pub enum ErrorInfo {
     },
     VersionNotFound {
         reference: String,
+    },
+    /// No file or directory at `path` in the entry's tree.
+    FileNotFound {
+        path: String,
+    },
+    FileRejected {
+        path: String,
+        reason: FileFault,
     },
     ConfigKeyUnknown {
         key: String,
@@ -706,6 +748,7 @@ impl ErrorInfo {
             | ServerListEntryNotFound { .. }
             | AccountNotFound { .. }
             | VersionNotFound { .. }
+            | FileNotFound { .. }
             | ConfigKeyUnknown { .. }
             | ConfigKeyUnset { .. } => "not_found",
             SignInRequired | SessionExpired { .. } | LoginDeclined | LoginTimedOut => {
@@ -800,6 +843,8 @@ impl fmt::Display for ErrorInfo {
             ),
             AccountNotFound { reference } => write!(f, "no account matches '{reference}'"),
             VersionNotFound { reference } => write!(f, "no version matches '{reference}'"),
+            FileNotFound { path } => write!(f, "no file or directory at '{path}'"),
+            FileRejected { path, reason } => write!(f, "'{path}' was refused: {reason}"),
             ConfigKeyUnknown { key } => write!(f, "unknown config key '{key}'"),
             ConfigKeyUnset { key } => write!(f, "'{key}' is not set"),
             ConfigTypeMismatch { key, expected } => write!(f, "{key} expects a {expected}"),

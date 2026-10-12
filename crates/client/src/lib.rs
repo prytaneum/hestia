@@ -6,7 +6,7 @@ mod session;
 mod spawn;
 
 pub use facades::{
-    Accounts, App, Cache, Config, Content, Daemon, Exported, Imported, Instance, Java,
+    Accounts, App, Cache, Config, Content, Daemon, Exported, Files, Imported, Instance, Java,
     LaunchOptions, Modpack, Net, Process, ProcessEvent, Screenshot, Server, Skins, Sync, Transfer,
     Update,
 };
@@ -172,6 +172,12 @@ impl Client {
 
     pub fn skins(&self) -> Skins<'_> {
         Skins {
+            session: &self.session,
+        }
+    }
+
+    pub fn files(&self) -> Files<'_> {
+        Files {
             session: &self.session,
         }
     }

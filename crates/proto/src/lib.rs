@@ -12,6 +12,7 @@ pub mod daemon;
 pub mod download;
 pub mod error;
 pub mod events;
+pub mod files;
 pub mod health;
 pub mod instance;
 pub mod java;

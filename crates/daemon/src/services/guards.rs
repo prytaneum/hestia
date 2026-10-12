@@ -24,6 +24,10 @@ pub(super) enum Intent {
     /// flushes the world over rcon first — so it waits only on the jobs that
     /// write the tree it reads.
     Backup,
+    /// Edits files in its game directory by hand. Allowed on a live entry, as
+    /// a hosting panel's file manager is: what the game holds open is its own
+    /// to refuse, and a config edit waits for the next reload either way.
+    Edit,
     /// Changes the entry itself — rename, remove, a version change.
     Lifecycle,
 }
@@ -61,6 +65,20 @@ impl Exclusions {
             },
             // Instances have no backups; `instance.export` is what they have.
             (EntryKind::Instance, Intent::Backup) => Exclusions {
+                content: true,
+                modpack: true,
+                transfer: true,
+                ..base
+            },
+            (EntryKind::Server, Intent::Edit) => Exclusions {
+                provisioning: true,
+                backup: true,
+                update: true,
+                content: true,
+                modpack: true,
+                ..base
+            },
+            (EntryKind::Instance, Intent::Edit) => Exclusions {
                 content: true,
                 modpack: true,
                 transfer: true,

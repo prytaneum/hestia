@@ -13,6 +13,8 @@ mod content;
 mod download;
 mod engine;
 mod error;
+mod extract;
+mod files;
 mod instances;
 mod java;
 mod minecraft;
@@ -44,6 +46,7 @@ pub use engine::{
     ServerCreateSpec, ServerListWrite, ServerUpdateSpec,
 };
 pub use error::error_info;
+pub use files::FileTree;
 pub use instances::{InstanceRecord, Instances};
 pub use java::{Java, JavaInstallOutcome};
 pub use minecraft::launch::{JavaSettings, LaunchPlan};

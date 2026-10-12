@@ -3,7 +3,6 @@
 //! that directory — the disk is the registry.
 
 mod adoptium;
-mod extract;
 mod platform;
 
 use std::path::{Path, PathBuf};
@@ -216,7 +215,7 @@ impl Java {
         let archive_owned = paths.archive.clone();
         let staging_owned = paths.staging.clone();
         tokio::task::spawn_blocking(move || {
-            extract::extract_archive(&archive_owned, &staging_owned, |_, _| {})
+            crate::extract::extract_archive(&archive_owned, &staging_owned, |_, _| {})
         })
         .await
         .context("extraction task panicked")??;

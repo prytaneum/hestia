@@ -9,6 +9,7 @@ mod cache;
 mod config;
 mod content;
 mod download;
+mod files;
 mod guards;
 mod instance;
 mod java;
@@ -39,6 +40,7 @@ pub fn make_router() -> Router {
     skins::register(&mut on);
     process::register(&mut on);
     server::register(&mut on);
+    files::register(&mut on);
     instance::register(&mut on);
     screenshot::register(&mut on);
     backup::register(&mut on);

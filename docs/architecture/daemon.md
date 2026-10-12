@@ -150,7 +150,7 @@ One registrar per domain, each registering its channels with one
 `on.handle::<C>(…)` apiece. `services/mod.rs`'s `make_router()` is nothing but
 the list of `register()` calls; `services/guards.rs` holds the preconditions the
 registrars share. A handler does not assemble its own: it names what it is about
-to do — `Intent::{Read, Start, Mutate, Backup, Lifecycle}` — and `server_for` /
+to do — `Intent::{Read, Start, Mutate, Backup, Edit, Lifecycle}` — and `server_for` /
 `instance_for` resolve the entry and apply the exclusions that intent implies
 for that side ([0029](../decisions/0029-one-registrar-per-domain.md)).
 
@@ -171,6 +171,7 @@ is purely a compile-time one that keeps `make_router()` from becoming a
 | `skins` | `skin.list\|add\|update\|equip\|reset\|remove`, `cape.equip\|clear` |
 | `process` | `process.start\|stop\|list\|status\|logs` |
 | `server` | `server.flavors\|loaders\|versions\|resolve`, `server.create\|update\|rename\|list\|status\|info\|remove\|start\|stop\|logs\|command\|ping`, `server.config.get\|set\|list` |
+| `files` | `server.files.list\|read\|write\|mkdir\|move\|copy\|remove\|import\|compress\|extract` |
 | `instance` | the `instance.*` counterparts, plus `instance.launch\|stop\|logs`, `instance.worlds`, `instance.sync.adopt` |
 | `backup` | `server.backup.create\|list\|restore\|remove` |
 | `content` | `content.sources\|search\|project\|versions\|inspect\|resolve_url`, `content.modpack.resolve`, and the per-entry `server\|instance.content.add\|list\|remove\|update\|enable\|check_updates\|set_version` |

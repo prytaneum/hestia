@@ -193,6 +193,16 @@ async fn daemon_serves_the_full_client_surface() {
     }
     assert!(killed, "the process should report Killed after stop");
 
+    let missing = client
+        .files()
+        .list("ghost", "")
+        .await
+        .expect_err("a file listing needs a server");
+    assert!(matches!(
+        client::error_info(&missing),
+        client::proto::error::ErrorInfo::EntryNotFound { .. }
+    ));
+
     client.daemon().stop(false).await.expect("daemon.stop");
     drop(daemon);
 }

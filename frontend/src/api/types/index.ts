@@ -8,6 +8,7 @@ export type * from "./daemon";
 export type * from "./download";
 export type * from "./error";
 export type * from "./events";
+export type * from "./files";
 export type * from "./health";
 export type * from "./instance";
 export type * from "./java";

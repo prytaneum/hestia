@@ -234,6 +234,34 @@ instead. A server is infrastructure that has to be recoverable in place, so it
 is archived on a schedule; an instance is something you play, share and move
 between machines, so it travels as one file you write on purpose.
 
+## The file tree
+
+A server's `data/` directory is also served as a tree a front-end can browse
+and edit (`server.files.*`, `engine::FileTree`) — the file manager a hosting
+panel has. Three rules shape it:
+
+- **Paths are relative and `/`-separated on every platform**, and none resolves
+  outside `data/`. The check is lexical (no absolute path, no `..`) *and*
+  physical: whatever part of the path already exists is canonicalised and must
+  land back under the root, so a link inside the tree cannot be used to read or
+  write through it. The root itself is never a target — it can be listed, not
+  renamed or removed.
+- **A file is read and written whole, as text**, up to 2 MiB. A binary or
+  larger file is refused rather than truncated; it can still be moved, copied,
+  archived or removed. A write stages to `.part` and renames.
+- **Edits are allowed on a running server** (`Intent::Edit`), as a panel's file
+  manager allows them: a plugin's config is edited and reloaded live. They wait
+  only on the jobs that rewrite the tree — a backup or restore, a version
+  change, a content or modpack job.
+
+`import` copies files from elsewhere on the machine into the tree — what a
+hosted panel calls an upload; the daemon is local, so it takes absolute paths
+rather than bytes. `compress` writes a `.zip`; `extract` unpacks a `.zip` or
+`.tar.gz`, refusing any member that would land outside its destination.
+
+Moving a whole tree happens inside one call rather than as a job, so there is
+no progress and no cancellation; the client waits up to ten minutes for it.
+
 ## Sync — shared settings across instances
 
 Instances share a closed **catalogue**, and each unit names its own mechanism

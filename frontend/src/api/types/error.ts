@@ -4,6 +4,7 @@ export type { ArchiveFormat } from "./generated/ArchiveFormat";
 export type { EntryKind } from "./generated/EntryKind";
 export type { ErrorInfo } from "./generated/ErrorInfo";
 export type { Field } from "./generated/Field";
+export type { FileFault } from "./generated/FileFault";
 export type { IoOp } from "./generated/IoOp";
 export type { Nameable } from "./generated/Nameable";
 export type { Reason } from "./generated/Reason";
