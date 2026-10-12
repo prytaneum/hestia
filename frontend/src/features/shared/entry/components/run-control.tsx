@@ -107,7 +107,10 @@ export function EntryRunControl({
                   aria-label={m['entry.session.menu']()}
                   title={m['entry.session.menu']()}
                   disabled={busy}
-                  onClick={(event) => event.stopPropagation()}
+                  onClick={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                  }}
                 >
                   <CaretDownIcon weight="bold" />
                 </Button>
