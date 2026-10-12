@@ -31,7 +31,6 @@ import {
   ServerBackupsTab,
   ServerConsoleTab,
   ServerFilesTab,
-  ServerPropertiesTab,
   ServerSettingsTab,
 } from '@/features/servers/tabs';
 import { EntryIconMenu } from '@/features/shared/entry/components';
@@ -56,7 +55,6 @@ export type ServerTab =
   | 'content'
   | 'files'
   | 'backups'
-  | 'properties'
   | 'settings';
 
 function isRunning(server: ServerInfo): boolean {
@@ -242,9 +240,6 @@ function ServerDetail({
           <TabsTrigger value="backups" {...anchor('server-backups')}>
             {m['app.label.backups']()}
           </TabsTrigger>
-          <TabsTrigger value="properties">
-            {m['server.properties.title']()}
-          </TabsTrigger>
           <TabsTrigger value="settings">
             {m['app.label.settings']()}
           </TabsTrigger>
@@ -370,10 +365,6 @@ function ServerDetail({
 
         <TabsContent value="backups" className="flex flex-col p-5">
           <ServerBackupsTab id={id} running={running} config={config.data} />
-        </TabsContent>
-
-        <TabsContent value="properties" className="p-5">
-          <ServerPropertiesTab id={id} running={running} />
         </TabsContent>
 
         <TabsContent value="settings" className="p-5">

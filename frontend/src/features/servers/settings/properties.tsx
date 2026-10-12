@@ -65,7 +65,7 @@ function PropertyControl({
  * The server's `server.properties`, key by key, exactly as the daemon lists
  * it for this version — nothing here knows a key by name.
  */
-export function ServerPropertiesTab({
+export function PropertiesSettings({
   id,
   running,
 }: {
@@ -76,13 +76,13 @@ export function ServerPropertiesTab({
   const setConfig = useMutation(serverMutations.setConfig(id));
   const [query, setQuery] = useState('');
 
-  if (properties.isPending) return <Bone className="h-64 max-w-2xl" />;
+  if (properties.isPending) return <Bone className="h-64" />;
 
   const all = properties.data ?? [];
   const shown = matchProperties(all, query);
 
   return (
-    <div className="max-w-2xl">
+    <div>
       <div className="mb-4 flex items-center gap-4">
         <p className="flex-1 text-xs text-muted-foreground">
           {m['server.properties.description']()}

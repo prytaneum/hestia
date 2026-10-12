@@ -3,7 +3,8 @@ import { userEvent } from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ConfigEntry } from '@/api';
 import { InstanceSettingsTab } from '@/features/instances/tabs';
-import { ServerPropertiesTab, ServerSettingsTab } from '@/features/servers/tabs';
+import { PropertiesSettings } from '@/features/servers/settings';
+import { ServerSettingsTab } from '@/features/servers/tabs';
 import { listInstances, listServers } from '@/mock/state/entries';
 import { m } from '@/paraglide/messages.js';
 import { renderWithProviders, resetQueryCache } from '../../../../support';
@@ -41,9 +42,12 @@ const showInstance = (running = false) =>
 
 const showProperties = (running = false) =>
   renderWithProviders(
-    <ServerPropertiesTab id={server.id} running={running} />,
+    <PropertiesSettings id={server.id} running={running} />,
     { route: true },
   );
+
+const open = async (tab: string) =>
+  userEvent.click(await screen.findByRole('tab', { name: tab }));
 
 const save = () => screen.queryByRole('button', { name: m['app.action.save']() });
 
@@ -60,9 +64,10 @@ describe('the shared entry settings tab', () => {
     )) as HTMLInputElement;
     expect(name.value).toBe(server.name);
 
-    const args = screen.getByLabelText(
+    await open(m['app.label.java']());
+    const args = (await screen.findByLabelText(
       m['entry.settings.java_arguments'](),
-    ) as HTMLInputElement;
+    )) as HTMLInputElement;
     expect(args.value).toBe('-XX:+UseZGC');
   });
 
@@ -89,6 +94,7 @@ describe('the shared entry settings tab', () => {
 
   it('saves the JVM args and confirms it', async () => {
     showServer();
+    await open(m['app.label.java']());
     const args = await screen.findByLabelText(
       m['entry.settings.java_arguments'](),
     );
@@ -120,6 +126,7 @@ describe('the shared entry settings tab', () => {
 
   it('offers the backup schedule on a server', async () => {
     showServer();
+    await open(m['app.label.backups']());
     expect(
       await screen.findByLabelText(m['entry.settings.keep_backups']()),
     ).toBeDefined();
@@ -129,8 +136,14 @@ describe('the shared entry settings tab', () => {
     showInstance();
     await screen.findByLabelText(m['entry.settings.instance_name']());
     expect(
-      screen.queryByLabelText(m['entry.settings.keep_backups']()),
+      screen.queryByRole('tab', { name: m['app.label.backups']() }),
     ).toBeNull();
+  });
+
+  it('keeps the properties under the server’s settings', async () => {
+    showServer();
+    await open(m['server.properties.title']());
+    expect(await screen.findByLabelText(/^motd/)).toBeDefined();
   });
 
   it('names removal after the server it would remove', async () => {

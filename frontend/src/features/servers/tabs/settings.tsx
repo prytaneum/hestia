@@ -2,12 +2,15 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
 
 import type { ConfigEntry, ServerInfo } from '@/api';
-import { FieldGroup } from '@/components/ui/field';
-import { BackupSettings } from '@/features/servers/settings';
+import {
+  BackupSettings,
+  PropertiesSettings,
+} from '@/features/servers/settings';
 import {
   DangerSettings,
   GeneralSettings,
   JavaSettings,
+  SettingsTabs,
 } from '@/features/shared/entry/settings';
 import { m } from '@/paraglide/messages.js';
 import { configQueries, launcherDefaults } from '@/queries/config';
@@ -30,32 +33,59 @@ export function ServerSettingsTab({
   const update = useJobMutation(serverMutations.update(server.id));
 
   return (
-    <FieldGroup className="max-w-2xl gap-8">
-      <GeneralSettings
-        kind="server"
-        entry={server}
-        running={running}
-        rename={(name) =>
-          rename.mutate(name, {
-            onSuccess: (updated) =>
-              toast.success(m['app.toast.renamed']({ name: updated.name })),
-          })
-        }
-        update={update}
-        versionsQuery={serverQueries.versions(server.flavor)}
-      />
-      <JavaSettings
-        config={config}
-        defaults={launcherDefaults(globalConfig.data)}
-        setConfig={setConfig}
-      />
-      <BackupSettings config={config} setConfig={setConfig} />
-      <DangerSettings
-        kind="server"
-        name={server.name}
-        running={running}
-        remove={remove}
-      />
-    </FieldGroup>
+    <SettingsTabs
+      tabs={[
+        {
+          id: 'general',
+          label: m['entry.settings.section.general'](),
+          content: (
+            <>
+              <GeneralSettings
+                kind="server"
+                entry={server}
+                running={running}
+                rename={(name) =>
+                  rename.mutate(name, {
+                    onSuccess: (updated) =>
+                      toast.success(
+                        m['app.toast.renamed']({ name: updated.name }),
+                      ),
+                  })
+                }
+                update={update}
+                versionsQuery={serverQueries.versions(server.flavor)}
+              />
+              <DangerSettings
+                kind="server"
+                name={server.name}
+                running={running}
+                remove={remove}
+              />
+            </>
+          ),
+        },
+        {
+          id: 'properties',
+          label: m['server.properties.title'](),
+          content: <PropertiesSettings id={server.id} running={running} />,
+        },
+        {
+          id: 'java',
+          label: m['app.label.java'](),
+          content: (
+            <JavaSettings
+              config={config}
+              defaults={launcherDefaults(globalConfig.data)}
+              setConfig={setConfig}
+            />
+          ),
+        },
+        {
+          id: 'backups',
+          label: m['app.label.backups'](),
+          content: <BackupSettings config={config} setConfig={setConfig} />,
+        },
+      ]}
+    />
   );
 }

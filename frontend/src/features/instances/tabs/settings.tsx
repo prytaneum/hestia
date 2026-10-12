@@ -2,12 +2,12 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
 
 import type { ConfigEntry, InstanceInfo } from '@/api';
-import { FieldGroup } from '@/components/ui/field';
 import { InstanceSyncField } from '@/features/instances/components';
 import {
   DangerSettings,
   GeneralSettings,
   JavaSettings,
+  SettingsTabs,
 } from '@/features/shared/entry/settings';
 import { m } from '@/paraglide/messages.js';
 import { configQueries, launcherDefaults } from '@/queries/config';
@@ -29,32 +29,54 @@ export function InstanceSettingsTab({
   const update = useMutation(instanceMutations.update(instance.id));
 
   return (
-    <FieldGroup className="max-w-2xl gap-8">
-      <GeneralSettings
-        kind="instance"
-        entry={instance}
-        running={running}
-        rename={(name) =>
-          rename.mutate(name, {
-            onSuccess: (updated) =>
-              toast.success(m['app.toast.renamed']({ name: updated.name })),
-          })
-        }
-        update={update}
-        versionsQuery={instanceQueries.versions(instance.flavor)}
-      />
-      <JavaSettings
-        config={config}
-        defaults={launcherDefaults(globalConfig.data)}
-        setConfig={setConfig}
-      />
-      <InstanceSyncField id={instance.id} />
-      <DangerSettings
-        kind="instance"
-        name={instance.name}
-        running={running}
-        remove={remove}
-      />
-    </FieldGroup>
+    <SettingsTabs
+      tabs={[
+        {
+          id: 'general',
+          label: m['entry.settings.section.general'](),
+          content: (
+            <>
+              <GeneralSettings
+                kind="instance"
+                entry={instance}
+                running={running}
+                rename={(name) =>
+                  rename.mutate(name, {
+                    onSuccess: (updated) =>
+                      toast.success(
+                        m['app.toast.renamed']({ name: updated.name }),
+                      ),
+                  })
+                }
+                update={update}
+                versionsQuery={instanceQueries.versions(instance.flavor)}
+              />
+              <DangerSettings
+                kind="instance"
+                name={instance.name}
+                running={running}
+                remove={remove}
+              />
+            </>
+          ),
+        },
+        {
+          id: 'java',
+          label: m['app.label.java'](),
+          content: (
+            <JavaSettings
+              config={config}
+              defaults={launcherDefaults(globalConfig.data)}
+              setConfig={setConfig}
+            />
+          ),
+        },
+        {
+          id: 'sync',
+          label: m['instance.sync.title'](),
+          content: <InstanceSyncField id={instance.id} />,
+        },
+      ]}
+    />
   );
 }
