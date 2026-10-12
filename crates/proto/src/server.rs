@@ -352,6 +352,31 @@ impl Contract for ServerCommand {
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
 #[serde(default, rename_all = "camelCase")]
+pub struct ServerCommandCompleteParams {
+    pub server: String,
+    pub line: String,
+}
+
+#[derive(Serialize, Deserialize, Default, Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
+#[serde(default, rename_all = "camelCase")]
+pub struct ServerCommandCompleteResult {
+    /// What the line's last word can become.
+    pub completions: Vec<String>,
+    /// The arguments accepted in its place, as the server names them (`<targets>`).
+    pub arguments: Vec<String>,
+}
+
+pub struct ServerCommandComplete;
+impl Contract for ServerCommandComplete {
+    const CHANNEL: &'static str = "server.command.complete";
+    type Params = ServerCommandCompleteParams;
+    type Result = ServerCommandCompleteResult;
+}
+
+#[derive(Serialize, Deserialize, Default, Debug, Clone)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
+#[serde(default, rename_all = "camelCase")]
 pub struct ServerConfigGetParams {
     pub server: String,
     pub key: String,

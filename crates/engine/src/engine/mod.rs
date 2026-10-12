@@ -20,6 +20,7 @@ use proto::minecraft::ConfigEntry;
 use crate::accounts::Accounts;
 use crate::cache::Cache;
 use crate::config::Config;
+use crate::console::Consoles;
 use crate::content::Content;
 use crate::instances::Instances;
 use crate::java::Java;
@@ -75,6 +76,7 @@ pub struct Engine {
     sync: Sync,
     update: Update,
     processes: Arc<ProcessSupervisor>,
+    consoles: Consoles,
     // One backup or restore per entry at a time: two archives of the same
     // data would interleave the rcon save-off/save-on dance.
     backups_active: Mutex<HashSet<String>>,
@@ -119,6 +121,7 @@ impl Engine {
             sync,
             update,
             processes,
+            consoles: Consoles::default(),
             backups_active: Mutex::new(HashSet::new()),
         }
     }

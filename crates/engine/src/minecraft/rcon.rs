@@ -6,7 +6,10 @@
 //! Wire format (little-endian): `[length:i32][id:i32][type:i32][body][\0\0]`
 //! where `length` counts everything after itself. Types: 3 login, 2 command,
 //! 0 response. A login reply echoing id -1 means the password was rejected.
+//!
+//! A long reply spans packets with no end marker; a probe of an unknown type ends it.
 
+use std::io::ErrorKind;
 use std::time::Duration;
 
 use anyhow::{bail, Context, Result};
@@ -15,10 +18,10 @@ use tokio::net::TcpStream;
 
 const LOGIN: i32 = 3;
 const COMMAND: i32 = 2;
+const PROBE: i32 = 100;
 const IO_TIMEOUT: Duration = Duration::from_secs(5);
-// The vanilla server truncates a response to one packet of at most 4096
-// payload bytes; anything larger on the wire is not RCON.
-const MAX_BODY: usize = 8192;
+// Vanilla packets carry at most 4096 UTF-16 units, three bytes apiece at worst.
+const MAX_BODY: usize = 4096 * 3;
 
 pub struct Rcon {
     stream: TcpStream,
@@ -42,11 +45,29 @@ impl Rcon {
 
     pub async fn command(&mut self, command: &str) -> Result<String> {
         let id = self.send(COMMAND, command).await?;
-        let (reply_id, body) = self.recv().await?;
+        let (reply_id, mut reply) = self.recv().await?;
         if reply_id != id {
             bail!("rcon response out of sequence");
         }
-        Ok(body)
+        // Sent only now: the server drops a connection whose read holds two packets.
+        let probe = self.send(PROBE, "").await?;
+        loop {
+            let (reply_id, body) = self.recv().await?;
+            if reply_id == probe {
+                return Ok(reply);
+            }
+            if reply_id != id {
+                bail!("rcon response out of sequence");
+            }
+            reply.push_str(&body);
+        }
+    }
+
+    pub fn is_open(&self) -> bool {
+        matches!(
+            self.stream.try_read(&mut [0u8; 1]),
+            Err(error) if error.kind() == ErrorKind::WouldBlock
+        )
     }
 
     async fn send(&mut self, packet_type: i32, body: &str) -> Result<i32> {

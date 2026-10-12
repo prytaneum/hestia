@@ -440,4 +440,5 @@ refused: the daemon cannot make the write durable, but it can say so
 - [0039 — Per-session logs come from a generated Log4j2 config](../decisions/0039-per-session-log4j-config.md)
 - [0053 — Server provisioning is front-loaded by design](../decisions/0053-server-provisioning-is-front-loaded.md)
 - [0055 — The server console is RCON, not a stdin pipe](../decisions/0055-the-console-is-rcon-not-a-pipe.md)
+- [0077 — The console keeps its RCON connection, and completes from the server's own `help`](../decisions/0077-the-console-keeps-its-connection.md)
 - [0064 — A record of the user's is mutated, never rebuilt](../decisions/0064-a-record-is-mutated-not-rebuilt.md)

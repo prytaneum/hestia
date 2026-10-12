@@ -21,13 +21,14 @@ use proto::minecraft::{
 };
 use proto::process::ProcessLogLine;
 use proto::server::{
-    ServerCommand, ServerCommandParams, ServerConfigGet, ServerConfigGetParams, ServerConfigList,
-    ServerConfigSet, ServerConfigSetParams, ServerCreate, ServerCreateDoneEvent,
-    ServerCreateParams, ServerDetail, ServerDetails, ServerFlavors, ServerInfo, ServerList,
-    ServerLoaders, ServerLogs, ServerLogsParams, ServerPing, ServerPingResult, ServerProperties,
-    ServerProperty, ServerRef, ServerRemove, ServerRename, ServerRenameParams, ServerResolve,
-    ServerRestart, ServerStart, ServerStartResult, ServerStatus, ServerStop, ServerUpdate,
-    ServerUpdateDoneEvent, ServerUpdateParams, ServerVersions,
+    ServerCommand, ServerCommandComplete, ServerCommandCompleteParams, ServerCommandCompleteResult,
+    ServerCommandParams, ServerConfigGet, ServerConfigGetParams, ServerConfigList, ServerConfigSet,
+    ServerConfigSetParams, ServerCreate, ServerCreateDoneEvent, ServerCreateParams, ServerDetail,
+    ServerDetails, ServerFlavors, ServerInfo, ServerList, ServerLoaders, ServerLogs,
+    ServerLogsParams, ServerPing, ServerPingResult, ServerProperties, ServerProperty, ServerRef,
+    ServerRemove, ServerRename, ServerRenameParams, ServerResolve, ServerRestart, ServerStart,
+    ServerStartResult, ServerStatus, ServerStop, ServerUpdate, ServerUpdateDoneEvent,
+    ServerUpdateParams, ServerVersions,
 };
 
 pub struct Server<'a> {
@@ -203,6 +204,19 @@ impl Server<'_> {
             command: command.to_string(),
         };
         Ok(self.session.call::<ServerCommand>(&params).await?.response)
+    }
+
+    /// What a half-typed console line could continue with on a running server.
+    pub async fn complete(
+        &self,
+        server: &str,
+        line: &str,
+    ) -> Result<ServerCommandCompleteResult, IpcError> {
+        let params = ServerCommandCompleteParams {
+            server: server.to_string(),
+            line: line.to_string(),
+        };
+        self.session.call::<ServerCommandComplete>(&params).await
     }
 
     /// Archive the server's data directory, blocking until the daemon reports

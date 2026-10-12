@@ -13,8 +13,7 @@ use proto::minecraft::{ProvisionPhase, ProvisionProgress};
 use crate::backup;
 use crate::engine::Engine;
 use crate::minecraft::materialize::OnProgress;
-use crate::minecraft::rcon;
-use crate::servers::{RconConfig, ServerRecord};
+use crate::servers::ServerRecord;
 
 impl Engine {
     /// Archive a server's `data/` into its `backups/`. With `live` (the
@@ -36,11 +35,9 @@ impl Engine {
             bail!("server '{}' is still provisioning", record.name);
         }
         let _claim = self.claim_backup(format!("server-{}", record.id))?;
-        let paused = if live {
-            Some(self.pause_world_saves(&record).await?)
-        } else {
-            None
-        };
+        if live {
+            self.pause_world_saves(&record.id).await?;
+        }
         let result = run_backup(
             self.servers.server_dir(&record),
             self.servers.data_dir(&record),
@@ -49,8 +46,8 @@ impl Engine {
             on_progress,
         )
         .await;
-        if let Some(rcon) = paused {
-            if let Err(e) = resume_world_saves(&rcon).await {
+        if live {
+            if let Err(e) = self.resume_world_saves(&record.id).await {
                 tracing::error!(
                     server = %record.id,
                     error = format!("{e:#}"),
@@ -141,15 +138,26 @@ impl Engine {
     /// Pause world writes before archiving a live server: `save-off` stops
     /// autosaves, `save-all flush` forces everything pending onto disk (the
     /// reply arrives once the flush completed).
-    async fn pause_world_saves(&self, record: &ServerRecord) -> Result<RconConfig> {
-        let rcon_cfg = record
-            .rcon
-            .clone()
-            .context("this server has no console yet (restart it to enable one)")?;
-        let mut conn = rcon::Rcon::connect(rcon_cfg.port, &rcon_cfg.password).await?;
-        conn.command("save-off").await?;
-        conn.command("save-all flush").await?;
-        Ok(rcon_cfg)
+    async fn pause_world_saves(&self, server: &str) -> Result<()> {
+        self.server_command(server, "save-off").await?;
+        self.server_command(server, "save-all flush").await?;
+        Ok(())
+    }
+
+    /// `save-on` must reach the server even when archiving failed, or the world
+    /// stops persisting — retry like docker-mc-backup's exit trap does.
+    async fn resume_world_saves(&self, server: &str) -> Result<()> {
+        let mut last = anyhow::anyhow!("rcon unreachable");
+        for attempt in 0..5 {
+            if attempt > 0 {
+                tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+            }
+            match self.server_command(server, "save-on").await {
+                Ok(_) => return Ok(()),
+                Err(e) => last = e,
+            }
+        }
+        Err(last.context("cannot re-enable world saving"))
     }
 }
 
@@ -255,23 +263,4 @@ fn backup_progress(current: u64, total: u64) -> ProvisionProgress {
         total,
         ..ProvisionProgress::default()
     }
-}
-
-/// `save-on` must reach the server even when archiving failed, or the world
-/// stops persisting — retry like docker-mc-backup's exit trap does.
-async fn resume_world_saves(rcon_cfg: &RconConfig) -> Result<()> {
-    let mut last = anyhow::anyhow!("rcon unreachable");
-    for attempt in 0..5 {
-        if attempt > 0 {
-            tokio::time::sleep(std::time::Duration::from_secs(5)).await;
-        }
-        match rcon::Rcon::connect(rcon_cfg.port, &rcon_cfg.password).await {
-            Ok(mut conn) => match conn.command("save-on").await {
-                Ok(_) => return Ok(()),
-                Err(e) => last = e,
-            },
-            Err(e) => last = e,
-        }
-    }
-    Err(last.context("cannot re-enable world saving"))
 }

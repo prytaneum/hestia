@@ -102,10 +102,14 @@ version costs almost nothing.
 classpath joining and Mojang `${placeholder}` substitution for auth, paths and
 names. No I/O — which is what makes it unit-testable, and it is unit-tested.
 
-**`rcon`** is a minimal RCON client — connect, authenticate, one command per
-call. It is the server console's transport, chosen because it is
-re-establishable state that survives a daemon restart, where a stdin pipe is not
-([0055](../decisions/0055-the-console-is-rcon-not-a-pipe.md)).
+**`rcon`** is a minimal RCON client — connect, authenticate, then commands whose
+multi-packet replies it reads to the end. It is the server console's transport,
+chosen because it is re-establishable state that survives a daemon restart,
+where a stdin pipe is not
+([0055](../decisions/0055-the-console-is-rcon-not-a-pipe.md)). The engine's
+`console` module keeps one connection per server and reads command completions
+out of the server's `help`
+([0077](../decisions/0077-the-console-keeps-its-connection.md)).
 
 **`world.rs`** reads a save's own `level.dat` (gzipped NBT, via `fastnbt`) so a
 world can describe itself rather than being reduced to a folder name

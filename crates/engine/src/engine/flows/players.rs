@@ -31,7 +31,7 @@ impl Engine {
             .with_context(|| format!("unknown server: {reference}"))?;
         let data = self.servers.data_dir(&record);
         let online = match running {
-            true => parse_online(&self.server_command(&record.id, "list uuids").await?),
+            true => self.online_players(&record.id).await?,
             false => Vec::new(),
         };
         Ok(ServerPlayersResult {
@@ -40,6 +40,11 @@ impl Engine {
             ops: read_list(&data.join(OPS_FILE)),
             banned: read_list(&data.join(BANNED_FILE)),
         })
+    }
+
+    pub(crate) async fn online_players(&self, reference: &str) -> Result<Vec<PlayerEntry>> {
+        let reply = self.server_command(reference, "list uuids").await?;
+        Ok(parse_online(&reply))
     }
 
     /// Put `player` on `list` or take them off it, on a running server.

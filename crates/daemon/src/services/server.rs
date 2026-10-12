@@ -6,12 +6,12 @@ use proto::error::{EntryKind, ErrorInfo, Field};
 use proto::minecraft::{ConfigEntry, FlavorsResult, LoadersResult, VersionsResult};
 use proto::process::ProcessLogsResult;
 use proto::server::{
-    ServerCommand, ServerCommandResult, ServerConfigGet, ServerConfigGetResult, ServerConfigList,
-    ServerConfigListResult, ServerConfigSet, ServerCreate, ServerCreateResult, ServerDetail,
-    ServerFlavors, ServerList, ServerListResult, ServerLoaders, ServerLogs, ServerPing,
-    ServerProperties, ServerPropertiesResult, ServerRemove, ServerRename, ServerResolve,
-    ServerRestart, ServerStart, ServerStartResult, ServerStatus, ServerStop, ServerUpdate,
-    ServerUpdateResult, ServerVersions,
+    ServerCommand, ServerCommandComplete, ServerCommandResult, ServerConfigGet,
+    ServerConfigGetResult, ServerConfigList, ServerConfigListResult, ServerConfigSet, ServerCreate,
+    ServerCreateResult, ServerDetail, ServerFlavors, ServerList, ServerListResult, ServerLoaders,
+    ServerLogs, ServerPing, ServerProperties, ServerPropertiesResult, ServerRemove, ServerRename,
+    ServerResolve, ServerRestart, ServerStart, ServerStartResult, ServerStatus, ServerStop,
+    ServerUpdate, ServerUpdateResult, ServerVersions,
 };
 use proto::Empty;
 
@@ -208,6 +208,21 @@ pub(super) fn register(on: &mut Channels<'_>) {
             .await
             .map_err(crate::runtime::engine_error)?;
         Ok(ServerCommandResult { response })
+    });
+
+    on.handle::<ServerCommandComplete, _, _>(|p, ctx| async move {
+        let record = server_for(&ctx, &p.server, Intent::Read)?;
+        if !is_running(&ctx, &server_process_id(&record.id)) {
+            return Err(ErrorInfo::NotRunning {
+                entry: EntryKind::Server,
+                name: record.name.clone(),
+            });
+        }
+        ctx.runtime
+            .engine()
+            .server_complete(&record.id, &p.line)
+            .await
+            .map_err(crate::runtime::engine_error)
     });
 
     on.handle::<ServerLogs, _, _>(|p, ctx| async move {

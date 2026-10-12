@@ -1,5 +1,4 @@
-//! Server provisioning, in-place version updates, the launch plan, and the rcon
-//! console command.
+//! Server provisioning, in-place version updates, and the launch plan.
 
 use anyhow::{Context, Result};
 use proto::backup::BackupKind;
@@ -13,7 +12,7 @@ use crate::content::install;
 use crate::engine::{Engine, ServerCreateSpec, ServerUpdateSpec};
 use crate::minecraft::launch::{JavaSettings, LaunchPlan};
 use crate::minecraft::materialize::OnProgress;
-use crate::minecraft::{ping, rcon};
+use crate::minecraft::ping;
 use crate::servers::ServerRecord;
 use crate::usage;
 
@@ -190,20 +189,6 @@ impl Engine {
             .or_defaults(&flavor_defaults(&record.profile));
         let plan = self.servers.launch_plan(&record, &java, &jvm);
         Ok((record, plan))
-    }
-
-    /// Send one console command to a running server over its RCON channel and
-    /// return the server's reply.
-    pub async fn server_command(&self, reference: &str, command: &str) -> Result<String> {
-        let record = self
-            .servers
-            .get(reference)
-            .with_context(|| format!("unknown server: {reference}"))?;
-        let rcon = record
-            .rcon
-            .context("this server has no console yet (restart it to enable one)")?;
-        let mut conn = rcon::Rcon::connect(rcon.port, &rcon.password).await?;
-        conn.command(command).await
     }
 
     pub async fn server_ping(&self, reference: &str) -> Result<ServerPingResult> {

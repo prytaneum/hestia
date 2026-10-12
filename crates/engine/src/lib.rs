@@ -9,6 +9,7 @@ mod cache;
 mod cancel;
 mod checksum;
 mod config;
+mod console;
 mod content;
 mod download;
 mod engine;

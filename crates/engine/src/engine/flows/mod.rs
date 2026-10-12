@@ -3,6 +3,7 @@
 //! wiring and nothing more.
 
 mod backup;
+mod console;
 mod content;
 pub use content::entry::EntryRef;
 mod flavors;
