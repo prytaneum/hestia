@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
+  ANY_FILE,
   activeDropzone,
   type Dropzone,
   dispatchDrop,
@@ -35,6 +36,20 @@ afterEach(() => {
 });
 
 describe('file-drop pipeline', () => {
+  it('hands every file to a zone that accepts any', () => {
+    const root = element();
+    const tree = zone(root, [ANY_FILE]);
+    pointAt(element(root));
+
+    dispatchDrop({
+      type: 'drop',
+      paths: ['/a/plugin.jar', '/a/README'],
+      position,
+    });
+
+    expect(tree.onDrop).toHaveBeenCalledWith(['/a/plugin.jar', '/a/README']);
+  });
+
   it('hands a drop to the zone under the pointer, with only the accepted paths', () => {
     const root = element();
     const archives = zone(root, ['mrpack', 'zip']);

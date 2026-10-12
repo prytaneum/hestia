@@ -30,6 +30,7 @@ import { anchor, useAutoTour } from '@/features/onboarding';
 import {
   ServerBackupsTab,
   ServerConsoleTab,
+  ServerFilesTab,
   ServerPropertiesTab,
   ServerSettingsTab,
 } from '@/features/servers/tabs';
@@ -53,6 +54,7 @@ export type ServerTab =
   | 'overview'
   | 'console'
   | 'content'
+  | 'files'
   | 'backups'
   | 'properties'
   | 'settings';
@@ -69,6 +71,10 @@ interface DetailProps {
   onTabChange: (tab: ServerTab) => void;
   contentKind?: ContentKind;
   onContentKindChange: (kind?: ContentKind) => void;
+  filesPath: string;
+  openFile?: string;
+  onFilesNavigate: (path: string) => void;
+  onOpenFile: (file?: string) => void;
 }
 
 /**
@@ -109,6 +115,10 @@ function ServerDetail({
   onTabChange,
   contentKind,
   onContentKindChange,
+  filesPath,
+  openFile,
+  onFilesNavigate,
+  onOpenFile,
 }: DetailProps & { server: Server }) {
   const id = server.id;
   const info = useQuery(serverQueries.info(id));
@@ -228,6 +238,7 @@ function ServerDetail({
             {m['app.label.console']()}
           </TabsTrigger>
           <TabsTrigger value="content">{m['app.label.content']()}</TabsTrigger>
+          <TabsTrigger value="files">{m['server.files.title']()}</TabsTrigger>
           <TabsTrigger value="backups" {...anchor('server-backups')}>
             {m['app.label.backups']()}
           </TabsTrigger>
@@ -343,6 +354,17 @@ function ServerDetail({
                 {m['content.add']()}
               </Button>
             }
+          />
+        </TabsContent>
+
+        <TabsContent value="files" className="flex min-h-0 flex-col p-5">
+          <ServerFilesTab
+            id={id}
+            running={running}
+            path={filesPath}
+            file={openFile}
+            onNavigate={onFilesNavigate}
+            onOpenFile={onOpenFile}
           />
         </TabsContent>
 

@@ -20,6 +20,47 @@
       "empty": "Inicie o servidor para abrir o console.",
       "placeholder": "Digite um comando do servidor, ex.: say olá"
     },
+    "files": {
+      "action": {
+        "compress": "Compactar",
+        "duplicate": "Duplicar",
+        "extract": "Extrair",
+        "move": "Mover",
+        "rename": "Renomear"
+      },
+      "actions_for": "Ações para {name}",
+      "compress": {
+        "title": "Compactar em um zip"
+      },
+      "create": "Criar",
+      "delete": {
+        "description": "Selecionados: {count}. Pastas são excluídas com tudo o que contêm. Isto não pode ser desfeito.",
+        "title": "Excluir do servidor?"
+      },
+      "delete_count": "Excluir ({count})",
+      "drop_hint": "Solte arquivos aqui para copiá-los.",
+      "editor": {
+        "discard": "Descartar alterações",
+        "discard_description": "Suas edições em {name} não foram salvas.",
+        "discard_title": "Sair sem salvar?",
+        "running_hint": "O servidor está em execução: ele lê a maioria dos arquivos ao iniciar e pode sobrescrever alguns ao parar.",
+        "unsaved": "Não salvo"
+      },
+      "empty": "Esta pasta está vazia.",
+      "name": {
+        "destination": "Destino",
+        "empty": "Digite um nome.",
+        "separator": "Um nome não pode conter barra.",
+        "taken": "Já existe algo aqui com esse nome."
+      },
+      "new_file": "Novo arquivo",
+      "new_folder": "Nova pasta",
+      "path": "Caminho da pasta",
+      "root": "Pasta do servidor",
+      "title": "Arquivos",
+      "upload": "Enviar",
+      "uploaded": "Copiados: {count}."
+    },
     "missing": "Esse servidor não existe mais.",
     "new": "Novo servidor",
     "none_match": "Nenhum servidor corresponde à sua pesquisa.",

@@ -49,8 +49,12 @@ function setActive(next: Dropzone | null): void {
   for (const listener of listeners) listener();
 }
 
+/** Accepts every file, whatever its extension. */
+export const ANY_FILE = '*';
+
 function accepted(zone: Dropzone, paths: string[]): string[] {
   const matching = paths.filter((path) => {
+    if (zone.accept.includes(ANY_FILE)) return true;
     const lower = path.toLowerCase();
     return zone.accept.some((extension) =>
       lower.endsWith(`.${extension.toLowerCase()}`),

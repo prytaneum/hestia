@@ -10,6 +10,7 @@ import { channels as cache } from './cache';
 import { channels as config } from './config';
 import { channels as content } from './content';
 import { channels as download } from './download';
+import { channels as files } from './files';
 import { channels as instance } from './instance';
 import { channels as java } from './java';
 import { channels as job } from './job';
@@ -30,6 +31,7 @@ export const channels: Handlers = {
   ...config,
   ...content,
   ...download,
+  ...files,
   ...instance,
   ...java,
   ...job,

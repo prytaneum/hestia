@@ -20,6 +20,47 @@
       "empty": "Start the server to open its console.",
       "placeholder": "Enter a server command, e.g. say hello"
     },
+    "files": {
+      "action": {
+        "compress": "Compress",
+        "duplicate": "Duplicate",
+        "extract": "Extract",
+        "move": "Move",
+        "rename": "Rename"
+      },
+      "actions_for": "Actions for {name}",
+      "compress": {
+        "title": "Compress to a zip"
+      },
+      "create": "Create",
+      "delete": {
+        "description": "Selected: {count}. Folders are deleted with everything in them. This cannot be undone.",
+        "title": "Delete from the server?"
+      },
+      "delete_count": "Delete ({count})",
+      "drop_hint": "Drop files here to copy them in.",
+      "editor": {
+        "discard": "Discard changes",
+        "discard_description": "Your edits to {name} have not been saved.",
+        "discard_title": "Leave without saving?",
+        "running_hint": "The server is running: it reads most files at start, and may overwrite some when it stops.",
+        "unsaved": "Unsaved"
+      },
+      "empty": "This folder is empty.",
+      "name": {
+        "destination": "Destination",
+        "empty": "Enter a name.",
+        "separator": "A name cannot contain a slash.",
+        "taken": "Something here already has that name."
+      },
+      "new_file": "New file",
+      "new_folder": "New folder",
+      "path": "Folder path",
+      "root": "Server folder",
+      "title": "Files",
+      "upload": "Upload",
+      "uploaded": "Copied in: {count}."
+    },
     "missing": "That server no longer exists.",
     "new": "New server",
     "none_match": "No servers match your search.",

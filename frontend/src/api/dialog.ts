@@ -23,6 +23,13 @@ export async function pickContentFiles(): Promise<string[]> {
   return typeof selection === 'string' ? [selection] : [];
 }
 
+/** Pick any files to copy into a server's directory; empty when dismissed. */
+export async function pickFiles(): Promise<string[]> {
+  const selection = await open({ multiple: true, directory: false });
+  if (Array.isArray(selection)) return selection;
+  return typeof selection === 'string' ? [selection] : [];
+}
+
 /** The image formats an entry icon accepts, by extension. */
 export const IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'webp', 'gif'];
 
