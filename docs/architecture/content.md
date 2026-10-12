@@ -210,6 +210,12 @@ shrunk to a 64px PNG and stored on the record as a `data:` URI, so it travels in
 file to keep in step. The same read runs wherever an untracked record is made: a
 local import, a modpack's override jars, and an imported instance's loose files.
 
+A shader pack and a plugin carry no icon at all, so an import kept untracked is
+still looked up by hash, and where the archive has no icon of its own the record
+borrows the one of the project a source knows it as. Only the icon is borrowed:
+the item stays source `file`, with no project id and nothing to update against.
+A file no source recognises and that embeds nothing keeps the placeholder.
+
 ## Datapacks are the exception
 
 A datapack loads from *inside a world*, not a flat directory — and a world is

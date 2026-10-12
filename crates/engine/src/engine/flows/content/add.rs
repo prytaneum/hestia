@@ -106,12 +106,11 @@ impl Engine {
             true => spec.source.clone(),
             false => item.source.clone(),
         };
+        // An untracked import is looked up too: a match is not recorded, but it
+        // lends its icon to an archive that carries none.
         let local: Vec<Option<LocalFile>> = files
             .iter()
-            .map(|item| match tracked_from(item) == LOCAL_SOURCE {
-                true => None,
-                false => LocalFile::read(Path::new(&item.path)).ok(),
-            })
+            .map(|item| LocalFile::read(Path::new(&item.path)).ok())
             .collect();
         let hashed: Vec<LocalFile> = local.iter().flatten().cloned().collect();
         if !hashed.is_empty() {
@@ -119,16 +118,24 @@ impl Engine {
         }
         let identified = self.content.identify(&hashed).await;
         for (item, file) in files.into_iter().zip(&local) {
-            let matches = file.as_ref().and_then(|f| identified.get(&f.sha1));
-            let known = matches.and_then(|m| chosen_match(m, &tracked_from(item)));
-            if matches.is_some() && known.is_none() {
+            let matches = file
+                .as_ref()
+                .and_then(|f| identified.get(&f.sha1))
+                .map(Vec::as_slice)
+                .unwrap_or_default();
+            let untracked = tracked_from(item) == LOCAL_SOURCE;
+            let known = match untracked {
+                true => None,
+                false => chosen_match(matches, &tracked_from(item)),
+            };
+            if !untracked && !matches.is_empty() && known.is_none() {
                 tracing::warn!(
                     file = %item.path,
                     source = %tracked_from(item),
                     "the chosen source does not recognise this file; importing it untracked"
                 );
             }
-            match add_file_content(ctx, spec.kind, item, &worlds, known) {
+            match add_file_content(ctx, spec.kind, item, &worlds, known, matches) {
                 Ok(installed) => items.push(installed),
                 Err(e) => failures.push(failure(&item.path, "", crate::error_info(e))),
             }
@@ -438,6 +445,7 @@ fn add_file_content(
     item: &ContentAddItem,
     worlds: &[String],
     known: Option<&Identified>,
+    recognised: &[Identified],
 ) -> Result<InstalledContent> {
     let source = Path::new(&item.path);
     if !source.is_file() {
@@ -475,14 +483,28 @@ fn add_file_content(
     let sha1 = install::sha1_file(&managed)?;
     let (project, release) = match known {
         Some(known) => known.recorded(kind, filename, sha1),
-        None => (
-            record::Project::untracked(kind, filename.clone(), &managed),
-            record::Release::local(filename, sha1),
-        ),
+        None => {
+            let mut project = record::Project::untracked(kind, filename.clone(), &managed);
+            if project.icon_url.is_empty() {
+                project.icon_url = borrowed_icon(recognised);
+            }
+            (project, record::Release::local(filename, sha1))
+        }
     };
     let installed = record::assemble(project, release, record::Holding::fresh(worlds));
     install::apply_files(&ctx.entry_dir, &ctx.data_dir, &installed, &ctx.worlds())?;
     Ok(installed)
+}
+
+/// The icon of a project a source knows this file as, for an import that stays
+/// untracked — a shader pack or a plugin has no icon of its own to read.
+fn borrowed_icon(recognised: &[Identified]) -> String {
+    recognised
+        .iter()
+        .map(|identified| &identified.project.icon_url)
+        .find(|icon| !icon.is_empty())
+        .cloned()
+        .unwrap_or_default()
 }
 
 fn chosen_match<'a>(matches: &'a [Identified], source: &str) -> Option<&'a Identified> {
