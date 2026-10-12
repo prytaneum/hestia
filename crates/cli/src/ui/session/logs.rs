@@ -46,7 +46,6 @@ impl Screen for LogScreen {
             rows[0],
             &self.title,
             self.log.scroll(),
-            "↓",
             "Esc detach · ↑/↓ scroll",
         );
         self.log.render(frame, rows[1]);

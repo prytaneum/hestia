@@ -44,9 +44,6 @@ pub struct ConsoleScreen {
     link: ConsoleLink,
     offered: Completions,
     cycle: Option<usize>,
-    history: Vec<String>,
-    recall: Option<usize>,
-    draft: String,
 }
 
 impl ConsoleScreen {
@@ -62,15 +59,11 @@ impl ConsoleScreen {
             link,
             offered: Completions::default(),
             cycle: None,
-            history: Vec::new(),
-            recall: None,
-            draft: String::new(),
         }
     }
 
     fn edited(&mut self) {
         self.cycle = None;
-        self.recall = None;
         self.offered = Completions::default();
         if !self.input.is_empty() {
             let _ = self.link.lines.send(self.input.text().to_string());
@@ -99,23 +92,6 @@ impl ConsoleScreen {
         self.cycle = Some(next);
     }
 
-    fn recall(&mut self, older: bool) {
-        let at = match (self.recall, older) {
-            (None, true) if !self.history.is_empty() => {
-                self.draft = self.input.text().to_string();
-                Some(self.history.len() - 1)
-            }
-            (None, _) => return,
-            (Some(at), true) => Some(at.saturating_sub(1)),
-            (Some(at), false) => Some(at + 1).filter(|at| *at < self.history.len()),
-        };
-        let line = at.map_or(self.draft.as_str(), |at| self.history[at].as_str());
-        self.input = TextInput::with_text(line);
-        self.recall = at;
-        self.cycle = None;
-        self.offered = Completions::default();
-    }
-
     fn send(&mut self) -> bool {
         let command = self.input.take().trim().to_string();
         self.edited();
@@ -124,9 +100,6 @@ impl ConsoleScreen {
         }
         self.log.push(Kind::Echo, format!("» {command}"));
         self.log.follow();
-        if self.history.last() != Some(&command) {
-            self.history.push(command.clone());
-        }
         self.link.commands.send(command).is_ok()
     }
 }
@@ -152,8 +125,7 @@ impl Screen for ConsoleScreen {
             rows[0],
             &self.title,
             self.log.scroll(),
-            "PgDn",
-            "Enter send · Tab complete · ↑/↓ history · Esc detach",
+            "Enter send · Tab complete · Esc detach · ↑/↓ scroll",
         );
         self.log.render(frame, rows[1]);
         draw_offered(frame, rows[2], &self.offered, self.cycle);
@@ -173,8 +145,8 @@ impl Screen for ConsoleScreen {
             }
             KeyCode::Tab => self.cycle(true),
             KeyCode::BackTab => self.cycle(false),
-            KeyCode::Up => self.recall(true),
-            KeyCode::Down => self.recall(false),
+            KeyCode::Up => self.log.scroll_up(1),
+            KeyCode::Down => self.log.scroll_down(1),
             KeyCode::PageUp => self.log.scroll_up(self.log.page()),
             KeyCode::PageDown => self.log.scroll_down(self.log.page()),
             _ => {
@@ -210,8 +182,7 @@ impl Screen for ConsoleScreen {
     fn tick(&mut self) -> bool {
         let mut changed = false;
         while let Ok(offered) = self.link.completions.try_recv() {
-            let current = self.cycle.is_none() && self.recall.is_none();
-            if current && offered.line == self.input.text() {
+            if self.cycle.is_none() && offered.line == self.input.text() {
                 self.offered = offered;
                 changed = true;
             }

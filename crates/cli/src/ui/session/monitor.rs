@@ -60,7 +60,7 @@ impl Screen for MonitorScreen {
         ])
         .areas(frame.area());
 
-        log_header(frame, header, &self.title, 0, "↓", "Esc quit");
+        log_header(frame, header, &self.title, 0, "Esc quit");
 
         let (cpu_label, mem_label) = match &self.last {
             Some(s) => (
