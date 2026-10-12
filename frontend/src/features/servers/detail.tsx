@@ -31,6 +31,7 @@ import {
   ServerBackupsTab,
   ServerConsoleTab,
   ServerFilesTab,
+  ServerPlayersTab,
   ServerSettingsTab,
 } from '@/features/servers/tabs';
 import { EntryIconMenu } from '@/features/shared/entry/components';
@@ -53,6 +54,7 @@ export type ServerTab =
   | 'overview'
   | 'console'
   | 'content'
+  | 'players'
   | 'files'
   | 'backups'
   | 'settings';
@@ -236,6 +238,7 @@ function ServerDetail({
             {m['app.label.console']()}
           </TabsTrigger>
           <TabsTrigger value="content">{m['app.label.content']()}</TabsTrigger>
+          <TabsTrigger value="players">{m['app.label.players']()}</TabsTrigger>
           <TabsTrigger value="files">{m['server.files.title']()}</TabsTrigger>
           <TabsTrigger value="backups" {...anchor('server-backups')}>
             {m['app.label.backups']()}
@@ -350,6 +353,10 @@ function ServerDetail({
               </Button>
             }
           />
+        </TabsContent>
+
+        <TabsContent value="players" className="p-5">
+          <ServerPlayersTab id={id} running={running} />
         </TabsContent>
 
         <TabsContent value="files" className="flex min-h-0 flex-col p-5">

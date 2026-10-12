@@ -64,6 +64,27 @@
     "missing": "Esse servidor não existe mais.",
     "new": "Novo servidor",
     "none_match": "Nenhum servidor corresponde à sua pesquisa.",
+    "players": {
+      "action": {
+        "ban": "Banir",
+        "deop": "Remover operador",
+        "kick": "Expulsar",
+        "op": "Tornar operador"
+      },
+      "actions_for": "Ações para {name}",
+      "banned": "Banidos",
+      "banned_hint": "Não podem entrar de forma alguma.",
+      "name_placeholder": "Nome do jogador",
+      "nobody_online": "Ninguém está online.",
+      "none": "Ninguém está nesta lista.",
+      "online": "Online",
+      "ops": "Operadores",
+      "ops_hint": "Podem executar todos os comandos.",
+      "stopped_hint": "Inicie o servidor para alterar estas listas — ele consulta cada nome e salva a lista por conta própria.",
+      "unavailable": "As listas de jogadores não puderam ser lidas.",
+      "whitelist": "Lista de permissões",
+      "whitelist_hint": "Quem pode entrar enquanto a lista de permissões está ativada."
+    },
     "properties": {
       "description": "As configurações do server.properties desta versão.",
       "empty": "Este servidor ainda não tem arquivo de propriedades. Inicie-o uma vez para gerá-lo.",

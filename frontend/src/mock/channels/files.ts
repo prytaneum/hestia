@@ -5,7 +5,7 @@
  */
 import type { FileEntry } from '@/api/types';
 
-import { ago, fail, type Handlers, ok, str } from '../support';
+import { ago, fail, type Handlers, ok, str, strings } from '../support';
 
 type Tree = Map<string, string | null>;
 
@@ -71,11 +71,6 @@ function ensureParents(tree: Tree, path: string): void {
   for (let dir = parentOf(path); dir !== ''; dir = parentOf(dir)) {
     if (!tree.has(dir)) tree.set(dir, null);
   }
-}
-
-function strings(payload: Record<string, unknown>, key: string): string[] {
-  const value = payload[key];
-  return Array.isArray(value) ? value.map(String) : [];
 }
 
 export const channels: Handlers = {

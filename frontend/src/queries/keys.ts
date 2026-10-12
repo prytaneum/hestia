@@ -91,6 +91,7 @@ export const keys = {
     properties: (id: string) =>
       [...keys.servers.config(id), 'properties'] as const,
     backups: (id: string) => [...keys.servers.detail(id), 'backups'] as const,
+    players: (id: string) => [...keys.servers.detail(id), 'players'] as const,
     files: (id: string) => [...keys.servers.detail(id), 'files'] as const,
     fileList: (id: string, path: string) =>
       [...keys.servers.files(id), 'list', path] as const,

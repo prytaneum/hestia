@@ -64,6 +64,27 @@
     "missing": "That server no longer exists.",
     "new": "New server",
     "none_match": "No servers match your search.",
+    "players": {
+      "action": {
+        "ban": "Ban",
+        "deop": "Remove operator",
+        "kick": "Kick",
+        "op": "Make operator"
+      },
+      "actions_for": "Actions for {name}",
+      "banned": "Banned",
+      "banned_hint": "Cannot join at all.",
+      "name_placeholder": "Player name",
+      "nobody_online": "Nobody is online.",
+      "none": "Nobody is on this list.",
+      "online": "Online",
+      "ops": "Operators",
+      "ops_hint": "Can run every command.",
+      "stopped_hint": "Start the server to change these lists — it looks each name up and saves the list itself.",
+      "unavailable": "The player lists could not be read.",
+      "whitelist": "Whitelist",
+      "whitelist_hint": "Who may join while the whitelist is switched on."
+    },
     "properties": {
       "description": "The settings in server.properties for this version.",
       "empty": "This server has no properties file yet. Start it once to generate one.",

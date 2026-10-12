@@ -5,6 +5,7 @@ import { isContentKind } from '@/features/shared/content/lib';
 
 const tabs: Record<Exclude<ServerTab, 'overview'>, true> = {
   console: true,
+  players: true,
   content: true,
   files: true,
   backups: true,
