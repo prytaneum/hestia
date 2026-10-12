@@ -121,12 +121,6 @@ enum ServerAction {
         #[arg(required = true, trailing_var_arg = true)]
         command: Vec<String>,
     },
-    /// What a half-typed console line could continue with
-    Complete {
-        /// The line so far, quoted; a trailing space asks for the next word
-        #[arg(default_value = "")]
-        line: String,
-    },
     /// Get, set, or list settings (memory, jvm-args, backup-interval,
     /// backup-retention, server.properties)
     Config {
@@ -265,7 +259,6 @@ async fn run_unit_action(client: Client, name: String, action: ServerAction) -> 
             let reply = client.server().command(&name, &command.join(" ")).await?;
             console::show_reply(&reply)
         }
-        ServerAction::Complete { line } => console::complete(&client, &name, &line).await,
         ServerAction::Config { cmd } => config::run(&client, &name, cmd).await,
         ServerAction::Backup { cmd } => backup::run(&client, &name, cmd).await,
         ServerAction::Files { cmd } => files::run(&client, &name, cmd).await,

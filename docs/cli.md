@@ -134,10 +134,7 @@ hestia server smp attach         # interactive console: live logs, type to send
                                  #   Tab/Shift-Tab cycle the server's own
                                  #   completions, ↑/↓ recall sent commands,
                                  #   PgUp/PgDn and the wheel scroll
-hestia server smp command say hi # one-shot console command (alias: cmd)
-hestia server smp complete "time s"  # what the line could continue with; a
-                                 #   trailing space asks for the next word
-hestia server smp logs -n 50     # captured output (-f opens the fullscreen
+hestia server smp command say hi # one-shot console command (alias: cmd)hestia server smp logs -n 50     # captured output (-f opens the fullscreen
                                  #   log session; piped it streams plainly).
                                  #   -f follows the *server*: it works on a
                                  #   stopped one and rides through a restart

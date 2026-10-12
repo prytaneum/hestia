@@ -130,17 +130,6 @@ pub(crate) async fn attach(client: Client, server: &str) -> Result<()> {
     }
 }
 
-pub(super) async fn complete(client: &Client, server: &str, line: &str) -> Result<()> {
-    let found = client.server().complete(server, line).await?;
-    if found.completions.is_empty() && found.arguments.is_empty() {
-        return ui::show(View::note("(nothing to complete)"));
-    }
-    for candidate in found.completions.iter().chain(&found.arguments) {
-        ui::show(View::line(candidate))?;
-    }
-    Ok(())
-}
-
 pub(super) fn show_reply(reply: &str) -> Result<()> {
     let reply = strip_codes(reply);
     if reply.trim().is_empty() {

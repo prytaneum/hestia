@@ -25,6 +25,11 @@ replies join their lines with nothing between them, so usages split on `/`; and
 a Bukkit server answers `help` with its own index, so `minecraft:help` is tried
 first.
 
+`server.command.complete` has no CLI verb of its own
+([0041](0041-every-capability-gets-a-verb.md)): it answers a line still being
+typed, so it is reached only from the interactive `attach` console and the
+desktop's console tab.
+
 **Rejected:** the data generator's `commands.json` knows argument types, but
 only for vanilla commands, costs a generator run per version, and would still
 need a hardcoded value table per type. **Known limit:** an argument is offered
