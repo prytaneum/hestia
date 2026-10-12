@@ -1,7 +1,7 @@
 import { type ReactNode, useState } from 'react';
 
 import { FieldGroup } from '@/components/ui/field';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tabs, TabsChip, TabsContent, TabsList } from '@/components/ui/tabs';
 
 export interface SettingsTabDef {
   id: string;
@@ -10,8 +10,8 @@ export interface SettingsTabDef {
 }
 
 /**
- * An entry's settings, one tab per area — laid out as the launcher's own
- * settings page is, so the two read as the same surface.
+ * An entry's settings, one area at a time. The areas are chips rather than
+ * line tabs so they read as a level below the entry's own tab row.
  */
 export function SettingsTabs({ tabs }: { tabs: SettingsTabDef[] }) {
   const [active, setActive] = useState(tabs[0].id);
@@ -22,11 +22,14 @@ export function SettingsTabs({ tabs }: { tabs: SettingsTabDef[] }) {
       onValueChange={(value) => setActive(value as string)}
       className="gap-0"
     >
-      <TabsList variant="line" className="h-auto gap-6 border-b border-border">
+      <TabsList
+        variant="line"
+        className="h-auto flex-wrap justify-start gap-1.5"
+      >
         {tabs.map((tab) => (
-          <TabsTrigger key={tab.id} value={tab.id}>
+          <TabsChip key={tab.id} value={tab.id}>
             {tab.label}
-          </TabsTrigger>
+          </TabsChip>
         ))}
       </TabsList>
       <div className="max-w-2xl py-6">

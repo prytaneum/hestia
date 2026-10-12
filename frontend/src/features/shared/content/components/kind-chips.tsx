@@ -1,15 +1,11 @@
 import type { ContentKind } from '@/api';
+import { chipClass } from '@/components/chip';
 import { kindInfo } from '@/features/shared/content/lib';
 import { cn } from '@/lib/utils';
 import { m } from '@/paraglide/messages.js';
 
-const chipClass = (active: boolean) =>
-  cn(
-    'border px-2.5 py-1 text-xs transition-colors outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-40',
-    active
-      ? 'border-transparent bg-primary text-primary-foreground'
-      : 'border-border text-muted-foreground hover:bg-muted hover:text-foreground',
-  );
+const kindChipClass = (active: boolean) =>
+  cn(chipClass(active), 'disabled:cursor-not-allowed disabled:opacity-40');
 
 /**
  * The content-type dimension shared by every content-shaped list (browse, an
@@ -41,7 +37,7 @@ export function KindChips({
         <button
           type="button"
           aria-pressed={!kind}
-          className={chipClass(!kind)}
+          className={kindChipClass(!kind)}
           onClick={() => onKindChange(undefined)}
         >
           {m['app.label.all']()}
@@ -53,7 +49,7 @@ export function KindChips({
           type="button"
           aria-pressed={kind === k}
           disabled={disabled?.(k)}
-          className={chipClass(kind === k)}
+          className={kindChipClass(kind === k)}
           onClick={() => onKindChange(k)}
         >
           {kindInfo[k].label()}

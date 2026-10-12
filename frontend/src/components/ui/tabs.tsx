@@ -1,6 +1,7 @@
 import { Tabs as TabsPrimitive } from '@base-ui/react/tabs';
 import { cva, type VariantProps } from 'class-variance-authority';
 
+import { chipClass } from '@/components/chip';
 import { cn } from '@/lib/utils';
 
 function Tabs({
@@ -67,6 +68,21 @@ function TabsTrigger({ className, ...props }: TabsPrimitive.Tab.Props) {
   );
 }
 
+function TabsChip({ className, ...props }: TabsPrimitive.Tab.Props) {
+  return (
+    <TabsPrimitive.Tab
+      data-slot="tabs-chip"
+      className={(state) =>
+        cn(
+          chipClass(state.active),
+          typeof className === 'function' ? className(state) : className,
+        )
+      }
+      {...props}
+    />
+  );
+}
+
 function TabsContent({ className, ...props }: TabsPrimitive.Panel.Props) {
   return (
     <TabsPrimitive.Panel
@@ -77,4 +93,4 @@ function TabsContent({ className, ...props }: TabsPrimitive.Panel.Props) {
   );
 }
 
-export { Tabs, TabsContent, TabsList, TabsTrigger, tabsListVariants };
+export { Tabs, TabsChip, TabsContent, TabsList, TabsTrigger, tabsListVariants };
