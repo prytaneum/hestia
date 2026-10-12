@@ -1,12 +1,19 @@
 import {
+  ArrowCounterClockwiseIcon,
   DotsThreeIcon,
   MagnifyingGlassIcon,
+  PlusIcon,
+  ProhibitIcon,
+  ShieldStarIcon,
+  SignOutIcon,
+  TrashIcon,
   UsersIcon,
 } from '@phosphor-icons/react';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { useState } from 'react';
+import { type ReactNode, useState } from 'react';
 
 import type { PlayerEntry, PlayerList } from '@/api';
+import { AccountAvatar } from '@/components/app-shell/account-avatar';
 import { chipClass } from '@/components/chip';
 import { Empty } from '@/components/empty';
 import { SearchInput } from '@/components/search-input';
@@ -20,8 +27,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { Input } from '@/components/ui/input';
 import { StatusDot } from '@/components/ui/status-dot';
-import { AddRow, ValueRow } from '@/features/settings/components';
 import { m } from '@/paraglide/messages.js';
 import { playersMutations, playersQueries } from '@/queries/players';
 
@@ -40,54 +47,100 @@ const viewInfo: Record<View, { label: () => string; hint?: () => string }> = {
   },
 };
 
-const matches = (name: string, search: string) =>
-  name.toLowerCase().includes(search.trim().toLowerCase());
-
-function OnlineRow({
-  name,
+function PlayerRow({
+  player,
+  online,
   op,
-  onOp,
-  onKick,
-  onBan,
+  disabled,
+  children,
 }: {
-  name: string;
+  player: PlayerEntry;
+  online: boolean;
   op: boolean;
-  onOp: () => void;
-  onKick: () => void;
-  onBan: () => void;
+  disabled: boolean;
+  children: ReactNode;
 }) {
+  const detail = [player.uuid, player.reason].filter(Boolean).join(' · ');
   return (
-    <div className="flex items-center gap-2 px-3 py-1.5">
-      <StatusDot tone="on" />
-      <span className="min-w-0 flex-1 truncate font-mono text-xs">{name}</span>
-      {op && <Badge variant="outline">{m['server.players.operator']()}</Badge>}
+    <div className="flex items-center gap-3 px-3 py-2.5">
+      <AccountAvatar uuid={player.uuid} name={player.name} size={32} />
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2">
+          {online && <StatusDot tone="on" />}
+          <span className="truncate text-sm">{player.name}</span>
+          {op && (
+            <Badge variant="outline" className="shrink-0">
+              {m['server.players.operator']()}
+            </Badge>
+          )}
+        </div>
+        {detail && (
+          <div className="truncate font-mono text-[11px] text-muted-foreground">
+            {detail}
+          </div>
+        )}
+      </div>
       <DropdownMenu>
         <DropdownMenuTrigger
           render={
             <Button
               variant="ghost"
               size="icon-sm"
-              aria-label={m['server.players.actions_for']({ name })}
+              className="shrink-0"
+              disabled={disabled}
+              aria-label={m['server.players.actions_for']({
+                name: player.name,
+              })}
             >
               <DotsThreeIcon weight="bold" className="size-4" />
             </Button>
           }
         />
-        <DropdownMenuContent align="end" className="w-44">
-          <DropdownMenuItem onClick={onOp}>
-            {op
-              ? m['server.players.action.deop']()
-              : m['server.players.action.op']()}
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={onKick}>
-            {m['server.players.action.kick']()}
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem variant="destructive" onClick={onBan}>
-            {m['server.players.action.ban']()}
-          </DropdownMenuItem>
+        <DropdownMenuContent align="end" className="w-52">
+          {children}
         </DropdownMenuContent>
       </DropdownMenu>
+    </div>
+  );
+}
+
+function AddPlayer({
+  pending,
+  onAdd,
+}: {
+  pending: boolean;
+  onAdd: (player: string) => void;
+}) {
+  const [draft, setDraft] = useState('');
+  const name = draft.trim();
+
+  const add = () => {
+    if (!name) return;
+    setDraft('');
+    onAdd(name);
+  };
+
+  return (
+    <div className="ml-auto flex items-center gap-2">
+      <Input
+        value={draft}
+        placeholder={m['server.players.name_placeholder']()}
+        className="w-48"
+        onChange={(e) => setDraft(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') add();
+        }}
+      />
+      <Button
+        size="sm"
+        variant="outline"
+        data-icon="inline-start"
+        disabled={pending || !name}
+        onClick={add}
+      >
+        <PlusIcon weight="bold" />
+        {m['server.players.add']()}
+      </Button>
     </div>
   );
 }
@@ -110,7 +163,7 @@ export function ServerPlayersTab({
   const [chosen, setChosen] = useState<View>('online');
   const [search, setSearch] = useState('');
 
-  if (players.isPending) return <Bone className="h-64 max-w-2xl" />;
+  if (players.isPending) return <Bone className="h-64" />;
   if (!players.data) {
     return (
       <Empty className="h-full" icon={UsersIcon}>
@@ -125,49 +178,74 @@ export function ServerPlayersTab({
     ? ['online', 'whitelist', 'ops', 'banned']
     : ['whitelist', 'ops', 'banned'];
   const view = views.includes(chosen) ? chosen : 'whitelist';
-  const total = view === 'online' ? online.length : lists[view].length;
-  const hint = running
-    ? viewInfo[view].hint?.()
-    : m['server.players.stopped_hint']();
 
+  const known = new Map(
+    [...whitelist, ...ops, ...banned].map((entry) => [entry.name, entry.uuid]),
+  );
+  const entries: PlayerEntry[] =
+    view === 'online'
+      ? online.map((name) => ({ name, uuid: known.get(name) ?? '' }))
+      : lists[view];
+  const needle = search.trim().toLowerCase();
+  const shown = entries.filter((entry) =>
+    entry.name.toLowerCase().includes(needle),
+  );
+
+  const onlineNames = new Set(online);
+  const opNames = new Set(ops.map((entry) => entry.name));
   const change = (list: PlayerList, listed: boolean) => (player: string) =>
     set.mutate({ player, list, listed });
-  const opNames = new Set(ops.map((entry) => entry.name));
 
-  const rows =
-    view === 'online'
-      ? online
-          .filter((name) => matches(name, search))
-          .map((name) => (
-            <OnlineRow
-              key={name}
-              name={name}
-              op={opNames.has(name)}
-              onOp={() => change('ops', !opNames.has(name))(name)}
-              onKick={() => kick.mutate(name)}
-              onBan={() => change('banned', true)(name)}
-            />
-          ))
-      : lists[view]
-          .filter((entry) => matches(entry.name, search))
-          .map((entry) => (
-            <ValueRow
-              key={entry.uuid || entry.name}
-              value={entry.name}
-              badge={
-                entry.reason && (
-                  <span className="truncate text-[11px] text-muted-foreground">
-                    {entry.reason}
-                  </span>
-                )
-              }
-              pending={!running || set.isPending}
-              onRemove={() => change(view, false)(entry.name)}
-            />
-          ));
+  const opItem = (name: string) => (
+    <DropdownMenuItem onClick={() => change('ops', !opNames.has(name))(name)}>
+      <ShieldStarIcon />
+      {opNames.has(name)
+        ? m['server.players.action.deop']()
+        : m['server.players.action.op']()}
+    </DropdownMenuItem>
+  );
+  const actions: Record<View, (name: string) => ReactNode> = {
+    online: (name) => (
+      <>
+        {opItem(name)}
+        <DropdownMenuItem onClick={() => kick.mutate(name)}>
+          <SignOutIcon />
+          {m['server.players.action.kick']()}
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem
+          variant="destructive"
+          onClick={() => change('banned', true)(name)}
+        >
+          <ProhibitIcon />
+          {m['server.players.action.ban']()}
+        </DropdownMenuItem>
+      </>
+    ),
+    whitelist: (name) => (
+      <>
+        {opItem(name)}
+        <DropdownMenuSeparator />
+        <DropdownMenuItem
+          variant="destructive"
+          onClick={() => change('whitelist', false)(name)}
+        >
+          <TrashIcon />
+          {m['server.players.action.unwhitelist']()}
+        </DropdownMenuItem>
+      </>
+    ),
+    ops: opItem,
+    banned: (name) => (
+      <DropdownMenuItem onClick={() => change('banned', false)(name)}>
+        <ArrowCounterClockwiseIcon />
+        {m['server.players.action.pardon']()}
+      </DropdownMenuItem>
+    ),
+  };
 
   return (
-    <div className="flex min-h-0 max-w-2xl flex-1 flex-col">
+    <div className="flex min-h-0 flex-1 flex-col">
       <div className="mb-3 flex items-center gap-2">
         <SearchInput
           value={search}
@@ -177,14 +255,7 @@ export function ServerPlayersTab({
           delay={0}
         />
         {running && view !== 'online' && (
-          <div className="ml-auto w-64 border border-border">
-            <AddRow
-              placeholder={m['server.players.name_placeholder']()}
-              label={m['server.players.add']()}
-              pending={set.isPending}
-              onAdd={change(view, true)}
-            />
-          </div>
+          <AddPlayer pending={set.isPending} onAdd={change(view, true)} />
         )}
       </div>
 
@@ -203,15 +274,34 @@ export function ServerPlayersTab({
             </span>
           </button>
         ))}
+        {running && (
+          <span className="ml-auto truncate text-xs text-muted-foreground">
+            {viewInfo[view].hint?.()}
+          </span>
+        )}
       </div>
 
-      {hint && <p className="mb-3 text-xs text-muted-foreground">{hint}</p>}
+      {!running && (
+        <p className="mb-3 text-xs text-muted-foreground">
+          {m['server.players.stopped_hint']()}
+        </p>
+      )}
 
-      {rows.length > 0 ? (
+      {shown.length > 0 ? (
         <div className="min-h-0 divide-y divide-border overflow-y-auto border border-border">
-          {rows}
+          {shown.map((entry) => (
+            <PlayerRow
+              key={entry.uuid || entry.name}
+              player={entry}
+              online={onlineNames.has(entry.name)}
+              op={view !== 'ops' && opNames.has(entry.name)}
+              disabled={!running || set.isPending}
+            >
+              {actions[view](entry.name)}
+            </PlayerRow>
+          ))}
         </div>
-      ) : total > 0 ? (
+      ) : entries.length > 0 ? (
         <Empty className="flex-1" icon={MagnifyingGlassIcon}>
           {m['server.players.none_match']()}
         </Empty>

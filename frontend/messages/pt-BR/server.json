@@ -69,7 +69,9 @@
         "ban": "Banir",
         "deop": "Remover operador",
         "kick": "Expulsar",
-        "op": "Tornar operador"
+        "op": "Tornar operador",
+        "pardon": "Desbanir",
+        "unwhitelist": "Remover da lista de permissões"
       },
       "actions_for": "Ações para {name}",
       "add": "Adicionar",

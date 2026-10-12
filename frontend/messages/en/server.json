@@ -69,7 +69,9 @@
         "ban": "Ban",
         "deop": "Remove operator",
         "kick": "Kick",
-        "op": "Make operator"
+        "op": "Make operator",
+        "pardon": "Unban",
+        "unwhitelist": "Remove from whitelist"
       },
       "actions_for": "Actions for {name}",
       "add": "Add",
