@@ -79,9 +79,11 @@ export function start(
     state: 'running',
     startedUnix: now(),
   };
+  const lines: ProcessLogLine[] = [];
+  for (const line of banner) lines.push(written(lines, line));
   supervised.set(id, {
     info,
-    lines: banner.map((line) => ({ stream: 'stdout', line: stamp(line) })),
+    lines,
     cpu: 18,
     mem: 1_400 * 1024 * 1024,
     tick: 0,
@@ -114,10 +116,19 @@ export function stopSessions(instanceId: string, session?: string): void {
 export function append(id: string, line: string): void {
   const entry = supervised.get(id);
   if (!entry) return;
-  const record: ProcessLogLine = { stream: 'stdout', line: stamp(line) };
+  const record = written(entry.lines, line);
   entry.lines.push(record);
   if (entry.lines.length > MAX_LINES) entry.lines.shift();
   publish('process.output', { id, lines: [record] });
+}
+
+function written(log: ProcessLogLine[], line: string): ProcessLogLine {
+  const last = log.at(-1);
+  return {
+    stream: 'stdout',
+    line: stamp(line),
+    offset: last ? last.offset + last.line.length + 1 : 0,
+  };
 }
 
 function stamp(line: string): string {

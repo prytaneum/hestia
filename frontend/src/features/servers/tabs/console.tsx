@@ -2,7 +2,7 @@ import { TerminalWindowIcon } from '@phosphor-icons/react';
 import { useMutation } from '@tanstack/react-query';
 import { useMemo, useRef } from 'react';
 
-import { errorMessage } from '@/api';
+import { errorMessage, type ProcessLogLine } from '@/api';
 import { Empty } from '@/components/empty';
 import { type LogRow, LogView } from '@/components/log-view';
 import { m } from '@/paraglide/messages.js';
@@ -38,20 +38,16 @@ export function ServerConsoleTab({
   const command = useMutation(serverMutations.command(id));
   const entries = useConsoleHistory(id);
 
-  const printed = useMemo(
-    () => logs.lines.map((entry) => entry.line),
-    [logs.lines],
-  );
-  const lines = useUnclearedLines(id, printed);
-  const lastLine = useRef<string | null>(null);
+  const lines = useUnclearedLines(id, logs.lines);
+  const lastLine = useRef<ProcessLogLine | null>(null);
   lastLine.current = lines.at(-1) ?? null;
 
   const rows: LogRow[] = useMemo(
     () =>
       interleaveConsole(lines, entries).map((row) =>
-        typeof row === 'string'
-          ? { text: row }
-          : { text: row.text, className: rowClass[row.kind] },
+        'kind' in row
+          ? { text: row.text, className: rowClass[row.kind] }
+          : { text: row.line },
       ),
     [lines, entries],
   );
@@ -88,7 +84,7 @@ export function ServerConsoleTab({
         id={id}
         running={running}
         onSend={send}
-        onClear={() => clearConsole(id, printed.at(-1) ?? null)}
+        onClear={() => clearConsole(id, logs.lines.at(-1) ?? null)}
       />
     </div>
   );

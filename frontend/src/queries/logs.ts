@@ -89,7 +89,7 @@ function dropLeadingOverlap(
     for (let i = 0; i < k; i++) {
       const b = base[base.length - k + i];
       const l = live[i];
-      if (b.line !== l.line || b.stream !== l.stream) {
+      if (b.offset !== l.offset || b.line !== l.line || b.stream !== l.stream) {
         match = false;
         break;
       }

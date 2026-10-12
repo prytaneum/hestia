@@ -6,36 +6,47 @@
  * RCON reply live only here.
  */
 import { useCallback, useMemo, useSyncExternalStore } from 'react';
+import type { ProcessLogLine } from '../api';
 
 export interface ConsoleEntry {
   kind: 'echo' | 'reply' | 'error';
   text: string;
   /** The log line on screen when this was pushed; `null` for an empty log. */
-  after: string | null;
+  after: ProcessLogLine | null;
+}
+
+// An offset is unique only within one log file; the text guards a restart or rotation.
+function indexAfter(lines: ProcessLogLine[], anchor: ProcessLogLine): number {
+  for (let at = lines.length - 1; at >= 0; at--) {
+    const line = lines[at];
+    if (line.offset === anchor.offset && line.line === anchor.line) {
+      return at + 1;
+    }
+  }
+  return 0;
 }
 
 /**
  * Place each entry after the log line it followed, so a command reads in
- * sequence with the output around it. Log lines carry no timestamp, so the
- * anchor is the line's text; an entry whose anchor has left the buffer is
- * dropped with it, unless an earlier entry still holds its place.
+ * sequence with the output around it. An entry whose anchor has left the
+ * buffer is dropped with it, unless an earlier entry still holds its place.
  */
 export function interleaveConsole(
-  lines: string[],
+  lines: ProcessLogLine[],
   entries: ConsoleEntry[],
-): (string | ConsoleEntry)[] {
+): (ProcessLogLine | ConsoleEntry)[] {
   const slots = new Map<number, ConsoleEntry[]>();
   let floor = 0;
   let placed = false;
   for (const entry of entries) {
-    const found = entry.after === null ? 0 : lines.lastIndexOf(entry.after) + 1;
+    const found = entry.after === null ? 0 : indexAfter(lines, entry.after);
     if (entry.after !== null && found === 0 && !placed) continue;
     floor = Math.max(found, floor);
     placed = true;
     slots.set(floor, [...(slots.get(floor) ?? []), entry]);
   }
 
-  const merged: (string | ConsoleEntry)[] = [];
+  const merged: (ProcessLogLine | ConsoleEntry)[] = [];
   for (let at = 0; at <= lines.length; at++) {
     merged.push(...(slots.get(at) ?? []));
     if (at < lines.length) merged.push(lines[at]);
@@ -74,18 +85,23 @@ export function pushConsoleEntry(id: string, entry: ConsoleEntry): void {
   for (const listener of listeners.get(id) ?? []) listener();
 }
 
-// Log lines carry no identity, so a clear is remembered as the last line it hid.
-const cleared = new Map<string, string>();
+const cleared = new Map<string, ProcessLogLine>();
 
 /** Empty the console view; the server's own log file is untouched. */
-export function clearConsole(id: string, lastLine: string | null): void {
+export function clearConsole(
+  id: string,
+  lastLine: ProcessLogLine | null,
+): void {
   histories.delete(id);
   if (lastLine === null) cleared.delete(id);
   else cleared.set(id, lastLine);
   for (const listener of listeners.get(id) ?? []) listener();
 }
 
-export function useUnclearedLines(id: string, lines: string[]): string[] {
+export function useUnclearedLines(
+  id: string,
+  lines: ProcessLogLine[],
+): ProcessLogLine[] {
   const subscribeId = useCallback(
     (listener: () => void) => subscribe(id, listener),
     [id],
@@ -95,8 +111,7 @@ export function useUnclearedLines(id: string, lines: string[]): string[] {
     () => cleared.get(id) ?? null,
   );
   return useMemo(
-    () =>
-      anchor === null ? lines : lines.slice(lines.lastIndexOf(anchor) + 1),
+    () => (anchor === null ? lines : lines.slice(indexAfter(lines, anchor))),
     [anchor, lines],
   );
 }
