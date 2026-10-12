@@ -317,8 +317,9 @@ pub struct InstalledContent {
     pub filename: String,
     pub sha1: String,
     pub url: String,
-    /// The project's icon, carried for the desktop UI; empty for a local-file
-    /// import, which has no project.
+    /// The project's icon, carried for the desktop UI. A local-file import has
+    /// no project, so it carries a `data:` URI of the icon its archive embeds,
+    /// or nothing.
     pub icon_url: String,
     pub installed_unix: i64,
     /// For datapacks: the save worlds (relative to the entry's `data/`) the

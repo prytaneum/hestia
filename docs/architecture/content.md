@@ -198,6 +198,18 @@ the add item's `source` says which match to track (`file` for none);
 matches to choose from before install
 ([0075](../decisions/0075-a-local-file-is-identified-by-its-hash.md)).
 
+A file left untracked has no project to borrow an icon from, so `content::icon`
+reads the one the archive carries: the `icon` a `fabric.mod.json` or
+`quilt.mod.json` names, the `logoFile` of a `mods.toml`, `neoforge.mods.toml` or
+`mcmod.info`, and otherwise a root `pack.png` — which covers resource packs,
+datapacks and the shader packs that ship one. The lookup is the same for every
+kind; a plugin's `plugin.yml` has no icon field, so a plugin has one only when
+its jar happens to carry one of those. The image is decoded under size limits,
+shrunk to a 64px PNG and stored on the record as a `data:` URI, so it travels in
+`content.json`, over the socket and inside an exported archive with no second
+file to keep in step. The same read runs wherever an untracked record is made: a
+local import, a modpack's override jars, and an imported instance's loose files.
+
 ## Datapacks are the exception
 
 A datapack loads from *inside a world*, not a flat directory — and a world is

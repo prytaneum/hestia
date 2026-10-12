@@ -5,8 +5,11 @@
 //! assembled here so a flow cannot reset a group it does not own; [`assemble`]
 //! is exhaustive, so a new field must be classified before it compiles.
 
+use std::path::Path;
+
 use proto::content::{ContentKind, InstalledContent};
 
+use crate::content::icon;
 use crate::registry;
 
 #[derive(Debug, Clone)]
@@ -19,13 +22,15 @@ pub(crate) struct Project {
 }
 
 impl Project {
-    pub(crate) fn untracked(kind: ContentKind, title: String) -> Self {
+    /// `archive` is the item's managed copy: with no project behind it, the
+    /// only icon it can have is the one it carries.
+    pub(crate) fn untracked(kind: ContentKind, title: String, archive: &Path) -> Self {
         Project {
             kind,
             project_id: String::new(),
             slug: String::new(),
             title,
-            icon_url: String::new(),
+            icon_url: icon::embedded(archive),
         }
     }
 }

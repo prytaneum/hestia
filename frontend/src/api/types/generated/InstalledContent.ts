@@ -8,8 +8,9 @@ import type { ContentKind } from "./ContentKind";
  */
 export type InstalledContent = { kind: ContentKind, source: string, projectId: string, slug: string, title: string, versionId: string, versionNumber: string, filename: string, sha1: string, url: string, 
 /**
- * The project's icon, carried for the desktop UI; empty for a local-file
- * import, which has no project.
+ * The project's icon, carried for the desktop UI. A local-file import has
+ * no project, so it carries a `data:` URI of the icon its archive embeds,
+ * or nothing.
  */
 iconUrl: string, installedUnix: number, 
 /**

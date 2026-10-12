@@ -476,7 +476,7 @@ fn add_file_content(
     let (project, release) = match known {
         Some(known) => known.recorded(kind, filename, sha1),
         None => (
-            record::Project::untracked(kind, filename.clone()),
+            record::Project::untracked(kind, filename.clone(), &managed),
             record::Release::local(filename, sha1),
         ),
     };

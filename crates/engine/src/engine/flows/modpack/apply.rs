@@ -3,6 +3,7 @@
 //! reconciles against whatever pack was installed before.
 
 use std::collections::{HashMap, HashSet};
+use std::path::Path;
 
 use anyhow::{bail, Result};
 use proto::content::{
@@ -142,7 +143,7 @@ impl Engine {
         self.recognise(ctx, &resolved.source, &mut supplied).await;
         let mut items = Vec::new();
         for file in supplied {
-            let item = pack_item(file);
+            let item = pack_item(file, &ctx.entry_dir);
             match install::apply_files(&ctx.entry_dir, &ctx.data_dir, &item, &ctx.worlds()) {
                 Ok(()) => items.push(item),
                 Err(e) => failures.push(ContentFailure {
@@ -436,7 +437,7 @@ fn filename(path: &str) -> &str {
     path.rsplit('/').next().unwrap_or(path)
 }
 
-fn pack_item(file: Supplied) -> InstalledContent {
+fn pack_item(file: Supplied, entry_dir: &Path) -> InstalledContent {
     let title = file.label();
     let Supplied {
         kind,
@@ -469,7 +470,13 @@ fn pack_item(file: Supplied) -> InstalledContent {
         ),
         // The pack's source here would let `update` re-pin it to a project it never belonged to.
         None => (
-            record::Project::untracked(kind, title),
+            record::Project::untracked(
+                kind,
+                title,
+                &entry_dir
+                    .join(install::kind_dir(kind).unwrap_or_default())
+                    .join(&filename),
+            ),
             record::Release {
                 url,
                 ..record::Release::local(filename, sha1)

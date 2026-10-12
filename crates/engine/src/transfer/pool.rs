@@ -75,7 +75,7 @@ pub(crate) fn adopt(entry_dir: &Path, data_dir: &Path) -> Result<Vec<String>> {
             std::fs::rename(&path, &managed)
                 .with_context(|| format!("cannot adopt {}", path.display()))?;
             items.push(record::assemble(
-                record::Project::untracked(*kind, filename.clone()),
+                record::Project::untracked(*kind, filename.clone(), &managed),
                 record::Release::local(filename.clone(), install::sha1_file(&managed)?),
                 record::Holding {
                     enabled,
