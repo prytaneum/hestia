@@ -1,6 +1,6 @@
 import { TerminalWindowIcon } from '@phosphor-icons/react';
 import { useMutation } from '@tanstack/react-query';
-import { useState } from 'react';
+import { type RefObject, useEffect, useMemo, useRef, useState } from 'react';
 
 import { errorMessage } from '@/api';
 import { Empty } from '@/components/empty';
@@ -9,10 +9,39 @@ import { Input } from '@/components/ui/input';
 import { m } from '@/paraglide/messages.js';
 import {
   type ConsoleEntry,
+  interleaveConsole,
   pushConsoleEntry,
   useConsoleHistory,
 } from '@/queries/console';
 import { serverMutations, useServerLogs } from '@/queries/server';
+
+const rowClass: Record<ConsoleEntry['kind'], string | undefined> = {
+  echo: 'text-foreground/70',
+  reply: undefined,
+  error: 'text-destructive',
+};
+
+/** Typing anywhere on the tab lands in the command line, as in a terminal. */
+function useTypeToFocus(input: RefObject<HTMLInputElement | null>) {
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key.length !== 1) return;
+      if (event.ctrlKey || event.metaKey || event.altKey) return;
+      const target = event.target;
+      if (
+        target instanceof HTMLElement &&
+        (target.isContentEditable ||
+          target.closest('input, textarea, select, [role="dialog"]'))
+      ) {
+        return;
+      }
+      // Focusing during keydown routes this same keystroke into the input.
+      input.current?.focus();
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [input]);
+}
 
 export function ServerConsoleTab({
   id,
@@ -29,6 +58,24 @@ export function ServerConsoleTab({
   const command = useMutation(serverMutations.command(id));
   const [line, setLine] = useState('');
   const entries = useConsoleHistory(id);
+  const input = useRef<HTMLInputElement>(null);
+  useTypeToFocus(input);
+
+  const lastLine = useRef<string | null>(null);
+  lastLine.current = logs.lines.at(-1)?.line ?? null;
+
+  const rows: LogRow[] = useMemo(
+    () =>
+      interleaveConsole(
+        logs.lines.map((entry) => entry.line),
+        entries,
+      ).map((row) =>
+        typeof row === 'string'
+          ? { text: row }
+          : { text: row.text, className: rowClass[row.kind] },
+      ),
+    [logs.lines, entries],
+  );
 
   if (!running && logs.lines.length === 0 && entries.length === 0) {
     return (
@@ -38,33 +85,20 @@ export function ServerConsoleTab({
     );
   }
 
-  const push = (entry: ConsoleEntry) => pushConsoleEntry(id, entry);
-
-  // Captured output first, then this session's command echoes and RCON replies.
-  const rows: LogRow[] = [
-    ...logs.lines.map((entry) => ({ text: entry.line })),
-    ...entries.map((entry) => ({
-      text: entry.text,
-      className:
-        entry.kind === 'echo'
-          ? 'text-foreground/70'
-          : entry.kind === 'error'
-            ? 'text-destructive'
-            : undefined,
-    })),
-  ];
+  const push = (kind: ConsoleEntry['kind'], text: string) =>
+    pushConsoleEntry(id, { kind, text, after: lastLine.current });
 
   const send = () => {
     const text = line.trim();
     if (!text) return;
     setLine('');
-    push({ kind: 'echo', text: `» ${text}` });
+    push('echo', `» ${text}`);
     command.mutate(text, {
       onSuccess: (reply) => {
         const trimmed = reply.trim();
-        if (trimmed) push({ kind: 'reply', text: trimmed });
+        if (trimmed) push('reply', trimmed);
       },
-      onError: (error) => push({ kind: 'error', text: errorMessage(error) }),
+      onError: (error) => push('error', errorMessage(error)),
     });
   };
 
@@ -82,6 +116,7 @@ export function ServerConsoleTab({
         }}
       >
         <Input
+          ref={input}
           placeholder={
             running
               ? m['server.console.placeholder']()
@@ -90,7 +125,7 @@ export function ServerConsoleTab({
           className="font-mono"
           value={line}
           onChange={(e) => setLine(e.target.value)}
-          disabled={!running || command.isPending}
+          disabled={!running}
         />
       </form>
     </div>
