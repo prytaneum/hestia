@@ -1,10 +1,10 @@
 import { toast } from 'sonner';
 
 import type { ConfigEntry } from '@/api';
-import { errorMessage } from '@/api';
 import { m } from '@/paraglide/messages.js';
 
 export interface SetConfig {
+  mutate: (entry: ConfigEntry, options?: { onSuccess?: () => void }) => void;
   mutateAsync: (entry: ConfigEntry) => Promise<unknown>;
   isPending: boolean;
 }
@@ -17,21 +17,17 @@ export function configValue(
 }
 
 /**
- * Write `entries` in order and report the outcome. The daemon takes one key per
- * call, so a rejected key stops the run and leaves the ones before it saved.
+ * The two ways an entry setting is written, as the launcher's own are: a
+ * control that moves reports itself, so only a typed value confirms with a
+ * toast.
  */
-export async function saveConfig(
-  setConfig: SetConfig,
-  entries: ConfigEntry[],
-): Promise<boolean> {
-  try {
-    for (const entry of entries) {
-      await setConfig.mutateAsync(entry);
-    }
-    toast.success(m['app.toast.saved']());
-    return true;
-  } catch (error) {
-    toast.error(errorMessage(error));
-    return false;
-  }
+export function entryConfig(setConfig: SetConfig) {
+  return {
+    commit: (key: string, value: string) => setConfig.mutate({ key, value }),
+    save: (key: string, value: string) =>
+      setConfig.mutate(
+        { key, value },
+        { onSuccess: () => toast.success(m['app.toast.saved']()) },
+      ),
+  };
 }

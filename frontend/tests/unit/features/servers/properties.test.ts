@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   hardcoreLock,
-  propertyEdits,
+  propertyWrites,
   serverProperties,
 } from '@/features/servers/lib';
 
@@ -60,36 +60,40 @@ describe('the hardcore interlock', () => {
   });
 });
 
-describe('ordering the edits to send', () => {
+describe('the writes one change takes', () => {
   const properties = serverProperties([
     entry('hardcore', 'false'),
     entry('difficulty', 'easy'),
+    entry('gamemode', 'survival'),
     entry('motd', 'old'),
   ]);
 
-  it('sends only what differs from the stored value', () => {
-    expect(propertyEdits(properties, { motd: 'old', difficulty: 'hard' })).toEqual(
-      [entry('difficulty', 'hard')],
-    );
-  });
-
-  it('writes the pinned keys before turning hardcore on', () => {
-    const keys = propertyEdits(properties, {
-      hardcore: 'true',
-      difficulty: 'hard',
-    }).map((e) => e.key);
-    expect(keys).toEqual(['difficulty', 'hardcore']);
-  });
-
-  it('writes the pinned keys after turning hardcore off', () => {
-    const on = serverProperties([
-      entry('hardcore', 'true'),
-      entry('difficulty', 'hard'),
+  it('is the change itself for an ordinary key', () => {
+    expect(propertyWrites(properties, 'motd', 'new')).toEqual([
+      entry('motd', 'new'),
     ]);
-    const keys = propertyEdits(on, {
-      difficulty: 'easy',
-      hardcore: 'false',
-    }).map((e) => e.key);
-    expect(keys).toEqual(['hardcore', 'difficulty']);
+  });
+
+  it('moves what hardcore pins before turning it on', () => {
+    expect(propertyWrites(properties, 'hardcore', 'true')).toEqual([
+      entry('difficulty', 'hard'),
+      entry('hardcore', 'true'),
+    ]);
+  });
+
+  it('turns hardcore off on its own', () => {
+    expect(propertyWrites(properties, 'hardcore', 'false')).toEqual([
+      entry('hardcore', 'false'),
+    ]);
+  });
+
+  it('leaves a legacy numeric value for the daemon to judge', () => {
+    const legacy = serverProperties([
+      entry('hardcore', 'false'),
+      entry('difficulty', '1'),
+    ]);
+    expect(propertyWrites(legacy, 'hardcore', 'true')).toEqual([
+      entry('hardcore', 'true'),
+    ]);
   });
 });

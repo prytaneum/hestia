@@ -30,6 +30,7 @@ import { anchor, useAutoTour } from '@/features/onboarding';
 import {
   ServerBackupsTab,
   ServerConsoleTab,
+  ServerPropertiesTab,
   ServerSettingsTab,
 } from '@/features/servers/tabs';
 import { EntryIconMenu } from '@/features/shared/entry/components';
@@ -53,6 +54,7 @@ export type ServerTab =
   | 'console'
   | 'content'
   | 'backups'
+  | 'properties'
   | 'settings';
 
 function isRunning(server: ServerInfo): boolean {
@@ -229,6 +231,9 @@ function ServerDetail({
           <TabsTrigger value="backups" {...anchor('server-backups')}>
             {m['app.label.backups']()}
           </TabsTrigger>
+          <TabsTrigger value="properties">
+            {m['server.properties.title']()}
+          </TabsTrigger>
           <TabsTrigger value="settings">
             {m['app.label.settings']()}
           </TabsTrigger>
@@ -345,7 +350,11 @@ function ServerDetail({
           <ServerBackupsTab id={id} running={running} config={config.data} />
         </TabsContent>
 
-        <TabsContent value="settings" className="min-h-0">
+        <TabsContent value="properties" className="p-5">
+          <ServerPropertiesTab id={id} config={config.data} running={running} />
+        </TabsContent>
+
+        <TabsContent value="settings" className="p-5">
           <ServerSettingsTab
             server={server}
             config={config.data}

@@ -141,10 +141,9 @@
     "settings": {
       "allocated_memory": "Allocated memory",
       "allow_downgrade": "Allow downgrade (worlds do not downgrade)",
-      "applies_on_start": "Saved changes apply the next time it starts.",
+      "applies_on_start": "Applies the next time it starts.",
       "backup_schedule": "Backup schedule",
       "change_version": "Change version",
-      "discard": "Discard",
       "every_interval": "Every {interval}",
       "inherits_default": "default",
       "instance_name": "Instance name",
@@ -168,15 +167,12 @@
         "summary": "Permanently deletes it and all of its data."
       },
       "section": {
-        "backups_description": "How often a backup is taken on its own, and how many are kept.",
         "danger": "Danger zone",
-        "general": "General",
-        "java_description": "Left alone, these follow the launcher defaults."
+        "general": "General"
       },
       "seed_hint": "Only applies to a world that has not been generated yet.",
       "server_name": "Server name",
       "stop_to_change": "Stop it to change these.",
-      "unsaved": "Unsaved changes",
       "version_backup_hint": "The server is backed up before its version changes."
     },
     "stop": {

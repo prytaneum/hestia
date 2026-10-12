@@ -3,107 +3,84 @@ import type { UseQueryOptions } from '@tanstack/react-query';
 import { useState } from 'react';
 
 import type { GameVersion } from '@/api';
+import { SavedInput, SettingGroup } from '@/components/setting-controls';
 import { Button } from '@/components/ui/button';
 import {
   Field,
+  FieldContent,
   FieldDescription,
-  FieldGroup,
   FieldLabel,
 } from '@/components/ui/field';
-import { Input } from '@/components/ui/input';
 import { m } from '@/paraglide/messages.js';
 import type { JobEntryKind } from '@/queries';
 import { ChangeVersionDialog, type UpdateHandle } from '../dialogs';
-import { useDraft } from '../hooks';
-import { SettingsSection } from './layout';
 
-export interface GeneralSectionProps {
+export interface GeneralSettingsProps {
   kind: JobEntryKind;
   entry: { name: string; flavor: string; gameVersion: string };
   running: boolean;
-  rename: { mutate: (name: string) => void; isPending: boolean };
+  rename: (name: string) => void;
   update: UpdateHandle;
   // biome-ignore lint/suspicious/noExplicitAny: the query factories' option types differ per domain.
   versionsQuery: UseQueryOptions<GameVersion[], any, GameVersion[], any>;
 }
 
 /** Identity: the entry's name and the game version it runs. */
-export function GeneralSection({
+export function GeneralSettings({
   kind,
   entry,
   running,
   rename,
   update,
   versionsQuery,
-}: GeneralSectionProps) {
-  const [name, setName] = useDraft(entry.name, entry.name);
+}: GeneralSettingsProps) {
   const [changing, setChanging] = useState(false);
-  const trimmed = name.trim();
 
   return (
-    <SettingsSection
-      title={m['entry.settings.section.general']()}
+    <SettingGroup
+      legend={m['entry.settings.section.general']()}
       description={running ? m['entry.settings.stop_to_change']() : undefined}
     >
-      <FieldGroup>
-        <Field>
-          <FieldLabel htmlFor="entry-name">
-            {kind === 'server'
-              ? m['entry.settings.server_name']()
-              : m['entry.settings.instance_name']()}
-          </FieldLabel>
-          <form
-            className="flex gap-2"
-            onSubmit={(e) => {
-              e.preventDefault();
-              if (trimmed && trimmed !== entry.name) rename.mutate(trimmed);
-            }}
-          >
-            <Input
-              id="entry-name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              disabled={running}
-            />
-            <Button
-              type="submit"
-              variant="outline"
-              disabled={
-                running ||
-                rename.isPending ||
-                !trimmed ||
-                trimmed === entry.name
-              }
-            >
-              {m['app.action.apply']()}
-            </Button>
-          </form>
-        </Field>
+      <Field>
+        <FieldLabel htmlFor="entry-name">
+          {kind === 'server'
+            ? m['entry.settings.server_name']()
+            : m['entry.settings.instance_name']()}
+        </FieldLabel>
+        <SavedInput
+          id="entry-name"
+          value={entry.name}
+          disabled={running}
+          onSave={(name) => {
+            if (name) rename(name);
+          }}
+        />
+      </Field>
 
-        <Field>
-          <FieldLabel>{m['app.label.version']()}</FieldLabel>
-          <div className="flex items-center gap-3">
-            <span className="font-mono text-xs">
+      <Field orientation="horizontal">
+        <FieldContent>
+          <FieldLabel className="font-normal">
+            {m['app.label.version']()}
+          </FieldLabel>
+          <FieldDescription>
+            <span className="font-mono">
               {entry.flavor} {entry.gameVersion}
             </span>
-            <Button
-              variant="outline"
-              size="sm"
-              data-icon="inline-start"
-              disabled={running}
-              onClick={() => setChanging(true)}
-            >
-              <ArrowsClockwiseIcon />
-              {m['entry.settings.change_version']()}
-            </Button>
-          </div>
-          {kind === 'server' && (
-            <FieldDescription>
-              {m['entry.settings.version_backup_hint']()}
-            </FieldDescription>
-          )}
-        </Field>
-      </FieldGroup>
+            {kind === 'server' &&
+              ` — ${m['entry.settings.version_backup_hint']()}`}
+          </FieldDescription>
+        </FieldContent>
+        <Button
+          variant="outline"
+          size="sm"
+          data-icon="inline-start"
+          disabled={running}
+          onClick={() => setChanging(true)}
+        >
+          <ArrowsClockwiseIcon />
+          {m['entry.settings.change_version']()}
+        </Button>
+      </Field>
 
       <ChangeVersionDialog
         name={entry.name}
@@ -113,6 +90,6 @@ export function GeneralSection({
         open={changing}
         onOpenChange={setChanging}
       />
-    </SettingsSection>
+    </SettingGroup>
   );
 }

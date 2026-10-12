@@ -80,22 +80,26 @@ export function hardcoreLock(
 }
 
 /**
- * The edits to send, ordered so the daemon's hardcore check passes at every
- * step: the keys hardcore pins are written before hardcore turns on, and after
- * it turns off.
+ * The writes one change takes. Turning hardcore on first moves the keys it
+ * pins, since the daemon refuses hardcore while they contradict it — the same
+ * thing Minecraft's own create-world screen does.
  */
-export function propertyEdits(
+export function propertyWrites(
   properties: Property[],
-  draft: Record<string, string>,
+  key: string,
+  value: string,
 ): ConfigEntry[] {
-  const edits = properties
-    .filter(({ key, value }) => key in draft && draft[key] !== value)
-    .map(({ key }) => ({ key, value: draft[key] }));
-  const enabling = draft.hardcore === 'true';
-  const rank = (key: string) => {
-    if (key === 'hardcore') return 1;
-    if (key in HARDCORE_LOCKS) return enabling ? 0 : 2;
-    return 0;
-  };
-  return edits.sort((a, b) => rank(a.key) - rank(b.key));
+  if (key !== 'hardcore' || value !== 'true') return [{ key, value }];
+  const pins = properties
+    .filter(
+      (property) =>
+        property.control.type === 'choice' &&
+        property.key in HARDCORE_LOCKS &&
+        property.value !== HARDCORE_LOCKS[property.key],
+    )
+    .map((property) => ({
+      key: property.key,
+      value: HARDCORE_LOCKS[property.key],
+    }));
+  return [...pins, { key, value }];
 }

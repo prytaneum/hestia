@@ -1,11 +1,6 @@
 import { createContext, type ReactNode, useContext } from 'react';
 
-import {
-  FieldDescription,
-  FieldGroup,
-  FieldLegend,
-  FieldSet,
-} from '@/components/ui/field';
+import { SettingGroup } from '@/components/setting-controls';
 import type { SettingsGroup, SettingsMatch } from '@/features/settings/lib';
 
 const MatchCtx = createContext<SettingsMatch | null>(null);
@@ -51,12 +46,8 @@ export function SettingsSection({
   const match = useContext(MatchCtx);
   if (match && !match.groups.has(group)) return null;
   return (
-    <FieldSet>
-      <FieldLegend>{legend}</FieldLegend>
-      <FieldGroup>
-        {description && <FieldDescription>{description}</FieldDescription>}
-        {children}
-      </FieldGroup>
-    </FieldSet>
+    <SettingGroup legend={legend} description={description}>
+      {children}
+    </SettingGroup>
   );
 }

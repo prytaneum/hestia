@@ -7,6 +7,7 @@ const tabs: Record<Exclude<ServerTab, 'overview'>, true> = {
   console: true,
   content: true,
   backups: true,
+  properties: true,
   settings: true,
 };
 

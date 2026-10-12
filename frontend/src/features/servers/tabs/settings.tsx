@@ -1,23 +1,13 @@
-import {
-  ArchiveIcon,
-  CoffeeIcon,
-  GearSixIcon,
-  SlidersHorizontalIcon,
-  WarningIcon,
-} from '@phosphor-icons/react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
 
 import type { ConfigEntry, ServerInfo } from '@/api';
+import { FieldGroup } from '@/components/ui/field';
+import { BackupSettings } from '@/features/servers/settings';
 import {
-  BackupScheduleSection,
-  PropertiesSection,
-} from '@/features/servers/settings';
-import {
-  DangerSection,
-  GeneralSection,
-  JavaSection,
-  SettingsLayout,
+  DangerSettings,
+  GeneralSettings,
+  JavaSettings,
 } from '@/features/shared/entry/settings';
 import { m } from '@/paraglide/messages.js';
 import { configQueries, launcherDefaults } from '@/queries/config';
@@ -40,80 +30,32 @@ export function ServerSettingsTab({
   const update = useJobMutation(serverMutations.update(server.id));
 
   return (
-    <SettingsLayout
-      sections={[
-        {
-          id: 'general',
-          label: m['entry.settings.section.general'](),
-          icon: GearSixIcon,
-          content: (
-            <GeneralSection
-              kind="server"
-              entry={server}
-              running={running}
-              rename={{
-                mutate: (name) =>
-                  rename.mutate(name, {
-                    onSuccess: (updated) =>
-                      toast.success(
-                        m['app.toast.renamed']({ name: updated.name }),
-                      ),
-                  }),
-                isPending: rename.isPending,
-              }}
-              update={update}
-              versionsQuery={serverQueries.versions(server.flavor)}
-            />
-          ),
-        },
-        {
-          id: 'properties',
-          label: m['server.properties.title'](),
-          icon: SlidersHorizontalIcon,
-          content: (
-            <PropertiesSection
-              config={config}
-              running={running}
-              setConfig={setConfig}
-            />
-          ),
-        },
-        {
-          id: 'java',
-          label: m['app.label.java'](),
-          icon: CoffeeIcon,
-          content: (
-            <JavaSection
-              config={config}
-              defaults={launcherDefaults(globalConfig.data)}
-              running={running}
-              setConfig={setConfig}
-            />
-          ),
-        },
-        {
-          id: 'backups',
-          label: m['app.label.backups'](),
-          icon: ArchiveIcon,
-          content: (
-            <BackupScheduleSection config={config} setConfig={setConfig} />
-          ),
-        },
-        {
-          id: 'danger',
-          label: m['entry.settings.section.danger'](),
-          icon: WarningIcon,
-          destructive: true,
-          content: (
-            <DangerSection
-              kind="server"
-              name={server.name}
-              running={running}
-              remove={remove}
-            />
-          ),
-        },
-      ]}
-    />
+    <FieldGroup className="max-w-2xl">
+      <GeneralSettings
+        kind="server"
+        entry={server}
+        running={running}
+        rename={(name) =>
+          rename.mutate(name, {
+            onSuccess: (updated) =>
+              toast.success(m['app.toast.renamed']({ name: updated.name })),
+          })
+        }
+        update={update}
+        versionsQuery={serverQueries.versions(server.flavor)}
+      />
+      <JavaSettings
+        config={config}
+        defaults={launcherDefaults(globalConfig.data)}
+        setConfig={setConfig}
+      />
+      <BackupSettings config={config} setConfig={setConfig} />
+      <DangerSettings
+        kind="server"
+        name={server.name}
+        running={running}
+        remove={remove}
+      />
+    </FieldGroup>
   );
 }

@@ -3,7 +3,7 @@ import { userEvent } from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ConfigEntry } from '@/api';
 import { InstanceSettingsTab } from '@/features/instances/tabs';
-import { ServerSettingsTab } from '@/features/servers/tabs';
+import { ServerPropertiesTab, ServerSettingsTab } from '@/features/servers/tabs';
 import { listInstances, listServers } from '@/mock/state/entries';
 import { m } from '@/paraglide/messages.js';
 import { renderWithProviders, resetQueryCache } from '../../../../support';
@@ -39,23 +39,31 @@ const showInstance = (running = false) =>
     { route: true },
   );
 
-const open = async (section: string) =>
-  userEvent.click(await screen.findByRole('tab', { name: section }));
+const showProperties = (running = false) =>
+  renderWithProviders(
+    <ServerPropertiesTab id={server.id} config={config()} running={running} />,
+    { route: true },
+  );
 
-const button = (name: string) => screen.getByRole('button', { name });
+const save = () => screen.queryByRole('button', { name: m['app.action.save']() });
 
 afterEach(() => {
   resetQueryCache();
   vi.restoreAllMocks();
 });
 
-describe('the general section', () => {
-  it('seeds the name from the entry', async () => {
+describe('the shared entry settings tab', () => {
+  it('seeds the name and JVM args from the entry and its config', async () => {
     showServer();
     const name = (await screen.findByLabelText(
       m['entry.settings.server_name'](),
     )) as HTMLInputElement;
     expect(name.value).toBe(server.name);
+
+    const args = screen.getByLabelText(
+      m['entry.settings.java_arguments'](),
+    ) as HTMLInputElement;
+    expect(args.value).toBe('-XX:+UseZGC');
   });
 
   it('labels the name field for the kind it is showing', async () => {
@@ -68,30 +76,78 @@ describe('the general section', () => {
     ).toBeNull();
   });
 
-  it('keeps rename inert until the name actually changes', async () => {
+  it('offers Save only once a typed value differs', async () => {
     showServer();
     const name = await screen.findByLabelText(
       m['entry.settings.server_name'](),
     );
-    const apply = button(m['app.action.apply']());
-    expect(apply.hasAttribute('disabled')).toBe(true);
+    expect(save()).toBeNull();
 
     await userEvent.type(name, '-renamed');
-    expect(apply.hasAttribute('disabled')).toBe(false);
+    expect(save()).not.toBeNull();
   });
 
-  it('locks the identity controls while the entry runs', async () => {
+  it('saves the JVM args and confirms it', async () => {
+    showServer();
+    const args = await screen.findByLabelText(
+      m['entry.settings.java_arguments'](),
+    );
+    await userEvent.clear(args);
+    await userEvent.type(args, '-Xshare:off{Enter}');
+
+    await waitFor(() =>
+      expect(screen.getByText(m['app.toast.saved']())).toBeDefined(),
+    );
+  });
+
+  it('locks the destructive and identity controls while the entry runs', async () => {
     showServer(true);
     const name = await screen.findByLabelText(
       m['entry.settings.server_name'](),
     );
     expect(name.hasAttribute('disabled')).toBe(true);
     expect(
-      button(m['entry.settings.change_version']()).hasAttribute('disabled'),
+      screen
+        .getByRole('button', { name: m['entry.settings.change_version']() })
+        .hasAttribute('disabled'),
+    ).toBe(true);
+    expect(
+      screen
+        .getByRole('button', { name: m['app.action.remove']() })
+        .hasAttribute('disabled'),
     ).toBe(true);
   });
 
-  it('opens the version dialog', async () => {
+  it('offers the backup schedule on a server', async () => {
+    showServer();
+    expect(
+      await screen.findByLabelText(m['entry.settings.keep_backups']()),
+    ).toBeDefined();
+  });
+
+  it('has no backup schedule on an instance', async () => {
+    showInstance();
+    await screen.findByLabelText(m['entry.settings.instance_name']());
+    expect(
+      screen.queryByLabelText(m['entry.settings.keep_backups']()),
+    ).toBeNull();
+  });
+
+  it('names removal after the server it would remove', async () => {
+    showServer();
+    expect(
+      await screen.findByText(m['entry.settings.remove.server']()),
+    ).toBeDefined();
+  });
+
+  it('names removal after the instance it would remove', async () => {
+    showInstance();
+    expect(
+      await screen.findByText(m['entry.settings.remove.instance']()),
+    ).toBeDefined();
+  });
+
+  it('opens the version dialog from the tab', async () => {
     showServer();
     await userEvent.click(
       await screen.findByRole('button', {
@@ -103,58 +159,21 @@ describe('the general section', () => {
   });
 });
 
-describe('the java section', () => {
-  it('saves an edit and stays inert without one', async () => {
-    showServer();
-    await open(m['app.label.java']());
-    const args = (await screen.findByLabelText(
-      m['entry.settings.java_arguments'](),
-    )) as HTMLInputElement;
-    expect(args.value).toBe('-XX:+UseZGC');
-
-    const save = button(m['app.action.save']());
-    expect(save.hasAttribute('disabled')).toBe(true);
-
-    await userEvent.clear(args);
-    await userEvent.type(args, '-Xshare:off');
-    expect(screen.getByText(m['entry.settings.unsaved']())).toBeDefined();
-    await userEvent.click(save);
-
-    await waitFor(() =>
-      expect(screen.getByText(m['app.toast.saved']())).toBeDefined(),
-    );
-  });
-
-  it('puts an edit back on discard', async () => {
-    showServer();
-    await open(m['app.label.java']());
-    const args = (await screen.findByLabelText(
-      m['entry.settings.java_arguments'](),
-    )) as HTMLInputElement;
-    await userEvent.type(args, ' -Xshare:off');
-    await userEvent.click(button(m['entry.settings.discard']()));
-    expect(args.value).toBe('-XX:+UseZGC');
-  });
-});
-
-describe('the game properties section', () => {
+describe('the server properties tab', () => {
   it('lists the properties file and none of the record settings', async () => {
-    showServer();
-    await open(m['server.properties.title']());
+    showProperties();
     expect(await screen.findByLabelText(/^motd/)).toBeDefined();
     expect(screen.queryByLabelText(/^jvm-args/)).toBeNull();
   });
 
   it('holds a managed key read-only', async () => {
-    showServer();
-    await open(m['server.properties.title']());
+    showProperties();
     const port = await screen.findByLabelText(/^server-port/);
     expect(port.hasAttribute('disabled')).toBe(true);
   });
 
   it('narrows the list as the search is typed', async () => {
-    showServer();
-    await open(m['server.properties.title']());
+    showProperties();
     await userEvent.type(
       await screen.findByPlaceholderText(m['server.properties.search']()),
       'pvp',
@@ -163,70 +182,20 @@ describe('the game properties section', () => {
     expect(screen.getByRole('switch', { name: /^pvp/ })).toBeDefined();
   });
 
-  it('saves an edited property', async () => {
-    showServer();
-    await open(m['server.properties.title']());
-    await userEvent.type(await screen.findByLabelText(/^motd/), '!');
-    await userEvent.click(button(m['app.action.save']()));
+  it('saves a typed property and confirms it', async () => {
+    showProperties();
+    await userEvent.type(await screen.findByLabelText(/^motd/), '!{Enter}');
     await waitFor(() =>
       expect(screen.getByText(m['app.toast.saved']())).toBeDefined(),
     );
   });
 
-  it('is not offered on an instance', async () => {
-    showInstance();
-    await screen.findByLabelText(m['entry.settings.instance_name']());
+  it('says when a change waits for the next start', async () => {
+    showProperties(true);
     expect(
-      screen.queryByRole('tab', { name: m['server.properties.title']() }),
-    ).toBeNull();
-  });
-});
-
-describe('the backups section', () => {
-  it('offers the schedule on a server', async () => {
-    showServer();
-    await open(m['app.label.backups']());
-    expect(
-      await screen.findByLabelText(m['entry.settings.keep_backups']()),
-    ).toBeDefined();
-  });
-
-  it('is not offered on an instance', async () => {
-    showInstance();
-    await screen.findByLabelText(m['entry.settings.instance_name']());
-    expect(
-      screen.queryByRole('tab', { name: m['app.label.backups']() }),
-    ).toBeNull();
-  });
-});
-
-describe('the danger zone', () => {
-  it('names removal after the server it would remove', async () => {
-    showServer();
-    await open(m['entry.settings.section.danger']());
-    expect(
-      await screen.findByRole('button', {
-        name: m['entry.settings.remove.server'](),
+      await screen.findByText(m['entry.settings.applies_on_start'](), {
+        exact: false,
       }),
     ).toBeDefined();
-  });
-
-  it('names removal after the instance it would remove', async () => {
-    showInstance();
-    await open(m['entry.settings.section.danger']());
-    expect(
-      await screen.findByRole('button', {
-        name: m['entry.settings.remove.instance'](),
-      }),
-    ).toBeDefined();
-  });
-
-  it('locks removal while the entry runs', async () => {
-    showServer(true);
-    await open(m['entry.settings.section.danger']());
-    const remove = await screen.findByRole('button', {
-      name: m['entry.settings.remove.server'](),
-    });
-    expect(remove.hasAttribute('disabled')).toBe(true);
   });
 });

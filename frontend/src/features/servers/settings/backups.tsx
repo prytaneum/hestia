@@ -1,4 +1,6 @@
 import type { ConfigEntry } from '@/api';
+import { SavedInput, SettingGroup } from '@/components/setting-controls';
+import { Button } from '@/components/ui/button';
 import { Field, FieldError, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import {
@@ -19,10 +21,8 @@ import {
 import { useDraft } from '@/features/shared/entry/hooks';
 import {
   configValue,
-  SaveBar,
+  entryConfig,
   type SetConfig,
-  SettingsSection,
-  saveConfig,
 } from '@/features/shared/entry/settings';
 import { m } from '@/paraglide/messages.js';
 
@@ -49,142 +49,122 @@ const issueMessage = (issue: IntervalIssue) =>
     : m['app.validation.whole_number']();
 
 /** Scheduled backups: how often one is taken and how many are kept. */
-export function BackupScheduleSection({
+export function BackupSettings({
   config,
   setConfig,
 }: {
   config?: ConfigEntry[];
   setConfig: SetConfig;
 }) {
+  const { commit, save } = entryConfig(setConfig);
   const loaded = config !== undefined;
-  const storedInterval = configValue(config, 'backup-interval');
-  const storedRetention =
-    configValue(config, 'backup-retention') || DEFAULT_RETENTION;
-
+  const stored = configValue(config, 'backup-interval');
   const [interval, setInterval] = useDraft(
-    intervalDraft(storedInterval),
-    `${loaded}:${storedInterval}`,
-  );
-  const [retention, setRetention] = useDraft(
-    storedRetention,
-    `${loaded}:${storedRetention}`,
+    intervalDraft(stored),
+    `${loaded}:${stored}`,
   );
 
   const intervals = intervalOptions();
   const units = unitOptions();
   const issue = intervalIssue(interval);
-  const dirty =
-    intervalValue(interval) !== storedInterval || retention !== storedRetention;
+  const custom = interval.mode === 'custom';
+  const dirty = custom && intervalValue(interval) !== stored;
 
-  // Leaving a preset for custom keeps that preset's amount as the start.
-  const setMode = (mode: string) =>
-    setInterval(
-      INTERVAL_PRESETS.includes(mode)
-        ? intervalDraft(mode)
-        : { ...interval, mode },
-    );
+  // A preset or Off lands the moment it is picked; a custom amount is typed,
+  // so it is saved on purpose. Leaving a preset for custom keeps its amount.
+  const setMode = (mode: string) => {
+    if (mode === 'custom') {
+      setInterval({ ...interval, mode });
+      return;
+    }
+    const next = intervalDraft(mode === 'off' ? '' : mode);
+    setInterval(next);
+    commit('backup-interval', intervalValue(next));
+  };
 
   return (
-    <>
-      <SettingsSection
-        title={m['app.label.backups']()}
-        description={m['entry.settings.section.backups_description']()}
-      >
-        <div className="flex flex-col gap-3">
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field>
-              <FieldLabel htmlFor="backup-interval">
-                {m['entry.settings.backup_schedule']()}
-              </FieldLabel>
+    <SettingGroup legend={m['app.label.backups']()}>
+      <Field data-invalid={issue !== null}>
+        <FieldLabel htmlFor="backup-interval">
+          {m['entry.settings.backup_schedule']()}
+        </FieldLabel>
+        <div className="flex max-w-md items-center gap-2">
+          <Select
+            items={intervals}
+            value={interval.mode}
+            onValueChange={(v) => setMode(v ?? 'off')}
+          >
+            <SelectTrigger id="backup-interval" className="flex-1">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {intervals.map((iv) => (
+                <SelectItem key={iv.value} value={iv.value}>
+                  {iv.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {custom && (
+            <>
+              <Input
+                type="number"
+                min={1}
+                aria-label={m['entry.settings.interval.every']()}
+                value={interval.count}
+                onChange={(e) =>
+                  setInterval({ ...interval, count: e.target.value })
+                }
+                aria-invalid={issue !== null}
+                className="w-20"
+              />
               <Select
-                items={intervals}
-                value={interval.mode}
-                onValueChange={(v) => setMode(v ?? 'off')}
+                items={units}
+                value={interval.unit}
+                onValueChange={(v) =>
+                  setInterval({ ...interval, unit: v ?? interval.unit })
+                }
               >
-                <SelectTrigger id="backup-interval" className="w-full">
+                <SelectTrigger
+                  aria-label={m['entry.settings.interval.unit']()}
+                  className="w-28"
+                >
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {intervals.map((iv) => (
-                    <SelectItem key={iv.value} value={iv.value}>
-                      {iv.label}
+                  {units.map((unit) => (
+                    <SelectItem key={unit.value} value={unit.value}>
+                      {unit.label}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="backup-retention">
-                {m['entry.settings.keep_backups']()}
-              </FieldLabel>
-              <Input
-                id="backup-retention"
-                type="number"
-                min={1}
-                value={retention}
-                onChange={(e) => setRetention(e.target.value)}
-              />
-            </Field>
-          </div>
-          {interval.mode === 'custom' && (
-            <Field data-invalid={issue !== null}>
-              <div className="flex items-center gap-2">
-                <FieldLabel htmlFor="backup-interval-count" className="w-auto">
-                  {m['entry.settings.interval.every']()}
-                </FieldLabel>
-                <Input
-                  id="backup-interval-count"
-                  type="number"
-                  min={1}
-                  value={interval.count}
-                  onChange={(e) =>
-                    setInterval({ ...interval, count: e.target.value })
-                  }
-                  aria-invalid={issue !== null}
-                  className="w-20"
-                />
-                <Select
-                  items={units}
-                  value={interval.unit}
-                  onValueChange={(v) =>
-                    setInterval({ ...interval, unit: v ?? interval.unit })
-                  }
-                >
-                  <SelectTrigger
-                    aria-label={m['entry.settings.interval.unit']()}
-                    className="w-28"
-                  >
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {units.map((unit) => (
-                      <SelectItem key={unit.value} value={unit.value}>
-                        {unit.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              {issue && <FieldError>{issueMessage(issue)}</FieldError>}
-            </Field>
+            </>
+          )}
+          {dirty && issue === null && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => save('backup-interval', intervalValue(interval))}
+            >
+              {m['app.action.save']()}
+            </Button>
           )}
         </div>
-      </SettingsSection>
-      <SaveBar
-        dirty={dirty}
-        pending={setConfig.isPending}
-        invalid={issue !== null}
-        onSave={() =>
-          saveConfig(setConfig, [
-            { key: 'backup-interval', value: intervalValue(interval) },
-            { key: 'backup-retention', value: retention },
-          ])
-        }
-        onDiscard={() => {
-          setInterval(intervalDraft(storedInterval));
-          setRetention(storedRetention);
-        }}
-      />
-    </>
+        {issue && <FieldError>{issueMessage(issue)}</FieldError>}
+      </Field>
+
+      <Field>
+        <FieldLabel htmlFor="backup-retention">
+          {m['entry.settings.keep_backups']()}
+        </FieldLabel>
+        <SavedInput
+          id="backup-retention"
+          type="number"
+          value={configValue(config, 'backup-retention') || DEFAULT_RETENTION}
+          onSave={(value) => save('backup-retention', value)}
+        />
+      </Field>
+    </SettingGroup>
   );
 }

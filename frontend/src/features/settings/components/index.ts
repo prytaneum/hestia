@@ -1,4 +1,5 @@
-export { AddRow, RowList, SavedInput, SwitchRow, ValueRow } from './controls';
+export { SavedInput, SwitchRow } from '@/components/setting-controls';
+export { AddRow, RowList, ValueRow } from './controls';
 export {
   Setting,
   SettingsFilter,

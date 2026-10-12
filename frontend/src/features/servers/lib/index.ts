@@ -10,6 +10,6 @@ export {
 export {
   hardcoreLock,
   type Property,
-  propertyEdits,
+  propertyWrites,
   serverProperties,
 } from './properties';

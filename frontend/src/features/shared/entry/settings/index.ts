@@ -1,10 +1,4 @@
-export { configValue, type SetConfig, saveConfig } from './config';
-export { DangerSection } from './danger';
-export { GeneralSection } from './general';
-export { JavaSection } from './java';
-export {
-  SaveBar,
-  SettingsLayout,
-  SettingsSection,
-  type SettingsSectionDef,
-} from './layout';
+export { configValue, entryConfig, type SetConfig } from './config';
+export { DangerSettings } from './danger';
+export { GeneralSettings } from './general';
+export { JavaSettings } from './java';

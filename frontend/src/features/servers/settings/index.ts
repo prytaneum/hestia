@@ -1,2 +1,1 @@
-export { BackupScheduleSection } from './backups';
-export { PropertiesSection } from './properties';
+export { BackupSettings } from './backups';

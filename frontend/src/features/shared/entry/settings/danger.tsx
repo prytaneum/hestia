@@ -2,18 +2,24 @@ import { TrashIcon } from '@phosphor-icons/react';
 import { useNavigate } from '@tanstack/react-router';
 import { toast } from 'sonner';
 
+import { SettingGroup } from '@/components/setting-controls';
 import { Button } from '@/components/ui/button';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import {
+  Field,
+  FieldContent,
+  FieldDescription,
+  FieldLabel,
+} from '@/components/ui/field';
 import { m } from '@/paraglide/messages.js';
 import type { JobEntryKind } from '@/queries';
-import { SettingsSection } from './layout';
 
 export interface RemoveHandle {
   mutate: (v: undefined, o: { onSuccess: () => void }) => void;
 }
 
 /** Irreversible actions, kept apart from everything that can be undone. */
-export function DangerSection({
+export function DangerSettings({
   kind,
   name,
   running,
@@ -31,17 +37,14 @@ export function DangerSection({
     : m['entry.settings.remove.instance']();
 
   return (
-    <SettingsSection
-      title={m['entry.settings.section.danger']()}
-      description={running ? m['entry.settings.stop_to_change']() : undefined}
-    >
-      <div className="flex items-center gap-4 border border-destructive/40 p-4">
-        <div className="min-w-0 flex-1">
-          <div className="text-xs font-medium">{label}</div>
-          <p className="mt-0.5 text-xs text-muted-foreground">
+    <SettingGroup legend={m['entry.settings.section.danger']()}>
+      <Field orientation="horizontal">
+        <FieldContent>
+          <FieldLabel className="font-normal">{label}</FieldLabel>
+          <FieldDescription>
             {m['entry.settings.remove.summary']()}
-          </p>
-        </div>
+          </FieldDescription>
+        </FieldContent>
         <ConfirmDialog
           trigger={
             <Button
@@ -51,7 +54,7 @@ export function DangerSection({
               disabled={running}
             >
               <TrashIcon />
-              {label}
+              {m['app.action.remove']()}
             </Button>
           }
           title={
@@ -71,7 +74,7 @@ export function DangerSection({
             })
           }
         />
-      </div>
-    </SettingsSection>
+      </Field>
+    </SettingGroup>
   );
 }

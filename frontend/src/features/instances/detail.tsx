@@ -459,7 +459,7 @@ function InstanceDetail({
           />
         </TabsContent>
 
-        <TabsContent value="settings" className="min-h-0">
+        <TabsContent value="settings" className="p-5">
           <InstanceSettingsTab
             instance={instance}
             config={config.data}
