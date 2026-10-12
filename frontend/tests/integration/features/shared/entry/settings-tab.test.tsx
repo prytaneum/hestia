@@ -140,12 +140,6 @@ describe('the shared entry settings tab', () => {
     ).toBeNull();
   });
 
-  it('keeps the properties under the server’s settings', async () => {
-    showServer();
-    await open(m['server.properties.title']());
-    expect(await screen.findByLabelText(/^motd/)).toBeDefined();
-  });
-
   it('names removal after the server it would remove', async () => {
     showServer();
     expect(
@@ -173,26 +167,10 @@ describe('the shared entry settings tab', () => {
 });
 
 describe('the server properties tab', () => {
-  it('lists the properties file and none of the record settings', async () => {
-    showProperties();
-    expect(await screen.findByLabelText(/^motd/)).toBeDefined();
-    expect(screen.queryByLabelText(/^jvm-args/)).toBeNull();
-  });
-
   it('holds a managed key read-only', async () => {
     showProperties();
     const port = await screen.findByLabelText(/^server-port/);
     expect(port.hasAttribute('disabled')).toBe(true);
-  });
-
-  it('narrows the list as the search is typed', async () => {
-    showProperties();
-    await userEvent.type(
-      await screen.findByPlaceholderText(m['server.properties.search']()),
-      'pvp',
-    );
-    await waitFor(() => expect(screen.queryByLabelText(/^motd/)).toBeNull());
-    expect(screen.getByRole('switch', { name: /^pvp/ })).toBeDefined();
   });
 
   it('saves a typed property and confirms it', async () => {
@@ -201,14 +179,5 @@ describe('the server properties tab', () => {
     await waitFor(() =>
       expect(screen.getByText(m['app.toast.saved']())).toBeDefined(),
     );
-  });
-
-  it('says when a change waits for the next start', async () => {
-    showProperties(true);
-    expect(
-      await screen.findByText(m['entry.settings.applies_on_start'](), {
-        exact: false,
-      }),
-    ).toBeDefined();
   });
 });

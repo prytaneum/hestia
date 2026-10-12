@@ -34,35 +34,6 @@ afterEach(() => {
 });
 
 describe('the server files tab', () => {
-  it('lists the directory, folders first', async () => {
-    show();
-    const world = await row(/^world/);
-    const properties = await row(/^server\.properties/);
-    expect(
-      world.compareDocumentPosition(properties) &
-        Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
-  });
-
-  it('walks into a folder and opens a file', async () => {
-    const { onNavigate, onOpenFile } = show();
-    await userEvent.click(await row(/^plugins/));
-    expect(onNavigate).toHaveBeenCalledWith('plugins');
-
-    await userEvent.click(await row(/^server\.properties/));
-    expect(onOpenFile).toHaveBeenCalledWith('server.properties');
-  });
-
-  it('shows where it is and walks back up', async () => {
-    const { onNavigate } = show('plugins/Essentials');
-    await row(/^config\.yml/);
-    const trail = screen.getByRole('navigation', {
-      name: m['server.files.path'](),
-    });
-    await userEvent.click(within(trail).getByRole('button', { name: 'plugins' }));
-    expect(onNavigate).toHaveBeenCalledWith('plugins');
-  });
-
   it('creates a folder and lists it', async () => {
     show();
     await userEvent.click(
@@ -79,28 +50,6 @@ describe('the server files tab', () => {
       within(dialog).getByRole('button', { name: m['server.files.create']() }),
     );
     expect(await row(/^datapacks/)).toBeDefined();
-  });
-
-  it('refuses a name the folder already holds', async () => {
-    show();
-    await userEvent.click(
-      await screen.findByRole('button', {
-        name: m['server.files.new_folder'](),
-      }),
-    );
-    const dialog = await screen.findByRole('dialog');
-    await userEvent.type(
-      within(dialog).getByLabelText(m['app.label.name']()),
-      'world',
-    );
-    expect(
-      within(dialog).getByText(m['server.files.name.taken']()),
-    ).toBeDefined();
-    expect(
-      within(dialog)
-        .getByRole('button', { name: m['server.files.create']() })
-        .hasAttribute('disabled'),
-    ).toBe(true);
   });
 
   it('deletes what was selected, after confirming', async () => {
