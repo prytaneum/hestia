@@ -125,6 +125,7 @@ impl fmt::Display for Field {
 #[serde(rename_all = "snake_case")]
 pub enum Reason {
     MemoryFormat,
+    MemoryExceedsHost,
     JvmArgsPrefix,
     PortNumber,
     PortRange,
@@ -148,6 +149,7 @@ impl fmt::Display for Reason {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(match self {
             Reason::MemoryFormat => "memory must look like 4G or 2048M",
+            Reason::MemoryExceedsHost => "memory exceeds what this machine has installed",
             Reason::JvmArgsPrefix => "jvm arguments must start with '-'",
             Reason::PortNumber => "port must be a number",
             Reason::PortRange => "port is out of range",

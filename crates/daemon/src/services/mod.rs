@@ -11,6 +11,7 @@ mod content;
 mod download;
 mod files;
 mod guards;
+mod host;
 mod instance;
 mod java;
 mod lifecycle;
@@ -37,6 +38,7 @@ pub fn make_router() -> Router {
     cache::register(&mut on);
     java::register(&mut on);
     net::register(&mut on);
+    host::register(&mut on);
     download::register(&mut on);
     accounts::register(&mut on);
     skins::register(&mut on);

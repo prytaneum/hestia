@@ -109,8 +109,13 @@ impl JavaSettings {
 /// Validate and normalise a memory value: digits followed by one unit char
 /// (k/m/g, case-insensitive), the number nonzero, the unit upper-cased and
 /// carried as far up the ladder as it divides exactly — an import that speaks
-/// megabytes (Prism's `MaxMemAlloc=8192`) stores the `8G` the user chose.
+/// megabytes (Prism's `MaxMemAlloc=8192`) stores the `8G` the user chose. An
+/// amount above this machine's installed memory is rejected.
 pub(crate) fn normalize_memory(value: &str) -> Result<String> {
+    normalize_memory_within(value, crate::host::total_memory())
+}
+
+fn normalize_memory_within(value: &str, limit: Option<u64>) -> Result<String> {
     let trimmed = value.trim();
     let unit = trimmed
         .chars()
@@ -130,13 +135,30 @@ pub(crate) fn normalize_memory(value: &str) -> Result<String> {
             reason: proto::error::Reason::MemoryFormat
         });
     }
-    Ok(promote(digits, unit.to_ascii_uppercase()))
+    let unit = unit.to_ascii_uppercase();
+    if limit.is_some_and(|limit| bytes(digits, unit).is_none_or(|bytes| bytes > limit)) {
+        bail!(proto::error::ErrorInfo::InvalidValue {
+            field: proto::error::Field::Memory,
+            reason: proto::error::Reason::MemoryExceedsHost
+        });
+    }
+    Ok(promote(digits, unit))
+}
+
+const LADDER: [char; 3] = ['K', 'M', 'G'];
+
+/// The amount in bytes, or `None` when it does not fit a `u64`.
+fn bytes(digits: &str, unit: char) -> Option<u64> {
+    let rung = LADDER.iter().position(|u| *u == unit)? as u32;
+    digits
+        .parse::<u64>()
+        .ok()?
+        .checked_mul(1024u64.checked_pow(rung + 1)?)
 }
 
 /// Carry an amount up the unit ladder while it divides exactly. A number too
 /// large for `u64` is left as written — the JVM is the one that rejects it.
 fn promote(digits: &str, unit: char) -> String {
-    const LADDER: [char; 3] = ['K', 'M', 'G'];
     let Ok(mut amount) = digits.parse::<u64>() else {
         return format!("{digits}{unit}");
     };
@@ -956,6 +978,25 @@ mod tests {
         for bad in ["4", "G", "0G", "4GB", "4.5G", "-4G", "four"] {
             assert!(s.set(MEMORY_KEY, bad).is_err(), "'{bad}' must be rejected");
         }
+    }
+
+    #[test]
+    fn memory_above_the_installed_amount_is_rejected() {
+        const GIB: u64 = 1024 * 1024 * 1024;
+        let limit = Some(16 * GIB - 1);
+        assert_eq!(normalize_memory_within("15G", limit).unwrap(), "15G");
+        assert_eq!(normalize_memory_within("15360M", limit).unwrap(), "15G");
+        for over in ["16G", "16384M", "32G", "99999999999999999999G"] {
+            assert!(
+                normalize_memory_within(over, limit).is_err(),
+                "'{over}' must be rejected"
+            );
+        }
+        assert_eq!(
+            normalize_memory_within("16G", Some(16 * GIB)).unwrap(),
+            "16G"
+        );
+        assert_eq!(normalize_memory_within("64G", None).unwrap(), "64G");
     }
 
     #[test]

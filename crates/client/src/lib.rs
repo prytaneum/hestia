@@ -6,7 +6,7 @@ mod session;
 mod spawn;
 
 pub use facades::{
-    Accounts, App, Cache, Config, Content, Daemon, Exported, Files, Imported, Instance, Java,
+    Accounts, App, Cache, Config, Content, Daemon, Exported, Files, Host, Imported, Instance, Java,
     LaunchOptions, Modpack, Net, Players, Process, ProcessEvent, Screenshot, Server, Skins, Sync,
     Tasks, Transfer, Update,
 };
@@ -118,6 +118,12 @@ impl Client {
 
     pub fn java(&self) -> Java<'_> {
         Java {
+            session: &self.session,
+        }
+    }
+
+    pub fn host(&self) -> Host<'_> {
+        Host {
             session: &self.session,
         }
     }

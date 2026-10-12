@@ -14,6 +14,7 @@ pub mod error;
 pub mod events;
 pub mod files;
 pub mod health;
+pub mod host;
 pub mod instance;
 pub mod java;
 pub mod job;

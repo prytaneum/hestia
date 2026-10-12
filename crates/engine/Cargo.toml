@@ -26,6 +26,7 @@ flate2 = { workspace = true }
 fastnbt = { workspace = true }
 zip = { workspace = true }
 uuid = { workspace = true }
+sysinfo = { workspace = true }
 tokio = { workspace = true }
 futures-util = { workspace = true }
 anyhow = { workspace = true }
