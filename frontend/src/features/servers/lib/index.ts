@@ -7,3 +7,9 @@ export {
   intervalIssue,
   intervalValue,
 } from './interval';
+export {
+  hardcoreLock,
+  type Property,
+  propertyEdits,
+  serverProperties,
+} from './properties';

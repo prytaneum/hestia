@@ -141,8 +141,10 @@
     "settings": {
       "allocated_memory": "Memória alocada",
       "allow_downgrade": "Permitir downgrade (mundos não voltam de versão)",
+      "applies_on_start": "As alterações salvas valem a partir da próxima inicialização.",
       "backup_schedule": "Agendamento de backup",
       "change_version": "Mudar versão",
+      "discard": "Descartar",
       "every_interval": "A cada {interval}",
       "inherits_default": "padrão",
       "instance_name": "Nome da instância",
@@ -162,10 +164,20 @@
         "instance": "Remover instância",
         "instance_title": "Remover instância?",
         "server": "Remover servidor",
-        "server_title": "Remover servidor?"
+        "server_title": "Remover servidor?",
+        "summary": "Exclui permanentemente, com todos os dados."
+      },
+      "section": {
+        "backups_description": "Com que frequência um backup é feito sozinho e quantos são mantidos.",
+        "danger": "Zona de perigo",
+        "general": "Geral",
+        "java_description": "Sem alteração, seguem os padrões do launcher."
       },
       "seed_hint": "Só se aplica a um mundo que ainda não foi gerado.",
-      "server_name": "Nome do servidor"
+      "server_name": "Nome do servidor",
+      "stop_to_change": "Pare para alterar.",
+      "unsaved": "Alterações não salvas",
+      "version_backup_hint": "O servidor é salvo em backup antes de mudar de versão."
     },
     "stop": {
       "instance_description": "A sessão de jogo em execução será fechada. Progresso não salvo pode ser perdido.",

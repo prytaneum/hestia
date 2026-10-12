@@ -345,7 +345,7 @@ function ServerDetail({
           <ServerBackupsTab id={id} running={running} config={config.data} />
         </TabsContent>
 
-        <TabsContent value="settings" className="p-5">
+        <TabsContent value="settings" className="min-h-0">
           <ServerSettingsTab
             server={server}
             config={config.data}

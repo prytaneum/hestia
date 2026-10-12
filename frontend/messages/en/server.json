@@ -23,6 +23,14 @@
     "missing": "That server no longer exists.",
     "new": "New server",
     "none_match": "No servers match your search.",
+    "properties": {
+      "description": "The settings in server.properties for this version.",
+      "empty": "This server has no properties file yet. Start it once to generate one.",
+      "managed": "Managed",
+      "none_match": "No properties match your search.",
+      "search": "Search properties",
+      "title": "Game properties"
+    },
     "subtitle": "Worlds you host"
   }
 }
