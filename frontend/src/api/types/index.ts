@@ -22,6 +22,7 @@ export type * from "./screenshot";
 export type * from "./server";
 export type * from "./skins";
 export type * from "./sync";
+export type * from "./tasks";
 export type * from "./transfer";
 export type * from "./update";
 export type * from "./warning";

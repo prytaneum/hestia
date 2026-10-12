@@ -13,6 +13,7 @@ use std::sync::Mutex;
 use anyhow::{bail, Context, Result};
 use proto::minecraft::{ProvisionPhase, ProvisionProgress, ServerProfile};
 use proto::server::ServerProperty;
+use proto::tasks::ServerTask;
 use serde::{Deserialize, Serialize};
 
 use crate::backup::BackupSettings;
@@ -92,6 +93,9 @@ pub struct ServerRecord {
     /// schedule.
     #[serde(default)]
     pub backup: BackupSettings,
+    /// What the daemon runs on a schedule while the server is up.
+    #[serde(default)]
+    pub tasks: Vec<ServerTask>,
     pub profile: ServerProfile,
 }
 
@@ -195,6 +199,7 @@ impl Servers {
             rcon: None,
             jvm: JavaSettings::default(),
             backup: BackupSettings::default(),
+            tasks: Vec::new(),
             profile,
         };
         let dir = self.server_dir(&record);
@@ -563,6 +568,65 @@ impl Servers {
         registry::write_record(&new_dir, &record)?;
         tracing::info!(id = %record.id, name = %new_name, "server renamed");
         Ok(record)
+    }
+
+    /// Store a scheduled task: a new one when its id is empty, else in place
+    /// of the one it names. A new task, or one whose schedule moved, counts
+    /// from `now` — otherwise an interval would fire at once and a daily time
+    /// already past would too.
+    pub fn save_task(&self, id: &str, task: ServerTask, now: i64) -> Result<ServerTask> {
+        let _claims = self.claims.lock().unwrap();
+        let mut record = self
+            .get(id)
+            .with_context(|| format!("unknown server: {id}"))?;
+        let mut task = crate::tasks::checked(task)?;
+        match record.tasks.iter_mut().find(|stored| stored.id == task.id) {
+            Some(stored) => {
+                task.last_run_unix = match stored.schedule == task.schedule {
+                    true => stored.last_run_unix,
+                    false => now,
+                };
+                *stored = task.clone();
+            }
+            None => {
+                task.id = registry::allocate_id(|candidate| {
+                    record.tasks.iter().any(|stored| stored.id == candidate)
+                })?;
+                task.last_run_unix = now;
+                record.tasks.push(task.clone());
+            }
+        }
+        registry::write_record(&self.server_dir(&record), &record)?;
+        tracing::info!(server = %record.id, task = %task.id, schedule = %task.schedule, "task saved");
+        Ok(task)
+    }
+
+    /// Returns false when the server has no task with that id.
+    pub fn remove_task(&self, id: &str, task_id: &str) -> Result<bool> {
+        let _claims = self.claims.lock().unwrap();
+        let mut record = self
+            .get(id)
+            .with_context(|| format!("unknown server: {id}"))?;
+        let before = record.tasks.len();
+        record.tasks.retain(|task| task.id != task_id);
+        if record.tasks.len() == before {
+            return Ok(false);
+        }
+        registry::write_record(&self.server_dir(&record), &record)?;
+        Ok(true)
+    }
+
+    /// Stamp a task as run, so its schedule counts from here.
+    pub fn mark_task_run(&self, id: &str, task_id: &str, now: i64) -> Result<()> {
+        let _claims = self.claims.lock().unwrap();
+        let mut record = self
+            .get(id)
+            .with_context(|| format!("unknown server: {id}"))?;
+        if let Some(task) = record.tasks.iter_mut().find(|task| task.id == task_id) {
+            task.last_run_unix = now;
+            registry::write_record(&self.server_dir(&record), &record)?;
+        }
+        Ok(())
     }
 
     /// Delete a server's directory (jar, world and all). Returns false when no

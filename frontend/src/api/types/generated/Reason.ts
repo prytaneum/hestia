@@ -3,4 +3,4 @@
 /**
  * A closed reason an otherwise-present value was rejected.
  */
-export type Reason = "memory_format" | "jvm_args_prefix" | "port_number" | "port_range" | "whole_number" | "interval_format" | "interval_too_short" | "retention_positive" | "min_players" | "min_backups" | "java_major" | "absolute_path" | "server_address" | "list_order" | "realm_id" | "process_id_charset" | "player_name";
+export type Reason = "memory_format" | "jvm_args_prefix" | "port_number" | "port_range" | "whole_number" | "interval_format" | "interval_too_short" | "retention_positive" | "min_players" | "min_backups" | "java_major" | "absolute_path" | "server_address" | "list_order" | "realm_id" | "process_id_charset" | "player_name" | "schedule_format";

@@ -77,6 +77,7 @@ pub enum Field {
     BackupInterval,
     BackupRetention,
     JavaVersion,
+    Schedule,
     Order,
     Realm,
     ProcessId,
@@ -112,6 +113,7 @@ impl fmt::Display for Field {
             Field::BackupInterval => "backup-interval",
             Field::BackupRetention => "backup-retention",
             Field::JavaVersion => "a java version",
+            Field::Schedule => "a schedule",
             Field::ProcessId => "a process id",
         })
     }
@@ -139,6 +141,7 @@ pub enum Reason {
     RealmId,
     ProcessIdCharset,
     PlayerName,
+    ScheduleFormat,
 }
 
 impl fmt::Display for Reason {
@@ -167,6 +170,9 @@ impl fmt::Display for Reason {
             }
             Reason::PlayerName => {
                 "a player name is up to 32 letters, digits, '_' or '.', with no spaces"
+            }
+            Reason::ScheduleFormat => {
+                "a schedule is an interval of at least 5m (30m, 6h, 1d) or a daily time (04:30)"
             }
         })
     }
@@ -499,6 +505,9 @@ pub enum ErrorInfo {
     VersionNotFound {
         reference: String,
     },
+    TaskNotFound {
+        id: String,
+    },
     /// No file or directory at `path` in the entry's tree.
     FileNotFound {
         path: String,
@@ -755,6 +764,7 @@ impl ErrorInfo {
             | AccountNotFound { .. }
             | VersionNotFound { .. }
             | FileNotFound { .. }
+            | TaskNotFound { .. }
             | ConfigKeyUnknown { .. }
             | ConfigKeyUnset { .. } => "not_found",
             SignInRequired | SessionExpired { .. } | LoginDeclined | LoginTimedOut => {
@@ -849,6 +859,7 @@ impl fmt::Display for ErrorInfo {
             ),
             AccountNotFound { reference } => write!(f, "no account matches '{reference}'"),
             VersionNotFound { reference } => write!(f, "no version matches '{reference}'"),
+            TaskNotFound { id } => write!(f, "no scheduled task '{id}'"),
             FileNotFound { path } => write!(f, "no file or directory at '{path}'"),
             FileRejected { path, reason } => write!(f, "'{path}' was refused: {reason}"),
             ConfigKeyUnknown { key } => write!(f, "unknown config key '{key}'"),

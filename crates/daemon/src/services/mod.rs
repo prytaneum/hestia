@@ -22,6 +22,7 @@ mod screenshot;
 mod server;
 mod skins;
 mod sync;
+mod tasks;
 mod transfer;
 mod update;
 
@@ -43,6 +44,7 @@ pub fn make_router() -> Router {
     server::register(&mut on);
     files::register(&mut on);
     players::register(&mut on);
+    tasks::register(&mut on);
     instance::register(&mut on);
     screenshot::register(&mut on);
     backup::register(&mut on);

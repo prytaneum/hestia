@@ -137,7 +137,7 @@ reading.
 
 | Loop | Cadence | What it does |
 |---|---|---|
-| `scheduler.rs` | every minute | archive each **running** server whose `backup-interval` has elapsed since its newest backup, then prune `scheduled` archives beyond `backup-retention`. A stopped server's world cannot change, so it is never re-archived |
+| `scheduler.rs` | every minute | archive each **running** server whose `backup-interval` has elapsed since its newest backup, then prune `scheduled` archives beyond `backup-retention`. A stopped server's world cannot change, so it is never re-archived. Then run each running server's due **scheduled tasks** — a restart (stop, wait for exit, start through the same `Runtime::start_server` a client's start uses) or a console command. A task is stamped before it runs, so a failure waits for its next slot instead of retrying every minute, and none runs while a backup or version change owns the tree |
 | `metrics.rs` | every 2 s | sample CPU and memory for supervised processes, normalising CPU by logical core count so a multi-threaded JVM reports a share of the machine rather than 800% |
 | `presence.rs` | every 5 s, on its own thread | publish Discord Rich Presence — the newest running session, else idle — sending only when the card changed. Gated on `discord.enabled` and skipped entirely under `HESTIA_NO_PRESENCE=1`; a missing Discord client is polled for at a sixth of the rate ([0059](../decisions/0059-discord-presence-is-a-daemon-loop.md)) |
 
@@ -172,6 +172,7 @@ is purely a compile-time one that keeps `make_router()` from becoming a
 | `process` | `process.start\|stop\|list\|status\|logs` |
 | `server` | `server.flavors\|loaders\|versions\|resolve`, `server.create\|update\|rename\|list\|status\|info\|remove\|start\|stop\|logs\|command\|ping`, `server.config.get\|set\|list`, `server.properties` |
 | `files` | `server.files.list\|read\|write\|mkdir\|move\|copy\|remove\|import\|compress\|extract` |
+| `tasks` | `server.task.list\|save\|remove` — stored on the server record; the scheduler loop runs them |
 | `players` | `server.players`, `server.players.set\|kick` — the lists are read from the server's own files; a change is a console command, so it needs the server running |
 | `instance` | the `instance.*` counterparts, plus `instance.launch\|stop\|logs`, `instance.worlds`, `instance.sync.adopt` |
 | `backup` | `server.backup.create\|list\|restore\|remove` |

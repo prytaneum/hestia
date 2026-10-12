@@ -21,6 +21,7 @@ mod screenshot;
 mod server;
 mod skins;
 mod sync;
+mod tasks;
 mod transfer;
 mod update;
 
@@ -41,5 +42,6 @@ pub use screenshot::Screenshot;
 pub use server::Server;
 pub use skins::Skins;
 pub use sync::Sync;
+pub use tasks::Tasks;
 pub use transfer::{Exported, Imported, Transfer};
 pub use update::Update;

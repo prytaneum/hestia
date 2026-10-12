@@ -4,7 +4,7 @@
 
 use proto::error::{EntryKind, ErrorInfo, Field};
 use proto::minecraft::{ConfigEntry, FlavorsResult, LoadersResult, VersionsResult};
-use proto::process::{LogSource, ProcessLogsResult, ProcessSpec, RestartPolicy};
+use proto::process::ProcessLogsResult;
 use proto::server::{
     ServerCommand, ServerCommandResult, ServerConfigGet, ServerConfigGetResult, ServerConfigList,
     ServerConfigListResult, ServerConfigSet, ServerCreate, ServerCreateResult, ServerDetail,
@@ -16,7 +16,7 @@ use proto::server::{
 use proto::Empty;
 
 use super::guards::{is_running, server_for, Intent};
-use crate::runtime::{server_process_id, Channels, StartError};
+use crate::runtime::{server_process_id, Channels};
 
 pub(super) fn register(on: &mut Channels<'_>) {
     on.handle::<ServerFlavors, _, _>(|_: Empty, ctx| async move {
@@ -151,34 +151,12 @@ pub(super) fn register(on: &mut Channels<'_>) {
 
     on.handle::<ServerStart, _, _>(|p, ctx| async move {
         let record = server_for(&ctx, &p.server, Intent::Start)?;
-        let process_id = server_process_id(&record.id);
         tracing::info!(server = %record.id, name = %record.name, "starting server");
-        let (_, plan) = ctx
-            .runtime
-            .engine()
-            .server_launch_plan(&record.id)
-            .map_err(crate::runtime::engine_error)?;
-        let spec = ProcessSpec {
-            id: process_id,
-            program: plan.program.to_string_lossy().into_owned(),
-            args: plan.args,
-            log: LogSource::File(plan.cwd.join("logs").join("latest.log")),
-            cwd: Some(plan.cwd),
-            env: Default::default(),
-            restart: RestartPolicy::Never,
-        };
-        match ctx.runtime.processes().start(spec).await {
-            Ok(info) => Ok(ServerStartResult {
-                process_id: info.id,
-                pid: info.pid,
-            }),
-            Err(StartError::EmptyProgram | StartError::InvalidId(_)) => Err(ErrorInfo::Internal {
-                detail: "invalid launch plan".into(),
-            }),
-            Err(e @ StartError::Spawn { .. }) => Err(ErrorInfo::Internal {
-                detail: format!("cannot spawn the server: {e}"),
-            }),
-        }
+        let info = ctx.runtime.start_server(&record.id).await?;
+        Ok(ServerStartResult {
+            process_id: info.id,
+            pid: info.pid,
+        })
     });
 
     on.handle::<ServerStop, _, _>(|p, ctx| async move {

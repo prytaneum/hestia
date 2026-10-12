@@ -16,7 +16,9 @@ use std::time::Instant;
 
 use engine::{Engine, InstanceRecord, ServerRecord};
 use ipc::Peer;
+use proto::error::ErrorInfo;
 use proto::instance::InstanceInfo;
+use proto::process::{LogSource, ProcessInfo, ProcessSpec, RestartPolicy};
 use proto::server::ServerInfo;
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::sync::Notify;
@@ -43,7 +45,7 @@ pub use proto::naming::{
     server_process_id,
 };
 
-fn now_unix() -> i64 {
+pub(crate) fn now_unix() -> i64 {
     use std::time::{SystemTime, UNIX_EPOCH};
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -183,6 +185,30 @@ impl Runtime {
         let process = self.processes.status(&server_process_id(&record.id));
         let accepts = self.engine.server_accepts(&record.profile.flavor);
         server_info(record, process, accepts)
+    }
+
+    /// Spawn a server's process from its launch plan — the one way a server
+    /// is started, whether a client asked or a scheduled restart did.
+    pub async fn start_server(&self, id: &str) -> Result<ProcessInfo, ErrorInfo> {
+        let (_, plan) = self.engine.server_launch_plan(id).map_err(engine_error)?;
+        let spec = ProcessSpec {
+            id: server_process_id(id),
+            program: plan.program.to_string_lossy().into_owned(),
+            args: plan.args,
+            log: LogSource::File(plan.cwd.join("logs").join("latest.log")),
+            cwd: Some(plan.cwd),
+            env: Default::default(),
+            restart: RestartPolicy::Never,
+        };
+        match self.processes.start(spec).await {
+            Ok(info) => Ok(info),
+            Err(StartError::EmptyProgram | StartError::InvalidId(_)) => Err(ErrorInfo::Internal {
+                detail: "invalid launch plan".into(),
+            }),
+            Err(e @ StartError::Spawn { .. }) => Err(ErrorInfo::Internal {
+                detail: format!("cannot spawn the server: {e}"),
+            }),
+        }
     }
 
     pub fn instance_view(&self, record: InstanceRecord) -> InstanceInfo {

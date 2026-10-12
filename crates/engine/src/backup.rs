@@ -21,6 +21,7 @@ use crate::schema::{self, Document};
 
 mod settings;
 
+pub(crate) use settings::parse_interval;
 pub use settings::BackupSettings;
 
 const BACKUPS: &str = "backups";

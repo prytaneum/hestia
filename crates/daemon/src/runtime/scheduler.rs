@@ -1,4 +1,7 @@
-//! The scheduled-backup loop: every minute, archive each *running* server
+//! What the daemon does on a clock, checked once a minute: scheduled backups,
+//! then each server's scheduled tasks (a restart, a console command).
+//!
+//! The scheduled-backup pass: archive each *running* server
 //! whose `backup-interval` has elapsed since its newest backup (of any kind —
 //! a fresh manual or pre-update archive resets the clock), then prune its
 //! scheduled archives beyond `backup-retention`. A stopped server's world
@@ -6,12 +9,13 @@
 //! on-demand backups cover it.
 
 use std::sync::Arc;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::Duration;
 
 use proto::backup::BackupKind;
 use proto::process::ProcessState;
+use proto::tasks::TaskAction;
 
-use super::{server_process_id, Runtime};
+use super::{now_unix, server_process_id, Runtime};
 
 const TICK: Duration = Duration::from_secs(60);
 
@@ -22,8 +26,80 @@ pub fn spawn_backup_scheduler(runtime: Arc<Runtime>) {
         loop {
             tick.tick().await;
             run_due_backups(&runtime).await;
+            run_due_tasks(&runtime).await;
         }
     });
+}
+
+// A stop that takes longer than this is not waited out; the restart is
+// abandoned and retried at the task's next slot.
+const STOP_WAIT: Duration = Duration::from_secs(120);
+
+/// Run each running server's scheduled tasks that have come due. A task is
+/// stamped before it runs, so one that fails waits for its next slot instead
+/// of retrying every tick.
+async fn run_due_tasks(runtime: &Runtime) {
+    let engine = runtime.engine();
+    let now = now_unix();
+    let midnight = common::local_midnight_unix();
+    for record in engine.servers().list() {
+        let process_id = server_process_id(&record.id);
+        // A backup or a version change owns the tree; a restart under it
+        // would corrupt one or the other.
+        if !record.ready()
+            || runtime.backups().in_flight(&process_id)
+            || runtime.server_updates().in_flight(&record.id)
+        {
+            continue;
+        }
+        for task in record.tasks.iter().filter(|task| task.enabled) {
+            let due = engine::Schedule::parse(&task.schedule)
+                .is_ok_and(|schedule| schedule.due(task.last_run_unix, now, midnight));
+            if !due || !is_running(runtime, &process_id) {
+                continue;
+            }
+            if let Err(e) = engine.servers().mark_task_run(&record.id, &task.id, now) {
+                tracing::warn!(server = %record.id, task = %task.id, error = format!("{e:#}"), "cannot stamp a task; skipping it");
+                continue;
+            }
+            tracing::info!(server = %record.id, task = %task.id, action = ?task.action, "scheduled task starting");
+            let outcome = match task.action {
+                TaskAction::Command => engine
+                    .server_command(&record.id, &task.command)
+                    .await
+                    .map(|_| ())
+                    .map_err(|e| format!("{e:#}")),
+                TaskAction::Restart => restart(runtime, &record.id).await,
+            };
+            if let Err(error) = outcome {
+                tracing::warn!(server = %record.id, task = %task.id, error, "scheduled task failed");
+            }
+        }
+    }
+}
+
+async fn restart(runtime: &Runtime, id: &str) -> Result<(), String> {
+    let process_id = server_process_id(id);
+    runtime.processes().stop(&process_id);
+    let deadline = tokio::time::Instant::now() + STOP_WAIT;
+    while is_running(runtime, &process_id) {
+        if tokio::time::Instant::now() >= deadline {
+            return Err("the server did not stop in time".into());
+        }
+        tokio::time::sleep(Duration::from_secs(1)).await;
+    }
+    runtime
+        .start_server(id)
+        .await
+        .map(|_| ())
+        .map_err(|e| e.to_string())
+}
+
+fn is_running(runtime: &Runtime, process_id: &str) -> bool {
+    runtime
+        .processes()
+        .status(process_id)
+        .is_some_and(|p| p.state == ProcessState::Running)
 }
 
 async fn run_due_backups(runtime: &Runtime) {
@@ -35,11 +111,7 @@ async fn run_due_backups(runtime: &Runtime) {
         if !record.ready() {
             continue;
         }
-        let running = runtime
-            .processes()
-            .status(&server_process_id(&record.id))
-            .is_some_and(|p| p.state == ProcessState::Running);
-        if !running {
+        if !is_running(runtime, &server_process_id(&record.id)) {
             continue;
         }
         let newest = engine
@@ -84,11 +156,4 @@ async fn run_due_backups(runtime: &Runtime) {
             }
         }
     }
-}
-
-fn now_unix() -> i64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_secs() as i64)
-        .unwrap_or(0)
 }
