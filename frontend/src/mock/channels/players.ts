@@ -46,7 +46,9 @@ export const channels: Handlers = {
   'server.players': (p) => {
     const server = str(p, 'server');
     return {
-      online: running(server) ? ['Alex'] : [],
+      online: running(server)
+        ? [{ name: 'Alex', uuid: '6ab43178-89fd-4905-97f6-0f67d9d76fd9' }]
+        : [],
       ...listsOf(server),
     };
   },

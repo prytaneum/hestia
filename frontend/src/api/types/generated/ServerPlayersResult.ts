@@ -3,6 +3,6 @@ import type { PlayerEntry } from "./PlayerEntry";
 
 export type ServerPlayersResult = { 
 /**
- * Names online right now; empty for a stopped server.
+ * Who is online right now; empty for a stopped server.
  */
-online: Array<string>, whitelist: Array<PlayerEntry>, ops: Array<PlayerEntry>, banned: Array<PlayerEntry>, };
+online: Array<PlayerEntry>, whitelist: Array<PlayerEntry>, ops: Array<PlayerEntry>, banned: Array<PlayerEntry>, };

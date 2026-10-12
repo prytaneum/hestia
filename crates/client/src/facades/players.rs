@@ -13,7 +13,7 @@ pub struct Players<'a> {
 }
 
 impl Players<'_> {
-    /// The online names and the three lists; the lists answer for a stopped
+    /// Who is online and the three lists; the lists answer for a stopped
     /// server too.
     pub async fn list(&self, server: &str) -> Result<ServerPlayersResult, IpcError> {
         self.session

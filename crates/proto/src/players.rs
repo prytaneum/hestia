@@ -32,8 +32,8 @@ pub struct PlayerEntry {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
 #[serde(default, rename_all = "camelCase")]
 pub struct ServerPlayersResult {
-    /// Names online right now; empty for a stopped server.
-    pub online: Vec<String>,
+    /// Who is online right now; empty for a stopped server.
+    pub online: Vec<PlayerEntry>,
     pub whitelist: Vec<PlayerEntry>,
     pub ops: Vec<PlayerEntry>,
     pub banned: Vec<PlayerEntry>,

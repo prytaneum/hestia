@@ -88,12 +88,8 @@ async fn list(client: &Client, server: &str) -> Result<()> {
             .collect::<Vec<_>>()
             .join(", "),
     };
-    let online = match players.online.is_empty() {
-        true => "—".to_string(),
-        false => players.online.join(", "),
-    };
     ui::show(View::detail([
-        ("online", online),
+        ("online", names(&players.online)),
         ("whitelist", names(&players.whitelist)),
         ("operators", names(&players.ops)),
         ("banned", names(&players.banned)),

@@ -173,25 +173,24 @@ export function ServerPlayersTab({
   }
 
   const { online, whitelist, ops, banned } = players.data;
-  const lists: Record<PlayerList, PlayerEntry[]> = { whitelist, ops, banned };
+  const lists: Record<View, PlayerEntry[]> = {
+    online,
+    whitelist,
+    ops,
+    banned,
+  };
   const views: View[] = running
     ? ['online', 'whitelist', 'ops', 'banned']
     : ['whitelist', 'ops', 'banned'];
   const view = views.includes(chosen) ? chosen : 'whitelist';
 
-  const known = new Map(
-    [...whitelist, ...ops, ...banned].map((entry) => [entry.name, entry.uuid]),
-  );
-  const entries: PlayerEntry[] =
-    view === 'online'
-      ? online.map((name) => ({ name, uuid: known.get(name) ?? '' }))
-      : lists[view];
+  const entries = lists[view];
   const needle = search.trim().toLowerCase();
   const shown = entries.filter((entry) =>
     entry.name.toLowerCase().includes(needle),
   );
 
-  const onlineNames = new Set(online);
+  const onlineNames = new Set(online.map((entry) => entry.name));
   const opNames = new Set(ops.map((entry) => entry.name));
   const change = (list: PlayerList, listed: boolean) => (player: string) =>
     set.mutate({ player, list, listed });
@@ -270,7 +269,7 @@ export function ServerPlayersTab({
           >
             {viewInfo[v].label()}
             <span className="ml-1.5 font-mono text-[10px] opacity-60">
-              {v === 'online' ? online.length : lists[v].length}
+              {lists[v].length}
             </span>
           </button>
         ))}

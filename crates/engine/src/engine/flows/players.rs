@@ -19,7 +19,7 @@ const BANNED_FILE: &str = "banned-players.json";
 const MAX_NAME_LEN: usize = 32;
 
 impl Engine {
-    /// The three lists from disk, plus the names online when `running`.
+    /// The three lists from disk, plus who is online when `running`.
     pub async fn server_players(
         &self,
         reference: &str,
@@ -31,7 +31,7 @@ impl Engine {
             .with_context(|| format!("unknown server: {reference}"))?;
         let data = self.servers.data_dir(&record);
         let online = match running {
-            true => parse_online(&self.server_command(&record.id, "list").await?),
+            true => parse_online(&self.server_command(&record.id, "list uuids").await?),
             false => Vec::new(),
         };
         Ok(ServerPlayersResult {
@@ -95,17 +95,29 @@ fn checked_name(player: &str) -> Result<&str> {
     Ok(player)
 }
 
-/// The names out of a `list` reply. Every version puts them after the first
-/// colon, comma-separated — on the same line or the next.
-fn parse_online(reply: &str) -> Vec<String> {
-    let Some((_, names)) = reply.split_once(':') else {
+/// The players out of a `list uuids` reply. Every version puts them after the
+/// first colon, comma-separated — on the same line or the next — each as
+/// `Name (uuid)`. A server too old to know the argument answers with bare
+/// names, which leaves the uuid empty.
+fn parse_online(reply: &str) -> Vec<PlayerEntry> {
+    let Some((_, players)) = reply.split_once(':') else {
         return Vec::new();
     };
-    names
+    players
         .split([',', '\n'])
         .map(str::trim)
-        .filter(|name| !name.is_empty())
-        .map(str::to_string)
+        .filter(|player| !player.is_empty())
+        .map(|player| {
+            let (name, uuid) = player
+                .strip_suffix(')')
+                .and_then(|rest| rest.rsplit_once(" ("))
+                .unwrap_or((player, ""));
+            PlayerEntry {
+                name: name.to_string(),
+                uuid: uuid.to_string(),
+                reason: None,
+            }
+        })
         .collect()
 }
 
@@ -141,14 +153,22 @@ mod tests {
     }
 
     #[test]
-    fn the_online_names_are_read_from_either_reply_shape() {
+    fn the_online_players_are_read_from_either_reply_shape() {
+        let pairs = |reply: &str| -> Vec<(String, String)> {
+            parse_online(reply)
+                .into_iter()
+                .map(|player| (player.name, player.uuid))
+                .collect()
+        };
+        let pair = |name: &str, uuid: &str| (name.to_string(), uuid.to_string());
+
         assert_eq!(
-            parse_online("There are 2 of a max of 20 players online: Alex, Steve"),
-            ["Alex", "Steve"]
+            pairs("There are 2 of a max of 20 players online: Alex (u1), Steve (u2)"),
+            [pair("Alex", "u1"), pair("Steve", "u2")]
         );
         assert_eq!(
-            parse_online("There are 2/20 players online:\nAlex, Steve"),
-            ["Alex", "Steve"]
+            pairs("There are 2/20 players online:\nAlex, Steve"),
+            [pair("Alex", ""), pair("Steve", "")]
         );
         assert!(parse_online("There are 0 of a max of 20 players online: ").is_empty());
     }
