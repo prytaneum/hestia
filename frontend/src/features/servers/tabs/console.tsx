@@ -8,9 +8,11 @@ import { type LogRow, LogView } from '@/components/log-view';
 import { m } from '@/paraglide/messages.js';
 import {
   type ConsoleEntry,
+  clearConsole,
   interleaveConsole,
   pushConsoleEntry,
   useConsoleHistory,
+  useUnclearedLines,
 } from '@/queries/console';
 import { serverMutations, useServerLogs } from '@/queries/server';
 import { ConsoleInput } from './console-input';
@@ -36,23 +38,25 @@ export function ServerConsoleTab({
   const command = useMutation(serverMutations.command(id));
   const entries = useConsoleHistory(id);
 
+  const printed = useMemo(
+    () => logs.lines.map((entry) => entry.line),
+    [logs.lines],
+  );
+  const lines = useUnclearedLines(id, printed);
   const lastLine = useRef<string | null>(null);
-  lastLine.current = logs.lines.at(-1)?.line ?? null;
+  lastLine.current = lines.at(-1) ?? null;
 
   const rows: LogRow[] = useMemo(
     () =>
-      interleaveConsole(
-        logs.lines.map((entry) => entry.line),
-        entries,
-      ).map((row) =>
+      interleaveConsole(lines, entries).map((row) =>
         typeof row === 'string'
           ? { text: row }
           : { text: row.text, className: rowClass[row.kind] },
       ),
-    [logs.lines, entries],
+    [lines, entries],
   );
 
-  if (!running && logs.lines.length === 0 && entries.length === 0) {
+  if (!running && lines.length === 0 && entries.length === 0) {
     return (
       <Empty className="h-full" icon={TerminalWindowIcon}>
         {m['server.console.empty']()}
@@ -80,7 +84,12 @@ export function ServerConsoleTab({
         rows={rows}
         emptyLabel={`${name} — ${m['app.status.online']()}`}
       />
-      <ConsoleInput id={id} running={running} onSend={send} />
+      <ConsoleInput
+        id={id}
+        running={running}
+        onSend={send}
+        onClear={() => clearConsole(id, printed.at(-1) ?? null)}
+      />
     </div>
   );
 }

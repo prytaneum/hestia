@@ -1,3 +1,4 @@
+import { BroomIcon } from '@phosphor-icons/react';
 import { useQuery } from '@tanstack/react-query';
 import {
   type KeyboardEvent,
@@ -8,6 +9,7 @@ import {
   useState,
 } from 'react';
 
+import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { m } from '@/paraglide/messages.js';
@@ -52,10 +54,12 @@ export function ConsoleInput({
   id,
   running,
   onSend,
+  onClear,
 }: {
   id: string;
   running: boolean;
   onSend: (command: string) => void;
+  onClear: () => void;
 }) {
   const [line, setLine] = useState('');
   const [cycle, setCycle] = useState<{ words: string[]; at: number } | null>(
@@ -101,7 +105,10 @@ export function ConsoleInput({
     const cycling = open && words.length > 0 && !stale;
     const forward = event.key === 'ArrowDown' || event.key === 'Tab';
     const back = event.key === 'ArrowUp';
-    if (cycling && (forward || back)) {
+    if (event.ctrlKey && event.key.toLowerCase() === 'l') {
+      event.preventDefault();
+      onClear();
+    } else if (cycling && (forward || back)) {
       event.preventDefault();
       step(back || event.shiftKey ? -1 : 1);
     } else if (event.key === 'Escape' && open) {
@@ -181,6 +188,17 @@ export function ConsoleInput({
         onKeyDown={onKeyDown}
         disabled={!running}
       />
+      <Button
+        type="button"
+        variant="outline"
+        size="icon"
+        className="shrink-0"
+        aria-label={m['server.console.clear']()}
+        title={m['server.console.clear']()}
+        onClick={onClear}
+      >
+        <BroomIcon />
+      </Button>
     </form>
   );
 }

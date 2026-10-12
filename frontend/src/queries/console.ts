@@ -5,7 +5,7 @@
  * the daemon's log file persists server output, but a command's echo and its
  * RCON reply live only here.
  */
-import { useCallback, useSyncExternalStore } from 'react';
+import { useCallback, useMemo, useSyncExternalStore } from 'react';
 
 export interface ConsoleEntry {
   kind: 'echo' | 'reply' | 'error';
@@ -72,6 +72,33 @@ export function pushConsoleEntry(id: string, entry: ConsoleEntry): void {
     next.length > MAX_ENTRIES ? next.slice(next.length - MAX_ENTRIES) : next,
   );
   for (const listener of listeners.get(id) ?? []) listener();
+}
+
+// Log lines carry no identity, so a clear is remembered as the last line it hid.
+const cleared = new Map<string, string>();
+
+/** Empty the console view; the server's own log file is untouched. */
+export function clearConsole(id: string, lastLine: string | null): void {
+  histories.delete(id);
+  if (lastLine === null) cleared.delete(id);
+  else cleared.set(id, lastLine);
+  for (const listener of listeners.get(id) ?? []) listener();
+}
+
+export function useUnclearedLines(id: string, lines: string[]): string[] {
+  const subscribeId = useCallback(
+    (listener: () => void) => subscribe(id, listener),
+    [id],
+  );
+  const anchor = useSyncExternalStore(
+    subscribeId,
+    () => cleared.get(id) ?? null,
+  );
+  return useMemo(
+    () =>
+      anchor === null ? lines : lines.slice(lines.lastIndexOf(anchor) + 1),
+    [anchor, lines],
+  );
 }
 
 export function useConsoleHistory(id: string): ConsoleEntry[] {

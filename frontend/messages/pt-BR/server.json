@@ -17,6 +17,7 @@
       "schedule_status": "Agendado a cada {interval}, mantendo {retention}"
     },
     "console": {
+      "clear": "Limpar console",
       "empty": "Inicie o servidor para abrir o console.",
       "placeholder": "Digite um comando do servidor, ex.: say olá"
     },

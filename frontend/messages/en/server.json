@@ -17,6 +17,7 @@
       "schedule_status": "Scheduled every {interval}, keeping {retention}"
     },
     "console": {
+      "clear": "Clear console",
       "empty": "Start the server to open its console.",
       "placeholder": "Enter a server command, e.g. say hello"
     },
