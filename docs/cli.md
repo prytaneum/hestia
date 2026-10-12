@@ -113,6 +113,13 @@ hestia server smp files upload ./plugin.jar --to plugins  # copy local files
 hestia server smp files zip world -o world.zip  # archive files or directories
 hestia server smp files unzip world.zip --to restored  # .zip or .tar.gz;
                                  #   beside the archive when --to is omitted
+hestia server smp task restart 04:30  # restart every day at that local time
+hestia server smp task command 6h say Restarting soon  # a console command on
+                                 #   an interval (30m / 6h / 1d, at least 5m)
+hestia server smp task list      # ids, schedules, and whether each is paused
+hestia server smp task disable|enable|remove <id>  # tasks only run while the
+                                 #   server is up; backups keep their own
+                                 #   schedule under `config set backup-interval`
 hestia server smp players list   # who is online, and the whitelist, operator
                                  #   and ban lists (the lists read from a
                                  #   stopped server too)
