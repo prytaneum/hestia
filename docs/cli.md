@@ -113,6 +113,13 @@ hestia server smp files upload ./plugin.jar --to plugins  # copy local files
 hestia server smp files zip world -o world.zip  # archive files or directories
 hestia server smp files unzip world.zip --to restored  # .zip or .tar.gz;
                                  #   beside the archive when --to is omitted
+hestia server smp players list   # who is online, and the whitelist, operator
+                                 #   and ban lists (the lists read from a
+                                 #   stopped server too)
+hestia server smp players allow|disallow <name>…  # the whitelist
+hestia server smp players op|deop <name>…
+hestia server smp players ban|pardon|kick <name>…  # every change goes through
+                                 #   the console, so the server must be running
 hestia server smp start          # immediate spawn, then attaches the console
                                  #   (-d/--detach returns immediately)
 hestia server smp attach         # interactive console: live logs, type to send

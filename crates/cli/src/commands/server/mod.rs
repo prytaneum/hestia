@@ -14,6 +14,7 @@ mod create;
 mod entry;
 mod files;
 pub(crate) mod lifecycle;
+mod players;
 mod update;
 
 use anyhow::Result;
@@ -135,6 +136,11 @@ enum ServerAction {
         #[command(subcommand)]
         cmd: files::FilesCmd,
     },
+    /// See who is online and manage the whitelist, operators and bans
+    Players {
+        #[command(subcommand)]
+        cmd: players::PlayersCmd,
+    },
     /// Install, list, remove, or update the server's mods
     Mod {
         #[command(subcommand)]
@@ -250,6 +256,7 @@ async fn run_unit_action(client: Client, name: String, action: ServerAction) -> 
         ServerAction::Config { cmd } => config::run(&client, &name, cmd).await,
         ServerAction::Backup { cmd } => backup::run(&client, &name, cmd).await,
         ServerAction::Files { cmd } => files::run(&client, &name, cmd).await,
+        ServerAction::Players { cmd } => players::run(&client, &name, cmd).await,
         ServerAction::Mod { cmd } => {
             content::run_entry(&client, EntryKind::Server, ContentKind::Mod, &name, cmd).await
         }
