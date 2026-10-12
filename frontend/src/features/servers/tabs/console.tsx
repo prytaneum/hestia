@@ -1,11 +1,10 @@
 import { TerminalWindowIcon } from '@phosphor-icons/react';
 import { useMutation } from '@tanstack/react-query';
-import { type RefObject, useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo, useRef } from 'react';
 
 import { errorMessage } from '@/api';
 import { Empty } from '@/components/empty';
 import { type LogRow, LogView } from '@/components/log-view';
-import { Input } from '@/components/ui/input';
 import { m } from '@/paraglide/messages.js';
 import {
   type ConsoleEntry,
@@ -14,45 +13,13 @@ import {
   useConsoleHistory,
 } from '@/queries/console';
 import { serverMutations, useServerLogs } from '@/queries/server';
+import { ConsoleInput } from './console-input';
 
 const rowClass: Record<ConsoleEntry['kind'], string | undefined> = {
   echo: 'text-foreground/70',
   reply: undefined,
   error: 'text-destructive',
 };
-
-/** Typing anywhere on the tab lands in the command line, as in a terminal. */
-function useTypeToFocus(
-  input: RefObject<HTMLInputElement | null>,
-  onType: (character: string) => void,
-) {
-  const type = useRef(onType);
-  type.current = onType;
-
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key.length !== 1) return;
-      if (event.ctrlKey || event.metaKey || event.altKey) return;
-      const target = event.target;
-      if (
-        target instanceof HTMLElement &&
-        (target.isContentEditable ||
-          target.closest('input, textarea, select, [role="dialog"]'))
-      ) {
-        return;
-      }
-      const field = input.current;
-      if (!field || field.disabled) return;
-      // The character is inserted here rather than left to the keystroke:
-      // webviews differ on whether a focus change during keydown redirects it.
-      event.preventDefault();
-      field.focus();
-      type.current(event.key);
-    };
-    document.addEventListener('keydown', onKeyDown);
-    return () => document.removeEventListener('keydown', onKeyDown);
-  }, [input]);
-}
 
 export function ServerConsoleTab({
   id,
@@ -67,10 +34,7 @@ export function ServerConsoleTab({
   // stop leaves its output on screen and a restart streams into the same view.
   const logs = useServerLogs(id, { follow: true, tail: 500 });
   const command = useMutation(serverMutations.command(id));
-  const [line, setLine] = useState('');
   const entries = useConsoleHistory(id);
-  const input = useRef<HTMLInputElement>(null);
-  useTypeToFocus(input, (character) => setLine((typed) => typed + character));
 
   const lastLine = useRef<string | null>(null);
   lastLine.current = logs.lines.at(-1)?.line ?? null;
@@ -99,10 +63,7 @@ export function ServerConsoleTab({
   const push = (kind: ConsoleEntry['kind'], text: string) =>
     pushConsoleEntry(id, { kind, text, after: lastLine.current });
 
-  const send = () => {
-    const text = line.trim();
-    if (!text) return;
-    setLine('');
+  const send = (text: string) => {
     push('echo', `» ${text}`);
     command.mutate(text, {
       onSuccess: (reply) => {
@@ -119,26 +80,7 @@ export function ServerConsoleTab({
         rows={rows}
         emptyLabel={`${name} — ${m['app.status.online']()}`}
       />
-      <form
-        className="flex gap-2"
-        onSubmit={(e) => {
-          e.preventDefault();
-          send();
-        }}
-      >
-        <Input
-          ref={input}
-          placeholder={
-            running
-              ? m['server.console.placeholder']()
-              : m['server.console.empty']()
-          }
-          className="font-mono"
-          value={line}
-          onChange={(e) => setLine(e.target.value)}
-          disabled={!running}
-        />
-      </form>
+      <ConsoleInput id={id} running={running} onSend={send} />
     </div>
   );
 }

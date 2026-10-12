@@ -5,7 +5,12 @@
  * **stable id**; the wire resolves display names too, but keying by id means a
  * rename never strands a cache entry or a mutation key.
  */
-import { queryOptions, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  keepPreviousData,
+  queryOptions,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query';
 import type {
   BackupInfo,
   ConfigEntry,
@@ -52,6 +57,16 @@ export const serverQueries = {
       meta: { silent: true },
       // Live players/MOTD while enabled; the caller gates on `running`.
       refetchInterval: 5000,
+      retry: false,
+    }),
+  // Asked per keystroke; the caller gates on `running` and a non-empty line.
+  complete: (id: string, line: string) =>
+    queryOptions({
+      queryKey: keys.servers.complete(id, line),
+      queryFn: () => api.complete(id, line),
+      meta: { silent: true },
+      placeholderData: keepPreviousData,
+      gcTime: 0,
       retry: false,
     }),
   flavors: () =>

@@ -26,6 +26,7 @@ import type {
 } from './types/minecraft';
 import type { ProcessLogLine } from './types/process';
 import type {
+  ServerCommandCompleteResult,
   ServerCreateDoneEvent,
   ServerCreateParams,
   ServerDetails,
@@ -160,6 +161,17 @@ export async function command(
     command: commandLine,
   });
   return result.response;
+}
+
+/** What a half-typed console line could continue with on a running server. */
+export function complete(
+  server: string,
+  line: string,
+): Promise<ServerCommandCompleteResult> {
+  return call<ServerCommandCompleteResult>('server.command.complete', {
+    server,
+    line,
+  });
 }
 
 /**

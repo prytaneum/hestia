@@ -74,6 +74,18 @@ export function pushConsoleEntry(id: string, entry: ConsoleEntry): void {
   for (const listener of listeners.get(id) ?? []) listener();
 }
 
+const commands = new Map<string, string[]>();
+
+export function consoleCommands(id: string): string[] {
+  return commands.get(id) ?? [];
+}
+
+export function pushConsoleCommand(id: string, command: string): void {
+  const sent = consoleCommands(id);
+  if (sent.at(-1) === command) return;
+  commands.set(id, [...sent, command].slice(-MAX_ENTRIES));
+}
+
 export function useConsoleHistory(id: string): ConsoleEntry[] {
   const subscribeId = useCallback(
     (listener: () => void) => subscribe(id, listener),

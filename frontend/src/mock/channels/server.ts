@@ -233,6 +233,17 @@ export const channels: Handlers = {
     };
   },
 
+  'server.command.complete': (p) => {
+    const [typed, ...rest] = str(p, 'line').trimStart().split(/\s+/);
+    const first = rest.length === 0;
+    return {
+      completions: first
+        ? Object.keys(RCON).filter((verb) => verb.startsWith(typed))
+        : [],
+      arguments: !first && typed === 'say' ? ['<message>'] : [],
+    };
+  },
+
   'server.properties': (p) => ({
     properties: properties(entries.entrySettings(serverId(p))),
   }),
