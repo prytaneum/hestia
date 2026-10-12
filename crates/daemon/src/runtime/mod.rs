@@ -12,13 +12,13 @@ mod scheduler;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use engine::{Engine, InstanceRecord, ServerRecord};
 use ipc::Peer;
 use proto::error::ErrorInfo;
 use proto::instance::InstanceInfo;
-use proto::process::{LogSource, ProcessInfo, ProcessSpec, RestartPolicy};
+use proto::process::{LogSource, ProcessInfo, ProcessSpec, ProcessState, RestartPolicy};
 use proto::server::ServerInfo;
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::sync::Notify;
@@ -44,6 +44,11 @@ pub use proto::naming::{
     instance_id_of_session, instance_process_id, instance_session_id, instance_session_prefix,
     server_process_id,
 };
+
+// A stop that takes longer than this is not waited out: the restart is
+// abandoned rather than started over a server that may still hold its world.
+const RESTART_STOP_WAIT: Duration = Duration::from_secs(120);
+const RESTART_STOP_POLL: Duration = Duration::from_millis(250);
 
 pub(crate) fn now_unix() -> i64 {
     use std::time::{SystemTime, UNIX_EPOCH};
@@ -209,6 +214,27 @@ impl Runtime {
                 detail: format!("cannot spawn the server: {e}"),
             }),
         }
+    }
+
+    /// Stop a running server, wait for its process to exit, and start it
+    /// again — shared by the `server.restart` channel and a scheduled restart.
+    pub async fn restart_server(&self, record: &ServerRecord) -> Result<ProcessInfo, ErrorInfo> {
+        let process_id = server_process_id(&record.id);
+        self.processes.stop(&process_id);
+        let deadline = tokio::time::Instant::now() + RESTART_STOP_WAIT;
+        while self
+            .processes
+            .status(&process_id)
+            .is_some_and(|p| p.state == ProcessState::Running)
+        {
+            if tokio::time::Instant::now() >= deadline {
+                return Err(ErrorInfo::StopTimedOut {
+                    name: record.name.clone(),
+                });
+            }
+            tokio::time::sleep(RESTART_STOP_POLL).await;
+        }
+        self.start_server(&record.id).await
     }
 
     pub fn instance_view(&self, record: InstanceRecord) -> InstanceInfo {

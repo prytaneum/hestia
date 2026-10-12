@@ -78,6 +78,7 @@
       "session_expired": "Seu login para '{reference}' expirou — entre novamente.",
       "sign_in_required": "Entre com uma conta Microsoft primeiro.",
       "skin_not_found": "Nenhuma skin corresponde a '{key}'.",
+      "stop_timed_out": "{name} não parou a tempo, então não foi reiniciado.",
       "sync_source_required": "Informe a instância de onde começar {unit}: {candidates}.",
       "sync_unit_disabled": "{unit} não é compartilhado entre suas instâncias.",
       "task_not_found": "Essa tarefa agendada não existe mais.",

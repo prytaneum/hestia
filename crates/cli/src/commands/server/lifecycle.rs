@@ -36,12 +36,19 @@ pub(crate) async fn stop(client: &Client, server: &str) -> Result<()> {
 }
 
 pub(crate) async fn restart(client: &Client, server: &str) -> Result<()> {
-    {
-        let _spinner = Spinner::start(format!("stopping '{server}'"));
-        client.server().stop(server).await?;
-        wait_until_stopped(client, server).await?;
-    }
-    start(client, server).await
+    let pid = restart_quiet(client, server).await?;
+    ui::show(View::line(format!(
+        "server '{server}' restarted (pid {pid})"
+    )))
+}
+
+/// Restart without the stdout line, for the attach path — see `start_quiet`.
+pub(crate) async fn restart_quiet(client: &Client, server: &str) -> Result<u32> {
+    let restarted = {
+        let _spinner = Spinner::start(format!("restarting '{server}'"));
+        client.server().restart(server).await?
+    };
+    Ok(restarted.pid)
 }
 
 pub(super) async fn remove(client: &Client, server: &str) -> Result<()> {

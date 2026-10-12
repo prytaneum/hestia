@@ -26,12 +26,9 @@ pub(crate) async fn restart_attached(client: Client, server: &str, detach: bool)
     if detach || !ui::interactive_output() {
         return super::lifecycle::restart(&client, server).await;
     }
-    {
-        let _spinner = crate::ui::Spinner::start(format!("stopping '{server}'"));
-        client.server().stop(server).await?;
-        super::lifecycle::wait_until_stopped(&client, server).await?;
-    }
-    start_attached(client, server, false).await
+    super::lifecycle::restart_quiet(&client, server).await?;
+    super::lifecycle::wait_until_running(&client, server).await?;
+    attach(client, server).await
 }
 
 /// Attach an interactive console to a running server: its live output above

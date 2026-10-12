@@ -26,8 +26,8 @@ use proto::server::{
     ServerCreateParams, ServerDetail, ServerDetails, ServerFlavors, ServerInfo, ServerList,
     ServerLoaders, ServerLogs, ServerLogsParams, ServerPing, ServerPingResult, ServerProperties,
     ServerProperty, ServerRef, ServerRemove, ServerRename, ServerRenameParams, ServerResolve,
-    ServerStart, ServerStartResult, ServerStatus, ServerStop, ServerUpdate, ServerUpdateDoneEvent,
-    ServerUpdateParams, ServerVersions,
+    ServerRestart, ServerStart, ServerStartResult, ServerStatus, ServerStop, ServerUpdate,
+    ServerUpdateDoneEvent, ServerUpdateParams, ServerVersions,
 };
 
 pub struct Server<'a> {
@@ -174,6 +174,14 @@ impl Server<'_> {
     pub async fn stop(&self, server: &str) -> Result<(), IpcError> {
         self.session.call::<ServerStop>(&server_ref(server)).await?;
         Ok(())
+    }
+
+    /// Stop and start a running server. The daemon answers once the new
+    /// process is up, so the call outlasts its wait for the old one to exit.
+    pub async fn restart(&self, server: &str) -> Result<ServerStartResult, IpcError> {
+        self.session
+            .call_with_timeout::<ServerRestart>(&server_ref(server), Duration::from_secs(150))
+            .await
     }
 
     pub async fn logs(

@@ -18,6 +18,9 @@ pub(super) enum Intent {
     /// Starts it. A server admits one process; an instance admits many
     /// sessions, so a running instance is not in its own way.
     Start,
+    /// Stops it and starts it again. Unlike a start it is running by
+    /// definition, so it waits only on the jobs that own its tree.
+    Restart,
     /// Rewrites its content pool or game directory.
     Mutate,
     /// Archives it. The one mutation that may run on a live entry — a backup
@@ -55,6 +58,11 @@ impl Exclusions {
             (EntryKind::Server, Intent::Start) => Exclusions {
                 stopped: true,
                 backup: true,
+                ..base
+            },
+            (EntryKind::Server, Intent::Restart) => Exclusions {
+                backup: true,
+                update: true,
                 ..base
             },
             (EntryKind::Server, Intent::Backup) => Exclusions {
@@ -103,7 +111,7 @@ impl Exclusions {
             },
             // A launch re-mirrors the pool into `data/`, which is exactly the
             // tree an export is reading.
-            (EntryKind::Instance, Intent::Start) => Exclusions {
+            (EntryKind::Instance, Intent::Start | Intent::Restart) => Exclusions {
                 transfer: true,
                 ..base
             },

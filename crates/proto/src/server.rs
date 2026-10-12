@@ -271,6 +271,15 @@ impl Contract for ServerStop {
     type Result = Empty;
 }
 
+/// Stop a running server, wait for it to exit, and start it again. Answers
+/// only once the new process is up, so a caller waits out the stop.
+pub struct ServerRestart;
+impl Contract for ServerRestart {
+    const CHANNEL: &'static str = "server.restart";
+    type Params = ServerRef;
+    type Result = ServerStartResult;
+}
+
 pub struct ServerStatus;
 impl Contract for ServerStatus {
     const CHANNEL: &'static str = "server.status";

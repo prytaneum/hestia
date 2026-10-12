@@ -10,8 +10,8 @@ use proto::server::{
     ServerConfigListResult, ServerConfigSet, ServerCreate, ServerCreateResult, ServerDetail,
     ServerFlavors, ServerList, ServerListResult, ServerLoaders, ServerLogs, ServerPing,
     ServerProperties, ServerPropertiesResult, ServerRemove, ServerRename, ServerResolve,
-    ServerStart, ServerStartResult, ServerStatus, ServerStop, ServerUpdate, ServerUpdateResult,
-    ServerVersions,
+    ServerRestart, ServerStart, ServerStartResult, ServerStatus, ServerStop, ServerUpdate,
+    ServerUpdateResult, ServerVersions,
 };
 use proto::Empty;
 
@@ -170,6 +170,22 @@ pub(super) fn register(on: &mut Channels<'_>) {
         }
         ctx.runtime.processes().stop(&process_id);
         Ok(Empty {})
+    });
+
+    on.handle::<ServerRestart, _, _>(|p, ctx| async move {
+        let record = server_for(&ctx, &p.server, Intent::Restart)?;
+        if !is_running(&ctx, &server_process_id(&record.id)) {
+            return Err(ErrorInfo::NotRunning {
+                entry: EntryKind::Server,
+                name: record.name.clone(),
+            });
+        }
+        tracing::info!(server = %record.id, name = %record.name, "restarting server");
+        let info = ctx.runtime.restart_server(&record).await?;
+        Ok(ServerStartResult {
+            process_id: info.id,
+            pid: info.pid,
+        })
     });
 
     on.handle::<ServerCommand, _, _>(|p, ctx| async move {

@@ -564,6 +564,11 @@ pub enum ErrorInfo {
         entry: EntryKind,
         name: String,
     },
+    /// A restart's stop outlasted the daemon's patience; the entry may still
+    /// be running, and nothing was started.
+    StopTimedOut {
+        name: String,
+    },
     Provisioning {
         name: String,
     },
@@ -778,6 +783,7 @@ impl ErrorInfo {
             | Upstream { .. }
             | DownloadFailed { .. }
             | RconFailed { .. }
+            | StopTimedOut { .. }
             | Internal { .. } => "handler_error",
             _ => "bad_request",
         }
@@ -884,6 +890,7 @@ impl fmt::Display for ErrorInfo {
                  with 'config set instance.multi-session true'"
             ),
             NotRunning { name, .. } => write!(f, "{name} is not running"),
+            StopTimedOut { name } => write!(f, "{name} did not stop in time"),
             Provisioning { name } => write!(f, "{name} is still being set up"),
             UpdateInProgress { name } => write!(f, "{name} is being updated"),
             ContentInProgress { name } => write!(f, "{name} has a content change in progress"),

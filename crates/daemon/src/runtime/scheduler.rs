@@ -31,10 +31,6 @@ pub fn spawn_backup_scheduler(runtime: Arc<Runtime>) {
     });
 }
 
-// A stop that takes longer than this is not waited out; the restart is
-// abandoned and retried at the task's next slot.
-const STOP_WAIT: Duration = Duration::from_secs(120);
-
 /// Run each running server's scheduled tasks that have come due. A task is
 /// stamped before it runs, so one that fails waits for its next slot instead
 /// of retrying every tick.
@@ -69,30 +65,17 @@ async fn run_due_tasks(runtime: &Runtime) {
                     .await
                     .map(|_| ())
                     .map_err(|e| format!("{e:#}")),
-                TaskAction::Restart => restart(runtime, &record.id).await,
+                TaskAction::Restart => runtime
+                    .restart_server(&record)
+                    .await
+                    .map(|_| ())
+                    .map_err(|e| e.to_string()),
             };
             if let Err(error) = outcome {
                 tracing::warn!(server = %record.id, task = %task.id, error, "scheduled task failed");
             }
         }
     }
-}
-
-async fn restart(runtime: &Runtime, id: &str) -> Result<(), String> {
-    let process_id = server_process_id(id);
-    runtime.processes().stop(&process_id);
-    let deadline = tokio::time::Instant::now() + STOP_WAIT;
-    while is_running(runtime, &process_id) {
-        if tokio::time::Instant::now() >= deadline {
-            return Err("the server did not stop in time".into());
-        }
-        tokio::time::sleep(Duration::from_secs(1)).await;
-    }
-    runtime
-        .start_server(id)
-        .await
-        .map(|_| ())
-        .map_err(|e| e.to_string())
 }
 
 fn is_running(runtime: &Runtime, process_id: &str) -> bool {

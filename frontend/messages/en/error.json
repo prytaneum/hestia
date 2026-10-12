@@ -78,6 +78,7 @@
       "session_expired": "Your sign-in for '{reference}' expired — sign in again.",
       "sign_in_required": "Sign in with a Microsoft account first.",
       "skin_not_found": "No skin matches '{key}'.",
+      "stop_timed_out": "{name} did not stop in time, so it was not restarted.",
       "sync_source_required": "Name the instance to start {unit} from: {candidates}.",
       "sync_unit_disabled": "{unit} is not shared between your instances.",
       "task_not_found": "That scheduled task no longer exists.",
