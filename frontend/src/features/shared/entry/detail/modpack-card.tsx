@@ -1,4 +1,10 @@
-import { PackageIcon } from '@phosphor-icons/react';
+import {
+  ArrowsClockwiseIcon,
+  DotsThreeIcon,
+  FileArrowUpIcon,
+  PackageIcon,
+  TrashIcon,
+} from '@phosphor-icons/react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { toast } from 'sonner';
@@ -16,7 +22,15 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Thumbnail } from '@/components/ui/thumbnail';
 import { WarningNotice } from '@/components/warning-notice';
 import { m } from '@/paraglide/messages.js';
@@ -51,6 +65,7 @@ export function ModpackCard({
   const remove = useRemoveModpack(kind, id);
   const queryClient = useQueryClient();
   const [confirmRemove, setConfirmRemove] = useState(false);
+  const [deleteContent, setDeleteContent] = useState(false);
   const [fromFile, setFromFile] = useState<{
     path: string;
     preview: ModpackFilePreview;
@@ -64,12 +79,9 @@ export function ModpackCard({
   if (!pack.data) return null;
 
   const installed = pack.data;
-  const loader = installed.loader
-    ? `${installed.loader}${installed.loaderVersion ? ` ${installed.loaderVersion}` : ''}`
-    : 'vanilla';
   // A file-sourced pack has no catalogue behind it, so only a newer file moves it.
   const updatable = installed.projectId !== '';
-  const busy = update.isPending || remove.isPending;
+  const locked = update.isPending || remove.isPending || running;
   // An unreachable catalogue leaves the offer standing: the daemon is the one
   // that decides, and refusing to try would be worse than a wasted call.
   const upToDate = check.data ? !check.data.updatable : false;
@@ -120,19 +132,47 @@ export function ModpackCard({
   return (
     <SideCard title={m['content.modpack.title']()}>
       <div className="space-y-3">
-        <div className="flex items-start gap-2.5">
+        <div className="flex items-center gap-2.5">
           <Thumbnail src={installed.iconUrl} icon={PackageIcon} size="lg" />
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-medium">{installed.name}</p>
             <p className="truncate text-xs text-muted-foreground">
               {installed.versionNumber || m['content.modpack.from_file']()}
             </p>
           </div>
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              render={
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label={m['app.action.more']()}
+                >
+                  <DotsThreeIcon weight="bold" className="size-4" />
+                </Button>
+              }
+            />
+            <DropdownMenuContent align="end" className="w-48">
+              {updatable && (
+                <DropdownMenuItem disabled={locked} onClick={updateFromFile}>
+                  <FileArrowUpIcon />
+                  {m['content.modpack.update_from_file.action']()}
+                </DropdownMenuItem>
+              )}
+              {updatable && <DropdownMenuSeparator />}
+              <DropdownMenuItem
+                variant="destructive"
+                disabled={locked}
+                onClick={() => setConfirmRemove(true)}
+              >
+                <TrashIcon />
+                {m['content.modpack.remove.action']()}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
 
         <div className="divide-y divide-border">
-          <Stat label={m['app.label.game']()} value={installed.gameVersion} />
-          <Stat label={m['app.label.loader']()} value={loader} />
           <Stat
             label={m['domain.kind.mods']()}
             value={installed.files.length}
@@ -157,42 +197,37 @@ export function ModpackCard({
           </p>
         )}
 
-        <div className="flex flex-wrap gap-2">
-          {updatable && !upToDate && (
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={busy || running || check.isLoading}
-              onClick={() =>
-                update
-                  .mutateAsync({})
-                  .catch((error) => toast.error(errorMessage(error)))
-              }
-            >
-              {check.data?.updatable
-                ? m['content.modpack.update_to']({
-                    version: check.data.latestVersionNumber,
-                  })
-                : m['content.modpack.update']()}
-            </Button>
-          )}
+        {updatable && !upToDate && (
+          <Button
+            size="sm"
+            className="w-full"
+            disabled={locked || check.isLoading}
+            onClick={() =>
+              update
+                .mutateAsync({})
+                .catch((error) => toast.error(errorMessage(error)))
+            }
+          >
+            <ArrowsClockwiseIcon data-icon="inline-start" />
+            {check.data?.updatable
+              ? m['content.modpack.update_to']({
+                  version: check.data.latestVersionNumber,
+                })
+              : m['content.modpack.update']()}
+          </Button>
+        )}
+        {!updatable && (
           <Button
             size="sm"
             variant="outline"
-            disabled={busy || running}
+            className="w-full"
+            disabled={locked}
             onClick={updateFromFile}
           >
+            <FileArrowUpIcon data-icon="inline-start" />
             {m['content.modpack.update_from_file.action']()}
           </Button>
-          <Button
-            size="sm"
-            variant="ghost"
-            disabled={busy || running}
-            onClick={() => setConfirmRemove(true)}
-          >
-            {m['content.modpack.remove.action']()}
-          </Button>
-        </div>
+        )}
       </div>
 
       <ConfirmDialog
@@ -226,7 +261,13 @@ export function ModpackCard({
         onConfirm={() => fromFile && applyFile(fromFile.path, fromFile.preview)}
       />
 
-      <AlertDialog open={confirmRemove} onOpenChange={setConfirmRemove}>
+      <AlertDialog
+        open={confirmRemove}
+        onOpenChange={(open) => {
+          setConfirmRemove(open);
+          if (!open) setDeleteContent(false);
+        }}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
@@ -236,19 +277,33 @@ export function ModpackCard({
               {m['content.modpack.remove.body']({ entry: name })}
             </AlertDialogDescription>
           </AlertDialogHeader>
+          <label
+            htmlFor="modpack-delete-content"
+            className="flex cursor-pointer items-start gap-2 text-xs"
+          >
+            <Checkbox
+              id="modpack-delete-content"
+              className="mt-0.5"
+              checked={deleteContent}
+              onCheckedChange={(checked) => setDeleteContent(checked === true)}
+            />
+            <span>
+              {m['content.modpack.remove.delete_content']()}
+              <span className="block text-muted-foreground">
+                {m['content.modpack.remove.delete_content_hint']()}
+              </span>
+            </span>
+          </label>
           <AlertDialogFooter>
             <AlertDialogCancel size="sm">
               {m['app.action.cancel']()}
             </AlertDialogCancel>
             <AlertDialogAction
               size="sm"
-              variant="destructive"
-              onClick={() => removePack(false)}
+              variant={deleteContent ? 'destructive' : 'default'}
+              onClick={() => removePack(!deleteContent)}
             >
-              {m['content.modpack.remove.all']()}
-            </AlertDialogAction>
-            <AlertDialogAction size="sm" onClick={() => removePack(true)}>
-              {m['content.modpack.remove.keep']()}
+              {m['content.modpack.remove.action']()}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

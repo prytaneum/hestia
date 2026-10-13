@@ -1,4 +1,5 @@
 import { screen, waitFor } from '@testing-library/react';
+import { userEvent } from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { InstalledModpack } from '@/api';
 import { ModpackCard } from '@/features/shared/entry/detail';
@@ -39,8 +40,14 @@ const updateButton = () =>
   screen.getByRole('button', {
     name: m['content.modpack.update_to']({ version: '1.5.0' }),
   });
-const removeButton = () =>
-  screen.getByRole('button', { name: m['content.modpack.remove.action']() });
+const removeItem = async () => {
+  await userEvent.click(
+    screen.getByRole('button', { name: m['app.action.more']() }),
+  );
+  return screen.findByRole('menuitem', {
+    name: m['content.modpack.remove.action'](),
+  });
+};
 
 beforeEach(() => setPack(instance.id, pack()));
 afterEach(() => {
@@ -53,20 +60,22 @@ describe('the modpack card', () => {
     card(false);
     await waitFor(() => expect(updateButton()).toBeDefined());
     expect(updateButton().hasAttribute('disabled')).toBe(false);
-    expect(removeButton().hasAttribute('disabled')).toBe(false);
+    expect((await removeItem()).hasAttribute('data-disabled')).toBe(false);
   });
 
   it('refuses both while the entry is running', async () => {
     card(true);
     await waitFor(() => expect(updateButton()).toBeDefined());
     expect(updateButton().hasAttribute('disabled')).toBe(true);
-    expect(removeButton().hasAttribute('disabled')).toBe(true);
+    expect((await removeItem()).hasAttribute('data-disabled')).toBe(true);
   });
 
   it('hides update for a pack with no catalogue behind it', async () => {
     setPack(instance.id, pack({ projectId: '' }));
     card(false);
-    await waitFor(() => expect(removeButton()).toBeDefined());
+    await screen.findByRole('button', {
+      name: m['content.modpack.update_from_file.action'](),
+    });
     expect(
       screen.queryByRole('button', { name: m['content.modpack.update']() }),
     ).toBeNull();
