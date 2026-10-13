@@ -7,6 +7,7 @@ import { Empty } from '@/components/empty';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import { TabToolbar } from '@/features/shared/entry/detail';
 import { agoLabel, bytes } from '@/lib/format';
 import { m } from '@/paraglide/messages.js';
 import { useJobMutation } from '@/queries/jobs';
@@ -44,7 +45,7 @@ export function ServerBackupsTab({
 
   return (
     <>
-      <div className="mb-5 flex items-center justify-between">
+      <TabToolbar className="justify-between">
         <span className="text-xs text-muted-foreground">
           {interval
             ? m['server.backup.schedule_status']({
@@ -67,7 +68,7 @@ export function ServerBackupsTab({
           <PlusIcon weight="bold" />
           {m['server.backup.create']()}
         </Button>
-      </div>
+      </TabToolbar>
 
       {list.length === 0 ? (
         <Empty className="flex-1" icon={ArchiveIcon}>

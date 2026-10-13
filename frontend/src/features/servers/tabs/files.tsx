@@ -40,6 +40,7 @@ import {
   joinPath,
   pathCrumbs,
 } from '@/features/servers/lib';
+import { TabToolbar } from '@/features/shared/entry/detail';
 import { useDropzone } from '@/hooks/use-dropzone';
 import { ANY_FILE } from '@/lib/file-drop';
 import { agoLabel, bytes } from '@/lib/format';
@@ -189,7 +190,7 @@ export function ServerFilesTab({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="mb-4 flex items-center gap-2">
+      <TabToolbar>
         <Crumbs path={path} onNavigate={onNavigate} />
         {selected ? (
           <>
@@ -280,7 +281,7 @@ export function ServerFilesTab({
             </Button>
           </>
         )}
-      </div>
+      </TabToolbar>
 
       <div
         {...getRootProps()}

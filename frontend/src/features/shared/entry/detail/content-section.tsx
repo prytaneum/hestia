@@ -40,6 +40,7 @@ import {
   type UpdatesResult,
 } from '../lib';
 import { ContentListResult } from './content-list';
+import { TabToolbar } from './toolbar';
 
 /**
  * The content tab body: the kind filter + the filtered installed list, wired
@@ -213,7 +214,7 @@ function ContentSectionView({
 
   return (
     <>
-      <div className="mb-3 flex items-center gap-2">
+      <TabToolbar>
         <SearchInput
           value={search}
           onChange={changeSearch}
@@ -298,13 +299,13 @@ function ContentSectionView({
             </div>
           )}
         </div>
-      </div>
+      </TabToolbar>
       <KindChips
         kinds={kinds}
         kind={kind}
         onKindChange={changeKind}
         count={(k) => items.filter((c) => c.kind === k).length}
-        className="mb-5"
+        className="mb-3"
       />
       {filtered.length === 0 && search.trim() ? (
         <Empty className="flex-1" icon={MagnifyingGlassIcon}>

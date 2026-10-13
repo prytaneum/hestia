@@ -104,7 +104,7 @@ export function SettingsPage({
               {m['settings.search_empty']({ query })}
             </p>
           ) : (
-            <div className="max-w-2xl py-6">
+            <div className="max-w-2xl pt-5 pb-6">
               <TabsContent value="general">
                 <FieldGroup>
                   <GeneralTab />

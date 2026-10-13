@@ -23,6 +23,7 @@ import {
   ServerEntryDialog,
   useLaunchDialog,
 } from '@/features/instances/dialogs';
+import { TabToolbar } from '@/features/shared/entry/detail';
 import { supportsQuickPlay } from '@/lib/quick-play';
 import { runningSessions } from '@/lib/sessions';
 import { toastWarnings } from '@/lib/warnings';
@@ -74,8 +75,8 @@ export function InstanceServersTab({ instance }: { instance: InstanceInfo }) {
   };
 
   return (
-    <div className="flex flex-1 flex-col gap-4">
-      <div className="flex items-center justify-between gap-3">
+    <div className="flex flex-1 flex-col">
+      <TabToolbar className="justify-between gap-3">
         <p className="text-sm text-muted-foreground">
           {arranging
             ? m['instance.servers.reorder.hint']()
@@ -131,7 +132,7 @@ export function InstanceServersTab({ instance }: { instance: InstanceInfo }) {
             </>
           )}
         </div>
-      </div>
+      </TabToolbar>
 
       {servers.isPending ? (
         <div className="space-y-2">

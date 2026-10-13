@@ -10,6 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { TabToolbar } from '@/features/shared/entry/detail';
 import { sessionSeq } from '@/lib/sessions';
 import { m } from '@/paraglide/messages.js';
 import { useInstanceLogs } from '@/queries/instance';
@@ -56,9 +57,9 @@ export function InstanceLogsTab({
   ];
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-3">
+    <div className="flex min-h-0 flex-1 flex-col">
       {sessions.length > 1 && (
-        <div className="flex justify-end">
+        <TabToolbar className="justify-end">
           <Select
             items={options}
             value={selected ?? ALL}
@@ -77,7 +78,7 @@ export function InstanceLogsTab({
               ))}
             </SelectContent>
           </Select>
-        </div>
+        </TabToolbar>
       )}
 
       {logs.lines.length === 0 ? (

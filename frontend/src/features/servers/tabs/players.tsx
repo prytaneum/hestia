@@ -29,6 +29,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { StatusDot } from '@/components/ui/status-dot';
+import { TabToolbar } from '@/features/shared/entry/detail';
 import { m } from '@/paraglide/messages.js';
 import { playersMutations, playersQueries } from '@/queries/players';
 
@@ -245,7 +246,7 @@ export function ServerPlayersTab({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="mb-3 flex items-center gap-2">
+      <TabToolbar>
         <SearchInput
           value={search}
           onChange={setSearch}
@@ -256,7 +257,7 @@ export function ServerPlayersTab({
         {running && view !== 'online' && (
           <AddPlayer pending={set.isPending} onAdd={change(view, true)} />
         )}
-      </div>
+      </TabToolbar>
 
       <div className="mb-3 flex flex-wrap items-center gap-1.5">
         {views.map((v) => (
