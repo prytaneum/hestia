@@ -12,7 +12,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::content::ContentFailure;
+use crate::content::{ContentFailure, ReleaseChannel};
 use crate::contract::{Contract, Topic};
 use crate::error::ErrorInfo;
 use crate::minecraft::ProvisionProgress;
@@ -117,6 +117,19 @@ pub struct ModpackUpdate {
     pub latest_version_id: String,
     pub latest_version_number: String,
     pub updatable: bool,
+    /// The pack version built for the game version asked about; may be a pre-release, so it is offered, never applied unpinned.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub fitting: Option<ModpackFit>,
+}
+
+#[derive(Serialize, Deserialize, Default, Debug, Clone)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
+#[serde(default, rename_all = "camelCase")]
+pub struct ModpackFit {
+    pub version_id: String,
+    pub version_number: String,
+    pub channel: ReleaseChannel,
+    pub game_version: String,
 }
 
 /// Absent when there is nothing to check: no pack, or one no source published,
@@ -205,6 +218,24 @@ pub struct InstanceModpackRef {
 #[serde(default, rename_all = "camelCase")]
 pub struct ServerModpackRef {
     pub server: String,
+}
+
+#[derive(Serialize, Deserialize, Default, Debug, Clone)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
+#[serde(default, rename_all = "camelCase")]
+pub struct InstanceModpackCheckParams {
+    pub instance: String,
+    /// Empty asks about the game version the entry runs.
+    pub game_version: String,
+}
+
+#[derive(Serialize, Deserialize, Default, Debug, Clone)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
+#[serde(default, rename_all = "camelCase")]
+pub struct ServerModpackCheckParams {
+    pub server: String,
+    /// Empty asks about the game version the entry runs.
+    pub game_version: String,
 }
 
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
@@ -338,14 +369,14 @@ impl Contract for ServerModpackPreviewUpdate {
 pub struct InstanceModpackCheckUpdate;
 impl Contract for InstanceModpackCheckUpdate {
     const CHANNEL: &'static str = "instance.modpack.check_update";
-    type Params = InstanceModpackRef;
+    type Params = InstanceModpackCheckParams;
     type Result = ModpackUpdateResult;
 }
 
 pub struct ServerModpackCheckUpdate;
 impl Contract for ServerModpackCheckUpdate {
     const CHANNEL: &'static str = "server.modpack.check_update";
-    type Params = ServerModpackRef;
+    type Params = ServerModpackCheckParams;
     type Result = ModpackUpdateResult;
 }
 

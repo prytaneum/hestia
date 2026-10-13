@@ -11,11 +11,12 @@ use std::time::Duration;
 use ipc::errors::IpcError;
 use proto::minecraft::ProvisionProgress;
 use proto::modpack::{
-    InstalledModpack, InstanceModpackCheckUpdate, InstanceModpackFileParams,
-    InstanceModpackInstall, InstanceModpackInstallParams, InstanceModpackPreviewUpdate,
-    InstanceModpackRef, InstanceModpackRemove, InstanceModpackRemoveParams, InstanceModpackStatus,
-    InstanceModpackUpdate, InstanceModpackUpdateParams, ModpackDoneEvent, ModpackFilePreview,
-    ModpackMove, ModpackRef, ModpackRemoveResult, ModpackTarget, ModpackUpdate,
+    InstalledModpack, InstanceModpackCheckParams, InstanceModpackCheckUpdate,
+    InstanceModpackFileParams, InstanceModpackInstall, InstanceModpackInstallParams,
+    InstanceModpackPreviewUpdate, InstanceModpackRef, InstanceModpackRemove,
+    InstanceModpackRemoveParams, InstanceModpackStatus, InstanceModpackUpdate,
+    InstanceModpackUpdateParams, ModpackDoneEvent, ModpackFilePreview, ModpackMove, ModpackRef,
+    ModpackRemoveResult, ModpackTarget, ModpackUpdate, ServerModpackCheckParams,
     ServerModpackCheckUpdate, ServerModpackFileParams, ServerModpackInstall,
     ServerModpackInstallParams, ServerModpackPreviewUpdate, ServerModpackRef, ServerModpackRemove,
     ServerModpackRemoveParams, ServerModpackStatus, ServerModpackUpdate, ServerModpackUpdateParams,
@@ -191,8 +192,9 @@ impl Modpack<'_> {
         &self,
         instance: &str,
     ) -> Result<Option<ModpackUpdate>, IpcError> {
-        let params = InstanceModpackRef {
+        let params = InstanceModpackCheckParams {
             instance: instance.to_string(),
+            ..InstanceModpackCheckParams::default()
         };
         Ok(self
             .session
@@ -205,8 +207,9 @@ impl Modpack<'_> {
         &self,
         server: &str,
     ) -> Result<Option<ModpackUpdate>, IpcError> {
-        let params = ServerModpackRef {
+        let params = ServerModpackCheckParams {
             server: server.to_string(),
+            ..ServerModpackCheckParams::default()
         };
         Ok(self
             .session

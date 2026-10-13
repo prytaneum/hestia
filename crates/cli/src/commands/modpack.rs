@@ -212,16 +212,23 @@ async fn check_update(client: &Client, entry: EntryKind, name: &str) -> Result<(
             "'{name}' runs no pack that can be checked"
         )));
     };
-    if !update.updatable {
+    let fitting = update
+        .fitting
+        .filter(|fit| fit.version_id != update.latest_version_id);
+    if !update.updatable && fitting.is_none() {
         return ui::show(View::note(format!(
             "'{name}' is on the newest pack version ({})",
             update.latest_version_number
         )));
     }
-    ui::show(View::detail([
-        ("current", update.current_version_number),
-        ("latest", update.latest_version_number),
-    ]))
+    let mut rows = vec![
+        ("current".to_string(), update.current_version_number),
+        ("latest".to_string(), update.latest_version_number),
+    ];
+    if let Some(fit) = fitting {
+        rows.push((format!("for {}", fit.game_version), fit.version_number));
+    }
+    ui::show(View::detail(rows))
 }
 
 /// Ask before a pack file does what its flags did not allow: replace the pack

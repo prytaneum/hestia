@@ -142,10 +142,11 @@ export async function serverStatus(
 /** `null` when there is nothing to check: no pack, or one from a file. */
 export async function instanceCheckUpdate(
   instance: string,
+  gameVersion = '',
 ): Promise<ModpackUpdate | null> {
   const result = await call<{ update?: ModpackUpdate }>(
     'instance.modpack.check_update',
-    { instance },
+    { instance, gameVersion },
     { timeoutMs: 120_000 },
   );
   return result.update ?? null;
@@ -153,10 +154,11 @@ export async function instanceCheckUpdate(
 
 export async function serverCheckUpdate(
   server: string,
+  gameVersion = '',
 ): Promise<ModpackUpdate | null> {
   const result = await call<{ update?: ModpackUpdate }>(
     'server.modpack.check_update',
-    { server },
+    { server, gameVersion },
     { timeoutMs: 120_000 },
   );
   return result.update ?? null;

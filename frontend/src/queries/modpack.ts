@@ -64,13 +64,18 @@ export const modpackQueries = {
       gcTime: 0,
     }),
   /** A catalogue round trip, so it is not refetched on every mount. */
-  updateCheck: (kind: JobEntryKind, id: string, enabled = true) =>
+  updateCheck: (
+    kind: JobEntryKind,
+    id: string,
+    enabled = true,
+    gameVersion = '',
+  ) =>
     queryOptions({
-      queryKey: [...entryKeys(kind).modpack(id), 'check'],
+      queryKey: [...entryKeys(kind).modpack(id), 'check', gameVersion],
       queryFn: (): Promise<ModpackUpdate | null> =>
         kind === 'server'
-          ? api.serverCheckUpdate(id)
-          : api.instanceCheckUpdate(id),
+          ? api.serverCheckUpdate(id, gameVersion)
+          : api.instanceCheckUpdate(id, gameVersion),
       enabled,
       staleTime: 10 * 60_000,
       retry: false,
@@ -135,8 +140,9 @@ export function useModpackUpdateCheck(
   kind: JobEntryKind,
   id: string,
   enabled = true,
+  gameVersion = '',
 ) {
-  return useQuery(modpackQueries.updateCheck(kind, id, enabled));
+  return useQuery(modpackQueries.updateCheck(kind, id, enabled, gameVersion));
 }
 
 export function useInstallModpack(kind: JobEntryKind) {

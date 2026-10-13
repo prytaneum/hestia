@@ -563,7 +563,7 @@ async fn a_pack_no_source_published_updates_from_a_newer_file() {
     let entry = EntryRef::Instance(&outcome.entry);
     assert!(
         engine
-            .entry_modpack_update(entry)
+            .entry_modpack_update(entry, "")
             .await
             .expect("check")
             .is_none(),

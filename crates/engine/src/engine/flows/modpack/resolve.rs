@@ -60,6 +60,40 @@ impl Catalogue {
     }
 }
 
+/// `versions` is newest-first; a pre-release installed ahead of the newest release is kept.
+pub(super) fn update_target<'a>(
+    versions: &'a [ContentVersion],
+    installed: &str,
+) -> Option<&'a ContentVersion> {
+    let newest = versions
+        .iter()
+        .find(|v| v.channel == ReleaseChannel::Release)
+        .or_else(|| versions.first())?;
+    let ahead = versions
+        .iter()
+        .take_while(|v| v.id != newest.id)
+        .find(|v| v.id == installed);
+    Some(ahead.unwrap_or(newest))
+}
+
+/// A pack already on `game_version` is only offered what was published after the version it runs.
+pub(super) fn fitting<'a>(
+    versions: &'a [ContentVersion],
+    installed: &str,
+    game_version: &str,
+) -> Option<&'a ContentVersion> {
+    let targets = |v: &&ContentVersion| v.game_versions.iter().any(|g| g == game_version);
+    let reach = versions
+        .iter()
+        .position(|v| v.id == installed && targets(&v))
+        .unwrap_or(versions.len());
+    let mut candidates = versions[..reach].iter().filter(targets);
+    candidates
+        .clone()
+        .find(|v| v.channel == ReleaseChannel::Release)
+        .or_else(|| candidates.next())
+}
+
 impl Engine {
     /// A pack can only be installed into an entry that already runs what it
     /// pins: both are baked into the entry's resolved profile, and neither can
@@ -117,6 +151,7 @@ impl Engine {
     pub(super) async fn fetch_pack(
         &self,
         reference: &ModpackRef,
+        installed: &str,
         job: &Job<'_>,
     ) -> Result<FetchedPack> {
         let picked = [&reference.project, &reference.url, &reference.path]
@@ -162,7 +197,9 @@ impl Engine {
                 expected: ContentKind::Modpack,
             });
         }
-        let version = self.pick_pack_version(&source, &project.id, &pin).await?;
+        let version = self
+            .pick_pack_version(&source, &project.id, &pin, installed)
+            .await?;
         job.check()?;
         let (resolved, bytes) = self.content.fetch_modpack(&source, &version.id).await?;
         Ok((resolved, Some(project), pack::Archive::open(bytes)?))
@@ -259,36 +296,41 @@ impl Engine {
                 version: to.version.clone(),
                 ..ModpackRef::default()
             },
+            &current.version_id,
             job,
         )
         .await
     }
 
-    /// Newest-first, so an empty pin takes the newest release and falls back to
-    /// the newest of any channel. Deliberately unfiltered by game version: a
-    /// pack *states* its game version rather than being selected for one.
-    pub(super) async fn pick_pack_version(
+    /// Unfiltered by game version: a pack states its game version rather than being selected for one.
+    pub(super) async fn pack_versions(
         &self,
         source: &str,
         project: &str,
-        pin: &str,
-    ) -> Result<ContentVersion> {
-        let versions = self
-            .content
+    ) -> Result<Vec<ContentVersion>> {
+        self.content
             .versions(&VersionQuery {
                 source: source.to_string(),
                 project: project.to_string(),
                 ..VersionQuery::default()
             })
-            .await?;
+            .await
+    }
+
+    /// `installed` is empty for a fresh install.
+    pub(super) async fn pick_pack_version(
+        &self,
+        source: &str,
+        project: &str,
+        pin: &str,
+        installed: &str,
+    ) -> Result<ContentVersion> {
+        let versions = self.pack_versions(source, project).await?;
         let picked: Option<&ContentVersion> = match pin.is_empty() {
             false => versions
                 .iter()
                 .find(|v| v.id == pin || v.version_number == pin),
-            true => versions
-                .iter()
-                .find(|v| v.channel == ReleaseChannel::Release)
-                .or_else(|| versions.first()),
+            true => update_target(&versions, installed),
         };
         // A paged listing may not carry the pin a URL named; ask for it by id.
         if picked.is_none() && !pin.is_empty() {

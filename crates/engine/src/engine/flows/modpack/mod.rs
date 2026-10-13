@@ -31,7 +31,7 @@ use proto::content::{
 };
 use proto::error::{EntryKind, ErrorInfo};
 use proto::modpack::{
-    InstalledModpack, ModpackFilePreview, ModpackMove, ModpackRef, ModpackRemoveResult,
+    InstalledModpack, ModpackFilePreview, ModpackFit, ModpackMove, ModpackRef, ModpackRemoveResult,
     ModpackTarget, ModpackUpdate,
 };
 use proto::warning::WarningInfo;
@@ -40,6 +40,7 @@ use super::content::entry::{EntryContent, EntryRef, EntrySide};
 use crate::cancel::Job;
 use crate::content::{install, modpack, pack};
 use crate::engine::{Engine, ServerCreateSpec, ServerUpdateSpec};
+use crate::registry;
 
 /// What a finished install or update produced. `entry` is the entry's id —
 /// which, for a create, the caller has no other way to learn.
@@ -91,13 +92,13 @@ impl Engine {
         target: &ModpackTarget,
         job: &Job<'_>,
     ) -> Result<ModpackOutcome> {
-        let (resolved, project, mut archive) = self.fetch_pack(reference, job).await?;
+        let (resolved, project, mut archive) = self.fetch_pack(reference, "", job).await?;
         let entry = match target {
             ModpackTarget::Create { name } => {
                 let flavor = self.pack_flavor(&resolved, EntrySide::Client)?;
                 job.check()?;
                 self.create_instance(
-                    &pack_entry_name(name, &resolved),
+                    &pack_entry_name(name, &resolved, |n| self.instance_name_taken(n)),
                     &flavor,
                     &resolved.game_version,
                     resolved.loader_version.clone(),
@@ -137,14 +138,17 @@ impl Engine {
         port: Option<u16>,
         job: &Job<'_>,
     ) -> Result<ModpackOutcome> {
-        let (resolved, project, mut archive) = self.fetch_pack(reference, job).await?;
+        let (resolved, project, mut archive) = self.fetch_pack(reference, "", job).await?;
         let entry = match target {
             ModpackTarget::Create { name } => {
                 let flavor = self.pack_flavor(&resolved, EntrySide::Server)?;
                 job.check()?;
+                let servers = self.servers.list();
+                let taken =
+                    |n: &str| registry::name_taken(n, servers.iter().map(|r| r.name.as_str()));
                 self.provision_server(
                     ServerCreateSpec {
-                        name: pack_entry_name(name, &resolved),
+                        name: pack_entry_name(name, &resolved, taken),
                         flavor,
                         version: resolved.game_version.clone(),
                         loader_version: resolved.loader_version.clone(),
@@ -264,7 +268,11 @@ impl Engine {
     /// Whether the entry's pack has a newer published version, over the same
     /// pick an unpinned [`Self::update_entry_modpack`] makes. `None` when there
     /// is nothing to check: no pack, or one no source published.
-    pub async fn entry_modpack_update(&self, entry: EntryRef<'_>) -> Result<Option<ModpackUpdate>> {
+    pub async fn entry_modpack_update(
+        &self,
+        entry: EntryRef<'_>,
+        game_version: &str,
+    ) -> Result<Option<ModpackUpdate>> {
         let (_, ctx) = self.content_ctx(entry)?;
         let Some(current) = modpack::load(&ctx.entry_dir) else {
             return Ok(None);
@@ -272,15 +280,32 @@ impl Engine {
         if current.project_id.is_empty() {
             return Ok(None);
         }
-        let latest = self
-            .pick_pack_version(&current.source, &current.project_id, "")
+        let game_version = match game_version.is_empty() {
+            true => ctx.game_version.as_str(),
+            false => game_version,
+        };
+        let versions = self
+            .pack_versions(&current.source, &current.project_id)
             .await?;
+        let latest = resolve::update_target(&versions, &current.version_id).ok_or_else(|| {
+            ErrorInfo::VersionNotFound {
+                reference: current.project_id.clone(),
+            }
+        })?;
+        let fitting =
+            resolve::fitting(&versions, &current.version_id, game_version).map(|v| ModpackFit {
+                version_id: v.id.clone(),
+                version_number: v.version_number.clone(),
+                channel: v.channel,
+                game_version: game_version.to_string(),
+            });
         Ok(Some(ModpackUpdate {
             updatable: latest.id != current.version_id,
+            latest_version_id: latest.id.clone(),
+            latest_version_number: latest.version_number.clone(),
             current_version_id: current.version_id,
             current_version_number: current.version_number,
-            latest_version_id: latest.id,
-            latest_version_number: latest.version_number,
+            fitting,
         }))
     }
 
@@ -408,11 +433,23 @@ fn release_pack(ctx: &EntryContent, pack: &InstalledModpack) -> Result<ModpackRe
     })
 }
 
-fn pack_entry_name(given: &str, resolved: &ResolvedModpack) -> String {
-    match given.trim().is_empty() {
-        false => given.trim().to_string(),
-        true => resolved.name.clone(),
+/// A name the user did not choose is made unique, so it is never what fails the create.
+fn pack_entry_name(
+    given: &str,
+    resolved: &ResolvedModpack,
+    taken: impl Fn(&str) -> bool,
+) -> String {
+    if !given.trim().is_empty() {
+        return given.trim().to_string();
     }
+    let own = resolved.name.clone();
+    if !taken(&own) {
+        return own;
+    }
+    (2..100)
+        .map(|n| format!("{own} ({n})"))
+        .find(|candidate| !taken(candidate))
+        .unwrap_or(own)
 }
 
 fn pack_display_name(resolved: &ResolvedModpack, project: Option<&ContentProject>) -> String {
@@ -437,6 +474,8 @@ fn same_pack(current: &InstalledModpack, (resolved, project, _): &resolve::Fetch
 
 #[cfg(test)]
 mod tests {
+    use proto::content::{ContentVersion, ReleaseChannel};
+
     use super::*;
 
     #[test]
@@ -445,8 +484,63 @@ mod tests {
             name: "Fabulously Optimized".to_string(),
             ..ResolvedModpack::default()
         };
-        assert_eq!(pack_entry_name("", &resolved), "Fabulously Optimized");
-        assert_eq!(pack_entry_name("  my pack ", &resolved), "my pack");
+        assert_eq!(
+            pack_entry_name("", &resolved, |_| false),
+            "Fabulously Optimized"
+        );
+        assert_eq!(
+            pack_entry_name("  my pack ", &resolved, |_| true),
+            "my pack"
+        );
+    }
+
+    #[test]
+    fn a_defaulted_name_steps_past_the_entries_already_using_it() {
+        let resolved = ResolvedModpack {
+            name: "Fabulously Optimized".to_string(),
+            ..ResolvedModpack::default()
+        };
+        let existing = ["Fabulously Optimized", "Fabulously Optimized (2)"];
+        assert_eq!(
+            pack_entry_name("", &resolved, |n| existing.contains(&n)),
+            "Fabulously Optimized (3)"
+        );
+    }
+
+    fn published(id: &str, channel: ReleaseChannel, game: &str) -> ContentVersion {
+        ContentVersion {
+            id: id.to_string(),
+            channel,
+            game_versions: vec![game.to_string()],
+            ..ContentVersion::default()
+        }
+    }
+
+    fn catalogue() -> Vec<ContentVersion> {
+        vec![
+            published("15-beta", ReleaseChannel::Beta, "26.3"),
+            published("14.1.1", ReleaseChannel::Release, "26.2"),
+            published("14.1.0", ReleaseChannel::Release, "26.2"),
+        ]
+    }
+
+    #[test]
+    fn an_unpinned_update_takes_the_newest_release_but_never_moves_back() {
+        let versions = catalogue();
+        let target = |installed| resolve::update_target(&versions, installed).map(|v| v.id.clone());
+        assert_eq!(target("14.1.0").as_deref(), Some("14.1.1"));
+        assert_eq!(target("15-beta").as_deref(), Some("15-beta"));
+    }
+
+    #[test]
+    fn a_pack_offers_the_version_built_for_the_game_version_asked_about() {
+        let versions = catalogue();
+        let fit =
+            |installed, game| resolve::fitting(&versions, installed, game).map(|v| v.id.clone());
+        assert_eq!(fit("14.1.1", "26.3").as_deref(), Some("15-beta"));
+        assert_eq!(fit("14.1.0", "26.2").as_deref(), Some("14.1.1"));
+        assert_eq!(fit("14.1.1", "26.2"), None);
+        assert_eq!(fit("14.1.1", "26.4"), None);
     }
 
     #[test]

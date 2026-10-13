@@ -87,7 +87,7 @@ fn register_instance(on: &mut Channels<'_>) {
         let update = ctx
             .runtime
             .engine()
-            .entry_modpack_update(engine::EntryRef::Instance(&record.id))
+            .entry_modpack_update(engine::EntryRef::Instance(&record.id), &p.game_version)
             .await
             .map_err(crate::runtime::engine_error)?;
         Ok(ModpackUpdateResult { update })
@@ -172,7 +172,7 @@ fn register_server(on: &mut Channels<'_>) {
         let update = ctx
             .runtime
             .engine()
-            .entry_modpack_update(engine::EntryRef::Server(&record.id))
+            .entry_modpack_update(engine::EntryRef::Server(&record.id), &p.game_version)
             .await
             .map_err(crate::runtime::engine_error)?;
         Ok(ModpackUpdateResult { update })

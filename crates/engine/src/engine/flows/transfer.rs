@@ -344,7 +344,7 @@ impl Engine {
         outcome
     }
 
-    fn instance_name_taken(&self, name: &str) -> bool {
+    pub(super) fn instance_name_taken(&self, name: &str) -> bool {
         registry::name_taken(name, self.instances.list().iter().map(|r| r.name.as_str()))
     }
 }
