@@ -491,6 +491,13 @@ hestia instance cozy modpack remove --all     # delete them, except files you ha
 hestia server smp modpack status        # servers, the same verbs
 ```
 
+`update --check` also names the pack version built for the entry's game version when that is not the newest release —
+a pre-release, or the line for an older game version — and `update <version>` moves to it.
+
+The other direction is `hestia instance cozy update <game-version>`: when the entry runs a pack built for another game
+version, it asks whether to move the pack to its build for the target (`--move-pack`) or change the version alone
+(`--keep-pack`). Piped, one of the two flags is required.
+
 An update carries the entry's game version with it — that is what updating a pack means — so a pack built for an older
 version needs `--downgrade`. A pack file is the only way a pack no source published updates, and any pack accepts one;
 a file holding a different pack needs `--other-pack`. On a terminal both are asked rather than refused. Files the pack wrote into the game directory that you have since edited are never

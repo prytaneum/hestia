@@ -18,7 +18,7 @@ use anyhow::{bail, Context, Result};
 use clap::Subcommand;
 use client::proto::content::{ContentKind, SearchQuery, SearchSort};
 use client::proto::modpack::{
-    InstalledModpack, ModpackDoneEvent, ModpackMove, ModpackRef, ModpackTarget,
+    InstalledModpack, ModpackDoneEvent, ModpackMove, ModpackRef, ModpackTarget, ModpackUpdate,
 };
 use client::Client;
 
@@ -203,10 +203,7 @@ async fn status(client: &Client, entry: EntryKind, name: &str) -> Result<()> {
 }
 
 async fn check_update(client: &Client, entry: EntryKind, name: &str) -> Result<()> {
-    let update = match entry {
-        EntryKind::Server => client.modpack().server_check_update(name).await?,
-        EntryKind::Instance => client.modpack().instance_check_update(name).await?,
-    };
+    let update = check(client, entry, name, "").await?;
     let Some(update) = update else {
         return ui::show(View::note(format!(
             "'{name}' runs no pack that can be checked"
@@ -229,6 +226,92 @@ async fn check_update(client: &Client, entry: EntryKind, name: &str) -> Result<(
         rows.push((format!("for {}", fit.game_version), fit.version_number));
     }
     ui::show(View::detail(rows))
+}
+
+async fn check(
+    client: &Client,
+    entry: EntryKind,
+    name: &str,
+    game_version: &str,
+) -> Result<Option<ModpackUpdate>> {
+    let modpack = client.modpack();
+    Ok(match entry {
+        EntryKind::Server => modpack.server_check_update(name, game_version).await?,
+        EntryKind::Instance => modpack.instance_check_update(name, game_version).await?,
+    })
+}
+
+#[derive(clap::Args, Clone, Copy)]
+pub struct PackDrift {
+    #[arg(
+        long,
+        conflicts_with = "keep_pack",
+        help = "Move the entry's modpack to its version built for the target"
+    )]
+    pub move_pack: bool,
+    #[arg(long, help = "Leave the entry's modpack on the version it has")]
+    pub keep_pack: bool,
+}
+
+/// `None` is the plain version change; off a terminal the prompts error, so a script passes a flag.
+pub async fn pack_move(
+    client: &Client,
+    entry: EntryKind,
+    name: &str,
+    version: &str,
+    drift: PackDrift,
+) -> Result<Option<String>> {
+    let pack = match entry {
+        EntryKind::Server => client.modpack().server_status(name).await?,
+        EntryKind::Instance => client.modpack().instance_status(name).await?,
+    };
+    let Some(pack) = pack.filter(|pack| pack.game_version != version) else {
+        return Ok(None);
+    };
+    if drift.keep_pack {
+        return Ok(None);
+    }
+    let fit = match pack.project_id.is_empty() {
+        true => None,
+        false => check(client, entry, name, version)
+            .await?
+            .and_then(|update| update.fitting),
+    };
+    let headline = format!(
+        "the modpack '{}' {} is built for Minecraft {}, not {version}",
+        pack.name, pack.version_number, pack.game_version
+    );
+    let Some(fit) = fit else {
+        if drift.move_pack {
+            bail!("'{}' has no version built for {version}", pack.name);
+        }
+        let proceed = ui::confirm(
+            &format!("{headline}, and has no version for it"),
+            "change the version anyway",
+            "cancel",
+        )
+        .context("pass --keep-pack to change the version and leave the pack")?;
+        if !proceed {
+            bail!("update cancelled");
+        }
+        return Ok(None);
+    };
+    if drift.move_pack {
+        return Ok(Some(fit.version_id));
+    }
+    let picked = ui::select_detailed(
+        &headline,
+        &[
+            format!("Move the pack to {}", fit.version_number),
+            "Change the version only".to_string(),
+        ],
+        &[
+            format!("its build for {version} replaces the pack's mods and files"),
+            "the pack and its mods stay as they are, and may not load".to_string(),
+        ],
+    )
+    .context("pass --move-pack to move the pack with it or --keep-pack to leave it")?;
+    Ok((picked == 0).then_some(fit.version_id))
 }
 
 /// Ask before a pack file does what its flags did not allow: replace the pack
@@ -308,7 +391,7 @@ fn pack_file(given: &str) -> Option<Result<String>> {
     })
 }
 
-async fn update(client: &Client, entry: EntryKind, name: &str, to: ModpackMove) -> Result<()> {
+pub async fn update(client: &Client, entry: EntryKind, name: &str, to: ModpackMove) -> Result<()> {
     let reporter = Arc::new(ProvisionReporter::new());
     let progress = reporter.clone();
     let done = match entry {

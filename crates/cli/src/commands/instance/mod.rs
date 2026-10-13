@@ -259,6 +259,8 @@ enum InstanceAction {
             help = "Allow moving to an older version (saves do not downgrade)"
         )]
         downgrade: bool,
+        #[command(flatten)]
+        pack: crate::commands::modpack::PackDrift,
     },
     /// Write the instance out as one archive (must be stopped)
     Export {
@@ -458,7 +460,8 @@ async fn run_action(client: &Client, name: String, action: InstanceAction) -> Re
             version,
             loader,
             downgrade,
-        } => update::run(client, name, version, loader, downgrade).await,
+            pack,
+        } => update::run(client, name, version, loader, downgrade, pack).await,
         InstanceAction::Export {
             format,
             output,

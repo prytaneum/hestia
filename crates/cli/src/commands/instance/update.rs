@@ -2,10 +2,13 @@
 //! new files download at the next launch; a downgrade confirms first.
 
 use anyhow::Result;
+use client::proto::modpack::ModpackMove;
 use client::Client;
 
 use super::entry;
+use crate::commands::content::EntryKind;
 use crate::commands::mc;
+use crate::commands::modpack::{self, PackDrift};
 use crate::ui::{self, Spinner, View};
 
 pub(super) async fn run(
@@ -14,6 +17,7 @@ pub(super) async fn run(
     version: Option<String>,
     loader: Option<String>,
     downgrade: bool,
+    pack: PackDrift,
 ) -> Result<()> {
     let info = entry::pick_instance(client.instance().list().await?, Some(instance))?;
     let versions = {
@@ -32,6 +36,16 @@ pub(super) async fn run(
             &info.game_version,
             &version,
         )?;
+    }
+    let pack_version =
+        modpack::pack_move(client, EntryKind::Instance, &info.id, &version, pack).await?;
+    if let Some(pack_version) = pack_version {
+        let to = ModpackMove {
+            version: pack_version,
+            allow_downgrade: downgrade || is_downgrade,
+            ..ModpackMove::default()
+        };
+        return modpack::update(client, EntryKind::Instance, &info.id, to).await;
     }
 
     let updated = {

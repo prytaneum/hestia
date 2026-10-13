@@ -191,10 +191,11 @@ impl Modpack<'_> {
     pub async fn instance_check_update(
         &self,
         instance: &str,
+        game_version: &str,
     ) -> Result<Option<ModpackUpdate>, IpcError> {
         let params = InstanceModpackCheckParams {
             instance: instance.to_string(),
-            ..InstanceModpackCheckParams::default()
+            game_version: game_version.to_string(),
         };
         Ok(self
             .session
@@ -206,10 +207,11 @@ impl Modpack<'_> {
     pub async fn server_check_update(
         &self,
         server: &str,
+        game_version: &str,
     ) -> Result<Option<ModpackUpdate>, IpcError> {
         let params = ServerModpackCheckParams {
             server: server.to_string(),
-            ..ServerModpackCheckParams::default()
+            game_version: game_version.to_string(),
         };
         Ok(self
             .session

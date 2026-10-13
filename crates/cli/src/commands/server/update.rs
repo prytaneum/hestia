@@ -4,11 +4,14 @@
 use std::sync::Arc;
 
 use anyhow::{bail, Context, Result};
+use client::proto::modpack::ModpackMove;
 use client::proto::server::ServerUpdateParams;
 use client::Client;
 
 use super::{entry, lifecycle};
+use crate::commands::content::EntryKind;
 use crate::commands::mc;
+use crate::commands::modpack::{self, PackDrift};
 use crate::ui::{self, ProvisionReporter, Spinner, View};
 
 pub(super) async fn run(
@@ -18,6 +21,7 @@ pub(super) async fn run(
     loader: Option<String>,
     downgrade: bool,
     restart: bool,
+    pack: PackDrift,
 ) -> Result<()> {
     let info = entry::pick_server(client.server().list().await?, Some(server))?;
     let was_running = entry::running_process(&info).is_some();
@@ -41,6 +45,8 @@ pub(super) async fn run(
             &version,
         )?;
     }
+    let pack_version =
+        modpack::pack_move(client, EntryKind::Server, &info.id, &version, pack).await?;
 
     if was_running {
         {
@@ -54,13 +60,38 @@ pub(super) async fn run(
         )))?;
     }
 
+    let allow_downgrade = downgrade || is_downgrade;
+    match pack_version {
+        Some(pack_version) => {
+            let to = ModpackMove {
+                version: pack_version,
+                allow_downgrade,
+                ..ModpackMove::default()
+            };
+            modpack::update(client, EntryKind::Server, &info.id, to).await?;
+        }
+        None => change_version(client, &info.id, version, loader, allow_downgrade).await?,
+    }
+    if was_running {
+        lifecycle::start(client, &info.id).await?;
+    }
+    Ok(())
+}
+
+async fn change_version(
+    client: &Client,
+    server: &str,
+    version: String,
+    loader: Option<String>,
+    allow_downgrade: bool,
+) -> Result<()> {
     let reporter = Arc::new(ProvisionReporter::new());
     let progress = reporter.clone();
     let params = ServerUpdateParams {
-        server: info.id.clone(),
-        version: version.clone(),
+        server: server.to_string(),
+        version,
         loader_version: loader,
-        allow_downgrade: downgrade || is_downgrade,
+        allow_downgrade,
         id: String::new(),
     };
     let result = client
@@ -69,17 +100,12 @@ pub(super) async fn run(
         .await;
     reporter.finish();
     let done = result?;
-    let server = done.server;
     ui::show(View::line(format!(
         "server '{}' updated to {}",
-        server.name, server.game_version
+        done.server.name, done.server.game_version
     )))?;
-    entry::show_status(&server, None)?;
-    ui::show_warnings(&done.warnings)?;
-    if was_running {
-        lifecycle::start(client, &server.id).await?;
-    }
-    Ok(())
+    entry::show_status(&done.server, None)?;
+    ui::show_warnings(&done.warnings)
 }
 
 /// Interactive fallback for a missing `--restart`; errors when stdin is not a

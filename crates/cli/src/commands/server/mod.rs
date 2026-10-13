@@ -187,6 +187,8 @@ enum ServerAction {
             help = "Stop a running server for the update and start it again after"
         )]
         restart: bool,
+        #[command(flatten)]
+        pack: crate::commands::modpack::PackDrift,
     },
     /// Rename the server (moves its directory; must be stopped)
     Rename {
@@ -288,7 +290,8 @@ async fn run_unit_action(client: Client, name: String, action: ServerAction) -> 
             loader,
             downgrade,
             restart,
-        } => update::run(&client, name, version, loader, downgrade, restart).await,
+            pack,
+        } => update::run(&client, name, version, loader, downgrade, restart, pack).await,
         ServerAction::Rename { new_name } => lifecycle::rename(&client, &name, &new_name).await,
         ServerAction::Remove => lifecycle::remove(&client, &name).await,
     }
