@@ -14,8 +14,8 @@ use proto::minecraft::{ProvisionPhase, ProvisionProgress};
 use proto::modpack::{InstalledModpack, ModpackOverride};
 use proto::warning::WarningInfo;
 
+use super::super::batch::{gather, Batch};
 use super::super::content::entry::{content_target, EntryContent, EntrySide};
-use super::super::phase_progress;
 use super::{pack_display_name, Supplied};
 use crate::cancel::Job;
 use crate::config::ModpackSettings;
@@ -231,37 +231,59 @@ impl Engine {
         let mut refs = self.identify(files);
         let catalogue = self.hydrate(&mut refs).await;
 
+        // Two entries naming one path would race on the same staging file.
+        let mut named = HashSet::new();
+        let queued: Vec<(Supplied, &ModpackFile)> = files
+            .iter()
+            .filter(|(_, file)| named.insert(file.path.as_str()))
+            .map(|(kind, file)| {
+                let pending = Supplied {
+                    kind: *kind,
+                    filename: file.artifact.filename.clone(),
+                    sha1: String::new(),
+                    url: file.artifact.url.clone(),
+                    identity: refs
+                        .remove(file.path.as_str())
+                        .map(|located| catalogue.identity(located)),
+                };
+                (pending, *file)
+            })
+            .collect();
+
+        let batch = &Batch::new(
+            job,
+            ProvisionPhase::Content,
+            queued.iter().map(|(_, file)| file.artifact.size),
+        );
+        // A loop, not `map`: a closure taking a reference and returning an
+        // async block trips rustc's higher-ranked lifetime inference
+        // (rust-lang/rust#89976).
+        let mut fetches = Vec::new();
+        for (order, (pending, file)) in queued.into_iter().enumerate() {
+            fetches.push(async move {
+                let label = pending.label();
+                let share = batch.share(file.artifact.size);
+                let relay = |progress: &ProvisionProgress| share.relay(progress);
+                let fetched = self
+                    .fetch_pack_file(
+                        ctx,
+                        pending.kind,
+                        file,
+                        &resolved.source,
+                        &label,
+                        &Job::new(&relay, job.cancel()),
+                    )
+                    .await;
+                (order, pending, file, label, fetched)
+            });
+        }
+        let mut outcomes = gather(fetches).await;
+        outcomes.sort_by_key(|(order, ..)| *order);
+
         let mut supplied = Vec::new();
         let mut failures = Vec::new();
-        let total = files.len() as u64;
-        for (done, (kind, file)) in files.iter().enumerate() {
-            if job.check().is_err() {
-                break;
-            }
-            let mut pending = Supplied {
-                kind: *kind,
-                filename: file.artifact.filename.clone(),
-                sha1: String::new(),
-                url: file.artifact.url.clone(),
-                identity: refs
-                    .remove(file.path.as_str())
-                    .map(|located| catalogue.identity(located)),
-            };
-            let label = pending.label();
-            let relabel = |p: &ProvisionProgress| {
-                let mut progress = p.clone();
-                progress.detail = label.clone();
-                progress.item = done as u64 + 1;
-                progress.items = total;
-                job.report(&progress);
-            };
-            let labeled = Job::new(&relabel, job.cancel());
-            labeled.report(&phase_progress(ProvisionPhase::Content));
-
-            match self
-                .fetch_pack_file(ctx, *kind, file, &resolved.source, &label, &labeled)
-                .await
-            {
+        for (_, mut pending, file, label, fetched) in outcomes {
+            match fetched {
                 Ok(sha1) => {
                     pending.sha1 = sha1;
                     supplied.push(pending);
@@ -324,12 +346,10 @@ impl Engine {
             .map(|p| p.overrides.iter().map(|o| (o.path.as_str(), o)).collect())
             .unwrap_or_default();
         let installing = previous.is_none();
-        let mut out = Vec::new();
+        let mut named = HashSet::new();
+        let mut wanted = Vec::new();
         for file in files {
-            if job.check().is_err() {
-                break;
-            }
-            if patterns.excludes(&file.path) {
+            if patterns.excludes(&file.path) || !named.insert(file.path.as_str()) {
                 continue;
             }
             let target = match materialize::safe_join(&ctx.data_dir, &file.path) {
@@ -344,18 +364,38 @@ impl Engine {
                     Some(previous) => modpack::ours(&ctx.data_dir, previous),
                     None => !target.exists(),
                 };
-            if !writable {
-                continue;
+            if writable {
+                wanted.push((*file, target));
             }
-            if let Err(e) = materialize::ensure_artifact(
-                Some(&self.cache),
-                &file.artifact,
-                &target,
-                ProvisionPhase::Overrides,
-                job,
-            )
-            .await
-            {
+        }
+
+        let batch = &Batch::new(
+            job,
+            ProvisionPhase::Overrides,
+            wanted.iter().map(|(file, _)| file.artifact.size),
+        );
+        let mut fetches = Vec::new();
+        for (order, (file, target)) in wanted.into_iter().enumerate() {
+            fetches.push(async move {
+                let share = batch.share(file.artifact.size);
+                let relay = |progress: &ProvisionProgress| share.relay(progress);
+                let fetched = materialize::ensure_artifact(
+                    Some(&self.cache),
+                    &file.artifact,
+                    &target,
+                    ProvisionPhase::Overrides,
+                    &Job::new(&relay, job.cancel()),
+                )
+                .await;
+                (order, file, target, fetched)
+            });
+        }
+        let mut outcomes = gather(fetches).await;
+        outcomes.sort_by_key(|(order, ..)| *order);
+
+        let mut out = Vec::new();
+        for (_, file, target, fetched) in outcomes {
+            if let Err(e) = fetched {
                 tracing::warn!(path = %file.path, error = %e, "cannot fetch a modpack file");
                 continue;
             }

@@ -247,11 +247,10 @@ pub enum ProvisionPhase {
 
 /// Progress for a provisioning job. `current`/`total` are bytes for a
 /// single-artifact phase and completed/total counts for `Libraries`/`Assets`;
-/// a phase with unknown extent reports `0/0`. A phase made of several units
-/// (a content batch installing many projects) also carries which unit this
-/// progress belongs to: `item` (1-based) of `items` — `items` may grow while
-/// the job runs, as dependency resolution discovers more work. Both are zero
-/// for a single-unit phase.
+/// a phase with unknown extent reports `0/0`. A batch of files fetched side by
+/// side (a content install, a modpack) reports the bytes of the whole batch;
+/// when a file's size is not known up front it counts files instead, as `item`
+/// (1-based) of `items`. Both are zero otherwise.
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
 #[serde(default, rename_all = "camelCase")]

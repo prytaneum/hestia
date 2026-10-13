@@ -7,14 +7,16 @@ use std::path::Path;
 
 use anyhow::{bail, Context, Result};
 use proto::content::{
-    ContentAddItem, ContentAddSpec, ContentFailure, ContentKind, ContentProject, DependencyKind,
-    InstalledContent, VersionQuery, LOCAL_SOURCE,
+    ContentAddItem, ContentAddSpec, ContentFailure, ContentKind, ContentProject, ContentVersion,
+    DependencyKind, InstalledContent, VersionQuery, LOCAL_SOURCE,
 };
 use proto::error::ErrorInfo;
 use proto::minecraft::{ProvisionPhase, ProvisionProgress};
 
+use super::super::batch::{gather, Batch};
 use super::entry::{content_loader, content_target, datapack_worlds, side_gate, EntryContent};
 use super::phase_progress;
+use crate::cancel::Job;
 use crate::content::{inspect, install, record, Identified, LocalFile};
 use crate::engine::Engine;
 use crate::minecraft::materialize::{self, OnProgress};
@@ -249,8 +251,11 @@ impl Engine {
             });
         }
 
-        let mut finished = 0u64;
+        let mut planned = Vec::new();
         while let Some(node) = queue.pop() {
+            if on_progress.check().is_err() {
+                break;
+            }
             let versions = match self
                 .content
                 .versions(&VersionQuery {
@@ -332,27 +337,52 @@ impl Engine {
                 }
             }
 
-            // Label each forwarded event with which unit of the batch this
-            // is: the queue length is live, so `items` grows as dependency
-            // resolution discovers more work.
-            let title = node.project.title.clone();
-            let item = finished + 1;
-            let known = item + queue.len() as u64;
-            let relabel = move |p: &ProvisionProgress| {
-                let mut progress = p.clone();
-                progress.detail = title.clone();
-                progress.item = item;
-                progress.items = known;
-                on_progress.report(&progress);
-            };
-            // The relabelled view keeps the same cancel token: per-item install
-            // is the longest part of a batch, and must stay interruptible.
-            let labeled = crate::cancel::Job::new(&relabel, on_progress.cancel());
-            labeled.report(&phase_progress(ProvisionPhase::Content));
-            match self
-                .install_version_file(ctx, kind, &node.project, &version, worlds, &labeled)
-                .await
-            {
+            planned.push((node, version));
+        }
+
+        let size = |version: &ContentVersion| {
+            install::primary_file(version)
+                .map(|file| file.artifact.size)
+                .unwrap_or_default()
+        };
+        let batch = &Batch::new(
+            on_progress,
+            ProvisionPhase::Content,
+            planned.iter().map(|(_, version)| size(version)),
+        );
+        let install = |(order, (node, version)): (usize, (Node, ContentVersion))| async move {
+            let share = batch.share(size(&version));
+            let relay = |progress: &ProvisionProgress| share.relay(progress);
+            let installed = self
+                .install_version_file(
+                    ctx,
+                    kind,
+                    &node.project,
+                    &version,
+                    worlds,
+                    &Job::new(&relay, on_progress.cancel()),
+                )
+                .await;
+            (order, node, installed)
+        };
+        // Two picks shipping one filename would race on its staging file, so
+        // the later one waits its turn and replaces the first, as it always did.
+        let mut named = HashSet::new();
+        let (apart, repeats): (Vec<_>, Vec<_>) =
+            planned
+                .into_iter()
+                .enumerate()
+                .partition(|(_, (_, version))| {
+                    install::primary_file(version)
+                        .map_or(true, |file| named.insert(file.artifact.filename.clone()))
+                });
+        let mut outcomes = gather(apart.into_iter().map(install)).await;
+        for repeat in repeats {
+            outcomes.push(install(repeat).await);
+        }
+        outcomes.sort_by_key(|(order, ..)| *order);
+        for (_, node, installed) in outcomes {
+            match installed {
                 Ok(installed) => items.push(installed),
                 Err(e) => failures.push(failure(
                     &node.given,
@@ -360,7 +390,6 @@ impl Engine {
                     crate::error_info(e),
                 )),
             }
-            finished += 1;
         }
         (items, failures)
     }
