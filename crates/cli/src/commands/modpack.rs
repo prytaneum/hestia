@@ -241,77 +241,39 @@ async fn check(
     })
 }
 
-#[derive(clap::Args, Clone, Copy)]
-pub struct PackDrift {
-    #[arg(
-        long,
-        conflicts_with = "keep_pack",
-        help = "Move the entry's modpack to its version built for the target"
-    )]
-    pub move_pack: bool,
-    #[arg(long, help = "Leave the entry's modpack on the version it has")]
-    pub keep_pack: bool,
-}
-
-/// `None` is the plain version change; off a terminal the prompts error, so a script passes a flag.
+/// The pack version a change to `version` takes with it; `None` is the plain version change.
 pub async fn pack_move(
     client: &Client,
     entry: EntryKind,
     name: &str,
     version: &str,
-    drift: PackDrift,
+    keep_pack: bool,
 ) -> Result<Option<String>> {
     let pack = match entry {
         EntryKind::Server => client.modpack().server_status(name).await?,
         EntryKind::Instance => client.modpack().instance_status(name).await?,
     };
-    let Some(pack) = pack.filter(|pack| pack.game_version != version) else {
+    let Some(pack) = pack.filter(|pack| pack.game_version != version && !keep_pack) else {
         return Ok(None);
     };
-    if drift.keep_pack {
-        return Ok(None);
-    }
     let fit = match pack.project_id.is_empty() {
         true => None,
         false => check(client, entry, name, version)
             .await?
             .and_then(|update| update.fitting),
     };
-    let headline = format!(
-        "the modpack '{}' {} is built for Minecraft {}, not {version}",
-        pack.name, pack.version_number, pack.game_version
-    );
     let Some(fit) = fit else {
-        if drift.move_pack {
-            bail!("'{}' has no version built for {version}", pack.name);
-        }
-        let proceed = ui::confirm(
-            &format!("{headline}, and has no version for it"),
-            "change the version anyway",
-            "cancel",
-        )
-        .context("pass --keep-pack to change the version and leave the pack")?;
-        if !proceed {
-            bail!("update cancelled");
-        }
+        ui::show(View::note(format!(
+            "the modpack '{}' {} is built for Minecraft {} and has no version for {version}; its mods may not load",
+            pack.name, pack.version_number, pack.game_version
+        )))?;
         return Ok(None);
     };
-    if drift.move_pack {
-        return Ok(Some(fit.version_id));
-    }
-    let picked = ui::select_detailed(
-        &headline,
-        &[
-            format!("Move the pack to {}", fit.version_number),
-            "Change the version only".to_string(),
-        ],
-        &[
-            format!("its build for {version} replaces the pack's mods and files"),
-            "the pack and its mods stay as they are, and may not load".to_string(),
-        ],
-    )
-    .context("pass --move-pack to move the pack with it or --keep-pack to leave it")?;
-    Ok((picked == 0).then_some(fit.version_id))
+    ui::show(View::note(format!(
+        "moving the modpack '{}' from {} to {}, its version for {version} (--keep-pack changes the game version only)",
+        pack.name, pack.version_number, fit.version_number
+    )))?;
+    Ok(Some(fit.version_id))
 }
 
 /// Ask before a pack file does what its flags did not allow: replace the pack

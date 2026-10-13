@@ -11,7 +11,7 @@ use client::Client;
 use super::{entry, lifecycle};
 use crate::commands::content::EntryKind;
 use crate::commands::mc;
-use crate::commands::modpack::{self, PackDrift};
+use crate::commands::modpack;
 use crate::ui::{self, ProvisionReporter, Spinner, View};
 
 pub(super) async fn run(
@@ -21,7 +21,7 @@ pub(super) async fn run(
     loader: Option<String>,
     downgrade: bool,
     restart: bool,
-    pack: PackDrift,
+    keep_pack: bool,
 ) -> Result<()> {
     let info = entry::pick_server(client.server().list().await?, Some(server))?;
     let was_running = entry::running_process(&info).is_some();
@@ -46,7 +46,7 @@ pub(super) async fn run(
         )?;
     }
     let pack_version =
-        modpack::pack_move(client, EntryKind::Server, &info.id, &version, pack).await?;
+        modpack::pack_move(client, EntryKind::Server, &info.id, &version, keep_pack).await?;
 
     if was_running {
         {

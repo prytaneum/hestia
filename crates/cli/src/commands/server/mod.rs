@@ -187,8 +187,11 @@ enum ServerAction {
             help = "Stop a running server for the update and start it again after"
         )]
         restart: bool,
-        #[command(flatten)]
-        pack: crate::commands::modpack::PackDrift,
+        #[arg(
+            long,
+            help = "Leave the server's modpack on the version it has (it moves with the game version by default)"
+        )]
+        keep_pack: bool,
     },
     /// Rename the server (moves its directory; must be stopped)
     Rename {
@@ -290,8 +293,13 @@ async fn run_unit_action(client: Client, name: String, action: ServerAction) -> 
             loader,
             downgrade,
             restart,
-            pack,
-        } => update::run(&client, name, version, loader, downgrade, restart, pack).await,
+            keep_pack,
+        } => {
+            update::run(
+                &client, name, version, loader, downgrade, restart, keep_pack,
+            )
+            .await
+        }
         ServerAction::Rename { new_name } => lifecycle::rename(&client, &name, &new_name).await,
         ServerAction::Remove => lifecycle::remove(&client, &name).await,
     }
