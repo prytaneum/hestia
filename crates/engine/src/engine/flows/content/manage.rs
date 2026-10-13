@@ -48,10 +48,19 @@ impl Engine {
                     game_version: Some(ctx.game_version.clone()),
                 })
                 .await?;
-            let version =
-                install::pick_version(&versions, &ctx.game_version, loader.as_deref(), pin)
-                    .with_context(|| format!("cannot update '{}'", item.title))?
-                    .clone();
+            let version = match pin.is_empty() {
+                true => install::pick_update(
+                    &versions,
+                    &ctx.game_version,
+                    loader.as_deref(),
+                    &item.version_id,
+                ),
+                false => {
+                    install::pick_version(&versions, &ctx.game_version, loader.as_deref(), pin)
+                }
+            }
+            .with_context(|| format!("cannot update '{}'", item.title))?
+            .clone();
             if version.id == item.version_id {
                 continue;
             }
@@ -245,9 +254,12 @@ impl Engine {
                     continue;
                 }
             };
-            let Ok(latest) =
-                install::pick_version(&versions, &ctx.game_version, loader.as_deref(), "")
-            else {
+            let Ok(latest) = install::pick_update(
+                &versions,
+                &ctx.game_version,
+                loader.as_deref(),
+                &item.version_id,
+            ) else {
                 continue;
             };
             out.push(proto::content::ContentUpdate {

@@ -296,10 +296,7 @@ pub(crate) fn pick_version<'a>(
                 })
             });
     }
-    let compatible = |v: &&ContentVersion| {
-        v.game_versions.iter().any(|g| g == game_version)
-            && loader.is_none_or(|l| v.loaders.iter().any(|x| x == l))
-    };
+    let compatible = |v: &&ContentVersion| fits(v, game_version, loader);
     versions
         .iter()
         .filter(compatible)
@@ -311,6 +308,26 @@ pub(crate) fn pick_version<'a>(
                 loader.map(|l| format!(" ({l})")).unwrap_or_default()
             )
         })
+}
+
+/// Answers the installed version itself when it is ahead of the pick, so an update never moves back.
+pub(crate) fn pick_update<'a>(
+    versions: &'a [ContentVersion],
+    game_version: &str,
+    loader: Option<&str>,
+    installed: &str,
+) -> Result<&'a ContentVersion> {
+    let picked = pick_version(versions, game_version, loader, "")?;
+    let ahead = versions
+        .iter()
+        .take_while(|v| v.id != picked.id)
+        .find(|v| v.id == installed && fits(v, game_version, loader));
+    Ok(ahead.unwrap_or(picked))
+}
+
+fn fits(version: &ContentVersion, game_version: &str, loader: Option<&str>) -> bool {
+    version.game_versions.iter().any(|g| g == game_version)
+        && loader.is_none_or(|l| version.loaders.iter().any(|x| x == l))
 }
 
 pub(crate) fn primary_file(version: &ContentVersion) -> Result<&ContentFile> {
@@ -447,6 +464,28 @@ mod tests {
             version("v1", "1.0", ReleaseChannel::Release, &["1.20.4"]),
         ];
         let picked = pick_version(&versions, "1.21.1", Some("fabric"), "").unwrap();
+        assert_eq!(picked.id, "v2");
+    }
+
+    #[test]
+    fn an_update_never_moves_back_from_a_newer_prerelease() {
+        let versions = vec![
+            version("v3", "3.0-beta", ReleaseChannel::Beta, &["1.21.1"]),
+            version("v2", "2.0", ReleaseChannel::Release, &["1.21.1"]),
+        ];
+        let kept = pick_update(&versions, "1.21.1", Some("fabric"), "v3").unwrap();
+        assert_eq!(kept.id, "v3");
+        let moved = pick_update(&versions, "1.21.1", Some("fabric"), "v1").unwrap();
+        assert_eq!(moved.id, "v2");
+    }
+
+    #[test]
+    fn an_update_leaves_a_newer_version_the_entry_can_no_longer_run() {
+        let versions = vec![
+            version("v3", "3.0", ReleaseChannel::Release, &["1.21.4"]),
+            version("v2", "2.0", ReleaseChannel::Release, &["1.21.1"]),
+        ];
+        let picked = pick_update(&versions, "1.21.1", Some("fabric"), "v3").unwrap();
         assert_eq!(picked.id, "v2");
     }
 
