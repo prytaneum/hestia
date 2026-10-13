@@ -23,7 +23,7 @@ jobs:
       channel: ${{ steps.channel.outputs.channel }}
       prerelease: ${{ steps.channel.outputs.prerelease }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # A prerelease tag carries a semver prerelease suffix (v1.3.0-beta.1).
       # This decides three things at once: which feed the release lands on, that
@@ -144,7 +144,7 @@ jobs:
             name: windows-x86_64
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install Tauri Linux dependencies
         if: runner.os == 'Linux'
@@ -212,7 +212,7 @@ jobs:
             target/release/bundle/rpm/*.rpm
 
       - name: Upload workflow artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: hestia-${{ matrix.name }}-${{ matrix.part }}
           if-no-files-found: error
@@ -246,9 +246,9 @@ jobs:
       # The manifest's notes come from CHANGELOG.md — the same section the build
       # compiles in and shows after an upgrade, so what the updater offers and
       # what the app then displays cannot disagree.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           path: artifacts
           merge-multiple: true
@@ -305,7 +305,7 @@ jobs:
           printf '%s\n' "$notes" > release-notes.md
 
       - name: Attach to GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           prerelease: ${{ needs.preflight.outputs.prerelease }}
           body_path: release-notes.md
