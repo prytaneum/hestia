@@ -9,18 +9,56 @@ that release's notes, rendered as markdown.
 
 ## 1.0.0-beta.2
 
-Shared settings rebuilt around what the game actually writes, a new icon
-editor, a guided first run, packs you can import from a file, and fixes for
-SteamOS and Windows.
+Servers you can manage from end to end — files, players, scheduled tasks and a
+console that stays connected — plus shared settings rebuilt around what the game
+actually writes, smarter modpacks and local files, a new icon editor, a guided
+first run, and fixes for SteamOS and Windows.
 
-- **A welcome flow, guided tours and a getting-started checklist.** First launch
-  now opens a short welcome rather than a one-off overlay, and each surface has
-  a spotlight tour anchored to the real controls — the shell, browsing content,
-  an instance, a server and skins. A tour can be skipped at any point
-  instead of having to be turned down before it starts. The library carries a
-  checklist for the first four things worth doing: sign in, create an instance,
-  play it, host a server. It ticks itself off from your actual state and leaves
-  once you are through.
+### Servers
+
+- **Server files.** Browse, read, write, create, rename, copy, move, remove,
+  compress, extract and import files in a server's directory, from the CLI and
+  the desktop. `server.properties` is listed with each setting's default and
+  edited inline, and entry settings are reorganised into tabs and sections.
+- **Players.** See who is online, the whitelist, ops and bans, and kick players
+  or add and remove them from the lists — from the CLI and a new Players tab in
+  the desktop, with searchable rows, player heads and a per-player menu.
+- **Scheduled tasks.** Run a restart or a console command on a schedule: an
+  interval like `30m`, `6h` or `1d`, or a daily time like `04:30`. The daemon
+  runs them while the server is up; view and edit them from the CLI or the
+  server's settings.
+- **Restart.** Servers and instance sessions can be restarted in one step.
+- **A console that stays connected.** The RCON link is kept open per server
+  instead of reconnecting for every command, so the logs stop filling with
+  connect and disconnect noise. Commands complete from the server's own `help`
+  output — including mods and plugins, and aliases such as `tp` for `teleport` —
+  and can be recalled from history, in the CLI and the desktop. The CLI attach
+  console clears with Ctrl-L and the desktop console has a clear button. Typing
+  works from anywhere on the tab, and your commands now sit in the log where
+  they were sent.
+- **A world seed at create.** The create wizard takes a seed alongside the other
+  details, and the server's settings show it afterwards. It only applies to a
+  world that has not been generated yet; left empty, the game picks one.
+- **A custom backup interval.** The schedule is no longer limited to the 6 hour,
+  12 hour and daily presets: pick Custom and set any number of minutes, hours or
+  days, down to the daemon's five-minute floor.
+- **Memory is capped at what the machine has.** Memory sliders stop at the
+  installed RAM, and the daemon rejects a larger value.
+
+### Instances
+
+- **Recently played.** The play bar is now the last five worlds, servers and
+  Realms you joined, across every instance: Join launches straight back into
+  the most recent, and its menu switches to another. The bar appears once you
+  have played something. It fills in from what the game itself reports, so a
+  server picked in the in-game list counts too; it needs Minecraft 1.20 or
+  newer. `hestia play --recent` and `hestia instance recent` do the same from
+  the CLI, and `--realm <id>` joins a Realm on start.
+- **An entry menu.** Right-clicking a library entry opens its actions, and a
+  pinned entry can be played straight from its row.
+
+### Shared settings
+
 - **Sync is a catalogue of units, each merged the way its file needs.**
   Settings, the server list, the command history and the creative hotbars are
   shared through one store and reconciled against what each instance last
@@ -43,23 +81,9 @@ SteamOS and Windows.
   every instance's folder reads as one page.
 - **Content profiles are gone.** Named profiles added a layer most entries never
   used; installed content is managed in the pool directly.
-- **A new icon editor.** Build an entry's icon from a background and a symbol,
-  pick from a set of Minecraft-themed images, upload your own, or fetch one from
-  a URL. A modpack's icon carries over to the entry it creates, and the library
-  cards are redesigned around it.
-- **Recently played.** The play bar is now the last five worlds, servers and
-  Realms you joined, across every instance: Join launches straight back into
-  the most recent, and its menu switches to another. The bar appears once you
-  have played something. It fills in from what the game itself reports, so a server picked in
-  the in-game list counts too; it needs Minecraft 1.20 or newer. `hestia play
-  --recent` and `hestia instance recent` do the same from the CLI, and
-  `--realm <id>` joins a Realm on start.
-- **A world seed at server create.** The create wizard takes a seed alongside
-  the other details, and a server's settings show it afterwards. It only applies
-  to a world that has not been generated yet; left empty, the game picks one.
-- **A custom backup interval.** The schedule is no longer limited to the 6 hour,
-  12 hour and daily presets: pick Custom and set any number of minutes, hours or
-  days, down to the daemon's five-minute floor.
+
+### Content and modpacks
+
 - **Local files are recognised.** A mod or pack imported from disk is looked up
   on Modrinth and CurseForge by its hash; one they published is installed as
   that release, with its name, icon and updates, instead of as a bare file. The
@@ -69,18 +93,52 @@ SteamOS and Windows.
   item to another source that carries the same file, which is also how a local
   file starts being tracked later. Dependencies are not pulled in, and a file
   nobody recognises installs as before.
+- **Better icons for local files.** A local file reads its embedded icon when it
+  has one, and an untracked jar can borrow the icon of a source that recognises
+  its hash.
 - **Packs are identified however they arrived.** A modpack imported from a file
-  — a `.mrpack` or a CurseForge archive — now resolves its files through the
-  same sources as one installed from a source: a mod a source serves is tracked
-  as that release, and a jar shipped in an override tree joins the pool too
-  rather than landing as an anonymous file. `hestia instance import` recognises
-  a CurseForge pack by its manifest, and a pack nested inside another archive
-  is read.
+  — a `.mrpack` or a CurseForge archive — resolves its files through the same
+  sources as one installed from a source: a mod a source serves is tracked as
+  that release, and a jar shipped in an override tree joins the pool too rather
+  than landing as an anonymous file. `hestia instance import` recognises a
+  CurseForge pack by its manifest, and a pack nested inside another archive is
+  read.
+- **Update a pack from a file.** Update a modpack from a local `.mrpack` or
+  CurseForge archive, with a preview of whether it is the same pack and whether
+  it would be a downgrade.
+- **Keep a pack's content when you remove it.** Its mods stay in the pool and
+  can be managed on their own.
+- **Pack versions follow the game version.** A pack's versions are resolved per
+  game version, and an update never moves back to an older compatible version.
+  A version change is guarded against pack drift in the CLI and the desktop: by
+  default the pack moves to the version built for the target, and `--keep-pack`
+  leaves it where it is. Picking a pack version shows whether it fits, with a
+  warning when it would drift. The modpack card and dialog are decluttered.
+- **Faster installs.** Content batches download concurrently, which shortens
+  installing larger packs.
+
+### Desktop
+
+- **A welcome flow, guided tours and a getting-started checklist.** First launch
+  opens a short welcome rather than a one-off overlay, and each surface has a
+  spotlight tour anchored to the real controls — the shell, browsing content, an
+  instance, a server and skins. A tour can be skipped at any point instead of
+  having to be turned down before it starts, and replayed from settings. The
+  library carries a checklist for the first four things worth doing: sign in,
+  create an instance, play it, host a server. It ticks itself off from your
+  actual state and leaves once you are through.
+- **A new icon editor.** Build an entry's icon from a background and a symbol,
+  pick from a set of Minecraft-themed images, upload your own, or fetch one from
+  a URL. A modpack's icon carries over to the entry it creates, and the library
+  cards are redesigned around it.
 - **Files drop where they belong.** Every surface that takes one — an instance
   import, the content installer, a skin, an entry's icon — accepts a dragged
   file as well as a picked one, through one shared control.
-- **An entry menu.** Right-clicking a library entry opens its actions, and a
-  pinned entry can be played straight from its row.
+- **Polish.** Detail tab toolbars are aligned, the session menu stays on the
+  card, and the modpack card is hidden when an entry has no pack.
+
+### Fixes
+
 - **The tray now appears on every Linux desktop that has one**, SteamOS
   included. It reached the status area through libappindicator — a library most
   desktops do not ship — so where it was absent no icon appeared, and the daemon
@@ -97,8 +155,8 @@ SteamOS and Windows.
 - **Windows: the daemon no longer reads as down under load.** A busy named
   pipe is retried instead of failing the connection, and the daemon re-arms the
   pipe even after a connection fails, so its name never disappears between
-  clients. A portable build also resolves one install
-  scope however its path is spelled.
+  clients. A portable build also resolves one install scope however its path is
+  spelled.
 - **Dependency security updates**, including the patched `rustls` advisory.
 
 ## 1.0.0-beta.1
