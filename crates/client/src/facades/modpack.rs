@@ -12,11 +12,12 @@ use ipc::errors::IpcError;
 use proto::minecraft::ProvisionProgress;
 use proto::modpack::{
     InstalledModpack, InstanceModpackCheckUpdate, InstanceModpackInstall,
-    InstanceModpackInstallParams, InstanceModpackRef, InstanceModpackRemove, InstanceModpackStatus,
-    InstanceModpackUpdate, InstanceModpackUpdateParams, ModpackDoneEvent, ModpackRef,
-    ModpackRemoveResult, ModpackTarget, ModpackUpdate, ServerModpackCheckUpdate,
-    ServerModpackInstall, ServerModpackInstallParams, ServerModpackRef, ServerModpackRemove,
-    ServerModpackStatus, ServerModpackUpdate, ServerModpackUpdateParams,
+    InstanceModpackInstallParams, InstanceModpackRef, InstanceModpackRemove,
+    InstanceModpackRemoveParams, InstanceModpackStatus, InstanceModpackUpdate,
+    InstanceModpackUpdateParams, ModpackDoneEvent, ModpackRef, ModpackRemoveResult, ModpackTarget,
+    ModpackUpdate, ServerModpackCheckUpdate, ServerModpackInstall, ServerModpackInstallParams,
+    ServerModpackRef, ServerModpackRemove, ServerModpackRemoveParams, ServerModpackStatus,
+    ServerModpackUpdate, ServerModpackUpdateParams,
 };
 
 use crate::facades::jobs::forward;
@@ -188,16 +189,26 @@ impl Modpack<'_> {
             .update)
     }
 
-    pub async fn remove_instance(&self, instance: &str) -> Result<ModpackRemoveResult, IpcError> {
-        let params = InstanceModpackRef {
+    pub async fn remove_instance(
+        &self,
+        instance: &str,
+        keep_content: bool,
+    ) -> Result<ModpackRemoveResult, IpcError> {
+        let params = InstanceModpackRemoveParams {
             instance: instance.to_string(),
+            keep_content,
         };
         self.session.call::<InstanceModpackRemove>(&params).await
     }
 
-    pub async fn remove_server(&self, server: &str) -> Result<ModpackRemoveResult, IpcError> {
-        let params = ServerModpackRef {
+    pub async fn remove_server(
+        &self,
+        server: &str,
+        keep_content: bool,
+    ) -> Result<ModpackRemoveResult, IpcError> {
+        let params = ServerModpackRemoveParams {
             server: server.to_string(),
+            keep_content,
         };
         self.session.call::<ServerModpackRemove>(&params).await
     }

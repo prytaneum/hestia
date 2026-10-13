@@ -277,6 +277,12 @@ leaves a tweaked one exactly as found, reporting which through
 disk — nothing there is yours yet
 ([0011](../decisions/0011-modpack-decomposes-into-existing-parts.md)).
 
+**Taking a pack out is two different things**, so `<kind>.modpack.remove` is told
+which. The default deletes the pack's pool items and the override files it still
+owns. With `keepContent` only the pack goes: `modpack.json` is cleared and its
+pool items lose their origin tag, so they become removable and syncable like
+anything the user installed, and the override files simply stop being recorded.
+
 **Whether there is an update is asked, not assumed.**
 `<kind>.modpack.check_update` resolves the pack's newest published version
 through the same pick an unpinned update makes, and answers with both version

@@ -148,10 +148,16 @@ export async function serverCheckUpdate(
   return result.update ?? null;
 }
 
-export function removeInstance(instance: string): Promise<ModpackRemoveResult> {
-  return call('instance.modpack.remove', { instance });
+export function removeInstance(
+  instance: string,
+  keepContent: boolean,
+): Promise<ModpackRemoveResult> {
+  return call('instance.modpack.remove', { instance, keepContent });
 }
 
-export function removeServer(server: string): Promise<ModpackRemoveResult> {
-  return call('server.modpack.remove', { server });
+export function removeServer(
+  server: string,
+  keepContent: boolean,
+): Promise<ModpackRemoveResult> {
+  return call('server.modpack.remove', { server, keepContent });
 }

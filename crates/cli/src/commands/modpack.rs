@@ -90,9 +90,21 @@ pub enum EntryModpackCmd {
         )]
         check: bool,
     },
-    /// Uninstall the pack's content, keeping files you have edited
+    /// Take the pack out, keeping its content or removing it (asks when neither flag is given)
     #[command(visible_alias = "rm")]
-    Remove,
+    Remove {
+        #[arg(
+            long,
+            conflicts_with = "all",
+            help = "Keep everything the pack installed as your own content"
+        )]
+        keep: bool,
+        #[arg(
+            long,
+            help = "Remove the pack's content too, except files you have edited"
+        )]
+        all: bool,
+    },
 }
 
 pub async fn run(cmd: ModpackCmd) -> Result<()> {
@@ -147,7 +159,10 @@ pub async fn run_entry(entry: EntryKind, name: String, cmd: EntryModpackCmd) -> 
         EntryModpackCmd::Update {
             version, downgrade, ..
         } => update(&client, entry, &name, version, downgrade).await,
-        EntryModpackCmd::Remove => remove(&client, entry, &name).await,
+        EntryModpackCmd::Remove { keep, all } => {
+            let keep_content = keep || (!all && ask_keep_content(&name)?);
+            remove(&client, entry, &name, keep_content).await
+        }
     }
 }
 
@@ -212,11 +227,32 @@ async fn update(
     report(done?, matches!(entry, EntryKind::Server))
 }
 
-async fn remove(client: &Client, entry: EntryKind, name: &str) -> Result<()> {
+/// Interactive fallback for a `remove` given neither `--keep` nor `--all`;
+/// errors when stdin is not a terminal so scripts must say which they mean.
+fn ask_keep_content(name: &str) -> Result<bool> {
+    let picked = ui::select_detailed(
+        &format!("Remove the modpack from '{name}'"),
+        &["Keep its content".to_string(), "Remove it all".to_string()],
+        &[
+            "the pack is forgotten; its mods and files stay as your own".to_string(),
+            "its mods and files are deleted, except files you have edited".to_string(),
+        ],
+    )
+    .context("pass --keep to keep the pack's content or --all to remove it")?;
+    Ok(picked == 0)
+}
+
+async fn remove(client: &Client, entry: EntryKind, name: &str, keep_content: bool) -> Result<()> {
     let result = match entry {
-        EntryKind::Server => client.modpack().remove_server(name).await?,
-        EntryKind::Instance => client.modpack().remove_instance(name).await?,
+        EntryKind::Server => client.modpack().remove_server(name, keep_content).await?,
+        EntryKind::Instance => client.modpack().remove_instance(name, keep_content).await?,
     };
+    if keep_content {
+        return ui::show(View::line(format!(
+            "removed the pack from '{name}'; {} file(s) stay as your own content",
+            result.released_files
+        )));
+    }
     ui::show(View::line(format!(
         "removed {} file(s) and {} game-directory file(s) from '{name}'",
         result.removed_files, result.removed_overrides

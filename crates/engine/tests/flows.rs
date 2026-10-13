@@ -447,6 +447,77 @@ async fn a_pack_read_off_disk_tracks_whatever_a_source_recognises() {
 }
 
 #[tokio::test]
+async fn a_pack_removed_keeping_its_content_hands_it_to_the_user() {
+    let home = tempfile::tempdir().expect("temp home");
+    let drops = tempfile::tempdir().expect("temp drops");
+    let files = fixture::Files::serve().await;
+    let source = fixture::Source {
+        projects: vec![fixture::project("sodium", ContentKind::Mod)],
+        versions: vec![fixture::version("sodium", &files, "1.21", &[])],
+    };
+    let engine = fixture::engine(
+        home.path(),
+        vec![fixture::Flavor::resolving("fabric")],
+        vec![source],
+    );
+    let index = serde_json::json!({
+        "formatVersion": 1,
+        "name": "Cozy",
+        "versionId": "1.0.0",
+        "dependencies": { "minecraft": "1.21", "fabric-loader": "0.16.0" },
+        "files": [
+            { "path": "mods/sodium.jar", "downloads": [files.url("sodium.jar")] },
+        ],
+    });
+    let path = local_pack(drops.path(), "cozy.mrpack", index, &[]);
+    let (cancel, report) = (Cancel::new(), |_: &ProvisionProgress| {});
+    let outcome = engine
+        .install_instance_modpack(
+            &ModpackRef {
+                path,
+                ..ModpackRef::default()
+            },
+            &ModpackTarget::Create {
+                name: String::new(),
+            },
+            &job(&cancel, &report),
+        )
+        .await
+        .expect("the pack installs");
+    let entry = EntryRef::Instance(&outcome.entry);
+    let sodium = ["sodium".to_string()];
+    assert!(
+        engine
+            .remove_entry_content(entry, ContentKind::Mod, &sodium, &[])
+            .is_err(),
+        "a pack's mod is the pack's to remove"
+    );
+
+    let result = engine
+        .remove_entry_modpack(entry, true)
+        .expect("the pack is released");
+
+    assert_eq!(result.released_files, 1);
+    assert_eq!((result.removed_files, result.removed_overrides), (0, 0));
+    assert!(engine.entry_modpack(entry).expect("status").is_none());
+    let record = engine.instances().get(&outcome.entry).expect("instance");
+    let data = engine.instances().data_dir(&record);
+    assert!(data.join("mods/sodium.jar").is_file());
+    assert!(
+        data.join("config/cozy.toml").is_file(),
+        "a file the pack wrote stays where it is"
+    );
+    let (listed, _) = engine.entry_content(entry, ContentKind::Mod).expect("list");
+    assert!(listed.iter().all(|i| i.origin.is_empty()));
+    assert_eq!(
+        engine
+            .remove_entry_content(entry, ContentKind::Mod, &sodium, &[])
+            .expect("the mod is the user's now"),
+        1
+    );
+}
+
+#[tokio::test]
 async fn another_launchers_jars_are_tracked_where_a_source_publishes_them() {
     use std::io::Write;
     let home = tempfile::tempdir().expect("temp home");

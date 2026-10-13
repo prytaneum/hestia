@@ -50,9 +50,12 @@
       "pack_files": "Pack files",
       "remove": {
         "action": "Remove pack",
-        "body": "Its mods and the game-directory files it wrote are removed. Files you have edited are kept, and the {entry} itself stays.",
+        "all": "Remove everything",
+        "body": "Keep its content to leave every mod and file in place as your own. Remove everything to delete its mods and the game-directory files it wrote, except files you have edited. The {entry} itself stays either way.",
+        "keep": "Keep content",
         "title": "Remove {name}?"
       },
+      "released": "Pack removed. {files} file(s) stay as your own content.",
       "removed": "Removed {files} file(s) and {overrides} pack file(s).",
       "target": {
         "existing": "An existing entry",

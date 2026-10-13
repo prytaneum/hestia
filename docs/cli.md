@@ -484,7 +484,9 @@ hestia instance cozy modpack status     # which pack, which version
 hestia instance cozy modpack update --check   # is there a newer one?
 hestia instance cozy modpack update     # → the newest published version
 hestia instance cozy modpack update 6.3.0 --downgrade
-hestia instance cozy modpack remove     # keeps files you have edited
+hestia instance cozy modpack remove     # asks: keep its content, or remove it all
+hestia instance cozy modpack remove --keep    # forget the pack, keep every mod and file
+hestia instance cozy modpack remove --all     # delete them, except files you have edited
 hestia server smp modpack status        # servers, the same verbs
 ```
 

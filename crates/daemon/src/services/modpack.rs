@@ -86,7 +86,7 @@ fn register_instance(on: &mut Channels<'_>) {
         let record = instance_for(&ctx, &p.instance, Intent::Mutate)?;
         ctx.runtime
             .engine()
-            .remove_entry_modpack(engine::EntryRef::Instance(&record.id))
+            .remove_entry_modpack(engine::EntryRef::Instance(&record.id), p.keep_content)
             .map_err(crate::runtime::engine_error)
     });
 }
@@ -163,7 +163,7 @@ fn register_server(on: &mut Channels<'_>) {
         let record = server_for(&ctx, &p.server, Intent::Mutate)?;
         ctx.runtime
             .engine()
-            .remove_entry_modpack(engine::EntryRef::Server(&record.id))
+            .remove_entry_modpack(engine::EntryRef::Server(&record.id), p.keep_content)
             .map_err(crate::runtime::engine_error)
     });
 }

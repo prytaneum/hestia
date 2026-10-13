@@ -194,6 +194,25 @@ pub struct ServerModpackRef {
     pub server: String,
 }
 
+#[derive(Serialize, Deserialize, Default, Debug, Clone)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
+#[serde(default, rename_all = "camelCase")]
+pub struct InstanceModpackRemoveParams {
+    pub instance: String,
+    /// Drop only the pack itself: its content stays installed as the user's
+    /// own, and the game-directory files it wrote are left where they are.
+    pub keep_content: bool,
+}
+
+#[derive(Serialize, Deserialize, Default, Debug, Clone)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
+#[serde(default, rename_all = "camelCase")]
+pub struct ServerModpackRemoveParams {
+    pub server: String,
+    /// See [`InstanceModpackRemoveParams::keep_content`].
+    pub keep_content: bool,
+}
+
 /// What a pack removal took out. The entry itself stays — a pack is content it
 /// carries, not the entry's identity.
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
@@ -202,6 +221,8 @@ pub struct ServerModpackRef {
 pub struct ModpackRemoveResult {
     pub removed_files: u32,
     pub removed_overrides: u32,
+    /// Content left installed and handed to the user, when the removal kept it.
+    pub released_files: u32,
     /// Override files left in place because the user had edited them.
     pub kept: Vec<String>,
 }
@@ -272,14 +293,14 @@ impl Contract for ServerModpackCheckUpdate {
 pub struct InstanceModpackRemove;
 impl Contract for InstanceModpackRemove {
     const CHANNEL: &'static str = "instance.modpack.remove";
-    type Params = InstanceModpackRef;
+    type Params = InstanceModpackRemoveParams;
     type Result = ModpackRemoveResult;
 }
 
 pub struct ServerModpackRemove;
 impl Contract for ServerModpackRemove {
     const CHANNEL: &'static str = "server.modpack.remove";
-    type Params = ServerModpackRef;
+    type Params = ServerModpackRemoveParams;
     type Result = ModpackRemoveResult;
 }
 

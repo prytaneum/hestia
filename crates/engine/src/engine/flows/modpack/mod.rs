@@ -253,10 +253,19 @@ impl Engine {
         }))
     }
 
-    pub fn remove_entry_modpack(&self, target: EntryRef<'_>) -> Result<ModpackRemoveResult> {
+    /// Take the pack out of an entry — with its content, or `keep_content` to
+    /// drop only the pack and leave everything it installed as the user's own.
+    pub fn remove_entry_modpack(
+        &self,
+        target: EntryRef<'_>,
+        keep_content: bool,
+    ) -> Result<ModpackRemoveResult> {
         let (entry, ctx) = self.content_ctx(target)?;
         let pack = require_pack(&ctx, entry_kind(target), &entry.name)?;
-        remove_pack(&ctx, &pack)
+        match keep_content {
+            true => release_pack(&ctx, &pack),
+            false => remove_pack(&ctx, &pack),
+        }
     }
 
     async fn apply_to(
@@ -339,6 +348,32 @@ fn remove_pack(ctx: &EntryContent, pack: &InstalledModpack) -> Result<ModpackRem
         removed_files: dropped.len() as u32,
         removed_overrides,
         kept,
+        ..ModpackRemoveResult::default()
+    })
+}
+
+/// Forget the pack and keep what it installed: its pool items lose the origin
+/// tag, so they are removable and syncable like anything the user added, and
+/// the game-directory files it wrote simply stop being recorded.
+fn release_pack(ctx: &EntryContent, pack: &InstalledModpack) -> Result<ModpackRemoveResult> {
+    let origin = modpack::origin(pack);
+    let mut index = install::load(&ctx.entry_dir);
+    let mut released = 0;
+    for item in index.iter_mut().filter(|i| i.origin == origin) {
+        item.origin.clear();
+        released += 1;
+    }
+    install::save(&ctx.entry_dir, index)?;
+    modpack::clear(&ctx.entry_dir);
+    tracing::info!(
+        entry = %ctx.entry_dir.display(),
+        pack = %pack.name,
+        files = released,
+        "modpack released, content kept"
+    );
+    Ok(ModpackRemoveResult {
+        released_files: released,
+        ..ModpackRemoveResult::default()
     })
 }
 

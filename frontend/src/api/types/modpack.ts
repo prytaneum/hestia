@@ -2,6 +2,7 @@
 export type { InstalledModpack } from "./generated/InstalledModpack";
 export type { InstanceModpackInstallParams } from "./generated/InstanceModpackInstallParams";
 export type { InstanceModpackRef } from "./generated/InstanceModpackRef";
+export type { InstanceModpackRemoveParams } from "./generated/InstanceModpackRemoveParams";
 export type { InstanceModpackUpdateParams } from "./generated/InstanceModpackUpdateParams";
 export type { ModpackCancelledEvent } from "./generated/ModpackCancelledEvent";
 export type { ModpackDoneEvent } from "./generated/ModpackDoneEvent";
@@ -17,4 +18,5 @@ export type { ModpackUpdate } from "./generated/ModpackUpdate";
 export type { ModpackUpdateResult } from "./generated/ModpackUpdateResult";
 export type { ServerModpackInstallParams } from "./generated/ServerModpackInstallParams";
 export type { ServerModpackRef } from "./generated/ServerModpackRef";
+export type { ServerModpackRemoveParams } from "./generated/ServerModpackRemoveParams";
 export type { ServerModpackUpdateParams } from "./generated/ServerModpackUpdateParams";

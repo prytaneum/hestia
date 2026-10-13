@@ -4,8 +4,17 @@ import { toast } from 'sonner';
 
 import { errorMessage } from '@/api';
 import { Stat } from '@/components/page';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
-import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { Thumbnail } from '@/components/ui/thumbnail';
 import { WarningNotice } from '@/components/warning-notice';
 import { m } from '@/paraglide/messages.js';
@@ -57,6 +66,23 @@ export function ModpackCard({
   // An unreachable catalogue leaves the offer standing: the daemon is the one
   // that decides, and refusing to try would be worse than a wasted call.
   const upToDate = check.data ? !check.data.updatable : false;
+
+  const removePack = (keepContent: boolean) =>
+    remove
+      .mutateAsync({ keepContent })
+      .then((result) => {
+        toast.success(
+          keepContent
+            ? m['content.modpack.released']({ files: result.releasedFiles })
+            : m['content.modpack.removed']({
+                files: result.removedFiles,
+                overrides: result.removedOverrides,
+              }),
+        );
+        if (result.kept.length)
+          toast.info(m['content.modpack.kept']({ count: result.kept.length }));
+      })
+      .catch((error) => toast.error(errorMessage(error)));
 
   return (
     <SideCard title={m['content.modpack.title']()}>
@@ -128,31 +154,33 @@ export function ModpackCard({
         </div>
       </div>
 
-      <ConfirmDialog
-        open={confirmRemove}
-        onOpenChange={setConfirmRemove}
-        title={m['content.modpack.remove.title']({ name: installed.name })}
-        description={m['content.modpack.remove.body']({ entry: name })}
-        confirmLabel={m['content.modpack.remove.action']()}
-        destructive
-        onConfirm={() =>
-          remove
-            .mutateAsync()
-            .then((result) => {
-              toast.success(
-                m['content.modpack.removed']({
-                  files: result.removedFiles,
-                  overrides: result.removedOverrides,
-                }),
-              );
-              if (result.kept.length)
-                toast.info(
-                  m['content.modpack.kept']({ count: result.kept.length }),
-                );
-            })
-            .catch((error) => toast.error(errorMessage(error)))
-        }
-      />
+      <AlertDialog open={confirmRemove} onOpenChange={setConfirmRemove}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {m['content.modpack.remove.title']({ name: installed.name })}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {m['content.modpack.remove.body']({ entry: name })}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel size="sm">
+              {m['app.action.cancel']()}
+            </AlertDialogCancel>
+            <AlertDialogAction
+              size="sm"
+              variant="destructive"
+              onClick={() => removePack(false)}
+            >
+              {m['content.modpack.remove.all']()}
+            </AlertDialogAction>
+            <AlertDialogAction size="sm" onClick={() => removePack(true)}>
+              {m['content.modpack.remove.keep']()}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </SideCard>
   );
 }

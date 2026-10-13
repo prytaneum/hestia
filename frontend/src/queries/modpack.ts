@@ -99,10 +99,12 @@ export const modpackMutations = {
       invalidates: () => invalidates(kind, id),
     }),
   remove: (kind: JobEntryKind, id: string) =>
-    mutation<ModpackRemoveResult, void>({
+    mutation<ModpackRemoveResult, { keepContent: boolean }>({
       mutationKey: [...entryKeys(kind).modpack(id), 'remove'],
-      mutationFn: () =>
-        kind === 'server' ? api.removeServer(id) : api.removeInstance(id),
+      mutationFn: ({ keepContent }) =>
+        kind === 'server'
+          ? api.removeServer(id, keepContent)
+          : api.removeInstance(id, keepContent),
       invalidates: () => invalidates(kind, id),
     }),
 };

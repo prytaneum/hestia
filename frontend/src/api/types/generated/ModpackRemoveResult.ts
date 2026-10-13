@@ -6,6 +6,10 @@
  */
 export type ModpackRemoveResult = { removedFiles: number, removedOverrides: number, 
 /**
+ * Content left installed and handed to the user, when the removal kept it.
+ */
+releasedFiles: number, 
+/**
  * Override files left in place because the user had edited them.
  */
 kept: Array<string>, };

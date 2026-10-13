@@ -491,4 +491,17 @@ export function removeByOrigin(id: string, origin: string): number {
   return removed;
 }
 
+/** Hand a pack's content to the user, for a `*.modpack.remove` that keeps it. */
+export function releaseByOrigin(id: string, origin: string): number {
+  const items = pool(id);
+  const released = items.filter((item) => item.origin === origin).length;
+  pools.set(
+    id,
+    items.map((item) =>
+      item.origin === origin ? { ...item, origin: '' } : item,
+    ),
+  );
+  return released;
+}
+
 export const poolOf = (id: string): InstalledContent[] => pool(id);

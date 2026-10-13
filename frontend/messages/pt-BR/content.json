@@ -50,9 +50,12 @@
       "pack_files": "Arquivos do pacote",
       "remove": {
         "action": "Remover pacote",
-        "body": "Seus mods e os arquivos que ele gravou no diretório do jogo são removidos. Arquivos que você editou são mantidos, e o {entry} em si permanece.",
+        "all": "Remover tudo",
+        "body": "Mantenha o conteúdo para deixar cada mod e arquivo no lugar como seus. Remova tudo para excluir os mods e os arquivos que ele gravou no diretório do jogo, exceto os que você editou. O {entry} em si permanece nos dois casos.",
+        "keep": "Manter conteúdo",
         "title": "Remover {name}?"
       },
+      "released": "Pacote removido. {files} arquivo(s) permanecem como conteúdo seu.",
       "removed": "Removidos {files} arquivo(s) e {overrides} arquivo(s) do pacote.",
       "target": {
         "existing": "Um item existente",

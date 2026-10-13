@@ -9,7 +9,7 @@ import type { InstalledContent, InstalledModpack } from '@/api/types';
 import { jobIdOf, startJob } from '../job';
 import * as content from '../state/content';
 import * as entries from '../state/entries';
-import { type Handlers, now, str } from '../support';
+import { bool, type Handlers, now, str } from '../support';
 
 const PACK_MODS = ['sodium', 'fabric-api', 'lithium'];
 const LATEST = '1.5.0';
@@ -148,15 +148,22 @@ function checkUpdate(ref: string, server: boolean) {
   };
 }
 
-function remove(ref: string, server: boolean) {
+function remove(ref: string, server: boolean, keepContent: boolean) {
   const entry = server ? entries.findServer(ref) : entries.findInstance(ref);
-  const installed = entries.packOf(entry.id);
-  const removedFiles = content.removeByOrigin(
-    entry.id,
-    `modpack:${installed?.slug ?? ''}`,
-  );
+  const origin = `modpack:${entries.packOf(entry.id)?.slug ?? ''}`;
   entries.clearPack(entry.id);
-  return { removedFiles, removedOverrides: 0, kept: [] };
+  const none = { removedFiles: 0, removedOverrides: 0, releasedFiles: 0 };
+  return keepContent
+    ? {
+        ...none,
+        releasedFiles: content.releaseByOrigin(entry.id, origin),
+        kept: [],
+      }
+    : {
+        ...none,
+        removedFiles: content.removeByOrigin(entry.id, origin),
+        kept: [],
+      };
 }
 
 export const channels: Handlers = {
@@ -169,6 +176,8 @@ export const channels: Handlers = {
   'instance.modpack.check_update': (p) =>
     checkUpdate(str(p, 'instance'), false),
   'server.modpack.check_update': (p) => checkUpdate(str(p, 'server'), true),
-  'instance.modpack.remove': (p) => remove(str(p, 'instance'), false),
-  'server.modpack.remove': (p) => remove(str(p, 'server'), true),
+  'instance.modpack.remove': (p) =>
+    remove(str(p, 'instance'), false, bool(p, 'keepContent')),
+  'server.modpack.remove': (p) =>
+    remove(str(p, 'server'), true, bool(p, 'keepContent')),
 };
