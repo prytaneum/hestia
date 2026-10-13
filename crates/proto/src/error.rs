@@ -200,7 +200,7 @@ impl fmt::Display for Unsupported {
                 "modpack content cannot be installed as a single file"
             }
             Unsupported::ModpackNotUpdatable => {
-                "this modpack came from a file, so there is no source to update it against"
+                "this modpack came from a file, so only a newer file can update it"
             }
         })
     }
@@ -634,6 +634,11 @@ pub enum ErrorInfo {
         pack_flavor: String,
         pack_game_version: String,
     },
+    /// An update was handed a file holding another pack than the entry runs.
+    ModpackDifferentPack {
+        installed: String,
+        given: String,
+    },
     /// An entry with no pack was asked to update or remove one.
     ModpackNotInstalled {
         entry: EntryKind,
@@ -931,6 +936,10 @@ impl fmt::Display for ErrorInfo {
                 f,
                 "this modpack is for {pack_flavor} {pack_game_version}, but that {entry} is \
                  {flavor} {game_version} — create a new {entry} from the pack instead"
+            ),
+            ModpackDifferentPack { installed, given } => write!(
+                f,
+                "that file is the pack '{given}', not '{installed}' — confirm replacing the pack to proceed"
             ),
             ModpackNotInstalled { entry, name } => {
                 write!(f, "{entry} '{name}' was not built from a modpack")

@@ -4,7 +4,12 @@
  * `modpack.*` topics; their done event carries the entry the pack landed in,
  * which for a creating install is the only way the caller learns its id.
  */
-import type { InstalledContent, InstalledModpack } from '@/api/types';
+import type {
+  InstalledContent,
+  InstalledModpack,
+  ModpackFilePreview,
+  ModpackMove,
+} from '@/api/types';
 
 import { jobIdOf, startJob } from '../job';
 import * as content from '../state/content';
@@ -13,6 +18,7 @@ import { bool, type Handlers, now, str } from '../support';
 
 const PACK_MODS = ['sodium', 'fabric-api', 'lithium'];
 const LATEST = '1.5.0';
+const FILE_VERSION = '1.6.0-local';
 
 interface Target {
   mode?: string;
@@ -112,9 +118,10 @@ function updateJob(
       { phase: 'content', detail: 'pack files' },
     ],
     done: () => {
+      const to = (payload.to ?? {}) as Partial<ModpackMove>;
       const record = pack(
         entries.packOf(entry.id)?.name ?? entry.name,
-        str(payload, 'version', '1.5.0'),
+        to.path ? FILE_VERSION : to.version || LATEST,
       );
       entries.setPack(entry.id, record);
       return {
@@ -126,6 +133,19 @@ function updateJob(
       };
     },
   });
+}
+
+/** A picked file is always a newer build of the pack the entry runs. */
+function previewUpdate(ref: string, server: boolean): ModpackFilePreview {
+  const entry = server ? entries.findServer(ref) : entries.findInstance(ref);
+  const installed = entries.packOf(entry.id);
+  return {
+    name: installed?.name ?? entry.name,
+    versionNumber: FILE_VERSION,
+    gameVersion: installed?.gameVersion ?? '',
+    samePack: true,
+    downgrade: false,
+  };
 }
 
 function status(ref: string, server: boolean) {
@@ -173,6 +193,9 @@ export const channels: Handlers = {
   'server.modpack.update': (p) => updateJob(p, true),
   'instance.modpack.status': (p) => status(str(p, 'instance'), false),
   'server.modpack.status': (p) => status(str(p, 'server'), true),
+  'instance.modpack.preview_update': (p) =>
+    previewUpdate(str(p, 'instance'), false),
+  'server.modpack.preview_update': (p) => previewUpdate(str(p, 'server'), true),
   'instance.modpack.check_update': (p) =>
     checkUpdate(str(p, 'instance'), false),
   'server.modpack.check_update': (p) => checkUpdate(str(p, 'server'), true),

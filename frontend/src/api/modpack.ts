@@ -14,6 +14,8 @@ import { type JobRun, runJob } from './core/jobs';
 import type {
   InstalledModpack,
   ModpackDoneEvent,
+  ModpackFilePreview,
+  ModpackMove,
   ModpackRef,
   ModpackRemoveResult,
   ModpackTarget,
@@ -63,45 +65,57 @@ export function installServer(
 }
 
 /**
- * A pack update carries the entry's game version with it, so moving to a pack
- * built for an older one needs `allowDowngrade`.
+ * Where an update takes the pack: another published `version` (the newest when
+ * empty) or a pack file at `path`. Either carries the entry's game version with
+ * it, so a pack built for an older one needs `allowDowngrade`.
  */
+export type PackMove = Partial<ModpackMove>;
+
 export function updateInstance(
   instance: string,
-  version = '',
-  allowDowngrade = false,
+  to: PackMove,
   job: JobRun,
 ): Promise<ModpackDoneEvent> {
   return runJob<ModpackDoneEvent>({
     ...job,
     topics,
-    start: () =>
-      call('instance.modpack.update', {
-        instance,
-        version,
-        allowDowngrade,
-        id: job.id,
-      }),
+    start: () => call('instance.modpack.update', { instance, to, id: job.id }),
   });
 }
 
 export function updateServer(
   server: string,
-  version = '',
-  allowDowngrade = false,
+  to: PackMove,
   job: JobRun,
 ): Promise<ModpackDoneEvent> {
   return runJob<ModpackDoneEvent>({
     ...job,
     topics,
-    start: () =>
-      call('server.modpack.update', {
-        server,
-        version,
-        allowDowngrade,
-        id: job.id,
-      }),
+    start: () => call('server.modpack.update', { server, to, id: job.id }),
   });
+}
+
+/** What updating from the pack file at `path` would do, before it starts. */
+export function previewInstanceUpdate(
+  instance: string,
+  path: string,
+): Promise<ModpackFilePreview> {
+  return call(
+    'instance.modpack.preview_update',
+    { instance, path },
+    { timeoutMs: 120_000 },
+  );
+}
+
+export function previewServerUpdate(
+  server: string,
+  path: string,
+): Promise<ModpackFilePreview> {
+  return call(
+    'server.modpack.preview_update',
+    { server, path },
+    { timeoutMs: 120_000 },
+  );
 }
 
 /** `null` when the entry was not built from a pack — an ordinary answer. */

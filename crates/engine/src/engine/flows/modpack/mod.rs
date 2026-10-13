@@ -23,13 +23,16 @@
 mod apply;
 mod resolve;
 
+use std::path::Path;
+
 use anyhow::Result;
 use proto::content::{
     ContentFailure, ContentKind, ContentProject, InstalledContent, ResolvedModpack,
 };
 use proto::error::{EntryKind, ErrorInfo};
 use proto::modpack::{
-    InstalledModpack, ModpackRef, ModpackRemoveResult, ModpackTarget, ModpackUpdate,
+    InstalledModpack, ModpackFilePreview, ModpackMove, ModpackRef, ModpackRemoveResult,
+    ModpackTarget, ModpackUpdate,
 };
 use proto::warning::WarningInfo;
 
@@ -180,13 +183,13 @@ impl Engine {
     pub async fn update_entry_modpack(
         &self,
         target: EntryRef<'_>,
-        version: &str,
-        allow_downgrade: bool,
+        to: &ModpackMove,
         job: &Job<'_>,
     ) -> Result<ModpackOutcome> {
         let (entry, ctx) = self.content_ctx(target)?;
         let current = require_pack(&ctx, entry_kind(target), &entry.name)?;
-        let (resolved, project, mut archive) = self.fetch_update(&current, version, job).await?;
+        let (resolved, project, mut archive) = self.fetch_update(&current, to, job).await?;
+        let allow_downgrade = to.allow_downgrade;
 
         // A pack that moved game version carries its entry with it, through the
         // same in-place update a plain version change uses.
@@ -223,6 +226,34 @@ impl Engine {
             job,
         )
         .await
+    }
+
+    /// What [`Self::update_entry_modpack`] would do with a pack file, so a
+    /// front-end can ask about another pack or a downgrade before it starts.
+    pub async fn preview_entry_modpack_file(
+        &self,
+        target: EntryRef<'_>,
+        path: &Path,
+    ) -> Result<ModpackFilePreview> {
+        let (entry, ctx) = self.content_ctx(target)?;
+        let current = require_pack(&ctx, entry_kind(target), &entry.name)?;
+        let fetched = self.read_pack_file(path).await?;
+        let versions = match ctx.side {
+            EntrySide::Server => self.minecraft.server_versions(&ctx.flavor).await?,
+            EntrySide::Client => self.minecraft.instance_versions(&ctx.flavor).await?,
+        };
+        let (resolved, project, _) = &fetched;
+        Ok(ModpackFilePreview {
+            name: pack_display_name(resolved, project.as_ref()),
+            version_number: resolved.version_number.clone(),
+            game_version: resolved.game_version.clone(),
+            same_pack: same_pack(&current, &fetched),
+            downgrade: proto::minecraft::downgrade_between(
+                &versions,
+                &ctx.game_version,
+                &resolved.game_version,
+            ) == Some(true),
+        })
     }
 
     pub fn entry_modpack(&self, entry: EntryRef<'_>) -> Result<Option<InstalledModpack>> {
@@ -391,6 +422,17 @@ fn pack_display_name(resolved: &ResolvedModpack, project: Option<&ContentProject
         (true, false) => from_project.to_string(),
         (true, true) => "modpack".to_string(),
     }
+}
+
+/// Whether a pack file holds the pack an entry runs. A pack file carries no
+/// id, so the project decides where a source recognises both and the name —
+/// free text an author may change — is all there is otherwise.
+fn same_pack(current: &InstalledModpack, (resolved, project, _): &resolve::FetchedPack) -> bool {
+    if !current.project_id.is_empty() && !resolved.project_id.is_empty() {
+        return current.source == resolved.source && current.project_id == resolved.project_id;
+    }
+    let given = pack_display_name(resolved, project.as_ref());
+    current.name.trim().eq_ignore_ascii_case(given.trim())
 }
 
 #[cfg(test)]

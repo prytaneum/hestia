@@ -5,12 +5,15 @@
 //! exist yet. One aimed at an existing entry is guarded exactly as a content
 //! install is: stopped, and racing no backup, update or other content job.
 
+use std::path::Path;
+
 use proto::error::{ErrorInfo, Field};
 use proto::modpack::{
-    InstanceModpackCheckUpdate, InstanceModpackInstall, InstanceModpackRemove,
-    InstanceModpackStatus, InstanceModpackUpdate, ModpackJobResult, ModpackRef,
-    ModpackStatusResult, ModpackTarget, ModpackUpdateResult, ServerModpackCheckUpdate,
-    ServerModpackInstall, ServerModpackRemove, ServerModpackStatus, ServerModpackUpdate,
+    InstanceModpackCheckUpdate, InstanceModpackInstall, InstanceModpackPreviewUpdate,
+    InstanceModpackRemove, InstanceModpackStatus, InstanceModpackUpdate, ModpackJobResult,
+    ModpackRef, ModpackStatusResult, ModpackTarget, ModpackUpdateResult, ServerModpackCheckUpdate,
+    ServerModpackInstall, ServerModpackPreviewUpdate, ServerModpackRemove, ServerModpackStatus,
+    ServerModpackUpdate,
 };
 
 use super::guards::{instance_for, server_for, Intent};
@@ -52,13 +55,21 @@ fn register_instance(on: &mut Channels<'_>) {
             ctx.runtime.modpack_jobs().start(
                 ModpackJob::UpdateInstance {
                     instance_id: record.id,
-                    version: p.version,
-                    allow_downgrade: p.allow_downgrade,
+                    to: p.to,
                 },
                 p.id,
             ),
             record.name,
         )
+    });
+
+    on.handle::<InstanceModpackPreviewUpdate, _, _>(|p, ctx| async move {
+        let record = instance_for(&ctx, &p.instance, Intent::Read)?;
+        ctx.runtime
+            .engine()
+            .preview_entry_modpack_file(engine::EntryRef::Instance(&record.id), Path::new(&p.path))
+            .await
+            .map_err(crate::runtime::engine_error)
     });
 
     on.handle::<InstanceModpackStatus, _, _>(|p, ctx| async move {
@@ -129,13 +140,21 @@ fn register_server(on: &mut Channels<'_>) {
             ctx.runtime.modpack_jobs().start(
                 ModpackJob::UpdateServer {
                     server_id: record.id,
-                    version: p.version,
-                    allow_downgrade: p.allow_downgrade,
+                    to: p.to,
                 },
                 p.id,
             ),
             record.name,
         )
+    });
+
+    on.handle::<ServerModpackPreviewUpdate, _, _>(|p, ctx| async move {
+        let record = server_for(&ctx, &p.server, Intent::Read)?;
+        ctx.runtime
+            .engine()
+            .preview_entry_modpack_file(engine::EntryRef::Server(&record.id), Path::new(&p.path))
+            .await
+            .map_err(crate::runtime::engine_error)
     });
 
     on.handle::<ServerModpackStatus, _, _>(|p, ctx| async move {

@@ -11,13 +11,14 @@ use std::time::Duration;
 use ipc::errors::IpcError;
 use proto::minecraft::ProvisionProgress;
 use proto::modpack::{
-    InstalledModpack, InstanceModpackCheckUpdate, InstanceModpackInstall,
-    InstanceModpackInstallParams, InstanceModpackRef, InstanceModpackRemove,
-    InstanceModpackRemoveParams, InstanceModpackStatus, InstanceModpackUpdate,
-    InstanceModpackUpdateParams, ModpackDoneEvent, ModpackRef, ModpackRemoveResult, ModpackTarget,
-    ModpackUpdate, ServerModpackCheckUpdate, ServerModpackInstall, ServerModpackInstallParams,
-    ServerModpackRef, ServerModpackRemove, ServerModpackRemoveParams, ServerModpackStatus,
-    ServerModpackUpdate, ServerModpackUpdateParams,
+    InstalledModpack, InstanceModpackCheckUpdate, InstanceModpackFileParams,
+    InstanceModpackInstall, InstanceModpackInstallParams, InstanceModpackPreviewUpdate,
+    InstanceModpackRef, InstanceModpackRemove, InstanceModpackRemoveParams, InstanceModpackStatus,
+    InstanceModpackUpdate, InstanceModpackUpdateParams, ModpackDoneEvent, ModpackFilePreview,
+    ModpackMove, ModpackRef, ModpackRemoveResult, ModpackTarget, ModpackUpdate,
+    ServerModpackCheckUpdate, ServerModpackFileParams, ServerModpackInstall,
+    ServerModpackInstallParams, ServerModpackPreviewUpdate, ServerModpackRef, ServerModpackRemove,
+    ServerModpackRemoveParams, ServerModpackStatus, ServerModpackUpdate, ServerModpackUpdateParams,
 };
 
 use crate::facades::jobs::forward;
@@ -82,22 +83,20 @@ impl Modpack<'_> {
         .await
     }
 
-    /// Move an instance's pack to `version` (empty takes the newest). A pack
-    /// update carries the game version with it, so an older one needs
-    /// `allow_downgrade`.
+    /// Move an instance's pack to another published version (empty takes the
+    /// newest) or to a pack file. A pack update carries the game version with
+    /// it, so an older one needs `allow_downgrade`.
     pub async fn update_instance(
         &self,
         instance: &str,
-        version: &str,
-        allow_downgrade: bool,
+        to: ModpackMove,
         on_progress: impl Fn(&ProvisionProgress) + Send + Sync + 'static,
     ) -> Result<ModpackDoneEvent, IpcError> {
         let id = job_id("instance-modpack-update");
         let session = self.session;
         let params = InstanceModpackUpdateParams {
             instance: instance.to_string(),
-            version: version.to_string(),
-            allow_downgrade,
+            to,
             id: id.clone(),
         };
         self.drive(&id, on_progress, move || async move {
@@ -112,16 +111,14 @@ impl Modpack<'_> {
     pub async fn update_server(
         &self,
         server: &str,
-        version: &str,
-        allow_downgrade: bool,
+        to: ModpackMove,
         on_progress: impl Fn(&ProvisionProgress) + Send + Sync + 'static,
     ) -> Result<ModpackDoneEvent, IpcError> {
         let id = job_id("server-modpack-update");
         let session = self.session;
         let params = ServerModpackUpdateParams {
             server: server.to_string(),
-            version: version.to_string(),
-            allow_downgrade,
+            to,
             id: id.clone(),
         };
         self.drive(&id, on_progress, move || async move {
@@ -131,6 +128,35 @@ impl Modpack<'_> {
                 .map(|_| ())
         })
         .await
+    }
+
+    /// What updating an instance's pack from the file at `path` would do.
+    pub async fn preview_instance_update(
+        &self,
+        instance: &str,
+        path: &str,
+    ) -> Result<ModpackFilePreview, IpcError> {
+        let params = InstanceModpackFileParams {
+            instance: instance.to_string(),
+            path: path.to_string(),
+        };
+        self.session
+            .call_with_timeout::<InstanceModpackPreviewUpdate>(&params, CHECK_TIMEOUT)
+            .await
+    }
+
+    pub async fn preview_server_update(
+        &self,
+        server: &str,
+        path: &str,
+    ) -> Result<ModpackFilePreview, IpcError> {
+        let params = ServerModpackFileParams {
+            server: server.to_string(),
+            path: path.to_string(),
+        };
+        self.session
+            .call_with_timeout::<ServerModpackPreviewUpdate>(&params, CHECK_TIMEOUT)
+            .await
     }
 
     /// The pack an instance runs, or `None` when it was not built from one.

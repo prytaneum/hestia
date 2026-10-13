@@ -9,7 +9,7 @@ use proto::content::{ContentAddItem, ContentAddSpec, ContentKind};
 use proto::error::ErrorInfo;
 use proto::instance::QuickPlay;
 use proto::minecraft::ProvisionProgress;
-use proto::modpack::{ModpackRef, ModpackTarget};
+use proto::modpack::{ModpackMove, ModpackRef, ModpackTarget};
 
 fn job<'a>(cancel: &'a Cancel, report: &'a (dyn Fn(&ProvisionProgress) + Send + Sync)) -> Job<'a> {
     Job::new(report, cancel)
@@ -514,6 +514,108 @@ async fn a_pack_removed_keeping_its_content_hands_it_to_the_user() {
             .remove_entry_content(entry, ContentKind::Mod, &sodium, &[])
             .expect("the mod is the user's now"),
         1
+    );
+}
+
+#[tokio::test]
+async fn a_pack_no_source_published_updates_from_a_newer_file() {
+    let home = tempfile::tempdir().expect("temp home");
+    let drops = tempfile::tempdir().expect("temp drops");
+    let files = fixture::Files::serve().await;
+    let engine = fixture::engine(
+        home.path(),
+        vec![fixture::Flavor::resolving("fabric")],
+        vec![fixture::Source {
+            projects: vec![],
+            versions: vec![],
+        }],
+    );
+    let pack = |file: &str, name: &str, version: &str, mods: &[&str]| {
+        let index = serde_json::json!({
+            "formatVersion": 1,
+            "name": name,
+            "versionId": version,
+            "dependencies": { "minecraft": "1.21", "fabric-loader": "0.16.0" },
+            "files": mods
+                .iter()
+                .map(|jar| serde_json::json!({
+                    "path": format!("mods/{jar}"),
+                    "downloads": [files.url(jar)],
+                }))
+                .collect::<Vec<_>>(),
+        });
+        local_pack(drops.path(), file, index, &[])
+    };
+    let (cancel, report) = (Cancel::new(), |_: &ProvisionProgress| {});
+    let outcome = engine
+        .install_instance_modpack(
+            &ModpackRef {
+                path: pack("v1.mrpack", "Cozy", "1.0.0", &["old.jar", "kept.jar"]),
+                ..ModpackRef::default()
+            },
+            &ModpackTarget::Create {
+                name: String::new(),
+            },
+            &job(&cancel, &report),
+        )
+        .await
+        .expect("the pack installs");
+    let entry = EntryRef::Instance(&outcome.entry);
+    assert!(
+        engine
+            .entry_modpack_update(entry)
+            .await
+            .expect("check")
+            .is_none(),
+        "no source stands behind this pack"
+    );
+
+    let other = pack("other.mrpack", "Rustic", "3.0.0", &["kept.jar"]);
+    let preview = engine
+        .preview_entry_modpack_file(entry, std::path::Path::new(&other))
+        .await
+        .expect("preview");
+    assert!(!preview.same_pack);
+    let refused = engine
+        .update_entry_modpack(
+            entry,
+            &ModpackMove {
+                path: other,
+                ..ModpackMove::default()
+            },
+            &job(&cancel, &report),
+        )
+        .await;
+    assert!(refused.is_err(), "another pack needs saying so");
+
+    let newer = pack("v2.mrpack", "cozy", "2.0.0", &["kept.jar", "new.jar"]);
+    let preview = engine
+        .preview_entry_modpack_file(entry, std::path::Path::new(&newer))
+        .await
+        .expect("preview");
+    assert!(preview.same_pack, "a name matches whatever its case");
+    assert!(!preview.downgrade);
+    let updated = engine
+        .update_entry_modpack(
+            entry,
+            &ModpackMove {
+                path: newer,
+                ..ModpackMove::default()
+            },
+            &job(&cancel, &report),
+        )
+        .await
+        .expect("the pack updates from the file");
+
+    assert_eq!(updated.entry, outcome.entry, "the same entry, in place");
+    assert_eq!(updated.pack.version_number, "2.0.0");
+    let (listed, _) = engine.entry_content(entry, ContentKind::Mod).expect("list");
+    let mut mods: Vec<&str> = listed.iter().map(|i| i.filename.as_str()).collect();
+    mods.sort_unstable();
+    assert_eq!(
+        mods,
+        ["kept.jar", "new.jar"],
+        "what the new pack dropped is gone"
     );
 }
 

@@ -64,6 +64,12 @@
       "title": "Modpack",
       "up_to_date": "On the newest published version.",
       "update": "Update pack",
+      "update_from_file": {
+        "action": "Update from file",
+        "downgrade": "It is built for Minecraft {to}, older than the {from} this runs. Minecraft cannot load worlds written by a newer version.",
+        "other_pack": "This file is the pack {given}, not {installed}. Updating replaces the pack.",
+        "title": "Update to {name} from this file?"
+      },
       "update_to": "Update to {version}"
     },
     "no_target_for_kind": "No server or instance can take a {kind}.",

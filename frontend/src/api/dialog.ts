@@ -56,6 +56,19 @@ export async function pickInstanceArchive(): Promise<string[]> {
   return typeof selection === 'string' ? [selection] : [];
 }
 
+/** The pack formats an update from a file accepts, by extension. */
+export const PACK_EXTENSIONS = ['mrpack', 'zip'];
+
+/** Pick one modpack file and return its absolute path, or null when dismissed. */
+export async function pickPackFile(): Promise<string | null> {
+  const selection = await open({
+    multiple: false,
+    directory: false,
+    filters: [{ name: 'Modpacks', extensions: PACK_EXTENSIONS }],
+  });
+  return typeof selection === 'string' ? selection : null;
+}
+
 /**
  * Ask where to write an export. Returns an absolute path, or null when
  * dismissed — the daemon writes it, so only a real filesystem path will do.

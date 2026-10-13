@@ -3,8 +3,8 @@ use std::sync::Arc;
 use engine::Engine;
 use proto::minecraft::ProvisionProgress;
 use proto::modpack::{
-    ModpackCancelledEvent, ModpackDoneEvent, ModpackErrorEvent, ModpackProgressEvent, ModpackRef,
-    ModpackTarget,
+    ModpackCancelledEvent, ModpackDoneEvent, ModpackErrorEvent, ModpackMove, ModpackProgressEvent,
+    ModpackRef, ModpackTarget,
 };
 
 use super::job::{progress_event, settle, Cancellations, Runner, Spec};
@@ -24,13 +24,11 @@ pub enum ModpackJob {
     },
     UpdateInstance {
         instance_id: String,
-        version: String,
-        allow_downgrade: bool,
+        to: ModpackMove,
     },
     UpdateServer {
         server_id: String,
-        version: String,
-        allow_downgrade: bool,
+        to: ModpackMove,
     },
 }
 
@@ -87,32 +85,18 @@ impl ModpackJob {
                     .install_server_modpack(&pack, &target, eula, port, on_progress)
                     .await
             }
-            ModpackJob::UpdateInstance {
-                instance_id,
-                version,
-                allow_downgrade,
-            } => {
+            ModpackJob::UpdateInstance { instance_id, to } => {
                 engine
                     .update_entry_modpack(
                         engine::EntryRef::Instance(&instance_id),
-                        &version,
-                        allow_downgrade,
+                        &to,
                         on_progress,
                     )
                     .await
             }
-            ModpackJob::UpdateServer {
-                server_id,
-                version,
-                allow_downgrade,
-            } => {
+            ModpackJob::UpdateServer { server_id, to } => {
                 engine
-                    .update_entry_modpack(
-                        engine::EntryRef::Server(&server_id),
-                        &version,
-                        allow_downgrade,
-                        on_progress,
-                    )
+                    .update_entry_modpack(engine::EntryRef::Server(&server_id), &to, on_progress)
                     .await
             }
         }

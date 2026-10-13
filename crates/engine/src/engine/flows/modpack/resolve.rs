@@ -11,11 +11,11 @@ use proto::content::{
 };
 use proto::error::{EntryKind, ErrorInfo};
 use proto::minecraft::ProvisionPhase;
-use proto::modpack::{InstalledModpack, ModpackRef};
+use proto::modpack::{InstalledModpack, ModpackMove, ModpackRef};
 
 use super::super::content::entry::{content_target, EntryContent, EntrySide};
 use super::super::phase_progress;
-use super::{FileIdentity, Supplied};
+use super::{pack_display_name, same_pack, FileIdentity, Supplied};
 use crate::cancel::Job;
 use crate::content::provider::FileRef;
 use crate::content::{pack, LocalFile};
@@ -131,28 +131,7 @@ impl Engine {
         job.report(&phase_progress(ProvisionPhase::Resolving));
 
         if !reference.path.is_empty() {
-            let path = Path::new(&reference.path);
-            let mut archive = pack::Archive::read(path)?;
-            let mut resolved = match archive.platform_manifest()? {
-                Some((source, manifest)) => {
-                    self.content.resolve_manifest(source, &manifest).await?
-                }
-                None => ResolvedModpack {
-                    source: LOCAL_SOURCE.to_string(),
-                    ..archive.index()?
-                },
-            };
-            let project = self.published_pack(path, &mut resolved).await;
-            if resolved.name.is_empty() {
-                resolved.name = match &project {
-                    Some(project) => project.title.clone(),
-                    None => path
-                        .file_stem()
-                        .map(|s| s.to_string_lossy().into_owned())
-                        .unwrap_or_default(),
-                };
-            }
-            return Ok((resolved, project, archive));
+            return self.read_pack_file(Path::new(&reference.path)).await;
         }
 
         let (source, project_ref, pin) = match reference.url.is_empty() {
@@ -187,6 +166,28 @@ impl Engine {
         job.check()?;
         let (resolved, bytes) = self.content.fetch_modpack(&source, &version.id).await?;
         Ok((resolved, Some(project), pack::Archive::open(bytes)?))
+    }
+
+    pub(super) async fn read_pack_file(&self, path: &Path) -> Result<FetchedPack> {
+        let mut archive = pack::Archive::read(path)?;
+        let mut resolved = match archive.platform_manifest()? {
+            Some((source, manifest)) => self.content.resolve_manifest(source, &manifest).await?,
+            None => ResolvedModpack {
+                source: LOCAL_SOURCE.to_string(),
+                ..archive.index()?
+            },
+        };
+        let project = self.published_pack(path, &mut resolved).await;
+        if resolved.name.is_empty() {
+            resolved.name = match &project {
+                Some(project) => project.title.clone(),
+                None => path
+                    .file_stem()
+                    .map(|s| s.to_string_lossy().into_owned())
+                    .unwrap_or_default(),
+            };
+        }
+        Ok((resolved, project, archive))
     }
 
     /// An archive no source published keeps no project, which is what leaves it without an update path.
@@ -227,9 +228,25 @@ impl Engine {
     pub(super) async fn fetch_update(
         &self,
         current: &InstalledModpack,
-        version: &str,
+        to: &ModpackMove,
         job: &Job<'_>,
     ) -> Result<FetchedPack> {
+        if !to.path.is_empty() {
+            if !to.version.is_empty() {
+                bail!(ErrorInfo::MutuallyExclusive {
+                    options: vec![proto::error::Field::Version, proto::error::Field::Path],
+                });
+            }
+            job.report(&phase_progress(ProvisionPhase::Resolving));
+            let fetched = self.read_pack_file(Path::new(&to.path)).await?;
+            if !to.allow_other_pack && !same_pack(current, &fetched) {
+                bail!(ErrorInfo::ModpackDifferentPack {
+                    installed: current.name.clone(),
+                    given: pack_display_name(&fetched.0, fetched.1.as_ref()),
+                });
+            }
+            return Ok(fetched);
+        }
         if current.project_id.is_empty() {
             bail!(ErrorInfo::UnsupportedOperation {
                 reason: proto::error::Unsupported::ModpackNotUpdatable
@@ -239,7 +256,7 @@ impl Engine {
             &ModpackRef {
                 source: current.source.clone(),
                 project: current.project_id.clone(),
-                version: version.to_string(),
+                version: to.version.clone(),
                 ..ModpackRef::default()
             },
             job,

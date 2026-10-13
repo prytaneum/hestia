@@ -165,8 +165,7 @@ pub struct ServerModpackInstallParams {
 #[serde(default, rename_all = "camelCase")]
 pub struct InstanceModpackUpdateParams {
     pub instance: String,
-    pub version: String,
-    pub allow_downgrade: bool,
+    pub to: ModpackMove,
     pub id: String,
 }
 
@@ -175,9 +174,23 @@ pub struct InstanceModpackUpdateParams {
 #[serde(default, rename_all = "camelCase")]
 pub struct ServerModpackUpdateParams {
     pub server: String,
-    pub version: String,
-    pub allow_downgrade: bool,
+    pub to: ModpackMove,
     pub id: String,
+}
+
+/// Where an update takes an entry's pack: another published `version` (empty
+/// for the newest), or a pack file at `path` — the only way a pack no source
+/// published can move at all. Naming both is refused.
+#[derive(Serialize, Deserialize, Default, Debug, Clone)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
+#[serde(default, rename_all = "camelCase")]
+pub struct ModpackMove {
+    pub version: String,
+    pub path: String,
+    pub allow_downgrade: bool,
+    /// Accept a file that is not the pack the entry runs; without it such a
+    /// file is refused as `ModpackDifferentPack`.
+    pub allow_other_pack: bool,
 }
 
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
@@ -192,6 +205,38 @@ pub struct InstanceModpackRef {
 #[serde(default, rename_all = "camelCase")]
 pub struct ServerModpackRef {
     pub server: String,
+}
+
+#[derive(Serialize, Deserialize, Default, Debug, Clone)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
+#[serde(default, rename_all = "camelCase")]
+pub struct InstanceModpackFileParams {
+    pub instance: String,
+    pub path: String,
+}
+
+#[derive(Serialize, Deserialize, Default, Debug, Clone)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
+#[serde(default, rename_all = "camelCase")]
+pub struct ServerModpackFileParams {
+    pub server: String,
+    pub path: String,
+}
+
+/// What moving an entry's pack to a local pack file would do, read before
+/// anything changes. A pack file carries a name and a free-text version but no
+/// id, so `same_pack` is the project where a source recognises both and the
+/// name otherwise — and two versions cannot be ordered, only shown.
+#[derive(Serialize, Deserialize, Default, Debug, Clone)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
+#[serde(default, rename_all = "camelCase")]
+pub struct ModpackFilePreview {
+    pub name: String,
+    pub version_number: String,
+    pub game_version: String,
+    pub same_pack: bool,
+    /// The file pins an older game version than the entry runs.
+    pub downgrade: bool,
 }
 
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
@@ -274,6 +319,20 @@ impl Contract for ServerModpackStatus {
     const CHANNEL: &'static str = "server.modpack.status";
     type Params = ServerModpackRef;
     type Result = ModpackStatusResult;
+}
+
+pub struct InstanceModpackPreviewUpdate;
+impl Contract for InstanceModpackPreviewUpdate {
+    const CHANNEL: &'static str = "instance.modpack.preview_update";
+    type Params = InstanceModpackFileParams;
+    type Result = ModpackFilePreview;
+}
+
+pub struct ServerModpackPreviewUpdate;
+impl Contract for ServerModpackPreviewUpdate {
+    const CHANNEL: &'static str = "server.modpack.preview_update";
+    type Params = ServerModpackFileParams;
+    type Result = ModpackFilePreview;
 }
 
 pub struct InstanceModpackCheckUpdate;

@@ -11,6 +11,7 @@ import { logger } from '@/lib/log';
 import type {
   InstalledModpack,
   ModpackDoneEvent,
+  ModpackFilePreview,
   ModpackRemoveResult,
   ModpackTarget,
   ModpackUpdate,
@@ -32,10 +33,7 @@ export interface InstallInput {
   port?: number;
 }
 
-export interface UpdateInput {
-  version?: string;
-  allowDowngrade?: boolean;
-}
+export type UpdateInput = api.PackMove;
 
 function entryKeys(kind: JobEntryKind) {
   return kind === 'server' ? keys.servers : keys.instances;
@@ -53,6 +51,17 @@ export const modpackQueries = {
       queryKey: entryKeys(kind).modpack(id),
       queryFn: (): Promise<InstalledModpack | null> =>
         kind === 'server' ? api.serverStatus(id) : api.instanceStatus(id),
+    }),
+  /** Asked about one picked file, so the answer is never reused. */
+  updatePreview: (kind: JobEntryKind, id: string, path: string) =>
+    queryOptions({
+      queryKey: [...entryKeys(kind).modpack(id), 'preview', path],
+      queryFn: (): Promise<ModpackFilePreview> =>
+        kind === 'server'
+          ? api.previewServerUpdate(id, path)
+          : api.previewInstanceUpdate(id, path),
+      staleTime: 0,
+      gcTime: 0,
     }),
   /** A catalogue round trip, so it is not refetched on every mount. */
   updateCheck: (kind: JobEntryKind, id: string, enabled = true) =>
@@ -92,10 +101,10 @@ export const modpackMutations = {
         label: 'update modpack',
         entry: { kind, id },
       }),
-      run: ({ version, allowDowngrade }, job) =>
+      run: (to, job) =>
         kind === 'server'
-          ? api.updateServer(id, version, allowDowngrade, job)
-          : api.updateInstance(id, version, allowDowngrade, job),
+          ? api.updateServer(id, to, job)
+          : api.updateInstance(id, to, job),
       invalidates: () => invalidates(kind, id),
     }),
   remove: (kind: JobEntryKind, id: string) =>

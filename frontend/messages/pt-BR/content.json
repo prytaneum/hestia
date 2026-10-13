@@ -64,6 +64,12 @@
       "title": "Modpack",
       "up_to_date": "Já está na versão publicada mais recente.",
       "update": "Atualizar pacote",
+      "update_from_file": {
+        "action": "Atualizar de um arquivo",
+        "downgrade": "Ele foi feito para o Minecraft {to}, mais antigo que o {from} em uso. O Minecraft não carrega mundos gravados por uma versão mais nova.",
+        "other_pack": "Este arquivo é o pacote {given}, não {installed}. Atualizar substitui o pacote.",
+        "title": "Atualizar para {name} com este arquivo?"
+      },
       "update_to": "Atualizar para {version}"
     },
     "no_target_for_kind": "Nenhum servidor ou instância pode receber um {kind}.",

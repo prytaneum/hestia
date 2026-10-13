@@ -363,7 +363,8 @@ One shared factory set, bound per entry kind, so servers and instances cannot dr
 | `.status(kind, id)`           | `<kind>.modpack.status`   | —                               |
 | `.updateCheck(kind, id)`      | `<kind>.modpack.check_update` | —                           |
 | `.install(kind)` *(job)*      | `<kind>.modpack.install`  | `ModpackInstallParams`          |
-| `.update(kind, id)` *(job)*   | `<kind>.modpack.update`   | `{ version?, allowDowngrade? }` |
+| `.updatePreview(kind, id, path)` | `<kind>.modpack.preview_update` | —                      |
+| `.update(kind, id)` *(job)*   | `<kind>.modpack.update`   | `{ version? \| path?, allowDowngrade?, allowOtherPack? }` |
 | `.remove(kind, id)`           | `<kind>.modpack.remove`   | `{ keepContent }`               |
 
 ### Content browse — `contentQueries`

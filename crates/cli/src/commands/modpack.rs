@@ -17,7 +17,9 @@ use std::sync::Arc;
 use anyhow::{bail, Context, Result};
 use clap::Subcommand;
 use client::proto::content::{ContentKind, SearchQuery, SearchSort};
-use client::proto::modpack::{InstalledModpack, ModpackDoneEvent, ModpackRef, ModpackTarget};
+use client::proto::modpack::{
+    InstalledModpack, ModpackDoneEvent, ModpackMove, ModpackRef, ModpackTarget,
+};
 use client::Client;
 
 use super::content::{BrowseCmd, EntryKind};
@@ -74,9 +76,10 @@ pub struct InstallArgs {
 pub enum EntryModpackCmd {
     /// The modpack this entry runs
     Status,
-    /// Move the pack to another published version (prompts to confirm a downgrade)
+    /// Move the pack to another published version, or to a pack file
     Update {
-        /// Pack version to move to (id or number; newest when omitted)
+        /// Pack version to move to (id or number; newest when omitted), or a
+        /// path to a pack file — the only way a pack no source published updates
         version: Option<String>,
         #[arg(
             long,
@@ -85,7 +88,12 @@ pub enum EntryModpackCmd {
         downgrade: bool,
         #[arg(
             long,
-            conflicts_with_all = ["version", "downgrade"],
+            help = "Accept a pack file holding another pack than the entry runs"
+        )]
+        other_pack: bool,
+        #[arg(
+            long,
+            conflicts_with_all = ["version", "downgrade", "other_pack"],
             help = "Only report whether a newer pack version exists, without applying"
         )]
         check: bool,
@@ -157,8 +165,25 @@ pub async fn run_entry(entry: EntryKind, name: String, cmd: EntryModpackCmd) -> 
         EntryModpackCmd::Status => status(&client, entry, &name).await,
         EntryModpackCmd::Update { check: true, .. } => check_update(&client, entry, &name).await,
         EntryModpackCmd::Update {
-            version, downgrade, ..
-        } => update(&client, entry, &name, version, downgrade).await,
+            version,
+            downgrade,
+            other_pack,
+            ..
+        } => {
+            let to = ModpackMove {
+                allow_downgrade: downgrade,
+                allow_other_pack: other_pack,
+                ..ModpackMove::default()
+            };
+            let to = match version.as_deref().and_then(pack_file) {
+                Some(path) => confirm_file_update(&client, entry, &name, path?, to).await?,
+                None => ModpackMove {
+                    version: version.unwrap_or_default(),
+                    ..to
+                },
+            };
+            update(&client, entry, &name, to).await
+        }
         EntryModpackCmd::Remove { keep, all } => {
             let keep_content = keep || (!all && ask_keep_content(&name)?);
             remove(&client, entry, &name, keep_content).await
@@ -199,27 +224,97 @@ async fn check_update(client: &Client, entry: EntryKind, name: &str) -> Result<(
     ]))
 }
 
-async fn update(
+/// Ask before a pack file does what its flags did not allow: replace the pack
+/// with another one, or take the entry back a game version. Errors when stdin
+/// is not a terminal, so a script must pass the flag.
+async fn confirm_file_update(
     client: &Client,
     entry: EntryKind,
     name: &str,
-    version: Option<String>,
-    downgrade: bool,
-) -> Result<()> {
-    let version = version.unwrap_or_default();
+    path: String,
+    to: ModpackMove,
+) -> Result<ModpackMove> {
+    let server = matches!(entry, EntryKind::Server);
+    let (pack, preview) = match server {
+        true => (
+            client.modpack().server_status(name).await?,
+            client.modpack().preview_server_update(name, &path).await?,
+        ),
+        false => (
+            client.modpack().instance_status(name).await?,
+            client
+                .modpack()
+                .preview_instance_update(name, &path)
+                .await?,
+        ),
+    };
+    let pack = pack.with_context(|| format!("'{name}' was not built from a modpack"))?;
+    if !preview.same_pack && !to.allow_other_pack {
+        let replace = ui::confirm(
+            &format!(
+                "that file is the pack '{}', not '{}' which '{name}' runs",
+                preview.name, pack.name
+            ),
+            "replace the pack",
+            "cancel",
+        )
+        .context("pass --other-pack to replace the pack with another one")?;
+        if !replace {
+            bail!("update cancelled");
+        }
+    }
+    if preview.downgrade && !to.allow_downgrade {
+        let (data, safety) = match server {
+            true => (
+                "a world",
+                "the current data is backed up automatically first",
+            ),
+            false => (
+                "saves",
+                "nothing is backed up first (instances have no backups)",
+            ),
+        };
+        super::mc::confirm_downgrade(
+            name,
+            data,
+            safety,
+            &pack.game_version,
+            &preview.game_version,
+        )?;
+    }
+    Ok(ModpackMove {
+        path,
+        allow_downgrade: true,
+        allow_other_pack: true,
+        ..to
+    })
+}
+
+/// A positional that names a file on disk, as its absolute path — the same
+/// rule `install` reads its own argument by.
+fn pack_file(given: &str) -> Option<Result<String>> {
+    std::path::Path::new(given).is_file().then(|| {
+        Ok(std::fs::canonicalize(given)
+            .with_context(|| format!("cannot resolve {given}"))?
+            .to_string_lossy()
+            .into_owned())
+    })
+}
+
+async fn update(client: &Client, entry: EntryKind, name: &str, to: ModpackMove) -> Result<()> {
     let reporter = Arc::new(ProvisionReporter::new());
     let progress = reporter.clone();
     let done = match entry {
         EntryKind::Server => {
             client
                 .modpack()
-                .update_server(name, &version, downgrade, move |p| progress.update(p))
+                .update_server(name, to, move |p| progress.update(p))
                 .await
         }
         EntryKind::Instance => {
             client
                 .modpack()
-                .update_instance(name, &version, downgrade, move |p| progress.update(p))
+                .update_instance(name, to, move |p| progress.update(p))
                 .await
         }
     };
@@ -291,13 +386,9 @@ async fn pack_ref(client: &Client, args: &InstallArgs) -> Result<ModpackRef> {
             ..ModpackRef::default()
         });
     }
-    if std::path::Path::new(&given).is_file() {
-        let path = std::fs::canonicalize(&given)
-            .with_context(|| format!("cannot resolve {given}"))?
-            .to_string_lossy()
-            .into_owned();
+    if let Some(path) = pack_file(&given) {
         return Ok(ModpackRef {
-            path,
+            path: path?,
             ..ModpackRef::default()
         });
     }

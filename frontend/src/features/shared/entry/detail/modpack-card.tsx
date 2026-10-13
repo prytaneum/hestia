@@ -1,8 +1,9 @@
 import { PackageIcon } from '@phosphor-icons/react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { toast } from 'sonner';
 
-import { errorMessage } from '@/api';
+import { dialog, errorMessage, type ModpackFilePreview } from '@/api';
 import { Stat } from '@/components/page';
 import {
   AlertDialog,
@@ -15,11 +16,13 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { Thumbnail } from '@/components/ui/thumbnail';
 import { WarningNotice } from '@/components/warning-notice';
 import { m } from '@/paraglide/messages.js';
 import type { JobEntryKind } from '@/queries';
 import {
+  modpackQueries,
   useModpack,
   useModpackUpdateCheck,
   useRemoveModpack,
@@ -46,7 +49,12 @@ export function ModpackCard({
   const pack = useModpack(kind, id);
   const update = useUpdateModpack(kind, id);
   const remove = useRemoveModpack(kind, id);
+  const queryClient = useQueryClient();
   const [confirmRemove, setConfirmRemove] = useState(false);
+  const [fromFile, setFromFile] = useState<{
+    path: string;
+    preview: ModpackFilePreview;
+  } | null>(null);
   const check = useModpackUpdateCheck(
     kind,
     id,
@@ -59,13 +67,38 @@ export function ModpackCard({
   const loader = installed.loader
     ? `${installed.loader}${installed.loaderVersion ? ` ${installed.loaderVersion}` : ''}`
     : 'vanilla';
-  // A file-sourced pack has no catalogue behind it, so there is nothing to
-  // update against — the daemon refuses it, and the button should not offer it.
+  // A file-sourced pack has no catalogue behind it, so only a newer file moves it.
   const updatable = installed.projectId !== '';
   const busy = update.isPending || remove.isPending;
   // An unreachable catalogue leaves the offer standing: the daemon is the one
   // that decides, and refusing to try would be worse than a wasted call.
   const upToDate = check.data ? !check.data.updatable : false;
+
+  const applyFile = (path: string, preview: ModpackFilePreview) =>
+    update
+      .mutateAsync({
+        path,
+        allowDowngrade: preview.downgrade,
+        allowOtherPack: !preview.samePack,
+      })
+      .catch((error) => toast.error(errorMessage(error)));
+
+  const updateFromFile = async () => {
+    const path = await dialog.pickPackFile();
+    if (!path) return;
+    try {
+      const preview = await queryClient.fetchQuery(
+        modpackQueries.updatePreview(kind, id, path),
+      );
+      if (preview.samePack && !preview.downgrade) {
+        await applyFile(path, preview);
+        return;
+      }
+      setFromFile({ path, preview });
+    } catch (error) {
+      toast.error(errorMessage(error));
+    }
+  };
 
   const removePack = (keepContent: boolean) =>
     remove
@@ -124,7 +157,7 @@ export function ModpackCard({
           </p>
         )}
 
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           {updatable && !upToDate && (
             <Button
               size="sm"
@@ -145,6 +178,14 @@ export function ModpackCard({
           )}
           <Button
             size="sm"
+            variant="outline"
+            disabled={busy || running}
+            onClick={updateFromFile}
+          >
+            {m['content.modpack.update_from_file.action']()}
+          </Button>
+          <Button
+            size="sm"
             variant="ghost"
             disabled={busy || running}
             onClick={() => setConfirmRemove(true)}
@@ -153,6 +194,37 @@ export function ModpackCard({
           </Button>
         </div>
       </div>
+
+      <ConfirmDialog
+        open={fromFile !== null}
+        onOpenChange={(open) => !open && setFromFile(null)}
+        title={m['content.modpack.update_from_file.title']({
+          name: fromFile?.preview.name ?? '',
+        })}
+        description={
+          <>
+            {fromFile && !fromFile.preview.samePack && (
+              <span className="block">
+                {m['content.modpack.update_from_file.other_pack']({
+                  given: fromFile.preview.name,
+                  installed: installed.name,
+                })}
+              </span>
+            )}
+            {fromFile?.preview.downgrade && (
+              <span className="block">
+                {m['content.modpack.update_from_file.downgrade']({
+                  from: installed.gameVersion,
+                  to: fromFile.preview.gameVersion,
+                })}
+              </span>
+            )}
+          </>
+        }
+        destructive
+        confirmLabel={m['content.modpack.update']()}
+        onConfirm={() => fromFile && applyFile(fromFile.path, fromFile.preview)}
+      />
 
       <AlertDialog open={confirmRemove} onOpenChange={setConfirmRemove}>
         <AlertDialogContent>

@@ -292,6 +292,18 @@ archive a source published is recorded as that release, and updates like one
 installed from the source. One no source recognises has no catalogue behind it
 and answers with nothing to check, the same reason `fetch_update` refuses it.
 
+**A pack file updates any pack.** `<kind>.modpack.update` takes a `path` in place
+of a version, and the file goes through the same update: the game-version move
+behind the downgrade gate, the stale-item sweep, the keep-if-edited rule. It is
+the only way an unpublished pack moves, and a published one may take it too — a
+file no source recognises then leaves it unpublished. A pack file carries a name
+and a free-text version but no id, so whether it is *the same pack* is the
+project where a source recognises both and the name otherwise; a different one is
+refused as `ModpackDifferentPack` unless `allowOtherPack` says it is meant.
+`<kind>.modpack.preview_update` answers both questions — same pack, downgrade —
+before a job starts, so a front-end asks once instead of failing a job to find
+out ([0078](../decisions/0078-a-pack-updates-from-a-file.md)).
+
 **A pack's mods are identified for free — or the long way round.** A pack index
 names each file by URL and hash alone, with no ids. A Modrinth CDN URL carries
 both, so `parse_file_url` recovers them and one bulk call fills in every title and
@@ -346,3 +358,4 @@ update *does* carry the game version with it — that is what updating a pack me
 - [0016 — Datapacks are world-of-record](../decisions/0016-datapacks-are-world-of-record.md)
 - [0075 — A local file is identified by its hash](../decisions/0075-a-local-file-is-identified-by-its-hash.md)
 - [0076 — A pack file is identified wherever it came from](../decisions/0076-a-pack-file-is-identified-wherever-it-came-from.md)
+- [0078 — A pack updates from a file, and leaves an entry two ways](../decisions/0078-a-pack-updates-from-a-file.md)
