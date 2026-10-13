@@ -62,3 +62,4 @@ export * from './sync';
 export * from './tasks';
 export * from './transfer';
 export * from './update';
+export { useEntryVersions } from './versions';

@@ -167,6 +167,11 @@
       "java_arguments": "Argumentos Java",
       "keep_backups": "Manter backups",
       "keep_backups_hint": "Backups agendados mais antigos são excluídos; os manuais são mantidos.",
+      "pack_drift": {
+        "move": "Mover também o pacote para {version}",
+        "none": "Nenhuma versão publicada do pacote foi feita para o Minecraft {target}.",
+        "notice": "{name} {version} foi feito para o Minecraft {game}. Seus mods podem não carregar no {target}."
+      },
       "remove": {
         "description": "{name} e todos os seus dados — mundos, backups e conteúdo instalado — serão excluídos permanentemente. Isto não pode ser desfeito.",
         "instance": "Remover instância",

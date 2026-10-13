@@ -11,7 +11,7 @@ import {
 } from '@/features/shared/entry/settings';
 import { m } from '@/paraglide/messages.js';
 import { configQueries, launcherDefaults } from '@/queries/config';
-import { instanceMutations, instanceQueries } from '@/queries/instance';
+import { instanceMutations } from '@/queries/instance';
 
 export function InstanceSettingsTab({
   instance,
@@ -49,7 +49,6 @@ export function InstanceSettingsTab({
                   })
                 }
                 update={update}
-                versionsQuery={instanceQueries.versions(instance.flavor)}
               />
               <DangerSettings
                 kind="instance"

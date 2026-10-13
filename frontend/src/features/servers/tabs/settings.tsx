@@ -16,7 +16,7 @@ import {
 import { m } from '@/paraglide/messages.js';
 import { configQueries, launcherDefaults } from '@/queries/config';
 import { useJobMutation } from '@/queries/jobs';
-import { serverMutations, serverQueries } from '@/queries/server';
+import { serverMutations } from '@/queries/server';
 
 export function ServerSettingsTab({
   server,
@@ -54,7 +54,6 @@ export function ServerSettingsTab({
                   })
                 }
                 update={update}
-                versionsQuery={serverQueries.versions(server.flavor)}
               />
               <DangerSettings
                 kind="server"

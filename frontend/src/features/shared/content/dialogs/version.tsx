@@ -11,7 +11,6 @@ import { AppDialog, DialogBody, DialogFooter } from '@/components/dialog';
 import { OfflineState } from '@/components/offline-state';
 import { SearchInput } from '@/components/search-input';
 import { CardGridSkeleton } from '@/components/skeleton';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
   Select,
@@ -20,11 +19,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { agoLabel } from '@/lib/format';
-import { cn } from '@/lib/utils';
 import { m } from '@/paraglide/messages.js';
 import { contentQueries, useContentSources } from '@/queries/content';
 import { useOffline } from '@/queries/net';
+import { VersionOption } from './version-option';
 
 /**
  * Pick a specific published version of an installed item — real
@@ -160,49 +158,15 @@ export function ContentVersionDialog({
               {m['entry.create.no_versions_match']()}
             </p>
           ) : (
-            shown.map((v) => {
-              const current =
-                !moving && v.versionNumber === item?.versionNumber;
-              const selected = pickedId === v.id;
-              return (
-                <button
-                  key={v.id}
-                  type="button"
-                  aria-pressed={selected}
-                  onClick={() => setPickedId(v.id)}
-                  className={cn(
-                    'flex w-full items-center gap-2.5 px-3 py-2 text-left outline-none transition-colors focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-inset',
-                    selected ? 'bg-muted text-foreground' : 'hover:bg-muted/50',
-                  )}
-                >
-                  <span
-                    className={cn(
-                      'size-1.5 shrink-0 rounded-full',
-                      selected ? 'bg-ember' : 'bg-transparent',
-                    )}
-                  />
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate font-mono text-xs">
-                      {v.versionNumber}
-                    </span>
-                    <span className="block truncate text-[11px] text-muted-foreground">
-                      {v.gameVersions.join(', ')} ·{' '}
-                      {agoLabel(Date.parse(v.datePublished) / 1000)}
-                    </span>
-                  </span>
-                  {v.channel !== 'release' && (
-                    <Badge variant="outline" className="shrink-0 text-[10px]">
-                      {v.channel}
-                    </Badge>
-                  )}
-                  {current && (
-                    <Badge variant="secondary" className="shrink-0 text-[10px]">
-                      {m['content.current_version']()}
-                    </Badge>
-                  )}
-                </button>
-              );
-            })
+            shown.map((v) => (
+              <VersionOption
+                key={v.id}
+                version={v}
+                selected={pickedId === v.id}
+                current={!moving && v.versionNumber === item?.versionNumber}
+                onSelect={() => setPickedId(v.id)}
+              />
+            ))
           )}
         </div>
       </DialogBody>

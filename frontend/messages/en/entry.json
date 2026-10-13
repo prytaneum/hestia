@@ -167,6 +167,11 @@
       "java_arguments": "Java arguments",
       "keep_backups": "Keep backups",
       "keep_backups_hint": "Older scheduled backups are deleted; manual ones are kept.",
+      "pack_drift": {
+        "move": "Also move the pack to {version}",
+        "none": "No published version of the pack is built for Minecraft {target}.",
+        "notice": "{name} {version} is built for Minecraft {game}. Its mods may not load on {target}."
+      },
       "remove": {
         "description": "{name} and all its data — worlds, backups, and installed content — are permanently deleted. This cannot be undone.",
         "instance": "Remove instance",

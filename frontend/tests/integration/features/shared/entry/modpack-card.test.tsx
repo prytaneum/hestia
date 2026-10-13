@@ -32,6 +32,8 @@ const card = (running: boolean) =>
       kind="instance"
       id={instance.id}
       name={instance.name}
+      flavor={instance.flavor}
+      gameVersion={instance.gameVersion}
       running={running}
     />,
   );

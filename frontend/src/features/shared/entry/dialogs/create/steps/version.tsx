@@ -9,6 +9,7 @@ import { m } from '@/paraglide/messages.js';
 import { instanceQueries } from '@/queries/instance';
 import { useOffline } from '@/queries/net';
 import { serverQueries } from '@/queries/server';
+import { useEntryVersions } from '@/queries/versions';
 
 import { type Kind, VersionRow, type WizardForm } from '../fields';
 
@@ -32,16 +33,8 @@ export function VersionStep({
 }) {
   const selected = form.state.values.version.version as string;
 
-  const serverVersions = useQuery({
-    ...serverQueries.versions(flavor),
-    enabled: kind === 'server',
-  });
-  const instanceVersions = useQuery({
-    ...instanceQueries.versions(flavor),
-    enabled: kind === 'instance',
-  });
   const offline = useOffline();
-  const versionsQuery = kind === 'server' ? serverVersions : instanceVersions;
+  const versionsQuery = useEntryVersions(kind, flavor);
   const versions: GameVersion[] = versionsQuery.data ?? [];
 
   // Loaders resolve only once a version is chosen, so gate on both.

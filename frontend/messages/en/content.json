@@ -42,6 +42,8 @@
     "loaded_in_world": "Loaded in {world}",
     "loaded_in_worlds": "{loaded}/{total} worlds",
     "modpack": {
+      "change_version_description": "Pick any published version of the pack. The game version it is built for comes with it.",
+      "fitting": "{version} is built for Minecraft {game}.",
       "from_file": "From a file",
       "install_into": "Install into {name}",
       "kept": "Kept {count} file(s) you had edited.",
@@ -59,7 +61,8 @@
       "removed": "Removed {files} file(s) and {overrides} pack file(s).",
       "target": {
         "existing": "An existing entry",
-        "label": "Where to install"
+        "label": "Where to install",
+        "needs": "This version only goes into an entry on {requirement}."
       },
       "title": "Modpack",
       "up_to_date": "On the newest published version.",

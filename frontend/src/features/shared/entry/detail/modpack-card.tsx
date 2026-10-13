@@ -3,6 +3,7 @@ import {
   DotsThreeIcon,
   FileArrowUpIcon,
   PackageIcon,
+  SwapIcon,
   TrashIcon,
 } from '@phosphor-icons/react';
 import { useQueryClient } from '@tanstack/react-query';
@@ -21,6 +22,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
@@ -43,6 +45,7 @@ import {
   useUpdateModpack,
 } from '@/queries';
 import { ProvisionProgressView } from '../components/provision-progress';
+import { ModpackVersionDialog } from '../dialogs';
 import { SideCard } from './cards';
 
 /**
@@ -53,13 +56,18 @@ export function ModpackCard({
   kind,
   id,
   name,
+  flavor,
+  gameVersion,
   running,
 }: {
   kind: JobEntryKind;
   id: string;
   name: string;
+  flavor: string;
+  gameVersion: string;
   running: boolean;
 }) {
+  const [picking, setPicking] = useState(false);
   const pack = useModpack(kind, id);
   const update = useUpdateModpack(kind, id);
   const remove = useRemoveModpack(kind, id);
@@ -85,6 +93,10 @@ export function ModpackCard({
   // An unreachable catalogue leaves the offer standing: the daemon is the one
   // that decides, and refusing to try would be worse than a wasted call.
   const upToDate = check.data ? !check.data.updatable : false;
+  const fitting =
+    check.data?.fitting?.versionId === check.data?.latestVersionId
+      ? undefined
+      : check.data?.fitting;
 
   const applyFile = (path: string, preview: ModpackFilePreview) =>
     update
@@ -154,6 +166,15 @@ export function ModpackCard({
             />
             <DropdownMenuContent align="end" className="w-48">
               {updatable && (
+                <DropdownMenuItem
+                  disabled={locked}
+                  onClick={() => setPicking(true)}
+                >
+                  <SwapIcon />
+                  {m['content.change_version.action']()}
+                </DropdownMenuItem>
+              )}
+              {updatable && (
                 <DropdownMenuItem disabled={locked} onClick={updateFromFile}>
                   <FileArrowUpIcon />
                   {m['content.modpack.update_from_file.action']()}
@@ -191,9 +212,22 @@ export function ModpackCard({
         )}
         <WarningNotice warnings={update.data?.warnings} />
 
-        {updatable && upToDate && (
+        {updatable && upToDate && !fitting && (
           <p className="text-xs text-muted-foreground">
             {m['content.modpack.up_to_date']()}
+          </p>
+        )}
+        {fitting && (
+          <p className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+            {m['content.modpack.fitting']({
+              version: fitting.versionNumber,
+              game: fitting.gameVersion,
+            })}
+            {fitting.channel !== 'release' && (
+              <Badge variant="outline" className="text-[10px]">
+                {fitting.channel}
+              </Badge>
+            )}
           </p>
         )}
 
@@ -229,6 +263,21 @@ export function ModpackCard({
           </Button>
         )}
       </div>
+
+      <ModpackVersionDialog
+        pack={installed}
+        kind={kind}
+        flavor={flavor}
+        gameVersion={gameVersion}
+        preselect={fitting?.versionId}
+        open={picking}
+        onOpenChange={setPicking}
+        onPick={(version, allowDowngrade) =>
+          update
+            .mutateAsync({ version: version.id, allowDowngrade })
+            .catch((error) => toast.error(errorMessage(error)))
+        }
+      />
 
       <ConfirmDialog
         open={fromFile !== null}

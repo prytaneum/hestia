@@ -1,8 +1,6 @@
 import { ArrowsClockwiseIcon } from '@phosphor-icons/react';
-import type { UseQueryOptions } from '@tanstack/react-query';
 import { useState } from 'react';
 
-import type { GameVersion } from '@/api';
 import {
   SavedInput,
   SettingGroup,
@@ -16,12 +14,10 @@ import { ChangeVersionDialog, type UpdateHandle } from '../dialogs';
 
 export interface GeneralSettingsProps {
   kind: JobEntryKind;
-  entry: { name: string; flavor: string; gameVersion: string };
+  entry: { id: string; name: string; flavor: string; gameVersion: string };
   running: boolean;
   rename: (name: string) => void;
   update: UpdateHandle;
-  // biome-ignore lint/suspicious/noExplicitAny: the query factories' option types differ per domain.
-  versionsQuery: UseQueryOptions<GameVersion[], any, GameVersion[], any>;
 }
 
 /** Identity: the entry's name and the game version it runs. */
@@ -31,7 +27,6 @@ export function GeneralSettings({
   running,
   rename,
   update,
-  versionsQuery,
 }: GeneralSettingsProps) {
   const [changing, setChanging] = useState(false);
 
@@ -89,9 +84,11 @@ export function GeneralSettings({
       </SettingList>
 
       <ChangeVersionDialog
+        kind={kind}
+        id={entry.id}
         name={entry.name}
+        flavor={entry.flavor}
         gameVersion={entry.gameVersion}
-        versionsQuery={versionsQuery}
         update={update}
         open={changing}
         onOpenChange={setChanging}

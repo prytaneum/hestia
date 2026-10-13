@@ -352,6 +352,8 @@ function InstanceDetail({
                 kind="instance"
                 id={instance.id}
                 name={instance.name}
+                flavor={instance.flavor}
+                gameVersion={instance.gameVersion}
                 running={running}
               />
               <SideCard title={m['entry.quick_actions']()}>

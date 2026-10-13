@@ -1,11 +1,9 @@
-import type { UseQueryOptions } from '@tanstack/react-query';
-import { useQuery } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 
-import type { GameVersion } from '@/api';
 import { errorMessage } from '@/api';
 import { AppDialog, DialogBody, DialogFooter } from '@/components/dialog';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
@@ -15,7 +13,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Notice } from '@/components/warning-notice';
 import { m } from '@/paraglide/messages.js';
+import type { JobEntryKind } from '@/queries';
+import { useModpack, useModpackUpdateCheck, useUpdateModpack } from '@/queries';
+import { useEntryVersions } from '@/queries/versions';
 
 export interface UpdateHandle {
   mutateAsync: (params: {
@@ -26,24 +28,28 @@ export interface UpdateHandle {
 }
 
 export function ChangeVersionDialog({
+  kind,
+  id,
   name,
+  flavor,
   gameVersion,
-  versionsQuery,
   update,
   open,
   onOpenChange,
 }: {
+  kind: JobEntryKind;
+  id: string;
   name: string;
+  flavor: string;
   gameVersion: string;
-  // biome-ignore lint/suspicious/noExplicitAny: the query factories' option types differ per domain.
-  versionsQuery: UseQueryOptions<GameVersion[], any, GameVersion[], any>;
   update: UpdateHandle;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
-  const versions = useQuery(versionsQuery);
+  const versions = useEntryVersions(kind, flavor);
   const [version, setVersion] = useState('');
   const [downgrade, setDowngrade] = useState(false);
+  const [movePack, setMovePack] = useState(true);
   const [wasOpen, setWasOpen] = useState(open);
 
   if (wasOpen !== open) {
@@ -51,6 +57,7 @@ export function ChangeVersionDialog({
     if (open) {
       setVersion('');
       setDowngrade(false);
+      setMovePack(true);
     }
   }
 
@@ -59,12 +66,27 @@ export function ChangeVersionDialog({
     [versions.data, gameVersion],
   );
 
-  const pending = update.isPending;
+  const pack = useModpack(kind, id).data;
+  const packUpdate = useUpdateModpack(kind, id);
+  const drifts = !!pack && version !== '' && version !== pack.gameVersion;
+  const check = useModpackUpdateCheck(
+    kind,
+    id,
+    drifts && pack.projectId !== '',
+    version,
+  );
+  const fit = drifts ? check.data?.fitting : undefined;
+  const pending = update.isPending || packUpdate.isPending;
 
   const apply = async () => {
     if (!version) return;
     try {
-      await update.mutateAsync({ version, allowDowngrade: downgrade });
+      if (fit && movePack)
+        await packUpdate.mutateAsync({
+          version: fit.versionId,
+          allowDowngrade: downgrade,
+        });
+      else await update.mutateAsync({ version, allowDowngrade: downgrade });
       toast.success(m['app.toast.updated']({ name }));
       onOpenChange(false);
     } catch (error) {
@@ -95,6 +117,42 @@ export function ChangeVersionDialog({
             ))}
           </SelectContent>
         </Select>
+        {drifts && (
+          <Notice
+            message={m['entry.settings.pack_drift.notice']({
+              name: pack.name,
+              version: pack.versionNumber,
+              game: pack.gameVersion,
+              target: version,
+            })}
+            hint={
+              !fit && !check.isFetching
+                ? m['entry.settings.pack_drift.none']({ target: version })
+                : undefined
+            }
+          />
+        )}
+        {fit && (
+          <label
+            htmlFor="move-pack"
+            className="flex cursor-pointer items-center gap-2 text-xs text-muted-foreground"
+          >
+            <Checkbox
+              id="move-pack"
+              checked={movePack}
+              onCheckedChange={(c) => setMovePack(c === true)}
+              disabled={pending}
+            />
+            {m['entry.settings.pack_drift.move']({
+              version: fit.versionNumber,
+            })}
+            {fit.channel !== 'release' && (
+              <Badge variant="outline" className="text-[10px]">
+                {fit.channel}
+              </Badge>
+            )}
+          </label>
+        )}
         <label
           htmlFor="allow-downgrade"
           className="flex cursor-pointer items-center gap-2 text-xs text-muted-foreground"
@@ -116,7 +174,10 @@ export function ChangeVersionDialog({
         >
           {m['app.action.cancel']()}
         </Button>
-        <Button onClick={apply} disabled={!version || pending}>
+        <Button
+          onClick={apply}
+          disabled={!version || pending || (drifts && check.isFetching)}
+        >
           {pending
             ? m['app.status.preparing']()
             : m['entry.settings.change_version']()}

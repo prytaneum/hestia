@@ -341,6 +341,8 @@ function ServerDetail({
                 kind="server"
                 id={server.id}
                 name={server.name}
+                flavor={server.flavor}
+                gameVersion={server.gameVersion}
                 running={running}
               />
             </div>
