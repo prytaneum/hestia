@@ -46,7 +46,6 @@
       "install_into": "Install into {name}",
       "kept": "Kept {count} file(s) you had edited.",
       "name_placeholder": "Defaults to the pack's own name",
-      "none": "Not built from a modpack.",
       "origin_badge": "Installed by the modpack {name}",
       "pack_files": "Pack files",
       "remove": {

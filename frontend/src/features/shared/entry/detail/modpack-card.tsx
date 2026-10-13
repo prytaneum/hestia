@@ -21,8 +21,7 @@ import { SideCard } from './cards';
 
 /**
  * The pack an entry runs, on its overview: what it is, and the two things that
- * can be done to it. Absent when the entry was not built from one — which is an
- * ordinary state, not an error, so it says so rather than hiding.
+ * can be done to it. Renders nothing when the entry was not built from one.
  */
 export function ModpackCard({
   kind,
@@ -45,16 +44,7 @@ export function ModpackCard({
     (pack.data?.projectId ?? '') !== '',
   );
 
-  if (pack.isLoading) return null;
-  if (!pack.data) {
-    return (
-      <SideCard title={m['content.modpack.title']()}>
-        <p className="text-xs text-muted-foreground">
-          {m['content.modpack.none']()}
-        </p>
-      </SideCard>
-    );
-  }
+  if (!pack.data) return null;
 
   const installed = pack.data;
   const loader = installed.loader

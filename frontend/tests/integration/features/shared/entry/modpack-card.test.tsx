@@ -84,12 +84,4 @@ describe('the modpack card', () => {
       }),
     ).toBeNull();
   });
-
-  it('says so plainly when the entry was not built from a pack', async () => {
-    clearPack(instance.id);
-    card(false);
-    await waitFor(() =>
-      expect(screen.getByText(m['content.modpack.none']())).toBeDefined(),
-    );
-  });
 });
