@@ -162,7 +162,7 @@ fn index_entry(
     managed: &Path,
     path: &str,
 ) -> Result<Option<serde_json::Value>> {
-    if item.url.is_empty() || item.sha1.is_empty() {
+    if !install::referenceable(item) {
         return Ok(None);
     }
     let size = std::fs::metadata(managed)

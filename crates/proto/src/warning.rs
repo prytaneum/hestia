@@ -62,6 +62,10 @@ pub enum WarningInfo {
     /// source: it is installed and loads, but carries no provenance, so it can
     /// never be updated in place.
     ImportFilesUntracked { count: u32, files: Vec<String> },
+    /// Tracked content the archive neither carried nor named a download for, so
+    /// its record was dropped: the instance imports with the content list it
+    /// actually has.
+    ImportContentMissing { count: u32, files: Vec<String> },
     /// A file hestia keeps could not be read as the document it should be —
     /// written by a newer build, hand-edited into something that no longer
     /// decodes, or damaged — so it was renamed aside and whatever it held is
@@ -121,6 +125,10 @@ impl WarningInfo {
             ImportFilesUntracked { .. } => {
                 "reinstall them from a source (`mod add <name>`) to make them updatable".to_string()
             }
+            ImportContentMissing { .. } => {
+                "install them again from a source (`mod add <name>`) if you still want them"
+                    .to_string()
+            }
             ServerListInUse { .. } => {
                 "close the game, then make the change again — or add the server from the in-game \
                  multiplayer screen instead"
@@ -173,6 +181,10 @@ impl fmt::Display for WarningInfo {
             ImportFilesUntracked { count, .. } => write!(
                 f,
                 "{count} file(s) came from the archive itself, so they cannot be updated"
+            ),
+            ImportContentMissing { count, .. } => write!(
+                f,
+                "{count} file(s) were not in the archive and had no download, so they were left out"
             ),
             ServerListInUse { instance, sessions } => write!(
                 f,

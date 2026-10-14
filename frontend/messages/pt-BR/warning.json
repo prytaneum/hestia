@@ -4,6 +4,7 @@
     "hint": {
       "document_quarantined": "Nada foi apagado — o arquivo está em {path}. Atualize o hestia se ele veio de uma versão mais nova, ou apague-o quando já tiver tirado dele o que precisa.",
       "export_files_embedded": "Nada a fazer, a menos que queira publicar o pacote — nesse caso, reinstale esses arquivos a partir de uma fonte.",
+      "import_content_missing": "Instale-os novamente a partir de uma fonte, se ainda os quiser.",
       "import_files_untracked": "Reinstale-os a partir de uma fonte para torná-los atualizáveis.",
       "launched_offline": "O modo um jogador funciona normalmente; inicie novamente quando estiver online para jogar multijogador.",
       "modpack_files_excluded": "Eles quebrariam um servidor. Adicione um em Sempre instalar nas Configurações para instalá-lo mesmo assim, ou desligue a correção para aceitar o pacote.",
@@ -17,6 +18,7 @@
     "kind": {
       "document_quarantined": "{document} não pôde ser lido e foi posto de lado: {detail}",
       "export_files_embedded": "{count} arquivo(s) não tinham download para referenciar e foram embutidos no arquivo.",
+      "import_content_missing": "{count} arquivo(s) não estavam no arquivo importado e não tinham download, então ficaram de fora.",
       "import_files_untracked": "{count} arquivo(s) vieram do próprio arquivo, então não podem ser atualizados.",
       "launched_offline": "Jogando offline como {account} — esta sessão não está conectada.",
       "modpack_files_excluded": "{count} mod(s) exclusivo(s) de cliente que o pacote declarou compatíveis com servidor não foram instalados.",

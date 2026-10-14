@@ -880,6 +880,159 @@ async fn an_imported_profile_is_resolved_for_the_host_not_carried_from_the_expor
     assert_eq!(imported.profile.game_version, "1.21");
 }
 
+const BODY_SHA1: &str = "32a22d349740b9065493b697ae61279f4f85aea2";
+
+/// An instance with `sodium` installed from a source that publishes its hash,
+/// so the pool record is something an archive can reference.
+async fn with_referenceable_mod(
+    home: &std::path::Path,
+    files: &fixture::Files,
+) -> (engine::Engine, String) {
+    let mut version = fixture::version("sodium", files, "1.21", &[]);
+    version.files[0].artifact.checksum = Some(proto::download::Checksum {
+        algorithm: proto::download::HashAlgorithm::Sha1,
+        hex: BODY_SHA1.into(),
+    });
+    let source = fixture::Source {
+        projects: vec![fixture::project("sodium", ContentKind::Mod)],
+        versions: vec![version],
+    };
+    let (engine, id) = instance(home, source).await;
+    let (cancel, report) = (Cancel::new(), |_: &ProvisionProgress| {});
+    let (_, failures) = engine
+        .add_entry_content(
+            EntryRef::Instance(&id),
+            &add(&["sodium"]),
+            &job(&cancel, &report),
+        )
+        .await
+        .expect("install the mod");
+    assert!(failures.is_empty(), "{failures:?}");
+    (engine, id)
+}
+
+fn export_without(
+    engine: &engine::Engine,
+    id: &str,
+    drops: &std::path::Path,
+    excluded: &str,
+) -> std::path::PathBuf {
+    let (cancel, report) = (Cancel::new(), |_: &ProvisionProgress| {});
+    engine
+        .export_instance(
+            id,
+            proto::transfer::ExportFormat::Hestia,
+            &drops.to_string_lossy(),
+            &[excluded.to_string()],
+            &job(&cancel, &report),
+        )
+        .expect("the instance exports")
+        .path
+}
+
+#[tokio::test]
+async fn a_referenceable_item_missing_from_the_archive_is_downloaded_on_import() {
+    let home = tempfile::tempdir().expect("temp home");
+    let drops = tempfile::tempdir().expect("temp drops");
+    let files = fixture::Files::serve().await;
+    let (engine, id) = with_referenceable_mod(home.path(), &files).await;
+    let archive = export_without(&engine, &id, drops.path(), "mods/sodium.jar");
+    let (cancel, report) = (Cancel::new(), |_: &ProvisionProgress| {});
+
+    let outcome = engine
+        .import_instance(&archive.to_string_lossy(), "copy", &job(&cancel, &report))
+        .await
+        .expect("the archive imports");
+
+    let restored = engine
+        .instances()
+        .instance_dir(&outcome.record)
+        .join("mods/sodium.jar");
+    assert_eq!(
+        std::fs::read(restored).expect("the mod was fetched"),
+        fixture::Files::BODY
+    );
+    assert!(outcome.warnings.is_empty(), "{:?}", outcome.warnings);
+}
+
+#[tokio::test]
+async fn a_download_that_does_not_match_its_hash_fails_the_import_and_leaves_no_instance() {
+    use std::io::Write;
+    let home = tempfile::tempdir().expect("temp home");
+    let drops = tempfile::tempdir().expect("temp drops");
+    let files = fixture::Files::serve().await;
+    let (engine, id) = with_referenceable_mod(home.path(), &files).await;
+    let archive = export_without(&engine, &id, drops.path(), "mods/sodium.jar");
+
+    let tampered = drops.path().join("tampered.hestia");
+    let mut source = zip::ZipArchive::new(std::fs::File::open(&archive).expect("open"))
+        .expect("read the archive");
+    let mut writer = zip::ZipWriter::new(std::fs::File::create(&tampered).expect("create"));
+    for index in 0..source.len() {
+        let mut member = source.by_index(index).expect("a member");
+        if member.name() != "content.json" {
+            writer.raw_copy_file(member).expect("copy a member");
+            continue;
+        }
+        let mut text = String::new();
+        std::io::Read::read_to_string(&mut member, &mut text).expect("read the index");
+        writer
+            .start_file("content.json", zip::write::SimpleFileOptions::default())
+            .expect("start the index");
+        writer
+            .write_all(text.replace(BODY_SHA1, &"0".repeat(40)).as_bytes())
+            .expect("write the index");
+    }
+    writer.finish().expect("finish the archive");
+    let (cancel, report) = (Cancel::new(), |_: &ProvisionProgress| {});
+
+    let refused = engine
+        .import_instance(&tampered.to_string_lossy(), "copy", &job(&cancel, &report))
+        .await;
+
+    let error = refused
+        .err()
+        .expect("bytes that fail their hash are refused");
+    assert!(
+        format!("{error:#}").contains("checksum mismatch"),
+        "{error:#}"
+    );
+    assert_eq!(
+        engine.instances().list().len(),
+        1,
+        "only the source instance remains"
+    );
+}
+
+#[tokio::test]
+async fn an_item_with_neither_bytes_nor_a_download_is_dropped_and_reported() {
+    let home = tempfile::tempdir().expect("temp home");
+    let drops = tempfile::tempdir().expect("temp drops");
+    let (engine, id) = with_local_mod(home.path(), drops.path(), "homemade-1.0.jar").await;
+    let archive = export_without(&engine, &id, drops.path(), "mods/homemade-1.0.jar");
+    let (cancel, report) = (Cancel::new(), |_: &ProvisionProgress| {});
+
+    let outcome = engine
+        .import_instance(&archive.to_string_lossy(), "copy", &job(&cancel, &report))
+        .await
+        .expect("the archive imports");
+
+    let (listed, _) = engine
+        .entry_content(EntryRef::Instance(&outcome.record.id), ContentKind::Mod)
+        .expect("list");
+    assert!(
+        listed.is_empty(),
+        "the content list is the one the entry has"
+    );
+    match outcome.warnings.as_slice() {
+        [proto::warning::WarningInfo::ImportContentMissing { count, files }] => {
+            assert_eq!(*count, 1);
+            assert_eq!(files, &["homemade-1.0.jar"]);
+        }
+        other => panic!("expected one missing-content warning, got {other:?}"),
+    }
+}
+
 #[tokio::test]
 async fn a_root_that_fails_does_not_stop_the_batch() {
     let home = tempfile::tempdir().expect("temp home");

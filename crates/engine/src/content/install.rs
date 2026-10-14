@@ -186,6 +186,12 @@ pub(crate) fn managed_path(entry_dir: &Path, item: &InstalledContent) -> Result<
     Ok(entry_dir.join(kind_dir(item.kind)?).join(&item.filename))
 }
 
+/// Whether a source can serve the item again and its bytes can be verified when
+/// it does — the test every archive format applies before leaving its bytes out.
+pub(crate) fn referenceable(item: &InstalledContent) -> bool {
+    !item.url.is_empty() && !item.sha1.is_empty()
+}
+
 pub(crate) fn data_path(data_dir: &Path, item: &InstalledContent) -> Result<PathBuf> {
     Ok(data_dir.join(kind_dir(item.kind)?).join(&item.filename))
 }

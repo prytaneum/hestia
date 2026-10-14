@@ -5,7 +5,7 @@ import type { SyncUnit } from "./SyncUnit";
  * One degraded outcome. The `kind` tag is the wire discriminant; front-ends
  * switch on it exhaustively.
  */
-export type WarningInfo = { "kind": "properties_schema_missing", name: string, } | { "kind": "sync_unit_unsupported", instance: string, unit: SyncUnit, requires: string, } | { "kind": "sync_unit_skipped", unit: SyncUnit, detail: string, } | { "kind": "modpack_overrides_kept", count: number, paths: Array<string>, } | { "kind": "modpack_files_excluded", count: number, files: Array<string>, } | { "kind": "export_files_embedded", count: number, files: Array<string>, } | { "kind": "import_files_untracked", count: number, files: Array<string>, } | { "kind": "document_quarantined", document: string, path: string, 
+export type WarningInfo = { "kind": "properties_schema_missing", name: string, } | { "kind": "sync_unit_unsupported", instance: string, unit: SyncUnit, requires: string, } | { "kind": "sync_unit_skipped", unit: SyncUnit, detail: string, } | { "kind": "modpack_overrides_kept", count: number, paths: Array<string>, } | { "kind": "modpack_files_excluded", count: number, files: Array<string>, } | { "kind": "export_files_embedded", count: number, files: Array<string>, } | { "kind": "import_files_untracked", count: number, files: Array<string>, } | { "kind": "import_content_missing", count: number, files: Array<string>, } | { "kind": "document_quarantined", document: string, path: string, 
 /**
  * Operational English naming the schema problem, shown as secondary
  * text: the version it declared, or why it would not parse.

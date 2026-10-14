@@ -4,6 +4,7 @@
     "hint": {
       "document_quarantined": "Nothing was deleted — the file is at {path}. Update hestia if it came from a newer version, or delete it once you have what you need from it.",
       "export_files_embedded": "Nothing to do unless you mean to publish the pack — reinstall those files from a source first if you do.",
+      "import_content_missing": "Install them again from a source if you still want them.",
       "import_files_untracked": "Reinstall them from a source to make them updatable.",
       "launched_offline": "Singleplayer works as usual; launch again once you are back online to play multiplayer.",
       "modpack_files_excluded": "They would break a server. Add one under Always install in Settings to install it anyway, or turn the correction off to trust the pack.",
@@ -17,6 +18,7 @@
     "kind": {
       "document_quarantined": "{document} could not be read and was set aside: {detail}",
       "export_files_embedded": "{count} file(s) had no download to reference and were embedded in the archive.",
+      "import_content_missing": "{count} file(s) were not in the archive and had no download, so they were left out.",
       "import_files_untracked": "{count} file(s) came from the archive itself, so they cannot be updated.",
       "launched_offline": "Playing offline as {account} — this session is not signed in.",
       "modpack_files_excluded": "{count} client-only mod(s) the pack called server-compatible were not installed.",

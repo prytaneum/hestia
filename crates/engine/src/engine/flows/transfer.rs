@@ -198,7 +198,9 @@ impl Engine {
 
         let mark = schema::notices::mark();
         crate::content::migrate(&entry_dir);
-        let mut warnings = self.untracked_adoptions(&entry_dir, &landed.adopted).await;
+        let restored = self.restore_tracked_content(&entry_dir, job).await;
+        let mut warnings = self.unwind_on_failure(&record, restored)?;
+        warnings.extend(self.untracked_adoptions(&entry_dir, &landed.adopted).await);
         warnings.extend(quarantined_under(mark, &entry_dir));
 
         Ok(ImportOutcome {
