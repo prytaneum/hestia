@@ -245,11 +245,23 @@ impl Engine {
         descriptor: &Descriptor,
     ) -> Result<InstanceRecord> {
         let template = match recipe {
-            // The archive carries a resolved profile — no network, no lookup.
-            Recipe::Record(record) => InstanceRecord {
-                name: name.to_string(),
-                ..*record
-            },
+            // The carried profile was resolved for the exporting host's OS, so
+            // only the instance's identity is kept and the profile is resolved
+            // again here.
+            Recipe::Record(record) => {
+                let flavor = self.archive_flavor(&descriptor.loader)?;
+                let loader_version =
+                    Some(descriptor.loader_version.clone()).filter(|version| !version.is_empty());
+                let profile = self
+                    .minecraft
+                    .resolve_instance(&flavor, &descriptor.game_version, loader_version)
+                    .await?;
+                InstanceRecord {
+                    name: name.to_string(),
+                    profile,
+                    ..*record
+                }
+            }
             // A game version and a loader, resolved exactly as a create does.
             Recipe::Resolve {
                 loader,

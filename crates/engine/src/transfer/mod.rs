@@ -81,8 +81,10 @@ pub(crate) struct Descriptor {
 /// format: several formats share a route, and a new format picks one rather
 /// than adding a fourth.
 pub(crate) enum Recipe {
-    /// The archive carries a resolved record — hestia's own export. Nothing to
-    /// look up, so this route works with no network at all.
+    /// The archive carries the instance's record — hestia's own export. Its
+    /// identity travels (name, Java settings, sharing, playtime, timestamps);
+    /// its profile does not, because that was resolved for the exporting
+    /// host's OS and is resolved again on import.
     Record(Box<InstanceRecord>),
     /// The archive names a game version and a loader, which resolve exactly as
     /// `instance create` resolves them.

@@ -810,6 +810,77 @@ async fn another_launchers_jars_are_tracked_where_a_source_publishes_them() {
 }
 
 #[tokio::test]
+async fn an_imported_profile_is_resolved_for_the_host_not_carried_from_the_exporter() {
+    use proto::minecraft::{Library, Native};
+    use proto::transfer::ExportFormat;
+
+    let home = tempfile::tempdir().expect("temp home");
+    let drops = tempfile::tempdir().expect("temp drops");
+    let (engine, id) = instance(home.path(), fixture::Source::default()).await;
+    let mut foreign = engine.instances().get(&id).expect("the instance").profile;
+    let windows_only = Library {
+        name: "org.lwjgl:lwjgl:3.3.3:natives-windows".into(),
+        ..Library::default()
+    };
+    foreign.libraries = vec![windows_only.clone()];
+    foreign.natives = vec![Native {
+        library: windows_only,
+        exclude: Vec::new(),
+    }];
+    foreign.jvm_args = vec![
+        "-XX:HeapDumpPath=MojangTricksIntelDriversForPerformance_javaw.exe_minecraft.exe.heapdump"
+            .into(),
+    ];
+    engine
+        .instances()
+        .update(&id, foreign)
+        .expect("pin the foreign profile");
+    engine
+        .instances()
+        .config_set(&id, "memory", "3G")
+        .expect("set memory");
+    engine
+        .instances()
+        .add_playtime(&id, 3600)
+        .expect("add playtime");
+
+    let (cancel, report) = (Cancel::new(), |_: &ProvisionProgress| {});
+    let exported = engine
+        .export_instance(
+            &id,
+            ExportFormat::Hestia,
+            &drops.path().to_string_lossy(),
+            &[],
+            &job(&cancel, &report),
+        )
+        .expect("the instance exports");
+
+    let imported = engine
+        .import_instance(
+            &exported.path.to_string_lossy(),
+            "copy",
+            &job(&cancel, &report),
+        )
+        .await
+        .expect("the archive imports")
+        .record;
+
+    assert_eq!(imported.name, "copy");
+    assert_eq!(imported.jvm.memory.as_deref(), Some("3G"));
+    assert_eq!(imported.playtime_seconds, 3600);
+    assert!(
+        imported.profile.libraries.is_empty() && imported.profile.natives.is_empty(),
+        "the exporter's libraries are not carried"
+    );
+    assert!(imported.profile.jvm_args.is_empty());
+    assert_eq!(
+        imported.profile.main_class,
+        "net.minecraft.client.main.Main"
+    );
+    assert_eq!(imported.profile.game_version, "1.21");
+}
+
+#[tokio::test]
 async fn a_root_that_fails_does_not_stop_the_batch() {
     let home = tempfile::tempdir().expect("temp home");
     let files = fixture::Files::serve().await;

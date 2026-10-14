@@ -3,9 +3,9 @@
 //! It is the entry directory itself: the content pool, the modpack record, the
 //! game directory, everything but what regenerates. The
 //! record travels beside them in `hestia.instance.json`, which is both the
-//! manifest and the marker — and carries a **resolved** profile, so importing
-//! one needs no network and cannot be broken by a version falling out of a
-//! catalogue years later.
+//! manifest and the marker. The record's identity travels; its resolved
+//! profile is host-specific (library rules are filtered by the exporting OS),
+//! so import names the game and loader versions and resolves them again.
 //!
 //! The marker is not called `instance.json` deliberately. A marker file is a
 //! claim about what an archive is, so it has to be specific enough that finding
