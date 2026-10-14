@@ -29,8 +29,9 @@ instance**, because creating one is where the engine, the network and the entry
 store all come in. Instead the blueprint carries a `Recipe` naming which of
 three routes the launcher takes —
 
-- `Record` — a resolved record travels in the archive (hestia's own): no
-  lookups, no network;
+- `Record` — the instance's record travels in the archive (hestia's own); its
+  profile is resolved again on the importing host
+  ([0081](0081-the-archive-carries-identity-and-references.md));
 - `Resolve` — the archive names a game version and a loader, resolved exactly as
   `instance create` resolves them (Prism, and any launcher that describes an
   instance rather than shipping one);

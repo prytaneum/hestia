@@ -11,7 +11,7 @@ Four formats come in, two go out.
 
 | Format | Marker | In | Out | What it is |
 |---|---|---|---|---|
-| **hestia** | `hestia.instance.json` | ✅ | ✅ | the whole entry directory + a resolved record — restores exactly, needs no network |
+| **hestia** | `hestia.instance.json` | ✅ | ✅ | the entry directory minus content a source can serve again, + the instance's record — the profile is resolved on the importing host |
 | **`.mrpack`** | `modrinth.index.json` | ✅ | ✅ | Modrinth's pack format: mods as *references*, everything else in `overrides/` |
 | **Prism / MultiMC** | `instance.cfg` | ✅ | — | another launcher's instance directory (`mmc-pack.json` + `.minecraft/`) |
 | **CurseForge pack** | `manifest.json` | ✅ | — | CurseForge's pack format: mods as project/file *ids*, which need the CurseForge source to resolve |
@@ -42,7 +42,7 @@ flowchart TD
     FILE([an archive]) --> DETECT{detect by marker}
     DETECT --> FMT["<b>Format</b><br/>marker · read · land"]
     FMT --> BP["<b>Blueprint</b><br/>descriptor + recipe"]
-    BP --> R1["Recipe::Record<br/><i>a resolved record travels</i>"]
+    BP --> R1["Recipe::Record<br/><i>an identity travels, the profile is re-resolved</i>"]
     BP --> R2["Recipe::Resolve<br/><i>a version + loader to look up</i>"]
     BP --> R3["Recipe::Pack<br/><i>the modpack flow owns it</i>"]
     R1 --> CREATE[["the flow registers the instance"]]
@@ -100,21 +100,41 @@ rather than the worlds would have no game data in it.
 
 ## The hestia archive
 
-The entry directory itself, plus a manifest that is also the marker:
+The entry directory minus whatever a source can serve again, plus a manifest that
+is also the marker:
 
 ```
 cozy.hestia (a zip)
 ├── hestia.instance.json    the manifest: format version, who wrote it, the record
 ├── content.json            the pool index — provenance survives the trip
 ├── modpack.json            the pack the instance runs, when it runs one
-├── mods/ resourcepacks/ shaderpacks/ datapacks/
+├── mods/ resourcepacks/ shaderpacks/ datapacks/   local-only files
 └── data/                   the game directory: config, options.txt, saves
 ```
 
-The record carries a **resolved** profile (client jar, libraries, asset index),
-so importing one needs no network and cannot be broken by a version falling out
-of a catalogue years later. The **id is not honoured**: an imported instance is a
-new entry and gets a fresh one, so the same archive can be imported twice.
+The archive carries **what the instance is, not how a host runs it**. The record's
+flavor, game version and loader version are authoritative; its profile (client
+jar, libraries, natives, JVM arguments) was resolved for the exporting OS, so
+import resolves it again on the importing host and keeps the record's name, Java
+settings, sharing, playtime and timestamps. That needs the version catalogue,
+which falls back to the cached one offline. The **id is not honoured**: an
+imported instance is a new entry and gets a fresh one, so the same archive can be
+imported twice.
+
+Content is **referenced, not carried**, when it can be: an item with a URL and a
+SHA-1 (`install::referenceable`, the rule the `.mrpack` export applies too) keeps
+its record in `content.json` and leaves its bytes out. A local file, or one a
+source does not distribute, is embedded. Import then makes the list true
+(`flows/restore.rs`): an item whose file is missing is downloaded to its managed
+path through the content-addressed cache, verified against its SHA-1, and a
+failure unwinds the import so it can be retried. An item that is neither present
+nor referenceable is dropped from the index and named in `ImportContentMissing`.
+
+The export picker lists every file, referenced ones included, flagged
+`referenced` and counted as nothing in the total. **An exclusion removes the item,
+not just its bytes**: `content.json` is rewritten through the same rules as the
+files, so an import never lists what the archive does not have
+([0081](../decisions/0081-the-archive-carries-identity-and-references.md)).
 
 The marker is deliberately not called `instance.json` — a marker is a claim about
 what an archive *is*, so it has to be specific enough that finding it inside
@@ -185,6 +205,7 @@ already up — and opens the import dialog on it.
 ## Related decisions
 
 - [0057 — An archive format is a module, not a branch](../decisions/0057-an-archive-format-is-a-module.md)
+- [0081 — The archive carries the instance's identity and references](../decisions/0081-the-archive-carries-identity-and-references.md)
 - [0013 — The managed dir is the record](../decisions/0013-managed-dir-of-record.md)
 - [0011 — A modpack decomposes into existing parts](../decisions/0011-modpack-decomposes-into-existing-parts.md)
 - [0021 — Backups follow docker-mc-backup](../decisions/0021-backups-follow-docker-mc-backup.md)

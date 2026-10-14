@@ -109,6 +109,7 @@ the alternative you rejected — that is usually the part nobody can recover lat
 ### [Import & export](../architecture/transfer.md)
 
 - **0057** — [An archive format is a module, not a branch — and the launcher matches on the recipe](0057-an-archive-format-is-a-module.md)
+- **0081** — [The archive carries the instance's identity and references](0081-the-archive-carries-identity-and-references.md)
 
 ### [Front-ends](../architecture/frontends.md)
 

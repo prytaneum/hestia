@@ -230,7 +230,7 @@ Two formats out:
 
 | `--format` | Carries | Use it for |
 |---|---|---|
-| `hestia` (default) | the whole instance — pool, configs, worlds, and a resolved record | keeping a copy, or moving it to another machine; imports back **offline**, exactly as it was |
+| `hestia` (default) | settings, configs, worlds and local-only files; mods and packs from Modrinth or CurseForge are left out and downloaded on import | keeping a copy, or moving it to another machine, whichever OS it came from |
 | `mrpack` | mods as links to where they came from, everything else in `overrides/` | sharing with someone on another launcher |
 
 An `.mrpack` can only reference content hestia knows the origin of. A local file that no source recognised has no
