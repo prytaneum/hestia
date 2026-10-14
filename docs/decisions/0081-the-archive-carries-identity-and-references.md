@@ -35,7 +35,7 @@ export already applied through `mrpack::index_entry`, now shared by both
 writers). Its bytes stay out of the archive. Everything else (a local file, a
 CurseForge file with distribution disabled, a record with no hash) is embedded.
 The archive is the settings, configuration, worlds and local files; a 141 MB
-archive of mostly Modrinth mods is about 18 MB.
+archive of mostly Modrinth mods re-exports at 15 MB.
 
 **Import makes the content list true.** After the files land, every tracked item
 either has its file, is downloaded to its managed path, or leaves the list.

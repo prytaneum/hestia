@@ -270,7 +270,7 @@ enum InstanceAction {
         #[arg(
             short,
             long,
-            help = "Archive format: hestia (full fidelity) or mrpack (portable)"
+            help = "Archive format: hestia (hestia's own) or mrpack (for other launchers)"
         )]
         format: Option<String>,
         #[arg(

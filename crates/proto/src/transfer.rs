@@ -22,9 +22,10 @@ use crate::instance::InstanceInfo;
 use crate::minecraft::ProvisionProgress;
 use crate::warning::WarningInfo;
 
-/// What an export writes. `Hestia` is the full-fidelity archive — the one that
-/// round-trips an instance whole; `Mrpack` is the portable one other launchers
-/// read, and carries only what can be expressed as a Modrinth pack.
+/// What an export writes. `Hestia` is hestia's own archive — the instance's
+/// record, files and local content, with tracked content downloaded again on
+/// import; `Mrpack` is the one other launchers read, and carries only what can
+/// be expressed as a Modrinth pack.
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Default)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
 #[serde(rename_all = "snake_case")]
