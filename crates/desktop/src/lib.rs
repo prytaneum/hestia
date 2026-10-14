@@ -4,6 +4,29 @@ mod commands;
 use bridge::Bridge;
 use tauri::Manager;
 
+/// Start the daemon unless one is running, and return without opening a window.
+pub fn start_daemon() -> std::process::ExitCode {
+    let started = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .map_err(|e| e.to_string())
+        .and_then(|runtime| {
+            runtime
+                .block_on(client::Client::start())
+                .map_err(|e| e.to_string())
+        });
+    match started {
+        Ok(_) => {
+            tracing::info!("daemon started without the shell");
+            std::process::ExitCode::SUCCESS
+        }
+        Err(error) => {
+            tracing::error!(%error, "cannot start the daemon");
+            std::process::ExitCode::FAILURE
+        }
+    }
+}
+
 fn is_quit_signal(argv: &[String]) -> bool {
     argv.iter().any(|arg| arg == common::app::DESKTOP_QUIT_ARG)
 }

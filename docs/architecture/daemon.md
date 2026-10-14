@@ -197,6 +197,13 @@ Two conventions worth knowing when reading them:
 platform (`linux.rs`, `windows.rs`, `unsupported.rs` behind one interface),
 driven by the `config` service when the reserved `autostart` key is set.
 
+On Linux the entry runs the daemon's own executable — except under an AppImage,
+where that executable sits on a mount that is gone by the next login. There the
+entry runs the image itself with `--daemon`, which has the desktop shell (the
+image's only entry point) start the daemon through `Client::start` and exit
+without a window
+([0080](../decisions/0080-only-the-shell-runs-in-the-appimage-environment.md)).
+
 ## Stopping
 
 `daemon.stop` takes a boolean `stop_processes` — and deliberately does *not*
@@ -215,3 +222,4 @@ supervised processes simply carry on without it.
 - [0030 — Instances are gated on a signed-in account, in the router](../decisions/0030-instance-surface-gated-on-an-account.md)
 - [0031 — An aggregation point is a directory, not a file](../decisions/0031-an-aggregation-point-is-a-directory.md)
 - [0036 — Stopping the daemon has three meanings](../decisions/0036-stopping-the-daemon-has-three-meanings.md)
+- [0080 — Only the shell runs in the AppImage's environment](../decisions/0080-only-the-shell-runs-in-the-appimage-environment.md)

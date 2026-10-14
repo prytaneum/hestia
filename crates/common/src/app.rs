@@ -13,6 +13,10 @@ pub const TRAY_ID: &str = "org.prytaneum.hestia.tray";
 /// The flag the tray passes to re-launch the desktop shell just to close it:
 /// the running instance routes it through single-instance and exits.
 pub const DESKTOP_QUIT_ARG: &str = "--quit";
+/// The flag that has the desktop shell start the daemon and exit, opening no
+/// window. An AppImage's login entry starts the daemon this way, since the
+/// shell is the image's only entry point.
+pub const DESKTOP_DAEMON_ARG: &str = "--daemon";
 pub const VENDOR: &str = "prytaneum";
 /// The release channel this build was shipped on, stamped at compile time by
 /// the release workflow. It seeds the self-update feed (`update.channel`), so a

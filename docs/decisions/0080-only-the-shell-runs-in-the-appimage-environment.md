@@ -1,6 +1,7 @@
 # Only the shell runs in the AppImage's environment
 
 *Applies to: [Cross-cutting foundations](../architecture/common.md#the-appimage-environment),
+[The daemon](../architecture/daemon.md#autostart),
 [Front-ends](../architecture/frontends.md#desktop--hestia-desktop)*
 
 "Open folder" did nothing from the AppImage. The image's launcher puts its
@@ -37,6 +38,13 @@ setting the environment of a running multi-threaded process is unsound.
   rather than the binary beside it, since the shell runs only under the image's
   launcher — WebKit finds its helpers relative to the launcher's working
   directory.
+
+**The image is the way back in.** Anything that has to start Hestia again later
+names `$APPIMAGE`, never a path on the mount, which only lives as long as
+something holds it open. The tray relaunches the shell that way, and a login
+entry registered from an AppImage runs `"<image>" --daemon`: the shell is the
+image's only entry point, so the flag has it start the daemon and exit without
+a window.
 
 **Every external link goes through `ExternalLink`.** The plugin's click handler
 for `target="_blank"` links calls the plugin's `open_url` directly, so it is
