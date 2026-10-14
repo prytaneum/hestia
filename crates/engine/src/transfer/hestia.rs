@@ -1,7 +1,9 @@
 //! hestia's own archive format — the full-fidelity one.
 //!
 //! It is the entry directory itself: the content pool, the modpack record, the
-//! game directory, everything but what regenerates. The
+//! game directory, everything but what regenerates. A pool file a source can
+//! serve again stays out (see [`install::referenceable`]); import fetches it
+//! from its record. The
 //! record travels beside them in `hestia.instance.json`, which is both the
 //! manifest and the marker. The record's identity travels; its resolved
 //! profile is host-specific (library rules are filtered by the exporting OS),
@@ -23,6 +25,7 @@ use super::archive::{self, Reader, Writer, Written};
 use super::exclude::Rules;
 use super::{Blueprint, Descriptor, Format, Landed, Recipe, Source, Target};
 use crate::cancel::Job;
+use crate::content::install;
 use crate::instances::InstanceRecord;
 use crate::registry;
 use crate::schema::{self, Document};
@@ -162,11 +165,14 @@ pub(crate) fn export(source: &Source<'_>, destination: &Path, job: &Job<'_>) -> 
     let encoded = serde_json::to_vec_pretty(&schema::encode(&manifest)?)
         .context("the manifest serializes")?;
     let rules = Rules::new(source.entry_dir, source.data_dir, source.exclude);
+    let referenced = install::referenceable_paths(source.entry_dir);
 
     let mut writer = Writer::create(destination)?;
     writer.add_bytes(MANIFEST, &encoded)?;
     writer.add_all(
-        &archive::plan(source.entry_dir, "", &|relative| rules.keeps(relative)),
+        &archive::plan(source.entry_dir, "", &|relative| {
+            rules.keeps(relative) && !referenced.contains(relative)
+        }),
         job,
     )?;
     writer.finish()
@@ -175,6 +181,7 @@ pub(crate) fn export(source: &Source<'_>, destination: &Path, job: &Job<'_>) -> 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use proto::content::InstalledContent;
     use proto::minecraft::InstanceProfile;
 
     fn temp(tag: &str) -> tempfile::TempDir {
@@ -275,6 +282,61 @@ mod tests {
         assert!(
             !restored.path().join("instance.json").exists(),
             "the record is written by the store when the instance is registered"
+        );
+    }
+
+    #[test]
+    fn an_export_embeds_a_local_item_and_references_a_tracked_one() {
+        let dir = temp("referenced");
+        let entry_dir = dir.path().join("instances/cozy");
+        let data_dir = entry_dir.join("data");
+        write(&entry_dir, "mods/local.jar", "handmade");
+        write(&entry_dir, "mods/sodium.jar", "served");
+        install::save(
+            &entry_dir,
+            vec![
+                InstalledContent {
+                    filename: "local.jar".to_string(),
+                    ..Default::default()
+                },
+                InstalledContent {
+                    filename: "sodium.jar".to_string(),
+                    url: "https://cdn.modrinth.com/sodium.jar".to_string(),
+                    sha1: "abc".to_string(),
+                    ..Default::default()
+                },
+            ],
+        )
+        .unwrap();
+
+        let archive_path = dir.path().join("cozy.hestia");
+        let cancel = crate::cancel::Cancel::new();
+        let job = job_for(&cancel);
+        export(
+            &Source {
+                record: &record(),
+                entry_dir: &entry_dir,
+                data_dir: &data_dir,
+                exclude: &[],
+            },
+            &archive_path,
+            &job,
+        )
+        .unwrap();
+
+        let restored = temp("referenced-restored");
+        let target = Target {
+            entry_dir: restored.path(),
+            data_dir: &restored.path().join("data"),
+        };
+        let mut reader = Reader::open(&archive_path).unwrap();
+        Hestia.land(&mut reader, "", &target, &job).unwrap();
+
+        assert!(restored.path().join("mods/local.jar").is_file());
+        assert!(!restored.path().join("mods/sodium.jar").exists());
+        assert!(
+            restored.path().join("content.json").is_file(),
+            "the record of the omitted file travels so import can fetch it"
         );
     }
 

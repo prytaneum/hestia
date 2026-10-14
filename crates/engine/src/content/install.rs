@@ -192,6 +192,16 @@ pub(crate) fn referenceable(item: &InstalledContent) -> bool {
     !item.url.is_empty() && !item.sha1.is_empty()
 }
 
+/// The entry-relative managed paths of the tracked items a source can serve
+/// again — the bytes an archive leaves out because import fetches them.
+pub(crate) fn referenceable_paths(entry_dir: &Path) -> HashSet<String> {
+    load(entry_dir)
+        .iter()
+        .filter(|item| referenceable(item))
+        .filter_map(|item| Some(format!("{}/{}", kind_dir(item.kind).ok()?, item.filename)))
+        .collect()
+}
+
 pub(crate) fn data_path(data_dir: &Path, item: &InstalledContent) -> Result<PathBuf> {
     Ok(data_dir.join(kind_dir(item.kind)?).join(&item.filename))
 }
