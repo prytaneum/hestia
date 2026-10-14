@@ -16,7 +16,7 @@ export function StatCard({
   );
 }
 
-/** A titled side panel (Details, Quick actions). */
+/** A titled side panel (Details, Modpack). */
 export function SideCard({
   title,
   children,

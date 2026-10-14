@@ -123,7 +123,6 @@
       }
     },
     "overview_summary": "A {flavor} {version} instance with {mods} mods across {worlds} worlds.",
-    "quick_actions": "Quick actions",
     "remove": {
       "removing": "Removing {name}…",
       "stop_timeout": "{name} did not stop in time, so it was not removed.",

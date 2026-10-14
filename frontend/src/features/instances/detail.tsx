@@ -1,16 +1,12 @@
 import {
-  FolderOpenIcon,
   GlobeIcon,
   PlayIcon,
   PlusIcon,
-  UploadSimpleIcon,
   WarningCircleIcon,
 } from '@phosphor-icons/react';
 import { useMutation, useQueries, useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
-import { toast } from 'sonner';
 import type { ContentKind } from '@/api';
-import { errorMessage, system } from '@/api';
 import { DetailHero } from '@/components/detail-hero';
 import { Empty } from '@/components/empty';
 import { entryIcon } from '@/components/icons';
@@ -27,10 +23,7 @@ import {
   useEntryInstall,
 } from '@/features/content/install';
 import { SessionList, WorldRow } from '@/features/instances/components';
-import {
-  ExportInstanceDialog,
-  useLaunchDialog,
-} from '@/features/instances/dialogs';
+import { useLaunchDialog } from '@/features/instances/dialogs';
 import {
   InstanceLogsTab,
   InstanceServersTab,
@@ -38,6 +31,7 @@ import {
 } from '@/features/instances/tabs';
 import { anchor, useAutoTour } from '@/features/onboarding';
 import {
+  EntryActionsMenu,
   EntryIconMenu,
   EntryPinButton,
   EntryRunControl,
@@ -126,7 +120,6 @@ function InstanceDetail({
   const config = useQuery(instanceQueries.config(id));
   const worlds = useQuery(instanceQueries.worlds(id));
   const install = useEntryInstall(instance.name);
-  const [exporting, setExporting] = useState(false);
   const [focus, setFocus] = useState<string | null>(null);
   const [logSession, setLogSession] = useState<string | null>(null);
   const { launch, restart, isLaunching } = useLaunchDialog();
@@ -163,13 +156,6 @@ function InstanceDetail({
     })),
   };
 
-  const openFolder = () => {
-    if (info.data)
-      system.openPath(info.data.entryDir).catch((error: Error) => {
-        toast.error(errorMessage(error));
-      });
-  };
-
   const worldList = worlds.data ?? [];
   const joinable = supportsQuickPlay(instance.gameVersion);
 
@@ -199,39 +185,35 @@ function InstanceDetail({
           </>
         }
         actions={
-          <span className="flex items-center gap-2" {...anchor('entry-run')}>
+          <>
             <EntryPinButton kind="instance" id={id} />
-            <Button
-              variant="outline"
-              size="icon"
-              aria-label={m['app.action.open_folder']()}
-              disabled={!info.data}
-              onClick={openFolder}
-            >
-              <FolderOpenIcon className="size-4" />
-            </Button>
-            {running ? (
-              <EntryRunControl
-                name={instance.name}
-                sessions={sessions}
-                busy={stop.isPending}
-                launching={isLaunching(id)}
-                onNewSession={() => launch(instance, { newSession: true })}
-                onRestart={(session) => restart(instance, session)}
-                onStop={(session) => stop.mutate({ session })}
-              />
-            ) : (
-              <Button
-                data-icon="inline-start"
-                disabled={isLaunching(id)}
-                className="bg-ember text-ember-foreground hover:bg-ember/90"
-                onClick={() => launch(instance)}
-              >
-                {isLaunching(id) ? <Spinner /> : <PlayIcon weight="fill" />}
-                {m['app.action.play']()}
-              </Button>
-            )}
-          </span>
+            <span className="flex items-center gap-2" {...anchor('entry-run')}>
+              {running ? (
+                <EntryRunControl
+                  name={instance.name}
+                  sessions={sessions}
+                  busy={stop.isPending}
+                  launching={isLaunching(id)}
+                  onNewSession={() => launch(instance, { newSession: true })}
+                  onRestart={(session) => restart(instance, session)}
+                  onStop={(session) => stop.mutate({ session })}
+                />
+              ) : (
+                <Button
+                  data-icon="inline-start"
+                  disabled={isLaunching(id)}
+                  className="bg-ember text-ember-foreground hover:bg-ember/90"
+                  onClick={() => launch(instance)}
+                >
+                  {isLaunching(id) ? <Spinner /> : <PlayIcon weight="fill" />}
+                  {m['app.action.play']()}
+                </Button>
+              )}
+            </span>
+            <EntryActionsMenu
+              entry={{ kind: 'instance', id, name: instance.name, running }}
+            />
+          </>
         }
       />
 
@@ -358,31 +340,6 @@ function InstanceDetail({
                 gameVersion={instance.gameVersion}
                 running={running}
               />
-              <SideCard title={m['entry.quick_actions']()}>
-                <div className="flex flex-col gap-1">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="justify-start"
-                    data-icon="inline-start"
-                    disabled={!info.data}
-                    onClick={openFolder}
-                  >
-                    <FolderOpenIcon />
-                    {m['app.action.open_folder']()}
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="justify-start"
-                    data-icon="inline-start"
-                    onClick={() => setExporting(true)}
-                  >
-                    <UploadSimpleIcon />
-                    {m['app.action.export']()}
-                  </Button>
-                </div>
-              </SideCard>
             </div>
           </div>
         </TabsContent>
@@ -478,12 +435,6 @@ function InstanceDetail({
         files={install.files}
         open={install.open}
         onOpenChange={install.onOpenChange}
-      />
-      <ExportInstanceDialog
-        id={id}
-        name={instance.name}
-        open={exporting}
-        onOpenChange={setExporting}
       />
     </div>
   );

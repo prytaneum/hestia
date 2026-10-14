@@ -123,7 +123,6 @@
       }
     },
     "overview_summary": "Uma instância {flavor} {version} com {mods} mods em {worlds} mundos.",
-    "quick_actions": "Ações rápidas",
     "remove": {
       "removing": "Removendo {name}…",
       "stop_timeout": "{name} não parou a tempo e, por isso, não foi removido.",

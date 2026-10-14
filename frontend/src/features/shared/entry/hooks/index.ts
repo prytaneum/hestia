@@ -4,3 +4,7 @@ export {
   useContent,
 } from './use-content-context';
 export { useDraft } from './use-draft';
+export {
+  type EntryActionTarget,
+  useEntryActions,
+} from './use-entry-actions';

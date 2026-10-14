@@ -1,6 +1,5 @@
 import {
   ArrowClockwiseIcon,
-  FolderOpenIcon,
   PlayIcon,
   PlusIcon,
   PowerIcon,
@@ -8,9 +7,7 @@ import {
 } from '@phosphor-icons/react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
-import { toast } from 'sonner';
-import type { ContentKind } from '@/api';
-import { errorMessage, type ServerInfo, system } from '@/api';
+import type { ContentKind, ServerInfo } from '@/api';
 import { DetailHero } from '@/components/detail-hero';
 import { Empty } from '@/components/empty';
 import { entryIcon } from '@/components/icons';
@@ -37,6 +34,7 @@ import {
   ServerSettingsTab,
 } from '@/features/servers/tabs';
 import {
+  EntryActionsMenu,
   EntryIconMenu,
   EntryPinButton,
 } from '@/features/shared/entry/components';
@@ -184,73 +182,64 @@ function ServerDetail({
           </>
         }
         actions={
-          <span className="flex items-center gap-2" {...anchor('entry-run')}>
+          <>
             <EntryPinButton kind="server" id={id} />
-            <Button
-              variant="outline"
-              size="icon"
-              aria-label={m['app.action.open_folder']()}
-              disabled={!info.data}
-              onClick={() => {
-                if (info.data)
-                  system.openPath(info.data.entryDir).catch((error: Error) => {
-                    toast.error(errorMessage(error));
-                  });
-              }}
-            >
-              <FolderOpenIcon className="size-4" />
-            </Button>
-            {running || restart.isPending ? (
-              <>
-                <ConfirmDialog
-                  trigger={
-                    <Button
-                      variant="outline"
-                      data-icon="inline-start"
-                      disabled={stop.isPending || restart.isPending}
-                    >
-                      {restart.isPending ? (
-                        <Spinner />
-                      ) : (
-                        <ArrowClockwiseIcon weight="bold" />
-                      )}
-                      {m['app.action.restart']()}
-                    </Button>
-                  }
-                  title={m['entry.restart.title']({ name: server.name })}
-                  description={m['entry.restart.server_description']()}
-                  confirmLabel={m['app.action.restart']()}
-                  onConfirm={() => restart.mutate()}
-                />
-                <ConfirmDialog
-                  trigger={
-                    <Button
-                      variant="outline"
-                      data-icon="inline-start"
-                      disabled={stop.isPending || restart.isPending}
-                    >
-                      <PowerIcon weight="bold" />
-                      {m['app.action.stop']()}
-                    </Button>
-                  }
-                  title={m['entry.stop.title']({ name: server.name })}
-                  description={m['entry.stop.server_description']()}
-                  confirmLabel={m['app.action.stop']()}
-                  onConfirm={() => stop.mutate()}
-                />
-              </>
-            ) : (
-              <Button
-                disabled={!server.ready || start.isPending}
-                data-icon="inline-start"
-                className="bg-ember text-ember-foreground hover:bg-ember/90"
-                onClick={() => start.mutate()}
-              >
-                <PlayIcon weight="fill" />
-                {m['app.action.start']()}
-              </Button>
-            )}
-          </span>
+            <span className="flex items-center gap-2" {...anchor('entry-run')}>
+              {running || restart.isPending ? (
+                <>
+                  <ConfirmDialog
+                    trigger={
+                      <Button
+                        variant="outline"
+                        data-icon="inline-start"
+                        disabled={stop.isPending || restart.isPending}
+                      >
+                        {restart.isPending ? (
+                          <Spinner />
+                        ) : (
+                          <ArrowClockwiseIcon weight="bold" />
+                        )}
+                        {m['app.action.restart']()}
+                      </Button>
+                    }
+                    title={m['entry.restart.title']({ name: server.name })}
+                    description={m['entry.restart.server_description']()}
+                    confirmLabel={m['app.action.restart']()}
+                    onConfirm={() => restart.mutate()}
+                  />
+                  <ConfirmDialog
+                    trigger={
+                      <Button
+                        variant="outline"
+                        data-icon="inline-start"
+                        disabled={stop.isPending || restart.isPending}
+                      >
+                        <PowerIcon weight="bold" />
+                        {m['app.action.stop']()}
+                      </Button>
+                    }
+                    title={m['entry.stop.title']({ name: server.name })}
+                    description={m['entry.stop.server_description']()}
+                    confirmLabel={m['app.action.stop']()}
+                    onConfirm={() => stop.mutate()}
+                  />
+                </>
+              ) : (
+                <Button
+                  disabled={!server.ready || start.isPending}
+                  data-icon="inline-start"
+                  className="bg-ember text-ember-foreground hover:bg-ember/90"
+                  onClick={() => start.mutate()}
+                >
+                  <PlayIcon weight="fill" />
+                  {m['app.action.start']()}
+                </Button>
+              )}
+            </span>
+            <EntryActionsMenu
+              entry={{ kind: 'server', id, name: server.name, running }}
+            />
+          </>
         }
       />
 

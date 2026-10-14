@@ -7,12 +7,10 @@ import {
   TrashIcon,
   UploadSimpleIcon,
 } from '@phosphor-icons/react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import { type ReactElement, useState } from 'react';
-import { toast } from 'sonner';
 
-import { errorMessage, system } from '@/api';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import {
   ContextMenu,
@@ -21,20 +19,10 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger,
 } from '@/components/ui/context-menu';
-// Not the dialogs barrel: its launch dialog imports this directory back.
-import { ExportInstanceDialog } from '@/features/instances/dialogs/export';
 import { m } from '@/paraglide/messages.js';
-import { instanceQueries } from '@/queries/instance';
 import { usePinned } from '@/queries/pinned';
-import { serverMutations, serverQueries } from '@/queries/server';
-import { RemoveEntryDialog } from '../dialogs/remove';
-
-export interface EntryMenuTarget {
-  kind: 'instance' | 'server';
-  id: string;
-  name: string;
-  running: boolean;
-}
+import { serverMutations } from '@/queries/server';
+import { type EntryActionTarget, useEntryActions } from '../hooks';
 
 /**
  * The right-click menu every surface showing an entry shares. `children` is the
@@ -45,28 +33,16 @@ export function EntryContextMenu({
   entry,
   children,
 }: {
-  entry: EntryMenuTarget;
+  entry: EntryActionTarget;
   children: ReactElement;
 }) {
   const { kind, id } = entry;
-  const queryClient = useQueryClient();
   const navigate = useNavigate();
+  const actions = useEntryActions(entry);
   const { ready, isPinned, toggle } = usePinned();
-  const [removing, setRemoving] = useState(false);
-  const [exporting, setExporting] = useState(false);
   const [restarting, setRestarting] = useState(false);
   const restart = useMutation(serverMutations.restart(id));
   const pinned = isPinned({ kind, id });
-
-  const openFolder = () => {
-    const info =
-      kind === 'server'
-        ? queryClient.fetchQuery(serverQueries.info(id))
-        : queryClient.fetchQuery(instanceQueries.info(id));
-    info
-      .then(({ entryDir }) => system.openPath(entryDir))
-      .catch((error: Error) => toast.error(errorMessage(error)));
-  };
 
   const openSettings = () => {
     const search = { tab: 'settings' as const };
@@ -81,7 +57,7 @@ export function EntryContextMenu({
     <ContextMenu>
       <ContextMenuTrigger render={children} />
       <ContextMenuContent className="w-44">
-        <ContextMenuItem onClick={openFolder}>
+        <ContextMenuItem onClick={actions.openFolder}>
           <FolderOpenIcon />
           {m['app.action.open_folder']()}
         </ContextMenuItem>
@@ -89,8 +65,8 @@ export function EntryContextMenu({
           <GearSixIcon />
           {m['app.label.settings']()}
         </ContextMenuItem>
-        {kind === 'instance' && (
-          <ContextMenuItem onClick={() => setExporting(true)}>
+        {actions.exportArchive && (
+          <ContextMenuItem onClick={actions.exportArchive}>
             <UploadSimpleIcon />
             {m['app.action.export']()}
           </ContextMenuItem>
@@ -109,22 +85,12 @@ export function EntryContextMenu({
           </ContextMenuItem>
         )}
         <ContextMenuSeparator />
-        <ContextMenuItem
-          variant="destructive"
-          onClick={() => setRemoving(true)}
-        >
+        <ContextMenuItem variant="destructive" onClick={actions.remove}>
           <TrashIcon />
           {m['app.action.delete']()}
         </ContextMenuItem>
       </ContextMenuContent>
-      <RemoveEntryDialog
-        kind={kind}
-        id={id}
-        name={entry.name}
-        running={entry.running}
-        open={removing}
-        onOpenChange={setRemoving}
-      />
+      {actions.dialogs}
       {kind === 'server' && (
         <ConfirmDialog
           open={restarting}
@@ -136,14 +102,6 @@ export function EntryContextMenu({
             restart.mutate();
             setRestarting(false);
           }}
-        />
-      )}
-      {kind === 'instance' && (
-        <ExportInstanceDialog
-          id={id}
-          name={entry.name}
-          open={exporting}
-          onOpenChange={setExporting}
         />
       )}
     </ContextMenu>
