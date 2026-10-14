@@ -1,6 +1,8 @@
 import {
   DotsThreeIcon,
   FolderOpenIcon,
+  PushPinIcon,
+  PushPinSlashIcon,
   TrashIcon,
   UploadSimpleIcon,
 } from '@phosphor-icons/react';
@@ -18,7 +20,7 @@ import { type EntryActionTarget, useEntryActions } from '../hooks';
 
 /**
  * The detail hero's overflow: the entry's less frequent actions, reachable
- * from every tab. Pin and run controls stay visible beside it.
+ * from every tab. Only the run controls stay visible beside it.
  */
 export function EntryActionsMenu({ entry }: { entry: EntryActionTarget }) {
   const actions = useEntryActions(entry);
@@ -49,6 +51,13 @@ export function EntryActionsMenu({ entry }: { entry: EntryActionTarget }) {
               {m['app.action.export']()}
             </DropdownMenuItem>
           )}
+          <DropdownMenuItem
+            disabled={!actions.pinReady}
+            onClick={actions.togglePin}
+          >
+            {actions.pinned ? <PushPinSlashIcon /> : <PushPinIcon />}
+            {actions.pinned ? m['app.label.unpin']() : m['app.label.pin']()}
+          </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem variant="destructive" onClick={actions.remove}>
             <TrashIcon />

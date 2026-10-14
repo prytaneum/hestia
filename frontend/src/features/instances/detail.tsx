@@ -33,7 +33,6 @@ import { anchor, useAutoTour } from '@/features/onboarding';
 import {
   EntryActionsMenu,
   EntryIconMenu,
-  EntryPinButton,
   EntryRunControl,
 } from '@/features/shared/entry/components';
 import {
@@ -186,7 +185,6 @@ function InstanceDetail({
         }
         actions={
           <>
-            <EntryPinButton kind="instance" id={id} />
             <span className="flex items-center gap-2" {...anchor('entry-run')}>
               {running ? (
                 <EntryRunControl

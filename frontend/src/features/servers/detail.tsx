@@ -36,7 +36,6 @@ import {
 import {
   EntryActionsMenu,
   EntryIconMenu,
-  EntryPinButton,
 } from '@/features/shared/entry/components';
 import {
   type LiveResources,
@@ -183,7 +182,6 @@ function ServerDetail({
         }
         actions={
           <>
-            <EntryPinButton kind="server" id={id} />
             <span className="flex items-center gap-2" {...anchor('entry-run')}>
               {running || restart.isPending ? (
                 <>

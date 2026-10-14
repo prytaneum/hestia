@@ -20,7 +20,6 @@ import {
   ContextMenuTrigger,
 } from '@/components/ui/context-menu';
 import { m } from '@/paraglide/messages.js';
-import { usePinned } from '@/queries/pinned';
 import { serverMutations } from '@/queries/server';
 import { type EntryActionTarget, useEntryActions } from '../hooks';
 
@@ -39,10 +38,8 @@ export function EntryContextMenu({
   const { kind, id } = entry;
   const navigate = useNavigate();
   const actions = useEntryActions(entry);
-  const { ready, isPinned, toggle } = usePinned();
   const [restarting, setRestarting] = useState(false);
   const restart = useMutation(serverMutations.restart(id));
-  const pinned = isPinned({ kind, id });
 
   const openSettings = () => {
     const search = { tab: 'settings' as const };
@@ -71,9 +68,12 @@ export function EntryContextMenu({
             {m['app.action.export']()}
           </ContextMenuItem>
         )}
-        <ContextMenuItem disabled={!ready} onClick={() => toggle({ kind, id })}>
-          {pinned ? <PushPinSlashIcon /> : <PushPinIcon />}
-          {pinned ? m['app.label.unpin']() : m['app.label.pin']()}
+        <ContextMenuItem
+          disabled={!actions.pinReady}
+          onClick={actions.togglePin}
+        >
+          {actions.pinned ? <PushPinSlashIcon /> : <PushPinIcon />}
+          {actions.pinned ? m['app.label.unpin']() : m['app.label.pin']()}
         </ContextMenuItem>
         {kind === 'server' && entry.running && (
           <ContextMenuItem

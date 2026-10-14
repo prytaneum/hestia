@@ -6,6 +6,7 @@ import { errorMessage, system } from '@/api';
 // Not the dialogs barrel: its launch dialog imports the entry components back.
 import { ExportInstanceDialog } from '@/features/instances/dialogs/export';
 import { instanceQueries } from '@/queries/instance';
+import { usePinned } from '@/queries/pinned';
 import { serverQueries } from '@/queries/server';
 import { RemoveEntryDialog } from '../dialogs/remove';
 
@@ -24,6 +25,7 @@ export interface EntryActionTarget {
 export function useEntryActions(entry: EntryActionTarget) {
   const { kind, id, name, running } = entry;
   const queryClient = useQueryClient();
+  const pins = usePinned();
   const [removing, setRemoving] = useState(false);
   const [exporting, setExporting] = useState(false);
 
@@ -40,6 +42,9 @@ export function useEntryActions(entry: EntryActionTarget) {
   return {
     openFolder,
     exportArchive: kind === 'instance' ? () => setExporting(true) : undefined,
+    pinned: pins.isPinned({ kind, id }),
+    pinReady: pins.ready,
+    togglePin: () => pins.toggle({ kind, id }),
     remove: () => setRemoving(true),
     dialogs: (
       <>

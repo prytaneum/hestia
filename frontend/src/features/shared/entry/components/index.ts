@@ -13,7 +13,6 @@ export {
 export { type EntryCardModel, EntryTile } from './entry-card';
 export { EntryContextMenu } from './entry-menu';
 export { EntryIconMenu } from './icon-menu';
-export { EntryPinButton } from './pin-button';
 export {
   isMeasurable,
   overallRatio,
