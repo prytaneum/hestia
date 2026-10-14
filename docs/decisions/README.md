@@ -125,4 +125,4 @@ the alternative you rejected — that is usually the part nobody can recover lat
 - **0051** — [The daemon spawns the tray; the tray outlives the daemon](0051-the-daemon-spawns-the-tray.md)
 - **0052** — [The tray and desktop must not share a GApplication id](0052-tray-and-desktop-app-ids.md)
 - **0056** — [Job progress paints once per frame, because the store re-renders synchronously](0056-job-progress-paints-once-per-frame.md)
-- **0080** — [The host opens with the host's environment](0080-the-host-opens-with-the-hosts-environment.md)
+- **0080** — [Only the shell runs in the AppImage's environment](0080-only-the-shell-runs-in-the-appimage-environment.md)

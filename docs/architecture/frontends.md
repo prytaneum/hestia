@@ -177,7 +177,7 @@ each needs something only the shell process has:
 | `prefs_list\|set\|remove` (`prefs.rs`) | UI state is the front-end's concern, so it never crosses the socket — written directly to `<data_home>/prefs.json`, resolving the same data home the engine uses ([0049](../decisions/0049-desktop-prefs-live-in-the-data-home.md)) |
 | `icons_list`, `icon_set\|remove`, `icon_fetch`, `icon_generate`, `icon_config` (`icons.rs`) | a picked image is copied to `<data_home>/icons/<entry-id>.<ext>` so it survives the original moving. `icon_fetch` downloads a modpack's icon there when an entry is created from the pack. `icon_generate` bakes the randomized background-and-symbol icon a wizard-created entry starts with into the same directory, with the sidecar JSON `icon_config` reads. The webview loads them over the asset protocol, whose scope is widened to that directory per call, since the data home can move at runtime |
 | `crash_list\|read\|clear`, `crash_report`, `log_write` (`diagnostics.rs`) | a webview error kills the UI without touching the Rust stack, so the shell records it into the same crash directory the daemon writes to. `log_write` routes console logging into the process `tracing` subscriber under the `ui` target |
-| `open_path`, `open_url` (`opener.rs`) | the host's default handler has to start with the host's environment, which inside an AppImage is not the shell's; `tauri-plugin-opener` passes the shell's on ([0080](../decisions/0080-the-host-opens-with-the-hosts-environment.md)) |
+| `open_path`, `open_url` (`opener.rs`) | the host's default handler has to start with the host's environment, which inside an AppImage is not the shell's; `tauri-plugin-opener` passes the shell's on ([0080](../decisions/0080-only-the-shell-runs-in-the-appimage-environment.md)) |
 | `start_daemon` (`bridge.rs`) | the `Client::start()` spawn path behind the offline overlay's start button |
 
 ## The frontend
@@ -417,4 +417,4 @@ id, or on Linux each would block the other
 - [0051 — The daemon spawns the tray; the tray outlives the daemon](../decisions/0051-the-daemon-spawns-the-tray.md)
 - [0052 — The tray and desktop must not share a GApplication id](../decisions/0052-tray-and-desktop-app-ids.md)
 - [0068 — The tray speaks the tray protocol, not a library that might be installed](../decisions/0068-the-tray-speaks-the-tray-protocol.md)
-- [0080 — The host opens with the host's environment](../decisions/0080-the-host-opens-with-the-hosts-environment.md)
+- [0080 — Only the shell runs in the AppImage's environment](../decisions/0080-only-the-shell-runs-in-the-appimage-environment.md)

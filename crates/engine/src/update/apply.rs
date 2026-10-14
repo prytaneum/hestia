@@ -79,7 +79,7 @@ mod platform {
 #[cfg(not(windows))]
 mod platform {
     use std::ffi::OsStr;
-    use std::path::{Path, PathBuf};
+    use std::path::Path;
     use std::process::{Command, Stdio};
 
     use anyhow::{anyhow, bail, Context, Result};
@@ -100,12 +100,7 @@ mod platform {
     }
 
     fn replace_appimage(artifact: &Path) -> Result<()> {
-        // The AppImage runtime exports $APPIMAGE as the image's own path; the
-        // running binary sits on a throwaway mount that cannot be traced back
-        // to it.
-        let target = std::env::var_os("APPIMAGE")
-            .filter(|path| !path.is_empty())
-            .map(PathBuf::from)
+        let target = common::appimage::image()
             .ok_or_else(|| anyhow!("$APPIMAGE is unset, so there is no image to replace"))?;
 
         // Staged beside the target because a rename is atomic only within one

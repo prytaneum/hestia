@@ -1,5 +1,3 @@
-#[cfg(target_os = "linux")]
-mod appimage;
 mod bridge;
 mod commands;
 

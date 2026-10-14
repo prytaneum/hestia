@@ -2,6 +2,7 @@
 //! and every client; zero UI or domain dependencies.
 
 pub mod app;
+pub mod appimage;
 pub mod crash;
 pub mod logging;
 pub mod paths;

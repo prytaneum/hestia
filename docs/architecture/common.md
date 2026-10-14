@@ -105,8 +105,20 @@ backtraces as bare addresses.
 `chrono`. Backup archives are the deliberate exception — they are named in UTC,
 so a stored archive sorts identically wherever it is read.
 
+## The AppImage environment
+
+`common::appimage` is the AppImage runtime's contract: `image()` is the image
+file a process came from (`$APPIMAGE` — the running binary sits on a throwaway
+mount), and `host_env()`/`sidecar_env()` are the environment the image's
+launcher changed, put back. Only the desktop shell needs the launcher's
+environment, so the shell starts host programs with `host_env()` and the daemon
+with `sidecar_env()`, which keeps `$APPIMAGE` for self-update and the tray's
+relaunch. Both return `None` outside an AppImage
+([0080](../decisions/0080-only-the-shell-runs-in-the-appimage-environment.md)).
+
 ## Decisions
 
 - [0002 — Two log files, because one file cannot be both readable and complete](../decisions/0002-two-log-files.md)
 - [0003 — A crash must survive the process that had no console](../decisions/0003-crash-reports-survive-the-process.md)
 - [0054 — Materialised game files live under one `meta/` root](../decisions/0054-meta-root-for-materialised-files.md)
+- [0080 — Only the shell runs in the AppImage's environment](../decisions/0080-only-the-shell-runs-in-the-appimage-environment.md)

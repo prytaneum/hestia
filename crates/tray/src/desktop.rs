@@ -20,7 +20,11 @@ pub fn quit() {
 }
 
 fn spawn(args: &[&str], ok_msg: &str, err_msg: &str) {
-    let Some(program) = common::paths::sibling_binary(common::app::DESKTOP_BIN) else {
+    // Inside an AppImage the shell runs only through the image's launcher,
+    // which sets up the libraries and working directory its webview needs.
+    let program = common::appimage::image()
+        .or_else(|| common::paths::sibling_binary(common::app::DESKTOP_BIN));
+    let Some(program) = program else {
         tracing::warn!("desktop binary not found in this layout");
         return;
     };

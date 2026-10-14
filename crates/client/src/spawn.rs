@@ -18,6 +18,11 @@ pub fn spawn_daemon() -> std::io::Result<()> {
         .stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null());
+    // Started from the AppImage's shell, it would hand that environment on to
+    // every game it launches; it links nothing from the image.
+    if let Some(env) = common::appimage::sidecar_env() {
+        cmd.env_clear().envs(env);
+    }
 
     #[cfg(unix)]
     {

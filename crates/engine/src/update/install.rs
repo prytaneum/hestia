@@ -35,9 +35,7 @@ pub fn detect() -> UpdateInstall {
 
 #[cfg(all(not(windows), not(feature = "portable")))]
 pub fn detect() -> UpdateInstall {
-    // $APPIMAGE is the AppImage runtime's contract; the daemon inherits it from
-    // the shell that spawned it.
-    if std::env::var_os("APPIMAGE").is_some_and(|path| !path.is_empty()) {
+    if common::appimage::image().is_some() {
         return UpdateInstall::AppImage;
     }
     let Ok(exe) = std::env::current_exe() else {
