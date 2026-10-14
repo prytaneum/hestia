@@ -22,4 +22,9 @@ name: string, directory: boolean,
  * Bytes this node contributes to the archive; for a directory, everything
  * under it that the export would carry.
  */
-sizeBytes: number, };
+sizeBytes: number, 
+/**
+ * A tracked item the archive names instead of carrying: it adds nothing
+ * to `size_bytes` and is downloaded again on import.
+ */
+referenced: boolean, };

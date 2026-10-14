@@ -911,11 +911,10 @@ async fn with_referenceable_mod(
     (engine, id)
 }
 
-fn export_without(
+fn export_archive(
     engine: &engine::Engine,
     id: &str,
     drops: &std::path::Path,
-    excluded: &str,
 ) -> std::path::PathBuf {
     let (cancel, report) = (Cancel::new(), |_: &ProvisionProgress| {});
     engine
@@ -923,11 +922,26 @@ fn export_without(
             id,
             proto::transfer::ExportFormat::Hestia,
             &drops.to_string_lossy(),
-            &[excluded.to_string()],
+            &[],
             &job(&cancel, &report),
         )
         .expect("the instance exports")
         .path
+}
+
+fn archive_without(archive: &std::path::Path, member: &str) -> std::path::PathBuf {
+    let stripped = archive.with_file_name("stripped.hestia");
+    let mut source = zip::ZipArchive::new(std::fs::File::open(archive).expect("open"))
+        .expect("read the archive");
+    let mut writer = zip::ZipWriter::new(std::fs::File::create(&stripped).expect("create"));
+    for index in 0..source.len() {
+        let entry = source.by_index(index).expect("a member");
+        if entry.name() != member {
+            writer.raw_copy_file(entry).expect("copy a member");
+        }
+    }
+    writer.finish().expect("finish the archive");
+    stripped
 }
 
 #[tokio::test]
@@ -936,7 +950,7 @@ async fn a_referenceable_item_missing_from_the_archive_is_downloaded_on_import()
     let drops = tempfile::tempdir().expect("temp drops");
     let files = fixture::Files::serve().await;
     let (engine, id) = with_referenceable_mod(home.path(), &files).await;
-    let archive = export_without(&engine, &id, drops.path(), "mods/sodium.jar");
+    let archive = export_archive(&engine, &id, drops.path());
     let (cancel, report) = (Cancel::new(), |_: &ProvisionProgress| {});
 
     let outcome = engine
@@ -962,7 +976,7 @@ async fn a_download_that_does_not_match_its_hash_fails_the_import_and_leaves_no_
     let drops = tempfile::tempdir().expect("temp drops");
     let files = fixture::Files::serve().await;
     let (engine, id) = with_referenceable_mod(home.path(), &files).await;
-    let archive = export_without(&engine, &id, drops.path(), "mods/sodium.jar");
+    let archive = export_archive(&engine, &id, drops.path());
 
     let tampered = drops.path().join("tampered.hestia");
     let mut source = zip::ZipArchive::new(std::fs::File::open(&archive).expect("open"))
@@ -1009,7 +1023,10 @@ async fn an_item_with_neither_bytes_nor_a_download_is_dropped_and_reported() {
     let home = tempfile::tempdir().expect("temp home");
     let drops = tempfile::tempdir().expect("temp drops");
     let (engine, id) = with_local_mod(home.path(), drops.path(), "homemade-1.0.jar").await;
-    let archive = export_without(&engine, &id, drops.path(), "mods/homemade-1.0.jar");
+    let archive = archive_without(
+        &export_archive(&engine, &id, drops.path()),
+        "mods/homemade-1.0.jar",
+    );
     let (cancel, report) = (Cancel::new(), |_: &ProvisionProgress| {});
 
     let outcome = engine

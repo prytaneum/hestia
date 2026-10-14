@@ -20,7 +20,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::checksum::Hasher;
 use crate::registry;
-use crate::schema::Document;
+use crate::schema::{self, Document};
 
 #[derive(Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
@@ -28,8 +28,10 @@ struct Index {
     items: Vec<InstalledContent>,
 }
 
+pub(crate) const INDEX: &str = "content.json";
+
 impl Document for Index {
-    const NAME: &'static str = "content.json";
+    const NAME: &'static str = INDEX;
 }
 
 /// The directory name for an installable kind — the game's own load-dir name
@@ -192,13 +194,24 @@ pub(crate) fn referenceable(item: &InstalledContent) -> bool {
     !item.url.is_empty() && !item.sha1.is_empty()
 }
 
+/// The index as an archive carries it, for a caller that has filtered the items.
+pub(crate) fn encode(items: Vec<InstalledContent>) -> Result<Vec<u8>> {
+    let value = schema::encode(&Index { items })?;
+    serde_json::to_vec_pretty(&value).context("the content index serializes")
+}
+
+/// An item's managed file, relative to the entry root.
+pub(crate) fn relative_path(item: &InstalledContent) -> Option<String> {
+    Some(format!("{}/{}", kind_dir(item.kind).ok()?, item.filename))
+}
+
 /// The entry-relative managed paths of the tracked items a source can serve
 /// again — the bytes an archive leaves out because import fetches them.
 pub(crate) fn referenceable_paths(entry_dir: &Path) -> HashSet<String> {
     load(entry_dir)
         .iter()
         .filter(|item| referenceable(item))
-        .filter_map(|item| Some(format!("{}/{}", kind_dir(item.kind).ok()?, item.filename)))
+        .filter_map(relative_path)
         .collect()
 }
 

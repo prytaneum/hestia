@@ -10,31 +10,54 @@ import * as entries from '../state/entries';
 import { type Handlers, str } from '../support';
 
 const TREE: ArchiveEntry[] = [
-  { path: 'config', name: 'config', directory: true, sizeBytes: 2_400_000 },
-  { path: 'mods', name: 'mods', directory: true, sizeBytes: 46_000_000 },
+  {
+    path: 'config',
+    name: 'config',
+    directory: true,
+    sizeBytes: 2_400_000,
+    referenced: false,
+  },
+  {
+    path: 'mods',
+    name: 'mods',
+    directory: true,
+    sizeBytes: 0,
+    referenced: false,
+  },
+  {
+    path: 'mods/sodium.jar',
+    name: 'sodium.jar',
+    directory: false,
+    sizeBytes: 0,
+    referenced: true,
+  },
   {
     path: 'options.txt',
     name: 'options.txt',
     directory: false,
     sizeBytes: 3_100,
+    referenced: false,
   },
   {
     path: 'resourcepacks',
     name: 'resourcepacks',
     directory: true,
     sizeBytes: 18_000_000,
+    referenced: false,
   },
   {
     path: 'saves/New World',
     name: 'New World',
     directory: true,
     sizeBytes: 128_000_000,
+    referenced: false,
   },
   {
     path: 'saves/creative-flats',
     name: 'creative-flats',
     directory: true,
     sizeBytes: 12_000_000,
+    referenced: false,
   },
 ];
 

@@ -175,6 +175,9 @@ pub struct ArchiveEntry {
     /// Bytes this node contributes to the archive; for a directory, everything
     /// under it that the export would carry.
     pub size_bytes: u64,
+    /// A tracked item the archive names instead of carrying: it adds nothing
+    /// to `size_bytes` and is downloaded again on import.
+    pub referenced: bool,
 }
 
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]

@@ -13,6 +13,7 @@ use proto::transfer::ArchiveEntry;
 
 use super::archive;
 use super::exclude::Rules;
+use crate::content::install;
 
 /// How deep the tree goes. Three levels reaches `data/saves/<world>` — the
 /// deepest thing anyone actually wants to exclude individually — while keeping
@@ -22,12 +23,17 @@ const MAX_DEPTH: usize = 3;
 
 pub(crate) fn list(entry_dir: &Path, data_dir: &Path) -> Vec<ArchiveEntry> {
     let rules = Rules::new(entry_dir, data_dir, &[]);
+    let referenced = install::referenceable_paths(entry_dir);
     let mut nodes: BTreeMap<String, ArchiveEntry> = BTreeMap::new();
 
     for member in archive::plan(entry_dir, "", &|relative| rules.keeps(relative)) {
-        let size = std::fs::metadata(&member.source)
-            .map(|m| m.len())
-            .unwrap_or(0);
+        let is_referenced = referenced.contains(&member.name);
+        let size = match is_referenced {
+            true => 0,
+            false => std::fs::metadata(&member.source)
+                .map(|m| m.len())
+                .unwrap_or(0),
+        };
         let segments: Vec<&str> = member.name.split('/').collect();
 
         // Every ancestor directory carries what is under it, however deep.
@@ -40,6 +46,7 @@ pub(crate) fn list(entry_dir: &Path, data_dir: &Path) -> Vec<ArchiveEntry> {
                     path,
                     directory: true,
                     size_bytes: 0,
+                    referenced: false,
                 })
                 .size_bytes += size;
         }
@@ -51,6 +58,7 @@ pub(crate) fn list(entry_dir: &Path, data_dir: &Path) -> Vec<ArchiveEntry> {
                     path: member.name,
                     directory: false,
                     size_bytes: size,
+                    referenced: is_referenced,
                 },
             );
         }

@@ -23,7 +23,8 @@
     "export": {
       "title": "Exportar “{name}”",
       "format": "Formato",
-      "hint_hestia": "Tudo o que esta instância é — mods, configuração e mundos — para que importá-la de volta devolva exatamente isto.",
+      "hint_hestia": "Configurações, arquivos de configuração, mundos e arquivos locais. Mods e pacotes do Modrinth ou CurseForge são baixados novamente na importação.",
+      "referenced": "baixado na importação",
       "hint_mrpack": "Um pacote que outros launchers leem. Os mods viajam como links para a origem; o que foi instalado de um arquivo local vai embutido.",
       "selected": "{selected} de {total}",
       "empty": "Esta instância ainda não tem arquivos para exportar.",

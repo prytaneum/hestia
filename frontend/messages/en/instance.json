@@ -23,7 +23,8 @@
     "export": {
       "title": "Export “{name}”",
       "format": "Format",
-      "hint_hestia": "Everything this instance is — mods, configuration and worlds — so importing it back gives you exactly this.",
+      "hint_hestia": "Settings, configuration, worlds and local files. Mods and packs from Modrinth or CurseForge are downloaded again on import.",
+      "referenced": "downloads on import",
       "hint_mrpack": "A pack other launchers can read. Its mods travel as links to where they came from, so anything installed from a file is embedded instead.",
       "selected": "{selected} of {total}",
       "empty": "This instance has no files to export yet.",

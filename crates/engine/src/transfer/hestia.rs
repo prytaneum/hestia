@@ -167,8 +167,23 @@ pub(crate) fn export(source: &Source<'_>, destination: &Path, job: &Job<'_>) -> 
     let rules = Rules::new(source.entry_dir, source.data_dir, source.exclude);
     let referenced = install::referenceable_paths(source.entry_dir);
 
+    let tracked = install::load(source.entry_dir);
+    let tracked_count = tracked.len();
+    let kept: Vec<_> = tracked
+        .into_iter()
+        .filter(|item| install::relative_path(item).is_some_and(|path| rules.keeps(&path)))
+        .collect();
+    tracing::debug!(
+        kept = kept.len(),
+        dropped = tracked_count - kept.len(),
+        "tracked content in the archive"
+    );
+
     let mut writer = Writer::create(destination)?;
     writer.add_bytes(MANIFEST, &encoded)?;
+    if tracked_count > 0 {
+        writer.add_bytes(install::INDEX, &install::encode(kept)?)?;
+    }
     writer.add_all(
         &archive::plan(source.entry_dir, "", &|relative| {
             rules.keeps(relative) && !referenced.contains(relative)
@@ -338,6 +353,62 @@ mod tests {
             restored.path().join("content.json").is_file(),
             "the record of the omitted file travels so import can fetch it"
         );
+    }
+
+    #[test]
+    fn excluding_a_pool_file_drops_its_record_from_the_archive() {
+        let dir = temp("excluded");
+        let entry_dir = dir.path().join("instances/cozy");
+        let data_dir = entry_dir.join("data");
+        write(&entry_dir, "mods/dropped.jar", "handmade");
+        write(&entry_dir, "mods/kept.jar", "handmade");
+        let tracked = |filename: &str| InstalledContent {
+            filename: filename.to_string(),
+            ..Default::default()
+        };
+        install::save(
+            &entry_dir,
+            vec![tracked("dropped.jar"), tracked("kept.jar")],
+        )
+        .unwrap();
+
+        let imported_names = |exclude: &[String]| {
+            let archive_path = dir.path().join("cozy.hestia");
+            let cancel = crate::cancel::Cancel::new();
+            let job = job_for(&cancel);
+            export(
+                &Source {
+                    record: &record(),
+                    entry_dir: &entry_dir,
+                    data_dir: &data_dir,
+                    exclude,
+                },
+                &archive_path,
+                &job,
+            )
+            .unwrap();
+
+            let restored = temp("excluded-restored");
+            let target = Target {
+                entry_dir: restored.path(),
+                data_dir: &restored.path().join("data"),
+            };
+            let mut reader = Reader::open(&archive_path).unwrap();
+            Hestia.land(&mut reader, "", &target, &job).unwrap();
+            let names: Vec<String> = install::load(restored.path())
+                .into_iter()
+                .map(|item| item.filename)
+                .collect();
+            (names, restored)
+        };
+
+        let (names, restored) = imported_names(&["mods/dropped.jar".to_string()]);
+        assert_eq!(names, ["kept.jar"]);
+        assert!(!restored.path().join("mods/dropped.jar").exists());
+        assert!(restored.path().join("mods/kept.jar").is_file());
+
+        let (names, _) = imported_names(&["mods".to_string()]);
+        assert!(names.is_empty(), "excluding the directory drops every mod");
     }
 
     /// Write an archive holding only `manifest`, as raw JSON.

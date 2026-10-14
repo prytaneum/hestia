@@ -18,6 +18,7 @@ function entry(path: string, sizeBytes: number, directory = false): ArchiveEntry
     name: path.split('/').pop() ?? path,
     directory,
     sizeBytes,
+    referenced: false,
   };
 }
 

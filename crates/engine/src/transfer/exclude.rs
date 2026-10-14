@@ -65,6 +65,11 @@ impl Rules {
         if relative == crate::instances::InstanceRecord::NAME || SKIP_ROOTS.contains(&relative) {
             return true;
         }
+        // The exporter rewrites the index to match what it keeps, so the file on
+        // disk is never copied and is not a choice.
+        if relative == install::INDEX {
+            return true;
+        }
         // Where and when its owner played is not part of the instance.
         if relative == crate::recent::FILE {
             return true;
@@ -123,6 +128,7 @@ mod tests {
             "backups",
             "instance.json",
             "recent.json",
+            "content.json",
             "data/logs",
             "data/crash-reports",
             "data/.fabric",
@@ -140,7 +146,6 @@ mod tests {
     fn the_instances_own_files_stay_in() {
         let rules = rules(&[], &[]);
         for path in [
-            "content.json",
             "modpack.json",
             "mods/sodium.jar",
             "data/servers.dat",

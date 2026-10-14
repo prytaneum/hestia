@@ -264,7 +264,9 @@ function Row({
           {node.directory ? '/' : ''}
         </span>
         <span className="text-muted-foreground text-xs tabular-nums">
-          {bytes(node.sizeBytes)}
+          {node.referenced
+            ? m['instance.export.referenced']()
+            : bytes(node.sizeBytes)}
         </span>
       </div>
       {isOpen && hasChildren && (
