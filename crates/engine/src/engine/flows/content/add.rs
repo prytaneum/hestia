@@ -13,7 +13,7 @@ use proto::content::{
 use proto::error::ErrorInfo;
 use proto::minecraft::{ProvisionPhase, ProvisionProgress};
 
-use super::super::batch::{gather, Batch};
+use super::super::batch::{gather_ordered, Batch};
 use super::entry::{content_loader, content_target, datapack_worlds, side_gate, EntryContent};
 use super::phase_progress;
 use crate::cancel::Job;
@@ -340,18 +340,13 @@ impl Engine {
             planned.push((node, version));
         }
 
-        let size = |version: &ContentVersion| {
-            install::primary_file(version)
-                .map(|file| file.artifact.size)
-                .unwrap_or_default()
-        };
         let batch = &Batch::new(
             on_progress,
             ProvisionPhase::Content,
-            planned.iter().map(|(_, version)| size(version)),
+            planned.iter().map(|(_, version)| release_size(version)),
         );
-        let install = |(order, (node, version)): (usize, (Node, ContentVersion))| async move {
-            let share = batch.share(size(&version));
+        let install = |(node, version): (Node, ContentVersion)| async move {
+            let share = batch.share(release_size(&version));
             let relay = |progress: &ProvisionProgress| share.relay(progress);
             let installed = self
                 .install_version_file(
@@ -363,25 +358,11 @@ impl Engine {
                     &Job::new(&relay, on_progress.cancel()),
                 )
                 .await;
-            (order, node, installed)
+            (node, installed)
         };
-        // Two picks shipping one filename would race on its staging file, so
-        // the later one waits its turn and replaces the first, as it always did.
-        let mut named = HashSet::new();
-        let (apart, repeats): (Vec<_>, Vec<_>) =
-            planned
-                .into_iter()
-                .enumerate()
-                .partition(|(_, (_, version))| {
-                    install::primary_file(version)
-                        .map_or(true, |file| named.insert(file.artifact.filename.clone()))
-                });
-        let mut outcomes = gather(apart.into_iter().map(install)).await;
-        for repeat in repeats {
-            outcomes.push(install(repeat).await);
-        }
-        outcomes.sort_by_key(|(order, ..)| *order);
-        for (_, node, installed) in outcomes {
+        let outcomes =
+            gather_ordered(planned, |(_, version)| release_filename(version), install).await;
+        for (node, installed) in outcomes {
             match installed {
                 Ok(installed) => items.push(installed),
                 Err(e) => failures.push(failure(
@@ -574,7 +555,25 @@ fn kind_matches(requested: ContentKind, project: ContentKind) -> bool {
     requested == project || (requested == ContentKind::DataPack && project == ContentKind::Mod)
 }
 
-fn failure(item: impl Into<String>, title: impl Into<String>, error: ErrorInfo) -> ContentFailure {
+/// A release's download size, zero when its primary file does not say.
+pub(super) fn release_size(version: &ContentVersion) -> u64 {
+    install::primary_file(version)
+        .map(|file| file.artifact.size)
+        .unwrap_or_default()
+}
+
+/// The filename a release lands under, which two fetches must not share.
+pub(super) fn release_filename(version: &ContentVersion) -> Option<String> {
+    install::primary_file(version)
+        .ok()
+        .map(|file| file.artifact.filename.clone())
+}
+
+pub(super) fn failure(
+    item: impl Into<String>,
+    title: impl Into<String>,
+    error: ErrorInfo,
+) -> ContentFailure {
     ContentFailure {
         item: item.into(),
         title: title.into(),

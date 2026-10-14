@@ -950,7 +950,7 @@ async fn an_update_moves_the_version_and_leaves_the_project_alone() {
     let (engine, id, _files) = updatable(home.path(), icon).await;
     let (cancel, report) = (Cancel::new(), |_: &ProvisionProgress| {});
 
-    let updated = engine
+    let (updated, failures) = engine
         .update_entry_content(
             EntryRef::Instance(&id),
             ContentKind::Mod,
@@ -960,6 +960,7 @@ async fn an_update_moves_the_version_and_leaves_the_project_alone() {
         .await
         .expect("update");
 
+    assert!(failures.is_empty(), "no item should fail: {failures:?}");
     assert_eq!(updated.len(), 1, "the item moves to the newer version");
     assert_eq!(updated[0].version_id, "sodium-2");
     let (listed, _) = engine
@@ -1011,6 +1012,76 @@ async fn updating_a_disabled_item_leaves_it_out_of_the_load_dir() {
     assert!(
         !mirrored.exists(),
         "an update must not put a disabled item back where the game loads it"
+    );
+}
+
+#[tokio::test]
+async fn an_item_that_cannot_update_leaves_the_rest_of_the_batch_recorded() {
+    let home = tempfile::tempdir().expect("temp home");
+    let files = fixture::Files::serve().await;
+    let newer = |project: &str| {
+        let mut version = fixture::version(project, &files, "1.21", &[]);
+        version.id = format!("{project}-2");
+        version.version_number = "2.0.0".into();
+        version.files[0].artifact.filename = format!("{project}-2.jar");
+        version
+    };
+    let mut blocked = newer("lithium");
+    blocked.files[0].artifact.url.clear();
+    let source = fixture::Source {
+        projects: vec![
+            fixture::project("lithium", ContentKind::Mod),
+            fixture::project("sodium", ContentKind::Mod),
+        ],
+        versions: vec![
+            blocked,
+            newer("sodium"),
+            fixture::version("lithium", &files, "1.21", &[]),
+            fixture::version("sodium", &files, "1.21", &[]),
+        ],
+    };
+    let (engine, id) = instance(home.path(), source).await;
+    let (cancel, report) = (Cancel::new(), |_: &ProvisionProgress| {});
+    let mut spec = add(&["lithium", "sodium"]);
+    for item in &mut spec.items {
+        item.version = format!("{}-1", item.project);
+    }
+    engine
+        .add_entry_content(EntryRef::Instance(&id), &spec, &job(&cancel, &report))
+        .await
+        .expect("install the older versions");
+
+    let (updated, failures) = engine
+        .update_entry_content(
+            EntryRef::Instance(&id),
+            ContentKind::Mod,
+            &[],
+            &job(&cancel, &report),
+        )
+        .await
+        .expect("a failed item does not fail the batch");
+
+    assert_eq!(updated.len(), 1);
+    assert_eq!(updated[0].project_id, "sodium");
+    assert_eq!(failures.len(), 1);
+    assert_eq!(failures[0].title, "lithium");
+    let (listed, _) = engine
+        .entry_content(EntryRef::Instance(&id), ContentKind::Mod)
+        .expect("list");
+    let pinned = |project: &str| {
+        listed
+            .iter()
+            .find(|item| item.project_id == project)
+            .map(|item| item.version_id.clone())
+    };
+    assert_eq!(pinned("sodium").as_deref(), Some("sodium-2"));
+    assert_eq!(pinned("lithium").as_deref(), Some("lithium-1"));
+    let mods = home.path().join("instances").join("modded").join("mods");
+    assert!(mods.join("sodium-2.jar").is_file());
+    assert!(!mods.join("sodium.jar").exists(), "the old file goes");
+    assert!(
+        mods.join("lithium.jar").is_file(),
+        "the failed item is untouched"
     );
 }
 

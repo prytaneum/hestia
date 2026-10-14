@@ -294,14 +294,7 @@ pub(super) fn show_install_report(
             content.title, content.filename
         )))?;
     }
-    for failure in failures {
-        let label = if failure.title.is_empty() {
-            failure.item.clone()
-        } else {
-            failure.title.clone()
-        };
-        ui::show(View::note(format!("failed {label}: {}", failure.error)))?;
-    }
+    show_failures(failures)?;
     if installed.is_empty() && removed.is_empty() {
         match failures.is_empty() {
             true => ui::show(View::note("no changes applied")),
@@ -310,6 +303,18 @@ pub(super) fn show_install_report(
     } else {
         Ok(())
     }
+}
+
+fn show_failures(failures: &[ContentFailure]) -> Result<()> {
+    for failure in failures {
+        let label = if failure.title.is_empty() {
+            failure.item.clone()
+        } else {
+            failure.title.clone()
+        };
+        ui::show(View::note(format!("failed {label}: {}", failure.error)))?;
+    }
+    Ok(())
 }
 
 pub(super) async fn install_spec(
@@ -429,7 +434,7 @@ async fn update(
 
     let reporter = Arc::new(ProvisionReporter::new());
     let progress = reporter.clone();
-    let updated = {
+    let (updated, failures) = {
         let result = handle
             .update(kind, &items, &path, move |p| progress.update(p))
             .await;
@@ -437,9 +442,6 @@ async fn update(
         result?
     };
 
-    if updated.is_empty() {
-        return ui::show(View::note(format!("'{name}' is already up to date")));
-    }
     for content in &updated {
         let line = match path.is_empty() {
             true => format!("updated {} to {}", content.title, content.version_number),
@@ -447,7 +449,12 @@ async fn update(
         };
         ui::show(View::line(line))?;
     }
-    Ok(())
+    show_failures(&failures)?;
+    match (updated.is_empty(), failures.is_empty()) {
+        (true, true) => ui::show(View::note(format!("'{name}' is already up to date"))),
+        (true, false) => bail!("no changes applied"),
+        (false, _) => Ok(()),
+    }
 }
 
 async fn check_updates(

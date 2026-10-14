@@ -4,12 +4,17 @@
 use std::path::Path;
 
 use anyhow::{bail, Context, Result};
-use proto::content::{ContentKind, InstalledContent, UntrackedFile, VersionQuery, LOCAL_SOURCE};
-use proto::minecraft::ProvisionPhase;
+use proto::content::{
+    ContentFailure, ContentKind, ContentVersion, InstalledContent, UntrackedFile, VersionQuery,
+    LOCAL_SOURCE,
+};
+use proto::minecraft::{ProvisionPhase, ProvisionProgress};
 
-use super::add::{file_name, import_file};
+use super::super::batch::{gather_ordered, Batch};
+use super::add::{failure, file_name, import_file, release_filename, release_size};
 use super::entry::{content_loader, EntryContent};
 use super::phase_progress;
+use crate::cancel::Job;
 use crate::content::{install, record, Identified, LocalFile};
 use crate::engine::Engine;
 use crate::minecraft::materialize::OnProgress;
@@ -18,7 +23,9 @@ impl Engine {
     /// Move matched platform items to a newer version — the newest compatible
     /// when `pin` is empty, or that exact version (id or number) when pinned.
     /// `references` empty takes every item of the kind; naming several takes
-    /// exactly those, resolved before the first one moves.
+    /// exactly those, resolved before the first one moves. Past that the batch
+    /// is per-item, like an install: an item that cannot move records a failure,
+    /// and every item that did move is recorded whatever became of the rest.
     pub(super) async fn update_content(
         &self,
         ctx: &EntryContent,
@@ -26,76 +33,135 @@ impl Engine {
         references: &[String],
         pin: &str,
         on_progress: OnProgress<'_>,
-    ) -> Result<Vec<InstalledContent>> {
+    ) -> Result<(Vec<InstalledContent>, Vec<ContentFailure>)> {
         let index = install::load(&ctx.entry_dir);
         let targets = update_targets(&index, kind, references)?;
         if targets.is_empty() {
             bail!("nothing is installed");
         }
-        let loader = content_loader(kind, &ctx.flavor);
 
+        on_progress.report(&phase_progress(ProvisionPhase::Resolving));
+        let platform: Vec<InstalledContent> = targets
+            .into_iter()
+            .filter(|item| !item.project_id.is_empty())
+            .collect();
+        let resolved = gather_ordered(
+            platform,
+            |_| None,
+            |item| async move {
+                let version = self.target_version(ctx, &item, pin).await;
+                (item, version)
+            },
+        )
+        .await;
+        on_progress.check()?;
+
+        let mut failures = Vec::new();
+        let mut planned = Vec::new();
+        for (item, version) in resolved {
+            match version {
+                Ok(version) if version.id == item.version_id => {}
+                Ok(version) => planned.push((item, version)),
+                Err(e) => failures.push(failure(&item.filename, &item.title, crate::error_info(e))),
+            }
+        }
+
+        let batch = &Batch::new(
+            on_progress,
+            ProvisionPhase::Content,
+            planned.iter().map(|(_, version)| release_size(version)),
+        );
+        let fetched = gather_ordered(
+            planned,
+            |(_, version)| release_filename(version),
+            |(item, version)| async move {
+                let share = batch.share(release_size(&version));
+                let relay = |progress: &ProvisionProgress| share.relay(progress);
+                let release = self
+                    .fetch_release(
+                        ctx,
+                        item.kind,
+                        &item.title,
+                        &version,
+                        &Job::new(&relay, on_progress.cancel()),
+                    )
+                    .await;
+                (item, release)
+            },
+        )
+        .await;
+
+        // A fetched file already sits at its managed path, so it is recorded
+        // even when the job was cancelled around it.
         let mut updated = Vec::new();
-        for item in targets {
-            if item.project_id.is_empty() {
-                continue;
-            }
-            on_progress.report(&phase_progress(ProvisionPhase::Resolving));
-            let versions = self
-                .content
-                .versions(&VersionQuery {
-                    source: item.source.clone(),
-                    project: item.project_id.clone(),
-                    loader: loader.clone(),
-                    game_version: Some(ctx.game_version.clone()),
-                })
-                .await?;
-            let version = match pin.is_empty() {
-                true => install::pick_update(
-                    &versions,
-                    &ctx.game_version,
-                    loader.as_deref(),
-                    &item.version_id,
-                ),
-                false => {
-                    install::pick_version(&versions, &ctx.game_version, loader.as_deref(), pin)
+        for (item, release) in fetched {
+            match release.and_then(|release| repin_files(ctx, &item, release)) {
+                Ok(new_item) => {
+                    tracing::info!(
+                        title = %item.title,
+                        from = %item.version_number,
+                        to = %new_item.version_number,
+                        "content updated"
+                    );
+                    updated.push(new_item);
                 }
+                Err(e) if crate::is_cancelled(&e) => {}
+                Err(e) => failures.push(failure(&item.filename, &item.title, crate::error_info(e))),
             }
-            .with_context(|| format!("cannot update '{}'", item.title))?
-            .clone();
-            if version.id == item.version_id {
-                continue;
-            }
-            let release = self
-                .fetch_release(ctx, item.kind, &item.title, &version, on_progress)
-                .await?;
-            let new_item = record::repin(&item, release);
-            if new_item.filename != item.filename {
-                install::remove_files(&ctx.entry_dir, &ctx.data_dir, &item, &ctx.worlds());
-            }
-            install::apply_files(&ctx.entry_dir, &ctx.data_dir, &new_item, &ctx.worlds())?;
-            tracing::info!(
-                title = %item.title,
-                from = %item.version_number,
-                to = %new_item.version_number,
-                "content updated"
-            );
-            updated.push(new_item);
         }
+        record_updates(&ctx.entry_dir, &updated)?;
+        on_progress.check()?;
+        Ok((updated, failures))
+    }
 
-        if !updated.is_empty() {
-            let mut index = install::load(&ctx.entry_dir);
-            for new_item in &updated {
-                match index
-                    .iter_mut()
-                    .find(|i| i.kind == new_item.kind && i.project_id == new_item.project_id)
-                {
-                    Some(entry) => *entry = new_item.clone(),
-                    None => index.push(new_item.clone()),
-                }
-            }
-            install::save(&ctx.entry_dir, index)?;
+    /// One named item to one exact version. Asked of a single item, its
+    /// failure is the call's failure rather than a line in a report.
+    pub(super) async fn repin_content(
+        &self,
+        ctx: &EntryContent,
+        kind: ContentKind,
+        reference: &str,
+        pin: &str,
+        on_progress: OnProgress<'_>,
+    ) -> Result<Vec<InstalledContent>> {
+        let (updated, failures) = self
+            .update_content(ctx, kind, &[reference.to_string()], pin, on_progress)
+            .await?;
+        match failures.into_iter().next() {
+            Some(failure) => Err(failure.error.into()),
+            None => Ok(updated),
         }
-        Ok(updated)
+    }
+
+    /// The version an item moves to: the newest compatible when `pin` is
+    /// empty, else that exact one (id or number).
+    async fn target_version(
+        &self,
+        ctx: &EntryContent,
+        item: &InstalledContent,
+        pin: &str,
+    ) -> Result<ContentVersion> {
+        let loader = content_loader(item.kind, &ctx.flavor);
+        let versions = self
+            .content
+            .versions(&VersionQuery {
+                source: item.source.clone(),
+                project: item.project_id.clone(),
+                loader: loader.clone(),
+                game_version: Some(ctx.game_version.clone()),
+            })
+            .await?;
+        match pin.is_empty() {
+            true => install::pick_update(
+                &versions,
+                &ctx.game_version,
+                loader.as_deref(),
+                &item.version_id,
+            ),
+            false => install::pick_version(&versions, &ctx.game_version, loader.as_deref(), pin),
+        }
+        .with_context(|| format!("cannot update '{}'", item.title))
+        .cloned()
     }
 
     pub(super) async fn content_matches(
@@ -166,7 +232,7 @@ impl Engine {
         let item = installed_item(&install::load(&ctx.entry_dir), kind, reference)?;
         if item.source == source {
             return self
-                .update_content(ctx, kind, &[reference.to_string()], pin, on_progress)
+                .repin_content(ctx, kind, reference, pin, on_progress)
                 .await;
         }
         on_progress.report(&phase_progress(ProvisionPhase::Resolving));
@@ -236,32 +302,14 @@ impl Engine {
             .into_iter()
             .filter(|i| i.kind == kind && !i.project_id.is_empty())
             .collect();
-        let loader = content_loader(kind, &ctx.flavor);
         let mut out = Vec::new();
         for item in items {
-            let versions = match self
-                .content
-                .versions(&VersionQuery {
-                    source: item.source.clone(),
-                    project: item.project_id.clone(),
-                    loader: loader.clone(),
-                    game_version: Some(ctx.game_version.clone()),
-                })
-                .await
-            {
-                Ok(versions) => versions,
+            let latest = match self.target_version(ctx, &item, "").await {
+                Ok(latest) => latest,
                 Err(e) => {
                     tracing::warn!(title = %item.title, error = %format!("{e:#}"), "update check failed");
                     continue;
                 }
-            };
-            let Ok(latest) = install::pick_update(
-                &versions,
-                &ctx.game_version,
-                loader.as_deref(),
-                &item.version_id,
-            ) else {
-                continue;
             };
             out.push(proto::content::ContentUpdate {
                 filename: item.filename,
@@ -292,6 +340,38 @@ fn installed_item(
             }
             .into()
         })
+}
+
+/// Put a fetched release where `item` stood, keeping how it is held. The old
+/// files go only once the new ones are in place, so a failure leaves it intact.
+fn repin_files(
+    ctx: &EntryContent,
+    item: &InstalledContent,
+    release: record::Release,
+) -> Result<InstalledContent> {
+    let repinned = record::repin(item, release);
+    install::apply_files(&ctx.entry_dir, &ctx.data_dir, &repinned, &ctx.worlds())?;
+    if repinned.filename != item.filename {
+        install::remove_files(&ctx.entry_dir, &ctx.data_dir, item, &ctx.worlds());
+    }
+    Ok(repinned)
+}
+
+fn record_updates(entry_dir: &Path, updated: &[InstalledContent]) -> Result<()> {
+    if updated.is_empty() {
+        return Ok(());
+    }
+    let mut index = install::load(entry_dir);
+    for new_item in updated {
+        match index
+            .iter_mut()
+            .find(|i| i.kind == new_item.kind && i.project_id == new_item.project_id)
+        {
+            Some(entry) => *entry = new_item.clone(),
+            None => index.push(new_item.clone()),
+        }
+    }
+    install::save(entry_dir, index)
 }
 
 /// The items an update acts on: every one of the kind for an empty batch, or

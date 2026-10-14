@@ -85,7 +85,7 @@ impl<'a> ContentEntry<'a> {
         items: &[String],
         path: &str,
         on_progress: impl Fn(&ProvisionProgress) + Send + Sync + 'static,
-    ) -> Result<Vec<InstalledContent>, IpcError> {
+    ) -> Result<(Vec<InstalledContent>, Vec<ContentFailure>), IpcError> {
         match self.kind {
             EntryKind::Server => {
                 self.client

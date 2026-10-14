@@ -180,8 +180,13 @@ impl ContentProvider for Source {
             .cloned()
             .ok_or_else(|| anyhow::anyhow!("no such project"))
     }
-    async fn versions(&self, _query: &VersionQuery) -> Result<Vec<ContentVersion>> {
-        Ok(self.versions.clone())
+    async fn versions(&self, query: &VersionQuery) -> Result<Vec<ContentVersion>> {
+        Ok(self
+            .versions
+            .iter()
+            .filter(|v| v.project_id == query.project)
+            .cloned()
+            .collect())
     }
     async fn identify(&self, files: &[LocalFile]) -> Result<HashMap<String, ContentVersion>> {
         Ok(files

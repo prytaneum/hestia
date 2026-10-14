@@ -92,15 +92,17 @@ impl Engine {
 
     /// Move platform-sourced items to their newest compatible version — the
     /// named items, or every item of the kind when `items` is empty. Returns
-    /// what actually changed.
+    /// what actually changed and, per item that could not move, a failure; the
+    /// batch continues past them.
     pub async fn update_entry_content(
         &self,
         entry: EntryRef<'_>,
         kind: ContentKind,
         items: &[String],
         on_progress: OnProgress<'_>,
-    ) -> Result<Vec<InstalledContent>> {
-        self.change_version(entry, kind, items, "", on_progress)
+    ) -> Result<(Vec<InstalledContent>, Vec<ContentFailure>)> {
+        let (_, ctx) = self.content_ctx(entry)?;
+        self.update_content(&ctx, kind, items, "", on_progress)
             .await
     }
 
@@ -120,15 +122,17 @@ impl Engine {
                 fields: vec![proto::error::Field::Item, proto::error::Field::Version]
             });
         }
-        if source.is_empty() {
-            let items = [item.to_string()];
-            return self
-                .change_version(entry, kind, &items, version, on_progress)
-                .await;
-        }
         let (_, ctx) = self.content_ctx(entry)?;
-        self.move_content_source(&ctx, kind, item, source, version, on_progress)
-            .await
+        match source.is_empty() {
+            true => {
+                self.repin_content(&ctx, kind, item, version, on_progress)
+                    .await
+            }
+            false => {
+                self.move_content_source(&ctx, kind, item, source, version, on_progress)
+                    .await
+            }
+        }
     }
 
     pub async fn entry_content_matches(
@@ -144,21 +148,6 @@ impl Engine {
             .into_iter()
             .map(ContentMatch::from)
             .collect())
-    }
-
-    /// The version-change path shared by update (empty pin) and set-version
-    /// (explicit pin).
-    async fn change_version(
-        &self,
-        entry: EntryRef<'_>,
-        kind: ContentKind,
-        items: &[String],
-        pin: &str,
-        on_progress: OnProgress<'_>,
-    ) -> Result<Vec<InstalledContent>> {
-        let (_, ctx) = self.content_ctx(entry)?;
-        self.update_content(&ctx, kind, items, pin, on_progress)
-            .await
     }
 
     /// Enable or disable installed items matching `item`; a non-empty `worlds`

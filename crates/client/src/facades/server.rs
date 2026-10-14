@@ -384,8 +384,9 @@ impl Server<'_> {
     }
 
     /// Update platform-sourced content to its newest compatible version — the
-    /// named items in one job, or every item of the kind when `items` is empty.
-    /// A non-empty `path` instead updates the one named local item from that file.
+    /// named items in one job, or every item of the kind when `items` is empty,
+    /// with a failure per item that could not move. A non-empty `path` instead
+    /// updates the one named local item from that file.
     pub async fn content_update(
         &self,
         server: &str,
@@ -393,7 +394,7 @@ impl Server<'_> {
         items: &[String],
         path: &str,
         on_progress: impl Fn(&ProvisionProgress) + Send + Sync + 'static,
-    ) -> Result<Vec<InstalledContent>, IpcError> {
+    ) -> Result<(Vec<InstalledContent>, Vec<ContentFailure>), IpcError> {
         let id = job_id("server-content-update");
         let params = ServerContentUpdateParams {
             server: server.to_string(),
@@ -410,7 +411,6 @@ impl Server<'_> {
                 .map(|_| ())
         })
         .await
-        .map(|(items, _)| items)
     }
 
     /// Enable or disable one installed item; a non-empty `worlds` scopes a

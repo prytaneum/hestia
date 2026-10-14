@@ -124,10 +124,11 @@ impl ContentJob {
                 Some(item) if !path.is_empty() => engine
                     .update_entry_content_from_file(entry.as_ref(), kind, item, Path::new(&path))
                     .map(|item| (vec![item], Vec::new())),
-                _ => engine
-                    .update_entry_content(entry.as_ref(), kind, &items, on_progress)
-                    .await
-                    .map(|items| (items, Vec::new())),
+                _ => {
+                    engine
+                        .update_entry_content(entry.as_ref(), kind, &items, on_progress)
+                        .await
+                }
             },
             ContentJob::SetVersion {
                 entry,

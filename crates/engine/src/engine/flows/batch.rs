@@ -1,5 +1,6 @@
 //! Fetching a batch of files side by side under one progress extent.
 
+use std::collections::HashSet;
 use std::future::Future;
 use std::sync::atomic::{AtomicU64, Ordering};
 
@@ -99,4 +100,33 @@ pub(super) async fn gather<F: Future>(fetches: impl IntoIterator<Item = F>) -> V
         .buffer_unordered(CONCURRENT_DOWNLOADS)
         .collect()
         .await
+}
+
+/// Fetch side by side, outcomes in the order given. Two fetches writing one
+/// `target` would race on its staging file, so the later one waits its turn and
+/// replaces the first.
+pub(super) async fn gather_ordered<T, F, Fut>(
+    items: Vec<T>,
+    target: impl Fn(&T) -> Option<String>,
+    fetch: F,
+) -> Vec<Fut::Output>
+where
+    F: Fn(T) -> Fut,
+    Fut: Future,
+{
+    let mut targets = HashSet::new();
+    let (apart, repeats): (Vec<_>, Vec<_>) = items
+        .into_iter()
+        .enumerate()
+        .partition(|(_, item)| target(item).is_none_or(|name| targets.insert(name)));
+    let fetch = |(order, item): (usize, T)| {
+        let fetched = fetch(item);
+        async move { (order, fetched.await) }
+    };
+    let mut outcomes = gather(apart.into_iter().map(&fetch)).await;
+    for repeat in repeats {
+        outcomes.push(fetch(repeat).await);
+    }
+    outcomes.sort_by_key(|(order, _)| *order);
+    outcomes.into_iter().map(|(_, outcome)| outcome).collect()
 }
