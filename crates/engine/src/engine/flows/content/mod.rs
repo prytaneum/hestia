@@ -12,6 +12,8 @@ mod add;
 pub(crate) mod entry;
 mod manage;
 
+use std::path::Path;
+
 use anyhow::{bail, Context, Result};
 use proto::content::{
     ContentAddSpec, ContentFailure, ContentKind, ContentMatch, InstalledContent, UntrackedFile,
@@ -19,7 +21,7 @@ use proto::content::{
 
 pub(in crate::engine) use self::entry::EntryRef;
 use self::entry::{Entry, EntryContent, EntrySide};
-use self::manage::{list_content, remove_content, set_enabled};
+use self::manage::{list_content, remove_content, set_enabled, update_from_file};
 use super::phase_progress;
 use crate::content::install;
 use crate::engine::Engine;
@@ -67,24 +69,25 @@ impl Engine {
         let (_, ctx) = self.content_ctx(entry)?;
         let index = install::load(&ctx.entry_dir);
         resolve_all(&index, kind, items)?;
-        // Content something else installed is owned by that thing: removing it
-        // locally would silently reappear at the next apply or pack update, so
-        // the removal is refused (there is no local-exclusion mechanism) and the
-        // user is pointed at whatever owns it.
-        let tagged = index.into_iter().find(|i| {
-            i.kind == kind
-                && items.iter().any(|item| install::matches(i, item))
-                && !i.origin.is_empty()
-        });
-        if let Some(tagged) = tagged {
-            bail!(
-                "'{}' was installed by {}; remove it there instead",
-                tagged.title,
-                origin_owner(&tagged.origin),
-            );
-        }
+        index
+            .iter()
+            .filter(|i| i.kind == kind && items.iter().any(|item| install::matches(i, item)))
+            .try_for_each(refuse_owned)?;
         let removed = remove_content(&ctx, kind, items, worlds)?;
         Ok(removed.len())
+    }
+
+    /// Update one local item from the file at `path`, keeping its enabled
+    /// state, world targeting and disables. A tracked item is refused.
+    pub fn update_entry_content_from_file(
+        &self,
+        entry: EntryRef<'_>,
+        kind: ContentKind,
+        item: &str,
+        path: &Path,
+    ) -> Result<InstalledContent> {
+        let (_, ctx) = self.content_ctx(entry)?;
+        update_from_file(&ctx, kind, item, path)
     }
 
     /// Move platform-sourced items to their newest compatible version — the
@@ -262,6 +265,20 @@ pub(in crate::engine::flows) fn resolve_all(
         }
     }
     Ok(())
+}
+
+/// Content something else installed is owned by that thing: a local change to it
+/// would be undone at the next apply or pack update, so it is refused and the
+/// user is pointed at whatever owns it.
+fn refuse_owned(item: &InstalledContent) -> Result<()> {
+    if item.origin.is_empty() {
+        return Ok(());
+    }
+    bail!(
+        "'{}' was installed by {}; change it there instead",
+        item.title,
+        origin_owner(&item.origin),
+    )
 }
 
 /// Who an `origin` tag says installed an item, for a refusal that names where

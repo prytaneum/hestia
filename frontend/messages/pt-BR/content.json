@@ -97,7 +97,7 @@
     "stop_to_install": "Pare para instalar",
     "track": {
       "label": "Rastrear de",
-      "local": "Arquivo local — sem atualizações",
+      "local": "Arquivo local — atualizado a partir de um arquivo que você escolher",
       "unrecognized": "Não encontrado em nenhuma fonte — instala como arquivo local."
     },
     "untracked": {
@@ -108,6 +108,7 @@
     },
     "update_all": "Atualizar tudo ({count})",
     "update_count": "Atualizar ({count})",
+    "update_from_file": "Atualizar a partir de arquivo…",
     "update_to_latest": "Atualizar para a mais recente",
     "world_datapacks": "datapacks do mundo"
   }

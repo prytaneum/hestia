@@ -3,6 +3,7 @@ import type { ContentKind } from "./ContentKind";
 
 /**
  * `items` empty updates every platform-sourced item of the kind; naming
- * several updates exactly those, in one job.
+ * several updates exactly those, in one job. A `path` instead updates the one
+ * named local item from that file, keeping how the entry holds it.
  */
-export type ServerContentUpdateParams = { server: string, kind: ContentKind, items: Array<string>, id: string, };
+export type ServerContentUpdateParams = { server: string, kind: ContentKind, items: Array<string>, path: string, id: string, };

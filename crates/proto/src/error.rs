@@ -189,6 +189,8 @@ pub enum Unsupported {
     DatapacksPerWorld,
     ModpackNotSingleFile,
     ModpackNotUpdatable,
+    FileUpdatesOneItem,
+    FileUpdatesLocalOnly,
 }
 
 impl fmt::Display for Unsupported {
@@ -201,6 +203,10 @@ impl fmt::Display for Unsupported {
             }
             Unsupported::ModpackNotUpdatable => {
                 "this modpack came from a file, so only a newer file can update it"
+            }
+            Unsupported::FileUpdatesOneItem => "a file updates exactly one item",
+            Unsupported::FileUpdatesLocalOnly => {
+                "only a local file can be updated from a file; change a tracked item's version instead"
             }
         })
     }

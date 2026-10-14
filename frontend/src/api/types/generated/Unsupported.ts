@@ -3,4 +3,4 @@
 /**
  * A domain rule that forbids an otherwise well-formed operation.
  */
-export type Unsupported = "worlds_for_datapacks_only" | "datapacks_per_world" | "modpack_not_single_file" | "modpack_not_updatable";
+export type Unsupported = "worlds_for_datapacks_only" | "datapacks_per_world" | "modpack_not_single_file" | "modpack_not_updatable" | "file_updates_one_item" | "file_updates_local_only";

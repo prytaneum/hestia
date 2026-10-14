@@ -92,7 +92,14 @@ export function contentChannels(prefix: string, resolve: Resolve): Handlers {
 
     [`${prefix}.content.update`]: (p) =>
       contentJob(p, () =>
-        content.update(resolve(p), kindOf(p), strings(p, 'items')),
+        str(p, 'path')
+          ? content.updateFromFile(
+              resolve(p),
+              kindOf(p),
+              strings(p, 'items')[0] ?? '',
+              str(p, 'path'),
+            )
+          : content.update(resolve(p), kindOf(p), strings(p, 'items')),
       ),
 
     [`${prefix}.content.set_version`]: (p) =>

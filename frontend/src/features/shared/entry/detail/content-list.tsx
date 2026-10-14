@@ -1,6 +1,7 @@
 import {
   ArrowsClockwiseIcon,
   DotsThreeIcon,
+  FileArrowUpIcon,
   GlobeIcon,
   PackageIcon,
   ProhibitIcon,
@@ -281,10 +282,21 @@ function ContentRow({
                 </>
               )}
               {item.source === contentApi.LOCAL_SOURCE && (
-                <DropdownMenuItem disabled={busy} onClick={onChangeVersion}>
-                  <SwapIcon />
-                  {m['content.change_version.track_action']()}
-                </DropdownMenuItem>
+                <>
+                  {!item.origin && (
+                    <DropdownMenuItem
+                      disabled={busy}
+                      onClick={() => handlers.onUpdateFromFile(item)}
+                    >
+                      <FileArrowUpIcon />
+                      {m['content.update_from_file']()}
+                    </DropdownMenuItem>
+                  )}
+                  <DropdownMenuItem disabled={busy} onClick={onChangeVersion}>
+                    <SwapIcon />
+                    {m['content.change_version.track_action']()}
+                  </DropdownMenuItem>
+                </>
               )}
               <DropdownMenuItem
                 onClick={() => handlers.onEnable(item, !item.enabled)}

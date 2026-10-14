@@ -99,6 +99,7 @@ the alternative you rejected — that is usually the part nobody can recover lat
 - **0075** — [A local file is identified by its hash](0075-a-local-file-is-identified-by-its-hash.md)
 - **0076** — [A pack file is identified wherever it came from](0076-a-pack-file-is-identified-wherever-it-came-from.md)
 - **0078** — [A pack updates from a file, and leaves an entry two ways](0078-a-pack-updates-from-a-file.md)
+- **0079** — [A local item updates from a file](0079-a-local-item-updates-from-a-file.md)
 - **0077** — [The console keeps its RCON connection, and completes from the server's own `help`](0077-the-console-keeps-its-connection.md)
 
 ### [Accounts & skins](../architecture/accounts.md)

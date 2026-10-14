@@ -10,7 +10,7 @@ import { useState } from 'react';
 import { toast } from 'sonner';
 
 import type { ContentKind, InstalledContent, UntrackedFile } from '@/api';
-import { errorMessage, system } from '@/api';
+import { dialog, errorMessage, system } from '@/api';
 import { Empty } from '@/components/empty';
 import { contentIcon } from '@/components/icons';
 import { OfflineNotice } from '@/components/offline-state';
@@ -112,6 +112,11 @@ export function ContentSection({
       }),
     onUpdate: (item) =>
       update.mutate({ kind: item.kind, items: [installedRef(item)] }),
+    onUpdateFromFile: async (item) => {
+      const path = await dialog.pickContentFile();
+      if (path)
+        update.mutate({ kind: item.kind, items: [installedRef(item)], path });
+    },
     onSetVersion: (item, version) =>
       setVersion.mutate({
         kind: item.kind,

@@ -239,19 +239,25 @@ pub(crate) fn remove_files(
     item: &InstalledContent,
     worlds: &[String],
 ) {
-    let paths = std::iter::once(managed_path(entry_dir, item).ok())
-        .chain(
-            candidate_paths(data_dir, item, worlds)
-                .unwrap_or_default()
-                .into_iter()
-                .map(Some),
-        )
-        .collect::<Vec<_>>();
-    for path in paths.into_iter().flatten() {
-        if let Err(e) = std::fs::remove_file(&path) {
-            if e.kind() != std::io::ErrorKind::NotFound {
-                tracing::warn!(path = %path.display(), error = %e, "cannot remove content file");
-            }
+    if let Ok(managed) = managed_path(entry_dir, item) {
+        remove_quietly(&managed);
+    }
+    unmirror(data_dir, item, worlds);
+}
+
+/// Delete every `data/` mirror of an item, keeping its managed file — a mirror
+/// that already exists is never refreshed, so new bytes under an old name need
+/// their stale mirrors gone first.
+pub(crate) fn unmirror(data_dir: &Path, item: &InstalledContent, worlds: &[String]) {
+    for path in candidate_paths(data_dir, item, worlds).unwrap_or_default() {
+        remove_quietly(&path);
+    }
+}
+
+fn remove_quietly(path: &Path) {
+    if let Err(e) = std::fs::remove_file(path) {
+        if e.kind() != std::io::ErrorKind::NotFound {
+            tracing::warn!(path = %path.display(), error = %e, "cannot remove content file");
         }
     }
 }

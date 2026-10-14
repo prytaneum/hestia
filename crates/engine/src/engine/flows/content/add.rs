@@ -3,7 +3,7 @@
 //! selector that cannot be installed records a failure and the rest proceeds.
 
 use std::collections::HashSet;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use anyhow::{bail, Context, Result};
 use proto::content::{
@@ -477,39 +477,14 @@ fn add_file_content(
     recognised: &[Identified],
 ) -> Result<InstalledContent> {
     let source = Path::new(&item.path);
-    if !source.is_file() {
-        bail!("no file at {}", source.display());
-    }
     let filename = if !item.filename.is_empty() {
         item.filename.clone()
     } else if let Some(known) = known {
         known.file.artifact.filename.clone()
     } else {
-        source
-            .file_name()
-            .map(|n| n.to_string_lossy().into_owned())
-            .unwrap_or_default()
+        file_name(source)
     };
-    materialize::validate_filename(&filename)?;
-    // Reject an unreadable archive or a modpack; the detected kind is advisory
-    // (the requested `kind` wins, so an override installs where asked).
-    match inspect::classify(source)? {
-        inspect::Detected::Kind(detected) if detected != kind => tracing::warn!(
-            file = %filename,
-            ?detected,
-            requested = ?kind,
-            "importing a local file under a kind that differs from its detected type"
-        ),
-        _ => {}
-    }
-    let managed = content_target(ctx, kind, &filename)?;
-    if let Some(parent) = managed.parent() {
-        std::fs::create_dir_all(parent)
-            .with_context(|| format!("cannot create {}", parent.display()))?;
-    }
-    std::fs::copy(source, &managed)
-        .with_context(|| format!("cannot import {}", source.display()))?;
-    let sha1 = install::sha1_file(&managed)?;
+    let (managed, sha1) = import_file(ctx, kind, source, &filename)?;
     let (project, release) = match known {
         Some(known) => known.recorded(kind, filename, sha1),
         None => {
@@ -523,6 +498,55 @@ fn add_file_content(
     let installed = record::assemble(project, release, record::Holding::fresh(worlds));
     install::apply_files(&ctx.entry_dir, &ctx.data_dir, &installed, &ctx.worlds())?;
     Ok(installed)
+}
+
+/// Copy a local file into the managed directory as `filename`, returning the
+/// managed path and its sha1. The kind it is filed under is the caller's: only
+/// an unreadable archive or a modpack is refused.
+pub(super) fn import_file(
+    ctx: &EntryContent,
+    kind: ContentKind,
+    source: &Path,
+    filename: &str,
+) -> Result<(PathBuf, String)> {
+    if !source.is_file() {
+        bail!("no file at {}", source.display());
+    }
+    materialize::validate_filename(filename)?;
+    match inspect::classify(source)? {
+        inspect::Detected::Kind(detected) if detected != kind => tracing::warn!(
+            file = %filename,
+            ?detected,
+            requested = ?kind,
+            "importing a local file under a kind that differs from its detected type"
+        ),
+        _ => {}
+    }
+    let managed = content_target(ctx, kind, filename)?;
+    if let Some(parent) = managed.parent() {
+        std::fs::create_dir_all(parent)
+            .with_context(|| format!("cannot create {}", parent.display()))?;
+    }
+    // Copying a file onto itself truncates it to nothing.
+    if !same_file(source, &managed) {
+        std::fs::copy(source, &managed)
+            .with_context(|| format!("cannot import {}", source.display()))?;
+    }
+    let sha1 = install::sha1_file(&managed)?;
+    Ok((managed, sha1))
+}
+
+pub(super) fn file_name(path: &Path) -> String {
+    path.file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_default()
+}
+
+fn same_file(a: &Path, b: &Path) -> bool {
+    match (std::fs::canonicalize(a), std::fs::canonicalize(b)) {
+        (Ok(a), Ok(b)) => a == b,
+        _ => false,
+    }
 }
 
 /// The icon of a project a source knows this file as, for an import that stays

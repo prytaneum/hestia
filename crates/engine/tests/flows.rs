@@ -186,14 +186,143 @@ async fn a_batch_installs_its_roots_and_their_required_dependencies_once() {
 }
 
 fn local_mod(dir: &std::path::Path, name: &str) -> String {
+    built_mod(dir, name, name)
+}
+
+fn built_mod(dir: &std::path::Path, name: &str, manifest: &str) -> String {
     use std::io::Write;
     let path = dir.join(name);
     let mut zip = zip::ZipWriter::new(std::fs::File::create(&path).expect("create the jar"));
     zip.start_file("fabric.mod.json", zip::write::SimpleFileOptions::default())
         .expect("start the manifest");
-    zip.write_all(name.as_bytes()).expect("write the manifest");
+    zip.write_all(manifest.as_bytes())
+        .expect("write the manifest");
     zip.finish().expect("finish the jar");
     path.to_string_lossy().into_owned()
+}
+
+async fn with_local_mod(
+    home: &std::path::Path,
+    drops: &std::path::Path,
+    name: &str,
+) -> (engine::Engine, String) {
+    let (engine, id) = instance(home, fixture::Source::default()).await;
+    let (cancel, report) = (Cancel::new(), |_: &ProvisionProgress| {});
+    let spec = ContentAddSpec {
+        kind: ContentKind::Mod,
+        items: vec![ContentAddItem {
+            path: local_mod(drops, name),
+            ..ContentAddItem::default()
+        }],
+        ..ContentAddSpec::default()
+    };
+    engine
+        .add_entry_content(EntryRef::Instance(&id), &spec, &job(&cancel, &report))
+        .await
+        .expect("import the local build");
+    (engine, id)
+}
+
+#[tokio::test]
+async fn a_new_build_updates_a_local_item_and_keeps_it_disabled() {
+    let home = tempfile::tempdir().expect("temp home");
+    let drops = tempfile::tempdir().expect("temp drops");
+    let (engine, id) = with_local_mod(home.path(), drops.path(), "homemade-1.0.jar").await;
+    let entry_dir = home.path().join("instances").join("modded");
+    engine
+        .enable_entry_content(
+            EntryRef::Instance(&id),
+            ContentKind::Mod,
+            "homemade-1.0.jar",
+            false,
+            &[],
+        )
+        .expect("disable");
+
+    let newer = local_mod(drops.path(), "homemade-1.1.jar");
+    engine
+        .update_entry_content_from_file(
+            EntryRef::Instance(&id),
+            ContentKind::Mod,
+            "homemade-1.0.jar",
+            std::path::Path::new(&newer),
+        )
+        .expect("update from the file");
+
+    let (listed, _) = engine
+        .entry_content(EntryRef::Instance(&id), ContentKind::Mod)
+        .expect("list");
+    assert_eq!(listed.len(), 1, "the build updates the row, not adds one");
+    assert_eq!(listed[0].filename, "homemade-1.1.jar");
+    assert!(!listed[0].enabled, "the update keeps it disabled");
+    assert!(!entry_dir.join("mods").join("homemade-1.0.jar").exists());
+    assert!(entry_dir.join("mods").join("homemade-1.1.jar").is_file());
+    assert!(
+        !entry_dir
+            .join("data")
+            .join("mods")
+            .join("homemade-1.1.jar")
+            .exists(),
+        "a disabled item stays out of the load dir"
+    );
+}
+
+#[tokio::test]
+async fn a_build_under_the_same_name_is_what_the_game_then_loads() {
+    let home = tempfile::tempdir().expect("temp home");
+    let drops = tempfile::tempdir().expect("temp drops");
+    let (engine, id) = with_local_mod(home.path(), drops.path(), "homemade.jar").await;
+    let rebuilt = tempfile::tempdir().expect("temp rebuild");
+    let newer = built_mod(rebuilt.path(), "homemade.jar", "rebuilt");
+
+    engine
+        .update_entry_content_from_file(
+            EntryRef::Instance(&id),
+            ContentKind::Mod,
+            "homemade.jar",
+            std::path::Path::new(&newer),
+        )
+        .expect("update from the file");
+
+    let loaded = home
+        .path()
+        .join("instances")
+        .join("modded")
+        .join("data")
+        .join("mods")
+        .join("homemade.jar");
+    assert_eq!(
+        std::fs::read(loaded).expect("the mirror is there"),
+        std::fs::read(&newer).expect("the rebuild"),
+    );
+}
+
+#[tokio::test]
+async fn a_tracked_item_is_not_updated_from_a_file() {
+    let home = tempfile::tempdir().expect("temp home");
+    let drops = tempfile::tempdir().expect("temp drops");
+    let (engine, id, _files) = updatable(home.path(), "").await;
+    let build = local_mod(drops.path(), "sodium-fork.jar");
+
+    let refused = engine
+        .update_entry_content_from_file(
+            EntryRef::Instance(&id),
+            ContentKind::Mod,
+            "sodium",
+            std::path::Path::new(&build),
+        )
+        .expect_err("a tracked item keeps its source");
+
+    assert!(matches!(
+        refused.downcast_ref::<ErrorInfo>(),
+        Some(ErrorInfo::UnsupportedOperation {
+            reason: proto::error::Unsupported::FileUpdatesLocalOnly
+        })
+    ));
+    let (listed, _) = engine
+        .entry_content(EntryRef::Instance(&id), ContentKind::Mod)
+        .expect("list");
+    assert_eq!(listed[0].project_id, "sodium");
 }
 
 #[tokio::test]

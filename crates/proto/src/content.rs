@@ -468,7 +468,8 @@ pub struct InstanceContentRemoveParams {
 }
 
 /// `items` empty updates every platform-sourced item of the kind; naming
-/// several updates exactly those, in one job.
+/// several updates exactly those, in one job. A `path` instead updates the one
+/// named local item from that file, keeping how the entry holds it.
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
 #[serde(default, rename_all = "camelCase")]
@@ -476,6 +477,7 @@ pub struct ServerContentUpdateParams {
     pub server: String,
     pub kind: ContentKind,
     pub items: Vec<String>,
+    pub path: String,
     pub id: String,
 }
 
@@ -486,6 +488,7 @@ pub struct InstanceContentUpdateParams {
     pub instance: String,
     pub kind: ContentKind,
     pub items: Vec<String>,
+    pub path: String,
     pub id: String,
 }
 

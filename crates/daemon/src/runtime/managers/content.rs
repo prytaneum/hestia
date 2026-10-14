@@ -1,3 +1,4 @@
+use std::path::Path;
 use std::sync::Arc;
 
 use engine::Engine;
@@ -18,11 +19,13 @@ pub enum ContentJob {
         entry: Entry,
         spec: ContentAddSpec,
     },
-    /// `items` empty updates every platform-sourced item of the kind.
+    /// `items` empty updates every platform-sourced item of the kind; a `path`
+    /// updates the one named local item from that file.
     Update {
         entry: Entry,
         kind: ContentKind,
         items: Vec<String>,
+        path: String,
     },
     /// Re-pin one item to a specific published version.
     SetVersion {
@@ -112,10 +115,20 @@ impl ContentJob {
                     .add_entry_content(entry.as_ref(), &spec, on_progress)
                     .await
             }
-            ContentJob::Update { entry, kind, items } => engine
-                .update_entry_content(entry.as_ref(), kind, &items, on_progress)
-                .await
-                .map(|items| (items, Vec::new())),
+            ContentJob::Update {
+                entry,
+                kind,
+                items,
+                path,
+            } => match items.first() {
+                Some(item) if !path.is_empty() => engine
+                    .update_entry_content_from_file(entry.as_ref(), kind, item, Path::new(&path))
+                    .map(|item| (vec![item], Vec::new())),
+                _ => engine
+                    .update_entry_content(entry.as_ref(), kind, &items, on_progress)
+                    .await
+                    .map(|items| (items, Vec::new())),
+            },
             ContentJob::SetVersion {
                 entry,
                 kind,

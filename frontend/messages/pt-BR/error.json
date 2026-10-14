@@ -116,6 +116,8 @@
       "extract": "extrair",
       "fabric": "Fabric",
       "file_unpublished": "ele lista um arquivo que não está mais publicado",
+      "file_updates_local_only": "só um arquivo local pode ser atualizado a partir de um arquivo; mude a versão de um item rastreado",
+      "file_updates_one_item": "um arquivo atualiza exatamente um item",
       "flavor": "tipo",
       "format_version": "a versão do formato não é suportada",
       "hestia": "Hestia",

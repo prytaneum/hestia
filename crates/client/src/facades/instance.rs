@@ -415,11 +415,13 @@ impl Instance<'_> {
 
     /// Update platform-sourced content to its newest compatible version — the
     /// named items in one job, or every item of the kind when `items` is empty.
+    /// A non-empty `path` instead updates the one named local item from that file.
     pub async fn content_update(
         &self,
         instance: &str,
         kind: ContentKind,
         items: &[String],
+        path: &str,
         on_progress: impl Fn(&ProvisionProgress) + Send + Sync + 'static,
     ) -> Result<Vec<InstalledContent>, IpcError> {
         let id = job_id("instance-content-update");
@@ -427,6 +429,7 @@ impl Instance<'_> {
             instance: instance.to_string(),
             kind,
             items: items.to_vec(),
+            path: path.to_string(),
             id: id.clone(),
         };
         let session = self.session;

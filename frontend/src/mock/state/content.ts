@@ -444,6 +444,25 @@ export function setVersion(
   return [item];
 }
 
+/** Point a local item at a newer file, keeping how the entry holds it. */
+export function updateFromFile(
+  id: string,
+  kind: ContentKind,
+  ref: string,
+  path: string,
+): InstalledContent[] {
+  const item = pool(id).find(
+    (candidate) =>
+      candidate.kind === kind &&
+      candidate.source === 'file' &&
+      isItem(candidate, ref),
+  );
+  if (!item) return [];
+  item.filename = path.split('/').pop() ?? path;
+  item.title = item.filename;
+  return [item];
+}
+
 /** Move every platform-sourced item of the kind (or the named ones) to its newest pin. */
 export function update(
   id: string,

@@ -133,6 +133,8 @@ export interface ContentHandlers {
   ) => void;
   onRemove: (item: InstalledContent, worlds?: string[]) => void;
   onUpdate: (item: InstalledContent) => void;
+  /** Picks a file and updates a local item from it. */
+  onUpdateFromFile: (item: InstalledContent) => void;
   onSetVersion: (item: InstalledContent, version: ContentVersion) => void;
   /** The batch verbs, run one kind at a time. */
   onRemoveMany: (rows: InstalledContent[]) => void;

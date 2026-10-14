@@ -291,6 +291,15 @@ pub(super) fn require_item_names(items: &[String]) -> Result<(), ErrorInfo> {
     }
 }
 
+pub(super) fn require_one_for_file(items: &[String], path: &str) -> Result<(), ErrorInfo> {
+    match path.is_empty() || items.len() == 1 {
+        true => Ok(()),
+        false => Err(ErrorInfo::UnsupportedOperation {
+            reason: proto::error::Unsupported::FileUpdatesOneItem,
+        }),
+    }
+}
+
 pub(super) fn require_backup(
     backups: anyhow::Result<Vec<proto::backup::BackupInfo>>,
     reference: &str,

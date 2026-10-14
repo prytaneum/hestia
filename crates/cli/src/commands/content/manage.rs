@@ -64,7 +64,7 @@ pub enum ContentCmd {
         )]
         world: Vec<String>,
     },
-    /// Update platform content to its newest compatible version
+    /// Update platform content to its newest compatible version, or a local item from a --file
     Update {
         /// Installed items, or every one of this kind when omitted
         items: Vec<String>,
@@ -73,6 +73,12 @@ pub enum ContentCmd {
             help = "Only report which items have an update, without applying"
         )]
         check: bool,
+        #[arg(
+            long,
+            help = "Update the one named local item from this file",
+            conflicts_with = "check"
+        )]
+        file: Option<String>,
     },
     /// Enable a disabled item (prompts to pick when omitted)
     Enable {
@@ -126,11 +132,11 @@ pub async fn run_entry(
         ContentCmd::Remove { items, world } => {
             remove(client, entry, kind, reference, items, world).await
         }
-        ContentCmd::Update { items, check } => {
+        ContentCmd::Update { items, check, file } => {
             if check {
                 check_updates(client, entry, kind, reference).await
             } else {
-                update(client, entry, kind, reference, items).await
+                update(client, entry, kind, reference, items, file).await
             }
         }
         ContentCmd::Enable { item, world } => {
@@ -406,7 +412,18 @@ async fn update(
     kind: ContentKind,
     reference: &str,
     items: Vec<String>,
+    file: Option<String>,
 ) -> Result<()> {
+    let path = match file {
+        Some(file) if items.len() != 1 => {
+            bail!("--file updates exactly one item; name the one to update from {file}")
+        }
+        Some(file) => std::fs::canonicalize(&file)
+            .with_context(|| format!("cannot read {file}"))?
+            .to_string_lossy()
+            .into_owned(),
+        None => String::new(),
+    };
     let EntryInfo { id, name, .. } = resolve_entry(client, entry, reference).await?;
     let handle = ContentEntry::new(client, entry, id);
 
@@ -414,7 +431,7 @@ async fn update(
     let progress = reporter.clone();
     let updated = {
         let result = handle
-            .update(kind, &items, move |p| progress.update(p))
+            .update(kind, &items, &path, move |p| progress.update(p))
             .await;
         reporter.finish();
         result?
@@ -424,10 +441,11 @@ async fn update(
         return ui::show(View::note(format!("'{name}' is already up to date")));
     }
     for content in &updated {
-        ui::show(View::line(format!(
-            "updated {} to {}",
-            content.title, content.version_number
-        )))?;
+        let line = match path.is_empty() {
+            true => format!("updated {} to {}", content.title, content.version_number),
+            false => format!("updated {} to {}", items[0], content.filename),
+        };
+        ui::show(View::line(line))?;
     }
     Ok(())
 }

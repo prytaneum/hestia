@@ -7,6 +7,7 @@ use anyhow::{bail, Context, Result};
 use proto::content::{ContentKind, InstalledContent, UntrackedFile, VersionQuery, LOCAL_SOURCE};
 use proto::minecraft::ProvisionPhase;
 
+use super::add::{file_name, import_file};
 use super::entry::{content_loader, EntryContent};
 use super::phase_progress;
 use crate::content::{install, record, Identified, LocalFile};
@@ -391,6 +392,60 @@ pub(super) fn remove_content(
     }
     install::save(&ctx.entry_dir, kept)?;
     Ok(removed)
+}
+
+/// Move a local item onto the file at `path`, keeping how the entry holds it. It
+/// stays local: a tracked item would silently lose its source, so it is refused,
+/// and [`Engine::move_content_source`] adopts a source afterwards.
+pub(super) fn update_from_file(
+    ctx: &EntryContent,
+    kind: ContentKind,
+    reference: &str,
+    path: &Path,
+) -> Result<InstalledContent> {
+    let mut index = install::load(&ctx.entry_dir);
+    let item = installed_item(&index, kind, reference)?;
+    if item.source != LOCAL_SOURCE {
+        bail!(proto::error::ErrorInfo::UnsupportedOperation {
+            reason: proto::error::Unsupported::FileUpdatesLocalOnly
+        });
+    }
+    super::refuse_owned(&item)?;
+    let filename = file_name(path);
+    if let Some(other) = index
+        .iter()
+        .find(|i| i.kind == kind && i.filename == filename && i.filename != item.filename)
+    {
+        bail!("'{filename}' is already installed as '{}'", other.title);
+    }
+    let (managed, sha1) = import_file(ctx, kind, path, &filename)?;
+    let mut project = record::Project::untracked(kind, filename.clone(), &managed);
+    if project.icon_url.is_empty() {
+        project.icon_url = item.icon_url.clone();
+    }
+    let updated = record::resource(&item, project, record::Release::local(filename, sha1));
+
+    let entry_worlds = ctx.worlds();
+    match updated.filename == item.filename {
+        true => install::unmirror(&ctx.data_dir, &item, &entry_worlds),
+        false => install::remove_files(&ctx.entry_dir, &ctx.data_dir, &item, &entry_worlds),
+    }
+    install::apply_files(&ctx.entry_dir, &ctx.data_dir, &updated, &entry_worlds)?;
+    if let Some(slot) = index
+        .iter_mut()
+        .find(|i| i.kind == kind && i.filename == item.filename)
+    {
+        *slot = updated.clone();
+    }
+    install::save(&ctx.entry_dir, index)?;
+    tracing::info!(
+        entry = %ctx.entry_dir.display(),
+        kind = ?kind,
+        from = %item.filename,
+        to = %updated.filename,
+        "local content updated from a file"
+    );
+    Ok(updated)
 }
 
 /// The worlds an item still loads in once `drop` are taken from it; empty means

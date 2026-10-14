@@ -32,6 +32,7 @@ export interface EntryContentApi {
     id: string,
     kind: ContentKind,
     items: string[],
+    path: string,
     job: JobRun,
   ): Promise<ContentDoneEvent>;
   enable(
@@ -90,16 +91,23 @@ export function entryContentFactories(cfg: EntryContentConfig) {
           invalidates: () => invalidates(id),
         },
       ),
-    /** `items` empty updates every platform-sourced item of the kind. */
+    /**
+     * `items` empty updates every platform-sourced item of the kind; a `path`
+     * updates the one named local item from that file.
+     */
     update: (id: string) =>
-      jobMutation<ContentDoneEvent, { kind: ContentKind; items: string[] }>({
+      jobMutation<
+        ContentDoneEvent,
+        { kind: ContentKind; items: string[]; path?: string }
+      >({
         mutationKey: [...cfg.contentKey(id), 'update'],
         meta: ({ kind }) => ({
           kind: 'content.update',
           label: `update ${kind}s`,
           entry: { kind: cfg.kind, id },
         }),
-        run: ({ kind, items }, job) => cfg.api.update(id, kind, items, job),
+        run: ({ kind, items, path = '' }, job) =>
+          cfg.api.update(id, kind, items, path, job),
         invalidates: () => invalidates(id),
       }),
     enable: (id: string) =>

@@ -259,11 +259,15 @@ export const content = {
     await call('instance.content.remove', { instance, kind, items, worlds });
   },
 
-  /** `items` empty updates every platform-sourced item of the kind. */
+  /**
+   * `items` empty updates every platform-sourced item of the kind; a `path`
+   * updates the one named local item from that file.
+   */
   update(
     instance: string,
     kind: ContentKind,
     items: string[],
+    path: string,
     job: JobRun,
   ): Promise<ContentDoneEvent> {
     return runJob<ContentDoneEvent>({
@@ -274,7 +278,13 @@ export const content = {
         error: 'content.error',
       },
       start: () =>
-        call('instance.content.update', { instance, kind, items, id: job.id }),
+        call('instance.content.update', {
+          instance,
+          kind,
+          items,
+          path,
+          id: job.id,
+        }),
     });
   },
 

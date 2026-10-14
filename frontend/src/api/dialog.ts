@@ -23,6 +23,16 @@ export async function pickContentFiles(): Promise<string[]> {
   return typeof selection === 'string' ? [selection] : [];
 }
 
+/** Pick one content file to update a local item from, or null when dismissed. */
+export async function pickContentFile(): Promise<string | null> {
+  const selection = await open({
+    multiple: false,
+    directory: false,
+    filters: [{ name: 'Content', extensions: CONTENT_EXTENSIONS }],
+  });
+  return typeof selection === 'string' ? selection : null;
+}
+
 /** Pick any files to copy into a server's directory; empty when dismissed. */
 export async function pickFiles(): Promise<string[]> {
   const selection = await open({ multiple: true, directory: false });

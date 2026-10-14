@@ -13,7 +13,10 @@ use proto::content::{
 use proto::error::{ErrorInfo, Field};
 use proto::Empty;
 
-use super::guards::{instance_for, require_content_items, require_item_names, server_for, Intent};
+use super::guards::{
+    instance_for, require_content_items, require_item_names, require_one_for_file, server_for,
+    Intent,
+};
 use crate::runtime::{Channels, ContentJob, JobEntry};
 
 pub(super) fn register(on: &mut Channels<'_>) {
@@ -150,12 +153,14 @@ fn register_server(on: &mut Channels<'_>) {
 
     on.handle::<ServerContentUpdate, _, _>(|p, ctx| async move {
         require_item_names(&p.items)?;
+        require_one_for_file(&p.items, &p.path)?;
         let record = server_for(&ctx, &p.server, Intent::Mutate)?;
         match ctx.runtime.content_jobs().start(
             ContentJob::Update {
                 entry: JobEntry::server(record.id),
                 kind: p.kind,
                 items: p.items,
+                path: p.path,
             },
             p.id,
         ) {
@@ -281,12 +286,14 @@ fn register_instance(on: &mut Channels<'_>) {
 
     on.handle::<InstanceContentUpdate, _, _>(|p, ctx| async move {
         require_item_names(&p.items)?;
+        require_one_for_file(&p.items, &p.path)?;
         let record = instance_for(&ctx, &p.instance, Intent::Mutate)?;
         match ctx.runtime.content_jobs().start(
             ContentJob::Update {
                 entry: JobEntry::instance(record.id),
                 kind: p.kind,
                 items: p.items,
+                path: p.path,
             },
             p.id,
         ) {
