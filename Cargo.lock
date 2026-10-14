@@ -1170,6 +1170,7 @@ dependencies = [
  "client",
  "common",
  "image",
+ "open",
  "reqwest",
  "serde",
  "serde_json",

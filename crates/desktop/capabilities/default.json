@@ -14,12 +14,7 @@
     "core:window:allow-hide",
     "core:window:allow-show",
     "core:window:allow-set-focus",
-    "opener:default",
-    {
-      "identifier": "opener:allow-open-path",
-      "allow": [{ "path": "**" }]
-    },
-    "opener:allow-open-url",
+    "opener:allow-reveal-item-in-dir",
     "dialog:default",
     "dialog:allow-open",
     "process:default"

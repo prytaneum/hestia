@@ -1,13 +1,13 @@
 /**
- * Host-shell affordances that do not cross the daemon socket — opening paths in
- * the OS file manager through the bundled `tauri-plugin-opener`.
+ * Host-shell affordances that do not cross the daemon socket — opening paths
+ * and links with the host's default handler.
  */
 
 import { invokeCommand } from './core/ipc';
 
 /** Open a folder (or file) in the OS file manager. */
 export function openPath(path: string): Promise<void> {
-  return invokeCommand('plugin:opener|open_path', { path });
+  return invokeCommand('open_path', { path });
 }
 
 /**
@@ -28,5 +28,5 @@ export function pendingArchive(): Promise<string | null> {
 
 /** Open a URL in the user's default browser (markdown links, project pages). */
 export function openUrl(url: string): Promise<void> {
-  return invokeCommand('plugin:opener|open_url', { url });
+  return invokeCommand('open_url', { url });
 }

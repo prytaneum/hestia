@@ -1,3 +1,4 @@
+import { ExternalLink } from '@/components/external-link';
 import { Checkbox } from '@/components/ui/checkbox';
 import { FieldError } from '@/components/ui/field';
 import { m } from '@/paraglide/messages.js';
@@ -167,14 +168,12 @@ export function DetailsStep({ form, kind }: { form: WizardForm; kind: Kind }) {
                     />
                     <span className="text-xs text-muted-foreground">
                       {m['entry.create.eula.before']()}{' '}
-                      <a
+                      <ExternalLink
                         href="https://aka.ms/MinecraftEULA"
-                        target="_blank"
-                        rel="noreferrer"
                         className="text-foreground underline underline-offset-2"
                       >
                         {m['entry.create.eula.link']()}
-                      </a>
+                      </ExternalLink>
                       {m['entry.create.eula.after']()}
                     </span>
                   </label>

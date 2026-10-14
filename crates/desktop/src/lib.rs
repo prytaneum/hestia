@@ -1,3 +1,5 @@
+#[cfg(target_os = "linux")]
+mod appimage;
 mod bridge;
 mod commands;
 
@@ -32,7 +34,13 @@ pub fn run() {
                 commands::open::deliver(app, path);
             }
         }))
-        .plugin(tauri_plugin_opener::init())
+        // Links open through `commands::opener`; the plugin's click handler
+        // would route them past it.
+        .plugin(
+            tauri_plugin_opener::Builder::new()
+                .open_js_links_on_click(false)
+                .build(),
+        )
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_process::init())
         .manage(Bridge::default())
@@ -69,6 +77,8 @@ pub fn run() {
             commands::icons::icon_config,
             commands::screenshots::screenshots_allow,
             commands::open::pending_archive,
+            commands::opener::open_path,
+            commands::opener::open_url,
             commands::splash::ready,
             commands::diagnostics::log_write,
             commands::diagnostics::crash_report,

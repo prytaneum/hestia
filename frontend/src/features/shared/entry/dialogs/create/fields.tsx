@@ -1,5 +1,6 @@
 import type { Flavor } from '@/api';
 import { DialogBody } from '@/components/dialog';
+import { ExternalLink } from '@/components/external-link';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { kindInfo } from '@/features/shared/content/lib';
@@ -139,15 +140,13 @@ export function FlavorOption({
       {(flavor.requires ?? []).map((requirement) => (
         <span key={requirement.name} className="text-xs text-amber">
           {m['domain.flavor.requires']({ name: requirement.name })}{' '}
-          <a
+          <ExternalLink
             href={requirement.url}
-            target="_blank"
-            rel="noreferrer"
             className="underline"
             onClick={(event) => event.stopPropagation()}
           >
             {requirement.url}
-          </a>
+          </ExternalLink>
         </span>
       ))}
     </button>

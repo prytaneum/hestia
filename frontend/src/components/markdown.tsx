@@ -3,7 +3,7 @@ import rehypeRaw from 'rehype-raw';
 import rehypeSanitize from 'rehype-sanitize';
 import remarkGfm from 'remark-gfm';
 
-import { system } from '@/api';
+import { ExternalLink } from '@/components/external-link';
 import { cn } from '@/lib/utils';
 
 /**
@@ -61,19 +61,8 @@ export function Markdown({
               </div>
             );
           },
-          a({ href, children, node: _node, ...rest }) {
-            return (
-              <a
-                href={href}
-                onClick={(e) => {
-                  e.preventDefault();
-                  if (href) void system.openUrl(href);
-                }}
-                {...rest}
-              >
-                {children}
-              </a>
-            );
+          a({ children, node: _node, ...rest }) {
+            return <ExternalLink {...rest}>{children}</ExternalLink>;
           },
         }}
       >

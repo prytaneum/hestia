@@ -5,6 +5,7 @@ pub mod auth;
 pub mod diagnostics;
 pub mod icons;
 pub mod open;
+pub mod opener;
 pub mod prefs;
 pub mod screenshots;
 pub mod splash;
