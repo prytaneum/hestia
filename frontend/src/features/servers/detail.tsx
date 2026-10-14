@@ -36,7 +36,10 @@ import {
   ServerPlayersTab,
   ServerSettingsTab,
 } from '@/features/servers/tabs';
-import { EntryIconMenu } from '@/features/shared/entry/components';
+import {
+  EntryIconMenu,
+  EntryPinButton,
+} from '@/features/shared/entry/components';
 import {
   type LiveResources,
   ResourceCards,
@@ -182,6 +185,7 @@ function ServerDetail({
         }
         actions={
           <span className="flex items-center gap-2" {...anchor('entry-run')}>
+            <EntryPinButton kind="server" id={id} />
             <Button
               variant="outline"
               size="icon"
