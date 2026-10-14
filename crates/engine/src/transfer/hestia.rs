@@ -1,13 +1,12 @@
-//! hestia's own archive format — the full-fidelity one.
+//! hestia's own archive format — portable and compact.
 //!
 //! It is the entry directory itself: the content pool, the modpack record, the
 //! game directory, everything but what regenerates. A pool file a source can
 //! serve again stays out (see [`install::referenceable`]); import fetches it
-//! from its record. The
-//! record travels beside them in `hestia.instance.json`, which is both the
-//! manifest and the marker. The record's identity travels; its resolved
-//! profile is host-specific (library rules are filtered by the exporting OS),
-//! so import names the game and loader versions and resolves them again.
+//! from its record. The record travels beside them in `hestia.instance.json`,
+//! which is both the manifest and the marker. The record's identity travels;
+//! its resolved profile is host-specific (library rules are filtered by the
+//! exporting OS), so import resolves the game and loader versions again.
 //!
 //! The marker is not called `instance.json` deliberately. A marker file is a
 //! claim about what an archive is, so it has to be specific enough that finding
@@ -165,9 +164,8 @@ pub(crate) fn export(source: &Source<'_>, destination: &Path, job: &Job<'_>) -> 
     let encoded = serde_json::to_vec_pretty(&schema::encode(&manifest)?)
         .context("the manifest serializes")?;
     let rules = Rules::new(source.entry_dir, source.data_dir, source.exclude);
-    let referenced = install::referenceable_paths(source.entry_dir);
-
     let tracked = install::load(source.entry_dir);
+    let referenced = install::referenceable_paths(&tracked);
     let tracked_count = tracked.len();
     let kept: Vec<_> = tracked
         .into_iter()

@@ -207,8 +207,8 @@ pub(crate) fn relative_path(item: &InstalledContent) -> Option<String> {
 
 /// The entry-relative managed paths of the tracked items a source can serve
 /// again — the bytes an archive leaves out because import fetches them.
-pub(crate) fn referenceable_paths(entry_dir: &Path) -> HashSet<String> {
-    load(entry_dir)
+pub(crate) fn referenceable_paths(items: &[InstalledContent]) -> HashSet<String> {
+    items
         .iter()
         .filter(|item| referenceable(item))
         .filter_map(relative_path)

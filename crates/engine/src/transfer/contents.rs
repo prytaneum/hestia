@@ -23,7 +23,7 @@ const MAX_DEPTH: usize = 3;
 
 pub(crate) fn list(entry_dir: &Path, data_dir: &Path) -> Vec<ArchiveEntry> {
     let rules = Rules::new(entry_dir, data_dir, &[]);
-    let referenced = install::referenceable_paths(entry_dir);
+    let referenced = install::referenceable_paths(&install::load(entry_dir));
     let mut nodes: BTreeMap<String, ArchiveEntry> = BTreeMap::new();
 
     for member in archive::plan(entry_dir, "", &|relative| rules.keeps(relative)) {

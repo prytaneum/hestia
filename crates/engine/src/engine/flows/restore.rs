@@ -23,18 +23,17 @@ impl Engine {
         entry_dir: &Path,
         job: &Job<'_>,
     ) -> Result<Vec<WarningInfo>> {
-        let items = install::load(entry_dir);
-        let mut missing: Vec<(&InstalledContent, PathBuf)> = Vec::new();
-        let mut dropped: Vec<&InstalledContent> = Vec::new();
-        for item in &items {
-            let Ok(managed) = install::managed_path(entry_dir, item) else {
-                dropped.push(item);
-                continue;
-            };
-            match (managed.is_file(), install::referenceable(item)) {
-                (true, _) => {}
-                (false, true) => missing.push((item, managed)),
-                (false, false) => dropped.push(item),
+        let mut kept = Vec::new();
+        let mut missing: Vec<(InstalledContent, PathBuf)> = Vec::new();
+        let mut dropped: Vec<String> = Vec::new();
+        for item in install::load(entry_dir) {
+            match install::managed_path(entry_dir, &item) {
+                Ok(managed) if managed.is_file() => kept.push(item),
+                Ok(managed) if install::referenceable(&item) => {
+                    missing.push((item.clone(), managed));
+                    kept.push(item);
+                }
+                _ => dropped.push(item.filename),
             }
         }
         if missing.is_empty() && dropped.is_empty() {
@@ -64,20 +63,14 @@ impl Engine {
         if dropped.is_empty() {
             return Ok(Vec::new());
         }
-        let files: Vec<String> = dropped.iter().map(|item| item.filename.clone()).collect();
-        let kept = items
-            .iter()
-            .filter(|item| !dropped.iter().any(|gone| std::ptr::eq(*gone, *item)))
-            .cloned()
-            .collect();
         install::save(entry_dir, kept)?;
         tracing::warn!(
-            count = files.len(),
+            count = dropped.len(),
             "dropped tracked content with no bytes and no download"
         );
         Ok(vec![WarningInfo::ImportContentMissing {
-            count: files.len() as u32,
-            files,
+            count: dropped.len() as u32,
+            files: dropped,
         }])
     }
 

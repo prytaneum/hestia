@@ -929,19 +929,41 @@ fn export_archive(
         .path
 }
 
-fn archive_without(archive: &std::path::Path, member: &str) -> std::path::PathBuf {
-    let stripped = archive.with_file_name("stripped.hestia");
+/// A copy of `archive` with `member` replaced by `bytes`, or left out when there
+/// are none — an archive a hand edit or an older build could have produced.
+fn archive_with(
+    archive: &std::path::Path,
+    member: &str,
+    bytes: Option<&[u8]>,
+) -> std::path::PathBuf {
+    use std::io::Write;
+    let edited = archive.with_file_name("edited.hestia");
     let mut source = zip::ZipArchive::new(std::fs::File::open(archive).expect("open"))
         .expect("read the archive");
-    let mut writer = zip::ZipWriter::new(std::fs::File::create(&stripped).expect("create"));
+    let mut writer = zip::ZipWriter::new(std::fs::File::create(&edited).expect("create"));
     for index in 0..source.len() {
         let entry = source.by_index(index).expect("a member");
         if entry.name() != member {
             writer.raw_copy_file(entry).expect("copy a member");
         }
     }
+    if let Some(bytes) = bytes {
+        writer
+            .start_file(member, zip::write::SimpleFileOptions::default())
+            .expect("start the member");
+        writer.write_all(bytes).expect("write the member");
+    }
     writer.finish().expect("finish the archive");
-    stripped
+    edited
+}
+
+fn archive_member(archive: &std::path::Path, member: &str) -> String {
+    let mut source = zip::ZipArchive::new(std::fs::File::open(archive).expect("open"))
+        .expect("read the archive");
+    let mut text = String::new();
+    std::io::Read::read_to_string(&mut source.by_name(member).expect("the member"), &mut text)
+        .expect("read the member");
+    text
 }
 
 #[tokio::test]
@@ -971,33 +993,13 @@ async fn a_referenceable_item_missing_from_the_archive_is_downloaded_on_import()
 
 #[tokio::test]
 async fn a_download_that_does_not_match_its_hash_fails_the_import_and_leaves_no_instance() {
-    use std::io::Write;
     let home = tempfile::tempdir().expect("temp home");
     let drops = tempfile::tempdir().expect("temp drops");
     let files = fixture::Files::serve().await;
     let (engine, id) = with_referenceable_mod(home.path(), &files).await;
     let archive = export_archive(&engine, &id, drops.path());
-
-    let tampered = drops.path().join("tampered.hestia");
-    let mut source = zip::ZipArchive::new(std::fs::File::open(&archive).expect("open"))
-        .expect("read the archive");
-    let mut writer = zip::ZipWriter::new(std::fs::File::create(&tampered).expect("create"));
-    for index in 0..source.len() {
-        let mut member = source.by_index(index).expect("a member");
-        if member.name() != "content.json" {
-            writer.raw_copy_file(member).expect("copy a member");
-            continue;
-        }
-        let mut text = String::new();
-        std::io::Read::read_to_string(&mut member, &mut text).expect("read the index");
-        writer
-            .start_file("content.json", zip::write::SimpleFileOptions::default())
-            .expect("start the index");
-        writer
-            .write_all(text.replace(BODY_SHA1, &"0".repeat(40)).as_bytes())
-            .expect("write the index");
-    }
-    writer.finish().expect("finish the archive");
+    let index = archive_member(&archive, "content.json").replace(BODY_SHA1, &"0".repeat(40));
+    let tampered = archive_with(&archive, "content.json", Some(index.as_bytes()));
     let (cancel, report) = (Cancel::new(), |_: &ProvisionProgress| {});
 
     let refused = engine
@@ -1023,9 +1025,10 @@ async fn an_item_with_neither_bytes_nor_a_download_is_dropped_and_reported() {
     let home = tempfile::tempdir().expect("temp home");
     let drops = tempfile::tempdir().expect("temp drops");
     let (engine, id) = with_local_mod(home.path(), drops.path(), "homemade-1.0.jar").await;
-    let archive = archive_without(
+    let archive = archive_with(
         &export_archive(&engine, &id, drops.path()),
         "mods/homemade-1.0.jar",
+        None,
     );
     let (cancel, report) = (Cancel::new(), |_: &ProvisionProgress| {});
 
