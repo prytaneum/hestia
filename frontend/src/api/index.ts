@@ -44,7 +44,6 @@ export {
 export { warningHint, warningMessage } from './core/warnings';
 export * as daemon from './daemon';
 export * as dialog from './dialog';
-export * as download from './download';
 export * as files from './files';
 export * as host from './host';
 export * as instance from './instance';

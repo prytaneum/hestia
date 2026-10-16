@@ -85,10 +85,9 @@ account exists. It is a whole-domain lockdown, and prefixing covers
 
 ### Job managers
 
-`runtime/managers/` is one module per manager: `DownloadManager`,
-`JavaInstallManager`, `ServerCreateManager`, `ServerUpdateManager`,
-`InstanceLaunchManager`, `BackupManager`, `ContentManager`, `ModpackManager`,
-`UpdateManager`.
+`runtime/managers/` is one module per manager: `JavaInstallManager`,
+`ServerCreateManager`, `ServerUpdateManager`, `InstanceLaunchManager`,
+`BackupManager`, `ContentManager`, `ModpackManager`, `UpdateManager`.
 
 They all answer the channel immediately with a job id, run the blocking engine
 work off-thread, and publish progress/done/error events through the hub — but
@@ -166,7 +165,6 @@ is purely a compile-time one that keeps `make_router()` from becoming a
 | `config` | `config.get\|set\|list` — the reserved `home`/`autostart` keys routed to the path pointer and login registration |
 | `cache` | `cache.info\|list\|clear` |
 | `java` | `java.releases\|list\|install\|uninstall` |
-| `download` | `download.start` |
 | `accounts` | `account.login.begin\|login.complete`, `account.list\|switch\|remove` |
 | `skins` | `skin.list\|add\|update\|equip\|reset\|remove`, `cape.equip\|clear` |
 | `process` | `process.start\|stop\|list\|status\|logs` |
@@ -190,6 +188,11 @@ Two conventions worth knowing when reading them:
   locations and disk footprint (a directory walk); `status` merges the stored
   record with live process state. Keeping the walk off `status` is what makes
   `status` cheap enough to poll.
+
+`process.start` has no CLI verb on purpose: it is the supervisor's test seam, the
+only way to put a workload under a real out-of-process daemon without Java or the
+network. The end-to-end tests drive adoption, log following and `daemon stop
+--all` through it ([0041](../decisions/0041-every-capability-gets-a-verb.md)).
 
 ## Autostart
 

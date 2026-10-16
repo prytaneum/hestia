@@ -1,9 +1,0 @@
-{
-  "id": "download-1",
-  "url": "https://example.com/jdk.tar.gz",
-  "dest": "/home/user/.hestia/tmp/jdk.tar.gz",
-  "checksum": {
-    "algorithm": "sha256",
-    "hex": "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd"
-  }
-}

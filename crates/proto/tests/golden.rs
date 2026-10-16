@@ -17,7 +17,6 @@ use proto::content::{
     ContentVersion, InstalledContent, SearchQuery, ServerContentAddParams,
 };
 use proto::daemon::{DaemonStatusResult, DaemonStopParams};
-use proto::download::DownloadSpec;
 use proto::instance::{InstanceInfo, InstanceLaunchParams, RecentPlay, ServerEntry};
 use proto::java::{JavaInstallProgress, JavaRuntime};
 use proto::minecraft::ProvisionProgress;
@@ -68,7 +67,6 @@ golden!(
     JavaInstallProgress,
     "java_install_progress.json"
 );
-golden!(download_spec, DownloadSpec, "download_spec.json");
 golden!(account, Account, "account.json");
 golden!(
     account_login_begin_result,

@@ -27,9 +27,9 @@ pub use engine::error_info as engine_error;
 pub use engine::{ExitObserver, ProcessSupervisor, StartError};
 pub use event_hub::EventHub;
 pub use managers::{
-    BackupJob, BackupManager, Cancellations, ContentJob, ContentManager, DownloadManager,
-    InstanceLaunchManager, JavaInstallManager, JobEntry, LaunchOrder, ModpackJob, ModpackManager,
-    ServerCreateManager, ServerUpdateManager, TransferJob, TransferManager, UpdateManager,
+    BackupJob, BackupManager, Cancellations, ContentJob, ContentManager, InstanceLaunchManager,
+    JavaInstallManager, JobEntry, LaunchOrder, ModpackJob, ModpackManager, ServerCreateManager,
+    ServerUpdateManager, TransferJob, TransferManager, UpdateManager,
 };
 pub use metrics::spawn_metrics_sampler;
 pub use network::spawn_network_watcher;
@@ -104,7 +104,6 @@ pub struct Runtime {
     engine: Arc<Engine>,
     hub: Arc<EventHub>,
     java_installs: JavaInstallManager,
-    downloads: DownloadManager,
     server_creates: ServerCreateManager,
     server_updates: ServerUpdateManager,
     instance_launches: InstanceLaunchManager,
@@ -130,7 +129,6 @@ impl Runtime {
         let cancellations = Cancellations::new();
         let java_installs =
             JavaInstallManager::new(engine.clone(), hub.clone(), cancellations.clone());
-        let downloads = DownloadManager::new(engine.clone(), hub.clone(), cancellations.clone());
         let session_engine = engine.clone();
         let on_exit: ExitObserver = Arc::new(move |info: &proto::process::ProcessInfo| {
             let Some(instance_id) = instance_id_of_session(&info.id) else {
@@ -167,7 +165,6 @@ impl Runtime {
             engine,
             hub,
             java_installs,
-            downloads,
             server_creates,
             server_updates,
             instance_launches,
@@ -293,10 +290,6 @@ impl Runtime {
 
     pub fn java_installs(&self) -> &JavaInstallManager {
         &self.java_installs
-    }
-
-    pub fn downloads(&self) -> &DownloadManager {
-        &self.downloads
     }
 
     pub fn server_creates(&self) -> &ServerCreateManager {

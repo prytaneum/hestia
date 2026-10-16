@@ -16,7 +16,6 @@ export { useConnection } from './connection';
 export * from './content';
 export { type MutationSpec, mutation } from './core';
 export * from './daemon';
-export * from './download';
 export { useDaemonEvent } from './events';
 export * from './files';
 export * from './host';

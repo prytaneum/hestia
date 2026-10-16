@@ -1,9 +1,4 @@
-use std::path::PathBuf;
-
 use serde::{Deserialize, Serialize};
-
-use crate::contract::{Contract, Topic};
-use crate::error::ErrorInfo;
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
@@ -48,84 +43,10 @@ impl Checksum {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
-#[serde(rename_all = "camelCase")]
-pub struct DownloadSpec {
-    #[serde(default)]
-    pub id: String,
-    #[serde(default)]
-    pub url: String,
-    #[serde(rename = "dest", default)]
-    pub destination: PathBuf,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub checksum: Option<Checksum>,
-}
-
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
 #[serde(default, rename_all = "camelCase")]
 pub struct DownloadProgress {
     pub downloaded: u64,
     pub total: u64,
-}
-
-#[derive(Serialize, Deserialize, Default, Debug, Clone)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
-#[serde(default, rename_all = "camelCase")]
-pub struct DownloadStartResult {
-    pub id: String,
-}
-
-pub struct DownloadStart;
-impl Contract for DownloadStart {
-    const CHANNEL: &'static str = "download.start";
-    type Params = DownloadSpec;
-    type Result = DownloadStartResult;
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
-#[serde(rename_all = "camelCase")]
-pub struct DownloadProgressEvent {
-    pub id: String,
-    #[serde(flatten)]
-    pub progress: DownloadProgress,
-}
-impl Topic for DownloadProgressEvent {
-    const TOPIC: &'static str = "download.progress";
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
-#[serde(rename_all = "camelCase")]
-pub struct DownloadDoneEvent {
-    pub id: String,
-    pub path: PathBuf,
-}
-impl Topic for DownloadDoneEvent {
-    const TOPIC: &'static str = "download.done";
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
-#[serde(rename_all = "camelCase")]
-pub struct DownloadErrorEvent {
-    pub id: String,
-    /// The structured cause a front-end localizes from.
-    pub error: ErrorInfo,
-}
-impl Topic for DownloadErrorEvent {
-    const TOPIC: &'static str = "download.error";
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
-#[serde(rename_all = "camelCase")]
-/// A download stopped at the caller's request; its `.part` file is reclaimed.
-pub struct DownloadCancelledEvent {
-    pub id: String,
-}
-impl Topic for DownloadCancelledEvent {
-    const TOPIC: &'static str = "download.cancelled";
 }

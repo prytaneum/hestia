@@ -418,7 +418,6 @@ One shared factory set, bound per entry kind, so servers and instances cannot dr
 | `iconMutations.set()` / `.remove()`           | `icon_set\|remove` (shell)  | `{ entryId, sourcePath }` / `entryId`  |
 | `prefsQueries.list()`                         | `prefs_list` (shell)        | —                                      |
 | `prefsMutations.set()` / `.remove()`          | `prefs_set\|remove` (shell) | `{ key, value }` / `key`               |
-| `downloadMutations.start()` *(job)*           | `download.start`            | `Omit<DownloadSpec, 'id'>`             |
 
 ## Extending the layer
 
