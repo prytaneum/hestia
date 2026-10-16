@@ -63,8 +63,8 @@ headless session or under `HESTIA_NO_TRAY=1`
 
 `Runtime` holds the `Engine`, the `EventHub`, the job managers, and the stop
 `Notify`. **`HandlerContext`** is what every handler receives:
-`{runtime, conn_id, out, peer}` — collaborators through `ctx.runtime.*()`, the
-outbound channel for streaming, and the verified peer identity.
+`{runtime, conn_id, out}` — collaborators through `ctx.runtime.*()` and the
+outbound channel for streaming. The peer is authorized once, at accept.
 
 ### Router
 

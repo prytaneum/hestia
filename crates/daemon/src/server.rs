@@ -7,7 +7,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
 use ipc::protocol::{decode_request, encode_response, DecodeError};
-use ipc::{Connection, Peer};
+use ipc::Connection;
 use tracing::Instrument;
 
 use crate::runtime::{HandlerContext, Router, Runtime};
@@ -86,7 +86,7 @@ async fn accept_loop(listener: ipc::Listener, router: Arc<Router>, runtime: Arc<
         tokio::spawn(
             async move {
                 tracing::debug!("client connected");
-                serve_connection(conn, peer, conn_id, router, runtime).await;
+                serve_connection(conn, conn_id, router, runtime).await;
                 tracing::debug!("client disconnected");
             }
             .instrument(span),
@@ -96,7 +96,6 @@ async fn accept_loop(listener: ipc::Listener, router: Arc<Router>, runtime: Arc<
 
 async fn serve_connection(
     conn: Connection,
-    peer: Peer,
     conn_id: u64,
     router: Arc<Router>,
     runtime: Arc<Runtime>,
@@ -140,7 +139,6 @@ async fn serve_connection(
             runtime: runtime.clone(),
             conn_id,
             out: out_tx.clone(),
-            peer,
         };
         let router = router.clone();
         tokio::spawn(async move {

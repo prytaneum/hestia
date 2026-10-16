@@ -15,7 +15,6 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use engine::{Engine, InstanceRecord, ServerRecord};
-use ipc::Peer;
 use proto::error::ErrorInfo;
 use proto::instance::InstanceInfo;
 use proto::process::{LogSource, ProcessInfo, ProcessSpec, ProcessState, RestartPolicy};
@@ -358,14 +357,10 @@ impl Runtime {
 
 /// What every handler receives: the shared runtime, the calling connection's
 /// outbound channel (so streaming handlers like `events.subscribe` can push to
-/// it), and the verified peer.
+/// it).
 #[derive(Clone)]
 pub struct HandlerContext {
     pub runtime: Arc<Runtime>,
     pub conn_id: u64,
     pub out: UnboundedSender<String>,
-    // The verified peer identity: the seam a future token/cert auth check reads.
-    // Carried on every request even though no handler consumes it yet.
-    #[allow(dead_code)]
-    pub peer: Peer,
 }
