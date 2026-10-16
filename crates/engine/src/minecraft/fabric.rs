@@ -10,7 +10,7 @@ use proto::content::ContentKind;
 use proto::minecraft::{Artifact, GameVersion, VersionKind};
 
 use super::meta::{fabric, mojang};
-use super::profile::{InstanceProfile, Library, ServerProfile};
+use super::profile::{InstanceProfile, Library, ServerJar, ServerLaunch, ServerProfile};
 use super::provider::{InstanceProvider, Loads, ResolveRequest, ServerProvider};
 
 const ID: &str = "fabric";
@@ -76,7 +76,7 @@ impl ServerProvider for FabricServer {
             flavor: ID.to_string(),
             game_version: request.version.clone(),
             loader_version: Some(loader.clone()),
-            primary: Artifact {
+            jar: ServerJar::Download(Artifact {
                 filename: format!(
                     "fabric-server-mc.{}-loader.{}-launcher.{}.jar",
                     request.version, loader, installer
@@ -84,12 +84,10 @@ impl ServerProvider for FabricServer {
                 url,
                 size: 0,
                 checksum: None,
-            },
-            libraries: Vec::new(),
+            }),
+            launch: ServerLaunch::Jar,
             java_major: mojang::java_major(&base),
-            main_class: String::new(),
             jvm_args: Vec::new(),
-            args_file: String::new(),
         })
     }
 }

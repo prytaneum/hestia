@@ -8,7 +8,7 @@ use anyhow::{bail, Result};
 use async_trait::async_trait;
 use engine::{
     AssetIndex, Content, ContentProvider, FileRef, InstanceProfile, InstanceProvider, LocalFile,
-    Minecraft, ServerProfile, ServerProvider, UrlRef,
+    Minecraft, ServerJar, ServerProfile, ServerProvider, UrlRef,
 };
 use proto::content::{
     ContentKind, ContentProject, ContentVersion, ResolvedModpack, SearchQuery, SearchResult,
@@ -101,9 +101,8 @@ impl ServerProvider for Flavor {
         Ok(ServerProfile {
             flavor: self.id.to_string(),
             game_version: request.version.clone(),
-            primary: self.primary()?,
+            jar: ServerJar::Download(self.primary()?),
             java_major: 21,
-            main_class: "net.minecraft.server.Main".into(),
             ..ServerProfile::default()
         })
     }

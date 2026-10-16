@@ -8,8 +8,8 @@ decompiles the vanilla server, applies the CraftBukkit and Spigot patch sets and
 compiles the result on the user's own machine. So these flavors take the
 `install` hook NeoForge already established for a jar that has to be built, and
 the same shape holds — the profile *names* the jar the launch plan runs
-(`spigot-<version>.jar`) while carrying no URL, which is exactly what tells
-`Servers::provision` there is nothing to fetch. Deliberately no third-party
+(`spigot-<version>.jar`) as `ServerJar::Built`, which is exactly what tells
+`Engine::materialize_server` there is nothing to fetch. Deliberately no third-party
 mirror fallback: the mirrors redistribute what the takedown covers, publish no
 checksums, and would silently change the trust story mid-create.
 
@@ -22,7 +22,7 @@ disk. The work tree is therefore shared (`meta/spigot/`, with the outputs under
 entry-scoped `root`: an instance install already writes to `meta/`, and a
 server's did not have it. The jar is copied from there into the entry's `data/`,
 so a server still owns its own copy and the existing backup exclude/carry-over
-rule (keyed on `primary.filename`) needs no change.
+rule (keyed on `jar.filename()`) needs no change.
 
 **The catalogue is a filter, not a listing.** The hub indexes its version
 metadata by Jenkins build number as well as by game version, so all but a few

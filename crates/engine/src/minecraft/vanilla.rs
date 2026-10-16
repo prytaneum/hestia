@@ -6,7 +6,7 @@ use async_trait::async_trait;
 use proto::minecraft::GameVersion;
 
 use super::meta::mojang;
-use super::profile::{InstanceProfile, ServerProfile};
+use super::profile::{InstanceProfile, ServerJar, ServerLaunch, ServerProfile};
 use super::provider::{InstanceProvider, Loads, ResolveRequest, ServerProvider};
 
 const ID: &str = "vanilla";
@@ -41,12 +41,10 @@ impl ServerProvider for VanillaServer {
             flavor: ID.to_string(),
             game_version: request.version.clone(),
             loader_version: None,
-            primary: mojang::server_artifact(&version)?,
-            libraries: Vec::new(),
+            jar: ServerJar::Download(mojang::server_artifact(&version)?),
+            launch: ServerLaunch::Jar,
             java_major: mojang::java_major(&version),
-            main_class: String::new(),
             jvm_args: Vec::new(),
-            args_file: String::new(),
         })
     }
 }

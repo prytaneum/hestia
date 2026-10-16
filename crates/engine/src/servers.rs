@@ -17,7 +17,6 @@ use proto::tasks::ServerTask;
 use serde::{Deserialize, Serialize};
 
 use crate::backup::BackupSettings;
-use crate::cache::Cache;
 use crate::minecraft::launch::{self, JavaSettings, LaunchPlan};
 use crate::minecraft::materialize::{self, OnProgress};
 use crate::minecraft::profile::ServerProfile;
@@ -283,44 +282,24 @@ impl Servers {
         Ok(record)
     }
 
-    /// Download the server's files into its directory, generate its
-    /// `server.properties` schema, and record the EULA acceptance the caller
-    /// obtained from the user.
-    pub async fn provision(
-        &self,
-        record: &ServerRecord,
-        cache: Option<&Cache>,
-        on_progress: OnProgress<'_>,
-    ) -> Result<()> {
+    /// Create the server's data directory and record the EULA acceptance the
+    /// caller obtained from the user.
+    pub fn provision(&self, record: &ServerRecord) -> Result<()> {
         let data = self.data_dir(record);
         std::fs::create_dir_all(&data)
             .with_context(|| format!("cannot create {}", data.display()))?;
-        materialize::validate_filename(&record.profile.primary.filename)?;
-        if !record.profile.libraries.is_empty() {
-            materialize::ensure_libraries(
-                cache,
-                &record.profile.libraries,
-                &data.join("libraries"),
-                on_progress,
-            )
-            .await?;
-        }
-        ensure_primary(cache, &record.profile, &data, on_progress).await?;
-
+        materialize::validate_filename(record.profile.jar.filename())?;
         std::fs::write(data.join("eula.txt"), "eula=true\n").context("cannot write eula.txt")?;
-        tracing::info!(id = %record.id, "server files provisioned");
+        tracing::info!(id = %record.id, "server provisioned");
         Ok(())
     }
 
-    /// Derive this version's `server.properties` **schema** and seed the live
-    /// file with any key it is missing. Best-effort: a server with no schema
-    /// accepts any property key rather than rejecting every one, so a failure
-    /// here degrades validation instead of failing the operation — the caller
-    /// reports it by asking [`Servers::has_schema`].
-    /// Run the server once to derive its `server.properties` schema. Separate
-    /// from `provision` because a flavor that *builds* its server (NeoForge)
-    /// cannot be run until its install has finished, and the install needs the
-    /// provisioned jar — so the flow orders the three rather than nesting them.
+    /// Run the server once to derive this version's `server.properties`
+    /// **schema** and seed the live file with any key it is missing.
+    /// Best-effort: a server with no schema accepts any property key rather
+    /// than rejecting every one, so a failure here degrades validation instead
+    /// of failing the operation — the caller reports it by asking
+    /// [`Servers::has_schema`].
     pub(crate) async fn derive_properties_schema(
         &self,
         record: &ServerRecord,
@@ -434,44 +413,26 @@ impl Servers {
         Ok(())
     }
 
-    /// Move a server onto a freshly resolved profile. The record swaps under
-    /// the `ready` gate, so a half-updated server cannot start and a failed
-    /// update is recovered by updating again. Name, ports, JVM settings, and
-    /// the world on disk are untouched.
-    pub async fn update(
-        &self,
-        id: &str,
-        profile: ServerProfile,
-        cache: Option<&Cache>,
-        on_progress: OnProgress<'_>,
-    ) -> Result<ServerRecord> {
+    /// Move a server onto a freshly resolved profile, under the `updating`
+    /// gate: a crash anywhere before [`Servers::finish_update`] leaves a record
+    /// that says so rather than one that looks finished, and updating again
+    /// recovers it. Name, ports, JVM settings, and the world on disk are
+    /// untouched. Returns the swapped record and the jar it replaces.
+    pub fn begin_update(&self, id: &str, profile: ServerProfile) -> Result<(ServerRecord, String)> {
         let mut record = self
             .get(id)
             .with_context(|| format!("unknown server: {id}"))?;
-        let previous_primary = record.profile.primary.filename.clone();
-        materialize::validate_filename(&profile.primary.filename)?;
-        // Mark the phase before the profile swap, so a crash anywhere in the
-        // update leaves a record that says "updating" rather than one that looks
-        // finished — startup recovery keeps it and updating again finishes it.
-        self.mark_phase(id, ServerPhase::Updating)?;
+        materialize::validate_filename(profile.jar.filename())?;
+        let previous_jar = record.profile.jar.filename().to_string();
         record.profile = profile;
         record.phase = ServerPhase::Updating;
-        let data = self.data_dir(&record);
         registry::write_record(&self.server_dir(&record), &record)?;
+        Ok((record, previous_jar))
+    }
 
-        if !record.profile.libraries.is_empty() {
-            materialize::ensure_libraries(
-                cache,
-                &record.profile.libraries,
-                &data.join("libraries"),
-                on_progress,
-            )
-            .await?;
-        }
-        ensure_primary(cache, &record.profile, &data, on_progress).await?;
-
-        if previous_primary != record.profile.primary.filename {
-            let _ = std::fs::remove_file(data.join(&previous_primary));
+    pub fn finish_update(&self, record: &ServerRecord, previous_jar: &str) -> Result<ServerRecord> {
+        if previous_jar != record.profile.jar.filename() {
+            let _ = std::fs::remove_file(self.data_dir(record).join(previous_jar));
         }
         tracing::info!(
             id = %record.id,
@@ -732,31 +693,6 @@ impl Servers {
             &read_properties(&self.schema_path(&record)),
         ))
     }
-}
-
-/// Fetch the server's launchable jar into its data directory.
-///
-/// A flavor that *builds* its jar (bukkit, spigot) names it with no URL: the
-/// profile still has to name it, since that is what the launch plan runs and
-/// what a backup carries over, but there is nothing to download and the
-/// flavor's `install` hook produces the file straight after.
-async fn ensure_primary(
-    cache: Option<&Cache>,
-    profile: &ServerProfile,
-    data: &Path,
-    on_progress: OnProgress<'_>,
-) -> Result<()> {
-    if profile.primary.url.is_empty() {
-        return Ok(());
-    }
-    materialize::ensure_artifact(
-        cache,
-        &profile.primary,
-        &data.join(&profile.primary.filename),
-        ProvisionPhase::Server,
-        on_progress,
-    )
-    .await
 }
 
 /// Parse `server.properties` into key/value pairs, skipping blank and comment

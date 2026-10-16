@@ -1,5 +1,7 @@
 //! Server provisioning, in-place version updates, and the launch plan.
 
+use std::path::Path;
+
 use anyhow::{Context, Result};
 use proto::backup::BackupKind;
 use proto::minecraft::ProvisionPhase;
@@ -11,9 +13,9 @@ use super::{effective_name, guard_downgrade, meta_dir, phase_progress};
 use crate::content::install;
 use crate::engine::{Engine, ServerCreateSpec, ServerUpdateSpec};
 use crate::minecraft::launch::{JavaSettings, LaunchPlan};
-use crate::minecraft::materialize::OnProgress;
+use crate::minecraft::materialize::{self, OnProgress};
 use crate::minecraft::ping;
-use crate::minecraft::profile::ServerProfile;
+use crate::minecraft::profile::{ServerJar, ServerProfile};
 use crate::servers::ServerRecord;
 use crate::usage;
 
@@ -49,29 +51,8 @@ impl Engine {
                 .ensure_java(record.profile.java_major, on_progress)
                 .await?;
             on_progress.check()?;
-            self.servers
-                .provision(&record, Some(&self.cache), on_progress)
-                .await?;
-            let data = self.servers.data_dir(&record);
-            self.minecraft
-                .install_server(
-                    &record.profile.flavor,
-                    &crate::minecraft::InstallRequest {
-                        game_version: &record.profile.game_version,
-                        loader_version: record.profile.loader_version.as_deref(),
-                        root: &data,
-                        meta: &meta_dir(&self.data_home()),
-                        minecraft_jar: &data.join(&record.profile.primary.filename),
-                        java: &java,
-                        cache: Some(&self.cache),
-                        processes: self.processes(),
-                    },
-                    on_progress,
-                )
-                .await?;
-            self.servers
-                .derive_properties_schema(&record, &java, self.processes(), on_progress)
-                .await;
+            self.servers.provision(&record)?;
+            self.materialize_server(&record, &java, on_progress).await?;
             for entry in &spec.config {
                 self.servers
                     .config_set(&record.id, &entry.key, &entry.value)?;
@@ -138,11 +119,33 @@ impl Engine {
         // The pre-update backup is on disk by now, so a cancel here costs
         // nothing: the server is still on its old version.
         on_progress.check()?;
-        let record = self
-            .servers
-            .update(&record.id, profile, Some(&self.cache), on_progress)
+        let (record, previous_jar) = self.servers.begin_update(&record.id, profile)?;
+        self.materialize_server(&record, &java, on_progress).await?;
+        let record = self.servers.finish_update(&record, &previous_jar)?;
+        let warnings = self.server_warnings(&record);
+        Ok((record, warnings))
+    }
+
+    /// Fetch, install, derive: a built server cannot run until its install has
+    /// finished, and the install needs the fetched jar.
+    async fn materialize_server(
+        &self,
+        record: &ServerRecord,
+        java: &Path,
+        on_progress: OnProgress<'_>,
+    ) -> Result<()> {
+        let data = self.servers.data_dir(record);
+        let jar = &record.profile.jar;
+        if let ServerJar::Download(artifact) = jar {
+            materialize::ensure_artifact(
+                Some(&self.cache),
+                artifact,
+                &data.join(&artifact.filename),
+                ProvisionPhase::Server,
+                on_progress,
+            )
             .await?;
-        let data = self.servers.data_dir(&record);
+        }
         self.minecraft
             .install_server(
                 &record.profile.flavor,
@@ -151,8 +154,8 @@ impl Engine {
                     loader_version: record.profile.loader_version.as_deref(),
                     root: &data,
                     meta: &meta_dir(&self.data_home()),
-                    minecraft_jar: &data.join(&record.profile.primary.filename),
-                    java: &java,
+                    minecraft_jar: &data.join(jar.filename()),
+                    java,
                     cache: Some(&self.cache),
                     processes: self.processes(),
                 },
@@ -160,10 +163,9 @@ impl Engine {
             )
             .await?;
         self.servers
-            .derive_properties_schema(&record, &java, self.processes(), on_progress)
+            .derive_properties_schema(record, java, self.processes(), on_progress)
             .await;
-        let warnings = self.server_warnings(&record);
-        Ok((record, warnings))
+        Ok(())
     }
 
     /// The ready-to-spawn invocation for a provisioned server, with its ports

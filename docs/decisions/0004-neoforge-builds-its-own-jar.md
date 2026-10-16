@@ -80,7 +80,7 @@ like.
 
 A **server** has no launchable jar at all. Its install generates an argument
 file naming the module path, system properties and launch target — far past what
-a command line carries — so `ServerProfile` gained `args_file` and the server
+a command line carries — so `ServerProfile` gained `ServerLaunch::ArgsFile` and the server
 runs as `java @libraries/net/neoforged/neoforge/<v>/unix_args.txt nogui`
 (`win_args.txt` on Windows). The path stays *relative* because the file names
 its own libraries that way and is only valid from the data directory. That
@@ -88,9 +88,10 @@ reordered provisioning: `server.properties` is derived by running the server
 once, which a flavor that builds its server cannot do until the install has
 finished, and the install needs the jar provisioning fetched. The three are now
 ordered by the flow — fetch, install, derive — rather than nested, and `update`
-follows the same order. The vanilla server jar stays the profile's primary
-artifact even though it is never launched: it is the input the processors patch,
-and keeping it there is what makes provisioning fetch it.
+follows the same order; both call one `Engine::materialize_server`. The vanilla
+server jar stays the profile's `ServerJar::Download` even though it is never
+launched: it is the input the processors patch, and keeping it there is what
+makes materialising fetch it.
 
 **The schema run therefore ignores the argument file.** A NeoForge server's
 property schema used to be underivable — twice over: the generated argument file
@@ -104,7 +105,7 @@ pointed at `update`, which failed identically.
 The fix is what the profile already carries: the vanilla server jar. A
 properties schema *is* the vanilla key set for that game version — the loader
 contributes none, and no mods are installed at create — so `server_schema_plan`
-drops `args_file` and boots the primary artifact (`-jar server.jar nogui`),
+drops the args file and boots the jar (`-jar server.jar nogui`),
 which stops at the EULA gate having written the file, exactly as every other
 flavor does. Nothing else in the pipeline changed, and the warning now fires
 only for a run that genuinely failed (a timeout, a crash), which is a thing

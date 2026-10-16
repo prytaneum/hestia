@@ -22,7 +22,7 @@ use proto::minecraft::GameVersion;
 
 use super::materialize::{self, OnProgress};
 use super::meta::{mojang, neoforge};
-use super::profile::{InstanceProfile, ServerProfile};
+use super::profile::{InstanceProfile, ServerJar, ServerLaunch, ServerProfile};
 use super::provider::{InstallRequest, InstanceProvider, Loads, ResolveRequest, ServerProvider};
 use crate::download::Downloader;
 
@@ -205,15 +205,10 @@ impl ServerProvider for NeoForgeServer {
         Ok(ServerProfile {
             flavor: ID.to_string(),
             game_version: request.version.clone(),
-            args_file: server_args_file(&loader),
+            launch: ServerLaunch::ArgsFile(server_args_file(&loader)),
             loader_version: Some(loader),
-            // The vanilla server jar is not launched — it is the input the
-            // processors patch. Keeping it as the primary artifact is what
-            // makes the existing provision step fetch it.
-            primary: mojang::server_artifact(&base)?,
-            libraries: Vec::new(),
+            jar: ServerJar::Download(mojang::server_artifact(&base)?),
             java_major: mojang::java_major(&base),
-            main_class: String::new(),
             jvm_args: Vec::new(),
         })
     }

@@ -47,10 +47,13 @@ plus what the side reads for itself.
 ## Profiles — what a launch needs
 
 `resolve()` turns *(flavor, version, optional loader version)* into a
-**`ServerProfile`** or **`InstanceProfile`**: the primary artifact, libraries,
-asset index, required Java major, main class, arguments, and — where a flavor
-needs them — recommended JVM args and an args file. The profiles are engine
-types, stored on the entry records; no channel hands one to a client.
+**`ServerProfile`** or **`InstanceProfile`**. A server profile names its jar
+(`Download(artifact)`, or `Built { filename }` when the install hook produces it),
+how it launches (`Jar`, or `ArgsFile` for a flavor whose install generates one),
+the required Java major and the flavor's recommended JVM args. An instance
+profile carries the client jar, libraries, asset index and arguments. The
+profiles are engine types, stored on the entry records; no channel hands one to a
+client.
 
 ```mermaid
 flowchart LR

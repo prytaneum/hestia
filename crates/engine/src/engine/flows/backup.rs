@@ -181,7 +181,7 @@ impl Drop for BackupClaim<'_> {
 /// `session.lock` files are omitted by the archive walker at every depth.
 fn server_backup_excludes(record: &ServerRecord) -> Vec<String> {
     vec![
-        record.profile.primary.filename.clone(),
+        record.profile.jar.filename().to_string(),
         "libraries".into(),
         "logs".into(),
         "cache".into(),

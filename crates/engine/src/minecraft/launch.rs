@@ -9,7 +9,7 @@ use anyhow::{bail, Result};
 use proto::instance::QuickPlay;
 use serde::{Deserialize, Serialize};
 
-use super::profile::{InstanceProfile, ServerProfile};
+use super::profile::{InstanceProfile, ServerLaunch, ServerProfile};
 
 // Mojang's rule vocabulary spells the classpath separator per-OS; keep ours in
 // lockstep with the JVM's.
@@ -228,9 +228,8 @@ pub struct InstancePaths<'a> {
     pub quick_play_log: Option<&'a Path>,
 }
 
-/// The server invocation, run from the server's data directory. A profile without a
-/// main class is a self-contained jar (`-jar <primary> nogui`); one with a main
-/// class runs off a classpath of its libraries plus the primary.
+/// The server invocation, run from the server's data directory: `-jar <jar>
+/// nogui`, or `@<args file> nogui` for a flavor whose install generates one.
 pub fn server_plan(
     profile: &ServerProfile,
     java: &Path,
@@ -257,7 +256,7 @@ pub fn server_schema_plan(
     settings: &JavaSettings,
 ) -> LaunchPlan {
     let profile = ServerProfile {
-        args_file: String::new(),
+        launch: ServerLaunch::Jar,
         ..profile.clone()
     };
     server_invocation(&profile, java, artifacts, cwd, settings)
@@ -271,26 +270,16 @@ fn server_invocation(
     settings: &JavaSettings,
 ) -> LaunchPlan {
     let mut args = settings.flags();
-    let primary = join_str(artifacts, &profile.primary.filename);
-    if !profile.args_file.is_empty() {
-        // The file names its libraries relative to the launch directory, so it
-        // is passed relative too and never resolved against `artifacts`.
-        args.push(format!("@{}", profile.args_file));
-    } else if profile.main_class.is_empty() {
-        args.push("-jar".to_string());
-        args.push(primary);
-    } else {
-        let mut entries: Vec<String> = Vec::new();
-        for library in &profile.libraries {
-            push_unique(
-                &mut entries,
-                join_str(&artifacts.join("libraries"), &library.path),
-            );
+    match &profile.launch {
+        ServerLaunch::ArgsFile(file) => {
+            // The file names its libraries relative to the launch directory, so it
+            // is passed relative too and never resolved against `artifacts`.
+            args.push(format!("@{file}"));
         }
-        entries.push(primary);
-        args.push("-cp".to_string());
-        args.push(entries.join(CLASSPATH_SEPARATOR));
-        args.push(profile.main_class.clone());
+        ServerLaunch::Jar => {
+            args.push("-jar".to_string());
+            args.push(join_str(artifacts, profile.jar.filename()));
+        }
     }
     args.push("nogui".to_string());
     LaunchPlan {
@@ -463,7 +452,7 @@ fn push_unique(entries: &mut Vec<String>, entry: String) {
 mod tests {
     use proto::minecraft::Artifact;
 
-    use super::super::profile::{AssetIndex, Library};
+    use super::super::profile::{AssetIndex, Library, ServerJar};
     use super::*;
 
     fn account() -> LaunchAccount {
@@ -471,6 +460,12 @@ mod tests {
             name: "Steve".into(),
             uuid: "uuid-1".into(),
             access_token: "token-1".into(),
+        }
+    }
+
+    fn server_jar(filename: &str) -> ServerJar {
+        ServerJar::Built {
+            filename: filename.into(),
         }
     }
 
@@ -496,11 +491,13 @@ mod tests {
 
     #[test]
     fn an_args_file_replaces_the_jar_invocation() {
-        let mut profile = ServerProfile {
-            args_file: "libraries/net/neoforged/neoforge/21.1.244/unix_args.txt".into(),
+        let profile = ServerProfile {
+            launch: ServerLaunch::ArgsFile(
+                "libraries/net/neoforged/neoforge/21.1.244/unix_args.txt".into(),
+            ),
+            jar: server_jar("server.jar"),
             ..ServerProfile::default()
         };
-        profile.primary.filename = "server.jar".into();
         let plan = server_plan(
             &profile,
             Path::new("/java"),
@@ -519,11 +516,13 @@ mod tests {
 
     #[test]
     fn the_schema_run_ignores_the_args_file() {
-        let mut profile = ServerProfile {
-            args_file: "libraries/net/neoforged/neoforge/21.1.244/unix_args.txt".into(),
+        let profile = ServerProfile {
+            launch: ServerLaunch::ArgsFile(
+                "libraries/net/neoforged/neoforge/21.1.244/unix_args.txt".into(),
+            ),
+            jar: server_jar("server.jar"),
             ..ServerProfile::default()
         };
-        profile.primary.filename = "server.jar".into();
         let plan = server_schema_plan(
             &profile,
             Path::new("/java"),
@@ -545,12 +544,9 @@ mod tests {
     }
 
     #[test]
-    fn server_plan_without_main_class_is_a_jar_invocation() {
+    fn a_plain_server_is_a_jar_invocation() {
         let profile = ServerProfile {
-            primary: Artifact {
-                filename: "server.jar".into(),
-                ..Default::default()
-            },
+            jar: server_jar("server.jar"),
             ..Default::default()
         };
         let plan = server_plan(
@@ -561,60 +557,6 @@ mod tests {
         );
         assert_eq!(plan.args, ["-jar", "server.jar", "nogui"]);
         assert_eq!(plan.cwd, Path::new("/srv"));
-    }
-
-    #[test]
-    fn server_plan_with_main_class_builds_a_classpath() {
-        let profile = ServerProfile {
-            primary: Artifact {
-                filename: "launcher.jar".into(),
-                ..Default::default()
-            },
-            libraries: vec![library("a/b.jar"), library("a/b.jar"), library("c/d.jar")],
-            main_class: "net.example.Main".into(),
-            ..Default::default()
-        };
-        let plan = server_plan(
-            &profile,
-            Path::new("java"),
-            Path::new("/srv"),
-            &JavaSettings::default(),
-        );
-        assert_eq!(plan.args[0], "-cp");
-        let classpath = &plan.args[1];
-        assert_eq!(classpath.matches("b.jar").count(), 1, "duplicates dropped");
-        assert!(classpath.contains("launcher.jar"));
-        assert_eq!(plan.args[2], "net.example.Main");
-        assert_eq!(plan.args.last().map(String::as_str), Some("nogui"));
-    }
-
-    #[test]
-    fn server_schema_plan_names_artifacts_outside_its_cwd() {
-        let profile = ServerProfile {
-            primary: Artifact {
-                filename: "server.jar".into(),
-                ..Default::default()
-            },
-            libraries: vec![library("a/b.jar")],
-            main_class: "net.example.Main".into(),
-            ..Default::default()
-        };
-        let plan = server_schema_plan(
-            &profile,
-            Path::new("java"),
-            Path::new("/srv/data"),
-            Path::new("/srv/.schema"),
-            &JavaSettings::default(),
-        );
-        // The run happens in the scratch dir, so nothing it writes can land in
-        // the game's data dir — but it still boots that dir's jar.
-        assert_eq!(plan.cwd, Path::new("/srv/.schema"));
-        let classpath = &plan.args[1];
-        assert!(classpath.contains(&join_str(Path::new("/srv/data"), "server.jar")));
-        assert!(classpath.contains(&join_str(
-            &Path::new("/srv/data").join("libraries"),
-            "a/b.jar"
-        )));
     }
 
     #[test]
@@ -891,10 +833,7 @@ mod tests {
     #[test]
     fn server_plan_prepends_memory_and_extra_flags() {
         let profile = ServerProfile {
-            primary: Artifact {
-                filename: "server.jar".into(),
-                ..Default::default()
-            },
+            jar: server_jar("server.jar"),
             ..Default::default()
         };
         let plan = server_plan(

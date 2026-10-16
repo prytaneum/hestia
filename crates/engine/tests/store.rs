@@ -2,10 +2,9 @@
 //! servers, instances).
 
 use engine::{
-    Cache, Cancel, Config, InstanceProfile, Instances, Job, ServerPhase, ServerProfile, Servers,
+    Cache, Config, InstanceProfile, Instances, ServerJar, ServerPhase, ServerProfile, Servers,
 };
 use proto::download::{Checksum, HashAlgorithm};
-use proto::minecraft::ProvisionProgress;
 
 /// A directory that removes itself when the test ends, named after the test so
 /// a leftover under a debugger says which one left it.
@@ -380,10 +379,10 @@ async fn server_update_swaps_profile_and_keeps_settings() {
     let profile = |version: &str| ServerProfile {
         flavor: "paper".into(),
         game_version: version.into(),
-        primary: proto::minecraft::Artifact {
+        jar: ServerJar::Download(proto::minecraft::Artifact {
             filename: "server.jar".into(),
             ..Default::default()
-        },
+        }),
         ..ServerProfile::default()
     };
     let record = servers.create("SMP", profile("1.21"), None).unwrap();
@@ -393,16 +392,9 @@ async fn server_update_swaps_profile_and_keeps_settings() {
         .unwrap();
     let claimed = servers.get(&record.id).unwrap().game_port;
 
-    let (cancel, report) = (Cancel::new(), |_: &ProvisionProgress| {});
-    let updated = servers
-        .update(
-            &record.id,
-            profile("1.21.4"),
-            None,
-            &Job::new(&report, &cancel),
-        )
-        .await
-        .unwrap();
+    let (swapped, previous_jar) = servers.begin_update(&record.id, profile("1.21.4")).unwrap();
+    assert_eq!(swapped.phase, ServerPhase::Updating);
+    let updated = servers.finish_update(&swapped, &previous_jar).unwrap();
 
     assert_eq!(updated.profile.game_version, "1.21.4");
     assert_eq!(updated.name, "SMP");

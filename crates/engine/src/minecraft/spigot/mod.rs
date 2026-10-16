@@ -8,12 +8,12 @@ mod buildtools;
 use anyhow::Result;
 use async_trait::async_trait;
 use proto::content::ContentKind;
-use proto::minecraft::{Artifact, GameVersion};
+use proto::minecraft::GameVersion;
 
 use self::buildtools::Product;
 use super::materialize::OnProgress;
 use super::meta::{mojang, spigot};
-use super::profile::ServerProfile;
+use super::profile::{ServerJar, ServerLaunch, ServerProfile};
 use super::provider::{InstallRequest, Loads, Prerequisite, ResolveRequest, ServerProvider};
 use super::REQUIRED_JAVA_MAJORS;
 
@@ -67,18 +67,12 @@ async fn resolve(product: Product, request: &ResolveRequest) -> Result<ServerPro
         flavor: product.flavor().to_string(),
         game_version: request.version.clone(),
         loader_version: None,
-        // Named but not downloadable: an artifact with no URL is what tells
-        // provisioning there is nothing to fetch, and the install hook writes
-        // this file itself.
-        primary: Artifact {
+        jar: ServerJar::Built {
             filename: product.jar_name(&request.version),
-            ..Artifact::default()
         },
-        libraries: Vec::new(),
+        launch: ServerLaunch::Jar,
         java_major: java_major(&request.version).await?,
-        main_class: String::new(),
         jvm_args: Vec::new(),
-        args_file: String::new(),
     })
 }
 

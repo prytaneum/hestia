@@ -31,6 +31,40 @@ pub struct AssetIndex {
     pub total_size: u64,
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub enum ServerJar {
+    Download(Artifact),
+    /// Named but not downloadable: the flavor's install hook builds this file.
+    Built {
+        filename: String,
+    },
+}
+
+impl ServerJar {
+    pub fn filename(&self) -> &str {
+        match self {
+            ServerJar::Download(artifact) => &artifact.filename,
+            ServerJar::Built { filename } => filename,
+        }
+    }
+}
+
+impl Default for ServerJar {
+    fn default() -> Self {
+        ServerJar::Download(Artifact::default())
+    }
+}
+
+#[derive(Serialize, Deserialize, Default, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub enum ServerLaunch {
+    #[default]
+    Jar,
+    /// Relative to the data directory: the file names its libraries relatively.
+    ArgsFile(String),
+}
+
 /// The resolved launch profile for a Minecraft *server*.
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
 #[serde(default, rename_all = "camelCase")]
@@ -39,19 +73,12 @@ pub struct ServerProfile {
     pub game_version: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub loader_version: Option<String>,
-    pub primary: Artifact,
-    pub libraries: Vec<Library>,
+    pub jar: ServerJar,
+    pub launch: ServerLaunch,
     pub java_major: i32,
-    pub main_class: String,
     /// The flavor's own recommended JVM flags, used only when the entry sets no
     /// `jvm-args` of its own and no global default exists.
     pub jvm_args: Vec<String>,
-    /// A JVM `@argfile` this server launches from, relative to its data
-    /// directory, instead of a jar or a classpath. NeoForge's install generates
-    /// one — the module path, system properties and launch target it needs are
-    /// far past what a command line can carry — and the file names its own
-    /// libraries relatively, so it is only valid from that directory.
-    pub args_file: String,
 }
 
 /// The resolved launch profile for a Minecraft *client* (instance).
