@@ -46,16 +46,6 @@ impl Engine {
             .collect())
     }
 
-    pub fn instance_disk_usage(&self, reference: &str) -> Result<u64> {
-        let record = self
-            .instances
-            .get(reference)
-            .with_context(|| format!("unknown instance: {reference}"))?;
-        Ok(crate::usage::dir_size(
-            &self.instances.instance_dir(&record),
-        ))
-    }
-
     /// The instance's static, informational view: descriptor, locations, and
     /// the on-disk footprint (a directory walk).
     pub fn instance_detail(&self, reference: &str) -> Result<InstanceDetails> {

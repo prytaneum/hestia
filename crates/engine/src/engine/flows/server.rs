@@ -202,14 +202,6 @@ impl Engine {
         ping::ping(port).await
     }
 
-    pub fn server_disk_usage(&self, reference: &str) -> Result<u64> {
-        let record = self
-            .servers
-            .get(reference)
-            .with_context(|| format!("unknown server: {reference}"))?;
-        Ok(usage::dir_size(&self.servers.server_dir(&record)))
-    }
-
     /// The server's static, informational view: descriptor, locations, and the
     /// on-disk footprint (a directory walk).
     pub fn server_detail(&self, reference: &str) -> Result<ServerDetails> {
