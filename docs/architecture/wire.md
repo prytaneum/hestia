@@ -87,7 +87,7 @@ Carries bytes and nothing domain-specific.
 | `transport.rs` | the platform socket (Unix domain socket / Windows named pipe), `bind`/`connect`, a length-framed `FrameReader`/`FrameWriter`, and `Peer` — the connection's verified identity (`uid` and `authorized()` on POSIX via peer credentials) |
 | `protocol.rs` | the JSON envelope, encoded and decoded in exactly one place. Request `{v, channel, payload, id?}`, response `{v, ok, payload \| error, id?}`, event `{event, payload}` |
 | `endpoint.rs` | where the socket lives — `$XDG_RUNTIME_DIR/hestia/hestiad.sock`, else `/tmp/hestia-<uid>/…`; a named pipe on Windows. A build carrying its own data home takes a name scoped to it (`common::paths::install_scope`), so a portable copy never meets an installed daemon on one socket ([0063](../decisions/0063-an-endpoint-is-scoped-like-its-data-home.md)). `HESTIA_SOCK` overrides it so tests and side-by-side daemons never collide |
-| `errors.rs` | the error-code vocabulary (`BAD_REQUEST`, `NOT_FOUND`, `UNKNOWN_CHANNEL`, `HANDLER_ERROR`, `VERSION_MISMATCH`, `UNAUTHORIZED`, …) and the client-facing `IpcError` |
+| `errors.rs` | the two error codes a client branches on (`NOT_FOUND`, `UNAUTHORIZED`) and the client-facing `IpcError` |
 
 The **runtime directory** holding the ephemeral socket is deliberately distinct
 from the engine's persistent data home: one is where a running daemon can be
@@ -176,8 +176,8 @@ follow an instance across launches
 
 Two structured vocabularies, same discipline:
 
-- **`ErrorInfo`** — the operation did not happen. Mapped to an `ipc::errors` code
-  at the service boundary, with the structured variant carried alongside so a
+- **`ErrorInfo`** — the operation did not happen. Mapped to a wire code
+  (`ErrorInfo::code()`) at the service boundary, with the structured variant carried alongside so a
   front-end can render it precisely (`ContentKindRejected` names the accepted
   set; `MissingRequirement` names the tool and where to get it;
   `ModpackEntryMismatch` names both sides).
@@ -187,7 +187,7 @@ Two structured vocabularies, same discipline:
   scrolled past).
 
 `Offline` is the one error a front-end answers with a retry affordance rather
-than with its text, so it has its own `ipc::errors` code — and pinned offline
+than with its text, so it has its own wire code (`offline`) — and pinned offline
 (`OfflineMode`) is a separate variant, because the remedy is a setting to turn
 off rather than a connection to wait for
 ([0067](../decisions/0067-reachability-is-observed-not-asked.md)).

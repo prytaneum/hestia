@@ -1,15 +1,8 @@
-//! The protocol's error-code vocabulary in one place. The daemon raises these and
-//! the client matches on them.
+//! The error codes a client branches on. The daemon's codes are produced by
+//! `ErrorInfo::code()` in `proto`, which cannot depend on this crate.
 
 pub const NOT_FOUND: &str = "not_found";
-pub const BAD_REQUEST: &str = "bad_request";
-pub const HANDLER_ERROR: &str = "handler_error";
-pub const UNKNOWN_CHANNEL: &str = "unknown_channel";
-pub const VERSION_MISMATCH: &str = "version_mismatch";
 pub const UNAUTHORIZED: &str = "unauthorized";
-/// The daemon could not reach upstream at all — the one failure a front-end
-/// answers with a retry affordance rather than with the error text.
-pub const OFFLINE: &str = "offline";
 
 use thiserror::Error;
 
