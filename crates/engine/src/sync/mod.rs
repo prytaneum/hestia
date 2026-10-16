@@ -116,14 +116,18 @@ impl Sync {
         if !source.is_file() {
             return Ok(());
         }
-        let stamp = std::time::SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs();
-        let kept = self.dir().join(BACKUPS).join(id).join(stamp.to_string());
-        std::fs::create_dir_all(&kept)
-            .with_context(|| format!("cannot create {}", kept.display()))?;
-        reconcile::copy_file(&source, &kept.join(file))
+        let kept = self.dir().join(BACKUPS).join(id);
+        let staging = kept.join(format!("{file}.part"));
+        reconcile::copy_file(&source, &staging)?;
+        std::fs::rename(&staging, kept.join(file))
+            .with_context(|| format!("cannot keep a copy of {}", source.display()))?;
+        for stamped in std::fs::read_dir(&kept).into_iter().flatten().flatten() {
+            if stamped.path().is_dir() {
+                let _ = std::fs::remove_file(stamped.path().join(file));
+                let _ = std::fs::remove_dir(stamped.path());
+            }
+        }
+        Ok(())
     }
 
     pub fn defer(
@@ -480,22 +484,17 @@ mod tests {
         write_at(&data.join("options.txt"), "guiScale:4\n", 100);
 
         let sync = sharing(&shared);
+        let kept = shared.join(BACKUPS).join("test");
+        write_at(&kept.join("1700000000").join("options.txt"), "old\n", 50);
+        write_at(&kept.join("1700000000").join("servers.dat"), "other\n", 50);
         sync.back_up(SyncUnit::Options, "test", &data).unwrap();
 
-        let kept = walk(&shared.join(BACKUPS).join("test"));
-        assert_eq!(kept.len(), 1);
-        assert!(fs::read_to_string(&kept[0]).unwrap().contains("guiScale:4"));
-    }
-
-    fn walk(dir: &Path) -> Vec<PathBuf> {
-        let mut found = Vec::new();
-        for entry in fs::read_dir(dir).into_iter().flatten().flatten() {
-            match entry.path().is_dir() {
-                true => found.extend(walk(&entry.path())),
-                false => found.push(entry.path()),
-            }
-        }
-        found
+        assert!(fs::read_to_string(kept.join("options.txt"))
+            .unwrap()
+            .contains("guiScale:4"));
+        assert!(!kept.join("1700000000").join("options.txt").exists());
+        assert!(kept.join("1700000000").join("servers.dat").exists());
+        assert!(!kept.join("options.txt.part").exists());
     }
 
     #[test]

@@ -329,8 +329,9 @@ The merge writes the file the game would: comments, key order and line endings
 survive, an unreadable file skips the unit instead of being replaced, and a
 `servers.dat` row keeps tags this build does not model
 ([0070](../decisions/0070-the-merge-writes-the-games-own-file.md)). Before
-sharing first lands on an instance, its own copy is kept under
-`<store>/.backups/<instance>/`.
+sharing first lands on an instance, its own copy is kept at
+`<store>/.backups/<instance>/<file>` — one per instance and unit, replaced each
+time the unit is enabled.
 
 Sharing is refused for nothing else: an arbitrary path is not a sync target,
 because the catalogue exists to name files whose format the launcher can merge

@@ -32,9 +32,11 @@ Keys that describe the file, the machine or a moment — `version`, `lastServer`
 the display and audio keys, the first-run prompts — never travel, since a copy
 makes the receiving instance wrong rather than merely different; `version` in
 particular tells a client its settings came from another game version and makes
-it migrate them. And an instance's own copy is kept under `<store>/.backups/`
-before sharing first lands on it, because the first pass overwrites in place and
-nothing else held that file.
+it migrate them. And an instance's own copy is kept at
+`<store>/.backups/<instance>/<file>` before sharing first lands on it, because
+the first pass overwrites in place and nothing else held that file. It is one
+copy per instance and unit, written through a temp and replaced on the next
+enable; nothing reads it, so older generations would only accumulate.
 
 Writing the game's own file is about the bytes around a value, not the value
 itself: which settings exist and how each is spelled per version is the
