@@ -16,7 +16,7 @@ use std::time::Duration;
 
 use discord_rich_presence::activity::{Activity, Assets, Timestamps};
 use discord_rich_presence::{DiscordIpc, DiscordIpcClient};
-use engine::InstanceProfile;
+use engine::{InstanceProfile, Side};
 use proto::naming;
 use proto::process::ProcessState;
 
@@ -205,7 +205,7 @@ fn describe(runtime: &Runtime, profile: &InstanceProfile) -> String {
     let flavor = runtime
         .engine()
         .minecraft()
-        .instance_flavors()
+        .flavors(Side::Client)
         .into_iter()
         .find(|f| f.id == profile.flavor)
         .map(|f| f.name)

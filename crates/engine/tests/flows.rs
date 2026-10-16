@@ -48,7 +48,7 @@ async fn the_registry_the_engine_was_built_over_is_the_one_it_answers_from() {
         vec![],
     );
 
-    let flavors = engine.minecraft().server_flavors();
+    let flavors = engine.minecraft().flavors(engine::Side::Server);
     assert_eq!(flavors.len(), 1, "only the injected flavor is offered");
     assert_eq!(flavors[0].id, "fixture");
     assert!(
@@ -58,7 +58,7 @@ async fn the_registry_the_engine_was_built_over_is_the_one_it_answers_from() {
 
     let versions = engine
         .minecraft()
-        .server_versions("fixture")
+        .versions(engine::Side::Server, "fixture")
         .await
         .expect("the fixture catalogue");
     assert_eq!(versions.len(), 2);

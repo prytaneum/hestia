@@ -14,8 +14,8 @@ use crate::content::install;
 use crate::engine::{Engine, ServerCreateSpec, ServerUpdateSpec};
 use crate::minecraft::launch::{JavaSettings, LaunchPlan};
 use crate::minecraft::materialize::{self, OnProgress};
-use crate::minecraft::ping;
 use crate::minecraft::profile::{ServerJar, ServerProfile};
+use crate::minecraft::{ping, Side};
 use crate::servers::ServerRecord;
 use crate::usage;
 
@@ -94,7 +94,7 @@ impl Engine {
             .with_context(|| format!("unknown server: {}", spec.server))?;
         let versions = self
             .minecraft
-            .server_versions(&record.profile.flavor)
+            .versions(Side::Server, &record.profile.flavor)
             .await?;
         guard_downgrade(
             "world",
@@ -147,7 +147,8 @@ impl Engine {
             .await?;
         }
         self.minecraft
-            .install_server(
+            .install(
+                Side::Server,
                 &record.profile.flavor,
                 &crate::minecraft::InstallRequest {
                     game_version: &record.profile.game_version,

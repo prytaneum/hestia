@@ -9,6 +9,7 @@ use proto::content::{ContentAddSpec, ContentKind, ContentProject, SideSupport};
 
 use crate::content::install;
 use crate::engine::Engine;
+use crate::minecraft::Side;
 
 /// Which entry a content or pack flow is about. The side is a value the flow
 /// matches on, not a verb it duplicates.
@@ -44,16 +45,13 @@ pub(in crate::engine::flows) enum EntrySide {
 
 impl EntrySide {
     fn noun(self) -> &'static str {
-        match self {
-            EntrySide::Server => "server",
-            EntrySide::Client => "instance",
-        }
+        self.side().noun()
     }
 
-    fn side(self) -> crate::minecraft::Side {
+    pub(in crate::engine::flows) fn side(self) -> Side {
         match self {
-            EntrySide::Server => crate::minecraft::Side::Server,
-            EntrySide::Client => crate::minecraft::Side::Client,
+            EntrySide::Server => Side::Server,
+            EntrySide::Client => Side::Client,
         }
     }
 }
@@ -92,22 +90,27 @@ impl Engine {
     }
 
     pub(in crate::engine::flows) fn accepted_kinds(&self, ctx: &EntryContent) -> Vec<ContentKind> {
-        let loads = match ctx.side {
-            EntrySide::Server => self.minecraft().server_loads(&ctx.flavor),
-            EntrySide::Client => self.minecraft().instance_loads(&ctx.flavor),
-        };
-        accepted_kinds(ctx.side, loads)
+        accepted_kinds(
+            ctx.side,
+            self.minecraft().loads(ctx.side.side(), &ctx.flavor),
+        )
     }
 
     /// What a server of this flavor can take. Published on the entry views so a
     /// front-end renders the daemon's answer instead of keeping its own copy of
     /// the flavor table — the same no-drift rule the wire contracts follow.
     pub fn server_accepts(&self, flavor: &str) -> Vec<ContentKind> {
-        accepted_kinds(EntrySide::Server, self.minecraft().server_loads(flavor))
+        accepted_kinds(
+            EntrySide::Server,
+            self.minecraft().loads(Side::Server, flavor),
+        )
     }
 
     pub fn instance_accepts(&self, flavor: &str) -> Vec<ContentKind> {
-        accepted_kinds(EntrySide::Client, self.minecraft().instance_loads(flavor))
+        accepted_kinds(
+            EntrySide::Client,
+            self.minecraft().loads(Side::Client, flavor),
+        )
     }
 }
 

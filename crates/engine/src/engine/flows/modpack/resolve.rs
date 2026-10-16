@@ -129,10 +129,7 @@ impl Engine {
         resolved: &ResolvedModpack,
         side: EntrySide,
     ) -> Result<String> {
-        let flavors = match side {
-            EntrySide::Server => self.minecraft.server_flavors(),
-            EntrySide::Client => self.minecraft.instance_flavors(),
-        };
+        let flavors = self.minecraft.flavors(side.side());
         let wanted = resolved
             .loader
             .as_deref()

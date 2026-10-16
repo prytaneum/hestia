@@ -112,7 +112,7 @@ async fn build(
 /// Refuse before the long work starts when a tool the build shells out to is
 /// missing, naming where to get it — the launcher cannot install it.
 async fn ensure_prerequisites(product: Product) -> Result<()> {
-    for prerequisite in super::prerequisites() {
+    for prerequisite in super::PREREQUISITES {
         if !prerequisite.installed().await {
             bail!(ErrorInfo::MissingRequirement {
                 flavor: product.prefix().to_string(),

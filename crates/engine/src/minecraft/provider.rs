@@ -1,11 +1,11 @@
-//! The provider seams. A flavor implements the trait for its domain (server or
-//! instance), listing the game versions it supports and resolving a request into
-//! a full launch profile. The `Minecraft` aggregate holds a boxed registry of
-//! each — adding a flavor is a new impl plus one line in `Minecraft::new`.
+//! The provider seam. A flavor implements one trait for the sides it serves,
+//! listing the game versions it supports and resolving a request into a full
+//! launch profile. The `Minecraft` aggregate holds one boxed registry —
+//! adding a flavor is a new impl plus one line in `Minecraft::default`.
 
 use std::path::Path;
 
-use anyhow::Result;
+use anyhow::{bail, Result};
 use async_trait::async_trait;
 use proto::content::ContentKind;
 use proto::minecraft::{GameVersion, Requirement};
@@ -24,7 +24,7 @@ pub struct ResolveRequest {
 
 /// What a flavor needs to build whatever its profile cannot simply name — the
 /// patched jar a NeoForge loader runs, or a Spigot server nobody may
-/// redistribute. Given to [`ServerProvider::install`].
+/// redistribute. Given to [`FlavorProvider::install`].
 pub struct InstallRequest<'a> {
     pub game_version: &'a str,
     pub loader_version: Option<&'a str>,
@@ -51,6 +51,15 @@ pub type Loads = Option<ContentKind>;
 pub enum Side {
     Server,
     Client,
+}
+
+impl Side {
+    pub fn noun(self) -> &'static str {
+        match self {
+            Side::Server => "server",
+            Side::Client => "instance",
+        }
+    }
 }
 
 /// Everything an entry of this flavor and side accepts, composed from two
@@ -118,58 +127,48 @@ pub async fn unmet(required: &[Prerequisite]) -> Vec<Requirement> {
     missing
 }
 
-#[async_trait]
-pub trait ServerProvider: Send + Sync {
-    fn id(&self) -> &'static str;
-    fn name(&self) -> &'static str;
+pub struct FlavorInfo {
+    pub id: &'static str,
+    pub name: &'static str,
     /// One line describing the distribution — what it is, and anything about
     /// running it a user should know before choosing it. Rendered by every
     /// front-end, so a new flavor needs no front-end change to explain itself.
-    fn summary(&self) -> &'static str;
-    fn loads(&self) -> Loads;
+    pub summary: &'static str,
+    pub loads: Loads,
     /// Tools this flavor needs on the machine; none for all but a flavor that
     /// builds its own artifacts.
-    fn requires(&self) -> &'static [Prerequisite] {
-        &[]
-    }
-    async fn versions(&self) -> Result<Vec<GameVersion>>;
-    async fn resolve(&self, request: &ResolveRequest) -> Result<ServerProfile>;
-    /// The loader builds available for a game version, newest first. A flavor
-    /// with no loader concept (vanilla) reports none — the default.
-    async fn loader_versions(&self, _game: &str) -> Result<Vec<String>> {
-        Ok(Vec::new())
-    }
-
-    /// See [`InstanceProvider::install`].
-    async fn install(&self, _request: &InstallRequest<'_>, _on: OnProgress<'_>) -> Result<()> {
-        Ok(())
-    }
+    pub requires: &'static [Prerequisite],
+    pub sides: &'static [Side],
 }
 
+pub const BOTH_SIDES: &[Side] = &[Side::Server, Side::Client];
+pub const SERVER_ONLY: &[Side] = &[Side::Server];
+
 #[async_trait]
-pub trait InstanceProvider: Send + Sync {
-    fn id(&self) -> &'static str;
-    fn name(&self) -> &'static str;
-    /// See [`ServerProvider::summary`].
-    fn summary(&self) -> &'static str;
-    fn loads(&self) -> Loads;
-    /// Tools this flavor needs on the machine; none for all but a flavor that
-    /// builds its own artifacts.
-    fn requires(&self) -> &'static [Prerequisite] {
-        &[]
-    }
+pub trait FlavorProvider: Send + Sync {
+    fn info(&self) -> &FlavorInfo;
     async fn versions(&self) -> Result<Vec<GameVersion>>;
-    async fn resolve(&self, request: &ResolveRequest) -> Result<InstanceProfile>;
     /// The loader builds available for a game version, newest first. A flavor
     /// with no loader concept (vanilla) reports none — the default.
     async fn loader_versions(&self, _game: &str) -> Result<Vec<String>> {
         Ok(Vec::new())
+    }
+    async fn resolve_server(&self, _request: &ResolveRequest) -> Result<ServerProfile> {
+        bail!("unknown server flavor: {}", self.info().id)
+    }
+    async fn resolve_client(&self, _request: &ResolveRequest) -> Result<InstanceProfile> {
+        bail!("unknown instance flavor: {}", self.info().id)
     }
 
     /// Build whatever the profile cannot name — the patched jar a NeoForge
-    /// client runs, which exists nowhere to download. Idempotent: it runs on
-    /// every launch and must cost nothing once done.
-    async fn install(&self, _request: &InstallRequest<'_>, _on: OnProgress<'_>) -> Result<()> {
+    /// client runs, which exists nowhere to download. Idempotent: a client
+    /// install runs on every launch and must cost nothing once done.
+    async fn install(
+        &self,
+        _side: Side,
+        _request: &InstallRequest<'_>,
+        _on: OnProgress<'_>,
+    ) -> Result<()> {
         Ok(())
     }
 }

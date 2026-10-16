@@ -11,8 +11,9 @@ It is stateless: every result is fetched upstream, so it needs no data directory
 
 ## Flavors
 
-A *flavor* is a distribution of Minecraft. There are two registries — server and
-client — so a flavor can serve one side only.
+A *flavor* is a distribution of Minecraft. There is one registry; a flavor
+declares which sides it serves, and a lookup for the other side fails as an
+unknown flavor.
 
 | Flavor | Server | Client | Loads | Notes |
 |---|:--:|:--:|---|---|
@@ -24,10 +25,10 @@ client — so a flavor can serve one side only.
 | `spigot` | ✓ | | plugins | compiled on your machine with BuildTools |
 | `bukkit` | ✓ | | plugins | likewise (CraftBukkit) |
 
-A provider names itself (`id`, `name`, `summary`), lists the game versions it
-supports, states what content its loader consumes (`loads`), declares any
-prerequisites it needs on this machine (`requires`), and *resolves* a request
-into a launch profile.
+A provider names itself in one `FlavorInfo` (`id`, `name`, `summary`, the
+content its loader consumes as `loads`, the prerequisites it needs on this
+machine as `requires`, and its `sides`), lists the game versions it supports, and
+*resolves* a request into a server or client launch profile.
 
 Two things follow, and both exist so that shipping a flavor is a daemon-side
 change alone:

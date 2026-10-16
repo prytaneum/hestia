@@ -6,7 +6,7 @@ Two guards used to hard-code the answer: one refused anything but mods and
 datapacks on a server, the other refused mods on vanilla *by name*. Paper breaks
 both — it loads plugins, which are neither. The rule is now composed from two
 independent facts: what the **flavor's** loader consumes (a `ContentKind` on
-`ServerProvider`/`InstanceProvider` — mods for a modloader, plugins for a server
+`FlavorInfo` — mods for a modloader, plugins for a server
 platform, nothing for vanilla) and what the **side** reads for itself (a client
 its resourcepacks and shaders; either side the datapacks that are world data
 rather than loader content). Adding a flavor stays one impl plus one registry

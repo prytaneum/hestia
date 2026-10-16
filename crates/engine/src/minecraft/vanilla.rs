@@ -7,35 +7,32 @@ use proto::minecraft::GameVersion;
 
 use super::meta::mojang;
 use super::profile::{InstanceProfile, ServerJar, ServerLaunch, ServerProfile};
-use super::provider::{InstanceProvider, Loads, ResolveRequest, ServerProvider};
+use super::provider::{FlavorInfo, FlavorProvider, ResolveRequest, BOTH_SIDES};
 
 const ID: &str = "vanilla";
-const NAME: &str = "Vanilla";
-const SUMMARY: &str = "Mojang's game, unchanged. Takes datapacks only — no mods or plugins.";
 
-pub struct VanillaServer;
+const INFO: FlavorInfo = FlavorInfo {
+    id: ID,
+    name: "Vanilla",
+    summary: "Mojang's game, unchanged. Takes datapacks only — no mods or plugins.",
+    loads: None,
+    requires: &[],
+    sides: BOTH_SIDES,
+};
+
+pub struct Vanilla;
 
 #[async_trait]
-impl ServerProvider for VanillaServer {
-    fn id(&self) -> &'static str {
-        ID
-    }
-    fn name(&self) -> &'static str {
-        NAME
-    }
-    fn summary(&self) -> &'static str {
-        SUMMARY
-    }
-
-    fn loads(&self) -> Loads {
-        None
+impl FlavorProvider for Vanilla {
+    fn info(&self) -> &FlavorInfo {
+        &INFO
     }
 
     async fn versions(&self) -> Result<Vec<GameVersion>> {
         mojang::versions().await
     }
 
-    async fn resolve(&self, request: &ResolveRequest) -> Result<ServerProfile> {
+    async fn resolve_server(&self, request: &ResolveRequest) -> Result<ServerProfile> {
         let version = mojang::version_json(&request.version).await?;
         Ok(ServerProfile {
             flavor: ID.to_string(),
@@ -47,31 +44,8 @@ impl ServerProvider for VanillaServer {
             jvm_args: Vec::new(),
         })
     }
-}
 
-pub struct VanillaInstance;
-
-#[async_trait]
-impl InstanceProvider for VanillaInstance {
-    fn id(&self) -> &'static str {
-        ID
-    }
-    fn name(&self) -> &'static str {
-        NAME
-    }
-    fn summary(&self) -> &'static str {
-        SUMMARY
-    }
-
-    fn loads(&self) -> Loads {
-        None
-    }
-
-    async fn versions(&self) -> Result<Vec<GameVersion>> {
-        mojang::versions().await
-    }
-
-    async fn resolve(&self, request: &ResolveRequest) -> Result<InstanceProfile> {
+    async fn resolve_client(&self, request: &ResolveRequest) -> Result<InstanceProfile> {
         let version = mojang::version_json(&request.version).await?;
         Ok(InstanceProfile {
             flavor: ID.to_string(),

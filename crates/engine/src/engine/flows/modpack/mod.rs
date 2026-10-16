@@ -242,10 +242,10 @@ impl Engine {
         let (entry, ctx) = self.content_ctx(target)?;
         let current = require_pack(&ctx, entry_kind(target), &entry.name)?;
         let fetched = self.read_pack_file(path).await?;
-        let versions = match ctx.side {
-            EntrySide::Server => self.minecraft.server_versions(&ctx.flavor).await?,
-            EntrySide::Client => self.minecraft.instance_versions(&ctx.flavor).await?,
-        };
+        let versions = self
+            .minecraft
+            .versions(ctx.side.side(), &ctx.flavor)
+            .await?;
         let (resolved, project, _) = &fetched;
         Ok(ModpackFilePreview {
             name: pack_display_name(resolved, project.as_ref()),

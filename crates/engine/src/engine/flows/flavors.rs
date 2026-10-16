@@ -4,21 +4,13 @@
 use proto::minecraft::Flavor;
 
 use super::Engine;
-use crate::minecraft::unmet;
+use crate::minecraft::{unmet, Side};
 
 impl Engine {
-    pub async fn server_flavors(&self) -> Vec<Flavor> {
-        let mut flavors = self.minecraft.server_flavors();
+    pub async fn flavors(&self, side: Side) -> Vec<Flavor> {
+        let mut flavors = self.minecraft.flavors(side);
         for flavor in &mut flavors {
-            flavor.requires = unmet(self.minecraft.server_requires(&flavor.id)).await;
-        }
-        flavors
-    }
-
-    pub async fn instance_flavors(&self) -> Vec<Flavor> {
-        let mut flavors = self.minecraft.instance_flavors();
-        for flavor in &mut flavors {
-            flavor.requires = unmet(self.minecraft.instance_requires(&flavor.id)).await;
+            flavor.requires = unmet(self.minecraft.requires(side, &flavor.id)).await;
         }
         flavors
     }

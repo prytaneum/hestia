@@ -23,13 +23,21 @@ use proto::minecraft::GameVersion;
 use super::materialize::{self, OnProgress};
 use super::meta::{mojang, neoforge};
 use super::profile::{InstanceProfile, ServerJar, ServerLaunch, ServerProfile};
-use super::provider::{InstallRequest, InstanceProvider, Loads, ResolveRequest, ServerProvider};
+use super::provider::{
+    FlavorInfo, FlavorProvider, InstallRequest, ResolveRequest, Side, BOTH_SIDES,
+};
 use crate::download::Downloader;
 
 const ID: &str = "neoforge";
-const NAME: &str = "NeoForge";
-const SUMMARY: &str =
-    "Mod loader for big, content-heavy modpacks. The first launch prepares the game files, so it takes a few minutes.";
+
+const INFO: FlavorInfo = FlavorInfo {
+    id: ID,
+    name: "NeoForge",
+    summary: "Mod loader for big, content-heavy modpacks. The first launch prepares the game files, so it takes a few minutes.",
+    loads: Some(ContentKind::Mod),
+    requires: &[],
+    sides: BOTH_SIDES,
+};
 
 /// The game versions NeoForge builds exist for, newest first and typed by
 /// Mojang's manifest — the same ground truth every other flavor is ordered by.
@@ -174,21 +182,12 @@ pub(crate) fn server_args_file(loader: &str) -> String {
     )
 }
 
-pub struct NeoForgeServer;
+pub struct NeoForge;
 
 #[async_trait]
-impl ServerProvider for NeoForgeServer {
-    fn id(&self) -> &'static str {
-        ID
-    }
-    fn name(&self) -> &'static str {
-        NAME
-    }
-    fn summary(&self) -> &'static str {
-        SUMMARY
-    }
-    fn loads(&self) -> Loads {
-        Some(ContentKind::Mod)
+impl FlavorProvider for NeoForge {
+    fn info(&self) -> &FlavorInfo {
+        &INFO
     }
 
     async fn versions(&self) -> Result<Vec<GameVersion>> {
@@ -199,7 +198,7 @@ impl ServerProvider for NeoForgeServer {
         builds(game).await
     }
 
-    async fn resolve(&self, request: &ResolveRequest) -> Result<ServerProfile> {
+    async fn resolve_server(&self, request: &ResolveRequest) -> Result<ServerProfile> {
         let loader = resolve_loader(request).await?;
         let base = mojang::version_json(&request.version).await?;
         Ok(ServerProfile {
@@ -213,37 +212,7 @@ impl ServerProvider for NeoForgeServer {
         })
     }
 
-    async fn install(&self, request: &InstallRequest<'_>, on: OnProgress<'_>) -> Result<()> {
-        run_install(request, processors::Side::Server, on).await
-    }
-}
-
-pub struct NeoForgeInstance;
-
-#[async_trait]
-impl InstanceProvider for NeoForgeInstance {
-    fn id(&self) -> &'static str {
-        ID
-    }
-    fn name(&self) -> &'static str {
-        NAME
-    }
-    fn summary(&self) -> &'static str {
-        SUMMARY
-    }
-    fn loads(&self) -> Loads {
-        Some(ContentKind::Mod)
-    }
-
-    async fn versions(&self) -> Result<Vec<GameVersion>> {
-        game_versions().await
-    }
-
-    async fn loader_versions(&self, game: &str) -> Result<Vec<String>> {
-        builds(game).await
-    }
-
-    async fn resolve(&self, request: &ResolveRequest) -> Result<InstanceProfile> {
+    async fn resolve_client(&self, request: &ResolveRequest) -> Result<InstanceProfile> {
         let loader = resolve_loader(request).await?;
         let base = mojang::version_json(&request.version).await?;
         let installer = {
@@ -286,7 +255,16 @@ impl InstanceProvider for NeoForgeInstance {
         })
     }
 
-    async fn install(&self, request: &InstallRequest<'_>, on: OnProgress<'_>) -> Result<()> {
-        run_install(request, processors::Side::Client, on).await
+    async fn install(
+        &self,
+        side: Side,
+        request: &InstallRequest<'_>,
+        on: OnProgress<'_>,
+    ) -> Result<()> {
+        let side = match side {
+            Side::Server => processors::Side::Server,
+            Side::Client => processors::Side::Client,
+        };
+        run_install(request, side, on).await
     }
 }

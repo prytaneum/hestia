@@ -334,7 +334,7 @@ impl Engine {
         };
         match self
             .minecraft
-            .instance_flavors()
+            .flavors(crate::minecraft::Side::Client)
             .iter()
             .any(|f| f.id == wanted)
         {

@@ -7,8 +7,8 @@ use std::collections::HashMap;
 use anyhow::{bail, Result};
 use async_trait::async_trait;
 use engine::{
-    AssetIndex, Content, ContentProvider, FileRef, InstanceProfile, InstanceProvider, LocalFile,
-    Minecraft, ServerJar, ServerProfile, ServerProvider, UrlRef,
+    AssetIndex, Content, ContentProvider, FileRef, FlavorInfo, FlavorProvider, InstanceProfile,
+    LocalFile, Minecraft, ServerJar, ServerProfile, Side, UrlRef,
 };
 use proto::content::{
     ContentKind, ContentProject, ContentVersion, ResolvedModpack, SearchQuery, SearchResult,
@@ -20,15 +20,26 @@ use proto::minecraft::{Artifact, GameVersion};
 /// A flavor that resolves to a profile naming `artifact`, or fails when it is
 /// `None` — the two halves of what a provider can do to a create.
 pub struct Flavor {
-    pub id: &'static str,
+    pub info: FlavorInfo,
     pub versions: Vec<&'static str>,
     pub artifact: Option<Artifact>,
+}
+
+fn info(id: &'static str) -> FlavorInfo {
+    FlavorInfo {
+        id,
+        name: "Fixture",
+        summary: "a flavor that exists only in tests",
+        loads: Some(ContentKind::Mod),
+        requires: &[],
+        sides: &[Side::Server, Side::Client],
+    }
 }
 
 impl Flavor {
     pub fn resolving(id: &'static str) -> Flavor {
         Flavor {
-            id,
+            info: info(id),
             versions: vec!["1.21", "1.20.1"],
             artifact: Some(Artifact {
                 url: "http://127.0.0.1:1/server.jar".into(),
@@ -43,7 +54,7 @@ impl Flavor {
     /// materializes it.
     pub fn serving(id: &'static str, files: &Files) -> Flavor {
         Flavor {
-            id,
+            info: info(id),
             versions: vec!["1.21", "1.20.1"],
             artifact: Some(Artifact {
                 url: files.url("client.jar"),
@@ -56,7 +67,7 @@ impl Flavor {
 
     pub fn failing(id: &'static str) -> Flavor {
         Flavor {
-            id,
+            info: info(id),
             versions: vec!["1.21"],
             artifact: None,
         }
@@ -81,54 +92,26 @@ impl Flavor {
 }
 
 #[async_trait]
-impl ServerProvider for Flavor {
-    fn id(&self) -> &'static str {
-        self.id
-    }
-    fn name(&self) -> &'static str {
-        "Fixture"
-    }
-    fn summary(&self) -> &'static str {
-        "a flavor that exists only in tests"
-    }
-    fn loads(&self) -> engine::Loads {
-        Some(ContentKind::Mod)
+impl FlavorProvider for Flavor {
+    fn info(&self) -> &FlavorInfo {
+        &self.info
     }
     async fn versions(&self) -> Result<Vec<GameVersion>> {
         Ok(self.catalogue())
     }
-    async fn resolve(&self, request: &engine::ResolveRequest) -> Result<ServerProfile> {
+    async fn resolve_server(&self, request: &engine::ResolveRequest) -> Result<ServerProfile> {
         Ok(ServerProfile {
-            flavor: self.id.to_string(),
+            flavor: self.info.id.to_string(),
             game_version: request.version.clone(),
             jar: ServerJar::Download(self.primary()?),
             java_major: 21,
             ..ServerProfile::default()
         })
     }
-}
-
-#[async_trait]
-impl InstanceProvider for Flavor {
-    fn id(&self) -> &'static str {
-        self.id
-    }
-    fn name(&self) -> &'static str {
-        "Fixture"
-    }
-    fn summary(&self) -> &'static str {
-        "a flavor that exists only in tests"
-    }
-    fn loads(&self) -> engine::Loads {
-        Some(ContentKind::Mod)
-    }
-    async fn versions(&self) -> Result<Vec<GameVersion>> {
-        Ok(self.catalogue())
-    }
-    async fn resolve(&self, request: &engine::ResolveRequest) -> Result<InstanceProfile> {
+    async fn resolve_client(&self, request: &engine::ResolveRequest) -> Result<InstanceProfile> {
         let client = self.primary()?;
         Ok(InstanceProfile {
-            flavor: self.id.to_string(),
+            flavor: self.info.id.to_string(),
             game_version: request.version.clone(),
             asset_index: AssetIndex {
                 id: request.version.clone(),
@@ -235,13 +218,9 @@ pub fn engine(
     flavors: Vec<Flavor>,
     sources: Vec<Source>,
 ) -> engine::Engine {
-    let servers: Vec<Box<dyn ServerProvider>> = flavors
-        .iter()
-        .map(|f| Box::new(Flavor { ..clone_of(f) }) as Box<dyn ServerProvider>)
-        .collect();
-    let instances: Vec<Box<dyn InstanceProvider>> = flavors
-        .iter()
-        .map(|f| Box::new(clone_of(f)) as Box<dyn InstanceProvider>)
+    let flavors: Vec<Box<dyn FlavorProvider>> = flavors
+        .into_iter()
+        .map(|f| Box::new(f) as Box<dyn FlavorProvider>)
         .collect();
     let providers: Vec<Box<dyn ContentProvider>> = sources
         .into_iter()
@@ -249,17 +228,9 @@ pub fn engine(
         .collect();
     engine::Engine::over(
         Some(home),
-        Minecraft::with_providers(servers, instances),
+        Minecraft::with_providers(flavors),
         Content::with_providers(providers),
     )
-}
-
-fn clone_of(flavor: &Flavor) -> Flavor {
-    Flavor {
-        id: flavor.id,
-        versions: flavor.versions.clone(),
-        artifact: flavor.artifact.clone(),
-    }
 }
 
 /// A project the fixture source catalogues.

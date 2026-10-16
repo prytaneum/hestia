@@ -57,7 +57,7 @@ pub use minecraft::profile::{
     AssetIndex, InstanceProfile, Library, Native, ServerJar, ServerProfile,
 };
 pub use minecraft::{
-    InstanceProvider, Loads, Minecraft, ResolveRequest, ServerProvider, REQUIRED_JAVA_MAJORS,
+    FlavorInfo, FlavorProvider, Loads, Minecraft, ResolveRequest, Side, REQUIRED_JAVA_MAJORS,
 };
 pub use net::Network;
 pub use process::{ExitObserver, ProcessEvents, ProcessSupervisor, StartError};

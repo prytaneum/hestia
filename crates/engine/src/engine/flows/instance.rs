@@ -16,7 +16,7 @@ use crate::instances::InstanceRecord;
 use crate::minecraft::launch::{self, InstancePaths, LaunchAccount, LaunchPlan};
 use crate::minecraft::log4j;
 use crate::minecraft::materialize::{self, OnProgress};
-use crate::minecraft::{ping, quickplay, world};
+use crate::minecraft::{ping, quickplay, world, Side};
 
 /// Per-session files under the instance root, not `data/`, so a backup and an
 /// export leave them behind.
@@ -102,7 +102,7 @@ impl Engine {
             .with_context(|| format!("unknown instance: {reference}"))?;
         let versions = self
             .minecraft
-            .instance_versions(&record.profile.flavor)
+            .versions(Side::Client, &record.profile.flavor)
             .await?;
         guard_downgrade(
             "saves",
@@ -234,7 +234,8 @@ impl Engine {
         .await?;
 
         self.minecraft
-            .install_instance(
+            .install(
+                Side::Client,
                 &record.profile.flavor,
                 &crate::minecraft::InstallRequest {
                     game_version: &record.profile.game_version,

@@ -2,6 +2,7 @@
 //! the rcon console, and the per-server settings. Backups live in `backup`,
 //! content installs in `content`.
 
+use engine::Side;
 use proto::error::{EntryKind, ErrorInfo, Field};
 use proto::minecraft::{ConfigEntry, FlavorsResult, LoadersResult, VersionsResult};
 use proto::process::ProcessLogsResult;
@@ -21,7 +22,7 @@ use crate::runtime::{server_process_id, Channels};
 pub(super) fn register(on: &mut Channels<'_>) {
     on.handle::<ServerFlavors, _, _>(|_: Empty, ctx| async move {
         Ok(FlavorsResult {
-            flavors: ctx.runtime.engine().server_flavors().await,
+            flavors: ctx.runtime.engine().flavors(Side::Server).await,
         })
     });
 
@@ -30,7 +31,7 @@ pub(super) fn register(on: &mut Channels<'_>) {
             .runtime
             .engine()
             .minecraft()
-            .server_versions(&p.flavor)
+            .versions(Side::Server, &p.flavor)
             .await
             .map_err(crate::runtime::engine_error)?;
         Ok(VersionsResult { versions })
@@ -41,7 +42,7 @@ pub(super) fn register(on: &mut Channels<'_>) {
             .runtime
             .engine()
             .minecraft()
-            .server_loader_versions(&p.flavor, &p.version)
+            .loader_versions(Side::Server, &p.flavor, &p.version)
             .await
             .map_err(crate::runtime::engine_error)?;
         Ok(LoadersResult { loaders })

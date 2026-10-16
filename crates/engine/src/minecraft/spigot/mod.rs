@@ -14,17 +14,17 @@ use self::buildtools::Product;
 use super::materialize::OnProgress;
 use super::meta::{mojang, spigot};
 use super::profile::{ServerJar, ServerLaunch, ServerProfile};
-use super::provider::{InstallRequest, Loads, Prerequisite, ResolveRequest, ServerProvider};
+use super::provider::{
+    FlavorInfo, FlavorProvider, InstallRequest, Prerequisite, ResolveRequest, Side, SERVER_ONLY,
+};
 use super::REQUIRED_JAVA_MAJORS;
 
 /// BuildTools bootstraps its own Git on Windows and nowhere else.
-pub(crate) fn prerequisites() -> &'static [Prerequisite] {
-    if cfg!(windows) {
-        &[]
-    } else {
-        &[Prerequisite::Git]
-    }
-}
+pub(crate) const PREREQUISITES: &[Prerequisite] = if cfg!(windows) {
+    &[]
+} else {
+    &[Prerequisite::Git]
+};
 
 /// What the versions predating the hub's `javaVersions` field (the 1.8 line and
 /// older) were built with.
@@ -62,99 +62,75 @@ async fn java_major(version: &str) -> Result<i32> {
         .unwrap_or(low))
 }
 
-async fn resolve(product: Product, request: &ResolveRequest) -> Result<ServerProfile> {
-    Ok(ServerProfile {
-        flavor: product.flavor().to_string(),
-        game_version: request.version.clone(),
-        loader_version: None,
-        jar: ServerJar::Built {
-            filename: product.jar_name(&request.version),
-        },
-        launch: ServerLaunch::Jar,
-        java_major: java_major(&request.version).await?,
-        jvm_args: Vec::new(),
-    })
+/// The plugin flavor ids are Modrinth's own loader names, because the flavor id
+/// *is* the plugin loader a content lookup filters by. Neither loader is widened
+/// to the other: a Spigot build carries API a plugin written against it may
+/// require.
+pub struct BuildTools {
+    info: FlavorInfo,
+    product: Product,
 }
 
-impl Product {
-    fn flavor(self) -> &'static str {
-        match self {
-            Product::Bukkit => BUKKIT_ID,
-            Product::Spigot => SPIGOT_ID,
+impl BuildTools {
+    pub const fn bukkit() -> Self {
+        BuildTools {
+            info: FlavorInfo {
+                id: "bukkit",
+                name: "CraftBukkit",
+                summary: "The plugin server Spigot is built on, without its speed-ups. Pick Spigot unless you need this exactly.",
+                loads: Some(ContentKind::Plugin),
+                requires: PREREQUISITES,
+                sides: SERVER_ONLY,
+            },
+            product: Product::Bukkit,
+        }
+    }
+
+    pub const fn spigot() -> Self {
+        BuildTools {
+            info: FlavorInfo {
+                id: "spigot",
+                name: "Spigot",
+                summary: "The classic plugin server, with the largest plugin library. Nobody may hand it out ready-made, so Hestia builds it here the first time — allow a few minutes.",
+                loads: Some(ContentKind::Plugin),
+                requires: PREREQUISITES,
+                sides: SERVER_ONLY,
+            },
+            product: Product::Spigot,
         }
     }
 }
 
-/// Modrinth's own loader names, because the flavor id *is* the plugin loader a
-/// content lookup filters by.
-const BUKKIT_ID: &str = "bukkit";
-const SPIGOT_ID: &str = "spigot";
-
-pub struct BukkitServer;
-
 #[async_trait]
-impl ServerProvider for BukkitServer {
-    fn id(&self) -> &'static str {
-        BUKKIT_ID
-    }
-    fn name(&self) -> &'static str {
-        "CraftBukkit"
-    }
-    fn summary(&self) -> &'static str {
-        "The plugin server Spigot is built on, without its speed-ups. Pick Spigot unless you need this exactly."
-    }
-    fn loads(&self) -> Loads {
-        Some(ContentKind::Plugin)
-    }
-    fn requires(&self) -> &'static [Prerequisite] {
-        prerequisites()
+impl FlavorProvider for BuildTools {
+    fn info(&self) -> &FlavorInfo {
+        &self.info
     }
 
     async fn versions(&self) -> Result<Vec<GameVersion>> {
         game_versions().await
     }
 
-    async fn resolve(&self, request: &ResolveRequest) -> Result<ServerProfile> {
-        resolve(Product::Bukkit, request).await
+    async fn resolve_server(&self, request: &ResolveRequest) -> Result<ServerProfile> {
+        Ok(ServerProfile {
+            flavor: self.info.id.to_string(),
+            game_version: request.version.clone(),
+            loader_version: None,
+            jar: ServerJar::Built {
+                filename: self.product.jar_name(&request.version),
+            },
+            launch: ServerLaunch::Jar,
+            java_major: java_major(&request.version).await?,
+            jvm_args: Vec::new(),
+        })
     }
 
-    async fn install(&self, request: &InstallRequest<'_>, on: OnProgress<'_>) -> Result<()> {
-        buildtools::ensure(Product::Bukkit, request, on).await
-    }
-}
-
-pub struct SpigotServer;
-
-#[async_trait]
-impl ServerProvider for SpigotServer {
-    fn id(&self) -> &'static str {
-        SPIGOT_ID
-    }
-    fn name(&self) -> &'static str {
-        "Spigot"
-    }
-    fn summary(&self) -> &'static str {
-        "The classic plugin server, with the largest plugin library. Nobody may hand it out ready-made, so Hestia builds it here the first time — allow a few minutes."
-    }
-    /// Spigot's plugins are filtered as `spigot`, never widened to `bukkit`:
-    /// the two are separate Modrinth loaders, and a Spigot build carries API a
-    /// plugin written against it may require.
-    fn loads(&self) -> Loads {
-        Some(ContentKind::Plugin)
-    }
-    fn requires(&self) -> &'static [Prerequisite] {
-        prerequisites()
-    }
-
-    async fn versions(&self) -> Result<Vec<GameVersion>> {
-        game_versions().await
-    }
-
-    async fn resolve(&self, request: &ResolveRequest) -> Result<ServerProfile> {
-        resolve(Product::Spigot, request).await
-    }
-
-    async fn install(&self, request: &InstallRequest<'_>, on: OnProgress<'_>) -> Result<()> {
-        buildtools::ensure(Product::Spigot, request, on).await
+    async fn install(
+        &self,
+        _side: Side,
+        request: &InstallRequest<'_>,
+        on: OnProgress<'_>,
+    ) -> Result<()> {
+        buildtools::ensure(self.product, request, on).await
     }
 }

@@ -3,9 +3,8 @@
 //! differ only in which project of the same service they read, and in that
 //! Folia publishes far fewer versions.
 //!
-//! Neither has a client, so neither implements `InstanceProvider`: `instance
-//! create --flavor paper` fails as an unknown instance flavor, which is the
-//! truth.
+//! Neither has a client, so neither lists `Side::Client`: `instance create
+//! --flavor paper` fails as an unknown instance flavor, which is the truth.
 //!
 //! A *build* is what the flavor's `loader_version` names. Paper publishes many
 //! builds per game version and a server operator routinely needs a specific one
@@ -20,7 +19,7 @@ use proto::minecraft::{GameVersion, VersionKind};
 
 use super::meta::{mojang, paper};
 use super::profile::{ServerJar, ServerLaunch, ServerProfile};
-use super::provider::{Loads, ResolveRequest, ServerProvider};
+use super::provider::{FlavorInfo, FlavorProvider, ResolveRequest, SERVER_ONLY};
 
 /// The game versions a project publishes, ordered and typed by Mojang's own
 /// manifest: PaperMC states neither, and the manifest is already the ordering
@@ -72,65 +71,56 @@ async fn build_numbers(project: &str, game: &str) -> Result<Vec<String>> {
         .collect())
 }
 
-pub struct PaperServer;
-
-#[async_trait]
-impl ServerProvider for PaperServer {
-    fn id(&self) -> &'static str {
-        "paper"
-    }
-    fn name(&self) -> &'static str {
-        "Paper"
-    }
-    fn summary(&self) -> &'static str {
-        "A faster server that runs Bukkit plugins, tuned by the Paper team for each version."
-    }
-    fn loads(&self) -> Loads {
-        Some(ContentKind::Plugin)
-    }
-
-    async fn versions(&self) -> Result<Vec<GameVersion>> {
-        game_versions(self.id()).await
-    }
-
-    async fn loader_versions(&self, game: &str) -> Result<Vec<String>> {
-        build_numbers(self.id(), game).await
-    }
-
-    async fn resolve(&self, request: &ResolveRequest) -> Result<ServerProfile> {
-        resolve(self.id(), request).await
-    }
+pub struct PaperProject {
+    info: FlavorInfo,
 }
 
-pub struct FoliaServer;
+impl PaperProject {
+    pub const fn paper() -> Self {
+        PaperProject {
+            info: FlavorInfo {
+                id: "paper",
+                name: "Paper",
+                summary: "A faster server that runs Bukkit plugins, tuned by the Paper team for each version.",
+                loads: Some(ContentKind::Plugin),
+                requires: &[],
+                sides: SERVER_ONLY,
+            },
+        }
+    }
 
-#[async_trait]
-impl ServerProvider for FoliaServer {
-    fn id(&self) -> &'static str {
-        "folia"
-    }
-    fn name(&self) -> &'static str {
-        "Folia"
-    }
-    fn summary(&self) -> &'static str {
-        "Paper spread across CPU cores, for very large worlds. Only plugins made for Folia will work."
-    }
     /// Folia's plugins are filtered as `folia`, never widened to `paper`: a
     /// plugin that never claimed Folia support breaks on its regionised
     /// scheduler, and the catalogue is the only place that is knowable.
-    fn loads(&self) -> Loads {
-        Some(ContentKind::Plugin)
+    pub const fn folia() -> Self {
+        PaperProject {
+            info: FlavorInfo {
+                id: "folia",
+                name: "Folia",
+                summary: "Paper spread across CPU cores, for very large worlds. Only plugins made for Folia will work.",
+                loads: Some(ContentKind::Plugin),
+                requires: &[],
+                sides: SERVER_ONLY,
+            },
+        }
+    }
+}
+
+#[async_trait]
+impl FlavorProvider for PaperProject {
+    fn info(&self) -> &FlavorInfo {
+        &self.info
     }
 
     async fn versions(&self) -> Result<Vec<GameVersion>> {
-        game_versions(self.id()).await
+        game_versions(self.info.id).await
     }
 
     async fn loader_versions(&self, game: &str) -> Result<Vec<String>> {
-        build_numbers(self.id(), game).await
+        build_numbers(self.info.id, game).await
     }
 
-    async fn resolve(&self, request: &ResolveRequest) -> Result<ServerProfile> {
-        resolve(self.id(), request).await
+    async fn resolve_server(&self, request: &ResolveRequest) -> Result<ServerProfile> {
+        resolve(self.info.id, request).await
     }
 }
