@@ -87,11 +87,9 @@ read and written through `engine::schema`
 
 | Concern | How |
 |---|---|
-| Current version | `1 + MIGRATIONS.len()`, derived — adding a migration is appending one function |
-| A migration step | rewrites `serde_json::Value`, not the Rust type, so it stays a record of the shape that existed |
-| No stamp on the file | the baseline; every step applies |
-| Newer than this build, malformed, or failing its migration | renamed to `<name>.unreadable-<stamp>`, defaults used, warning recorded |
-| Needs bringing forward | migrated on read and written back, so the disk converges as it is used |
+| Current version | `Document::VERSION`, 1 for every document; there is no migration chain |
+| No stamp on the file | read as the baseline |
+| Newer than this build or malformed | renamed to `<name>.unreadable-<stamp>`, defaults used, warning recorded |
 | Writing | temp file renamed into place; owner-only mode set *before* the rename where it matters |
 
 Derived state is deliberately excluded — process records, Java runtime records,

@@ -219,8 +219,7 @@ their unpacked natives and their pre-hash asset layout.
   failure leaves nothing half-written — and a restart reclaims anything abandoned
   ([0024](decisions/0024-temp-artifacts-are-reclaimed-at-startup.md)).
 - **A document says which schema it is.** Everything of the user's on disk carries
-  a `schemaVersion` and migrates forward as it is read; one this build cannot read
-  is set aside, never overwritten
+  a `schemaVersion`; one this build cannot read is set aside, never overwritten
   ([0060](decisions/0060-a-managed-document-carries-its-schema-version.md)).
 - **Validate at the edge.** Payloads decode through the contract; the config
   schema rejects unknown keys; paths from a client are checked for escape.
@@ -265,7 +264,7 @@ their unpacked natives and their pre-hash asset layout.
 |---|---|
 | `crates/proto/tests/` | `wire` and `golden` — the envelope and contract encodings, so a wire change is caught |
 | `crates/engine/tests/` | `store` (config/cache/java/server/instance persistence), `auth_oracle` (the sign-in state machine), `process` (tree termination), `flows` (provisioning and content install against fixture providers, over `Engine::over`) |
-| `crates/engine/src/**` | unit tests beside the code: archive detection and round trips, the Prism component mapping, the export ignore rules, launch-plan assembly (including the quick-play target and its version gate), document schema stamping, migration and quarantine, the `servers.dat` round trip, server-address parsing, the Log4Shell-safe session config, sync reconciliation and its per-key merge, Modrinth and CurseForge mapping, pack-format detection and `.mrpack`/URL parsing, version picking, per-flavor accepted kinds, JVM-args precedence, PaperMC and SpigotMC catalogue parsing |
+| `crates/engine/src/**` | unit tests beside the code: archive detection and round trips, the Prism component mapping, the export ignore rules, launch-plan assembly (including the quick-play target and its version gate), document schema stamping and quarantine, the `servers.dat` round trip, server-address parsing, the Log4Shell-safe session config, sync reconciliation and its per-key merge, Modrinth and CurseForge mapping, pack-format detection and `.mrpack`/URL parsing, version picking, per-flavor accepted kinds, JVM-args precedence, PaperMC and SpigotMC catalogue parsing |
 | `crates/client/tests/` | the SDK against a scripted daemon over an in-memory duplex: contract marshalling, typed failures, timeouts, a version mismatch, and every way a job settles |
 | `crates/daemon/tests/e2e.rs` | a client-to-daemon round trip over a real socket |
 | `frontend/tests/` | the message catalogue (locale coverage, placeholder parity, no dead or missing keys), the export dialog's tree/exclusion conversions, and the quick-play version gate |

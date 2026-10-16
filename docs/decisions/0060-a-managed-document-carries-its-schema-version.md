@@ -14,15 +14,15 @@ failure mode eating the attempt.
 So a user-owned document now carries a top-level `schemaVersion`, and reading
 one goes through `engine::schema`. Three things fall out of it.
 
-**The version is derived from the migration chain, not declared beside it.** A
-`Document` names itself and lists its `MIGRATIONS`; `version()` is
-`1 + MIGRATIONS.len()`. Adding a migration is appending one function, and the
-constant that could disagree with the list does not exist. A step rewrites
-`serde_json::Value`, never the Rust type: the struct only ever describes the
-newest schema, so a step that deserialized would need rewriting every time the
-struct moved, and the chain would stop being a record of the shapes that
-actually existed. A file with no stamp is not corrupt — it is the first schema —
-so it enters at the baseline and every step applies.
+**The stamp is the only versioning machinery.** A `Document` names itself and
+carries `VERSION`, 1 for all of them. A file with no stamp is not corrupt — it is
+the first schema — so it is read as the baseline. The migration chain this
+decision first shipped (a `MIGRATIONS` list whose length was the version, each
+step rewriting `serde_json::Value` rather than the Rust type, with the result
+written back on read) was removed: no released document needed a step, and the
+project does not keep older shapes readable yet. When a released document first
+needs one, the chain is re-added keyed on the stamp already on every file; the
+rule for writing steps stands — rewrite the JSON, never the deserialized type.
 
 **Per document, not per data home.** A single version file at the root would
 speak for files it never saw written, and the interesting cases are exactly
@@ -71,10 +71,9 @@ they are schema-less by design and the front-end owns their keys
 Both archive formats hestia writes are documents under the same rule. The
 `.hestia` manifest's hand-rolled `formatVersion` became the shared
 `schemaVersion`, and it carries the instance record **stamped** rather than
-inlined as a typed field, so an archive migrates its record through exactly the
-chain a record on disk would. The documents an import lands are then brought
-forward before anything reads them, and whatever had to be quarantined rides out
-on the import result.
+inlined as a typed field. The documents an import lands are then read before
+anything else asks, and whatever had to be quarantined rides out on the import
+result.
 
 A backup archive had no marker and no version at all — a restore untarred
 whatever it found — so it gained `hestia.backup.json` as its first entry, checked

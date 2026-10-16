@@ -4,23 +4,14 @@
 //! its content index, the skin library — carries the version of the schema it
 //! was written with, in a top-level
 //! [`FIELD`]. A build that opens one therefore knows, before it decodes
-//! anything, whether it is looking at a shape it understands, a shape it can
-//! bring forward, or a shape from a build newer than itself.
+//! anything, whether it is looking at a shape it understands or a shape from a
+//! build newer than itself.
 //!
 //! The stamp is **per document, not per data home**. A `server.json` restored
 //! from a backup, an entry directory copied between machines, and the record
 //! travelling inside an exported archive are all the same problem, and only a
 //! self-describing document answers it — a single version file at the root
 //! would speak for files it never saw written.
-//!
-//! # Adding a migration
-//!
-//! Append a [`Step`] to the document's [`Document::MIGRATIONS`]. The current
-//! version is the chain's length, so there is no second constant to update and
-//! nothing to keep in sync. A step rewrites JSON rather than a Rust value on
-//! purpose: the struct only ever describes the *newest* schema, so a step that
-//! deserialized would have to be rewritten every time the struct changed, and
-//! the chain would stop being a record of what the old shapes were.
 //!
 //! # What is deliberately not versioned
 //!
@@ -44,17 +35,11 @@ use crate::registry;
 /// The stamped field, on the document's top-level object.
 pub(crate) const FIELD: &str = "schemaVersion";
 
-/// The version an unstamped document is read as. A file written before this
-/// mechanism existed is not corrupt — it is the first schema — so it enters the
-/// chain at the beginning and every step applies.
+/// The version an unstamped document is read as.
 pub(crate) const BASELINE: u32 = 1;
 
 /// The suffix a document that could not be read is renamed with.
 const ASIDE: &str = "unreadable";
-
-/// One step of a migration chain: rewrite the JSON of version `n` into the JSON
-/// of version `n + 1`.
-pub(crate) type Step = fn(&mut Value) -> anyhow::Result<()>;
 
 /// A document hestia persists and must be able to read back across versions.
 ///
@@ -65,29 +50,8 @@ pub(crate) trait Document: Serialize + DeserializeOwned {
     /// quarantined copy. Its file name where it has a fixed one.
     const NAME: &'static str;
 
-    /// The chain, oldest first: `MIGRATIONS[i]` takes version `i + 1` to
-    /// `i + 2`. Adding a migration is appending to this list.
-    const MIGRATIONS: &'static [Step] = &[];
-
-    /// The schema this build writes. Derived from the chain so the two cannot
-    /// disagree.
-    fn version() -> u32 {
-        BASELINE + Self::MIGRATIONS.len() as u32
-    }
-}
-
-/// A document read back, with the version the stored form carried.
-pub(crate) struct Decoded<T> {
-    pub(crate) document: T,
-    pub(crate) stored: u32,
-}
-
-impl<T: Document> Decoded<T> {
-    /// Whether the value in hand is newer than what is on disk, and so worth
-    /// writing back.
-    pub(crate) fn migrated(&self) -> bool {
-        self.stored < T::version()
-    }
+    /// The schema this build writes.
+    const VERSION: u32 = BASELINE;
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -108,12 +72,6 @@ pub(crate) enum SchemaError {
         document: &'static str,
         source: serde_json::Error,
     },
-    #[error("{document} could not be brought forward from schema {from}: {source}")]
-    Migration {
-        document: &'static str,
-        from: u32,
-        source: anyhow::Error,
-    },
     #[error("{document} does not match schema {version}: {source}")]
     Invalid {
         document: &'static str,
@@ -124,64 +82,51 @@ pub(crate) enum SchemaError {
     NotAnObject { document: &'static str },
 }
 
-/// Bring a stored JSON value forward to the current schema and decode it. Pure:
-/// no file is read, written or set aside, so a caller that owns a document from
-/// somewhere other than the data home — an archive — applies its own policy to
-/// the failure.
-pub(crate) fn decode<T: Document>(mut value: Value) -> Result<Decoded<T>, SchemaError> {
+/// Decode a stored JSON value, refusing one from a newer build. Pure: no file is
+/// read, written or set aside, so a caller that owns a document from somewhere
+/// other than the data home — an archive — applies its own policy to the
+/// failure.
+pub(crate) fn decode<T: Document>(mut value: Value) -> Result<T, SchemaError> {
     let stored = stamp::<T>(&value)?;
-    let current = T::version();
-    if stored > current {
+    if stored > T::VERSION {
         return Err(SchemaError::FromTheFuture {
             document: T::NAME,
             found: stored,
-            supported: current,
+            supported: T::VERSION,
         });
     }
 
-    let applied = (stored - BASELINE) as usize;
-    for (index, step) in T::MIGRATIONS.iter().enumerate().skip(applied) {
-        step(&mut value).map_err(|source| SchemaError::Migration {
-            document: T::NAME,
-            from: BASELINE + index as u32,
-            source,
-        })?;
-    }
     if let Some(object) = value.as_object_mut() {
         object.remove(FIELD);
     }
 
-    let document = serde_json::from_value(value).map_err(|source| SchemaError::Invalid {
+    serde_json::from_value(value).map_err(|source| SchemaError::Invalid {
         document: T::NAME,
-        version: current,
+        version: T::VERSION,
         source,
-    })?;
-    Ok(Decoded { document, stored })
+    })
 }
 
 /// Serialize a document and stamp it with the schema this build writes.
 pub(crate) fn encode<T: Document>(document: &T) -> Result<Value, SchemaError> {
     let mut value = serde_json::to_value(document).map_err(|source| SchemaError::Invalid {
         document: T::NAME,
-        version: T::version(),
+        version: T::VERSION,
         source,
     })?;
     let Some(object) = value.as_object_mut() else {
         return Err(SchemaError::NotAnObject { document: T::NAME });
     };
-    object.insert(FIELD.to_string(), Value::from(T::version()));
+    object.insert(FIELD.to_string(), Value::from(T::VERSION));
     Ok(value)
 }
 
 /// Read a document, or `None` when there is none to read.
 ///
-/// A file that cannot be read *as this document* — malformed, from a newer
-/// build, or failing its own migration — is renamed aside rather than treated as
-/// absent, because the caller's next write would otherwise land on top of it.
-/// The quarantine is recorded as a [`notices`] warning so somebody other than
-/// the log finds out. One that merely needs bringing forward is migrated and
-/// written back here, so the disk converges on the current schema as it is
-/// used rather than in one sweep at startup.
+/// A file that cannot be read *as this document* — malformed or from a newer
+/// build — is renamed aside rather than treated as absent, because the caller's
+/// next write would otherwise land on top of it. The quarantine is recorded as a
+/// [`notices`] warning so somebody other than the log finds out.
 pub(crate) fn load<T: Document>(path: &Path) -> Option<T> {
     let text = match std::fs::read_to_string(path) {
         Ok(text) => text,
@@ -207,28 +152,10 @@ pub(crate) fn load<T: Document>(path: &Path) -> Option<T> {
         }
     };
 
-    let decoded = match decode::<T>(value) {
-        Ok(decoded) => decoded,
-        Err(error) => return set_aside::<T>(path, error),
-    };
-
-    if decoded.migrated() {
-        match save(path, &decoded.document) {
-            Ok(()) => tracing::info!(
-                path = %path.display(),
-                from = decoded.stored,
-                to = T::version(),
-                "migrated {}", T::NAME
-            ),
-            // The value in hand is still correct, so the caller is served; the
-            // disk simply stays at the old schema and migrates again next time.
-            Err(e) => tracing::warn!(
-                path = %path.display(),
-                "migrated {} but could not write it back: {e:#}", T::NAME
-            ),
-        }
+    match decode::<T>(value) {
+        Ok(document) => Some(document),
+        Err(error) => set_aside::<T>(path, error),
     }
-    Some(decoded.document)
 }
 
 /// Write a document, stamped, through a temp file renamed into place — so a
@@ -369,49 +296,11 @@ mod tests {
         const NAME: &'static str = "doc.json";
     }
 
-    /// The same document with a chain: v1 called the field `title`, v2 split
-    /// `count` out of it.
-    #[derive(Serialize, Deserialize, Default, Debug, PartialEq)]
-    #[serde(default, rename_all = "camelCase")]
-    struct Chained {
-        name: String,
-        count: u32,
-    }
-
-    fn rename_title(value: &mut Value) -> anyhow::Result<()> {
-        let Some(object) = value.as_object_mut() else {
-            anyhow::bail!("not an object");
-        };
-        if let Some(title) = object.remove("title") {
-            object.insert("name".to_string(), title);
-        }
-        Ok(())
-    }
-
-    fn default_count(value: &mut Value) -> anyhow::Result<()> {
-        let Some(object) = value.as_object_mut() else {
-            anyhow::bail!("not an object");
-        };
-        object.entry("count").or_insert(Value::from(1));
-        Ok(())
-    }
-
-    impl Document for Chained {
-        const NAME: &'static str = "chained.json";
-        const MIGRATIONS: &'static [Step] = &[rename_title, default_count];
-    }
-
     fn temp() -> tempfile::TempDir {
         tempfile::Builder::new()
             .prefix("hestia-schema-")
             .tempdir()
             .expect("temp dir")
-    }
-
-    #[test]
-    fn the_version_is_the_length_of_the_chain() {
-        assert_eq!(Doc::version(), 1);
-        assert_eq!(Chained::version(), 3);
     }
 
     #[test]
@@ -438,43 +327,12 @@ mod tests {
     }
 
     #[test]
-    fn an_unstamped_document_enters_the_chain_at_the_baseline() {
-        let dir = temp();
-        let path = dir.path().join("chained.json");
-        std::fs::write(&path, r#"{"title":"legacy"}"#).unwrap();
-
-        let loaded = load::<Chained>(&path).expect("migrates");
-
-        assert_eq!(loaded.name, "legacy");
-        assert_eq!(loaded.count, 1, "the second step supplied the new field");
-    }
-
-    #[test]
-    fn a_migrated_document_is_written_back_at_the_current_version() {
-        let dir = temp();
-        let path = dir.path().join("chained.json");
-        std::fs::write(&path, r#"{"schemaVersion":2,"name":"half"}"#).unwrap();
-
-        load::<Chained>(&path).expect("migrates");
-
-        let raw: Value = serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
-        assert_eq!(raw[FIELD], Value::from(3));
-        assert_eq!(raw["count"], Value::from(1));
-    }
-
-    #[test]
-    fn a_document_at_the_current_version_is_left_alone() {
+    fn an_unstamped_document_is_read_as_the_baseline() {
         let dir = temp();
         let path = dir.path().join("doc.json");
-        save(&path, &Doc::default()).unwrap();
-        let before = std::fs::metadata(&path).unwrap().modified().unwrap();
+        std::fs::write(&path, r#"{"name":"plain"}"#).unwrap();
 
-        load::<Doc>(&path).expect("loads");
-
-        assert_eq!(
-            std::fs::metadata(&path).unwrap().modified().unwrap(),
-            before
-        );
+        assert_eq!(load::<Doc>(&path).expect("loads").name, "plain");
     }
 
     #[test]

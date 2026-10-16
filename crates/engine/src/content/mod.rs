@@ -29,10 +29,10 @@ use crate::config::ContentSettings;
 use provider::ContentProvider;
 pub(crate) use provider::{LocalFile, UrlRef};
 
-/// Bring an entry's content documents forward. Reading one is what migrates it,
-/// so this is a read of each — called after an import lands a tree written by
+/// Reading a content document is what quarantines a malformed or too-new one, so
+/// this is a read of each — called after an import lands a tree written by
 /// another build, rather than waiting for the first thing that happens to ask.
-pub(crate) fn migrate(entry_dir: &Path) {
+pub(crate) fn validate(entry_dir: &Path) {
     install::load(entry_dir);
     modpack::load(entry_dir);
 }

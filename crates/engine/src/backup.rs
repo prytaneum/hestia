@@ -531,7 +531,7 @@ mod tests {
         // Rewrite the archive with a manifest this build cannot read.
         let path = backups_dir(entry).join(format!("{}{EXTENSION}", backup.id));
         let mut manifest = schema::encode(&Manifest::default()).unwrap();
-        manifest[schema::FIELD] = serde_json::Value::from(Manifest::version() + 1);
+        manifest[schema::FIELD] = serde_json::Value::from(Manifest::VERSION + 1);
         let encoded = serde_json::to_vec(&manifest).unwrap();
         {
             let encoder = flate2::write::GzEncoder::new(

@@ -197,7 +197,7 @@ impl Engine {
         );
 
         let mark = schema::notices::mark();
-        crate::content::migrate(&entry_dir);
+        crate::content::validate(&entry_dir);
         let restored = self.restore_tracked_content(&entry_dir, job).await;
         let mut warnings = self.unwind_on_failure(&record, restored)?;
         warnings.extend(self.untracked_adoptions(&entry_dir, &landed.adopted).await);

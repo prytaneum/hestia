@@ -39,8 +39,8 @@ pub(crate) struct Manifest {
     /// that will not read back.
     pub(crate) exported_by: String,
     /// The exported instance's record, carried stamped rather than inlined as a
-    /// typed field so it migrates through its own chain on the way in. Its `id`
-    /// is not honoured on import.
+    /// typed field so its own schema stamp is checked on the way in. Its `id` is
+    /// not honoured on import.
     pub(crate) instance: Value,
 }
 
@@ -50,9 +50,7 @@ impl Document for Manifest {
 
 impl Manifest {
     fn record(&self) -> Result<InstanceRecord> {
-        schema::decode::<InstanceRecord>(self.instance.clone())
-            .map(|decoded| decoded.document)
-            .map_err(unreadable)
+        schema::decode::<InstanceRecord>(self.instance.clone()).map_err(unreadable)
     }
 }
 
@@ -115,9 +113,7 @@ fn manifest(reader: &mut Reader, prefix: &str) -> Result<Manifest> {
         tracing::warn!(error = %e, "{MANIFEST} is malformed");
         invalid(ArchiveFault::ManifestMalformed)
     })?;
-    schema::decode::<Manifest>(value)
-        .map(|decoded| decoded.document)
-        .map_err(unreadable)
+    schema::decode::<Manifest>(value).map_err(unreadable)
 }
 
 /// An archive is not ours to set aside, so a schema failure is refused by name:
@@ -434,7 +430,7 @@ mod tests {
             ..Default::default()
         })
         .unwrap();
-        manifest[schema::FIELD] = Value::from(Manifest::version() + 1);
+        manifest[schema::FIELD] = Value::from(Manifest::VERSION + 1);
         archive_of(&path, &manifest);
 
         assert!(matches!(read_error(&path), ErrorInfo::ArchiveTooNew { .. }));
@@ -447,7 +443,7 @@ mod tests {
         let dir = temp("newer-record");
         let path = dir.path().join("future-record.hestia");
         let mut instance = schema::encode(&record()).unwrap();
-        instance[schema::FIELD] = Value::from(InstanceRecord::version() + 1);
+        instance[schema::FIELD] = Value::from(InstanceRecord::VERSION + 1);
         archive_of(
             &path,
             &schema::encode(&Manifest {
