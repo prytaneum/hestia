@@ -1,11 +1,9 @@
-use std::time::Duration;
-
 use ipc::errors::IpcError;
 use proto::content::{
     ContentInspect, ContentInspectParams, ContentInspectResult, ContentKind, ContentProject,
     ContentProjectGet, ContentResolveUrl, ContentSearch, ContentSource, ContentSources,
-    ContentVersion, ContentVersions, ModpackParams, ModpackResolve, ProjectParams,
-    ResolveUrlParams, ResolvedModpack, ResolvedUrl, SearchQuery, SearchResult, VersionQuery,
+    ContentVersion, ContentVersions, ProjectParams, ResolveUrlParams, ResolvedUrl, SearchQuery,
+    SearchResult, VersionQuery,
 };
 
 use crate::session::Session;
@@ -55,22 +53,6 @@ impl Content<'_> {
 
     pub async fn versions(&self, query: &VersionQuery) -> Result<Vec<ContentVersion>, IpcError> {
         Ok(self.session.call::<ContentVersions>(query).await?.versions)
-    }
-
-    /// Resolve a modpack version into its file manifest. Downloads the `.mrpack`
-    /// index on the daemon, so it carries a longer timeout.
-    pub async fn resolve_modpack(
-        &self,
-        source: &str,
-        version_id: &str,
-    ) -> Result<ResolvedModpack, IpcError> {
-        let params = ModpackParams {
-            source: source.to_string(),
-            version_id: version_id.to_string(),
-        };
-        self.session
-            .call_with_timeout::<ModpackResolve>(&params, Duration::from_secs(120))
-            .await
     }
 
     /// Classify a daemon-local file for import (detected kind + validity).

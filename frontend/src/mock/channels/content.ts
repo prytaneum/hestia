@@ -49,8 +49,6 @@ export const channels: Handlers = {
 
   'content.resolve_url': (p) => content.resolveUrl(str(p, 'url')),
 
-  'content.modpack.resolve': (p) => content.resolveModpack(str(p, 'versionId')),
-
   'content.inspect': (p) => {
     const path = str(p, 'path');
     const filename = path.split(/[/\\]/).pop() ?? '';

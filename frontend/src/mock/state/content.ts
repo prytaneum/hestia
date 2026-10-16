@@ -10,7 +10,6 @@ import type {
   ContentUpdate,
   ContentVersion,
   InstalledContent,
-  ResolvedModpack,
   ResolvedUrl,
   SearchResult,
   UntrackedFile,
@@ -256,23 +255,6 @@ export function resolveUrl(url: string): ResolvedUrl {
     ) ?? [];
   const found = catalogue.find((entry) => entry.slug === slug) ?? catalogue[0];
   return { project: found, versionId: version };
-}
-
-export function resolveModpack(versionId: string): ResolvedModpack {
-  const pack =
-    catalogue.find((entry) => entry.kind === 'modpack') ?? catalogue[0];
-  return {
-    source: pack.source,
-    projectId: pack.id,
-    versionId: versionId || `${pack.id}-v0`,
-    versionNumber: '1.4.0',
-    name: pack.title,
-    summary: pack.description,
-    gameVersion: '1.21.1',
-    loader: 'fabric',
-    loaderVersion: '0.16.5',
-    files: [],
-  };
 }
 
 function installed(

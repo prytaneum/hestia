@@ -104,8 +104,6 @@ pub trait ContentProvider: Send + Sync {
     async fn resolve_manifest(&self, _manifest: &Value) -> Result<ResolvedModpack> {
         bail!("{} has no pack manifest of its own", self.name())
     }
-    /// A modpack version's manifest, without its archive.
-    async fn resolve_modpack(&self, version_id: &str) -> Result<ResolvedModpack>;
     /// The modpack version's whole archive. Installing needs the bytes as well
     /// as the manifest — a pack's `overrides/` live only inside the zip — so the
     /// install path fetches once through this rather than resolving and then

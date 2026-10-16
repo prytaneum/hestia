@@ -361,10 +361,6 @@ impl ContentProvider for CurseForge {
         Ok(out)
     }
 
-    async fn resolve_modpack(&self, version_id: &str) -> Result<ResolvedModpack> {
-        Ok(self.fetch_modpack(version_id).await?.0)
-    }
-
     async fn fetch_modpack(&self, version_id: &str) -> Result<(ResolvedModpack, Vec<u8>)> {
         let file = self
             .files(&[version_id.to_string()])

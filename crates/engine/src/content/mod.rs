@@ -315,21 +315,6 @@ impl Content {
         provider.versions(query).await
     }
 
-    pub async fn resolve_modpack(&self, source: &str, version_id: &str) -> Result<ResolvedModpack> {
-        let provider = self.provider(source)?;
-        tracing::info!(source = provider.id(), version_id, "modpack resolve");
-        let resolved = provider.resolve_modpack(version_id).await?;
-        tracing::info!(
-            source = %resolved.source,
-            version_id = %resolved.version_id,
-            files = resolved.files.len(),
-            game_version = %resolved.game_version,
-            loader = ?resolved.loader,
-            "modpack resolved"
-        );
-        Ok(resolved)
-    }
-
     pub async fn resolve_manifest(
         &self,
         source: &str,

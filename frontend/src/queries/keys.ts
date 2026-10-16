@@ -150,8 +150,6 @@ export const keys = {
     url: (url: string) => [...keys.content.all, 'url', url] as const,
     versions: (query: Partial<VersionQuery>) =>
       [...keys.content.all, 'versions', query] as const,
-    modpack: (source: string, versionId: string) =>
-      [...keys.content.all, 'modpack', source, versionId] as const,
   },
   skins: {
     all: ['skins'] as const,

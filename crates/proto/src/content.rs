@@ -292,14 +292,6 @@ pub struct ContentVersionsResult {
     pub versions: Vec<ContentVersion>,
 }
 
-#[derive(Serialize, Deserialize, Default, Debug, Clone)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
-#[serde(default, rename_all = "camelCase")]
-pub struct ModpackParams {
-    pub source: String,
-    pub version_id: String,
-}
-
 /// One installed content item, as the entry's index records it. `source` is a
 /// platform id (`modrinth`) or the literal `file` for a local import — imports
 /// carry empty project/version ids and cannot be updated.
@@ -814,13 +806,6 @@ impl Contract for ContentResolveUrl {
     const CHANNEL: &'static str = "content.resolve_url";
     type Params = ResolveUrlParams;
     type Result = ResolvedUrl;
-}
-
-pub struct ModpackResolve;
-impl Contract for ModpackResolve {
-    const CHANNEL: &'static str = "content.modpack.resolve";
-    type Params = ModpackParams;
-    type Result = ResolvedModpack;
 }
 
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]

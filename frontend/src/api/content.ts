@@ -12,7 +12,6 @@ import type {
   ContentProject,
   ContentSource,
   ContentVersion,
-  ResolvedModpack,
   ResolvedUrl,
   SearchQuery,
   SearchResult,
@@ -52,18 +51,6 @@ export async function versions(
     query,
   );
   return result.versions;
-}
-
-/** Downloads and reads the `.mrpack` index inline — hence the long timeout. */
-export function resolveModpack(
-  versionId: string,
-  source = '',
-): Promise<ResolvedModpack> {
-  return call(
-    'content.modpack.resolve',
-    { source, versionId },
-    { timeoutMs: 120_000 },
-  );
 }
 
 /** Wire value of `proto::content::LOCAL_SOURCE`. */

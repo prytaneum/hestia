@@ -1,14 +1,14 @@
-//! Third-party content: the source catalogue (search, project, versions, modpack
-//! resolution) and the per-entry install surface for servers and instances.
+//! Third-party content: the source catalogue (search, project, versions) and
+//! the per-entry install surface for servers and instances.
 
 use proto::content::{
     ContentInspect, ContentJobResult, ContentListResult, ContentMatchesResult, ContentProjectGet,
     ContentResolveUrl, ContentSearch, ContentSources, ContentUpdatesResult, ContentVersions,
     ContentVersionsResult, InstanceContentAdd, InstanceContentCheckUpdates, InstanceContentEnable,
     InstanceContentList, InstanceContentMatches, InstanceContentRemove, InstanceContentSetVersion,
-    InstanceContentUpdate, ModpackResolve, ServerContentAdd, ServerContentCheckUpdates,
-    ServerContentEnable, ServerContentList, ServerContentMatches, ServerContentRemove,
-    ServerContentSetVersion, ServerContentUpdate, SourcesResult,
+    InstanceContentUpdate, ServerContentAdd, ServerContentCheckUpdates, ServerContentEnable,
+    ServerContentList, ServerContentMatches, ServerContentRemove, ServerContentSetVersion,
+    ServerContentUpdate, SourcesResult,
 };
 use proto::error::{ErrorInfo, Field};
 use proto::Empty;
@@ -81,20 +81,6 @@ fn register_sources(on: &mut Channels<'_>) {
             .await
             .map_err(crate::runtime::engine_error)?;
         Ok(ContentVersionsResult { versions })
-    });
-
-    on.handle::<ModpackResolve, _, _>(|p, ctx| async move {
-        if p.version_id.is_empty() {
-            return Err(ErrorInfo::FieldRequired {
-                field: Field::Version,
-            });
-        }
-        ctx.runtime
-            .engine()
-            .content()
-            .resolve_modpack(&p.source, &p.version_id)
-            .await
-            .map_err(crate::runtime::engine_error)
     });
 
     on.handle::<ContentInspect, _, _>(|p, ctx| async move {

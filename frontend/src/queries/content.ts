@@ -117,11 +117,4 @@ export const contentQueries = {
       retry: false,
       staleTime: BROWSE_STALE_MS,
     }),
-  /** Downloads and reads the pack index — mount deliberately. */
-  modpack: (versionId: string, source = '') =>
-    queryOptions({
-      queryKey: keys.content.modpack(source, versionId),
-      queryFn: () => api.resolveModpack(versionId, source),
-      staleTime: BROWSE_STALE_MS,
-    }),
 };

@@ -33,7 +33,6 @@ export type { InstanceContentRemoveParams } from "./generated/InstanceContentRem
 export type { InstanceContentSetVersionParams } from "./generated/InstanceContentSetVersionParams";
 export type { InstanceContentUpdateParams } from "./generated/InstanceContentUpdateParams";
 export type { ModpackFile } from "./generated/ModpackFile";
-export type { ModpackParams } from "./generated/ModpackParams";
 export type { ProjectParams } from "./generated/ProjectParams";
 export type { ReleaseChannel } from "./generated/ReleaseChannel";
 export type { ResolveUrlParams } from "./generated/ResolveUrlParams";

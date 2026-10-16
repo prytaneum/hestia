@@ -207,9 +207,6 @@ impl ContentProvider for Source {
             .cloned()
             .collect())
     }
-    async fn resolve_modpack(&self, _version: &str) -> Result<ResolvedModpack> {
-        bail!("the fixture source serves no packs")
-    }
     async fn fetch_modpack(&self, _version_id: &str) -> Result<(ResolvedModpack, Vec<u8>)> {
         bail!("the fixture source serves no packs")
     }
