@@ -2,13 +2,12 @@ use std::time::Duration;
 
 use ipc::errors::IpcError;
 use proto::content::{
-    ContentAddSpec, ContentFailure, ContentKind, ContentMatch, ContentUpdate, InstalledContent,
+    ContentAddSpec, ContentFailure, ContentKind, ContentUpdate, InstalledContent,
     InstanceContentAdd, InstanceContentAddParams, InstanceContentCheckUpdates,
     InstanceContentCheckUpdatesParams, InstanceContentEnable, InstanceContentEnableParams,
-    InstanceContentList, InstanceContentListParams, InstanceContentMatches,
-    InstanceContentMatchesParams, InstanceContentRemove, InstanceContentRemoveParams,
-    InstanceContentSetVersion, InstanceContentSetVersionParams, InstanceContentUpdate,
-    InstanceContentUpdateParams, UntrackedFile,
+    InstanceContentList, InstanceContentListParams, InstanceContentRemove,
+    InstanceContentRemoveParams, InstanceContentSetVersion, InstanceContentSetVersionParams,
+    InstanceContentUpdate, InstanceContentUpdateParams, UntrackedFile,
 };
 use proto::instance::{AddressPing, AddressPingParams};
 use proto::instance::{
@@ -17,15 +16,14 @@ use proto::instance::{
     InstanceFlavors, InstanceInfo, InstanceInfoQuery, InstanceLaunch, InstanceLaunchDoneEvent,
     InstanceLaunchParams, InstanceList, InstanceLoaders, InstanceLogs, InstanceLogsParams,
     InstanceRecent, InstanceRef, InstanceRemove, InstanceRename, InstanceRenameParams,
-    InstanceResolve, InstanceServerEdit, InstanceServerEditParams, InstanceServerRef,
-    InstanceServerRemove, InstanceServers, InstanceServersArrange, InstanceServersArrangeParams,
+    InstanceServerEdit, InstanceServerEditParams, InstanceServerRef, InstanceServerRemove,
+    InstanceServers, InstanceServersArrange, InstanceServersArrangeParams,
     InstanceServersWriteResult, InstanceStop, InstanceStopParams, InstanceUpdate,
     InstanceUpdateParams, InstanceVersions, InstanceWorlds, QuickPlay, RecentPlay, ServerEntry,
     WorldInfo,
 };
 use proto::minecraft::{
-    ConfigEntry, Flavor, GameVersion, InstanceProfile, LoadersParams, ProvisionProgress,
-    ResolveParams, VersionsParams,
+    ConfigEntry, Flavor, GameVersion, LoadersParams, ProvisionProgress, VersionsParams,
 };
 use proto::process::ProcessLogLine;
 use proto::server::ServerPingResult;
@@ -70,20 +68,6 @@ impl Instance<'_> {
             .call::<InstanceVersions>(&params)
             .await?
             .versions)
-    }
-
-    pub async fn resolve(
-        &self,
-        flavor: &str,
-        version: &str,
-        loader_version: Option<String>,
-    ) -> Result<InstanceProfile, IpcError> {
-        let params = ResolveParams {
-            flavor: flavor.to_string(),
-            version: version.to_string(),
-            loader_version,
-        };
-        self.session.call::<InstanceResolve>(&params).await
     }
 
     pub async fn loaders(&self, flavor: &str, version: &str) -> Result<Vec<String>, IpcError> {
@@ -479,24 +463,6 @@ impl Instance<'_> {
             .call_with_timeout::<InstanceContentCheckUpdates>(&params, Duration::from_secs(120))
             .await?;
         Ok(result.updates)
-    }
-
-    pub async fn content_matches(
-        &self,
-        instance: &str,
-        kind: ContentKind,
-        item: &str,
-    ) -> Result<Vec<ContentMatch>, IpcError> {
-        let params = InstanceContentMatchesParams {
-            instance: instance.to_string(),
-            kind,
-            item: item.to_string(),
-        };
-        let result = self
-            .session
-            .call_with_timeout::<InstanceContentMatches>(&params, Duration::from_secs(120))
-            .await?;
-        Ok(result.matches)
     }
 
     /// Re-pin one item to a specific published `version` (id or number).

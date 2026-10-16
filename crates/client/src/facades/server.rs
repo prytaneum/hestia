@@ -8,16 +8,14 @@ use proto::backup::{
     ServerBackupRemove, ServerBackupRestore, ServerBackupRestoreParams,
 };
 use proto::content::{
-    ContentAddSpec, ContentFailure, ContentKind, ContentMatch, ContentUpdate, InstalledContent,
-    ServerContentAdd, ServerContentAddParams, ServerContentCheckUpdates,
-    ServerContentCheckUpdatesParams, ServerContentEnable, ServerContentEnableParams,
-    ServerContentList, ServerContentListParams, ServerContentMatches, ServerContentMatchesParams,
+    ContentAddSpec, ContentFailure, ContentKind, ContentUpdate, InstalledContent, ServerContentAdd,
+    ServerContentAddParams, ServerContentCheckUpdates, ServerContentCheckUpdatesParams,
+    ServerContentEnable, ServerContentEnableParams, ServerContentList, ServerContentListParams,
     ServerContentRemove, ServerContentRemoveParams, ServerContentSetVersion,
     ServerContentSetVersionParams, ServerContentUpdate, ServerContentUpdateParams, UntrackedFile,
 };
 use proto::minecraft::{
-    ConfigEntry, Flavor, GameVersion, LoadersParams, ProvisionProgress, ResolveParams,
-    ServerProfile, VersionsParams,
+    ConfigEntry, Flavor, GameVersion, LoadersParams, ProvisionProgress, VersionsParams,
 };
 use proto::process::ProcessLogLine;
 use proto::server::{
@@ -26,9 +24,9 @@ use proto::server::{
     ServerConfigSetParams, ServerCreate, ServerCreateDoneEvent, ServerCreateParams, ServerDetail,
     ServerDetails, ServerFlavors, ServerInfo, ServerList, ServerLoaders, ServerLogs,
     ServerLogsParams, ServerPing, ServerPingResult, ServerProperties, ServerProperty, ServerRef,
-    ServerRemove, ServerRename, ServerRenameParams, ServerResolve, ServerRestart, ServerStart,
-    ServerStartResult, ServerStatus, ServerStop, ServerUpdate, ServerUpdateDoneEvent,
-    ServerUpdateParams, ServerVersions,
+    ServerRemove, ServerRename, ServerRenameParams, ServerRestart, ServerStart, ServerStartResult,
+    ServerStatus, ServerStop, ServerUpdate, ServerUpdateDoneEvent, ServerUpdateParams,
+    ServerVersions,
 };
 
 pub struct Server<'a> {
@@ -49,20 +47,6 @@ impl Server<'_> {
             flavor: flavor.to_string(),
         };
         Ok(self.session.call::<ServerVersions>(&params).await?.versions)
-    }
-
-    pub async fn resolve(
-        &self,
-        flavor: &str,
-        version: &str,
-        loader_version: Option<String>,
-    ) -> Result<ServerProfile, IpcError> {
-        let params = ResolveParams {
-            flavor: flavor.to_string(),
-            version: version.to_string(),
-            loader_version,
-        };
-        self.session.call::<ServerResolve>(&params).await
     }
 
     pub async fn loaders(&self, flavor: &str, version: &str) -> Result<Vec<String>, IpcError> {
@@ -449,24 +433,6 @@ impl Server<'_> {
             .call_with_timeout::<ServerContentCheckUpdates>(&params, Duration::from_secs(120))
             .await?;
         Ok(result.updates)
-    }
-
-    pub async fn content_matches(
-        &self,
-        server: &str,
-        kind: ContentKind,
-        item: &str,
-    ) -> Result<Vec<ContentMatch>, IpcError> {
-        let params = ServerContentMatchesParams {
-            server: server.to_string(),
-            kind,
-            item: item.to_string(),
-        };
-        let result = self
-            .session
-            .call_with_timeout::<ServerContentMatches>(&params, Duration::from_secs(120))
-            .await?;
-        Ok(result.matches)
     }
 
     /// Re-pin one item to a specific published `version` (id or number).

@@ -5,12 +5,10 @@
 use ipc::errors::IpcError;
 use proto::content::ContentFailure;
 use proto::instance::InstanceInfo;
-use proto::instance::InstanceRef;
 use proto::minecraft::ProvisionProgress;
 use proto::transfer::{
-    ArchiveEntry, ArchiveInfo, ArchiveRef, ExportFormat, ImportFormat, InstanceExport,
-    InstanceExportContents, InstanceExportParams, InstanceImport, InstanceImportInspect,
-    InstanceImportParams,
+    ArchiveInfo, ArchiveRef, ExportFormat, ImportFormat, InstanceExport, InstanceExportParams,
+    InstanceImport, InstanceImportInspect, InstanceImportParams,
 };
 use proto::warning::WarningInfo;
 use serde_json::Value;
@@ -45,19 +43,6 @@ impl Transfer<'_> {
             path: path.to_string(),
         };
         self.session.call::<InstanceImportInspect>(&params).await
-    }
-
-    /// What an export of this instance would carry, as a tree — where an
-    /// `exclude` path comes from.
-    pub async fn contents(&self, instance: &str) -> Result<Vec<ArchiveEntry>, IpcError> {
-        let params = InstanceRef {
-            instance: instance.to_string(),
-        };
-        Ok(self
-            .session
-            .call::<InstanceExportContents>(&params)
-            .await?
-            .entries)
     }
 
     /// Write an instance out as an archive, blocking until it is written.

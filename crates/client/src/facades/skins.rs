@@ -3,8 +3,8 @@ use std::time::Duration;
 use ipc::errors::IpcError;
 use proto::skins::{
     Cape, CapeClear, CapeClearParams, CapeEquip, CapeEquipParams, Skin, SkinAdd, SkinAddParams,
-    SkinEquip, SkinEquipParams, SkinList, SkinListParams, SkinRemove, SkinRemoveParams, SkinReset,
-    SkinResetParams, SkinUpdate, SkinUpdateParams, SkinVariant,
+    SkinList, SkinListParams, SkinRemove, SkinRemoveParams, SkinReset, SkinResetParams, SkinUpdate,
+    SkinUpdateParams, SkinVariant,
 };
 
 use crate::session::Session;
@@ -50,18 +50,6 @@ impl Skins<'_> {
             .call_with_timeout::<SkinAdd>(&params, MOJANG_TIMEOUT)
             .await?
             .skin)
-    }
-
-    /// Equip a library or default skin by its key from `list`.
-    pub async fn equip(&self, account: &str, key: &str) -> Result<(), IpcError> {
-        let params = SkinEquipParams {
-            account: account.to_string(),
-            key: key.to_string(),
-        };
-        self.session
-            .call_with_timeout::<SkinEquip>(&params, MOJANG_TIMEOUT)
-            .await?;
-        Ok(())
     }
 
     /// Reset the account to its uuid-derived default skin.
