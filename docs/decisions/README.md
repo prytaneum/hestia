@@ -74,7 +74,7 @@ the alternative you rejected — that is usually the part nobody can recover lat
 - **0071** — [Options sync through a typed catalogue, not raw key-value pairs](0071-options-sync-through-a-typed-catalogue.md)
 - **0072** — [A pack syncs by identity, not by file — and only where it fits](0072-a-pack-syncs-by-identity.md)
 - **0073** — [Screenshots aggregate rather than sync — nothing is copied](0073-screenshots-aggregate-rather-than-sync.md)
-- **0090** — [Config values pass one typed schema, and property values come from a curated table](0090-config-values-pass-one-typed-schema.md)
+- **0082** — [Config values pass one typed schema, and property values come from a curated table](0082-config-values-pass-one-typed-schema.md)
 - **0020** — [The id is an opaque uuid; the directory is the slug — decoupled](0020-id-is-a-uuid-directory-is-a-slug.md)
 - **0021** — [Backups follow docker-mc-backup, minus what the launcher already owns](0021-backups-follow-docker-mc-backup.md)
 - **0022** — [A world describes itself; a directory listing does not](0022-a-world-describes-itself.md)

@@ -34,4 +34,4 @@ accepts any unmanaged key rather than rejecting every one. `Servers::has_schema`
 is that state, so a caller can report it rather than leaving the user to
 discover that this server validates nothing.
 
-**Amended by [0090](0090-config-values-pass-one-typed-schema.md), for values only.** Which keys exist is still decided by this schema; what a *value* may be comes from a daemon-owned table of known properties (type, range, allowed words), and a key the table does not know takes any string.
+**Amended by [0082](0082-config-values-pass-one-typed-schema.md), for values only.** Which keys exist is still decided by this schema; what a *value* may be comes from a daemon-owned table of known properties (type, range, allowed words), and a key the table does not know takes any string.
