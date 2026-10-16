@@ -1,12 +1,10 @@
 export type TourAnchor =
   | 'nav'
-  | 'account'
   | 'daemon-status'
   | 'play-bar'
   | 'page-search'
   | 'page-actions'
   | 'browse-kinds'
-  | 'library-new'
   | 'entry-run'
   | 'instance-content'
   | 'instance-worlds'

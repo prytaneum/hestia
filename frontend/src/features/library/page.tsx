@@ -17,7 +17,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { ImportInstanceDialog } from '@/features/instances/dialogs';
 import { useOpenedArchive } from '@/features/instances/hooks';
-import { anchor, GettingStarted, useAutoTour } from '@/features/onboarding';
+import { GettingStarted, useAutoTour } from '@/features/onboarding';
 import {
   EntryCollection,
   EntryGridSkeleton,
@@ -122,11 +122,7 @@ export function LibraryPage({
           <DropdownMenu>
             <DropdownMenuTrigger
               render={
-                <Button
-                  size="sm"
-                  data-icon="inline-start"
-                  {...anchor('library-new')}
-                >
+                <Button size="sm" data-icon="inline-start">
                   <PlusIcon weight="bold" />
                   {m['library.new']()}
                 </Button>

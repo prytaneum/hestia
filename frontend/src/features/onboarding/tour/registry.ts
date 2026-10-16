@@ -18,19 +18,9 @@ export const tours: Record<TourId, readonly TourStep[]> = {
       body: m['onboarding.tour.shell.nav.body'],
     },
     {
-      anchor: 'library-new',
-      title: m['onboarding.tour.shell.create.title'],
-      body: m['onboarding.tour.shell.create.body'],
-    },
-    {
       anchor: 'play-bar',
       title: m['onboarding.tour.shell.play.title'],
       body: m['onboarding.tour.shell.play.body'],
-    },
-    {
-      anchor: 'account',
-      title: m['onboarding.tour.shell.account.title'],
-      body: m['onboarding.tour.shell.account.body'],
     },
     {
       anchor: 'daemon-status',

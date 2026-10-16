@@ -30,9 +30,7 @@ export function Sidebar() {
           item={settingsItem}
           active={isActive(pathname, settingsItem)}
         />
-        <span {...anchor('account')}>
-          <AccountMenu />
-        </span>
+        <AccountMenu />
       </div>
     </nav>
   );

@@ -71,14 +71,6 @@
         }
       },
       "shell": {
-        "account": {
-          "body": "Alterne entre contas conectadas ou adicione outra. Jogar exige uma; navegar e hospedar não.",
-          "title": "Sua conta"
-        },
-        "create": {
-          "body": "Crie uma instância ou um servidor aqui, ou importe de um arquivo Hestia, um .mrpack ou uma instalação do Prism.",
-          "title": "Crie alguma coisa"
-        },
         "daemon": {
           "body": "O Hestia mantém um pequeno serviço em segundo plano que cuida dos seus servidores e sessões — este ponto mostra se ele está ativo.",
           "title": "Rodando em segundo plano"

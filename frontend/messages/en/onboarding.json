@@ -71,14 +71,6 @@
         }
       },
       "shell": {
-        "account": {
-          "body": "Switch between signed-in accounts, or add another. Playing needs one; browsing and hosting do not.",
-          "title": "Your account"
-        },
-        "create": {
-          "body": "Start a new instance or server here, or import one from a Hestia archive, an .mrpack, or a Prism install.",
-          "title": "Make something"
-        },
         "daemon": {
           "body": "Hestia runs a small background service that owns your servers and sessions — this dot says whether it is up.",
           "title": "Running in the background"
