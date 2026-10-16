@@ -1,5 +1,6 @@
-//! `hestia instance create` — the flavor/version pickers and the create-time
-//! JVM settings. The record is cheap; files materialise at the first launch.
+//! `hestia instance create` — the wizard for whatever is missing, or the fully
+//! specified flag path, and the create-time JVM settings. The record is cheap;
+//! files materialise at the first launch.
 
 use anyhow::{bail, Result};
 use client::proto::minecraft::ConfigEntry;
@@ -18,12 +19,8 @@ pub(super) async fn run(
     name: Option<String>,
     memory: Option<String>,
 ) -> Result<()> {
-    let bare = flavor.is_none()
-        && version.is_none()
-        && loader.is_none()
-        && name.is_none()
-        && memory.is_none();
-    if bare && ui::interactive_output() {
+    let fully_specified = flavor.is_some() && version.is_some() && name.is_some();
+    if ui::is_interactive() && !fully_specified {
         return run_wizard(client, flavor, version, loader, name, memory).await;
     }
     let flavors = {
@@ -36,10 +33,7 @@ pub(super) async fn run(
         client.instance().versions(&flavor).await?
     };
     let version = mc::pick_version(versions, version)?;
-    let name = match name {
-        Some(name) => name,
-        None => ui::input("instance name", &format!("{flavor}-{version}"))?,
-    };
+    let name = name.unwrap_or_else(|| format!("{flavor}-{version}"));
     let config = memory
         .map(|memory| ConfigEntry {
             key: "memory".into(),

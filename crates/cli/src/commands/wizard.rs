@@ -1,8 +1,9 @@
 //! The fullscreen create wizard shared by `server create` and
 //! `instance create`: step pages under a breadcrumb — flavor → version →
-//! name → settings → confirm — with Esc walking back, arguments prefilling
-//! (and skipping) steps, and provisioning progress rendered in the same
-//! session, ending on the created entry's summary.
+//! name → settings → confirm — with Esc walking back, given arguments
+//! prefilling (and skipping) steps, and provisioning progress rendered in the
+//! same session, ending on the created entry's summary. It opens whenever a
+//! create is interactive and flavor, version, name or (server) EULA is missing.
 
 use std::collections::HashMap;
 

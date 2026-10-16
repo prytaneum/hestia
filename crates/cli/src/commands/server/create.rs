@@ -1,5 +1,5 @@
-//! `hestia server create` — the flavor/version pickers, the EULA confirm, and
-//! the create-time settings.
+//! `hestia server create` — the wizard for whatever is missing, or the fully
+//! specified flag path, and the create-time settings.
 
 use std::sync::Arc;
 
@@ -67,23 +67,8 @@ pub struct CreateArgs {
 }
 
 impl CreateArgs {
-    /// No argument or flag at all — the caller asked for the interactive
-    /// wizard. Anything given selects the flag-driven path instead.
-    fn is_bare(&self) -> bool {
-        self.flavor.is_none()
-            && self.version.is_none()
-            && self.loader.is_none()
-            && self.name.is_none()
-            && !self.eula
-            && self.port.is_none()
-            && self.memory.is_none()
-            && self.motd.is_none()
-            && self.max_players.is_none()
-            && self.difficulty.is_none()
-            && self.gamemode.is_none()
-            && self.seed.is_none()
-            && self.prop.is_empty()
-            && self.modpack.is_none()
+    fn is_fully_specified(&self) -> bool {
+        self.flavor.is_some() && self.version.is_some() && self.name.is_some() && self.eula
     }
 }
 
@@ -102,8 +87,11 @@ pub(super) async fn run(client: &Client, args: CreateArgs) -> Result<()> {
         )
         .await;
     }
-    if args.is_bare() && ui::interactive_output() {
+    if ui::is_interactive() && !args.is_fully_specified() {
         return run_wizard(client, args).await;
+    }
+    if !args.eula {
+        bail!("pass --eula to accept the Minecraft EULA ({EULA_URL})");
     }
     let flavors = {
         let _spinner = Spinner::start("fetching flavors");
@@ -115,13 +103,7 @@ pub(super) async fn run(client: &Client, args: CreateArgs) -> Result<()> {
         client.server().versions(&flavor).await?
     };
     let version = mc::pick_version(versions, args.version)?;
-    let name = match args.name {
-        Some(name) => name,
-        None => ui::input("server name", &format!("{flavor}-{version}"))?,
-    };
-    if !args.eula {
-        confirm_eula()?;
-    }
+    let name = args.name.unwrap_or_else(|| format!("{flavor}-{version}"));
     let config = build_config(
         args.memory,
         [
@@ -257,19 +239,4 @@ fn build_config(
         });
     }
     Ok(config)
-}
-
-/// Interactive fallback for a missing `--eula`; errors when stdin is not a
-/// terminal so scripts must pass the flag explicitly.
-fn confirm_eula() -> Result<()> {
-    let accepted = ui::confirm(
-        &format!("running a Minecraft server requires accepting the EULA ({EULA_URL})"),
-        "accept",
-        "decline",
-    )
-    .context("pass --eula to accept the Minecraft EULA")?;
-    if !accepted {
-        bail!("the Minecraft EULA was not accepted");
-    }
-    Ok(())
 }

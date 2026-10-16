@@ -53,13 +53,17 @@ Fully provisioned at create; run under the daemon; each server claims its own po
 Catalogue verbs take no entry:
 
 ```bash
-hestia server create             # bare: the fullscreen wizard — flavor →
+hestia server create             # the fullscreen wizard — flavor →
                                  #   version (type to filter; Tab pulls
                                  #   snapshots in) → name → settings
                                  #   (skippable) → confirm (EULA); Esc steps
-                                 #   back; any argument switches to the
-                                 #   flag-driven flow below
-hestia server create vanilla 1.21.1 --eula -n smp   # scriptable (-l pins a
+                                 #   back. Arguments prefill it, so `server
+                                 #   create fabric` opens at the version step;
+                                 #   it opens whenever flavor, version, name or
+                                 #   the EULA is missing and stdin and stderr
+                                 #   are terminals
+hestia server create vanilla 1.21.1 --eula -n smp   # fully specified, so no
+                                 #   wizard and scriptable (-l pins a
                                  #   loader, -p pins the game port, --memory 4G
                                  #   sets -Xms/-Xmx; --motd, --max-players,
                                  #   --difficulty, --gamemode, --seed cover the
@@ -172,9 +176,10 @@ info` reports the effective flags and where they came from.
 Clients; files materialise at first launch. Same shape: catalogue verbs take no entry, the rest are entry-first.
 
 ```bash
-hestia instance create           # bare: the fullscreen wizard — flavor →
-                                 #   version → name → memory → confirm; any
-                                 #   argument switches to the flag-driven flow
+hestia instance create           # the fullscreen wizard — flavor →
+                                 #   version → name → memory → confirm;
+                                 #   arguments prefill it, and it opens
+                                 #   whenever flavor, version or name is missing
 hestia instance create fabric 1.21.1 -n modded --memory 4G
 hestia instance list             # managed instances and their state
 hestia instance versions [flavor] # game versions a flavor offers
