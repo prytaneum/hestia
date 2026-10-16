@@ -31,7 +31,6 @@ Microsoft sign-in; `auth` is an alias for `account`.
 ```bash
 hestia account login             # device-code flow — opens the browser, the code
                                  #   shown and copied to the clipboard
-hestia account login --sisu      # browser-redirect flow: sign in, paste the redirect back
 hestia account list              # signed-in accounts ('*' marks the one launches use)
 hestia account switch [name]     # pick the account launches use (prompts when omitted)
 hestia account logout <name|uuid>

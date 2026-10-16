@@ -12,13 +12,7 @@ use crate::ui::{self, Spinner, View};
 #[derive(Subcommand)]
 pub enum AccountCmd {
     /// Sign in to a Microsoft account
-    Login {
-        #[arg(
-            long,
-            help = "Sign in through the browser-redirect (sisu) flow instead of a device code"
-        )]
-        sisu: bool,
-    },
+    Login,
     /// Signed-in accounts (* marks the one launches use)
     #[command(visible_alias = "ls")]
     List,
@@ -38,12 +32,8 @@ pub enum AccountCmd {
 pub async fn run(cmd: AccountCmd) -> Result<()> {
     let client = super::connect().await?;
     match cmd {
-        AccountCmd::Login { sisu } => {
-            let account = if sisu {
-                sisu_login(&client).await?
-            } else {
-                device_code_login(&client).await?
-            };
+        AccountCmd::Login => {
+            let account = device_code_login(&client).await?;
             ui::show(View::line(format!(
                 "Signed in as {} ({})",
                 account.name, account.uuid
@@ -134,23 +124,6 @@ async fn device_code_login(client: &Client) -> Result<Account> {
     Ok(client.accounts().complete_login(&flow.id, "").await?)
 }
 
-async fn sisu_login(client: &Client) -> Result<Account> {
-    let flow = client.accounts().begin_login(LoginMethod::Sisu).await?;
-    ui::show(View::line(format!(
-        "Open this URL in your browser and sign in:\n\n  {}",
-        flow.url
-    )))?;
-    open_browser(&flow.url);
-
-    let pasted = ui::prompt("you'll land on a blank page — paste its full address (or the code)")?;
-    let code = extract_code(&pasted);
-    if code.is_empty() {
-        bail!("no authorization code was pasted");
-    }
-    let _spinner = Spinner::start("signing in…");
-    Ok(client.accounts().complete_login(&flow.id, &code).await?)
-}
-
 /// Best-effort copy through the platform's own clipboard tool; returns whether
 /// one accepted the text.
 fn copy_clipboard(text: &str) -> bool {
@@ -197,43 +170,4 @@ fn open_browser(url: &str) {
         c
     };
     let _ = command.stdout(Stdio::null()).stderr(Stdio::null()).spawn();
-}
-
-/// Pull the OAuth `code` out of a pasted redirect URL (or accept a bare code).
-fn extract_code(pasted: &str) -> String {
-    let input = pasted.trim();
-    let Some(marker) = input.find("code=") else {
-        return input.to_string();
-    };
-    let rest = &input[marker + 5..];
-    let end = rest.find('&').unwrap_or(rest.len());
-    url_decode(&rest[..end])
-}
-
-fn url_decode(value: &str) -> String {
-    let bytes = value.as_bytes();
-    let mut out = String::with_capacity(value.len());
-    let mut i = 0;
-    while i < bytes.len() {
-        match bytes[i] {
-            b'%' if i + 2 < bytes.len() => {
-                if let Ok(byte) = u8::from_str_radix(&value[i + 1..i + 3], 16) {
-                    out.push(byte as char);
-                    i += 3;
-                    continue;
-                }
-                out.push('%');
-                i += 1;
-            }
-            b'+' => {
-                out.push(' ');
-                i += 1;
-            }
-            b => {
-                out.push(b as char);
-                i += 1;
-            }
-        }
-    }
-    out
 }
