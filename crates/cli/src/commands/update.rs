@@ -5,7 +5,7 @@ use std::sync::Arc;
 use anyhow::{Context, Result};
 use client::IpcError;
 
-use crate::ui::{self, DownloadReporter, Spinner, View};
+use crate::ui::{self, ByteReporter, Spinner, View};
 
 pub async fn run(yes: bool) -> Result<()> {
     let client = super::connect().await?;
@@ -40,11 +40,12 @@ pub async fn run(yes: bool) -> Result<()> {
         }
     }
 
-    let reporter = Arc::new(DownloadReporter::new("downloading update"));
+    const LABEL: &str = "downloading update";
+    let reporter = Arc::new(ByteReporter::new(LABEL));
     let progress = reporter.clone();
     let (path, version) = client
         .update()
-        .download(move |p| progress.update(p))
+        .download(move |p| progress.bytes(LABEL, p.downloaded, p.total))
         .await?;
     reporter.finish();
 

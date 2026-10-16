@@ -11,8 +11,6 @@ use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
 
-use client::proto::download::DownloadProgress;
-use client::proto::java::{JavaInstallPhase, JavaInstallProgress};
 use client::proto::minecraft::{ProvisionPhase, ProvisionProgress};
 use ratatui::crossterm::cursor::{Hide, MoveToColumn, Show};
 use ratatui::crossterm::style::{Print, Stylize};
@@ -162,123 +160,51 @@ impl Drop for Spinner {
     }
 }
 
-/// Reports java-install progress: a live gauge on a terminal, one line per phase
+/// Reports a byte transfer with optional non-byte phases (java install, the
+/// self-update download): a live gauge on a terminal, one line per new label
 /// when stderr is redirected.
-pub struct InstallReporter {
+pub struct ByteReporter {
     animator: Option<Animator>,
     rate: Mutex<RateMeter>,
-    last_phase: Mutex<Option<JavaInstallPhase>>,
+    last_label: Mutex<Option<&'static str>>,
 }
 
-impl InstallReporter {
-    pub fn new() -> Self {
-        Self {
-            animator: Animator::start(View::Spinner(
-                phase_label(JavaInstallPhase::Resolving).into(),
-            )),
-            rate: Mutex::new(RateMeter::default()),
-            last_phase: Mutex::new(None),
-        }
-    }
-
-    pub fn update(&self, progress: &JavaInstallProgress) {
-        let Some(animator) = &self.animator else {
-            let mut last = self.last_phase.lock().unwrap();
-            if *last != Some(progress.phase) {
-                *last = Some(progress.phase);
-                eprintln!("{}", phase_label(progress.phase));
-            }
-            return;
-        };
-        let view = match progress.phase {
-            JavaInstallPhase::Downloading => {
-                let rate = self.rate.lock().unwrap().observe(progress.current);
-                View::Gauge {
-                    label: "downloading",
-                    ratio: ratio(progress),
-                    detail: download_detail(progress, rate),
-                }
-            }
-            phase => View::Spinner(phase_label(phase).into()),
-        };
-        animator.set(view);
-    }
-
-    /// Clear the gauge so a following message prints on a clean line.
-    pub fn finish(&self) {
-        if let Some(animator) = &self.animator {
-            animator.stop();
-        }
-    }
-}
-
-fn ratio(progress: &JavaInstallProgress) -> f64 {
-    if progress.total > 0 {
-        (progress.current as f64 / progress.total as f64).clamp(0.0, 1.0)
-    } else {
-        0.0
-    }
-}
-
-fn download_detail(progress: &JavaInstallProgress, rate: f64) -> String {
-    let current = human_bytes(progress.current);
-    let total = if progress.total > 0 {
-        human_bytes(progress.total)
-    } else {
-        "?".to_string()
-    };
-    if rate > 0.0 {
-        format!("{current} / {total} · {}/s", human_bytes(rate as u64))
-    } else {
-        format!("{current} / {total}")
-    }
-}
-
-/// Reports provisioning progress (server create / instance launch): a live
-/// gauge on a terminal, one line per phase when stderr is redirected. Byte
-/// phases (java, jars) show sizes and throughput; count phases (libraries,
-/// assets) show completed/total.
-/// Reports a plain byte download (the self-update installer): a live gauge
-/// on a terminal, one announcement line when stderr is redirected.
-pub struct DownloadReporter {
-    animator: Option<Animator>,
-    rate: Mutex<RateMeter>,
-    label: &'static str,
-}
-
-impl DownloadReporter {
+impl ByteReporter {
     pub fn new(label: &'static str) -> Self {
-        let animator = Animator::start(View::Spinner(label.into()));
-        if animator.is_none() {
+        let reporter = Self {
+            animator: Animator::start(View::Spinner(label.into())),
+            rate: Mutex::new(RateMeter::default()),
+            last_label: Mutex::new(None),
+        };
+        reporter.announce(label);
+        reporter
+    }
+
+    fn announce(&self, label: &'static str) {
+        let mut last = self.last_label.lock().unwrap();
+        if self.animator.is_none() && *last != Some(label) {
             eprintln!("{label}");
         }
-        Self {
-            animator,
-            rate: Mutex::new(RateMeter::default()),
-            label,
+        *last = Some(label);
+    }
+
+    pub fn phase(&self, label: &'static str) {
+        self.announce(label);
+        if let Some(animator) = &self.animator {
+            animator.set(View::Spinner(label.into()));
         }
     }
 
-    pub fn update(&self, progress: &DownloadProgress) {
+    pub fn bytes(&self, label: &'static str, current: u64, total: u64) {
+        self.announce(label);
         let Some(animator) = &self.animator else {
             return;
         };
-        let rate = self.rate.lock().unwrap().observe(progress.downloaded);
-        let current = human_bytes(progress.downloaded);
-        let total = if progress.total > 0 {
-            human_bytes(progress.total)
-        } else {
-            "?".to_string()
-        };
-        let detail = if rate > 0.0 {
-            format!("{current} / {total} · {}/s", human_bytes(rate as u64))
-        } else {
-            format!("{current} / {total}")
-        };
+        let rate = self.rate.lock().unwrap().observe(current);
         animator.set(View::Gauge {
-            label: self.label,
-            ratio: count_ratio(progress.downloaded, progress.total),
-            detail,
+            label,
+            ratio: count_ratio(current, total),
+            detail: size_detail(current, total, rate),
         });
     }
 
@@ -290,6 +216,10 @@ impl DownloadReporter {
     }
 }
 
+/// Reports provisioning progress (server create / instance launch): a live
+/// gauge on a terminal, one line per phase when stderr is redirected. Byte
+/// phases (java, jars) show sizes and throughput; count phases (libraries,
+/// assets) show completed/total.
 pub struct ProvisionReporter {
     animator: Option<Animator>,
     rate: Mutex<RateMeter>,
@@ -406,16 +336,22 @@ fn bytes_detail(progress: &ProvisionProgress, rate: f64) -> String {
     } else {
         parts.push(progress.detail.clone());
     }
-    let total = if progress.total > 0 {
-        human_bytes(progress.total)
+    parts.push(size_detail(progress.current, progress.total, rate));
+    parts.join(" · ")
+}
+
+fn size_detail(current: u64, total: u64, rate: f64) -> String {
+    let total = if total > 0 {
+        human_bytes(total)
     } else {
         "?".to_string()
     };
-    parts.push(format!("{} / {total}", human_bytes(progress.current)));
+    let size = format!("{} / {total}", human_bytes(current));
     if rate > 0.0 {
-        parts.push(format!("{}/s", human_bytes(rate as u64)));
+        format!("{size} · {}/s", human_bytes(rate as u64))
+    } else {
+        size
     }
-    parts.join(" · ")
 }
 
 /// The word before a phase's gauge (`backing up ███…`, not `downloading` for
@@ -505,14 +441,6 @@ impl RateMeter {
             }
         }
         self.per_second
-    }
-}
-
-fn phase_label(phase: JavaInstallPhase) -> &'static str {
-    match phase {
-        JavaInstallPhase::Resolving => "resolving…",
-        JavaInstallPhase::Downloading => "downloading…",
-        JavaInstallPhase::Extracting => "extracting…",
     }
 }
 

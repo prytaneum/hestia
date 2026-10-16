@@ -24,7 +24,7 @@ use anyhow::{anyhow, bail, Result};
 use client::proto::warning::WarningInfo;
 
 pub use components::PickerItem;
-pub use progress::{DownloadReporter, InstallReporter, ProvisionReporter, Spinner};
+pub use progress::{ByteReporter, ProvisionReporter, Spinner};
 pub use session::console::{Completions, ConsoleEvent, ConsoleLink};
 pub use session::monitor::MonitorSample;
 pub use view::View;

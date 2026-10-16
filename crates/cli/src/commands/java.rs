@@ -4,8 +4,9 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use clap::Subcommand;
+use client::proto::java::JavaInstallPhase;
 
-use crate::ui::{self, InstallReporter, Spinner, View};
+use crate::ui::{self, ByteReporter, Spinner, View};
 
 #[derive(Subcommand)]
 pub enum JavaCmd {
@@ -67,13 +68,17 @@ pub async fn run(cmd: JavaCmd) -> Result<()> {
             ))?;
         }
         JavaCmd::Install { major, force } => {
-            let reporter = Arc::new(InstallReporter::new());
+            let reporter = Arc::new(ByteReporter::new("resolving…"));
             let progress = reporter.clone();
             // Our own job id, so Ctrl-C can cancel this install rather than
             // just walking away from it.
             let id = format!("java-install-{major}-{}", std::process::id());
             let java = client.java();
-            let install = java.install(major, force, &id, move |p| progress.update(p));
+            let install = java.install(major, force, &id, move |p| match p.phase {
+                JavaInstallPhase::Resolving => progress.phase("resolving…"),
+                JavaInstallPhase::Downloading => progress.bytes("downloading", p.current, p.total),
+                JavaInstallPhase::Extracting => progress.phase("extracting…"),
+            });
             let result = super::cancellable(&client, &id, install).await;
             reporter.finish();
             if matches!(result, Err(client::IpcError::Cancelled)) {
