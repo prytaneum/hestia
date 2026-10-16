@@ -17,8 +17,8 @@ filter still matches exactly one job. (3) The client stream carries
 `process.started` as well as output and exit, so a follower can tell a restart
 from silence. A follow therefore starts against a stopped entry (backfill from
 the file, then wait), renders a state line where a run ends or begins, and keeps
-the same stream — in the CLI's fullscreen session, its piped `tail -f` form, and
-the desktop's log panels alike. Two deliberate exceptions stay process-scoped,
+the same stream — in the CLI's one plain `tail -f` follower and the desktop's
+log panels alike. Two deliberate exceptions stay process-scoped,
 because there the process *is* the subject: the attach that follows
 `play`/`launch`, and the rcon console (which can only drive a live server
 anyway). The rejected alternative was a reconnect loop in each front-end — it

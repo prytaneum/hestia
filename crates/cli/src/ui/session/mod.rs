@@ -6,7 +6,6 @@
 //! to keys, mouse, ticks, and injected app events.
 
 pub mod console;
-pub mod logs;
 pub mod monitor;
 pub mod pager;
 pub mod prompt;
@@ -177,9 +176,9 @@ pub fn is_cancel(key: &KeyEvent) -> bool {
         || (key.code == KeyCode::Char('c') && key.modifiers.contains(KeyModifiers::CONTROL))
 }
 
-/// The one-line header the log sessions share: a cyan title on the left and a
-/// dim right-aligned hint that flips to the scroll position while scrolled up
-/// from the tail, else shows the screen's own key hints.
+/// The one-line header the console and monitor sessions share: a cyan title on
+/// the left and a dim right-aligned hint that flips to the scroll position while
+/// scrolled up from the tail, else shows the screen's own key hints.
 pub(super) fn log_header(frame: &mut Frame, area: Rect, title: &str, scroll: usize, actions: &str) {
     let hint = if scroll > 0 {
         format!("scrolled ↑{scroll} · ↓ follows")

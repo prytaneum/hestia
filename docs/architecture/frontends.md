@@ -125,10 +125,13 @@ Interactive surfaces run as **fullscreen sessions** on a small framework:
   prints plainly to stdout after the terminal is restored, so scrollback keeps a
   record.
 
-Anything that takes keys owns the whole alternate screen for as long as it runs.
-Progress with **no** interaction is the deliberate exception — one stderr line
-rewritten in place, since flashing the alternate screen for a spinner you cannot
-act on is hostile ([0044](../decisions/0044-fullscreen-interaction-inline-progress.md)).
+A widget — anything that draws a viewport and takes keys — owns the whole
+alternate screen for as long as it runs. Line prompts (`ui::prompt`, `input`,
+`confirm`) and streams (the `logs -f` follower, the attach after a launch)
+do not: they print to the scrollback, so their output stays searchable and
+copyable. Progress with **no** interaction is one stderr line rewritten in
+place, since flashing the alternate screen for a spinner you cannot act on is
+hostile ([0044](../decisions/0044-fullscreen-interaction-inline-progress.md)).
 
 Piped or redirected, every surface degrades to plain text and widgets degrade to
 arguments, so output stays scriptable.

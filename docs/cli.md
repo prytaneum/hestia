@@ -136,8 +136,8 @@ hestia server smp attach         # interactive console: live logs, type to send
                                  #   commands, Esc detaches (alias: console).
                                  #   Tab/Shift-Tab cycle the server's own
                                  #   completions, Ctrl-L clears the view
-hestia server smp command say hi # one-shot console command (alias: cmd)hestia server smp logs -n 50     # captured output (-f opens the fullscreen
-                                 #   log session; piped it streams plainly).
+hestia server smp command say hi # one-shot console command (alias: cmd)hestia server smp logs -n 50     # captured output (-f streams plainly
+                                 #   until Ctrl-C; the server keeps running).
                                  #   -f follows the *server*: it works on a
                                  #   stopped one and rides through a restart
 hestia server smp status         # live process state + a running server's ping
@@ -198,9 +198,9 @@ hestia instance modded update 1.21.4  # move to another version (saves stay,
                                  #   confirm)
 hestia instance modded config set jvm-args "-XX:+UseG1GC"  # memory / jvm-args
 hestia instance modded logs -n 50 # captured output — the newest running session
-                                 #   (-f opens the fullscreen log session; piped
-                                 #   it streams plainly). -f follows the
-                                 #   *instance*, so it picks up the next launch
+                                 #   (-f streams plainly until Ctrl-C). -f
+                                 #   follows the *instance*, so it picks up
+                                 #   the next launch
 hestia instance modded info      # descriptor, folder, disk footprint, and each
                                  #   running session (handles)
 hestia instance modded worlds    # the save worlds, read from each level.dat:

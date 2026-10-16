@@ -4,7 +4,8 @@
 //! The mode is decided once per invocation. **Interactive** (stdin and stderr
 //! are terminals): every widget runs as a fullscreen session in the alternate
 //! screen (`session`), built from shared `components`, and the terminal is
-//! handed back intact when it resolves. Otherwise **plain**: text on stdout,
+//! handed back intact when it resolves; line prompts and log streams print
+//! inline instead. Otherwise **plain**: text on stdout,
 //! so `| grep` and `> file` keep working, and widgets degrade to arguments.
 //! The future TUI (bare `hestia`) is one more `session::Screen` over the same
 //! `View`s.
@@ -37,9 +38,9 @@ pub(crate) fn is_interactive() -> bool {
 
 /// Whether a full session may own the invocation: [`is_interactive`] *and*
 /// stdout is a terminal. A piped stdout means the caller is consuming
-/// results, so result-producing flows (browse, wizards, log followers,
-/// attach-on-start) degrade to their plain forms — while argument prompts,
-/// which draw on stderr, may still ask.
+/// results, so result-producing flows (browse, attach-on-start) degrade to
+/// their plain forms — while argument prompts, which draw on stderr, may still
+/// ask.
 pub(crate) fn interactive_output() -> bool {
     static MODE: OnceLock<bool> = OnceLock::new();
     *MODE.get_or_init(|| is_interactive() && std::io::stdout().is_terminal())
@@ -98,15 +99,23 @@ pub fn multi_select(prompt: &str, items: &[String]) -> Result<Vec<usize>> {
         .ok_or_else(|| anyhow!("selection cancelled"))
 }
 
-/// Ask for one line of input: typing edits, Enter accepts — empty takes
-/// `default`, shown dim — Esc cancels with an error. Without an interactive
-/// terminal the default is returned (the value is optional).
+/// Ask for one line of input inline; an empty answer takes `default`, shown in
+/// brackets. Without an interactive terminal the default is returned (the value
+/// is optional).
 pub fn input(text: &str, default: &str) -> Result<String> {
     if !is_interactive() {
         return Ok(default.to_string());
     }
-    session::run(session::prompt::InputScreen::new(text, default), None)?
-        .ok_or_else(|| anyhow!("input cancelled"))
+    let label = match default.is_empty() {
+        true => text.to_string(),
+        false => format!("{text} [{default}]"),
+    };
+    let answer = prompt(&label)?;
+    Ok(if answer.is_empty() {
+        default.to_string()
+    } else {
+        answer
+    })
 }
 
 /// Prompt through a searchable picker (type to filter, Tab widens the pool to
@@ -171,15 +180,16 @@ pub fn prompt_select(text: &str, items: &[String]) -> Result<usize> {
     }
 }
 
-/// Ask a yes/no question with labeled answers, returning `true` for `yes`.
-/// Errors when the user cancels (Esc / q / Ctrl-C) or without an interactive
+/// Ask a yes/no question inline with labeled answers, returning `true` for
+/// `y`. Errors on an empty or unrecognised answer, or without an interactive
 /// terminal, so callers can chain a hint naming the flag to pass instead.
-pub fn confirm(prompt: &str, yes: &str, no: &str) -> Result<bool> {
-    if !is_interactive() {
-        bail!("no interactive terminal");
+pub fn confirm(text: &str, yes: &str, no: &str) -> Result<bool> {
+    let answer = prompt(&format!("{text} [y: {yes} / n: {no}]"))?;
+    match answer.to_lowercase().as_str() {
+        "y" | "yes" => Ok(true),
+        "n" | "no" => Ok(false),
+        _ => bail!("cancelled"),
     }
-    session::run(session::prompt::ConfirmScreen::new(prompt, yes, no), None)?
-        .ok_or_else(|| anyhow!("cancelled"))
 }
 
 /// Run the attach console: live output above an input line whose entries go
@@ -198,21 +208,6 @@ pub fn console(
         session::console::ConsoleScreen::new(title, backfill, link),
         Some(events),
     )
-}
-
-/// Run a read-only log session: fullscreen live output, scrollable, no input
-/// line. Blocking until detach (returns `None`, the workload keeps running)
-/// or a `Closed` event, whose message it returns. Requires an interactive
-/// terminal.
-pub fn log_session(
-    title: &str,
-    backfill: Vec<String>,
-    events: tokio::sync::mpsc::UnboundedReceiver<ConsoleEvent>,
-) -> Result<Option<String>> {
-    if !is_interactive() {
-        bail!("no interactive terminal");
-    }
-    session::run(session::logs::LogScreen::new(title, backfill), Some(events))
 }
 
 /// Run the fullscreen resource monitor, fed by `samples` (one per daemon tick,

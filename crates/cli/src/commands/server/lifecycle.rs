@@ -5,7 +5,7 @@ use std::time::Duration;
 
 use anyhow::{bail, Context, Result};
 use client::proto::process::ProcessState;
-use client::{Client, ProcessEvent};
+use client::Client;
 
 use super::entry;
 use crate::ui::{self, MonitorSample, Spinner, View};
@@ -81,28 +81,18 @@ pub(crate) async fn logs(
     follow: bool,
 ) -> Result<()> {
     let lines = client.server().logs(server, tail).await?;
-    if follow {
-        let info = client.server().status(server).await?;
-        let key = client::proto::naming::server_process_id(&info.id);
-        if ui::interactive_output() {
-            let backfill = lines.into_iter().map(|l| l.line).collect();
-            return crate::commands::lifecycle::entry_log_session(
-                client, &info.name, &key, backfill, "server",
-            )
-            .await;
-        }
-        for line in lines {
-            ui::show(View::line(line.line))?;
-        }
-        return follow_logs(client, &info.name, &key).await;
-    }
-    if lines.is_empty() {
+    if lines.is_empty() && !follow {
         return ui::show(View::note("no output captured (has it been started?)"));
     }
     for line in lines {
         ui::show(View::line(line.line))?;
     }
-    Ok(())
+    if !follow {
+        return Ok(());
+    }
+    let info = client.server().status(server).await?;
+    let key = client::proto::naming::server_process_id(&info.id);
+    crate::commands::lifecycle::follow_logs(client, "server", &info.name, &key, false).await
 }
 
 /// Run the fullscreen resource monitor over the running server's process,
@@ -134,23 +124,6 @@ pub(crate) async fn monitor(client: &Client, server: &str) -> Result<()> {
     let result = tokio::task::spawn_blocking(move || ui::monitor(&title, rx)).await?;
     forward.abort();
     result
-}
-
-/// The piped `-f`: `tail -f` semantics over the entry, so a stop is a note in
-/// the stream rather than the end of it.
-async fn follow_logs(client: &Client, name: &str, entry_key: &str) -> Result<()> {
-    let mut events = client.process().subscribe(entry_key).await?;
-    while let Some(event) = events.recv().await {
-        match event {
-            ProcessEvent::Output(line) => ui::show(View::line(line.line))?,
-            ProcessEvent::Started(e) => ui::show(View::note(format!(
-                "server '{name}' started (pid {})",
-                e.pid
-            )))?,
-            ProcessEvent::Exit(_) => ui::show(View::note(format!("server '{name}' stopped")))?,
-        }
-    }
-    Ok(())
 }
 
 /// Poll until the server's process reports running, so an attach right after

@@ -7,41 +7,36 @@ use std::time::Duration;
 use anyhow::{bail, Context, Result};
 use client::proto::instance::{InstanceLaunchDoneEvent, QuickPlay};
 use client::proto::process::ProcessState;
-use client::{Client, ProcessEvent};
+use client::Client;
 
 use super::entry;
 use crate::ui::{self, MonitorSample, ProvisionReporter, Spinner, View};
 
-/// Launch `reference`, rendering preparation progress, then attach a
-/// read-only log session (unless detached or piped); shared with
-/// `hestia play`. Attaching prints its outcome only after the session ends,
-/// so nothing lands in the shell between the prompt and the alternate screen
-/// (which some terminals duplicate into scrollback).
+/// Launch `reference`, rendering preparation progress, then follow its output
+/// until it exits or Ctrl-C (unless detached or piped); shared with
+/// `hestia play`.
 pub async fn launch(client: &Client, options: Launch<'_>) -> Result<()> {
     let reference = options.reference;
     let detach = options.detach;
     let launched = launch_once(client, &options).await?;
     let process_id = launched.process_id;
-    if detach || !ui::interactive_output() {
-        ui::show(View::line(format!(
-            "instance '{reference}' launched (pid {})",
-            launched.pid
-        )))?;
-        return ui::show_warnings(&launched.warnings);
-    }
-    // Before the alternate screen takes the terminal: a warning printed after
-    // the session ends would be lost above the scrollback it produces.
+    ui::show(View::line(format!(
+        "instance '{reference}' launched (pid {})",
+        launched.pid
+    )))?;
     ui::show_warnings(&launched.warnings)?;
+    if detach || !ui::interactive_output() {
+        return Ok(());
+    }
     let backfill = client
         .instance()
         .logs(reference, Some(process_id.clone()), Some(100))
         .await
-        .unwrap_or_default()
-        .into_iter()
-        .map(|l| l.line)
-        .collect();
-    crate::commands::lifecycle::log_session(client, reference, &process_id, backfill, "instance")
-        .await
+        .unwrap_or_default();
+    for line in backfill {
+        ui::show(View::line(line.line))?;
+    }
+    crate::commands::lifecycle::follow_logs(client, "instance", reference, &process_id, true).await
 }
 
 /// One launch's inputs. Named fields: `new_session`, `detach` and `offline` are
@@ -201,40 +196,21 @@ pub(crate) async fn logs(
         .instance()
         .logs(instance, target.clone(), tail)
         .await?;
-    if follow {
-        let info = entry::fetch(client, instance).await?;
-        let key = target
-            .clone()
-            .unwrap_or_else(|| client::proto::naming::instance_process_id(&info.id));
-        if ui::interactive_output() {
-            let backfill = lines.into_iter().map(|l| l.line).collect();
-            return match &target {
-                Some(process_id) => {
-                    crate::commands::lifecycle::log_session(
-                        client, &info.name, process_id, backfill, "instance",
-                    )
-                    .await
-                }
-                None => {
-                    crate::commands::lifecycle::entry_log_session(
-                        client, &info.name, &key, backfill, "instance",
-                    )
-                    .await
-                }
-            };
-        }
-        for line in lines {
-            ui::show(View::line(line.line))?;
-        }
-        return follow_logs(client, &info.name, &key, target.is_some()).await;
-    }
-    if lines.is_empty() {
+    if lines.is_empty() && !follow {
         return ui::show(View::note("no output captured (has it been launched?)"));
     }
     for line in lines {
         ui::show(View::line(line.line))?;
     }
-    Ok(())
+    if !follow {
+        return Ok(());
+    }
+    let info = entry::fetch(client, instance).await?;
+    let key = target
+        .clone()
+        .unwrap_or_else(|| client::proto::naming::instance_process_id(&info.id));
+    crate::commands::lifecycle::follow_logs(client, "instance", &info.name, &key, target.is_some())
+        .await
 }
 
 /// Run the fullscreen resource monitor over one running session (named, else
@@ -282,28 +258,6 @@ fn follow_target(
             .map(|p| p.id)
             .with_context(|| format!("instance '{}' is not running", info.name)),
     }
-}
-
-/// The piped `-f`: a named session ends the stream when it exits; following the
-/// instance keeps `tail -f` semantics across launches.
-async fn follow_logs(client: &Client, name: &str, key: &str, one_session: bool) -> Result<()> {
-    let mut events = client.process().subscribe(key).await?;
-    while let Some(event) = events.recv().await {
-        match event {
-            ProcessEvent::Output(line) => ui::show(View::line(line.line))?,
-            ProcessEvent::Started(e) => ui::show(View::note(format!(
-                "instance '{name}' session started (pid {})",
-                e.pid
-            )))?,
-            ProcessEvent::Exit(_) => {
-                ui::show(View::note(format!("instance '{name}' session stopped")))?;
-                if one_session {
-                    return Ok(());
-                }
-            }
-        }
-    }
-    Ok(())
 }
 
 /// Poll until no session of the instance is running, so a restart's `launch`

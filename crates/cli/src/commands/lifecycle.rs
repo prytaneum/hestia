@@ -9,7 +9,7 @@ use anyhow::{bail, Result};
 use client::{Client, ProcessEvent};
 
 use super::{connect, instance, server};
-use crate::ui::{self, ConsoleEvent, View};
+use crate::ui::{self, View};
 
 enum Target {
     Server,
@@ -135,89 +135,35 @@ pub async fn rename(name: String, new_name: String) -> Result<()> {
     }
 }
 
-/// Run the read-only fullscreen log session over one process: feed the
-/// backfill, subscribe to its output, and stream until detach or exit. Prints
-/// the plain outcome after the terminal is restored, so the shell keeps a
-/// record. For the attach that follows a launch — the process is the subject,
-/// so its exit ends the session.
-pub(crate) async fn log_session(
+/// Print a process's output as it arrives until Ctrl-C. A stop is a note in the
+/// stream rather than its end, unless `one_session`, where the exit ends it.
+pub(crate) async fn follow_logs(
     client: &Client,
-    name: &str,
-    process_id: &str,
-    backfill: Vec<String>,
     noun: &str,
-) -> Result<()> {
-    run_log_session(client, name, process_id, backfill, noun, Scope::Process).await
-}
-
-/// Run the log session over an *entry* (`server-<id>` / `instance-<id>`): the
-/// subject is the server or instance, not the process it currently runs, so a
-/// stop leaves the session open and the next start resumes the stream. Startable
-/// against a stopped entry — the backfill is read from disk and the stream waits.
-pub(crate) async fn entry_log_session(
-    client: &Client,
-    name: &str,
-    entry_key: &str,
-    backfill: Vec<String>,
-    noun: &str,
-) -> Result<()> {
-    run_log_session(client, name, entry_key, backfill, noun, Scope::Entry).await
-}
-
-/// What a log session follows — the difference is only what a process exit
-/// means: the end of the subject, or one run of it.
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum Scope {
-    Process,
-    Entry,
-}
-
-async fn run_log_session(
-    client: &Client,
     name: &str,
     key: &str,
-    backfill: Vec<String>,
-    noun: &str,
-    scope: Scope,
+    one_session: bool,
 ) -> Result<()> {
     let mut events = client.process().subscribe(key).await?;
-    let (event_tx, event_rx) = tokio::sync::mpsc::unbounded_channel();
-    let subject = format!("{noun} '{name}'");
-    let stopped = subject.clone();
-    let forward = tokio::spawn(async move {
-        while let Some(event) = events.recv().await {
-            let message = match (event, scope) {
-                (ProcessEvent::Output(line), _) => ConsoleEvent::Output(line.line),
-                (ProcessEvent::Exit(_), Scope::Process) => {
-                    ConsoleEvent::Closed(format!("{stopped} stopped"))
+    loop {
+        tokio::select! {
+            event = events.recv() => match event {
+                Some(ProcessEvent::Output(line)) => ui::show(View::line(line.line))?,
+                Some(ProcessEvent::Started(e)) => ui::show(View::note(format!(
+                    "{noun} '{name}' started (pid {})",
+                    e.pid
+                )))?,
+                Some(ProcessEvent::Exit(_)) => {
+                    ui::show(View::note(format!("{noun} '{name}' stopped")))?;
+                    if one_session {
+                        return Ok(());
+                    }
                 }
-                (ProcessEvent::Exit(_), Scope::Entry) => {
-                    ConsoleEvent::Notice(format!("— {stopped} stopped —"))
-                }
-                (ProcessEvent::Started(e), Scope::Entry) => {
-                    ConsoleEvent::Notice(format!("— {stopped} started (pid {}) —", e.pid))
-                }
-                (ProcessEvent::Started(_), Scope::Process) => continue,
-            };
-            if event_tx.send(message).is_err() {
-                return;
+                None => bail!("connection to the daemon lost"),
+            },
+            _ = tokio::signal::ctrl_c() => {
+                return ui::show(View::note(format!("stopped following {noun} '{name}'")));
             }
         }
-        // The stream ends only with the connection: say so rather than leaving a
-        // silent screen that looks like an idle workload.
-        let _ = event_tx.send(ConsoleEvent::Closed(
-            "connection to the daemon lost".to_string(),
-        ));
-    });
-    let title = format!("{name} — logs");
-    let closed =
-        tokio::task::spawn_blocking(move || ui::log_session(&title, backfill, event_rx)).await??;
-    forward.abort();
-    match (closed, scope) {
-        (Some(message), _) => ui::show(View::note(message)),
-        (None, Scope::Process) => {
-            ui::show(View::note(format!("detached — '{name}' still running")))
-        }
-        (None, Scope::Entry) => ui::show(View::note(format!("stopped following {subject}"))),
     }
 }
