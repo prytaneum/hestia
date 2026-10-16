@@ -17,27 +17,21 @@ function entryFromProcess(processId: string, prefix: string): string | null {
 }
 
 // Running state shows in both the entry's list row and its detail status, so a
-// lifecycle event refreshes those two plus the process list — never the whole
-// `all` subtree (other entries, the footprint walk).
+// lifecycle event refreshes those two — never the whole `all` subtree (other
+// entries, the footprint walk).
 function processKeys(payload: Record<string, unknown>): QueryKey[] {
   const id = String(payload.id ?? '');
   const server = entryFromProcess(id, 'server-');
-  if (server)
-    return [
-      keys.processes.list(),
-      keys.servers.list(),
-      keys.servers.detail(server),
-    ];
+  if (server) return [keys.servers.list(), keys.servers.detail(server)];
   const instance = entryFromProcess(id, 'instance-');
   // A session's exit is when what it joined is folded into the recent list.
   if (instance)
     return [
-      keys.processes.list(),
       keys.instances.list(),
       keys.instances.recent(),
       keys.instances.detail(instance),
     ];
-  return [keys.processes.list()];
+  return [];
 }
 
 function serverEntry(payload: Record<string, unknown>): string | null {

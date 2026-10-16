@@ -183,58 +183,38 @@ export const serverMutations = {
     mutation({
       mutationKey: [...keys.servers.detail(id), 'remove'],
       mutationFn: () => api.remove(id),
-      invalidates: () => [keys.servers.list(), keys.processes.list()],
+      invalidates: () => [keys.servers.list()],
     }),
   start: (id: string) =>
     mutation<{ processId: string; pid: number }>({
       mutationKey: [...keys.servers.detail(id), 'start'],
       mutationFn: () => api.start(id),
-      invalidates: () => [
-        keys.servers.list(),
-        keys.servers.detail(id),
-        keys.processes.list(),
-      ],
+      invalidates: () => [keys.servers.list(), keys.servers.detail(id)],
     }),
   stop: (id: string) =>
     mutation({
       mutationKey: [...keys.servers.detail(id), 'stop'],
       mutationFn: () => api.stop(id),
-      invalidates: () => [
-        keys.servers.list(),
-        keys.servers.detail(id),
-        keys.processes.list(),
-      ],
+      invalidates: () => [keys.servers.list(), keys.servers.detail(id)],
     }),
   restart: (id: string) =>
     mutation<{ processId: string; pid: number }>({
       mutationKey: [...keys.servers.detail(id), 'restart'],
       mutationFn: () => api.restart(id),
-      invalidates: () => [
-        keys.servers.list(),
-        keys.servers.detail(id),
-        keys.processes.list(),
-      ],
+      invalidates: () => [keys.servers.list(), keys.servers.detail(id)],
     }),
   /** Id-by-variable variants for list rows, which can't call a per-id hook. */
   startAny: () =>
     mutation<{ processId: string; pid: number }, string>({
       mutationKey: [...keys.servers.all, 'start'],
       mutationFn: (id) => api.start(id),
-      invalidates: (id) => [
-        keys.servers.list(),
-        keys.servers.detail(id),
-        keys.processes.list(),
-      ],
+      invalidates: (id) => [keys.servers.list(), keys.servers.detail(id)],
     }),
   stopAny: () =>
     mutation<void, string>({
       mutationKey: [...keys.servers.all, 'stop'],
       mutationFn: (id) => api.stop(id),
-      invalidates: (id) => [
-        keys.servers.list(),
-        keys.servers.detail(id),
-        keys.processes.list(),
-      ],
+      invalidates: (id) => [keys.servers.list(), keys.servers.detail(id)],
     }),
   /** One console command over RCON; touches no cached state. */
   command: (id: string) =>

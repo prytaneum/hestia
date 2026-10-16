@@ -67,13 +67,6 @@ export const keys = {
     releases: () => [...keys.java.all, 'releases'] as const,
     runtimes: () => [...keys.java.all, 'runtimes'] as const,
   },
-  processes: {
-    all: ['processes'] as const,
-    list: () => [...keys.processes.all, 'list'] as const,
-    status: (id: string) => [...keys.processes.all, 'status', id] as const,
-    logs: (id: string, tail?: number) =>
-      [...keys.processes.all, 'logs', id, tail ?? null] as const,
-  },
   servers: {
     all: ['servers'] as const,
     list: () => [...keys.servers.all, 'list'] as const,
@@ -199,15 +192,14 @@ export const keys = {
 };
 
 /**
- * Is the key a read scoped to one entry, session or process — something the
- * daemon can drop while a view still holds its id (removed here, from the CLI,
- * or by the tray)? Such a read answering `not_found` is that id going away,
- * which the surface renders as absence itself, so ./client keeps it out of the
- * toaster rather than stacking one per query.
+ * Is the key a read scoped to one entry — something the daemon can drop while
+ * a view still holds its id (removed here, from the CLI, or by the tray)? Such
+ * a read answering `not_found` is that id going away, which the surface
+ * renders as absence itself, so ./client keeps it out of the toaster rather
+ * than stacking one per query.
  */
 export function scopedToEntry(key: QueryKey): boolean {
   const [root, second] = key;
   if (root === FOOTPRINT) return true;
-  if (root === 'processes') return second === 'status' || second === 'logs';
   return (root === 'servers' || root === 'instances') && second === 'detail';
 }

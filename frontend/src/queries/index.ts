@@ -54,7 +54,6 @@ export * from './modpack';
 export * from './net';
 export * from './players';
 export * from './prefs';
-export * from './process';
 export * from './server';
 export * from './skins';
 export * from './sync';

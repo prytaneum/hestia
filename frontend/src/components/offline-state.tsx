@@ -3,7 +3,7 @@ import { Link } from '@tanstack/react-router';
 import type { ReactNode } from 'react';
 
 import { Empty } from '@/components/empty';
-import { Button, buttonVariants } from '@/components/ui/button';
+import { buttonVariants } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { m } from '@/paraglide/messages.js';
 import { useNetwork } from '@/queries/net';
@@ -81,14 +81,5 @@ export function StaleNotice({ className }: { className?: string }) {
       <WifiSlashIcon className="size-3.5 shrink-0" />
       {m['app.network.stale']()}
     </p>
-  );
-}
-
-/** The retry affordance an offline surface offers; refetches on click. */
-export function RetryButton({ onRetry }: { onRetry: () => void }) {
-  return (
-    <Button variant="outline" size="sm" onClick={onRetry}>
-      {m['app.network.retry']()}
-    </Button>
   );
 }

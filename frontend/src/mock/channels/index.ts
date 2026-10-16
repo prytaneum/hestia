@@ -17,7 +17,6 @@ import { channels as job } from './job';
 import { channels as modpack } from './modpack';
 import { channels as net } from './net';
 import { channels as players } from './players';
-import { channels as process } from './process';
 import { channels as screenshot } from './screenshot';
 import { channels as server } from './server';
 import { channels as skin } from './skin';
@@ -40,7 +39,6 @@ export const channels: Handlers = {
   ...modpack,
   ...net,
   ...players,
-  ...process,
   ...server,
   ...skin,
   ...screenshot,

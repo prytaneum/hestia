@@ -75,7 +75,7 @@ describe('the query-key hierarchy', () => {
 });
 
 describe('the reads that own a vanishing id', () => {
-  it('covers everything keyed to one entry, session or process', () => {
+  it('covers everything keyed to one entry or session', () => {
     for (const key of [
       keys.servers.detail('smp'),
       keys.servers.config('smp'),
@@ -87,8 +87,6 @@ describe('the reads that own a vanishing id', () => {
       keys.instances.worlds('modded'),
       keys.instances.logs('modded', 'instance-modded_1'),
       keys.instances.info('modded'),
-      keys.processes.status('instance-modded_1'),
-      keys.processes.logs('instance-modded_1'),
     ]) {
       expect(scopedToEntry(key)).toBe(true);
     }
@@ -100,7 +98,6 @@ describe('the reads that own a vanishing id', () => {
       keys.instances.list(),
       keys.instances.flavors(),
       keys.instances.serverStatus('a:25565'),
-      keys.processes.list(),
       keys.content.project('modrinth', 'sodium'),
       keys.content.url('https://modrinth.com/mod/sodium'),
       keys.transfer.archive('/tmp/x.hestia'),

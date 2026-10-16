@@ -20,8 +20,3 @@ export function publish(topic: string, payload: Record<string, unknown>): void {
 export function connection(state: 'connected' | 'disconnected'): void {
   void emit(CONNECTION_CHANNEL, state);
 }
-
-/** Emit a bespoke shell event (the OS handing the app an archive). */
-export function shellEvent(name: string, payload: unknown): void {
-  void emit(name, payload);
-}

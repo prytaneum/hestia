@@ -197,18 +197,14 @@ export const instanceMutations = {
     mutation({
       mutationKey: [...keys.instances.detail(id), 'remove'],
       mutationFn: () => api.remove(id),
-      invalidates: () => [keys.instances.list(), keys.processes.list()],
+      invalidates: () => [keys.instances.list()],
     }),
   /** Stops one named session, or every session of the instance. */
   stop: (id: string) =>
     mutation<void, { session?: string }>({
       mutationKey: [...keys.instances.detail(id), 'stop'],
       mutationFn: ({ session }) => api.stop(id, session),
-      invalidates: () => [
-        keys.instances.list(),
-        keys.instances.detail(id),
-        keys.processes.list(),
-      ],
+      invalidates: () => [keys.instances.list(), keys.instances.detail(id)],
     }),
   /** Adds an entry to the multiplayer list, or rewrites the one `server` names. */
   serverEdit: (id: string) =>
@@ -260,7 +256,6 @@ export const instanceMutations = {
       invalidates: ({ id }) => [
         keys.instances.list(),
         keys.instances.detail(id),
-        keys.processes.list(),
         keys.accounts.all,
       ],
     }),
@@ -272,7 +267,6 @@ export const instanceMutations = {
       invalidates: ({ id }) => [
         keys.instances.list(),
         keys.instances.detail(id),
-        keys.processes.list(),
       ],
     }),
   /**
@@ -290,7 +284,6 @@ export const instanceMutations = {
       invalidates: ({ id }) => [
         keys.instances.list(),
         keys.instances.detail(id),
-        keys.processes.list(),
       ],
     }),
   /** `memory` and `jvm-args` only. */

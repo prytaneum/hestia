@@ -14,9 +14,6 @@ import type { ErrorInfo } from '../types/error';
 
 const log = logger('ipc');
 
-/** Default per-call timeout, matching the client SDK's `CALL_TIMEOUT`. */
-export const CALL_TIMEOUT_MS = 10_000;
-
 /** Error codes raised by the daemon (`ipc::errors`). */
 export const NOT_FOUND = 'not_found';
 export const BAD_REQUEST = 'bad_request';

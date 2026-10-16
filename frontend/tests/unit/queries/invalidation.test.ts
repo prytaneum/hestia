@@ -5,7 +5,6 @@ import { FOOTPRINT, keys } from '@/queries/keys';
 describe('the daemon-topic invalidation map', () => {
   it('refreshes a server’s row and detail on a lifecycle event', () => {
     expect(invalidationKeys('process.started', { id: 'server-smp' })).toEqual([
-      keys.processes.list(),
       keys.servers.list(),
       keys.servers.detail('smp'),
     ]);
@@ -14,7 +13,6 @@ describe('the daemon-topic invalidation map', () => {
   it('reads the entry out of a sessioned instance process id', () => {
     expect(invalidationKeys('process.exit', { id: 'instance-modded_3' })).toEqual(
       [
-        keys.processes.list(),
         keys.instances.list(),
         keys.instances.recent(),
         keys.instances.detail('modded'),
@@ -22,10 +20,8 @@ describe('the daemon-topic invalidation map', () => {
     );
   });
 
-  it('falls back to the process list for an unrecognised process id', () => {
-    expect(invalidationKeys('process.exit', { id: 'tray-1' })).toEqual([
-      keys.processes.list(),
-    ]);
+  it('outdates nothing for an unrecognised process id', () => {
+    expect(invalidationKeys('process.exit', { id: 'tray-1' })).toEqual([]);
   });
 
   it('refreshes the list after a create, successful or failed', () => {

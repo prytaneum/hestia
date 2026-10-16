@@ -522,5 +522,3 @@ export function releaseByOrigin(id: string, origin: string): number {
   );
   return released;
 }
-
-export const poolOf = (id: string): InstalledContent[] => pool(id);

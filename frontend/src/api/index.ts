@@ -54,7 +54,6 @@ export * as modpack from './modpack';
 export * as net from './net';
 export * as players from './players';
 export * as prefs from './prefs';
-export * as process from './process';
 export * as screenshot from './screenshot';
 export * as server from './server';
 export * as skins from './skins';

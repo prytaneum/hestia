@@ -8,12 +8,6 @@ import type { QueryKey, UseMutationOptions } from '@tanstack/react-query';
 import type { HestiaError } from '../api';
 import { invalidate } from './client';
 
-/** Caller-controlled query flags, merged into a hook's own query options. */
-export interface QueryFlags {
-  /** Gate the fetch; ANDed with the query's intrinsic enablement. Default true. */
-  enabled?: boolean;
-}
-
 /** Staleness for the upstream catalogue reads (flavors/versions/loaders/profile). */
 export const CATALOG_STALE_MS = 5 * 60_000;
 
