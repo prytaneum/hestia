@@ -1,5 +1,4 @@
 import { PlusIcon } from '@phosphor-icons/react';
-import { useMutation } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import { dialog } from '@/api';
 import { useSearch } from '@/components/app-shell/search-context';
@@ -7,26 +6,21 @@ import { FilterMenu } from '@/components/filter-menu';
 import { Page } from '@/components/page';
 import { SignInGate } from '@/components/sign-in-gate';
 import { Button } from '@/components/ui/button';
-import {
-  ImportInstanceDialog,
-  useLaunchDialog,
-} from '@/features/instances/dialogs';
-import type { EntryCardModel } from '@/features/shared/entry/components';
+import { ImportInstanceDialog } from '@/features/instances/dialogs';
 import {
   EntryCollection,
   EntryGridSkeleton,
   filterCards,
   flavorGroup,
   flavorsOf,
-  instanceToCard,
   type View,
   ViewToggle,
 } from '@/features/shared/entry/components';
 import { CreateEntryDialog } from '@/features/shared/entry/dialogs';
+import { useInstanceCards } from '@/features/shared/entry/hooks/use-entry-cards';
 import { useDropzone } from '@/hooks/use-dropzone';
 import { m } from '@/paraglide/messages.js';
 import { useAccounts } from '@/queries';
-import { instanceMutations, useInstances } from '@/queries/instance';
 
 export function InstancesPage({
   view,
@@ -41,9 +35,7 @@ export function InstancesPage({
 }) {
   const { query } = useSearch();
   const { signedIn, ready } = useAccounts();
-  const instances = useInstances();
-  const { launch, restart, isLaunching } = useLaunchDialog();
-  const stop = useMutation(instanceMutations.stopAny());
+  const { cards, isPending } = useInstanceCards();
   const [creating, setCreating] = useState(false);
   const [importing, setImporting] = useState(false);
   const [dropped, setDropped] = useState('');
@@ -59,29 +51,6 @@ export function InstancesPage({
     onDrop: ([archive]) => openImport(archive),
   });
 
-  const cards: EntryCardModel[] = useMemo(
-    () =>
-      (instances.data ?? []).map((instance) => ({
-        ...instanceToCard(
-          instance,
-          {
-            busy:
-              isLaunching(instance.id) ||
-              (stop.isPending && stop.variables?.id === instance.id),
-            launching: isLaunching(instance.id),
-            stopping: stop.isPending && stop.variables?.id === instance.id,
-            onStart: () => launch(instance),
-            onStop: (session) => stop.mutate({ id: instance.id, session }),
-            onNewSession: () => launch(instance, { newSession: true }),
-            onRestart: (session) => restart(instance, session),
-          },
-          instance.lastPlayedUnix,
-        ),
-        iconUrl: instance.iconUrl,
-      })),
-    [instances.data, isLaunching, launch, restart, stop],
-  );
-
   const flavors = useMemo(() => flavorsOf(cards), [cards]);
   const filtered = filterCards(cards, query, flavor);
 
@@ -90,7 +59,7 @@ export function InstancesPage({
       {...getRootProps()}
       title={m['app.nav.instances']()}
       subtitle={m['instance.subtitle']()}
-      loading={!ready || (signedIn && instances.isPending)}
+      loading={!ready || (signedIn && isPending)}
       skeleton={<EntryGridSkeleton />}
       search={signedIn}
       searchPlaceholder={m['app.search.instances']()}

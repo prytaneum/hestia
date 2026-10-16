@@ -1,24 +1,21 @@
 import { PlusIcon } from '@phosphor-icons/react';
-import { useMutation } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import { useSearch } from '@/components/app-shell/search-context';
 import { FilterMenu } from '@/components/filter-menu';
 import { Page } from '@/components/page';
 import { Button } from '@/components/ui/button';
-import type { EntryCardModel } from '@/features/shared/entry/components';
 import {
   EntryCollection,
   EntryGridSkeleton,
   filterCards,
   flavorGroup,
   flavorsOf,
-  serverToCard,
   type View,
   ViewToggle,
 } from '@/features/shared/entry/components';
 import { CreateEntryDialog } from '@/features/shared/entry/dialogs';
+import { useServerCards } from '@/features/shared/entry/hooks/use-entry-cards';
 import { m } from '@/paraglide/messages.js';
-import { serverMutations, useServers } from '@/queries/server';
 
 export function ServersPage({
   view,
@@ -32,28 +29,8 @@ export function ServersPage({
   onFlavorChange: (flavor: string) => void;
 }) {
   const { query } = useSearch();
-  const servers = useServers();
-  const start = useMutation(serverMutations.startAny());
-  const stop = useMutation(serverMutations.stopAny());
+  const { cards, isPending } = useServerCards();
   const [creating, setCreating] = useState(false);
-
-  const busyId =
-    start.isPending || stop.isPending
-      ? ((start.variables ?? stop.variables) as string | undefined)
-      : undefined;
-
-  const cards: EntryCardModel[] = useMemo(
-    () =>
-      (servers.data ?? []).map((server) => ({
-        ...serverToCard(server, {
-          busy: busyId === server.id,
-          onStart: () => start.mutate(server.id),
-          onStop: () => stop.mutate(server.id),
-        }),
-        iconUrl: server.iconUrl,
-      })),
-    [servers.data, busyId, start, stop],
-  );
 
   const flavors = useMemo(() => flavorsOf(cards), [cards]);
   const filtered = filterCards(cards, query, flavor);
@@ -63,7 +40,7 @@ export function ServersPage({
       title={m['app.nav.servers']()}
       subtitle={m['server.subtitle']()}
       skeleton={<EntryGridSkeleton />}
-      loading={servers.isPending}
+      loading={isPending}
       search
       searchPlaceholder={m['app.search.servers']()}
       actions={

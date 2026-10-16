@@ -1,5 +1,4 @@
 import { FileArrowUpIcon, PlusIcon } from '@phosphor-icons/react';
-import { useMutation } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
 import { useCallback, useMemo, useState } from 'react';
 import { dialog } from '@/api';
@@ -16,30 +15,26 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import {
-  ImportInstanceDialog,
-  useLaunchDialog,
-} from '@/features/instances/dialogs';
+import { ImportInstanceDialog } from '@/features/instances/dialogs';
 import { useOpenedArchive } from '@/features/instances/hooks';
 import { anchor, GettingStarted, useAutoTour } from '@/features/onboarding';
-import type { EntryCardModel } from '@/features/shared/entry/components';
 import {
   EntryCollection,
   EntryGridSkeleton,
   filterCards,
   flavorGroup,
   flavorsOf,
-  instanceToCard,
-  serverToCard,
   type View,
   ViewToggle,
 } from '@/features/shared/entry/components';
 import { CreateEntryDialog } from '@/features/shared/entry/dialogs';
+import {
+  useInstanceCards,
+  useServerCards,
+} from '@/features/shared/entry/hooks/use-entry-cards';
 import { useDropzone } from '@/hooks/use-dropzone';
 import { m } from '@/paraglide/messages.js';
 import { useAccounts } from '@/queries';
-import { instanceMutations, useInstances } from '@/queries/instance';
-import { serverMutations, useServers } from '@/queries/server';
 
 const InstanceIcon = entryIcon('instance');
 const ServerIcon = entryIcon('server');
@@ -62,17 +57,9 @@ export function LibraryPage({
   const { query } = useSearch();
   const { signedIn, ready } = useAccounts();
 
-  const servers = useServers();
-  const startServer = useMutation(serverMutations.startAny());
-  const stopServer = useMutation(serverMutations.stopAny());
-
-  const instances = useInstances();
-  const {
-    launch: launchInstance,
-    restart: restartInstance,
-    isLaunching,
-  } = useLaunchDialog();
-  const stopInstance = useMutation(instanceMutations.stopAny());
+  const { cards: serverCards, isPending: serversPending } = useServerCards();
+  const { cards: instanceCards, isPending: instancesPending } =
+    useInstanceCards();
 
   const [newKind, setNewKind] = useState<'server' | 'instance'>('instance');
   const [creating, setCreating] = useState(false);
@@ -103,56 +90,6 @@ export function LibraryPage({
     setCreating(true);
   };
 
-  const serverBusy =
-    startServer.isPending || stopServer.isPending
-      ? ((startServer.variables ?? stopServer.variables) as string | undefined)
-      : undefined;
-  const serverCards: EntryCardModel[] = useMemo(
-    () =>
-      (servers.data ?? []).map((server) => ({
-        ...serverToCard(server, {
-          busy: serverBusy === server.id,
-          onStart: () => startServer.mutate(server.id),
-          onStop: () => stopServer.mutate(server.id),
-        }),
-        iconUrl: server.iconUrl,
-      })),
-    [servers.data, serverBusy, startServer, stopServer],
-  );
-
-  const instanceCards: EntryCardModel[] = useMemo(
-    () =>
-      (instances.data ?? []).map((instance) => ({
-        ...instanceToCard(
-          instance,
-          {
-            busy:
-              isLaunching(instance.id) ||
-              (stopInstance.isPending &&
-                stopInstance.variables?.id === instance.id),
-            launching: isLaunching(instance.id),
-            stopping:
-              stopInstance.isPending &&
-              stopInstance.variables?.id === instance.id,
-            onStart: () => launchInstance(instance),
-            onStop: (session) =>
-              stopInstance.mutate({ id: instance.id, session }),
-            onNewSession: () => launchInstance(instance, { newSession: true }),
-            onRestart: (session) => restartInstance(instance, session),
-          },
-          instance.lastPlayedUnix,
-        ),
-        iconUrl: instance.iconUrl,
-      })),
-    [
-      instances.data,
-      isLaunching,
-      launchInstance,
-      restartInstance,
-      stopInstance,
-    ],
-  );
-
   const serverFlavors = useMemo(() => flavorsOf(serverCards), [serverCards]);
   const instanceFlavors = useMemo(
     () => flavorsOf(instanceCards),
@@ -162,8 +99,7 @@ export function LibraryPage({
   const srv = filterCards(serverCards, query, serverFlavor);
   const inst = filterCards(instanceCards, query, instanceFlavor);
 
-  const loading =
-    !ready || servers.isPending || (signedIn && instances.isPending);
+  const loading = !ready || serversPending || (signedIn && instancesPending);
   useAutoTour('shell', !loading);
 
   return (

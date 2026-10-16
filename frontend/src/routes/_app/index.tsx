@@ -1,17 +1,15 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { LibraryPage } from '@/features/library/page';
 import type { View } from '@/features/shared/entry/components';
+import { flavorSearch, viewSearch } from '@/lib/entry-list-search';
 
 type LibrarySearch = { view?: View; servers?: string; instances?: string };
 
-const flavor = (value: unknown) =>
-  typeof value === 'string' && value !== 'all' ? value : undefined;
-
 export const Route = createFileRoute('/_app/')({
   validateSearch: (search: Record<string, unknown>): LibrarySearch => ({
-    view: search.view === 'list' ? 'list' : undefined,
-    servers: flavor(search.servers),
-    instances: flavor(search.instances),
+    view: viewSearch(search.view),
+    servers: flavorSearch(search.servers),
+    instances: flavorSearch(search.instances),
   }),
   component: RouteComponent,
 });

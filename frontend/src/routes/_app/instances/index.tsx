@@ -1,46 +1,24 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { InstancesPage } from '@/features/instances/page';
-import type { View } from '@/features/shared/entry/components';
+import {
+  entryListProps,
+  validateEntryListSearch,
+} from '@/lib/entry-list-search';
 
 export const Route = createFileRoute('/_app/instances/')({
-  validateSearch: (
-    search: Record<string, unknown>,
-  ): { view?: View; flavor?: string } => ({
-    view: search.view === 'list' ? 'list' : undefined,
-    flavor:
-      typeof search.flavor === 'string' && search.flavor !== 'all'
-        ? search.flavor
-        : undefined,
-  }),
+  validateSearch: validateEntryListSearch,
   component: RouteComponent,
 });
 
 function RouteComponent() {
-  const { view = 'grid', flavor = 'all' } = Route.useSearch();
+  const search = Route.useSearch();
   const navigate = Route.useNavigate();
 
   return (
     <InstancesPage
-      view={view}
-      flavor={flavor}
-      onViewChange={(next) =>
-        navigate({
-          search: (prev) => ({
-            ...prev,
-            view: next === 'grid' ? undefined : next,
-          }),
-          replace: true,
-        })
-      }
-      onFlavorChange={(next) =>
-        navigate({
-          search: (prev) => ({
-            ...prev,
-            flavor: next === 'all' ? undefined : next,
-          }),
-          replace: true,
-        })
-      }
+      {...entryListProps(search, (next) =>
+        navigate({ search: (prev) => ({ ...prev, ...next }), replace: true }),
+      )}
     />
   );
 }
