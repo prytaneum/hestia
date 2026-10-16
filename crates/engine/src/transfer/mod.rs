@@ -9,21 +9,26 @@
 //!
 //! # Adding a format
 //!
-//! One module beside this one and one line in [`formats`]. A format answers
+//! One module beside this one and one line in [`detect`]. A format answers
 //! three questions and nothing else:
 //!
-//! 1. **which archives are mine** — a [`Format::MARKER`] file, matched by name;
+//! 1. **which archives are mine** — a [`Format::marker`] file, matched by name;
 //! 2. **what does this one say it is** — [`Format::read`], which parses the
 //!    archive's own manifest into a [`Blueprint`];
 //! 3. **where do the files go** — [`Format::land`], given an instance that now
 //!    exists on disk.
 //!
 //! What a format never does is create the instance. That is the launcher's
-//! job, and the [`Recipe`] a blueprint carries says which of the three ways to
-//! do it applies — a resolved record travelling in the archive, a game version
-//! and loader that still have to be resolved, or a pack the modpack flow owns
-//! end to end. Those three are a closed set: the flow matches on the recipe,
-//! not on the format, so a fourth format costs the flow nothing.
+//! job, and the [`Recipe`] a blueprint carries says which of the two ways to
+//! do it applies — a resolved record travelling in the archive, or a game
+//! version and loader that still have to be resolved. Those are a closed set:
+//! the flow matches on the recipe, not on the format, so another format costs
+//! the flow nothing.
+//!
+//! A modpack is not an instance format. Whether a zip is one, in which format
+//! and at what root is [`crate::content::pack`]'s single answer; [`detect`]
+//! ranks that candidate beside the instance formats and the modpack flow
+//! receives the archive already open.
 //!
 //! Export is the same shape with fewer moving parts: [`ExportFormat`] picks a
 //! writer, and the rules for what an archive leaves out are shared
@@ -32,7 +37,6 @@
 
 pub(crate) mod archive;
 pub(crate) mod contents;
-pub(crate) mod curseforge;
 pub(crate) mod exclude;
 pub(crate) mod hestia;
 pub(crate) mod mrpack;
@@ -42,28 +46,18 @@ pub(crate) mod prism;
 use std::path::Path;
 
 use anyhow::Result;
+use proto::content::ResolvedModpack;
 use proto::error::ErrorInfo;
 use proto::transfer::{ExportFormat, ImportFormat};
 use proto::warning::WarningInfo;
 
 use crate::cancel::Job;
+use crate::content::pack;
 use crate::content::pack::shallowest;
 use crate::instances::InstanceRecord;
 use crate::minecraft::launch::JavaSettings;
 use crate::minecraft::profile::InstanceProfile;
 use archive::{Reader, Written};
-
-/// Every archive format hestia recognises, in the order their markers are
-/// preferred when two sit at the same depth. **This list is the registry** —
-/// adding a format is a module beside this one and a line here.
-fn formats() -> &'static [&'static dyn Format] {
-    &[
-        &hestia::Hestia,
-        &mrpack::Mrpack,
-        &prism::Prism,
-        &curseforge::CurseForge,
-    ]
-}
 
 /// What an archive says it is, before anything is written. Shown to whoever is
 /// about to import it, and the reason inspecting is a separate call.
@@ -77,9 +71,8 @@ pub(crate) struct Descriptor {
 }
 
 /// How the launcher has to bring an archive's instance into existence. The
-/// three variants are the three genuinely different routes, not one per
-/// format: several formats share a route, and a new format picks one rather
-/// than adding a fourth.
+/// variants are the genuinely different routes, not one per format: several
+/// formats share a route, and a new format picks one rather than adding another.
 pub(crate) enum Recipe {
     /// The archive carries the instance's record — hestia's own export. Its
     /// identity travels (name, Java settings, sharing, playtime, timestamps);
@@ -98,10 +91,6 @@ pub(crate) enum Recipe {
         /// stored any.
         jvm: JavaSettings,
     },
-    /// The archive is a modpack, not an instance. The modpack flow already
-    /// creates an entry from one and makes its mods ordinary pool items, so it
-    /// owns this end to end and nothing here lands any files.
-    Pack,
 }
 
 /// One archive, read: what it is and how to build it.
@@ -139,16 +128,10 @@ pub(crate) trait Format: Send + Sync {
     /// `hestia.instance.json` rather than `instance.json`.
     fn marker(&self) -> &'static str;
 
-    /// For a marker name too generic to identify the format by presence alone.
-    fn claims(&self, _reader: &mut Reader, _prefix: &str) -> bool {
-        true
-    }
-
     /// Parse the archive's manifest. Reads only — nothing exists on disk yet.
     fn read(&self, reader: &mut Reader, prefix: &str) -> Result<Blueprint>;
 
-    /// Put the archive's files into the instance that now exists. A format
-    /// whose recipe is [`Recipe::Pack`] never gets here.
+    /// Put the archive's files into the instance that now exists.
     fn land(
         &self,
         reader: &mut Reader,
@@ -158,12 +141,27 @@ pub(crate) trait Format: Send + Sync {
     ) -> Result<Landed>;
 }
 
-/// A recognised archive: which format, and the directory inside it the
+#[derive(Clone, Copy)]
+pub(crate) enum Kind {
+    Instance(&'static dyn Format),
+    Pack(pack::Format),
+}
+
+impl Kind {
+    pub(crate) fn id(self) -> ImportFormat {
+        match self {
+            Kind::Instance(format) => format.id(),
+            Kind::Pack(format) => format.id(),
+        }
+    }
+}
+
+/// A recognised archive: what it is, and the directory inside it the
 /// contents start at (empty at the root). A zip made by right-clicking an
 /// instance folder has everything one level down, which is the usual shape of a
 /// hand-made export.
 pub(crate) struct Detected {
-    pub(crate) format: &'static dyn Format,
+    pub(crate) kind: Kind,
     pub(crate) prefix: String,
 }
 
@@ -172,47 +170,49 @@ pub(crate) struct Detected {
 /// rename them; someone handed an archive should not have to know which
 /// launcher made it.
 ///
-/// The **shallowest** marker wins, and the registry order only breaks a tie.
+/// The **shallowest** marker wins, and the order below only breaks a tie.
 /// Depth has to come first: a pack index a Prism instance happens to ship
 /// inside its `config/` is a file that instance uses, not what the archive is.
 ///
-/// `claims` is asked of each candidate in that order, so a format whose marker
-/// name is not specific can read the file before the archive is called its.
+/// `claims_manifest` is the pack module's question about a generic
+/// `manifest.json`, answered by whoever holds the archive open.
 pub(crate) fn detect(
     names: &[String],
     filename: &str,
-    mut claims: impl FnMut(&Detected) -> bool,
+    claims_manifest: impl FnMut(&str) -> bool,
 ) -> Result<Detected> {
-    let mut candidates: Vec<(usize, Detected)> = formats()
-        .iter()
-        .enumerate()
-        .filter_map(|(rank, format)| {
-            shallowest(names, format.marker()).map(|prefix| {
-                (
-                    rank,
-                    Detected {
-                        format: *format,
-                        prefix,
-                    },
-                )
-            })
+    let instance = |format: &'static dyn Format| {
+        shallowest(names, format.marker()).map(|prefix| Detected {
+            kind: Kind::Instance(format),
+            prefix,
         })
-        .collect();
-    candidates.sort_by_key(|(rank, candidate)| (depth(&candidate.prefix), *rank));
-    candidates
+    };
+    let pack = pack::locate(names, claims_manifest).map(|(format, root)| Detected {
+        kind: Kind::Pack(format),
+        prefix: root,
+    });
+    let mut candidates: Vec<Detected> = [instance(&hestia::Hestia), pack, instance(&prism::Prism)]
         .into_iter()
-        .map(|(_, candidate)| candidate)
-        .find(|candidate| claims(candidate))
-        .ok_or_else(|| {
-            ErrorInfo::ArchiveUnrecognised {
-                filename: filename.to_string(),
-            }
-            .into()
-        })
+        .flatten()
+        .collect();
+    candidates.sort_by_key(|candidate| candidate.prefix.matches('/').count());
+    candidates.into_iter().next().ok_or_else(|| {
+        ErrorInfo::ArchiveUnrecognised {
+            filename: filename.to_string(),
+        }
+        .into()
+    })
 }
 
-fn depth(prefix: &str) -> usize {
-    prefix.matches('/').count()
+impl From<ResolvedModpack> for Descriptor {
+    fn from(pack: ResolvedModpack) -> Self {
+        Descriptor {
+            name: pack.name,
+            game_version: pack.game_version,
+            loader: pack.loader.unwrap_or_default(),
+            loader_version: pack.loader_version.unwrap_or_default(),
+        }
+    }
 }
 
 /// What one export needs to know about the instance it is writing.
@@ -262,7 +262,7 @@ mod tests {
             |_| true,
         )
         .unwrap();
-        assert_eq!(hestia.format.id(), ImportFormat::Hestia);
+        assert_eq!(hestia.kind.id(), ImportFormat::Hestia);
         assert!(hestia.prefix.is_empty());
 
         let mrpack = detect(
@@ -271,10 +271,10 @@ mod tests {
             |_| true,
         )
         .unwrap();
-        assert_eq!(mrpack.format.id(), ImportFormat::Mrpack);
+        assert_eq!(mrpack.kind.id(), ImportFormat::Mrpack);
 
         let prism = detect(&names(&["instance.cfg", "mmc-pack.json"]), "a", |_| true).unwrap();
-        assert_eq!(prism.format.id(), ImportFormat::Prism);
+        assert_eq!(prism.kind.id(), ImportFormat::Prism);
     }
 
     #[test]
@@ -289,7 +289,7 @@ mod tests {
             |_| true,
         )
         .unwrap();
-        assert_eq!(detected.format.id(), ImportFormat::Prism);
+        assert_eq!(detected.kind.id(), ImportFormat::Prism);
         assert_eq!(detected.prefix, "My Pack/");
     }
 
@@ -316,22 +316,26 @@ mod tests {
             |_| true,
         )
         .unwrap();
-        assert_eq!(detected.format.id(), ImportFormat::Prism);
+        assert_eq!(detected.kind.id(), ImportFormat::Prism);
         assert_eq!(detected.prefix, "");
     }
 
     #[test]
-    fn a_marker_its_format_disowns_falls_through_to_the_next_candidate() {
+    fn a_manifest_that_is_not_a_pack_falls_through_to_the_next_candidate() {
         let archive = names(&["manifest.json", "pack/instance.cfg"]);
 
         let claimed = detect(&archive, "a", |_| true).unwrap();
-        assert_eq!(claimed.format.id(), ImportFormat::CurseForge);
+        assert_eq!(claimed.kind.id(), ImportFormat::CurseForge);
 
-        let disowned = detect(&archive, "a", |candidate| {
-            candidate.format.id() != ImportFormat::CurseForge
-        })
-        .unwrap();
-        assert_eq!(disowned.format.id(), ImportFormat::Prism);
+        let disowned = detect(&archive, "a", |_| false).unwrap();
+        assert_eq!(disowned.kind.id(), ImportFormat::Prism);
+    }
+
+    #[test]
+    fn the_shallowest_pack_marker_wins_whichever_format_it_is() {
+        let archive = names(&["manifest.json", "overrides/config/modrinth.index.json"]);
+        let detected = detect(&archive, "a", |_| true).unwrap();
+        assert_eq!(detected.kind.id(), ImportFormat::CurseForge);
     }
 
     #[test]
@@ -340,22 +344,5 @@ mod tests {
             .err()
             .expect("an unmarked archive is not importable");
         assert!(error.to_string().contains("holiday-photos.zip"));
-    }
-
-    #[test]
-    fn every_registered_format_has_a_distinct_marker_and_id() {
-        let markers: Vec<&str> = formats().iter().map(|f| f.marker()).collect();
-        let ids: Vec<ImportFormat> = formats().iter().map(|f| f.id()).collect();
-        for (index, marker) in markers.iter().enumerate() {
-            assert!(
-                !markers[index + 1..].contains(marker),
-                "two formats claim the marker {marker}"
-            );
-            assert!(
-                !ids[index + 1..].contains(&ids[index]),
-                "two formats claim the id {:?}",
-                ids[index]
-            );
-        }
     }
 }

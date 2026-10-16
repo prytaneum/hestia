@@ -246,17 +246,23 @@ integrated server ([0016](../decisions/0016-datapacks-are-world-of-record.md)).
 ## Modpacks
 
 A pack installs into a new or existing server or instance from a project, a page
-URL, or a local `.mrpack`. `pack.rs` owns the *formats* (the `.mrpack` manifest,
-and extracting the override trees of either format), deliberately apart from the
-platform that serves them — a pack picked off disk has no source and is read the
-same way.
+URL, or a local `.mrpack`. `pack.rs` owns the *formats* (whether a zip is a pack,
+which format and at what root, the `.mrpack` manifest, and which override trees to
+extract for either format), deliberately apart from the platform that serves them
+— a pack picked off disk has no source and is read the same way. The zip itself is
+read by the one reader import and export share (`transfer/archive.rs`), which
+validates every path before the first write and hashes only when asked; the
+install flow receives the archive already open, whether it came from a download
+or from `instance import`.
 
 **A pack archive knows its own format.** CurseForge modpacks arrive as a zip like
 Modrinth's, but with a `manifest.json` that *names* its single overrides tree
 instead of `.mrpack`'s fixed `overrides/` + `client-overrides/` +
 `server-overrides/`, and with a file list of project/file ids rather than URLs.
 Only the second difference needed the platform: `pack.rs` detects which format a
-zip is and answers with that format's override trees, so the install flow
+zip is (the shallowest marker, an `.mrpack` index beating a manifest at the same
+depth, and a `manifest.json` counting only when its `manifestType` is a modpack)
+and answers with that format's override trees, so the install flow
 extracts either without being told where the archive came from — while the
 id-based file list stays in `curseforge.rs`, since resolving those ids into
 downloads *is* an API call. A CurseForge pack installed from a **local file**

@@ -1,6 +1,7 @@
 //! The zip plumbing import and export share: planning a directory tree into
 //! archive members, writing them through a `.part` that is renamed on success,
-//! and reading members back with the same path safety the pack reader applies.
+//! and reading members back — for an instance import and for a modpack's
+//! override trees alike — validating every path before the first write.
 //!
 //! Symlinks are **followed**, unlike the server backup's tar. An instance's
 //! `data/saves` is routinely a link into the shared store (`sync`), and an
@@ -14,11 +15,13 @@ use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
+use proto::download::HashAlgorithm;
 use proto::error::{ArchiveFault, ArchiveFormat};
 use proto::minecraft::{ProvisionPhase, ProvisionProgress};
 use zip::write::SimpleFileOptions;
 
 use crate::cancel::Job;
+use crate::checksum::Hasher;
 use crate::content::pack::is_safe_path;
 
 /// The in-progress archive: renamed onto the real name only once written whole,
@@ -113,9 +116,7 @@ impl Writer {
             std::fs::create_dir_all(parent)
                 .with_context(|| format!("cannot create {}", parent.display()))?;
         }
-        let mut name = target.file_name().unwrap_or_default().to_os_string();
-        name.push(PART_SUFFIX);
-        let part = target.with_file_name(name);
+        let part = part_path(target);
         let file =
             File::create(&part).with_context(|| format!("cannot create {}", part.display()))?;
         Ok(Writer {
@@ -246,9 +247,6 @@ impl Reader {
     /// Extract every member under `prefix` into `dest`, named relative to that
     /// prefix. `keep` is asked for each relative name; answering false leaves
     /// what is on disk alone. Returns how many files were written.
-    ///
-    /// A member whose path would escape `dest` fails the whole extraction: an
-    /// archive that tries it is hostile, not merely malformed.
     pub(crate) fn extract_under(
         &mut self,
         prefix: &str,
@@ -256,43 +254,77 @@ impl Reader {
         job: &Job<'_>,
         keep: &dyn Fn(&str) -> bool,
     ) -> Result<u64> {
-        let planned: Vec<(usize, String)> = (0..self.zip.len())
-            .filter_map(|index| {
-                let entry = self.zip.by_index(index).ok()?;
+        let written = self.extract(
+            &[prefix.to_string()],
+            ProvisionPhase::Extract,
+            false,
+            job,
+            |relative| keep(relative).then(|| dest.join(relative)),
+        )?;
+        Ok(written.len() as u64)
+    }
+
+    /// A member that would escape fails the whole extraction before the first write: an archive that tries it is hostile.
+    pub(crate) fn extract(
+        &mut self,
+        trees: &[String],
+        phase: ProvisionPhase,
+        hash: bool,
+        job: &Job<'_>,
+        mut place: impl FnMut(&str) -> Option<PathBuf>,
+    ) -> Result<Vec<Extracted>> {
+        let mut planned: Vec<(usize, String)> = Vec::new();
+        for tree in trees {
+            for index in 0..self.zip.len() {
+                let entry = self
+                    .zip
+                    .by_index(index)
+                    .context("cannot read an archive entry")?;
                 if entry.is_dir() {
-                    return None;
+                    continue;
                 }
-                let relative = entry.name().strip_prefix(prefix)?.trim_start_matches('/');
-                match relative.is_empty() {
-                    true => None,
-                    false => Some((index, relative.to_string())),
+                let Some(relative) = entry.name().strip_prefix(tree.as_str()) else {
+                    continue;
+                };
+                let relative = relative.trim_start_matches('/');
+                if relative.is_empty() {
+                    continue;
                 }
-            })
-            .collect();
+                if !is_safe_path(relative) {
+                    tracing::warn!(
+                        member = entry.name(),
+                        "an archive member escapes its directory"
+                    );
+                    anyhow::bail!(proto::error::ErrorInfo::ArchiveInvalid {
+                        format: ArchiveFormat::Zip,
+                        reason: ArchiveFault::UnsafePath,
+                    });
+                }
+                planned.push((index, relative.to_string()));
+            }
+        }
 
         let total = planned.len() as u64;
-        let mut written = 0;
+        let mut written = Vec::new();
         for (done, (index, relative)) in planned.into_iter().enumerate() {
             job.check()?;
-            tick(job, ProvisionPhase::Extract, done as u64, total, &relative);
-            if !is_safe_path(&relative) {
-                tracing::warn!(member = %relative, "an archive member escapes its directory");
-                anyhow::bail!(proto::error::ErrorInfo::ArchiveInvalid {
-                    format: ArchiveFormat::Zip,
-                    reason: ArchiveFault::UnsafePath,
-                });
-            }
-            if !keep(&relative) {
+            tick(job, phase, done as u64, total, &relative);
+            let Some(target) = place(&relative) else {
                 continue;
-            }
-            self.write_entry(index, &dest.join(&relative))?;
-            written += 1;
+            };
+            let sha1 = self.write_entry(index, &target, hash)?;
+            written.push(Extracted {
+                path: relative,
+                sha1,
+            });
         }
-        tick(job, ProvisionPhase::Extract, total, total, "");
+        tick(job, phase, total, total, "");
         Ok(written)
     }
 
-    fn write_entry(&mut self, index: usize, target: &Path) -> Result<()> {
+    /// Writes through a temp and renames, so a cancelled or failed extraction
+    /// never leaves a half-written file the game would then read.
+    fn write_entry(&mut self, index: usize, target: &Path, hash: bool) -> Result<String> {
         let mut entry = self
             .zip
             .by_index(index)
@@ -301,12 +333,42 @@ impl Reader {
             std::fs::create_dir_all(parent)
                 .with_context(|| format!("cannot create {}", parent.display()))?;
         }
-        let mut out =
-            File::create(target).with_context(|| format!("cannot write {}", target.display()))?;
-        std::io::copy(&mut entry, &mut out)
-            .with_context(|| format!("cannot write {}", target.display()))?;
-        Ok(())
+        let temp = part_path(target);
+        let mut hasher = hash.then(|| Hasher::new(HashAlgorithm::Sha1));
+        {
+            let mut out =
+                File::create(&temp).with_context(|| format!("cannot write {}", temp.display()))?;
+            let mut buf = [0u8; 64 * 1024];
+            loop {
+                let n = entry
+                    .read(&mut buf)
+                    .context("cannot read an archive entry")?;
+                if n == 0 {
+                    break;
+                }
+                if let Some(hasher) = &mut hasher {
+                    hasher.update(&buf[..n]);
+                }
+                out.write_all(&buf[..n])
+                    .with_context(|| format!("cannot write {}", temp.display()))?;
+            }
+        }
+        std::fs::rename(&temp, target)
+            .with_context(|| format!("cannot place {}", target.display()))?;
+        Ok(hasher.map(Hasher::hex_digest).unwrap_or_default())
     }
+}
+
+/// One file written by [`Reader::extract`]; `sha1` is empty unless hashing was asked for.
+pub(crate) struct Extracted {
+    pub(crate) path: String,
+    pub(crate) sha1: String,
+}
+
+fn part_path(target: &Path) -> PathBuf {
+    let mut name = target.file_name().unwrap_or_default().to_os_string();
+    name.push(PART_SUFFIX);
+    target.with_file_name(name)
 }
 
 fn tick(job: &Job<'_>, phase: ProvisionPhase, current: u64, total: u64, detail: &str) {
@@ -466,6 +528,25 @@ mod tests {
             .unwrap()
             .extract_under("", out.path(), &job_for(&cancel), &|_| true)
             .is_err());
+    }
+
+    #[test]
+    fn a_hostile_member_fails_before_anything_is_written() {
+        let dir = temp("validate-first");
+        let archive = dir.path().join("evil.zip");
+        {
+            let mut writer = Writer::create(&archive).unwrap();
+            writer.add_bytes("fine.txt", b"ok").unwrap();
+            writer.add_bytes("../escape.txt", b"no").unwrap();
+            writer.finish().unwrap();
+        }
+        let out = temp("validate-first-out");
+        let cancel = crate::cancel::Cancel::new();
+        assert!(Reader::open(&archive)
+            .unwrap()
+            .extract_under("", out.path(), &job_for(&cancel), &|_| true)
+            .is_err());
+        assert!(!out.path().join("fine.txt").exists());
     }
 
     #[test]

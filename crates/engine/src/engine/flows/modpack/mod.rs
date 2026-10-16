@@ -92,7 +92,16 @@ impl Engine {
         target: &ModpackTarget,
         job: &Job<'_>,
     ) -> Result<ModpackOutcome> {
-        let (resolved, project, mut archive) = self.fetch_pack(reference, "", job).await?;
+        let fetched = self.fetch_pack(reference, "", job).await?;
+        self.install_instance_pack(fetched, target, job).await
+    }
+
+    pub(crate) async fn install_instance_pack(
+        &self,
+        (resolved, project, mut archive): resolve::FetchedPack,
+        target: &ModpackTarget,
+        job: &Job<'_>,
+    ) -> Result<ModpackOutcome> {
         let entry = match target {
             ModpackTarget::Create { name } => {
                 let flavor = self.pack_flavor(&resolved, EntrySide::Client)?;

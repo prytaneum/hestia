@@ -55,9 +55,9 @@ The same rule reaches the two other ways bytes arrive without a source:
   source publishes.
 
 - **`instance import` recognises a CurseForge zip.** Its marker,
-  `manifest.json`, is a name any archive may carry, so `Format::claims` reads
-  it and only a `minecraftModpack` manifest is claimed. The recipe is
-  `Recipe::Pack`, the same route a `.mrpack` takes.
+  `manifest.json`, is a name any archive may carry, so detection reads it and
+  only a `minecraftModpack` manifest is claimed. It takes the same route a
+  `.mrpack` does: the modpack flow, handed the archive already open.
 
 **What other launchers do**, checked against their sources:
 

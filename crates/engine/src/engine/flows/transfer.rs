@@ -6,37 +6,38 @@
 //! partway removes the entry it had started, rather than leaving a registered
 //! instance nobody asked for that cannot launch.
 //!
-//! Nothing here knows which formats exist. A format is read into a
-//! [`Blueprint`] whose [`Recipe`] says which of three routes to the record
-//! applies, and the match below is over those routes — so adding a format is a
-//! module under `transfer/` and a line in its registry, and this file does not
-//! change.
+//! Nothing here knows which instance formats exist. A format is read into a
+//! [`Blueprint`] whose [`Recipe`] says which route to the record applies, and
+//! the match below is over those routes — so adding a format is a module under
+//! `transfer/` and a line in its detection, and this file does not change. A
+//! modpack is the exception: it is handed, already open, to the modpack flow.
 
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
 use proto::content::{ContentFailure, LOCAL_SOURCE};
 use proto::error::{ErrorInfo, Field, Reason};
-use proto::modpack::{ModpackRef, ModpackTarget};
+use proto::modpack::ModpackTarget;
 use proto::transfer::{ArchiveEntry, ArchiveInfo, ExportFormat, ImportFormat};
 use proto::warning::WarningInfo;
 
 use crate::cancel::Job;
+use crate::content::pack;
 use crate::engine::Engine;
 use crate::instances::InstanceRecord;
 use crate::registry;
 use crate::schema;
 use crate::transfer::archive::{self, Reader};
 use crate::transfer::{
-    self, contents, hestia, Blueprint, Descriptor, Detected, Recipe, Source, Target,
+    self, contents, hestia, Blueprint, Descriptor, Detected, Kind, Recipe, Source, Target,
 };
 
 /// Where an export with no destination lands, under the data home.
 const EXPORTS: &str = "exports";
 
 fn detect(reader: &mut Reader, path: &Path) -> Result<Detected> {
-    transfer::detect(&reader.names(), &archive::filename_of(path), |candidate| {
-        candidate.format.claims(reader, &candidate.prefix)
+    transfer::detect(&reader.names(), &archive::filename_of(path), |root| {
+        pack::is_curseforge_pack(reader, root)
     })
 }
 
@@ -131,15 +132,21 @@ impl Engine {
         let path = daemon_local_path(path)?;
         let mut reader = Reader::open(&path)?;
         let detected = detect(&mut reader, &path)?;
-        let blueprint = detected.format.read(&mut reader, &detected.prefix)?;
+        let format = detected.kind.id();
+        let descriptor = match detected.kind {
+            Kind::Instance(instance) => instance.read(&mut reader, &detected.prefix)?.descriptor,
+            Kind::Pack(pack_format) => pack::Archive::new(reader, pack_format, detected.prefix)
+                .summary()?
+                .into(),
+        };
         let Descriptor {
             name,
             game_version,
             loader,
             loader_version,
-        } = blueprint.descriptor;
+        } = descriptor;
         Ok(ArchiveInfo {
-            format: detected.format.id(),
+            format,
             name_taken: self.instance_name_taken(&name),
             name,
             game_version,
@@ -159,19 +166,18 @@ impl Engine {
         let path = daemon_local_path(path)?;
         let mut reader = Reader::open(&path)?;
         let detected = detect(&mut reader, &path)?;
-        let format = detected.format.id();
+        let format = detected.kind.id();
         tracing::info!(path = %path.display(), format = format.as_str(), "importing an instance");
 
-        let Blueprint { descriptor, recipe } =
-            detected.format.read(&mut reader, &detected.prefix)?;
+        let instance = match detected.kind {
+            Kind::Instance(instance) => instance,
+            Kind::Pack(pack_format) => {
+                let archive = pack::Archive::new(reader, pack_format, detected.prefix);
+                return self.import_pack(archive, &path, name, format, job).await;
+            }
+        };
+        let Blueprint { descriptor, recipe } = instance.read(&mut reader, &detected.prefix)?;
         let name = pick_name(name, &descriptor.name);
-
-        // A pack is not an instance: the modpack flow creates the entry, fetches
-        // every file from its source and records the provenance. Nothing here
-        // could improve on that by unpacking the archive itself.
-        if matches!(recipe, Recipe::Pack) {
-            return self.import_pack(&path, &name, format, job).await;
-        }
 
         let record = self.record_for(recipe, &name, &descriptor).await?;
         let entry_dir = self.instances.instance_dir(&record);
@@ -179,7 +185,7 @@ impl Engine {
         std::fs::create_dir_all(&data_dir)
             .with_context(|| format!("cannot create {}", data_dir.display()))?;
 
-        let landed = detected.format.land(
+        let landed = instance.land(
             &mut reader,
             &detected.prefix,
             &Target {
@@ -298,28 +304,27 @@ impl Engine {
                     profile,
                 }
             }
-            Recipe::Pack => unreachable!("a pack is installed by the modpack flow"),
         };
         self.instances.adopt(name, template)
     }
 
-    /// A pack reaches the ordinary modpack install, which creates the entry and
-    /// makes its mods updatable pool items.
+    /// A pack is not an instance: the modpack install creates the entry, fetches
+    /// every file from its source and makes its mods updatable pool items,
+    /// reading the archive already open here.
     async fn import_pack(
         &self,
+        archive: pack::Archive,
         path: &Path,
         name: &str,
         format: ImportFormat,
         job: &Job<'_>,
     ) -> Result<ImportOutcome> {
+        let fetched = self.read_pack(archive, path).await?;
         let outcome = self
-            .install_instance_modpack(
-                &ModpackRef {
-                    path: path.to_string_lossy().into_owned(),
-                    ..ModpackRef::default()
-                },
+            .install_instance_pack(
+                fetched,
                 &ModpackTarget::Create {
-                    name: name.to_string(),
+                    name: name.trim().to_string(),
                 },
                 job,
             )

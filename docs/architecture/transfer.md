@@ -23,17 +23,20 @@ formats is a zip and people rename them, so the format is decided by the **marke
 file inside**, following Prism's own approach — someone handed an archive should
 not have to know which launcher made it.
 
-The **shallowest** marker wins, and the registry order only breaks a tie. Depth
-has to come first: a pack index a Prism instance happens to ship inside its
-`config/` is a file that instance *uses*, not what the archive *is*.
+The **shallowest** marker wins, and the order hestia, pack, Prism only breaks a
+tie. Depth has to come first: a pack index a Prism instance happens to ship
+inside its `config/` is a file that instance *uses*, not what the archive *is*.
 
 One marker is not specific enough to settle it by presence: any archive may
-carry a `manifest.json`. So a format may also **read** its marker
-(`Format::claims`), and a candidate that disowns the file falls through to the
-next. The CurseForge format claims only a manifest whose `manifestType` is
-`minecraftModpack`. Prism itself matches that name alone; the content check is
-the stricter reading of the same idea
+carry a `manifest.json`. So a CurseForge candidate only counts when the manifest
+is read and its `manifestType` is `minecraftModpack`. Prism itself matches that
+name alone; the content check is the stricter reading of the same idea
 ([0076](../decisions/0076-a-pack-file-is-identified-wherever-it-came-from.md)).
+
+The two pack formats are not instance formats: whether a zip is a modpack, in
+which format and at what root, is `content::pack`'s one answer, and detection
+ranks that single candidate beside hestia and Prism. A pack is then handed,
+already open, to the modpack flow.
 
 ## The seam
 
@@ -41,35 +44,34 @@ the stricter reading of the same idea
 flowchart TD
     FILE([an archive]) --> DETECT{detect by marker}
     DETECT --> FMT["<b>Format</b><br/>marker · read · land"]
+    DETECT --> PACK["<b>content::pack</b><br/>.mrpack · CurseForge"]
     FMT --> BP["<b>Blueprint</b><br/>descriptor + recipe"]
     BP --> R1["Recipe::Record<br/><i>an identity travels, the profile is re-resolved</i>"]
     BP --> R2["Recipe::Resolve<br/><i>a version + loader to look up</i>"]
-    BP --> R3["Recipe::Pack<br/><i>the modpack flow owns it</i>"]
     R1 --> CREATE[["the flow registers the instance"]]
     R2 --> CREATE
-    R3 --> MODPACK[["modpack install → creates its own entry"]]
+    PACK --> MODPACK[["modpack install → creates its own entry"]]
     CREATE --> LAND["<b>Format::land</b><br/>files onto disk"]
 
     classDef seam fill:#eef,stroke:#88a
     class FMT,BP seam
 ```
 
-A format answers three questions and nothing else: **which archives are mine**
-(a marker), **what does this one say it is** (parse a manifest into a
+An instance format answers three questions and nothing else: **which archives
+are mine** (a marker), **what does this one say it is** (parse a manifest into a
 [`Blueprint`]), and **where do the files go** (given an instance that now
 exists). It never creates the instance — that is the launcher's job, and the
-blueprint's `Recipe` says which of three routes applies.
-
-Those three routes are a **closed set**; the formats are an open one. The flow
-matches on the recipe, so a fourth format costs it nothing.
+blueprint's `Recipe` says which of two routes applies. Those routes are a
+**closed set**; the formats are an open one, so another format costs the flow
+nothing.
 
 ### Adding a format
 
-One module under `crates/engine/src/transfer/` and one line in its registry
-(`formats()` in `transfer/mod.rs`) — the same shape as adding a content platform
-([0010](../decisions/0010-one-content-provider-trait.md)). A CurseForge or
-ATLauncher importer would implement `Format`, pick `Recipe::Resolve`, and reuse
-`transfer::pool::adopt` for the loose jars its game directory arrives with.
+One module under `crates/engine/src/transfer/` and one line in `detect`
+(`transfer/mod.rs`) — the same shape as adding a content platform
+([0010](../decisions/0010-one-content-provider-trait.md)). An ATLauncher importer
+would implement `Format`, pick `Recipe::Resolve`, and reuse `transfer::pool::adopt`
+for the loose jars its game directory arrives with.
 
 ## What an archive carries
 

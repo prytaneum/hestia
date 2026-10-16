@@ -9,7 +9,7 @@ use proto::content::{
     ContentKind, ContentProject, ContentVersion, ModpackFile, ReleaseChannel, ResolvedModpack,
     VersionQuery, LOCAL_SOURCE,
 };
-use proto::error::{ArchiveFault, EntryKind, ErrorInfo};
+use proto::error::{EntryKind, ErrorInfo};
 use proto::minecraft::{Artifact, ProvisionPhase};
 use proto::modpack::{InstalledModpack, ModpackMove, ModpackRef};
 use uuid::Uuid;
@@ -27,7 +27,7 @@ const STAGING: &str = "tmp";
 
 /// A pack ready to install: its manifest, the project detail it has when it came
 /// from a catalogue, and the archive its `overrides/` live in.
-pub(super) type FetchedPack = (ResolvedModpack, Option<ContentProject>, pack::Archive);
+pub(crate) type FetchedPack = (ResolvedModpack, Option<ContentProject>, pack::Archive);
 
 pub(super) struct Located {
     source: &'static str,
@@ -208,18 +208,16 @@ impl Engine {
                 source: version.source.clone(),
             });
         }
-        let mut archive = self.download_pack(artifact, job).await?;
-        let mut resolved = self.pack_manifest(&mut archive).await.map_err(|e| {
+        let mut archive = self.download_pack(artifact, job).await.map_err(|e| {
             match e.downcast_ref::<ErrorInfo>() {
-                Some(ErrorInfo::ModpackInvalid {
-                    reason: ArchiveFault::ManifestMissing,
-                }) => ErrorInfo::NotAModpack {
+                Some(ErrorInfo::ArchiveUnrecognised { .. }) => ErrorInfo::NotAModpack {
                     reference: version.id.clone(),
                 }
                 .into(),
                 _ => e,
             }
         })?;
+        let mut resolved = self.pack_manifest(&mut archive).await?;
         resolved.source = version.source;
         resolved.project_id = version.project_id;
         resolved.version_id = version.id;
@@ -239,7 +237,7 @@ impl Engine {
             job,
         )
         .await;
-        let archive = downloaded.and_then(|()| pack::Archive::read(&staged));
+        let archive = downloaded.and_then(|()| pack::Archive::open(&staged));
         if let Err(e) = std::fs::remove_file(&staged) {
             tracing::debug!(path = %staged.display(), error = %e, "no modpack staging file to remove");
         }
@@ -261,7 +259,14 @@ impl Engine {
     }
 
     pub(super) async fn read_pack_file(&self, path: &Path) -> Result<FetchedPack> {
-        let mut archive = pack::Archive::read(path)?;
+        self.read_pack(pack::Archive::open(path)?, path).await
+    }
+
+    pub(crate) async fn read_pack(
+        &self,
+        mut archive: pack::Archive,
+        path: &Path,
+    ) -> Result<FetchedPack> {
         let mut resolved = self.pack_manifest(&mut archive).await?;
         let project = self.published_pack(path, &mut resolved).await;
         if resolved.name.is_empty() {

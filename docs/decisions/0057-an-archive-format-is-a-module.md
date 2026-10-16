@@ -27,22 +27,26 @@ list, the same way a content platform is
 What makes that possible is the second half: **a format never creates the
 instance**, because creating one is where the engine, the network and the entry
 store all come in. Instead the blueprint carries a `Recipe` naming which of
-three routes the launcher takes —
+two routes the launcher takes —
 
 - `Record` — the instance's record travels in the archive (hestia's own); its
   profile is resolved again on the importing host
   ([0081](0081-the-archive-carries-identity-and-references.md));
 - `Resolve` — the archive names a game version and a loader, resolved exactly as
   `instance create` resolves them (Prism, and any launcher that describes an
-  instance rather than shipping one);
-- `Pack` — the archive is a modpack, and the modpack flow already creates an
-  entry from one, fetches every file from its source and records the provenance
-  ([0011](0011-modpack-decomposes-into-existing-parts.md)).
+  instance rather than shipping one).
 
-Those three are a **closed set** — they are the genuinely different ways a
+Those two are a **closed set** — they are the genuinely different ways a
 launcher can be told what to build — while formats are an open one. The flow
-matches on the recipe, so the fourth format costs it nothing: CurseForge is a
-`Format` impl picking `Resolve`, reusing the pool adoption Prism already needs.
+matches on the recipe, so another format costs it nothing.
+
+A modpack is not a third route through this registry. `.mrpack` and CurseForge
+packs never used the "where do the files go" third of the contract: the modpack
+flow already creates an entry from one, fetches every file from its source and
+records the provenance ([0011](0011-modpack-decomposes-into-existing-parts.md)),
+and the knowledge of which pack format a zip is already lived in
+`content::pack`. Registering them here duplicated it, so detection asks
+`content::pack` for that one candidate and the flow receives the opened archive.
 
 The same split decides where the shared parts live. What an archive leaves out is
 one question with one answer (`transfer::exclude`), because two exporters

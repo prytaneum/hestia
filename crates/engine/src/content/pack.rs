@@ -1,29 +1,29 @@
 //! A modpack archive: the zip a pack is distributed as, its manifest, and the
-//! trees it writes straight into the game directory. An archive knows its own
-//! format — `.mrpack`'s fixed `overrides/`, `client-overrides/` and
-//! `server-overrides/`, or the single tree a CurseForge `manifest.json` names —
-//! so no caller is told which platform served it. Only the `.mrpack` index is
-//! parsed here; a CurseForge manifest names files by id, which its API alone
-//! resolves, so that half lives in `curseforge.rs` and the archive only hands
-//! the manifest over.
+//! trees it writes straight into the game directory. This module is the one
+//! place that decides whether a zip is a pack, which format, and where it
+//! starts. An archive knows its own format — `.mrpack`'s fixed `overrides/`,
+//! `client-overrides/` and `server-overrides/`, or the single tree a CurseForge
+//! `manifest.json` names — so no caller is told which platform served it. Only
+//! the `.mrpack` index is parsed here; a CurseForge manifest names files by id,
+//! which its API alone resolves, so that half lives in `curseforge.rs` and the
+//! archive only hands the manifest over.
 //!
-//! Deliberately platform-agnostic. A pack picked off disk has no source, and the
-//! provider that serves packs over HTTP parses the same bytes.
+//! Deliberately platform-agnostic. A pack picked off disk has no source.
 
-use std::io::{Cursor, Read};
 use std::path::{Component, Path, PathBuf};
 
-use anyhow::{Context, Result};
+use anyhow::Result;
 use proto::content::{ModpackFile, ResolvedModpack, SideSupport};
 use proto::download::{Checksum, HashAlgorithm};
-use proto::error::ArchiveFault;
-use proto::minecraft::Artifact;
+use proto::error::{ArchiveFault, ErrorInfo};
+use proto::minecraft::{Artifact, ProvisionPhase};
+use proto::transfer::ImportFormat;
 use serde_json::{Map, Value};
 
 use crate::cancel::Job;
-use crate::checksum::Hasher;
+use crate::transfer::archive::{Extracted, Reader};
 
-const INDEX: &str = "modrinth.index.json";
+pub(crate) const INDEX: &str = "modrinth.index.json";
 const MANIFEST: &str = "manifest.json";
 const DEFAULT_OVERRIDES: &str = "overrides";
 
@@ -62,210 +62,145 @@ impl Side {
     }
 }
 
-/// One file written out of an override tree.
-pub struct WrittenOverride {
-    /// Path relative to the game directory.
-    pub path: String,
-    pub sha1: String,
-}
-
-/// Which format an archive is in — what its override trees are called, and
-/// whether its manifest can be read without the serving platform's help.
-enum Format {
-    /// Modrinth's, whose trees the spec fixes.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub(crate) enum Format {
     Mrpack,
-    /// CurseForge's, which names its single tree in the manifest.
-    CurseForge { overrides: String },
+    CurseForge,
 }
 
-/// An opened pack archive, read from memory. Pack archives are indexes and
-/// configs — references rather than embedded jars — so holding one in memory is
-/// cheap; each override is streamed to disk individually rather than all at once.
-pub struct Archive {
-    zip: zip::ZipArchive<Cursor<Vec<u8>>>,
+impl Format {
+    pub(crate) fn marker(self) -> &'static str {
+        match self {
+            Format::Mrpack => INDEX,
+            Format::CurseForge => MANIFEST,
+        }
+    }
+
+    pub(crate) fn id(self) -> ImportFormat {
+        match self {
+            Format::Mrpack => ImportFormat::Mrpack,
+            Format::CurseForge => ImportFormat::CurseForge,
+        }
+    }
+}
+
+/// `manifest.json` is a name any archive may carry, so a CurseForge candidate counts only when `claims_manifest` vets it.
+pub(crate) fn locate(
+    names: &[String],
+    mut claims_manifest: impl FnMut(&str) -> bool,
+) -> Option<(Format, String)> {
+    [Format::Mrpack, Format::CurseForge]
+        .into_iter()
+        .filter_map(|format| shallowest(names, format.marker()).map(|root| (format, root)))
+        .filter(|(format, root)| *format == Format::Mrpack || claims_manifest(root))
+        .min_by_key(|(_, root)| root.matches('/').count())
+}
+
+pub(crate) fn is_curseforge_pack(reader: &mut Reader, root: &str) -> bool {
+    manifest_at(reader, root).is_ok_and(|manifest| super::curseforge::is_pack_manifest(&manifest))
+}
+
+fn manifest_at(reader: &mut Reader, root: &str) -> Result<Value> {
+    let text = reader.read_text(&format!("{root}{MANIFEST}"))?;
+    serde_json::from_str(&text).map_err(|e| {
+        tracing::warn!(error = %e, "{MANIFEST} is malformed");
+        invalid(ArchiveFault::ManifestMalformed)
+    })
+}
+
+/// An opened pack archive, handed to the modpack flow without being reopened.
+pub(crate) struct Archive {
+    reader: Reader,
     format: Format,
     /// The directory the pack starts at: a zip made from a folder nests it one level down.
     root: String,
 }
 
 impl Archive {
-    pub fn open(bytes: Vec<u8>) -> Result<Self> {
-        let mut zip = zip::ZipArchive::new(Cursor::new(bytes)).map_err(|e| {
-            tracing::warn!(error = %e, "cannot open a modpack archive");
-            invalid(ArchiveFault::NotAnArchive)
-        })?;
-        let (format, root) = detect(&mut zip);
-        Ok(Archive { zip, format, root })
+    pub(crate) fn new(reader: Reader, format: Format, root: String) -> Self {
+        Archive {
+            reader,
+            format,
+            root,
+        }
     }
 
-    pub fn read(path: &Path) -> Result<Self> {
-        let bytes = std::fs::read(path)
-            .with_context(|| format!("cannot read modpack {}", path.display()))?;
-        Archive::open(bytes)
+    pub(crate) fn open(path: &Path) -> Result<Self> {
+        let mut reader = Reader::open(path)?;
+        let (format, root) = locate(&reader.names(), |root| {
+            is_curseforge_pack(&mut reader, root)
+        })
+        .ok_or_else(|| ErrorInfo::ArchiveUnrecognised {
+            filename: crate::transfer::archive::filename_of(path),
+        })?;
+        Ok(Archive::new(reader, format, root))
     }
 
     /// `None` for a `.mrpack`, which [`Self::index`] reads whole.
-    pub fn platform_manifest(&mut self) -> Result<Option<(&'static str, Value)>> {
-        let Format::CurseForge { .. } = self.format else {
-            return Ok(None);
-        };
-        let entry = self
-            .zip
-            .by_name(&format!("{}{MANIFEST}", self.root))
-            .context("cannot read the modpack manifest")?;
-        let manifest = serde_json::from_reader(entry).map_err(|e| {
-            tracing::warn!(error = %e, "{MANIFEST} is malformed");
-            invalid(ArchiveFault::ManifestMalformed)
-        })?;
-        Ok(Some((super::curseforge::ID, manifest)))
+    pub(crate) fn platform_manifest(&mut self) -> Result<Option<(&'static str, Value)>> {
+        match self.format {
+            Format::Mrpack => Ok(None),
+            Format::CurseForge => Ok(Some((
+                super::curseforge::ID,
+                manifest_at(&mut self.reader, &self.root)?,
+            ))),
+        }
     }
 
     /// The `.mrpack` manifest. Ids are left empty — only the platform that
     /// served the archive knows them, and a pack read off disk has none.
-    pub fn index(&mut self) -> Result<ResolvedModpack> {
-        let entry = self
-            .zip
-            .by_name(&format!("{}{INDEX}", self.root))
+    pub(crate) fn index(&mut self) -> Result<ResolvedModpack> {
+        let text = self
+            .reader
+            .read_text(&format!("{}{INDEX}", self.root))
             .map_err(|_| invalid(ArchiveFault::ManifestMissing))?;
-        let index: Value = serde_json::from_reader(entry).map_err(|e| {
+        let index: Value = serde_json::from_str(&text).map_err(|e| {
             tracing::warn!(error = %e, "{INDEX} is malformed");
             invalid(ArchiveFault::ManifestMalformed)
         })?;
         parse_index(&index)
     }
 
-    /// In write order, so a later tree wins a path the earlier one also names.
-    /// CurseForge says nothing about sides, so it has the one tree.
-    fn overrides_dirs(&self, side: Side) -> Vec<String> {
-        let dirs = match &self.format {
-            Format::Mrpack => vec![DEFAULT_OVERRIDES, side.overrides_dir()],
-            Format::CurseForge { overrides } => vec![overrides.as_str()],
-        };
-        dirs.into_iter()
-            .map(|dir| format!("{}{dir}", self.root))
-            .collect()
+    pub(crate) fn summary(&mut self) -> Result<ResolvedModpack> {
+        match self.platform_manifest()? {
+            Some((_, manifest)) => super::curseforge::parse_manifest(&manifest),
+            None => self.index(),
+        }
     }
 
-    /// Write the pack's own files for `side`, returning each with the hash it
-    /// was written with. The shared `overrides/` tree goes first so the
-    /// side-specific tree wins where both name a path — which is what having
-    /// two trees means.
-    ///
-    /// `place` is asked where each file goes, by its path in the tree;
-    /// answering `None` leaves what is on disk untouched and omits it from the
-    /// result.
-    pub fn extract_overrides(
+    /// In write order, so a later tree wins a path the earlier one also names.
+    /// CurseForge says nothing about sides, so it has the one tree.
+    fn overrides_trees(&mut self, side: Side) -> Result<Vec<String>> {
+        let dirs = match self.format {
+            Format::Mrpack => vec![
+                DEFAULT_OVERRIDES.to_string(),
+                side.overrides_dir().to_string(),
+            ],
+            Format::CurseForge => {
+                let manifest = manifest_at(&mut self.reader, &self.root)?;
+                vec![match manifest.get("overrides").and_then(Value::as_str) {
+                    Some(dir) if !dir.trim().is_empty() => dir.trim().to_string(),
+                    _ => DEFAULT_OVERRIDES.to_string(),
+                }]
+            }
+        };
+        Ok(dirs
+            .into_iter()
+            .map(|dir| format!("{}{dir}/", self.root))
+            .collect())
+    }
+
+    /// `place` maps a path in the override trees to where it goes; `None` leaves what is on disk untouched.
+    pub(crate) fn extract_overrides(
         &mut self,
         side: Side,
         job: &Job,
-        mut place: impl FnMut(&str) -> Option<PathBuf>,
-    ) -> Result<Vec<WrittenOverride>> {
-        let mut planned: Vec<(usize, String)> = Vec::new();
-        for prefix in self.overrides_dirs(side) {
-            let prefix = prefix.as_str();
-            for i in 0..self.zip.len() {
-                let entry = self
-                    .zip
-                    .by_index(i)
-                    .context("cannot read a modpack archive entry")?;
-                if entry.is_dir() {
-                    continue;
-                }
-                let Some(relative) = entry.name().strip_prefix(prefix) else {
-                    continue;
-                };
-                let relative = relative.trim_start_matches('/');
-                if relative.is_empty() {
-                    continue;
-                }
-                if !is_safe_path(relative) {
-                    tracing::warn!(
-                        path = entry.name(),
-                        "a modpack override escapes its directory"
-                    );
-                    return Err(invalid(ArchiveFault::UnsafePath));
-                }
-                planned.push((i, relative.to_string()));
-            }
-        }
-
-        let total = planned.len() as u64;
-        let mut written = Vec::new();
-        for (done, (index, relative)) in planned.into_iter().enumerate() {
-            job.check()?;
-            overrides_tick(job, done as u64, total, &relative);
-            let Some(target) = place(&relative) else {
-                continue;
-            };
-            let sha1 = self.write_entry(index, &target)?;
-            written.push(WrittenOverride {
-                path: relative,
-                sha1,
-            });
-        }
-        overrides_tick(job, total, total, "");
-        Ok(written)
+        place: impl FnMut(&str) -> Option<PathBuf>,
+    ) -> Result<Vec<Extracted>> {
+        let trees = self.overrides_trees(side)?;
+        self.reader
+            .extract(&trees, ProvisionPhase::Overrides, true, job, place)
     }
-
-    /// Stream one archive entry to `target`, hashing as it goes. Writes through
-    /// a temp file and renames, so a cancelled or failed extraction never leaves
-    /// a half-written config the game would then read.
-    fn write_entry(&mut self, index: usize, target: &Path) -> Result<String> {
-        let mut entry = self
-            .zip
-            .by_index(index)
-            .context("cannot read a modpack archive entry")?;
-        if let Some(parent) = target.parent() {
-            std::fs::create_dir_all(parent)
-                .with_context(|| format!("cannot create {}", parent.display()))?;
-        }
-        let temp = temp_path(target);
-        let mut hasher = Hasher::new(HashAlgorithm::Sha1);
-        {
-            let mut out = std::fs::File::create(&temp)
-                .with_context(|| format!("cannot write {}", temp.display()))?;
-            let mut buf = [0u8; 64 * 1024];
-            loop {
-                let n = entry.read(&mut buf).context("cannot read modpack entry")?;
-                if n == 0 {
-                    break;
-                }
-                hasher.update(&buf[..n]);
-                std::io::Write::write_all(&mut out, &buf[..n])
-                    .with_context(|| format!("cannot write {}", temp.display()))?;
-            }
-        }
-        std::fs::rename(&temp, target)
-            .with_context(|| format!("cannot place {}", target.display()))?;
-        Ok(hasher.hex_digest())
-    }
-}
-
-/// Anything unrecognised stays `.mrpack`, so a caller sees the missing-index
-/// error rather than a guess.
-fn detect(zip: &mut zip::ZipArchive<Cursor<Vec<u8>>>) -> (Format, String) {
-    let names: Vec<String> = zip.file_names().map(str::to_string).collect();
-    if let Some(root) = shallowest(&names, INDEX) {
-        return (Format::Mrpack, root);
-    }
-    let unrecognised = (Format::Mrpack, String::new());
-    let Some(root) = shallowest(&names, MANIFEST) else {
-        return unrecognised;
-    };
-    let Ok(entry) = zip.by_name(&format!("{root}{MANIFEST}")) else {
-        return unrecognised;
-    };
-    let Ok(manifest) = serde_json::from_reader::<_, Value>(entry) else {
-        return unrecognised;
-    };
-    if !super::curseforge::is_pack_manifest(&manifest) {
-        return unrecognised;
-    }
-    let overrides = match manifest.get("overrides").and_then(Value::as_str) {
-        Some(dir) if !dir.trim().is_empty() => dir.trim().to_string(),
-        _ => DEFAULT_OVERRIDES.to_string(),
-    };
-    (Format::CurseForge { overrides }, root)
 }
 
 /// The directory prefix of the shallowest member named `marker`, so a nested
@@ -281,22 +216,6 @@ pub(crate) fn shallowest(names: &[String], marker: &str) -> Option<String> {
                 .map(str::to_string),
         })
         .min_by_key(|root| root.matches('/').count())
-}
-
-fn overrides_tick(job: &Job, current: u64, total: u64, detail: &str) {
-    job.report(&proto::minecraft::ProvisionProgress {
-        phase: proto::minecraft::ProvisionPhase::Overrides,
-        current,
-        total,
-        detail: detail.to_string(),
-        ..Default::default()
-    });
-}
-
-fn temp_path(target: &Path) -> PathBuf {
-    let mut name = target.file_name().unwrap_or_default().to_os_string();
-    name.push(".part");
-    target.with_file_name(name)
 }
 
 /// Parse a `modrinth.index.json` into a resolved pack. Pure — the source and the
@@ -512,19 +431,15 @@ mod tests {
         assert!(parse_index(&json!({"formatVersion": 1, "dependencies": {}})).is_err());
     }
 
-    /// Build a `.mrpack` in memory from `(entry name, body)` pairs.
     fn archive(entries: &[(&str, &str)]) -> Archive {
-        use std::io::Write;
-        let mut buffer = Vec::new();
-        {
-            let mut zip = zip::ZipWriter::new(Cursor::new(&mut buffer));
-            for (name, body) in entries {
-                zip.start_file::<_, ()>(*name, Default::default()).unwrap();
-                zip.write_all(body.as_bytes()).unwrap();
-            }
-            zip.finish().unwrap();
+        let dir = temp("zip");
+        let path = dir.path().join("pack.zip");
+        let mut writer = crate::transfer::archive::Writer::create(&path).unwrap();
+        for (name, body) in entries {
+            writer.add_bytes(name, body.as_bytes()).unwrap();
         }
-        Archive::open(buffer).unwrap()
+        writer.finish().unwrap();
+        Archive::open(&path).unwrap()
     }
 
     fn temp(tag: &str) -> tempfile::TempDir {
@@ -534,7 +449,7 @@ mod tests {
             .expect("temp dir")
     }
 
-    fn extract(archive: &mut Archive, side: Side, dest: &Path) -> Vec<WrittenOverride> {
+    fn extract(archive: &mut Archive, side: Side, dest: &Path) -> Vec<Extracted> {
         let cancel = crate::cancel::Cancel::new();
         let noop = |_: &proto::minecraft::ProvisionProgress| {};
         let job = Job::new(&noop, &cancel);
@@ -591,6 +506,7 @@ mod tests {
     #[test]
     fn the_server_tree_is_the_servers_own() {
         let mut pack = archive(&[
+            ("modrinth.index.json", "{}"),
             ("overrides/config/shared.toml", "shared"),
             ("client-overrides/options.txt", "client"),
             ("server-overrides/server-icon.png", "server"),
@@ -608,6 +524,7 @@ mod tests {
     #[test]
     fn a_side_tree_wins_where_both_name_the_same_path() {
         let mut pack = archive(&[
+            ("modrinth.index.json", "{}"),
             ("overrides/config/cozy.toml", "shared value"),
             ("client-overrides/config/cozy.toml", "client value"),
         ]);
@@ -724,7 +641,10 @@ mod tests {
 
     #[test]
     fn nested_directories_are_created_and_hashed() {
-        let mut pack = archive(&[("overrides/config/deep/nested/file.json", "{}")]);
+        let mut pack = archive(&[
+            ("modrinth.index.json", "{}"),
+            ("overrides/config/deep/nested/file.json", "{}"),
+        ]);
         let dest_dir = temp("nested");
         let dest = dest_dir.path();
 
@@ -742,6 +662,7 @@ mod tests {
     #[test]
     fn refusing_a_file_leaves_what_is_there() {
         let mut pack = archive(&[
+            ("modrinth.index.json", "{}"),
             ("overrides/config/mine.toml", "the pack's"),
             ("overrides/config/theirs.toml", "the pack's"),
         ]);
@@ -770,7 +691,10 @@ mod tests {
 
     #[test]
     fn an_override_escaping_the_game_directory_is_refused() {
-        let mut pack = archive(&[("overrides/../../escape.txt", "no")]);
+        let mut pack = archive(&[
+            ("modrinth.index.json", "{}"),
+            ("overrides/../../escape.txt", "no"),
+        ]);
         let dest_dir = temp("escape");
         let dest = dest_dir.path();
         let cancel = crate::cancel::Cancel::new();

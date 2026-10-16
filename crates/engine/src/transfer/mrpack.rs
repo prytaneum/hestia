@@ -1,89 +1,36 @@
-//! The Modrinth pack format, as an instance archive.
+//! Exporting an instance as a Modrinth pack.
 //!
 //! A `.mrpack` is not really an instance — it is a *pack*: an index of files to
-//! fetch, plus the configuration they need. That difference decides both
-//! directions here.
+//! fetch, plus the configuration they need. Importing one is the modpack flow's
+//! job ([`crate::content::pack`] detects and reads it); this module only writes
+//! one.
 //!
-//! **Importing** one is therefore not this module's job beyond recognising it:
-//! the recipe is [`Recipe::Pack`], and the modpack flow — which already creates
-//! an entry from a pack, resolves its files against the catalogue and leaves
-//! its mods in the pool as ordinary updatable content — owns the rest. Reading
-//! the archive's *bytes* is [`crate::content::pack`]; this is the seam that
-//! points at it.
-//!
-//! **Exporting** one is a lossy projection, and deliberately so. A pack names
-//! its mods by URL and hash, so only pool items hestia knows the origin of
-//! survive as references; a local import has no URL to write, and rides along
-//! inside the archive with a warning saying so.
+//! The export is a lossy projection, and deliberately so. A pack names its mods
+//! by URL and hash, so only pool items hestia knows the origin of survive as
+//! references; a local import has no URL to write, and rides along inside the
+//! archive with a warning saying so.
 
 use std::path::Path;
 
 use anyhow::{Context, Result};
 use proto::content::{ContentKind, InstalledContent};
-use proto::transfer::ImportFormat;
 use proto::warning::WarningInfo;
 use serde_json::json;
 
-use super::archive::{self, Member, Reader, Writer, Written};
+use super::archive::{self, Member, Writer, Written};
 use super::exclude::Rules;
-use super::{Blueprint, Descriptor, Format, Landed, Recipe, Source, Target};
+use super::Source;
 use crate::cancel::Job;
 use crate::checksum::Hasher;
 use crate::content::install;
+use crate::content::pack::INDEX;
 use crate::minecraft::profile::InstanceProfile;
 use crate::registry;
-
-pub(crate) const INDEX: &str = "modrinth.index.json";
 
 /// The load directories whose files a pack can name. `overrides/` members under
 /// one of these are content the pack ships rather than configuration, which is
 /// what makes them worth warning about on export.
 const LOAD_DIRS: &[&str] = &["mods/", "resourcepacks/", "shaderpacks/", "plugins/"];
-
-pub(crate) struct Mrpack;
-
-impl Format for Mrpack {
-    fn id(&self) -> ImportFormat {
-        ImportFormat::Mrpack
-    }
-
-    fn marker(&self) -> &'static str {
-        INDEX
-    }
-
-    fn read(&self, reader: &mut Reader, prefix: &str) -> Result<Blueprint> {
-        let text = reader.read_text(&format!("{prefix}{INDEX}"))?;
-        let index: serde_json::Value = serde_json::from_str(&text).map_err(|e| {
-            tracing::warn!(error = %e, "{INDEX} is malformed");
-            proto::error::ErrorInfo::ArchiveInvalid {
-                format: proto::error::ArchiveFormat::Mrpack,
-                reason: proto::error::ArchiveFault::ManifestMalformed,
-            }
-        })?;
-        let pack = crate::content::pack::parse_index(&index)?;
-        Ok(Blueprint {
-            descriptor: Descriptor {
-                name: pack.name,
-                game_version: pack.game_version,
-                loader: pack.loader.unwrap_or_default(),
-                loader_version: pack.loader_version.unwrap_or_default(),
-            },
-            recipe: Recipe::Pack,
-        })
-    }
-
-    fn land(
-        &self,
-        _reader: &mut Reader,
-        _prefix: &str,
-        _target: &Target<'_>,
-        _job: &Job<'_>,
-    ) -> Result<Landed> {
-        // Unreachable by construction: `Recipe::Pack` means the modpack flow
-        // installed the whole thing, files included.
-        Ok(Landed::default())
-    }
-}
 
 /// Write the instance out as a pack: an index of everything that can be named
 /// by download, and an `overrides/` tree holding the rest of the game directory.
