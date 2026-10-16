@@ -15,9 +15,9 @@ A shared setting is now a **canonical value under a stable id**, not a line of a
 file. A catalogue entry names the physical keys the setting has had, the version
 range each key is valid in, and how its value is encoded in that range. Reading
 an instance decodes its file into canonical values; writing re-encodes each one
-for that instance's own version. The shared copy is `<shared>/options.json` — a
-managed document of canonical values — and every instance keeps its own
-`options.txt`, still written as the game wrote it
+for that instance's own version. The shared copy is `<shared>/options.txt` — the
+canonical values, spelled for the newest version — and every instance keeps its
+own `options.txt`, still written as the game wrote it
 ([0070](0070-the-merge-writes-the-games-own-file.md)).
 
 Two consequences follow. **The options floor goes away**: a legacy keybind is a
