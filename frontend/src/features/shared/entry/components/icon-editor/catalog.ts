@@ -1,11 +1,11 @@
 /**
  * The generated-icon catalogue: the curated sprite set (GPL-3.0, vendor
  * logos and club-of-this-launcher sprites excluded), the gradient palette,
- * and the pieces the editor and the wizard both build on — ids, wire
- * configs, the randomization blacklist and the symbol-byte loader.
+ * and the pieces the editor and the wizard both build on — ids, configs,
+ * the randomization blacklist and the canvas baker.
  *
- * The background and symbol ids are the literal sidecar values the shell
- * validates (`[a-z0-9_]{1,64}`); keep them stable or stored icons break.
+ * The background and symbol ids are the literal sidecar values the editor
+ * reopens from; keep them stable or stored icons break.
  */
 
 import type { CSSProperties } from 'react';
@@ -566,9 +566,39 @@ export function randomIconConfig(current?: IconConfig): IconConfig {
   };
 }
 
-/** The raw PNG bytes the shell bakes into the icon; assets are same-origin. */
-export async function symbolBytes(asset: string): Promise<number[]> {
-  const response = await fetch(asset);
-  if (!response.ok) throw new Error(`Failed to load the icon symbol: ${asset}`);
-  return Array.from(new Uint8Array(await response.arrayBuffer()));
+const BAKED_ICON_SIZE = 256;
+
+function backgroundFill(
+  context: CanvasRenderingContext2D,
+  background: IconBackground,
+): string | CanvasGradient {
+  if (background.type === 'color') return background.value;
+  const gradient = context.createLinearGradient(0, 0, 0, BAKED_ICON_SIZE);
+  gradient.addColorStop(0, background.top_color);
+  gradient.addColorStop(1, background.bottom_color);
+  return gradient;
+}
+
+/** Paint the config onto a 256px canvas and encode it as opaque PNG bytes; assets are same-origin. */
+export async function bakeIcon(config: IconConfig): Promise<number[]> {
+  const symbol = symbolOption(config.symbol);
+  if (!symbol) throw new Error(`Unknown icon symbol: ${config.symbol}`);
+  const image = new Image();
+  image.src = symbol.asset;
+  await image.decode();
+
+  const canvas = document.createElement('canvas');
+  canvas.width = BAKED_ICON_SIZE;
+  canvas.height = BAKED_ICON_SIZE;
+  const context = canvas.getContext('2d');
+  if (!context) throw new Error('Canvas is unavailable');
+  context.fillStyle = backgroundFill(context, config.background);
+  context.fillRect(0, 0, BAKED_ICON_SIZE, BAKED_ICON_SIZE);
+  context.drawImage(image, 0, 0, BAKED_ICON_SIZE, BAKED_ICON_SIZE);
+
+  const blob = await new Promise<Blob | null>((resolve) =>
+    canvas.toBlob(resolve, 'image/png'),
+  );
+  if (!blob) throw new Error('Failed to encode the icon');
+  return Array.from(new Uint8Array(await blob.arrayBuffer()));
 }

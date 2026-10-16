@@ -28,11 +28,11 @@ export const iconMutations = {
   generate: () =>
     mutation<
       api.IconEntry,
-      { entryId: string; config: api.IconConfig; symbolBytes: number[] }
+      { entryId: string; config: api.IconConfig; bytes: number[] }
     >({
       mutationKey: [...keys.icons.all, 'generate'],
-      mutationFn: ({ entryId, config, symbolBytes }) =>
-        api.generate(entryId, config, symbolBytes),
+      mutationFn: ({ entryId, config, bytes }) =>
+        api.generate(entryId, config, bytes),
       invalidates: () => [keys.icons.all],
     }),
 };

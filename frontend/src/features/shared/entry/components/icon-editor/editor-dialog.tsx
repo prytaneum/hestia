@@ -31,11 +31,11 @@ import {
   backgroundOption,
   backgroundOptions,
   backgroundStyle,
+  bakeIcon,
   DEFAULT_BACKGROUND_ID,
   DEFAULT_SYMBOL_ID,
   randomIconConfig,
   type SymbolCategory,
-  symbolBytes,
   symbolOption,
   symbolOptions,
 } from './catalog';
@@ -153,9 +153,12 @@ export function IconEditorDialog({
         if (entryId && customPath)
           await setIcon.mutateAsync({ entryId, sourcePath: customPath });
       } else if (selectedSymbol) {
-        const bytes = await symbolBytes(selectedSymbol.asset);
         if (entryId)
-          await generate.mutateAsync({ entryId, config, symbolBytes: bytes });
+          await generate.mutateAsync({
+            entryId,
+            config,
+            bytes: await bakeIcon(config),
+          });
         else onSaved?.(config);
       }
       onOpenChange(false);
@@ -169,12 +172,10 @@ export function IconEditorDialog({
     setSaving(true);
     try {
       const rolled = applyRandom();
-      const symbol = symbolOption(rolled.symbol);
-      if (!symbol) return;
       await generate.mutateAsync({
         entryId,
         config: rolled,
-        symbolBytes: await symbolBytes(symbol.asset),
+        bytes: await bakeIcon(rolled),
       });
       onOpenChange(false);
     } finally {

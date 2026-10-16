@@ -4,20 +4,15 @@
  * records the picked path and `convertFileSrc` (mocked in ../internals) is
  * what turns it into something the webview would load.
  */
-import { bool, type Handlers, now, str } from '../support';
+import { type Handlers, now, str } from '../support';
 
 interface IconEntry {
   path: string;
   mtime: number;
 }
 
-interface GeneratedIcon {
-  config: unknown;
-  generated: boolean;
-}
-
 const icons = new Map<string, IconEntry>();
-const generated = new Map<string, GeneratedIcon>();
+const configs = new Map<string, unknown>();
 
 export const commands: Handlers = {
   icons_list: () => Object.fromEntries(icons),
@@ -34,11 +29,10 @@ export const commands: Handlers = {
     return entry;
   },
 
-  icon_generate: (p) => {
-    const entry = { config: p?.config, generated: bool(p, 'generate') };
-    generated.set(str(p, 'entryId'), entry);
-    return entry.config;
+  icon_set_bytes: (p) => {
+    configs.set(str(p, 'entryId'), p?.config);
+    return p?.config;
   },
 
-  icon_config: (p) => generated.get(str(p, 'entryId'))?.config ?? null,
+  icon_config: (p) => configs.get(str(p, 'entryId')) ?? null,
 };

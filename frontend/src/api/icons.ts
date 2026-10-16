@@ -12,10 +12,7 @@ export interface IconEntry {
   mtime: number;
 }
 
-/**
- * The generated-icon background, tagged by type both sides of the socket
- * agree on. Colors are `#rrggbb` literals the shell parses.
- */
+/** The generated-icon background, tagged by type; colors are `#rrggbb`. */
 export type IconBackground =
   | { type: 'color'; value: string }
   | {
@@ -43,13 +40,13 @@ export function fetch(entryId: string, url: string): Promise<IconEntry> {
   return invokeCommand('icon_fetch', { entryId, url });
 }
 
-/** Bake `config` over `symbolBytes` into a generated icon for the entry. */
+/** Store the baked `bytes` as the entry's icon, recording `config` beside them. */
 export function generate(
   entryId: string,
   config: IconConfig,
-  symbolBytes: number[],
+  bytes: number[],
 ): Promise<IconEntry> {
-  return invokeCommand('icon_generate', { entryId, config, symbolBytes });
+  return invokeCommand('icon_set_bytes', { entryId, config, bytes });
 }
 
 /** The stored generation config, or null when the icon was picked instead. */

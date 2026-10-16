@@ -93,7 +93,7 @@ pub fn run() {
             commands::icons::icons_list,
             commands::icons::icon_set,
             commands::icons::icon_remove,
-            commands::icons::icon_generate,
+            commands::icons::icon_set_bytes,
             commands::icons::icon_fetch,
             commands::icons::icon_config,
             commands::screenshots::screenshots_allow,

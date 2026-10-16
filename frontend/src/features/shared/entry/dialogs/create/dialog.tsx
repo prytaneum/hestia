@@ -14,9 +14,8 @@ import { StepDots } from '@/components/step-dots';
 import { Button } from '@/components/ui/button';
 import { ProvisionProgressView } from '@/features/shared/entry/components';
 import {
+  bakeIcon,
   randomIconConfig,
-  symbolBytes,
-  symbolOption,
 } from '@/features/shared/entry/components/icon-editor/catalog';
 import {
   createWizardDefaults,
@@ -108,12 +107,8 @@ export function CreateEntryDialog({
 
   const applyRandomIcon = (entryId: string) => {
     const icon = randomIconConfig();
-    const symbol = symbolOption(icon.symbol);
-    if (!symbol) return;
-    symbolBytes(symbol.asset)
-      .then((bytes) =>
-        generateIcon.mutate({ entryId, config: icon, symbolBytes: bytes }),
-      )
+    bakeIcon(icon)
+      .then((bytes) => generateIcon.mutate({ entryId, config: icon, bytes }))
       .catch(() => undefined);
   };
 
