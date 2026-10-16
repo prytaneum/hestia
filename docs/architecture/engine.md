@@ -69,7 +69,7 @@ one's.
 
 | Pass | What it settles |
 |---|---|
-| `ProcessSupervisor::recover()` | re-adopt surviving processes; entomb ones that died while unsupervised |
+| `ProcessSupervisor::recover()` | re-adopt surviving processes; mark ones that died while unsupervised as ended |
 | server phase reconcile | discard a record still `Provisioning`; keep and log one mid-`Updating` ([0023](../decisions/0023-server-phase-over-a-ready-bool.md)) |
 | `reclaim_temp()` | delete abandoned `.part`/`.staging` artifacts, logging the bytes reclaimed ([0024](../decisions/0024-temp-artifacts-are-reclaimed-at-startup.md)) |
 
