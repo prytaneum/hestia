@@ -117,10 +117,15 @@ off three ways:
 
 1. **Restore heals itself.** A backup restore swaps `data/`, but the managed dirs
    live outside it and are on the backup exclude list, so a reconcile pass
-   re-mirrors them at the next start. Archives stay world-focused.
+   re-mirrors them at the next start. Archives stay world-focused. Server mods
+   and plugins also survive a restore through the backup's preserve list, which
+   carries them over from the live tree; datapacks, which live inside the world
+   archive, rely on the mirror.
 2. **Provenance survives**, so `update` knows each item's project and current
    version.
-3. **A hand-dropped jar is surfaced as untracked**, never silently adopted.
+3. **A hand-dropped jar in `data/` is surfaced as untracked**, never silently
+   adopted. A file placed by hand in the managed directory itself is neither
+   indexed nor reported: that directory is Hestia's namespace.
 
 ([0013](../decisions/0013-managed-dir-of-record.md))
 
@@ -163,7 +168,7 @@ it.
 
 | Operation | Behaviour |
 |---|---|
-| `enable` | flips a flag in `content.json`. Enforced at the single point it needs — the launch-time mirror keeps a disabled item out of `data/`, so it can never be resurrected by a restore. A datapack has no mirror, so it uses the standard `.disabled` rename inside its world |
+| `enable` | flips a flag in `content.json`. Enforced at the single point it needs — the launch-time mirror keeps a disabled item out of `data/`, so it can never be resurrected by a restore. A datapack's mirror is per world, so disabling drops the mirror in the chosen worlds |
 | `check_updates` | a *separate* on-demand call, not baked into `list`, so `list` stays fast and offline |
 | `update` / `remove` | take a *batch* of references — one job, one call. Named items are resolved before the first one moves, so a batch naming something that does not exist changes nothing; an empty batch means every item of the kind (`update`) and is refused (`remove`). Past that an update is per-item like an install: every item resolves, the moves download side by side under one progress extent, and an item that cannot move comes back as a failure while every one that did is recorded |
 | `update` with a `path` | moves the one named *local* item onto that file, keeping its enabled flag and worlds; a tracked or pack-owned item is refused. The old mirrors go first, so a rebuild under the same name is what loads next ([0079](../decisions/0079-a-local-item-updates-from-a-file.md)) |
@@ -220,20 +225,23 @@ A file no source recognises and that embeds nothing keeps the placeholder.
 
 ## Datapacks are the exception
 
-A datapack loads from *inside a world*, not a flat directory — and a world is
-already `data/`, which the backup archive captures. So a datapack has no managed
-copy and no mirror: it installs straight into its world's `datapacks/`.
+A datapack loads from *inside a world*, not a flat directory, so its mirror is
+per world. It still has a managed copy, `<entry>/datapacks/<file>`, like every
+other kind: an instance with no world yet can take one, a world created later
+receives the packs installed before it, and a server backup restore — which swaps
+the world, and with it any datapack installed since — is healed by the launch-time
+sync. Mods and plugins survive a restore through the backup's preserve list; a
+datapack, being inside the archive, relies on the mirror.
 
 | | Server | Instance |
 |---|---|---|
-| Where | `data/<level-name>/datapacks/` | `data/saves/<world>/datapacks/` |
-| Which world | the one, from `server.properties` | named — repeatable `--world`, or an interactive multi-select |
+| Mirrored to | `data/<level-name>/datapacks/` | `data/saves/<world>/datapacks/` |
+| Which world | the one, from `server.properties` | named — repeatable `--world`, or an interactive multi-select; none named means every world, now or later |
 
-The index keys a datapack by world, so the same pack coexists across several
-worlds and a removal clears every copy unless narrowed. Sync skips datapacks
-entirely, and the client-side support flag is waived for them: a datapack runs on
-a world's server side, including a client's integrated server
-([0016](../decisions/0016-datapacks-are-world-of-record.md)).
+One index entry per pack carries the worlds it loads in, so a removal clears
+every mirror unless narrowed. The client-side support flag is waived for
+datapacks: a datapack runs on a world's server side, including a client's
+integrated server ([0016](../decisions/0016-datapacks-are-world-of-record.md)).
 
 ## Modpacks
 
@@ -357,7 +365,7 @@ update *does* carry the game version with it — that is what updating a pack me
 - [0013 — Installed content is managed-dir-of-record, mirrored into `data/`](../decisions/0013-managed-dir-of-record.md)
 - [0014 — Enable/disable, update-check and pin extend the same model](../decisions/0014-enable-update-check-and-pin.md)
 - [0015 — A local-file import is inspected, not trusted](../decisions/0015-local-imports-are-inspected.md)
-- [0016 — Datapacks are world-of-record](../decisions/0016-datapacks-are-world-of-record.md)
+- [0016 — Datapacks are managed like every other kind, mirrored per world](../decisions/0016-datapacks-are-world-of-record.md)
 - [0075 — A local file is identified by its hash](../decisions/0075-a-local-file-is-identified-by-its-hash.md)
 - [0076 — A pack file is identified wherever it came from](../decisions/0076-a-pack-file-is-identified-wherever-it-came-from.md)
 - [0078 — A pack updates from a file, and leaves an entry two ways](../decisions/0078-a-pack-updates-from-a-file.md)

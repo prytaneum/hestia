@@ -9,9 +9,8 @@ the flag needs: the launch-time mirror `sync` keeps a disabled item out of
 `data/`, so a disabled mod is never loaded and a backup restore can't resurrect
 it; the toggle also applies the filesystem
 change immediately (the entry is stopped) so the state is visible before the
-next start. A datapack has no mirror, so it disables by the standard `.disabled`
-rename inside its world (Minecraft ignores the suffix), which the world backup
-carries. `content.check_updates` is a *separate* on-demand call (not baked into
+next start. A datapack disables the same way, per world: its mirror in the
+chosen worlds is dropped ([0016](0016-datapacks-are-world-of-record.md)). `content.check_updates` is a *separate* on-demand call (not baked into
 `list`): it resolves each platform item's newest compatible version upstream and
 reports which differ, keeping `list` fast and offline. `content.set_version`
 re-pins one item to a chosen published version — the update path with an

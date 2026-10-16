@@ -9,7 +9,10 @@ which pays off three ways: (1) a backup restore swaps `data/` but the managed
 dirs live outside it, so `mods/`/`resourcepacks/`/`shaderpacks/` are added to
 the backup exclude/preserve set and a `sync` pass re-mirrors them at the next
 start/launch (`server_launch_plan`, `prepare_instance`) — restore heals itself
-and archives stay world-focused; (2) provenance survives, so `update` knows each
+and archives stay world-focused. For a server's mods and plugins the preserve
+list alone already carries them over from the live tree; the mirror is what
+heals a datapack, which lives inside the world archive
+([0016](0016-datapacks-are-world-of-record.md)); (2) provenance survives, so `update` knows each
 item's project and current version (Prism keeps the same metadata in packwiz
 TOML sidecars — same idea, one index file); (3) a hand-dropped jar in
 `data/mods/` is surfaced as *untracked* rather than silently adopted. Installs

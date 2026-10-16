@@ -94,7 +94,7 @@ the alternative you rejected — that is usually the part nobody can recover lat
 - **0013** — [Installed content is managed-dir-of-record, mirrored into `data/`](0013-managed-dir-of-record.md)
 - **0014** — [Enable/disable, update-check, and pin extend the same model](0014-enable-update-check-and-pin.md)
 - **0015** — [A local-file import is inspected, not trusted](0015-local-imports-are-inspected.md)
-- **0016** — [Datapacks are world-of-record, not managed-dir-of-record](0016-datapacks-are-world-of-record.md)
+- **0016** — [Datapacks are managed like every other kind, mirrored per world](0016-datapacks-are-world-of-record.md)
 - **0064** — [A record of the user's is mutated, never rebuilt](0064-a-record-is-mutated-not-rebuilt.md)
 - **0075** — [A local file is identified by its hash](0075-a-local-file-is-identified-by-its-hash.md)
 - **0076** — [A pack file is identified wherever it came from](0076-a-pack-file-is-identified-wherever-it-came-from.md)
