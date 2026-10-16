@@ -160,9 +160,7 @@ impl Drop for Spinner {
     }
 }
 
-/// Reports a byte transfer with optional non-byte phases (java install, the
-/// self-update download): a live gauge on a terminal, one line per new label
-/// when stderr is redirected.
+/// A byte gauge with optional spinner phases: live on a terminal, one line per new label when redirected.
 pub struct ByteReporter {
     animator: Option<Animator>,
     rate: Mutex<RateMeter>,

@@ -11,8 +11,8 @@ intact. Line prompts and streams are not widgets: a `read_line` question
 attach after a launch) draw no viewport, so they print to the scrollback where
 the terminal's own scrolling, search and copy work on them. The deliberate
 exception to the alternate screen is progress with no interaction
-(`java install`, `backup create`, a detached start): flashing the alternate screen for a spinner the user cannot act on is hostile,
-so the `Spinner`/reporter API renders one stderr line rewritten in place (and
+(`java install`, `backup create`, a detached start): flashing the alternate
+screen for a spinner the user cannot act on is hostile, so the `Spinner`/reporter API renders one stderr line rewritten in place (and
 terse per-phase lines when redirected). Progress that happens *inside* a flow —
 installing a reviewed content batch, provisioning from the create wizard —
 renders in-session on the same screen that collected the decision.

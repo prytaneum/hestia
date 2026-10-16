@@ -135,8 +135,7 @@ pub async fn rename(name: String, new_name: String) -> Result<()> {
     }
 }
 
-/// Print a process's output as it arrives until Ctrl-C. A stop is a note in the
-/// stream rather than its end, unless `one_session`, where the exit ends it.
+/// Stream a process's output until Ctrl-C; a stop ends it only when `one_session`.
 pub(crate) async fn follow_logs(
     client: &Client,
     noun: &str,
