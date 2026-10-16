@@ -115,7 +115,7 @@ impl Instances {
     pub fn adopt(&self, name: &str, record: InstanceRecord) -> Result<InstanceRecord> {
         if registry::name_taken(name, self.list().iter().map(|r| r.name.as_str())) {
             bail!(proto::error::ErrorInfo::AlreadyExists {
-                entry: proto::error::Nameable::Instance,
+                entry: proto::error::EntryKind::Instance,
                 name: name.to_string()
             });
         }
@@ -231,7 +231,7 @@ impl Instances {
                 .map(|r| r.name.as_str()),
         ) {
             bail!(proto::error::ErrorInfo::AlreadyExists {
-                entry: proto::error::Nameable::Instance,
+                entry: proto::error::EntryKind::Instance,
                 name: new_name.to_string()
             });
         }

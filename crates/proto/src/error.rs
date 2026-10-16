@@ -4,7 +4,7 @@
 //! front-end renders its own localized string from the tag + typed fields.
 //!
 //! Semantic variants translate fully with their fields; operational variants
-//! (`MalformedRequest`, `Io`, `Upstream`, `DownloadFailed`, `RconFailed`,
+//! (`MalformedRequest`, `Io`, `Upstream`, `DownloadFailed`,
 //! `Internal`) carry an unbounded English `detail` — a per-path filesystem
 //! message is not localizable and is shown as secondary text under a translated
 //! headline. A semantic variant never carries prose: what it would have said is
@@ -34,24 +34,6 @@ impl fmt::Display for EntryKind {
     }
 }
 
-/// A uniquely-named thing that can already exist.
-#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
-#[serde(rename_all = "snake_case")]
-pub enum Nameable {
-    Server,
-    Instance,
-}
-
-impl fmt::Display for Nameable {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(match self {
-            Nameable::Server => "server",
-            Nameable::Instance => "instance",
-        })
-    }
-}
-
 /// A required-or-invalid input, named so a front-end can label it.
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
@@ -71,8 +53,6 @@ pub enum Field {
     Address,
     Memory,
     JvmArgs,
-    Port,
-    Players,
     Player,
     BackupInterval,
     BackupRetention,
@@ -105,8 +85,6 @@ impl fmt::Display for Field {
             Field::Address => "a server address",
             Field::Memory => "memory",
             Field::JvmArgs => "jvm arguments",
-            Field::Port => "a port",
-            Field::Players => "players",
             Field::Player => "a player name",
             Field::Order => "a list order",
             Field::Realm => "a realm",
@@ -550,7 +528,7 @@ pub enum ErrorInfo {
 
     // --- conflict ---
     AlreadyExists {
-        entry: Nameable,
+        entry: EntryKind,
         name: String,
     },
     PortUnavailable {
@@ -596,12 +574,6 @@ pub enum ErrorInfo {
     CreateInProgress,
     JavaInstallInProgress {
         major: i32,
-    },
-    NoConsole {
-        name: String,
-    },
-    NoGamePort {
-        name: String,
     },
 
     // --- auth ---
@@ -749,9 +721,6 @@ pub enum ErrorInfo {
     DownloadFailed {
         detail: String,
     },
-    RconFailed {
-        detail: String,
-    },
     Internal {
         detail: String,
     },
@@ -795,7 +764,6 @@ impl ErrorInfo {
             | Io { .. }
             | Upstream { .. }
             | DownloadFailed { .. }
-            | RconFailed { .. }
             | StopTimedOut { .. }
             | Internal { .. } => "handler_error",
             _ => "bad_request",
@@ -916,8 +884,6 @@ impl fmt::Display for ErrorInfo {
             JavaInstallInProgress { major } => {
                 write!(f, "java {major} is already being installed")
             }
-            NoConsole { name } => write!(f, "{name} has no console yet — restart it"),
-            NoGamePort { name } => write!(f, "{name} has no game port allocated"),
             SignInRequired => write!(f, "sign in with a Microsoft account first"),
             SessionExpired { reference } => {
                 write!(f, "your sign-in for '{reference}' expired — sign in again")
@@ -1018,7 +984,6 @@ impl fmt::Display for ErrorInfo {
             OfflineMode => write!(f, "hestia is in offline mode"),
             Upstream { service, detail } => write!(f, "{service} request failed: {detail}"),
             DownloadFailed { detail } => write!(f, "download failed: {detail}"),
-            RconFailed { detail } => write!(f, "server console command failed: {detail}"),
             Internal { detail } => write!(f, "{detail}"),
         }
     }

@@ -182,7 +182,7 @@ impl Servers {
     ) -> Result<ServerRecord> {
         if registry::name_taken(name, self.list().iter().map(|r| r.name.as_str())) {
             bail!(proto::error::ErrorInfo::AlreadyExists {
-                entry: proto::error::Nameable::Server,
+                entry: proto::error::EntryKind::Server,
                 name: name.to_string()
             });
         }
@@ -552,7 +552,7 @@ impl Servers {
                 .map(|r| r.name.as_str()),
         ) {
             bail!(proto::error::ErrorInfo::AlreadyExists {
-                entry: proto::error::Nameable::Server,
+                entry: proto::error::EntryKind::Server,
                 name: new_name.to_string()
             });
         }
