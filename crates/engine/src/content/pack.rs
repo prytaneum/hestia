@@ -8,7 +8,7 @@
 //! which its API alone resolves, so that half lives in `curseforge.rs` and the
 //! archive only hands the manifest over.
 //!
-//! Deliberately platform-agnostic. A pack picked off disk has no source.
+//! A pack picked off disk has no source; only its files' Modrinth CDN URLs are read for ids.
 
 use std::path::{Component, Path, PathBuf};
 
@@ -20,6 +20,7 @@ use proto::minecraft::{Artifact, ProvisionPhase};
 use proto::transfer::ImportFormat;
 use serde_json::{Map, Value};
 
+use super::modrinth;
 use crate::cancel::Job;
 use crate::transfer::archive::{Extracted, Reader};
 
@@ -266,6 +267,10 @@ pub fn parse_index(index: &Value) -> Result<ResolvedModpack> {
                 .and_then(Value::as_str)
                 .map(parse_side)
                 .unwrap_or(SideSupport::Required);
+            let (source, project_id, version_id) = match modrinth::cdn_file(&url) {
+                Some(file) => (modrinth::ID.to_string(), file.project_id, file.version_id),
+                None => Default::default(),
+            };
             files.push(ModpackFile {
                 path: path.to_string(),
                 artifact: Artifact {
@@ -279,6 +284,10 @@ pub fn parse_index(index: &Value) -> Result<ResolvedModpack> {
                 },
                 client,
                 server,
+                source,
+                project_id,
+                version_id,
+                ..ModpackFile::default()
             });
         }
     }

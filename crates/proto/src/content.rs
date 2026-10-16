@@ -221,6 +221,7 @@ pub struct VersionQuery {
 }
 
 /// One file a modpack pulls in, at its path relative to the game directory.
+/// The identity fields are empty where the pack does not say which release it is.
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
 #[serde(default, rename_all = "camelCase")]
@@ -229,6 +230,12 @@ pub struct ModpackFile {
     pub artifact: Artifact,
     pub client: SideSupport,
     pub server: SideSupport,
+    pub source: String,
+    pub project_id: String,
+    pub version_id: String,
+    pub version_number: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub project: Option<ContentProject>,
 }
 
 /// A resolved modpack: the loader/game version it targets and the files it

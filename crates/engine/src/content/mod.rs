@@ -338,14 +338,6 @@ impl Content {
         self.provider(source)?.versions_by_id(ids).await
     }
 
-    /// Every source that can serve is asked: a pack read off disk names none.
-    pub(crate) fn parse_file_url(&self, url: &str) -> Option<(&'static str, provider::FileRef)> {
-        self.providers
-            .iter()
-            .filter(|p| p.available())
-            .find_map(|p| p.parse_file_url(url).map(|file| (p.id(), file)))
-    }
-
     /// Recognise a project/version page URL on any registered platform's site,
     /// returning the owning source id and the reference it names.
     pub(crate) fn parse_url(&self, url: &str) -> Option<(String, UrlRef)> {

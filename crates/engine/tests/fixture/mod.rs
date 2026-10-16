@@ -7,8 +7,8 @@ use std::collections::HashMap;
 use anyhow::{bail, Result};
 use async_trait::async_trait;
 use engine::{
-    AssetIndex, Content, ContentProvider, FileRef, FlavorInfo, FlavorProvider, InstanceProfile,
-    LocalFile, Minecraft, ServerJar, ServerProfile, Side, UrlRef,
+    AssetIndex, Content, ContentProvider, FlavorInfo, FlavorProvider, InstanceProfile, LocalFile,
+    Minecraft, ServerJar, ServerProfile, Side, UrlRef,
 };
 use proto::content::{
     ContentKind, ContentProject, ContentVersion, SearchQuery, SearchResult, VersionQuery,
@@ -187,16 +187,6 @@ impl ContentProvider for Source {
     }
     fn parse_url(&self, _url: &str) -> Option<UrlRef> {
         None
-    }
-    fn parse_file_url(&self, url: &str) -> Option<FileRef> {
-        let version = self
-            .versions
-            .iter()
-            .find(|v| v.files.iter().any(|f| f.artifact.url == url))?;
-        Some(FileRef {
-            project_id: version.project_id.clone(),
-            version_id: version.id.clone(),
-        })
     }
     async fn versions_by_id(&self, ids: &[String]) -> Result<Vec<ContentVersion>> {
         Ok(self

@@ -27,7 +27,7 @@ use std::path::Path;
 
 use anyhow::Result;
 use proto::content::{
-    ContentFailure, ContentKind, ContentProject, InstalledContent, ResolvedModpack,
+    ContentFailure, ContentKind, ContentProject, InstalledContent, ModpackFile, ResolvedModpack,
 };
 use proto::error::{EntryKind, ErrorInfo};
 use proto::modpack::{
@@ -62,6 +62,18 @@ struct FileIdentity {
     /// Empty, like `project`, when the catalogue could not be reached.
     version_number: String,
     project: Option<ContentProject>,
+}
+
+impl FileIdentity {
+    fn of(file: &ModpackFile) -> Option<Self> {
+        (!file.source.is_empty() && !file.version_id.is_empty()).then(|| FileIdentity {
+            source: file.source.clone(),
+            project_id: file.project_id.clone(),
+            version_id: file.version_id.clone(),
+            version_number: file.version_number.clone(),
+            project: file.project.clone(),
+        })
+    }
 }
 
 struct Supplied {

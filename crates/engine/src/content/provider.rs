@@ -26,10 +26,7 @@ pub struct UrlRef {
     pub kind: Option<ContentKind>,
 }
 
-/// What a platform's download URL says about the file behind it. A pack index
-/// names its files by URL and hash alone, so this is what makes each one an
-/// ordinary tracked pool item rather than an anonymous jar — and it costs
-/// nothing, since the ids are already in the URL.
+/// The ids a Modrinth CDN URL carries for the file behind it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FileRef {
     pub project_id: String,
@@ -66,11 +63,6 @@ pub trait ContentProvider: Send + Sync {
     fn configure(&self, _settings: &ContentSettings) {}
     /// Recognise a project/version page URL on this platform's site.
     fn parse_url(&self, url: &str) -> Option<UrlRef>;
-    /// Recognise one of this platform's own file download URLs, when it carries
-    /// the ids. `None` for a URL the platform does not serve.
-    fn parse_file_url(&self, _url: &str) -> Option<FileRef> {
-        None
-    }
     async fn search(&self, query: &SearchQuery) -> Result<proto::content::SearchResult>;
     /// A project's detail, stamped with the caller's `kind` when it publishes it.
     async fn project(&self, project: &str, kind: Option<ContentKind>) -> Result<ContentProject>;

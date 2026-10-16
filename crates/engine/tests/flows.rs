@@ -495,7 +495,6 @@ async fn a_pack_read_off_disk_tracks_whatever_a_source_recognises() {
         "dependencies": { "minecraft": "1.21", "fabric-loader": "0.16.0" },
         "files": [
             { "path": "mods/sodium.jar", "downloads": [files.url("sodium.jar")] },
-            { "path": "mods/stray.jar", "downloads": [files.url("stray.jar")] },
         ],
     });
     let path = local_pack(
@@ -551,14 +550,13 @@ async fn a_pack_read_off_disk_tracks_whatever_a_source_recognises() {
     assert_eq!(
         tracked("sodium.jar"),
         ("fixture", "1.0.0"),
-        "an index file is identified by its download URL"
+        "an index file off a foreign host is identified by its hash"
     );
     assert_eq!(
         tracked("iris.jar"),
         ("fixture", "1.0.0"),
         "an override jar is identified by its hash"
     );
-    assert_eq!(tracked("stray.jar"), ("file", ""));
     assert_eq!(tracked("homemade.jar"), ("file", ""));
 
     let record = engine

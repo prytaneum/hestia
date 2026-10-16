@@ -16,7 +16,7 @@ use proto::warning::WarningInfo;
 
 use super::super::batch::{gather, Batch};
 use super::super::content::entry::{content_target, EntryContent, EntrySide};
-use super::{pack_display_name, Supplied};
+use super::{pack_display_name, FileIdentity, Supplied};
 use crate::cancel::Job;
 use crate::config::ModpackSettings;
 use crate::content::{exclude, install, modpack, pack, record};
@@ -219,8 +219,7 @@ impl Engine {
 
     /// Download the pack's managed-kind files into the entry's managed
     /// directories and mirror them into `data/`. Each is recorded with the ids
-    /// its download URL carries, so a pack's mods are ordinary tracked items —
-    /// listable, updatable and update-checkable — rather than anonymous jars.
+    /// the resolved pack carries, so a pack's mods are ordinary tracked items.
     async fn fetch_pack_content(
         &self,
         ctx: &EntryContent,
@@ -228,12 +227,9 @@ impl Engine {
         resolved: &ResolvedModpack,
         job: &Job<'_>,
     ) -> (Vec<Supplied>, Vec<ContentFailure>) {
-        let mut refs = self.identify(files);
-        let catalogue = self.hydrate(&mut refs).await;
-
         // Two entries naming one path would race on the same staging file.
         let mut named = HashSet::new();
-        let queued: Vec<(Supplied, &ModpackFile)> = files
+        let mut queued: Vec<(Supplied, &ModpackFile)> = files
             .iter()
             .filter(|(_, file)| named.insert(file.path.as_str()))
             .map(|(kind, file)| {
@@ -242,13 +238,16 @@ impl Engine {
                     filename: file.artifact.filename.clone(),
                     sha1: String::new(),
                     url: file.artifact.url.clone(),
-                    identity: refs
-                        .remove(file.path.as_str())
-                        .map(|located| catalogue.identity(located)),
+                    identity: FileIdentity::of(file),
                 };
                 (pending, *file)
             })
             .collect();
+        let mut identities: Vec<&mut FileIdentity> = queued
+            .iter_mut()
+            .filter_map(|(pending, _)| pending.identity.as_mut())
+            .collect();
+        self.hydrate(&mut identities).await;
 
         let batch = &Batch::new(
             job,

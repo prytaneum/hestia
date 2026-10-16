@@ -66,12 +66,31 @@ const LOADER_KINDS: [(&str, ContentKind); 18] = [
     ("minecraft", ContentKind::ResourcePack),
 ];
 
+pub(crate) const ID: &str = "modrinth";
+
 pub struct Modrinth;
+
+/// `cdn.modrinth.com/data/<project>/versions/<version>/<filename>`. Any other
+/// host is somebody else's file and stays an untracked direct download.
+pub(crate) fn cdn_file(url: &str) -> Option<FileRef> {
+    let rest = url.strip_prefix("https://")?;
+    let path = rest.strip_prefix(CDN)?.strip_prefix("/data/")?;
+    let mut segments = path.split('/');
+    let project_id = segments.next().filter(|s| !s.is_empty())?.to_string();
+    if segments.next()? != "versions" {
+        return None;
+    }
+    let version_id = segments.next().filter(|s| !s.is_empty())?.to_string();
+    Some(FileRef {
+        project_id,
+        version_id,
+    })
+}
 
 #[async_trait]
 impl ContentProvider for Modrinth {
     fn id(&self) -> &'static str {
-        "modrinth"
+        ID
     }
 
     fn name(&self) -> &'static str {
@@ -106,24 +125,6 @@ impl ContentProvider for Modrinth {
             project,
             version,
             kind: *kind,
-        })
-    }
-
-    /// `cdn.modrinth.com/data/<project>/versions/<version>/<filename>`. Any
-    /// other host is somebody else's file — a pack may name one, and it stays
-    /// an untracked direct download rather than being guessed at.
-    fn parse_file_url(&self, url: &str) -> Option<FileRef> {
-        let rest = url.strip_prefix("https://")?;
-        let path = rest.strip_prefix(CDN)?.strip_prefix("/data/")?;
-        let mut segments = path.split('/');
-        let project_id = segments.next().filter(|s| !s.is_empty())?.to_string();
-        if segments.next()? != "versions" {
-            return None;
-        }
-        let version_id = segments.next().filter(|s| !s.is_empty())?.to_string();
-        Some(FileRef {
-            project_id,
-            version_id,
         })
     }
 
@@ -577,11 +578,10 @@ mod tests {
 
     #[test]
     fn a_cdn_file_url_carries_both_ids() {
-        let parsed = Modrinth
-            .parse_file_url(
-                "https://cdn.modrinth.com/data/AANobbMI/versions/HFxNoSNH/sodium-fabric-0.6.0.jar",
-            )
-            .unwrap();
+        let parsed = cdn_file(
+            "https://cdn.modrinth.com/data/AANobbMI/versions/HFxNoSNH/sodium-fabric-0.6.0.jar",
+        )
+        .unwrap();
         assert_eq!(parsed.project_id, "AANobbMI");
         assert_eq!(parsed.version_id, "HFxNoSNH");
     }
@@ -593,7 +593,7 @@ mod tests {
             "https://cdn.modrinth.com/data/AAA/files/BBB/x.jar",
             "https://cdn.modrinth.com/data/AAA",
         ] {
-            assert!(Modrinth.parse_file_url(url).is_none(), "should skip {url}");
+            assert!(cdn_file(url).is_none(), "should skip {url}");
         }
     }
 

@@ -12,9 +12,11 @@ straight into `data/` as a pack-owned file, outside the pool altogether.
 Three changes, one rule — a file is whatever a source says it is, however the
 pack carried it:
 
-- **The URL names its source.** `Content::parse_file_url` asks every source
-  that can serve instead of the pack's own, and the bulk lookups run once per
-  source the files turned out to belong to.
+- **The URL names its source.** A Modrinth CDN URL is read for its ids whatever
+  served the pack, and the bulk lookups run once per source the files turned out
+  to belong to. (Later amended: a CurseForge manifest's files carry the ids its
+  resolve already fetched, so CurseForge CDN URLs are no longer parsed and a
+  `.mrpack` naming one is identified by hash.)
 - **What no URL identifies is asked after by hash.** Override jars and
   off-platform index files go through `Content::identify` once they are on
   disk — the lookup [0075](0075-a-local-file-is-identified-by-its-hash.md)

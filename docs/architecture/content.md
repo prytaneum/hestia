@@ -328,22 +328,17 @@ refused as `ModpackDifferentPack` unless `allowOtherPack` says it is meant.
 before a job starts, so a front-end asks once instead of failing a job to find
 out ([0078](../decisions/0078-a-pack-updates-from-a-file.md)).
 
-**A pack's mods are identified for free — or the long way round.** A pack index
-names each file by URL and hash alone, with no ids. A Modrinth CDN URL carries
-both, so `parse_file_url` recovers them and one bulk call fills in every title and
-icon. CurseForge's URLs carry the file id but no project
-(`…/files/<id / 1000>/<id % 1000>/<name>`), which would have made every CurseForge
-pack a list of anonymous, un-updatable jars. Rather than give up the ids,
-`hydrate` looks the **versions** up first and back-fills each reference's project
-from the answer, then asks for the projects — so both sources end with an
-identified pool and the flow reads the same either way. Best-effort in both
-halves: a pack still installs when the catalogue is unreachable, it just reads
-less well.
+**A resolved pack file carries its identity.** A CurseForge manifest names each
+file by project and file id, and resolving it already fetches the file and
+project records, so every `ModpackFile` leaves the resolve with its source, ids,
+version number and project. A `.mrpack` index names files by URL and hash alone;
+a Modrinth CDN URL carries both ids, which the index parse reads. `hydrate` then
+asks only for what is still missing (a Modrinth file's version number and
+project), in one bulk call per source. Best-effort: a pack still installs when
+the catalogue is unreachable, it just reads less well.
 
-Which source a file belongs to is read off **its own URL**, not the pack's
-origin: every source that can serve is asked, so a pack read off disk tracks its
-mods exactly as one installed from a source does. What no URL identifies — a jar
-shipped in an override tree, an index file hosted off-platform — is asked after
+What the pack does not identify — a jar shipped in an override tree, an index
+file hosted anywhere but Modrinth's CDN — is asked after
 by hash once it is on disk, the same lookup a local-file import makes; where
 several sources publish it, the pack's own wins. A jar in `overrides/mods/` is
 therefore a pool item like any other, in the managed directory rather than

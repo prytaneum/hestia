@@ -40,10 +40,10 @@ tree wins where both name a path, which is what having two trees means.
 and hash alone, with no project or version id — which would make a 150-mod pack
 list as 150 anonymous filenames and leave `content update` nothing to work with.
 But a platform's own CDN URL carries both ids
-(`cdn.modrinth.com/data/<project>/versions/<version>/…`), so `parse_file_url`
+(`cdn.modrinth.com/data/<project>/versions/<version>/…`), so the index parse
 recovers them at no cost, and one bulk `projects` call fills in every title and
-icon. Both are provider-trait methods, so CurseForge slots in behind the same
-seam. A file no source recognises is recorded as `source: "file"` — it
+icon. A CurseForge manifest names its files by id, so its resolve hands each file
+over already identified. A file no source recognises is recorded as `source: "file"` — it
 installs, it is simply not updatable, exactly like a local import.
 [0076](0076-a-pack-file-is-identified-wherever-it-came-from.md) later widened
 this: the URL names its own source, a hash lookup covers what no URL does, and

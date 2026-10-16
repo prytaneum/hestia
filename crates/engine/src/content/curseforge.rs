@@ -25,7 +25,7 @@ use serde_json::{json, Value};
 use crate::config::ContentSettings;
 
 use super::pack;
-use super::provider::{ContentProvider, FileRef, LocalFile, UrlRef};
+use super::provider::{ContentProvider, LocalFile, UrlRef};
 
 const API: &str = "https://api.curseforge.com/v1";
 const SITE: &str = "curseforge.com";
@@ -172,26 +172,6 @@ impl ContentProvider for CurseForge {
             project,
             version,
             kind: Some(*kind),
-        })
-    }
-
-    /// `…/files/<id / 1000>/<id % 1000>/<name>` — the file, never the project,
-    /// which `versions_by_id` answers instead.
-    fn parse_file_url(&self, url: &str) -> Option<FileRef> {
-        let rest = url.strip_prefix("https://")?;
-        let (host, path) = rest.split_once('/')?;
-        if !host.ends_with("forgecdn.net") {
-            return None;
-        }
-        let mut segments = path.strip_prefix("files/")?.split('/');
-        let high: u64 = segments.next()?.parse().ok()?;
-        let low: u64 = segments.next()?.parse().ok()?;
-        if low >= 1000 || segments.next().is_none() {
-            return None;
-        }
-        Some(FileRef {
-            project_id: String::new(),
-            version_id: (high * 1000 + low).to_string(),
         })
     }
 
@@ -521,13 +501,13 @@ impl CurseForge {
                 mod_ids.push(id);
             }
         }
-        let mut dirs: Vec<(u64, &'static str)> = Vec::new();
+        let mut projects: Vec<(&'static str, ContentProject)> = Vec::new();
         for chunk in mod_ids.chunks(BATCH) {
             let body = self.post("/mods", json!({ "modIds": chunk })).await?;
             for project in data(&body).as_array().cloned().unwrap_or_default() {
-                dirs.push((
-                    u64_field(&project, "id"),
+                projects.push((
                     class_dir(u64_field(&project, "classId")),
+                    parse_mod(&project, None, String::new()),
                 ));
             }
         }
@@ -539,12 +519,9 @@ impl CurseForge {
                 tracing::warn!(file_id, "a modpack file is not published any more");
                 return Err(pack::invalid(ArchiveFault::FileUnpublished));
             };
-            let mod_id = u64_field(file, "modId");
-            let dir = dirs
-                .iter()
-                .find(|(id, _)| *id == mod_id)
-                .map(|(_, dir)| *dir)
-                .unwrap_or("mods");
+            let mod_id = u64_field(file, "modId").to_string();
+            let project = projects.iter().find(|(_, p)| p.id == mod_id);
+            let dir = project.map(|(dir, _)| *dir).unwrap_or("mods");
             let filename = str_field(file, "fileName");
             // A pack lists an optional file so a user may add it; the launcher
             // installs what the pack requires and offers the rest as optional.
@@ -557,6 +534,11 @@ impl CurseForge {
                 artifact: artifact_of(file),
                 client: side,
                 server: side,
+                source: ID.to_string(),
+                project_id: mod_id,
+                version_id: file_id.to_string(),
+                version_number: parse_file(file).version_number,
+                project: project.map(|(_, p)| p.clone()),
             });
         }
         Ok(out)
@@ -1048,34 +1030,6 @@ mod tests {
             parse_mod(&datapack, Some(ContentKind::Shader), String::new()).kind,
             ContentKind::DataPack
         );
-    }
-
-    #[test]
-    fn download_urls_name_the_file_but_never_the_project() {
-        let cf = CurseForge::default();
-        let parsed = cf
-            .parse_file_url("https://edge.forgecdn.net/files/5101/466/jei-1.21.1.jar")
-            .unwrap();
-        assert_eq!(parsed.version_id, "5101466");
-        assert!(
-            parsed.project_id.is_empty(),
-            "the URL carries no project — the file lookup answers that"
-        );
-        assert_eq!(
-            cf.parse_file_url("https://mediafilez.forgecdn.net/files/6/12/small.jar")
-                .unwrap()
-                .version_id,
-            "6012",
-            "the low segment is the remainder, so it keeps its place value"
-        );
-
-        for url in [
-            "https://cdn.modrinth.com/data/AAA/versions/BBB/sodium.jar",
-            "https://edge.forgecdn.net/files/5101/466",
-            "https://edge.forgecdn.net/files/5101/notanumber/x.jar",
-        ] {
-            assert!(cf.parse_file_url(url).is_none(), "should not parse {url}");
-        }
     }
 
     #[test]
