@@ -7,7 +7,7 @@
 //! layout), which is exactly what hestia calls `data/`.
 //!
 //! The components name a game version and a loader rather than resolving them,
-//! so the recipe is [`Recipe::Resolve`] and the launcher looks them up the way
+//! so the recipe carries no identity and the launcher looks them up the way
 //! `instance create` does. Whether hestia *has* that loader is not decided
 //! here: the answer is "whichever flavors are registered", which is the flow's
 //! to ask.
@@ -76,10 +76,11 @@ impl Format for Prism {
                 loader: loader.clone(),
                 loader_version: loader_version.clone().unwrap_or_default(),
             },
-            recipe: Recipe::Resolve {
+            recipe: Recipe {
                 loader,
                 loader_version,
                 jvm,
+                carried: None,
             },
         })
     }

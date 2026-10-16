@@ -6,7 +6,8 @@
 //! from its record. The record travels beside them in `hestia.instance.json`,
 //! which is both the manifest and the marker. The record's identity travels;
 //! its resolved profile is host-specific (library rules are filtered by the
-//! exporting OS), so import resolves the game and loader versions again.
+//! exporting OS), so it is left out and import resolves the game and loader
+//! versions on its own host.
 //!
 //! The marker is not called `instance.json` deliberately. A marker file is a
 //! claim about what an archive is, so it has to be specific enough that finding
@@ -22,10 +23,11 @@ use serde_json::Value;
 
 use super::archive::{self, Reader, Writer, Written};
 use super::exclude::Rules;
-use super::{Blueprint, Descriptor, Format, Landed, Recipe, Source, Target};
+use super::{Blueprint, Carried, Descriptor, Format, Landed, Recipe, Source, Target};
 use crate::cancel::Job;
 use crate::content::install;
 use crate::instances::InstanceRecord;
+use crate::minecraft::profile::InstanceProfile;
 use crate::registry;
 use crate::schema::{self, Document};
 
@@ -71,16 +73,25 @@ impl Format for Hestia {
             return Err(invalid(ArchiveFault::NoGameVersion).into());
         }
         let profile = &record.profile;
+        let loader = super::loader_of(profile);
         let descriptor = Descriptor {
             name: record.name.clone(),
             game_version: profile.game_version.clone(),
-            loader: super::loader_of(profile),
+            loader: loader.clone(),
             loader_version: profile.loader_version.clone().unwrap_or_default(),
         };
-        Ok(Blueprint {
-            descriptor,
-            recipe: Recipe::Record(Box::new(record)),
-        })
+        let recipe = Recipe {
+            loader,
+            loader_version: profile.loader_version.clone(),
+            jvm: record.jvm,
+            carried: Some(Carried {
+                created_unix: record.created_unix,
+                last_played_unix: record.last_played_unix,
+                playtime_seconds: record.playtime_seconds,
+                sharing: record.sharing,
+            }),
+        };
+        Ok(Blueprint { descriptor, recipe })
     }
 
     fn land(
@@ -152,10 +163,20 @@ pub(crate) fn default_destination(
 }
 
 pub(crate) fn export(source: &Source<'_>, destination: &Path, job: &Job<'_>) -> Result<Written> {
+    let profile = &source.record.profile;
+    let identity = InstanceRecord {
+        profile: InstanceProfile {
+            flavor: profile.flavor.clone(),
+            game_version: profile.game_version.clone(),
+            loader_version: profile.loader_version.clone(),
+            ..InstanceProfile::default()
+        },
+        ..source.record.clone()
+    };
     let manifest = Manifest {
         exported_unix: registry::now_unix(),
         exported_by: format!("{} {}", common::app::NAME, common::app::VERSION),
-        instance: schema::encode(source.record)?,
+        instance: schema::encode(&identity)?,
     };
     let encoded = serde_json::to_vec_pretty(&schema::encode(&manifest)?)
         .context("the manifest serializes")?;
@@ -264,7 +285,17 @@ mod tests {
         assert_eq!(blueprint.descriptor.name, "Cozy");
         assert_eq!(blueprint.descriptor.game_version, "1.21.1");
         assert_eq!(blueprint.descriptor.loader, "fabric");
-        assert!(matches!(blueprint.recipe, Recipe::Record(_)));
+        let carried = blueprint
+            .recipe
+            .carried
+            .expect("hestia carries an identity");
+        assert_eq!(carried.playtime_seconds, 3600);
+        assert_eq!(blueprint.recipe.loader, "fabric");
+        let written = manifest(&mut reader, "").unwrap().record().unwrap();
+        assert_eq!(
+            written.profile.java_major, 0,
+            "the host-resolved profile stays out of the manifest"
+        );
 
         let restored = temp("restored");
         let target = Target {

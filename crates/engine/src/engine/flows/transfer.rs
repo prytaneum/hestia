@@ -7,10 +7,10 @@
 //! instance nobody asked for that cannot launch.
 //!
 //! Nothing here knows which instance formats exist. A format is read into a
-//! [`Blueprint`] whose [`Recipe`] says which route to the record applies, and
-//! the match below is over those routes — so adding a format is a module under
-//! `transfer/` and a line in its detection, and this file does not change. A
-//! modpack is the exception: it is handed, already open, to the modpack flow.
+//! [`Blueprint`] whose [`Recipe`] is all the record needs — so adding a format
+//! is a module under `transfer/` and a line in its detection, and this file does
+//! not change. A modpack is the exception: it is handed, already open, to the
+//! modpack flow.
 
 use std::path::{Path, PathBuf};
 
@@ -29,7 +29,7 @@ use crate::registry;
 use crate::schema;
 use crate::transfer::archive::{self, Reader};
 use crate::transfer::{
-    self, contents, hestia, Blueprint, Descriptor, Detected, Kind, Recipe, Source, Target,
+    self, contents, hestia, Blueprint, Carried, Descriptor, Detected, Kind, Recipe, Source, Target,
 };
 
 /// Where an export with no destination lands, under the data home.
@@ -244,66 +244,39 @@ impl Engine {
         }
     }
 
-    /// Register the instance an archive describes. The three routes are the
-    /// whole of what a format can ask the launcher for.
+    /// Register the instance an archive describes. The profile is always
+    /// resolved here, for this host, exactly as a create resolves it.
     async fn record_for(
         &self,
         recipe: Recipe,
         name: &str,
         descriptor: &Descriptor,
     ) -> Result<InstanceRecord> {
-        let template = match recipe {
-            // The carried profile was resolved for the exporting host's OS, so
-            // only the instance's identity is kept and the profile is resolved
-            // again here.
-            Recipe::Record(record) => {
-                let flavor = self.archive_flavor(&descriptor.loader)?;
-                let loader_version =
-                    Some(descriptor.loader_version.clone()).filter(|version| !version.is_empty());
-                let profile = self
-                    .minecraft
-                    .resolve_instance(
-                        &flavor,
-                        &descriptor.game_version,
-                        loader_version,
-                        &super::meta_dir(&self.data_home()),
-                        Some(&self.cache),
-                    )
-                    .await?;
-                InstanceRecord {
-                    name: name.to_string(),
-                    profile,
-                    ..*record
-                }
-            }
-            // A game version and a loader, resolved exactly as a create does.
-            Recipe::Resolve {
-                loader,
-                loader_version,
-                jvm,
-            } => {
-                let flavor = self.archive_flavor(&loader)?;
-                let profile = self
-                    .minecraft
-                    .resolve_instance(
-                        &flavor,
-                        &descriptor.game_version,
-                        loader_version,
-                        &super::meta_dir(&self.data_home()),
-                        Some(&self.cache),
-                    )
-                    .await?;
-                InstanceRecord {
-                    id: String::new(),
-                    name: name.to_string(),
-                    created_unix: registry::now_unix(),
-                    last_played_unix: None,
-                    playtime_seconds: 0,
-                    jvm,
-                    sharing: Default::default(),
-                    profile,
-                }
-            }
+        let flavor = self.archive_flavor(&recipe.loader)?;
+        let profile = self
+            .minecraft
+            .resolve_instance(
+                &flavor,
+                &descriptor.game_version,
+                recipe.loader_version,
+                &super::meta_dir(&self.data_home()),
+                Some(&self.cache),
+            )
+            .await?;
+        let carried = recipe.carried.unwrap_or_else(|| Carried {
+            created_unix: registry::now_unix(),
+            last_played_unix: None,
+            playtime_seconds: 0,
+            sharing: Default::default(),
+        });
+        let template = InstanceRecord {
+            created_unix: carried.created_unix,
+            last_played_unix: carried.last_played_unix,
+            playtime_seconds: carried.playtime_seconds,
+            jvm: recipe.jvm,
+            sharing: carried.sharing,
+            profile,
+            ..InstanceRecord::default()
         };
         self.instances.adopt(name, template)
     }

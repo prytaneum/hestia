@@ -46,10 +46,8 @@ flowchart TD
     DETECT --> FMT["<b>Format</b><br/>marker · read · land"]
     DETECT --> PACK["<b>content::pack</b><br/>.mrpack · CurseForge"]
     FMT --> BP["<b>Blueprint</b><br/>descriptor + recipe"]
-    BP --> R1["Recipe::Record<br/><i>an identity travels, the profile is re-resolved</i>"]
-    BP --> R2["Recipe::Resolve<br/><i>a version + loader to look up</i>"]
-    R1 --> CREATE[["the flow registers the instance"]]
-    R2 --> CREATE
+    BP --> RR["Recipe<br/><i>a loader to look up, and the identity<br/>some formats carry</i>"]
+    RR --> CREATE[["the flow registers the instance"]]
     PACK --> MODPACK[["modpack install → creates its own entry"]]
     CREATE --> LAND["<b>Format::land</b><br/>files onto disk"]
 
@@ -61,16 +59,16 @@ An instance format answers three questions and nothing else: **which archives
 are mine** (a marker), **what does this one say it is** (parse a manifest into a
 [`Blueprint`]), and **where do the files go** (given an instance that now
 exists). It never creates the instance — that is the launcher's job, and the
-blueprint's `Recipe` says which of two routes applies. Those routes are a
-**closed set**; the formats are an open one, so another format costs the flow
-nothing.
+blueprint's `Recipe` carries what the launcher needs to build it: one resolve path
+for every format, with the instance's identity riding along when the archive has
+one. Another format costs the flow nothing.
 
 ### Adding a format
 
 One module under `crates/engine/src/transfer/` and one line in `detect`
 (`transfer/mod.rs`) — the same shape as adding a content platform
 ([0010](../decisions/0010-one-content-provider-trait.md)). An ATLauncher importer
-would implement `Format`, pick `Recipe::Resolve`, and reuse `transfer::pool::adopt`
+would implement `Format`, return a `Recipe`, and reuse `transfer::pool::adopt`
 for the loose jars its game directory arrives with.
 
 ## What an archive carries
@@ -116,9 +114,10 @@ cozy.hestia (a zip)
 
 The archive carries **what the instance is, not how a host runs it**. The record's
 flavor, game version and loader version are authoritative; its profile (client
-jar, libraries, natives, JVM arguments) was resolved for the exporting OS, so
-import resolves it again on the importing host and keeps the record's name, Java
-settings, sharing, playtime and timestamps. That needs the version catalogue,
+jar, libraries, natives, JVM arguments) was resolved for the exporting OS, so the
+manifest is written without it and import resolves it on the importing host,
+keeping the record's name, Java settings, sharing, playtime and timestamps. That
+needs the version catalogue,
 which falls back to the cached one offline. The **id is not honoured**: an
 imported instance is a new entry and gets a fresh one, so the same archive can be
 imported twice.

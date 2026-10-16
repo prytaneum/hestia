@@ -26,21 +26,18 @@ list, the same way a content platform is
 
 What makes that possible is the second half: **a format never creates the
 instance**, because creating one is where the engine, the network and the entry
-store all come in. Instead the blueprint carries a `Recipe` naming which of
-two routes the launcher takes —
+store all come in. Instead the blueprint carries a `Recipe`: a loader and loader
+version that resolve, with the descriptor's game version, exactly as
+`instance create` resolves them, and the Java settings the archive carried. A
+format whose archive also carries the instance's identity (hestia's own: creation
+time, last played, playtime, sharing) fills in the optional `carried` part; the
+profile never travels, because it is resolved again on the importing host
+([0081](0081-the-archive-carries-identity-and-references.md)).
 
-- `Record` — the instance's record travels in the archive (hestia's own); its
-  profile is resolved again on the importing host
-  ([0081](0081-the-archive-carries-identity-and-references.md));
-- `Resolve` — the archive names a game version and a loader, resolved exactly as
-  `instance create` resolves them (Prism, and any launcher that describes an
-  instance rather than shipping one).
+There is one resolve path, and formats are an open set. The flow reads the
+recipe, so another format costs it nothing.
 
-Those two are a **closed set** — they are the genuinely different ways a
-launcher can be told what to build — while formats are an open one. The flow
-matches on the recipe, so another format costs it nothing.
-
-A modpack is not a third route through this registry. `.mrpack` and CurseForge
+A modpack is not a route through this registry. `.mrpack` and CurseForge
 packs never used the "where do the files go" third of the contract: the modpack
 flow already creates an entry from one, fetches every file from its source and
 records the provenance ([0011](0011-modpack-decomposes-into-existing-parts.md)),

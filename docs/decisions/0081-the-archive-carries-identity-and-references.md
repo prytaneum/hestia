@@ -20,10 +20,10 @@ one machine needs to *run* it.
 
 **The archive carries what the instance is, not how a host runs it.** Flavor,
 game version and loader version are authoritative. Import validates the flavor
-and resolves the profile again on the importing host (`Recipe::Record`), keeping
-the record's name, Java settings, sharing, playtime and timestamps. There is no
-manifest change, so an archive exported before this decision is repaired by the
-import alone. The cost is that import now needs the version catalogue: it works
+and resolves the profile again on the importing host, keeping the record's name,
+Java settings, sharing, playtime and timestamps. The export writes the manifest's
+instance without the resolved profile, and an archive that still carries one
+imports the same, because import ignores it. The cost is that import now needs the version catalogue: it works
 offline from the cached one and otherwise fails with the ordinary offline error.
 The old promise, that an archive "cannot be broken by a version falling out of a
 catalogue", went with it; a version Mojang withdraws now fails the import loudly

@@ -19,10 +19,9 @@
 //!    exists on disk.
 //!
 //! What a format never does is create the instance. That is the launcher's
-//! job, and the [`Recipe`] a blueprint carries says which of the two ways to
-//! do it applies — a resolved record travelling in the archive, or a game
-//! version and loader that still have to be resolved. Those are a closed set:
-//! the flow matches on the recipe, not on the format, so another format costs
+//! job, and the [`Recipe`] a blueprint carries is everything it needs: a loader
+//! to resolve with the descriptor's game version, and the identity some formats
+//! carry. The flow reads the recipe, not the format, so another format costs
 //! the flow nothing.
 //!
 //! A modpack is not an instance format. Whether a zip is one, in which format
@@ -48,6 +47,7 @@ use std::path::Path;
 use anyhow::Result;
 use proto::content::ResolvedModpack;
 use proto::error::ErrorInfo;
+use proto::sync::SyncOverrides;
 use proto::transfer::{ExportFormat, ImportFormat};
 use proto::warning::WarningInfo;
 
@@ -70,27 +70,27 @@ pub(crate) struct Descriptor {
     pub(crate) loader_version: String,
 }
 
-/// How the launcher has to bring an archive's instance into existence. The
-/// variants are the genuinely different routes, not one per format: several
-/// formats share a route, and a new format picks one rather than adding another.
-pub(crate) enum Recipe {
-    /// The archive carries the instance's record — hestia's own export. Its
-    /// identity travels (name, Java settings, sharing, playtime, timestamps);
-    /// its profile does not, because that was resolved for the exporting
-    /// host's OS and is resolved again on import.
-    Record(Box<InstanceRecord>),
-    /// The archive names a game version and a loader, which resolve exactly as
-    /// `instance create` resolves them.
-    Resolve {
-        /// The loader's name, empty for vanilla. Checked against the registered
-        /// flavors, so an archive pinning one hestia has no flavor for is
-        /// refused by name.
-        loader: String,
-        loader_version: Option<String>,
-        /// Per-instance Java settings the archive carried, where its launcher
-        /// stored any.
-        jvm: JavaSettings,
-    },
+/// How the launcher brings an archive's instance into existence: the game
+/// version and loader resolve exactly as `instance create` resolves them.
+pub(crate) struct Recipe {
+    /// The loader's name, empty for vanilla. Checked against the registered
+    /// flavors, so an archive pinning one hestia has no flavor for is
+    /// refused by name.
+    pub(crate) loader: String,
+    pub(crate) loader_version: Option<String>,
+    /// Per-instance Java settings the archive carried, where its launcher
+    /// stored any.
+    pub(crate) jvm: JavaSettings,
+    pub(crate) carried: Option<Carried>,
+}
+
+/// The identity of an instance that travels with its archive; hestia's own
+/// export is the only format that has one.
+pub(crate) struct Carried {
+    pub(crate) created_unix: i64,
+    pub(crate) last_played_unix: Option<i64>,
+    pub(crate) playtime_seconds: i64,
+    pub(crate) sharing: SyncOverrides,
 }
 
 /// One archive, read: what it is and how to build it.
