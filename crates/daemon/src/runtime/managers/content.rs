@@ -45,28 +45,14 @@ pub struct Entry {
 }
 
 impl Entry {
-    pub fn server(id: String) -> Entry {
-        Entry {
-            kind: EntryKind::Server,
-            id,
-        }
-    }
-
-    pub fn instance(id: String) -> Entry {
-        Entry {
-            kind: EntryKind::Instance,
-            id,
-        }
-    }
-
-    fn as_ref(&self) -> engine::EntryRef<'_> {
+    pub fn entry_ref(&self) -> engine::EntryRef<'_> {
         match self.kind {
             EntryKind::Server => engine::EntryRef::Server(&self.id),
             EntryKind::Instance => engine::EntryRef::Instance(&self.id),
         }
     }
 
-    fn key(&self) -> String {
+    pub fn key(&self) -> String {
         match self.kind {
             EntryKind::Server => server_process_id(&self.id),
             EntryKind::Instance => instance_process_id(&self.id),
@@ -112,7 +98,7 @@ impl ContentJob {
         match self {
             ContentJob::Add { entry, spec } => {
                 engine
-                    .add_entry_content(entry.as_ref(), &spec, on_progress)
+                    .add_entry_content(entry.entry_ref(), &spec, on_progress)
                     .await
             }
             ContentJob::Update {
@@ -122,11 +108,11 @@ impl ContentJob {
                 path,
             } => match items.first() {
                 Some(item) if !path.is_empty() => engine
-                    .update_entry_content_from_file(entry.as_ref(), kind, item, Path::new(&path))
+                    .update_entry_content_from_file(entry.entry_ref(), kind, item, Path::new(&path))
                     .map(|item| (vec![item], Vec::new())),
                 _ => {
                     engine
-                        .update_entry_content(entry.as_ref(), kind, &items, on_progress)
+                        .update_entry_content(entry.entry_ref(), kind, &items, on_progress)
                         .await
                 }
             },
@@ -138,7 +124,7 @@ impl ContentJob {
                 source,
             } => engine
                 .set_entry_content_version(
-                    entry.as_ref(),
+                    entry.entry_ref(),
                     kind,
                     &item,
                     &version,

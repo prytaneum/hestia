@@ -79,8 +79,10 @@ Because the channel name and payload shapes come from the contract, a handler
 
 One rule lives at the router rather than in handlers: the whole `instance.*`
 surface (plus the instance-only `sync.*`) is refused with `unauthorized` until an
-account exists. It is a whole-domain lockdown, and prefixing covers
-`instance.content.*` and `instance.modpack.*` without touching their modules
+account exists. It is a whole-domain lockdown, and prefixing covers every
+instance-only channel without touching its module. The verbs both sides share
+(`content.add|…`, `modpack.update|…`) have no prefix to match, so
+`guards::entry_for` applies the same gate by the target in their payload
 ([0030](../decisions/0030-instance-surface-gated-on-an-account.md)).
 
 ### Job managers
@@ -174,16 +176,18 @@ is purely a compile-time one that keeps `make_router()` from becoming a
 | `players` | `server.players`, `server.players.set\|kick` — the lists are read from the server's own files; a change is a console command, so it needs the server running |
 | `instance` | the `instance.*` counterparts, plus `instance.launch\|stop\|logs`, `instance.worlds`, `instance.sync.adopt` |
 | `backup` | `server.backup.create\|list\|restore\|remove` |
-| `content` | `content.sources\|search\|project\|versions\|inspect\|resolve_url`, and the per-entry `server\|instance.content.add\|list\|remove\|update\|enable\|check_updates\|set_version` |
-| `modpack` | `server\|instance.modpack.install\|update\|status\|remove` |
+| `content` | `content.sources\|search\|project\|versions\|inspect\|resolve_url`, and the per-entry `content.add\|list\|remove\|update\|enable\|check_updates\|matches\|set_version`, each aimed by an `EntryTarget` |
+| `modpack` | `server\|instance.modpack.install`, and the per-entry `modpack.update\|preview_update\|status\|check_update\|remove`, each aimed by an `EntryTarget` |
 | `sync` | `sync.get\|set\|status` |
 | `update` | `update.check\|download` |
 
 Two conventions worth knowing when reading them:
 
-- **Per-entry jobs are split per side** (`server.modpack.*` and
-  `instance.modpack.*` rather than one target-tagged channel), so the router's
-  account gate covers the instance half by prefix alone.
+- **A verb both sides share is one channel aimed by a target.** Its params carry
+  an `EntryTarget { kind, entry }`, and `guards::entry_for` resolves it through
+  `server_for` / `instance_for`, so the handler holds no per-side branch. Only
+  `server.modpack.install` and `instance.modpack.install` stay two channels,
+  because a server install carries the EULA and a port.
 - **`info` is static, `status` is live.** `info` answers the descriptor, on-disk
   locations and disk footprint (a directory walk); `status` merges the stored
   record with live process state. Keeping the walk off `status` is what makes

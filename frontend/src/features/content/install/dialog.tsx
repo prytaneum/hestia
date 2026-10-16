@@ -17,9 +17,8 @@ import {
 } from '@/components/ui/progress';
 import { projectKey, projectRef } from '@/features/content/components';
 import { m } from '@/paraglide/messages.js';
-import { instanceMutations } from '@/queries/instance';
+import { entryContentMutations } from '@/queries/entry-content';
 import { useJobDisplay, useJobMutation } from '@/queries/jobs';
-import { serverMutations } from '@/queries/server';
 import { TargetCtx, useInstallWizard } from './hooks';
 import { inspectFiles, type Target, targetTakesKind, useTargets } from './lib';
 import { ContentStep } from './steps/content';
@@ -91,12 +90,11 @@ export function ContentInstallDialog({
     };
   }, [open, initialFiles, dispatch]);
 
-  const addServer = useJobMutation(serverMutations.content.add(targetId));
-  const addInstance = useJobMutation(instanceMutations.content.add(targetId));
-  useJobDisplay(addServer.job, open);
-  useJobDisplay(addInstance.job, open);
-
   const target = targets.find((t) => t.id === targetId) ?? entry ?? null;
+  const add = useJobMutation(
+    entryContentMutations.add(target?.type ?? 'instance', targetId),
+  );
+  useJobDisplay(add.job, open);
   const selectedCount = picked.length + files.length;
   const fileKinds = files
     .map((f) => f.kind)
@@ -151,8 +149,7 @@ export function ContentInstallDialog({
           ? worlds.length > 0
           : selectedCount > 0 && filesReady;
 
-  const liveProgress =
-    (target?.type === 'server' ? addServer : addInstance).progress ?? null;
+  const liveProgress = add.progress ?? null;
   const progressPct =
     liveProgress && liveProgress.total > 0
       ? Math.round((liveProgress.current / liveProgress.total) * 100)
@@ -163,7 +160,6 @@ export function ContentInstallDialog({
     if (!target) return;
     dispatch({ type: 'installStart' });
     try {
-      const add = target.type === 'server' ? addServer : addInstance;
       // The wire spec is per-kind, so a mixed selection installs as one batch
       // per kind; failures aggregate across batches.
       const failures: string[] = [];

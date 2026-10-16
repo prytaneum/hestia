@@ -1,12 +1,14 @@
 use std::sync::Arc;
 
 use engine::Engine;
+use proto::error::EntryKind;
 use proto::minecraft::ProvisionProgress;
 use proto::modpack::{
     ModpackCancelledEvent, ModpackDoneEvent, ModpackErrorEvent, ModpackMove, ModpackProgressEvent,
     ModpackRef, ModpackTarget,
 };
 
+use super::content::Entry;
 use super::job::{progress_event, settle, Cancellations, Runner, Spec};
 use crate::runtime::{instance_process_id, server_process_id, EventHub};
 
@@ -22,12 +24,8 @@ pub enum ModpackJob {
         eula: bool,
         port: Option<u16>,
     },
-    UpdateInstance {
-        instance_id: String,
-        to: ModpackMove,
-    },
-    UpdateServer {
-        server_id: String,
+    Update {
+        entry: Entry,
         to: ModpackMove,
     },
 }
@@ -47,10 +45,7 @@ impl ModpackJob {
                 target: ModpackTarget::Existing { entry },
                 ..
             } => Some(server_process_id(entry)),
-            ModpackJob::UpdateInstance { instance_id, .. } => {
-                Some(instance_process_id(instance_id))
-            }
-            ModpackJob::UpdateServer { server_id, .. } => Some(server_process_id(server_id)),
+            ModpackJob::Update { entry, .. } => Some(entry.key()),
             _ => None,
         }
     }
@@ -59,8 +54,10 @@ impl ModpackJob {
         match self {
             ModpackJob::InstallInstance { .. } => "instance-modpack-install",
             ModpackJob::InstallServer { .. } => "server-modpack-install",
-            ModpackJob::UpdateInstance { .. } => "instance-modpack-update",
-            ModpackJob::UpdateServer { .. } => "server-modpack-update",
+            ModpackJob::Update { entry, .. } => match entry.kind {
+                EntryKind::Server => "server-modpack-update",
+                EntryKind::Instance => "instance-modpack-update",
+            },
         }
     }
 
@@ -85,18 +82,9 @@ impl ModpackJob {
                     .install_server_modpack(&pack, &target, eula, port, on_progress)
                     .await
             }
-            ModpackJob::UpdateInstance { instance_id, to } => {
+            ModpackJob::Update { entry, to } => {
                 engine
-                    .update_entry_modpack(
-                        engine::EntryRef::Instance(&instance_id),
-                        &to,
-                        on_progress,
-                    )
-                    .await
-            }
-            ModpackJob::UpdateServer { server_id, to } => {
-                engine
-                    .update_entry_modpack(engine::EntryRef::Server(&server_id), &to, on_progress)
+                    .update_entry_modpack(entry.entry_ref(), &to, on_progress)
                     .await
             }
         }

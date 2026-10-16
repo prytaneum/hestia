@@ -8,14 +8,14 @@ use clap::Subcommand;
 use client::proto::content::{
     ContentAddItem, ContentAddSpec, ContentFailure, ContentKind, InstalledContent,
 };
+use client::proto::error::{EntryKind, EntryTarget};
 use client::Client;
 
 use client::proto::content::SearchQuery;
 use client::proto::instance::WorldInfo;
 
-use super::entry::ContentEntry;
 use super::format::{kind_plural, source_label, world_label};
-use super::{session, EntryKind, PAGE};
+use super::{session, PAGE};
 use crate::ui::{self, ProvisionReporter, View};
 
 /// The per-entry management grammar shared by every installable kind under a
@@ -210,7 +210,8 @@ async fn add(
         items: vec![add_item],
         worlds,
     };
-    let (installed, failures) = install_spec(client, entry, &info.id, spec).await?;
+    let target = EntryTarget::new(entry, info.id.clone());
+    let (installed, failures) = install_spec(client, &target, spec).await?;
     show_install_report(&info.name, &installed, &[], &failures)
 }
 
@@ -234,9 +235,8 @@ async fn add_session(
     } else {
         Vec::new()
     };
-    let (installed, _) = ContentEntry::new(client, entry, info.id.clone())
-        .list(kind)
-        .await?;
+    let target = EntryTarget::new(entry, info.id.clone());
+    let (installed, _) = client.content().list(&target, kind).await?;
     let base = SearchQuery {
         kind,
         source,
@@ -246,8 +246,7 @@ async fn add_session(
         ..SearchQuery::default()
     };
     let target = session::Target {
-        entry,
-        id: info.id.clone(),
+        entry: target,
         name: info.name.clone(),
         worlds,
         installed,
@@ -319,14 +318,14 @@ fn show_failures(failures: &[ContentFailure]) -> Result<()> {
 
 pub(super) async fn install_spec(
     client: &Client,
-    entry: EntryKind,
-    id: &str,
+    target: &EntryTarget,
     spec: ContentAddSpec,
 ) -> Result<(Vec<InstalledContent>, Vec<ContentFailure>)> {
     let reporter = Arc::new(ProvisionReporter::new());
     let progress = reporter.clone();
-    let result = ContentEntry::new(client, entry, id)
-        .add(spec, move |p| progress.update(p))
+    let result = client
+        .content()
+        .add(target, spec, move |p| progress.update(p))
         .await;
     reporter.finish();
     Ok(result?)
@@ -334,7 +333,10 @@ pub(super) async fn install_spec(
 
 async fn list(client: &Client, entry: EntryKind, kind: ContentKind, reference: &str) -> Result<()> {
     let EntryInfo { id, name, .. } = resolve_entry(client, entry, reference).await?;
-    let (items, untracked) = ContentEntry::new(client, entry, id).list(kind).await?;
+    let (items, untracked) = client
+        .content()
+        .list(&EntryTarget::new(entry, id), kind)
+        .await?;
     if items.is_empty() && untracked.is_empty() {
         return ui::show(View::note(format!("no {} installed", kind_plural(kind))));
     }
@@ -391,16 +393,19 @@ async fn remove(
     world: Vec<String>,
 ) -> Result<()> {
     let EntryInfo { id, name, .. } = resolve_entry(client, entry, reference).await?;
-    let handle = ContentEntry::new(client, entry, id);
+    let target = EntryTarget::new(entry, id);
     let worlds: Vec<String> = world.into_iter().filter(|w| !w.is_empty()).collect();
     let items = match items.is_empty() {
         false => items,
         true => {
-            let (installed, _) = handle.list(kind).await?;
+            let (installed, _) = client.content().list(&target, kind).await?;
             vec![pick_installed(installed)?]
         }
     };
-    handle.remove(kind, &items, &worlds).await?;
+    client
+        .content()
+        .remove(&target, kind, &items, &worlds)
+        .await?;
     let where_ = match worlds.is_empty() {
         true => format!("'{name}'"),
         false => format!("'{name}' ({})", worlds.join(", ")),
@@ -430,13 +435,14 @@ async fn update(
         None => String::new(),
     };
     let EntryInfo { id, name, .. } = resolve_entry(client, entry, reference).await?;
-    let handle = ContentEntry::new(client, entry, id);
+    let target = EntryTarget::new(entry, id);
 
     let reporter = Arc::new(ProvisionReporter::new());
     let progress = reporter.clone();
     let (updated, failures) = {
-        let result = handle
-            .update(kind, &items, &path, move |p| progress.update(p))
+        let result = client
+            .content()
+            .update(&target, kind, &items, &path, move |p| progress.update(p))
             .await;
         reporter.finish();
         result?
@@ -464,8 +470,9 @@ async fn check_updates(
     reference: &str,
 ) -> Result<()> {
     let EntryInfo { id, name, .. } = resolve_entry(client, entry, reference).await?;
-    let updates = ContentEntry::new(client, entry, id)
-        .check_updates(kind)
+    let updates = client
+        .content()
+        .check_updates(&EntryTarget::new(entry, id), kind)
         .await?;
     let outdated: Vec<_> = updates.iter().filter(|u| u.updatable).collect();
     if outdated.is_empty() {
@@ -498,16 +505,19 @@ async fn set_enabled(
     enabled: bool,
 ) -> Result<()> {
     let EntryInfo { id, name, .. } = resolve_entry(client, entry, reference).await?;
-    let handle = ContentEntry::new(client, entry, id);
+    let target = EntryTarget::new(entry, id);
     let worlds: Vec<String> = world.into_iter().filter(|w| !w.is_empty()).collect();
     let item = match item {
         Some(item) => item,
         None => {
-            let (items, _) = handle.list(kind).await?;
+            let (items, _) = client.content().list(&target, kind).await?;
             pick_installed(items)?
         }
     };
-    handle.enable(kind, &item, enabled, &worlds).await?;
+    client
+        .content()
+        .enable(&target, kind, &item, enabled, &worlds)
+        .await?;
     let verb = if enabled { "enabled" } else { "disabled" };
     let where_ = match worlds.is_empty() {
         true => format!("'{name}'"),
@@ -526,13 +536,16 @@ async fn set_version(
     source: String,
 ) -> Result<()> {
     let EntryInfo { id, name, .. } = resolve_entry(client, entry, reference).await?;
-    let handle = ContentEntry::new(client, entry, id);
+    let target = EntryTarget::new(entry, id);
 
     let reporter = Arc::new(ProvisionReporter::new());
     let progress = reporter.clone();
     let updated = {
-        let result = handle
-            .set_version(kind, &item, &version, &source, move |p| progress.update(p))
+        let result = client
+            .content()
+            .set_version(&target, kind, &item, &version, &source, move |p| {
+                progress.update(p)
+            })
             .await;
         reporter.finish();
         result?
@@ -640,7 +653,7 @@ async fn resolve_entry(client: &Client, entry: EntryKind, reference: &str) -> Re
     entries
         .into_iter()
         .find(|e| client::proto::naming::reference_matches(reference, &e.id, &e.name))
-        .with_context(|| format!("no {} matches '{reference}'", entry.noun()))
+        .with_context(|| format!("no {entry} matches '{reference}'"))
 }
 
 fn is_url(reference: &str) -> bool {

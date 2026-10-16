@@ -1,7 +1,12 @@
 /**
- * The `*.modpack.*` channels — installing a pack into a new or existing entry,
+ * The `modpack.*` channels — installing a pack into a new or existing entry,
  * moving it to another published version, reading which pack an entry runs, and
  * taking it back out.
+ *
+ * Installing keeps a channel per side, because a server install carries an EULA
+ * and a port; every verb on an existing entry names its side in an
+ * `EntryTarget`, and an instance target is refused until an account is signed
+ * in.
  *
  * Install and update are jobs: a pack is a hundred downloads and a game
  * directory rewrite. Their done event carries the entry the pack landed in,
@@ -11,6 +16,7 @@
 
 import { call } from './core/ipc';
 import { type JobRun, runJob } from './core/jobs';
+import type { EntryTarget } from './types/error';
 import type {
   InstalledModpack,
   ModpackDoneEvent,
@@ -71,109 +77,56 @@ export function installServer(
  */
 export type PackMove = Partial<ModpackMove>;
 
-export function updateInstance(
-  instance: string,
+export function update(
+  target: EntryTarget,
   to: PackMove,
   job: JobRun,
 ): Promise<ModpackDoneEvent> {
   return runJob<ModpackDoneEvent>({
     ...job,
     topics,
-    start: () => call('instance.modpack.update', { instance, to, id: job.id }),
-  });
-}
-
-export function updateServer(
-  server: string,
-  to: PackMove,
-  job: JobRun,
-): Promise<ModpackDoneEvent> {
-  return runJob<ModpackDoneEvent>({
-    ...job,
-    topics,
-    start: () => call('server.modpack.update', { server, to, id: job.id }),
+    start: () => call('modpack.update', { target, to, id: job.id }),
   });
 }
 
 /** What updating from the pack file at `path` would do, before it starts. */
-export function previewInstanceUpdate(
-  instance: string,
+export function previewUpdate(
+  target: EntryTarget,
   path: string,
 ): Promise<ModpackFilePreview> {
   return call(
-    'instance.modpack.preview_update',
-    { instance, path },
-    { timeoutMs: 120_000 },
-  );
-}
-
-export function previewServerUpdate(
-  server: string,
-  path: string,
-): Promise<ModpackFilePreview> {
-  return call(
-    'server.modpack.preview_update',
-    { server, path },
+    'modpack.preview_update',
+    { target, path },
     { timeoutMs: 120_000 },
   );
 }
 
 /** `null` when the entry was not built from a pack — an ordinary answer. */
-export async function instanceStatus(
-  instance: string,
+export async function status(
+  target: EntryTarget,
 ): Promise<InstalledModpack | null> {
-  const result = await call<{ pack?: InstalledModpack }>(
-    'instance.modpack.status',
-    { instance },
-  );
-  return result.pack ?? null;
-}
-
-export async function serverStatus(
-  server: string,
-): Promise<InstalledModpack | null> {
-  const result = await call<{ pack?: InstalledModpack }>(
-    'server.modpack.status',
-    { server },
-  );
+  const result = await call<{ pack?: InstalledModpack }>('modpack.status', {
+    target,
+  });
   return result.pack ?? null;
 }
 
 /** `null` when there is nothing to check: no pack, or one from a file. */
-export async function instanceCheckUpdate(
-  instance: string,
+export async function checkUpdate(
+  target: EntryTarget,
   gameVersion = '',
 ): Promise<ModpackUpdate | null> {
   const result = await call<{ update?: ModpackUpdate }>(
-    'instance.modpack.check_update',
-    { instance, gameVersion },
+    'modpack.check_update',
+    { target, gameVersion },
     { timeoutMs: 120_000 },
   );
   return result.update ?? null;
 }
 
-export async function serverCheckUpdate(
-  server: string,
-  gameVersion = '',
-): Promise<ModpackUpdate | null> {
-  const result = await call<{ update?: ModpackUpdate }>(
-    'server.modpack.check_update',
-    { server, gameVersion },
-    { timeoutMs: 120_000 },
-  );
-  return result.update ?? null;
-}
-
-export function removeInstance(
-  instance: string,
+export function remove(
+  target: EntryTarget,
   keepContent: boolean,
 ): Promise<ModpackRemoveResult> {
-  return call('instance.modpack.remove', { instance, keepContent });
-}
-
-export function removeServer(
-  server: string,
-  keepContent: boolean,
-): Promise<ModpackRemoveResult> {
-  return call('server.modpack.remove', { server, keepContent });
+  return call('modpack.remove', { target, keepContent });
 }

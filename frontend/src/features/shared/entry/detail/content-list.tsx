@@ -39,8 +39,7 @@ import { ContentVersionDialog } from '@/features/shared/content/dialogs';
 import { kindInfo } from '@/features/shared/content/lib';
 import { cn } from '@/lib/utils';
 import { m } from '@/paraglide/messages.js';
-import { instanceQueries } from '@/queries/instance';
-import { serverQueries } from '@/queries/server';
+import { entryContentQueries } from '@/queries/entry-content';
 import { useContent } from '../hooks';
 import {
   kindLoader,
@@ -63,18 +62,16 @@ export function ContentListResult({
 }) {
   const { entry, handlers, entryWorlds } = useContent();
   const [changing, setChanging] = useState<InstalledContent | null>(null);
-  const isServer = entry.kind === 'server';
   const changingKind = changing?.kind ?? 'mod';
   const changingFile = changing?.filename ?? '';
-  const serverMatches = useQuery({
-    ...serverQueries.contentMatches(entry.id, changingKind, changingFile),
-    enabled: isServer && changingFile.length > 0,
-  });
-  const instanceMatches = useQuery({
-    ...instanceQueries.contentMatches(entry.id, changingKind, changingFile),
-    enabled: !isServer && changingFile.length > 0,
-  });
-  const matches = isServer ? serverMatches : instanceMatches;
+  const matches = useQuery(
+    entryContentQueries.matches(
+      entry.kind,
+      entry.id,
+      changingKind,
+      changingFile,
+    ),
+  );
 
   if (items.length === 0) {
     return (

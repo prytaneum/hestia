@@ -6,7 +6,6 @@
 //! interactively; piped invocations must pass it.
 
 mod browse;
-mod entry;
 pub mod format;
 mod manage;
 mod session;
@@ -22,23 +21,6 @@ pub use browse::{run_browse, BrowseCmd};
 pub use manage::{run_entry, ContentCmd};
 
 const PAGE: u32 = 20;
-
-/// A management command targets either a server or an instance; the two
-/// facades share the same content methods, so this only picks which to call.
-#[derive(Clone, Copy)]
-pub enum EntryKind {
-    Server,
-    Instance,
-}
-
-impl EntryKind {
-    fn noun(self) -> &'static str {
-        match self {
-            EntryKind::Server => "server",
-            EntryKind::Instance => "instance",
-        }
-    }
-}
 
 #[derive(Clone, Copy, ValueEnum)]
 pub enum SortArg {

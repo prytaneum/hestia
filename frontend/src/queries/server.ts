@@ -14,7 +14,6 @@ import {
 import type {
   BackupInfo,
   ConfigEntry,
-  ContentKind,
   ServerCreateDoneEvent,
   ServerCreateParams,
   ServerInfo,
@@ -23,7 +22,6 @@ import type {
 } from '../api';
 import * as api from '../api/server';
 import { CATALOG_STALE_MS, mutation } from './core';
-import { entryContentFactories } from './entry-content';
 import { useEntryIconLookup } from './icons';
 import { jobMutation } from './jobs';
 import { keys } from './keys';
@@ -106,25 +104,6 @@ export const serverQueries = {
     queryOptions({
       queryKey: keys.servers.backups(id),
       queryFn: () => api.backup.list(id),
-    }),
-  content: (id: string, kind: ContentKind) =>
-    queryOptions({
-      queryKey: keys.servers.contentList(id, kind),
-      queryFn: () => api.content.list(id, kind),
-    }),
-  contentMatches: (id: string, kind: ContentKind, item: string) =>
-    queryOptions({
-      queryKey: keys.servers.contentMatches(id, kind, item),
-      queryFn: () => api.content.matches(id, kind, item),
-      enabled: item.length > 0,
-    }),
-  contentUpdates: (id: string, kind: ContentKind) =>
-    queryOptions({
-      queryKey: keys.servers.contentUpdates(id, kind),
-      queryFn: () => api.content.checkUpdates(id, kind),
-      // A network resolve per item — refetch only when explicitly asked.
-      staleTime: Number.POSITIVE_INFINITY,
-      enabled: false,
     }),
 };
 
@@ -248,13 +227,6 @@ export const serverMutations = {
         invalidates: () => [keys.servers.backups(id), keys.servers.info(id)],
       }),
   },
-  /** Servers take mods and datapacks; refused on a running or busy server. */
-  content: entryContentFactories({
-    kind: 'server',
-    api: api.content,
-    contentKey: keys.servers.content,
-    infoKey: keys.servers.info,
-  }),
 };
 
 export function useServers() {

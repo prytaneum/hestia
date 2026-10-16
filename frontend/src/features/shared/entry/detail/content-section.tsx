@@ -25,11 +25,14 @@ import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { KindChips } from '@/features/shared/content/components';
 import { kindInfo } from '@/features/shared/content/lib';
 import { m } from '@/paraglide/messages.js';
-import { instanceMutations, instanceQueries } from '@/queries/instance';
+import {
+  entryContentMutations,
+  entryContentQueries,
+} from '@/queries/entry-content';
+import { instanceQueries } from '@/queries/instance';
 import { useEntryJobs, useJobMutation } from '@/queries/jobs';
 import { modpackQueries } from '@/queries/modpack';
 import { useOffline } from '@/queries/net';
-import { serverMutations, serverQueries } from '@/queries/server';
 import { type ContentContext, ContentCtx, useContent } from '../hooks';
 import {
   type ContentBatch,
@@ -62,17 +65,13 @@ export function ContentSection({
 }: SectionProps) {
   const { id } = entry;
   const isServer = entry.kind === 'server';
-  const queries = isServer ? serverQueries : instanceQueries;
-  const content = isServer
-    ? serverMutations.content
-    : instanceMutations.content;
 
   const offline = useOffline();
   const lists = useQueries({
-    queries: kinds.map((k) => queries.content(id, k)),
+    queries: kinds.map((k) => entryContentQueries.list(entry.kind, id, k)),
   });
   const updates = useQueries({
-    queries: kinds.map((k) => queries.contentUpdates(id, k)),
+    queries: kinds.map((k) => entryContentQueries.updates(entry.kind, id, k)),
   });
   // A datapack that names no world targets every world the instance has, so the
   // per-world rows need the entry's current list. A server has exactly one.
@@ -84,10 +83,12 @@ export function ContentSection({
   // that tag into a name the row can show.
   const pack = useQuery(modpackQueries.status(entry.kind, id));
 
-  const enable = useMutation(content.enable(id));
-  const remove = useMutation(content.remove(id));
-  const update = useJobMutation(content.update(id));
-  const setVersion = useJobMutation(content.setVersion(id));
+  const enable = useMutation(entryContentMutations.enable(entry.kind, id));
+  const remove = useMutation(entryContentMutations.remove(entry.kind, id));
+  const update = useJobMutation(entryContentMutations.update(entry.kind, id));
+  const setVersion = useJobMutation(
+    entryContentMutations.setVersion(entry.kind, id),
+  );
   // One kind per call, in sequence: the daemon admits one content job per
   // entry, and two removals racing would rewrite the same index.
   const runBatches = async (

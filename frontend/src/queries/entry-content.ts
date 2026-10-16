@@ -1,139 +1,122 @@
 /**
- * The per-entry content mutations, shared by servers and instances. The five
- * operations (`add`/`remove`/`update`/`enable`/`setVersion`) are identical
- * across both kinds bar the entry tag, the api namespace and the key prefixes —
- * so they live once here and each domain file calls `entryContentFactories`
- * with its own config.
+ * The content installed in an entry, for servers and instances alike: one
+ * read per question and one mutation per operation, the side chosen by the
+ * `kind` argument. Keys stay per entry and nest under its stable id.
  */
-import type { QueryKey } from '@tanstack/react-query';
+import { queryOptions } from '@tanstack/react-query';
 import type {
   ContentAddInput,
   ContentDoneEvent,
   ContentKind,
-  JobRun,
+  EntryKind,
 } from '../api';
+import * as api from '../api/content';
 import { mutation } from './core';
-import { type JobEntryKind, jobMutation } from './jobs';
+import { jobMutation } from './jobs';
+import { entryScope } from './keys';
 
-/** The content api surface both `serverApi.content` and `instanceApi.content` satisfy. */
-interface EntryContentApi {
-  add(
+export const entryContentQueries = {
+  list: (kind: EntryKind, id: string, contentKind: ContentKind) =>
+    queryOptions({
+      queryKey: entryScope(kind).contentList(id, contentKind),
+      queryFn: () => api.list({ kind, entry: id }, contentKind),
+    }),
+  matches: (
+    kind: EntryKind,
     id: string,
-    spec: ContentAddInput,
-    job: JobRun,
-  ): Promise<ContentDoneEvent>;
-  remove(
-    id: string,
-    kind: ContentKind,
-    items: string[],
-    worlds?: string[],
-  ): Promise<void>;
-  update(
-    id: string,
-    kind: ContentKind,
-    items: string[],
-    path: string,
-    job: JobRun,
-  ): Promise<ContentDoneEvent>;
-  enable(
-    id: string,
-    kind: ContentKind,
+    contentKind: ContentKind,
     item: string,
-    enabled: boolean,
-    worlds?: string[],
-  ): Promise<void>;
-  setVersion(
-    id: string,
-    kind: ContentKind,
-    item: string,
-    version: string,
-    source: string,
-    job: JobRun,
-  ): Promise<ContentDoneEvent>;
-}
+  ) =>
+    queryOptions({
+      queryKey: entryScope(kind).contentMatches(id, contentKind, item),
+      queryFn: () => api.matches({ kind, entry: id }, contentKind, item),
+      enabled: item.length > 0,
+    }),
+  updates: (kind: EntryKind, id: string, contentKind: ContentKind) =>
+    queryOptions({
+      queryKey: entryScope(kind).contentUpdates(id, contentKind),
+      queryFn: () => api.checkUpdates({ kind, entry: id }, contentKind),
+      // A network resolve per item — refetch only when explicitly asked.
+      staleTime: Number.POSITIVE_INFINITY,
+      enabled: false,
+    }),
+};
 
-interface EntryContentConfig {
-  /** The entry tag jobs carry, so an activity surface groups by entry. */
-  kind: JobEntryKind;
-  api: EntryContentApi;
-  /** The entry's content key prefix (`keys.<kind>.content`). */
-  contentKey: (id: string) => QueryKey;
-  /** The entry's footprint key (`keys.<kind>.info`). */
-  infoKey: (id: string) => QueryKey;
-}
+export const entryContentMutations = {
+  /** Refused on a running or busy entry. */
+  add: (kind: EntryKind, id: string) =>
+    jobMutation<ContentDoneEvent, ContentAddInput>({
+      mutationKey: [...entryScope(kind).content(id), 'add'],
+      meta: (spec) => ({
+        kind: 'content.add',
+        label: `add ${spec.kind}`,
+        entry: { kind, id },
+      }),
+      run: (spec, job) => api.add({ kind, entry: id }, spec, job),
+      invalidates: () => invalidates(kind, id),
+    }),
+  /** One call for the whole batch; a name matching nothing removes none. */
+  remove: (kind: EntryKind, id: string) =>
+    mutation<void, { kind: ContentKind; items: string[]; worlds?: string[] }>({
+      mutationKey: [...entryScope(kind).content(id), 'remove'],
+      mutationFn: ({ kind: contentKind, items, worlds }) =>
+        api.remove({ kind, entry: id }, contentKind, items, worlds),
+      invalidates: () => invalidates(kind, id),
+    }),
+  /**
+   * `items` empty updates every platform-sourced item of the kind; a `path`
+   * updates the one named local item from that file.
+   */
+  update: (kind: EntryKind, id: string) =>
+    jobMutation<
+      ContentDoneEvent,
+      { kind: ContentKind; items: string[]; path?: string }
+    >({
+      mutationKey: [...entryScope(kind).content(id), 'update'],
+      meta: ({ kind: contentKind }) => ({
+        kind: 'content.update',
+        label: `update ${contentKind}s`,
+        entry: { kind, id },
+      }),
+      run: ({ kind: contentKind, items, path = '' }, job) =>
+        api.update({ kind, entry: id }, contentKind, items, path, job),
+      invalidates: () => invalidates(kind, id),
+    }),
+  enable: (kind: EntryKind, id: string) =>
+    mutation<
+      void,
+      { kind: ContentKind; item: string; enabled: boolean; worlds?: string[] }
+    >({
+      mutationKey: [...entryScope(kind).content(id), 'enable'],
+      mutationFn: ({ kind: contentKind, item, enabled, worlds }) =>
+        api.enable({ kind, entry: id }, contentKind, item, enabled, worlds),
+      invalidates: () => invalidates(kind, id),
+    }),
+  setVersion: (kind: EntryKind, id: string) =>
+    jobMutation<
+      ContentDoneEvent,
+      { kind: ContentKind; item: string; version: string; source: string }
+    >({
+      mutationKey: [...entryScope(kind).content(id), 'set-version'],
+      meta: ({ kind: contentKind }) => ({
+        kind: 'content.update',
+        label: `pin ${contentKind}`,
+        entry: { kind, id },
+      }),
+      run: ({ kind: contentKind, item, version, source }, job) =>
+        api.setVersion(
+          { kind, entry: id },
+          contentKind,
+          item,
+          version,
+          source,
+          job,
+        ),
+      invalidates: () => invalidates(kind, id),
+    }),
+};
 
-/** The `content.*` mutation factories for one entry kind. */
-export function entryContentFactories(cfg: EntryContentConfig) {
-  const invalidates = (id: string): QueryKey[] => [
-    cfg.contentKey(id),
-    cfg.infoKey(id),
-  ];
-  return {
-    /** Refused on a running or busy entry. */
-    add: (id: string) =>
-      jobMutation<ContentDoneEvent, ContentAddInput>({
-        mutationKey: [...cfg.contentKey(id), 'add'],
-        meta: (spec) => ({
-          kind: 'content.add',
-          label: `add ${spec.kind}`,
-          entry: { kind: cfg.kind, id },
-        }),
-        run: (spec, job) => cfg.api.add(id, spec, job),
-        invalidates: () => invalidates(id),
-      }),
-    /** One call for the whole batch; a name matching nothing removes none. */
-    remove: (id: string) =>
-      mutation<void, { kind: ContentKind; items: string[]; worlds?: string[] }>(
-        {
-          mutationKey: [...cfg.contentKey(id), 'remove'],
-          mutationFn: ({ kind, items, worlds }) =>
-            cfg.api.remove(id, kind, items, worlds),
-          invalidates: () => invalidates(id),
-        },
-      ),
-    /**
-     * `items` empty updates every platform-sourced item of the kind; a `path`
-     * updates the one named local item from that file.
-     */
-    update: (id: string) =>
-      jobMutation<
-        ContentDoneEvent,
-        { kind: ContentKind; items: string[]; path?: string }
-      >({
-        mutationKey: [...cfg.contentKey(id), 'update'],
-        meta: ({ kind }) => ({
-          kind: 'content.update',
-          label: `update ${kind}s`,
-          entry: { kind: cfg.kind, id },
-        }),
-        run: ({ kind, items, path = '' }, job) =>
-          cfg.api.update(id, kind, items, path, job),
-        invalidates: () => invalidates(id),
-      }),
-    enable: (id: string) =>
-      mutation<
-        void,
-        { kind: ContentKind; item: string; enabled: boolean; worlds?: string[] }
-      >({
-        mutationKey: [...cfg.contentKey(id), 'enable'],
-        mutationFn: ({ kind, item, enabled, worlds }) =>
-          cfg.api.enable(id, kind, item, enabled, worlds),
-        invalidates: () => invalidates(id),
-      }),
-    setVersion: (id: string) =>
-      jobMutation<
-        ContentDoneEvent,
-        { kind: ContentKind; item: string; version: string; source: string }
-      >({
-        mutationKey: [...cfg.contentKey(id), 'set-version'],
-        meta: ({ kind }) => ({
-          kind: 'content.update',
-          label: `pin ${kind}`,
-          entry: { kind: cfg.kind, id },
-        }),
-        run: ({ kind, item, version, source }, job) =>
-          cfg.api.setVersion(id, kind, item, version, source, job),
-        invalidates: () => invalidates(id),
-      }),
-  };
+function invalidates(kind: EntryKind, id: string) {
+  const scope = entryScope(kind);
+  return [scope.content(id), scope.info(id)];
 }

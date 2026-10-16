@@ -2,11 +2,11 @@
 //! new files download at the next launch; a downgrade confirms first.
 
 use anyhow::Result;
+use client::proto::error::{EntryKind, EntryTarget};
 use client::proto::modpack::ModpackMove;
 use client::Client;
 
 use super::entry;
-use crate::commands::content::EntryKind;
 use crate::commands::mc;
 use crate::commands::modpack;
 use crate::ui::{self, Spinner, View};
@@ -37,15 +37,15 @@ pub(super) async fn run(
             &version,
         )?;
     }
-    let pack_version =
-        modpack::pack_move(client, EntryKind::Instance, &info.id, &version, keep_pack).await?;
+    let entry = EntryTarget::new(EntryKind::Instance, &info.id);
+    let pack_version = modpack::pack_move(client, &entry, &version, keep_pack).await?;
     if let Some(pack_version) = pack_version {
         let to = ModpackMove {
             version: pack_version,
             allow_downgrade: downgrade || is_downgrade,
             ..ModpackMove::default()
         };
-        return modpack::update(client, EntryKind::Instance, &info.id, to).await;
+        return modpack::update(client, &entry, to).await;
     }
 
     let updated = {

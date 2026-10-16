@@ -1,6 +1,6 @@
-//! Job drivers shared by the server and instance facades: the four backup job
-//! types publish the same `backup.*` topics (and the content jobs the same
-//! `content.*` topics), disambiguated by job id.
+//! Job drivers shared between facades: the four backup job types publish the
+//! same `backup.*` topics (and the content jobs the same `content.*` topics),
+//! disambiguated by job id.
 
 use ipc::errors::IpcError;
 use ipc::protocol::Event;

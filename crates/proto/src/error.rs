@@ -17,10 +17,11 @@ use serde::{Deserialize, Serialize};
 use crate::content::ContentKind;
 
 /// A launcher entry that resolves by reference.
-#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Default)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
 #[serde(rename_all = "snake_case")]
 pub enum EntryKind {
+    #[default]
     Server,
     Instance,
 }
@@ -31,6 +32,26 @@ impl fmt::Display for EntryKind {
             EntryKind::Server => "server",
             EntryKind::Instance => "instance",
         })
+    }
+}
+
+/// The entry a verb that exists on both sides is aimed at: which side, and the
+/// reference (id or name) that resolves on it. The side is data, so a verb is
+/// one channel rather than a server channel and an instance channel.
+#[derive(Serialize, Deserialize, Default, Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
+#[serde(default, rename_all = "camelCase")]
+pub struct EntryTarget {
+    pub kind: EntryKind,
+    pub entry: String,
+}
+
+impl EntryTarget {
+    pub fn new(kind: EntryKind, entry: impl Into<String>) -> Self {
+        EntryTarget {
+            kind,
+            entry: entry.into(),
+        }
     }
 }
 

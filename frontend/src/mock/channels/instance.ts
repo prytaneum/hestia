@@ -18,7 +18,7 @@ import * as processes from '../state/processes';
 import * as worlds from '../state/worlds';
 import { ago, bool, type Handlers, now, ok, str } from '../support';
 import { resolve as resolveAccount } from './account';
-import { configChannels, contentChannels } from './entry';
+import { configChannels } from './entry';
 
 const BANNER = [
   '[main/INFO]: Setting user: Player',
@@ -193,5 +193,4 @@ export const channels: Handlers = {
   },
 
   ...configChannels('instance', instanceId),
-  ...contentChannels('instance', instanceId),
 };

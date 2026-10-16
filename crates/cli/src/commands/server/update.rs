@@ -4,12 +4,12 @@
 use std::sync::Arc;
 
 use anyhow::{bail, Context, Result};
+use client::proto::error::{EntryKind, EntryTarget};
 use client::proto::modpack::ModpackMove;
 use client::proto::server::ServerUpdateParams;
 use client::Client;
 
 use super::{entry, lifecycle};
-use crate::commands::content::EntryKind;
 use crate::commands::mc;
 use crate::commands::modpack;
 use crate::ui::{self, ProvisionReporter, Spinner, View};
@@ -45,8 +45,8 @@ pub(super) async fn run(
             &version,
         )?;
     }
-    let pack_version =
-        modpack::pack_move(client, EntryKind::Server, &info.id, &version, keep_pack).await?;
+    let entry = EntryTarget::new(EntryKind::Server, &info.id);
+    let pack_version = modpack::pack_move(client, &entry, &version, keep_pack).await?;
 
     if was_running {
         {
@@ -68,7 +68,7 @@ pub(super) async fn run(
                 allow_downgrade,
                 ..ModpackMove::default()
             };
-            modpack::update(client, EntryKind::Server, &info.id, to).await?;
+            modpack::update(client, &entry, to).await?;
         }
         None => change_version(client, &info.id, version, loader, allow_downgrade).await?,
     }

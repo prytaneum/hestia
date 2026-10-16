@@ -10,7 +10,7 @@ use std::fmt;
 use serde::{Deserialize, Serialize};
 
 use crate::contract::{Contract, Empty, Topic};
-use crate::error::ErrorInfo;
+use crate::error::{EntryTarget, ErrorInfo};
 use crate::minecraft::{Artifact, ProvisionProgress};
 
 /// What a project is — the second selector level after the source.
@@ -408,8 +408,8 @@ pub struct ContentFailure {
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
 #[serde(default, rename_all = "camelCase")]
-pub struct ServerContentAddParams {
-    pub server: String,
+pub struct EntryContentAddParams {
+    pub target: EntryTarget,
     #[serde(flatten)]
     pub spec: ContentAddSpec,
     pub id: String,
@@ -418,26 +418,8 @@ pub struct ServerContentAddParams {
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
 #[serde(default, rename_all = "camelCase")]
-pub struct InstanceContentAddParams {
-    pub instance: String,
-    #[serde(flatten)]
-    pub spec: ContentAddSpec,
-    pub id: String,
-}
-
-#[derive(Serialize, Deserialize, Default, Debug, Clone)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
-#[serde(default, rename_all = "camelCase")]
-pub struct ServerContentListParams {
-    pub server: String,
-    pub kind: ContentKind,
-}
-
-#[derive(Serialize, Deserialize, Default, Debug, Clone)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
-#[serde(default, rename_all = "camelCase")]
-pub struct InstanceContentListParams {
-    pub instance: String,
+pub struct EntryContentListParams {
+    pub target: EntryTarget,
     pub kind: ContentKind,
 }
 
@@ -449,18 +431,8 @@ pub struct InstanceContentListParams {
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
 #[serde(default, rename_all = "camelCase")]
-pub struct ServerContentRemoveParams {
-    pub server: String,
-    pub kind: ContentKind,
-    pub items: Vec<String>,
-    pub worlds: Vec<String>,
-}
-
-#[derive(Serialize, Deserialize, Default, Debug, Clone)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
-#[serde(default, rename_all = "camelCase")]
-pub struct InstanceContentRemoveParams {
-    pub instance: String,
+pub struct EntryContentRemoveParams {
+    pub target: EntryTarget,
     pub kind: ContentKind,
     pub items: Vec<String>,
     pub worlds: Vec<String>,
@@ -472,19 +444,8 @@ pub struct InstanceContentRemoveParams {
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
 #[serde(default, rename_all = "camelCase")]
-pub struct ServerContentUpdateParams {
-    pub server: String,
-    pub kind: ContentKind,
-    pub items: Vec<String>,
-    pub path: String,
-    pub id: String,
-}
-
-#[derive(Serialize, Deserialize, Default, Debug, Clone)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
-#[serde(default, rename_all = "camelCase")]
-pub struct InstanceContentUpdateParams {
-    pub instance: String,
+pub struct EntryContentUpdateParams {
+    pub target: EntryTarget,
     pub kind: ContentKind,
     pub items: Vec<String>,
     pub path: String,
@@ -505,19 +466,8 @@ pub struct ContentJobResult {
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
 #[serde(default, rename_all = "camelCase")]
-pub struct ServerContentEnableParams {
-    pub server: String,
-    pub kind: ContentKind,
-    pub item: String,
-    pub enabled: bool,
-    pub worlds: Vec<String>,
-}
-
-#[derive(Serialize, Deserialize, Default, Debug, Clone)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
-#[serde(default, rename_all = "camelCase")]
-pub struct InstanceContentEnableParams {
-    pub instance: String,
+pub struct EntryContentEnableParams {
+    pub target: EntryTarget,
     pub kind: ContentKind,
     pub item: String,
     pub enabled: bool,
@@ -530,16 +480,8 @@ pub struct InstanceContentEnableParams {
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
 #[serde(default, rename_all = "camelCase")]
-pub struct ServerContentCheckUpdatesParams {
-    pub server: String,
-    pub kind: ContentKind,
-}
-
-#[derive(Serialize, Deserialize, Default, Debug, Clone)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
-#[serde(default, rename_all = "camelCase")]
-pub struct InstanceContentCheckUpdatesParams {
-    pub instance: String,
+pub struct EntryContentCheckUpdatesParams {
+    pub target: EntryTarget,
     pub kind: ContentKind,
 }
 
@@ -572,8 +514,8 @@ pub struct ContentUpdatesResult {
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
 #[serde(default, rename_all = "camelCase")]
-pub struct ServerContentSetVersionParams {
-    pub server: String,
+pub struct EntryContentSetVersionParams {
+    pub target: EntryTarget,
     pub kind: ContentKind,
     pub item: String,
     pub version: String,
@@ -585,30 +527,8 @@ pub struct ServerContentSetVersionParams {
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
 #[serde(default, rename_all = "camelCase")]
-pub struct InstanceContentSetVersionParams {
-    pub instance: String,
-    pub kind: ContentKind,
-    pub item: String,
-    pub version: String,
-    /// Empty keeps the item's own source.
-    pub source: String,
-    pub id: String,
-}
-
-#[derive(Serialize, Deserialize, Default, Debug, Clone)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
-#[serde(default, rename_all = "camelCase")]
-pub struct ServerContentMatchesParams {
-    pub server: String,
-    pub kind: ContentKind,
-    pub item: String,
-}
-
-#[derive(Serialize, Deserialize, Default, Debug, Clone)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
-#[serde(default, rename_all = "camelCase")]
-pub struct InstanceContentMatchesParams {
-    pub instance: String,
+pub struct EntryContentMatchesParams {
+    pub target: EntryTarget,
     pub kind: ContentKind,
     pub item: String,
 }
@@ -620,115 +540,59 @@ pub struct ContentMatchesResult {
     pub matches: Vec<ContentMatch>,
 }
 
-pub struct ServerContentAdd;
-impl Contract for ServerContentAdd {
-    const CHANNEL: &'static str = "server.content.add";
-    type Params = ServerContentAddParams;
+pub struct EntryContentAdd;
+impl Contract for EntryContentAdd {
+    const CHANNEL: &'static str = "content.add";
+    type Params = EntryContentAddParams;
     type Result = ContentJobResult;
 }
 
-pub struct ServerContentList;
-impl Contract for ServerContentList {
-    const CHANNEL: &'static str = "server.content.list";
-    type Params = ServerContentListParams;
+pub struct EntryContentList;
+impl Contract for EntryContentList {
+    const CHANNEL: &'static str = "content.list";
+    type Params = EntryContentListParams;
     type Result = ContentListResult;
 }
 
-pub struct ServerContentRemove;
-impl Contract for ServerContentRemove {
-    const CHANNEL: &'static str = "server.content.remove";
-    type Params = ServerContentRemoveParams;
+pub struct EntryContentRemove;
+impl Contract for EntryContentRemove {
+    const CHANNEL: &'static str = "content.remove";
+    type Params = EntryContentRemoveParams;
     type Result = Empty;
 }
 
-pub struct ServerContentUpdate;
-impl Contract for ServerContentUpdate {
-    const CHANNEL: &'static str = "server.content.update";
-    type Params = ServerContentUpdateParams;
+pub struct EntryContentUpdate;
+impl Contract for EntryContentUpdate {
+    const CHANNEL: &'static str = "content.update";
+    type Params = EntryContentUpdateParams;
     type Result = ContentJobResult;
 }
 
-pub struct InstanceContentAdd;
-impl Contract for InstanceContentAdd {
-    const CHANNEL: &'static str = "instance.content.add";
-    type Params = InstanceContentAddParams;
-    type Result = ContentJobResult;
-}
-
-pub struct InstanceContentList;
-impl Contract for InstanceContentList {
-    const CHANNEL: &'static str = "instance.content.list";
-    type Params = InstanceContentListParams;
-    type Result = ContentListResult;
-}
-
-pub struct InstanceContentRemove;
-impl Contract for InstanceContentRemove {
-    const CHANNEL: &'static str = "instance.content.remove";
-    type Params = InstanceContentRemoveParams;
+pub struct EntryContentEnable;
+impl Contract for EntryContentEnable {
+    const CHANNEL: &'static str = "content.enable";
+    type Params = EntryContentEnableParams;
     type Result = Empty;
 }
 
-pub struct InstanceContentUpdate;
-impl Contract for InstanceContentUpdate {
-    const CHANNEL: &'static str = "instance.content.update";
-    type Params = InstanceContentUpdateParams;
-    type Result = ContentJobResult;
-}
-
-pub struct ServerContentEnable;
-impl Contract for ServerContentEnable {
-    const CHANNEL: &'static str = "server.content.enable";
-    type Params = ServerContentEnableParams;
-    type Result = Empty;
-}
-
-pub struct InstanceContentEnable;
-impl Contract for InstanceContentEnable {
-    const CHANNEL: &'static str = "instance.content.enable";
-    type Params = InstanceContentEnableParams;
-    type Result = Empty;
-}
-
-pub struct ServerContentCheckUpdates;
-impl Contract for ServerContentCheckUpdates {
-    const CHANNEL: &'static str = "server.content.check_updates";
-    type Params = ServerContentCheckUpdatesParams;
+pub struct EntryContentCheckUpdates;
+impl Contract for EntryContentCheckUpdates {
+    const CHANNEL: &'static str = "content.check_updates";
+    type Params = EntryContentCheckUpdatesParams;
     type Result = ContentUpdatesResult;
 }
 
-pub struct InstanceContentCheckUpdates;
-impl Contract for InstanceContentCheckUpdates {
-    const CHANNEL: &'static str = "instance.content.check_updates";
-    type Params = InstanceContentCheckUpdatesParams;
-    type Result = ContentUpdatesResult;
-}
-
-pub struct ServerContentMatches;
-impl Contract for ServerContentMatches {
-    const CHANNEL: &'static str = "server.content.matches";
-    type Params = ServerContentMatchesParams;
+pub struct EntryContentMatches;
+impl Contract for EntryContentMatches {
+    const CHANNEL: &'static str = "content.matches";
+    type Params = EntryContentMatchesParams;
     type Result = ContentMatchesResult;
 }
 
-pub struct InstanceContentMatches;
-impl Contract for InstanceContentMatches {
-    const CHANNEL: &'static str = "instance.content.matches";
-    type Params = InstanceContentMatchesParams;
-    type Result = ContentMatchesResult;
-}
-
-pub struct ServerContentSetVersion;
-impl Contract for ServerContentSetVersion {
-    const CHANNEL: &'static str = "server.content.set_version";
-    type Params = ServerContentSetVersionParams;
-    type Result = ContentJobResult;
-}
-
-pub struct InstanceContentSetVersion;
-impl Contract for InstanceContentSetVersion {
-    const CHANNEL: &'static str = "instance.content.set_version";
-    type Params = InstanceContentSetVersionParams;
+pub struct EntryContentSetVersion;
+impl Contract for EntryContentSetVersion {
+    const CHANNEL: &'static str = "content.set_version";
+    type Params = EntryContentSetVersionParams;
     type Result = ContentJobResult;
 }
 

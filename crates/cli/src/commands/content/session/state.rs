@@ -6,6 +6,7 @@
 use client::proto::content::{
     ContentAddItem, ContentAddSpec, ContentKind, ContentProject, InstalledContent,
 };
+use client::proto::error::{EntryKind, EntryTarget};
 
 use super::cart::StagedRemoval;
 use super::driver::{InstallJob, Removal, Request};
@@ -13,7 +14,6 @@ use super::{ContentSession, Mode, Overlay, Target};
 use crate::commands::content::format::{
     version_picker, world_label, world_name as install_world_name,
 };
-use crate::commands::content::EntryKind;
 use crate::ui::components::SelectList;
 
 impl ContentSession {
@@ -55,7 +55,10 @@ impl ContentSession {
             && matches!(
                 self.target,
                 Some(Target {
-                    entry: EntryKind::Instance,
+                    entry: EntryTarget {
+                        kind: EntryKind::Instance,
+                        ..
+                    },
                     ..
                 })
             )
@@ -136,7 +139,7 @@ impl ContentSession {
     }
 
     pub(super) fn install(&mut self) {
-        let Some((entry, id)) = self.target.as_ref().map(|t| (t.entry, t.id.clone())) else {
+        let Some(entry) = self.target.as_ref().map(|t| t.entry.clone()) else {
             return;
         };
         let items = self
@@ -167,7 +170,6 @@ impl ContentSession {
         };
         let _ = self.requests.send(Request::Install(InstallJob {
             entry,
-            id,
             spec,
             removals,
         }));

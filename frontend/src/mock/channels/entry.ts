@@ -1,10 +1,11 @@
 /**
- * The channels a server and an instance answer identically — per-entry
- * settings and the installed content pool. Both sides name their entry with a
- * different parameter (`server` / `instance`) and nothing else differs, so the
- * handlers are built once and registered twice (see ./instance, ./server).
+ * What a server and an instance answer identically. Per-entry settings name
+ * their entry with a different parameter (`server` / `instance`), so those
+ * handlers are built once and registered twice (see ./instance, ./server). The
+ * installed content pool and the modpack verbs name theirs with an
+ * `EntryTarget`, and are single channels (see `contentChannels`, ./modpack).
  */
-import type { ContentKind, InstalledContent } from '@/api/types';
+import type { ContentKind, EntryTarget, InstalledContent } from '@/api/types';
 
 import { jobIdOf, startJob } from '../job';
 import * as content from '../state/content';
@@ -13,6 +14,17 @@ import { type Handler, type Handlers, ok, str, strings } from '../support';
 
 /** Resolves the entry a payload names to its stable id. */
 export type Resolve = (payload: Record<string, unknown>) => string;
+
+/** The entry a payload's `target` names. */
+export function targetEntry(payload: Record<string, unknown>): {
+  id: string;
+  name: string;
+} {
+  const { kind, entry = '' } = (payload.target ?? {}) as Partial<EntryTarget>;
+  return kind === 'server'
+    ? entries.findServer(entry)
+    : entries.findInstance(entry);
+}
 
 const kindOf = (payload: Record<string, unknown>): ContentKind =>
   (payload.kind as ContentKind) ?? 'mod';
@@ -46,7 +58,8 @@ function contentJob(
   });
 }
 
-export function contentChannels(prefix: string, resolve: Resolve): Handlers {
+export function contentChannels(): Handlers {
+  const resolve = (payload: Record<string, unknown>) => targetEntry(payload).id;
   const add: Handler = (p) => {
     const id = resolve(p);
     const kind = kindOf(p);
@@ -64,16 +77,16 @@ export function contentChannels(prefix: string, resolve: Resolve): Handlers {
   };
 
   return {
-    [`${prefix}.content.list`]: (p) => content.listPool(resolve(p), kindOf(p)),
+    'content.list': (p) => content.listPool(resolve(p), kindOf(p)),
 
-    [`${prefix}.content.add`]: add,
+    'content.add': add,
 
-    [`${prefix}.content.remove`]: (p) => {
+    'content.remove': (p) => {
       content.remove(resolve(p), kindOf(p), strings(p, 'items'));
       return ok();
     },
 
-    [`${prefix}.content.enable`]: (p) => {
+    'content.enable': (p) => {
       content.setEnabled(
         resolve(p),
         kindOf(p),
@@ -83,7 +96,7 @@ export function contentChannels(prefix: string, resolve: Resolve): Handlers {
       return ok();
     },
 
-    [`${prefix}.content.update`]: (p) =>
+    'content.update': (p) =>
       contentJob(p, () =>
         str(p, 'path')
           ? content.updateFromFile(
@@ -95,7 +108,7 @@ export function contentChannels(prefix: string, resolve: Resolve): Handlers {
           : content.update(resolve(p), kindOf(p), strings(p, 'items')),
       ),
 
-    [`${prefix}.content.set_version`]: (p) =>
+    'content.set_version': (p) =>
       contentJob(p, () =>
         content.setVersion(
           resolve(p),
@@ -105,9 +118,9 @@ export function contentChannels(prefix: string, resolve: Resolve): Handlers {
         ),
       ),
 
-    [`${prefix}.content.matches`]: () => ({ matches: [] }),
+    'content.matches': () => ({ matches: [] }),
 
-    [`${prefix}.content.check_updates`]: (p) => ({
+    'content.check_updates': (p) => ({
       updates: content.updates(resolve(p), kindOf(p)),
     }),
   };

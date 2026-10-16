@@ -4,27 +4,28 @@
 //! An install that *creates* its entry has nothing to guard — the entry does not
 //! exist yet. One aimed at an existing entry is guarded exactly as a content
 //! install is: stopped, and racing no backup, update or other content job.
+//! Installing keeps a channel per side because a server install carries an EULA
+//! and a port; every verb on an existing entry is one channel that names its
+//! side in the target.
 
 use std::path::Path;
 
 use proto::error::{ErrorInfo, Field};
 use proto::modpack::{
-    InstanceModpackCheckUpdate, InstanceModpackInstall, InstanceModpackPreviewUpdate,
-    InstanceModpackRemove, InstanceModpackStatus, InstanceModpackUpdate, ModpackJobResult,
-    ModpackRef, ModpackStatusResult, ModpackTarget, ModpackUpdateResult, ServerModpackCheckUpdate,
-    ServerModpackInstall, ServerModpackPreviewUpdate, ServerModpackRemove, ServerModpackStatus,
-    ServerModpackUpdate,
+    EntryModpackCheckUpdate, EntryModpackPreviewUpdate, EntryModpackRemove, EntryModpackStatus,
+    EntryModpackUpdate, InstanceModpackInstall, ModpackJobResult, ModpackRef, ModpackStatusResult,
+    ModpackTarget, ModpackUpdateResult, ServerModpackInstall,
 };
 
-use super::guards::{instance_for, server_for, Intent};
+use super::guards::{entry_for, instance_for, server_for, Intent};
 use crate::runtime::{Channels, ModpackJob};
 
 pub(super) fn register(on: &mut Channels<'_>) {
-    register_instance(on);
-    register_server(on);
+    register_install(on);
+    register_entry(on);
 }
 
-fn register_instance(on: &mut Channels<'_>) {
+fn register_install(on: &mut Channels<'_>) {
     on.handle::<InstanceModpackInstall, _, _>(|p, ctx| async move {
         require_pack_ref(&p.pack)?;
         let target = match &p.target {
@@ -49,60 +50,6 @@ fn register_instance(on: &mut Channels<'_>) {
         )
     });
 
-    on.handle::<InstanceModpackUpdate, _, _>(|p, ctx| async move {
-        let record = instance_for(&ctx, &p.instance, Intent::Mutate)?;
-        start(
-            ctx.runtime.modpack_jobs().start(
-                ModpackJob::UpdateInstance {
-                    instance_id: record.id,
-                    to: p.to,
-                },
-                p.id,
-            ),
-            record.name,
-        )
-    });
-
-    on.handle::<InstanceModpackPreviewUpdate, _, _>(|p, ctx| async move {
-        let record = instance_for(&ctx, &p.instance, Intent::Read)?;
-        ctx.runtime
-            .engine()
-            .preview_entry_modpack_file(engine::EntryRef::Instance(&record.id), Path::new(&p.path))
-            .await
-            .map_err(crate::runtime::engine_error)
-    });
-
-    on.handle::<InstanceModpackStatus, _, _>(|p, ctx| async move {
-        let record = instance_for(&ctx, &p.instance, Intent::Read)?;
-        let pack = ctx
-            .runtime
-            .engine()
-            .entry_modpack(engine::EntryRef::Instance(&record.id))
-            .map_err(crate::runtime::engine_error)?;
-        Ok(ModpackStatusResult { pack })
-    });
-
-    on.handle::<InstanceModpackCheckUpdate, _, _>(|p, ctx| async move {
-        let record = instance_for(&ctx, &p.instance, Intent::Read)?;
-        let update = ctx
-            .runtime
-            .engine()
-            .entry_modpack_update(engine::EntryRef::Instance(&record.id), &p.game_version)
-            .await
-            .map_err(crate::runtime::engine_error)?;
-        Ok(ModpackUpdateResult { update })
-    });
-
-    on.handle::<InstanceModpackRemove, _, _>(|p, ctx| async move {
-        let record = instance_for(&ctx, &p.instance, Intent::Mutate)?;
-        ctx.runtime
-            .engine()
-            .remove_entry_modpack(engine::EntryRef::Instance(&record.id), p.keep_content)
-            .map_err(crate::runtime::engine_error)
-    });
-}
-
-fn register_server(on: &mut Channels<'_>) {
     on.handle::<ServerModpackInstall, _, _>(|p, ctx| async move {
         require_pack_ref(&p.pack)?;
         let target = match &p.target {
@@ -133,56 +80,58 @@ fn register_server(on: &mut Channels<'_>) {
             busy,
         )
     });
+}
 
-    on.handle::<ServerModpackUpdate, _, _>(|p, ctx| async move {
-        let record = server_for(&ctx, &p.server, Intent::Mutate)?;
+fn register_entry(on: &mut Channels<'_>) {
+    on.handle::<EntryModpackUpdate, _, _>(|p, ctx| async move {
+        let entry = entry_for(&ctx, &p.target, Intent::Mutate)?;
         start(
             ctx.runtime.modpack_jobs().start(
-                ModpackJob::UpdateServer {
-                    server_id: record.id,
+                ModpackJob::Update {
+                    entry: entry.handle,
                     to: p.to,
                 },
                 p.id,
             ),
-            record.name,
+            entry.name,
         )
     });
 
-    on.handle::<ServerModpackPreviewUpdate, _, _>(|p, ctx| async move {
-        let record = server_for(&ctx, &p.server, Intent::Read)?;
+    on.handle::<EntryModpackPreviewUpdate, _, _>(|p, ctx| async move {
+        let entry = entry_for(&ctx, &p.target, Intent::Read)?;
         ctx.runtime
             .engine()
-            .preview_entry_modpack_file(engine::EntryRef::Server(&record.id), Path::new(&p.path))
+            .preview_entry_modpack_file(entry.handle.entry_ref(), Path::new(&p.path))
             .await
             .map_err(crate::runtime::engine_error)
     });
 
-    on.handle::<ServerModpackStatus, _, _>(|p, ctx| async move {
-        let record = server_for(&ctx, &p.server, Intent::Read)?;
+    on.handle::<EntryModpackStatus, _, _>(|p, ctx| async move {
+        let entry = entry_for(&ctx, &p.target, Intent::Read)?;
         let pack = ctx
             .runtime
             .engine()
-            .entry_modpack(engine::EntryRef::Server(&record.id))
+            .entry_modpack(entry.handle.entry_ref())
             .map_err(crate::runtime::engine_error)?;
         Ok(ModpackStatusResult { pack })
     });
 
-    on.handle::<ServerModpackCheckUpdate, _, _>(|p, ctx| async move {
-        let record = server_for(&ctx, &p.server, Intent::Read)?;
+    on.handle::<EntryModpackCheckUpdate, _, _>(|p, ctx| async move {
+        let entry = entry_for(&ctx, &p.target, Intent::Read)?;
         let update = ctx
             .runtime
             .engine()
-            .entry_modpack_update(engine::EntryRef::Server(&record.id), &p.game_version)
+            .entry_modpack_update(entry.handle.entry_ref(), &p.game_version)
             .await
             .map_err(crate::runtime::engine_error)?;
         Ok(ModpackUpdateResult { update })
     });
 
-    on.handle::<ServerModpackRemove, _, _>(|p, ctx| async move {
-        let record = server_for(&ctx, &p.server, Intent::Mutate)?;
+    on.handle::<EntryModpackRemove, _, _>(|p, ctx| async move {
+        let entry = entry_for(&ctx, &p.target, Intent::Mutate)?;
         ctx.runtime
             .engine()
-            .remove_entry_modpack(engine::EntryRef::Server(&record.id), p.keep_content)
+            .remove_entry_modpack(entry.handle.entry_ref(), p.keep_content)
             .map_err(crate::runtime::engine_error)
     });
 }

@@ -14,7 +14,7 @@ use proto::backup::BackupInfo;
 use proto::cache::{CacheEntry, CacheInfoResult};
 use proto::content::{
     ContentAddSpec, ContentDoneEvent, ContentErrorEvent, ContentProgressEvent, ContentProject,
-    ContentVersion, InstalledContent, SearchQuery, ServerContentAddParams,
+    ContentVersion, EntryContentAddParams, InstalledContent, SearchQuery,
 };
 use proto::daemon::{DaemonStatusResult, DaemonStopParams};
 use proto::instance::{InstanceInfo, InstanceLaunchParams, RecentPlay, ServerEntry};
@@ -117,9 +117,9 @@ golden!(
 );
 golden!(content_add_spec, ContentAddSpec, "content_add_spec.json");
 golden!(
-    server_content_add_params,
-    ServerContentAddParams,
-    "server_content_add_params.json"
+    entry_content_add_params,
+    EntryContentAddParams,
+    "entry_content_add_params.json"
 );
 golden!(
     installed_content,

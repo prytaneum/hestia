@@ -9,7 +9,7 @@ adding the build put a second copy beside the first, and both loaded. The way
 through was remove-then-add, which also threw away how the entry held the item:
 its enabled flag, its per-world disables, its world targeting.
 
-**`update` takes a file in place of a source.** `<kind>.content.update` carries
+**`update` takes a file in place of a source.** `content.update` carries
 a `path`; with one, the single named item moves onto that file instead of the
 newest published version. It is the same verb a pack uses for the same need
 ([0078](0078-a-pack-updates-from-a-file.md)), and the verb `add --file` already

@@ -17,7 +17,7 @@ import * as entries from '../state/entries';
 import * as processes from '../state/processes';
 import { type Handlers, num, ok, str } from '../support';
 import { channels as backupChannels } from './backup';
-import { configChannels, contentChannels } from './entry';
+import { configChannels } from './entry';
 
 // The daemon's own knowledge of the file, which no front-end shares: what it
 // keeps on the record instead, what it owns, and what hardcore pins.
@@ -232,6 +232,5 @@ export const channels: Handlers = {
   }),
 
   ...configChannels('server', serverId),
-  ...contentChannels('server', serverId),
   ...backupChannels(serverId),
 };

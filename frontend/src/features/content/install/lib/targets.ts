@@ -8,8 +8,9 @@ import type {
 } from '@/api';
 import { content as contentApi } from '@/api';
 import { m } from '@/paraglide/messages.js';
-import { instanceQueries, useInstances } from '@/queries/instance';
-import { serverQueries, useServers } from '@/queries/server';
+import { entryContentQueries } from '@/queries/entry-content';
+import { useInstances } from '@/queries/instance';
+import { useServers } from '@/queries/server';
 
 /** An entry the content can be installed into, drawn from every store. */
 export interface Target {
@@ -110,15 +111,8 @@ export function useInstalledRefs(
   target: Target,
   kind: ContentKind,
 ): Set<string> {
-  const server = useQuery({
-    ...serverQueries.content(target.id, kind),
-    enabled: target.type === 'server',
-  });
-  const instance = useQuery({
-    ...instanceQueries.content(target.id, kind),
-    enabled: target.type === 'instance',
-  });
-  const items = (target.type === 'server' ? server : instance).data?.items;
+  const items = useQuery(entryContentQueries.list(target.type, target.id, kind))
+    .data?.items;
   return useMemo(
     () =>
       new Set(

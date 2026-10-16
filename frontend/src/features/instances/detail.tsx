@@ -49,6 +49,7 @@ import { agoLabel, bytes, memGb, uptime } from '@/lib/format';
 import { supportsQuickPlay } from '@/lib/quick-play';
 import { runningSessions } from '@/lib/sessions';
 import { m } from '@/paraglide/messages.js';
+import { entryContentQueries } from '@/queries/entry-content';
 import {
   instanceMutations,
   instanceQueries,
@@ -127,7 +128,7 @@ function InstanceDetail({
   // Shared with the content tab's own per-kind queries (cached), just for the
   // headline count.
   const contentLists = useQueries({
-    queries: accepts.map((k) => instanceQueries.content(id, k)),
+    queries: accepts.map((k) => entryContentQueries.list('instance', id, k)),
   });
   const contentCount = contentLists.reduce(
     (n, q) => n + (q.data?.items.length ?? 0),

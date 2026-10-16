@@ -11,6 +11,8 @@ use std::process::{Child, Command};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
+use client::proto::content::{ContentAddItem, ContentAddSpec, ContentKind};
+use client::proto::error::{EntryKind, EntryTarget, ErrorInfo};
 use client::proto::process::{ProcessSpec, ProcessState};
 use client::{Client, ProcessEvent};
 
@@ -403,4 +405,68 @@ async fn daemon_stop_all_takes_workloads_down() {
         tokio::time::sleep(Duration::from_millis(100)).await;
     }
     panic!("stop --all should take the workload down with the daemon");
+}
+
+fn sodium_spec() -> ContentAddSpec {
+    ContentAddSpec {
+        kind: ContentKind::Mod,
+        items: vec![ContentAddItem {
+            project: "sodium".into(),
+            ..Default::default()
+        }],
+        ..Default::default()
+    }
+}
+
+#[tokio::test]
+async fn an_instance_target_is_gated_on_an_account_but_a_server_target_is_not() {
+    let (_daemon, client) = spawn_daemon().await;
+    let instance = EntryTarget::new(EntryKind::Instance, "nothing-here");
+    let server = EntryTarget::new(EntryKind::Server, "nothing-here");
+
+    let refused = client
+        .content()
+        .add(&instance, sodium_spec(), |_| {})
+        .await
+        .expect_err("content.add on an instance without an account");
+    assert!(
+        matches!(client::error_info(&refused), ErrorInfo::SignInRequired),
+        "an instance target signed out must say to sign in, got {refused}"
+    );
+
+    let refused = client
+        .modpack()
+        .status(&instance)
+        .await
+        .expect_err("modpack.status on an instance without an account");
+    assert!(matches!(
+        client::error_info(&refused),
+        ErrorInfo::SignInRequired
+    ));
+
+    let missing = client
+        .content()
+        .add(&server, sodium_spec(), |_| {})
+        .await
+        .expect_err("content.add on a server that does not exist");
+    assert!(
+        matches!(
+            client::error_info(&missing),
+            ErrorInfo::EntryNotFound {
+                entry: EntryKind::Server,
+                ..
+            }
+        ),
+        "a server target is never refused for lack of an account, got {missing}"
+    );
+
+    let missing = client
+        .modpack()
+        .status(&server)
+        .await
+        .expect_err("modpack.status on a server that does not exist");
+    assert!(matches!(
+        client::error_info(&missing),
+        ErrorInfo::EntryNotFound { .. }
+    ));
 }

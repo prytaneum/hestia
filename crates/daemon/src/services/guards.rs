@@ -6,10 +6,12 @@
 //! that spells its own guards out is free to drift from its siblings — which is
 //! how an instance content update came to race an export while an add could not.
 
-use proto::error::{EntryKind, ErrorInfo, Field};
+use proto::error::{EntryKind, EntryTarget, ErrorInfo, Field};
 use proto::process::ProcessState;
 
-use crate::runtime::{instance_process_id, server_process_id, HandlerContext};
+use crate::runtime::{
+    instance_process_id, require_account, server_process_id, HandlerContext, JobEntry,
+};
 
 /// What a handler is about to do to an entry.
 pub(super) enum Intent {
@@ -124,6 +126,43 @@ impl Exclusions {
             },
         }
     }
+}
+
+/// An entry a target resolved to: the owned handle jobs and engine flows take,
+/// and the display name a refusal is worded with.
+pub(super) struct ResolvedEntry {
+    pub handle: JobEntry,
+    pub name: String,
+}
+
+/// Resolve the entry a verb on both sides is aimed at, applying the guards of
+/// its side. An instance is only reachable with an account, and that is
+/// checked before the lookup so a signed-out caller is told to sign in rather
+/// than that the instance does not exist — the router's prefix gate cannot see
+/// a target carried in the payload of a shared channel.
+pub(super) fn entry_for(
+    ctx: &HandlerContext,
+    target: &EntryTarget,
+    intent: Intent,
+) -> Result<ResolvedEntry, ErrorInfo> {
+    let (id, name) = match target.kind {
+        EntryKind::Server => {
+            let record = server_for(ctx, &target.entry, intent)?;
+            (record.id, record.name)
+        }
+        EntryKind::Instance => {
+            require_account(ctx)?;
+            let record = instance_for(ctx, &target.entry, intent)?;
+            (record.id, record.name)
+        }
+    };
+    Ok(ResolvedEntry {
+        handle: JobEntry {
+            kind: target.kind,
+            id,
+        },
+        name,
+    })
 }
 
 /// Resolve a server and refuse anything `intent` may not race.

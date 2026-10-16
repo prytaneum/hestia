@@ -21,9 +21,10 @@ mod update;
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 use client::proto::content::ContentKind;
+use client::proto::error::EntryKind;
 use client::Client;
 
-use crate::commands::content::{self, ContentCmd, EntryKind};
+use crate::commands::content::{self, ContentCmd};
 use crate::commands::mc;
 use crate::commands::modpack::EntryModpackCmd;
 use crate::exit::ExitStatus;

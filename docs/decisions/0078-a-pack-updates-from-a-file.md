@@ -28,7 +28,7 @@ version string is free text. What can be compared is the game version each pack
 pins, which is the downgrade gate every version move already uses.
 
 **A front-end asks before the job, not after it fails.**
-`<kind>.modpack.preview_update` reads the file and answers the two questions —
+`modpack.preview_update` reads the file and answers the two questions —
 same pack, downgrade — so the desktop and the CLI confirm once and then start a
 job that will not be refused. The engine checks again regardless: the preview is
 a courtesy, the refusal is the rule.

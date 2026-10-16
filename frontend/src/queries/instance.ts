@@ -9,7 +9,6 @@
 import { queryOptions, useQuery } from '@tanstack/react-query';
 import type {
   ConfigEntry,
-  ContentKind,
   InstanceCreateParams,
   InstanceInfo,
   InstanceLaunchDoneEvent,
@@ -20,7 +19,6 @@ import type {
 import { HestiaError } from '../api';
 import * as api from '../api/instance';
 import { CATALOG_STALE_MS, mutation } from './core';
-import { entryContentFactories } from './entry-content';
 import { useEntryIconLookup } from './icons';
 import { jobMutation } from './jobs';
 import { keys } from './keys';
@@ -131,25 +129,6 @@ export const instanceQueries = {
     queryOptions({
       queryKey: keys.instances.config(id),
       queryFn: () => api.config.list(id),
-    }),
-  content: (id: string, kind: ContentKind) =>
-    queryOptions({
-      queryKey: keys.instances.contentList(id, kind),
-      queryFn: () => api.content.list(id, kind),
-    }),
-  contentMatches: (id: string, kind: ContentKind, item: string) =>
-    queryOptions({
-      queryKey: keys.instances.contentMatches(id, kind, item),
-      queryFn: () => api.content.matches(id, kind, item),
-      enabled: item.length > 0,
-    }),
-  contentUpdates: (id: string, kind: ContentKind) =>
-    queryOptions({
-      queryKey: keys.instances.contentUpdates(id, kind),
-      queryFn: () => api.content.checkUpdates(id, kind),
-      // A network resolve per item — refetch only when explicitly asked.
-      staleTime: Number.POSITIVE_INFINITY,
-      enabled: false,
     }),
 };
 
@@ -281,13 +260,6 @@ export const instanceMutations = {
       mutationFn: ({ key, value }) => api.config.set(id, key, value),
       invalidates: () => [keys.instances.config(id)],
     }),
-  /** Instances take mods, resourcepacks, shaders, and datapacks. */
-  content: entryContentFactories({
-    kind: 'instance',
-    api: api.content,
-    contentKey: keys.instances.content,
-    infoKey: keys.instances.info,
-  }),
 };
 
 export function useInstances() {

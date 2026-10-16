@@ -1,5 +1,8 @@
 {
-  "server": "srv-1",
+  "target": {
+    "kind": "server",
+    "entry": "srv-1"
+  },
   "kind": "data_pack",
   "source": "modrinth",
   "items": [

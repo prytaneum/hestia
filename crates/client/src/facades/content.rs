@@ -1,12 +1,24 @@
+use std::time::Duration;
+
 use ipc::errors::IpcError;
 use proto::content::{
-    ContentInspect, ContentInspectParams, ContentInspectResult, ContentKind, ContentProject,
-    ContentProjectGet, ContentResolveUrl, ContentSearch, ContentSource, ContentSources,
-    ContentVersion, ContentVersions, ProjectParams, ResolveUrlParams, ResolvedUrl, SearchQuery,
-    SearchResult, VersionQuery,
+    ContentAddSpec, ContentFailure, ContentInspect, ContentInspectParams, ContentInspectResult,
+    ContentKind, ContentProject, ContentProjectGet, ContentResolveUrl, ContentSearch,
+    ContentSource, ContentSources, ContentUpdate, ContentVersion, ContentVersions, EntryContentAdd,
+    EntryContentAddParams, EntryContentCheckUpdates, EntryContentCheckUpdatesParams,
+    EntryContentEnable, EntryContentEnableParams, EntryContentList, EntryContentListParams,
+    EntryContentRemove, EntryContentRemoveParams, EntryContentSetVersion,
+    EntryContentSetVersionParams, EntryContentUpdate, EntryContentUpdateParams, InstalledContent,
+    ProjectParams, ResolveUrlParams, ResolvedUrl, SearchQuery, SearchResult, UntrackedFile,
+    VersionQuery,
 };
+use proto::error::EntryTarget;
+use proto::minecraft::ProvisionProgress;
 
-use crate::session::Session;
+use crate::facades::jobs::run_content_job;
+use crate::session::{job_id, Session};
+
+const CHECK_TIMEOUT: Duration = Duration::from_secs(120);
 
 pub struct Content<'a> {
     pub(crate) session: &'a Session,
@@ -61,5 +73,159 @@ impl Content<'_> {
             path: path.to_string(),
         };
         self.session.call::<ContentInspect>(&params).await
+    }
+
+    /// Install a batch of content into an entry, blocking until the daemon
+    /// reports done or error and forwarding each progress event to
+    /// `on_progress`. Returns everything installed (items plus required
+    /// dependencies) and, per item that could not be installed, a failure.
+    pub async fn add(
+        &self,
+        target: &EntryTarget,
+        spec: ContentAddSpec,
+        on_progress: impl Fn(&ProvisionProgress) + Send + Sync + 'static,
+    ) -> Result<(Vec<InstalledContent>, Vec<ContentFailure>), IpcError> {
+        let id = job_id("content-add");
+        let params = EntryContentAddParams {
+            target: target.clone(),
+            spec,
+            id: id.clone(),
+        };
+        let session = self.session;
+        run_content_job(session, &id, on_progress, move || async move {
+            session.call::<EntryContentAdd>(&params).await.map(|_| ())
+        })
+        .await
+    }
+
+    pub async fn list(
+        &self,
+        target: &EntryTarget,
+        kind: ContentKind,
+    ) -> Result<(Vec<InstalledContent>, Vec<UntrackedFile>), IpcError> {
+        let params = EntryContentListParams {
+            target: target.clone(),
+            kind,
+        };
+        let result = self.session.call::<EntryContentList>(&params).await?;
+        Ok((result.items, result.untracked))
+    }
+
+    /// Uninstall the named items and every mirror of them, in one call. A
+    /// non-empty `worlds` instead narrows a datapack to the save worlds it
+    /// keeps loading in.
+    pub async fn remove(
+        &self,
+        target: &EntryTarget,
+        kind: ContentKind,
+        items: &[String],
+        worlds: &[String],
+    ) -> Result<(), IpcError> {
+        let params = EntryContentRemoveParams {
+            target: target.clone(),
+            kind,
+            items: items.to_vec(),
+            worlds: worlds.to_vec(),
+        };
+        self.session.call::<EntryContentRemove>(&params).await?;
+        Ok(())
+    }
+
+    /// Update platform-sourced content to its newest compatible version — the
+    /// named items in one job, or every item of the kind when `items` is empty,
+    /// with a failure per item that could not move. A non-empty `path` instead
+    /// updates the one named local item from that file.
+    pub async fn update(
+        &self,
+        target: &EntryTarget,
+        kind: ContentKind,
+        items: &[String],
+        path: &str,
+        on_progress: impl Fn(&ProvisionProgress) + Send + Sync + 'static,
+    ) -> Result<(Vec<InstalledContent>, Vec<ContentFailure>), IpcError> {
+        let id = job_id("content-update");
+        let params = EntryContentUpdateParams {
+            target: target.clone(),
+            kind,
+            items: items.to_vec(),
+            path: path.to_string(),
+            id: id.clone(),
+        };
+        let session = self.session;
+        run_content_job(session, &id, on_progress, move || async move {
+            session
+                .call::<EntryContentUpdate>(&params)
+                .await
+                .map(|_| ())
+        })
+        .await
+    }
+
+    /// Enable or disable one installed item; a non-empty `worlds` scopes a
+    /// datapack toggle to those save worlds.
+    pub async fn enable(
+        &self,
+        target: &EntryTarget,
+        kind: ContentKind,
+        item: &str,
+        enabled: bool,
+        worlds: &[String],
+    ) -> Result<(), IpcError> {
+        let params = EntryContentEnableParams {
+            target: target.clone(),
+            kind,
+            item: item.to_string(),
+            enabled,
+            worlds: worlds.to_vec(),
+        };
+        self.session.call::<EntryContentEnable>(&params).await?;
+        Ok(())
+    }
+
+    /// Which platform-sourced items of the kind have a newer compatible version.
+    pub async fn check_updates(
+        &self,
+        target: &EntryTarget,
+        kind: ContentKind,
+    ) -> Result<Vec<ContentUpdate>, IpcError> {
+        let params = EntryContentCheckUpdatesParams {
+            target: target.clone(),
+            kind,
+        };
+        let result = self
+            .session
+            .call_with_timeout::<EntryContentCheckUpdates>(&params, CHECK_TIMEOUT)
+            .await?;
+        Ok(result.updates)
+    }
+
+    /// Re-pin one item to a specific published `version` (id or number).
+    pub async fn set_version(
+        &self,
+        target: &EntryTarget,
+        kind: ContentKind,
+        item: &str,
+        version: &str,
+        source: &str,
+        on_progress: impl Fn(&ProvisionProgress) + Send + Sync + 'static,
+    ) -> Result<Vec<InstalledContent>, IpcError> {
+        let id = job_id("content-set-version");
+        let params = EntryContentSetVersionParams {
+            target: target.clone(),
+            kind,
+            item: item.to_string(),
+            version: version.to_string(),
+            source: source.to_string(),
+            id: id.clone(),
+        };
+        let session = self.session;
+        run_content_job(session, &id, on_progress, move || async move {
+            session
+                .call::<EntryContentSetVersion>(&params)
+                .await
+                .map(|_| ())
+        })
+        .await
+        .map(|(items, _)| items)
     }
 }

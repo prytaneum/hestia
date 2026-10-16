@@ -30,6 +30,15 @@ fn requires_account(channel: &str) -> bool {
     channel.starts_with("instance.") || channel.starts_with("sync.")
 }
 
+/// Refuse the caller unless a Minecraft account is signed in.
+pub fn require_account(ctx: &HandlerContext) -> ServiceResult<()> {
+    if ctx.runtime.engine().accounts().has_account() {
+        return Ok(());
+    }
+    tracing::warn!("rejected: no signed-in account");
+    Err(ErrorInfo::SignInRequired)
+}
+
 fn is_polled(channel: &str) -> bool {
     matches!(
         channel,
@@ -60,11 +69,10 @@ impl Router {
         async move {
             match self.handlers.get(&request.channel) {
                 Some(handler) => {
-                    if requires_account(&request.channel)
-                        && !ctx.runtime.engine().accounts().has_account()
-                    {
-                        tracing::warn!("rejected: no signed-in account");
-                        return error_response(ErrorInfo::SignInRequired);
+                    if requires_account(&request.channel) {
+                        if let Err(refusal) = require_account(&ctx) {
+                            return error_response(refusal);
+                        }
                     }
                     let started = std::time::Instant::now();
                     let response = handler(request, ctx).await;
@@ -147,7 +155,6 @@ mod tests {
         for channel in [
             "instance.launch",
             "instance.list",
-            "instance.content.add",
             "instance.modpack.install",
             "sync.set",
             "instance.sync.adopt",
@@ -161,8 +168,9 @@ mod tests {
         for channel in [
             "account.list",
             "server.start",
-            "server.content.add",
             "server.modpack.install",
+            "content.add",
+            "modpack.status",
             "content.search",
             "java.install",
         ] {

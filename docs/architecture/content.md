@@ -301,14 +301,14 @@ leaves a tweaked one exactly as found, reporting which through
 disk — nothing there is yours yet
 ([0011](../decisions/0011-modpack-decomposes-into-existing-parts.md)).
 
-**Taking a pack out is two different things**, so `<kind>.modpack.remove` is told
+**Taking a pack out is two different things**, so `modpack.remove` is told
 which. The default deletes the pack's pool items and the override files it still
 owns. With `keepContent` only the pack goes: `modpack.json` is cleared and its
 pool items lose their origin tag, so they become removable and syncable like
 anything the user installed, and the override files simply stop being recorded.
 
 **Whether there is an update is asked, not assumed.**
-`<kind>.modpack.check_update` resolves the pack's newest published version
+`modpack.check_update` resolves the pack's newest published version
 through the same pick an unpinned update makes, and answers with both version
 numbers plus `updatable` — so what a front-end offers and what an update would
 install cannot disagree. A pack read off disk is first asked after by hash: an
@@ -316,7 +316,7 @@ archive a source published is recorded as that release, and updates like one
 installed from the source. One no source recognises has no catalogue behind it
 and answers with nothing to check, the same reason `fetch_update` refuses it.
 
-**A pack file updates any pack.** `<kind>.modpack.update` takes a `path` in place
+**A pack file updates any pack.** `modpack.update` takes a `path` in place
 of a version, and the file goes through the same update: the game-version move
 behind the downgrade gate, the stale-item sweep, the keep-if-edited rule. It is
 the only way an unpublished pack moves, and a published one may take it too — a
@@ -324,7 +324,7 @@ file no source recognises then leaves it unpublished. A pack file carries a name
 and a free-text version but no id, so whether it is *the same pack* is the
 project where a source recognises both and the name otherwise; a different one is
 refused as `ModpackDifferentPack` unless `allowOtherPack` says it is meant.
-`<kind>.modpack.preview_update` answers both questions — same pack, downgrade —
+`modpack.preview_update` answers both questions — same pack, downgrade —
 before a job starts, so a front-end asks once instead of failing a job to find
 out ([0078](../decisions/0078-a-pack-updates-from-a-file.md)).
 

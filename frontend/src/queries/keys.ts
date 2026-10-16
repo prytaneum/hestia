@@ -6,7 +6,7 @@
  * (never the renameable display name), so a rename cannot strand a cache key.
  */
 import type { QueryKey } from '@tanstack/react-query';
-import type { ContentKind, SearchQuery, VersionQuery } from '../api';
+import type { ContentKind, EntryKind, SearchQuery, VersionQuery } from '../api';
 
 /**
  * Root for the server/instance footprint (`info`) queries. Each is a directory
@@ -172,6 +172,11 @@ export const keys = {
     check: () => [...keys.update.all, 'check'] as const,
   },
 };
+
+/** The key scope of one side, for a verb that exists on both. */
+export function entryScope(kind: EntryKind) {
+  return kind === 'server' ? keys.servers : keys.instances;
+}
 
 /**
  * Is the key a read scoped to one entry — something the daemon can drop while

@@ -1,22 +1,31 @@
 /**
- * The `content.*` browse channels — discovery on a source platform (Modrinth,
- * CurseForge). Installing into an entry lives on `server.content` /
- * `instance.content`. An empty `source` selects the default source; `sources()`
- * answers only those that can serve, so one missing its API key never appears.
+ * The `content.*` channels. The catalogue half is discovery on a source
+ * platform (Modrinth, CurseForge): an empty `source` selects the default
+ * source, and `sources()` answers only those that can serve, so one missing its
+ * API key never appears. The entry half (`add` … `setVersion`) acts on the
+ * content installed in a server or an instance, the side named by an
+ * `EntryTarget`; an instance target is refused until an account is signed in.
  */
 import { call } from './core/ipc';
+import { type JobRun, runJob } from './core/jobs';
 import type {
   ContentAddItem,
   ContentAddSpec,
+  ContentDoneEvent,
   ContentInspectResult,
+  ContentKind,
+  ContentListResult,
+  ContentMatch,
   ContentProject,
   ContentSource,
+  ContentUpdate,
   ContentVersion,
   ResolvedUrl,
   SearchQuery,
   SearchResult,
   VersionQuery,
 } from './types/content';
+import type { EntryTarget } from './types/error';
 
 export type ContentAddInput = Partial<Omit<ContentAddSpec, 'items'>> & {
   items: Partial<ContentAddItem>[];
@@ -59,4 +68,120 @@ export const LOCAL_SOURCE = 'file';
 /** Classify a daemon-local file for import (detected kind + validity). */
 export function inspect(path: string): Promise<ContentInspectResult> {
   return call('content.inspect', { path });
+}
+
+const jobTopics = {
+  progress: 'content.progress',
+  done: 'content.done',
+  error: 'content.error',
+} as const;
+
+/** Refused on a running or busy entry. */
+export function add(
+  target: EntryTarget,
+  spec: ContentAddInput,
+  job: JobRun,
+): Promise<ContentDoneEvent> {
+  return runJob<ContentDoneEvent>({
+    ...job,
+    topics: jobTopics,
+    start: () => call('content.add', { target, ...spec, id: job.id }),
+  });
+}
+
+export function list(
+  target: EntryTarget,
+  kind: ContentKind,
+): Promise<ContentListResult> {
+  return call('content.list', { target, kind });
+}
+
+/** Uninstalls the named items in one call; a name matching nothing takes none. */
+export async function remove(
+  target: EntryTarget,
+  kind: ContentKind,
+  items: string[],
+  worlds: string[] = [],
+): Promise<void> {
+  await call('content.remove', { target, kind, items, worlds });
+}
+
+/**
+ * `items` empty updates every platform-sourced item of the kind; a `path`
+ * updates the one named local item from that file.
+ */
+export function update(
+  target: EntryTarget,
+  kind: ContentKind,
+  items: string[],
+  path: string,
+  job: JobRun,
+): Promise<ContentDoneEvent> {
+  return runJob<ContentDoneEvent>({
+    ...job,
+    topics: jobTopics,
+    start: () =>
+      call('content.update', { target, kind, items, path, id: job.id }),
+  });
+}
+
+/** Enable or disable one installed item; applies at the next start. */
+export async function enable(
+  target: EntryTarget,
+  kind: ContentKind,
+  item: string,
+  enabled: boolean,
+  worlds: string[] = [],
+): Promise<void> {
+  await call('content.enable', { target, kind, item, enabled, worlds });
+}
+
+/** Which platform items of the kind have a newer compatible version. */
+export async function checkUpdates(
+  target: EntryTarget,
+  kind: ContentKind,
+): Promise<ContentUpdate[]> {
+  const result = await call<{ updates: ContentUpdate[] }>(
+    'content.check_updates',
+    { target, kind },
+    { timeoutMs: 120_000 },
+  );
+  return result.updates;
+}
+
+export async function matches(
+  target: EntryTarget,
+  kind: ContentKind,
+  item: string,
+): Promise<ContentMatch[]> {
+  const result = await call<{ matches: ContentMatch[] }>(
+    'content.matches',
+    { target, kind, item },
+    { timeoutMs: 120_000 },
+  );
+  return result.matches;
+}
+
+/** Re-pin one item to a specific published version (id or number). */
+export function setVersion(
+  target: EntryTarget,
+  kind: ContentKind,
+  item: string,
+  version: string,
+  source: string,
+  job: JobRun,
+): Promise<ContentDoneEvent> {
+  return runJob<ContentDoneEvent>({
+    ...job,
+    topics: jobTopics,
+    start: () =>
+      call('content.set_version', {
+        target,
+        kind,
+        item,
+        version,
+        source,
+        id: job.id,
+      }),
+  });
 }

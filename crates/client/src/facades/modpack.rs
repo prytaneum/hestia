@@ -9,17 +9,15 @@
 use std::time::Duration;
 
 use ipc::errors::IpcError;
+use proto::error::EntryTarget;
 use proto::minecraft::ProvisionProgress;
 use proto::modpack::{
-    InstalledModpack, InstanceModpackCheckParams, InstanceModpackCheckUpdate,
-    InstanceModpackFileParams, InstanceModpackInstall, InstanceModpackInstallParams,
-    InstanceModpackPreviewUpdate, InstanceModpackRef, InstanceModpackRemove,
-    InstanceModpackRemoveParams, InstanceModpackStatus, InstanceModpackUpdate,
-    InstanceModpackUpdateParams, ModpackDoneEvent, ModpackFilePreview, ModpackMove, ModpackRef,
-    ModpackRemoveResult, ModpackTarget, ModpackUpdate, ServerModpackCheckParams,
-    ServerModpackCheckUpdate, ServerModpackFileParams, ServerModpackInstall,
-    ServerModpackInstallParams, ServerModpackPreviewUpdate, ServerModpackRef, ServerModpackRemove,
-    ServerModpackRemoveParams, ServerModpackStatus, ServerModpackUpdate, ServerModpackUpdateParams,
+    EntryModpackCheckParams, EntryModpackCheckUpdate, EntryModpackFileParams,
+    EntryModpackPreviewUpdate, EntryModpackRemove, EntryModpackRemoveParams, EntryModpackStatus,
+    EntryModpackStatusParams, EntryModpackUpdate, EntryModpackUpdateParams, InstalledModpack,
+    InstanceModpackInstall, InstanceModpackInstallParams, ModpackDoneEvent, ModpackFilePreview,
+    ModpackMove, ModpackRef, ModpackRemoveResult, ModpackTarget, ModpackUpdate,
+    ServerModpackInstall, ServerModpackInstallParams,
 };
 
 use crate::facades::jobs::forward;
@@ -84,164 +82,82 @@ impl Modpack<'_> {
         .await
     }
 
-    /// Move an instance's pack to another published version (empty takes the
+    /// Move an entry's pack to another published version (empty takes the
     /// newest) or to a pack file. A pack update carries the game version with
     /// it, so an older one needs `allow_downgrade`.
-    pub async fn update_instance(
+    pub async fn update(
         &self,
-        instance: &str,
+        target: &EntryTarget,
         to: ModpackMove,
         on_progress: impl Fn(&ProvisionProgress) + Send + Sync + 'static,
     ) -> Result<ModpackDoneEvent, IpcError> {
-        let id = job_id("instance-modpack-update");
+        let id = job_id("modpack-update");
         let session = self.session;
-        let params = InstanceModpackUpdateParams {
-            instance: instance.to_string(),
+        let params = EntryModpackUpdateParams {
+            target: target.clone(),
             to,
             id: id.clone(),
         };
         self.drive(&id, on_progress, move || async move {
             session
-                .call::<InstanceModpackUpdate>(&params)
+                .call::<EntryModpackUpdate>(&params)
                 .await
                 .map(|_| ())
         })
         .await
     }
 
-    pub async fn update_server(
+    /// What updating an entry's pack from the file at `path` would do.
+    pub async fn preview_update(
         &self,
-        server: &str,
-        to: ModpackMove,
-        on_progress: impl Fn(&ProvisionProgress) + Send + Sync + 'static,
-    ) -> Result<ModpackDoneEvent, IpcError> {
-        let id = job_id("server-modpack-update");
-        let session = self.session;
-        let params = ServerModpackUpdateParams {
-            server: server.to_string(),
-            to,
-            id: id.clone(),
-        };
-        self.drive(&id, on_progress, move || async move {
-            session
-                .call::<ServerModpackUpdate>(&params)
-                .await
-                .map(|_| ())
-        })
-        .await
-    }
-
-    /// What updating an instance's pack from the file at `path` would do.
-    pub async fn preview_instance_update(
-        &self,
-        instance: &str,
+        target: &EntryTarget,
         path: &str,
     ) -> Result<ModpackFilePreview, IpcError> {
-        let params = InstanceModpackFileParams {
-            instance: instance.to_string(),
+        let params = EntryModpackFileParams {
+            target: target.clone(),
             path: path.to_string(),
         };
         self.session
-            .call_with_timeout::<InstanceModpackPreviewUpdate>(&params, CHECK_TIMEOUT)
+            .call_with_timeout::<EntryModpackPreviewUpdate>(&params, CHECK_TIMEOUT)
             .await
     }
 
-    pub async fn preview_server_update(
-        &self,
-        server: &str,
-        path: &str,
-    ) -> Result<ModpackFilePreview, IpcError> {
-        let params = ServerModpackFileParams {
-            server: server.to_string(),
-            path: path.to_string(),
+    /// The pack an entry runs, or `None` when it was not built from one.
+    pub async fn status(&self, target: &EntryTarget) -> Result<Option<InstalledModpack>, IpcError> {
+        let params = EntryModpackStatusParams {
+            target: target.clone(),
         };
-        self.session
-            .call_with_timeout::<ServerModpackPreviewUpdate>(&params, CHECK_TIMEOUT)
-            .await
+        Ok(self.session.call::<EntryModpackStatus>(&params).await?.pack)
     }
 
-    /// The pack an instance runs, or `None` when it was not built from one.
-    pub async fn instance_status(
-        &self,
-        instance: &str,
-    ) -> Result<Option<InstalledModpack>, IpcError> {
-        let params = InstanceModpackRef {
-            instance: instance.to_string(),
-        };
-        Ok(self
-            .session
-            .call::<InstanceModpackStatus>(&params)
-            .await?
-            .pack)
-    }
-
-    pub async fn server_status(&self, server: &str) -> Result<Option<InstalledModpack>, IpcError> {
-        let params = ServerModpackRef {
-            server: server.to_string(),
-        };
-        Ok(self
-            .session
-            .call::<ServerModpackStatus>(&params)
-            .await?
-            .pack)
-    }
-
-    /// Whether the instance's pack has a newer published version. `None` when
+    /// Whether the entry's pack has a newer published version. `None` when
     /// there is nothing to check — no pack, or one imported from a file.
-    pub async fn instance_check_update(
+    pub async fn check_update(
         &self,
-        instance: &str,
+        target: &EntryTarget,
         game_version: &str,
     ) -> Result<Option<ModpackUpdate>, IpcError> {
-        let params = InstanceModpackCheckParams {
-            instance: instance.to_string(),
+        let params = EntryModpackCheckParams {
+            target: target.clone(),
             game_version: game_version.to_string(),
         };
         Ok(self
             .session
-            .call_with_timeout::<InstanceModpackCheckUpdate>(&params, CHECK_TIMEOUT)
+            .call_with_timeout::<EntryModpackCheckUpdate>(&params, CHECK_TIMEOUT)
             .await?
             .update)
     }
 
-    pub async fn server_check_update(
+    pub async fn remove(
         &self,
-        server: &str,
-        game_version: &str,
-    ) -> Result<Option<ModpackUpdate>, IpcError> {
-        let params = ServerModpackCheckParams {
-            server: server.to_string(),
-            game_version: game_version.to_string(),
-        };
-        Ok(self
-            .session
-            .call_with_timeout::<ServerModpackCheckUpdate>(&params, CHECK_TIMEOUT)
-            .await?
-            .update)
-    }
-
-    pub async fn remove_instance(
-        &self,
-        instance: &str,
+        target: &EntryTarget,
         keep_content: bool,
     ) -> Result<ModpackRemoveResult, IpcError> {
-        let params = InstanceModpackRemoveParams {
-            instance: instance.to_string(),
+        let params = EntryModpackRemoveParams {
+            target: target.clone(),
             keep_content,
         };
-        self.session.call::<InstanceModpackRemove>(&params).await
-    }
-
-    pub async fn remove_server(
-        &self,
-        server: &str,
-        keep_content: bool,
-    ) -> Result<ModpackRemoveResult, IpcError> {
-        let params = ServerModpackRemoveParams {
-            server: server.to_string(),
-            keep_content,
-        };
-        self.session.call::<ServerModpackRemove>(&params).await
+        self.session.call::<EntryModpackRemove>(&params).await
     }
 
     async fn drive<F, Fut>(

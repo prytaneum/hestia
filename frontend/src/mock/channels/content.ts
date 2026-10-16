@@ -1,14 +1,14 @@
 /**
- * `content.*` — discovery on a source platform. Installing into an entry is
- * `instance.content.*` / `server.content.*` (see ./entry); these are the
- * read-only browse channels plus the two that classify something the user
- * pasted or picked.
+ * `content.*` — discovery on a source platform (the read-only browse channels
+ * plus the two that classify something the user pasted or picked), and the
+ * content installed in an entry, which names its side in a target.
  */
 import type { ContentKind, ContentSource } from '@/api/types';
 
 import * as content from '../state/content';
 import * as settings from '../state/settings';
 import { type Handlers, num, str } from '../support';
+import { contentChannels } from './entry';
 
 const MODRINTH: ContentSource = {
   id: 'modrinth',
@@ -61,4 +61,6 @@ export const channels: Handlers = {
       matches: [],
     };
   },
+
+  ...contentChannels(),
 };

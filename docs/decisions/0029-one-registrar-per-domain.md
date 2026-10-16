@@ -28,3 +28,12 @@ entry and applies the exclusions that intent implies, per side. The decision's
 own goal is untouched: wiring in a channel is still one `handle::<C>` line in
 the file that owns its domain. What changed is that the line now carries what
 the channel needs instead of trusting the author to remember it.
+
+A verb that exists on both sides is one channel aimed by an `EntryTarget`, and
+`guards::entry_for` is the third resolver: it dispatches on the target's kind to
+`server_for` or `instance_for` (so every intent still applies its per-side
+exclusions) and returns the owned handle a job or an engine flow takes. The
+handler therefore holds no per-side branch, and the two halves that used to be
+line-for-line copies of each other are one function. The account gate for the
+instance side lives there too
+([0030](0030-instance-surface-gated-on-an-account.md)).

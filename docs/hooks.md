@@ -76,7 +76,7 @@ query — same shape to the caller.
 ```tsx
 const { data: server } = useServer(id);                              // ServerInfo | undefined
 const { data: backups } = useQuery(serverQueries.backups(id));
-const { data: mods } = useQuery(serverQueries.content(id, 'mod'));
+const { data: mods } = useQuery(entryContentQueries.list('server', id, 'mod'));
 const { data: entries } = useQuery(serverQueries.config(id));
 ```
 

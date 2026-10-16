@@ -20,13 +20,13 @@ use anyhow::Result;
 use client::proto::content::{
     ContentFailure, ContentProject, ContentVersion, InstalledContent, SearchQuery,
 };
+use client::proto::error::EntryTarget;
 use client::proto::minecraft::ProvisionProgress;
 use client::Client;
 use ratatui::crossterm::event::{KeyEvent, MouseEvent, MouseEventKind};
 use ratatui::Frame;
 use tokio::sync::mpsc::{unbounded_channel, UnboundedSender};
 
-use super::EntryKind;
 use crate::ui::components::working::draw_working;
 use crate::ui::components::{Picker, SelectList};
 use crate::ui::session::{self, Flow, Screen};
@@ -36,8 +36,7 @@ use driver::{drive, AppEvent, Request};
 
 /// The entry a session installs into; `None` browses read-only.
 pub struct Target {
-    pub entry: EntryKind,
-    pub id: String,
+    pub entry: EntryTarget,
     pub name: String,
     /// An instance's save worlds, for the datapack world picker.
     pub worlds: Vec<String>,

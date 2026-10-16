@@ -2,21 +2,13 @@
  * The `server.*` channels. Every per-entry call names the server by display
  * name or id (`proto::naming` resolves either). `create` and `update` are
  * jobs — the returned promise settles on the job's terminal event while
- * progress streams through the callback; backups and content installs share
- * the `backup.*` / `content.*` topics, disambiguated by job id.
+ * progress streams through the callback; backups share the `backup.*` topics,
+ * disambiguated by job id.
  */
 
-import type { ContentAddInput } from './content';
 import { call } from './core/ipc';
 import { type JobRun, runJob } from './core/jobs';
 import type { BackupInfo } from './types/backup';
-import type {
-  ContentDoneEvent,
-  ContentKind,
-  ContentListResult,
-  ContentMatch,
-  ContentUpdate,
-} from './types/content';
 import type {
   ConfigEntry,
   FlavorsResult,
@@ -232,138 +224,5 @@ export const backup = {
 
   async remove(server: string, backupId: string): Promise<void> {
     await call('server.backup.remove', { server, backup: backupId });
-  },
-};
-
-export const content = {
-  /** Servers take mods and datapacks; refused on a running or busy server. */
-  add(
-    server: string,
-    spec: ContentAddInput,
-    job: JobRun,
-  ): Promise<ContentDoneEvent> {
-    return runJob<ContentDoneEvent>({
-      ...job,
-      topics: {
-        progress: 'content.progress',
-        done: 'content.done',
-        error: 'content.error',
-      },
-      start: () => call('server.content.add', { server, ...spec, id: job.id }),
-    });
-  },
-
-  list(server: string, kind: ContentKind): Promise<ContentListResult> {
-    return call('server.content.list', { server, kind });
-  },
-
-  /** Uninstalls the named items in one call; a name matching nothing takes none. */
-  async remove(
-    server: string,
-    kind: ContentKind,
-    items: string[],
-    worlds: string[] = [],
-  ): Promise<void> {
-    await call('server.content.remove', { server, kind, items, worlds });
-  },
-
-  /**
-   * `items` empty updates every platform-sourced item of the kind; a `path`
-   * updates the one named local item from that file.
-   */
-  update(
-    server: string,
-    kind: ContentKind,
-    items: string[],
-    path: string,
-    job: JobRun,
-  ): Promise<ContentDoneEvent> {
-    return runJob<ContentDoneEvent>({
-      ...job,
-      topics: {
-        progress: 'content.progress',
-        done: 'content.done',
-        error: 'content.error',
-      },
-      start: () =>
-        call('server.content.update', {
-          server,
-          kind,
-          items,
-          path,
-          id: job.id,
-        }),
-    });
-  },
-
-  /** Enable or disable one installed item; applies at the next start. */
-  async enable(
-    server: string,
-    kind: ContentKind,
-    item: string,
-    enabled: boolean,
-    worlds: string[] = [],
-  ): Promise<void> {
-    await call('server.content.enable', {
-      server,
-      kind,
-      item,
-      enabled,
-      worlds,
-    });
-  },
-
-  /** Which platform items of the kind have a newer compatible version. */
-  async checkUpdates(
-    server: string,
-    kind: ContentKind,
-  ): Promise<ContentUpdate[]> {
-    const result = await call<{ updates: ContentUpdate[] }>(
-      'server.content.check_updates',
-      { server, kind },
-      { timeoutMs: 120_000 },
-    );
-    return result.updates;
-  },
-
-  async matches(
-    server: string,
-    kind: ContentKind,
-    item: string,
-  ): Promise<ContentMatch[]> {
-    const result = await call<{ matches: ContentMatch[] }>(
-      'server.content.matches',
-      { server, kind, item },
-      { timeoutMs: 120_000 },
-    );
-    return result.matches;
-  },
-
-  /** Re-pin one item to a specific published version (id or number). */
-  setVersion(
-    server: string,
-    kind: ContentKind,
-    item: string,
-    version: string,
-    source: string,
-    job: JobRun,
-  ): Promise<ContentDoneEvent> {
-    return runJob<ContentDoneEvent>({
-      ...job,
-      topics: {
-        progress: 'content.progress',
-        done: 'content.done',
-        error: 'content.error',
-      },
-      start: () =>
-        call('server.content.set_version', {
-          server,
-          kind,
-          item,
-          version,
-          source,
-          id: job.id,
-        }),
-    });
   },
 };

@@ -2,6 +2,7 @@
 export type { ArchiveFault } from "./generated/ArchiveFault";
 export type { ArchiveFormat } from "./generated/ArchiveFormat";
 export type { EntryKind } from "./generated/EntryKind";
+export type { EntryTarget } from "./generated/EntryTarget";
 export type { ErrorInfo } from "./generated/ErrorInfo";
 export type { Field } from "./generated/Field";
 export type { FileFault } from "./generated/FileFault";

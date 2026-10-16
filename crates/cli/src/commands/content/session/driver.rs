@@ -8,12 +8,10 @@ use client::proto::content::{
     ContentAddSpec, ContentFailure, ContentKind, ContentProject, ContentVersion, InstalledContent,
     SearchQuery, SearchResult, VersionQuery,
 };
+use client::proto::error::EntryTarget;
 use client::proto::minecraft::ProvisionProgress;
 use client::Client;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
-
-use crate::commands::content::entry::ContentEntry;
-use crate::commands::content::EntryKind;
 
 pub(super) enum Request {
     Search {
@@ -34,8 +32,7 @@ pub(super) enum Request {
 /// A staged batch to apply to an entry: the removals to clear first, then the
 /// additions to install.
 pub(super) struct InstallJob {
-    pub entry: EntryKind,
-    pub id: String,
+    pub entry: EntryTarget,
     pub spec: ContentAddSpec,
     pub removals: Vec<Removal>,
 }
@@ -128,18 +125,20 @@ async fn run_install(
 ) -> AppEvent {
     let InstallJob {
         entry,
-        id,
         spec,
         removals,
     } = job;
-    let handle = ContentEntry::new(client, entry, id);
+    let content = client.content();
     let kind = spec.kind;
 
     let mut removed = Vec::new();
     let mut failures = Vec::new();
     for removal in removals {
         let key = removal.key.clone();
-        match handle.remove(kind, &[removal.key], &removal.worlds).await {
+        match content
+            .remove(&entry, kind, &[removal.key], &removal.worlds)
+            .await
+        {
             Ok(()) => removed.extend(removal.record),
             Err(e) => failures.push(ContentFailure {
                 item: key,
@@ -158,8 +157,8 @@ async fn run_install(
     }
 
     let progress = events.clone();
-    match handle
-        .add(spec, move |p| {
+    match content
+        .add(&entry, spec, move |p| {
             let _ = progress.send(AppEvent::Progress(p.clone()));
         })
         .await

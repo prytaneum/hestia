@@ -17,12 +17,13 @@ use std::sync::Arc;
 use anyhow::{bail, Context, Result};
 use clap::Subcommand;
 use client::proto::content::{ContentKind, SearchQuery, SearchSort};
+use client::proto::error::{EntryKind, EntryTarget};
 use client::proto::modpack::{
-    InstalledModpack, ModpackDoneEvent, ModpackMove, ModpackRef, ModpackTarget, ModpackUpdate,
+    InstalledModpack, ModpackDoneEvent, ModpackMove, ModpackRef, ModpackTarget,
 };
 use client::Client;
 
-use super::content::{BrowseCmd, EntryKind};
+use super::content::BrowseCmd;
 use super::{connect, content};
 use crate::ui::components::PickerItem;
 use crate::ui::{self, ProvisionReporter, Spinner, View};
@@ -159,11 +160,12 @@ pub async fn install(client: &Client, args: InstallArgs) -> Result<()> {
     report(done?, to_server)
 }
 
-pub async fn run_entry(entry: EntryKind, name: String, cmd: EntryModpackCmd) -> Result<()> {
+pub async fn run_entry(kind: EntryKind, name: String, cmd: EntryModpackCmd) -> Result<()> {
     let client = connect().await?;
+    let entry = EntryTarget::new(kind, name);
     match cmd {
-        EntryModpackCmd::Status => status(&client, entry, &name).await,
-        EntryModpackCmd::Update { check: true, .. } => check_update(&client, entry, &name).await,
+        EntryModpackCmd::Status => status(&client, &entry).await,
+        EntryModpackCmd::Update { check: true, .. } => check_update(&client, &entry).await,
         EntryModpackCmd::Update {
             version,
             downgrade,
@@ -176,34 +178,32 @@ pub async fn run_entry(entry: EntryKind, name: String, cmd: EntryModpackCmd) -> 
                 ..ModpackMove::default()
             };
             let to = match version.as_deref().and_then(pack_file) {
-                Some(path) => confirm_file_update(&client, entry, &name, path?, to).await?,
+                Some(path) => confirm_file_update(&client, &entry, path?, to).await?,
                 None => ModpackMove {
                     version: version.unwrap_or_default(),
                     ..to
                 },
             };
-            update(&client, entry, &name, to).await
+            update(&client, &entry, to).await
         }
         EntryModpackCmd::Remove { keep, all } => {
-            let keep_content = keep || (!all && ask_keep_content(&name)?);
-            remove(&client, entry, &name, keep_content).await
+            let keep_content = keep || (!all && ask_keep_content(&entry.entry)?);
+            remove(&client, &entry, keep_content).await
         }
     }
 }
 
-async fn status(client: &Client, entry: EntryKind, name: &str) -> Result<()> {
-    let pack = match entry {
-        EntryKind::Server => client.modpack().server_status(name).await?,
-        EntryKind::Instance => client.modpack().instance_status(name).await?,
-    };
-    let Some(pack) = pack else {
+async fn status(client: &Client, entry: &EntryTarget) -> Result<()> {
+    let name = &entry.entry;
+    let Some(pack) = client.modpack().status(entry).await? else {
         return ui::show(View::note(format!("'{name}' was not built from a modpack")));
     };
     show_pack(&pack)
 }
 
-async fn check_update(client: &Client, entry: EntryKind, name: &str) -> Result<()> {
-    let update = check(client, entry, name, "").await?;
+async fn check_update(client: &Client, entry: &EntryTarget) -> Result<()> {
+    let name = &entry.entry;
+    let update = client.modpack().check_update(entry, "").await?;
     let Some(update) = update else {
         return ui::show(View::note(format!(
             "'{name}' runs no pack that can be checked"
@@ -228,37 +228,22 @@ async fn check_update(client: &Client, entry: EntryKind, name: &str) -> Result<(
     ui::show(View::detail(rows))
 }
 
-async fn check(
-    client: &Client,
-    entry: EntryKind,
-    name: &str,
-    game_version: &str,
-) -> Result<Option<ModpackUpdate>> {
-    let modpack = client.modpack();
-    Ok(match entry {
-        EntryKind::Server => modpack.server_check_update(name, game_version).await?,
-        EntryKind::Instance => modpack.instance_check_update(name, game_version).await?,
-    })
-}
-
 /// The pack version a change to `version` takes with it; `None` is the plain version change.
 pub async fn pack_move(
     client: &Client,
-    entry: EntryKind,
-    name: &str,
+    entry: &EntryTarget,
     version: &str,
     keep_pack: bool,
 ) -> Result<Option<String>> {
-    let pack = match entry {
-        EntryKind::Server => client.modpack().server_status(name).await?,
-        EntryKind::Instance => client.modpack().instance_status(name).await?,
-    };
+    let pack = client.modpack().status(entry).await?;
     let Some(pack) = pack.filter(|pack| pack.game_version != version && !keep_pack) else {
         return Ok(None);
     };
     let fit = match pack.project_id.is_empty() {
         true => None,
-        false => check(client, entry, name, version)
+        false => client
+            .modpack()
+            .check_update(entry, version)
             .await?
             .and_then(|update| update.fitting),
     };
@@ -281,25 +266,14 @@ pub async fn pack_move(
 /// is not a terminal, so a script must pass the flag.
 async fn confirm_file_update(
     client: &Client,
-    entry: EntryKind,
-    name: &str,
+    entry: &EntryTarget,
     path: String,
     to: ModpackMove,
 ) -> Result<ModpackMove> {
-    let server = matches!(entry, EntryKind::Server);
-    let (pack, preview) = match server {
-        true => (
-            client.modpack().server_status(name).await?,
-            client.modpack().preview_server_update(name, &path).await?,
-        ),
-        false => (
-            client.modpack().instance_status(name).await?,
-            client
-                .modpack()
-                .preview_instance_update(name, &path)
-                .await?,
-        ),
-    };
+    let name = &entry.entry;
+    let modpack = client.modpack();
+    let pack = modpack.status(entry).await?;
+    let preview = modpack.preview_update(entry, &path).await?;
     let pack = pack.with_context(|| format!("'{name}' was not built from a modpack"))?;
     if !preview.same_pack && !to.allow_other_pack {
         let replace = ui::confirm(
@@ -316,7 +290,7 @@ async fn confirm_file_update(
         }
     }
     if preview.downgrade && !to.allow_downgrade {
-        let (data, safety) = match server {
+        let (data, safety) = match entry.kind == EntryKind::Server {
             true => (
                 "a world",
                 "the current data is backed up automatically first",
@@ -353,25 +327,15 @@ fn pack_file(given: &str) -> Option<Result<String>> {
     })
 }
 
-pub async fn update(client: &Client, entry: EntryKind, name: &str, to: ModpackMove) -> Result<()> {
+pub async fn update(client: &Client, entry: &EntryTarget, to: ModpackMove) -> Result<()> {
     let reporter = Arc::new(ProvisionReporter::new());
     let progress = reporter.clone();
-    let done = match entry {
-        EntryKind::Server => {
-            client
-                .modpack()
-                .update_server(name, to, move |p| progress.update(p))
-                .await
-        }
-        EntryKind::Instance => {
-            client
-                .modpack()
-                .update_instance(name, to, move |p| progress.update(p))
-                .await
-        }
-    };
+    let done = client
+        .modpack()
+        .update(entry, to, move |p| progress.update(p))
+        .await;
     reporter.finish();
-    report(done?, matches!(entry, EntryKind::Server))
+    report(done?, entry.kind == EntryKind::Server)
 }
 
 /// Interactive fallback for a `remove` given neither `--keep` nor `--all`;
@@ -389,11 +353,9 @@ fn ask_keep_content(name: &str) -> Result<bool> {
     Ok(picked == 0)
 }
 
-async fn remove(client: &Client, entry: EntryKind, name: &str, keep_content: bool) -> Result<()> {
-    let result = match entry {
-        EntryKind::Server => client.modpack().remove_server(name, keep_content).await?,
-        EntryKind::Instance => client.modpack().remove_instance(name, keep_content).await?,
-    };
+async fn remove(client: &Client, entry: &EntryTarget, keep_content: bool) -> Result<()> {
+    let name = &entry.entry;
+    let result = client.modpack().remove(entry, keep_content).await?;
     if keep_content {
         return ui::show(View::line(format!(
             "removed the pack from '{name}'; {} file(s) stay as your own content",

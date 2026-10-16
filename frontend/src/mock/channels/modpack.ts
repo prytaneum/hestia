@@ -1,6 +1,7 @@
 /**
- * `instance.modpack.*` and `server.modpack.*` — a pack into a new or existing
- * entry, and what an entry runs. Install and update are jobs on the shared
+ * `modpack.*` — what an entry runs and how its pack moves, with the side named
+ * by a target; and `instance.modpack.install` / `server.modpack.install`, a
+ * pack into a new or existing entry. Install and update are jobs on the shared
  * `modpack.*` topics; their done event carries the entry the pack landed in,
  * which for a creating install is the only way the caller learns its id.
  */
@@ -14,7 +15,8 @@ import type {
 import { jobIdOf, startJob } from '../job';
 import * as content from '../state/content';
 import * as entries from '../state/entries';
-import { bool, type Handlers, now, str } from '../support';
+import { bool, type Handlers, now } from '../support';
+import { targetEntry } from './entry';
 
 const PACK_MODS = ['sodium', 'fabric-api', 'lithium'];
 const LATEST = '1.5.0';
@@ -104,12 +106,8 @@ function installJob(
   });
 }
 
-function updateJob(
-  payload: Record<string, unknown>,
-  server: boolean,
-): { id: string } {
-  const ref = str(payload, server ? 'server' : 'instance');
-  const entry = server ? entries.findServer(ref) : entries.findInstance(ref);
+function updateJob(payload: Record<string, unknown>): { id: string } {
+  const entry = targetEntry(payload);
   return startJob({
     id: jobIdOf(payload, 'modpack-update'),
     family: 'modpack',
@@ -136,8 +134,8 @@ function updateJob(
 }
 
 /** A picked file is always a newer build of the pack the entry runs. */
-function previewUpdate(ref: string, server: boolean): ModpackFilePreview {
-  const entry = server ? entries.findServer(ref) : entries.findInstance(ref);
+function previewUpdate(payload: Record<string, unknown>): ModpackFilePreview {
+  const entry = targetEntry(payload);
   const installed = entries.packOf(entry.id);
   return {
     name: installed?.name ?? entry.name,
@@ -148,13 +146,12 @@ function previewUpdate(ref: string, server: boolean): ModpackFilePreview {
   };
 }
 
-function status(ref: string, server: boolean) {
-  const entry = server ? entries.findServer(ref) : entries.findInstance(ref);
-  return { pack: entries.packOf(entry.id) };
+function status(payload: Record<string, unknown>) {
+  return { pack: entries.packOf(targetEntry(payload).id) };
 }
 
-function checkUpdate(ref: string, server: boolean) {
-  const entry = server ? entries.findServer(ref) : entries.findInstance(ref);
+function checkUpdate(payload: Record<string, unknown>) {
+  const entry = targetEntry(payload);
   const installed = entries.packOf(entry.id);
   if (!installed?.projectId) return {};
   return {
@@ -168,8 +165,9 @@ function checkUpdate(ref: string, server: boolean) {
   };
 }
 
-function remove(ref: string, server: boolean, keepContent: boolean) {
-  const entry = server ? entries.findServer(ref) : entries.findInstance(ref);
+function remove(payload: Record<string, unknown>) {
+  const entry = targetEntry(payload);
+  const keepContent = bool(payload, 'keepContent');
   const origin = `modpack:${entries.packOf(entry.id)?.slug ?? ''}`;
   entries.clearPack(entry.id);
   const none = { removedFiles: 0, removedOverrides: 0, releasedFiles: 0 };
@@ -189,18 +187,9 @@ function remove(ref: string, server: boolean, keepContent: boolean) {
 export const channels: Handlers = {
   'instance.modpack.install': (p) => installJob(p, false),
   'server.modpack.install': (p) => installJob(p, true),
-  'instance.modpack.update': (p) => updateJob(p, false),
-  'server.modpack.update': (p) => updateJob(p, true),
-  'instance.modpack.status': (p) => status(str(p, 'instance'), false),
-  'server.modpack.status': (p) => status(str(p, 'server'), true),
-  'instance.modpack.preview_update': (p) =>
-    previewUpdate(str(p, 'instance'), false),
-  'server.modpack.preview_update': (p) => previewUpdate(str(p, 'server'), true),
-  'instance.modpack.check_update': (p) =>
-    checkUpdate(str(p, 'instance'), false),
-  'server.modpack.check_update': (p) => checkUpdate(str(p, 'server'), true),
-  'instance.modpack.remove': (p) =>
-    remove(str(p, 'instance'), false, bool(p, 'keepContent')),
-  'server.modpack.remove': (p) =>
-    remove(str(p, 'server'), true, bool(p, 'keepContent')),
+  'modpack.update': updateJob,
+  'modpack.status': status,
+  'modpack.preview_update': previewUpdate,
+  'modpack.check_update': checkUpdate,
+  'modpack.remove': remove,
 };

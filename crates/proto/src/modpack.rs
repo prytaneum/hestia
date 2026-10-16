@@ -5,16 +5,16 @@
 //! A pack is resolved through the ordinary content vocabulary
 //! ([`crate::content::ResolvedModpack`]) and then *installed*: its index files
 //! become ordinary managed content tagged `modpack:<name>`, while its
-//! `overrides/` land straight in the entry's game directory. The two sides get
-//! their own channels rather than one target-tagged channel, so the router's
-//! account gate covers the instance half by prefix — the same split
-//! `server.content.*` / `instance.content.*` already uses.
+//! `overrides/` land straight in the entry's game directory. Installing keeps
+//! one channel per side, because a server install carries an EULA and a port;
+//! every verb on an entry that already exists names it with an
+//! [`EntryTarget`], so the side is data rather than a second channel.
 
 use serde::{Deserialize, Serialize};
 
 use crate::content::{ContentFailure, ReleaseChannel};
 use crate::contract::{Contract, Topic};
-use crate::error::ErrorInfo;
+use crate::error::{EntryTarget, ErrorInfo};
 use crate::minecraft::ProvisionProgress;
 use crate::warning::WarningInfo;
 
@@ -176,17 +176,8 @@ pub struct ServerModpackInstallParams {
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
 #[serde(default, rename_all = "camelCase")]
-pub struct InstanceModpackUpdateParams {
-    pub instance: String,
-    pub to: ModpackMove,
-    pub id: String,
-}
-
-#[derive(Serialize, Deserialize, Default, Debug, Clone)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
-#[serde(default, rename_all = "camelCase")]
-pub struct ServerModpackUpdateParams {
-    pub server: String,
+pub struct EntryModpackUpdateParams {
+    pub target: EntryTarget,
     pub to: ModpackMove,
     pub id: String,
 }
@@ -209,22 +200,15 @@ pub struct ModpackMove {
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
 #[serde(default, rename_all = "camelCase")]
-pub struct InstanceModpackRef {
-    pub instance: String,
+pub struct EntryModpackStatusParams {
+    pub target: EntryTarget,
 }
 
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
 #[serde(default, rename_all = "camelCase")]
-pub struct ServerModpackRef {
-    pub server: String,
-}
-
-#[derive(Serialize, Deserialize, Default, Debug, Clone)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
-#[serde(default, rename_all = "camelCase")]
-pub struct InstanceModpackCheckParams {
-    pub instance: String,
+pub struct EntryModpackCheckParams {
+    pub target: EntryTarget,
     /// Empty asks about the game version the entry runs.
     pub game_version: String,
 }
@@ -232,25 +216,8 @@ pub struct InstanceModpackCheckParams {
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
 #[serde(default, rename_all = "camelCase")]
-pub struct ServerModpackCheckParams {
-    pub server: String,
-    /// Empty asks about the game version the entry runs.
-    pub game_version: String,
-}
-
-#[derive(Serialize, Deserialize, Default, Debug, Clone)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
-#[serde(default, rename_all = "camelCase")]
-pub struct InstanceModpackFileParams {
-    pub instance: String,
-    pub path: String,
-}
-
-#[derive(Serialize, Deserialize, Default, Debug, Clone)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
-#[serde(default, rename_all = "camelCase")]
-pub struct ServerModpackFileParams {
-    pub server: String,
+pub struct EntryModpackFileParams {
+    pub target: EntryTarget,
     pub path: String,
 }
 
@@ -273,19 +240,10 @@ pub struct ModpackFilePreview {
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
 #[serde(default, rename_all = "camelCase")]
-pub struct InstanceModpackRemoveParams {
-    pub instance: String,
+pub struct EntryModpackRemoveParams {
+    pub target: EntryTarget,
     /// Drop only the pack itself: its content stays installed as the user's
     /// own, and the game-directory files it wrote are left where they are.
-    pub keep_content: bool,
-}
-
-#[derive(Serialize, Deserialize, Default, Debug, Clone)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
-#[serde(default, rename_all = "camelCase")]
-pub struct ServerModpackRemoveParams {
-    pub server: String,
-    /// See [`InstanceModpackRemoveParams::keep_content`].
     pub keep_content: bool,
 }
 
@@ -324,73 +282,38 @@ impl Contract for ServerModpackInstall {
     type Result = ModpackJobResult;
 }
 
-pub struct InstanceModpackUpdate;
-impl Contract for InstanceModpackUpdate {
-    const CHANNEL: &'static str = "instance.modpack.update";
-    type Params = InstanceModpackUpdateParams;
+pub struct EntryModpackUpdate;
+impl Contract for EntryModpackUpdate {
+    const CHANNEL: &'static str = "modpack.update";
+    type Params = EntryModpackUpdateParams;
     type Result = ModpackJobResult;
 }
 
-pub struct ServerModpackUpdate;
-impl Contract for ServerModpackUpdate {
-    const CHANNEL: &'static str = "server.modpack.update";
-    type Params = ServerModpackUpdateParams;
-    type Result = ModpackJobResult;
-}
-
-pub struct InstanceModpackStatus;
-impl Contract for InstanceModpackStatus {
-    const CHANNEL: &'static str = "instance.modpack.status";
-    type Params = InstanceModpackRef;
+pub struct EntryModpackStatus;
+impl Contract for EntryModpackStatus {
+    const CHANNEL: &'static str = "modpack.status";
+    type Params = EntryModpackStatusParams;
     type Result = ModpackStatusResult;
 }
 
-pub struct ServerModpackStatus;
-impl Contract for ServerModpackStatus {
-    const CHANNEL: &'static str = "server.modpack.status";
-    type Params = ServerModpackRef;
-    type Result = ModpackStatusResult;
-}
-
-pub struct InstanceModpackPreviewUpdate;
-impl Contract for InstanceModpackPreviewUpdate {
-    const CHANNEL: &'static str = "instance.modpack.preview_update";
-    type Params = InstanceModpackFileParams;
+pub struct EntryModpackPreviewUpdate;
+impl Contract for EntryModpackPreviewUpdate {
+    const CHANNEL: &'static str = "modpack.preview_update";
+    type Params = EntryModpackFileParams;
     type Result = ModpackFilePreview;
 }
 
-pub struct ServerModpackPreviewUpdate;
-impl Contract for ServerModpackPreviewUpdate {
-    const CHANNEL: &'static str = "server.modpack.preview_update";
-    type Params = ServerModpackFileParams;
-    type Result = ModpackFilePreview;
-}
-
-pub struct InstanceModpackCheckUpdate;
-impl Contract for InstanceModpackCheckUpdate {
-    const CHANNEL: &'static str = "instance.modpack.check_update";
-    type Params = InstanceModpackCheckParams;
+pub struct EntryModpackCheckUpdate;
+impl Contract for EntryModpackCheckUpdate {
+    const CHANNEL: &'static str = "modpack.check_update";
+    type Params = EntryModpackCheckParams;
     type Result = ModpackUpdateResult;
 }
 
-pub struct ServerModpackCheckUpdate;
-impl Contract for ServerModpackCheckUpdate {
-    const CHANNEL: &'static str = "server.modpack.check_update";
-    type Params = ServerModpackCheckParams;
-    type Result = ModpackUpdateResult;
-}
-
-pub struct InstanceModpackRemove;
-impl Contract for InstanceModpackRemove {
-    const CHANNEL: &'static str = "instance.modpack.remove";
-    type Params = InstanceModpackRemoveParams;
-    type Result = ModpackRemoveResult;
-}
-
-pub struct ServerModpackRemove;
-impl Contract for ServerModpackRemove {
-    const CHANNEL: &'static str = "server.modpack.remove";
-    type Params = ServerModpackRemoveParams;
+pub struct EntryModpackRemove;
+impl Contract for EntryModpackRemove {
+    const CHANNEL: &'static str = "modpack.remove";
+    type Params = EntryModpackRemoveParams;
     type Result = ModpackRemoveResult;
 }
 
