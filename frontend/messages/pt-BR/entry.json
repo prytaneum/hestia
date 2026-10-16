@@ -131,17 +131,17 @@
     "restart": {
       "instance_description": "A sessão de jogo será fechada e iniciada de novo. Progresso não salvo pode ser perdido.",
       "server_description": "O servidor será desligado, desconectando os jogadores conectados, e iniciado de novo.",
-      "session_title": "Reiniciar a sessão {seq}?",
+      "session_title": "Reiniciar a sessão das {time}?",
       "title": "Reiniciar {name}?"
     },
     "session": {
       "menu": "Ações da sessão",
-      "name": "Sessão {seq}",
+      "name": "Iniciada às {time}",
       "new": "Nova sessão",
       "pid": "PID {pid}",
-      "restart_one": "Reiniciar a sessão {seq}",
+      "restart_one": "Reiniciar a sessão das {time}",
       "stop_all": "Parar todas as sessões",
-      "stop_one": "Parar a sessão {seq}"
+      "stop_one": "Parar a sessão das {time}"
     },
     "sessions_running": "{count} em execução",
     "settings": {
@@ -191,7 +191,7 @@
       "instance_description": "A sessão de jogo em execução será fechada. Progresso não salvo pode ser perdido.",
       "server_description": "O servidor será desligado e os jogadores conectados serão desconectados.",
       "session_description": "Apenas esta sessão é encerrada; {count} continuam em execução. O progresso não salvo pode ser perdido.",
-      "session_title": "Parar a sessão {seq}?",
+      "session_title": "Parar a sessão das {time}?",
       "sessions_description": "Todas as {count} sessões em execução serão fechadas. Progresso não salvo pode ser perdido.",
       "title": "Parar {name}?"
     }

@@ -11,7 +11,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { TabToolbar } from '@/features/shared/entry/detail';
-import { sessionSeq } from '@/lib/sessions';
+import { sessionStart } from '@/lib/sessions';
 import { m } from '@/paraglide/messages.js';
 import { useInstanceLogs } from '@/queries/instance';
 
@@ -52,7 +52,7 @@ export function InstanceLogsTab({
     { value: ALL, label: m['instance.logs.all_sessions']() },
     ...sessions.map((entry) => ({
       value: entry.id,
-      label: m['entry.session.name']({ seq: sessionSeq(entry.id) }),
+      label: m['entry.session.name']({ time: sessionStart(entry) }),
     })),
   ];
 

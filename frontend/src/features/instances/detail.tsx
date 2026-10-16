@@ -49,6 +49,7 @@ import { agoLabel, bytes, memGb, uptime } from '@/lib/format';
 import { supportsQuickPlay } from '@/lib/quick-play';
 import { runningSessions } from '@/lib/sessions';
 import { m } from '@/paraglide/messages.js';
+import { useSessionsShown } from '@/queries/config';
 import { entryContentQueries } from '@/queries/entry-content';
 import {
   instanceMutations,
@@ -137,6 +138,7 @@ function InstanceDetail({
 
   const sessions = runningSessions(instance);
   const running = sessions.length > 0;
+  const perSession = useSessionsShown(sessions.length);
   const liveSession =
     sessions.find((s) => s.id === focus) ?? sessions[sessions.length - 1];
   const metrics = useProcessMetrics(liveSession?.id ?? null);
@@ -179,7 +181,9 @@ function InstanceDetail({
             {running && (
               <Badge variant="secondary" className="gap-1.5">
                 <StatusDot tone="on" />
-                {m['entry.sessions_running']({ count: sessions.length })}
+                {perSession
+                  ? m['entry.sessions_running']({ count: sessions.length })
+                  : m['app.status.running']()}
               </Badge>
             )}
           </>
@@ -266,7 +270,7 @@ function InstanceDetail({
                 />
               </div>
               <ResourceCards live={live} />
-              {running && (
+              {running && perSession && (
                 <section className="space-y-2">
                   <h2 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
                     {m['app.label.sessions']()}

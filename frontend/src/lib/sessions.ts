@@ -4,8 +4,7 @@
  * (`proto::naming`).
  */
 import type { InstanceInfo, ProcessInfo } from '@/api';
-
-const SESSION_SEQ = /_(\d+)$/;
+import { getLocale } from '@/paraglide/runtime.js';
 
 /** The instance's running sessions, oldest launch first. */
 export function runningSessions(instance: InstanceInfo): ProcessInfo[] {
@@ -15,10 +14,13 @@ export function runningSessions(instance: InstanceInfo): ProcessInfo[] {
 }
 
 /**
- * The launch number the daemon gave a session. Read off the process key rather
- * than a list position, so a session keeps its name when an earlier one exits.
+ * The clock time a session started, which is what names it. The key's seq is
+ * never reused while a finished session's logs are retained, so it reads as a
+ * launch counter rather than a name.
  */
-export function sessionSeq(sessionId: string): number {
-  const match = SESSION_SEQ.exec(sessionId);
-  return match ? Number(match[1]) : 0;
+export function sessionStart(session: ProcessInfo): string {
+  return new Date(session.startedUnix * 1000).toLocaleTimeString(getLocale(), {
+    hour: '2-digit',
+    minute: '2-digit',
+  });
 }

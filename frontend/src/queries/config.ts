@@ -56,4 +56,12 @@ export function useMultiSession(): boolean {
   return data === true;
 }
 
+/**
+ * Whether per-session UI applies: multi-session is on, or sessions launched
+ * while it was on are still running and each needs its own stop.
+ */
+export function useSessionsShown(running: number): boolean {
+  return useMultiSession() || running > 1;
+}
+
 const MULTI_SESSION_KEY = 'instance.multi-session';

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { InstanceInfo, ProcessInfo } from '@/api';
-import { runningSessions, sessionSeq } from '@/lib/sessions';
+import { runningSessions } from '@/lib/sessions';
 
 const session = (
   id: string,
@@ -29,17 +29,5 @@ describe('runningSessions', () => {
     expect(
       runningSessions(instance([second, first])).map((s) => s.id),
     ).toEqual(['instance-modded_1', 'instance-modded_2']);
-  });
-});
-
-describe('sessionSeq', () => {
-  it('reads the launch number off the process key', () => {
-    expect(sessionSeq('instance-modded_3')).toBe(3);
-    expect(sessionSeq('instance-my_instance_12')).toBe(12);
-  });
-
-  it('is zero for a key that carries no sequence', () => {
-    expect(sessionSeq('server-smp')).toBe(0);
-    expect(sessionSeq('')).toBe(0);
   });
 });

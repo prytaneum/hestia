@@ -131,17 +131,17 @@
     "restart": {
       "instance_description": "The game session is closed and launched again. Unsaved progress may be lost.",
       "server_description": "The server shuts down, disconnecting any connected players, and starts again.",
-      "session_title": "Restart session {seq}?",
+      "session_title": "Restart the session from {time}?",
       "title": "Restart {name}?"
     },
     "session": {
       "menu": "Session actions",
-      "name": "Session {seq}",
+      "name": "Started {time}",
       "new": "New session",
       "pid": "PID {pid}",
-      "restart_one": "Restart session {seq}",
+      "restart_one": "Restart session from {time}",
       "stop_all": "Stop all sessions",
-      "stop_one": "Stop session {seq}"
+      "stop_one": "Stop session from {time}"
     },
     "sessions_running": "{count} running",
     "settings": {
@@ -191,7 +191,7 @@
       "instance_description": "The running game session is closed. Unsaved progress may be lost.",
       "server_description": "The server shuts down and any connected players are disconnected.",
       "session_description": "Only this session is closed; {count} keep running. Unsaved progress may be lost.",
-      "session_title": "Stop session {seq}?",
+      "session_title": "Stop the session from {time}?",
       "sessions_description": "All {count} running sessions are closed. Unsaved progress may be lost.",
       "title": "Stop {name}?"
     }

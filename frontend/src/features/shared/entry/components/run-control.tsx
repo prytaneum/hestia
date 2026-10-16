@@ -13,10 +13,10 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { uptime } from '@/lib/format';
-import { sessionSeq } from '@/lib/sessions';
+import { sessionStart } from '@/lib/sessions';
 import { cn } from '@/lib/utils';
 import { m } from '@/paraglide/messages.js';
-import { useMultiSession } from '@/queries/config';
+import { useMultiSession, useSessionsShown } from '@/queries/config';
 
 type Size = 'xs' | 'sm' | 'default';
 
@@ -71,12 +71,14 @@ export function EntryRunControl({
 }) {
   const [confirm, setConfirm] = useState<Pending | null>(null);
   const multiSession = useMultiSession();
+  const perSession = useSessionsShown(sessions.length);
   const now = Date.now() / 1000;
   const target = confirm?.session;
-  const seq = target ? sessionSeq(target) : 0;
+  const targetSession = sessions.find((session) => session.id === target);
+  const time = targetSession ? sessionStart(targetSession) : '';
   const restarting = confirm?.action === 'restart';
   const only = sessions.length === 1 ? sessions[0] : undefined;
-  const menu = multiSession || sessions.length > 1 || onRestart != null;
+  const menu = perSession || onRestart != null;
 
   return (
     <>
@@ -160,7 +162,7 @@ export function EntryRunControl({
                       >
                         <span className="min-w-0 flex-1 truncate">
                           {m['entry.session.stop_one']({
-                            seq: sessionSeq(session.id),
+                            time: sessionStart(session),
                           })}
                         </span>
                         <span className="font-mono text-[10px] text-muted-foreground">
@@ -178,7 +180,7 @@ export function EntryRunControl({
                           }
                         >
                           {m['entry.session.restart_one']({
-                            seq: sessionSeq(session.id),
+                            time: sessionStart(session),
                           })}
                         </DropdownMenuItem>
                       )}
@@ -200,9 +202,9 @@ export function EntryRunControl({
           restarting
             ? only
               ? m['entry.restart.title']({ name })
-              : m['entry.restart.session_title']({ seq })
+              : m['entry.restart.session_title']({ time })
             : target
-              ? m['entry.stop.session_title']({ seq })
+              ? m['entry.stop.session_title']({ time })
               : m['entry.stop.title']({ name })
         }
         description={

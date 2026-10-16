@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { StatusDot } from '@/components/ui/status-dot';
 import { uptime } from '@/lib/format';
-import { sessionSeq } from '@/lib/sessions';
+import { sessionStart } from '@/lib/sessions';
 import { cn } from '@/lib/utils';
 import { m } from '@/paraglide/messages.js';
 
@@ -37,7 +37,6 @@ export function SessionList({
     <>
       <div className="divide-y divide-border border border-border">
         {sessions.map((session) => {
-          const seq = sessionSeq(session.id);
           const isFocused = session.id === focused;
           return (
             <div
@@ -55,7 +54,7 @@ export function SessionList({
                 className="min-w-0 flex-1 text-left outline-none focus-visible:ring-1 focus-visible:ring-ring"
               >
                 <div className="truncate text-sm">
-                  {m['entry.session.name']({ seq })}
+                  {m['entry.session.name']({ time: sessionStart(session) })}
                 </div>
                 <div className="truncate font-mono text-[11px] text-muted-foreground">
                   {m['entry.session.pid']({ pid: session.pid })} ·{' '}
@@ -94,7 +93,7 @@ export function SessionList({
           if (!open) setConfirm(null);
         }}
         title={m['entry.stop.session_title']({
-          seq: confirm ? sessionSeq(confirm.id) : 0,
+          time: confirm ? sessionStart(confirm) : '',
         })}
         description={m['entry.stop.session_description']({
           count: sessions.length - 1,
