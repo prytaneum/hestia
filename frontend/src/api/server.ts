@@ -17,7 +17,11 @@ import type {
   ContentMatch,
   ContentUpdate,
 } from './types/content';
-import type { ConfigEntry, Flavor, GameVersion } from './types/minecraft';
+import type {
+  ConfigEntry,
+  FlavorsResult,
+  GameVersion,
+} from './types/minecraft';
 import type { ProcessLogLine } from './types/process';
 import type {
   ServerCommandCompleteResult,
@@ -31,9 +35,8 @@ import type {
   ServerUpdateParams,
 } from './types/server';
 
-export async function flavors(): Promise<Flavor[]> {
-  const result = await call<{ flavors: Flavor[] }>('server.flavors');
-  return result.flavors;
+export function flavors(): Promise<FlavorsResult> {
+  return call<FlavorsResult>('server.flavors');
 }
 
 export async function versions(flavor: string): Promise<GameVersion[]> {

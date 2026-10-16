@@ -11,6 +11,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
 use anyhow::{bail, Context, Result};
+use proto::keys::KeyRule;
 use proto::sync::SyncOverrides;
 use serde::{Deserialize, Serialize};
 
@@ -183,6 +184,11 @@ impl Instances {
         record.jvm.get(key).with_context(|| {
             format!("unknown key '{key}' (valid keys: {MEMORY_KEY}, {JVM_ARGS_KEY})")
         })
+    }
+
+    /// Every rule an instance's settings are checked against.
+    pub fn config_rules() -> Vec<KeyRule> {
+        JavaSettings::rules()
     }
 
     /// Write one JVM setting; an empty value clears it. Settings take effect on

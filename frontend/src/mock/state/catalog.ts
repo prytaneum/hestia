@@ -3,7 +3,7 @@
  * each one takes, the game versions they publish, and their loader builds.
  * Read-only — nothing in the fixture daemon rewrites a catalogue.
  */
-import type { ContentKind, Flavor, GameVersion } from '@/api/types';
+import type { ContentKind, Flavor, GameVersion, KeyRule } from '@/api/types';
 
 const CLIENT_KINDS: ContentKind[] = [
   'mod',
@@ -37,6 +37,11 @@ const neoforge = (accepts: ContentKind[]): Flavor => ({
   accepts,
   requires: [],
 });
+
+export const serverRules: KeyRule[] = [
+  { key: 'max-players', kind: { type: 'integer', min: 1, max: 2147483647 } },
+  { key: 'server-port', kind: { type: 'integer', min: 1, max: 65535 } },
+];
 
 export const instanceFlavors: Flavor[] = [
   vanilla,

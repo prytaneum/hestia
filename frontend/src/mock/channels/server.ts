@@ -121,7 +121,10 @@ export const channels: Handlers = {
     };
   },
 
-  'server.flavors': () => ({ flavors: catalog.serverFlavors }),
+  'server.flavors': () => ({
+    flavors: catalog.serverFlavors,
+    rules: catalog.serverRules,
+  }),
   'server.versions': (p) => ({
     versions: catalog.versionsFor(str(p, 'flavor')),
   }),

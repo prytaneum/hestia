@@ -98,21 +98,19 @@ impl fmt::Display for Field {
 }
 
 /// A closed reason an otherwise-present value was rejected.
-#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
 #[serde(rename_all = "snake_case")]
 pub enum Reason {
+    NotBoolean,
+    NotWholeNumber,
+    OutOfRange { min: i64, max: i64 },
+    NotOneOf { values: Vec<String> },
     MemoryFormat,
     MemoryExceedsHost,
     JvmArgsPrefix,
-    PortNumber,
-    PortRange,
-    WholeNumber,
     IntervalFormat,
     IntervalTooShort,
-    RetentionPositive,
-    MinPlayers,
-    MinBackups,
     JavaMajor,
     AbsolutePath,
     ServerAddress,
@@ -125,36 +123,38 @@ pub enum Reason {
 
 impl fmt::Display for Reason {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(match self {
-            Reason::MemoryFormat => "memory must look like 4G or 2048M",
-            Reason::MemoryExceedsHost => "memory exceeds what this machine has installed",
-            Reason::JvmArgsPrefix => "jvm arguments must start with '-'",
-            Reason::PortNumber => "port must be a number",
-            Reason::PortRange => "port is out of range",
-            Reason::WholeNumber => "enter a whole number",
-            Reason::IntervalFormat => "backup-interval must look like 30m, 6h, or 1d",
-            Reason::IntervalTooShort => "backup-interval must be at least 5m",
-            Reason::RetentionPositive => "backup-retention must be a positive integer",
-            Reason::MinPlayers => "at least one player is required",
-            Reason::MinBackups => "keep at least one backup",
-            Reason::JavaMajor => "not a valid java major version",
-            Reason::AbsolutePath => {
-                "the path must be absolute — the daemon is a separate process and does not share \
-                 your working directory"
+        match self {
+            Reason::NotBoolean => f.write_str("must be true or false"),
+            Reason::NotWholeNumber => f.write_str("must be a whole number"),
+            Reason::OutOfRange { min, max } => write!(f, "must be between {min} and {max}"),
+            Reason::NotOneOf { values } => write!(f, "must be one of: {}", values.join(", ")),
+            Reason::MemoryFormat => f.write_str("memory must look like 4G or 2048M"),
+            Reason::MemoryExceedsHost => {
+                f.write_str("memory exceeds what this machine has installed")
             }
-            Reason::ServerAddress => "a server address looks like host or host:port",
-            Reason::ListOrder => "the order must name every server in the list exactly once",
-            Reason::RealmId => "a realm is named by its numeric id",
+            Reason::JvmArgsPrefix => f.write_str("jvm arguments must start with '-'"),
+            Reason::IntervalFormat => f.write_str("backup-interval must look like 30m, 6h, or 1d"),
+            Reason::IntervalTooShort => f.write_str("backup-interval must be at least 5m"),
+            Reason::JavaMajor => f.write_str("not a valid java major version"),
+            Reason::AbsolutePath => f.write_str(
+                "the path must be absolute — the daemon is a separate process and does not share \
+                 your working directory",
+            ),
+            Reason::ServerAddress => f.write_str("a server address looks like host or host:port"),
+            Reason::ListOrder => {
+                f.write_str("the order must name every server in the list exactly once")
+            }
+            Reason::RealmId => f.write_str("a realm is named by its numeric id"),
             Reason::ProcessIdCharset => {
-                "a process id may only contain letters, digits, '-', '_' and '.'"
+                f.write_str("a process id may only contain letters, digits, '-', '_' and '.'")
             }
             Reason::PlayerName => {
-                "a player name is up to 32 letters, digits, '_' or '.', with no spaces"
+                f.write_str("a player name is up to 32 letters, digits, '_' or '.', with no spaces")
             }
-            Reason::ScheduleFormat => {
-                "a schedule is an interval of at least 5m (30m, 6h, 1d) or a daily time (04:30)"
-            }
-        })
+            Reason::ScheduleFormat => f.write_str(
+                "a schedule is an interval of at least 5m (30m, 6h, 1d) or a daily time (04:30)",
+            ),
+        }
     }
 }
 
@@ -516,6 +516,10 @@ pub enum ErrorInfo {
     ConfigRejected {
         key: String,
     },
+    ConfigInvalid {
+        key: String,
+        reason: Reason,
+    },
     /// A hardcore server pins `key` to `value`; hardcore has to go first.
     HardcoreLocked {
         key: String,
@@ -853,6 +857,7 @@ impl fmt::Display for ErrorInfo {
             ConfigKeyUnset { key } => write!(f, "'{key}' is not set"),
             ConfigTypeMismatch { key, expected } => write!(f, "{key} expects a {expected}"),
             ConfigRejected { key } => write!(f, "invalid value for {key}"),
+            ConfigInvalid { key, reason } => write!(f, "invalid value for {key}: {reason}"),
             HardcoreLocked { key, value } => write!(
                 f,
                 "{key} is locked to '{value}' while hardcore is enabled; disable hardcore first"

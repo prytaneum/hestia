@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import type { KeyRule } from '@/api/types';
 import { randomIconConfig } from '@/features/shared/entry/components/icon-editor/catalog';
 import {
   detailsStepSchema,
@@ -48,8 +49,12 @@ describe('versionStepSchema', () => {
 
 describe('detailsStepSchema', () => {
   const memory = { min: 2, max: 16 };
-  const server = detailsStepSchema('server', memory);
-  const instance = detailsStepSchema('instance', memory);
+  const rules: KeyRule[] = [
+    { key: 'max-players', kind: { type: 'integer', min: 1, max: 100 } },
+    { key: 'server-port', kind: { type: 'integer', min: 1, max: 65535 } },
+  ];
+  const server = detailsStepSchema('server', memory, rules);
+  const instance = detailsStepSchema('instance', memory, rules);
 
   it('accepts a well-formed server', () => {
     expect(server.safeParse(details()).success).toBe(true);
@@ -62,11 +67,18 @@ describe('detailsStepSchema', () => {
     expect(server.safeParse(details({ memory: 16 })).success).toBe(true);
   });
 
-  it('demands a whole number of players, at least one', () => {
+  it('holds players to a whole number inside the daemon’s range', () => {
     expect(server.safeParse(details({ maxPlayers: '' })).success).toBe(false);
     expect(server.safeParse(details({ maxPlayers: '1.5' })).success).toBe(false);
     expect(server.safeParse(details({ maxPlayers: '0' })).success).toBe(false);
+    expect(server.safeParse(details({ maxPlayers: '101' })).success).toBe(false);
     expect(server.safeParse(details({ maxPlayers: '1' })).success).toBe(true);
+  });
+
+  it('checks the whole-number shape alone until the daemon’s rules arrive', () => {
+    const unruled = detailsStepSchema('server', memory, []);
+    expect(unruled.safeParse(details({ maxPlayers: '0' })).success).toBe(true);
+    expect(unruled.safeParse(details({ maxPlayers: 'x' })).success).toBe(false);
   });
 
   it('treats an empty port as "let the daemon pick"', () => {

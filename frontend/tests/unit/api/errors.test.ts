@@ -36,6 +36,19 @@ describe('errorMessageFromInfo', () => {
     );
   });
 
+  it('words a reason that carries data with that data', () => {
+    const rendered = errorMessageFromInfo(
+      info({
+        kind: 'config_invalid',
+        key: 'view-distance',
+        reason: { out_of_range: { min: 3, max: 32 } },
+      }),
+    );
+    expect(rendered).toBe(
+      "Invalid value for 'view-distance': it must be between 3 and 32.",
+    );
+  });
+
   it('is empty for a kind the catalogue does not know', () => {
     expect(errorMessageFromInfo(info({ kind: 'not_a_real_kind' }))).toBe('');
   });

@@ -11,16 +11,19 @@ use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
 use anyhow::{bail, Context, Result};
+use proto::keys::KeyRule;
 use proto::minecraft::{ProvisionPhase, ProvisionProgress};
 use proto::server::ServerProperty;
 use proto::tasks::ServerTask;
 use serde::{Deserialize, Serialize};
 
 use crate::backup::BackupSettings;
+use crate::keys::invalid;
 use crate::minecraft::launch::{self, JavaSettings, LaunchPlan};
 use crate::minecraft::materialize::{self, OnProgress};
 use crate::minecraft::profile::ServerProfile;
 use crate::process::{Outcome, ProcessSupervisor, Task};
+use crate::properties;
 use crate::registry;
 use crate::schema::Document;
 
@@ -631,8 +634,9 @@ impl Servers {
     /// live file, which also carries keys no current version knows — so a typo
     /// cannot silently drift the file. A server with no derived schema accepts
     /// any unmanaged key rather than rejecting every one. The hestia-managed
-    /// keys are rejected. An empty value clears a JVM key. Settings take effect
-    /// on the next start.
+    /// keys are rejected. A property value must satisfy the curated rule for its
+    /// key; a key the table does not know takes any string. An empty value
+    /// clears a JVM key. Settings take effect on the next start.
     pub fn config_set(&self, id: &str, key: &str, value: &str) -> Result<()> {
         let _claims = self.claims.lock().unwrap();
         let mut record = self
@@ -663,10 +667,19 @@ impl Servers {
                 "no properties schema to validate against; accepting the key"
             );
         }
+        properties::validate(key, value).map_err(invalid(key))?;
         if HARDCORE_KEYS.contains(&key) {
             check_hardcore_invariant(&properties, key, value)?;
         }
         merge_properties(&properties, &[(key, value.to_string())])
+    }
+
+    /// Every rule a server's settings are checked against.
+    pub fn config_rules() -> Vec<KeyRule> {
+        let mut rules = JavaSettings::rules();
+        rules.extend(BackupSettings::rules());
+        rules.extend(properties::rules().iter().cloned());
+        rules
     }
 
     /// The reserved JVM and backup settings (always shown) followed by every

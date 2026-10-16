@@ -12,6 +12,7 @@ use proto::update::UpdateChannel;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+use crate::keys::invalid;
 use crate::minecraft::launch::{normalize_memory, parse_jvm_args, JavaSettings};
 use crate::schema::{self, Document};
 
@@ -145,12 +146,13 @@ impl Settings {
     /// the per-entry `memory`/`jvm-args` keys enforce.
     fn normalize(&mut self) -> Result<(), ErrorInfo> {
         if !self.defaults.memory.trim().is_empty() {
-            self.defaults.memory = normalize_memory(&self.defaults.memory).map_err(rejection)?;
+            self.defaults.memory =
+                normalize_memory(&self.defaults.memory).map_err(invalid("defaults.memory"))?;
         } else {
             self.defaults.memory = String::new();
         }
         self.defaults.jvm_args = parse_jvm_args(&self.defaults.jvm_args)
-            .map_err(rejection)?
+            .map_err(invalid("defaults.jvm-args"))?
             .join(" ");
         self.content.curseforge_key = self.content.curseforge_key.trim().to_string();
         Ok(())
@@ -168,14 +170,6 @@ impl Settings {
                 .collect(),
         }
     }
-}
-
-fn rejection(error: anyhow::Error) -> ErrorInfo {
-    error
-        .downcast::<ErrorInfo>()
-        .unwrap_or_else(|other| ErrorInfo::Internal {
-            detail: format!("{other:#}"),
-        })
 }
 
 #[derive(Debug, thiserror::Error)]

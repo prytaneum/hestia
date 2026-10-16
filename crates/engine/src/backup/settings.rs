@@ -5,12 +5,23 @@
 
 use std::time::Duration;
 
-use anyhow::{bail, Result};
+use anyhow::Result;
+use proto::error::Reason;
+use proto::keys::{KeyKind, KeyRule};
 use serde::{Deserialize, Serialize};
+
+use crate::keys::{self, invalid};
 
 /// The reserved per-server scheduled-backup setting keys.
 pub const INTERVAL_KEY: &str = "backup-interval";
 pub const RETENTION_KEY: &str = "backup-retention";
+
+fn retention_kind() -> KeyKind {
+    KeyKind::Integer {
+        min: 1,
+        max: i64::from(u32::MAX),
+    }
+}
 
 /// Scheduled archives kept when no `backup-retention` is set.
 pub const DEFAULT_RETENTION: usize = 7;
@@ -32,6 +43,13 @@ pub struct BackupSettings {
 }
 
 impl BackupSettings {
+    pub(crate) fn rules() -> Vec<KeyRule> {
+        vec![
+            keys::rule(INTERVAL_KEY, KeyKind::Interval),
+            keys::rule(RETENTION_KEY, retention_kind()),
+        ]
+    }
+
     /// The current value of a backup key, or `None` (outer) when `key` is not
     /// one of the reserved backup keys. The inner `None` means unset.
     pub fn get(&self, key: &str) -> Option<Option<String>> {
@@ -52,7 +70,7 @@ impl BackupSettings {
                     None
                 } else {
                     let normalized = value.trim().to_ascii_lowercase();
-                    parse_interval(&normalized)?;
+                    parse_interval(&normalized).map_err(invalid(key))?;
                     Some(normalized)
                 };
                 Ok(true)
@@ -61,13 +79,8 @@ impl BackupSettings {
                 self.retention = if value.trim().is_empty() {
                     None
                 } else {
-                    let n: u32 = value.trim().parse().ok().filter(|n| *n > 0).ok_or(
-                        proto::error::ErrorInfo::InvalidValue {
-                            field: proto::error::Field::BackupRetention,
-                            reason: proto::error::Reason::RetentionPositive,
-                        },
-                    )?;
-                    Some(n)
+                    keys::validate(&retention_kind(), value.trim()).map_err(invalid(key))?;
+                    Some(value.trim().parse()?)
                 };
                 Ok(true)
             }
@@ -107,33 +120,23 @@ impl BackupSettings {
 
 /// Parse a schedule interval: digits followed by one unit char (m/h/d),
 /// at least five minutes.
-pub fn parse_interval(value: &str) -> Result<Duration> {
+pub fn parse_interval(value: &str) -> Result<Duration, Reason> {
     let trimmed = value.trim();
     let unit_seconds = match trimmed.chars().last() {
         Some('m') => 60,
         Some('h') => 3600,
         Some('d') => 86400,
-        _ => bail!(proto::error::ErrorInfo::InvalidValue {
-            field: proto::error::Field::BackupInterval,
-            reason: proto::error::Reason::IntervalFormat
-        }),
+        _ => return Err(Reason::IntervalFormat),
     };
     let digits = &trimmed[..trimmed.len() - 1];
-    let count: u64 =
-        digits
-            .parse()
-            .ok()
-            .filter(|n| *n > 0)
-            .ok_or(proto::error::ErrorInfo::InvalidValue {
-                field: proto::error::Field::BackupInterval,
-                reason: proto::error::Reason::IntervalFormat,
-            })?;
+    let count: u64 = digits
+        .parse()
+        .ok()
+        .filter(|n| *n > 0)
+        .ok_or(Reason::IntervalFormat)?;
     let interval = Duration::from_secs(count.saturating_mul(unit_seconds));
     if interval < MIN_INTERVAL {
-        bail!(proto::error::ErrorInfo::InvalidValue {
-            field: proto::error::Field::BackupInterval,
-            reason: proto::error::Reason::IntervalTooShort
-        });
+        return Err(Reason::IntervalTooShort);
     }
     Ok(interval)
 }

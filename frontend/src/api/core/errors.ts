@@ -47,6 +47,7 @@ function token(value: unknown): string {
   // An optional token field (a download names no service) still has to read as
   // a noun in the sentence around it.
   if (value == null) return token('upstream');
+  if (typeof value === 'object') return parameterised(value);
   if (typeof value !== 'string') return String(value);
   for (const table of TOKEN_TABLES) {
     const hit = msg[`${table}${value}`];
@@ -55,16 +56,26 @@ function token(value: unknown): string {
   return value;
 }
 
-/** The localized message for a structured daemon error. */
-export function errorMessageFromInfo(info: ErrorInfo): string {
+// A token that carries data arrives as `{ name: { ...params } }`.
+function parameterised(value: object): string {
+  const [name, fields] = Object.entries(value)[0] ?? [];
+  return msg[`error.token.${name}`]?.(interpolations(fields ?? {})) ?? '';
+}
+
+function interpolations(fields: Record<string, unknown>) {
   const params: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(info)) {
+  for (const [key, value] of Object.entries(fields)) {
     if (key === 'kind') continue;
     if (Array.isArray(value)) params[key] = value.map(token).join(', ');
     else if (TOKEN_FIELDS.has(key)) params[key] = token(value);
     else params[key] = value;
   }
-  return msg[`error.kind.${info.kind}`]?.(params) ?? '';
+  return params;
+}
+
+/** The localized message for a structured daemon error. */
+export function errorMessageFromInfo(info: ErrorInfo): string {
+  return msg[`error.kind.${info.kind}`]?.(interpolations(info)) ?? '';
 }
 
 function codeFallback(code: string): string {

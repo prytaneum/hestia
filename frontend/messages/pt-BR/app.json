@@ -192,10 +192,8 @@
     "validation": {
       "choose_version": "Escolha uma versão para continuar.",
       "eula": "Aceite o EULA para criar um servidor.",
-      "min_players": "Pelo menos um jogador.",
+      "out_of_range": "Digite um número de {min} a {max}.",
       "pick_flavor": "Escolha uma distribuição para continuar.",
-      "port_number": "A porta deve ser um número.",
-      "port_range": "Porta fora do intervalo.",
       "whole_number": "Digite um número inteiro."
     },
     "window": {

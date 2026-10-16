@@ -76,6 +76,15 @@ Servers additionally pass any `server.properties` key through `config set` — b
 a set must name a key the server's own derived schema carries, and the
 Hestia-managed port and RCON keys are rejected outright.
 
+Every value passes one typed schema: a key's kind (boolean, integer with a range,
+choice, memory, interval, JVM arguments) is checked by `engine::keys::validate`,
+and a refusal is a `config_invalid` error naming the key and a generic reason (not
+a boolean, not a whole number, out of range with its min and max, not one of a
+listed set). A property's kind comes from a curated table of the well-known
+properties; one it does not know takes any string. The rules ride on the flavors
+catalogues and the `config.list` results, so the create form's limits are the
+daemon's ([0090](../decisions/0090-config-values-pass-one-typed-schema.md)).
+
 JVM settings resolve in layers, each filling only what the one above left unset:
 
 ```mermaid
@@ -143,7 +152,9 @@ knows", the file is "the values this server holds", and vanilla preserves keys i
 does not recognise. Schema generation is best-effort — a failure is a warning,
 not a create failure — and a server with no schema accepts any unmanaged key
 rather than rejecting every one
-([0025](../decisions/0025-properties-schema-is-generated.md)).
+([0025](../decisions/0025-properties-schema-is-generated.md)). The schema decides
+which keys exist; what a value may be is a separate curated table
+([0090](../decisions/0090-config-values-pass-one-typed-schema.md)).
 
 The same rule holds for showing them. `server.properties` (the channel) lists
 the union of the schema's keys and the live file's, each with the value in
@@ -434,6 +445,7 @@ refused: the daemon cannot make the write durable, but it can say so
 - [0022 — A world describes itself; a directory listing does not](../decisions/0022-a-world-describes-itself.md)
 - [0023 — An unfinished record says which kind of unfinished](../decisions/0023-server-phase-over-a-ready-bool.md)
 - [0025 — The properties schema is generated, not maintained](../decisions/0025-properties-schema-is-generated.md)
+- [0090 — Config values pass one typed schema, and property values come from a curated table](../decisions/0090-config-values-pass-one-typed-schema.md)
 - [0058 — Joining directly is a launch parameter, not a second launch path](../decisions/0058-joining-directly-is-a-launch-parameter.md)
 - [0074 — The game reports what was played; the launcher only keeps the history](../decisions/0074-the-game-reports-what-was-played.md)
 - [0038 — An instance runs many sessions; a server runs one](../decisions/0038-an-instance-runs-many-sessions.md)

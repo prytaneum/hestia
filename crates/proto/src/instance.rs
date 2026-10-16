@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 use crate::content::ContentKind;
 use crate::contract::{Contract, Empty, Topic};
 use crate::error::ErrorInfo;
+use crate::keys::KeyRule;
 use crate::minecraft::{
     ConfigEntry, FlavorsResult, LoadersParams, LoadersResult, ProvisionProgress, VersionsParams,
     VersionsResult,
@@ -527,6 +528,7 @@ impl Contract for InstanceConfigSet {
 #[serde(default, rename_all = "camelCase")]
 pub struct InstanceConfigListResult {
     pub entries: Vec<ConfigEntry>,
+    pub rules: Vec<KeyRule>,
 }
 
 pub struct InstanceConfigList;

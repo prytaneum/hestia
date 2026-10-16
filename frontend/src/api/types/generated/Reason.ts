@@ -3,4 +3,4 @@
 /**
  * A closed reason an otherwise-present value was rejected.
  */
-export type Reason = "memory_format" | "memory_exceeds_host" | "jvm_args_prefix" | "port_number" | "port_range" | "whole_number" | "interval_format" | "interval_too_short" | "retention_positive" | "min_players" | "min_backups" | "java_major" | "absolute_path" | "server_address" | "list_order" | "realm_id" | "process_id_charset" | "player_name" | "schedule_format";
+export type Reason = "not_boolean" | "not_whole_number" | { "out_of_range": { min: number, max: number, } } | { "not_one_of": { values: Array<string>, } } | "memory_format" | "memory_exceeds_host" | "jvm_args_prefix" | "interval_format" | "interval_too_short" | "java_major" | "absolute_path" | "server_address" | "list_order" | "realm_id" | "process_id_charset" | "player_name" | "schedule_format";

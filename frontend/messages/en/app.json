@@ -192,10 +192,8 @@
     "validation": {
       "choose_version": "Choose a version to continue.",
       "eula": "Accept the EULA to create a server.",
-      "min_players": "At least one player.",
+      "out_of_range": "Enter a number from {min} to {max}.",
       "pick_flavor": "Pick a flavor to continue.",
-      "port_number": "Port must be a number.",
-      "port_range": "Port is out of range.",
       "whole_number": "Enter a whole number."
     },
     "window": {

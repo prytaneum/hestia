@@ -34,6 +34,7 @@ pub(super) fn register(on: &mut Channels<'_>) {
     on.handle::<InstanceFlavors, _, _>(|_: Empty, ctx| async move {
         Ok(FlavorsResult {
             flavors: ctx.runtime.engine().flavors(Side::Client).await,
+            rules: engine::Instances::config_rules(),
         })
     });
 
@@ -354,6 +355,9 @@ pub(super) fn register(on: &mut Channels<'_>) {
             .into_iter()
             .map(|(key, value)| ConfigEntry { key, value })
             .collect();
-        Ok(InstanceConfigListResult { entries })
+        Ok(InstanceConfigListResult {
+            entries,
+            rules: engine::Instances::config_rules(),
+        })
     });
 }

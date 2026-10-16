@@ -1,8 +1,29 @@
 import { z } from 'zod';
+import type { KeyRule } from '@/api/types';
 import { m } from '@/paraglide/messages.js';
 import type { MemoryRange } from '@/queries/host';
 
 type Kind = 'server' | 'instance';
+
+const WHOLE_NUMBER = /^-?\d+$/;
+
+function integerField(rules: KeyRule[], key: string, optional = false) {
+  const kind = rules.find((rule) => rule.key === key)?.kind;
+  const range = kind?.type === 'integer' ? kind : null;
+  return z
+    .string()
+    .refine(
+      (value) => (optional && value === '') || WHOLE_NUMBER.test(value),
+      m['app.validation.whole_number'](),
+    )
+    .refine(
+      (value) =>
+        !range ||
+        !WHOLE_NUMBER.test(value) ||
+        (Number(value) >= range.min && Number(value) <= range.max),
+      range ? m['app.validation.out_of_range'](range) : '',
+    );
+}
 
 /**
  * Zod schemas for the create wizard, one per step. Each `FormGroup`'s
@@ -23,7 +44,11 @@ export function versionStepSchema() {
   });
 }
 
-export function detailsStepSchema(kind: Kind, memory: MemoryRange) {
+export function detailsStepSchema(
+  kind: Kind,
+  memory: MemoryRange,
+  rules: KeyRule[],
+) {
   return z.object({
     name: z.string(),
     memory: z.number().min(memory.min).max(memory.max),
@@ -31,17 +56,8 @@ export function detailsStepSchema(kind: Kind, memory: MemoryRange) {
     seed: z.string(),
     gamemode: z.string(),
     difficulty: z.string(),
-    maxPlayers: z
-      .string()
-      .regex(/^\d+$/, m['app.validation.whole_number']())
-      .refine((v) => Number(v) >= 1, m['app.validation.min_players']()),
-    port: z
-      .string()
-      .regex(/^\d*$/, m['app.validation.port_number']())
-      .refine(
-        (v) => v === '' || Number(v) <= 65535,
-        m['app.validation.port_range'](),
-      ),
+    maxPlayers: integerField(rules, 'max-players'),
+    port: integerField(rules, 'server-port', true),
     hardcore: z.boolean(),
     onlineMode: z.boolean(),
     eula:
@@ -51,11 +67,15 @@ export function detailsStepSchema(kind: Kind, memory: MemoryRange) {
   });
 }
 
-export function createWizardSchema(kind: Kind, memory: MemoryRange) {
+export function createWizardSchema(
+  kind: Kind,
+  memory: MemoryRange,
+  rules: KeyRule[],
+) {
   return z.object({
     flavor: flavorStepSchema(),
     version: versionStepSchema(),
-    details: detailsStepSchema(kind, memory),
+    details: detailsStepSchema(kind, memory, rules),
   });
 }
 

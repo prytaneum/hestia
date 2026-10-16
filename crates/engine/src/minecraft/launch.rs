@@ -5,11 +5,14 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
-use anyhow::{bail, Result};
+use anyhow::Result;
+use proto::error::Reason;
 use proto::instance::QuickPlay;
+use proto::keys::{KeyKind, KeyRule};
 use serde::{Deserialize, Serialize};
 
 use super::profile::{InstanceProfile, ServerLaunch, ServerProfile};
+use crate::keys::{self, invalid};
 
 // Mojang's rule vocabulary spells the classpath separator per-OS; keep ours in
 // lockstep with the JVM's.
@@ -32,6 +35,13 @@ pub struct JavaSettings {
 }
 
 impl JavaSettings {
+    pub(crate) fn rules() -> Vec<KeyRule> {
+        vec![
+            keys::rule(MEMORY_KEY, KeyKind::Memory),
+            keys::rule(JVM_ARGS_KEY, KeyKind::JvmArgs),
+        ]
+    }
+
     /// The current value of a JVM key, or `None` (outer) when `key` is not one
     /// of the reserved JVM keys — the signal to fall through to properties. The
     /// inner `None` means the key is a JVM key but unset.
@@ -56,12 +66,12 @@ impl JavaSettings {
                 self.memory = if value.trim().is_empty() {
                     None
                 } else {
-                    Some(normalize_memory(value)?)
+                    Some(normalize_memory(value).map_err(invalid(key))?)
                 };
                 Ok(true)
             }
             JVM_ARGS_KEY => {
-                self.jvm_args = parse_jvm_args(value)?;
+                self.jvm_args = parse_jvm_args(value).map_err(invalid(key))?;
                 Ok(true)
             }
             _ => Ok(false),
@@ -112,36 +122,27 @@ impl JavaSettings {
 /// carried as far up the ladder as it divides exactly — an import that speaks
 /// megabytes (Prism's `MaxMemAlloc=8192`) stores the `8G` the user chose. An
 /// amount above this machine's installed memory is rejected.
-pub(crate) fn normalize_memory(value: &str) -> Result<String> {
+pub(crate) fn normalize_memory(value: &str) -> Result<String, Reason> {
     normalize_memory_within(value, crate::host::total_memory())
 }
 
-fn normalize_memory_within(value: &str, limit: Option<u64>) -> Result<String> {
+fn normalize_memory_within(value: &str, limit: Option<u64>) -> Result<String, Reason> {
     let trimmed = value.trim();
     let unit = trimmed
         .chars()
         .last()
         .filter(|c| "kmgKMG".contains(*c))
-        .ok_or(proto::error::ErrorInfo::InvalidValue {
-            field: proto::error::Field::Memory,
-            reason: proto::error::Reason::MemoryFormat,
-        })?;
+        .ok_or(Reason::MemoryFormat)?;
     let digits = &trimmed[..trimmed.len() - unit.len_utf8()];
     let valid = !digits.is_empty()
         && digits.bytes().all(|b| b.is_ascii_digit())
         && digits.bytes().any(|b| b != b'0');
     if !valid {
-        bail!(proto::error::ErrorInfo::InvalidValue {
-            field: proto::error::Field::Memory,
-            reason: proto::error::Reason::MemoryFormat
-        });
+        return Err(Reason::MemoryFormat);
     }
     let unit = unit.to_ascii_uppercase();
     if limit.is_some_and(|limit| bytes(digits, unit).is_none_or(|bytes| bytes > limit)) {
-        bail!(proto::error::ErrorInfo::InvalidValue {
-            field: proto::error::Field::Memory,
-            reason: proto::error::Reason::MemoryExceedsHost
-        });
+        return Err(Reason::MemoryExceedsHost);
     }
     Ok(promote(digits, unit))
 }
@@ -175,14 +176,11 @@ fn promote(digits: &str, unit: char) -> String {
 }
 
 /// Split JVM args on whitespace; every token must start with `-`.
-pub(crate) fn parse_jvm_args(value: &str) -> Result<Vec<String>> {
+pub(crate) fn parse_jvm_args(value: &str) -> Result<Vec<String>, Reason> {
     let mut args = Vec::new();
     for token in value.split_whitespace() {
         if !token.starts_with('-') {
-            bail!(proto::error::ErrorInfo::InvalidValue {
-                field: proto::error::Field::JvmArgs,
-                reason: proto::error::Reason::JvmArgsPrefix
-            });
+            return Err(Reason::JvmArgsPrefix);
         }
         args.push(token.to_string());
     }

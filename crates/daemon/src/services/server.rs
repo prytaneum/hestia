@@ -23,6 +23,7 @@ pub(super) fn register(on: &mut Channels<'_>) {
     on.handle::<ServerFlavors, _, _>(|_: Empty, ctx| async move {
         Ok(FlavorsResult {
             flavors: ctx.runtime.engine().flavors(Side::Server).await,
+            rules: engine::Servers::config_rules(),
         })
     });
 
@@ -263,7 +264,10 @@ pub(super) fn register(on: &mut Channels<'_>) {
             .into_iter()
             .map(|(key, value)| ConfigEntry { key, value })
             .collect();
-        Ok(ServerConfigListResult { entries })
+        Ok(ServerConfigListResult {
+            entries,
+            rules: engine::Servers::config_rules(),
+        })
     });
 
     on.handle::<ServerProperties, _, _>(|p, ctx| async move {

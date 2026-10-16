@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::content::ContentKind;
 use crate::download::Checksum;
+use crate::keys::KeyRule;
 
 /// A distribution offered by a domain: the first level of the `available`
 /// selector (`vanilla`, `fabric`, …).
@@ -101,6 +102,7 @@ pub fn downgrade_between(versions: &[GameVersion], from: &str, to: &str) -> Opti
 #[serde(default, rename_all = "camelCase")]
 pub struct FlavorsResult {
     pub flavors: Vec<Flavor>,
+    pub rules: Vec<KeyRule>,
 }
 
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]

@@ -85,7 +85,7 @@ export const channels: Handlers = {
     };
   },
 
-  'instance.flavors': () => ({ flavors: catalog.instanceFlavors }),
+  'instance.flavors': () => ({ flavors: catalog.instanceFlavors, rules: [] }),
   'instance.versions': (p) => ({
     versions: catalog.versionsFor(str(p, 'flavor')),
   }),

@@ -79,7 +79,11 @@ export function CreateEntryDialog({
   });
   const flavorsQuery = kind === 'server' ? serverFlavors : instanceFlavors;
   const flavors: Flavor[] = useMemo(
-    () => flavorsQuery.data ?? [],
+    () => flavorsQuery.data?.flavors ?? [],
+    [flavorsQuery.data],
+  );
+  const rules = useMemo(
+    () => flavorsQuery.data?.rules ?? [],
     [flavorsQuery.data],
   );
 
@@ -116,7 +120,7 @@ export function CreateEntryDialog({
   const form = useAppForm({
     defaultValues: createWizardDefaults('', defaultMemoryGb),
     validationLogic: revalidateLogic(),
-    validators: { onDynamic: createWizardSchema(kind, memoryRange) },
+    validators: { onDynamic: createWizardSchema(kind, memoryRange, rules) },
     onSubmit: async ({ value }) => {
       // Inherit the launcher default when the slider is left on it: store no
       // per-entry override, so a later change to the global default cascades.
@@ -300,7 +304,9 @@ export function CreateEntryDialog({
       ) : (
         <form.FormGroup
           name="details"
-          validators={{ onDynamic: detailsStepSchema(kind, memoryRange) }}
+          validators={{
+            onDynamic: detailsStepSchema(kind, memoryRange, rules),
+          }}
           onGroupSubmit={() => form.handleSubmit()}
         >
           {(group) => (
