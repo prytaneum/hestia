@@ -31,7 +31,7 @@ export interface Point {
   y: number;
 }
 
-export type DropEvent =
+type DropEvent =
   | { type: 'enter'; paths: string[]; position: Point }
   | { type: 'over'; position: Point }
   | { type: 'drop'; paths: string[]; position: Point }

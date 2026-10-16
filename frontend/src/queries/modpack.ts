@@ -26,14 +26,14 @@ import { keys } from './keys';
 const log = logger('modpack');
 
 /** What an install job needs: the pack, where it goes, and a server's extras. */
-export interface InstallInput {
+interface InstallInput {
   pack: PackRef;
   target: ModpackTarget;
   eula?: boolean;
   port?: number;
 }
 
-export type UpdateInput = api.PackMove;
+type UpdateInput = api.PackMove;
 
 function entryKeys(kind: JobEntryKind) {
   return kind === 'server' ? keys.servers : keys.instances;

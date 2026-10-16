@@ -8,7 +8,7 @@ const MIN_MEMORY_GB = 2;
 /** The ceiling offered until the host answers, or when it reports no memory. */
 const UNKNOWN_HOST_MEMORY_GB = 32;
 
-export const hostQueries = {
+const hostQueries = {
   info: () =>
     queryOptions({
       queryKey: keys.host.info(),

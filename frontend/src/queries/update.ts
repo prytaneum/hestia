@@ -16,7 +16,7 @@ import { mutation } from './core';
 import { jobMutation } from './jobs';
 import { keys } from './keys';
 
-export const updateQueries = {
+const updateQueries = {
   check: () =>
     queryOptions({
       queryKey: keys.update.check(),

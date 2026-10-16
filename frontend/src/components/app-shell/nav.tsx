@@ -15,7 +15,7 @@ import { layoutMorph } from '@/lib/motion';
 import { cn } from '@/lib/utils';
 import { m } from '@/paraglide/messages.js';
 
-export interface NavItem {
+interface NavItem {
   to: string;
   label: () => string;
   icon: Icon;

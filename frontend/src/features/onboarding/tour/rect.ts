@@ -5,7 +5,7 @@ import type { Box } from './placement';
 
 const RESOLVE_TIMEOUT_MS = 1500;
 
-export interface AnchorTracking {
+interface AnchorTracking {
   rect: Box | null;
   missing: boolean;
 }

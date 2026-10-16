@@ -195,7 +195,7 @@ export function VersionRow({
  * summary. So a flavor the daemon ships renders immediately with nothing added
  * here, and a locale that has translated it keeps its translation.
  */
-export function flavorSummary(flavor: Flavor): string {
+function flavorSummary(flavor: Flavor): string {
   const messages = m as unknown as Record<string, (() => string) | undefined>;
   return (
     messages[`domain.flavor.${flavor.id}.summary`]?.() ?? flavor.summary ?? ''

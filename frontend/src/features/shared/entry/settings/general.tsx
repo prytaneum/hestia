@@ -12,7 +12,7 @@ import { m } from '@/paraglide/messages.js';
 import type { JobEntryKind } from '@/queries';
 import { ChangeVersionDialog, type UpdateHandle } from '../dialogs';
 
-export interface GeneralSettingsProps {
+interface GeneralSettingsProps {
   kind: JobEntryKind;
   entry: { id: string; name: string; flavor: string; gameVersion: string };
   running: boolean;

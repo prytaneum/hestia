@@ -12,7 +12,7 @@ import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { m } from '@/paraglide/messages.js';
 import type { JobEntryKind } from '@/queries';
 
-export interface RemoveHandle {
+interface RemoveHandle {
   mutate: (v: undefined, o: { onSuccess: () => void }) => void;
 }
 

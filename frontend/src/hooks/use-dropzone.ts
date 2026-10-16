@@ -6,7 +6,7 @@ import {
   subscribeDropzone,
 } from '@/lib/file-drop';
 
-export interface DropzoneOptions {
+interface DropzoneOptions {
   /** Accepted file extensions, without the dot. */
   accept: readonly string[];
   /** The accepted files' absolute paths. */

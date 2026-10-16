@@ -25,7 +25,7 @@ function optimisticPrefs(
   return () => queryClient.setQueryData(key, previous);
 }
 
-export const prefsMutations = {
+const prefsMutations = {
   set: () =>
     mutation<void, { key: string; value: unknown }>({
       mutationKey: [...keys.prefs.all, 'set'],

@@ -16,7 +16,7 @@ import * as api from '../api/accounts';
 import { mutation } from './core';
 import { keys } from './keys';
 
-export const accountQueries = {
+const accountQueries = {
   list: () =>
     queryOptions({
       queryKey: keys.accounts.list(),
@@ -38,7 +38,7 @@ const gateKeys = () => [
   keys.sync.all,
 ];
 
-export const accountMutations = {
+const accountMutations = {
   /**
    * The desktop sign-in: one shell command drives the whole sisu flow behind a
    * native Microsoft window. Resolves to the new account, or `null` on cancel.

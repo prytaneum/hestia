@@ -9,7 +9,7 @@ import { queryClient } from './client';
 import { useConnection } from './connection';
 import { keys } from './keys';
 
-export const netQueries = {
+const netQueries = {
   status: () =>
     queryOptions({
       queryKey: keys.net.status(),

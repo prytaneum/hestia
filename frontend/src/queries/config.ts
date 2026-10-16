@@ -56,4 +56,4 @@ export function useMultiSession(): boolean {
   return data === true;
 }
 
-export const MULTI_SESSION_KEY = 'instance.multi-session';
+const MULTI_SESSION_KEY = 'instance.multi-session';

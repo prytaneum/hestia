@@ -11,7 +11,7 @@ import { useOnboarding } from '../state';
 import { type TourId, type TourStep, tours } from './registry';
 import { Spotlight } from './spotlight';
 
-export interface TourRun {
+interface TourRun {
   id: TourId;
   index: number;
 }

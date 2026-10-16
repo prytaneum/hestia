@@ -61,7 +61,7 @@ import { m } from '@/paraglide/messages.js';
 
 export type SymbolCategory = 'loader' | 'modded' | 'vanilla';
 
-export interface BackgroundOption {
+interface BackgroundOption {
   id: string;
   name: () => string;
   background: Extract<
@@ -70,7 +70,7 @@ export interface BackgroundOption {
   >;
 }
 
-export interface SymbolOption {
+interface SymbolOption {
   id: string;
   name: () => string;
   asset: string;

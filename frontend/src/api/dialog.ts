@@ -67,7 +67,7 @@ export async function pickInstanceArchive(): Promise<string[]> {
 }
 
 /** The pack formats an update from a file accepts, by extension. */
-export const PACK_EXTENSIONS = ['mrpack', 'zip'];
+const PACK_EXTENSIONS = ['mrpack', 'zip'];
 
 /** Pick one modpack file and return its absolute path, or null when dismissed. */
 export async function pickPackFile(): Promise<string | null> {

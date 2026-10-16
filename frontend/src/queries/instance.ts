@@ -28,14 +28,14 @@ import { keys } from './keys';
 import { type LogsOptions, type LogsResult, useFollowedLogs } from './logs';
 
 /** A launch, and whether it may run alongside the sessions already up. */
-export interface LaunchVars {
+interface LaunchVars {
   id: string;
   newSession?: boolean;
   quickPlay?: QuickPlay;
 }
 
 /** A stop aimed at one session of an instance, or at all of them. */
-export interface StopVars {
+interface StopVars {
   id: string;
   session?: string;
 }

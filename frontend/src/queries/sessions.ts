@@ -12,7 +12,7 @@ import { instanceQueries } from './instance';
 import { prefsQueries } from './prefs';
 
 /** The prefs key for "keep the launcher open while a game runs". */
-export const KEEP_OPEN_KEY = 'keepOpen';
+const KEEP_OPEN_KEY = 'keepOpen';
 
 /** The prefs key for what pressing close does. */
 export const CLOSE_ACTION_KEY = 'closeAction';

@@ -18,7 +18,7 @@ import { m } from '@/paraglide/messages.js';
 const DECAY = 0.6;
 const DECAY_MS = 450;
 
-export interface Sample {
+interface Sample {
   cpu: number;
   mem: number;
 }

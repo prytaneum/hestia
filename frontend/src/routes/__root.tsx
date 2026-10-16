@@ -6,7 +6,7 @@ import { TanStackRouterDevtoolsPanel } from '@tanstack/react-router-devtools';
 
 import { Toaster } from '@/components/ui/sonner';
 
-export interface RouterContext {
+interface RouterContext {
   queryClient: QueryClient;
 }
 

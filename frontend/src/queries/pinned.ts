@@ -11,7 +11,7 @@ const PINNED_ENTRIES_KEY = 'sidebar.pinned-entries';
 /** Stable empty fallback so the parse memo doesn't churn when nothing is pinned. */
 const NO_PINS: unknown[] = [];
 
-export type PinnedKind = 'instance' | 'server';
+type PinnedKind = 'instance' | 'server';
 export interface PinnedEntry {
   kind: PinnedKind;
   id: string;

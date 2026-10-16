@@ -14,7 +14,7 @@ export interface ModpackConfig {
   'overrides-exclusions'?: string;
 }
 
-export interface ConfigEntries {
+interface ConfigEntries {
   home?: string;
   autostart?: boolean;
   defaults?: { memory?: string; 'jvm-args'?: string };

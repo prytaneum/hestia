@@ -19,7 +19,7 @@ const TICK_MS = 260;
 
 const running = new Map<string, () => void>();
 
-export interface Plan {
+interface Plan {
   /** The client's job id; every event of the job carries it. */
   id: string;
   /** The topic family — `server.create`, `content`, `java.install`, … */
@@ -65,7 +65,7 @@ export function runPlan(plan: Plan): { id: string } {
 }
 
 /** One step of a provisioning job — a phase, and what the UI names under it. */
-export interface JobStep {
+interface JobStep {
   phase: ProvisionPhase;
   detail?: string;
 }

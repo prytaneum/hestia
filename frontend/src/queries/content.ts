@@ -21,7 +21,7 @@ import { keys } from './keys';
 const BROWSE_STALE_MS = 60_000;
 
 /** Hits fetched per page when paging the browse grid. */
-export const SEARCH_PAGE = 20;
+const SEARCH_PAGE = 20;
 
 /** Shape only; which sources are recognised is the daemon's answer. */
 export const isContentUrl = (text: string): boolean =>

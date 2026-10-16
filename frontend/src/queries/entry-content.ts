@@ -16,7 +16,7 @@ import { mutation } from './core';
 import { type JobEntryKind, jobMutation } from './jobs';
 
 /** The content api surface both `serverApi.content` and `instanceApi.content` satisfy. */
-export interface EntryContentApi {
+interface EntryContentApi {
   add(
     id: string,
     spec: ContentAddInput,
@@ -52,7 +52,7 @@ export interface EntryContentApi {
   ): Promise<ContentDoneEvent>;
 }
 
-export interface EntryContentConfig {
+interface EntryContentConfig {
   /** The entry tag jobs carry, so an activity surface groups by entry. */
   kind: JobEntryKind;
   api: EntryContentApi;

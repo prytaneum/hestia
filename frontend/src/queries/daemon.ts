@@ -9,7 +9,7 @@ import { useConnection } from './connection';
 import { mutation } from './core';
 import { keys } from './keys';
 
-export const daemonQueries = {
+const daemonQueries = {
   status: () =>
     queryOptions({
       queryKey: keys.daemon.status(),
@@ -17,7 +17,7 @@ export const daemonQueries = {
     }),
 };
 
-export const daemonMutations = {
+const daemonMutations = {
   /** Spawn a stopped daemon; the settle refetch fills in its live status. */
   start: () =>
     mutation<DaemonStatusResult, void>({
