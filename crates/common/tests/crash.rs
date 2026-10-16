@@ -1,3 +1,4 @@
+use std::fs;
 use std::panic;
 
 #[test]
@@ -12,10 +13,14 @@ fn a_panic_writes_a_report_carrying_the_log_tail() {
     let result = panic::catch_unwind(|| panic!("deliberate test panic"));
     assert!(result.is_err(), "the panic must still propagate");
 
-    let reports = common::crash::list();
+    let reports: Vec<_> = fs::read_dir(common::paths::log_dir(Some(home)).join("crashes"))
+        .expect("crash directory exists")
+        .flatten()
+        .map(|entry| entry.path())
+        .collect();
     assert_eq!(reports.len(), 1, "expected exactly one report: {reports:?}");
 
-    let report = common::crash::read(&reports[0]).expect("report is readable");
+    let report = fs::read_to_string(&reports[0]).expect("report is readable");
     let paths = report.replace('\\', "/");
     assert!(report.contains("deliberate test panic"), "{report}");
     assert!(report.contains("kind:     panic"), "{report}");
@@ -24,7 +29,4 @@ fn a_panic_writes_a_report_carrying_the_log_tail() {
         report.contains("a line the report should carry"),
         "{report}"
     );
-
-    common::crash::clear().expect("reports are removable");
-    assert!(common::crash::list().is_empty());
 }

@@ -1,7 +1,6 @@
 /**
- * `log_write` and `crash_*` — the shell's log sink and crash-report store.
- * A browser has the devtools console for both, so the write is forwarded there
- * and the report store stays empty.
+ * `log_write` and `crash_report` — the shell's log sink and crash recorder.
+ * A browser has the devtools console for both, so the write is forwarded there.
  */
 import { type Handlers, str } from '../support';
 
@@ -17,8 +16,4 @@ export const commands: Handlers = {
     console.error(`[mock:crash] ${str(p, 'kind')}`, str(p, 'message'));
     return null;
   },
-
-  crash_list: () => [],
-  crash_read: () => '',
-  crash_clear: () => null,
 };

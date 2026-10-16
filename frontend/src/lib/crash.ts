@@ -2,11 +2,6 @@ import { invoke } from '@tauri-apps/api/core';
 
 import { log } from './log';
 
-export interface CrashReport {
-  path: string;
-  contents: string;
-}
-
 function detailOf(error: unknown): string {
   if (error instanceof Error) {
     return error.stack ?? `${error.name}: ${error.message}`;
@@ -44,15 +39,4 @@ export function installCrashHandlers(): void {
   window.addEventListener('unhandledrejection', (event) => {
     report('ui-rejection', event.reason);
   });
-}
-
-export async function lastCrash(): Promise<CrashReport | null> {
-  const paths = await invoke<string[]>('crash_list');
-  const path = paths[0];
-  if (!path) return null;
-  return { path, contents: await invoke<string>('crash_read', { path }) };
-}
-
-export async function clearCrashes(): Promise<void> {
-  await invoke('crash_clear');
 }

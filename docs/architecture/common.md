@@ -92,9 +92,8 @@ crash left nothing but a missing process
 - `record()` is the same path for a crash that never touched the Rust stack — the
   desktop's webview errors, where a React render failure kills the UI without
   panicking anything.
-- `list`/`read`/`clear` back the desktop's crash notice. All four binaries share
-  one directory, so the desktop can surface a *daemon* crash it never saw.
-- `read` only opens paths the module itself wrote.
+- All four binaries share one directory, so a *daemon* crash is on disk next to
+  the desktop's own.
 
 Release builds use `panic = "abort"` with `strip = true`, which leaves release
 backtraces as bare addresses.

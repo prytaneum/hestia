@@ -102,10 +102,7 @@ pub fn run() {
             commands::opener::open_url,
             commands::splash::ready,
             commands::diagnostics::log_write,
-            commands::diagnostics::crash_report,
-            commands::diagnostics::crash_list,
-            commands::diagnostics::crash_read,
-            commands::diagnostics::crash_clear
+            commands::diagnostics::crash_report
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

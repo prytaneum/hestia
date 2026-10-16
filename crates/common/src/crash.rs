@@ -53,36 +53,6 @@ pub fn record(kind: &str, message: &str, location: &str, detail: &str) -> Option
     write_report(kind, message, location, detail)
 }
 
-pub fn list() -> Vec<PathBuf> {
-    let Some(target) = TARGET.get() else {
-        return Vec::new();
-    };
-    let mut reports: Vec<PathBuf> = fs::read_dir(&target.dir)
-        .into_iter()
-        .flatten()
-        .flatten()
-        .map(|entry| entry.path())
-        .filter(|path| path.extension().is_some_and(|e| e == "log"))
-        .collect();
-    reports.sort_unstable();
-    reports.reverse();
-    reports
-}
-
-pub fn read(path: &Path) -> io::Result<String> {
-    if !list().iter().any(|known| known == path) {
-        return Err(io::Error::new(io::ErrorKind::NotFound, "unknown report"));
-    }
-    fs::read_to_string(path)
-}
-
-pub fn clear() -> io::Result<()> {
-    for report in list() {
-        fs::remove_file(report)?;
-    }
-    Ok(())
-}
-
 fn write_report(kind: &str, message: &str, location: &str, detail: &str) -> Option<PathBuf> {
     let target = TARGET.get()?;
     fs::create_dir_all(&target.dir).ok()?;
