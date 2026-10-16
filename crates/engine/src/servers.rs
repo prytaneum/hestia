@@ -8,9 +8,9 @@
 
 use std::collections::{BTreeSet, HashSet};
 use std::path::{Path, PathBuf};
-use std::sync::Mutex;
 
 use anyhow::{bail, Context, Result};
+use proto::error::EntryKind;
 use proto::keys::KeyRule;
 use proto::minecraft::{ProvisionPhase, ProvisionProgress};
 use proto::server::ServerProperty;
@@ -24,7 +24,7 @@ use crate::minecraft::materialize::{self, OnProgress};
 use crate::minecraft::profile::ServerProfile;
 use crate::process::{Outcome, ProcessSupervisor, Task};
 use crate::properties;
-use crate::registry;
+use crate::registry::{self, Entry, Store};
 use crate::schema::Document;
 
 const PROPERTIES: &str = "server.properties";
@@ -113,34 +113,45 @@ impl ServerRecord {
     }
 }
 
+impl Entry for ServerRecord {
+    const KIND: EntryKind = EntryKind::Server;
+
+    fn id(&self) -> &str {
+        &self.id
+    }
+
+    fn name(&self) -> &str {
+        &self.name
+    }
+
+    fn set_name(&mut self, name: String) {
+        self.name = name;
+    }
+}
+
 pub struct Servers {
-    dir: Mutex<PathBuf>,
-    // Serializes scan-pick-persist port claims so two concurrent creates or
-    // starts cannot claim the same port.
-    claims: Mutex<()>,
+    store: Store<ServerRecord>,
 }
 
 impl Servers {
     pub fn new(dir: PathBuf) -> Self {
         Servers {
-            dir: Mutex::new(dir),
-            claims: Mutex::new(()),
+            store: Store::new(dir),
         }
     }
 
     pub fn reload(&self, dir: PathBuf) {
-        *self.dir.lock().unwrap() = dir;
+        self.store.reload(dir);
     }
 
     pub fn dir(&self) -> PathBuf {
-        self.dir.lock().unwrap().clone()
+        self.store.dir()
     }
 
     /// The server's directory, named for its current display name, so a rename
     /// moves it; the id stays the entry's stable internal key.
     pub fn server_dir(&self, record: &ServerRecord) -> PathBuf {
-        self.dir()
-            .join(registry::dir_name(&record.id, &record.name))
+        self.store.entry_dir(record)
     }
 
     /// The server's working directory — everything the game itself reads and
@@ -163,16 +174,12 @@ impl Servers {
     }
 
     pub fn list(&self) -> Vec<ServerRecord> {
-        let mut records: Vec<ServerRecord> = registry::scan(&self.dir());
-        records.sort_by(|a, b| a.name.cmp(&b.name));
-        records
+        self.store.list()
     }
 
     /// Find one server by id or name (any spelling that slugs the same).
     pub fn get(&self, reference: &str) -> Option<ServerRecord> {
-        self.list()
-            .into_iter()
-            .find(|r| proto::naming::reference_matches(reference, &r.id, &r.name))
+        self.store.get(reference)
     }
 
     /// Register a new server: allocate its id from the name, claim its game
@@ -183,33 +190,21 @@ impl Servers {
         profile: ServerProfile,
         port: Option<u16>,
     ) -> Result<ServerRecord> {
-        if registry::name_taken(name, self.list().iter().map(|r| r.name.as_str())) {
-            bail!(proto::error::ErrorInfo::AlreadyExists {
-                entry: proto::error::EntryKind::Server,
-                name: name.to_string()
-            });
-        }
-        registry::slugify(name)?;
-        let id = registry::allocate_id(|id| self.get(id).is_some())?;
-        let _claims = self.claims.lock().unwrap();
-        let game_port = self.claim_game_port(port)?;
-        let record = ServerRecord {
-            id,
-            name: name.to_string(),
-            created_unix: registry::now_unix(),
-            phase: ServerPhase::Provisioning,
-            game_port: Some(game_port),
-            rcon: None,
-            jvm: JavaSettings::default(),
-            backup: BackupSettings::default(),
-            tasks: Vec::new(),
-            profile,
-        };
-        let dir = self.server_dir(&record);
-        std::fs::create_dir_all(&dir)
-            .with_context(|| format!("cannot create {}", dir.display()))?;
-        registry::write_record(&dir, &record)?;
-        tracing::info!(id = %record.id, name, game_port, "server registered");
+        let record = self.store.register(name, |id| {
+            Ok(ServerRecord {
+                id,
+                name: name.to_string(),
+                created_unix: registry::now_unix(),
+                phase: ServerPhase::Provisioning,
+                game_port: Some(self.claim_game_port(port)?),
+                rcon: None,
+                jvm: JavaSettings::default(),
+                backup: BackupSettings::default(),
+                tasks: Vec::new(),
+                profile,
+            })
+        })?;
+        tracing::info!(id = %record.id, name, game_port = record.game_port, "server registered");
         Ok(record)
     }
 
@@ -248,41 +243,38 @@ impl Servers {
     /// squatter is an error. The rcon port is internal and reallocates freely;
     /// a record from before ports existed gains both here.
     pub fn ensure_start_config(&self, id: &str) -> Result<ServerRecord> {
-        let _claims = self.claims.lock().unwrap();
-        let mut record = self
-            .get(id)
-            .with_context(|| format!("unknown server: {id}"))?;
-        let claimed = self.claimed_ports(Some(&record.id));
+        self.store.mutate(id, |record| {
+            let claimed = self.claimed_ports(Some(&record.id));
 
-        let game_port = match record.game_port {
-            Some(port) => port,
-            None => allocate_port(GAME_PORT_BASE, &claimed)?,
-        };
-        if claimed.contains(&game_port) || !can_bind(game_port) {
-            bail!(proto::error::ErrorInfo::PortUnavailable { port: game_port });
-        }
+            let game_port = match record.game_port {
+                Some(port) => port,
+                None => allocate_port(GAME_PORT_BASE, &claimed)?,
+            };
+            if claimed.contains(&game_port) || !can_bind(game_port) {
+                bail!(proto::error::ErrorInfo::PortUnavailable { port: game_port });
+            }
 
-        let rcon = match record.rcon.take() {
-            Some(cfg) if !claimed.contains(&cfg.port) && can_bind(cfg.port) => cfg,
-            prior => RconConfig {
-                port: allocate_port(RCON_PORT_BASE, &claimed)?,
-                password: prior.map(|c| c.password).unwrap_or_else(generate_password),
-            },
-        };
+            let rcon = match record.rcon.take() {
+                Some(cfg) if !claimed.contains(&cfg.port) && can_bind(cfg.port) => cfg,
+                prior => RconConfig {
+                    port: allocate_port(RCON_PORT_BASE, &claimed)?,
+                    password: prior.map(|c| c.password).unwrap_or_else(generate_password),
+                },
+            };
 
-        merge_properties(
-            &self.data_dir(&record).join(PROPERTIES),
-            &[
-                ("server-port", game_port.to_string()),
-                ("enable-rcon", "true".to_string()),
-                ("rcon.port", rcon.port.to_string()),
-                ("rcon.password", rcon.password.clone()),
-            ],
-        )?;
-        record.game_port = Some(game_port);
-        record.rcon = Some(rcon);
-        registry::write_record(&self.server_dir(&record), &record)?;
-        Ok(record)
+            merge_properties(
+                &self.data_dir(record).join(PROPERTIES),
+                &[
+                    ("server-port", game_port.to_string()),
+                    ("enable-rcon", "true".to_string()),
+                    ("rcon.port", rcon.port.to_string()),
+                    ("rcon.password", rcon.password.clone()),
+                ],
+            )?;
+            record.game_port = Some(game_port);
+            record.rcon = Some(rcon);
+            Ok(record.clone())
+        })
     }
 
     /// Create the server's data directory and record the EULA acceptance the
@@ -422,15 +414,13 @@ impl Servers {
     /// recovers it. Name, ports, JVM settings, and the world on disk are
     /// untouched. Returns the swapped record and the jar it replaces.
     pub fn begin_update(&self, id: &str, profile: ServerProfile) -> Result<(ServerRecord, String)> {
-        let mut record = self
-            .get(id)
-            .with_context(|| format!("unknown server: {id}"))?;
-        materialize::validate_filename(profile.jar.filename())?;
-        let previous_jar = record.profile.jar.filename().to_string();
-        record.profile = profile;
-        record.phase = ServerPhase::Updating;
-        registry::write_record(&self.server_dir(&record), &record)?;
-        Ok((record, previous_jar))
+        self.store.mutate(id, |record| {
+            materialize::validate_filename(profile.jar.filename())?;
+            let previous_jar = record.profile.jar.filename().to_string();
+            record.profile = profile;
+            record.phase = ServerPhase::Updating;
+            Ok((record.clone(), previous_jar))
+        })
     }
 
     pub fn finish_update(&self, record: &ServerRecord, previous_jar: &str) -> Result<ServerRecord> {
@@ -453,12 +443,10 @@ impl Servers {
     /// Move a server to another lifecycle phase, persisted immediately — the
     /// disk is the registry, and startup recovery reads exactly this.
     pub fn mark_phase(&self, id: &str, phase: ServerPhase) -> Result<ServerRecord> {
-        let mut record = self
-            .get(id)
-            .with_context(|| format!("unknown server: {id}"))?;
-        record.phase = phase;
-        registry::write_record(&self.server_dir(&record), &record)?;
-        Ok(record)
+        self.store.mutate(id, |record| {
+            record.phase = phase;
+            Ok(record.clone())
+        })
     }
 
     /// Reconcile records a crash left mid-lifecycle. No job survives a restart,
@@ -505,34 +493,7 @@ impl Servers {
     /// new slug. The id is stable, so ports, rcon, the process, and JVM/backup
     /// settings are untouched. The caller guarantees it is stopped and not busy.
     pub fn rename(&self, reference: &str, new_name: &str) -> Result<ServerRecord> {
-        let _claims = self.claims.lock().unwrap();
-        let mut record = self
-            .get(reference)
-            .with_context(|| format!("unknown server: {reference}"))?;
-        if registry::name_taken(
-            new_name,
-            self.list()
-                .iter()
-                .filter(|r| r.id != record.id)
-                .map(|r| r.name.as_str()),
-        ) {
-            bail!(proto::error::ErrorInfo::AlreadyExists {
-                entry: proto::error::EntryKind::Server,
-                name: new_name.to_string()
-            });
-        }
-        registry::slugify(new_name)?;
-        let old_dir = self.server_dir(&record);
-        record.name = new_name.to_string();
-        let new_dir = self.server_dir(&record);
-        if new_dir != old_dir && old_dir.exists() {
-            std::fs::rename(&old_dir, &new_dir).with_context(|| {
-                format!("cannot move {} to {}", old_dir.display(), new_dir.display())
-            })?;
-        }
-        registry::write_record(&new_dir, &record)?;
-        tracing::info!(id = %record.id, name = %new_name, "server renamed");
-        Ok(record)
+        self.store.rename(reference, new_name)
     }
 
     /// Store a scheduled task: a new one when its id is empty, else in place
@@ -540,71 +501,52 @@ impl Servers {
     /// from `now` — otherwise an interval would fire at once and a daily time
     /// already past would too.
     pub fn save_task(&self, id: &str, task: ServerTask, now: i64) -> Result<ServerTask> {
-        let _claims = self.claims.lock().unwrap();
-        let mut record = self
-            .get(id)
-            .with_context(|| format!("unknown server: {id}"))?;
-        let mut task = crate::tasks::checked(task)?;
-        match record.tasks.iter_mut().find(|stored| stored.id == task.id) {
-            Some(stored) => {
-                task.last_run_unix = match stored.schedule == task.schedule {
-                    true => stored.last_run_unix,
-                    false => now,
-                };
-                *stored = task.clone();
+        self.store.mutate(id, |record| {
+            let mut task = crate::tasks::checked(task)?;
+            match record.tasks.iter_mut().find(|stored| stored.id == task.id) {
+                Some(stored) => {
+                    task.last_run_unix = match stored.schedule == task.schedule {
+                        true => stored.last_run_unix,
+                        false => now,
+                    };
+                    *stored = task.clone();
+                }
+                None => {
+                    task.id = registry::allocate_id(|candidate| {
+                        record.tasks.iter().any(|stored| stored.id == candidate)
+                    })?;
+                    task.last_run_unix = now;
+                    record.tasks.push(task.clone());
+                }
             }
-            None => {
-                task.id = registry::allocate_id(|candidate| {
-                    record.tasks.iter().any(|stored| stored.id == candidate)
-                })?;
-                task.last_run_unix = now;
-                record.tasks.push(task.clone());
-            }
-        }
-        registry::write_record(&self.server_dir(&record), &record)?;
-        tracing::info!(server = %record.id, task = %task.id, schedule = %task.schedule, "task saved");
-        Ok(task)
+            tracing::info!(server = %record.id, task = %task.id, schedule = %task.schedule, "task saved");
+            Ok(task)
+        })
     }
 
     /// Returns false when the server has no task with that id.
     pub fn remove_task(&self, id: &str, task_id: &str) -> Result<bool> {
-        let _claims = self.claims.lock().unwrap();
-        let mut record = self
-            .get(id)
-            .with_context(|| format!("unknown server: {id}"))?;
-        let before = record.tasks.len();
-        record.tasks.retain(|task| task.id != task_id);
-        if record.tasks.len() == before {
-            return Ok(false);
-        }
-        registry::write_record(&self.server_dir(&record), &record)?;
-        Ok(true)
+        self.store.mutate(id, |record| {
+            let before = record.tasks.len();
+            record.tasks.retain(|task| task.id != task_id);
+            Ok(record.tasks.len() != before)
+        })
     }
 
     /// Stamp a task as run, so its schedule counts from here.
     pub fn mark_task_run(&self, id: &str, task_id: &str, now: i64) -> Result<()> {
-        let _claims = self.claims.lock().unwrap();
-        let mut record = self
-            .get(id)
-            .with_context(|| format!("unknown server: {id}"))?;
-        if let Some(task) = record.tasks.iter_mut().find(|task| task.id == task_id) {
-            task.last_run_unix = now;
-            registry::write_record(&self.server_dir(&record), &record)?;
-        }
-        Ok(())
+        self.store.mutate(id, |record| {
+            if let Some(task) = record.tasks.iter_mut().find(|task| task.id == task_id) {
+                task.last_run_unix = now;
+            }
+            Ok(())
+        })
     }
 
     /// Delete a server's directory (jar, world and all). Returns false when no
     /// server matches.
     pub fn remove(&self, reference: &str) -> Result<bool> {
-        let Some(record) = self.get(reference) else {
-            return Ok(false);
-        };
-        let dir = self.server_dir(&record);
-        std::fs::remove_dir_all(&dir)
-            .with_context(|| format!("cannot remove {}", dir.display()))?;
-        tracing::info!(id = %record.id, "server removed");
-        Ok(true)
+        self.store.remove(reference)
     }
 
     pub fn launch_plan(
@@ -619,9 +561,7 @@ impl Servers {
     /// Read one setting: a reserved JVM or backup key from the record, or any
     /// other key from `server.properties`. `Ok(None)` means the key is not set.
     pub fn config_get(&self, id: &str, key: &str) -> Result<Option<String>> {
-        let record = self
-            .get(id)
-            .with_context(|| format!("unknown server: {id}"))?;
+        let record = self.store.require(id)?;
         if let Some(value) = record.jvm.get(key).or_else(|| record.backup.get(key)) {
             return Ok(value);
         }
@@ -638,40 +578,37 @@ impl Servers {
     /// key; a key the table does not know takes any string. An empty value
     /// clears a JVM key. Settings take effect on the next start.
     pub fn config_set(&self, id: &str, key: &str, value: &str) -> Result<()> {
-        let _claims = self.claims.lock().unwrap();
-        let mut record = self
-            .get(id)
-            .with_context(|| format!("unknown server: {id}"))?;
-        if record.jvm.set(key, value)? || record.backup.set(key, value)? {
-            registry::write_record(&self.server_dir(&record), &record)?;
-            return Ok(());
-        }
-        if MANAGED_PROPERTIES.contains(&key) {
-            bail!(
-                "'{key}' is managed by hestia (the game port is fixed at create with -p; \
-                 rcon is configured automatically)"
-            );
-        }
-        let properties = self.data_dir(&record).join(PROPERTIES);
-        let schema = self.schema_path(&record);
-        if schema.is_file() {
-            if read_property(&schema, key).is_none() {
-                bail!(proto::error::ErrorInfo::ConfigKeyUnknown {
-                    key: key.to_string()
-                });
+        self.store.mutate(id, |record| {
+            if record.jvm.set(key, value)? || record.backup.set(key, value)? {
+                return Ok(());
             }
-        } else {
-            tracing::debug!(
-                id = %record.id,
-                key,
-                "no properties schema to validate against; accepting the key"
-            );
-        }
-        properties::validate(key, value).map_err(invalid(key))?;
-        if HARDCORE_KEYS.contains(&key) {
-            check_hardcore_invariant(&properties, key, value)?;
-        }
-        merge_properties(&properties, &[(key, value.to_string())])
+            if MANAGED_PROPERTIES.contains(&key) {
+                bail!(
+                    "'{key}' is managed by hestia (the game port is fixed at create with -p; \
+                     rcon is configured automatically)"
+                );
+            }
+            let properties = self.data_dir(record).join(PROPERTIES);
+            let schema = self.schema_path(record);
+            if schema.is_file() {
+                if read_property(&schema, key).is_none() {
+                    bail!(proto::error::ErrorInfo::ConfigKeyUnknown {
+                        key: key.to_string()
+                    });
+                }
+            } else {
+                tracing::debug!(
+                    id = %record.id,
+                    key,
+                    "no properties schema to validate against; accepting the key"
+                );
+            }
+            properties::validate(key, value).map_err(invalid(key))?;
+            if HARDCORE_KEYS.contains(&key) {
+                check_hardcore_invariant(&properties, key, value)?;
+            }
+            merge_properties(&properties, &[(key, value.to_string())])
+        })
     }
 
     /// Every rule a server's settings are checked against.
@@ -685,9 +622,7 @@ impl Servers {
     /// The reserved JVM and backup settings (always shown) followed by every
     /// current `server.properties` entry.
     pub fn config_list(&self, id: &str) -> Result<Vec<(String, String)>> {
-        let record = self
-            .get(id)
-            .with_context(|| format!("unknown server: {id}"))?;
+        let record = self.store.require(id)?;
         let mut entries = record.jvm.entries();
         entries.extend(record.backup.entries());
         entries.extend(read_properties(&self.data_dir(&record).join(PROPERTIES)));
@@ -698,9 +633,7 @@ impl Servers {
     /// schema defines, plus any the live file carries beyond it, each with the
     /// value in effect.
     pub fn properties(&self, id: &str) -> Result<Vec<ServerProperty>> {
-        let record = self
-            .get(id)
-            .with_context(|| format!("unknown server: {id}"))?;
+        let record = self.store.require(id)?;
         Ok(describe_properties(
             &read_properties(&self.data_dir(&record).join(PROPERTIES)),
             &read_properties(&self.schema_path(&record)),

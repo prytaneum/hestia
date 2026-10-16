@@ -63,7 +63,10 @@ identically.
 
 `servers/<dir>/server.json` and `instances/<dir>/instance.json` hold the resolved
 profile snapshot plus per-entry settings. Listing scans the directory — the disk
-is the registry.
+is the registry. Both stores are one generic `registry::Store`: name uniqueness,
+id allocation, rename-by-moving-the-directory and removal are written once, and
+every read-modify-write of a record runs under its single write lock, so two
+concurrent updates cannot persist from a stale read.
 
 | Setting | On | Meaning |
 |---|---|---|
@@ -126,8 +129,8 @@ mid-swap" (keep) ([0023](../decisions/0023-server-phase-over-a-ready-bool.md)).
 
 A server claims its game port at create (lowest free from 25565, or pinned) and
 its RCON console — port plus a random password — at first start. Claims are
-checked against every other record **plus a live bind probe** under one
-allocation lock, so concurrent creates can never collide.
+checked against every other record **plus a live bind probe** under the
+store's write lock, so concurrent creates can never collide.
 `ensure_start_config` reconciles them into `server.properties` before each spawn,
 preserving your edits.
 
