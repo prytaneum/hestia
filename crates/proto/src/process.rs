@@ -5,18 +5,6 @@ use serde::{Deserialize, Serialize};
 
 use crate::contract::{Contract, Empty, Topic};
 
-/// What the supervisor does when a launched process exits.
-#[derive(Serialize, Deserialize, Default, Debug, Clone, Copy, PartialEq, Eq)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
-#[serde(rename_all = "snake_case")]
-pub enum RestartPolicy {
-    /// Leave the process dead once it exits (the default).
-    #[default]
-    Never,
-    /// Re-spawn it if it exits non-zero, up to a bounded number of attempts.
-    OnFailure,
-}
-
 /// Where a supervised process's output ends up.
 #[derive(Serialize, Deserialize, Default, Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
@@ -41,7 +29,6 @@ pub struct ProcessSpec {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cwd: Option<PathBuf>,
     pub env: BTreeMap<String, String>,
-    pub restart: RestartPolicy,
     pub log: LogSource,
 }
 

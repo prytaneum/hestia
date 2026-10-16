@@ -17,7 +17,7 @@ use std::time::{Duration, Instant};
 use engine::{Engine, InstanceRecord, ServerRecord};
 use proto::error::ErrorInfo;
 use proto::instance::InstanceInfo;
-use proto::process::{LogSource, ProcessInfo, ProcessSpec, ProcessState, RestartPolicy};
+use proto::process::{LogSource, ProcessInfo, ProcessSpec, ProcessState};
 use proto::server::ServerInfo;
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::sync::Notify;
@@ -199,7 +199,6 @@ impl Runtime {
             log: LogSource::File(plan.cwd.join("logs").join("latest.log")),
             cwd: Some(plan.cwd),
             env: Default::default(),
-            restart: RestartPolicy::Never,
         };
         match self.processes.start(spec).await {
             Ok(info) => Ok(info),

@@ -10,6 +10,5 @@
   "env": {
     "JAVATOOLOPTIONS": "-Xmx4G"
   },
-  "restart": "on_failure",
   "log": "capture"
 }

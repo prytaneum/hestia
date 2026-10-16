@@ -9,7 +9,7 @@ use proto::instance::{
     InstanceLaunchProgressEvent, QuickPlay,
 };
 use proto::minecraft::ProvisionProgress;
-use proto::process::{LogSource, ProcessSpec, RestartPolicy};
+use proto::process::{LogSource, ProcessSpec};
 use proto::warning::WarningInfo;
 
 use super::job::{progress_event, settle, Cancellations, Runner, Spec};
@@ -145,7 +145,6 @@ async fn launch(
         log: LogSource::File(prepared.log_file),
         cwd: Some(prepared.plan.cwd),
         env: BTreeMap::new(),
-        restart: RestartPolicy::Never,
     };
     match processes.start(spec).await {
         Ok(info) => {

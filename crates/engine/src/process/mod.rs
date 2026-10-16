@@ -24,7 +24,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use proto::process::{
     LogSource, LogStream, ProcessExitEvent, ProcessInfo, ProcessLogLine, ProcessSpec,
-    ProcessStartedEvent, ProcessState, RestartPolicy,
+    ProcessStartedEvent, ProcessState,
 };
 use tokio::process::{Child, Command};
 use tokio::sync::Notify;
@@ -33,13 +33,11 @@ use records::ProcessRecord;
 
 /// Lines `process.logs` returns when no explicit tail is given.
 const DEFAULT_LOG_LINES: usize = 2000;
-/// How many times `OnFailure` re-spawns a process before giving up.
-const MAX_RESTARTS: u32 = 3;
 
 /// How many finished processes keep their directory (logs included) for
 /// post-mortem. Count-based like `backup prune`, and for the same reason:
 /// retention has to be stated, or "keep the logs" means "grow forever".
-const TOMBSTONE_KEEP: usize = 20;
+const FINISHED_KEEP: usize = 20;
 /// How long a stop waits between the polite signal and the hard kill.
 const STOP_GRACE: Duration = Duration::from_secs(10);
 /// How often an adopted (non-child) process is checked for exit.
@@ -180,16 +178,9 @@ impl ProcessSupervisor {
         let pid = child.id().unwrap_or(0);
         let started_unix = now_unix();
 
+        let record = ProcessRecord::for_spawn(&spec, pid, started_unix);
         let entry = Arc::new(Entry {
-            info: Mutex::new(ProcessInfo {
-                id: spec.id.clone(),
-                pid,
-                program: spec.program.clone(),
-                args: secrets::redact(&spec.args),
-                state: ProcessState::Running,
-                exit_code: None,
-                started_unix,
-            }),
+            info: Mutex::new(record.info()),
             log_path: io.log_path,
             err_path: io.err_path,
             stopping: AtomicBool::new(false),
@@ -199,10 +190,7 @@ impl ProcessSupervisor {
             .lock()
             .unwrap()
             .insert(spec.id.clone(), entry.clone());
-        records::save(
-            &proc_dir,
-            &ProcessRecord::for_spawn(&spec, pid, started_unix),
-        );
+        records::save(&proc_dir, &record);
         let snapshot = entry.snapshot();
 
         // spec.args may carry launch credentials (e.g. an access token) — never log them.
@@ -227,7 +215,7 @@ impl ProcessSupervisor {
                 tree: identity::Tree::hold(&child),
                 child: Box::new(child),
             },
-            spec,
+            record,
             self.events().cloned(),
             proc_dir,
             io.tail_from,
@@ -238,81 +226,19 @@ impl ProcessSupervisor {
 
     /// Called once at daemon start, before the endpoint accepts requests.
     pub fn recover(&self) {
-        let mut recorded = HashSet::new();
+        let mut known = HashSet::new();
         for record in records::scan(&self.dir()) {
-            recorded.insert(record.id.clone());
+            known.insert(record.id.clone());
+            if record.ended.is_some() {
+                continue;
+            }
             let proc_dir = self.dir().join(&record.id);
-            let (log_path, err_path) = log_paths(&record.spec, &proc_dir);
-            let alive = identity::is_same(record.pid, record.pid_started);
-            let entry = Arc::new(Entry {
-                info: Mutex::new(ProcessInfo {
-                    id: record.id.clone(),
-                    pid: record.pid,
-                    program: record.spec.program.clone(),
-                    args: secrets::redact(&record.spec.args),
-                    state: if alive {
-                        ProcessState::Running
-                    } else {
-                        ProcessState::Exited
-                    },
-                    exit_code: None,
-                    started_unix: record.started_unix,
-                }),
-                log_path,
-                err_path,
-                stopping: AtomicBool::new(false),
-                stop_notify: Notify::new(),
-            });
-            self.table
-                .lock()
-                .unwrap()
-                .insert(record.id.clone(), entry.clone());
-
-            if alive {
-                tracing::info!(id = %record.id, pid = record.pid, "re-adopted process");
-                emit(
-                    self.events(),
-                    &ProcessStartedEvent {
-                        id: record.id.clone(),
-                        pid: record.pid,
-                    },
-                );
-                let tail_from = std::fs::metadata(&entry.log_path)
-                    .map(|m| m.len())
-                    .unwrap_or(0);
-                tokio::spawn(supervise(
-                    entry,
-                    Watched::Adopted {
-                        pid: record.pid,
-                        token: record.pid_started,
-                    },
-                    record.spec,
-                    self.events().cloned(),
-                    proc_dir,
-                    tail_from,
-                    self.on_exit.get().cloned(),
-                ));
-            } else {
+            if !identity::is_same(record.pid, record.pid_started) {
                 tracing::info!(id = %record.id, pid = record.pid, "process exited while unsupervised");
-                // It ended while nobody was watching, so nothing wrote its
-                // tombstone at the time; write it now, or its logs would be a
-                // stray to the next sweep.
-                records::entomb(
+                records::save(
                     &proc_dir,
-                    &records::Tombstone {
-                        id: record.id.clone(),
-                        pid: record.pid,
-                        state: ProcessState::Exited,
-                        exit_code: None,
-                        program: record.spec.program.clone(),
-                        args: secrets::redact(&record.spec.args),
-                        started_unix: record.started_unix,
-                        ended_unix: now_unix(),
-                        log_path: entry.log_path.clone(),
-                        err_path: entry.err_path.clone(),
-                    },
+                    &record.clone().end(ProcessState::Exited, None, now_unix()),
                 );
-                self.table.lock().unwrap().remove(&record.id);
                 emit(
                     self.events(),
                     &ProcessExitEvent {
@@ -322,23 +248,58 @@ impl ProcessSupervisor {
                         success: false,
                     },
                 );
+                continue;
             }
+
+            let (log_path, err_path) = log_paths(&record.spec, &proc_dir);
+            let tail_from = std::fs::metadata(&log_path).map(|m| m.len()).unwrap_or(0);
+            let entry = Arc::new(Entry {
+                info: Mutex::new(record.info()),
+                log_path,
+                err_path,
+                stopping: AtomicBool::new(false),
+                stop_notify: Notify::new(),
+            });
+            self.table
+                .lock()
+                .unwrap()
+                .insert(record.id.clone(), entry.clone());
+            tracing::info!(id = %record.id, pid = record.pid, "re-adopted process");
+            emit(
+                self.events(),
+                &ProcessStartedEvent {
+                    id: record.id.clone(),
+                    pid: record.pid,
+                },
+            );
+            tokio::spawn(supervise(
+                entry,
+                Watched::Adopted {
+                    pid: record.pid,
+                    token: record.pid_started,
+                },
+                record,
+                self.events().cloned(),
+                proc_dir,
+                tail_from,
+                self.on_exit.get().cloned(),
+            ));
         }
-        self.sweep(&recorded);
-        self.prune_tombstones();
+        self.sweep(&known);
+        self.prune_finished();
     }
 
-    /// Delete only true strays — a directory belonging to no process, live or
-    /// finished. A finished one keeps its tombstone and its logs; `prune` is
-    /// what eventually reclaims those, by age, so the post-mortem guarantee and
-    /// the cleanup are no longer in conflict.
-    fn sweep(&self, keep: &HashSet<String>) {
+    /// Delete only true strays — a directory with no readable record. A finished
+    /// process keeps its record and its logs; retention is what eventually
+    /// reclaims those, so the post-mortem guarantee and the cleanup do not
+    /// conflict.
+    fn sweep(&self, known: &HashSet<String>) {
         let Ok(entries) = std::fs::read_dir(self.dir()) else {
             return;
         };
         for entry in entries.flatten() {
             let name = entry.file_name().to_string_lossy().into_owned();
-            if keep.contains(&name) || records::is_known(&entry.path()) {
+            if known.contains(&name) {
                 continue;
             }
             tracing::debug!(id = %name, "sweeping a process directory belonging to no process");
@@ -347,12 +308,14 @@ impl ProcessSupervisor {
     }
 
     /// Drop the oldest finished processes' directories, logs and all, once more
-    /// than [`TOMBSTONE_KEEP`] have accumulated. Stated retention is what makes
+    /// than [`FINISHED_KEEP`] have accumulated. Stated retention is what makes
     /// keeping them safe: a launcher that never forgets a session would grow a
     /// log directory without bound.
-    fn prune_tombstones(&self) {
-        let tombstones = records::scan_tombstones(&self.dir());
-        for stale in tombstones.iter().skip(TOMBSTONE_KEEP) {
+    fn prune_finished(&self) {
+        for stale in records::scan_finished(&self.dir())
+            .iter()
+            .skip(FINISHED_KEEP)
+        {
             tracing::debug!(id = %stale.id, "pruning a finished process directory");
             let _ = std::fs::remove_dir_all(self.dir().join(&stale.id));
         }
@@ -415,17 +378,17 @@ impl ProcessSupervisor {
     }
 
     /// Every process the daemon knows: the live ones, plus the finished ones it
-    /// has not yet pruned. The terminal entries come from their tombstones, not
+    /// has not yet pruned. The terminal entries come from their records, not
     /// from memory, so what the list says does not depend on whether the daemon
     /// happens to have restarted since.
     pub fn list(&self) -> Vec<ProcessInfo> {
         let live = self.table.lock().unwrap();
         let mut all: Vec<ProcessInfo> = live.values().map(|e| e.snapshot()).collect();
         all.extend(
-            records::scan_tombstones(&self.dir())
-                .into_iter()
-                .filter(|t| !live.contains_key(&t.id))
-                .map(finished_info),
+            records::scan_finished(&self.dir())
+                .iter()
+                .filter(|r| !live.contains_key(&r.id))
+                .map(ProcessRecord::info),
         );
         all
     }
@@ -434,19 +397,21 @@ impl ProcessSupervisor {
         if let Some(entry) = self.table.lock().unwrap().get(id) {
             return Some(entry.snapshot());
         }
-        records::load_tombstone(&self.dir().join(id)).map(finished_info)
+        records::load(&self.dir().join(id))
+            .filter(|record| record.ended.is_some())
+            .map(|record| record.info())
     }
 
     /// A process's captured output — including a finished one's, which is the
-    /// whole point of keeping its directory. The tombstone records where the
-    /// logs are, since that is not derivable once the spec is gone.
+    /// whole point of keeping its directory.
     pub fn logs(&self, id: &str, tail: Option<usize>) -> Option<Vec<ProcessLogLine>> {
         let live = self.table.lock().unwrap().get(id).cloned();
         let (log_path, err_path) = match live {
             Some(entry) => (entry.log_path.clone(), entry.err_path.clone()),
             None => {
-                let tombstone = records::load_tombstone(&self.dir().join(id))?;
-                (tombstone.log_path, tombstone.err_path)
+                let proc_dir = self.dir().join(id);
+                let record = records::load(&proc_dir)?;
+                log_paths(&record.spec, &proc_dir)
             }
         };
         let limit = tail.unwrap_or(DEFAULT_LOG_LINES);
@@ -579,128 +544,51 @@ fn build_command(spec: &ProcessSpec, out: Stdio, err: Stdio) -> Command {
 async fn supervise(
     entry: Arc<Entry>,
     mut watched: Watched,
-    spec: ProcessSpec,
+    record: ProcessRecord,
     events: Option<Arc<dyn ProcessEvents>>,
     proc_dir: PathBuf,
-    mut tail_from: u64,
+    tail_from: u64,
     on_exit: Option<ExitObserver>,
 ) {
-    let mut attempts = 0u32;
-    loop {
-        let owned = matches!(watched, Watched::Owned { .. });
-        let tailer = tail::spawn(
-            entry.log_path.clone(),
-            tail_from,
-            spec.id.clone(),
-            events.clone(),
-        );
-        let code = wait_or_stop(&entry, &mut watched, &spec.id).await;
-        tailer.finish().await;
+    let tailer = tail::spawn(
+        entry.log_path.clone(),
+        tail_from,
+        record.id.clone(),
+        events.clone(),
+    );
+    let code = wait_or_stop(&entry, &mut watched, &record.id).await;
+    tailer.finish().await;
 
-        let killed = entry.stopping.load(Ordering::SeqCst);
-        let success = !killed && code == Some(0);
-        let state = if killed {
-            ProcessState::Killed
-        } else {
-            ProcessState::Exited
-        };
-        {
-            let mut info = entry.info.lock().unwrap();
-            info.state = state;
-            info.exit_code = code;
-        }
-        if success || killed {
-            tracing::info!(id = %spec.id, ?state, exit_code = code, "process exited");
-        } else {
-            tracing::warn!(id = %spec.id, ?state, exit_code = code, "process exited with failure");
-        }
-        emit(
-            events.as_ref(),
-            &ProcessExitEvent {
-                id: spec.id.clone(),
-                state,
-                exit_code: code,
-                success,
-            },
-        );
+    let killed = entry.stopping.load(Ordering::SeqCst);
+    let success = !killed && code == Some(0);
+    let state = if killed {
+        ProcessState::Killed
+    } else {
+        ProcessState::Exited
+    };
+    {
+        let mut info = entry.info.lock().unwrap();
+        info.state = state;
+        info.exit_code = code;
+    }
+    if success || killed {
+        tracing::info!(id = %record.id, ?state, exit_code = code, "process exited");
+    } else {
+        tracing::warn!(id = %record.id, ?state, exit_code = code, "process exited with failure");
+    }
+    emit(
+        events.as_ref(),
+        &ProcessExitEvent {
+            id: record.id.clone(),
+            state,
+            exit_code: code,
+            success,
+        },
+    );
 
-        let should_restart = owned
-            && !killed
-            && spec.restart == RestartPolicy::OnFailure
-            && !success
-            && attempts < MAX_RESTARTS;
-        if !should_restart {
-            // Label the end rather than merely dropping the record: an
-            // unmarked directory is indistinguishable from a stray, and the
-            // startup sweep deletes strays — which is how post-mortem logs used
-            // to vanish at the next restart.
-            let snapshot = entry.snapshot();
-            records::entomb(
-                &proc_dir,
-                &records::Tombstone {
-                    id: spec.id.clone(),
-                    pid: snapshot.pid,
-                    state,
-                    exit_code: code,
-                    program: spec.program.clone(),
-                    args: secrets::redact(&spec.args),
-                    started_unix: snapshot.started_unix,
-                    ended_unix: now_unix(),
-                    log_path: entry.log_path.clone(),
-                    err_path: entry.err_path.clone(),
-                },
-            );
-            if let Some(observe) = &on_exit {
-                observe(&snapshot);
-            }
-            return;
-        }
-
-        attempts += 1;
-        tracing::warn!(
-            id = %spec.id,
-            attempt = attempts,
-            max = MAX_RESTARTS,
-            "restarting failed process"
-        );
-        tokio::time::sleep(Duration::from_millis(500)).await;
-        let respawned = prepare_stdio(&spec, &proc_dir)
-            .and_then(|io| Ok((build_command(&spec, io.out, io.err).spawn()?, io.tail_from)));
-        match respawned {
-            Ok((next, from)) => {
-                let pid = next.id().unwrap_or(0);
-                let started_unix = now_unix();
-                {
-                    let mut info = entry.info.lock().unwrap();
-                    info.pid = pid;
-                    info.state = ProcessState::Running;
-                    info.exit_code = None;
-                    info.started_unix = started_unix;
-                }
-                records::save(
-                    &proc_dir,
-                    &ProcessRecord::for_spawn(&spec, pid, started_unix),
-                );
-                tracing::info!(id = %spec.id, pid, "process restarted");
-                emit(
-                    events.as_ref(),
-                    &ProcessStartedEvent {
-                        id: spec.id.clone(),
-                        pid,
-                    },
-                );
-                watched = Watched::Owned {
-                    tree: identity::Tree::hold(&next),
-                    child: Box::new(next),
-                };
-                tail_from = from;
-            }
-            Err(e) => {
-                tracing::error!(id = %spec.id, error = %e, "cannot respawn process; giving up");
-                records::remove(&proc_dir);
-                return;
-            }
-        }
+    records::save(&proc_dir, &record.end(state, code, now_unix()));
+    if let Some(observe) = &on_exit {
+        observe(&entry.snapshot());
     }
 }
 
@@ -761,19 +649,5 @@ async fn wait_or_stop(entry: &Entry, watched: &mut Watched, id: &str) -> Option<
                 }
             }
         }
-    }
-}
-
-/// A finished process, as its tombstone describes it. The shape a live entry
-/// reports, so a caller need not care which side of the end it is looking at.
-fn finished_info(tombstone: records::Tombstone) -> ProcessInfo {
-    ProcessInfo {
-        id: tombstone.id,
-        pid: tombstone.pid,
-        program: tombstone.program,
-        args: tombstone.args,
-        state: tombstone.state,
-        exit_code: tombstone.exit_code,
-        started_unix: tombstone.started_unix,
     }
 }

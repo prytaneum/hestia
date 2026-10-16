@@ -235,9 +235,8 @@ their unpacked natives and their pre-hash asset layout.
   log line, including the `-vv` wire trace, which reports frame sizes rather than
   contents. A launch must put the account's token in the game's argv, so that one
   is masked everywhere it would outlive or travel beyond the session — the
-  tombstone kept for post-mortem, and the `ProcessInfo` a client renders. Only
-  the live record keeps it, because an `on-failure` restart relaunches from those
-  args; it is owner-only and gone when the process ends. Captured process logs
+  process record kept on disk and for post-mortem, and the `ProcessInfo` a client
+  renders. Only the in-memory spec used to spawn keeps it. Captured process logs
   are owner-only too: an old client prints its own session id to stdout.
 
 ## Tech stack

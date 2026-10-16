@@ -6,7 +6,7 @@ use std::collections::BTreeMap;
 use std::time::Duration;
 
 use engine::ProcessSupervisor;
-use proto::process::{LogSource, ProcessSpec, ProcessState, RestartPolicy};
+use proto::process::{LogSource, ProcessSpec, ProcessState};
 
 /// A directory that removes itself when the test ends, named after the test so
 /// a leftover under a debugger says which one left it.
@@ -50,7 +50,6 @@ async fn stopping_a_process_stops_its_children() {
             ],
             cwd: Some(dir.path().to_path_buf()),
             env: BTreeMap::new(),
-            restart: RestartPolicy::Never,
             log: LogSource::Capture,
         })
         .await

@@ -6,7 +6,7 @@ use std::time::{Duration, Instant};
 
 use anyhow::{bail, Context, Result};
 use proto::minecraft::{ProvisionPhase, ProvisionProgress};
-use proto::process::{LogSource, ProcessSpec, ProcessState, RestartPolicy};
+use proto::process::{LogSource, ProcessSpec, ProcessState};
 
 use super::ProcessSupervisor;
 use crate::cancel::Job;
@@ -65,7 +65,6 @@ impl ProcessSupervisor {
                 args: task.args.clone(),
                 cwd: Some(task.cwd.clone()),
                 env: Default::default(),
-                restart: RestartPolicy::Never,
                 log: LogSource::Capture,
             })
             .await

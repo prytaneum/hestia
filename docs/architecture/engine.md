@@ -227,9 +227,9 @@ stateDiagram-v2
     Stopping --> Exited: exited
     Stopping --> Killed: grace period elapsed → hard kill
     Running --> Exited: exited on its own
-    Exited --> Tombstoned: record replaced by exit.json
-    Killed --> Tombstoned
-    Tombstoned --> [*]: pruned by retention (oldest first)
+    Exited --> Finished: record.json gains an ended section
+    Killed --> Finished
+    Finished --> [*]: pruned by retention (oldest first)
 
     note right of Running
         a daemon restart re-adopts by
@@ -239,8 +239,10 @@ stateDiagram-v2
 ```
 
 **Records and identity.** Each live process has a record under
-`<data_home>/processes/<id>/` — `{pid, start-time token, spec}`, owner-only
-because the spec can carry launch credentials. `recover()` re-adopts survivors at
+`<data_home>/processes/<id>/` — `{pid, start-time token, spec}`, written through
+a temp file renamed into place and owner-only (the spec's env is recorded). The
+spec's args are stored with credentials masked, so no token reaches the disk.
+`recover()` re-adopts survivors at
 the next daemon start, verifying the pid against its start-time token
 (`identity.rs`, per platform). An adopted process is not our child, so its exit
 is detected by polling and its exit code reports `null`.
@@ -260,11 +262,11 @@ run starts again from zero.
 a hard kill only after a grace period — both addressed at the whole process tree,
 never a single pid.
 
-**A finished process is labelled, not merely unrecorded.** On exit the record is
-replaced by a tombstone (`exit.json`: state, exit code, when it ended, where its
-logs are), so the directory keeps its logs *and* says what it is. The startup
-sweep then deletes only directories with **neither** marker — a true stray — and
-retention prunes the oldest tombstoned ones
+**A finished process is labelled, not merely unrecorded.** On exit the same
+`record.json` gains an `ended` section (state, exit code, when it ended) and keeps
+its spec, so the directory keeps its logs *and* says what it is. The startup
+sweep then deletes only directories with no readable record — a true stray — and
+retention prunes the oldest finished ones
 ([0035](../decisions/0035-a-finished-process-is-tombstoned.md)).
 
 `task.rs` is the provisioning half: `run(Task, Job)` drives a program to
