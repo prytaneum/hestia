@@ -99,7 +99,7 @@ impl FlavorProvider for Flavor {
     async fn versions(&self) -> Result<Vec<GameVersion>> {
         Ok(self.catalogue())
     }
-    async fn resolve_server(&self, request: &engine::ResolveRequest) -> Result<ServerProfile> {
+    async fn resolve_server(&self, request: &engine::ResolveRequest<'_>) -> Result<ServerProfile> {
         Ok(ServerProfile {
             flavor: self.info.id.to_string(),
             game_version: request.version.clone(),
@@ -108,7 +108,10 @@ impl FlavorProvider for Flavor {
             ..ServerProfile::default()
         })
     }
-    async fn resolve_client(&self, request: &engine::ResolveRequest) -> Result<InstanceProfile> {
+    async fn resolve_client(
+        &self,
+        request: &engine::ResolveRequest<'_>,
+    ) -> Result<InstanceProfile> {
         let client = self.primary()?;
         Ok(InstanceProfile {
             flavor: self.info.id.to_string(),

@@ -32,7 +32,7 @@ impl FlavorProvider for Vanilla {
         mojang::versions().await
     }
 
-    async fn resolve_server(&self, request: &ResolveRequest) -> Result<ServerProfile> {
+    async fn resolve_server(&self, request: &ResolveRequest<'_>) -> Result<ServerProfile> {
         let version = mojang::version_json(&request.version).await?;
         Ok(ServerProfile {
             flavor: ID.to_string(),
@@ -45,7 +45,7 @@ impl FlavorProvider for Vanilla {
         })
     }
 
-    async fn resolve_client(&self, request: &ResolveRequest) -> Result<InstanceProfile> {
+    async fn resolve_client(&self, request: &ResolveRequest<'_>) -> Result<InstanceProfile> {
         let version = mojang::version_json(&request.version).await?;
         Ok(InstanceProfile {
             flavor: ID.to_string(),

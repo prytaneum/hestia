@@ -111,7 +111,7 @@ impl FlavorProvider for BuildTools {
         game_versions().await
     }
 
-    async fn resolve_server(&self, request: &ResolveRequest) -> Result<ServerProfile> {
+    async fn resolve_server(&self, request: &ResolveRequest<'_>) -> Result<ServerProfile> {
         Ok(ServerProfile {
             flavor: self.info.id.to_string(),
             game_version: request.version.clone(),

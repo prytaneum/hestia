@@ -26,6 +26,7 @@ use super::profile::{InstanceProfile, ServerJar, ServerLaunch, ServerProfile};
 use super::provider::{
     FlavorInfo, FlavorProvider, InstallRequest, ResolveRequest, Side, BOTH_SIDES,
 };
+use crate::cache::Cache;
 use crate::download::Downloader;
 
 const ID: &str = "neoforge";
@@ -78,7 +79,7 @@ async fn builds(game: &str) -> Result<Vec<String>> {
 /// mean pinning many game versions to a months-old build — NeoForge leaves a
 /// whole line on `-beta` for its lifetime (26.2 has 34 builds and no release),
 /// so the suffix tracks the game version's own maturity more than the build's.
-async fn resolve_loader(request: &ResolveRequest) -> Result<String> {
+async fn resolve_loader(request: &ResolveRequest<'_>) -> Result<String> {
     if let Some(pinned) = &request.loader_version {
         return Ok(pinned.clone());
     }
@@ -98,18 +99,26 @@ fn installer_path(root: &Path, loader: &str) -> std::path::PathBuf {
     root.join("neoforge").join(format!("{loader}.jar"))
 }
 
+/// The downloader stages to a fixed `<path>.part`, so two fetches of one build
+/// would write the same file.
+static INSTALLER_FETCH: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+
 async fn read_installer(
-    request: &InstallRequest<'_>,
+    root: &Path,
+    cache: Option<&Cache>,
     loader: &str,
 ) -> Result<(std::path::PathBuf, neoforge::Installer)> {
-    let path = installer_path(request.root, loader);
-    if !path.is_file() {
-        // No published checksum to verify against, so the fetch is plain; a
-        // truncated jar fails to parse below rather than being trusted.
-        Downloader::new(request.cache)
-            .fetch(&neoforge::installer_url(loader), &path, None, &|_| Ok(()))
-            .await
-            .with_context(|| format!("cannot fetch the neoforge {loader} installer"))?;
+    let path = installer_path(root, loader);
+    {
+        let _fetching = INSTALLER_FETCH.lock().await;
+        if !path.is_file() {
+            // No published checksum to verify against, so the fetch is plain; a
+            // truncated jar fails to parse below rather than being trusted.
+            Downloader::new(cache)
+                .fetch(&neoforge::installer_url(loader), &path, None, &|_| Ok(()))
+                .await
+                .with_context(|| format!("cannot fetch the neoforge {loader} installer"))?;
+        }
     }
     let bytes = std::fs::read(&path).with_context(|| format!("cannot read {}", path.display()))?;
     let installer = neoforge::read_installer(&bytes)?;
@@ -133,7 +142,7 @@ async fn run_install(
     // coordinate has already changed once between NeoForge generations. It is
     // on disk after the first fetch, so the re-read is cheap next to the chain
     // it guards.
-    let (installer_jar, installer) = read_installer(request, loader).await?;
+    let (installer_jar, installer) = read_installer(request.root, request.cache, loader).await?;
     let libraries = request.root.join("libraries");
     if processors::patched_output(&installer, side, &libraries).is_some_and(|jar| jar.is_file()) {
         return Ok(());
@@ -198,7 +207,7 @@ impl FlavorProvider for NeoForge {
         builds(game).await
     }
 
-    async fn resolve_server(&self, request: &ResolveRequest) -> Result<ServerProfile> {
+    async fn resolve_server(&self, request: &ResolveRequest<'_>) -> Result<ServerProfile> {
         let loader = resolve_loader(request).await?;
         let base = mojang::version_json(&request.version).await?;
         Ok(ServerProfile {
@@ -212,24 +221,10 @@ impl FlavorProvider for NeoForge {
         })
     }
 
-    async fn resolve_client(&self, request: &ResolveRequest) -> Result<InstanceProfile> {
+    async fn resolve_client(&self, request: &ResolveRequest<'_>) -> Result<InstanceProfile> {
         let loader = resolve_loader(request).await?;
         let base = mojang::version_json(&request.version).await?;
-        let installer = {
-            // Resolution is a catalogue read with nowhere to cache to, so the
-            // installer is fetched into memory here and again (from disk) at
-            // install time.
-            let response = crate::net::get(
-                proto::error::Service::NeoForge,
-                &neoforge::installer_url(&loader),
-            )
-            .await
-            .with_context(|| format!("cannot fetch the neoforge {loader} installer"))?;
-            let bytes = response.bytes().await.map_err(|e| {
-                crate::net::stream_failure(Some(proto::error::Service::NeoForge), &e)
-            })?;
-            neoforge::read_installer(&bytes)?
-        };
+        let (_, installer) = read_installer(request.meta, request.cache, &loader).await?;
 
         let libraries = super::fabric::merge_libraries(
             mojang::libraries(&base),

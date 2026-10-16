@@ -46,7 +46,7 @@ async fn game_versions(project: &str) -> Result<Vec<GameVersion>> {
     Ok(versions)
 }
 
-async fn resolve(project: &str, request: &ResolveRequest) -> Result<ServerProfile> {
+async fn resolve(project: &str, request: &ResolveRequest<'_>) -> Result<ServerProfile> {
     let build = match &request.loader_version {
         Some(number) => paper::build(project, &request.version, number).await?,
         None => paper::newest_build(project, &request.version).await?,
@@ -120,7 +120,7 @@ impl FlavorProvider for PaperProject {
         build_numbers(self.info.id, game).await
     }
 
-    async fn resolve_server(&self, request: &ResolveRequest) -> Result<ServerProfile> {
+    async fn resolve_server(&self, request: &ResolveRequest<'_>) -> Result<ServerProfile> {
         resolve(self.info.id, request).await
     }
 }

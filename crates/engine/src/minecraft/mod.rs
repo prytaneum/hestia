@@ -1,6 +1,7 @@
 //! Minecraft provider aggregate: the flavor registry and the
-//! flavors/versions/resolve entry points over it, each taking the side. Stateless
-//! (every result is fetched from upstream), so it needs no data directory.
+//! flavors/versions/resolve entry points over it, each taking the side. It holds
+//! no state of its own, but the catalogue readers keep regenerable copies of
+//! what they fetch under `meta/`, and NeoForge keeps the installer it resolves from.
 
 mod fabric;
 pub(crate) mod launch;
@@ -19,9 +20,12 @@ mod spigot;
 mod vanilla;
 pub(crate) mod world;
 
+use std::path::Path;
+
 use anyhow::{Context, Result};
 use proto::minecraft::{Flavor, GameVersion};
 
+use crate::cache::Cache;
 use profile::{InstanceProfile, ServerProfile};
 
 pub use provider::{accepted_kinds, unmet, InstallRequest, Prerequisite, Side};
@@ -114,12 +118,16 @@ impl Minecraft {
         flavor: &str,
         version: &str,
         loader_version: Option<String>,
+        meta: &Path,
+        cache: Option<&Cache>,
     ) -> Result<ServerProfile> {
         tracing::info!(flavor, version, ?loader_version, "resolving server profile");
         self.provider(Side::Server, flavor)?
             .resolve_server(&ResolveRequest {
                 version: version.to_string(),
                 loader_version,
+                meta,
+                cache,
             })
             .await
     }
@@ -129,6 +137,8 @@ impl Minecraft {
         flavor: &str,
         version: &str,
         loader_version: Option<String>,
+        meta: &Path,
+        cache: Option<&Cache>,
     ) -> Result<InstanceProfile> {
         tracing::info!(
             flavor,
@@ -140,6 +150,8 @@ impl Minecraft {
             .resolve_client(&ResolveRequest {
                 version: version.to_string(),
                 loader_version,
+                meta,
+                cache,
             })
             .await
     }

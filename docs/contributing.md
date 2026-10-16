@@ -165,7 +165,7 @@ self .instances.reload(resolved.join("instances"));
 pub fn instances(&self) -> &Instances { &self.instances }
 ```
 
-A stateless helper (like `minecraft`) needs no data dir and can be constructed without a path; a stateless *free*
+A helper with no state of its own (like `minecraft`, which is handed the `meta` root per call) can be constructed without a path; a stateless *free*
 function needs no aggregate member at all.
 
 A subsystem with an **open set of implementations** — a content platform, an

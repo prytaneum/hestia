@@ -41,7 +41,7 @@ async fn game_versions() -> Result<Vec<GameVersion>> {
         .collect())
 }
 
-async fn resolve_loader(request: &ResolveRequest) -> Result<String> {
+async fn resolve_loader(request: &ResolveRequest<'_>) -> Result<String> {
     match &request.loader_version {
         Some(loader) => Ok(loader.clone()),
         None => fabric::latest_loader(&request.version).await,
@@ -64,7 +64,7 @@ impl FlavorProvider for Fabric {
         fabric::loader_versions(game).await
     }
 
-    async fn resolve_server(&self, request: &ResolveRequest) -> Result<ServerProfile> {
+    async fn resolve_server(&self, request: &ResolveRequest<'_>) -> Result<ServerProfile> {
         let loader = resolve_loader(request).await?;
         let installer = fabric::latest_installer().await?;
         let base = mojang::version_json(&request.version).await?;
@@ -88,7 +88,7 @@ impl FlavorProvider for Fabric {
         })
     }
 
-    async fn resolve_client(&self, request: &ResolveRequest) -> Result<InstanceProfile> {
+    async fn resolve_client(&self, request: &ResolveRequest<'_>) -> Result<InstanceProfile> {
         let loader = resolve_loader(request).await?;
         let base = mojang::version_json(&request.version).await?;
         let profile = fabric::profile_json(&request.version, &loader).await?;

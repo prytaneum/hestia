@@ -7,7 +7,12 @@ run**, **which versions of each**, and **what exactly does launching one
 require**. Everything downstream — provisioning a server, launching an instance —
 consumes its answers.
 
-It is stateless: every result is fetched upstream, so it needs no data directory.
+It holds no state of its own, but it does write regenerable files under `meta/`:
+the catalogue readers keep the last good copy of each response in
+`meta/catalogue/` (the offline fallback), and resolving a NeoForge client fetches
+its installer to `meta/neoforge/<build>.jar`, which the install hook then finds on
+disk instead of downloading again. `ResolveRequest` carries the `meta` root and
+the cache for that.
 
 ## Flavors
 

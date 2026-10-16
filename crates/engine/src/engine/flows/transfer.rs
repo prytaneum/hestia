@@ -256,7 +256,13 @@ impl Engine {
                     Some(descriptor.loader_version.clone()).filter(|version| !version.is_empty());
                 let profile = self
                     .minecraft
-                    .resolve_instance(&flavor, &descriptor.game_version, loader_version)
+                    .resolve_instance(
+                        &flavor,
+                        &descriptor.game_version,
+                        loader_version,
+                        &super::meta_dir(&self.data_home()),
+                        Some(&self.cache),
+                    )
                     .await?;
                 InstanceRecord {
                     name: name.to_string(),
@@ -273,7 +279,13 @@ impl Engine {
                 let flavor = self.archive_flavor(&loader)?;
                 let profile = self
                     .minecraft
-                    .resolve_instance(&flavor, &descriptor.game_version, loader_version)
+                    .resolve_instance(
+                        &flavor,
+                        &descriptor.game_version,
+                        loader_version,
+                        &super::meta_dir(&self.data_home()),
+                        Some(&self.cache),
+                    )
                     .await?;
                 InstanceRecord {
                     id: String::new(),

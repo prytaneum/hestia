@@ -36,7 +36,13 @@ impl Engine {
         on_progress.report(&phase_progress(ProvisionPhase::Resolving));
         let profile = self
             .minecraft
-            .resolve_server(&spec.flavor, &spec.version, spec.loader_version)
+            .resolve_server(
+                &spec.flavor,
+                &spec.version,
+                spec.loader_version,
+                &meta_dir(&self.data_home()),
+                Some(&self.cache),
+            )
             .await?;
         let name = effective_name(&spec.name, &spec.flavor, &spec.version);
         // Before the record exists: a cancel up to here leaves nothing at all,
@@ -107,7 +113,13 @@ impl Engine {
         on_progress.report(&phase_progress(ProvisionPhase::Resolving));
         let profile = self
             .minecraft
-            .resolve_server(&record.profile.flavor, &spec.version, spec.loader_version)
+            .resolve_server(
+                &record.profile.flavor,
+                &spec.version,
+                spec.loader_version,
+                &meta_dir(&self.data_home()),
+                Some(&self.cache),
+            )
             .await?;
         if self.servers.data_dir(&record).is_dir() {
             on_progress.report(&phase_progress(ProvisionPhase::Backup));

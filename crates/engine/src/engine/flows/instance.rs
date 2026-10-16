@@ -114,7 +114,13 @@ impl Engine {
         )?;
         let profile = self
             .minecraft
-            .resolve_instance(&record.profile.flavor, version, loader_version)
+            .resolve_instance(
+                &record.profile.flavor,
+                version,
+                loader_version,
+                &meta_dir(&self.data_home()),
+                Some(&self.cache),
+            )
             .await?;
         self.instances.update(&record.id, profile)
     }
@@ -131,7 +137,13 @@ impl Engine {
     ) -> Result<InstanceRecord> {
         let profile = self
             .minecraft
-            .resolve_instance(flavor, version, loader_version)
+            .resolve_instance(
+                flavor,
+                version,
+                loader_version,
+                &meta_dir(&self.data_home()),
+                Some(&self.cache),
+            )
             .await?;
         let name = effective_name(name, flavor, version);
         let record = self.instances.create(&name, profile)?;

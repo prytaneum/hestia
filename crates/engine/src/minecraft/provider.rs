@@ -16,10 +16,13 @@ use crate::minecraft::profile::{InstanceProfile, ServerProfile};
 use crate::process::ProcessSupervisor;
 
 /// A resolution request: a game version and, for modloaders, an optional pinned
-/// loader version (the newest stable loader is chosen when absent).
-pub struct ResolveRequest {
+/// loader version (the newest stable loader is chosen when absent). `meta` and
+/// `cache` let a flavor keep what it must read to resolve (NeoForge's installer).
+pub struct ResolveRequest<'a> {
     pub version: String,
     pub loader_version: Option<String>,
+    pub meta: &'a Path,
+    pub cache: Option<&'a Cache>,
 }
 
 /// What a flavor needs to build whatever its profile cannot simply name — the
@@ -153,10 +156,10 @@ pub trait FlavorProvider: Send + Sync {
     async fn loader_versions(&self, _game: &str) -> Result<Vec<String>> {
         Ok(Vec::new())
     }
-    async fn resolve_server(&self, _request: &ResolveRequest) -> Result<ServerProfile> {
+    async fn resolve_server(&self, _request: &ResolveRequest<'_>) -> Result<ServerProfile> {
         bail!("unknown server flavor: {}", self.info().id)
     }
-    async fn resolve_client(&self, _request: &ResolveRequest) -> Result<InstanceProfile> {
+    async fn resolve_client(&self, _request: &ResolveRequest<'_>) -> Result<InstanceProfile> {
         bail!("unknown instance flavor: {}", self.info().id)
     }
 
