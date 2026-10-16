@@ -11,7 +11,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
 use anyhow::{bail, Context, Result};
-use proto::minecraft::{ProvisionPhase, ProvisionProgress, ServerProfile};
+use proto::minecraft::{ProvisionPhase, ProvisionProgress};
 use proto::server::ServerProperty;
 use proto::tasks::ServerTask;
 use serde::{Deserialize, Serialize};
@@ -20,6 +20,7 @@ use crate::backup::BackupSettings;
 use crate::cache::Cache;
 use crate::minecraft::launch::{self, JavaSettings, LaunchPlan};
 use crate::minecraft::materialize::{self, OnProgress};
+use crate::minecraft::profile::ServerProfile;
 use crate::process::{Outcome, ProcessSupervisor, Task};
 use crate::registry;
 use crate::schema::Document;

@@ -13,6 +13,7 @@ use crate::engine::{Engine, ServerCreateSpec, ServerUpdateSpec};
 use crate::minecraft::launch::{JavaSettings, LaunchPlan};
 use crate::minecraft::materialize::OnProgress;
 use crate::minecraft::ping;
+use crate::minecraft::profile::ServerProfile;
 use crate::servers::ServerRecord;
 use crate::usage;
 
@@ -244,7 +245,7 @@ impl Engine {
 /// measurably worse server, but a user who wrote their own flags meant them —
 /// so this only fills what neither of the two settings layers did, which is
 /// exactly what `or_defaults` means.
-fn flavor_defaults(profile: &proto::minecraft::ServerProfile) -> JavaSettings {
+fn flavor_defaults(profile: &ServerProfile) -> JavaSettings {
     JavaSettings {
         memory: None,
         jvm_args: profile.jvm_args.clone(),
@@ -351,9 +352,9 @@ mod tests {
 
     #[test]
     fn a_flavor_recommends_flags_but_never_memory() {
-        let profile = proto::minecraft::ServerProfile {
+        let profile = ServerProfile {
             jvm_args: flavor(&["-XX:+UseG1GC"]),
-            ..proto::minecraft::ServerProfile::default()
+            ..ServerProfile::default()
         };
         let resolved = settings(&[])
             .or_defaults(&settings(&[]))

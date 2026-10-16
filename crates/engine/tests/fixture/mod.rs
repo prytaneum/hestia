@@ -7,15 +7,15 @@ use std::collections::HashMap;
 use anyhow::{bail, Result};
 use async_trait::async_trait;
 use engine::{
-    Content, ContentProvider, FileRef, InstanceProvider, LocalFile, Minecraft, ServerProvider,
-    UrlRef,
+    AssetIndex, Content, ContentProvider, FileRef, InstanceProfile, InstanceProvider, LocalFile,
+    Minecraft, ServerProfile, ServerProvider, UrlRef,
 };
 use proto::content::{
     ContentKind, ContentProject, ContentVersion, ResolvedModpack, SearchQuery, SearchResult,
     VersionQuery,
 };
 
-use proto::minecraft::{Artifact, GameVersion, InstanceProfile, ServerProfile};
+use proto::minecraft::{Artifact, GameVersion};
 
 /// A flavor that resolves to a profile naming `artifact`, or fails when it is
 /// `None` — the two halves of what a provider can do to a create.
@@ -131,7 +131,7 @@ impl InstanceProvider for Flavor {
         Ok(InstanceProfile {
             flavor: self.id.to_string(),
             game_version: request.version.clone(),
-            asset_index: proto::minecraft::AssetIndex {
+            asset_index: AssetIndex {
                 id: request.version.clone(),
                 artifact: Artifact {
                     url: client.url.replace("client.jar", "assets.json"),

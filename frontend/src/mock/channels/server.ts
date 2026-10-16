@@ -8,7 +8,6 @@ import type {
   ConfigEntry,
   ServerDetails,
   ServerInfo,
-  ServerProfile,
   ServerProperty,
 } from '@/api/types';
 
@@ -127,25 +126,6 @@ export const channels: Handlers = {
     versions: catalog.versionsFor(str(p, 'flavor')),
   }),
   'server.loaders': (p) => ({ loaders: catalog.loaders(str(p, 'flavor')) }),
-
-  'server.resolve': (p): ServerProfile => {
-    const version = str(p, 'version', '1.21.4');
-    return {
-      flavor: str(p, 'flavor', 'vanilla'),
-      gameVersion: version,
-      loaderVersion: str(p, 'loaderVersion') || undefined,
-      primary: {
-        url: `https://piston-data.mojang.com/${version}/server.jar`,
-        filename: 'server.jar',
-        size: 51_000_000,
-      },
-      libraries: [],
-      javaMajor: catalog.javaFor(version),
-      mainClass: 'net.minecraft.server.Main',
-      jvmArgs: [],
-      argsFile: '',
-    };
-  },
 
   'server.create': (p) =>
     startJob({

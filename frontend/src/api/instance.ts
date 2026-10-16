@@ -28,13 +28,7 @@ import type {
   ServerEntry,
   WorldInfo,
 } from './types/instance';
-import type {
-  ConfigEntry,
-  Flavor,
-  GameVersion,
-  InstanceProfile,
-  ResolveParams,
-} from './types/minecraft';
+import type { ConfigEntry, Flavor, GameVersion } from './types/minecraft';
 import type { ProcessLogLine } from './types/process';
 import type { ServerPingResult } from './types/server';
 
@@ -48,10 +42,6 @@ export async function versions(flavor: string): Promise<GameVersion[]> {
     flavor,
   });
   return result.versions;
-}
-
-export function resolve(params: ResolveParams): Promise<InstanceProfile> {
-  return call('instance.resolve', params);
 }
 
 /** Loader builds for a flavor/version, newest first; empty for vanilla. */

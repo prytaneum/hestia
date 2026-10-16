@@ -7,8 +7,9 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{bail, Result};
 use proto::instance::QuickPlay;
-use proto::minecraft::{InstanceProfile, ServerProfile};
 use serde::{Deserialize, Serialize};
+
+use super::profile::{InstanceProfile, ServerProfile};
 
 // Mojang's rule vocabulary spells the classpath separator per-OS; keep ours in
 // lockstep with the JVM's.
@@ -460,8 +461,9 @@ fn push_unique(entries: &mut Vec<String>, entry: String) {
 
 #[cfg(test)]
 mod tests {
-    use proto::minecraft::{Artifact, AssetIndex, Library};
+    use proto::minecraft::Artifact;
 
+    use super::super::profile::{AssetIndex, Library};
     use super::*;
 
     fn account() -> LaunchAccount {

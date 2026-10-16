@@ -811,7 +811,7 @@ async fn another_launchers_jars_are_tracked_where_a_source_publishes_them() {
 
 #[tokio::test]
 async fn an_imported_profile_is_resolved_for_the_host_not_carried_from_the_exporter() {
-    use proto::minecraft::{Library, Native};
+    use engine::{Library, Native};
     use proto::transfer::ExportFormat;
 
     let home = tempfile::tempdir().expect("temp home");

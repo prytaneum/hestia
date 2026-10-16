@@ -16,9 +16,10 @@
 use anyhow::Result;
 use async_trait::async_trait;
 use proto::content::ContentKind;
-use proto::minecraft::{GameVersion, ServerProfile, VersionKind};
+use proto::minecraft::{GameVersion, VersionKind};
 
 use super::meta::{mojang, paper};
+use super::profile::ServerProfile;
 use super::provider::{Loads, ResolveRequest, ServerProvider};
 
 /// The game versions a project publishes, ordered and typed by Mojang's own

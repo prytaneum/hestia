@@ -54,7 +54,7 @@ One module per domain: `app`, `health`, `daemon`, `config`, `cache`, `download`,
 Three are shared vocabularies rather than domains of their own:
 
 - **`minecraft`** — what the `server` and `instance` domains have in common:
-  `Flavor`, `GameVersion`, `Artifact`, the launch profiles, `ProvisionProgress`.
+  `Flavor`, `GameVersion`, `Artifact`, `ProvisionProgress`.
 - **`content`** — the normalized third-party content vocabulary
   (`ContentProject` with its images, `ContentVersion`, the paginated
   `SearchQuery`/`SearchResult`, `ResolvedModpack`). A front-end never sees a

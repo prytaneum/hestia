@@ -8,10 +8,11 @@ use std::path::Path;
 use anyhow::Result;
 use async_trait::async_trait;
 use proto::content::ContentKind;
-use proto::minecraft::{GameVersion, InstanceProfile, Requirement, ServerProfile};
+use proto::minecraft::{GameVersion, Requirement};
 
 use crate::cache::Cache;
 use crate::minecraft::materialize::OnProgress;
+use crate::minecraft::profile::{InstanceProfile, ServerProfile};
 use crate::process::ProcessSupervisor;
 
 /// A resolution request: a game version and, for modloaders, an optional pinned

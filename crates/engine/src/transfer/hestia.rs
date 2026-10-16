@@ -190,8 +190,8 @@ pub(crate) fn export(source: &Source<'_>, destination: &Path, job: &Job<'_>) -> 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::minecraft::profile::InstanceProfile;
     use proto::content::InstalledContent;
-    use proto::minecraft::InstanceProfile;
 
     fn temp(tag: &str) -> tempfile::TempDir {
         tempfile::Builder::new()

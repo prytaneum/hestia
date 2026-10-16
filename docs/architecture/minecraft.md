@@ -49,7 +49,8 @@ plus what the side reads for itself.
 `resolve()` turns *(flavor, version, optional loader version)* into a
 **`ServerProfile`** or **`InstanceProfile`**: the primary artifact, libraries,
 asset index, required Java major, main class, arguments, and — where a flavor
-needs them — recommended JVM args and an args file.
+needs them — recommended JVM args and an args file. The profiles are engine
+types, stored on the entry records; no channel hands one to a client.
 
 ```mermaid
 flowchart LR

@@ -10,8 +10,10 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use anyhow::{bail, Context, Result};
 use futures_util::StreamExt;
 use proto::download::{Checksum, HashAlgorithm};
-use proto::minecraft::{Artifact, AssetIndex, Library, Native, ProvisionPhase, ProvisionProgress};
+use proto::minecraft::{Artifact, ProvisionPhase, ProvisionProgress};
 use serde_json::Value;
+
+use super::profile::{AssetIndex, Library, Native};
 
 use crate::cache::Cache;
 use crate::download::Downloader;

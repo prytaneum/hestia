@@ -16,7 +16,7 @@ use std::time::Duration;
 
 use discord_rich_presence::activity::{Activity, Assets, Timestamps};
 use discord_rich_presence::{DiscordIpc, DiscordIpcClient};
-use proto::minecraft::InstanceProfile;
+use engine::InstanceProfile;
 use proto::naming;
 use proto::process::ProcessState;
 

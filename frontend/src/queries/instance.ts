@@ -16,7 +16,6 @@ import type {
   InstanceServersWriteResult,
   InstanceUpdateParams,
   QuickPlay,
-  ResolveParams,
 } from '../api';
 import { HestiaError } from '../api';
 import * as api from '../api/instance';
@@ -96,12 +95,6 @@ export const instanceQueries = {
     queryOptions({
       queryKey: keys.instances.loaders(flavor, version),
       queryFn: () => api.loaders(flavor, version),
-      staleTime: CATALOG_STALE_MS,
-    }),
-  profile: (params: ResolveParams) =>
-    queryOptions({
-      queryKey: keys.instances.profile(params),
-      queryFn: () => api.resolve(params),
       staleTime: CATALOG_STALE_MS,
     }),
   /** Save-world folder names, for the datapack world picker. */

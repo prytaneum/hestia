@@ -3,12 +3,13 @@
 
 use anyhow::{Context, Result};
 use proto::download::{Checksum, HashAlgorithm};
-use proto::minecraft::{Artifact, AssetIndex, GameVersion, Library, Native, VersionKind};
+use proto::minecraft::{Artifact, GameVersion, VersionKind};
 use serde_json::Value;
 
 use proto::error::Service;
 
 use super::{fetch_json, host_os, rules_allow};
+use crate::minecraft::profile::{AssetIndex, Library, Native};
 
 const MANIFEST: &str = "https://piston-meta.mojang.com/mc/game/version_manifest_v2.json";
 

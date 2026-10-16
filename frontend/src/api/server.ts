@@ -17,13 +17,7 @@ import type {
   ContentMatch,
   ContentUpdate,
 } from './types/content';
-import type {
-  ConfigEntry,
-  Flavor,
-  GameVersion,
-  ResolveParams,
-  ServerProfile,
-} from './types/minecraft';
+import type { ConfigEntry, Flavor, GameVersion } from './types/minecraft';
 import type { ProcessLogLine } from './types/process';
 import type {
   ServerCommandCompleteResult,
@@ -47,10 +41,6 @@ export async function versions(flavor: string): Promise<GameVersion[]> {
     flavor,
   });
   return result.versions;
-}
-
-export function resolve(params: ResolveParams): Promise<ServerProfile> {
-  return call('server.resolve', params);
 }
 
 /** Loader builds for a flavor/version, newest first; empty for vanilla. */

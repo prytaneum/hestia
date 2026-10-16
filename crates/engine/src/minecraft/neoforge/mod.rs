@@ -18,10 +18,11 @@ use std::path::Path;
 use anyhow::{Context, Result};
 use async_trait::async_trait;
 use proto::content::ContentKind;
-use proto::minecraft::{GameVersion, InstanceProfile, ServerProfile};
+use proto::minecraft::GameVersion;
 
 use super::materialize::{self, OnProgress};
 use super::meta::{mojang, neoforge};
+use super::profile::{InstanceProfile, ServerProfile};
 use super::provider::{InstallRequest, InstanceProvider, Loads, ResolveRequest, ServerProvider};
 use crate::download::Downloader;
 

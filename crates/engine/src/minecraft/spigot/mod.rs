@@ -8,11 +8,12 @@ mod buildtools;
 use anyhow::Result;
 use async_trait::async_trait;
 use proto::content::ContentKind;
-use proto::minecraft::{Artifact, GameVersion, ServerProfile};
+use proto::minecraft::{Artifact, GameVersion};
 
 use self::buildtools::Product;
 use super::materialize::OnProgress;
 use super::meta::{mojang, spigot};
+use super::profile::ServerProfile;
 use super::provider::{InstallRequest, Loads, Prerequisite, ResolveRequest, ServerProvider};
 use super::REQUIRED_JAVA_MAJORS;
 

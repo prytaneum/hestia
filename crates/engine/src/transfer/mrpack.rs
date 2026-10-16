@@ -20,7 +20,6 @@ use std::path::Path;
 
 use anyhow::{Context, Result};
 use proto::content::{ContentKind, InstalledContent};
-use proto::minecraft::InstanceProfile;
 use proto::transfer::ImportFormat;
 use proto::warning::WarningInfo;
 use serde_json::json;
@@ -31,6 +30,7 @@ use super::{Blueprint, Descriptor, Format, Landed, Recipe, Source, Target};
 use crate::cancel::Job;
 use crate::checksum::Hasher;
 use crate::content::install;
+use crate::minecraft::profile::InstanceProfile;
 use crate::registry;
 
 pub(crate) const INDEX: &str = "modrinth.index.json";

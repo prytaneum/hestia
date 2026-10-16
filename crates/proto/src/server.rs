@@ -10,8 +10,8 @@ use crate::content::ContentKind;
 use crate::contract::{Contract, Empty, Topic};
 use crate::error::ErrorInfo;
 use crate::minecraft::{
-    ConfigEntry, FlavorsResult, LoadersParams, LoadersResult, ProvisionProgress, ResolveParams,
-    ServerProfile, VersionsParams, VersionsResult,
+    ConfigEntry, FlavorsResult, LoadersParams, LoadersResult, ProvisionProgress, VersionsParams,
+    VersionsResult,
 };
 use crate::process::{ProcessInfo, ProcessLogsResult};
 use crate::warning::WarningInfo;
@@ -28,13 +28,6 @@ impl Contract for ServerVersions {
     const CHANNEL: &'static str = "server.versions";
     type Params = VersionsParams;
     type Result = VersionsResult;
-}
-
-pub struct ServerResolve;
-impl Contract for ServerResolve {
-    const CHANNEL: &'static str = "server.resolve";
-    type Params = ResolveParams;
-    type Result = ServerProfile;
 }
 
 pub struct ServerLoaders;

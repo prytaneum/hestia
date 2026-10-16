@@ -11,11 +11,11 @@ use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
 use anyhow::{bail, Context, Result};
-use proto::minecraft::InstanceProfile;
 use proto::sync::SyncOverrides;
 use serde::{Deserialize, Serialize};
 
 use crate::minecraft::launch::{JavaSettings, JVM_ARGS_KEY, MEMORY_KEY};
+use crate::minecraft::profile::InstanceProfile;
 use crate::registry;
 use crate::schema::Document;
 

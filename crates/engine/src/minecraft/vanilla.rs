@@ -3,9 +3,10 @@
 
 use anyhow::Result;
 use async_trait::async_trait;
-use proto::minecraft::{GameVersion, InstanceProfile, ServerProfile};
+use proto::minecraft::GameVersion;
 
 use super::meta::mojang;
+use super::profile::{InstanceProfile, ServerProfile};
 use super::provider::{InstanceProvider, Loads, ResolveRequest, ServerProvider};
 
 const ID: &str = "vanilla";

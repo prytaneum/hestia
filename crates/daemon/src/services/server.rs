@@ -10,8 +10,8 @@ use proto::server::{
     ServerConfigGetResult, ServerConfigList, ServerConfigListResult, ServerConfigSet, ServerCreate,
     ServerCreateResult, ServerDetail, ServerFlavors, ServerList, ServerListResult, ServerLoaders,
     ServerLogs, ServerPing, ServerProperties, ServerPropertiesResult, ServerRemove, ServerRename,
-    ServerResolve, ServerRestart, ServerStart, ServerStartResult, ServerStatus, ServerStop,
-    ServerUpdate, ServerUpdateResult, ServerVersions,
+    ServerRestart, ServerStart, ServerStartResult, ServerStatus, ServerStop, ServerUpdate,
+    ServerUpdateResult, ServerVersions,
 };
 use proto::Empty;
 
@@ -34,15 +34,6 @@ pub(super) fn register(on: &mut Channels<'_>) {
             .await
             .map_err(crate::runtime::engine_error)?;
         Ok(VersionsResult { versions })
-    });
-
-    on.handle::<ServerResolve, _, _>(|p, ctx| async move {
-        ctx.runtime
-            .engine()
-            .minecraft()
-            .resolve_server(&p.flavor, &p.version, p.loader_version)
-            .await
-            .map_err(crate::runtime::engine_error)
     });
 
     on.handle::<ServerLoaders, _, _>(|p, ctx| async move {

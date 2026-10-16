@@ -15,7 +15,6 @@ import type {
   BackupInfo,
   ConfigEntry,
   ContentKind,
-  ResolveParams,
   ServerCreateDoneEvent,
   ServerCreateParams,
   ServerInfo,
@@ -85,12 +84,6 @@ export const serverQueries = {
     queryOptions({
       queryKey: keys.servers.loaders(flavor, version),
       queryFn: () => api.loaders(flavor, version),
-      staleTime: CATALOG_STALE_MS,
-    }),
-  profile: (params: ResolveParams) =>
-    queryOptions({
-      queryKey: keys.servers.profile(params),
-      queryFn: () => api.resolve(params),
       staleTime: CATALOG_STALE_MS,
     }),
   logs: (id: string, tail?: number) =>

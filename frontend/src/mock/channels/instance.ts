@@ -7,7 +7,6 @@
 import type {
   InstanceDetails,
   InstanceInfo,
-  InstanceProfile,
   RecentPlay,
   ServerEntry,
 } from '@/api/types';
@@ -91,35 +90,6 @@ export const channels: Handlers = {
     versions: catalog.versionsFor(str(p, 'flavor')),
   }),
   'instance.loaders': (p) => ({ loaders: catalog.loaders(str(p, 'flavor')) }),
-
-  'instance.resolve': (p): InstanceProfile => {
-    const version = str(p, 'version', '1.21.4');
-    return {
-      flavor: str(p, 'flavor', 'vanilla'),
-      gameVersion: version,
-      loaderVersion: str(p, 'loaderVersion') || undefined,
-      client: {
-        url: `https://piston-data.mojang.com/${version}/client.jar`,
-        filename: `${version}.jar`,
-        size: 26_000_000,
-      },
-      libraries: [],
-      natives: [],
-      assetIndex: {
-        id: version,
-        artifact: {
-          url: `https://piston-meta.mojang.com/${version}.json`,
-          filename: `${version}.json`,
-          size: 420_000,
-        },
-        totalSize: 780_000_000,
-      },
-      javaMajor: catalog.javaFor(version),
-      mainClass: 'net.minecraft.client.main.Main',
-      jvmArgs: [],
-      gameArgs: [],
-    };
-  },
 
   'instance.create': (p) => ({
     instance: withSessions(

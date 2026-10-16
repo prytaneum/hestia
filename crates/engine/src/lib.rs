@@ -53,6 +53,7 @@ pub use files::FileTree;
 pub use instances::{InstanceRecord, Instances};
 pub use java::{Java, JavaInstallOutcome};
 pub use minecraft::launch::{JavaSettings, LaunchPlan};
+pub use minecraft::profile::{AssetIndex, InstanceProfile, Library, Native, ServerProfile};
 pub use minecraft::{
     InstanceProvider, Loads, Minecraft, ResolveRequest, ServerProvider, REQUIRED_JAVA_MAJORS,
 };

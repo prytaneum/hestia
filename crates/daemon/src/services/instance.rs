@@ -8,10 +8,10 @@ use proto::instance::{
     InstanceConfigListResult, InstanceConfigSet, InstanceCreate, InstanceCreateResult,
     InstanceFlavors, InstanceInfoQuery, InstanceLaunch, InstanceLaunchResult, InstanceList,
     InstanceListResult, InstanceLoaders, InstanceLogs, InstanceRecent, InstanceRecentResult,
-    InstanceRemove, InstanceRename, InstanceResolve, InstanceServerEdit, InstanceServerRemove,
-    InstanceServers, InstanceServersArrange, InstanceServersResult, InstanceServersWriteResult,
-    InstanceStop, InstanceUpdate, InstanceUpdateResult, InstanceVersions, InstanceWorlds,
-    InstanceWorldsResult, ServerEntry,
+    InstanceRemove, InstanceRename, InstanceServerEdit, InstanceServerRemove, InstanceServers,
+    InstanceServersArrange, InstanceServersResult, InstanceServersWriteResult, InstanceStop,
+    InstanceUpdate, InstanceUpdateResult, InstanceVersions, InstanceWorlds, InstanceWorldsResult,
+    ServerEntry,
 };
 use proto::minecraft::{ConfigEntry, FlavorsResult, LoadersResult, VersionsResult};
 use proto::process::ProcessLogsResult;
@@ -45,15 +45,6 @@ pub(super) fn register(on: &mut Channels<'_>) {
             .await
             .map_err(crate::runtime::engine_error)?;
         Ok(VersionsResult { versions })
-    });
-
-    on.handle::<InstanceResolve, _, _>(|p, ctx| async move {
-        ctx.runtime
-            .engine()
-            .minecraft()
-            .resolve_instance(&p.flavor, &p.version, p.loader_version)
-            .await
-            .map_err(crate::runtime::engine_error)
     });
 
     on.handle::<InstanceLoaders, _, _>(|p, ctx| async move {

@@ -1,9 +1,11 @@
 //! Behaviour-parity tests for the pure-filesystem engine stores (config, cache,
 //! servers, instances).
 
-use engine::{Cache, Cancel, Config, Instances, Job, ServerPhase, Servers};
+use engine::{
+    Cache, Cancel, Config, InstanceProfile, Instances, Job, ServerPhase, ServerProfile, Servers,
+};
 use proto::download::{Checksum, HashAlgorithm};
-use proto::minecraft::{InstanceProfile, ProvisionProgress, ServerProfile};
+use proto::minecraft::ProvisionProgress;
 
 /// A directory that removes itself when the test ends, named after the test so
 /// a leftover under a debugger says which one left it.

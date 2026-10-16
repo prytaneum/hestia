@@ -43,7 +43,6 @@ use std::path::Path;
 
 use anyhow::Result;
 use proto::error::ErrorInfo;
-use proto::minecraft::InstanceProfile;
 use proto::transfer::{ExportFormat, ImportFormat};
 use proto::warning::WarningInfo;
 
@@ -51,6 +50,7 @@ use crate::cancel::Job;
 use crate::content::pack::shallowest;
 use crate::instances::InstanceRecord;
 use crate::minecraft::launch::JavaSettings;
+use crate::minecraft::profile::InstanceProfile;
 use archive::{Reader, Written};
 
 /// Every archive format hestia recognises, in the order their markers are

@@ -7,11 +7,10 @@ use std::collections::HashMap;
 use anyhow::Result;
 use async_trait::async_trait;
 use proto::content::ContentKind;
-use proto::minecraft::{
-    Artifact, GameVersion, InstanceProfile, Library, ServerProfile, VersionKind,
-};
+use proto::minecraft::{Artifact, GameVersion, VersionKind};
 
 use super::meta::{fabric, mojang};
+use super::profile::{InstanceProfile, Library, ServerProfile};
 use super::provider::{InstanceProvider, Loads, ResolveRequest, ServerProvider};
 
 const ID: &str = "fabric";

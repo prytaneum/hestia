@@ -6,12 +6,7 @@
  * (never the renameable display name), so a rename cannot strand a cache key.
  */
 import type { QueryKey } from '@tanstack/react-query';
-import type {
-  ContentKind,
-  ResolveParams,
-  SearchQuery,
-  VersionQuery,
-} from '../api';
+import type { ContentKind, SearchQuery, VersionQuery } from '../api';
 
 /**
  * Root for the server/instance footprint (`info`) queries. Each is a directory
@@ -73,8 +68,6 @@ export const keys = {
       [...keys.servers.all, 'versions', flavor] as const,
     loaders: (flavor: string, version: string) =>
       [...keys.servers.all, 'loaders', flavor, version] as const,
-    profile: (params: ResolveParams) =>
-      [...keys.servers.all, 'profile', params] as const,
     detail: (id: string) => [...keys.servers.all, 'detail', id] as const,
     info: (id: string) => [FOOTPRINT, 'server', id] as const,
     ping: (id: string) => [...keys.servers.detail(id), 'ping'] as const,
@@ -117,8 +110,6 @@ export const keys = {
       [...keys.instances.all, 'versions', flavor] as const,
     loaders: (flavor: string, version: string) =>
       [...keys.instances.all, 'loaders', flavor, version] as const,
-    profile: (params: ResolveParams) =>
-      [...keys.instances.all, 'profile', params] as const,
     detail: (id: string) => [...keys.instances.all, 'detail', id] as const,
     info: (id: string) => [FOOTPRINT, 'instance', id] as const,
     worlds: (id: string) => [...keys.instances.detail(id), 'worlds'] as const,

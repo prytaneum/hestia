@@ -10,6 +10,7 @@ mod meta;
 mod neoforge;
 mod paper;
 pub(crate) mod ping;
+pub mod profile;
 mod provider;
 pub(crate) mod quickplay;
 pub(crate) mod rcon;
@@ -19,7 +20,9 @@ mod vanilla;
 pub(crate) mod world;
 
 use anyhow::{Context, Result};
-use proto::minecraft::{Flavor, GameVersion, InstanceProfile, ServerProfile};
+use proto::minecraft::{Flavor, GameVersion};
+
+use profile::{InstanceProfile, ServerProfile};
 
 pub use provider::{accepted_kinds, unmet, InstallRequest, Prerequisite, Side};
 pub use provider::{InstanceProvider, Loads, ResolveRequest, ServerProvider};

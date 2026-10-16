@@ -4,12 +4,13 @@
 
 use anyhow::{Context, Result};
 use proto::download::{Checksum, HashAlgorithm};
-use proto::minecraft::{Artifact, Library};
+use proto::minecraft::Artifact;
 use serde_json::Value;
 
 use proto::error::Service;
 
 use super::{fetch_json, filename_of, maven_path};
+use crate::minecraft::profile::Library;
 
 const META: &str = "https://meta.fabricmc.net/v2";
 const DEFAULT_MAVEN: &str = "https://maven.fabricmc.net/";

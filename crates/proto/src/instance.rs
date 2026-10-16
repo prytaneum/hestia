@@ -9,8 +9,8 @@ use crate::content::ContentKind;
 use crate::contract::{Contract, Empty, Topic};
 use crate::error::ErrorInfo;
 use crate::minecraft::{
-    ConfigEntry, FlavorsResult, InstanceProfile, LoadersParams, LoadersResult, ProvisionProgress,
-    ResolveParams, VersionsParams, VersionsResult,
+    ConfigEntry, FlavorsResult, LoadersParams, LoadersResult, ProvisionProgress, VersionsParams,
+    VersionsResult,
 };
 use crate::process::{ProcessInfo, ProcessLogsResult};
 use crate::warning::WarningInfo;
@@ -27,13 +27,6 @@ impl Contract for InstanceVersions {
     const CHANNEL: &'static str = "instance.versions";
     type Params = VersionsParams;
     type Result = VersionsResult;
-}
-
-pub struct InstanceResolve;
-impl Contract for InstanceResolve {
-    const CHANNEL: &'static str = "instance.resolve";
-    type Params = ResolveParams;
-    type Result = InstanceProfile;
 }
 
 pub struct InstanceLoaders;
