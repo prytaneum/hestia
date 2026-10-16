@@ -51,7 +51,7 @@ impl JavaInstallManager {
                 let report = reporter.checked();
                 engine
                     .java()
-                    .install(major, force, Some(engine.cache()), cancel, move |p| {
+                    .install(major, force, cancel, move |p| {
                         let _ = report(p);
                     })
                     .await

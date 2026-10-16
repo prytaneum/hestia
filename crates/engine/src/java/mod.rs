@@ -12,7 +12,6 @@ use anyhow::{bail, Context, Result};
 use proto::java::{JavaInstallPhase, JavaInstallProgress, JavaRelease, JavaRuntime};
 use serde_json::{json, Value};
 
-use crate::cache::Cache;
 use crate::download::Downloader;
 
 const RUNTIME_RECORD: &str = "runtime.json";
@@ -104,7 +103,6 @@ impl Java {
         &self,
         major: i32,
         force: bool,
-        cache: Option<&Cache>,
         cancel: &crate::cancel::Cancel,
         on_progress: impl Fn(&JavaInstallProgress) + Send + Sync,
     ) -> Result<JavaInstallOutcome> {
@@ -144,7 +142,7 @@ impl Java {
 
         let _ = std::fs::remove_dir_all(&paths.staging);
         let result = self
-            .run_install(&package, &paths, cache, cancel, &on_progress)
+            .run_install(&package, &paths, cancel, &on_progress)
             .await;
         if let Err(e) = &result {
             // A cancellation is not a failure: it is logged as what it is, and
@@ -182,11 +180,10 @@ impl Java {
         &self,
         package: &adoptium::JavaPackage,
         paths: &InstallPaths,
-        cache: Option<&Cache>,
         cancel: &crate::cancel::Cancel,
         on_progress: &(impl Fn(&JavaInstallProgress) + Send + Sync),
     ) -> Result<()> {
-        Downloader::new(cache)
+        Downloader::new(None)
             .fetch(
                 &package.url,
                 &paths.archive,

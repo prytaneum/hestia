@@ -96,7 +96,7 @@ network ([0053](../decisions/0053-server-provisioning-is-front-loaded.md)).
 flowchart TD
     R["resolve profile"] --> REG["register record<br/><i>phase: Provisioning</i>"]
     REG --> PORT["claim game port"]
-    PORT --> JAVA["ensure Java runtime<br/><i>via the cache</i>"]
+    PORT --> JAVA["ensure Java runtime"]
     JAVA --> FETCH["download files"]
     FETCH --> INSTALL["run the flavor's install hook<br/><i>NeoForge · Spigot only</i>"]
     INSTALL --> SCHEMA["derive schema.properties<br/><i>throwaway run</i>"]

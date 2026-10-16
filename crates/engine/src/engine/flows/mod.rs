@@ -39,27 +39,20 @@ use super::Engine;
 use crate::minecraft::materialize::OnProgress;
 
 impl Engine {
-    /// The installed runtime for `major`, installing it (through the cache) when
-    /// missing.
+    /// The installed runtime for `major`, installing it when missing.
     async fn ensure_java(&self, major: i32, on_progress: OnProgress<'_>) -> Result<PathBuf> {
         let detail = format!("java {major}");
         let outcome = self
             .java
-            .install(
-                major,
-                false,
-                Some(&self.cache),
-                on_progress.cancel(),
-                |jp| {
-                    on_progress.report(&ProvisionProgress {
-                        phase: ProvisionPhase::Java,
-                        current: jp.current,
-                        total: jp.total,
-                        detail: detail.clone(),
-                        ..ProvisionProgress::default()
-                    });
-                },
-            )
+            .install(major, false, on_progress.cancel(), |jp| {
+                on_progress.report(&ProvisionProgress {
+                    phase: ProvisionPhase::Java,
+                    current: jp.current,
+                    total: jp.total,
+                    detail: detail.clone(),
+                    ..ProvisionProgress::default()
+                });
+            })
             .await?;
         Ok(outcome.runtime.executable)
     }

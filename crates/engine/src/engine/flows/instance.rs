@@ -206,7 +206,7 @@ impl Engine {
             .join(&record.profile.game_version)
             .join(format!("{}.jar", record.profile.game_version));
         materialize::ensure_artifact(
-            Some(&self.cache),
+            None,
             &record.profile.client,
             &client_jar,
             ProvisionPhase::Client,
@@ -216,7 +216,7 @@ impl Engine {
 
         let libraries_root = meta.join("libraries");
         materialize::ensure_libraries(
-            Some(&self.cache),
+            None,
             &record.profile.libraries,
             &libraries_root,
             on_progress,
@@ -225,7 +225,7 @@ impl Engine {
 
         let natives_dir = meta.join("natives").join(&record.profile.game_version);
         materialize::ensure_natives(
-            Some(&self.cache),
+            None,
             &record.profile.natives,
             &libraries_root,
             &natives_dir,
@@ -243,7 +243,7 @@ impl Engine {
                     meta: &meta,
                     minecraft_jar: &client_jar,
                     java: &java,
-                    cache: Some(&self.cache),
+                    cache: None,
                     processes: self.processes(),
                 },
                 on_progress,

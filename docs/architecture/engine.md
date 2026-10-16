@@ -167,13 +167,17 @@ incremental SHA-1/SHA-256 hasher.
 
 **`Cache`** is a content-addressed store of verified downloads under
 `<data_home>/cache/<algorithm>/<hex[..2]>/<hex>`, keyed by checksum — so a file
-fetched once (a JDK, a library) is reused regardless of which URL asked for it.
+fetched once is reused regardless of which URL asked for it. It serves per-entry
+destinations: server jars and server libraries, mods and modpack files. Files
+that land in the shared `meta/` tree (an instance's client jar and libraries) and
+the JDK archive bypass it, since `meta/` already is the shared store and the
+archive is deleted after extraction.
 
 ```mermaid
 flowchart LR
     REQ["need file<br/>sha256:abc…"] --> HIT{"in cache?"}
     HIT -->|yes| REHASH["re-hash on the way out"]
-    REHASH -->|matches| USE["hardlink / copy into place"]
+    REHASH -->|matches| USE["copy into place"]
     REHASH -->|"differs"| EVICT["evict"] --> NET
     HIT -->|no| NET["download → verify → store"] --> USE
 ```
