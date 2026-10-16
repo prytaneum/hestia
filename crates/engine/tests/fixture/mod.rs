@@ -11,8 +11,7 @@ use engine::{
     LocalFile, Minecraft, ServerJar, ServerProfile, Side, UrlRef,
 };
 use proto::content::{
-    ContentKind, ContentProject, ContentVersion, ResolvedModpack, SearchQuery, SearchResult,
-    VersionQuery,
+    ContentKind, ContentProject, ContentVersion, SearchQuery, SearchResult, VersionQuery,
 };
 
 use proto::minecraft::{Artifact, GameVersion};
@@ -206,9 +205,6 @@ impl ContentProvider for Source {
             .filter(|v| ids.contains(&v.id))
             .cloned()
             .collect())
-    }
-    async fn fetch_modpack(&self, _version_id: &str) -> Result<(ResolvedModpack, Vec<u8>)> {
-        bail!("the fixture source serves no packs")
     }
 }
 

@@ -146,6 +146,7 @@ impl Engine {
     /// these belongs to a job that will never finish.
     fn reclaim_temp(&self) {
         let mut freed = self.java.reclaim();
+        freed += crate::reclaim::contents(&self.pack_staging());
         for record in self.servers.list() {
             freed += crate::backup::reclaim(&self.servers.server_dir(&record));
         }

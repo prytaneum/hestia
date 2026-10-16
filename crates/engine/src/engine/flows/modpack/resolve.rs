@@ -2,24 +2,28 @@
 //! which flavor it needs, and what the catalogue knows about the files inside.
 
 use std::collections::{BTreeSet, HashMap};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use anyhow::{bail, Result};
 use proto::content::{
     ContentKind, ContentProject, ContentVersion, ModpackFile, ReleaseChannel, ResolvedModpack,
     VersionQuery, LOCAL_SOURCE,
 };
-use proto::error::{EntryKind, ErrorInfo};
-use proto::minecraft::ProvisionPhase;
+use proto::error::{ArchiveFault, EntryKind, ErrorInfo};
+use proto::minecraft::{Artifact, ProvisionPhase};
 use proto::modpack::{InstalledModpack, ModpackMove, ModpackRef};
+use uuid::Uuid;
 
 use super::super::content::entry::{content_target, EntryContent, EntrySide};
 use super::super::phase_progress;
 use super::{pack_display_name, same_pack, FileIdentity, Supplied};
 use crate::cancel::Job;
 use crate::content::provider::FileRef;
-use crate::content::{pack, LocalFile};
+use crate::content::{install, pack, LocalFile};
 use crate::engine::Engine;
+use crate::minecraft::materialize;
+
+const STAGING: &str = "tmp";
 
 /// A pack ready to install: its manifest, the project detail it has when it came
 /// from a catalogue, and the archive its `overrides/` live in.
@@ -197,20 +201,68 @@ impl Engine {
         let version = self
             .pick_pack_version(&source, &project.id, &pin, installed)
             .await?;
-        job.check()?;
-        let (resolved, bytes) = self.content.fetch_modpack(&source, &version.id).await?;
-        Ok((resolved, Some(project), pack::Archive::open(bytes)?))
+        let artifact = &install::primary_file(&version)?.artifact;
+        if artifact.url.is_empty() {
+            bail!(ErrorInfo::ContentDownloadBlocked {
+                title: project.title.clone(),
+                source: version.source.clone(),
+            });
+        }
+        let mut archive = self.download_pack(artifact, job).await?;
+        let mut resolved = self.pack_manifest(&mut archive).await.map_err(|e| {
+            match e.downcast_ref::<ErrorInfo>() {
+                Some(ErrorInfo::ModpackInvalid {
+                    reason: ArchiveFault::ManifestMissing,
+                }) => ErrorInfo::NotAModpack {
+                    reference: version.id.clone(),
+                }
+                .into(),
+                _ => e,
+            }
+        })?;
+        resolved.source = version.source;
+        resolved.project_id = version.project_id;
+        resolved.version_id = version.id;
+        resolved.version_number = version.version_number;
+        Ok((resolved, Some(project), archive))
     }
 
-    pub(super) async fn read_pack_file(&self, path: &Path) -> Result<FetchedPack> {
-        let mut archive = pack::Archive::read(path)?;
-        let mut resolved = match archive.platform_manifest()? {
+    async fn download_pack(&self, artifact: &Artifact, job: &Job<'_>) -> Result<pack::Archive> {
+        let staged = self
+            .pack_staging()
+            .join(format!("{}.pack", Uuid::now_v7().simple()));
+        let downloaded = materialize::ensure_artifact(
+            Some(&self.cache),
+            artifact,
+            &staged,
+            ProvisionPhase::Content,
+            job,
+        )
+        .await;
+        let archive = downloaded.and_then(|()| pack::Archive::read(&staged));
+        if let Err(e) = std::fs::remove_file(&staged) {
+            tracing::debug!(path = %staged.display(), error = %e, "no modpack staging file to remove");
+        }
+        archive
+    }
+
+    pub(crate) fn pack_staging(&self) -> PathBuf {
+        self.data_home().join(STAGING)
+    }
+
+    async fn pack_manifest(&self, archive: &mut pack::Archive) -> Result<ResolvedModpack> {
+        Ok(match archive.platform_manifest()? {
             Some((source, manifest)) => self.content.resolve_manifest(source, &manifest).await?,
             None => ResolvedModpack {
                 source: LOCAL_SOURCE.to_string(),
                 ..archive.index()?
             },
-        };
+        })
+    }
+
+    pub(super) async fn read_pack_file(&self, path: &Path) -> Result<FetchedPack> {
+        let mut archive = pack::Archive::read(path)?;
+        let mut resolved = self.pack_manifest(&mut archive).await?;
         let project = self.published_pack(path, &mut resolved).await;
         if resolved.name.is_empty() {
             resolved.name = match &project {

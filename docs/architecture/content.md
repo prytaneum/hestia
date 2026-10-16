@@ -265,6 +265,14 @@ goes the same way round: the archive hands its manifest to the platform it names
 serve and is refused as `ContentSourceUnavailable` — naming the key to set —
 when it cannot.
 
+**A pack from a source goes through the downloader.** The version the flow picks
+already carries the archive's artifact, so it is fetched like any other file: into
+a uniquely named file under the data home's `tmp/`, with progress, cancellation
+and the download cache. The archive is read from there and the file is removed at
+once; `reclaim_temp()` empties the directory at start. A zip with no pack manifest
+is refused as `NotAModpack`, and an artifact with no URL as
+`ContentDownloadBlocked`.
+
 A pack decomposes into three things Hestia already has, and each goes where it
 belongs:
 

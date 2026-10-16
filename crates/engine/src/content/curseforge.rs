@@ -21,7 +21,6 @@ use proto::download::{Checksum, HashAlgorithm};
 use proto::error::{ArchiveFault, ErrorInfo, Service};
 use proto::minecraft::Artifact;
 use serde_json::{json, Value};
-use std::io::{Cursor, Read};
 
 use crate::config::ContentSettings;
 
@@ -36,10 +35,6 @@ const NAME: &str = "CurseForge";
 
 /// CurseForge's own id for Minecraft; every catalogue call is scoped to it.
 const GAME: u32 = 432;
-
-/// Names its files by id, so only this module resolves them into downloads;
-/// the archive's override trees are `pack.rs`'s half.
-const MANIFEST: &str = "manifest.json";
 
 /// Baked in by a distributor, empty in a plain `cargo build`; the
 /// `content.curseforge-key` setting overrides it without a rebuild.
@@ -361,51 +356,6 @@ impl ContentProvider for CurseForge {
         Ok(out)
     }
 
-    async fn fetch_modpack(&self, version_id: &str) -> Result<(ResolvedModpack, Vec<u8>)> {
-        let file = self
-            .files(&[version_id.to_string()])
-            .await?
-            .into_iter()
-            .next()
-            .ok_or_else(|| {
-                anyhow::Error::from(ErrorInfo::VersionNotFound {
-                    reference: version_id.to_string(),
-                })
-            })?;
-        let display = str_field(&file, "displayName");
-        let url = str_field(&file, "downloadUrl");
-        if url.is_empty() {
-            bail!(ErrorInfo::ContentDownloadBlocked {
-                title: display,
-                source: ID.to_string(),
-            });
-        }
-
-        let bytes = self.download(&url).await?;
-        let mut archive = zip::ZipArchive::new(Cursor::new(bytes.clone()))
-            .context("the modpack archive could not be read")?;
-        let manifest: Value = {
-            let mut entry = archive.by_name(MANIFEST).map_err(|_| {
-                anyhow::Error::from(ErrorInfo::NotAModpack {
-                    reference: version_id.to_string(),
-                })
-            })?;
-            let mut text = String::new();
-            entry
-                .read_to_string(&mut text)
-                .context("manifest.json is malformed")?;
-            serde_json::from_str(&text).context("manifest.json is malformed")?
-        };
-
-        let mut resolved = self.resolve_manifest(&manifest).await?;
-        resolved.version_id = u64_field(&file, "id").to_string();
-        resolved.project_id = u64_field(&file, "modId").to_string();
-        // The manifest's own `version` is free text; an update compares against
-        // what the platform published.
-        resolved.version_number = display;
-        Ok((resolved, bytes))
-    }
-
     async fn resolve_manifest(&self, manifest: &Value) -> Result<ResolvedModpack> {
         let mut resolved = parse_manifest(manifest)?;
         resolved.source = ID.to_string();
@@ -457,23 +407,6 @@ impl CurseForge {
         )
         .await?;
         json(path, response).await
-    }
-
-    async fn download(&self, url: &str) -> Result<Vec<u8>> {
-        tracing::debug!(url, "curseforge modpack GET");
-        let response =
-            crate::net::send(Some(Service::CurseForge), crate::net::client().get(url)).await?;
-        if !response.status().is_success() {
-            return Err(upstream(format!(
-                "{url}: HTTP {}",
-                response.status().as_u16()
-            )));
-        }
-        Ok(response
-            .bytes()
-            .await
-            .map_err(|e| upstream(format!("{url}: {e}")))?
-            .to_vec())
     }
 
     /// The numeric mod id a reference names — itself when it is already one,

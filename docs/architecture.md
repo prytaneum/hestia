@@ -161,6 +161,7 @@ real directory.
 │   └── spigot/          the shared BuildTools work tree
 ├── cache/               content-addressed download cache
 ├── processes/           supervisor records + captured logs
+├── tmp/                 modpack archives mid-download; emptied at start
 └── logs/                daemon, CLI and desktop logs; crash reports
 ```
 

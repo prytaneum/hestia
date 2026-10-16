@@ -1,25 +1,21 @@
 //! The Modrinth (`api.modrinth.com/v2`) content provider: search with facets,
-//! project detail, project versions, and fetching a `.mrpack` (parsed by the
-//! format-owning [`super::pack`], which a local file goes through too).
-//! Modrinth's raw JSON is mapped into the normalized `proto::content` types
-//! here; the rest of the engine never sees a Modrinth-specific shape. No API key
-//! is required.
+//! project detail and project versions. Modrinth's raw JSON is mapped into the normalized
+//! `proto::content` types here; the rest of the engine never sees a
+//! Modrinth-specific shape. No API key is required.
 
 use std::collections::HashMap;
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result};
 use async_trait::async_trait;
 use proto::content::{
     ContentDependency, ContentFile, ContentKind, ContentProject, ContentVersion, DependencyKind,
-    GalleryImage, ReleaseChannel, ResolvedModpack, SearchQuery, SearchResult, SearchSort,
-    SideSupport, VersionQuery,
+    GalleryImage, ReleaseChannel, SearchQuery, SearchResult, SearchSort, SideSupport, VersionQuery,
 };
 use proto::download::{Checksum, HashAlgorithm};
 use proto::error::Service;
 use proto::minecraft::Artifact;
 use serde_json::Value;
 
-use super::pack;
 use super::provider::{ContentProvider, FileRef, LocalFile, UrlRef};
 
 const API: &str = "https://api.modrinth.com/v2";
@@ -237,56 +233,6 @@ impl ContentProvider for Modrinth {
             .as_array()
             .map(|a| a.iter().map(|v| parse_version(self.id(), v)).collect())
             .unwrap_or_default())
-    }
-
-    async fn fetch_modpack(&self, version_id: &str) -> Result<(ResolvedModpack, Vec<u8>)> {
-        let version = get_json(&format!("{API}/version/{version_id}"), &[]).await?;
-        let files = version
-            .get("files")
-            .and_then(Value::as_array)
-            .filter(|f| !f.is_empty())
-            .context("modpack version has no files")?;
-        let file = files
-            .iter()
-            .find(|f| f.get("primary").and_then(Value::as_bool).unwrap_or(false))
-            .unwrap_or(&files[0]);
-        let filename = file
-            .get("filename")
-            .and_then(Value::as_str)
-            .unwrap_or_default();
-        if !filename.ends_with(".mrpack") {
-            bail!(proto::error::ErrorInfo::NotAModpack {
-                reference: version_id.to_string()
-            });
-        }
-        let url = file
-            .get("url")
-            .and_then(Value::as_str)
-            .filter(|u| !u.is_empty())
-            .context("modpack file has no download url")?;
-
-        let bytes = download_bytes(url).await?;
-        let mut archive = pack::Archive::open(bytes.clone())?;
-        let mut resolved = archive.index()?;
-        resolved.source = self.id().to_string();
-        resolved.version_id = version
-            .get("id")
-            .and_then(Value::as_str)
-            .unwrap_or(version_id)
-            .to_string();
-        resolved.project_id = version
-            .get("project_id")
-            .and_then(Value::as_str)
-            .unwrap_or_default()
-            .to_string();
-        // The index's own `versionId` is free text the pack author writes; the
-        // platform's version number is what `modpack update` compares against.
-        resolved.version_number = version
-            .get("version_number")
-            .and_then(Value::as_str)
-            .unwrap_or(&resolved.version_number)
-            .to_string();
-        Ok((resolved, bytes))
     }
 }
 
@@ -622,16 +568,6 @@ async fn post_json(url: &str, body: &Value) -> Result<Value> {
         .json()
         .await
         .with_context(|| format!("{url} returned malformed JSON"))
-}
-
-async fn download_bytes(url: &str) -> Result<Vec<u8>> {
-    tracing::debug!(url, "modrinth modpack GET");
-    let response = crate::net::get(Service::Modrinth, url).await?;
-    Ok(response
-        .bytes()
-        .await
-        .map_err(|e| crate::net::stream_failure(Some(Service::Modrinth), &e))?
-        .to_vec())
 }
 
 #[cfg(test)]
