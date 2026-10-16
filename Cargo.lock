@@ -712,7 +712,6 @@ dependencies = [
  "proto",
  "serde",
  "serde_json",
- "thiserror 2.0.21",
  "tokio",
  "tracing",
 ]
@@ -1033,7 +1032,6 @@ dependencies = [
  "serde_json",
  "sysinfo",
  "tempfile",
- "thiserror 2.0.21",
  "tokio",
  "tracing",
  "windows-sys 0.61.2",
@@ -2511,11 +2509,9 @@ version = "1.0.0-beta.2"
 dependencies = [
  "common",
  "libc",
- "serde",
  "serde_json",
  "thiserror 2.0.21",
  "tokio",
- "tracing",
 ]
 
 [[package]]
