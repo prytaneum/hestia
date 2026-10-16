@@ -5,7 +5,6 @@
 import { call } from './core/ipc';
 import type {
   InstanceSyncStatus,
-  SharedPack,
   SyncConfig,
   SyncOption,
   SyncSource,
@@ -73,28 +72,4 @@ export function setInstanceUnsynced(
   unsynced: string[],
 ): Promise<InstanceSyncStatus> {
   return call('instance.sync.keys', { instance, unsynced });
-}
-
-/** The shared pack library: identities, never files or versions. */
-export async function packs(): Promise<SharedPack[]> {
-  const result = await call<{ packs: SharedPack[] }>('sync.packs.get');
-  return result.packs;
-}
-
-export async function setPack(
-  pack: string,
-  enabled: boolean,
-): Promise<SharedPack[]> {
-  const result = await call<{ packs: SharedPack[] }>('sync.packs.set', {
-    pack,
-    enabled,
-  });
-  return result.packs;
-}
-
-export async function removePack(pack: string): Promise<SharedPack[]> {
-  const result = await call<{ packs: SharedPack[] }>('sync.packs.remove', {
-    pack,
-  });
-  return result.packs;
 }

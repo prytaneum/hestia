@@ -25,7 +25,6 @@ export const keys = {
   app: {
     all: ['app'] as const,
     info: () => [...keys.app.all, 'info'] as const,
-    ping: () => [...keys.app.all, 'ping'] as const,
   },
   daemon: {
     all: ['daemon'] as const,
@@ -56,7 +55,6 @@ export const keys = {
   cache: {
     all: ['cache'] as const,
     info: () => [...keys.cache.all, 'info'] as const,
-    list: () => [...keys.cache.all, 'list'] as const,
   },
   accounts: {
     all: ['accounts'] as const,
@@ -83,8 +81,6 @@ export const keys = {
     logs: (id: string, tail?: number) =>
       [...keys.servers.detail(id), 'logs', tail ?? null] as const,
     config: (id: string) => [...keys.servers.detail(id), 'config'] as const,
-    configValue: (id: string, key: string) =>
-      [...keys.servers.config(id), key] as const,
     properties: (id: string) =>
       [...keys.servers.config(id), 'properties'] as const,
     backups: (id: string) => [...keys.servers.detail(id), 'backups'] as const,
@@ -140,8 +136,6 @@ export const keys = {
         tail ?? null,
       ] as const,
     config: (id: string) => [...keys.instances.detail(id), 'config'] as const,
-    configValue: (id: string, key: string) =>
-      [...keys.instances.config(id), key] as const,
     content: (id: string) => [...keys.instances.detail(id), 'content'] as const,
     contentList: (id: string, kind: ContentKind) =>
       [...keys.instances.content(id), kind] as const,
@@ -182,7 +176,6 @@ export const keys = {
     config: () => [...keys.sync.all, 'config'] as const,
     status: () => [...keys.sync.all, 'status'] as const,
     options: () => [...keys.sync.all, 'options'] as const,
-    packs: () => [...keys.sync.all, 'packs'] as const,
     sources: (unit: string) => [...keys.sync.all, 'sources', unit] as const,
   },
   update: {

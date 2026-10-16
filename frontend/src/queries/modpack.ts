@@ -6,7 +6,7 @@
  * That is why the install mutations invalidate the whole list rather than one
  * entry's prefix.
  */
-import { queryOptions, useMutation, useQuery } from '@tanstack/react-query';
+import { queryOptions } from '@tanstack/react-query';
 import { logger } from '@/lib/log';
 import type {
   InstalledModpack,
@@ -20,7 +20,7 @@ import * as icons from '../api/icons';
 import type { PackRef } from '../api/modpack';
 import * as api from '../api/modpack';
 import { mutation } from './core';
-import { type JobEntryKind, jobMutation, useJobMutation } from './jobs';
+import { type JobEntryKind, jobMutation } from './jobs';
 import { keys } from './keys';
 
 const log = logger('modpack');
@@ -130,29 +130,4 @@ async function inheritPackIcon({ entry, pack }: ModpackDoneEvent) {
   } catch (error) {
     log.warn({ entry, error }, 'modpack icon not inherited');
   }
-}
-
-export function useModpack(kind: JobEntryKind, id: string) {
-  return useQuery(modpackQueries.status(kind, id));
-}
-
-export function useModpackUpdateCheck(
-  kind: JobEntryKind,
-  id: string,
-  enabled = true,
-  gameVersion = '',
-) {
-  return useQuery(modpackQueries.updateCheck(kind, id, enabled, gameVersion));
-}
-
-export function useInstallModpack(kind: JobEntryKind) {
-  return useJobMutation(modpackMutations.install(kind));
-}
-
-export function useUpdateModpack(kind: JobEntryKind, id: string) {
-  return useJobMutation(modpackMutations.update(kind, id));
-}
-
-export function useRemoveModpack(kind: JobEntryKind, id: string) {
-  return useMutation(modpackMutations.remove(kind, id));
 }

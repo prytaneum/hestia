@@ -4,7 +4,6 @@
 import { queryOptions } from '@tanstack/react-query';
 import type {
   InstanceSyncStatus,
-  SharedPack,
   SyncConfig,
   SyncOption,
   SyncUnit,
@@ -28,11 +27,6 @@ export const syncQueries = {
     queryOptions({
       queryKey: keys.sync.options(),
       queryFn: () => api.options(),
-    }),
-  packs: () =>
-    queryOptions({
-      queryKey: keys.sync.packs(),
-      queryFn: () => api.packs(),
     }),
   sources: (unit: SyncUnit) =>
     queryOptions({
@@ -65,18 +59,6 @@ export const syncMutations = {
     mutation<SyncOption[], { key: string; value: string }>({
       mutationKey: [...keys.sync.all, 'option'],
       mutationFn: ({ key, value }) => api.setOption(key, value),
-      invalidates: () => [keys.sync.all],
-    }),
-  setPack: () =>
-    mutation<SharedPack[], { pack: string; enabled: boolean }>({
-      mutationKey: [...keys.sync.all, 'pack'],
-      mutationFn: ({ pack, enabled }) => api.setPack(pack, enabled),
-      invalidates: () => [keys.sync.all],
-    }),
-  removePack: () =>
-    mutation<SharedPack[], string>({
-      mutationKey: [...keys.sync.all, 'pack', 'remove'],
-      mutationFn: (pack) => api.removePack(pack),
       invalidates: () => [keys.sync.all],
     }),
   setInstanceUnit: (id: string) =>

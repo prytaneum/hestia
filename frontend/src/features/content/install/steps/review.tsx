@@ -34,7 +34,7 @@ import { kindInfo } from '@/features/shared/content/lib';
 import { agoLabel } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { m } from '@/paraglide/messages.js';
-import { contentQueries, useContentSources } from '@/queries/content';
+import { contentQueries } from '@/queries/content';
 
 import { useTarget } from '../hooks';
 import type { PickedFile } from '../lib';
@@ -174,7 +174,7 @@ function TrackPicker({
   file: PickedFile;
   onChange: (track: string) => void;
 }) {
-  const sources = useContentSources().data ?? [];
+  const sources = useQuery(contentQueries.sources()).data ?? [];
   const options = [
     ...file.matches.map(({ project, versionNumber }) => ({
       value: project.source,

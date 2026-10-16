@@ -139,11 +139,6 @@ export const instanceQueries = {
       queryKey: keys.instances.config(id),
       queryFn: () => api.config.list(id),
     }),
-  configValue: (id: string, key: string) =>
-    queryOptions({
-      queryKey: keys.instances.configValue(id, key),
-      queryFn: () => api.config.get(id, key),
-    }),
   content: (id: string, kind: ContentKind) =>
     queryOptions({
       queryKey: keys.instances.contentList(id, kind),

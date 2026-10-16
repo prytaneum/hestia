@@ -103,11 +103,6 @@ export const serverQueries = {
       queryKey: keys.servers.config(id),
       queryFn: () => api.config.list(id),
     }),
-  configValue: (id: string, key: string) =>
-    queryOptions({
-      queryKey: keys.servers.configValue(id, key),
-      queryFn: () => api.config.get(id, key),
-    }),
   /** Nested under the config key, so a `config.set` refreshes it too. */
   properties: (id: string) =>
     queryOptions({

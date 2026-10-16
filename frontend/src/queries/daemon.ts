@@ -18,13 +18,6 @@ export const daemonQueries = {
 };
 
 export const daemonMutations = {
-  /** Without `stopProcesses`, supervised workloads keep running. */
-  stop: () =>
-    mutation<boolean, { stopProcesses: boolean }>({
-      mutationKey: [...keys.daemon.all, 'stop'],
-      mutationFn: ({ stopProcesses }) => api.stop(stopProcesses),
-      invalidates: () => [keys.daemon.all],
-    }),
   /** Spawn a stopped daemon; the settle refetch fills in its live status. */
   start: () =>
     mutation<DaemonStatusResult, void>({

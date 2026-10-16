@@ -24,10 +24,10 @@ describe('the query-key hierarchy', () => {
     }
   });
 
-  it('nests a config value under the entry’s config key', () => {
+  it('nests the properties under the entry’s config key', () => {
     expect(
       startsWith(
-        keys.servers.configValue('smp', 'memory'),
+        keys.servers.properties('smp'),
         keys.servers.config('smp'),
       ),
     ).toBe(true);

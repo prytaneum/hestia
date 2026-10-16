@@ -6,7 +6,7 @@ import {
   SwapIcon,
   TrashIcon,
 } from '@phosphor-icons/react';
-import { useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { toast } from 'sonner';
 
@@ -37,13 +37,7 @@ import { Thumbnail } from '@/components/ui/thumbnail';
 import { WarningNotice } from '@/components/warning-notice';
 import { m } from '@/paraglide/messages.js';
 import type { JobEntryKind } from '@/queries';
-import {
-  modpackQueries,
-  useModpack,
-  useModpackUpdateCheck,
-  useRemoveModpack,
-  useUpdateModpack,
-} from '@/queries';
+import { modpackMutations, modpackQueries, useJobMutation } from '@/queries';
 import { ProvisionProgressView } from '../components/provision-progress';
 import { ModpackVersionDialog } from '../dialogs';
 import { SideCard } from './cards';
@@ -68,9 +62,9 @@ export function ModpackCard({
   running: boolean;
 }) {
   const [picking, setPicking] = useState(false);
-  const pack = useModpack(kind, id);
-  const update = useUpdateModpack(kind, id);
-  const remove = useRemoveModpack(kind, id);
+  const pack = useQuery(modpackQueries.status(kind, id));
+  const update = useJobMutation(modpackMutations.update(kind, id));
+  const remove = useMutation(modpackMutations.remove(kind, id));
   const queryClient = useQueryClient();
   const [confirmRemove, setConfirmRemove] = useState(false);
   const [deleteContent, setDeleteContent] = useState(false);
@@ -78,10 +72,8 @@ export function ModpackCard({
     path: string;
     preview: ModpackFilePreview;
   } | null>(null);
-  const check = useModpackUpdateCheck(
-    kind,
-    id,
-    (pack.data?.projectId ?? '') !== '',
+  const check = useQuery(
+    modpackQueries.updateCheck(kind, id, (pack.data?.projectId ?? '') !== ''),
   );
 
   if (!pack.data) return null;

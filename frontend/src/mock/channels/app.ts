@@ -1,9 +1,5 @@
-/** `health.*`, `app.*` and `daemon.*` — the fixture daemon talking about itself. */
-import type {
-  AppInfoResult,
-  DaemonStatusResult,
-  PingResult,
-} from '@/api/types';
+/** `app.*` and `daemon.*` — the fixture daemon talking about itself. */
+import type { AppInfoResult, DaemonStatusResult } from '@/api/types';
 
 import { connection } from '../bus';
 import { HOME } from '../state/entries';
@@ -22,8 +18,6 @@ export const status = (): DaemonStatusResult => ({
 });
 
 export const channels: Handlers = {
-  'health.ping': (): PingResult => ({ status: 'ok', pid: PID }),
-
   'app.info': (): AppInfoResult => ({
     name: 'Hestia',
     version: '0.0.1',

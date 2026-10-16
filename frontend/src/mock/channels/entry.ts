@@ -19,13 +19,6 @@ const kindOf = (payload: Record<string, unknown>): ContentKind =>
 
 export function configChannels(prefix: string, resolve: Resolve): Handlers {
   return {
-    [`${prefix}.config.get`]: (p) => {
-      const key = str(p, 'key');
-      const entry = entries
-        .entrySettings(resolve(p))
-        .find((candidate) => candidate.key === key);
-      return { value: entry?.value ?? '' };
-    },
     [`${prefix}.config.list`]: (p) => ({
       entries: entries.entrySettings(resolve(p)),
     }),

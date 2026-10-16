@@ -1,5 +1,5 @@
 import { ArrowClockwiseIcon, DownloadSimpleIcon } from '@phosphor-icons/react';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { toast } from 'sonner';
 
@@ -25,12 +25,9 @@ import { useConfig } from '@/features/settings/use-config';
 import { cn } from '@/lib/utils';
 import { m } from '@/paraglide/messages.js';
 import { appQueries } from '@/queries/app';
+import { useJobMutation } from '@/queries/jobs';
 import { useOffline } from '@/queries/net';
-import {
-  useApplyUpdate,
-  useDownloadUpdate,
-  useUpdateCheck,
-} from '@/queries/update';
+import { updateMutations, useUpdateCheck } from '@/queries/update';
 
 const CHANNELS: UpdateChannel[] = ['stable', 'beta'];
 
@@ -83,8 +80,8 @@ export function UpdatePanel() {
   const [asked, setAsked] = useState(false);
   const offline = useOffline();
   const check = useUpdateCheck(asked);
-  const download = useDownloadUpdate();
-  const apply = useApplyUpdate();
+  const download = useJobMutation(updateMutations.download());
+  const apply = useMutation(updateMutations.apply());
 
   const update = check.data?.available;
   const version = app.data?.version ?? '';

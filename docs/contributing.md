@@ -392,8 +392,8 @@ Use `tryCall` when a `not_found` should surface as `null`, pass `{ timeoutMs }`
 for a long call (mirror the Rust facade's `call_with_timeout` values), and wrap a progress-streaming operation in
 `runJob` (`core/jobs.ts`) with its progress/done/error topics — see `server.create` or `java.install`.
 
-**2. The query bindings**, in the domain's `frontend/src/queries/<domain>.ts` — every API function gets a factory entry,
-so the layer stays 1:1 with the API. A read is a `queryOptions` maker in `<domain>Queries` (its key from `keys.ts` —
+**2. The query bindings**, in the domain's `frontend/src/queries/<domain>.ts` — a factory exists when a screen uses
+it, so a channel nothing renders gets no factory, key or mock handler until a screen needs it. A read is a `queryOptions` maker in `<domain>Queries` (its key from `keys.ts` —
 per-entry keys take the **stable id**, never the display name, and nest under `detail(id)` so one sweep refreshes the
 whole entry). A write is a `mutation({ mutationKey, mutationFn, invalidates })` maker in `<domain>Mutations`, where
 `invalidates` declares the key prefixes swept on settle. Components pass these to TanStack's own

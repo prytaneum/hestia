@@ -1,8 +1,9 @@
+import { useQuery } from '@tanstack/react-query';
 import type { ContentKind, ContentSource } from '@/api';
 import type { FilterGroup } from '@/components/filter-menu';
 import { Badge } from '@/components/ui/badge';
 import { m } from '@/paraglide/messages.js';
-import { useContentSources } from '@/queries/content';
+import { contentQueries } from '@/queries/content';
 
 /**
  * The sources a kind can be browsed on. The daemon answers only the sources
@@ -10,7 +11,7 @@ import { useContentSources } from '@/queries/content';
  * this never offers one that would come back empty.
  */
 export function useSourceOptions(kind: ContentKind | undefined, value: string) {
-  const sources = useContentSources();
+  const sources = useQuery(contentQueries.sources());
   const list = (sources.data ?? []).filter(
     (s) => !kind || s.kinds.includes(kind),
   );
@@ -39,7 +40,7 @@ export function sourceGroup(
 
 /** Which platform a project came from — only worth saying with more than one. */
 export function SourceBadge({ source }: { source: string }) {
-  const sources = useContentSources();
+  const sources = useQuery(contentQueries.sources());
   const list = sources.data ?? [];
   if (!source || list.length < 2) return null;
   return (

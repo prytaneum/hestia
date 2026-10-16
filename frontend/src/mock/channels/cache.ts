@@ -17,7 +17,6 @@ const usage = (): CacheUsage => ({
 
 export const channels: Handlers = {
   'cache.info': (): CacheInfoResult => ({ path: `${HOME}/cache`, ...usage() }),
-  'cache.list': () => ({ entries }),
   'cache.clear': () => {
     const reclaimed = usage();
     entries = [];

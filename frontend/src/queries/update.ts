@@ -3,7 +3,7 @@
  * the network, and an update is not something the app should nag about before
  * the user asks. The Settings surface triggers it.
  */
-import { queryOptions, useMutation, useQuery } from '@tanstack/react-query';
+import { queryOptions, useQuery } from '@tanstack/react-query';
 
 import type { DownloadProgress } from '../api/types/download';
 import type {
@@ -13,7 +13,7 @@ import type {
 } from '../api/types/update';
 import * as api from '../api/update';
 import { mutation } from './core';
-import { jobMutation, useJobMutation } from './jobs';
+import { jobMutation } from './jobs';
 import { keys } from './keys';
 
 export const updateQueries = {
@@ -46,14 +46,6 @@ export const updateMutations = {
 /** `enabled: false` until the user asks — see the note above. */
 export function useUpdateCheck(enabled: boolean) {
   return useQuery({ ...updateQueries.check(), enabled });
-}
-
-export function useDownloadUpdate() {
-  return useJobMutation(updateMutations.download());
-}
-
-export function useApplyUpdate() {
-  return useMutation(updateMutations.apply());
 }
 
 export type { UpdateCheckResult };

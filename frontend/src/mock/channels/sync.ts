@@ -68,36 +68,7 @@ const one = (id: string): InstanceSyncStatus =>
 const unitOf = (p: Record<string, unknown>): SyncUnit =>
   (p.unit as SyncUnit) ?? 'options';
 
-const sharedPacks = [
-  {
-    kind: 'resourcepack' as const,
-    source: 'modrinth',
-    project: 'cozy',
-    title: 'Cozy',
-    filename: 'cozy.zip',
-    enabled: true,
-  },
-];
-
 export const channels: Handlers = {
-  'sync.packs.get': () => ({ packs: sharedPacks }),
-  'sync.packs.set': (payload) => {
-    const pack = str(payload, 'pack');
-    for (const shared of sharedPacks) {
-      if (shared.project === pack || shared.title === pack) {
-        shared.enabled = payload?.enabled === true;
-      }
-    }
-    return { packs: sharedPacks };
-  },
-  'sync.packs.remove': (payload) => {
-    const pack = str(payload, 'pack');
-    return {
-      packs: sharedPacks.filter(
-        (shared) => shared.project !== pack && shared.title !== pack,
-      ),
-    };
-  },
   'sync.get': config,
 
   'sync.sources': () => ({

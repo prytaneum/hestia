@@ -8,7 +8,6 @@ import {
   infiniteQueryOptions,
   keepPreviousData,
   queryOptions,
-  useQuery,
 } from '@tanstack/react-query';
 import type {
   ContentKind,
@@ -126,7 +125,3 @@ export const contentQueries = {
       staleTime: BROWSE_STALE_MS,
     }),
 };
-
-export function useContentSources() {
-  return useQuery(contentQueries.sources());
-}

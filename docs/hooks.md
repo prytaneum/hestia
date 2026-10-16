@@ -1,7 +1,7 @@
 # Frontend hooks — the queries layer
 
-The usage guide for `frontend/src/queries/`, the TanStack Query layer the desktop UI is built on. It mirrors the typed
-API (`frontend/src/api/`) **1:1** — every channel the daemon serves has a factory — so building a page is only
+The usage guide for `frontend/src/queries/`, the TanStack Query layer the desktop UI is built on. A factory exists
+when a screen uses it, so building a page is only
 rendering: no `call()`, no event-bus wiring, no cache bookkeeping in components.
 [contributing.md](contributing.md#add-a-desktop-api-method) has the recipe for
 *extending* the layer; this page is how to *consume* it.
@@ -45,7 +45,8 @@ const create = useJobMutation(serverMutations.create());
 ```
 
 A **handful of named hooks** exist on top, only where a factory alone is not enough — a read that composes two sources,
-or one that accumulates live events. They are listed in the inventory below; everything else is a factory.
+or one that accumulates live events. Each is an exported `use*` function in its `queries/<domain>.ts`; everything else
+is a factory.
 
 Rules that hold everywhere:
 
@@ -76,7 +77,7 @@ query — same shape to the caller.
 const { data: server } = useServer(id);                              // ServerInfo | undefined
 const { data: backups } = useQuery(serverQueries.backups(id));
 const { data: mods } = useQuery(serverQueries.content(id, 'mod'));
-const { data: value } = useQuery(serverQueries.configValue(id, 'memory'));   // string | null
+const { data: entries } = useQuery(serverQueries.config(id));
 ```
 
 Catalogue reads (`serverQueries.flavors()`, `serverQueries.versions(flavor)`,
@@ -218,7 +219,7 @@ function Console({ id }: { id: string }) {
 
 `useInstanceLogs(id, { session, follow })` follows one named session or every session of the instance;
 `useFollowedLogs(query, matches, limit)` is the primitive both compose over, usable directly against
-`processQueries.logs(...)`. While following, the tail query stops refetching (the stream
+`serverQueries.logs(...)`. While following, the tail query stops refetching (the stream
 is the freshness) and the live buffer is capped by `limit`
 (default 1000).
 
@@ -255,173 +256,23 @@ const { error } = useServer(id);
 if (error && isNotFound(error)) return <NotFound />;   // from '#/api'
 ```
 
-`tryCall`-backed reads (`configQueries.value`, `serverQueries.configValue`, …) already surface a missing value as `null` data
+`tryCall`-backed reads (`configQueries.value`, …) already surface a missing value as `null` data
 rather than an error. Queries and mutations don't retry (the daemon is a local socket — failures aren't transient
 network blips), so an error is real the first time you see it. Nor does an errored query refetch when a component
 remounts (`retryOnMount:
 false`): it clears when something invalidates it — a mutation, a daemon topic, or the reconnect sweep. A daemon that
 goes away is not a per-query concern at all; the shell's `OfflineOverlay` reports it once, from `useConnection()`.
 
-## Inventory
+## Finding a factory
 
-The 1:1 audit: every factory, its wire surface, and its variables. *(job)* marks a `jobMutation` — pair it with
-`useJobMutation` for the local progress view, or plain `useMutation` to fire and forget.
-
-### Hooks
-
-The only named hooks. Everything else is a factory passed to `useQuery`/`useMutation`/`useJobMutation`.
-
-| Hook                                                    | What                                                        |
-|---------------------------------------------------------|--------------------------------------------------------------|
-| `useConnection()`                                       | daemon connection state                                       |
-| `useDaemonEvent(topic, handler)`                        | one daemon topic, for the component's lifetime                |
-| `useJobs()` / `useJob(id)` / `useEntryJobs(kind, id)`   | the global job store                                          |
-| `useJobMutation(factory)`                               | a job mutation plus its local `progress`/`job`                |
-| `useJobDisplay(job, shown)`                             | claim a job's display while a dialog renders its progress     |
-| `dismissJob(id)` / `clearSettledJobs()` / `getJobs()`   | store maintenance (not hooks)                                 |
-| `useServers()` / `useServer(id)`                        | the list, and one server seeded from it                       |
-| `useInstances()` / `useInstance(id)`                    | the list, and one instance selected out of it                 |
-| `useDaemon()`                                           | status gated on the connection, with a live-ticking uptime    |
-| `useAccounts()`                                         | the list bundled with its sign-in, switch and remove mutations |
-| `useServerLogs(id, opts)` / `useInstanceLogs(id, opts)` | the fetched tail plus live `process.output`                   |
-| `useProcessLogs(id, opts)`                              | the raw per-process form of the same                          |
-| `useFollowedLogs(query, matches, limit)`                | the follow primitive those three compose over                 |
-| `useProcessMetrics(processId, window)`                  | `process.metrics` samples over a rolling window               |
-| `useEquippedSkin(account?, opts)`                       | the account's current skin, selected out of `skin.list`       |
-| `useConsoleHistory(id)`                                 | per-server command echoes and RCON replies (in-memory)        |
-| `useModpack(kind, id)`                                  | an entry's installed pack                                     |
-| `useInstallModpack(kind)` / `useUpdateModpack(kind, id)` *(job)* | the pack jobs                                        |
-| `useRemoveModpack(kind, id)`                            | remove the pack record                                        |
-| `useUpdateCheck(enabled)` / `useDownloadUpdate()` / `useApplyUpdate()` | self-update, over the daemon's `update.*` channels |
-| `usePrefs()` / `usePinned()`                            | desktop-local UI state, over the `prefs_*` shell commands     |
-| `useMultiSession()`                                     | whether `instance.multi-session` allows concurrent sessions   |
-| `useEntryIconLookup()`                                  | `(id) => iconUrl`, over the `icons_*` shell commands          |
-
-### Servers — `serverQueries` / `serverMutations`
-
-| Factory                                              | Channel                             | Variables                                        |
-|------------------------------------------------------|-------------------------------------|--------------------------------------------------|
-| `.list()`                                            | `server.list`                       | —                                                |
-| `.detail(id)` / `.info(id)`                          | `server.status` / `server.info`     | —                                                |
-| `.ping(id)`                                          | `server.ping`                       | —                                                |
-| `.flavors()` / `.loaders(flavor)` / `.versions(flavor)` / `.profile(params)` | `server.flavors\|loaders\|versions\|resolve` | —                        |
-| `.logs(id, opts)`                                    | `server.logs`                       | —                                                |
-| `.config(id)` / `.configValue(id, key)`              | `server.config.list\|get`           | —                                                |
-| `.backups(id)`                                       | `server.backup.list`                | —                                                |
-| `.content(id, kind)` / `.contentUpdates(id)`         | `server.content.list\|check_updates`| —                                                |
-| `.create()` *(job)*                                  | `server.create`                     | `Partial<ServerCreateParams>`                    |
-| `.update(id)` *(job)*                                | `server.update`                     | `{ version, loaderVersion?, allowDowngrade? }`   |
-| `.rename(id)` / `.remove(id)`                        | `server.rename\|remove`             | `name: string` / —                               |
-| `.start(id)` / `.stop(id)`                           | `server.start\|stop`                | —                                                |
-| `.restart(id)`                                       | `server.restart`                    | — (settles once the new process is up)           |
-| `.startAny()` / `.stopAny()`                         | `server.start\|stop`                | `id: string` — for a list row                    |
-| `.command(id)`                                       | `server.command`                    | `line: string`                                   |
-| `.setConfig(id)`                                     | `server.config.set`                 | `{ key, value }`                                 |
-| `.backup.create(id)` *(job)*                         | `server.backup.create`              | —                                                |
-| `.backup.restore(id)` *(job)*                        | `server.backup.restore`             | `backupId: string`                               |
-| `.backup.remove(id)`                                 | `server.backup.remove`              | `backupId: string`                               |
-| `.content.*`                                         | see **Entry content** below         |                                                  |
-
-### Instances — `instanceQueries` / `instanceMutations`
-
-| Factory                                              | Channel                               | Variables                                      |
-|------------------------------------------------------|---------------------------------------|------------------------------------------------|
-| `.list()` / `.info(id)`                              | `instance.list\|info`                 | —                                              |
-| `.flavors()` / `.loaders(flavor)` / `.versions(flavor)` / `.profile(params)` | `instance.flavors\|loaders\|versions\|resolve` | —                  |
-| `.worlds(id)`                                        | `instance.worlds`                     | —                                              |
-| `.recent()`                                          | `instance.recent`                     | —                                              |
-| `.logs(id, opts)`                                    | `instance.logs`                       | —                                              |
-| `.config(id)` / `.configValue(id, key)`              | `instance.config.list\|get`           | —                                              |
-| `.content(id, kind)` / `.contentUpdates(id)`         | `instance.content.list\|check_updates`| —                                              |
-| `.create()`                                          | `instance.create`                     | `Partial<InstanceCreateParams>`                |
-| `.update(id)`                                        | `instance.update`                     | `{ version, loaderVersion?, allowDowngrade? }` |
-| `.rename(id)` / `.remove(id)`                        | `instance.rename\|remove`             | `name: string` / —                             |
-| `.launchAny()` *(job)*                               | `instance.launch`                     | `{ id, newSession?, quickPlay? }`              |
-| `.stop(id)` / `.stopAny()`                           | `instance.stop`                       | `{ session? }` / `{ id, session? }`            |
-| `.stopSettledAny()`                                  | `instance.stop` + `instance.list`     | `{ id, session }` — settles once it has exited |
-| `.setConfig(id)`                                     | `instance.config.set`                 | `{ key, value }`                               |
-| `.content.*`                                         | see **Entry content** below           |                                                |
-
-### Entry content — `<domain>Mutations.content` (`entry-content.ts`)
-
-One shared factory set, bound per entry kind, so servers and instances cannot drift.
-
-| Factory                    | Channel                       | Variables                             |
-|----------------------------|-------------------------------|---------------------------------------|
-| `.add(id)` *(job)*         | `<kind>.content.add`          | `ContentAddInput`                     |
-| `.remove(id)`              | `<kind>.content.remove`       | `{ kind, item, worlds? }`             |
-| `.update(id)` *(job)*      | `<kind>.content.update`       | `{ kind, item? }` — empty item = all  |
-| `.setVersion(id)` *(job)*  | `<kind>.content.set_version`  | `{ kind, item, versionId }`           |
-| `.enable(id)`              | `<kind>.content.enable`       | `{ kind, item, enabled }`             |
-
-### Modpacks — `modpackQueries` / `modpackMutations`
-
-`kind` is `'server' | 'instance'`; the channel takes the matching prefix.
-
-| Factory                       | Channel                   | Variables                       |
-|-------------------------------|---------------------------|---------------------------------|
-| `.status(kind, id)`           | `<kind>.modpack.status`   | —                               |
-| `.updateCheck(kind, id)`      | `<kind>.modpack.check_update` | —                           |
-| `.install(kind)` *(job)*      | `<kind>.modpack.install`  | `ModpackInstallParams`          |
-| `.updatePreview(kind, id, path)` | `<kind>.modpack.preview_update` | —                      |
-| `.update(kind, id)` *(job)*   | `<kind>.modpack.update`   | `{ version? \| path?, allowDowngrade?, allowOtherPack? }` |
-| `.remove(kind, id)`           | `<kind>.modpack.remove`   | `{ keepContent }`               |
-
-### Content browse — `contentQueries`
-
-| Factory                        | Channel                   | Variables                      |
-|--------------------------------|---------------------------|--------------------------------|
-| `.sources()`                   | `content.sources`         | —                              |
-| `.search(query)` / `.searchPaged(query)` | `content.search` | — (paged is infinite-scroll)   |
-| `.project(project, source?)`   | `content.project`         | —                              |
-| `.versions(query)`             | `content.versions`        | —                              |
-| `.url(url)`                    | `content.resolve_url`     | —                              |
-| `.modpack(versionId, source?)` | `content.modpack.resolve` | — (heavy — mount deliberately) |
-
-### Everything else
-
-| Factory                                       | Channel                     | Variables                              |
-|-----------------------------------------------|-----------------------------|----------------------------------------|
-| `appQueries.info()` / `.ping()`               | `app.info` / `health.ping`  | —                                      |
-| `daemonQueries.status()`                      | `daemon.status`             | —                                      |
-| `daemonMutations.stop()`                      | `daemon.stop`               | `{ stopProcesses }`                    |
-| `daemonMutations.start()` / `.restart()`      | `start_daemon` (shell)      | —                                      |
-| `configQueries.list()` / `.value(key)`        | `config.list\|get`          | —                                      |
-| `configMutations.set()`                       | `config.set`                | `{ key, value }`                       |
-| `cacheQueries.info()` / `.list()`             | `cache.info\|list`          | —                                      |
-| `cacheMutations.clear()`                      | `cache.clear`               | —                                      |
-| `accountQueries.list()`                       | `account.list`              | —                                      |
-| `accountMutations.loginSisu()`                | `account_login_sisu` (shell)| —                                      |
-| `accountMutations.beginLogin()`               | `account.login.begin`       | `'sisu' \| 'device_code'`              |
-| `accountMutations.completeLogin()`            | `account.login.complete`    | `{ id, code? }`                        |
-| `accountMutations.switch()` / `.remove()`     | `account.switch\|remove`    | `account: string`                      |
-| `javaQueries.releases()` / `.runtimes()`      | `java.releases\|list`       | —                                      |
-| `javaMutations.install()` *(job)*             | `java.install`              | `{ major, force? }`                    |
-| `javaMutations.uninstall()`                   | `java.uninstall`            | `major: number`                        |
-| `processQueries.list()` / `.status(id)` / `.logs(id, opts)` | `process.list\|status\|logs` | —                          |
-| `processMutations.start()` / `.stop()`        | `process.start\|stop`       | `ProcessSpec` / `id: string`           |
-| `skinQueries.list(account?)`                  | `skin.list`                 | —                                      |
-| `skinMutations.add()`                         | `skin.add`                  | `{ account?, name?, variant, data }`   |
-| `skinMutations.update()`                      | `skin.update`               | `{ key, label?, variant? }`            |
-| `skinMutations.equip()` / `.reset()` / `.remove()` | `skin.equip\|reset\|remove` | `{ key, account? }` / `{ account? }?` / `key` |
-| `skinMutations.equipCape()` / `.clearCape()`  | `cape.equip\|clear`         | `{ cape, account? }` / `{ account? }?` |
-| `syncQueries.config()` / `.status()` / `.options()` | `sync.get\|status\|options.get` | —                            |
-| `syncQueries.sources(unit)`                   | `sync.sources`              | —                                      |
-| `syncMutations.enable()` / `.disable()`       | `sync.enable\|disable`      | `{ unit, source? }` / `SyncUnit`       |
-| `syncMutations.setUnsynced()`                 | `sync.options.keys`         | `string[]`                             |
-| `syncMutations.setOption()`                   | `sync.options.set`          | `{ key, value }`                       |
-| `syncMutations.setInstanceUnit(id)`           | `instance.sync.unit`        | `{ unit, shared }`                     |
-| `syncMutations.setInstanceUnsynced(id)`       | `instance.sync.keys`        | `string[]`                             |
-| `updateQueries.check()`                       | `update_check` (shell)      | —                                      |
-| `updateMutations.install()`                   | `update_install` (shell)    | —                                      |
-| `iconQueries.list()`                          | `icons_list` (shell)        | —                                      |
-| `iconMutations.set()` / `.remove()`           | `icon_set\|remove` (shell)  | `{ entryId, sourcePath }` / `entryId`  |
-| `prefsQueries.list()`                         | `prefs_list` (shell)        | —                                      |
-| `prefsMutations.set()` / `.remove()`          | `prefs_set\|remove` (shell) | `{ key, value }` / `key`               |
+The query modules are the inventory: each `frontend/src/queries/<domain>.ts` is an object literal of named factories
+(`<domain>Queries`, `<domain>Mutations`) plus the few named hooks, and a job mutation is marked by `jobMutation(...)`.
+A daemon channel with no factory there is one no screen uses yet.
 
 ## Extending the layer
 
-A new channel is one factory entry in the domain's `queries/<domain>.ts` (and a row here). Add a named hook only when a
+A new channel a screen needs is one factory entry in the domain's `queries/<domain>.ts`. Add a named hook only when a
 factory alone cannot express it — a read composing two sources, or one accumulating live events. The full recipe,
 including the `mutation()`/`jobMutation()` helpers and the invalidation map, is in
 [contributing.md](contributing.md#add-a-desktop-api-method).
+

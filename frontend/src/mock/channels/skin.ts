@@ -135,11 +135,6 @@ export const channels: Handlers = {
     return ok();
   },
 
-  'skin.reset': () => {
-    equip(CHARACTERS[0][2]);
-    return ok();
-  },
-
   'skin.remove': (p) => {
     const at = library.findIndex((entry) => entry.key === str(p, 'key'));
     if (at >= 0) library.splice(at, 1);

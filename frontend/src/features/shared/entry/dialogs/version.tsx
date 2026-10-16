@@ -1,3 +1,4 @@
+import { useQuery } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -16,7 +17,7 @@ import {
 import { Notice } from '@/components/warning-notice';
 import { m } from '@/paraglide/messages.js';
 import type { JobEntryKind } from '@/queries';
-import { useModpack, useModpackUpdateCheck, useUpdateModpack } from '@/queries';
+import { modpackMutations, modpackQueries, useJobMutation } from '@/queries';
 import { useEntryVersions } from '@/queries/versions';
 
 export interface UpdateHandle {
@@ -66,14 +67,16 @@ export function ChangeVersionDialog({
     [versions.data, gameVersion],
   );
 
-  const pack = useModpack(kind, id).data;
-  const packUpdate = useUpdateModpack(kind, id);
+  const pack = useQuery(modpackQueries.status(kind, id)).data;
+  const packUpdate = useJobMutation(modpackMutations.update(kind, id));
   const drifts = !!pack && version !== '' && version !== pack.gameVersion;
-  const check = useModpackUpdateCheck(
-    kind,
-    id,
-    drifts && pack.projectId !== '',
-    version,
+  const check = useQuery(
+    modpackQueries.updateCheck(
+      kind,
+      id,
+      drifts && pack.projectId !== '',
+      version,
+    ),
   );
   const fit = drifts ? check.data?.fitting : undefined;
   const pending = update.isPending || packUpdate.isPending;

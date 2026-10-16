@@ -17,10 +17,10 @@ import {
 } from '@/components/ui/select';
 import { ProvisionProgressView } from '@/features/shared/entry/components';
 import { m } from '@/paraglide/messages.js';
-import { useInstallModpack } from '@/queries';
+import { modpackMutations } from '@/queries';
 import { contentQueries } from '@/queries/content';
 import { useInstances } from '@/queries/instance';
-import { useJobDisplay } from '@/queries/jobs';
+import { useJobDisplay, useJobMutation } from '@/queries/jobs';
 import { useServers } from '@/queries/server';
 
 /**
@@ -54,7 +54,9 @@ export function ModpackInstallDialog({
     ...contentQueries.versions({ source: project.source, project: project.id }),
     enabled: open,
   });
-  const install = useInstallModpack(mode === 'server' ? 'server' : 'instance');
+  const install = useJobMutation(
+    modpackMutations.install(mode === 'server' ? 'server' : 'instance'),
+  );
   useJobDisplay(install.job, open);
 
   useEffect(() => {

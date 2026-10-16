@@ -56,11 +56,6 @@ export async function equip(key: string, account = ''): Promise<void> {
   await call('skin.equip', { account, key }, MOJANG_TIMEOUT);
 }
 
-/** Reset the account to its uuid-derived default skin. */
-export async function reset(account = ''): Promise<void> {
-  await call('skin.reset', { account }, MOJANG_TIMEOUT);
-}
-
 /** Remove a library entry; the equipped Mojang skin is untouched. */
 export async function remove(key: string): Promise<void> {
   await call('skin.remove', { key });

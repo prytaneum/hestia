@@ -7,7 +7,7 @@
  */
 
 import type { ContentAddInput } from './content';
-import { call, tryCall } from './core/ipc';
+import { call } from './core/ipc';
 import { type JobRun, runJob } from './core/jobs';
 import type { BackupInfo } from './types/backup';
 import type {
@@ -179,14 +179,6 @@ export function complete(
  * `backup-retention`) plus any `server.properties` key.
  */
 export const config = {
-  async get(server: string, key: string): Promise<string | null> {
-    const result = await tryCall<{ value: string }>('server.config.get', {
-      server,
-      key,
-    });
-    return result?.value ?? null;
-  },
-
   async set(server: string, key: string, value: string): Promise<void> {
     await call('server.config.set', { server, key, value });
   },

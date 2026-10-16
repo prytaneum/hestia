@@ -6,7 +6,7 @@
  */
 
 import type { ContentAddInput } from './content';
-import { call, tryCall } from './core/ipc';
+import { call } from './core/ipc';
 import { type JobRun, runJob } from './core/jobs';
 import type {
   ContentDoneEvent,
@@ -205,14 +205,6 @@ export async function logs(
 
 /** `memory` and `jvm-args` only. */
 export const config = {
-  async get(instance: string, key: string): Promise<string | null> {
-    const result = await tryCall<{ value: string }>('instance.config.get', {
-      instance,
-      key,
-    });
-    return result?.value ?? null;
-  },
-
   async set(instance: string, key: string, value: string): Promise<void> {
     await call('instance.config.set', { instance, key, value });
   },

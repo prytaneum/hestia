@@ -34,11 +34,6 @@ export const commands: Handlers = {
     return entry;
   },
 
-  icon_remove: (p) => {
-    icons.delete(str(p, 'entryId'));
-    return null;
-  },
-
   icon_generate: (p) => {
     const entry = { config: p?.config, generated: bool(p, 'generate') };
     generated.set(str(p, 'entryId'), entry);

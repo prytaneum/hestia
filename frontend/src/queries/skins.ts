@@ -128,12 +128,6 @@ export const skinMutations = {
         optimisticList(account ?? '', (list) => equipSkinInList(list, key)),
       invalidates: () => [keys.skins.all],
     }),
-  reset: () =>
-    mutation<void, { account?: string } | undefined>({
-      mutationKey: [...keys.skins.all, 'reset'],
-      mutationFn: (params) => api.reset(params?.account),
-      invalidates: () => [keys.skins.all],
-    }),
   remove: () =>
     mutation<void, { key: string; account?: string }>({
       mutationKey: [...keys.skins.all, 'remove'],

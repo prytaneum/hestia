@@ -201,7 +201,7 @@ defaults, the event bus, and a `runJob` driver mirroring `Session::run_job`
 `proto` by ts-rs; the feature-gated `#[ts]` derives never enter a production
 build. Then one module per domain, mirroring the client facades.
 
-**`queries/`** — one module per domain, mirroring the API namespaces 1:1. Each
+**`queries/`** — one module per domain, for the channels a screen uses. Each
 exports **factories** — options objects, not hooks (`serverQueries.detail(id)`,
 `serverMutations.start(id)`) — passed to TanStack's own `useQuery`/`useMutation`.
 One definition then serves a component, a route loader's `ensureQueryData` and an

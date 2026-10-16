@@ -25,12 +25,6 @@ export const iconMutations = {
       mutationFn: ({ entryId, sourcePath }) => api.set(entryId, sourcePath),
       invalidates: () => [keys.icons.all],
     }),
-  remove: () =>
-    mutation<void, string>({
-      mutationKey: [...keys.icons.all, 'remove'],
-      mutationFn: (entryId) => api.remove(entryId),
-      invalidates: () => [keys.icons.all],
-    }),
   generate: () =>
     mutation<
       api.IconEntry,

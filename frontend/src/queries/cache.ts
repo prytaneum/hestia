@@ -11,11 +11,6 @@ export const cacheQueries = {
       queryKey: keys.cache.info(),
       queryFn: () => api.info(),
     }),
-  list: () =>
-    queryOptions({
-      queryKey: keys.cache.list(),
-      queryFn: () => api.list(),
-    }),
 };
 
 export const cacheMutations = {

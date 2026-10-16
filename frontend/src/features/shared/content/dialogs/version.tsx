@@ -20,7 +20,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { m } from '@/paraglide/messages.js';
-import { contentQueries, useContentSources } from '@/queries/content';
+import { contentQueries } from '@/queries/content';
 import { useOffline } from '@/queries/net';
 import { VersionOption } from './version-option';
 
@@ -51,7 +51,7 @@ export function ContentVersionDialog({
   const [pickedId, setPickedId] = useState<string | null>(null);
   const [chosen, setChosen] = useState<string | null>(null);
 
-  const names = useContentSources().data ?? [];
+  const names = useQuery(contentQueries.sources()).data ?? [];
   const tracked = !!item?.projectId && item.source !== contentApi.LOCAL_SOURCE;
   const sources = [
     ...(tracked && item
