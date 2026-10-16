@@ -9,7 +9,6 @@ pub const ALL: &[SyncUnit] = &[
     SyncUnit::Hotbars,
     SyncUnit::Screenshots,
     SyncUnit::ResourcePacks,
-    SyncUnit::DataPacks,
 ];
 
 pub const OPTIONS: &str = "options.txt";
@@ -22,7 +21,7 @@ pub fn file(unit: SyncUnit) -> Option<&'static str> {
         SyncUnit::Servers => Some("servers.dat"),
         SyncUnit::Commands => Some("command_history.txt"),
         SyncUnit::Hotbars => Some("hotbar.nbt"),
-        SyncUnit::Screenshots | SyncUnit::ResourcePacks | SyncUnit::DataPacks => None,
+        SyncUnit::Screenshots | SyncUnit::ResourcePacks => None,
     }
 }
 
@@ -33,10 +32,7 @@ fn requires(unit: SyncUnit) -> Option<(u64, u64, u64)> {
         SyncUnit::Options => None,
         SyncUnit::Hotbars => Some((1, 12, 0)),
         SyncUnit::Commands => Some((1, 20, 2)),
-        SyncUnit::Servers
-        | SyncUnit::Screenshots
-        | SyncUnit::ResourcePacks
-        | SyncUnit::DataPacks => None,
+        SyncUnit::Servers | SyncUnit::Screenshots | SyncUnit::ResourcePacks => None,
     }
 }
 

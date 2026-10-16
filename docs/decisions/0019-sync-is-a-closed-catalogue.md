@@ -14,7 +14,7 @@ A unit now declares which of three mechanisms it is.
 | Mechanism | Units | What is shared |
 |---|---|---|
 | A merged file | `options`, `servers`, `commands`, `hotbars` | the file's contents, settled against a baseline ([0065](0065-sync-reconciles-against-a-baseline.md)) |
-| A selection | `resourcepacks`, `datapacks` | which packs are installed, enabled and in what order — never the file, and never a version ([0072](0072-a-pack-syncs-by-identity.md)) |
+| A selection | `resourcepacks` | which packs are installed, enabled and in what order — never the file, and never a version ([0072](0072-a-pack-syncs-by-identity.md)) |
 | An aggregate | `screenshots` | nothing is copied; the instances' folders are read as one listing ([0073](0073-screenshots-aggregate-rather-than-sync.md)) |
 
 The merged-file rule survives inside its own mechanism: a file that can only be

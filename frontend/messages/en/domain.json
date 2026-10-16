@@ -93,10 +93,6 @@
         "hint": "The commands typed into chat.",
         "label": "Command history"
       },
-      "data_packs": {
-        "hint": "Shared as a library; a world is yours to add them to.",
-        "label": "Data packs"
-      },
       "hotbars": {
         "hint": "The hotbars saved in creative mode.",
         "label": "Creative hotbars"

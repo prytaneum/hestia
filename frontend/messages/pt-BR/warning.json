@@ -31,7 +31,6 @@
     },
     "token": {
       "commands": "o histórico de comandos",
-      "data_packs": "os data packs",
       "hotbars": "as barras do criativo",
       "options": "as configurações de jogo",
       "resource_packs": "os pacotes de recursos",

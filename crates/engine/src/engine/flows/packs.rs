@@ -12,10 +12,7 @@ use crate::sync::packs::{self, Action, Pack};
 
 use super::content::EntryRef;
 
-const UNITS: &[(SyncUnit, ContentKind)] = &[
-    (SyncUnit::ResourcePacks, ContentKind::ResourcePack),
-    (SyncUnit::DataPacks, ContentKind::DataPack),
-];
+const UNITS: &[(SyncUnit, ContentKind)] = &[(SyncUnit::ResourcePacks, ContentKind::ResourcePack)];
 
 fn kind_of(unit: SyncUnit) -> Option<ContentKind> {
     UNITS
@@ -55,16 +52,9 @@ impl Engine {
         let Some(kind) = kind_of(unit) else {
             return Ok(());
         };
-        let installed = self.entry_content(EntryRef::Instance(&record.id), kind)?.0;
+        let held = self.held_packs(record, kind)?;
         let mut library = self.sync.library();
-        library.replace(
-            kind,
-            installed
-                .iter()
-                .filter(is_the_players)
-                .map(as_pack)
-                .collect(),
-        );
+        library.replace(kind, held);
         self.sync.save_library(&library)
     }
 
@@ -99,12 +89,7 @@ impl Engine {
     }
 
     async fn settle_packs(&self, record: &InstanceRecord, kind: ContentKind) -> Result<()> {
-        let installed = self.entry_content(EntryRef::Instance(&record.id), kind)?.0;
-        let mine: Vec<Pack> = installed
-            .iter()
-            .filter(is_the_players)
-            .map(as_pack)
-            .collect();
+        let mine = self.held_packs(record, kind)?;
         let mut library = self.sync.library();
         let agreed = self.sync.agreed_packs(&record.id, kind);
         let (shared, actions) = packs::settle(&library.of(kind), &agreed, &mine);
@@ -114,7 +99,22 @@ impl Engine {
         }
         library.replace(kind, shared.clone());
         self.sync.save_library(&library)?;
-        self.sync.agree_packs(&record.id, kind, &shared)
+
+        let held = self.held_packs(record, kind)?;
+        let held_here: Vec<Pack> = shared
+            .into_iter()
+            .filter(|pack| held.iter().any(|here| here.identity() == pack.identity()))
+            .collect();
+        self.sync.agree_packs(&record.id, kind, &held_here)
+    }
+
+    fn held_packs(&self, record: &InstanceRecord, kind: ContentKind) -> Result<Vec<Pack>> {
+        let installed = self.entry_content(EntryRef::Instance(&record.id), kind)?.0;
+        Ok(installed
+            .iter()
+            .filter(is_the_players)
+            .map(as_pack)
+            .collect())
     }
 
     async fn act_on_pack(
@@ -125,9 +125,6 @@ impl Engine {
     ) -> Result<()> {
         let entry = EntryRef::Instance(&record.id);
         match action {
-            // A data pack loads from inside a world, and which worlds is the
-            // player's to say, so the library travels but an install does not.
-            Action::Install(_) if kind == ContentKind::DataPack => Ok(()),
             Action::Install(pack) => {
                 let spec = ContentAddSpec {
                     kind,
@@ -142,13 +139,16 @@ impl Engine {
                 let cancel = Cancel::new();
                 let quiet = |_: &proto::minecraft::ProvisionProgress| {};
                 let job = Job::new(&quiet, &cancel);
-                let (_, failed) = self.add_entry_content(entry, &spec, &job).await?;
-                if let Some(failure) = failed.first() {
+                let reason = match self.add_entry_content(entry, &spec, &job).await {
+                    Ok((_, failed)) => failed.first().map(|failure| failure.error.to_string()),
+                    Err(e) => Some(format!("{e:#}")),
+                };
+                if let Some(reason) = reason {
                     tracing::info!(
                         instance = %record.name,
                         pack = %pack.title,
-                        reason = %failure.error,
-                        "pack does not fit this instance"
+                        %reason,
+                        "pack not installed here"
                     );
                 }
                 Ok(())

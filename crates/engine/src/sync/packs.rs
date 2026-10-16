@@ -82,13 +82,11 @@ pub fn settle(library: &[Pack], agreed: &[Pack], installed: &[Pack]) -> (Vec<Pac
                     ..pack.clone()
                 });
             }
-            (Some(pack), None) => match known {
-                true => actions.push(Action::Remove(pack.clone())),
-                false => {
-                    actions.push(Action::Install(pack.clone()));
-                    shared.push(pack.clone());
-                }
-            },
+            (Some(pack), None) if !known => {
+                actions.push(Action::Install(pack.clone()));
+                shared.push(pack.clone());
+            }
+            (Some(_), None) => {}
             (None, Some(here)) => match known {
                 true => actions.push(Action::Remove(here.clone())),
                 false => shared.push(here.clone()),
@@ -140,7 +138,7 @@ mod tests {
     fn removing_a_pack_here_removes_it_from_the_library() {
         let agreed = vec![pack("cozy", true)];
         let (shared, actions) = settle(&[pack("cozy", true)], &agreed, &[]);
-        assert_eq!(actions, vec![Action::Remove(pack("cozy", true))]);
+        assert!(actions.is_empty());
         assert!(shared.is_empty());
     }
 

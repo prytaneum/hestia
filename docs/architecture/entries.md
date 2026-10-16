@@ -289,7 +289,6 @@ never a cross-entry store.
 | `hotbars` | `hotbar.nbt` | slot by slot, one store per item-format era | 1.12 |
 | `screenshots` | `screenshots/` | nothing is copied — the folders are read as one listing | — |
 | `resourcepacks` | the pool | by identity: installed where a pack fits, enabled and removed everywhere | — |
-| `datapacks` | the pool | by identity, library only — a world is the player's to add one to | — |
 
 ```mermaid
 flowchart LR

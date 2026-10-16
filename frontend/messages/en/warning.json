@@ -31,7 +31,6 @@
     },
     "token": {
       "commands": "the command history",
-      "data_packs": "the data packs",
       "hotbars": "the creative hotbars",
       "options": "the game settings",
       "resource_packs": "the resource packs",

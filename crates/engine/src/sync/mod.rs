@@ -256,7 +256,7 @@ impl Sync {
                 &store.join(file),
                 &pass.data_dir.join(file),
             ),
-            SyncUnit::Screenshots | SyncUnit::ResourcePacks | SyncUnit::DataPacks => Ok(()),
+            SyncUnit::Screenshots | SyncUnit::ResourcePacks => Ok(()),
         };
         if settled.is_ok() {
             let _ = std::fs::remove_file(&interrupted);

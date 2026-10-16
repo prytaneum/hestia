@@ -2,8 +2,8 @@
 
 *Applies to: [Instances](../architecture/entries.md#sync--shared-settings-across-instances)*
 
-Resource packs and data packs are the two things people expect to follow them
-between instances, and neither is a file two copies of which can be merged. A
+Resource packs are something people expect to follow them between instances,
+and they are not a file two copies of which can be merged. A
 pack is an installed *thing*: a project, at a version, enabled or not, in a load
 order. So the unit shares that identity and nothing else.
 
@@ -38,15 +38,22 @@ in stays that instance's, until the selection is reconciled per pack the way the
 key would have to be: each shared pack mapped to the path it has locally, with
 entries for packs only that instance holds left where they are.
 
-**Datapacks keep the world as their record** ([0016](0016-datapacks-are-world-of-record.md)).
+**An instance's agreement records what it holds, not what was offered.** A pack
+that did not install here — nothing resolved for it, or the source was
+unreachable — stays in the library and out of that instance's agreement, so the
+next pass offers it again instead of reading its absence as a removal. A pack the
+instance agreed to and no longer has leaves the library without any action on
+that instance.
+
+**Datapacks are not synced** ([0016](0016-datapacks-are-world-of-record.md)).
 A datapack loads from inside a world, so syncing one cannot mean writing into
 every save an instance holds — a world is the player's, and a pack appearing in
-one they did not ask for is a change to how that world runs. The unit shares the
-library and applies it when a world is created or when the user says so, never
-retroactively. This is the narrow reading of a feature Modrinth ships switched
-off for the same reason: their schema carries data packs and the capability
-refuses them, because propagating into existing worlds is the only behaviour that
-would make the toggle mean anything, and it is the one that cannot be undone.
+one they did not ask for is a change to how that world runs. Sharing only the
+library would leave enable and remove between instances that each installed the
+pack by hand, so there is no unit until an explicit "apply the library to this
+world" action exists. Modrinth ships the equivalent switched off for the same
+reason: propagating into existing worlds is the only behaviour that would make
+the toggle mean anything, and it is the one that cannot be undone.
 
 **Rejected:** copying pack files between instances directly. It would duplicate
 the pool, lose provenance, and leave the copies unupdatable — the content pool

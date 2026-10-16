@@ -10,6 +10,7 @@ use proto::error::ErrorInfo;
 use proto::instance::QuickPlay;
 use proto::minecraft::ProvisionProgress;
 use proto::modpack::{ModpackMove, ModpackRef, ModpackTarget};
+use proto::sync::SyncUnit;
 
 fn job<'a>(cancel: &'a Cancel, report: &'a (dyn Fn(&ProvisionProgress) + Send + Sync)) -> Job<'a> {
     Job::new(report, cancel)
@@ -1157,6 +1158,46 @@ async fn disabling_an_item_keeps_it_installed() {
         .expect("list");
     assert_eq!(listed.len(), 1, "a disabled item is still installed");
     assert!(!listed[0].enabled);
+}
+
+#[tokio::test]
+async fn a_shared_pack_that_does_not_fit_stays_offered_and_never_warns() {
+    let home = tempfile::tempdir().expect("temp home");
+    let files = fixture::Files::serve().await;
+    let source = fixture::Source {
+        projects: vec![fixture::project("cozy", ContentKind::ResourcePack)],
+        versions: vec![fixture::version("cozy", &files, "1.21", &[])],
+    };
+    let (engine, alpha) = instance(home.path(), source).await;
+    let beta = engine
+        .create_instance("older", "fabric", "1.20.1", None, &[])
+        .await
+        .expect("create the older instance")
+        .id;
+    let (cancel, report) = (Cancel::new(), |_: &ProvisionProgress| {});
+    let cozy = ContentAddSpec {
+        kind: ContentKind::ResourcePack,
+        ..add(&["cozy"])
+    };
+    engine
+        .add_entry_content(EntryRef::Instance(&alpha), &cozy, &job(&cancel, &report))
+        .await
+        .expect("install the pack where it fits");
+    engine
+        .enable_sync_unit(SyncUnit::ResourcePacks, &alpha)
+        .expect("share resource packs from the first instance");
+    let beta = engine.instances().get(&beta).expect("the older instance");
+
+    for pass in 1..=2 {
+        let warnings = engine.reconcile_packs(&beta).await;
+        assert!(warnings.is_empty(), "pass {pass} warned: {warnings:?}");
+    }
+
+    let (held, _) = engine
+        .entry_content(EntryRef::Instance(&beta.id), ContentKind::ResourcePack)
+        .expect("list");
+    assert!(held.is_empty(), "the pack has no release for 1.20.1");
+    assert_eq!(engine.shared_packs().len(), 1, "it stays on offer");
 }
 
 /// An instance with `sodium` installed at the older of two published versions,

@@ -34,9 +34,6 @@ pub enum SyncUnit {
     /// Which resource packs the instances hold, installed through the content
     /// pool wherever they fit.
     ResourcePacks,
-    /// Which data packs the instances hold. A data pack loads from inside a
-    /// world, so this shares the library and never writes into a save.
-    DataPacks,
 }
 
 impl SyncUnit {
@@ -50,7 +47,6 @@ impl SyncUnit {
             SyncUnit::Hotbars => "the creative hotbars",
             SyncUnit::Screenshots => "the screenshots",
             SyncUnit::ResourcePacks => "the resource packs",
-            SyncUnit::DataPacks => "the data packs",
         }
     }
 }
