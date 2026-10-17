@@ -1,15 +1,16 @@
 //! `hestia instance update` — move a stopped instance to another version. The
 //! new files download at the next launch; a downgrade confirms first.
 
+use std::sync::Arc;
+
 use anyhow::Result;
-use client::proto::error::{EntryKind, EntryTarget};
-use client::proto::modpack::ModpackMove;
+use client::proto::instance::InstanceUpdateParams;
 use client::Client;
 
 use super::entry;
 use crate::commands::mc;
 use crate::commands::modpack;
-use crate::ui::{self, Spinner, View};
+use crate::ui::{self, ProvisionReporter, Spinner, View};
 
 pub(super) async fn run(
     client: &Client,
@@ -37,27 +38,28 @@ pub(super) async fn run(
             &version,
         )?;
     }
-    let entry = EntryTarget::new(EntryKind::Instance, &info.id);
-    let pack_version = modpack::pack_move(client, &entry, &version, keep_pack).await?;
-    if let Some(pack_version) = pack_version {
-        let to = ModpackMove {
-            version: pack_version,
-            allow_downgrade: downgrade || is_downgrade,
-            ..ModpackMove::default()
-        };
-        return modpack::update(client, &entry, to).await;
-    }
 
-    let updated = {
-        let _spinner = Spinner::start(format!("updating '{}' to {version}", info.name));
-        client
-            .instance()
-            .update(&info.id, &version, loader, downgrade || is_downgrade)
-            .await?
+    let reporter = Arc::new(ProvisionReporter::new());
+    let progress = reporter.clone();
+    let params = InstanceUpdateParams {
+        instance: info.id,
+        version,
+        loader_version: loader,
+        allow_downgrade: downgrade || is_downgrade,
+        pack: modpack::pack_policy(keep_pack),
+        id: String::new(),
     };
+    let result = client
+        .instance()
+        .update(params, move |p| progress.update(p))
+        .await;
+    reporter.finish();
+    let done = result?;
     ui::show(View::line(format!(
         "instance '{}' updated to {} (files download at the next launch)",
-        updated.name, updated.game_version
+        done.instance.name, done.instance.game_version
     )))?;
-    entry::show_info(&updated)
+    entry::show_info(&done.instance)?;
+    modpack::show_failures(&done.failures)?;
+    ui::show_warnings(&done.warnings)
 }

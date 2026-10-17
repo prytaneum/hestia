@@ -13,12 +13,12 @@ mod scheduler;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 use engine::{Engine, InstanceRecord, ServerRecord};
 use proto::error::ErrorInfo;
 use proto::instance::InstanceInfo;
-use proto::process::{LogSource, ProcessInfo, ProcessSpec, ProcessState};
+use proto::process::{LogSource, ProcessInfo, ProcessSpec};
 use proto::server::ServerInfo;
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::sync::Notify;
@@ -44,10 +44,51 @@ pub use proto::naming::{
     server_process_id,
 };
 
-// A stop that takes longer than this is not waited out: the restart is
-// abandoned rather than started over a server that may still hold its world.
-const RESTART_STOP_WAIT: Duration = Duration::from_secs(120);
-const RESTART_STOP_POLL: Duration = Duration::from_millis(250);
+/// Spawn a server's process from its launch plan — the one way a server is
+/// started, whether a client asked, a scheduled restart did, or an update put
+/// back a server it had stopped.
+pub async fn start_server(
+    engine: &Engine,
+    processes: &ProcessSupervisor,
+    id: &str,
+) -> Result<ProcessInfo, ErrorInfo> {
+    let (_, plan) = engine.server_launch_plan(id).map_err(engine_error)?;
+    let spec = ProcessSpec {
+        id: server_process_id(id),
+        program: plan.program.to_string_lossy().into_owned(),
+        args: plan.args,
+        log: LogSource::File(plan.cwd.join("logs").join("latest.log")),
+        cwd: Some(plan.cwd),
+        env: Default::default(),
+    };
+    match processes.start(spec).await {
+        Ok(info) => Ok(info),
+        Err(StartError::EmptyProgram | StartError::InvalidId(_)) => Err(ErrorInfo::Internal {
+            detail: "invalid launch plan".into(),
+        }),
+        Err(e @ StartError::Spawn { .. }) => Err(ErrorInfo::Internal {
+            detail: format!("cannot spawn the server: {e}"),
+        }),
+    }
+}
+
+/// Stop a server and wait for its process to exit. A stop that outlasts the
+/// supervisor's wait is an error: the caller abandons its work rather than
+/// reuse a tree the server may still hold.
+pub async fn stop_server(
+    processes: &ProcessSupervisor,
+    record: &ServerRecord,
+) -> Result<(), ErrorInfo> {
+    match processes
+        .stop_and_wait(&[server_process_id(&record.id)])
+        .await
+    {
+        true => Ok(()),
+        false => Err(ErrorInfo::StopTimedOut {
+            name: record.name.clone(),
+        }),
+    }
+}
 
 pub(crate) fn now_unix() -> i64 {
     use std::time::{SystemTime, UNIX_EPOCH};
@@ -165,48 +206,11 @@ impl Runtime {
         server_info(record, process, accepts)
     }
 
-    /// Spawn a server's process from its launch plan — the one way a server
-    /// is started, whether a client asked or a scheduled restart did.
-    pub async fn start_server(&self, id: &str) -> Result<ProcessInfo, ErrorInfo> {
-        let (_, plan) = self.engine.server_launch_plan(id).map_err(engine_error)?;
-        let spec = ProcessSpec {
-            id: server_process_id(id),
-            program: plan.program.to_string_lossy().into_owned(),
-            args: plan.args,
-            log: LogSource::File(plan.cwd.join("logs").join("latest.log")),
-            cwd: Some(plan.cwd),
-            env: Default::default(),
-        };
-        match self.processes.start(spec).await {
-            Ok(info) => Ok(info),
-            Err(StartError::EmptyProgram | StartError::InvalidId(_)) => Err(ErrorInfo::Internal {
-                detail: "invalid launch plan".into(),
-            }),
-            Err(e @ StartError::Spawn { .. }) => Err(ErrorInfo::Internal {
-                detail: format!("cannot spawn the server: {e}"),
-            }),
-        }
-    }
-
     /// Stop a running server, wait for its process to exit, and start it
     /// again — shared by the `server.restart` channel and a scheduled restart.
     pub async fn restart_server(&self, record: &ServerRecord) -> Result<ProcessInfo, ErrorInfo> {
-        let process_id = server_process_id(&record.id);
-        self.processes.stop(&process_id);
-        let deadline = tokio::time::Instant::now() + RESTART_STOP_WAIT;
-        while self
-            .processes
-            .status(&process_id)
-            .is_some_and(|p| p.state == ProcessState::Running)
-        {
-            if tokio::time::Instant::now() >= deadline {
-                return Err(ErrorInfo::StopTimedOut {
-                    name: record.name.clone(),
-                });
-            }
-            tokio::time::sleep(RESTART_STOP_POLL).await;
-        }
-        self.start_server(&record.id).await
+        stop_server(&self.processes, record).await?;
+        start_server(&self.engine, &self.processes, &record.id).await
     }
 
     pub fn instance_view(&self, record: InstanceRecord) -> InstanceInfo {

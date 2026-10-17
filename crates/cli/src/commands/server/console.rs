@@ -18,7 +18,6 @@ pub(crate) async fn start_attached(client: Client, server: &str, detach: bool) -
         return super::lifecycle::start(&client, server).await;
     }
     super::lifecycle::start_quiet(&client, server).await?;
-    super::lifecycle::wait_until_running(&client, server).await?;
     attach(client, server).await
 }
 
@@ -29,7 +28,6 @@ pub(crate) async fn restart_attached(client: Client, server: &str, detach: bool)
         return super::lifecycle::restart(&client, server).await;
     }
     super::lifecycle::restart_quiet(&client, server).await?;
-    super::lifecycle::wait_until_running(&client, server).await?;
     attach(client, server).await
 }
 

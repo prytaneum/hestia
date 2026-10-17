@@ -72,7 +72,7 @@ export function create(
 }
 
 export function update(
-  params: Omit<ServerUpdateParams, 'id'>,
+  params: Partial<Omit<ServerUpdateParams, 'id'>>,
   job: JobRun,
 ): Promise<ServerDone> {
   return runJob('server.update', params, job);

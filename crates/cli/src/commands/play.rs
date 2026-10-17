@@ -42,6 +42,7 @@ pub async fn run(play: Play) -> Result<()> {
             detach: play.detach,
             quick_play,
             offline: play.offline,
+            ..instance::Launch::default()
         },
     )
     .await

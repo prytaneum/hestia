@@ -9,8 +9,8 @@ use proto::instance::{
     InstanceServerEdit, InstanceServerEditParams, InstanceServerRef, InstanceServerRemove,
     InstanceServers, InstanceServersArrange, InstanceServersArrangeParams,
     InstanceServersWriteResult, InstanceStop, InstanceStopParams, InstanceUpdate,
-    InstanceUpdateParams, InstanceVersions, InstanceWorlds, QuickPlay, RecentPlay, ServerEntry,
-    WorldInfo,
+    InstanceUpdateDone, InstanceUpdateParams, InstanceVersions, InstanceWorlds, QuickPlay,
+    RecentPlay, Replace, ServerEntry, WorldInfo,
 };
 use proto::minecraft::{
     ConfigEntry, Flavor, GameVersion, LoadersParams, ProvisionProgress, VersionsParams,
@@ -37,6 +37,8 @@ pub struct LaunchOptions<'a> {
     pub quick_play: Option<QuickPlay>,
     /// Skip Microsoft entirely and run unauthenticated.
     pub offline: bool,
+    /// Stop these sessions first and launch once they have exited.
+    pub replace: Option<Replace>,
 }
 
 impl Instance<'_> {
@@ -87,24 +89,21 @@ impl Instance<'_> {
         Ok(self.session.call::<InstanceCreate>(&params).await?.instance)
     }
 
-    /// Move a stopped instance to another version (the profile is resolved
-    /// upstream; the new files materialise at the next launch). Nothing is
-    /// backed up first — instances have no backups. `allow_downgrade` asserts
-    /// the user confirmed a downgrade.
+    /// Move a stopped instance to another version, blocking until the daemon
+    /// reports done or error (the new files materialise at the next launch;
+    /// a modpack moves with it per `params.pack`). Nothing is backed up first
+    /// — instances have no backups. `params.allow_downgrade` asserts the user
+    /// confirmed a downgrade; the job id is filled in here.
     pub async fn update(
         &self,
-        instance: &str,
-        version: &str,
-        loader_version: Option<String>,
-        allow_downgrade: bool,
-    ) -> Result<InstanceInfo, IpcError> {
-        let params = InstanceUpdateParams {
-            instance: instance.to_string(),
-            version: version.to_string(),
-            loader_version,
-            allow_downgrade,
-        };
-        Ok(self.session.call::<InstanceUpdate>(&params).await?.instance)
+        mut params: InstanceUpdateParams,
+        on_progress: impl Fn(&ProvisionProgress) + Send + Sync + 'static,
+    ) -> Result<InstanceUpdateDone, IpcError> {
+        let id = job_id("instance-update");
+        params.id = id.clone();
+        self.session
+            .run_job::<InstanceUpdate>(&id, &params, on_progress)
+            .await
     }
 
     pub async fn list(&self) -> Result<Vec<InstanceInfo>, IpcError> {
@@ -303,6 +302,7 @@ impl Instance<'_> {
             new_session: options.new_session,
             quick_play: options.quick_play,
             offline: options.offline,
+            replace: options.replace,
         };
         self.session
             .run_job::<InstanceLaunch>(&id, &params, on_progress)

@@ -118,7 +118,10 @@ export const serverMutations = {
       invalidates: () => [keys.servers.list()],
     }),
   update: (id: string) =>
-    jobMutation<ServerDone, Omit<ServerUpdateParams, 'server' | 'id'>>({
+    jobMutation<
+      ServerDone,
+      Omit<ServerUpdateParams, 'server' | 'id' | 'restart'>
+    >({
       mutationKey: [...keys.servers.detail(id), 'update'],
       meta: (params) => ({
         kind: 'server.update',

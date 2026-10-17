@@ -2,23 +2,67 @@ use std::collections::BTreeMap;
 
 use engine::{Engine, LaunchRequest};
 use proto::error::ErrorInfo;
-use proto::instance::{InstanceLaunch, InstanceLaunchDone, QuickPlay};
+use proto::instance::{
+    InstanceLaunch, InstanceLaunchDone, InstanceUpdate, InstanceUpdateDone, InstanceUpdateParams,
+    QuickPlay,
+};
 use proto::process::{LogSource, ProcessSpec};
 
 use super::job::{Jobs, Spec};
-use crate::runtime::{instance_session_id, instance_session_prefix, ProcessSupervisor, StartError};
+use crate::runtime::{
+    instance_info, instance_session_id, instance_session_prefix, Claim, ProcessSupervisor,
+    StartError,
+};
 
 impl Jobs {
+    /// Start a version change off-thread; `claim` is the instance's, taken by
+    /// the guard that admitted it.
+    pub fn start_instance_update(
+        &self,
+        instance_id: String,
+        params: InstanceUpdateParams,
+        claim: Claim,
+    ) -> String {
+        let spec = Spec {
+            id: params.id.clone(),
+            prefix: "instance-update",
+            claim: Some(claim),
+        };
+
+        self.run::<InstanceUpdate, _>(spec, move |engine, reporter| {
+            Box::pin(async move {
+                let changed = engine
+                    .update_instance_with_pack(
+                        &instance_id,
+                        &params.version,
+                        params.loader_version,
+                        params.allow_downgrade,
+                        params.pack,
+                        &reporter.job(),
+                    )
+                    .await?;
+                let accepts = engine.instance_accepts(&changed.record.profile.flavor);
+                Ok(InstanceUpdateDone {
+                    instance: instance_info(changed.record, Vec::new(), accepts),
+                    warnings: changed.warnings,
+                    failures: changed.failures,
+                })
+            })
+        })
+    }
+
     /// Prepare and spawn a fresh session of an instance off-thread. Instances may
     /// run several sessions at once, so this takes no claim — it does not
     /// refuse a running instance. Returns the launch job id.
     pub fn start_instance_launch(&self, order: LaunchOrder) -> String {
         let LaunchOrder {
             instance_id,
+            instance_name,
             account,
             reconcile,
             quick_play,
             offline,
+            replace,
             id,
         } = order;
         let (session_id, seq) = self.reserve_session(&instance_id);
@@ -33,6 +77,13 @@ impl Jobs {
         let reserved = self.reserved.clone();
         self.run::<InstanceLaunch, _>(spec, move |engine, reporter| {
             Box::pin(async move {
+                if !replace.is_empty() && !processes.stop_and_wait(&replace).await {
+                    reserved.lock().unwrap().remove(&session_id);
+                    return Err(ErrorInfo::StopTimedOut {
+                        name: instance_name,
+                    }
+                    .into());
+                }
                 let outcome = launch(
                     engine,
                     &processes,
@@ -126,6 +177,7 @@ async fn launch(
 /// its strings, since the launch outlives the request that asked for it.
 pub struct LaunchOrder {
     pub instance_id: String,
+    pub instance_name: String,
     /// Account name or uuid; empty picks the sole signed-in one.
     pub account: String,
     /// Off skips the sync/mirror pass — other sessions have the mirror in use.
@@ -134,6 +186,8 @@ pub struct LaunchOrder {
     pub quick_play: Option<QuickPlay>,
     /// Run unauthenticated instead of contacting Microsoft.
     pub offline: bool,
+    /// Session process ids to stop, and wait out, before the launch proceeds.
+    pub replace: Vec<String>,
     /// Client-supplied job id; empty asks for an allocated one.
     pub id: String,
 }

@@ -106,10 +106,22 @@ export const channels: ChannelHandlers = {
 
   'instance.update': (p) => {
     const instance = entries.findInstance(str(p, 'instance'));
-    instance.gameVersion = str(p, 'version', instance.gameVersion);
-    instance.loaderVersion = str(p, 'loaderVersion') || instance.loaderVersion;
-    instance.javaMajor = catalog.javaFor(instance.gameVersion);
-    return { instance: withSessions(instance) };
+    return startJob({
+      id: jobIdOf(p, 'instance-update'),
+      channel: 'instance.update',
+      steps: [{ phase: 'resolving', detail: str(p, 'version') }],
+      done: () => {
+        instance.gameVersion = str(p, 'version', instance.gameVersion);
+        instance.loaderVersion =
+          str(p, 'loaderVersion') || instance.loaderVersion;
+        instance.javaMajor = catalog.javaFor(instance.gameVersion);
+        return {
+          instance: withSessions(instance),
+          warnings: [],
+          failures: [],
+        };
+      },
+    });
   },
 
   'instance.rename': (p) =>
@@ -170,6 +182,7 @@ export const channels: ChannelHandlers = {
         { phase: 'client', detail: 'client jar' },
       ],
       done: () => {
+        if (p.replace) processes.stopSessions(instance.id);
         const id = processes.sessionId(instance.id);
         const session = processes.start(
           id,

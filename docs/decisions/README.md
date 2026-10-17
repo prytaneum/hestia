@@ -90,6 +90,7 @@ the alternative you rejected — that is usually the part nobody can recover lat
 - **0055** — [The server console is RCON, not a stdin pipe](0055-the-console-is-rcon-not-a-pipe.md)
 - **0058** — [Joining directly is a launch parameter, not a second launch path](0058-joining-directly-is-a-launch-parameter.md)
 - **0074** — [The game reports what was played; the launcher only keeps the history](0074-the-game-reports-what-was-played.md)
+- **0088** — [The daemon sequences a version change, its restart and its modpack](0088-the-daemon-sequences-a-version-change.md)
 
 ### [Content & modpacks](../architecture/content.md)
 

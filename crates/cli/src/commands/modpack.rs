@@ -16,10 +16,10 @@ use std::sync::Arc;
 
 use anyhow::{bail, Context, Result};
 use clap::Subcommand;
-use client::proto::content::{ContentKind, SearchQuery, SearchSort};
+use client::proto::content::{ContentFailure, ContentKind, SearchQuery, SearchSort};
 use client::proto::error::{EntryKind, EntryTarget};
 use client::proto::modpack::{
-    InstalledModpack, ModpackDone, ModpackMove, ModpackRef, ModpackTarget,
+    InstalledModpack, ModpackDone, ModpackMove, ModpackRef, ModpackTarget, PackPolicy,
 };
 use client::Client;
 
@@ -228,37 +228,23 @@ async fn check_update(client: &Client, entry: &EntryTarget) -> Result<()> {
     ui::show(View::detail(rows))
 }
 
-/// The pack version a change to `version` takes with it; `None` is the plain version change.
-pub async fn pack_move(
-    client: &Client,
-    entry: &EntryTarget,
-    version: &str,
-    keep_pack: bool,
-) -> Result<Option<String>> {
-    let pack = client.modpack().status(entry).await?;
-    let Some(pack) = pack.filter(|pack| pack.game_version != version && !keep_pack) else {
-        return Ok(None);
-    };
-    let fit = match pack.project_id.is_empty() {
-        true => None,
-        false => client
-            .modpack()
-            .check_update(entry, version)
-            .await?
-            .and_then(|update| update.fitting),
-    };
-    let Some(fit) = fit else {
+/// What `--keep-pack` asks of a version change: the pack stays where it is.
+pub fn pack_policy(keep_pack: bool) -> PackPolicy {
+    match keep_pack {
+        true => PackPolicy::Keep,
+        false => PackPolicy::Move,
+    }
+}
+
+/// Pack content a version change could not install.
+pub fn show_failures(failures: &[ContentFailure]) -> Result<()> {
+    for failure in failures {
         ui::show(View::note(format!(
-            "the modpack '{}' {} is built for Minecraft {} and has no version for {version}; its mods may not load",
-            pack.name, pack.version_number, pack.game_version
+            "could not install {}: {}",
+            failure.item, failure.error
         )))?;
-        return Ok(None);
-    };
-    ui::show(View::note(format!(
-        "moving the modpack '{}' from {} to {}, its version for {version} (--keep-pack changes the game version only)",
-        pack.name, pack.version_number, fit.version_number
-    )))?;
-    Ok(Some(fit.version_id))
+    }
+    Ok(())
 }
 
 /// Ask before a pack file does what its flags did not allow: replace the pack
@@ -483,12 +469,7 @@ fn report(done: ModpackDone, to_server: bool) -> Result<()> {
         done.pack.name, done.entry_name
     )))?;
     show_pack(&done.pack)?;
-    for failure in &done.failures {
-        ui::show(View::note(format!(
-            "could not install {}: {}",
-            failure.item, failure.error
-        )))?;
-    }
+    show_failures(&done.failures)?;
     ui::show_warnings(&done.warnings)
 }
 

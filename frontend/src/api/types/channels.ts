@@ -88,8 +88,8 @@ import type { InstanceStopParams } from "./generated/InstanceStopParams";
 import type { InstanceSyncKeysParams } from "./generated/InstanceSyncKeysParams";
 import type { InstanceSyncStatus } from "./generated/InstanceSyncStatus";
 import type { InstanceSyncUnitParams } from "./generated/InstanceSyncUnitParams";
+import type { InstanceUpdateDone } from "./generated/InstanceUpdateDone";
 import type { InstanceUpdateParams } from "./generated/InstanceUpdateParams";
-import type { InstanceUpdateResult } from "./generated/InstanceUpdateResult";
 import type { InstanceWorldsResult } from "./generated/InstanceWorldsResult";
 import type { JavaInstallDone } from "./generated/JavaInstallDone";
 import type { JavaInstallParams } from "./generated/JavaInstallParams";
@@ -258,7 +258,7 @@ export interface Channels {
   "instance.stop": { params: Partial<InstanceStopParams>; result: Empty };
   "instance.sync.keys": { params: Partial<InstanceSyncKeysParams>; result: InstanceSyncStatus };
   "instance.sync.unit": { params: Partial<InstanceSyncUnitParams>; result: InstanceSyncStatus };
-  "instance.update": { params: Partial<InstanceUpdateParams>; result: InstanceUpdateResult };
+  "instance.update": { params: Partial<InstanceUpdateParams>; result: JobStarted };
   "instance.versions": { params: Partial<VersionsParams>; result: VersionsResult };
   "instance.worlds": { params: Partial<InstanceRef>; result: InstanceWorldsResult };
   "java.install": { params: Partial<JavaInstallParams>; result: JobStarted };
@@ -352,6 +352,7 @@ export interface Jobs {
   "instance.import": { progress: ProvisionProgress; done: ImportDone };
   "instance.launch": { progress: ProvisionProgress; done: InstanceLaunchDone };
   "instance.modpack.install": { progress: ProvisionProgress; done: ModpackDone };
+  "instance.update": { progress: ProvisionProgress; done: InstanceUpdateDone };
   "java.install": { progress: JavaInstallProgress; done: JavaInstallDone };
   "modpack.update": { progress: ProvisionProgress; done: ModpackDone };
   "server.backup.create": { progress: ProvisionProgress; done: BackupDone };
@@ -384,7 +385,6 @@ export const TIMEOUTS: Partial<Record<keyof Channels, number>> = {
   "content.check_updates": 120000,
   "content.matches": 120000,
   "instance.create": 60000,
-  "instance.update": 600000,
   "modpack.check_update": 120000,
   "modpack.preview_update": 120000,
   "server.files.compress": 600000,

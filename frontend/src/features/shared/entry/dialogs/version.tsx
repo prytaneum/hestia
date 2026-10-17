@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 
-import { errorMessage } from '@/api';
+import { errorMessage, type PackPolicy, type WarningInfo } from '@/api';
 import { AppDialog, DialogBody, DialogFooter } from '@/components/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -15,16 +15,18 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Notice } from '@/components/warning-notice';
+import { toastWarnings } from '@/lib/warnings';
 import { m } from '@/paraglide/messages.js';
 import type { JobEntryKind } from '@/queries';
-import { modpackMutations, modpackQueries, useJobMutation } from '@/queries';
+import { modpackQueries } from '@/queries';
 import { useEntryVersions } from '@/queries/versions';
 
 export interface UpdateHandle {
   mutateAsync: (params: {
     version: string;
     allowDowngrade: boolean;
-  }) => Promise<unknown>;
+    pack: PackPolicy;
+  }) => Promise<{ warnings: WarningInfo[] }>;
   isPending: boolean;
 }
 
@@ -68,7 +70,6 @@ export function ChangeVersionDialog({
   );
 
   const pack = useQuery(modpackQueries.status(kind, id)).data;
-  const packUpdate = useJobMutation(modpackMutations.update(kind, id));
   const drifts = !!pack && version !== '' && version !== pack.gameVersion;
   const check = useQuery(
     modpackQueries.updateCheck(
@@ -79,17 +80,17 @@ export function ChangeVersionDialog({
     ),
   );
   const fit = drifts ? check.data?.fitting : undefined;
-  const pending = update.isPending || packUpdate.isPending;
+  const pending = update.isPending;
 
   const apply = async () => {
     if (!version) return;
     try {
-      if (fit && movePack)
-        await packUpdate.mutateAsync({
-          version: fit.versionId,
-          allowDowngrade: downgrade,
-        });
-      else await update.mutateAsync({ version, allowDowngrade: downgrade });
+      const done = await update.mutateAsync({
+        version,
+        allowDowngrade: downgrade,
+        pack: movePack ? 'move' : 'keep',
+      });
+      toastWarnings(done.warnings);
       toast.success(m['app.toast.updated']({ name }));
       onOpenChange(false);
     } catch (error) {

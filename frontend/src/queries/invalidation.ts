@@ -60,6 +60,7 @@ const sweepEntries = (): QueryKey[] => [keys.servers.all, keys.instances.all];
 const JOB_DONE: JobKeys = {
   'server.create': () => [keys.servers.list()],
   'server.update': (done) => entryKeys('servers', done.server.id),
+  'instance.update': (done) => entryKeys('instances', done.instance.id),
   'instance.launch': (done) =>
     entryKeys('instances', entryFromProcess(done.processId, 'instance-')),
   'java.install': () => [keys.java.runtimes()],

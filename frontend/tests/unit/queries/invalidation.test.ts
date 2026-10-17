@@ -23,6 +23,7 @@ const created: DaemonEvent = {
     state: 'done',
     server,
     warnings: [],
+    failures: [],
   },
 };
 
@@ -83,6 +84,7 @@ describe('the daemon-topic invalidation map', () => {
           state: 'done',
           server,
           warnings: [],
+          failures: [],
         },
       }),
     ).toEqual([keys.servers.list(), keys.servers.detail(server.id)]);

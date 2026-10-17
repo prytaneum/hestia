@@ -149,6 +149,7 @@ export const channels: ChannelHandlers = {
           }),
         ),
         warnings: [],
+        failures: [],
       }),
     }),
 
@@ -166,7 +167,7 @@ export const channels: ChannelHandlers = {
         server.gameVersion = str(p, 'version', server.gameVersion);
         server.loaderVersion = str(p, 'loaderVersion') || server.loaderVersion;
         server.javaMajor = catalog.javaFor(server.gameVersion);
-        return { server: withProcess(server), warnings: [] };
+        return { server: withProcess(server), warnings: [], failures: [] };
       },
     });
   },

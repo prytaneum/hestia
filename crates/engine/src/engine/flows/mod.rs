@@ -14,7 +14,7 @@ mod instance;
 pub use instance::LaunchRequest;
 mod modpack;
 
-pub use modpack::ModpackOutcome;
+pub use modpack::{ModpackOutcome, VersionChange};
 mod multiplayer;
 
 pub use multiplayer::ServerListWrite;

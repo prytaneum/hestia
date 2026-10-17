@@ -8,7 +8,7 @@ use std::time::Duration;
 use serde::{Deserialize, Serialize};
 
 use crate::change::Scope;
-use crate::content::ContentKind;
+use crate::content::{ContentFailure, ContentKind};
 use crate::contract::{Contract, Empty};
 use crate::job::{Job, JobStarted};
 use crate::keys::KeyRule;
@@ -16,6 +16,7 @@ use crate::minecraft::{
     ConfigEntry, FlavorsResult, LoadersParams, LoadersResult, ProvisionProgress, VersionsParams,
     VersionsResult,
 };
+use crate::modpack::PackPolicy;
 use crate::process::{ProcessInfo, ProcessLogsResult};
 use crate::warning::WarningInfo;
 
@@ -112,22 +113,36 @@ pub struct InstanceUpdateParams {
     /// The caller confirms the user accepted the risk of moving to an older
     /// version (saves do not downgrade).
     pub allow_downgrade: bool,
+    /// Whether a modpack the instance runs moves with the game version.
+    pub pack: PackPolicy,
+    /// Client-supplied job id; empty asks the daemon to allocate one.
+    pub id: String,
 }
 
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
 #[serde(default, rename_all = "camelCase")]
-pub struct InstanceUpdateResult {
+pub struct InstanceUpdateDone {
     pub instance: InstanceInfo,
+    pub warnings: Vec<WarningInfo>,
+    /// Content a pack moved along with the update could not install; the
+    /// update continues past them.
+    pub failures: Vec<ContentFailure>,
 }
 
+/// A job, because moving a pack downloads its content. A cancel leaves the
+/// instance on the version it had, or on the pack's new one if the cancel came
+/// after the version moved.
 pub struct InstanceUpdate;
 impl Contract for InstanceUpdate {
     const CHANNEL: &'static str = "instance.update";
-    const CHANGES: Option<Scope> = Some(Scope::Entries);
-    const TIMEOUT: Duration = Duration::from_secs(10 * 60);
     type Params = InstanceUpdateParams;
-    type Result = InstanceUpdateResult;
+    type Result = JobStarted;
+}
+
+impl Job for InstanceUpdate {
+    type Progress = ProvisionProgress;
+    type Done = InstanceUpdateDone;
 }
 
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
@@ -574,6 +589,22 @@ pub struct InstanceLaunchParams {
     /// multiplayer, which is what an unauthenticated session is entitled to.
     #[serde(default)]
     pub offline: bool,
+    /// Stop running sessions first and launch once they have exited: a restart
+    /// done by the job itself, after the account check, so an expired sign-in
+    /// fails before the game is stopped. A launch that replaces the only
+    /// running session needs no `new_session`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub replace: Option<Replace>,
+}
+
+/// Which running sessions a launch stops before it starts.
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
+#[serde(rename_all = "snake_case", tag = "kind", content = "session")]
+pub enum Replace {
+    All,
+    /// One session's process id.
+    One(String),
 }
 
 /// What a launch joins directly. One target or none — a launch cannot open a

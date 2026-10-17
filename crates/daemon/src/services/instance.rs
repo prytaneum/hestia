@@ -11,12 +11,11 @@ use proto::instance::{
     InstanceLoaders, InstanceLogs, InstanceRecent, InstanceRecentResult, InstanceRemove,
     InstanceRename, InstanceServerEdit, InstanceServerRemove, InstanceServers,
     InstanceServersArrange, InstanceServersResult, InstanceServersWriteResult, InstanceStop,
-    InstanceUpdate, InstanceUpdateResult, InstanceVersions, InstanceWorlds, InstanceWorldsResult,
-    ServerEntry,
+    InstanceUpdate, InstanceVersions, InstanceWorlds, InstanceWorldsResult, Replace, ServerEntry,
 };
 use proto::job::JobStarted;
 use proto::minecraft::{ConfigEntry, FlavorsResult, LoadersResult, VersionsResult};
-use proto::process::ProcessLogsResult;
+use proto::process::{ProcessLogsResult, ProcessState};
 use proto::Empty;
 
 use super::guards::{instance_for, instance_held, Hold, Intent};
@@ -91,21 +90,12 @@ pub(super) fn register(on: &mut Channels<'_>) {
                 field: Field::Version,
             });
         }
-        let (record, _claim) = instance_held(&ctx, &p.instance, Hold::stopped(JobKind::Content))?;
-        let record = ctx
+        let (record, claim) = instance_held(&ctx, &p.instance, Hold::stopped(JobKind::Update))?;
+        let id = ctx
             .runtime
-            .engine()
-            .update_instance(&record.id, &p.version, p.loader_version, p.allow_downgrade)
-            .await
-            .map_err(crate::runtime::engine_error)?;
-        tracing::info!(
-            instance = %record.id,
-            version = %record.profile.game_version,
-            "instance updated"
-        );
-        Ok(InstanceUpdateResult {
-            instance: ctx.runtime.instance_view(record),
-        })
+            .jobs()
+            .start_instance_update(record.id, p, claim);
+        Ok(JobStarted { id })
     });
 
     on.handle::<InstanceList, _, _>(|_: Empty, ctx| async move {
@@ -237,9 +227,27 @@ pub(super) fn register(on: &mut Channels<'_>) {
         }
         // Concurrent sessions are gated twice: `instance.multi-session` has to
         // allow them at all, and the launch opts in with `new_session`.
-        let running = ctx.runtime.instance_running(&record.id);
+        let sessions: Vec<_> = ctx
+            .runtime
+            .instance_sessions(&record.id)
+            .into_iter()
+            .filter(|s| s.state == ProcessState::Running)
+            .collect();
+        let replace: Vec<String> = match &p.replace {
+            None => Vec::new(),
+            Some(Replace::All) => sessions.iter().map(|s| s.id.clone()).collect(),
+            Some(Replace::One(session)) => {
+                if !sessions.iter().any(|s| &s.id == session) {
+                    return Err(ErrorInfo::ProcessNotFound {
+                        id: session.clone(),
+                    });
+                }
+                vec![session.clone()]
+            }
+        };
+        let running = sessions.iter().any(|s| !replace.contains(&s.id));
         if running {
-            if !p.new_session {
+            if !p.new_session && p.replace.is_none() {
                 return Err(ErrorInfo::EntryRunning {
                     entry: EntryKind::Instance,
                     name: record.name.clone(),
@@ -260,10 +268,12 @@ pub(super) fn register(on: &mut Channels<'_>) {
         }
         let id = ctx.runtime.jobs().start_instance_launch(LaunchOrder {
             instance_id: record.id,
+            instance_name: record.name,
             account: p.account,
             reconcile: !running,
             quick_play: p.quick_play,
             offline: p.offline,
+            replace,
             id: p.id,
         });
         Ok(JobStarted { id })

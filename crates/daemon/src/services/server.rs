@@ -71,8 +71,12 @@ pub(super) fn register(on: &mut Channels<'_>) {
                 field: Field::Version,
             });
         }
-        let (record, claim) = server_held(&ctx, &p.server, Hold::stopped(JobKind::Update))?;
-        let id = ctx.runtime.jobs().start_server_update(record.id, p, claim);
+        let hold = match p.restart {
+            true => Hold::live(JobKind::Update),
+            false => Hold::stopped(JobKind::Update),
+        };
+        let (record, claim) = server_held(&ctx, &p.server, hold)?;
+        let id = ctx.runtime.jobs().start_server_update(record, p, claim);
         Ok(JobStarted { id })
     });
 
@@ -142,7 +146,9 @@ pub(super) fn register(on: &mut Channels<'_>) {
     on.handle::<ServerStart, _, _>(|p, ctx| async move {
         let (record, _claim) = server_held(&ctx, &p.server, Hold::stopped(JobKind::Launch))?;
         tracing::info!(server = %record.id, name = %record.name, "starting server");
-        let info = ctx.runtime.start_server(&record.id).await?;
+        let info =
+            crate::runtime::start_server(ctx.runtime.engine(), ctx.runtime.processes(), &record.id)
+                .await?;
         Ok(ServerStartResult {
             process_id: info.id,
             pid: info.pid,

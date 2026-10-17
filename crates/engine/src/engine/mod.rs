@@ -9,6 +9,7 @@ mod flows;
 
 pub use flows::{
     EntryRef, ExportOutcome, ImportOutcome, LaunchRequest, ModpackOutcome, ServerListWrite,
+    VersionChange,
 };
 
 use std::path::{Path, PathBuf};

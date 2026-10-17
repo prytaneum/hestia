@@ -9,7 +9,7 @@ use std::time::Duration;
 use serde::{Deserialize, Serialize};
 
 use crate::change::Scope;
-use crate::content::ContentKind;
+use crate::content::{ContentFailure, ContentKind};
 use crate::contract::{Contract, Empty};
 use crate::job::{Job, JobStarted};
 use crate::keys::KeyRule;
@@ -17,6 +17,7 @@ use crate::minecraft::{
     ConfigEntry, FlavorsResult, LoadersParams, LoadersResult, ProvisionProgress, VersionsParams,
     VersionsResult,
 };
+use crate::modpack::PackPolicy;
 use crate::process::{ProcessInfo, ProcessLogsResult};
 use crate::warning::WarningInfo;
 
@@ -179,6 +180,12 @@ pub struct ServerUpdateParams {
     /// The caller confirms the user accepted the risk of moving to an older
     /// version (world data does not downgrade).
     pub allow_downgrade: bool,
+    /// Stop a running server for the update and start it again afterwards,
+    /// whether the update succeeded or not. Without it a running server is
+    /// refused.
+    pub restart: bool,
+    /// Whether a modpack the server runs moves with the game version.
+    pub pack: PackPolicy,
     /// Client-supplied job id; empty asks the daemon to allocate one.
     pub id: String,
 }
@@ -474,4 +481,8 @@ pub struct ServerDone {
     /// front-end shows these under the success line.
     #[serde(default)]
     pub warnings: Vec<WarningInfo>,
+    /// Content a pack moved along with an update could not install; the update
+    /// continues past them.
+    #[serde(default)]
+    pub failures: Vec<ContentFailure>,
 }

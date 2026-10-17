@@ -1,10 +1,7 @@
 //! Driving a provisioned server through the supervisor: start, stop, restart,
 //! remove, and its captured output.
 
-use std::time::Duration;
-
-use anyhow::{bail, Context, Result};
-use client::proto::process::ProcessState;
+use anyhow::{Context, Result};
 use client::Client;
 
 use super::entry;
@@ -124,36 +121,4 @@ pub(crate) async fn monitor(client: &Client, server: &str) -> Result<()> {
     let result = tokio::task::spawn_blocking(move || ui::monitor(&title, rx)).await?;
     forward.abort();
     result
-}
-
-/// Poll until the server's process reports running, so an attach right after
-/// `start` does not race the spawn.
-pub(crate) async fn wait_until_running(client: &Client, server: &str) -> Result<()> {
-    for _ in 0..20 {
-        let info = client.server().status(server).await?;
-        let running = info
-            .process
-            .is_some_and(|p| p.state == ProcessState::Running);
-        if running {
-            return Ok(());
-        }
-        tokio::time::sleep(Duration::from_millis(500)).await;
-    }
-    bail!("server '{server}' did not report running in time");
-}
-
-/// Poll until the server's process has exited, so a restart's `start` does not
-/// race the old child.
-pub(super) async fn wait_until_stopped(client: &Client, server: &str) -> Result<()> {
-    for _ in 0..30 {
-        let info = client.server().status(server).await?;
-        let running = info
-            .process
-            .is_some_and(|p| p.state == ProcessState::Running);
-        if !running {
-            return Ok(());
-        }
-        tokio::time::sleep(Duration::from_millis(500)).await;
-    }
-    bail!("server '{server}' did not stop in time");
 }

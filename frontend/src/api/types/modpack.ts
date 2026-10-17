@@ -17,4 +17,5 @@ export type { ModpackStatusResult } from "./generated/ModpackStatusResult";
 export type { ModpackTarget } from "./generated/ModpackTarget";
 export type { ModpackUpdate } from "./generated/ModpackUpdate";
 export type { ModpackUpdateResult } from "./generated/ModpackUpdateResult";
+export type { PackPolicy } from "./generated/PackPolicy";
 export type { ServerModpackInstallParams } from "./generated/ServerModpackInstallParams";

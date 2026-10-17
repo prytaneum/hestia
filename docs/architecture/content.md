@@ -323,6 +323,15 @@ archive a source published is recorded as that release, and updates like one
 installed from the source. One no source recognises has no catalogue behind it
 and answers with nothing to check, the same reason `fetch_update` refuses it.
 
+**A version change moves the pack.** `server.update` and `instance.update` take a
+pack policy (`move` by default, or `keep`). With `move` the daemon asks the same
+`entry_modpack_update` for the pack version built for the target game version and
+runs one job: a pack update when there is one, the plain version change plus a
+`PackNotMoved` warning when the pack has no build for the target
+([0086](../decisions/0088-the-daemon-sequences-a-version-change.md)). The
+`gameVersion` of `modpack.check_update` stays as the preview a front-end shows
+before the request.
+
 **A pack file updates any pack.** `modpack.update` takes a `path` in place
 of a version, and the file goes through the same update: the game-version move
 behind the downgrade gate, the stale-item sweep, the keep-if-edited rule. It is

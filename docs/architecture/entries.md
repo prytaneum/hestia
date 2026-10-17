@@ -212,8 +212,15 @@ newest-first catalogue rather than by parsing version strings.
 - An **instance** pays at the next launch — and **nothing of it is backed up**,
   which its downgrade warning says in as many words.
 
-An update refuses a running or still-creating entry. A front-end that wants to
-update a running server stops and restarts it explicitly around the job.
+An update refuses a running or still-creating entry. A server update with
+`restart` is the exception: the job stops the server, waits for it, updates and
+starts it again whichever way the update ended, reporting a failed start as a
+warning. A modpack the entry runs moves with the game version unless the request
+says `keep`; both the restart and the pack move are the daemon's to sequence, in
+one job ([0086](../decisions/0088-the-daemon-sequences-a-version-change.md)).
+
+A relaunch of an instance is the launch job with `replace`: it stops the named
+sessions (or all) and waits for them before preparing the game.
 
 Both flows *mutate* the loaded record — they assign `profile` (and, for a server,
 `phase`) onto the document read from disk and write it back. Nothing else is

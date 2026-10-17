@@ -1,15 +1,14 @@
 //! `hestia server update` — move a server to another version. A running server
-//! confirms a stop-update-start; a downgrade confirms separately.
+//! confirms a restart, which the daemon performs around the update; a downgrade
+//! confirms separately.
 
 use std::sync::Arc;
 
 use anyhow::{bail, Context, Result};
-use client::proto::error::{EntryKind, EntryTarget};
-use client::proto::modpack::ModpackMove;
 use client::proto::server::ServerUpdateParams;
 use client::Client;
 
-use super::{entry, lifecycle};
+use super::entry;
 use crate::commands::mc;
 use crate::commands::modpack;
 use crate::ui::{self, ProvisionReporter, Spinner, View};
@@ -45,53 +44,15 @@ pub(super) async fn run(
             &version,
         )?;
     }
-    let entry = EntryTarget::new(EntryKind::Server, &info.id);
-    let pack_version = modpack::pack_move(client, &entry, &version, keep_pack).await?;
-
-    if was_running {
-        {
-            let _spinner = Spinner::start(format!("stopping '{}'", info.name));
-            client.server().stop(&info.id).await?;
-            lifecycle::wait_until_stopped(client, &info.id).await?;
-        }
-        ui::show(View::note(format!(
-            "server '{}' stopped for the update",
-            info.name
-        )))?;
-    }
-
-    let allow_downgrade = downgrade || is_downgrade;
-    match pack_version {
-        Some(pack_version) => {
-            let to = ModpackMove {
-                version: pack_version,
-                allow_downgrade,
-                ..ModpackMove::default()
-            };
-            modpack::update(client, &entry, to).await?;
-        }
-        None => change_version(client, &info.id, version, loader, allow_downgrade).await?,
-    }
-    if was_running {
-        lifecycle::start(client, &info.id).await?;
-    }
-    Ok(())
-}
-
-async fn change_version(
-    client: &Client,
-    server: &str,
-    version: String,
-    loader: Option<String>,
-    allow_downgrade: bool,
-) -> Result<()> {
     let reporter = Arc::new(ProvisionReporter::new());
     let progress = reporter.clone();
     let params = ServerUpdateParams {
-        server: server.to_string(),
+        server: info.id,
         version,
         loader_version: loader,
-        allow_downgrade,
+        allow_downgrade: downgrade || is_downgrade,
+        restart: was_running,
+        pack: modpack::pack_policy(keep_pack),
         id: String::new(),
     };
     let result = client
@@ -105,6 +66,7 @@ async fn change_version(
         done.server.name, done.server.game_version
     )))?;
     entry::show_status(&done.server, None)?;
+    modpack::show_failures(&done.failures)?;
     ui::show_warnings(&done.warnings)
 }
 

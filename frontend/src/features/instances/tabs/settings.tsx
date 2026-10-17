@@ -12,6 +12,7 @@ import {
 import { m } from '@/paraglide/messages.js';
 import { configQueries, launcherDefaults } from '@/queries/config';
 import { instanceMutations } from '@/queries/instance';
+import { useJobMutation } from '@/queries/jobs';
 
 export function InstanceSettingsTab({
   instance,
@@ -26,7 +27,7 @@ export function InstanceSettingsTab({
   const rename = useMutation(instanceMutations.rename(instance.id));
   const setConfig = useMutation(instanceMutations.setConfig(instance.id));
   const remove = useMutation(instanceMutations.remove(instance.id));
-  const update = useMutation(instanceMutations.update(instance.id));
+  const update = useJobMutation(instanceMutations.update(instance.id));
 
   return (
     <SettingsTabs

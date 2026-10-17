@@ -47,7 +47,7 @@ pub use content::Content;
 pub use download::Downloader;
 pub use engine::{
     Engine, EntryRef, ExportOutcome, ImportOutcome, LaunchRequest, ModpackOutcome,
-    ServerCreateSpec, ServerListWrite, ServerUpdateSpec,
+    ServerCreateSpec, ServerListWrite, ServerUpdateSpec, VersionChange,
 };
 pub use error::error_info;
 pub use files::FileTree;

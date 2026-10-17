@@ -50,7 +50,12 @@ describe('runJob', () => {
     channels[channel] = (payload) => {
       started = String(payload.id);
       later(() =>
-        publishJob(id, channel, { state: 'done', server, warnings: [] }),
+        publishJob(id, channel, {
+          state: 'done',
+          server,
+          warnings: [],
+          failures: [],
+        }),
       );
       return { id: started };
     };
@@ -68,11 +73,13 @@ describe('runJob', () => {
           state: 'done',
           server: { ...server, name: 'other' },
           warnings: [],
+          failures: [],
         });
         publishJob(id, channel, {
           state: 'done',
           server: { ...server, name: 'mine' },
           warnings: [],
+          failures: [],
         });
       }),
     );
@@ -87,7 +94,7 @@ describe('runJob', () => {
       later(() => {
         publishJob(id, channel, { state: 'progress', ...step(1) });
         publishJob(id, channel, { state: 'progress', ...step(2) });
-        publishJob(id, channel, { state: 'done', server, warnings: [] });
+        publishJob(id, channel, { state: 'done', server, warnings: [], failures: [] });
       }),
     );
     await runJob(
@@ -103,7 +110,7 @@ describe('runJob', () => {
     const seen: number[] = [];
     onStart(() =>
       later(() => {
-        publishJob(id, channel, { state: 'done', server, warnings: [] });
+        publishJob(id, channel, { state: 'done', server, warnings: [], failures: [] });
         publishJob(id, channel, { state: 'progress', ...step(2) });
       }),
     );
@@ -153,7 +160,7 @@ describe('runJob', () => {
   it('hears a terminal event that arrives before the start call returns', async () => {
     const id = jobId(channel);
     onStart(() =>
-      publishJob(id, channel, { state: 'done', server, warnings: [] }),
+      publishJob(id, channel, { state: 'done', server, warnings: [], failures: [] }),
     );
     await expect(runJob(channel, {}, { id })).resolves.toMatchObject({
       server,

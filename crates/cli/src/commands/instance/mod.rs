@@ -396,6 +396,7 @@ async fn run_action(client: &Client, name: String, action: InstanceAction) -> Re
                     detach,
                     quick_play: join.target(),
                     offline,
+                    ..lifecycle::Launch::default()
                 },
             )
             .await

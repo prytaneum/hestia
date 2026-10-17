@@ -15,6 +15,7 @@ import type {
   InstanceLaunchParams,
   InstanceServerEditParams,
   InstanceServersWriteResult,
+  InstanceUpdateDone,
   InstanceUpdateParams,
   RecentPlay,
   ServerEntry,
@@ -64,11 +65,11 @@ export async function create(
 }
 
 /** The instance pays for the new version at its next launch. */
-export async function update(
+export function update(
   params: Omit<InstanceUpdateParams, 'id'>,
-): Promise<InstanceInfo> {
-  const result = await call('instance.update', params);
-  return result.instance;
+  job: JobRun,
+): Promise<InstanceUpdateDone> {
+  return runJob('instance.update', params, job);
 }
 
 export function rename(instance: string, name: string): Promise<InstanceInfo> {

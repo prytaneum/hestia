@@ -23,10 +23,11 @@ export type { InstanceServersArrangeParams } from "./generated/InstanceServersAr
 export type { InstanceServersResult } from "./generated/InstanceServersResult";
 export type { InstanceServersWriteResult } from "./generated/InstanceServersWriteResult";
 export type { InstanceStopParams } from "./generated/InstanceStopParams";
+export type { InstanceUpdateDone } from "./generated/InstanceUpdateDone";
 export type { InstanceUpdateParams } from "./generated/InstanceUpdateParams";
-export type { InstanceUpdateResult } from "./generated/InstanceUpdateResult";
 export type { InstanceWorldsResult } from "./generated/InstanceWorldsResult";
 export type { QuickPlay } from "./generated/QuickPlay";
 export type { RecentPlay } from "./generated/RecentPlay";
+export type { Replace } from "./generated/Replace";
 export type { ServerEntry } from "./generated/ServerEntry";
 export type { WorldInfo } from "./generated/WorldInfo";

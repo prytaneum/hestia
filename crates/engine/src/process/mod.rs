@@ -40,6 +40,8 @@ const DEFAULT_LOG_LINES: usize = 2000;
 const FINISHED_KEEP: usize = 20;
 /// How long a stop waits between the polite signal and the hard kill.
 const STOP_GRACE: Duration = Duration::from_secs(10);
+const STOP_WAIT: Duration = Duration::from_secs(120);
+const STOP_POLL: Duration = Duration::from_millis(250);
 /// How often an adopted (non-child) process is checked for exit.
 const ADOPTED_POLL: Duration = Duration::from_secs(1);
 
@@ -330,6 +332,26 @@ impl ProcessSupervisor {
             }
             None => false,
         }
+    }
+
+    /// Stop the named processes and wait for each to exit. False when one is
+    /// still running after [`STOP_WAIT`] — a caller about to reuse the tree
+    /// abandons the work rather than start over a process that may hold it.
+    pub async fn stop_and_wait(&self, ids: &[String]) -> bool {
+        for id in ids {
+            self.stop(id);
+        }
+        let deadline = tokio::time::Instant::now() + STOP_WAIT;
+        while ids.iter().any(|id| {
+            self.status(id)
+                .is_some_and(|p| p.state == ProcessState::Running)
+        }) {
+            if tokio::time::Instant::now() >= deadline {
+                return false;
+            }
+            tokio::time::sleep(STOP_POLL).await;
+        }
+        true
     }
 
     pub async fn stop_all_and_wait(&self) {

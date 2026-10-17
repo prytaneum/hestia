@@ -3,8 +3,8 @@
  * directly through useQuery/useMutation/useJobMutation, keyed by stable id like
  * the server factories. Only the behavior-bearing hooks stay named (below):
  * there is no `instance.status` channel, so `useInstance` selects the entry
- * from the list query. `create`/`update` are plain (long) calls, not jobs;
- * `launch` is the job that materialises files and spawns the game.
+ * from the list query. `update` is a job (a modpack moves with the version),
+ * and so is `launch`, which materialises files and spawns the game.
  */
 import { queryOptions, useQuery } from '@tanstack/react-query';
 import type {
@@ -13,10 +13,11 @@ import type {
   InstanceInfo,
   InstanceLaunchDone,
   InstanceServersWriteResult,
+  InstanceUpdateDone,
   InstanceUpdateParams,
   QuickPlay,
+  Replace,
 } from '../api';
-import { HestiaError } from '../api';
 import * as api from '../api/instance';
 import { CATALOG_STALE_MS, mutation } from './core';
 import { useEntryIconLookup } from './icons';
@@ -29,32 +30,13 @@ interface LaunchVars {
   id: string;
   newSession?: boolean;
   quickPlay?: QuickPlay;
+  replace?: Replace;
 }
 
 /** A stop aimed at one session of an instance, or at all of them. */
 interface StopVars {
   id: string;
   session?: string;
-}
-
-const EXIT_POLL_MS = 500;
-const EXIT_POLLS = 60;
-
-async function sessionExited(id: string, session: string): Promise<void> {
-  let name = id;
-  for (let poll = 0; poll < EXIT_POLLS; poll++) {
-    const instance = (await api.list()).find((entry) => entry.id === id);
-    const live = instance?.sessions.some(
-      (s) => s.id === session && s.state === 'running',
-    );
-    if (!live) return;
-    name = instance?.name ?? id;
-    await new Promise((resolve) => setTimeout(resolve, EXIT_POLL_MS));
-  }
-  throw new HestiaError('handler_error', `${name} did not stop in time`, {
-    kind: 'stop_timed_out',
-    name,
-  });
 }
 
 export const instanceQueries = {
@@ -141,9 +123,17 @@ export const instanceMutations = {
     }),
   /** The instance pays for the new version at its next launch. */
   update: (id: string) =>
-    mutation<InstanceInfo, Omit<InstanceUpdateParams, 'instance' | 'id'>>({
+    jobMutation<
+      InstanceUpdateDone,
+      Omit<InstanceUpdateParams, 'instance' | 'id'>
+    >({
       mutationKey: [...keys.instances.detail(id), 'update'],
-      mutationFn: (params) => api.update({ ...params, instance: id }),
+      meta: (params) => ({
+        kind: 'instance.update',
+        label: `update to ${params.version}`,
+        entry: { kind: 'instance', id },
+      }),
+      run: (params, job) => api.update({ ...params, instance: id }, job),
       invalidates: () => [
         keys.instances.list(),
         keys.instances.detail(id),
@@ -218,8 +208,8 @@ export const instanceMutations = {
         label: 'launch',
         entry: { kind: 'instance', id },
       }),
-      run: ({ id, newSession, quickPlay }, job) =>
-        api.launch({ instance: id, newSession, quickPlay }, job),
+      run: ({ id, newSession, quickPlay, replace }, job) =>
+        api.launch({ instance: id, newSession, quickPlay, replace }, job),
       invalidates: ({ id }) => [
         keys.instances.list(),
         keys.instances.detail(id),
@@ -231,23 +221,6 @@ export const instanceMutations = {
     mutation<void, StopVars>({
       mutationKey: [...keys.instances.all, 'stop'],
       mutationFn: ({ id, session }) => api.stop(id, session),
-      invalidates: ({ id }) => [
-        keys.instances.list(),
-        keys.instances.detail(id),
-      ],
-    }),
-  /**
-   * The first half of a restart: stops one session and settles only once the
-   * daemon no longer lists it running, so the relaunch that follows is not
-   * refused as a second session of the same game directory.
-   */
-  stopSettledAny: () =>
-    mutation<void, Required<StopVars>>({
-      mutationKey: [...keys.instances.all, 'stop', 'settled'],
-      mutationFn: async ({ id, session }) => {
-        await api.stop(id, session);
-        await sessionExited(id, session);
-      },
       invalidates: ({ id }) => [
         keys.instances.list(),
         keys.instances.detail(id),

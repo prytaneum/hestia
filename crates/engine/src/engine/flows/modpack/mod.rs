@@ -25,14 +25,14 @@ mod resolve;
 
 use std::path::Path;
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use proto::content::{
     ContentFailure, ContentKind, ContentProject, InstalledContent, ModpackFile, ResolvedModpack,
 };
 use proto::error::{EntryKind, ErrorInfo};
 use proto::modpack::{
     InstalledModpack, ModpackFilePreview, ModpackFit, ModpackMove, ModpackRef, ModpackRemoveResult,
-    ModpackTarget, ModpackUpdate,
+    ModpackTarget, ModpackUpdate, PackPolicy,
 };
 use proto::warning::WarningInfo;
 
@@ -40,7 +40,9 @@ use super::content::entry::{EntryContent, EntryRef, EntrySide};
 use crate::cancel::Job;
 use crate::content::{install, modpack, pack};
 use crate::engine::{Engine, ServerCreateSpec, ServerUpdateSpec};
+use crate::instances::InstanceRecord;
 use crate::registry;
+use crate::servers::ServerRecord;
 
 /// What a finished install or update produced. `entry` is the entry's id —
 /// which, for a create, the caller has no other way to learn.
@@ -50,6 +52,19 @@ pub struct ModpackOutcome {
     pub pack: InstalledModpack,
     pub failures: Vec<ContentFailure>,
     pub warnings: Vec<WarningInfo>,
+}
+
+/// What a game-version change produced: the entry as it now stands, and what
+/// moving its pack degraded on.
+pub struct VersionChange<R> {
+    pub record: R,
+    pub warnings: Vec<WarningInfo>,
+    pub failures: Vec<ContentFailure>,
+}
+
+enum PackStep {
+    Moved(Box<ModpackOutcome>),
+    Stayed(Vec<WarningInfo>),
 }
 
 /// The release a source knows one pack file to be. A pack names its files by
@@ -251,6 +266,121 @@ impl Engine {
             job,
         )
         .await
+    }
+
+    /// Move a server to another game version, taking its modpack to the build
+    /// for that version when `pack` says to and the pack has one.
+    pub async fn update_server_with_pack(
+        &self,
+        spec: ServerUpdateSpec,
+        pack: PackPolicy,
+        job: &Job<'_>,
+    ) -> Result<VersionChange<ServerRecord>> {
+        let moved = self
+            .move_pack_with_version(
+                EntryRef::Server(&spec.server),
+                &spec.version,
+                pack,
+                spec.allow_downgrade,
+                job,
+            )
+            .await?;
+        match moved {
+            PackStep::Moved(outcome) => Ok(VersionChange {
+                record: self
+                    .servers
+                    .get(&spec.server)
+                    .with_context(|| format!("unknown server: {}", spec.server))?,
+                warnings: outcome.warnings,
+                failures: outcome.failures,
+            }),
+            PackStep::Stayed(mut warnings) => {
+                let (record, updated) = self.update_server(spec, job).await?;
+                warnings.extend(updated);
+                Ok(VersionChange {
+                    record,
+                    warnings,
+                    failures: Vec::new(),
+                })
+            }
+        }
+    }
+
+    /// The instance twin of [`Self::update_server_with_pack`].
+    pub async fn update_instance_with_pack(
+        &self,
+        reference: &str,
+        version: &str,
+        loader_version: Option<String>,
+        allow_downgrade: bool,
+        pack: PackPolicy,
+        job: &Job<'_>,
+    ) -> Result<VersionChange<InstanceRecord>> {
+        let moved = self
+            .move_pack_with_version(
+                EntryRef::Instance(reference),
+                version,
+                pack,
+                allow_downgrade,
+                job,
+            )
+            .await?;
+        match moved {
+            PackStep::Moved(outcome) => Ok(VersionChange {
+                record: self
+                    .instances
+                    .get(reference)
+                    .with_context(|| format!("unknown instance: {reference}"))?,
+                warnings: outcome.warnings,
+                failures: outcome.failures,
+            }),
+            PackStep::Stayed(warnings) => Ok(VersionChange {
+                record: self
+                    .update_instance(reference, version, loader_version, allow_downgrade)
+                    .await?,
+                warnings,
+                failures: Vec::new(),
+            }),
+        }
+    }
+
+    /// Runs the pack update that carries the entry to `version` when the pack
+    /// is to follow and has a build for it; otherwise says why the pack stays.
+    async fn move_pack_with_version(
+        &self,
+        target: EntryRef<'_>,
+        version: &str,
+        pack: PackPolicy,
+        allow_downgrade: bool,
+        job: &Job<'_>,
+    ) -> Result<PackStep> {
+        let (_, ctx) = self.content_ctx(target)?;
+        let current = match (pack, modpack::load(&ctx.entry_dir)) {
+            (PackPolicy::Move, Some(current)) if current.game_version != version => current,
+            _ => return Ok(PackStep::Stayed(Vec::new())),
+        };
+        let fitting = match current.project_id.is_empty() {
+            true => None,
+            false => self
+                .entry_modpack_update(target, version)
+                .await?
+                .and_then(|update| update.fitting),
+        };
+        let Some(fit) = fitting else {
+            return Ok(PackStep::Stayed(vec![WarningInfo::PackNotMoved {
+                pack: current.name,
+                version_number: current.version_number,
+                pack_game_version: current.game_version,
+                target: version.to_string(),
+            }]));
+        };
+        let to = ModpackMove {
+            version: fit.version_id,
+            allow_downgrade,
+            ..ModpackMove::default()
+        };
+        let outcome = self.update_entry_modpack(target, &to, job).await?;
+        Ok(PackStep::Moved(Box::new(outcome)))
     }
 
     /// What [`Self::update_entry_modpack`] would do with a pack file, so a

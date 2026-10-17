@@ -89,6 +89,18 @@ pub enum WarningInfo {
     /// The account's token was due for rotation and Microsoft could not be
     /// reached, so the session runs on the last one the launcher holds.
     SessionNotVerified { account: String },
+    /// The update finished (or failed) while the server was stopped for it, and
+    /// starting it again failed. `detail` is operational English, shown as
+    /// secondary text.
+    ServerNotRestarted { server: String, detail: String },
+    /// A version change left the entry's modpack where it was because the pack
+    /// has no version built for the new game version.
+    PackNotMoved {
+        pack: String,
+        version_number: String,
+        pack_game_version: String,
+        target: String,
+    },
 }
 
 impl WarningInfo {
@@ -137,6 +149,13 @@ impl WarningInfo {
             LaunchedOffline { .. } | SessionNotVerified { .. } => {
                 "singleplayer works as usual; launch again once you are back online to play \
                  multiplayer"
+                    .to_string()
+            }
+            ServerNotRestarted { server, .. } => {
+                format!("start it yourself once the cause is fixed: `hestia start {server}`")
+            }
+            PackNotMoved { .. } => {
+                "its mods may not load; move the pack yourself when a build for this version is published"
                     .to_string()
             }
             DocumentQuarantined { path, .. } => format!(
@@ -201,6 +220,19 @@ impl fmt::Display for WarningInfo {
                 f,
                 "could not reach Microsoft to refresh '{account}', so this session runs on the \
                  stored sign-in"
+            ),
+            ServerNotRestarted { server, detail } => {
+                write!(f, "'{server}' was stopped for the update and could not be started again: {detail}")
+            }
+            PackNotMoved {
+                pack,
+                version_number,
+                pack_game_version,
+                target,
+            } => write!(
+                f,
+                "the modpack '{pack}' {version_number} is built for Minecraft {pack_game_version} \
+                 and has no version for {target}"
             ),
             DocumentQuarantined {
                 document, detail, ..

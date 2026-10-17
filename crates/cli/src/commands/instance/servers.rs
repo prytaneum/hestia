@@ -96,6 +96,7 @@ pub(super) async fn run(client: &Client, instance: &str, cmd: ServerCmd) -> Resu
                     detach,
                     quick_play: Some(QuickPlay::Server(address)),
                     offline,
+                    ..super::Launch::default()
                 },
             )
             .await

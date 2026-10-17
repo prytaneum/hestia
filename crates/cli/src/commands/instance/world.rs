@@ -55,6 +55,7 @@ pub(super) async fn run(client: &Client, instance: &str, cmd: WorldCmd) -> Resul
                     detach,
                     quick_play: Some(QuickPlay::World(folder)),
                     offline,
+                    ..super::Launch::default()
                 },
             )
             .await

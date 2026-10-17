@@ -87,8 +87,9 @@ hestia server smp update 1.21.4  # move the server to another version (world,
                                  #   backed up automatically first; prompts
                                  #   for anything omitted; a downgrade asks
                                  #   for a confirm — --downgrade for scripts;
-                                 #   a running server confirms a
-                                 #   stop-update-start — --restart)
+                                 #   a running server confirms a restart,
+                                 #   which the daemon performs around the
+                                 #   update — --restart)
 hestia server smp backup create  # archive the world + config into the
                                  #   server's backups/ (a running server keeps
                                  #   running; its world saving pauses around
@@ -207,7 +208,8 @@ hestia instance modded worlds    # the save worlds, read from each level.dat:
 hestia instance modded servers   # the multiplayer list (servers.dat), each entry
                                  #   with what it answers right now
 hestia instance modded stop      # kill every session (--session <h> targets one)
-hestia instance modded restart   # stop, then launch again (--session <h> for one)
+hestia instance modded restart   # launch again once the old session has exited
+                                 #   (--session <h> for one)
 hestia instance modded rename mp # rename (stopped): rewrites the display name;
                                  #   the id, directory and saves stay put
 hestia instance modded export    # write it out as one archive (stopped)

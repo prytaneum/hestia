@@ -186,6 +186,18 @@ pub struct EntryModpackUpdateParams {
     pub id: String,
 }
 
+/// What a game-version change does with the modpack the entry runs: `Move`
+/// takes the pack to its build for the new version (when it has one), `Keep`
+/// changes the game version alone.
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
+#[serde(rename_all = "snake_case")]
+pub enum PackPolicy {
+    #[default]
+    Move,
+    Keep,
+}
+
 /// Where an update takes an entry's pack: another published `version` (empty
 /// for the newest), or a pack file at `path` — the only way a pack no source
 /// published can move at all. Naming both is refused.
