@@ -23,8 +23,7 @@ const BACKUPS: &str = "backups";
 const EXTENSION: &str = ".tar.gz";
 /// The archive's first entry: what it is and which schema it was written with,
 /// so a restore refuses an archive from a newer build instead of scattering
-/// whatever it finds into the server's data directory. An archive without one
-/// predates the manifest and restores as before.
+/// whatever it finds into the server's data directory.
 const MANIFEST: &str = "hestia.backup.json";
 /// The in-progress archive: renamed onto the real name only once written whole.
 const PART_SUFFIX: &str = ".part";
@@ -368,6 +367,7 @@ fn extract_archive(archive: &Path, dest: &Path, on_progress: OnProgress<'_>) -> 
     tar.set_preserve_permissions(true);
     // unpack_in refuses entries that would escape `dest`.
     let mut done = 0u64;
+    let mut checked = false;
     for entry in tar.entries().context("reading the archive")? {
         let mut entry = entry.context("reading an archive entry")?;
         // The manifest is written first, so an archive this build cannot read is
@@ -378,7 +378,11 @@ fn extract_archive(archive: &Path, dest: &Path, on_progress: OnProgress<'_>) -> 
                 .read_to_string(&mut text)
                 .context("reading the backup manifest")?;
             check_manifest(&text)?;
+            checked = true;
             continue;
+        }
+        if !checked {
+            return Err(manifest_missing().into());
         }
         entry
             .unpack_in(dest)
@@ -386,7 +390,17 @@ fn extract_archive(archive: &Path, dest: &Path, on_progress: OnProgress<'_>) -> 
         done += 1;
         on_progress(done, 0)?;
     }
+    if !checked {
+        return Err(manifest_missing().into());
+    }
     Ok(())
+}
+
+fn manifest_missing() -> ErrorInfo {
+    ErrorInfo::ArchiveInvalid {
+        format: ArchiveFormat::Backup,
+        reason: ArchiveFault::ManifestMissing,
+    }
 }
 
 fn check_manifest(text: &str) -> Result<()> {
@@ -559,13 +573,12 @@ mod tests {
     }
 
     #[test]
-    fn a_backup_with_no_manifest_still_restores() {
+    fn a_backup_with_no_manifest_is_refused() {
         let entry_dir = temp_entry("legacy-backup");
         let entry = entry_dir.path();
         let data = entry.join("data");
         write(&data.join("world/level.dat"), "one");
 
-        // An archive as builds before the manifest wrote them: data roots only.
         let dir = backups_dir(entry);
         std::fs::create_dir_all(&dir).unwrap();
         let path = dir.join(format!("19700101-000000-manual{EXTENSION}"));
@@ -580,11 +593,19 @@ mod tests {
         }
 
         write(&data.join("world/level.dat"), "two");
-        restore(entry, &data, "19700101-000000-manual", &[], &|_, _| Ok(())).unwrap();
+        let error = restore(entry, &data, "19700101-000000-manual", &[], &|_, _| Ok(()))
+            .expect_err("refused");
 
+        assert!(matches!(
+            error.downcast::<ErrorInfo>().unwrap(),
+            ErrorInfo::ArchiveInvalid {
+                reason: ArchiveFault::ManifestMissing,
+                ..
+            }
+        ));
         assert_eq!(
             std::fs::read_to_string(data.join("world/level.dat")).unwrap(),
-            "one"
+            "two"
         );
     }
 
