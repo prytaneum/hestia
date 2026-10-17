@@ -17,8 +17,8 @@ use proto::server::{
 };
 use proto::Empty;
 
-use super::guards::{is_running, server_for, Intent};
-use crate::runtime::{server_process_id, Channels};
+use super::guards::{is_running, server_for, server_held, Hold, Intent};
+use crate::runtime::{server_process_id, Channels, JobKind};
 
 pub(super) fn register(on: &mut Channels<'_>) {
     on.handle::<ServerFlavors, _, _>(|_: Empty, ctx| async move {
@@ -59,7 +59,7 @@ pub(super) fn register(on: &mut Channels<'_>) {
         if !p.eula {
             return Err(ErrorInfo::EulaRequired);
         }
-        match ctx.runtime.server_creates().start(p) {
+        match ctx.runtime.jobs().start_server_create(p) {
             Some(id) => Ok(JobStarted { id }),
             None => Err(ErrorInfo::CreateInProgress),
         }
@@ -71,13 +71,9 @@ pub(super) fn register(on: &mut Channels<'_>) {
                 field: Field::Version,
             });
         }
-        let record = server_for(&ctx, &p.server, Intent::Lifecycle)?;
-        match ctx.runtime.server_updates().start(record.id, p) {
-            Some(id) => Ok(JobStarted { id }),
-            None => Err(ErrorInfo::UpdateInProgress {
-                name: record.name.clone(),
-            }),
-        }
+        let (record, claim) = server_held(&ctx, &p.server, Hold::stopped(JobKind::Update))?;
+        let id = ctx.runtime.jobs().start_server_update(record.id, p, claim);
+        Ok(JobStarted { id })
     });
 
     on.handle::<ServerList, _, _>(|_: Empty, ctx| async move {
@@ -115,7 +111,7 @@ pub(super) fn register(on: &mut Channels<'_>) {
     });
 
     on.handle::<ServerRemove, _, _>(|p, ctx| async move {
-        let record = server_for(&ctx, &p.server, Intent::Lifecycle)?;
+        let (record, _claim) = server_held(&ctx, &p.server, Hold::stopped(JobKind::Content))?;
         ctx.runtime
             .engine()
             .servers()
@@ -132,7 +128,7 @@ pub(super) fn register(on: &mut Channels<'_>) {
         if p.name.trim().is_empty() {
             return Err(ErrorInfo::FieldRequired { field: Field::Name });
         }
-        let record = server_for(&ctx, &p.server, Intent::Lifecycle)?;
+        let (record, _claim) = server_held(&ctx, &p.server, Hold::stopped(JobKind::Content))?;
         let renamed = ctx
             .runtime
             .engine()
@@ -144,7 +140,7 @@ pub(super) fn register(on: &mut Channels<'_>) {
     });
 
     on.handle::<ServerStart, _, _>(|p, ctx| async move {
-        let record = server_for(&ctx, &p.server, Intent::Start)?;
+        let (record, _claim) = server_held(&ctx, &p.server, Hold::stopped(JobKind::Launch))?;
         tracing::info!(server = %record.id, name = %record.name, "starting server");
         let info = ctx.runtime.start_server(&record.id).await?;
         Ok(ServerStartResult {
@@ -167,7 +163,7 @@ pub(super) fn register(on: &mut Channels<'_>) {
     });
 
     on.handle::<ServerRestart, _, _>(|p, ctx| async move {
-        let record = server_for(&ctx, &p.server, Intent::Restart)?;
+        let (record, _claim) = server_held(&ctx, &p.server, Hold::live(JobKind::Launch))?;
         if !is_running(&ctx, &server_process_id(&record.id)) {
             return Err(ErrorInfo::NotRunning {
                 entry: EntryKind::Server,

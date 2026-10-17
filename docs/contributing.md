@@ -256,13 +256,15 @@ impl Job for JavaInstall {
 }
 ```
 
-Then follow `JavaInstallManager` (`runtime/managers/java.rs`): hand
-`Runner::start::<JavaInstall>` a `Spec` and a closure returning `JavaInstallDone`;
-the runner publishes the `job` events (progress, done, failed, cancelled) with
-the contract's channel, and the handler answers `JobStarted { id }`. A manager
-that admits one job per entry takes its key from `InFlight`
-(`runtime/managers/job.rs`), whose `claim()` guard releases on drop. Document
-on the contract what a cancel leaves behind.
+Then follow `Jobs::start_java_install` (`runtime/managers/java.rs`): add a
+`start_*` function on `Jobs` that hands `Jobs::run::<JavaInstall>` a `Spec` and
+a closure returning `JavaInstallDone`; the runner publishes the `job` events
+(progress, done, failed, cancelled) with the contract's channel, and the handler
+answers `JobStarted { id }`. A job that changes an entry takes the entry's claim
+in the handler (`guards::server_held` / `instance_held` / `entry_held`) and
+passes it in the `Spec`; the guard releases on drop
+([0086](decisions/0086-an-entry-has-one-claim.md)). Document on the contract
+what a cancel leaves behind.
 
 ---
 

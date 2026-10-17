@@ -272,7 +272,7 @@ panel has. Three rules shape it:
 - **A file is read and written whole, as text**, up to 2 MiB. A binary or
   larger file is refused rather than truncated; it can still be moved, copied,
   archived or removed. A write stages to `.part` and renames.
-- **Edits are allowed on a running server** (`Intent::Edit`), as a panel's file
+- **Edits are allowed on a running server** (`Intent::Idle`), as a panel's file
   manager allows them: a plugin's config is edited and reloaded live. They wait
   only on the jobs that rewrite the tree — a backup or restore, a version
   change, a content or modpack job.

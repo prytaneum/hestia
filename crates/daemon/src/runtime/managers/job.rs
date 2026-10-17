@@ -1,9 +1,7 @@
-//! The plumbing every worker manager shares: event publishing, job ids, and the
-//! in-flight key set that admits one job per entry at a time.
+//! The plumbing every job family shares: event publishing, job ids, and the
+//! [`Jobs`] value each family hangs its `start_*` function off.
 
-use std::borrow::Borrow;
 use std::collections::HashSet;
-use std::hash::Hash;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 
@@ -11,6 +9,8 @@ use ipc::protocol::Event;
 use proto::java::{JavaInstallPhase, JavaInstallProgress};
 use proto::job::{Job, JobEvent, JobState};
 use proto::minecraft::{ProvisionPhase, ProvisionProgress};
+
+use crate::runtime::{Claim, Claims, ProcessSupervisor};
 
 /// Below this ratio delta a progress update is dropped, matching Modrinth's
 /// `emit_loading` (0.5%): a phase of thousands of tiny units (an instance's
@@ -114,50 +114,6 @@ pub(super) fn job_id(id: String, prefix: &str) -> String {
     }
 }
 
-/// The keys whose job is still running. A key admits one job at a time.
-pub(super) struct InFlight<K> {
-    active: Arc<Mutex<HashSet<K>>>,
-}
-
-impl<K: Eq + Hash + Clone> InFlight<K> {
-    pub(super) fn new() -> Self {
-        InFlight {
-            active: Arc::new(Mutex::new(HashSet::new())),
-        }
-    }
-
-    pub(super) fn contains<Q>(&self, key: &Q) -> bool
-    where
-        K: Borrow<Q>,
-        Q: Eq + Hash + ?Sized,
-    {
-        self.active.lock().unwrap().contains(key)
-    }
-
-    /// Take `key`, or `None` when a job already holds it. The claim releases on
-    /// drop, so a job that panics never wedges its key.
-    pub(super) fn claim(&self, key: K) -> Option<Claim<K>> {
-        if !self.active.lock().unwrap().insert(key.clone()) {
-            return None;
-        }
-        Some(Claim {
-            active: self.active.clone(),
-            key,
-        })
-    }
-}
-
-pub(super) struct Claim<K: Eq + Hash> {
-    active: Arc<Mutex<HashSet<K>>>,
-    key: K,
-}
-
-impl<K: Eq + Hash> Drop for Claim<K> {
-    fn drop(&mut self) {
-        self.active.lock().unwrap().remove(&self.key);
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use std::sync::atomic::{AtomicUsize, Ordering};
@@ -230,7 +186,7 @@ mod tests {
     }
 
     struct Harness {
-        runner: Runner<String>,
+        jobs: Jobs,
         events: tokio::sync::mpsc::UnboundedReceiver<String>,
         _home: tempfile::TempDir,
     }
@@ -241,24 +197,21 @@ mod tests {
         let hub = Arc::new(crate::runtime::EventHub::default());
         let (tx, events) = tokio::sync::mpsc::unbounded_channel();
         hub.subscribe(1, tx, None);
+        let processes = engine.processes().clone();
         Harness {
-            runner: Runner::new(engine, hub, Cancellations::new()),
+            jobs: Jobs::new(
+                engine,
+                hub,
+                Claims::default(),
+                processes,
+                Cancellations::new(),
+            ),
             events,
             _home: home,
         }
     }
 
-    /// The spec for the stand-in job, with `key` varied per test —
-    /// everything else the runner owns.
-    fn spec(key: Option<String>) -> Spec<String> {
-        Spec {
-            id: String::new(),
-            prefix: "test",
-            key,
-        }
-    }
-
-    fn start<W>(runner: &Runner<String>, key: Option<String>, work: W) -> Option<String>
+    fn start<W>(jobs: &Jobs, work: W) -> String
     where
         W: for<'a> FnOnce(
                 &'a engine::Engine,
@@ -267,7 +220,12 @@ mod tests {
             + Send
             + 'static,
     {
-        runner.start::<stand_in::Test, _>(spec(key), work)
+        let spec = Spec {
+            id: String::new(),
+            prefix: "test",
+            claim: None,
+        };
+        jobs.run::<stand_in::Test, _>(spec, work)
     }
 
     /// The state of every job event published so far, drained.
@@ -290,59 +248,9 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn a_key_admits_one_job_at_a_time() {
-        let harness = harness();
-        let (gate, held) = tokio::sync::oneshot::channel::<()>();
-
-        let first = start(&harness.runner, Some("entry".into()), move |_, _| {
-            Box::pin(async move {
-                let _ = held.await;
-                Ok(stand_in::Done {})
-            })
-        });
-        assert!(first.is_some(), "the first job takes the key");
-
-        let second = start(&harness.runner, Some("entry".into()), |_, _| {
-            Box::pin(async { Ok(stand_in::Done {}) })
-        });
-        assert!(second.is_none(), "the second is refused while it is held");
-        assert!(harness.runner.in_flight("entry"));
-
-        let _ = gate.send(());
-    }
-
-    #[tokio::test]
-    async fn a_finished_job_releases_its_key() {
-        let mut harness = harness();
-        start(&harness.runner, Some("entry".into()), |_, _| {
-            Box::pin(async { Ok(stand_in::Done {}) })
-        })
-        .expect("started");
-        topics(&mut harness.events).await;
-
-        assert!(!harness.runner.in_flight("entry"));
-        assert!(start(&harness.runner, Some("entry".into()), |_, _| {
-            Box::pin(async { Ok(stand_in::Done {}) })
-        })
-        .is_some());
-    }
-
-    #[tokio::test]
-    async fn a_keyless_job_never_refuses() {
-        let harness = harness();
-        for _ in 0..3 {
-            assert!(start(&harness.runner, None, |_, _| Box::pin(async {
-                tokio::task::yield_now().await;
-                Ok(stand_in::Done {})
-            }))
-            .is_some());
-        }
-    }
-
-    #[tokio::test]
     async fn progress_is_coalesced_and_the_job_settles_on_done() {
         let mut harness = harness();
-        start(&harness.runner, None, |_, reporter| {
+        start(&harness.jobs, |_, reporter| {
             Box::pin(async move {
                 let report = reporter.checked();
                 // A flood of sub-epsilon ticks, as an assets pass emits.
@@ -351,8 +259,7 @@ mod tests {
                 }
                 Ok(stand_in::Done {})
             })
-        })
-        .expect("started");
+        });
 
         let seen = topics(&mut harness.events).await;
         assert_eq!(seen.last().map(String::as_str), Some("done"));
@@ -366,14 +273,13 @@ mod tests {
     #[tokio::test]
     async fn a_cancelled_job_settles_apart_from_a_failure() {
         let mut harness = harness();
-        start(&harness.runner, None, |_, reporter| {
+        start(&harness.jobs, |_, reporter| {
             Box::pin(async move {
                 reporter.cancel().cancel();
                 reporter.cancel().check()?;
                 Ok(stand_in::Done {})
             })
-        })
-        .expect("started");
+        });
 
         assert_eq!(topics(&mut harness.events).await, vec!["cancelled"]);
     }
@@ -381,10 +287,9 @@ mod tests {
     #[tokio::test]
     async fn a_failed_job_settles_on_its_error_topic() {
         let mut harness = harness();
-        start(&harness.runner, None, |_, _| {
+        start(&harness.jobs, |_, _| {
             Box::pin(async { Err(anyhow::anyhow!("no")) })
-        })
-        .expect("started");
+        });
 
         assert_eq!(topics(&mut harness.events).await, vec!["failed"]);
     }
@@ -506,50 +411,52 @@ type Publish<P> = Box<dyn Fn(&P) + Send + Sync>;
 type Work<'a, T> =
     std::pin::Pin<Box<dyn std::future::Future<Output = anyhow::Result<T>> + Send + 'a>>;
 
-/// What one job differs by besides its contract. Claiming, spawning,
-/// coalescing, cancellation, terminal classification, event construction and
-/// logging are the runner's.
-pub(super) struct Spec<K> {
+/// What one job differs by besides its contract. Spawning, coalescing,
+/// cancellation, terminal classification, event construction and logging are
+/// the runner's.
+pub(super) struct Spec {
     /// The caller's job id; empty generates one from `prefix`.
     pub id: String,
     pub prefix: &'static str,
-    /// The in-flight key. `None` admits any number of this job at once.
-    pub key: Option<K>,
+    /// What the job holds for as long as it runs. `None` admits any number of
+    /// this job at once.
+    pub claim: Option<Claim>,
 }
 
-/// The plumbing every worker manager runs its jobs through.
-pub(super) struct Runner<K> {
+/// Every job family, one `start_*` function each (in the family's own file),
+/// over the collaborators they share.
+pub struct Jobs {
     engine: Arc<engine::Engine>,
     hub: Arc<crate::runtime::EventHub>,
     cancellations: Cancellations,
-    active: InFlight<K>,
+    pub(super) claims: Claims,
+    pub(super) processes: Arc<ProcessSupervisor>,
+    /// Session ids reserved between seq allocation and the supervisor accepting
+    /// them, so two concurrent launches of one instance can't collide on a seq.
+    pub(super) reserved: Arc<Mutex<HashSet<String>>>,
 }
 
-impl<K: Eq + Hash + Clone + Send + std::fmt::Debug + 'static> Runner<K> {
-    pub(super) fn new(
+impl Jobs {
+    pub fn new(
         engine: Arc<engine::Engine>,
         hub: Arc<crate::runtime::EventHub>,
+        claims: Claims,
+        processes: Arc<ProcessSupervisor>,
         cancellations: Cancellations,
     ) -> Self {
-        Runner {
+        Jobs {
             engine,
             hub,
             cancellations,
-            active: InFlight::new(),
+            claims,
+            processes,
+            reserved: Arc::default(),
         }
     }
 
-    pub(super) fn in_flight<Q>(&self, key: &Q) -> bool
-    where
-        K: Borrow<Q>,
-        Q: Eq + Hash + ?Sized,
-    {
-        self.active.contains(key)
-    }
-
     /// Run `work` off-thread, publishing its progress and terminal outcome.
-    /// Returns the job id, or `None` when the key is already claimed.
-    pub(super) fn start<C, W>(&self, spec: Spec<K>, work: W) -> Option<String>
+    /// Returns the job id.
+    pub(super) fn run<C, W>(&self, spec: Spec, work: W) -> String
     where
         C: Job,
         C::Progress: Coalescible + Send + Sync + 'static,
@@ -559,17 +466,7 @@ impl<K: Eq + Hash + Clone + Send + std::fmt::Debug + 'static> Runner<K> {
             + 'static,
     {
         let id = job_id(spec.id, spec.prefix);
-        let claim = match spec.key {
-            Some(key) => match self.active.claim(key.clone()) {
-                Some(claim) => Some(claim),
-                None => {
-                    tracing::debug!(key = ?key, kind = spec.prefix, "job already in flight");
-                    return None;
-                }
-            },
-            None => None,
-        };
-
+        let claim = spec.claim;
         let engine = self.engine.clone();
         let hub = self.hub.clone();
         let cancellations = self.cancellations.clone();
@@ -617,6 +514,6 @@ impl<K: Eq + Hash + Clone + Send + std::fmt::Debug + 'static> Runner<K> {
             };
             hub.publish(&event);
         });
-        Some(id)
+        id
     }
 }

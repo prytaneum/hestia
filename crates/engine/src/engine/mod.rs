@@ -11,7 +11,6 @@ pub use flows::{
     EntryRef, ExportOutcome, ImportOutcome, LaunchRequest, ModpackOutcome, ServerListWrite,
 };
 
-use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
@@ -77,9 +76,6 @@ pub struct Engine {
     update: Update,
     processes: Arc<ProcessSupervisor>,
     consoles: Consoles,
-    // One backup or restore per entry at a time: two archives of the same
-    // data would interleave the rcon save-off/save-on dance.
-    backups_active: Mutex<HashSet<String>>,
 }
 
 impl Engine {
@@ -122,7 +118,6 @@ impl Engine {
             update,
             processes,
             consoles: Consoles::default(),
-            backups_active: Mutex::new(HashSet::new()),
         }
     }
 

@@ -19,8 +19,8 @@ use proto::minecraft::{ConfigEntry, FlavorsResult, LoadersResult, VersionsResult
 use proto::process::ProcessLogsResult;
 use proto::Empty;
 
-use super::guards::{instance_for, Intent};
-use crate::runtime::{Channels, LaunchOrder};
+use super::guards::{instance_for, instance_held, Hold, Intent};
+use crate::runtime::{Channels, JobKind, LaunchOrder};
 
 /// The shared shape of a multiplayer-list write: the list as it now stands,
 /// carrying whatever the write could not guarantee.
@@ -91,7 +91,7 @@ pub(super) fn register(on: &mut Channels<'_>) {
                 field: Field::Version,
             });
         }
-        let record = instance_for(&ctx, &p.instance, Intent::Lifecycle)?;
+        let (record, _claim) = instance_held(&ctx, &p.instance, Hold::stopped(JobKind::Content))?;
         let record = ctx
             .runtime
             .engine()
@@ -200,7 +200,7 @@ pub(super) fn register(on: &mut Channels<'_>) {
     });
 
     on.handle::<InstanceRemove, _, _>(|p, ctx| async move {
-        let record = instance_for(&ctx, &p.instance, Intent::Lifecycle)?;
+        let (record, _claim) = instance_held(&ctx, &p.instance, Hold::stopped(JobKind::Content))?;
         ctx.runtime
             .engine()
             .remove_instance(&record.id)
@@ -214,7 +214,7 @@ pub(super) fn register(on: &mut Channels<'_>) {
         if p.name.trim().is_empty() {
             return Err(ErrorInfo::FieldRequired { field: Field::Name });
         }
-        let record = instance_for(&ctx, &p.instance, Intent::Lifecycle)?;
+        let (record, _claim) = instance_held(&ctx, &p.instance, Hold::stopped(JobKind::Content))?;
         let renamed = ctx
             .runtime
             .engine()
@@ -226,7 +226,7 @@ pub(super) fn register(on: &mut Channels<'_>) {
     });
 
     on.handle::<InstanceLaunch, _, _>(|p, ctx| async move {
-        let record = instance_for(&ctx, &p.instance, Intent::Start)?;
+        let record = instance_for(&ctx, &p.instance, Intent::Idle)?;
         // The account's tokens can no longer be refreshed: block up front so a
         // dead sign-in prompts re-login instead of failing mid-launch. An
         // offline launch never presents a token, so the gate does not apply.
@@ -258,19 +258,15 @@ pub(super) fn register(on: &mut Channels<'_>) {
                 });
             }
         }
-        match ctx.runtime.instance_launches().start(LaunchOrder {
+        let id = ctx.runtime.jobs().start_instance_launch(LaunchOrder {
             instance_id: record.id,
             account: p.account,
             reconcile: !running,
             quick_play: p.quick_play,
             offline: p.offline,
             id: p.id,
-        }) {
-            Some(id) => Ok(JobStarted { id }),
-            None => Err(ErrorInfo::Internal {
-                detail: "that instance could not be launched".into(),
-            }),
-        }
+        });
+        Ok(JobStarted { id })
     });
 
     on.handle::<InstanceStop, _, _>(|p, ctx| async move {

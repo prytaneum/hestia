@@ -61,7 +61,11 @@ pub(super) fn register(on: &mut Channels<'_>) {
                 reason: Reason::JavaMajor,
             });
         }
-        match ctx.runtime.java_installs().start(p.major, p.id, p.force) {
+        match ctx
+            .runtime
+            .jobs()
+            .start_java_install(p.major, p.id, p.force)
+        {
             Some(id) => Ok(JobStarted { id }),
             None => Err(ErrorInfo::JavaInstallInProgress { major: p.major }),
         }

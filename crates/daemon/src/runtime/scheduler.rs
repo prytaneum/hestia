@@ -15,7 +15,7 @@ use proto::backup::BackupKind;
 use proto::process::ProcessState;
 use proto::tasks::TaskAction;
 
-use super::{now_unix, server_process_id, Runtime};
+use super::{now_unix, server_process_id, JobKind, Runtime};
 
 const TICK: Duration = Duration::from_secs(60);
 
@@ -40,12 +40,7 @@ async fn run_due_tasks(runtime: &Runtime) {
     let midnight = common::local_midnight_unix();
     for record in engine.servers().list() {
         let process_id = server_process_id(&record.id);
-        // A backup or a version change owns the tree; a restart under it
-        // would corrupt one or the other.
-        if !record.ready()
-            || runtime.backups().in_flight(&process_id)
-            || runtime.server_updates().in_flight(&record.id)
-        {
+        if !record.ready() {
             continue;
         }
         for task in record.tasks.iter().filter(|task| task.enabled) {
@@ -54,6 +49,11 @@ async fn run_due_tasks(runtime: &Runtime) {
             if !due || !is_running(runtime, &process_id) {
                 continue;
             }
+            // A backup or a version change owns the tree; a restart under it
+            // would corrupt one or the other, so the task waits for a later tick.
+            let Ok(_claim) = runtime.claims().claim(process_id.clone(), JobKind::Launch) else {
+                continue;
+            };
             if let Err(e) = engine.servers().mark_task_run(&record.id, &task.id, now) {
                 tracing::warn!(server = %record.id, task = %task.id, error = format!("{e:#}"), "cannot stamp a task; skipping it");
                 continue;
@@ -97,6 +97,12 @@ async fn run_due_backups(runtime: &Runtime) {
         if !is_running(runtime, &server_process_id(&record.id)) {
             continue;
         }
+        let Ok(_claim) = runtime
+            .claims()
+            .claim(server_process_id(&record.id), JobKind::Backup)
+        else {
+            continue;
+        };
         let newest = engine
             .server_backups(&record.id)
             .ok()

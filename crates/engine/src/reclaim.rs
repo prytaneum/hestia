@@ -7,7 +7,7 @@
 //! assumption a crash breaks, and nothing else ever reaped them.
 //!
 //! **The invariant:** a temp artifact is only valid while the job that created
-//! it holds its in-flight claim (the daemon's `InFlight`). No claim survives a
+//! it holds its in-flight claim (the daemon's `Claims`). No claim survives a
 //! restart, so at startup every artifact still on disk is abandoned by
 //! definition — its job is gone and will never finish. Each owning subsystem
 //! therefore reclaims its own on init, the way the process supervisor sweeps

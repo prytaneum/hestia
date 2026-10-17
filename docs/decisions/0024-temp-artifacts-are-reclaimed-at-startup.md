@@ -11,7 +11,7 @@ daemon mid-archive correctly refused to promote the partial backup (the rename
 `20260725-093946-manual.tar.gz.part` in `backups/` forever, and the same hole
 existed for `.staging`. Stating it as one invariant fixes the class rather than
 the file: an artifact is valid only while its job holds the matching in-flight
-claim (`InFlight`, `runtime/managers/job.rs`), and no claim survives a restart —
+claim (`Claims`, `runtime/claims.rs`), and no claim survives a restart —
 so at startup every artifact still on disk is abandoned by definition.
 `engine/reclaim.rs` is that pass, composed by `Engine::reclaim_temp()` and
 called from the daemon's boot beside `ProcessSupervisor::recover()` (and again

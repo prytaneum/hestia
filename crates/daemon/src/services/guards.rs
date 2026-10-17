@@ -1,138 +1,52 @@
 //! Preconditions shared by the domain registrars.
 //!
 //! Resolving an entry and refusing an operation that would race it are one act,
-//! not a checklist each handler assembles: [`Intent`] names what the handler is
-//! about to do and the table below decides which exclusions apply. A handler
-//! that spells its own guards out is free to drift from its siblings — which is
-//! how an instance content update came to race an export while an add could not.
+//! not a checklist each handler assembles. An entry's tree has one lock
+//! ([`Claims`](crate::runtime::Claims)): a handler that changes the entry takes
+//! its claim here and moves it into the job it starts, so the check and the
+//! claim are a single step and a refusal names the job that holds the entry.
 
 use proto::error::{EntryKind, EntryTarget, ErrorInfo, Field};
 use proto::process::ProcessState;
 
 use crate::runtime::{
-    instance_process_id, require_account, server_process_id, HandlerContext, JobEntry,
+    create_key, instance_process_id, require_account, server_process_id, Claim, HandlerContext,
+    JobEntry, JobKind,
 };
 
-/// What a handler is about to do to an entry.
+/// What a handler that holds nothing is about to do to an entry.
 pub(super) enum Intent {
     /// Reads it. Nothing is in the way.
     Read,
-    /// Starts it. A server admits one process; an instance admits many
-    /// sessions, so a running instance is not in its own way.
-    Start,
-    /// Stops it and starts it again. Unlike a start it is running by
-    /// definition, so it waits only on the jobs that own its tree.
-    Restart,
-    /// Rewrites its content pool or game directory.
-    Mutate,
-    /// Archives it. The one mutation that may run on a live entry — a backup
-    /// flushes the world over rcon first — so it waits only on the jobs that
-    /// write the tree it reads.
-    Backup,
-    /// Edits files in its game directory by hand. Allowed on a live entry, as
-    /// a hosting panel's file manager is: what the game holds open is its own
-    /// to refuse, and a config edit waits for the next reload either way.
-    Edit,
-    /// Changes the entry itself — rename, remove, a version change.
-    Lifecycle,
+    /// Works inside it — a file edit, an instance launch — which any job that
+    /// owns the tree would race. Allowed on a live entry: what the game holds
+    /// open is its own to refuse.
+    Idle,
 }
 
-/// The exclusions one intent implies. Each is a job or process that owns the
-/// entry's tree while it runs.
-#[derive(Default, Clone, Copy)]
-struct Exclusions {
-    /// The entry must not be running: the JVM holds its jars open (locked on
-    /// Windows), and changes only apply at the next start anyway.
+/// What a handler that changes an entry takes: the claim, and whether the entry
+/// must also be stopped (the JVM holds its jars open, locked on Windows, and a
+/// change only applies at the next start anyway). A backup is the one claim
+/// that may be taken live: it flushes the world over rcon first.
+pub(super) struct Hold {
+    kind: JobKind,
     stopped: bool,
-    provisioning: bool,
-    update: bool,
-    backup: bool,
-    content: bool,
-    modpack: bool,
-    transfer: bool,
 }
 
-impl Exclusions {
-    fn of(side: EntryKind, intent: &Intent) -> Exclusions {
-        let base = Exclusions::default();
-        match (side, intent) {
-            (_, Intent::Read) => base,
-            (EntryKind::Server, Intent::Start) => Exclusions {
-                stopped: true,
-                backup: true,
-                ..base
-            },
-            (EntryKind::Server, Intent::Restart) => Exclusions {
-                backup: true,
-                update: true,
-                ..base
-            },
-            (EntryKind::Server, Intent::Backup) => Exclusions {
-                update: true,
-                content: true,
-                modpack: true,
-                ..base
-            },
-            // Instances have no backups; `instance.export` is what they have.
-            (EntryKind::Instance, Intent::Backup) => Exclusions {
-                content: true,
-                modpack: true,
-                transfer: true,
-                ..base
-            },
-            (EntryKind::Server, Intent::Edit) => Exclusions {
-                provisioning: true,
-                backup: true,
-                update: true,
-                content: true,
-                modpack: true,
-                ..base
-            },
-            (EntryKind::Instance, Intent::Edit) => Exclusions {
-                content: true,
-                modpack: true,
-                transfer: true,
-                ..base
-            },
-            (EntryKind::Server, Intent::Mutate) => Exclusions {
-                stopped: true,
-                backup: true,
-                update: true,
-                content: true,
-                modpack: true,
-                ..base
-            },
-            (EntryKind::Server, Intent::Lifecycle) => Exclusions {
-                stopped: true,
-                provisioning: true,
-                backup: true,
-                update: true,
-                content: true,
-                modpack: true,
-                ..base
-            },
-            // A launch re-mirrors the pool into `data/`, which is exactly the
-            // tree an export is reading.
-            (EntryKind::Instance, Intent::Start | Intent::Restart) => Exclusions {
-                transfer: true,
-                ..base
-            },
-            (EntryKind::Instance, Intent::Mutate | Intent::Lifecycle) => Exclusions {
-                stopped: true,
-                content: true,
-                modpack: true,
-                transfer: true,
-                ..base
-            },
+impl Hold {
+    pub(super) fn stopped(kind: JobKind) -> Self {
+        Hold {
+            kind,
+            stopped: true,
         }
     }
-}
 
-/// An entry a target resolved to: the owned handle jobs and engine flows take,
-/// and the display name a refusal is worded with.
-pub(super) struct ResolvedEntry {
-    pub handle: JobEntry,
-    pub name: String,
+    pub(super) fn live(kind: JobKind) -> Self {
+        Hold {
+            kind,
+            stopped: false,
+        }
+    }
 }
 
 /// Resolve the entry a verb on both sides is aimed at, applying the guards of
@@ -144,25 +58,42 @@ pub(super) fn entry_for(
     ctx: &HandlerContext,
     target: &EntryTarget,
     intent: Intent,
-) -> Result<ResolvedEntry, ErrorInfo> {
-    let (id, name) = match target.kind {
+) -> Result<JobEntry, ErrorInfo> {
+    let id = match target.kind {
+        EntryKind::Server => server_for(ctx, &target.entry, intent)?.id,
+        EntryKind::Instance => {
+            require_account(ctx)?;
+            instance_for(ctx, &target.entry, intent)?.id
+        }
+    };
+    Ok(JobEntry {
+        kind: target.kind,
+        id,
+    })
+}
+
+/// [`entry_for`], taking the entry's claim.
+pub(super) fn entry_held(
+    ctx: &HandlerContext,
+    target: &EntryTarget,
+    hold: Hold,
+) -> Result<(JobEntry, Claim), ErrorInfo> {
+    let (id, claim) = match target.kind {
         EntryKind::Server => {
-            let record = server_for(ctx, &target.entry, intent)?;
-            (record.id, record.name)
+            let (record, claim) = server_held(ctx, &target.entry, hold)?;
+            (record.id, claim)
         }
         EntryKind::Instance => {
             require_account(ctx)?;
-            let record = instance_for(ctx, &target.entry, intent)?;
-            (record.id, record.name)
+            let (record, claim) = instance_held(ctx, &target.entry, hold)?;
+            (record.id, claim)
         }
     };
-    Ok(ResolvedEntry {
-        handle: JobEntry {
-            kind: target.kind,
-            id,
-        },
-        name,
-    })
+    let entry = JobEntry {
+        kind: target.kind,
+        id,
+    };
+    Ok((entry, claim))
 }
 
 /// Resolve a server and refuse anything `intent` may not race.
@@ -172,20 +103,35 @@ pub(super) fn server_for(
     intent: Intent,
 ) -> Result<engine::ServerRecord, ErrorInfo> {
     let record = find_server(ctx, reference)?;
-    let process_id = server_process_id(&record.id);
-    let running = is_running(ctx, &process_id);
-    gate(
-        ctx,
-        Exclusions::of(EntryKind::Server, &intent),
-        Gated {
-            side: EntryKind::Server,
-            id: &record.id,
-            name: &record.name,
-            key: &process_id,
-            running,
-        },
-    )?;
+    if let Intent::Idle = intent {
+        refuse_provisioning(ctx, &record)?;
+        refuse_held(
+            ctx,
+            EntryKind::Server,
+            &server_process_id(&record.id),
+            &record.name,
+        )?;
+    }
     Ok(record)
+}
+
+/// Resolve a server and take its claim, or refuse with whatever holds it.
+pub(super) fn server_held(
+    ctx: &HandlerContext,
+    reference: &str,
+    hold: Hold,
+) -> Result<(engine::ServerRecord, Claim), ErrorInfo> {
+    let record = find_server(ctx, reference)?;
+    refuse_provisioning(ctx, &record)?;
+    let process_id = server_process_id(&record.id);
+    let claim = take(ctx, EntryKind::Server, &process_id, &record.name, hold.kind)?;
+    if hold.stopped && is_running(ctx, &process_id) {
+        return Err(ErrorInfo::EntryRunning {
+            entry: EntryKind::Server,
+            name: record.name,
+        });
+    }
+    Ok((record, claim))
 }
 
 /// Resolve an instance and refuse anything `intent` may not race.
@@ -195,67 +141,90 @@ pub(super) fn instance_for(
     intent: Intent,
 ) -> Result<engine::InstanceRecord, ErrorInfo> {
     let record = find_instance(ctx, reference)?;
-    let key = instance_process_id(&record.id);
-    // An instance runs its sessions under `instance-<id>_<seq>`, never under
-    // the entry key itself — so "is it running" is a question about its
-    // sessions, and asking the supervisor for the entry key always says no.
-    let running = ctx.runtime.instance_running(&record.id);
-    gate(
-        ctx,
-        Exclusions::of(EntryKind::Instance, &intent),
-        Gated {
-            side: EntryKind::Instance,
-            id: &record.id,
-            name: &record.name,
-            key: &key,
-            running,
-        },
-    )?;
+    if let Intent::Idle = intent {
+        refuse_held(
+            ctx,
+            EntryKind::Instance,
+            &instance_process_id(&record.id),
+            &record.name,
+        )?;
+    }
     Ok(record)
 }
 
-struct Gated<'a> {
-    side: EntryKind,
-    id: &'a str,
-    name: &'a str,
-    /// The entry key every job manager is keyed by (`server-<id>` /
-    /// `instance-<id>`).
-    key: &'a str,
-    running: bool,
-}
-
-fn gate(ctx: &HandlerContext, what: Exclusions, entry: Gated<'_>) -> Result<(), ErrorInfo> {
-    let named = || entry.name.to_string();
-    if what.stopped && entry.running {
+/// Resolve an instance and take its claim, or refuse with whatever holds it.
+pub(super) fn instance_held(
+    ctx: &HandlerContext,
+    reference: &str,
+    hold: Hold,
+) -> Result<(engine::InstanceRecord, Claim), ErrorInfo> {
+    let record = find_instance(ctx, reference)?;
+    let claim = take(
+        ctx,
+        EntryKind::Instance,
+        &instance_process_id(&record.id),
+        &record.name,
+        hold.kind,
+    )?;
+    // An instance runs its sessions under `instance-<id>_<seq>`, never under
+    // the entry key itself — so "is it running" is a question about its
+    // sessions, and asking the supervisor for the entry key always says no.
+    if hold.stopped && ctx.runtime.instance_running(&record.id) {
         return Err(ErrorInfo::EntryRunning {
-            entry: entry.side,
-            name: named(),
+            entry: EntryKind::Instance,
+            name: record.name,
         });
     }
-    if what.provisioning && ctx.runtime.server_creates().in_flight(entry.name) {
-        return Err(ErrorInfo::Provisioning { name: named() });
+    Ok((record, claim))
+}
+
+fn take(
+    ctx: &HandlerContext,
+    side: EntryKind,
+    key: &str,
+    name: &str,
+    kind: JobKind,
+) -> Result<Claim, ErrorInfo> {
+    ctx.runtime
+        .claims()
+        .claim(key.to_string(), kind)
+        .map_err(|holder| busy(holder, side, name))
+}
+
+fn refuse_held(
+    ctx: &HandlerContext,
+    side: EntryKind,
+    key: &str,
+    name: &str,
+) -> Result<(), ErrorInfo> {
+    match ctx.runtime.claims().holder(key) {
+        Some(holder) => Err(busy(holder, side, name)),
+        None => Ok(()),
     }
-    if what.update && ctx.runtime.server_updates().in_flight(entry.id) {
-        return Err(ErrorInfo::UpdateInProgress { name: named() });
+}
+
+fn refuse_provisioning(
+    ctx: &HandlerContext,
+    record: &engine::ServerRecord,
+) -> Result<(), ErrorInfo> {
+    match ctx.runtime.claims().holder(&create_key(&record.name)) {
+        Some(_) => Err(ErrorInfo::Provisioning {
+            name: record.name.clone(),
+        }),
+        None => Ok(()),
     }
-    if what.backup && ctx.runtime.backups().in_flight(entry.key) {
-        return Err(ErrorInfo::BackupInProgress { name: named() });
+}
+
+fn busy(holder: JobKind, side: EntryKind, name: &str) -> ErrorInfo {
+    let name = name.to_string();
+    match holder {
+        JobKind::Launch => ErrorInfo::EntryRunning { entry: side, name },
+        JobKind::Install => ErrorInfo::Provisioning { name },
+        JobKind::Update => ErrorInfo::UpdateInProgress { name },
+        JobKind::Backup => ErrorInfo::BackupInProgress { name },
+        JobKind::Content | JobKind::Modpack => ErrorInfo::ContentInProgress { name },
+        JobKind::Export => ErrorInfo::ExportInProgress { name },
     }
-    if what.content && ctx.runtime.content_jobs().in_flight(entry.key) {
-        return Err(ErrorInfo::ContentInProgress { name: named() });
-    }
-    // A pack rewrites both the pool and the game directory, so it is held apart
-    // from everything else the same way a content job is.
-    if what.modpack && ctx.runtime.modpack_jobs().in_flight(entry.key) {
-        return Err(ErrorInfo::ContentInProgress { name: named() });
-    }
-    // An export reads the whole entry tree, so anything that rewrites it would
-    // put a state in the archive that never existed on disk. An *import* is
-    // never in the way: it creates the entry it fills.
-    if what.transfer && ctx.runtime.transfers().in_flight(entry.key) {
-        return Err(ErrorInfo::ExportInProgress { name: named() });
-    }
-    Ok(())
 }
 
 pub(super) fn find_server(
@@ -356,9 +325,8 @@ pub(super) fn require_backup(
 #[cfg(test)]
 mod tests {
     use proto::content::{ContentAddItem, ContentAddSpec, ContentKind};
-    use proto::error::EntryKind;
 
-    use super::{require_content_items, require_item_names, Exclusions, Intent};
+    use super::{require_content_items, require_item_names};
 
     #[test]
     fn a_blank_reference_in_a_batch_is_refused() {
@@ -422,51 +390,5 @@ mod tests {
             ..ContentAddSpec::default()
         };
         assert!(require_content_items(&spec).is_ok());
-    }
-
-    #[test]
-    fn a_backup_runs_on_a_live_entry_but_waits_for_the_jobs_that_write_it() {
-        let what = Exclusions::of(EntryKind::Server, &Intent::Backup);
-        assert!(!what.stopped, "a backup flushes the world over rcon first");
-        assert!(what.content && what.modpack && what.update);
-    }
-
-    #[test]
-    fn a_read_excludes_nothing() {
-        for side in [EntryKind::Server, EntryKind::Instance] {
-            let what = Exclusions::of(side, &Intent::Read);
-            assert!(!what.stopped && !what.backup && !what.content && !what.transfer);
-        }
-    }
-
-    #[test]
-    fn every_mutation_waits_for_the_jobs_that_own_the_tree() {
-        for intent in [Intent::Mutate, Intent::Lifecycle] {
-            let server = Exclusions::of(EntryKind::Server, &intent);
-            assert!(server.stopped && server.content && server.modpack && server.backup);
-            let instance = Exclusions::of(EntryKind::Instance, &intent);
-            assert!(instance.stopped && instance.content && instance.modpack);
-            assert!(
-                instance.transfer,
-                "an export reads the tree a mutation rewrites"
-            );
-        }
-    }
-
-    #[test]
-    fn only_a_server_is_in_its_own_way_when_starting() {
-        assert!(Exclusions::of(EntryKind::Server, &Intent::Start).stopped);
-        assert!(
-            !Exclusions::of(EntryKind::Instance, &Intent::Start).stopped,
-            "an instance runs several sessions at once"
-        );
-    }
-
-    #[test]
-    fn backups_and_updates_are_a_server_concern_and_transfers_an_instance_one() {
-        let server = Exclusions::of(EntryKind::Server, &Intent::Lifecycle);
-        assert!(server.backup && server.update && server.provisioning && !server.transfer);
-        let instance = Exclusions::of(EntryKind::Instance, &Intent::Lifecycle);
-        assert!(instance.transfer && !instance.backup && !instance.update);
     }
 }

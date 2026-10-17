@@ -14,9 +14,10 @@ use proto::job::JobStarted;
 use proto::Empty;
 
 use super::guards::{
-    entry_for, require_content_items, require_item_names, require_one_for_file, Intent,
+    entry_for, entry_held, require_content_items, require_item_names, require_one_for_file, Hold,
+    Intent,
 };
-use crate::runtime::{Channels, ContentJob};
+use crate::runtime::{Channels, ContentJob, JobKind};
 
 pub(super) fn register(on: &mut Channels<'_>) {
     register_sources(on);
@@ -92,17 +93,16 @@ fn register_sources(on: &mut Channels<'_>) {
 fn register_entry(on: &mut Channels<'_>) {
     on.handle::<EntryContentAdd, _, _>(|p, ctx| async move {
         require_content_items(&p.spec)?;
-        let entry = entry_for(&ctx, &p.target, Intent::Mutate)?;
-        match ctx.runtime.content_jobs().start::<EntryContentAdd>(
+        let (entry, claim) = entry_held(&ctx, &p.target, Hold::stopped(JobKind::Content))?;
+        let id = ctx.runtime.jobs().start_content::<EntryContentAdd>(
             ContentJob::Add {
-                entry: entry.handle,
+                entry,
                 spec: p.spec,
             },
             p.id,
-        ) {
-            Some(id) => Ok(JobStarted { id }),
-            None => Err(ErrorInfo::ContentInProgress { name: entry.name }),
-        }
+            claim,
+        );
+        Ok(JobStarted { id })
     });
 
     on.handle::<EntryContentList, _, _>(|p, ctx| async move {
@@ -110,7 +110,7 @@ fn register_entry(on: &mut Channels<'_>) {
         let (items, untracked) = ctx
             .runtime
             .engine()
-            .entry_content(entry.handle.entry_ref(), p.kind)
+            .entry_content(entry.entry_ref(), p.kind)
             .map_err(crate::runtime::engine_error)?;
         Ok(ContentListResult { items, untracked })
     });
@@ -120,10 +120,10 @@ fn register_entry(on: &mut Channels<'_>) {
             return Err(ErrorInfo::FieldRequired { field: Field::Item });
         }
         require_item_names(&p.items)?;
-        let entry = entry_for(&ctx, &p.target, Intent::Mutate)?;
+        let (entry, _claim) = entry_held(&ctx, &p.target, Hold::stopped(JobKind::Content))?;
         ctx.runtime
             .engine()
-            .remove_entry_content(entry.handle.entry_ref(), p.kind, &p.items, &p.worlds)
+            .remove_entry_content(entry.entry_ref(), p.kind, &p.items, &p.worlds)
             .map(|_| Empty {})
             .map_err(crate::runtime::engine_error)
     });
@@ -131,28 +131,27 @@ fn register_entry(on: &mut Channels<'_>) {
     on.handle::<EntryContentUpdate, _, _>(|p, ctx| async move {
         require_item_names(&p.items)?;
         require_one_for_file(&p.items, &p.path)?;
-        let entry = entry_for(&ctx, &p.target, Intent::Mutate)?;
-        match ctx.runtime.content_jobs().start::<EntryContentUpdate>(
+        let (entry, claim) = entry_held(&ctx, &p.target, Hold::stopped(JobKind::Content))?;
+        let id = ctx.runtime.jobs().start_content::<EntryContentUpdate>(
             ContentJob::Update {
-                entry: entry.handle,
+                entry,
                 kind: p.kind,
                 items: p.items,
                 path: p.path,
             },
             p.id,
-        ) {
-            Some(id) => Ok(JobStarted { id }),
-            None => Err(ErrorInfo::ContentInProgress { name: entry.name }),
-        }
+            claim,
+        );
+        Ok(JobStarted { id })
     });
 
     on.handle::<EntryContentEnable, _, _>(|p, ctx| async move {
         if p.item.is_empty() {
             return Err(ErrorInfo::FieldRequired { field: Field::Item });
         }
-        let entry = entry_for(&ctx, &p.target, Intent::Mutate)?;
+        let (entry, _claim) = entry_held(&ctx, &p.target, Hold::stopped(JobKind::Content))?;
         match ctx.runtime.engine().enable_entry_content(
-            entry.handle.entry_ref(),
+            entry.entry_ref(),
             p.kind,
             &p.item,
             p.enabled,
@@ -171,7 +170,7 @@ fn register_entry(on: &mut Channels<'_>) {
         let updates = ctx
             .runtime
             .engine()
-            .check_entry_updates(entry.handle.entry_ref(), p.kind)
+            .check_entry_updates(entry.entry_ref(), p.kind)
             .await
             .map_err(crate::runtime::engine_error)?;
         Ok(ContentUpdatesResult { updates })
@@ -182,7 +181,7 @@ fn register_entry(on: &mut Channels<'_>) {
         let matches = ctx
             .runtime
             .engine()
-            .entry_content_matches(entry.handle.entry_ref(), p.kind, &p.item)
+            .entry_content_matches(entry.entry_ref(), p.kind, &p.item)
             .await
             .map_err(crate::runtime::engine_error)?;
         Ok(ContentMatchesResult { matches })
@@ -194,19 +193,18 @@ fn register_entry(on: &mut Channels<'_>) {
                 fields: vec![Field::Item, Field::Version],
             });
         }
-        let entry = entry_for(&ctx, &p.target, Intent::Mutate)?;
-        match ctx.runtime.content_jobs().start::<EntryContentSetVersion>(
+        let (entry, claim) = entry_held(&ctx, &p.target, Hold::stopped(JobKind::Content))?;
+        let id = ctx.runtime.jobs().start_content::<EntryContentSetVersion>(
             ContentJob::SetVersion {
-                entry: entry.handle,
+                entry,
                 kind: p.kind,
                 item: p.item,
                 version: p.version,
                 source: p.source,
             },
             p.id,
-        ) {
-            Some(id) => Ok(JobStarted { id }),
-            None => Err(ErrorInfo::ContentInProgress { name: entry.name }),
-        }
+            claim,
+        );
+        Ok(JobStarted { id })
     });
 }

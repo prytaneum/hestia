@@ -203,7 +203,7 @@ flowchart LR
 
 Everything is in-process — no shelling out to system tools — and staging means a
 failure leaves nothing behind. The async wrapper and `java.install.*` progress
-events live in the daemon's `JavaInstallManager`.
+events live in the daemon's `Jobs::start_java_install`.
 
 ## Process supervision
 

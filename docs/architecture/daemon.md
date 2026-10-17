@@ -87,19 +87,19 @@ instance-only channel without touching its module. The verbs both sides share
 
 ### Job managers
 
-`runtime/managers/` is one module per manager: `JavaInstallManager`,
-`ServerCreateManager`, `ServerUpdateManager`, `InstanceLaunchManager`,
-`BackupManager`, `ContentManager`, `ModpackManager`, `UpdateManager`.
+`runtime/managers/` holds one value, `Jobs`, and one file per job family, each
+adding its `start_*` functions to it: Java install, server create and update,
+instance launch, backup, content, modpack, transfer, self-update download.
 
 They all answer the channel immediately with a job id, run the blocking engine
 work off-thread, and publish `JobEvent`s through the hub — but none of them
-implements that: `job.rs`'s `Runner` does. A manager builds a `Spec` naming its
-id, prefix and in-flight key, and hands `Runner::start::<C>` a closure taking
-the engine and a `Reporter` and returning `C::Done`. `C` is the start contract
-(`proto::job::Job`): it fixes the progress and done types and supplies the
-`channel` every event carries. A manager that serves several contracts takes `C`
-as a type parameter, so the event names the channel that actually started the
-job. Claiming, spawning, progress coalescing, cancellation, terminal
+implements that: `Jobs::run` in `job.rs` does. A `start_*` function builds a
+`Spec` naming its id, prefix and the claim it holds, and hands `run::<C>` a
+closure taking the engine and a `Reporter` and returning `C::Done`. `C` is the
+start contract (`proto::job::Job`): it fixes the progress and done types and
+supplies the `channel` every event carries. A family that serves several
+contracts takes `C` as a type parameter, so the event names the channel that
+actually started the job. Spawning, progress coalescing, cancellation, terminal
 classification, event construction and logging are the runner's, so they cannot
 drift per job ([0061](../decisions/0061-a-job-declares-what-differs.md),
 [0083](../decisions/0083-a-job-is-its-contract-and-reports-on-one-topic.md)).
@@ -108,16 +108,16 @@ drift per job ([0061](../decisions/0061-a-job-declares-what-differs.md),
 sequenceDiagram
     participant C as client
     participant H as handler
-    participant M as manager
+    participant M as jobs
     participant E as engine
     participant Hub as EventHub
 
-    C->>H: server.create {…}
-    H->>M: start::<ServerCreate>(…)
-    M->>M: InFlight.claim("server-<id>")
+    C->>H: server.update {…}
+    H->>H: Claims.claim("server-<id>")
+    H->>M: start_server_update(…, claim)
     M-->>H: job id
     H-->>C: JobStarted { id }
-    M->>E: engine.provision_server(spec, job)
+    M->>E: engine.update_server(spec, job)
     loop
         E--)Hub: ProvisionProgress
         Hub--)C: job {state: progress}
@@ -129,14 +129,18 @@ sequenceDiagram
 ```
 
 `managers/job.rs` is the plumbing they share: the `JobEvent` builder, the job-id
-generator, and **`InFlight<K>`** — the "one job per key" set whose `claim()`
-returns a guard released on drop, so a panicking job cannot wedge its key.
+generator and `Jobs` itself. `runtime/claims.rs` holds **`Claims`** — one map
+from an entry key to the `JobKind` holding it, whose `claim()` returns a guard
+released on drop (so a panicking job cannot wedge its key) or the holder's kind,
+which the guards turn into the typed busy error. A handler takes the claim in
+`guards` and moves it into the job it starts, so the check and the claim are one
+step; the scheduler takes the same claim before a scheduled task or backup
+([0086](../decisions/0086-an-entry-has-one-claim.md)).
 
-The launch managers hand a prepared `LaunchPlan` to the supervisor under a
-deterministic process id (`server-<id>`, `instance-<id>_<seq>`), so every channel
-can find an entry's process without bookkeeping. That same id doubles as the
-in-flight key lifecycle handlers check, so nothing swaps the tree an archive is
-reading.
+`Jobs` hands a prepared `LaunchPlan` to the supervisor under a deterministic
+process id (`server-<id>`, `instance-<id>_<seq>`), so every channel can find an
+entry's process without bookkeeping. The entry key claims are held under is that
+same `server-<id>` / `instance-<id>` form.
 
 ### Background loops
 
@@ -155,9 +159,9 @@ One registrar per domain, each registering its channels with one
 `on.handle::<C>(…)` apiece. `services/mod.rs`'s `make_router()` is nothing but
 the list of `register()` calls; `services/guards.rs` holds the preconditions the
 registrars share. A handler does not assemble its own: it names what it is about
-to do — `Intent::{Read, Start, Mutate, Backup, Edit, Lifecycle}` — and `server_for` /
-`instance_for` resolve the entry and apply the exclusions that intent implies
-for that side ([0029](../decisions/0029-one-registrar-per-domain.md)).
+to do — `Intent::{Read, Idle}`, or a `Hold` that takes the entry's claim — and
+`server_for` / `instance_for` (`server_held` / `instance_held` for a claim)
+resolve the entry and refuse whatever holds it ([0029](../decisions/0029-one-registrar-per-domain.md)).
 
 There is no `Service` class per prefix — a handler is a closure, and the grouping
 is purely a compile-time one that keeps `make_router()` from becoming a

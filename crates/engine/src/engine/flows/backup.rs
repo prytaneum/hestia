@@ -1,10 +1,9 @@
-//! Server backups: the archive/restore passes, the per-server claim that
-//! admits one at a time, and the RCON save-off/save-on dance around a live
-//! server. Backups are a server feature — instances have none (import/export
-//! is the intended replacement, not yet built).
+//! Server backups: the archive/restore passes and the RCON save-off/save-on
+//! dance around a live server. Backups are a server feature — instances have
+//! none (import/export is the intended replacement, not yet built); the daemon
+//! admits one job per entry at a time.
 
 use std::path::PathBuf;
-use std::sync::Mutex;
 
 use anyhow::{bail, Context, Result};
 use proto::backup::{BackupInfo, BackupKind};
@@ -34,7 +33,6 @@ impl Engine {
         if !record.ready() {
             bail!("server '{}' is still provisioning", record.name);
         }
-        let _claim = self.claim_backup(format!("server-{}", record.id))?;
         if live {
             self.pause_world_saves(&record.id).await?;
         }
@@ -80,7 +78,6 @@ impl Engine {
         if !record.ready() {
             bail!("server '{}' is still provisioning", record.name);
         }
-        let _claim = self.claim_backup(format!("server-{}", record.id))?;
         run_restore(
             self.servers.server_dir(&record),
             self.servers.data_dir(&record),
@@ -124,17 +121,6 @@ impl Engine {
         )
     }
 
-    fn claim_backup(&self, key: String) -> Result<BackupClaim<'_>> {
-        let mut active = self.backups_active.lock().unwrap();
-        if !active.insert(key.clone()) {
-            bail!("a backup or restore is already running for this entry");
-        }
-        Ok(BackupClaim {
-            active: &self.backups_active,
-            key,
-        })
-    }
-
     /// Pause world writes before archiving a live server: `save-off` stops
     /// autosaves, `save-all flush` forces everything pending onto disk (the
     /// reply arrives once the flush completed).
@@ -158,17 +144,6 @@ impl Engine {
             }
         }
         Err(last.context("cannot re-enable world saving"))
-    }
-}
-
-struct BackupClaim<'a> {
-    active: &'a Mutex<std::collections::HashSet<String>>,
-    key: String,
-}
-
-impl Drop for BackupClaim<'_> {
-    fn drop(&mut self) {
-        self.active.lock().unwrap().remove(&self.key);
     }
 }
 

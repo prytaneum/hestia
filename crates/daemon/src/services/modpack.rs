@@ -18,8 +18,8 @@ use proto::modpack::{
     ModpackUpdateResult, ServerModpackInstall,
 };
 
-use super::guards::{entry_for, instance_for, server_for, Intent};
-use crate::runtime::{Channels, ModpackJob};
+use super::guards::{entry_for, entry_held, instance_held, server_held, Hold, Intent};
+use crate::runtime::{Channels, JobKind, ModpackJob};
 
 pub(super) fn register(on: &mut Channels<'_>) {
     register_install(on);
@@ -29,80 +29,68 @@ pub(super) fn register(on: &mut Channels<'_>) {
 fn register_install(on: &mut Channels<'_>) {
     on.handle::<InstanceModpackInstall, _, _>(|p, ctx| async move {
         require_pack_ref(&p.pack)?;
-        let target = match &p.target {
-            ModpackTarget::Create { name } => ModpackTarget::Create { name: name.clone() },
+        let (target, claim) = match &p.target {
+            ModpackTarget::Create { name } => (ModpackTarget::Create { name: name.clone() }, None),
             ModpackTarget::Existing { entry } => {
-                let record = instance_for(&ctx, entry, Intent::Mutate)?;
-                ModpackTarget::Existing {
-                    entry: record.id.clone(),
-                }
+                let (record, claim) = instance_held(&ctx, entry, Hold::stopped(JobKind::Modpack))?;
+                (ModpackTarget::Existing { entry: record.id }, Some(claim))
             }
         };
-        let busy = target_name(&target);
-        start(
-            ctx.runtime.modpack_jobs().start::<InstanceModpackInstall>(
-                ModpackJob::InstallInstance {
-                    pack: p.pack,
-                    target,
-                },
-                p.id,
-            ),
-            busy,
-        )
+        let id = ctx.runtime.jobs().start_modpack::<InstanceModpackInstall>(
+            ModpackJob::InstallInstance {
+                pack: p.pack,
+                target,
+            },
+            p.id,
+            claim,
+        );
+        Ok(JobStarted { id })
     });
 
     on.handle::<ServerModpackInstall, _, _>(|p, ctx| async move {
         require_pack_ref(&p.pack)?;
-        let target = match &p.target {
+        let (target, claim) = match &p.target {
             ModpackTarget::Create { name } => {
                 if !p.eula {
                     return Err(ErrorInfo::EulaRequired);
                 }
-                ModpackTarget::Create { name: name.clone() }
+                (ModpackTarget::Create { name: name.clone() }, None)
             }
             ModpackTarget::Existing { entry } => {
-                let record = server_for(&ctx, entry, Intent::Mutate)?;
-                ModpackTarget::Existing {
-                    entry: record.id.clone(),
-                }
+                let (record, claim) = server_held(&ctx, entry, Hold::stopped(JobKind::Modpack))?;
+                (ModpackTarget::Existing { entry: record.id }, Some(claim))
             }
         };
-        let busy = target_name(&target);
-        start(
-            ctx.runtime.modpack_jobs().start::<ServerModpackInstall>(
-                ModpackJob::InstallServer {
-                    pack: p.pack,
-                    target,
-                    eula: p.eula,
-                    port: p.port,
-                },
-                p.id,
-            ),
-            busy,
-        )
+        let id = ctx.runtime.jobs().start_modpack::<ServerModpackInstall>(
+            ModpackJob::InstallServer {
+                pack: p.pack,
+                target,
+                eula: p.eula,
+                port: p.port,
+            },
+            p.id,
+            claim,
+        );
+        Ok(JobStarted { id })
     });
 }
 
 fn register_entry(on: &mut Channels<'_>) {
     on.handle::<EntryModpackUpdate, _, _>(|p, ctx| async move {
-        let entry = entry_for(&ctx, &p.target, Intent::Mutate)?;
-        start(
-            ctx.runtime.modpack_jobs().start::<EntryModpackUpdate>(
-                ModpackJob::Update {
-                    entry: entry.handle,
-                    to: p.to,
-                },
-                p.id,
-            ),
-            entry.name,
-        )
+        let (entry, claim) = entry_held(&ctx, &p.target, Hold::stopped(JobKind::Modpack))?;
+        let id = ctx.runtime.jobs().start_modpack::<EntryModpackUpdate>(
+            ModpackJob::Update { entry, to: p.to },
+            p.id,
+            Some(claim),
+        );
+        Ok(JobStarted { id })
     });
 
     on.handle::<EntryModpackPreviewUpdate, _, _>(|p, ctx| async move {
         let entry = entry_for(&ctx, &p.target, Intent::Read)?;
         ctx.runtime
             .engine()
-            .preview_entry_modpack_file(entry.handle.entry_ref(), Path::new(&p.path))
+            .preview_entry_modpack_file(entry.entry_ref(), Path::new(&p.path))
             .await
             .map_err(crate::runtime::engine_error)
     });
@@ -112,7 +100,7 @@ fn register_entry(on: &mut Channels<'_>) {
         let pack = ctx
             .runtime
             .engine()
-            .entry_modpack(entry.handle.entry_ref())
+            .entry_modpack(entry.entry_ref())
             .map_err(crate::runtime::engine_error)?;
         Ok(ModpackStatusResult { pack })
     });
@@ -122,17 +110,17 @@ fn register_entry(on: &mut Channels<'_>) {
         let update = ctx
             .runtime
             .engine()
-            .entry_modpack_update(entry.handle.entry_ref(), &p.game_version)
+            .entry_modpack_update(entry.entry_ref(), &p.game_version)
             .await
             .map_err(crate::runtime::engine_error)?;
         Ok(ModpackUpdateResult { update })
     });
 
     on.handle::<EntryModpackRemove, _, _>(|p, ctx| async move {
-        let entry = entry_for(&ctx, &p.target, Intent::Mutate)?;
+        let (entry, _claim) = entry_held(&ctx, &p.target, Hold::stopped(JobKind::Modpack))?;
         ctx.runtime
             .engine()
-            .remove_entry_modpack(entry.handle.entry_ref(), p.keep_content)
+            .remove_entry_modpack(entry.entry_ref(), p.keep_content)
             .map_err(crate::runtime::engine_error)
     });
 }
@@ -152,22 +140,6 @@ fn require_pack_ref(pack: &ModpackRef) -> Result<(), ErrorInfo> {
         _ => Err(ErrorInfo::MutuallyExclusive {
             options: Field::CONTENT_SOURCES.to_vec(),
         }),
-    }
-}
-
-/// What a busy refusal names — the entry for an install into one, the pack
-/// itself when the job would have created its own entry.
-fn target_name(target: &ModpackTarget) -> String {
-    match target {
-        ModpackTarget::Create { name } => name.clone(),
-        ModpackTarget::Existing { entry } => entry.clone(),
-    }
-}
-
-fn start(started: Option<String>, name: String) -> Result<JobStarted, ErrorInfo> {
-    match started {
-        Some(id) => Ok(JobStarted { id }),
-        None => Err(ErrorInfo::ContentInProgress { name }),
     }
 }
 

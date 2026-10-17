@@ -1,43 +1,18 @@
 use std::collections::BTreeMap;
-use std::collections::HashSet;
-use std::sync::{Arc, Mutex};
 
 use engine::{Engine, LaunchRequest};
 use proto::error::ErrorInfo;
 use proto::instance::{InstanceLaunch, InstanceLaunchDone, QuickPlay};
 use proto::process::{LogSource, ProcessSpec};
 
-use super::job::{Cancellations, Runner, Spec};
-use crate::runtime::{
-    instance_session_id, instance_session_prefix, EventHub, ProcessSupervisor, StartError,
-};
+use super::job::{Jobs, Spec};
+use crate::runtime::{instance_session_id, instance_session_prefix, ProcessSupervisor, StartError};
 
-pub struct InstanceLaunchManager {
-    runner: Runner<String>,
-    processes: Arc<ProcessSupervisor>,
-    /// Session ids reserved between seq allocation and the supervisor accepting
-    /// them, so two concurrent launches of one instance can't collide on a seq.
-    reserved: Arc<Mutex<HashSet<String>>>,
-}
-
-impl InstanceLaunchManager {
-    pub fn new(
-        engine: Arc<Engine>,
-        hub: Arc<EventHub>,
-        processes: Arc<ProcessSupervisor>,
-        cancellations: Cancellations,
-    ) -> Self {
-        InstanceLaunchManager {
-            runner: Runner::new(engine, hub, cancellations),
-            processes,
-            reserved: Arc::new(Mutex::new(HashSet::new())),
-        }
-    }
-
+impl Jobs {
     /// Prepare and spawn a fresh session of an instance off-thread. Instances may
-    /// run several sessions at once, so this takes no in-flight claim — it does
-    /// not refuse a running instance. Returns the launch job id.
-    pub fn start(&self, order: LaunchOrder) -> Option<String> {
+    /// run several sessions at once, so this takes no claim — it does not
+    /// refuse a running instance. Returns the launch job id.
+    pub fn start_instance_launch(&self, order: LaunchOrder) -> String {
         let LaunchOrder {
             instance_id,
             account,
@@ -51,34 +26,33 @@ impl InstanceLaunchManager {
         let spec = Spec {
             id,
             prefix: "instance-launch",
-            key: None,
+            claim: None,
         };
 
         let processes = self.processes.clone();
         let reserved = self.reserved.clone();
-        self.runner
-            .start::<InstanceLaunch, _>(spec, move |engine, reporter| {
-                Box::pin(async move {
-                    let outcome = launch(
-                        engine,
-                        &processes,
-                        &session_id,
-                        LaunchRequest {
-                            instance: &instance_id,
-                            account: &account,
-                            session_seq: seq,
-                            reconcile,
-                            quick_play,
-                            offline,
-                        },
-                        &reporter.job(),
-                    )
-                    .await;
-                    // The supervisor now owns the id (or the launch failed) — release it.
-                    reserved.lock().unwrap().remove(&session_id);
-                    outcome
-                })
+        self.run::<InstanceLaunch, _>(spec, move |engine, reporter| {
+            Box::pin(async move {
+                let outcome = launch(
+                    engine,
+                    &processes,
+                    &session_id,
+                    LaunchRequest {
+                        instance: &instance_id,
+                        account: &account,
+                        session_seq: seq,
+                        reconcile,
+                        quick_play,
+                        offline,
+                    },
+                    &reporter.job(),
+                )
+                .await;
+                // The supervisor now owns the id (or the launch failed) — release it.
+                reserved.lock().unwrap().remove(&session_id);
+                outcome
             })
+        })
     }
 
     /// Claim the next free session id for an instance under the reservation lock,

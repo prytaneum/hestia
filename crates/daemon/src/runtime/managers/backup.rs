@@ -1,31 +1,18 @@
-use std::sync::Arc;
-
-use engine::Engine;
 use proto::backup::{BackupDone, BackupKind};
 use proto::job::Job;
 use proto::minecraft::ProvisionProgress;
 
-use super::job::{Cancellations, Runner, Spec};
-use crate::runtime::{server_process_id, EventHub};
+use super::job::{Jobs, Spec};
+use crate::runtime::Claim;
 
-/// One backup or restore job for one server — what `BackupManager::start`
-/// runs off-thread. Backups are a server feature; instances have none.
+/// One backup or restore job for one server — what `Jobs::start_backup` runs
+/// off-thread. Backups are a server feature; instances have none.
 pub enum BackupJob {
     ServerBackup { server_id: String, live: bool },
     ServerRestore { server_id: String, backup: String },
 }
 
 impl BackupJob {
-    /// The in-flight key: one backup *or* restore per server at a time. The
-    /// server's process id is the key, so handlers can check it without
-    /// re-deriving a format.
-    fn key(&self) -> String {
-        match self {
-            BackupJob::ServerBackup { server_id, .. }
-            | BackupJob::ServerRestore { server_id, .. } => server_process_id(server_id),
-        }
-    }
-
     fn id_prefix(&self) -> &'static str {
         match self {
             BackupJob::ServerBackup { .. } => "server-backup",
@@ -34,36 +21,20 @@ impl BackupJob {
     }
 }
 
-pub struct BackupManager {
-    runner: Runner<String>,
-}
-
-impl BackupManager {
-    pub fn new(engine: Arc<Engine>, hub: Arc<EventHub>, cancellations: Cancellations) -> Self {
-        BackupManager {
-            runner: Runner::new(engine, hub, cancellations),
-        }
-    }
-
-    /// Whether a backup or restore is still running for this server key
-    /// (`server-<id>`).
-    pub fn in_flight(&self, key: &str) -> bool {
-        self.runner.in_flight(key)
-    }
-
-    /// Start a backup/restore job off-thread, one per entry at a time.
-    /// Returns the job id, or `None` if that entry is already busy.
-    pub fn start<C>(&self, job: BackupJob, id: String) -> Option<String>
+impl Jobs {
+    /// Start a backup/restore job off-thread, holding the server's claim until
+    /// it settles.
+    pub fn start_backup<C>(&self, job: BackupJob, id: String, claim: Claim) -> String
     where
         C: Job<Progress = ProvisionProgress, Done = BackupDone>,
     {
         let spec = Spec {
             id,
             prefix: job.id_prefix(),
-            key: Some(job.key()),
+            claim: Some(claim),
         };
 
-        self.runner.start::<C, _>(spec, move |engine, reporter| {
+        self.run::<C, _>(spec, move |engine, reporter| {
             Box::pin(async move {
                 let running = reporter.job();
                 let backup = match job {

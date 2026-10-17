@@ -28,52 +28,52 @@ pub(super) fn register(on: &mut Channels<'_>) {
     });
 
     on.handle::<ServerFilesWrite, _, _>(|p, ctx| async move {
-        let tree = tree(&ctx, &p.server, Intent::Edit)?;
+        let tree = tree(&ctx, &p.server, Intent::Idle)?;
         blocking(move || tree.write(&p.path, &p.content)).await?;
         Ok(Empty {})
     });
 
     on.handle::<ServerFilesMkdir, _, _>(|p, ctx| async move {
-        let tree = tree(&ctx, &p.server, Intent::Edit)?;
+        let tree = tree(&ctx, &p.server, Intent::Idle)?;
         blocking(move || tree.mkdir(&p.path)).await?;
         Ok(Empty {})
     });
 
     on.handle::<ServerFilesMove, _, _>(|p, ctx| async move {
-        let tree = tree(&ctx, &p.server, Intent::Edit)?;
+        let tree = tree(&ctx, &p.server, Intent::Idle)?;
         blocking(move || tree.rename(&p.from, &p.to)).await?;
         Ok(Empty {})
     });
 
     on.handle::<ServerFilesCopy, _, _>(|p, ctx| async move {
-        let tree = tree(&ctx, &p.server, Intent::Edit)?;
+        let tree = tree(&ctx, &p.server, Intent::Idle)?;
         blocking(move || tree.copy(&p.from, &p.to)).await?;
         Ok(Empty {})
     });
 
     on.handle::<ServerFilesRemove, _, _>(|p, ctx| async move {
         require_some(&p.paths)?;
-        let tree = tree(&ctx, &p.server, Intent::Edit)?;
+        let tree = tree(&ctx, &p.server, Intent::Idle)?;
         blocking(move || tree.remove(&p.paths)).await?;
         Ok(Empty {})
     });
 
     on.handle::<ServerFilesImport, _, _>(|p, ctx| async move {
         require_some(&p.sources)?;
-        let tree = tree(&ctx, &p.server, Intent::Edit)?;
+        let tree = tree(&ctx, &p.server, Intent::Idle)?;
         blocking(move || tree.import(&p.path, &p.sources)).await?;
         Ok(Empty {})
     });
 
     on.handle::<ServerFilesCompress, _, _>(|p, ctx| async move {
         require_some(&p.paths)?;
-        let tree = tree(&ctx, &p.server, Intent::Edit)?;
+        let tree = tree(&ctx, &p.server, Intent::Idle)?;
         blocking(move || tree.compress(&p.paths, &p.to)).await?;
         Ok(Empty {})
     });
 
     on.handle::<ServerFilesExtract, _, _>(|p, ctx| async move {
-        let tree = tree(&ctx, &p.server, Intent::Edit)?;
+        let tree = tree(&ctx, &p.server, Intent::Idle)?;
         blocking(move || tree.extract(&p.from, &p.to)).await?;
         Ok(Empty {})
     });

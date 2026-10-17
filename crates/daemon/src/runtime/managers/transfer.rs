@@ -1,20 +1,16 @@
 //! Instance import and export jobs.
 //!
-//! An export is keyed by the instance it reads, so it queues behind the same
-//! in-flight claim a backup or content job takes — archiving a tree while
-//! something else rewrites it would produce an archive of neither state. An
-//! import has no entry to key on yet (that is what it creates), so it takes no
-//! claim, exactly as a modpack install that creates its entry does.
+//! An export holds the claim of the instance it reads, so nothing rewrites the
+//! tree while it is archived — an archive of neither state would result. An
+//! import has no entry to claim yet (that is what it creates), exactly as a
+//! modpack install that creates its entry has none.
 
-use std::sync::Arc;
-
-use engine::Engine;
 use proto::transfer::{ExportDone, ExportFormat, ImportDone, InstanceExport, InstanceImport};
 
-use super::job::{Cancellations, Runner, Spec};
-use crate::runtime::{instance_info, instance_process_id, EventHub};
+use super::job::{Jobs, Spec};
+use crate::runtime::{instance_info, Claim};
 
-/// One import or export — what `TransferManager::start` runs off-thread.
+/// One import or export — what `Jobs::start_transfer` runs off-thread.
 pub enum TransferJob {
     Export {
         instance_id: String,
@@ -28,33 +24,16 @@ pub enum TransferJob {
     },
 }
 
-pub struct TransferManager {
-    runner: Runner<String>,
-}
-
-impl TransferManager {
-    pub fn new(engine: Arc<Engine>, hub: Arc<EventHub>, cancellations: Cancellations) -> Self {
-        TransferManager {
-            runner: Runner::new(engine, hub, cancellations),
-        }
-    }
-
-    /// Whether a transfer is still running for this entry key
-    /// (`instance-<id>`).
-    pub fn in_flight(&self, key: &str) -> bool {
-        self.runner.in_flight(key)
-    }
-
-    /// Start a transfer off-thread. Returns the job id, or `None` when that
-    /// entry is already busy.
-    pub fn start(&self, job: TransferJob, id: String) -> Option<String> {
+impl Jobs {
+    /// Start a transfer off-thread; an export carries the instance's claim.
+    pub fn start_transfer(&self, job: TransferJob, id: String, claim: Option<Claim>) -> String {
         match job {
             TransferJob::Export {
                 instance_id,
                 format,
                 destination,
                 exclude,
-            } => self.export(id, instance_id, format, destination, exclude),
+            } => self.export(id, claim, instance_id, format, destination, exclude),
             TransferJob::Import { path, name } => self.import(id, path, name),
         }
     }
@@ -62,63 +41,62 @@ impl TransferManager {
     fn export(
         &self,
         id: String,
+        claim: Option<Claim>,
         instance_id: String,
         format: ExportFormat,
         destination: String,
         exclude: Vec<String>,
-    ) -> Option<String> {
+    ) -> String {
         let spec = Spec {
             id,
             prefix: "instance-export",
-            key: Some(instance_process_id(&instance_id)),
+            claim,
         };
 
-        self.runner
-            .start::<InstanceExport, _>(spec, move |engine, reporter| {
-                Box::pin(async move {
-                    let export = engine.export_instance(
-                        &instance_id,
-                        format,
-                        &destination,
-                        &exclude,
-                        &reporter.job(),
-                    )?;
-                    Ok(ExportDone {
-                        path: export.path.to_string_lossy().into_owned(),
-                        size_bytes: export.size_bytes,
-                        files: export.files,
-                        warnings: export.warnings,
-                    })
+        self.run::<InstanceExport, _>(spec, move |engine, reporter| {
+            Box::pin(async move {
+                let export = engine.export_instance(
+                    &instance_id,
+                    format,
+                    &destination,
+                    &exclude,
+                    &reporter.job(),
+                )?;
+                Ok(ExportDone {
+                    path: export.path.to_string_lossy().into_owned(),
+                    size_bytes: export.size_bytes,
+                    files: export.files,
+                    warnings: export.warnings,
                 })
             })
+        })
     }
 
-    fn import(&self, id: String, path: String, name: String) -> Option<String> {
+    fn import(&self, id: String, path: String, name: String) -> String {
         let spec = Spec {
             id,
             prefix: "instance-import",
-            key: None,
+            claim: None,
         };
 
-        self.runner
-            .start::<InstanceImport, _>(spec, move |engine, reporter| {
-                Box::pin(async move {
-                    let import = engine
-                        .import_instance(&path, &name, &reporter.job())
-                        .await?;
-                    let accepts = engine.instance_accepts(&import.record.profile.flavor);
-                    // The view an import answers with is the same one
-                    // `instance.list` returns, so a front-end can drop it
-                    // straight into the library it already renders. A
-                    // just-imported instance has no sessions by definition.
-                    let instance = instance_info(import.record, Vec::new(), accepts);
-                    Ok(ImportDone {
-                        format: import.format,
-                        instance,
-                        failures: import.failures,
-                        warnings: import.warnings,
-                    })
+        self.run::<InstanceImport, _>(spec, move |engine, reporter| {
+            Box::pin(async move {
+                let import = engine
+                    .import_instance(&path, &name, &reporter.job())
+                    .await?;
+                let accepts = engine.instance_accepts(&import.record.profile.flavor);
+                // The view an import answers with is the same one
+                // `instance.list` returns, so a front-end can drop it
+                // straight into the library it already renders. A
+                // just-imported instance has no sessions by definition.
+                let instance = instance_info(import.record, Vec::new(), accepts);
+                Ok(ImportDone {
+                    format: import.format,
+                    instance,
+                    failures: import.failures,
+                    warnings: import.warnings,
                 })
             })
+        })
     }
 }

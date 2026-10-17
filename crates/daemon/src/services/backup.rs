@@ -1,4 +1,4 @@
-//! Server backups: create and restore are jobs over the `BackupManager`, list
+//! Server backups: create and restore are jobs, list
 //! and remove answer inline. Backups are a server feature — instances have
 //! none — `instance.export` is what they have instead.
 
@@ -9,33 +9,25 @@ use proto::error::ErrorInfo;
 use proto::job::JobStarted;
 use proto::Empty;
 
-use super::guards::{is_running, require_backup, server_for, Intent};
-use crate::runtime::{server_process_id, BackupJob, Channels};
+use super::guards::{is_running, require_backup, server_for, server_held, Hold, Intent};
+use crate::runtime::{server_process_id, BackupJob, Channels, JobKind};
 
 pub(super) fn register(on: &mut Channels<'_>) {
     on.handle::<ServerBackupCreate, _, _>(|p, ctx| async move {
-        // A backup is the one mutation that may run on a live server: it
-        // flushes the world over rcon first. So it gates on the jobs that own
-        // the tree, not on the process.
-        let record = server_for(&ctx, &p.server, Intent::Backup)?;
+        let (record, claim) = server_held(&ctx, &p.server, Hold::live(JobKind::Backup))?;
         if !record.ready() {
-            return Err(ErrorInfo::Provisioning {
-                name: record.name.clone(),
-            });
+            return Err(ErrorInfo::Provisioning { name: record.name });
         }
         let live = is_running(&ctx, &server_process_id(&record.id));
-        match ctx.runtime.backups().start::<ServerBackupCreate>(
+        let id = ctx.runtime.jobs().start_backup::<ServerBackupCreate>(
             BackupJob::ServerBackup {
                 server_id: record.id,
                 live,
             },
             p.id,
-        ) {
-            Some(id) => Ok(JobStarted { id }),
-            None => Err(ErrorInfo::BackupInProgress {
-                name: record.name.clone(),
-            }),
-        }
+            claim,
+        );
+        Ok(JobStarted { id })
     });
 
     on.handle::<ServerBackupList, _, _>(|p, ctx| async move {
@@ -54,20 +46,17 @@ pub(super) fn register(on: &mut Channels<'_>) {
                 field: proto::error::Field::Backup,
             });
         }
-        let record = server_for(&ctx, &p.server, Intent::Mutate)?;
+        let (record, claim) = server_held(&ctx, &p.server, Hold::stopped(JobKind::Backup))?;
         require_backup(ctx.runtime.engine().server_backups(&record.id), &p.backup)?;
-        match ctx.runtime.backups().start::<ServerBackupRestore>(
+        let id = ctx.runtime.jobs().start_backup::<ServerBackupRestore>(
             BackupJob::ServerRestore {
                 server_id: record.id,
                 backup: p.backup,
             },
             p.id,
-        ) {
-            Some(id) => Ok(JobStarted { id }),
-            None => Err(ErrorInfo::BackupInProgress {
-                name: record.name.clone(),
-            }),
-        }
+            claim,
+        );
+        Ok(JobStarted { id })
     });
 
     on.handle::<ServerBackupRemove, _, _>(|p, ctx| async move {

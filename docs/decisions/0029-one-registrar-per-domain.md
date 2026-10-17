@@ -22,17 +22,17 @@ one guard never fired at all — `ensure_stopped` asked the supervisor for
 `instance-<id>`, but an instance runs its sessions under `instance-<id>_<seq>`,
 so content was free to write jars a running JVM held open.
 
-A handler now names what it is about to do — `Intent::{Read, Start, Mutate,
-Backup, Lifecycle}` — and `guards::{server_for, instance_for}` resolves the
-entry and applies the exclusions that intent implies, per side. The decision's
+A handler now names what it is about to do — `Intent::{Read, Idle}`, or a
+`Hold` that takes the entry's claim ([0086](0086-an-entry-has-one-claim.md)) —
+and `guards::{server_for, instance_for, server_held, instance_held}` resolves
+the entry and refuses whatever holds it, per side. The decision's
 own goal is untouched: wiring in a channel is still one `handle::<C>` line in
 the file that owns its domain. What changed is that the line now carries what
 the channel needs instead of trusting the author to remember it.
 
 A verb that exists on both sides is one channel aimed by an `EntryTarget`, and
 `guards::entry_for` is the third resolver: it dispatches on the target's kind to
-`server_for` or `instance_for` (so every intent still applies its per-side
-exclusions) and returns the owned handle a job or an engine flow takes. The
+`server_for` or `instance_for` (`entry_held` to the held variants) and returns the owned handle a job or an engine flow takes. The
 handler therefore holds no per-side branch, and the two halves that used to be
 line-for-line copies of each other are one function. The account gate for the
 instance side lives there too

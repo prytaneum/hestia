@@ -11,8 +11,8 @@ use proto::sync::{
 };
 use proto::Empty;
 
-use super::guards::{instance_for, Intent};
-use crate::runtime::Channels;
+use super::guards::{instance_held, Hold};
+use crate::runtime::{Channels, JobKind};
 
 pub(super) fn register(on: &mut Channels<'_>) {
     on.handle::<SyncGet, _, _>(
@@ -92,7 +92,7 @@ pub(super) fn register(on: &mut Channels<'_>) {
     });
 
     on.handle::<InstanceSyncUnit, _, _>(|p: InstanceSyncUnitParams, ctx| async move {
-        let record = instance_for(&ctx, &p.instance, Intent::Mutate)?;
+        let (record, _claim) = instance_held(&ctx, &p.instance, Hold::stopped(JobKind::Content))?;
         ctx.runtime
             .engine()
             .set_instance_sync_unit(&record.id, p.unit, p.shared)
@@ -100,7 +100,7 @@ pub(super) fn register(on: &mut Channels<'_>) {
     });
 
     on.handle::<InstanceSyncKeys, _, _>(|p: InstanceSyncKeysParams, ctx| async move {
-        let record = instance_for(&ctx, &p.instance, Intent::Mutate)?;
+        let (record, _claim) = instance_held(&ctx, &p.instance, Hold::stopped(JobKind::Content))?;
         ctx.runtime
             .engine()
             .set_instance_sync_keys(&record.id, p.unsynced)

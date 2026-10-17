@@ -1,6 +1,7 @@
 //! The daemon's long-lived collaborators in one place — the anti-churn seam a
 //! new subsystem hangs off, mirroring the engine's aggregate root.
 
+mod claims;
 mod event_hub;
 mod managers;
 mod metrics;
@@ -22,13 +23,12 @@ use proto::server::ServerInfo;
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::sync::Notify;
 
+pub use claims::{create_key, Claim, Claims, JobKind};
 pub use engine::error_info as engine_error;
 pub use engine::{ExitObserver, ProcessSupervisor, StartError};
 pub use event_hub::EventHub;
 pub use managers::{
-    BackupJob, BackupManager, Cancellations, ContentJob, ContentManager, InstanceLaunchManager,
-    JavaInstallManager, JobEntry, LaunchOrder, ModpackJob, ModpackManager, ServerCreateManager,
-    ServerUpdateManager, TransferJob, TransferManager, UpdateManager,
+    BackupJob, Cancellations, ContentJob, JobEntry, Jobs, LaunchOrder, ModpackJob, TransferJob,
 };
 pub use metrics::spawn_metrics_sampler;
 pub use network::spawn_network_watcher;
@@ -102,15 +102,8 @@ pub fn instance_info(
 pub struct Runtime {
     engine: Arc<Engine>,
     hub: Arc<EventHub>,
-    java_installs: JavaInstallManager,
-    server_creates: ServerCreateManager,
-    server_updates: ServerUpdateManager,
-    instance_launches: InstanceLaunchManager,
-    backups: BackupManager,
-    content_jobs: ContentManager,
-    modpack_jobs: ModpackManager,
-    transfers: TransferManager,
-    updates: UpdateManager,
+    jobs: Jobs,
+    claims: Claims,
     processes: Arc<ProcessSupervisor>,
     log_path: PathBuf,
     cancellations: Cancellations,
@@ -126,8 +119,6 @@ impl Runtime {
         // One registry for every cancellable job, keyed by job id — what
         // `job.cancel` looks a running job up in, whichever manager owns it.
         let cancellations = Cancellations::new();
-        let java_installs =
-            JavaInstallManager::new(engine.clone(), hub.clone(), cancellations.clone());
         let session_engine = engine.clone();
         let on_exit: ExitObserver = Arc::new(move |info: &proto::process::ProcessInfo| {
             let Some(instance_id) = instance_id_of_session(&info.id) else {
@@ -145,33 +136,19 @@ impl Runtime {
         });
         let processes = engine.processes().clone();
         processes.attach(hub.clone(), Some(on_exit));
-        let server_creates =
-            ServerCreateManager::new(engine.clone(), hub.clone(), cancellations.clone());
-        let server_updates =
-            ServerUpdateManager::new(engine.clone(), hub.clone(), cancellations.clone());
-        let instance_launches = InstanceLaunchManager::new(
+        let claims = Claims::default();
+        let jobs = Jobs::new(
             engine.clone(),
             hub.clone(),
+            claims.clone(),
             processes.clone(),
             cancellations.clone(),
         );
-        let backups = BackupManager::new(engine.clone(), hub.clone(), cancellations.clone());
-        let content_jobs = ContentManager::new(engine.clone(), hub.clone(), cancellations.clone());
-        let modpack_jobs = ModpackManager::new(engine.clone(), hub.clone(), cancellations.clone());
-        let transfers = TransferManager::new(engine.clone(), hub.clone(), cancellations.clone());
-        let updates = UpdateManager::new(engine.clone(), hub.clone(), cancellations.clone());
         Runtime {
             engine,
             hub,
-            java_installs,
-            server_creates,
-            server_updates,
-            instance_launches,
-            backups,
-            content_jobs,
-            modpack_jobs,
-            transfers,
-            updates,
+            jobs,
+            claims,
             cancellations,
             processes,
             log_path,
@@ -286,40 +263,13 @@ impl Runtime {
         &self.cancellations
     }
 
-    pub fn java_installs(&self) -> &JavaInstallManager {
-        &self.java_installs
+    pub fn jobs(&self) -> &Jobs {
+        &self.jobs
     }
 
-    pub fn server_creates(&self) -> &ServerCreateManager {
-        &self.server_creates
-    }
-
-    pub fn server_updates(&self) -> &ServerUpdateManager {
-        &self.server_updates
-    }
-
-    pub fn instance_launches(&self) -> &InstanceLaunchManager {
-        &self.instance_launches
-    }
-
-    pub fn backups(&self) -> &BackupManager {
-        &self.backups
-    }
-
-    pub fn content_jobs(&self) -> &ContentManager {
-        &self.content_jobs
-    }
-
-    pub fn modpack_jobs(&self) -> &ModpackManager {
-        &self.modpack_jobs
-    }
-
-    pub fn transfers(&self) -> &TransferManager {
-        &self.transfers
-    }
-
-    pub fn updates(&self) -> &UpdateManager {
-        &self.updates
+    /// Who holds each entry's tree right now.
+    pub fn claims(&self) -> &Claims {
+        &self.claims
     }
 
     pub fn processes(&self) -> &ProcessSupervisor {

@@ -13,5 +13,6 @@ its own file. Nothing about the crate graph, the wire, or the call sites changed
 — `Engine`'s flows are still `engine.provision_server(…)`, because Rust lets an
 inherent `impl` span modules within a crate. Splitting also surfaced the real
 duplication each file had been hiding: seven copies of a lock-insert-remove
-in-flight set became one `InFlight`/`Claim` guard, and four copies of a
+in-flight set became one `InFlight`/`Claim` guard (since one entry-keyed map,
+[0086](0086-an-entry-has-one-claim.md)), and four copies of a
 progress-decode closure became one `forward()`.
