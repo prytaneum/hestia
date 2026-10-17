@@ -5,20 +5,20 @@
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
 
-use anyhow::{bail, Result};
+use anyhow::Result;
 use proto::content::{
     ContentFailure, ContentKind, ContentProject, InstalledContent, ModpackFile, ResolvedModpack,
 };
-use proto::error::ErrorInfo;
-use proto::minecraft::{ProvisionPhase, ProvisionProgress};
+use proto::minecraft::ProvisionPhase;
 use proto::modpack::{InstalledModpack, ModpackOverride};
 use proto::warning::WarningInfo;
 
-use super::super::batch::{gather, Batch};
 use super::super::content::entry::{content_target, EntryContent, EntrySide};
+use super::super::download::Download;
 use super::{pack_display_name, FileIdentity, Supplied};
 use crate::cancel::Job;
 use crate::config::ModpackSettings;
+use crate::content::pool::Pool;
 use crate::content::{exclude, install, modpack, pack, record};
 use crate::engine::Engine;
 use crate::minecraft::materialize;
@@ -141,20 +141,12 @@ impl Engine {
 
         job.check()?;
         self.recognise(ctx, &resolved.source, &mut supplied).await;
-        let mut items = Vec::new();
-        for file in supplied {
-            let item = pack_item(file, &ctx.entry_dir);
-            match install::apply_files(&ctx.entry_dir, &ctx.data_dir, &item, &ctx.worlds()) {
-                Ok(()) => items.push(item),
-                Err(e) => failures.push(ContentFailure {
-                    item: item.filename.clone(),
-                    title: item.title.clone(),
-                    error: crate::error_info(e),
-                }),
-            }
-        }
+        let items: Vec<InstalledContent> = supplied
+            .into_iter()
+            .map(|file| pack_item(file, &ctx.entry_dir))
+            .collect();
 
-        let pack = InstalledModpack {
+        let mut pack = InstalledModpack {
             source: resolved.source.clone(),
             project_id: resolved.project_id.clone(),
             slug: project.map(|p| p.slug.clone()).unwrap_or_default(),
@@ -166,11 +158,14 @@ impl Engine {
             loader_version: resolved.loader_version.clone().unwrap_or_default(),
             icon_url: project.map(|p| p.icon_url.clone()).unwrap_or_default(),
             installed_unix: registry::now_unix(),
-            files: items.iter().map(|i| i.filename.clone()).collect(),
+            files: Vec::new(),
             overrides,
         };
 
-        self.merge_pack_items(ctx, &pack, items, previous.as_ref())?;
+        let (recorded, mut unplaced) =
+            Self::merge_pack_items(ctx, &pack, items, previous.as_ref())?;
+        pack.files = recorded;
+        failures.append(&mut unplaced);
         if let Some(previous) = &previous {
             let stale = stale_overrides(previous, &pack);
             let (_, mut left) = modpack::remove_overrides(&ctx.data_dir, &stale);
@@ -218,8 +213,8 @@ impl Engine {
     }
 
     /// Download the pack's managed-kind files into the entry's managed
-    /// directories and mirror them into `data/`. Each is recorded with the ids
-    /// the resolved pack carries, so a pack's mods are ordinary tracked items.
+    /// directories. Each is recorded with the ids the resolved pack carries, so
+    /// a pack's mods are ordinary tracked items.
     async fn fetch_pack_content(
         &self,
         ctx: &EntryContent,
@@ -227,7 +222,6 @@ impl Engine {
         resolved: &ResolvedModpack,
         job: &Job<'_>,
     ) -> (Vec<Supplied>, Vec<ContentFailure>) {
-        // Two entries naming one path would race on the same staging file.
         let mut named = HashSet::new();
         let mut queued: Vec<(Supplied, &ModpackFile)> = files
             .iter()
@@ -249,39 +243,33 @@ impl Engine {
             .collect();
         self.hydrate(&mut identities).await;
 
-        let batch = &Batch::new(
-            job,
-            ProvisionPhase::Content,
-            queued.iter().map(|(_, file)| file.artifact.size),
-        );
-        // A loop, not `map`: a closure taking a reference and returning an
-        // async block trips rustc's higher-ranked lifetime inference
-        // (rust-lang/rust#89976).
-        let mut fetches = Vec::new();
-        for (order, (pending, file)) in queued.into_iter().enumerate() {
-            fetches.push(async move {
-                let label = pending.label();
-                let share = batch.share(file.artifact.size);
-                let relay = |progress: &ProvisionProgress| share.relay(progress);
-                let fetched = self
-                    .fetch_pack_file(
-                        ctx,
-                        pending.kind,
-                        file,
-                        &resolved.source,
-                        &label,
-                        &Job::new(&relay, job.cancel()),
-                    )
-                    .await;
-                (order, pending, file, label, fetched)
+        let mut failures = Vec::new();
+        let mut downloads = Vec::new();
+        for (pending, file) in queued {
+            let label = pending.label();
+            let planned = materialize::validate_filename(&file.artifact.filename).and_then(|()| {
+                Ok(Download {
+                    artifact: file.artifact.clone(),
+                    target: content_target(ctx, pending.kind, &file.artifact.filename)?,
+                    label: label.clone(),
+                    source: resolved.source.clone(),
+                })
             });
+            match planned {
+                Ok(download) => downloads.push(((pending, file, label), download)),
+                Err(e) => failures.push(ContentFailure {
+                    item: file.path.clone(),
+                    title: label,
+                    error: crate::error_info(e),
+                }),
+            }
         }
-        let mut outcomes = gather(fetches).await;
-        outcomes.sort_by_key(|(order, ..)| *order);
 
         let mut supplied = Vec::new();
-        let mut failures = Vec::new();
-        for (_, mut pending, file, label, fetched) in outcomes {
+        for ((mut pending, file, label), fetched) in self
+            .download_batch(downloads, ProvisionPhase::Content, job)
+            .await
+        {
             match fetched {
                 Ok(sha1) => {
                     pending.sha1 = sha1;
@@ -295,39 +283,6 @@ impl Engine {
             }
         }
         (supplied, failures)
-    }
-
-    async fn fetch_pack_file(
-        &self,
-        ctx: &EntryContent,
-        kind: ContentKind,
-        file: &ModpackFile,
-        source: &str,
-        label: &str,
-        job: &Job<'_>,
-    ) -> Result<String> {
-        // Routine on CurseForge, where an author may opt out of distribution:
-        // one file fails, the pack still installs.
-        if file.artifact.url.is_empty() {
-            bail!(ErrorInfo::ContentDownloadBlocked {
-                title: label.to_string(),
-                source: source.to_string(),
-            });
-        }
-        materialize::validate_filename(&file.artifact.filename)?;
-        let managed = content_target(ctx, kind, &file.artifact.filename)?;
-        materialize::ensure_artifact(
-            Some(&self.cache),
-            &file.artifact,
-            &managed,
-            ProvisionPhase::Content,
-            job,
-        )
-        .await?;
-        match &file.artifact.checksum {
-            Some(checksum) => Ok(checksum.hex.clone()),
-            None => install::sha1_file(&managed),
-        }
     }
 
     /// The index files that are not managed-kind content — a pack shipping its
@@ -368,47 +323,33 @@ impl Engine {
             }
         }
 
-        let batch = &Batch::new(
-            job,
-            ProvisionPhase::Overrides,
-            wanted.iter().map(|(file, _)| file.artifact.size),
-        );
-        let mut fetches = Vec::new();
-        for (order, (file, target)) in wanted.into_iter().enumerate() {
-            fetches.push(async move {
-                let share = batch.share(file.artifact.size);
-                let relay = |progress: &ProvisionProgress| share.relay(progress);
-                let fetched = materialize::ensure_artifact(
-                    Some(&self.cache),
-                    &file.artifact,
-                    &target,
-                    ProvisionPhase::Overrides,
-                    &Job::new(&relay, job.cancel()),
-                )
-                .await;
-                (order, file, target, fetched)
-            });
-        }
-        let mut outcomes = gather(fetches).await;
-        outcomes.sort_by_key(|(order, ..)| *order);
+        let downloads: Vec<(&ModpackFile, Download)> = wanted
+            .into_iter()
+            .map(|(file, target)| {
+                let download = Download {
+                    artifact: file.artifact.clone(),
+                    target,
+                    label: file.path.clone(),
+                    source: String::new(),
+                };
+                (file, download)
+            })
+            .collect();
 
         let mut out = Vec::new();
-        for (_, file, target, fetched) in outcomes {
-            if let Err(e) = fetched {
-                tracing::warn!(path = %file.path, error = %e, "cannot fetch a modpack file");
-                continue;
+        for (file, fetched) in self
+            .download_batch(downloads, ProvisionPhase::Overrides, job)
+            .await
+        {
+            match fetched {
+                Ok(sha1) => out.push(ModpackOverride {
+                    path: file.path.clone(),
+                    sha1,
+                }),
+                Err(e) => {
+                    tracing::warn!(path = %file.path, error = %e, "cannot fetch a modpack file")
+                }
             }
-            let sha1 = file
-                .artifact
-                .checksum
-                .as_ref()
-                .map(|c| c.hex.clone())
-                .or_else(|| install::sha1_file(&target).ok())
-                .unwrap_or_default();
-            out.push(ModpackOverride {
-                path: file.path.clone(),
-                sha1,
-            });
         }
         out
     }
@@ -416,59 +357,53 @@ impl Engine {
     /// Fold the pack's items into the entry's content index, tagged with the
     /// pack's origin, and drop the previous pack's items that this one no
     /// longer ships. A user re-installing one of them by hand clears the tag and
-    /// takes ownership, so a tagged item is only ever removed here.
+    /// takes ownership, so a tagged item is only ever removed here. Returns the
+    /// filenames recorded and the items that could not be placed.
     fn merge_pack_items(
-        &self,
         ctx: &EntryContent,
         pack: &InstalledModpack,
         items: Vec<InstalledContent>,
         previous: Option<&InstalledModpack>,
-    ) -> Result<()> {
+    ) -> Result<(Vec<String>, Vec<ContentFailure>)> {
         let origin = modpack::origin(pack);
-        let keeping: HashSet<&str> = pack.files.iter().map(String::as_str).collect();
-        let worlds = ctx.worlds();
-        let mut index = install::load(&ctx.entry_dir);
-
-        if let Some(previous) = previous {
-            let previous_origin = modpack::origin(previous);
-            let dropped: Vec<InstalledContent> = index
-                .iter()
-                .filter(|i| i.origin == previous_origin && !keeping.contains(i.filename.as_str()))
-                .cloned()
-                .collect();
-            for item in &dropped {
-                install::remove_files(&ctx.entry_dir, &ctx.data_dir, item, &worlds);
-            }
-            index.retain(|i| !dropped.iter().any(|d| d.filename == i.filename));
-        }
-
+        let mut pool = Pool::open(&ctx.entry_dir, &ctx.data_dir, ctx.worlds());
+        let mut recorded = Vec::new();
+        let mut failures = Vec::new();
         for mut item in items {
             item.origin = origin.clone();
-            match install::replaces(&index, &item) {
-                Some(pos) => {
-                    let old = index.remove(pos);
-                    if old.filename != item.filename {
-                        install::remove_files(&ctx.entry_dir, &ctx.data_dir, &old, &worlds);
-                    }
-                    // A user-installed copy keeps its own (untagged) ownership:
-                    // the pack supplying the same file does not take it over.
-                    let item = record::rehold(
-                        &item,
-                        record::Holding {
-                            origin: match old.origin.is_empty() {
-                                true => String::new(),
-                                false => origin.clone(),
-                            },
-                            ..record::Holding::from(&old)
+            let item = match pool.holder_of(&item) {
+                // A user-installed copy keeps its own (untagged) ownership:
+                // the pack supplying the same file does not take it over.
+                Some(old) => record::rehold(
+                    &item,
+                    record::Holding {
+                        origin: match old.origin.is_empty() {
+                            true => String::new(),
+                            false => origin.clone(),
                         },
-                    );
-                    install::apply_files(&ctx.entry_dir, &ctx.data_dir, &item, &worlds)?;
-                    index.push(item);
-                }
-                None => index.push(item),
+                        ..record::Holding::from(old)
+                    },
+                ),
+                None => item,
+            };
+            match pool.upsert(item.clone()) {
+                Ok(()) => recorded.push(item.filename),
+                Err(e) => failures.push(ContentFailure {
+                    item: item.filename,
+                    title: item.title,
+                    error: crate::error_info(e),
+                }),
             }
         }
-        install::save(&ctx.entry_dir, index)
+        if let Some(previous) = previous {
+            let previous_origin = modpack::origin(previous);
+            let keeping: HashSet<&str> = recorded.iter().map(String::as_str).collect();
+            pool.drop_where(|i| {
+                i.origin == previous_origin && !keeping.contains(i.filename.as_str())
+            });
+        }
+        pool.commit()?;
+        Ok((recorded, failures))
     }
 }
 

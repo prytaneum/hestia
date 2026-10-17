@@ -13,6 +13,7 @@ pub(crate) mod install;
 pub(crate) mod modpack;
 mod modrinth;
 pub(crate) mod pack;
+pub(crate) mod pool;
 pub(crate) mod provider;
 pub(crate) mod record;
 

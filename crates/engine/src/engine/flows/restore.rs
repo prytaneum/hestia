@@ -6,10 +6,10 @@ use std::path::{Path, PathBuf};
 use anyhow::Result;
 use proto::content::InstalledContent;
 use proto::download::{Checksum, HashAlgorithm};
-use proto::minecraft::{Artifact, ProvisionPhase, ProvisionProgress};
+use proto::minecraft::{Artifact, ProvisionPhase};
 use proto::warning::WarningInfo;
 
-use super::batch::{gather, Batch};
+use super::download::Download;
 use crate::cancel::Job;
 use crate::content::install;
 use crate::engine::Engine;
@@ -45,20 +45,30 @@ impl Engine {
             "restoring tracked content"
         );
 
-        let batch = &Batch::new(job, ProvisionPhase::Content, missing.iter().map(|_| 0));
-        // A loop, not `map`: a closure taking a reference and returning an
-        // async block trips rustc's higher-ranked lifetime inference
-        // (rust-lang/rust#89976).
-        let mut fetches = Vec::new();
-        for (item, managed) in &missing {
-            fetches.push(async move {
-                let share = batch.share(0);
-                let relay = |progress: &ProvisionProgress| share.relay(progress);
-                self.fetch_tracked(item, managed, &Job::new(&relay, job.cancel()))
-                    .await
-            });
-        }
-        gather(fetches).await.into_iter().collect::<Result<()>>()?;
+        let downloads: Vec<((), Download)> = missing
+            .iter()
+            .map(|(item, managed)| {
+                let download = Download {
+                    artifact: Artifact {
+                        url: item.url.clone(),
+                        filename: item.filename.clone(),
+                        size: 0,
+                        checksum: Some(Checksum {
+                            algorithm: HashAlgorithm::Sha1,
+                            hex: item.sha1.clone(),
+                        }),
+                    },
+                    target: managed.clone(),
+                    label: item.title.clone(),
+                    source: item.source.clone(),
+                };
+                materialize::validate_filename(&item.filename).map(|()| ((), download))
+            })
+            .collect::<Result<_>>()?;
+        self.download_batch(downloads, ProvisionPhase::Content, job)
+            .await
+            .into_iter()
+            .try_for_each(|((), fetched)| fetched.map(drop))?;
 
         if dropped.is_empty() {
             return Ok(Vec::new());
@@ -72,31 +82,5 @@ impl Engine {
             count: dropped.len() as u32,
             files: dropped,
         }])
-    }
-
-    async fn fetch_tracked(
-        &self,
-        item: &InstalledContent,
-        managed: &Path,
-        job: &Job<'_>,
-    ) -> Result<()> {
-        materialize::validate_filename(&item.filename)?;
-        let artifact = Artifact {
-            url: item.url.clone(),
-            filename: item.filename.clone(),
-            size: 0,
-            checksum: Some(Checksum {
-                algorithm: HashAlgorithm::Sha1,
-                hex: item.sha1.clone(),
-            }),
-        };
-        materialize::ensure_artifact(
-            Some(&self.cache),
-            &artifact,
-            managed,
-            ProvisionPhase::Content,
-            job,
-        )
-        .await
     }
 }

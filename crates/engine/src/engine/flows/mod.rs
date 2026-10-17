@@ -6,6 +6,7 @@ mod backup;
 mod batch;
 mod console;
 mod content;
+mod download;
 pub use content::entry::EntryRef;
 mod flavors;
 mod instance;

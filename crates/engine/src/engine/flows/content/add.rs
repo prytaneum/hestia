@@ -8,15 +8,15 @@ use std::path::{Path, PathBuf};
 use anyhow::{bail, Context, Result};
 use proto::content::{
     ContentAddItem, ContentAddSpec, ContentFailure, ContentKind, ContentProject, ContentVersion,
-    DependencyKind, InstalledContent, VersionQuery, LOCAL_SOURCE,
+    DependencyKind, InstalledContent, LOCAL_SOURCE,
 };
 use proto::error::ErrorInfo;
-use proto::minecraft::{ProvisionPhase, ProvisionProgress};
+use proto::minecraft::ProvisionPhase;
 
-use super::super::batch::{gather_ordered, Batch};
-use super::entry::{content_loader, content_target, datapack_worlds, side_gate, EntryContent};
+use super::super::download::Download;
+use super::entry::{content_target, datapack_worlds, side_gate, EntryContent};
 use super::phase_progress;
-use crate::cancel::Job;
+use crate::content::pool::Pool;
 use crate::content::{inspect, install, record, Identified, LocalFile};
 use crate::engine::Engine;
 use crate::minecraft::materialize::{self, OnProgress};
@@ -148,18 +148,16 @@ impl Engine {
         items.append(&mut platform_items);
         failures.append(&mut platform_failures);
 
-        let entry_worlds = ctx.worlds();
-        let mut index = install::load(&ctx.entry_dir);
-        for item in &items {
-            if let Some(pos) = install::replaces(&index, item) {
-                let old = index.remove(pos);
-                if old.filename != item.filename {
-                    install::remove_files(&ctx.entry_dir, &ctx.data_dir, &old, &entry_worlds);
-                }
+        let mut pool = Pool::open(&ctx.entry_dir, &ctx.data_dir, ctx.worlds());
+        let mut recorded = Vec::new();
+        for item in items {
+            match pool.upsert(item.clone()) {
+                Ok(()) => recorded.push(item),
+                Err(e) => failures.push(failure(&item.filename, &item.title, crate::error_info(e))),
             }
-            index.push(item.clone());
         }
-        install::save(&ctx.entry_dir, index)?;
+        pool.commit()?;
+        let items = recorded;
         for item in &items {
             tracing::info!(
                 entry = %ctx.entry_dir.display(),
@@ -205,7 +203,6 @@ impl Engine {
             .map(|i| i.project_id)
             .filter(|p| !p.is_empty())
             .collect();
-        let loader = content_loader(kind, &ctx.flavor);
 
         // An explicitly named root installs even when already present (a
         // reinstall/re-pin); only duplicates within the batch collapse.
@@ -256,33 +253,11 @@ impl Engine {
             if on_progress.check().is_err() {
                 break;
             }
-            let versions = match self
-                .content
-                .versions(&VersionQuery {
-                    source: node.source.clone(),
-                    project: node.project.id.clone(),
-                    loader: loader.clone(),
-                    game_version: Some(ctx.game_version.clone()),
-                })
+            let version = match self
+                .target_version(ctx, kind, &node.source, &node.project.id, "", &node.pin)
                 .await
             {
-                Ok(versions) => versions,
-                Err(e) => {
-                    failures.push(failure(
-                        &node.given,
-                        &node.project.title,
-                        crate::error_info(e),
-                    ));
-                    continue;
-                }
-            };
-            let version = match install::pick_version(
-                &versions,
-                &ctx.game_version,
-                loader.as_deref(),
-                &node.pin,
-            ) {
-                Ok(version) => version.clone(),
+                Ok(version) => version,
                 Err(e) => {
                     failures.push(failure(
                         &node.given,
@@ -340,31 +315,33 @@ impl Engine {
             planned.push((node, version));
         }
 
-        let batch = &Batch::new(
-            on_progress,
-            ProvisionPhase::Content,
-            planned.iter().map(|(_, version)| release_size(version)),
-        );
-        let install = |(node, version): (Node, ContentVersion)| async move {
-            let share = batch.share(release_size(&version));
-            let relay = |progress: &ProvisionProgress| share.relay(progress);
-            let installed = self
-                .install_version_file(
-                    ctx,
-                    kind,
-                    &node.project,
-                    &version,
-                    worlds,
-                    &Job::new(&relay, on_progress.cancel()),
-                )
-                .await;
-            (node, installed)
-        };
-        let outcomes =
-            gather_ordered(planned, |(_, version)| release_filename(version), install).await;
-        for (node, installed) in outcomes {
-            match installed {
-                Ok(installed) => items.push(installed),
+        let mut downloads = Vec::new();
+        for (node, version) in planned {
+            match plan_release(ctx, kind, &node.project.title, &version) {
+                Ok(download) => downloads.push(((node, version), download)),
+                Err(e) => failures.push(failure(
+                    &node.given,
+                    &node.project.title,
+                    crate::error_info(e),
+                )),
+            }
+        }
+        let outcomes = self
+            .download_batch(downloads, ProvisionPhase::Content, on_progress)
+            .await;
+        for ((node, version), fetched) in outcomes {
+            match fetched.and_then(|sha1| release_of(&version, sha1)) {
+                Ok(release) => items.push(record::assemble(
+                    record::Project {
+                        kind,
+                        project_id: node.project.id.clone(),
+                        slug: node.project.slug.clone(),
+                        title: node.project.title.clone(),
+                        icon_url: node.project.icon_url.clone(),
+                    },
+                    release,
+                    record::Holding::fresh(worlds),
+                )),
                 Err(e) => failures.push(failure(
                     &node.given,
                     &node.project.title,
@@ -375,76 +352,51 @@ impl Engine {
         (items, failures)
     }
 
-    pub(super) async fn install_version_file(
-        &self,
-        ctx: &EntryContent,
-        kind: ContentKind,
-        project: &ContentProject,
-        version: &proto::content::ContentVersion,
-        worlds: &[String],
-        on_progress: OnProgress<'_>,
-    ) -> Result<InstalledContent> {
-        let release = self
-            .fetch_release(ctx, kind, &project.title, version, on_progress)
-            .await?;
-        let item = record::assemble(
-            record::Project {
-                kind,
-                project_id: project.id.clone(),
-                slug: project.slug.clone(),
-                title: project.title.clone(),
-                icon_url: project.icon_url.clone(),
-            },
-            release,
-            record::Holding::fresh(worlds),
-        );
-        install::apply_files(&ctx.entry_dir, &ctx.data_dir, &item, &ctx.worlds())?;
-        Ok(item)
-    }
-
-    /// `kind` is the *requested* kind, not the project's: Modrinth types
-    /// datapacks as mod projects, so `project.kind` would route a datapack into
-    /// `mods/`.
+    /// One version's file, fetched on its own. `kind` is the *requested* kind,
+    /// not the project's: Modrinth types datapacks as mod projects, so
+    /// `project.kind` would route a datapack into `mods/`.
     pub(super) async fn fetch_release(
         &self,
         ctx: &EntryContent,
         kind: ContentKind,
         title: &str,
-        version: &proto::content::ContentVersion,
+        version: &ContentVersion,
         on_progress: OnProgress<'_>,
     ) -> Result<record::Release> {
-        let file = install::primary_file(version)?;
-        // CurseForge lists files whose author opted out of distribution.
-        if file.artifact.url.is_empty() {
-            bail!(ErrorInfo::ContentDownloadBlocked {
-                title: title.to_string(),
-                source: version.source.clone(),
-            });
-        }
-        materialize::validate_filename(&file.artifact.filename)?;
-        let managed = content_target(ctx, kind, &file.artifact.filename)?;
-        materialize::ensure_artifact(
-            Some(&self.cache),
-            &file.artifact,
-            &managed,
-            ProvisionPhase::Content,
-            on_progress,
-        )
-        .await?;
-        Ok(record::Release {
-            source: version.source.clone(),
-            version_id: version.id.clone(),
-            version_number: version.version_number.clone(),
-            filename: file.artifact.filename.clone(),
-            sha1: file
-                .artifact
-                .checksum
-                .as_ref()
-                .map(|c| c.hex.clone())
-                .unwrap_or_default(),
-            url: file.artifact.url.clone(),
-        })
+        let download = plan_release(ctx, kind, title, version)?;
+        let sha1 = self
+            .download(&download, ProvisionPhase::Content, on_progress)
+            .await?;
+        release_of(version, sha1)
     }
+}
+
+pub(super) fn plan_release(
+    ctx: &EntryContent,
+    kind: ContentKind,
+    title: &str,
+    version: &ContentVersion,
+) -> Result<Download> {
+    let artifact = install::primary_file(version)?.artifact.clone();
+    materialize::validate_filename(&artifact.filename)?;
+    Ok(Download {
+        target: content_target(ctx, kind, &artifact.filename)?,
+        artifact,
+        label: title.to_string(),
+        source: version.source.clone(),
+    })
+}
+
+pub(super) fn release_of(version: &ContentVersion, sha1: String) -> Result<record::Release> {
+    let artifact = &install::primary_file(version)?.artifact;
+    Ok(record::Release {
+        source: version.source.clone(),
+        version_id: version.id.clone(),
+        version_number: version.version_number.clone(),
+        filename: artifact.filename.clone(),
+        sha1,
+        url: artifact.url.clone(),
+    })
 }
 
 /// Import a local file: copy it into the managed directory and mirror it into
@@ -476,9 +428,11 @@ fn add_file_content(
             (project, record::Release::local(filename, sha1))
         }
     };
-    let installed = record::assemble(project, release, record::Holding::fresh(worlds));
-    install::apply_files(&ctx.entry_dir, &ctx.data_dir, &installed, &ctx.worlds())?;
-    Ok(installed)
+    Ok(record::assemble(
+        project,
+        release,
+        record::Holding::fresh(worlds),
+    ))
 }
 
 /// Copy a local file into the managed directory as `filename`, returning the
@@ -553,20 +507,6 @@ fn chosen_match<'a>(matches: &'a [Identified], source: &str) -> Option<&'a Ident
 /// mod-typed project whose versions carry the `datapack` loader.
 fn kind_matches(requested: ContentKind, project: ContentKind) -> bool {
     requested == project || (requested == ContentKind::DataPack && project == ContentKind::Mod)
-}
-
-/// A release's download size, zero when its primary file does not say.
-pub(super) fn release_size(version: &ContentVersion) -> u64 {
-    install::primary_file(version)
-        .map(|file| file.artifact.size)
-        .unwrap_or_default()
-}
-
-/// The filename a release lands under, which two fetches must not share.
-pub(super) fn release_filename(version: &ContentVersion) -> Option<String> {
-    install::primary_file(version)
-        .ok()
-        .map(|file| file.artifact.filename.clone())
 }
 
 pub(super) fn failure(

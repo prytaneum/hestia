@@ -75,10 +75,10 @@ like a slug.
 > download URL. The `ContentDownloadBlocked` refusal says so and names the source,
 > the rest of the batch installs, and local-file import is the documented way
 > through — Hestia deliberately does not reconstruct the CDN path to download it
-> anyway. The check lives in `fetch_release` rather than the provider,
-> because an artifact with no URL is unusable whoever produced it — and in the
-> pack installer for the same reason, where a blocked file is routine rather than
-> odd: a CurseForge pack listing one still installs, minus that file, naming it.
+> anyway. The check lives in the one download step every flow shares
+> (`flows/download.rs`) rather than the provider, because an artifact with no URL
+> is unusable whoever produced it — and a blocked file is routine in a pack: a
+> CurseForge pack listing one still installs, minus that file, naming it.
 
 ## What an entry accepts
 
@@ -131,6 +131,13 @@ off three ways:
 
 Managed directory names are the game's own load-dir names (`mods/`, `plugins/`,
 `resourcepacks/`, `shaderpacks/`), so the mirror is symmetric.
+
+Every write to the index goes through one `Pool`, opened after the downloads
+finish: `upsert` for an install or a pack item, `replace` for an update, a source
+move or an update from a file. Downloads share one batched step
+(`download_batch`) and one version lookup (`target_version`). The pool saves the
+index first and deletes the files it superseded after, so a crash leaves an
+orphan file rather than an index naming one that is gone.
 
 ### Resolution and dependencies
 
