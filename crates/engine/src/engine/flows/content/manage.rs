@@ -45,15 +45,7 @@ impl Engine {
             .into_iter()
             .filter(|item| !item.project_id.is_empty())
             .collect();
-        let resolved = gather_ordered(
-            platform,
-            |_| None,
-            |item| async move {
-                let version = self.target_version(ctx, &item, pin).await;
-                (item, version)
-            },
-        )
-        .await;
+        let resolved = self.resolve_versions(ctx, platform, pin).await;
         on_progress.check()?;
 
         let mut failures = Vec::new();
@@ -131,6 +123,25 @@ impl Engine {
             Some(failure) => Err(failure.error.into()),
             None => Ok(updated),
         }
+    }
+
+    /// Each item's target version, looked up side by side and returned in the
+    /// order given.
+    async fn resolve_versions(
+        &self,
+        ctx: &EntryContent,
+        items: Vec<InstalledContent>,
+        pin: &str,
+    ) -> Vec<(InstalledContent, Result<ContentVersion>)> {
+        gather_ordered(
+            items,
+            |_| None,
+            |item| async move {
+                let version = self.target_version(ctx, &item, pin).await;
+                (item, version)
+            },
+        )
+        .await
     }
 
     /// The version an item moves to: the newest compatible when `pin` is
@@ -303,8 +314,8 @@ impl Engine {
             .filter(|i| i.kind == kind && !i.project_id.is_empty())
             .collect();
         let mut out = Vec::new();
-        for item in items {
-            let latest = match self.target_version(ctx, &item, "").await {
+        for (item, latest) in self.resolve_versions(ctx, items, "").await {
+            let latest = match latest {
                 Ok(latest) => latest,
                 Err(e) => {
                     tracing::warn!(title = %item.title, error = %format!("{e:#}"), "update check failed");
