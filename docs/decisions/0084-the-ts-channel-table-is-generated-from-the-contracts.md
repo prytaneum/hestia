@@ -56,6 +56,12 @@ Rejected:
   either a registry every contract must remember to join or a macro on each
   `impl`. Reading the source with a script that counts what it found keeps the
   contracts as plain Rust and fails loudly instead.
+- **Deleting the API functions that only forward to `call`, and calling the
+  channel from the query factory.** Once the table types every call, such a
+  function is one line, and removing it only moves that line into `queries/`.
+  The `api/` module stays the desktop's mirror of the Rust client facades
+  (which keep theirs for the same reason), and the place a non-query caller
+  reaches the daemon.
 - **A deep `Partial` over every nested object.** It would also loosen required
   nested values with no default; only structs that carry `#[serde(default)]`
   themselves are loosened.
