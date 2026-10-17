@@ -331,18 +331,7 @@ pub(crate) fn pick_version<'a>(
                 })
             });
     }
-    let compatible = |v: &&ContentVersion| fits(v, game_version, loader);
-    versions
-        .iter()
-        .filter(compatible)
-        .find(|v| v.channel == ReleaseChannel::Release)
-        .or_else(|| versions.iter().find(compatible))
-        .with_context(|| {
-            format!(
-                "no compatible version for {game_version}{}",
-                loader.map(|l| format!(" ({l})")).unwrap_or_default()
-            )
-        })
+    pick_update(versions, game_version, loader, "")
 }
 
 /// Answers the installed version itself when it is ahead of the pick, so an update never moves back.
@@ -352,12 +341,31 @@ pub(crate) fn pick_update<'a>(
     loader: Option<&str>,
     installed: &str,
 ) -> Result<&'a ContentVersion> {
-    let picked = pick_version(versions, game_version, loader, "")?;
+    pick_newest(versions, |v| fits(v, game_version, loader), installed).with_context(|| {
+        format!(
+            "no compatible version for {game_version}{}",
+            loader.map(|l| format!(" ({l})")).unwrap_or_default()
+        )
+    })
+}
+
+/// The newest release among the `fit` versions of a newest-first list, else the
+/// newest of any channel; a fitting `installed` version ahead of that pick wins.
+pub(crate) fn pick_newest<'a>(
+    versions: &'a [ContentVersion],
+    fit: impl Fn(&ContentVersion) -> bool,
+    installed: &str,
+) -> Option<&'a ContentVersion> {
+    let newest = versions
+        .iter()
+        .filter(|v| fit(v))
+        .find(|v| v.channel == ReleaseChannel::Release)
+        .or_else(|| versions.iter().find(|v| fit(v)))?;
     let ahead = versions
         .iter()
-        .take_while(|v| v.id != picked.id)
-        .find(|v| v.id == installed && fits(v, game_version, loader));
-    Ok(ahead.unwrap_or(picked))
+        .take_while(|v| v.id != newest.id)
+        .find(|v| v.id == installed && fit(v));
+    Some(ahead.unwrap_or(newest))
 }
 
 fn fits(version: &ContentVersion, game_version: &str, loader: Option<&str>) -> bool {

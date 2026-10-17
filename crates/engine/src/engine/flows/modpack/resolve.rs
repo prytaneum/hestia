@@ -6,8 +6,7 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{bail, Result};
 use proto::content::{
-    ContentKind, ContentProject, ContentVersion, ReleaseChannel, ResolvedModpack, VersionQuery,
-    LOCAL_SOURCE,
+    ContentKind, ContentProject, ContentVersion, ResolvedModpack, VersionQuery, LOCAL_SOURCE,
 };
 use proto::error::{EntryKind, ErrorInfo};
 use proto::minecraft::{Artifact, ProvisionPhase};
@@ -33,15 +32,7 @@ pub(super) fn update_target<'a>(
     versions: &'a [ContentVersion],
     installed: &str,
 ) -> Option<&'a ContentVersion> {
-    let newest = versions
-        .iter()
-        .find(|v| v.channel == ReleaseChannel::Release)
-        .or_else(|| versions.first())?;
-    let ahead = versions
-        .iter()
-        .take_while(|v| v.id != newest.id)
-        .find(|v| v.id == installed);
-    Some(ahead.unwrap_or(newest))
+    install::pick_newest(versions, |_| true, installed)
 }
 
 /// A pack already on `game_version` is only offered what was published after the version it runs.
@@ -55,11 +46,7 @@ pub(super) fn fitting<'a>(
         .iter()
         .position(|v| v.id == installed && targets(&v))
         .unwrap_or(versions.len());
-    let mut candidates = versions[..reach].iter().filter(targets);
-    candidates
-        .clone()
-        .find(|v| v.channel == ReleaseChannel::Release)
-        .or_else(|| candidates.next())
+    install::pick_newest(&versions[..reach], |v| targets(&v), "")
 }
 
 impl Engine {
