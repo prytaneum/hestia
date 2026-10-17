@@ -16,8 +16,6 @@ const config = (over: Record<string, string> = {}): ConfigEntry[] =>
   Object.entries({
     memory: '6G',
     'jvm-args': '-XX:+UseZGC',
-    'backup-interval': '',
-    'backup-retention': '',
     motd: 'A Minecraft Server',
     pvp: 'true',
     'server-port': '25565',
@@ -122,22 +120,6 @@ describe('the shared entry settings tab', () => {
         .getByRole('button', { name: m['app.action.remove']() })
         .hasAttribute('disabled'),
     ).toBe(true);
-  });
-
-  it('offers the backup schedule on a server', async () => {
-    showServer();
-    await open(m['app.label.backups']());
-    expect(
-      await screen.findByLabelText(m['entry.settings.keep_backups']()),
-    ).toBeDefined();
-  });
-
-  it('has no backup schedule on an instance', async () => {
-    showInstance();
-    await screen.findByLabelText(m['entry.settings.instance_name']());
-    expect(
-      screen.queryByRole('tab', { name: m['app.label.backups']() }),
-    ).toBeNull();
   });
 
   it('names removal after the server it would remove', async () => {

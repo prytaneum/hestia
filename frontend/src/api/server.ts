@@ -127,8 +127,7 @@ export function complete(
 }
 
 /**
- * The record keys (`memory`, `jvm-args`, `backup-interval`,
- * `backup-retention`) plus any `server.properties` key.
+ * The record keys (`memory`, `jvm-args`) plus any `server.properties` key.
  */
 export const config = {
   async set(server: string, key: string, value: string): Promise<void> {

@@ -82,7 +82,7 @@ a set must name a key the server's own derived schema carries, and the
 Hestia-managed port and RCON keys are rejected outright.
 
 Every value passes one typed schema: a key's kind (boolean, integer with a range,
-choice, memory, interval, JVM arguments) is checked by `engine::keys::validate`,
+choice, memory, JVM arguments) is checked by `engine::keys::validate`,
 and a refusal is a `config_invalid` error naming the key and a generic reason (not
 a boolean, not a whole number, out of range with its min and max, not one of a
 listed set). A property's kind comes from a curated table of the well-known

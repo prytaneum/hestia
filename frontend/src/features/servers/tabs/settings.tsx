@@ -2,11 +2,7 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
 
 import type { ConfigEntry, ServerInfo } from '@/api';
-import {
-  BackupSettings,
-  PropertiesSettings,
-  TaskSettings,
-} from '@/features/servers/settings';
+import { PropertiesSettings, TaskSettings } from '@/features/servers/settings';
 import {
   DangerSettings,
   GeneralSettings,
@@ -79,11 +75,6 @@ export function ServerSettingsTab({
               setConfig={setConfig}
             />
           ),
-        },
-        {
-          id: 'backups',
-          label: m['app.label.backups'](),
-          content: <BackupSettings config={config} setConfig={setConfig} />,
         },
         {
           id: 'tasks',

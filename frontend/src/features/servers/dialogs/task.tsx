@@ -68,6 +68,7 @@ function TaskForm({
 }) {
   const [action, setAction] = useState<TaskAction>('restart');
   const [command, setCommand] = useState('');
+  const [retention, setRetention] = useState('7');
   const [timing, setTiming] = useState<Timing>('daily');
   const [time, setTime] = useState('04:00');
   const [count, setCount] = useState('6');
@@ -76,6 +77,7 @@ function TaskForm({
   const actions = [
     { value: 'restart', label: m['server.tasks.action.restart']() },
     { value: 'command', label: m['server.tasks.action.command']() },
+    { value: 'backup', label: m['server.tasks.action.backup']() },
   ];
   const timings = [
     { value: 'daily', label: m['server.tasks.timing.daily']() },
@@ -90,8 +92,15 @@ function TaskForm({
   const amount = Number(count);
   const intervalValid =
     /^\d+$/.test(count) && amount * UNIT_SECONDS[unit] >= MIN_INTERVAL_SECONDS;
+  const retentionValid = /^\d+$/.test(retention) && Number(retention) >= 1;
+  const actionValid =
+    action === 'command'
+      ? command.trim() !== ''
+      : action === 'backup'
+        ? retentionValid
+        : true;
   const valid =
-    (action === 'restart' || command.trim() !== '') &&
+    actionValid &&
     (timing === 'daily' ? /^\d{2}:\d{2}$/.test(time) : intervalValid);
 
   return (
@@ -104,6 +113,7 @@ function TaskForm({
         onCreate({
           action,
           command: action === 'command' ? command.trim() : '',
+          retention: action === 'backup' ? Number(retention) : undefined,
           schedule: timing === 'daily' ? time : `${amount}${unit}`,
           enabled: true,
         });
@@ -145,6 +155,25 @@ function TaskForm({
                 value={command}
                 onChange={(event) => setCommand(event.target.value)}
               />
+            </Field>
+          )}
+
+          {action === 'backup' && (
+            <Field data-invalid={!retentionValid}>
+              <FieldLabel htmlFor="task-retention">
+                {m['server.tasks.keep']()}
+              </FieldLabel>
+              <Input
+                id="task-retention"
+                type="number"
+                min={1}
+                className="w-24"
+                value={retention}
+                onChange={(event) => setRetention(event.target.value)}
+              />
+              <FieldDescription>
+                {m['server.tasks.keep_hint']()}
+              </FieldDescription>
             </Field>
           )}
 

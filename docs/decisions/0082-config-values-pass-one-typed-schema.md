@@ -11,11 +11,11 @@ some of the Minecraft rules the daemon never enforced, so the CLI wrote what the
 form refused.
 
 Now every value passes one schema: a `KeyRule` is a key and a `KeyKind` —
-boolean, integer with a range, choice with its values, memory, interval, JVM
-arguments. `engine::keys::validate` is the one function that applies a kind, and
+boolean, integer with a range, choice with its values, memory, JVM arguments
+(an interval kind existed for the backup schedule until it became a task). `engine::keys::validate` is the one function that applies a kind, and
 a refusal is `ErrorInfo::ConfigInvalid { key, reason }` with a generic `Reason`:
 not a boolean, not a whole number, out of range with its `min` and `max`, not one
-of a listed set — plus the memory, interval and JVM-argument format reasons that
+of a listed set — plus the memory and JVM-argument format reasons that
 were already there. A new rule is a row in a table, not a parser and a variant.
 
 `server.properties` values come from a daemon-owned table of the properties whose

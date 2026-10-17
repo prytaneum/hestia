@@ -101,8 +101,6 @@ const settings = new Map<string, ConfigEntry[]>([
     [
       { key: 'memory', value: '4G' },
       { key: 'jvm-args', value: '' },
-      { key: 'backup-interval', value: '6h' },
-      { key: 'backup-retention', value: '10' },
       { key: 'motd', value: 'A Mock Server' },
       { key: 'max-players', value: '20' },
       { key: 'difficulty', value: 'normal' },

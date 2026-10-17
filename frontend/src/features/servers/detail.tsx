@@ -389,7 +389,7 @@ function ServerDetail({
         </TabsContent>
 
         <TabsContent value="backups" className="flex flex-col p-5">
-          <ServerBackupsTab id={id} running={running} config={config.data} />
+          <ServerBackupsTab id={id} running={running} />
         </TabsContent>
 
         <TabsContent value="settings" className="p-5">

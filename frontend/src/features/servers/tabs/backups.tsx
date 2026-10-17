@@ -2,7 +2,7 @@ import { ArchiveIcon, PlusIcon, TrashIcon } from '@phosphor-icons/react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
 
-import type { BackupInfo, BackupKind, ConfigEntry } from '@/api';
+import type { BackupInfo, BackupKind } from '@/api';
 import { Empty } from '@/components/empty';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -27,33 +27,20 @@ function kindLabel(kind: BackupKind): string {
 export function ServerBackupsTab({
   id,
   running,
-  config,
 }: {
   id: string;
   running: boolean;
-  config?: ConfigEntry[];
 }) {
   const backups = useQuery(serverQueries.backups(id));
   const create = useJobMutation(serverMutations.backup.create(id));
   const restore = useJobMutation(serverMutations.backup.restore(id));
   const remove = useMutation(serverMutations.backup.remove(id));
 
-  const interval = config?.find((e) => e.key === 'backup-interval')?.value;
-  const retention = config?.find((e) => e.key === 'backup-retention')?.value;
-
   const list = backups.data ?? [];
 
   return (
     <>
-      <TabToolbar className="justify-between">
-        <span className="text-xs text-muted-foreground">
-          {interval
-            ? m['server.backup.schedule_status']({
-                interval,
-                retention: Number(retention ?? 0),
-              })
-            : m['server.backup.off_short']()}
-        </span>
+      <TabToolbar className="justify-end">
         <Button
           size="sm"
           variant="outline"

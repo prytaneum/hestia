@@ -23,8 +23,8 @@ function scheduleLabel(schedule: string): string {
 }
 
 /**
- * What the daemon runs for this server on a schedule: a restart, or a console
- * command. Backups keep their own schedule beside this one.
+ * What the daemon runs for this server on a schedule: a restart, a console
+ * command or a backup.
  */
 export function TaskSettings({ id }: { id: string }) {
   const tasks = useQuery(tasksQueries.list(id));
@@ -47,13 +47,17 @@ export function TaskSettings({ id }: { id: string }) {
               key={task.id}
               htmlFor={`task-${task.id}`}
               label={
-                task.action === 'restart' ? (
-                  m['server.tasks.action.restart']()
-                ) : (
+                task.action === 'command' ? (
                   <span className="truncate font-mono">{task.command}</span>
+                ) : (
+                  m[`server.tasks.action.${task.action}`]()
                 )
               }
-              description={scheduleLabel(task.schedule)}
+              description={
+                task.retention === undefined
+                  ? scheduleLabel(task.schedule)
+                  : `${scheduleLabel(task.schedule)}, ${m['server.tasks.keeping']({ count: task.retention })}`
+              }
             >
               <Switch
                 id={`task-${task.id}`}

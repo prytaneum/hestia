@@ -9,12 +9,10 @@
         "title": "Excluir backup?"
       },
       "none": "Nenhum backup ainda. Crie um para arquivar este mundo.",
-      "off_short": "Backups agendados desativados",
       "restore": {
         "description": "Isto sobrescreve os dados atuais do jogo com o arquivo de {when}. Os dados atuais não são mantidos, então crie um backup antes se quiser um.",
         "title": "Restaurar backup?"
-      },
-      "schedule_status": "Agendado a cada {interval}, mantendo {retention}"
+      }
     },
     "console": {
       "clear": "Limpar console",
@@ -103,6 +101,7 @@
     "subtitle": "Mundos que você hospeda",
     "tasks": {
       "action": {
+        "backup": "Fazer backup do mundo",
         "command": "Enviar um comando ao console",
         "restart": "Reiniciar o servidor"
       },
@@ -110,8 +109,11 @@
       "add_description": "Executa no horário enquanto o servidor estiver ligado.",
       "command": "Comando",
       "daily_at": "Todos os dias às {time}",
-      "description": "Uma reinicialização ou um comando de console que o daemon executa em um agendamento enquanto o servidor está ligado. Os backups mantêm o próprio agendamento.",
+      "description": "Uma reinicialização, um comando de console ou um backup que o daemon executa em um agendamento enquanto o servidor está ligado.",
       "does": "O que faz",
+      "keep": "Manter",
+      "keep_hint": "Backups agendados mais antigos são excluídos; os manuais são mantidos.",
+      "keeping": "mantendo {count}",
       "tab": "Tarefas",
       "timing": {
         "daily": "Todos os dias às",

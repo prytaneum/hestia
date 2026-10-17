@@ -21,12 +21,7 @@ import { configHandlers } from './entry';
 
 // The daemon's own knowledge of the file, which no front-end shares: what it
 // keeps on the record instead, what it owns, and what hardcore pins.
-const RECORD_KEYS = [
-  'memory',
-  'jvm-args',
-  'backup-interval',
-  'backup-retention',
-];
+const RECORD_KEYS = ['memory', 'jvm-args'];
 const MANAGED = ['server-port', 'enable-rcon', 'rcon.port', 'rcon.password'];
 const SECRET = ['rcon.password'];
 const HARDCORE_PINNED = ['difficulty', 'gamemode'];

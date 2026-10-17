@@ -45,6 +45,7 @@ export const channels: ChannelHandlers = {
       command: given.command ?? '',
       schedule: given.schedule ?? '',
       enabled: given.enabled ?? true,
+      retention: given.action === 'backup' ? given.retention : undefined,
       lastRunUnix: now(),
     };
     const at = mine.findIndex((stored) => stored.id === task.id);

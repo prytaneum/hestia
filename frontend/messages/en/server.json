@@ -9,12 +9,10 @@
         "title": "Delete backup?"
       },
       "none": "No backups yet. Create one to archive this world.",
-      "off_short": "Scheduled backups off",
       "restore": {
         "description": "This overwrites the current game data with the archive from {when}. The current data is not kept, so create a backup first if you want one.",
         "title": "Restore backup?"
-      },
-      "schedule_status": "Scheduled every {interval}, keeping {retention}"
+      }
     },
     "console": {
       "clear": "Clear console",
@@ -103,6 +101,7 @@
     "subtitle": "Worlds you host",
     "tasks": {
       "action": {
+        "backup": "Back up the world",
         "command": "Send a console command",
         "restart": "Restart the server"
       },
@@ -110,8 +109,11 @@
       "add_description": "Runs on its schedule while the server is up.",
       "command": "Command",
       "daily_at": "Every day at {time}",
-      "description": "A restart or a console command the daemon runs on a schedule while the server is up. Backups keep their own schedule.",
+      "description": "A restart, a console command or a backup the daemon runs on a schedule while the server is up.",
       "does": "What it does",
+      "keep": "Keep",
+      "keep_hint": "Older scheduled backups are deleted; manual ones are kept.",
+      "keeping": "keeping {count}",
       "tab": "Tasks",
       "timing": {
         "daily": "Every day at",

@@ -148,14 +148,11 @@
       "allocated_memory": "Memória alocada",
       "allow_downgrade": "Permitir downgrade (mundos não voltam de versão)",
       "applies_on_start": "Vale a partir da próxima inicialização.",
-      "backup_schedule": "Agendamento de backup",
-      "backup_schedule_hint": "Com que frequência um backup é feito sozinho.",
       "change_version": "Mudar versão",
       "every_interval": "A cada {interval}",
       "follows_default": "Segue o padrão do launcher.",
       "instance_name": "Nome da instância",
       "interval": {
-        "custom": "Personalizado…",
         "days": "dias",
         "every": "A cada",
         "hours": "horas",
@@ -164,8 +161,6 @@
         "unit": "Unidade"
       },
       "java_arguments": "Argumentos Java",
-      "keep_backups": "Manter backups",
-      "keep_backups_hint": "Backups agendados mais antigos são excluídos; os manuais são mantidos.",
       "pack_drift": {
         "move": "Mover também o pacote para {version}",
         "none": "Nenhuma versão publicada do pacote foi feita para o Minecraft {target}.",
