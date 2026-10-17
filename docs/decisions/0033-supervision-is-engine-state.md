@@ -4,8 +4,7 @@
 
 The supervisor lived in the daemon, which made two things impossible. Its
 directory is `<data_home>/processes/`, engine-owned like every other registry
-here, but `set_data_home()` could not repoint it — nine subsystems moved on a
-`config set home` and the supervisor kept writing to the old one. And every
+here, which the daemon could not construct from the engine's own home. And every
 engine flow that shells out (NeoForge's processor chain, the `server.properties`
 schema run, a Spigot build) had to spawn a bare child, because it could not
 reach the supervisor at all — three ad-hoc spawns with no containment, no

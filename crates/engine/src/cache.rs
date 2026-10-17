@@ -4,7 +4,6 @@
 
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::Mutex;
 
 use proto::download::{Checksum, HashAlgorithm};
 
@@ -20,31 +19,25 @@ pub struct CacheUsage {
 }
 
 pub struct Cache {
-    dir: Mutex<PathBuf>,
+    dir: PathBuf,
 }
 
 const ALGORITHMS: [HashAlgorithm; 2] = [HashAlgorithm::Sha1, HashAlgorithm::Sha256];
 
 impl Cache {
     pub fn new(dir: PathBuf) -> Self {
-        Cache {
-            dir: Mutex::new(dir),
-        }
+        Cache { dir }
     }
 
-    pub fn dir(&self) -> PathBuf {
-        self.dir.lock().unwrap().clone()
-    }
-
-    pub fn reload(&self, dir: PathBuf) {
-        *self.dir.lock().unwrap() = dir;
+    pub fn dir(&self) -> &Path {
+        &self.dir
     }
 
     pub fn lookup(&self, checksum: &Checksum) -> Option<PathBuf> {
         if !checksum.is_valid() {
             return None;
         }
-        let blob = blob_path(&self.dir(), checksum);
+        let blob = blob_path(self.dir(), checksum);
         blob.is_file().then_some(blob)
     }
 
@@ -53,7 +46,7 @@ impl Cache {
         if !checksum.is_valid() {
             return;
         }
-        let blob = blob_path(&self.dir(), checksum);
+        let blob = blob_path(self.dir(), checksum);
         if blob.exists() {
             return;
         }
@@ -80,7 +73,7 @@ impl Cache {
         if !checksum.is_valid() {
             return;
         }
-        let _ = std::fs::remove_file(blob_path(&self.dir(), checksum));
+        let _ = std::fs::remove_file(blob_path(self.dir(), checksum));
     }
 
     pub fn entries(&self) -> Vec<CacheEntry> {

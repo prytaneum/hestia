@@ -592,7 +592,7 @@ hestia config get <key>          # read a setting
 hestia config set <key> <value>  # write a setting
 hestia config list               # every setting
 hestia config get home           # resolved data directory
-hestia config set home <dir>     # persist the data dir (empty reverts to default)
+hestia config set home <dir>     # persist the data dir (empty reverts) and restart the daemon; refused while anything runs
 hestia config get autostart      # true if the daemon starts at login
 hestia config set autostart true # register the daemon to start at login
 hestia config set instance.multi-session true # allow an instance to run several sessions

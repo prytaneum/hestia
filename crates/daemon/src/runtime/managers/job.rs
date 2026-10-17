@@ -350,6 +350,10 @@ impl Cancellations {
         )
     }
 
+    pub fn any_running(&self) -> bool {
+        !self.running.lock().unwrap().is_empty()
+    }
+
     /// Raise `id`'s cancel flag. False when no such job is running — it already
     /// finished, or never existed; a normal race, not an error.
     pub fn cancel(&self, id: &str) -> bool {

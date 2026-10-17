@@ -6,7 +6,6 @@ mod adoptium;
 mod platform;
 
 use std::path::{Path, PathBuf};
-use std::sync::Mutex;
 
 use anyhow::{bail, Context, Result};
 use proto::java::{JavaInstallPhase, JavaInstallProgress, JavaRelease, JavaRuntime};
@@ -27,22 +26,16 @@ pub struct JavaInstallOutcome {
 }
 
 pub struct Java {
-    dir: Mutex<PathBuf>,
+    dir: PathBuf,
 }
 
 impl Java {
     pub fn new(dir: PathBuf) -> Self {
-        Java {
-            dir: Mutex::new(dir),
-        }
+        Java { dir }
     }
 
-    pub fn dir(&self) -> PathBuf {
-        self.dir.lock().unwrap().clone()
-    }
-
-    pub fn reload(&self, dir: PathBuf) {
-        *self.dir.lock().unwrap() = dir;
+    pub fn dir(&self) -> &Path {
+        &self.dir
     }
 
     /// Drop the `.staging` trees and downloaded archives an interrupted install
@@ -51,7 +44,7 @@ impl Java {
     /// `crate::reclaim`.
     pub fn reclaim(&self) -> crate::reclaim::Reclaimed {
         let base = self.dir();
-        let mut freed = crate::reclaim::suffixed(&base, STAGING_SUFFIX);
+        let mut freed = crate::reclaim::suffixed(base, STAGING_SUFFIX);
         freed += crate::reclaim::contents(&base.join(SCRATCH));
         freed
     }
@@ -138,7 +131,7 @@ impl Java {
             "resolved java package"
         );
 
-        let paths = InstallPaths::for_package(&self.dir(), &package);
+        let paths = InstallPaths::for_package(self.dir(), &package);
 
         let _ = std::fs::remove_dir_all(&paths.staging);
         let result = self

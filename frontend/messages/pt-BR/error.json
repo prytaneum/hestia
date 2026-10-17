@@ -89,6 +89,7 @@
       "update_in_progress": "{name} está sendo atualizado.",
       "upstream": "A requisição ao {service} falhou: {detail}",
       "version_not_found": "Nenhuma versão corresponde a '{reference}'.",
+      "work_running": "Há um servidor, sessão de jogo ou tarefa em execução. Pare-o primeiro.",
       "world_not_found": "Nenhum mundo '{world}' nesta instância."
     },
     "token": {

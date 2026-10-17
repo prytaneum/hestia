@@ -40,7 +40,7 @@ impl Engine {
                 &spec.flavor,
                 &spec.version,
                 spec.loader_version,
-                &meta_dir(&self.data_home()),
+                &meta_dir(self.data_home()),
                 Some(&self.cache),
             )
             .await?;
@@ -117,7 +117,7 @@ impl Engine {
                 &record.profile.flavor,
                 &spec.version,
                 spec.loader_version,
-                &meta_dir(&self.data_home()),
+                &meta_dir(self.data_home()),
                 Some(&self.cache),
             )
             .await?;
@@ -166,7 +166,7 @@ impl Engine {
                     game_version: &record.profile.game_version,
                     loader_version: record.profile.loader_version.as_deref(),
                     root: &data,
-                    meta: &meta_dir(&self.data_home()),
+                    meta: &meta_dir(self.data_home()),
                     minecraft_jar: &data.join(jar.filename()),
                     java,
                     cache: Some(&self.cache),

@@ -1,6 +1,8 @@
 //! The typed settings store, plus the reserved `home` and `autostart` keys the
 //! daemon routes to the path pointer and the login registration.
 
+use std::path::Path;
+
 use engine::ConfigError;
 use proto::config::{
     ConfigGet, ConfigGetResult, ConfigList, ConfigListResult, ConfigSet, AUTOSTART_KEY, HOME_KEY,
@@ -60,13 +62,25 @@ pub(super) fn register(on: &mut Channels<'_>) {
                     expected: ValueKind::String,
                 });
             };
-            ctx.runtime
-                .engine()
-                .set_data_home(&dir)
-                .map_err(|e| ErrorInfo::Internal {
+            if ctx.runtime.processes().any_running() || ctx.runtime.cancellations().any_running() {
+                return Err(ErrorInfo::WorkRunning);
+            }
+            let target = Path::new(&dir);
+            if !dir.is_empty() {
+                if !target.is_absolute() {
+                    return Err(ErrorInfo::ConfigRejected {
+                        key: HOME_KEY.into(),
+                    });
+                }
+                std::fs::create_dir_all(target).map_err(|e| ErrorInfo::Internal {
                     detail: e.to_string(),
                 })?;
-            tracing::info!(home = %dir, "data home changed");
+            }
+            common::paths::set_persisted_home(target).map_err(|e| ErrorInfo::Internal {
+                detail: e.to_string(),
+            })?;
+            tracing::info!(home = %dir, "data home changed, stopping the daemon");
+            ctx.runtime.stop_soon(false);
             return Ok(Empty {});
         }
         if p.key == AUTOSTART_KEY {

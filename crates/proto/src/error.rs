@@ -591,6 +591,9 @@ pub enum ErrorInfo {
     },
     ImportInProgress,
     CreateInProgress,
+    /// A server, game session or job is running, so the daemon cannot restart
+    /// onto a new data home.
+    WorkRunning,
     JavaInstallInProgress {
         major: i32,
     },
@@ -901,6 +904,7 @@ impl fmt::Display for ErrorInfo {
             ExportInProgress { name } => write!(f, "{name} is being exported"),
             ImportInProgress => write!(f, "that import is already running"),
             CreateInProgress => write!(f, "that server is already being created"),
+            WorkRunning => write!(f, "a server, game session or job is running — stop it first"),
             JavaInstallInProgress { major } => {
                 write!(f, "java {major} is already being installed")
             }

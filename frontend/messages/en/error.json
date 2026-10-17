@@ -89,6 +89,7 @@
       "update_in_progress": "{name} is being updated.",
       "upstream": "{service} request failed: {detail}",
       "version_not_found": "No version matches '{reference}'.",
+      "work_running": "A server, game session or job is running. Stop it first.",
       "world_not_found": "No world '{world}' in this instance."
     },
     "token": {

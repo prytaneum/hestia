@@ -290,6 +290,16 @@ impl Runtime {
         self.stop.notify_waiters();
     }
 
+    /// Stop on a short delay so the response being sent reaches the client
+    /// before the serve loop shuts down.
+    pub fn stop_soon(self: &Arc<Self>, stop_processes: bool) {
+        let runtime = self.clone();
+        tokio::spawn(async move {
+            tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+            runtime.request_stop(stop_processes);
+        });
+    }
+
     /// Resolves when a stop has been requested.
     pub async fn stopped(&self) {
         self.stop.notified().await;

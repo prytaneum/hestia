@@ -62,7 +62,7 @@ fn catalogue_dir(home: &Path) -> PathBuf {
 }
 
 pub struct Engine {
-    data_home: Mutex<PathBuf>,
+    data_home: PathBuf,
     config: Config,
     cache: Cache,
     java: Java,
@@ -104,7 +104,7 @@ impl Engine {
         let update = Update::new(data_home.join("updates"));
         let processes = Arc::new(ProcessSupervisor::new(data_home.join("processes")));
         Engine {
-            data_home: Mutex::new(data_home),
+            data_home,
             config,
             cache,
             java,
@@ -121,8 +121,8 @@ impl Engine {
         }
     }
 
-    pub fn data_home(&self) -> PathBuf {
-        self.data_home.lock().unwrap().clone()
+    pub fn data_home(&self) -> &Path {
+        &self.data_home
     }
 
     /// Everything a restart invalidates. No job survives a daemon stop, so at
@@ -152,34 +152,6 @@ impl Engine {
                 "reclaimed abandoned temp artifacts"
             );
         }
-    }
-
-    /// Persist `dir` (empty reverts to the default), re-resolve, and repoint every
-    /// subsystem on the running daemon.
-    pub fn set_data_home(&self, dir: &str) -> std::io::Result<PathBuf> {
-        common::paths::set_persisted_home(Path::new(dir))?;
-        let resolved = common::paths::data_home(None);
-        self.config
-            .reload(common::paths::config_path(Some(&resolved)));
-        let settings = self.config.settings();
-        self.content.configure(&settings.content);
-        crate::net::network().set_offline_mode(settings.network.offline);
-        crate::net::store::set_root(catalogue_dir(&resolved));
-        self.cache.reload(resolved.join("cache"));
-        self.java.reload(resolved.join("java"));
-        self.accounts.reload(resolved.join("accounts.json"));
-        self.servers.reload(resolved.join("servers"));
-        self.instances.reload(resolved.join("instances"));
-        self.skins.reload(resolved.join("skins"));
-        self.sync.reload(resolved.join("shared"));
-        self.update.reload(resolved.join("updates"));
-        self.processes.reload(resolved.join("processes"));
-        *self.data_home.lock().unwrap() = resolved.clone();
-        tracing::info!(home = %resolved.display(), "engine data home changed");
-        // The new home may carry half-finished state from whichever daemon last
-        // used it; no job of ours owns any of it either.
-        self.recover();
-        Ok(resolved)
     }
 
     pub fn config(&self) -> &Config {

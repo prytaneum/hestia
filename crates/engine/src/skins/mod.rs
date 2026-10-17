@@ -11,7 +11,7 @@ pub(crate) mod mojang;
 
 use std::collections::HashMap;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
@@ -48,14 +48,14 @@ impl Document for LibraryFile {
 }
 
 pub struct Skins {
-    dir: Mutex<PathBuf>,
+    dir: PathBuf,
     profiles: Mutex<HashMap<String, (Instant, Profile)>>,
 }
 
 impl Skins {
     pub fn new(dir: PathBuf) -> Self {
         Skins {
-            dir: Mutex::new(dir),
+            dir,
             profiles: Mutex::new(HashMap::new()),
         }
     }
@@ -77,12 +77,8 @@ impl Skins {
         self.profiles.lock().unwrap().remove(account);
     }
 
-    pub fn reload(&self, dir: PathBuf) {
-        *self.dir.lock().unwrap() = dir;
-    }
-
-    fn dir(&self) -> PathBuf {
-        self.dir.lock().unwrap().clone()
+    fn dir(&self) -> &Path {
+        &self.dir
     }
 
     fn blob_path(&self, key: &str) -> PathBuf {
@@ -90,7 +86,7 @@ impl Skins {
     }
 
     pub fn list(&self) -> Vec<LibraryEntry> {
-        load(&self.dir()).skins
+        load(self.dir()).skins
     }
 
     pub fn entry(&self, key: &str) -> Option<LibraryEntry> {
@@ -114,10 +110,10 @@ impl Skins {
     ) -> Result<LibraryEntry> {
         validate_skin_png(png)?;
         let dir = self.dir();
-        fs::create_dir_all(&dir).with_context(|| format!("cannot create {}", dir.display()))?;
+        fs::create_dir_all(dir).with_context(|| format!("cannot create {}", dir.display()))?;
         fs::write(self.blob_path(key), png)?;
 
-        let mut file = load(&dir);
+        let mut file = load(dir);
         let entry = LibraryEntry {
             key: key.to_string(),
             name: name.trim().to_string(),
@@ -132,7 +128,7 @@ impl Skins {
             }
             None => file.skins.insert(0, entry.clone()),
         }
-        save(&dir, &file)?;
+        save(dir, &file)?;
         tracing::info!(key, "skin saved to the library");
         Ok(entry)
     }
@@ -144,7 +140,7 @@ impl Skins {
             return Ok(());
         }
         let dir = self.dir();
-        let mut file = load(&dir);
+        let mut file = load(dir);
         let Some(entry) = file.skins.iter_mut().find(|e| e.key == from) else {
             return Ok(());
         };
@@ -157,7 +153,7 @@ impl Skins {
             let duplicate = e.key == to && std::mem::replace(&mut seen, true);
             !duplicate
         });
-        save(&dir, &file)?;
+        save(dir, &file)?;
         tracing::debug!(from, to, "skin re-keyed to Mojang's texture hash");
         Ok(())
     }
@@ -165,7 +161,7 @@ impl Skins {
     /// Record the model variant Mojang reports for a saved texture.
     pub fn sync_variant(&self, key: &str, variant: SkinVariant) -> Result<()> {
         let dir = self.dir();
-        let mut file = load(&dir);
+        let mut file = load(dir);
         let Some(entry) = file.skins.iter_mut().find(|e| e.key == key) else {
             return Ok(());
         };
@@ -173,7 +169,7 @@ impl Skins {
             return Ok(());
         }
         entry.variant = variant;
-        save(&dir, &file)
+        save(dir, &file)
     }
 
     /// Rewrite a row's label and variant; `None` when no row matches.
@@ -184,27 +180,27 @@ impl Skins {
         variant: SkinVariant,
     ) -> Result<Option<LibraryEntry>> {
         let dir = self.dir();
-        let mut file = load(&dir);
+        let mut file = load(dir);
         let Some(entry) = file.skins.iter_mut().find(|e| e.key == key) else {
             return Ok(None);
         };
         entry.name = name.trim().to_string();
         entry.variant = variant;
         let updated = entry.clone();
-        save(&dir, &file)?;
+        save(dir, &file)?;
         tracing::info!(key, "skin library entry updated");
         Ok(Some(updated))
     }
 
     pub fn remove(&self, key: &str) -> Result<bool> {
         let dir = self.dir();
-        let mut file = load(&dir);
+        let mut file = load(dir);
         let before = file.skins.len();
         file.skins.retain(|e| e.key != key);
         if file.skins.len() == before {
             return Ok(false);
         }
-        save(&dir, &file)?;
+        save(dir, &file)?;
         let _ = fs::remove_file(self.blob_path(key));
         tracing::info!(key, "skin removed from the library");
         Ok(true)

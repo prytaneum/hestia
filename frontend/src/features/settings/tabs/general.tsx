@@ -1,4 +1,5 @@
 import { ArrowCounterClockwiseIcon } from '@phosphor-icons/react';
+import { useMutation } from '@tanstack/react-query';
 import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
@@ -29,6 +30,7 @@ import { useConfig } from '@/features/settings/use-config';
 import { type Locale, useLocale } from '@/hooks/locale';
 import { m } from '@/paraglide/messages.js';
 import { locales } from '@/paraglide/runtime.js';
+import { configMutations } from '@/queries/config';
 import { usePrefs } from '@/queries/prefs';
 import {
   CLOSE_ACTION_KEY,
@@ -49,7 +51,8 @@ const CLOSE_ACTION_LABELS: Record<CloseAction, () => string> = {
 };
 
 export function GeneralTab() {
-  const { entries, commit, save } = useConfig();
+  const { entries, commit } = useConfig();
+  const moveHome = useMutation(configMutations.moveHome());
   const prefs = usePrefs();
 
   return (
@@ -69,7 +72,10 @@ export function GeneralTab() {
               mono
               value={entries.home ?? ''}
               onSave={(value) => {
-                if (value) save('home', value);
+                if (value)
+                  moveHome.mutate(value, {
+                    onSuccess: () => toast.success(m['app.toast.saved']()),
+                  });
               }}
               confirm={{
                 title: m['settings.data_dir_confirm_title'](),

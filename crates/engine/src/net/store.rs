@@ -7,29 +7,26 @@
 //! the catalogue readers are provider impls that hold no aggregate reference.
 
 use std::path::{Path, PathBuf};
-use std::sync::{Mutex, OnceLock};
+use std::sync::OnceLock;
 
 use sha2::{Digest, Sha256};
 
-fn root() -> &'static Mutex<Option<PathBuf>> {
-    static ROOT: OnceLock<Mutex<Option<PathBuf>>> = OnceLock::new();
-    ROOT.get_or_init(|| Mutex::new(None))
-}
+static ROOT: OnceLock<PathBuf> = OnceLock::new();
 
-/// Point the store at the running data home. Called by the engine at
-/// construction and whenever the data home moves.
+/// Point the store at the data home. Set once at engine construction; the first
+/// caller wins, since a daemon's data home never moves.
 pub fn set_root(dir: PathBuf) {
-    *root().lock().unwrap() = Some(dir);
+    let _ = ROOT.set(dir);
 }
 
 pub fn save(url: &str, body: &str) {
-    if let Some(dir) = root().lock().unwrap().as_deref() {
+    if let Some(dir) = ROOT.get() {
         save_in(dir, url, body);
     }
 }
 
 pub fn load(url: &str) -> Option<String> {
-    load_in(root().lock().unwrap().as_deref()?, url)
+    load_in(ROOT.get()?, url)
 }
 
 fn entry_path(dir: &Path, url: &str) -> PathBuf {

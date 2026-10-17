@@ -192,36 +192,30 @@ pub enum ConfigError {
 }
 
 pub struct Config {
-    inner: Mutex<Inner>,
-}
-
-struct Inner {
     path: PathBuf,
-    settings: Settings,
+    settings: Mutex<Settings>,
 }
 
 impl Config {
     pub fn new(path: PathBuf) -> Self {
-        let settings = load_settings(&path);
-        Config {
-            inner: Mutex::new(Inner { path, settings }),
-        }
+        let settings = Mutex::new(load_settings(&path));
+        Config { path, settings }
     }
 
     pub fn settings(&self) -> Settings {
-        self.inner.lock().unwrap().settings.clone()
+        self.settings.lock().unwrap().clone()
     }
 
     pub fn update(&self, mutate: impl FnOnce(&mut Settings)) -> Result<(), ConfigError> {
-        let mut inner = self.inner.lock().unwrap();
-        mutate(&mut inner.settings);
-        save_settings(&inner.path, &inner.settings)
+        let mut settings = self.settings.lock().unwrap();
+        mutate(&mut settings);
+        save_settings(&self.path, &settings)
     }
 
     /// Return the value at a dotted key path, or `UnknownKey` if absent.
     pub fn get(&self, key: &str) -> Result<Value, ConfigError> {
-        let inner = self.inner.lock().unwrap();
-        let doc = serde_json::to_value(&inner.settings).unwrap_or(Value::Null);
+        let current = self.settings.lock().unwrap();
+        let doc = serde_json::to_value(&*current).unwrap_or(Value::Null);
         find_node(&doc, key)
             .cloned()
             .ok_or_else(|| ConfigError::UnknownKey(key.to_string()))
@@ -230,8 +224,8 @@ impl Config {
     /// Set the value at a dotted key path, rejecting unknown keys and values of a
     /// different JSON kind than the existing setting.
     pub fn set(&self, key: &str, value: Value) -> Result<(), ConfigError> {
-        let mut inner = self.inner.lock().unwrap();
-        let mut doc = serde_json::to_value(&inner.settings).unwrap_or(Value::Null);
+        let mut current = self.settings.lock().unwrap();
+        let mut doc = serde_json::to_value(&*current).unwrap_or(Value::Null);
         {
             let node = find_node_mut(&mut doc, key)
                 .ok_or_else(|| ConfigError::UnknownKey(key.to_string()))?;
@@ -249,8 +243,8 @@ impl Config {
                 source,
             })?;
         settings.normalize().map_err(ConfigError::Rejected)?;
-        inner.settings = settings;
-        save_settings(&inner.path, &inner.settings)?;
+        *current = settings;
+        save_settings(&self.path, &current)?;
         tracing::info!(key, "config updated");
         Ok(())
     }
@@ -259,17 +253,10 @@ impl Config {
     /// `config.*` vocabulary the user sets (`defaults.jvm-args`), not the
     /// camelCase serialized fields.
     pub fn all(&self) -> Value {
-        let inner = self.inner.lock().unwrap();
-        let settings = serde_json::to_value(&inner.settings)
-            .unwrap_or_else(|_| Value::Object(Default::default()));
+        let current = self.settings.lock().unwrap();
+        let settings =
+            serde_json::to_value(&*current).unwrap_or_else(|_| Value::Object(Default::default()));
         naming::settings_to_config_keys(settings)
-    }
-
-    pub fn reload(&self, path: PathBuf) {
-        let mut inner = self.inner.lock().unwrap();
-        inner.settings = load_settings(&path);
-        tracing::debug!(path = %path.display(), "config store reloaded");
-        inner.path = path;
     }
 }
 

@@ -32,6 +32,11 @@ export async function start(): Promise<DaemonStatusResult> {
  */
 export async function restart(): Promise<DaemonStatusResult> {
   await stop(false);
+  return relaunch();
+}
+
+/** Start the daemon once a stopping one has had time to release the endpoint. */
+export async function relaunch(): Promise<DaemonStatusResult> {
   await delay(RESTART_GRACE_MS);
   return start();
 }

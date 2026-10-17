@@ -21,7 +21,7 @@
       "title": "Daemon"
     },
     "data_dir": "Data directory",
-    "data_dir_confirm_description": "The daemon serves instances, servers and runtimes from the new path. Existing files are not moved for you — point this at a directory you have already moved, or Hestia starts empty there.",
+    "data_dir_confirm_description": "The daemon restarts to serve instances, servers and runtimes from the new path, and refuses while anything is running. Existing files are not moved for you — point this at a directory you have already moved, or Hestia starts empty there.",
     "data_dir_confirm_title": "Move the data directory?",
     "data_dir_hint": "Where instances and servers live.",
     "default_jvm_args": "Default JVM arguments",

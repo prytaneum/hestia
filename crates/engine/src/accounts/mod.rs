@@ -104,34 +104,24 @@ impl Document for AccountsFile {
 }
 
 pub struct Accounts {
-    inner: Mutex<Inner>,
-}
-
-struct Inner {
     path: PathBuf,
-    pending: HashMap<String, LoginSession>,
+    pending: Mutex<HashMap<String, LoginSession>>,
 }
 
 impl Accounts {
     pub fn new(path: PathBuf) -> Self {
         Accounts {
-            inner: Mutex::new(Inner {
-                path,
-                pending: HashMap::new(),
-            }),
+            path,
+            pending: Mutex::new(HashMap::new()),
         }
     }
 
-    pub fn reload(&self, path: PathBuf) {
-        self.inner.lock().unwrap().path = path;
-    }
-
-    fn path(&self) -> PathBuf {
-        self.inner.lock().unwrap().path.clone()
+    fn path(&self) -> &Path {
+        &self.path
     }
 
     pub fn list(&self) -> Vec<Account> {
-        load(&self.path())
+        load(self.path())
             .accounts
             .into_iter()
             .map(|a| Account {
@@ -143,14 +133,14 @@ impl Accounts {
     }
 
     pub fn has_account(&self) -> bool {
-        !load(&self.path()).accounts.is_empty()
+        !load(self.path()).accounts.is_empty()
     }
 
     /// Whether the resolved account (or the default, for an empty reference)
     /// needs a fresh sign-in. A missing account returns false — callers handle
     /// "no account" separately.
     pub fn needs_reauth(&self, reference: &str) -> bool {
-        let file = load(&self.path());
+        let file = load(self.path());
         let account = if reference.is_empty() {
             file.accounts
                 .iter()
@@ -167,7 +157,7 @@ impl Accounts {
     /// The account launches use when none is named: the switched-to one, else
     /// the first signed-in one.
     pub fn default_account(&self) -> Option<Account> {
-        let file = load(&self.path());
+        let file = load(self.path());
         let stored = file
             .accounts
             .iter()
@@ -184,7 +174,7 @@ impl Accounts {
     /// no account matches.
     pub fn switch(&self, reference: &str) -> Result<Option<Account>> {
         let path = self.path();
-        let mut file = load(&path);
+        let mut file = load(path);
         let Some(chosen) = file
             .accounts
             .iter()
@@ -198,7 +188,7 @@ impl Accounts {
             return Ok(None);
         };
         file.default_uuid = chosen.uuid.clone();
-        save(&path, &file)?;
+        save(path, &file)?;
         tracing::info!(name = %chosen.name, "switched default account");
         Ok(Some(chosen))
     }
@@ -220,11 +210,7 @@ impl Accounts {
                 expires_at: now_seconds() + device.expires_in_seconds,
                 clock_offset: 0,
             };
-            self.inner
-                .lock()
-                .unwrap()
-                .pending
-                .insert(id.clone(), session);
+            self.pending.lock().unwrap().insert(id.clone(), session);
             return Ok(LoginChallenge {
                 id,
                 method,
@@ -253,11 +239,7 @@ impl Accounts {
             expires_at: 0,
             clock_offset: device.clock_offset,
         };
-        self.inner
-            .lock()
-            .unwrap()
-            .pending
-            .insert(id.clone(), session);
+        self.pending.lock().unwrap().insert(id.clone(), session);
         Ok(LoginChallenge {
             id,
             method,
@@ -269,9 +251,9 @@ impl Accounts {
 
     pub async fn complete_login(&self, id: &str, code: &str) -> Result<Account> {
         let session = {
-            let mut inner = self.inner.lock().unwrap();
-            inner
-                .pending
+            self.pending
+                .lock()
+                .unwrap()
                 .remove(id)
                 .ok_or_else(|| anyhow!("no sign-in is in progress for this request"))?
         };
@@ -329,10 +311,10 @@ impl Accounts {
 
         {
             let path = self.path();
-            let mut file = load(&path);
+            let mut file = load(path);
             file.accounts.retain(|a| a.uuid != record.uuid);
             file.accounts.push(record);
-            save(&path, &file)?;
+            save(path, &file)?;
         }
         tracing::info!(name = %profile.name, uuid = %profile.uuid, "signed in");
         Ok(Account {
@@ -352,7 +334,7 @@ impl Accounts {
     pub async fn access_token(&self, reference: &str) -> Result<AccessToken> {
         let path = self.path();
         let mut account = {
-            let file = load(&path);
+            let file = load(path);
             file.accounts
                 .into_iter()
                 .find(|a| a.uuid == reference || a.name == reference)
@@ -391,13 +373,13 @@ impl Accounts {
             }
             return Err(e);
         }
-        let mut file = load(&path);
+        let mut file = load(path);
         if let Some(existing) = file.accounts.iter_mut().find(|a| a.uuid == account.uuid) {
             *existing = account.clone();
         } else {
             file.accounts.push(account.clone());
         }
-        save(&path, &file)?;
+        save(path, &file)?;
         Ok(AccessToken {
             token: account.access_token,
             stale: false,
@@ -406,10 +388,10 @@ impl Accounts {
 
     fn flag_reauth(&self, uuid: &str) -> Result<()> {
         let path = self.path();
-        let mut file = load(&path);
+        let mut file = load(path);
         if let Some(account) = file.accounts.iter_mut().find(|a| a.uuid == uuid) {
             account.needs_reauth = true;
-            save(&path, &file)?;
+            save(path, &file)?;
             tracing::warn!(uuid, "account refresh rejected; sign-in required");
         }
         Ok(())
@@ -417,7 +399,7 @@ impl Accounts {
 
     pub fn remove(&self, reference: &str) -> Result<bool> {
         let path = self.path();
-        let mut file = load(&path);
+        let mut file = load(path);
         let before = file.accounts.len();
         file.accounts
             .retain(|a| a.uuid != reference && a.name != reference);
@@ -427,7 +409,7 @@ impl Accounts {
         if !file.accounts.iter().any(|a| a.uuid == file.default_uuid) {
             file.default_uuid = String::new();
         }
-        save(&path, &file)?;
+        save(path, &file)?;
         tracing::info!(reference, "signed out account");
         Ok(true)
     }

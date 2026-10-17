@@ -14,9 +14,7 @@ the file: an artifact is valid only while its job holds the matching in-flight
 claim (`Claims`, `runtime/claims.rs`), and no claim survives a restart —
 so at startup every artifact still on disk is abandoned by definition.
 `engine/reclaim.rs` is that pass, composed by `Engine::reclaim_temp()` and
-called from the daemon's boot beside `ProcessSupervisor::recover()` (and again
-after a data-home change, since the new home's artifacts are no more claimed
-than the old one's). It is deliberately **not** recursive — each subsystem knows
+called from the daemon's boot beside `ProcessSupervisor::recover()`. It is deliberately **not** recursive — each subsystem knows
 the one directory its artifacts land in, and walking a data home whose asset
 store is six figures of files is not something to pay at every start. A backup
 additionally reclaims before writing, so the store is tidy whether or not a

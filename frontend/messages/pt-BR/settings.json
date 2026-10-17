@@ -21,7 +21,7 @@
       "title": "Daemon"
     },
     "data_dir": "Diretório de dados",
-    "data_dir_confirm_description": "O daemon passa a servir instâncias, servidores e runtimes a partir do novo caminho. Os arquivos existentes não são movidos para você — aponte para um diretório que você já moveu, ou o Hestia começa vazio nele.",
+    "data_dir_confirm_description": "O daemon reinicia para servir instâncias, servidores e runtimes a partir do novo caminho, e recusa enquanto algo estiver em execução. Os arquivos existentes não são movidos para você — aponte para um diretório que você já moveu, ou o Hestia começa vazio nele.",
     "data_dir_confirm_title": "Mover o diretório de dados?",
     "data_dir_hint": "Onde ficam instâncias e servidores.",
     "default_jvm_args": "Argumentos JVM padrão",

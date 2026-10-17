@@ -36,69 +36,65 @@ pub struct Pass {
 }
 
 pub struct Sync {
-    dir: Mutex<PathBuf>,
+    dir: PathBuf,
     sessions: Mutex<HashMap<String, Pass>>,
 }
 
 impl Sync {
     pub fn new(dir: PathBuf) -> Self {
         Sync {
-            dir: Mutex::new(dir),
+            dir,
             sessions: Mutex::new(HashMap::new()),
         }
     }
 
-    pub fn reload(&self, dir: PathBuf) {
-        *self.dir.lock().unwrap() = dir;
-    }
-
-    pub fn dir(&self) -> PathBuf {
-        self.dir.lock().unwrap().clone()
+    pub fn dir(&self) -> &Path {
+        &self.dir
     }
 
     pub fn config(&self) -> SyncConfig {
         let shared = self.dir();
-        Catalogue::load(&shared).to_config(&shared)
+        Catalogue::load(shared).to_config(shared)
     }
 
     pub fn enabled(&self, unit: SyncUnit) -> bool {
-        Catalogue::load(&self.dir()).enabled(unit)
+        Catalogue::load(self.dir()).enabled(unit)
     }
 
     pub fn enable(&self, unit: SyncUnit, seeded_from: &str) -> Result<SyncConfig> {
         let shared = self.dir();
-        let mut catalogue = Catalogue::load(&shared);
+        let mut catalogue = Catalogue::load(shared);
         catalogue.enable(unit, seeded_from);
         if unit == SyncUnit::Options {
             let mut pinned = catalogue.unsynced().clone();
             pinned.extend(options::LOCAL_BY_DEFAULT.iter().map(|key| key.to_string()));
             catalogue.set_unsynced(pinned);
         }
-        catalogue.save(&shared)?;
-        Ok(catalogue.to_config(&shared))
+        catalogue.save(shared)?;
+        Ok(catalogue.to_config(shared))
     }
 
     pub fn disable(&self, unit: SyncUnit) -> Result<SyncConfig> {
         let shared = self.dir();
-        let mut catalogue = Catalogue::load(&shared);
+        let mut catalogue = Catalogue::load(shared);
         catalogue.disable(unit);
-        catalogue.save(&shared)?;
-        Ok(catalogue.to_config(&shared))
+        catalogue.save(shared)?;
+        Ok(catalogue.to_config(shared))
     }
 
     pub fn set_unsynced(&self, keys: BTreeSet<String>) -> Result<SyncConfig> {
         let shared = self.dir();
-        let mut catalogue = Catalogue::load(&shared);
+        let mut catalogue = Catalogue::load(shared);
         catalogue.set_unsynced(keys);
-        catalogue.save(&shared)?;
-        Ok(catalogue.to_config(&shared))
+        catalogue.save(shared)?;
+        Ok(catalogue.to_config(shared))
     }
 
     pub fn seed(&self, unit: SyncUnit, game_version: &str, from: &Path) -> Result<()> {
         let Some(file) = catalogue::file(unit) else {
             return Ok(());
         };
-        let store = in_era(&self.dir(), catalogue::era(unit, game_version));
+        let store = in_era(self.dir(), catalogue::era(unit, game_version));
         std::fs::create_dir_all(&store)
             .with_context(|| format!("cannot create {}", store.display()))?;
         let source = from.join(file);
@@ -166,14 +162,14 @@ impl Sync {
     }
 
     pub fn library(&self) -> packs::Library {
-        packs::Library::load(&self.dir())
+        packs::Library::load(self.dir())
     }
 
     pub fn save_library(&self, library: &packs::Library) -> Result<()> {
         let shared = self.dir();
-        std::fs::create_dir_all(&shared)
+        std::fs::create_dir_all(shared)
             .with_context(|| format!("cannot create {}", shared.display()))?;
-        library.save(&shared)
+        library.save(shared)
     }
 
     pub fn source_state(&self, unit: SyncUnit, data_dir: &Path) -> (bool, Option<i64>) {
@@ -192,7 +188,7 @@ impl Sync {
     /// raised.
     pub fn apply(&self, pass: &Pass) -> Vec<WarningInfo> {
         let shared = self.dir();
-        let catalogue = Catalogue::load(&shared);
+        let catalogue = Catalogue::load(shared);
         let mut warnings = Vec::new();
         for &unit in catalogue::ALL {
             if !catalogue.enabled(unit) || !pass.overrides.shares(unit) {
@@ -210,7 +206,7 @@ impl Sync {
                 });
                 continue;
             }
-            if let Err(e) = self.settle(unit, pass, &shared, &catalogue) {
+            if let Err(e) = self.settle(unit, pass, shared, &catalogue) {
                 let detail = format!("{e:#}");
                 tracing::warn!(%unit, error = %detail, "sync skipped a unit");
                 warnings.push(WarningInfo::SyncUnitSkipped { unit, detail });
@@ -270,12 +266,12 @@ impl Sync {
 
     pub fn status(&self, pass: &Pass) -> Vec<UnitStatus> {
         let shared = self.dir();
-        let catalogue = Catalogue::load(&shared);
+        let catalogue = Catalogue::load(shared);
         catalogue::ALL
             .iter()
             .map(|&unit| UnitStatus {
                 unit,
-                state: self.state(unit, pass, &shared, &catalogue),
+                state: self.state(unit, pass, shared, &catalogue),
             })
             .collect()
     }
@@ -312,7 +308,7 @@ impl Sync {
 
     pub fn options(&self) -> Vec<SyncOption> {
         let shared = self.dir();
-        let catalogue = Catalogue::load(&shared);
+        let catalogue = Catalogue::load(shared);
         options::read(&shared.join(catalogue::OPTIONS))
             .into_iter()
             .map(|(key, value)| SyncOption {

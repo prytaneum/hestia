@@ -9,7 +9,6 @@ mod install;
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::sync::Mutex;
 
 use anyhow::{anyhow, bail, Context, Result};
 use proto::error::Service;
@@ -22,7 +21,7 @@ use crate::version::is_newer;
 pub use apply::Applied;
 
 pub struct Update {
-    dir: Mutex<PathBuf>,
+    dir: PathBuf,
 }
 
 /// Every response the feed API produces is wrapped in one envelope, success or
@@ -70,13 +69,7 @@ impl From<&PlatformEntry> for Artifact {
 
 impl Update {
     pub fn new(dir: PathBuf) -> Self {
-        Update {
-            dir: Mutex::new(dir),
-        }
-    }
-
-    pub fn reload(&self, dir: PathBuf) {
-        *self.dir.lock().unwrap() = dir;
+        Update { dir }
     }
 
     pub async fn check(&self, channel: UpdateChannel) -> Result<UpdateCheckResult> {
@@ -123,9 +116,8 @@ impl Update {
             .filter(|n| !n.is_empty())
             .context("update url has no file name")?
             .to_string();
-        let dir = self.dir.lock().unwrap().clone();
-        std::fs::create_dir_all(&dir).context("cannot create the update staging directory")?;
-        let dest = dir.join(name);
+        std::fs::create_dir_all(&self.dir).context("cannot create the update staging directory")?;
+        let dest = self.dir.join(name);
         Downloader::new(None)
             .fetch(&artifact.url, &dest, None, on_progress)
             .await?;
@@ -139,8 +131,7 @@ impl Update {
     /// `artifact` must be one this daemon staged: it arrives from a client and
     /// ends up executed with whatever rights the install shape needs.
     pub fn apply(&self, artifact: &Path) -> Result<Applied> {
-        let dir = self.dir.lock().unwrap().clone();
-        if artifact.parent() != Some(dir.as_path()) {
+        if artifact.parent() != Some(self.dir.as_path()) {
             bail!("{} is not a staged update artifact", artifact.display());
         }
         if !artifact.is_file() {

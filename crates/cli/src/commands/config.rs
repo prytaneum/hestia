@@ -2,6 +2,7 @@
 
 use anyhow::{bail, Result};
 use clap::Subcommand;
+use proto::config::HOME_KEY;
 use serde_json::Value;
 
 use crate::ui::{self, View};
@@ -32,6 +33,12 @@ pub async fn run(cmd: ConfigCmd) -> Result<()> {
                 bail!("start at login is unavailable in debug builds");
             }
             client.config().set(&key, parsed).await?;
+            if key == HOME_KEY {
+                drop(client);
+                // The daemon stops itself after replying; let it release the endpoint.
+                tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+                super::start().await?;
+            }
         }
         ConfigCmd::List => {
             let entries = client.config().list().await?;

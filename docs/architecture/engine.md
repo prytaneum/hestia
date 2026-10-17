@@ -56,8 +56,10 @@ Two rules keep this from becoming a god object:
   `engine.provision_server(…)` while the aggregate stays wiring
   ([0031](../decisions/0031-an-aggregation-point-is-a-directory.md)).
 
-`set_data_home()` re-resolves the directory and `reload()`s every subsystem, so a
-`config set home` takes effect on the running daemon rather than the next start.
+The data home is fixed at construction. `config set home` writes the pointer and
+the daemon stops itself (leaving workloads running); the CLI and desktop start
+it again onto the new home. It is refused while a server, game session or job
+runs ([0086](../decisions/0086-the-data-home-is-fixed-for-a-daemon-process.md)).
 
 ### Startup reconciliation
 

@@ -134,11 +134,7 @@ impl Servers {
         }
     }
 
-    pub fn reload(&self, dir: PathBuf) {
-        self.store.reload(dir);
-    }
-
-    pub fn dir(&self) -> PathBuf {
+    pub fn dir(&self) -> &Path {
         self.store.dir()
     }
 

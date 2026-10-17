@@ -44,6 +44,12 @@ export const configMutations = {
       // sources answer — so the browse cache goes with the config cache.
       invalidates: () => [keys.config.all, keys.content.all],
     }),
+  moveHome: () =>
+    mutation<void, string>({
+      mutationKey: [...keys.config.all, 'move-home'],
+      mutationFn: (dir) => api.moveHome(dir),
+      invalidates: () => [keys.config.all, keys.daemon.all],
+    }),
 };
 
 /**

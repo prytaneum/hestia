@@ -119,7 +119,7 @@ pub type ExitObserver = Arc<dyn Fn(&ProcessInfo) + Send + Sync>;
 pub struct ProcessSupervisor {
     events: OnceLock<Arc<dyn ProcessEvents>>,
     on_exit: OnceLock<ExitObserver>,
-    dir: Mutex<PathBuf>,
+    dir: PathBuf,
     table: Mutex<HashMap<String, Arc<Entry>>>,
 }
 
@@ -128,7 +128,7 @@ impl ProcessSupervisor {
         ProcessSupervisor {
             events: OnceLock::new(),
             on_exit: OnceLock::new(),
-            dir: Mutex::new(dir),
+            dir,
             table: Mutex::new(HashMap::new()),
         }
     }
@@ -142,13 +142,8 @@ impl ProcessSupervisor {
         }
     }
 
-    /// Live processes keep the absolute paths they were started with.
-    pub fn reload(&self, dir: PathBuf) {
-        *self.dir.lock().unwrap() = dir;
-    }
-
-    fn dir(&self) -> PathBuf {
-        self.dir.lock().unwrap().clone()
+    fn dir(&self) -> &Path {
+        &self.dir
     }
 
     fn events(&self) -> Option<&Arc<dyn ProcessEvents>> {
@@ -227,7 +222,7 @@ impl ProcessSupervisor {
     /// Called once at daemon start, before the endpoint accepts requests.
     pub fn recover(&self) {
         let mut known = HashSet::new();
-        for record in records::scan(&self.dir()) {
+        for record in records::scan(self.dir()) {
             known.insert(record.id.clone());
             if record.ended.is_some() {
                 continue;
@@ -312,7 +307,7 @@ impl ProcessSupervisor {
     /// keeping them safe: a launcher that never forgets a session would grow a
     /// log directory without bound.
     fn prune_finished(&self) {
-        for stale in records::scan_finished(&self.dir())
+        for stale in records::scan_finished(self.dir())
             .iter()
             .skip(FINISHED_KEEP)
         {
@@ -377,6 +372,10 @@ impl ProcessSupervisor {
         true
     }
 
+    pub fn any_running(&self) -> bool {
+        self.table.lock().unwrap().values().any(|e| e.is_running())
+    }
+
     /// Every process the daemon knows: the live ones, plus the finished ones it
     /// has not yet pruned. The terminal entries come from their records, not
     /// from memory, so what the list says does not depend on whether the daemon
@@ -385,7 +384,7 @@ impl ProcessSupervisor {
         let live = self.table.lock().unwrap();
         let mut all: Vec<ProcessInfo> = live.values().map(|e| e.snapshot()).collect();
         all.extend(
-            records::scan_finished(&self.dir())
+            records::scan_finished(self.dir())
                 .iter()
                 .filter(|r| !live.contains_key(&r.id))
                 .map(ProcessRecord::info),

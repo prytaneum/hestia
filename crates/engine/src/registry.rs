@@ -135,7 +135,7 @@ pub(crate) trait Entry: Document + Clone {
 /// The record lifecycle shared by servers and instances. Every mutator takes
 /// the one write lock, so a read-modify-write cannot lose a concurrent update.
 pub(crate) struct Store<R: Entry> {
-    dir: Mutex<PathBuf>,
+    dir: PathBuf,
     writes: Mutex<()>,
     records: PhantomData<fn() -> R>,
 }
@@ -143,18 +143,14 @@ pub(crate) struct Store<R: Entry> {
 impl<R: Entry> Store<R> {
     pub fn new(dir: PathBuf) -> Self {
         Store {
-            dir: Mutex::new(dir),
+            dir,
             writes: Mutex::new(()),
             records: PhantomData,
         }
     }
 
-    pub fn reload(&self, dir: PathBuf) {
-        *self.dir.lock().unwrap() = dir;
-    }
-
-    pub fn dir(&self) -> PathBuf {
-        self.dir.lock().unwrap().clone()
+    pub fn dir(&self) -> &Path {
+        &self.dir
     }
 
     pub fn entry_dir(&self, record: &R) -> PathBuf {
@@ -162,7 +158,7 @@ impl<R: Entry> Store<R> {
     }
 
     pub fn list(&self) -> Vec<R> {
-        let mut records: Vec<R> = scan(&self.dir());
+        let mut records: Vec<R> = scan(self.dir());
         records.sort_by(|a, b| a.name().cmp(b.name()));
         records
     }

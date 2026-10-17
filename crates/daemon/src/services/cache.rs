@@ -12,7 +12,7 @@ pub(super) fn register(on: &mut Channels<'_>) {
         let cache = ctx.runtime.engine().cache();
         let usage = cache.usage();
         Ok(CacheInfoResult {
-            path: cache.dir(),
+            path: cache.dir().to_path_buf(),
             usage: CacheUsage {
                 entries: usage.entries,
                 bytes: usage.bytes,

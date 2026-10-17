@@ -259,7 +259,7 @@ impl Engine {
                 &flavor,
                 &descriptor.game_version,
                 recipe.loader_version,
-                &super::meta_dir(&self.data_home()),
+                &super::meta_dir(self.data_home()),
                 Some(&self.cache),
             )
             .await?;

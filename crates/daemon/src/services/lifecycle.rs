@@ -32,7 +32,7 @@ pub(super) fn register(on: &mut Channels<'_>) {
             pid: std::process::id() as i64,
             version: common::app::VERSION_LABEL.into(),
             uptime_seconds: ctx.runtime.uptime_seconds(),
-            home: ctx.runtime.engine().data_home(),
+            home: ctx.runtime.engine().data_home().to_path_buf(),
             log: ctx.runtime.log_path().clone(),
             quarantined: engine::quarantined::all(),
         })
@@ -48,13 +48,7 @@ pub(super) fn register(on: &mut Channels<'_>) {
 
     on.handle::<DaemonStop, _, _>(|p, ctx| async move {
         tracing::info!(stop_processes = p.stop_processes, "daemon stop requested");
-        // Stop on a short delay so this response reaches the client before the
-        // serve loop shuts down.
-        let runtime = ctx.runtime.clone();
-        tokio::spawn(async move {
-            tokio::time::sleep(std::time::Duration::from_millis(200)).await;
-            runtime.request_stop(p.stop_processes);
-        });
+        ctx.runtime.stop_soon(p.stop_processes);
         Ok(DaemonStopResult { stopping: true })
     });
 

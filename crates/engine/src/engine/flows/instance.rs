@@ -118,7 +118,7 @@ impl Engine {
                 &record.profile.flavor,
                 version,
                 loader_version,
-                &meta_dir(&self.data_home()),
+                &meta_dir(self.data_home()),
                 Some(&self.cache),
             )
             .await?;
@@ -141,7 +141,7 @@ impl Engine {
                 flavor,
                 version,
                 loader_version,
-                &meta_dir(&self.data_home()),
+                &meta_dir(self.data_home()),
                 Some(&self.cache),
             )
             .await?;
@@ -206,7 +206,7 @@ impl Engine {
             .await?;
 
         materialize::validate_filename(&record.profile.game_version)?;
-        let meta = meta_dir(&self.data_home());
+        let meta = meta_dir(self.data_home());
         // `versions/<id>/<id>.jar`, Mojang's own layout rather than a name of
         // our choosing: a modloader that boots off the module path filters the
         // vanilla jar out of it by that name (NeoForge passes

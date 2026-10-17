@@ -126,8 +126,9 @@ it on
 `config`.
 
 **1. Write the subsystem** as a module under `crates/engine/src/instances/` (or a single `instances.rs` if small). Take
-a path under the data dir in the constructor, serialize access with a `Mutex` for concurrent clients, and offer a
-`reload()` so a data-home change repoints it.
+a path under the data dir in the constructor and keep it as a plain `PathBuf` (the data home is fixed for the life of
+the daemon, [0086](decisions/0086-the-data-home-is-fixed-for-a-daemon-process.md)); guard only mutable state with a
+`Mutex`.
 
 ```rust
 // crates/engine/src/instances/mod.rs
@@ -137,20 +138,16 @@ use std::sync::Mutex;
 use proto::instances::Instance;
 
 pub struct Instances {
-    inner: Mutex<PathBuf>,
+    dir: PathBuf,
 }
 
 impl Instances {
     pub fn new(dir: PathBuf) -> Self {
-        Instances { inner: Mutex::new(dir) }
-    }
-
-    pub fn reload(&self, dir: PathBuf) {
-        *self.inner.lock().unwrap() = dir;
+        Instances { dir }
     }
 
     pub fn list(&self) -> Vec<Instance> {
-        // ... scan self.inner.lock().unwrap() ...
+        // ... scan self.dir ...
         Vec::new()
     }
 }
@@ -159,7 +156,7 @@ impl Instances {
 Add `mod instances;` and a `pub use` to `crates/engine/src/lib.rs`.
 
 **2. Hang it off `Engine`** (`engine/mod.rs`) — a field, a getter, construction in
-`new()`, and a `reload()` line in `set_data_home()`. This is the *only* change to the engine's wiring; `HandlerContext`
+`new()`. This is the *only* change to the engine's wiring; `HandlerContext`
 already carries the `Engine`.
 
 ```rust
@@ -168,9 +165,6 @@ instances: Instances,
 
 // in new():
 let instances = Instances::new(data_home.join("instances"));
-
-// in set_data_home(), alongside the other reloads:
-self .instances.reload(resolved.join("instances"));
 
 // a getter:
 pub fn instances(&self) -> &Instances { &self.instances }
