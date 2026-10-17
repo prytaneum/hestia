@@ -188,6 +188,15 @@ pub fn backup_phase() -> ProvisionProgress {
     }
 }
 
+/// The restore counterpart: the archive unpacks into staging, nothing is
+/// backed up.
+pub fn restore_phase() -> ProvisionProgress {
+    ProvisionProgress {
+        phase: ProvisionPhase::Extract,
+        ..Default::default()
+    }
+}
+
 /// Coarse "how long ago" label for a unix timestamp.
 pub fn age_label(created_unix: i64) -> String {
     let now = SystemTime::now()

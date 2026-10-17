@@ -75,7 +75,7 @@ pub(super) async fn run(client: &Client, server: &str, cmd: BackupCmd) -> Result
                 mc::confirm_restore(&info.name, "world and settings", &backup)?;
             }
             let reporter = Arc::new(ProvisionReporter::new());
-            reporter.update(&mc::backup_phase());
+            reporter.update(&mc::restore_phase());
             let progress = reporter.clone();
             let result = client
                 .server()

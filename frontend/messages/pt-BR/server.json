@@ -11,7 +11,7 @@
       "none": "Nenhum backup ainda. Crie um para arquivar este mundo.",
       "off_short": "Backups agendados desativados",
       "restore": {
-        "description": "Isto sobrescreve os dados atuais do jogo com o arquivo de {when}. Os dados atuais são salvos em backup primeiro.",
+        "description": "Isto sobrescreve os dados atuais do jogo com o arquivo de {when}. Os dados atuais não são mantidos, então crie um backup antes se quiser um.",
         "title": "Restaurar backup?"
       },
       "schedule_status": "Agendado a cada {interval}, mantendo {retention}"

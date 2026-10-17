@@ -281,7 +281,10 @@ impl ProvisionReporter {
                     detail: bytes_detail(progress, rate),
                 }
             }
-            ProvisionPhase::Libraries | ProvisionPhase::Assets | ProvisionPhase::Backup
+            ProvisionPhase::Libraries
+            | ProvisionPhase::Assets
+            | ProvisionPhase::Backup
+            | ProvisionPhase::Extract
                 if progress.total > 0 =>
             {
                 View::Gauge {

@@ -219,7 +219,7 @@ async fn run_backup(
         )
     });
     while let Some((current, total)) = rx.recv().await {
-        on_progress.report(&backup_progress(current, total));
+        on_progress.report(&progress_in(ProvisionPhase::Backup, current, total));
     }
     task.await.context("the backup task panicked")?
 }
@@ -251,14 +251,14 @@ async fn run_restore(
         )
     });
     while let Some((current, total)) = rx.recv().await {
-        on_progress.report(&backup_progress(current, total));
+        on_progress.report(&progress_in(ProvisionPhase::Extract, current, total));
     }
     task.await.context("the restore task panicked")?
 }
 
-fn backup_progress(current: u64, total: u64) -> ProvisionProgress {
+fn progress_in(phase: ProvisionPhase, current: u64, total: u64) -> ProvisionProgress {
     ProvisionProgress {
-        phase: ProvisionPhase::Backup,
+        phase,
         current,
         total,
         ..ProvisionProgress::default()
