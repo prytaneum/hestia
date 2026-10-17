@@ -97,6 +97,20 @@ function jobKeys(event: Topics['job']): QueryKey[] {
   return [];
 }
 
+// A plain call names only the scope it changed, never an entry, so a scope
+// refreshes everything under it — as an entry-wide job does. The footprint walk
+// stays out of `Entries` for the same reason it stays out of a job sweep.
+const CHANGED: Record<Topics['changed']['scope'], QueryKey[]> = {
+  entries: [keys.servers.all, keys.instances.all],
+  accounts: [keys.accounts.all, keys.skins.all],
+  skins: [keys.skins.all],
+  config: [keys.config.all, keys.content.all],
+  java: [keys.java.all],
+  sync: [keys.sync.all],
+  screenshots: [keys.screenshots.all],
+  cache: [keys.cache.all, [FOOTPRINT]],
+};
+
 /** The key prefixes a daemon event outdates — exported for the regression test. */
 export function invalidationKeys(event: DaemonEvent): QueryKey[] {
   switch (event.topic) {
@@ -105,6 +119,8 @@ export function invalidationKeys(event: DaemonEvent): QueryKey[] {
       return processKeys(event.payload);
     case 'job':
       return jobKeys(event.payload);
+    case 'changed':
+      return CHANGED[event.payload.scope];
     default:
       return [];
   }

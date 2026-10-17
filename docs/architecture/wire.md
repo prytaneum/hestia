@@ -57,7 +57,7 @@ nothing.
 
 One module per domain: `app`, `health`, `daemon`, `config`, `cache`, `download`,
 `java`, `accounts`, `skins`, `process`, `server`, `instance`, `backup`,
-`content`, `modpack`, `sync`, `update`, `job`, `events`.
+`content`, `modpack`, `sync`, `update`, `job`, `change`, `events`.
 Three are shared vocabularies rather than domains of their own:
 
 - **`minecraft`** — what the `server` and `instance` domains have in common:
@@ -219,6 +219,13 @@ point would have left, so the existing failure paths do the cleanup. A cancelled
 job is not an error ([0032](../decisions/0032-jobs-are-cancelled-by-asking.md)).
 Why one topic and the contract as the job:
 [0083](../decisions/0083-a-job-is-its-contract-and-reports-on-one-topic.md).
+
+A plain call that mutates reports too. Its contract sets `Contract::CHANGES` to
+a coarse `change::Scope` (`entries`, `accounts`, `skins`, `config`, `java`,
+`sync`, `screenshots`, `cache`), and the registrar publishes one
+`changed { scope }` after the handler succeeds — so a client that did not make
+the call knows what to refetch
+([0085](../decisions/0085-a-mutating-call-names-what-it-changed.md)).
 
 A client subscribes with `events.subscribe`, filtered by id. The filter also
 covers *session keys beneath* an entry key, which is what lets one subscription

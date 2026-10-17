@@ -2,6 +2,7 @@ use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
+use crate::change::Scope;
 use crate::contract::{Contract, Empty};
 use crate::job::{Job, JobStarted};
 
@@ -120,6 +121,7 @@ pub struct JavaUninstallParams {
 pub struct JavaUninstall;
 impl Contract for JavaUninstall {
     const CHANNEL: &'static str = "java.uninstall";
+    const CHANGES: Option<Scope> = Some(Scope::Java);
     type Params = JavaUninstallParams;
     type Result = Empty;
 }

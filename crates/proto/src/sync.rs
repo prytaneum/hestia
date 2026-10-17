@@ -13,6 +13,7 @@ use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
+use crate::change::Scope;
 use crate::contract::{Contract, Empty};
 
 #[derive(Serialize, Deserialize, Default, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -161,6 +162,7 @@ pub struct SyncPackSetParams {
 pub struct SyncPackSet;
 impl Contract for SyncPackSet {
     const CHANNEL: &'static str = "sync.packs.set";
+    const CHANGES: Option<Scope> = Some(Scope::Sync);
     type Params = SyncPackSetParams;
     type Result = SyncPacksResult;
 }
@@ -177,6 +179,7 @@ pub struct SyncPackRemoveParams {
 pub struct SyncPackRemove;
 impl Contract for SyncPackRemove {
     const CHANNEL: &'static str = "sync.packs.remove";
+    const CHANGES: Option<Scope> = Some(Scope::Sync);
     type Params = SyncPackRemoveParams;
     type Result = SyncPacksResult;
 }
@@ -235,6 +238,7 @@ pub struct SyncEnableParams {
 pub struct SyncEnable;
 impl Contract for SyncEnable {
     const CHANNEL: &'static str = "sync.enable";
+    const CHANGES: Option<Scope> = Some(Scope::Sync);
     type Params = SyncEnableParams;
     type Result = SyncConfig;
 }
@@ -250,6 +254,7 @@ pub struct SyncDisableParams {
 pub struct SyncDisable;
 impl Contract for SyncDisable {
     const CHANNEL: &'static str = "sync.disable";
+    const CHANGES: Option<Scope> = Some(Scope::Sync);
     type Params = SyncDisableParams;
     type Result = SyncConfig;
 }
@@ -304,6 +309,7 @@ pub struct SyncOptionSetParams {
 pub struct SyncOptionSet;
 impl Contract for SyncOptionSet {
     const CHANNEL: &'static str = "sync.options.set";
+    const CHANGES: Option<Scope> = Some(Scope::Sync);
     type Params = SyncOptionSetParams;
     type Result = SyncOptionsResult;
 }

@@ -119,6 +119,18 @@ describe('the daemon-topic invalidation map', () => {
     ).toEqual([keys.servers.all, keys.instances.all]);
   });
 
+  it('refreshes both entry kinds when another client changed an entry', () => {
+    expect(
+      invalidationKeys({ topic: 'changed', payload: { scope: 'entries' } }),
+    ).toEqual([keys.servers.all, keys.instances.all]);
+  });
+
+  it('refreshes the skins that follow a changed account', () => {
+    expect(
+      invalidationKeys({ topic: 'changed', payload: { scope: 'accounts' } }),
+    ).toEqual([keys.accounts.all, keys.skins.all]);
+  });
+
   it('outdates nothing while a job is still reporting progress', () => {
     expect(
       invalidationKeys({

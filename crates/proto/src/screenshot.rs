@@ -4,6 +4,7 @@ use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
+use crate::change::Scope;
 use crate::contract::Contract;
 
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
@@ -54,6 +55,7 @@ pub struct ScreenshotDeleteParams {
 pub struct ScreenshotDelete;
 impl Contract for ScreenshotDelete {
     const CHANNEL: &'static str = "screenshot.delete";
+    const CHANGES: Option<Scope> = Some(Scope::Screenshots);
     type Params = ScreenshotDeleteParams;
     type Result = ScreenshotListResult;
 }

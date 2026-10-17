@@ -8,6 +8,7 @@ use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 
+use crate::change::Scope;
 use crate::content::ContentKind;
 use crate::contract::{Contract, Empty};
 use crate::job::{Job, JobStarted};
@@ -224,6 +225,7 @@ pub struct ServerRef {
 pub struct ServerRemove;
 impl Contract for ServerRemove {
     const CHANNEL: &'static str = "server.remove";
+    const CHANGES: Option<Scope> = Some(Scope::Entries);
     type Params = ServerRef;
     type Result = Empty;
 }
@@ -241,6 +243,7 @@ pub struct ServerRenameParams {
 pub struct ServerRename;
 impl Contract for ServerRename {
     const CHANNEL: &'static str = "server.rename";
+    const CHANGES: Option<Scope> = Some(Scope::Entries);
     type Params = ServerRenameParams;
     type Result = ServerInfo;
 }
@@ -444,6 +447,7 @@ pub struct ServerConfigSetParams {
 pub struct ServerConfigSet;
 impl Contract for ServerConfigSet {
     const CHANNEL: &'static str = "server.config.set";
+    const CHANGES: Option<Scope> = Some(Scope::Entries);
     type Params = ServerConfigSetParams;
     type Result = Empty;
 }

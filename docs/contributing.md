@@ -109,6 +109,10 @@ impl Topic for ProcessStartedEvent {
 }
 ```
 
+A call that mutates state another client renders sets `const CHANGES: Option<Scope> = Some(Scope::…)` on its
+contract; the daemon then publishes `changed` after it succeeds, and the desktop maps the scope in
+`queries/invalidation.ts` ([0085](decisions/0085-a-mutating-call-names-what-it-changed.md)).
+
 If you change an existing payload's shape, update `crates/proto/tests/` (the
 `wire`/`golden` encodings are pinned on purpose).
 

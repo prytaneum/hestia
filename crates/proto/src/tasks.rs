@@ -4,6 +4,7 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::change::Scope;
 use crate::contract::{Contract, Empty};
 use crate::server::ServerRef;
 
@@ -63,6 +64,7 @@ pub struct ServerTaskSaveParams {
 pub struct ServerTaskSave;
 impl Contract for ServerTaskSave {
     const CHANNEL: &'static str = "server.task.save";
+    const CHANGES: Option<Scope> = Some(Scope::Entries);
     type Params = ServerTaskSaveParams;
     type Result = ServerTask;
 }
@@ -78,6 +80,7 @@ pub struct ServerTaskRemoveParams {
 pub struct ServerTaskRemove;
 impl Contract for ServerTaskRemove {
     const CHANNEL: &'static str = "server.task.remove";
+    const CHANGES: Option<Scope> = Some(Scope::Entries);
     type Params = ServerTaskRemoveParams;
     type Result = Empty;
 }

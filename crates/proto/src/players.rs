@@ -3,6 +3,7 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::change::Scope;
 use crate::contract::{Contract, Empty};
 use crate::server::ServerRef;
 
@@ -63,6 +64,7 @@ pub struct ServerPlayerSetParams {
 pub struct ServerPlayerSet;
 impl Contract for ServerPlayerSet {
     const CHANNEL: &'static str = "server.players.set";
+    const CHANGES: Option<Scope> = Some(Scope::Entries);
     type Params = ServerPlayerSetParams;
     type Result = Empty;
 }

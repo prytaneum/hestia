@@ -28,6 +28,7 @@ the alternative you rejected — that is usually the part nobody can recover lat
 - **0063** — [An endpoint is scoped exactly as the data home behind it](0063-an-endpoint-is-scoped-like-its-data-home.md)
 - **0083** — [A job is its start contract, and every job reports on one topic](0083-a-job-is-its-contract-and-reports-on-one-topic.md)
 - **0084** — [The TypeScript channel table is generated from the contracts, and a contract owns its timeout](0084-the-ts-channel-table-is-generated-from-the-contracts.md)
+- **0085** — [A mutating call names the state it changes, and the registrar publishes it on one topic](0085-a-mutating-call-names-what-it-changed.md)
 
 ### [Cross-cutting foundations](../architecture/common.md)
 

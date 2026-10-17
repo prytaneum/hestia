@@ -7,6 +7,7 @@ use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 
+use crate::change::Scope;
 use crate::content::ContentKind;
 use crate::contract::{Contract, Empty};
 use crate::job::{Job, JobStarted};
@@ -91,6 +92,7 @@ pub struct InstanceCreateResult {
 pub struct InstanceCreate;
 impl Contract for InstanceCreate {
     const CHANNEL: &'static str = "instance.create";
+    const CHANGES: Option<Scope> = Some(Scope::Entries);
     const TIMEOUT: Duration = Duration::from_secs(60);
     type Params = InstanceCreateParams;
     type Result = InstanceCreateResult;
@@ -122,6 +124,7 @@ pub struct InstanceUpdateResult {
 pub struct InstanceUpdate;
 impl Contract for InstanceUpdate {
     const CHANNEL: &'static str = "instance.update";
+    const CHANGES: Option<Scope> = Some(Scope::Entries);
     const TIMEOUT: Duration = Duration::from_secs(10 * 60);
     type Params = InstanceUpdateParams;
     type Result = InstanceUpdateResult;
@@ -365,6 +368,7 @@ pub struct InstanceServersWriteResult {
 pub struct InstanceServerEdit;
 impl Contract for InstanceServerEdit {
     const CHANNEL: &'static str = "instance.server.edit";
+    const CHANGES: Option<Scope> = Some(Scope::Entries);
     type Params = InstanceServerEditParams;
     type Result = InstanceServersWriteResult;
 }
@@ -381,6 +385,7 @@ pub struct InstanceServerRef {
 pub struct InstanceServerRemove;
 impl Contract for InstanceServerRemove {
     const CHANNEL: &'static str = "instance.server.remove";
+    const CHANGES: Option<Scope> = Some(Scope::Entries);
     type Params = InstanceServerRef;
     type Result = InstanceServersWriteResult;
 }
@@ -406,6 +411,7 @@ pub struct InstanceServersArrangeParams {
 pub struct InstanceServersArrange;
 impl Contract for InstanceServersArrange {
     const CHANNEL: &'static str = "instance.servers.arrange";
+    const CHANGES: Option<Scope> = Some(Scope::Entries);
     type Params = InstanceServersArrangeParams;
     type Result = InstanceServersWriteResult;
 }
@@ -431,6 +437,7 @@ impl Contract for AddressPing {
 pub struct InstanceRemove;
 impl Contract for InstanceRemove {
     const CHANNEL: &'static str = "instance.remove";
+    const CHANGES: Option<Scope> = Some(Scope::Entries);
     type Params = InstanceRef;
     type Result = Empty;
 }
@@ -448,6 +455,7 @@ pub struct InstanceRenameParams {
 pub struct InstanceRename;
 impl Contract for InstanceRename {
     const CHANNEL: &'static str = "instance.rename";
+    const CHANGES: Option<Scope> = Some(Scope::Entries);
     type Params = InstanceRenameParams;
     type Result = InstanceInfo;
 }
@@ -523,6 +531,7 @@ pub struct InstanceConfigSetParams {
 pub struct InstanceConfigSet;
 impl Contract for InstanceConfigSet {
     const CHANNEL: &'static str = "instance.config.set";
+    const CHANGES: Option<Scope> = Some(Scope::Entries);
     type Params = InstanceConfigSetParams;
     type Result = Empty;
 }

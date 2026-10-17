@@ -5,6 +5,7 @@ use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 
+use crate::change::Scope;
 use crate::contract::{Contract, Empty};
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -71,6 +72,7 @@ pub struct AccountLoginCompleteResult {
 pub struct AccountLoginComplete;
 impl Contract for AccountLoginComplete {
     const CHANNEL: &'static str = "account.login.complete";
+    const CHANGES: Option<Scope> = Some(Scope::Accounts);
     const TIMEOUT: Duration = Duration::from_secs(16 * 60);
     type Params = AccountLoginCompleteParams;
     type Result = AccountLoginCompleteResult;
@@ -110,6 +112,7 @@ pub struct AccountSwitchResult {
 pub struct AccountSwitch;
 impl Contract for AccountSwitch {
     const CHANNEL: &'static str = "account.switch";
+    const CHANGES: Option<Scope> = Some(Scope::Accounts);
     type Params = AccountSwitchParams;
     type Result = AccountSwitchResult;
 }
@@ -125,6 +128,7 @@ pub struct AccountRemoveParams {
 pub struct AccountRemove;
 impl Contract for AccountRemove {
     const CHANNEL: &'static str = "account.remove";
+    const CHANGES: Option<Scope> = Some(Scope::Accounts);
     type Params = AccountRemoveParams;
     type Result = Empty;
 }

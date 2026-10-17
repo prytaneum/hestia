@@ -10,6 +10,7 @@ use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 
+use crate::change::Scope;
 use crate::contract::{Contract, Empty};
 use crate::error::{EntryTarget, ErrorInfo};
 use crate::job::{Job, JobStarted};
@@ -557,6 +558,7 @@ impl Contract for EntryContentList {
 pub struct EntryContentRemove;
 impl Contract for EntryContentRemove {
     const CHANNEL: &'static str = "content.remove";
+    const CHANGES: Option<Scope> = Some(Scope::Entries);
     type Params = EntryContentRemoveParams;
     type Result = Empty;
 }
@@ -576,6 +578,7 @@ impl Job for EntryContentUpdate {
 pub struct EntryContentEnable;
 impl Contract for EntryContentEnable {
     const CHANNEL: &'static str = "content.enable";
+    const CHANGES: Option<Scope> = Some(Scope::Entries);
     type Params = EntryContentEnableParams;
     type Result = Empty;
 }

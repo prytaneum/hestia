@@ -14,6 +14,7 @@ use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 
+use crate::change::Scope;
 use crate::content::{ContentFailure, ReleaseChannel};
 use crate::contract::Contract;
 use crate::error::EntryTarget;
@@ -326,6 +327,7 @@ impl Contract for EntryModpackCheckUpdate {
 pub struct EntryModpackRemove;
 impl Contract for EntryModpackRemove {
     const CHANNEL: &'static str = "modpack.remove";
+    const CHANGES: Option<Scope> = Some(Scope::Entries);
     type Params = EntryModpackRemoveParams;
     type Result = ModpackRemoveResult;
 }

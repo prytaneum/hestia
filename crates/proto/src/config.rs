@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+use crate::change::Scope;
 use crate::contract::{Contract, Empty};
 
 /// Reserved keys the daemon routes to their own subsystem instead of the settings
@@ -42,6 +43,7 @@ pub struct ConfigSetParams {
 pub struct ConfigSet;
 impl Contract for ConfigSet {
     const CHANNEL: &'static str = "config.set";
+    const CHANGES: Option<Scope> = Some(Scope::Config);
     type Params = ConfigSetParams;
     type Result = Empty;
 }

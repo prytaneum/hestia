@@ -3,6 +3,7 @@ export type * from "./accounts";
 export type * from "./app";
 export type * from "./backup";
 export type * from "./cache";
+export type * from "./change";
 export type * from "./config";
 export type * from "./content";
 export type * from "./daemon";

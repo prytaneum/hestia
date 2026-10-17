@@ -407,6 +407,45 @@ async fn daemon_stop_all_takes_workloads_down() {
     panic!("stop --all should take the workload down with the daemon");
 }
 
+/// A client that did not make the call hears of it on `changed`, and a read says
+/// nothing.
+#[tokio::test]
+async fn a_successful_mutation_publishes_what_it_changed() {
+    let (daemon, client) = spawn_daemon().await;
+    let (seen, mut topics) = tokio::sync::mpsc::unbounded_channel();
+    client
+        .session()
+        .set_event_callback(Some(Arc::new(move |event: &ipc::protocol::Event| {
+            let _ = seen.send((event.topic.clone(), event.payload.clone()));
+        })));
+    client
+        .session()
+        .call::<client::proto::events::EventsSubscribe>(&Default::default())
+        .await
+        .expect("events.subscribe");
+
+    client
+        .config()
+        .get("defaults.jvm-args")
+        .await
+        .expect("config.get");
+    client
+        .config()
+        .set("defaults.jvm-args", serde_json::json!("-Xmx1G"))
+        .await
+        .expect("config.set");
+
+    let (topic, payload) = tokio::time::timeout(Duration::from_secs(10), topics.recv())
+        .await
+        .expect("an event within the timeout")
+        .expect("the stream is open");
+    assert_eq!(topic, "changed");
+    assert_eq!(payload, serde_json::json!({ "scope": "config" }));
+
+    client.daemon().stop(true).await.expect("daemon.stop");
+    drop(daemon);
+}
+
 fn sodium_spec() -> ContentAddSpec {
     ContentAddSpec {
         kind: ContentKind::Mod,

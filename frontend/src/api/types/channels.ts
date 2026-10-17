@@ -18,6 +18,7 @@ import type { CacheListResult } from "./generated/CacheListResult";
 import type { CacheUsage } from "./generated/CacheUsage";
 import type { CapeClearParams } from "./generated/CapeClearParams";
 import type { CapeEquipParams } from "./generated/CapeEquipParams";
+import type { ChangedEvent } from "./generated/ChangedEvent";
 import type { ConfigEntry } from "./generated/ConfigEntry";
 import type { ConfigGetParams } from "./generated/ConfigGetParams";
 import type { ConfigGetResult } from "./generated/ConfigGetResult";
@@ -366,6 +367,7 @@ export type JobEvents = {
 }[keyof Jobs];
 
 export interface Topics {
+  "changed": ChangedEvent;
   "job": JobEvents;
   "net.state": NetworkStatus;
   "process.exit": ProcessExitEvent;

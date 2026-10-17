@@ -2,6 +2,7 @@ use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
+use crate::change::Scope;
 use crate::contract::{Contract, Empty};
 use crate::download::Checksum;
 
@@ -56,6 +57,7 @@ impl Contract for CacheList {
 pub struct CacheClear;
 impl Contract for CacheClear {
     const CHANNEL: &'static str = "cache.clear";
+    const CHANGES: Option<Scope> = Some(Scope::Cache);
     type Params = Empty;
     type Result = CacheUsage;
 }

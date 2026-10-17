@@ -9,6 +9,7 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::change::Scope;
 use crate::contract::{Contract, Empty};
 use crate::job::{Job, JobStarted};
 use crate::minecraft::ProvisionProgress;
@@ -122,6 +123,7 @@ impl Contract for ServerBackupRestore {
 pub struct ServerBackupRemove;
 impl Contract for ServerBackupRemove {
     const CHANNEL: &'static str = "server.backup.remove";
+    const CHANGES: Option<Scope> = Some(Scope::Entries);
     type Params = ServerBackupRef;
     type Result = Empty;
 }

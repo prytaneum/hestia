@@ -5,6 +5,7 @@ pub mod accounts;
 pub mod app;
 pub mod backup;
 pub mod cache;
+pub mod change;
 pub mod config;
 pub mod content;
 pub mod contract;

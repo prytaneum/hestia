@@ -9,6 +9,8 @@ use std::time::Duration;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
+use crate::change::Scope;
+
 /// How long a call waits for its reply unless its contract says otherwise; a
 /// wedged handler can't hang the caller forever.
 pub const DEFAULT_TIMEOUT: Duration = Duration::from_secs(10);
@@ -21,6 +23,10 @@ pub trait Contract {
     /// the override as `Duration::from_secs(<int> [* <int>]…)` into the
     /// front-end's table, so keep that form.
     const TIMEOUT: Duration = DEFAULT_TIMEOUT;
+    /// The state a successful call changes. The daemon publishes it as a
+    /// [`ChangedEvent`](crate::change::ChangedEvent) so other clients refresh;
+    /// a read leaves it `None`, and a job reports on the `job` topic instead.
+    const CHANGES: Option<Scope> = None;
     type Params: Serialize + DeserializeOwned;
     type Result: Serialize + DeserializeOwned;
 }

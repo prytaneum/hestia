@@ -7,13 +7,14 @@ use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
 
-use ipc::protocol::{Request, Response};
+use ipc::protocol::{Event, Request, Response};
+use proto::change::{ChangedEvent, Scope};
 use proto::error::ErrorInfo;
-use proto::Contract;
+use proto::{Contract, Topic};
 use serde_json::Value;
 use tracing::Instrument;
 
-use super::HandlerContext;
+use super::{HandlerContext, Runtime};
 
 /// A handler's typed failure is the canonical `ErrorInfo` — the same value the
 /// socket carries and a front-end localizes.
@@ -99,6 +100,16 @@ impl Router {
     }
 }
 
+fn publish_changed(runtime: &Runtime, scope: Scope) {
+    let Ok(payload) = serde_json::to_value(ChangedEvent { scope }) else {
+        return;
+    };
+    runtime.hub().publish(&Event {
+        topic: ChangedEvent::TOPIC.to_string(),
+        payload,
+    });
+}
+
 /// The registrar handed to every service: binds a typed contract handler onto the
 /// router. The channel name and payload shapes come from the contract, so a
 /// service physically cannot drift from the client SDK.
@@ -133,9 +144,13 @@ impl<'r> Channels<'r> {
                             })
                         }
                     };
+                    let runtime = ctx.runtime.clone();
                     match f(params, ctx).await {
                         Ok(result) => {
                             let payload = serde_json::to_value(result).unwrap_or(Value::Null);
+                            if let Some(scope) = C::CHANGES {
+                                publish_changed(&runtime, scope);
+                            }
                             Response::success(payload)
                         }
                         Err(info) => error_response(info),
