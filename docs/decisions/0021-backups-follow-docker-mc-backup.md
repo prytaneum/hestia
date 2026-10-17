@@ -12,8 +12,8 @@ not the archive — says which version the entry runs; restore is a staged swap
 instead of an extract-into-empty-dir script; retention is count-based per kind,
 pruning only `scheduled` archives so a deliberate manual or pre-update backup is
 never auto-deleted; and the schedule lives on the server record
-(`backup-interval`/`backup-retention` config keys) rather than a sidecar's
-environment. Version updates always back up first — an update is the one moment
+(a `Backup` task with a retention count, beside its restart and command tasks)
+rather than a sidecar's environment. Version updates always back up first — an update is the one moment
 data provably changes shape, and the confirmation gate (downgrade warnings)
 already marks it as risky. Backups are **server-only**: an instance is an
 interactive client session with no RCON channel to quiesce it and no analogue of

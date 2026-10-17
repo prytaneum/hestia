@@ -2,9 +2,8 @@
 //! list/restore/remove the stored archives. Create and restore are jobs — the
 //! call answers with the job id and progress/done/error arrive as events, like
 //! the other provisioning jobs. Servers additionally back up on a schedule and
-//! before a version update — the schedule is configured through the server's
-//! `config` channels (`backup-interval` / `backup-retention`), not a channel
-//! of its own. Backups are a **server** feature: instances have none — an
+//! before a version update — the schedule is a `Backup` task on the server
+//! (`crate::tasks`), not a channel of its own. Backups are a **server** feature: instances have none — an
 //! instance travels as one archive instead (`crate::transfer`).
 
 use serde::{Deserialize, Serialize};

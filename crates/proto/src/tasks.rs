@@ -1,6 +1,5 @@
-//! A server's scheduled tasks: a restart or a console command the daemon runs
-//! on a schedule while the server is up. Scheduled *backups* are not tasks —
-//! they carry retention and are configured through `server.config`.
+//! A server's scheduled tasks: a restart, a console command or a backup the
+//! daemon runs on a schedule while the server is up.
 
 use serde::{Deserialize, Serialize};
 
@@ -17,6 +16,9 @@ pub enum TaskAction {
     Restart,
     /// Send `command` to the console.
     Command,
+    /// Archive the world as a scheduled backup, then prune the scheduled
+    /// archives beyond `retention`.
+    Backup,
 }
 
 #[derive(Serialize, Deserialize, Default, Debug, Clone, PartialEq, Eq)]
@@ -32,6 +34,10 @@ pub struct ServerTask {
     /// local time).
     pub schedule: String,
     pub enabled: bool,
+    /// How many scheduled archives a backup keeps; unset keeps the default.
+    /// Unused by the other actions.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub retention: Option<u32>,
     /// When it last ran — or, before its first run, when it was saved, which
     /// is what an interval counts from.
     pub last_run_unix: i64,

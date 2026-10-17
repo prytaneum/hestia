@@ -75,8 +75,7 @@ pub enum Field {
     Memory,
     JvmArgs,
     Player,
-    BackupInterval,
-    BackupRetention,
+    Retention,
     JavaVersion,
     Schedule,
     Order,
@@ -109,8 +108,7 @@ impl fmt::Display for Field {
             Field::Player => "a player name",
             Field::Order => "a list order",
             Field::Realm => "a realm",
-            Field::BackupInterval => "backup-interval",
-            Field::BackupRetention => "backup-retention",
+            Field::Retention => "a retention count",
             Field::JavaVersion => "a java version",
             Field::Schedule => "a schedule",
             Field::ProcessId => "a process id",
@@ -130,8 +128,6 @@ pub enum Reason {
     MemoryFormat,
     MemoryExceedsHost,
     JvmArgsPrefix,
-    IntervalFormat,
-    IntervalTooShort,
     JavaMajor,
     AbsolutePath,
     ServerAddress,
@@ -154,8 +150,6 @@ impl fmt::Display for Reason {
                 f.write_str("memory exceeds what this machine has installed")
             }
             Reason::JvmArgsPrefix => f.write_str("jvm arguments must start with '-'"),
-            Reason::IntervalFormat => f.write_str("backup-interval must look like 30m, 6h, or 1d"),
-            Reason::IntervalTooShort => f.write_str("backup-interval must be at least 5m"),
             Reason::JavaMajor => f.write_str("not a valid java major version"),
             Reason::AbsolutePath => f.write_str(
                 "the path must be absolute — the daemon is a separate process and does not share \

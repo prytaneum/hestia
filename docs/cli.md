@@ -98,10 +98,9 @@ hestia server smp backup restore # replace the data with a backup (prompts for
                                  #   the backup and confirms — --force for
                                  #   scripts; the current jar/libraries stay)
 hestia server smp backup remove <backup>
-hestia server smp config set backup-interval 6h  # archive the running server
-                                 #   on a schedule (m/h/d units; empty
-                                 #   disables); scheduled archives beyond
-                                 #   backup-retention (default 7) are pruned
+hestia server smp task backup 6h --keep 7  # archive the running server on a
+                                 #   schedule; scheduled archives beyond
+                                 #   --keep (default 7) are pruned
 hestia server smp files ls [dir] # the game directory as a tree; paths are
                                  #   relative to it and never leave it
 hestia server smp files cat server.properties
@@ -121,8 +120,7 @@ hestia server smp task command 6h say Restarting soon  # a console command on
                                  #   an interval (30m / 6h / 1d, at least 5m)
 hestia server smp task list      # ids, schedules, and whether each is paused
 hestia server smp task disable|enable|remove <id>  # tasks only run while the
-                                 #   server is up; backups keep their own
-                                 #   schedule under `config set backup-interval`
+                                 #   server is up
 hestia server smp players list   # who is online, and the whitelist, operator
                                  #   and ban lists (the lists read from a
                                  #   stopped server too)

@@ -19,11 +19,6 @@ use serde::{Deserialize, Serialize};
 
 use crate::schema::{self, Document};
 
-mod settings;
-
-pub(crate) use settings::parse_interval;
-pub use settings::BackupSettings;
-
 const BACKUPS: &str = "backups";
 const EXTENSION: &str = ".tar.gz";
 /// The archive's first entry: what it is and which schema it was written with,

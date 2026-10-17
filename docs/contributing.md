@@ -92,7 +92,7 @@ conversion (the frontend's type mirrors are camelCase). Rust field names stay `s
 renamed. **Enums are the exception** — their variant *values* stay
 `snake_case`/`lowercase` (the frontend's string-literal union types depend on them), so leave an enum's existing
 `rename_all` alone. `tests/casing.rs` enforces the struct rule: a new serialized struct without the attribute fails the
-build. The one deliberate non-camel exception is the `config.*` key vocabulary (`jvm-args`, `backup-interval`, …), which
+build. The one deliberate non-camel exception is the `config.*` key vocabulary (`jvm-args`, `memory`, …), which
 stays kebab-case — see
 [decision 0028](decisions/0028-camelcase-except-the-config-vocabulary.md). For a daemon→client push, implement `Topic` instead of
 `Contract` — the type is its own event payload (a long-running operation is a `Job` instead, see

@@ -17,7 +17,6 @@ use proto::server::ServerProperty;
 use proto::tasks::ServerTask;
 use serde::{Deserialize, Serialize};
 
-use crate::backup::BackupSettings;
 use crate::keys::invalid;
 use crate::minecraft::launch::{self, JavaSettings, LaunchPlan};
 use crate::minecraft::materialize::{self, OnProgress};
@@ -92,10 +91,6 @@ pub struct ServerRecord {
     /// Per-entry JVM tuning (memory, extra flags) injected at each start.
     #[serde(default)]
     pub jvm: JavaSettings,
-    /// Scheduled-backup tuning (interval, retention); unset disables the
-    /// schedule.
-    #[serde(default)]
-    pub backup: BackupSettings,
     /// What the daemon runs on a schedule while the server is up.
     #[serde(default)]
     pub tasks: Vec<ServerTask>,
@@ -199,7 +194,6 @@ impl Servers {
                 game_port: Some(self.claim_game_port(port)?),
                 rcon: None,
                 jvm: JavaSettings::default(),
-                backup: BackupSettings::default(),
                 tasks: Vec::new(),
                 profile,
             })
@@ -490,7 +484,7 @@ impl Servers {
     }
 
     /// Rename a server: rewrite the display name and move its directory to the
-    /// new slug. The id is stable, so ports, rcon, the process, and JVM/backup
+    /// new slug. The id is stable, so ports, rcon, the process, and JVM
     /// settings are untouched. The caller guarantees it is stopped and not busy.
     pub fn rename(&self, reference: &str, new_name: &str) -> Result<ServerRecord> {
         self.store.rename(reference, new_name)
@@ -558,17 +552,17 @@ impl Servers {
         launch::server_plan(&record.profile, java, &self.data_dir(record), jvm)
     }
 
-    /// Read one setting: a reserved JVM or backup key from the record, or any
-    /// other key from `server.properties`. `Ok(None)` means the key is not set.
+    /// Read one setting: a reserved JVM key from the record, or any other key
+    /// from `server.properties`. `Ok(None)` means the key is not set.
     pub fn config_get(&self, id: &str, key: &str) -> Result<Option<String>> {
         let record = self.store.require(id)?;
-        if let Some(value) = record.jvm.get(key).or_else(|| record.backup.get(key)) {
+        if let Some(value) = record.jvm.get(key) {
             return Ok(value);
         }
         Ok(read_property(&self.data_dir(&record).join(PROPERTIES), key))
     }
 
-    /// Write one setting: a reserved JVM or backup key onto the record, or a
+    /// Write one setting: a reserved JVM key onto the record, or a
     /// `server.properties` key through to the file. A property key must exist in
     /// the **schema** the server itself generated for its version — not in the
     /// live file, which also carries keys no current version knows — so a typo
@@ -579,7 +573,7 @@ impl Servers {
     /// clears a JVM key. Settings take effect on the next start.
     pub fn config_set(&self, id: &str, key: &str, value: &str) -> Result<()> {
         self.store.mutate(id, |record| {
-            if record.jvm.set(key, value)? || record.backup.set(key, value)? {
+            if record.jvm.set(key, value)? {
                 return Ok(());
             }
             if MANAGED_PROPERTIES.contains(&key) {
@@ -614,17 +608,15 @@ impl Servers {
     /// Every rule a server's settings are checked against.
     pub fn config_rules() -> Vec<KeyRule> {
         let mut rules = JavaSettings::rules();
-        rules.extend(BackupSettings::rules());
         rules.extend(properties::rules().iter().cloned());
         rules
     }
 
-    /// The reserved JVM and backup settings (always shown) followed by every
-    /// current `server.properties` entry.
+    /// The reserved JVM settings (always shown) followed by every current
+    /// `server.properties` entry.
     pub fn config_list(&self, id: &str) -> Result<Vec<(String, String)>> {
         let record = self.store.require(id)?;
         let mut entries = record.jvm.entries();
-        entries.extend(record.backup.entries());
         entries.extend(read_properties(&self.data_dir(&record).join(PROPERTIES)));
         Ok(entries)
     }

@@ -39,7 +39,6 @@ mod usage;
 mod version;
 
 pub use accounts::{Accounts, LoginChallenge, ReauthRequired};
-pub use backup::BackupSettings;
 pub use cache::{Cache, CacheEntry, CacheUsage};
 pub use cancel::{is_cancelled, Cancel, Job};
 pub use config::{Config, ConfigError, Settings};

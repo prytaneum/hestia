@@ -3,4 +3,4 @@
 /**
  * What a config value must look like; a key with no rule takes any string.
  */
-export type KeyKind = { "type": "boolean" } | { "type": "integer", min: number, max: number, } | { "type": "choice", values: Array<string>, } | { "type": "memory" } | { "type": "interval" } | { "type": "jvm_args" };
+export type KeyKind = { "type": "boolean" } | { "type": "integer", min: number, max: number, } | { "type": "choice", values: Array<string>, } | { "type": "memory" } | { "type": "jvm_args" };

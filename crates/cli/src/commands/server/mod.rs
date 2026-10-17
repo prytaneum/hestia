@@ -122,8 +122,7 @@ enum ServerAction {
         #[arg(required = true, trailing_var_arg = true)]
         command: Vec<String>,
     },
-    /// Get, set, or list settings (memory, jvm-args, backup-interval,
-    /// backup-retention, server.properties)
+    /// Get, set, or list settings (memory, jvm-args, server.properties)
     Config {
         #[command(subcommand)]
         cmd: mc::ConfigCmd,

@@ -12,7 +12,7 @@ server differs from a game client.
 | Provisioned | fully, at create | at each launch |
 | Sessions | one (a world has one authoritative writer) | many, opt-in |
 | Console | RCON | none |
-| Backups | archive/restore + schedule | none — [import/export](transfer.md) instead |
+| Backups | archive/restore + scheduled task | none — [import/export](transfer.md) instead |
 | Shared settings (`sync`) | no, deliberately | yes |
 | Ports | claimed and reconciled | n/a |
 | Runs as | itself | the signed-in account |
@@ -72,8 +72,10 @@ concurrent updates cannot persist from a stale read.
 |---|---|---|
 | `memory` | both | one value driving both `-Xms` and `-Xmx`; rejected above the machine's installed memory, which `host.info` reports so a front-end offers only that range |
 | `jvm-args` | both | extra JVM arguments |
-| `backup-interval` | server | scheduled-backup cadence (m/h/d units; empty disables) |
-| `backup-retention` | server | how many `scheduled` archives to keep |
+
+A server's scheduled backup is not a setting: it is a `Backup` task beside its
+restart and console-command tasks, with an optional retention count, counted
+from its own last run (a manual backup does not postpone it).
 
 Servers additionally pass any `server.properties` key through `config set` — but
 a set must name a key the server's own derived schema carries, and the

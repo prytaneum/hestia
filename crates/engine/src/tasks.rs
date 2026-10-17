@@ -7,9 +7,28 @@ use anyhow::{bail, Result};
 use proto::error::{ErrorInfo, Field, Reason};
 use proto::tasks::{ServerTask, TaskAction};
 
-use crate::backup::parse_interval;
-
 const DAY_SECONDS: i64 = 86_400;
+
+// A tighter schedule than this re-runs a task faster than it can meaningfully
+// matter, and a backup keeps the server's saving paused too often.
+const MIN_INTERVAL: Duration = Duration::from_secs(5 * 60);
+
+/// Parse an interval: digits followed by one unit char (m/h/d), at least five
+/// minutes.
+fn parse_interval(value: &str) -> Option<Duration> {
+    let trimmed = value.trim();
+    let unit_seconds = match trimmed.chars().last()? {
+        'm' => 60,
+        'h' => 3600,
+        'd' => 86400,
+        _ => return None,
+    };
+    let count: u64 = trimmed[..trimmed.len() - 1]
+        .parse()
+        .ok()
+        .filter(|n| *n > 0)?;
+    Some(Duration::from_secs(count.saturating_mul(unit_seconds))).filter(|d| *d >= MIN_INTERVAL)
+}
 
 /// When a task runs: on an interval, or once a day at a local time.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -36,7 +55,7 @@ impl Schedule {
         }
         parse_interval(&value)
             .map(Schedule::Every)
-            .map_err(|_| malformed())
+            .ok_or_else(malformed)
     }
 
     /// Whether a task last run at `last_run` is due at `now`. `local_midnight`
@@ -76,8 +95,23 @@ pub fn checked(mut task: ServerTask) -> Result<ServerTask> {
         TaskAction::Command if task.command.is_empty() => bail!(ErrorInfo::FieldRequired {
             field: Field::Command,
         }),
-        TaskAction::Restart => task.command.clear(),
-        TaskAction::Command => {}
+        TaskAction::Command => task.retention = None,
+        TaskAction::Restart => {
+            task.command.clear();
+            task.retention = None;
+        }
+        TaskAction::Backup => {
+            task.command.clear();
+            if task.retention == Some(0) {
+                bail!(ErrorInfo::InvalidValue {
+                    field: Field::Retention,
+                    reason: Reason::OutOfRange {
+                        min: 1,
+                        max: i64::from(u32::MAX),
+                    },
+                });
+            }
+        }
     }
     Ok(task)
 }
@@ -128,6 +162,38 @@ mod tests {
         assert!(daily.due(saved, slot + 3 * HOUR, MIDNIGHT));
         // Saved after today's slot: it waits for tomorrow's.
         assert!(!daily.due(slot + HOUR, slot + 2 * HOUR, MIDNIGHT));
+    }
+
+    #[test]
+    fn intervals_parse_with_units_and_a_floor() {
+        assert_eq!(parse_interval("30m"), Some(Duration::from_secs(1800)));
+        assert_eq!(parse_interval("1d"), Some(Duration::from_secs(86_400)));
+        for bad in ["4m", "0h", "h", "90", "soon"] {
+            assert_eq!(parse_interval(bad), None, "{bad:?}");
+        }
+    }
+
+    #[test]
+    fn only_a_backup_keeps_a_retention_and_it_must_keep_one() {
+        let task = |action, retention| ServerTask {
+            action,
+            retention,
+            schedule: "1d".into(),
+            ..Default::default()
+        };
+        assert_eq!(
+            checked(task(TaskAction::Backup, Some(3)))
+                .unwrap()
+                .retention,
+            Some(3)
+        );
+        assert!(checked(task(TaskAction::Backup, Some(0))).is_err());
+        assert_eq!(
+            checked(task(TaskAction::Restart, Some(3)))
+                .unwrap()
+                .retention,
+            None
+        );
     }
 
     #[test]

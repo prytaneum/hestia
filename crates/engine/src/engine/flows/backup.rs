@@ -106,10 +106,14 @@ impl Engine {
         backup::remove(&self.servers.server_dir(&record), backup)
     }
 
-    /// Prune a server's *scheduled* backups beyond its retention (manual and
+    /// Prune a server's *scheduled* backups beyond `retention` (manual and
     /// pre-update backups are kept until removed explicitly). Returns what was
     /// removed.
-    pub fn prune_server_backups(&self, reference: &str) -> Result<Vec<BackupInfo>> {
+    pub fn prune_server_backups(
+        &self,
+        reference: &str,
+        retention: usize,
+    ) -> Result<Vec<BackupInfo>> {
         let record = self
             .servers
             .get(reference)
@@ -117,7 +121,7 @@ impl Engine {
         backup::prune(
             &self.servers.server_dir(&record),
             BackupKind::Scheduled,
-            record.backup.retention(),
+            retention,
         )
     }
 

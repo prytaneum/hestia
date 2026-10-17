@@ -23,6 +23,7 @@ pub(super) fn register(on: &mut Channels<'_>) {
             BackupJob::ServerBackup {
                 server_id: record.id,
                 live,
+                scheduled_retention: None,
             },
             p.id,
             claim,

@@ -9,8 +9,8 @@ on-disk JSON is uniformly camelCase (`ServerRecord`, `InstanceRecord`, accounts,
 serialized form is renamed). Two deliberate exceptions, neither machine-enforced
 in `engine` because a blanket guard would fight them: (1) the **`config.*` keys
 are a stable kebab-case CLI vocabulary** (`memory`, `jvm-args`,
-`backup-interval`, `defaults.jvm-args`) — the per-entry
-`JavaSettings`/`BackupSettings` decouple them with explicit key constants, and
+`defaults.jvm-args`) — the per-entry
+`JavaSettings` decouples them with explicit key constants, and
 the global `Settings` navigation translates each dotted segment through
 `naming::config_key_to_field` (and `settings_to_config_keys` for the `config
 list` view), so a user keeps typing kebab while `config.json` stores `jvmArgs`;

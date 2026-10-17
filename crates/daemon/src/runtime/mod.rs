@@ -34,7 +34,7 @@ pub use metrics::spawn_metrics_sampler;
 pub use network::spawn_network_watcher;
 pub use presence::spawn_presence_updater;
 pub use router::{error_response, require_account, Channels, Router};
-pub use scheduler::spawn_backup_scheduler;
+pub use scheduler::spawn_task_scheduler;
 
 // The supervisor key vocabulary lives in `proto::naming`: a front-end names the
 // process it follows from the entry's id alone, so both sides must derive the

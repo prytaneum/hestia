@@ -196,7 +196,6 @@ mod tests {
     #[test]
     fn config_key_translates_to_camel_field_and_back() {
         assert_eq!(config_key_to_field("jvm-args"), "jvmArgs");
-        assert_eq!(config_key_to_field("backup-interval"), "backupInterval");
         assert_eq!(config_key_to_field("memory"), "memory");
         let camel = serde_json::json!({ "defaults": { "jvmArgs": "-Xss1m", "memory": "4G" } });
         assert_eq!(

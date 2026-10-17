@@ -9,7 +9,6 @@ pub enum KeyKind {
     Integer { min: i64, max: i64 },
     Choice { values: Vec<String> },
     Memory,
-    Interval,
     JvmArgs,
 }
 

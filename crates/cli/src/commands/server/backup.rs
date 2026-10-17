@@ -1,7 +1,6 @@
 //! `hestia server backup create|list|restore|remove` — the per-server backup
 //! surface. Create and restore render live progress; restore confirms before
-//! replacing the current data. Scheduled backups are configured through
-//! `server config` (`backup-interval`, `backup-retention`).
+//! replacing the current data. Scheduled backups are `server task backup`.
 
 use std::sync::Arc;
 

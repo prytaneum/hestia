@@ -1,5 +1,5 @@
 //! `hestia server <name> task …` — what the daemon runs on a schedule while
-//! the server is up: a restart or a console command. A schedule is an interval
+//! the server is up: a restart, a console command or a backup. A schedule is an interval
 //! (`30m`, `6h`, `1d`) or a daily time (`04:30`, this machine's clock).
 
 use anyhow::{bail, Result};
@@ -25,6 +25,14 @@ pub enum TaskCmd {
         schedule: String,
         #[arg(required = true, trailing_var_arg = true)]
         command: Vec<String>,
+    },
+    /// Archive the world on a schedule, pruning old scheduled archives
+    Backup {
+        /// `30m`, `6h`, `1d`, or a daily time such as `04:30`
+        schedule: String,
+        /// Scheduled archives to keep (default 7)
+        #[arg(long)]
+        keep: Option<u32>,
     },
     /// Resume a paused task
     Enable { id: String },
@@ -54,6 +62,7 @@ pub(super) async fn run(client: &Client, server: &str, cmd: TaskCmd) -> Result<(
                             match task.action {
                                 TaskAction::Restart => "restart".to_string(),
                                 TaskAction::Command => task.command,
+                                TaskAction::Backup => "backup".to_string(),
                             },
                             match task.enabled {
                                 true => "on".to_string(),
@@ -70,6 +79,13 @@ pub(super) async fn run(client: &Client, server: &str, cmd: TaskCmd) -> Result<(
         }
         TaskCmd::Command { schedule, command } => {
             let task = new_task(TaskAction::Command, schedule, command.join(" "));
+            created(tasks.save(server, task).await?)
+        }
+        TaskCmd::Backup { schedule, keep } => {
+            let task = ServerTask {
+                retention: keep,
+                ..new_task(TaskAction::Backup, schedule, String::new())
+            };
             created(tasks.save(server, task).await?)
         }
         TaskCmd::Enable { id } => toggle(client, server, &id, true).await,

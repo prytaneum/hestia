@@ -16,6 +16,11 @@ command: string,
  */
 schedule: string, enabled: boolean, 
 /**
+ * How many scheduled archives a backup keeps; unset keeps the default.
+ * Unused by the other actions.
+ */
+retention?: number, 
+/**
  * When it last ran — or, before its first run, when it was saved, which
  * is what an interval counts from.
  */

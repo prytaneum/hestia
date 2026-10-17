@@ -1,7 +1,6 @@
 use proto::error::{ErrorInfo, Reason};
 use proto::keys::{KeyKind, KeyRule};
 
-use crate::backup::parse_interval;
 use crate::minecraft::launch::{normalize_memory, parse_jvm_args};
 
 pub(crate) fn rule(key: &str, kind: KeyKind) -> KeyRule {
@@ -45,7 +44,6 @@ pub(crate) fn validate(kind: &KeyKind, value: &str) -> Result<(), Reason> {
             }
         }
         KeyKind::Memory => normalize_memory(value).map(drop),
-        KeyKind::Interval => parse_interval(&value.to_ascii_lowercase()).map(drop),
         KeyKind::JvmArgs => parse_jvm_args(value).map(drop),
     }
 }

@@ -8,8 +8,17 @@ use crate::runtime::Claim;
 /// One backup or restore job for one server — what `Jobs::start_backup` runs
 /// off-thread. Backups are a server feature; instances have none.
 pub enum BackupJob {
-    ServerBackup { server_id: String, live: bool },
-    ServerRestore { server_id: String, backup: String },
+    /// `scheduled_retention` is set for a scheduled backup: it is archived as
+    /// one, then the scheduled archives beyond that many are pruned.
+    ServerBackup {
+        server_id: String,
+        live: bool,
+        scheduled_retention: Option<usize>,
+    },
+    ServerRestore {
+        server_id: String,
+        backup: String,
+    },
 }
 
 impl BackupJob {
@@ -38,10 +47,30 @@ impl Jobs {
             Box::pin(async move {
                 let running = reporter.job();
                 let backup = match job {
-                    BackupJob::ServerBackup { server_id, live } => {
-                        engine
-                            .backup_server(&server_id, BackupKind::Manual, live, &running)
-                            .await?
+                    BackupJob::ServerBackup {
+                        server_id,
+                        live,
+                        scheduled_retention,
+                    } => {
+                        let kind = match scheduled_retention {
+                            Some(_) => BackupKind::Scheduled,
+                            None => BackupKind::Manual,
+                        };
+                        let backup = engine
+                            .backup_server(&server_id, kind, live, &running)
+                            .await?;
+                        if let Some(retention) = scheduled_retention {
+                            match engine.prune_server_backups(&server_id, retention) {
+                                Ok(pruned) if !pruned.is_empty() => {
+                                    tracing::info!(server = %server_id, pruned = pruned.len(), "old scheduled backups pruned");
+                                }
+                                Ok(_) => {}
+                                Err(e) => {
+                                    tracing::warn!(server = %server_id, error = format!("{e:#}"), "backup prune failed");
+                                }
+                            }
+                        }
+                        backup
                     }
                     BackupJob::ServerRestore { server_id, backup } => {
                         engine

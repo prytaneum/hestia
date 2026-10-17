@@ -387,9 +387,6 @@ async fn server_update_swaps_profile_and_keeps_settings() {
     };
     let record = servers.create("SMP", profile("1.21"), None).unwrap();
     servers.config_set(&record.id, "memory", "4G").unwrap();
-    servers
-        .config_set(&record.id, "backup-interval", "6h")
-        .unwrap();
     let claimed = servers.get(&record.id).unwrap().game_port;
 
     let (swapped, previous_jar) = servers.begin_update(&record.id, profile("1.21.4")).unwrap();
@@ -410,14 +407,6 @@ async fn server_update_swaps_profile_and_keeps_settings() {
         servers.config_get(&record.id, "memory").unwrap().as_deref(),
         Some("4G"),
         "JVM settings survive an update"
-    );
-    assert_eq!(
-        servers
-            .config_get(&record.id, "backup-interval")
-            .unwrap()
-            .as_deref(),
-        Some("6h"),
-        "the backup schedule survives an update"
     );
 }
 
