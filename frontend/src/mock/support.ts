@@ -4,11 +4,24 @@
  * readers that keep handlers free of `String(p.x ?? '')` noise.
  */
 
+import type { Channels } from '@/api';
+import type { Empty } from '@/api/types/generated/Empty';
+
 /** Answers one daemon channel or one shell command. */
 export type Handler = (payload: Record<string, unknown>) => unknown;
 
-/** A domain's contribution to a registry, keyed by channel or command name. */
+/** A domain's contribution to the shell-command registry, keyed by command name. */
 export type Handlers = Record<string, Handler>;
+
+/**
+ * A domain's contribution to the channel registry. Keyed and answered by the
+ * wire contract, so a fixture that stops matching it fails typecheck.
+ */
+export type ChannelHandlers = {
+  [K in keyof Channels]?: (
+    payload: Record<string, unknown>,
+  ) => Channels[K]['result'];
+};
 
 /** Unix seconds, the stamp every proto record carries. */
 export const now = (): number => Math.floor(Date.now() / 1000);
@@ -17,7 +30,7 @@ export const now = (): number => Math.floor(Date.now() / 1000);
 export const ago = (seconds: number): number => now() - seconds;
 
 /** What a channel whose result carries nothing answers with. */
-export const ok = (): Record<string, never> => ({});
+export const ok = (): Empty => ({});
 
 export function str(
   payload: Record<string, unknown>,

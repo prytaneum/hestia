@@ -16,9 +16,9 @@ import * as catalog from '../state/catalog';
 import * as entries from '../state/entries';
 import * as processes from '../state/processes';
 import * as worlds from '../state/worlds';
-import { ago, bool, type Handlers, now, ok, str } from '../support';
+import { ago, bool, type ChannelHandlers, now, ok, str } from '../support';
 import { resolve as resolveAccount } from './account';
-import { configChannels } from './entry';
+import { configHandlers } from './entry';
 
 const BANNER = [
   '[main/INFO]: Setting user: Player',
@@ -71,7 +71,9 @@ function recentPlays(): RecentPlay[] {
     .slice(0, RECENT_LIMIT);
 }
 
-export const channels: Handlers = {
+const instanceConfig = configHandlers(instanceId);
+
+export const channels: ChannelHandlers = {
   'instance.list': () => ({
     instances: entries.listInstances().map(withSessions),
   }),
@@ -151,6 +153,7 @@ export const channels: Handlers = {
     playersMax: 20,
     motd: `A Mock Server — ${str(p, 'address', 'localhost')}`,
     version: '1.21.4',
+    favicon: '',
   }),
 
   'instance.launch': (p) => {
@@ -192,5 +195,6 @@ export const channels: Handlers = {
     return { lines: processes.logs(session, p.tail as number | undefined) };
   },
 
-  ...configChannels('instance', instanceId),
+  'instance.config.list': instanceConfig.list,
+  'instance.config.set': instanceConfig.set,
 };

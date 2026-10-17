@@ -1,5 +1,3 @@
-use std::time::Duration;
-
 use ipc::errors::IpcError;
 use proto::accounts::{
     Account, AccountList, AccountListResult, AccountLoginBegin, AccountLoginBeginParams,
@@ -21,10 +19,7 @@ impl Accounts<'_> {
         method: LoginMethod,
     ) -> Result<AccountLoginBeginResult, IpcError> {
         self.session
-            .call_with_timeout::<AccountLoginBegin>(
-                &AccountLoginBeginParams { method },
-                Duration::from_secs(60),
-            )
+            .call::<AccountLoginBegin>(&AccountLoginBeginParams { method })
             .await
     }
 
@@ -37,7 +32,7 @@ impl Accounts<'_> {
         };
         Ok(self
             .session
-            .call_with_timeout::<AccountLoginComplete>(&params, Duration::from_secs(16 * 60))
+            .call::<AccountLoginComplete>(&params)
             .await?
             .account)
     }

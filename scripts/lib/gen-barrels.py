@@ -14,7 +14,7 @@ import re
 SRC = "crates/proto/src"
 OUT = "frontend/src/api/types"
 GEN = f"{OUT}/generated"
-SKIP_MODULES = {"lib", "contract", "naming", "config"}
+SKIP_MODULES = {"lib", "contract", "naming"}
 TYPE_RE = re.compile(r"^pub (?:struct|enum) ([A-Za-z0-9_]+)")
 
 modules = []

@@ -3,6 +3,8 @@
 //! instance is a lightweight record at create time — its files (client jar,
 //! libraries, assets) are materialised by the launch job.
 
+use std::time::Duration;
+
 use serde::{Deserialize, Serialize};
 
 use crate::content::ContentKind;
@@ -89,6 +91,7 @@ pub struct InstanceCreateResult {
 pub struct InstanceCreate;
 impl Contract for InstanceCreate {
     const CHANNEL: &'static str = "instance.create";
+    const TIMEOUT: Duration = Duration::from_secs(60);
     type Params = InstanceCreateParams;
     type Result = InstanceCreateResult;
 }
@@ -119,6 +122,7 @@ pub struct InstanceUpdateResult {
 pub struct InstanceUpdate;
 impl Contract for InstanceUpdate {
     const CHANNEL: &'static str = "instance.update";
+    const TIMEOUT: Duration = Duration::from_secs(10 * 60);
     type Params = InstanceUpdateParams;
     type Result = InstanceUpdateResult;
 }

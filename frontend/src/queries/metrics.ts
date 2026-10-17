@@ -5,7 +5,7 @@
  * charts. Empty when the process is not running (no samples arrive).
  */
 import { useRef, useState } from 'react';
-import type { ProcessMetrics, ProcessMetricsEvent } from '../api';
+import type { ProcessMetrics } from '../api';
 import { useDaemonEvent } from './events';
 
 export interface MetricSample {
@@ -30,7 +30,7 @@ export function useProcessMetrics(
     setSeries([]);
   }
 
-  useDaemonEvent<ProcessMetricsEvent>('process.metrics', (payload) => {
+  useDaemonEvent('process.metrics', (payload) => {
     if (!processId) return;
     const sample = payload.samples.find(
       (m: ProcessMetrics) => m.id === processId,

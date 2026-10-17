@@ -15,9 +15,9 @@ import { jobIdOf, startJob } from '../job';
 import * as catalog from '../state/catalog';
 import * as entries from '../state/entries';
 import * as processes from '../state/processes';
-import { type Handlers, num, ok, str } from '../support';
+import { type ChannelHandlers, num, ok, str } from '../support';
 import { channels as backupChannels } from './backup';
-import { configChannels } from './entry';
+import { configHandlers } from './entry';
 
 // The daemon's own knowledge of the file, which no front-end shares: what it
 // keeps on the record instead, what it owns, and what hardcore pins.
@@ -83,6 +83,8 @@ const withProcess = (server: ServerInfo): ServerInfo => ({
 const serverId = (payload: Record<string, unknown>): string =>
   entries.findServer(str(payload, 'server')).id;
 
+const serverConfig = configHandlers(serverId);
+
 function startServer(reference: string) {
   const server = entries.findServer(reference);
   const process = processes.start(
@@ -94,7 +96,7 @@ function startServer(reference: string) {
   return { processId: process.id, pid: process.pid };
 }
 
-export const channels: Handlers = {
+export const channels: ChannelHandlers = {
   'server.list': () => ({ servers: entries.listServers().map(withProcess) }),
 
   'server.status': (p) => withProcess(entries.findServer(str(p, 'server'))),
@@ -118,6 +120,7 @@ export const channels: Handlers = {
       playersMax: 20,
       motd: `${server.name} — a ${server.flavor} ${server.gameVersion} server`,
       version: server.gameVersion,
+      favicon: '',
     };
   },
 
@@ -231,6 +234,7 @@ export const channels: Handlers = {
     properties: properties(entries.entrySettings(serverId(p))),
   }),
 
-  ...configChannels('server', serverId),
+  'server.config.list': serverConfig.list,
+  'server.config.set': serverConfig.set,
   ...backupChannels(serverId),
 };

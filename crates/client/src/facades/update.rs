@@ -33,15 +33,9 @@ impl Update<'_> {
 
     pub async fn apply(&self, path: &Path) -> Result<proto::update::UpdateApplyResult, IpcError> {
         self.session
-            .call_with_timeout::<proto::update::UpdateApply>(
-                &proto::update::UpdateApplyParams {
-                    path: path.to_path_buf(),
-                },
-                APPLY_TIMEOUT,
-            )
+            .call::<proto::update::UpdateApply>(&proto::update::UpdateApplyParams {
+                path: path.to_path_buf(),
+            })
             .await
     }
 }
-
-/// A package install waits on an interactive elevation prompt.
-const APPLY_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(300);

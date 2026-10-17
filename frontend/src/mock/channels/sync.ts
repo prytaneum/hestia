@@ -11,7 +11,7 @@ import type {
 } from '@/api/types';
 
 import * as entries from '../state/entries';
-import { type Handlers, str, strings } from '../support';
+import { type ChannelHandlers, str, strings } from '../support';
 
 const UNITS: SyncUnit[] = [
   'options',
@@ -67,7 +67,7 @@ const one = (id: string): InstanceSyncStatus =>
 const unitOf = (p: Record<string, unknown>): SyncUnit =>
   (p.unit as SyncUnit) ?? 'options';
 
-export const channels: Handlers = {
+export const channels: ChannelHandlers = {
   'sync.get': config,
 
   'sync.sources': () => ({

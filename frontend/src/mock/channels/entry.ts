@@ -10,7 +10,7 @@ import type { ContentKind, EntryTarget, InstalledContent } from '@/api/types';
 import { jobIdOf, startJob } from '../job';
 import * as content from '../state/content';
 import * as entries from '../state/entries';
-import { type Handler, type Handlers, ok, str, strings } from '../support';
+import { type ChannelHandlers, ok, str, strings } from '../support';
 
 /** Resolves the entry a payload names to its stable id. */
 export type Resolve = (payload: Record<string, unknown>) => string;
@@ -29,12 +29,13 @@ export function targetEntry(payload: Record<string, unknown>): {
 const kindOf = (payload: Record<string, unknown>): ContentKind =>
   (payload.kind as ContentKind) ?? 'mod';
 
-export function configChannels(prefix: string, resolve: Resolve): Handlers {
+export function configHandlers(resolve: Resolve) {
   return {
-    [`${prefix}.config.list`]: (p) => ({
+    list: (p: Record<string, unknown>) => ({
       entries: entries.entrySettings(resolve(p)),
+      rules: [],
     }),
-    [`${prefix}.config.set`]: (p) => {
+    set: (p: Record<string, unknown>) => {
       entries.setEntrySetting(resolve(p), str(p, 'key'), str(p, 'value'));
       return ok();
     },
@@ -58,9 +59,9 @@ function contentJob(
   });
 }
 
-export function contentChannels(): Handlers {
+export function contentChannels(): ChannelHandlers {
   const resolve = (payload: Record<string, unknown>) => targetEntry(payload).id;
-  const add: Handler = (p) => {
+  const add = (p: Record<string, unknown>) => {
     const id = resolve(p);
     const kind = kindOf(p);
     const items = Array.isArray(p.items)

@@ -39,10 +39,17 @@ its channel once and pairs it with its request and response types:
 ```rust
 pub trait Contract {
     const CHANNEL: &'static str;
+    const TIMEOUT: Duration = DEFAULT_TIMEOUT; // 10 s
     type Params: Serialize + DeserializeOwned;
     type Result: Serialize + DeserializeOwned;
 }
 ```
+
+`TIMEOUT` is how long a caller waits for the reply. A contract whose handler
+blocks on the network, a disk tree or a person overrides it, once, here — the
+client SDK's `Session::call` and the desktop bridge both apply it, and the
+front-end's table is generated from it
+([0084](../decisions/0084-the-ts-channel-table-is-generated-from-the-contracts.md)).
 
 An unsolicited daemon→client push is a **`Topic`** — the implementing type *is*
 its payload. `Empty` is the `{}` payload for channels that take or return
@@ -77,6 +84,33 @@ exception is the `config.*` key vocabulary, which stays kebab-case
 
 Adding a channel is a struct plus an `impl Contract` — see
 [contributing.md](../contributing.md).
+
+### The TypeScript projection
+
+ts-rs exports the payload structs; `scripts/lib/gen-channels.py` (run by
+`scripts/gen-types.sh`) exports the contracts themselves as
+`frontend/src/api/types/channels.ts`:
+
+```ts
+export interface Channels {
+  "server.status": { params: Partial<ServerRef>; result: ServerInfo };
+  "server.restart": { params: Partial<ServerRef>; result: ServerStartResult };
+  …
+}
+export interface Jobs {
+  "server.create": { progress: ProvisionProgress; done: ServerDone };
+  …
+}
+export interface Topics { "process.exit": ProcessExitEvent; "job": JobEvents; … }
+export const TIMEOUTS: Partial<Record<keyof Channels, number>> = { "server.restart": 150000, … };
+```
+
+It reads the Rust source, one entry per `impl Contract`, `impl Job` and
+`impl Topic`, and exits non-zero on a block it cannot read or a type ts-rs did
+not export. A request struct with a struct-level `#[serde(default)]` is
+emitted `Partial<…>` — the daemon fills what a request omits — and so is any
+such struct nested in it. The front-end's `call`, `runJob` and event bus are
+typed against this table (see [front-ends](frontends.md#the-frontend)).
 
 ## `ipc` — transport and envelope
 
@@ -115,9 +149,8 @@ requests by id and delivers events to an installed callback.
 
 | Call | Behaviour |
 |---|---|
-| `call::<C>()` | marshals through the contract, returns the `proto` result |
+| `call::<C>()` | marshals through the contract, returns the `proto` result, and waits `C::TIMEOUT` for it |
 | `try_call::<C>()` | maps a `not_found` to `None` |
-| `call_with_timeout::<C>()` | overrides the 10 s default for a long call |
 | `run_job::<C: Job>()` | starts a long-running operation, hands each typed progress payload to a callback and blocks until it settles to `C::Done`, `IpcError::Cancelled` or a failure |
 | `call_raw()` | the untyped forward the desktop bridge pipes through |
 

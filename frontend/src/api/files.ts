@@ -7,23 +7,14 @@
 import { call } from './core/ipc';
 import type { FileEntry } from './types/files';
 
-/** A world is copied or archived inside one call; mirrors the Rust facade. */
-const TREE_TIMEOUT_MS = 600_000;
-
 export async function list(server: string, path: string): Promise<FileEntry[]> {
-  const result = await call<{ entries: FileEntry[] }>('server.files.list', {
-    server,
-    path,
-  });
+  const result = await call('server.files.list', { server, path });
   return result.entries;
 }
 
 /** A text file whole; a binary or oversized one is refused. */
 export async function read(server: string, path: string): Promise<string> {
-  const result = await call<{ content: string }>('server.files.read', {
-    server,
-    path,
-  });
+  const result = await call('server.files.read', { server, path });
   return result.content;
 }
 
@@ -45,11 +36,7 @@ export async function move(
   from: string,
   to: string,
 ): Promise<void> {
-  await call(
-    'server.files.move',
-    { server, from, to },
-    { timeoutMs: TREE_TIMEOUT_MS },
-  );
+  await call('server.files.move', { server, from, to });
 }
 
 export async function copy(
@@ -57,19 +44,11 @@ export async function copy(
   from: string,
   to: string,
 ): Promise<void> {
-  await call(
-    'server.files.copy',
-    { server, from, to },
-    { timeoutMs: TREE_TIMEOUT_MS },
-  );
+  await call('server.files.copy', { server, from, to });
 }
 
 export async function remove(server: string, paths: string[]): Promise<void> {
-  await call(
-    'server.files.remove',
-    { server, paths },
-    { timeoutMs: TREE_TIMEOUT_MS },
-  );
+  await call('server.files.remove', { server, paths });
 }
 
 export async function importFiles(
@@ -77,11 +56,7 @@ export async function importFiles(
   path: string,
   sources: string[],
 ): Promise<void> {
-  await call(
-    'server.files.import',
-    { server, path, sources },
-    { timeoutMs: TREE_TIMEOUT_MS },
-  );
+  await call('server.files.import', { server, path, sources });
 }
 
 export async function compress(
@@ -89,11 +64,7 @@ export async function compress(
   paths: string[],
   to: string,
 ): Promise<void> {
-  await call(
-    'server.files.compress',
-    { server, paths, to },
-    { timeoutMs: TREE_TIMEOUT_MS },
-  );
+  await call('server.files.compress', { server, paths, to });
 }
 
 export async function extract(
@@ -101,9 +72,5 @@ export async function extract(
   from: string,
   to: string,
 ): Promise<void> {
-  await call(
-    'server.files.extract',
-    { server, from, to },
-    { timeoutMs: TREE_TIMEOUT_MS },
-  );
+  await call('server.files.extract', { server, from, to });
 }

@@ -1,5 +1,3 @@
-use std::time::Duration;
-
 use ipc::errors::IpcError;
 use proto::skins::{
     Cape, CapeClear, CapeClearParams, CapeEquip, CapeEquipParams, Skin, SkinAdd, SkinAddParams,
@@ -8,10 +6,6 @@ use proto::skins::{
 };
 
 use crate::session::Session;
-
-/// Every call that touches Mojang carries a generous timeout: a stale account
-/// token is rotated through Microsoft inline, which multiplies the round trips.
-const MOJANG_TIMEOUT: Duration = Duration::from_secs(30);
 
 pub struct Skins<'a> {
     pub(crate) session: &'a Session,
@@ -24,10 +18,7 @@ impl Skins<'_> {
         let params = SkinListParams {
             account: account.to_string(),
         };
-        let result = self
-            .session
-            .call_with_timeout::<SkinList>(&params, MOJANG_TIMEOUT)
-            .await?;
+        let result = self.session.call::<SkinList>(&params).await?;
         Ok((result.skins, result.capes))
     }
 
@@ -45,11 +36,7 @@ impl Skins<'_> {
             variant,
             data: data.to_string(),
         };
-        Ok(self
-            .session
-            .call_with_timeout::<SkinAdd>(&params, MOJANG_TIMEOUT)
-            .await?
-            .skin)
+        Ok(self.session.call::<SkinAdd>(&params).await?.skin)
     }
 
     /// Reset the account to its uuid-derived default skin.
@@ -57,9 +44,7 @@ impl Skins<'_> {
         let params = SkinResetParams {
             account: account.to_string(),
         };
-        self.session
-            .call_with_timeout::<SkinReset>(&params, MOJANG_TIMEOUT)
-            .await?;
+        self.session.call::<SkinReset>(&params).await?;
         Ok(())
     }
 
@@ -78,11 +63,7 @@ impl Skins<'_> {
             name: name.to_string(),
             variant,
         };
-        Ok(self
-            .session
-            .call_with_timeout::<SkinUpdate>(&params, MOJANG_TIMEOUT)
-            .await?
-            .skin)
+        Ok(self.session.call::<SkinUpdate>(&params).await?.skin)
     }
 
     /// Remove a library entry; the equipped Mojang skin is untouched.
@@ -99,9 +80,7 @@ impl Skins<'_> {
             account: account.to_string(),
             cape: cape.to_string(),
         };
-        self.session
-            .call_with_timeout::<CapeEquip>(&params, MOJANG_TIMEOUT)
-            .await?;
+        self.session.call::<CapeEquip>(&params).await?;
         Ok(())
     }
 
@@ -109,9 +88,7 @@ impl Skins<'_> {
         let params = CapeClearParams {
             account: account.to_string(),
         };
-        self.session
-            .call_with_timeout::<CapeClear>(&params, MOJANG_TIMEOUT)
-            .await?;
+        self.session.call::<CapeClear>(&params).await?;
         Ok(())
     }
 }

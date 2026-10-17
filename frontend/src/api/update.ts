@@ -10,21 +10,13 @@ import type {
 } from './types/update';
 
 export function check(): Promise<UpdateCheckResult> {
-  return call<UpdateCheckResult>('update.check');
+  return call('update.check');
 }
 
 export function download(job: JobRun<DownloadProgress>): Promise<UpdateDone> {
-  return runJob<UpdateDone, DownloadProgress>({
-    ...job,
-    start: () => call('update.download', { id: job.id }),
-  });
+  return runJob('update.download', {}, job);
 }
 
-/** Waits on an interactive elevation prompt on Linux, so the timeout is long. */
 export function apply(path: string): Promise<UpdateApplyResult> {
-  return call<UpdateApplyResult>(
-    'update.apply',
-    { path },
-    { timeoutMs: 300_000 },
-  );
+  return call('update.apply', { path });
 }

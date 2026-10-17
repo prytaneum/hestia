@@ -17,9 +17,6 @@ use proto::Contract;
 use serde_json::Value;
 use tokio::sync::{oneshot, Notify};
 
-/// The default per-call timeout; a wedged handler can't hang the caller forever.
-pub const CALL_TIMEOUT: Duration = Duration::from_secs(10);
-
 type EventCallback = Arc<dyn Fn(&Event) + Send + Sync>;
 
 /// How a job ended, other than well. Cancellation is kept apart from failure
@@ -156,17 +153,9 @@ impl Session {
     /// Send `C::Params` over `C::CHANNEL` and decode `C::Result`, mapping a
     /// daemon-side error to `IpcError::Daemon`.
     pub async fn call<C: Contract>(&self, params: &C::Params) -> Result<C::Result, IpcError> {
-        self.call_with_timeout::<C>(params, CALL_TIMEOUT).await
-    }
-
-    pub async fn call_with_timeout<C: Contract>(
-        &self,
-        params: &C::Params,
-        timeout: Duration,
-    ) -> Result<C::Result, IpcError> {
         let payload =
             serde_json::to_value(params).map_err(|e| IpcError::Malformed(e.to_string()))?;
-        let res = self.call_raw(C::CHANNEL, payload, timeout).await?;
+        let res = self.call_raw(C::CHANNEL, payload, C::TIMEOUT).await?;
         let res = must(res)?;
         serde_json::from_value(res.payload).map_err(|e| IpcError::Malformed(e.to_string()))
     }
@@ -178,7 +167,7 @@ impl Session {
     ) -> Result<Option<C::Result>, IpcError> {
         let payload =
             serde_json::to_value(params).map_err(|e| IpcError::Malformed(e.to_string()))?;
-        let res = self.call_raw(C::CHANNEL, payload, CALL_TIMEOUT).await?;
+        let res = self.call_raw(C::CHANNEL, payload, C::TIMEOUT).await?;
         let res = match must(res) {
             Err(IpcError::Daemon { code, .. }) if code == ipc::errors::NOT_FOUND => {
                 return Ok(None)

@@ -36,11 +36,7 @@ export function installInstance(
   target: ModpackTarget,
   job: JobRun,
 ): Promise<ModpackDone> {
-  return runJob<ModpackDone>({
-    ...job,
-    start: () =>
-      call('instance.modpack.install', { ...pack, target, id: job.id }),
-  });
+  return runJob('instance.modpack.install', { ...pack, target }, job);
 }
 
 /** `eula` is required when the target creates a server. */
@@ -50,16 +46,7 @@ export function installServer(
   options: { eula?: boolean; port?: number },
   job: JobRun,
 ): Promise<ModpackDone> {
-  return runJob<ModpackDone>({
-    ...job,
-    start: () =>
-      call('server.modpack.install', {
-        ...pack,
-        target,
-        ...options,
-        id: job.id,
-      }),
-  });
+  return runJob('server.modpack.install', { ...pack, target, ...options }, job);
 }
 
 /**
@@ -74,10 +61,7 @@ export function update(
   to: PackMove,
   job: JobRun,
 ): Promise<ModpackDone> {
-  return runJob<ModpackDone>({
-    ...job,
-    start: () => call('modpack.update', { target, to, id: job.id }),
-  });
+  return runJob('modpack.update', { target, to }, job);
 }
 
 /** What updating from the pack file at `path` would do, before it starts. */
@@ -85,20 +69,14 @@ export function previewUpdate(
   target: EntryTarget,
   path: string,
 ): Promise<ModpackFilePreview> {
-  return call(
-    'modpack.preview_update',
-    { target, path },
-    { timeoutMs: 120_000 },
-  );
+  return call('modpack.preview_update', { target, path });
 }
 
 /** `null` when the entry was not built from a pack — an ordinary answer. */
 export async function status(
   target: EntryTarget,
 ): Promise<InstalledModpack | null> {
-  const result = await call<{ pack?: InstalledModpack }>('modpack.status', {
-    target,
-  });
+  const result = await call('modpack.status', { target });
   return result.pack ?? null;
 }
 
@@ -107,11 +85,7 @@ export async function checkUpdate(
   target: EntryTarget,
   gameVersion = '',
 ): Promise<ModpackUpdate | null> {
-  const result = await call<{ update?: ModpackUpdate }>(
-    'modpack.check_update',
-    { target, gameVersion },
-    { timeoutMs: 120_000 },
-  );
+  const result = await call('modpack.check_update', { target, gameVersion });
   return result.update ?? null;
 }
 

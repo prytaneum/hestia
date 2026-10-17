@@ -32,7 +32,7 @@ export type ContentAddInput = Partial<Omit<ContentAddSpec, 'items'>> & {
 };
 
 export async function sources(): Promise<ContentSource[]> {
-  const result = await call<{ sources: ContentSource[] }>('content.sources');
+  const result = await call('content.sources');
   return result.sources;
 }
 
@@ -55,10 +55,7 @@ export function resolveUrl(url: string): Promise<ResolvedUrl> {
 export async function versions(
   query: Partial<VersionQuery>,
 ): Promise<ContentVersion[]> {
-  const result = await call<{ versions: ContentVersion[] }>(
-    'content.versions',
-    query,
-  );
+  const result = await call('content.versions', query);
   return result.versions;
 }
 
@@ -76,10 +73,7 @@ export function add(
   spec: ContentAddInput,
   job: JobRun,
 ): Promise<ContentDone> {
-  return runJob<ContentDone>({
-    ...job,
-    start: () => call('content.add', { target, ...spec, id: job.id }),
-  });
+  return runJob('content.add', { target, ...spec }, job);
 }
 
 export function list(
@@ -110,11 +104,7 @@ export function update(
   path: string,
   job: JobRun,
 ): Promise<ContentDone> {
-  return runJob<ContentDone>({
-    ...job,
-    start: () =>
-      call('content.update', { target, kind, items, path, id: job.id }),
-  });
+  return runJob('content.update', { target, kind, items, path }, job);
 }
 
 /** Enable or disable one installed item; applies at the next start. */
@@ -133,11 +123,7 @@ export async function checkUpdates(
   target: EntryTarget,
   kind: ContentKind,
 ): Promise<ContentUpdate[]> {
-  const result = await call<{ updates: ContentUpdate[] }>(
-    'content.check_updates',
-    { target, kind },
-    { timeoutMs: 120_000 },
-  );
+  const result = await call('content.check_updates', { target, kind });
   return result.updates;
 }
 
@@ -146,11 +132,7 @@ export async function matches(
   kind: ContentKind,
   item: string,
 ): Promise<ContentMatch[]> {
-  const result = await call<{ matches: ContentMatch[] }>(
-    'content.matches',
-    { target, kind, item },
-    { timeoutMs: 120_000 },
-  );
+  const result = await call('content.matches', { target, kind, item });
   return result.matches;
 }
 
@@ -163,16 +145,9 @@ export function setVersion(
   source: string,
   job: JobRun,
 ): Promise<ContentDone> {
-  return runJob<ContentDone>({
-    ...job,
-    start: () =>
-      call('content.set_version', {
-        target,
-        kind,
-        item,
-        version,
-        source,
-        id: job.id,
-      }),
-  });
+  return runJob(
+    'content.set_version',
+    { target, kind, item, version, source },
+    job,
+  );
 }

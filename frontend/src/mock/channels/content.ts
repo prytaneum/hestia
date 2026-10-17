@@ -7,7 +7,7 @@ import type { ContentKind, ContentSource } from '@/api/types';
 
 import * as content from '../state/content';
 import * as settings from '../state/settings';
-import { type Handlers, num, str } from '../support';
+import { type ChannelHandlers, num, str } from '../support';
 import { contentChannels } from './entry';
 
 const MODRINTH: ContentSource = {
@@ -24,7 +24,7 @@ const CURSEFORGE: ContentSource = {
 
 const ARCHIVE = /\.(jar|zip)$/i;
 
-export const channels: Handlers = {
+export const channels: ChannelHandlers = {
   // CurseForge is offered only once its key resolves — the same gate the
   // daemon applies, so the settings page's "source needs a key" hint is live.
   'content.sources': () => ({

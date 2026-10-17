@@ -3,7 +3,7 @@
  * module per domain, merged here; adding a domain is a `import` and a line in
  * the spread, and nothing else in the mock changes.
  */
-import type { Handlers } from '../support';
+import type { ChannelHandlers } from '../support';
 import { channels as account } from './account';
 import { channels as app } from './app';
 import { channels as cache } from './cache';
@@ -25,7 +25,7 @@ import { channels as tasks } from './tasks';
 import { channels as transfer } from './transfer';
 import { channels as update } from './update';
 
-export const channels: Handlers = {
+export const channels: ChannelHandlers = {
   ...app,
   ...account,
   ...cache,

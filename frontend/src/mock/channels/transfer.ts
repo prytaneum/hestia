@@ -7,7 +7,7 @@ import type { ArchiveEntry, ArchiveInfo, ImportFormat } from '@/api/types';
 
 import { jobIdOf, startJob } from '../job';
 import * as entries from '../state/entries';
-import { type Handlers, str } from '../support';
+import { type ChannelHandlers, str } from '../support';
 
 const TREE: ArchiveEntry[] = [
   {
@@ -68,7 +68,7 @@ const formatOf = (path: string): ImportFormat => {
   return 'prism';
 };
 
-export const channels: Handlers = {
+export const channels: ChannelHandlers = {
   'instance.export.contents': (p) => {
     entries.findInstance(str(p, 'instance'));
     return { entries: TREE };

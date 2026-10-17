@@ -4,6 +4,8 @@
 //! runtime ensured, the server jar downloaded, the EULA recorded — so `start`
 //! is an immediate spawn.
 
+use std::time::Duration;
+
 use serde::{Deserialize, Serialize};
 
 use crate::content::ContentKind;
@@ -270,6 +272,9 @@ impl Contract for ServerStop {
 pub struct ServerRestart;
 impl Contract for ServerRestart {
     const CHANNEL: &'static str = "server.restart";
+    /// Answers once the new process is up, so it outlasts the wait for the old
+    /// one to exit.
+    const TIMEOUT: Duration = Duration::from_secs(150);
     type Params = ServerRef;
     type Result = ServerStartResult;
 }

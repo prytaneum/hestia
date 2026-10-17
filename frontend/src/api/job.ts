@@ -13,6 +13,6 @@ import { call } from './core/ipc';
  * a normal race when the user clicks as it finishes, not an error.
  */
 export async function cancel(id: string): Promise<boolean> {
-  const result = await call<{ cancelled: boolean }>('job.cancel', { id });
+  const result = await call('job.cancel', { id });
   return result.cancelled;
 }

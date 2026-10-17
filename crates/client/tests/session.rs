@@ -7,6 +7,7 @@ use std::time::Duration;
 
 use client::proto::error::{EntryKind, ErrorInfo};
 use client::proto::java::{JavaInstallPhase, JavaInstallProgress, JavaRuntime};
+use client::proto::Contract;
 use client::{error_info, IpcError};
 use fake::{event, Reply, Script};
 use serde_json::json;
@@ -84,12 +85,17 @@ async fn try_call_turns_not_found_into_none() {
 async fn a_silent_daemon_times_out_rather_than_hanging() {
     let client = Script::new().on("java.list", Reply::Silent).serve();
 
+    struct Impatient;
+    impl Contract for Impatient {
+        const CHANNEL: &'static str = "java.list";
+        const TIMEOUT: Duration = Duration::from_millis(50);
+        type Params = client::proto::Empty;
+        type Result = client::proto::Empty;
+    }
+
     let error = client
         .session()
-        .call_with_timeout::<client::proto::java::JavaList>(
-            &client::proto::Empty {},
-            Duration::from_millis(50),
-        )
+        .call::<Impatient>(&client::proto::Empty {})
         .await
         .expect_err("timeout");
     assert!(matches!(error, IpcError::Timeout(channel) if channel == "java.list"));

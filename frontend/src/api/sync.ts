@@ -17,9 +17,7 @@ export function get(): Promise<SyncConfig> {
 
 /** Which instances could start a unit's shared copy. */
 export async function sources(unit: SyncUnit): Promise<SyncSource[]> {
-  const result = await call<{ sources: SyncSource[] }>('sync.sources', {
-    unit,
-  });
+  const result = await call('sync.sources', { unit });
   return result.sources;
 }
 
@@ -38,7 +36,7 @@ export function setUnsynced(unsynced: string[]): Promise<SyncConfig> {
 }
 
 export async function options(): Promise<SyncOption[]> {
-  const result = await call<{ options: SyncOption[] }>('sync.options.get');
+  const result = await call('sync.options.get');
   return result.options;
 }
 
@@ -46,15 +44,12 @@ export async function setOption(
   key: string,
   value: string,
 ): Promise<SyncOption[]> {
-  const result = await call<{ options: SyncOption[] }>('sync.options.set', {
-    key,
-    value,
-  });
+  const result = await call('sync.options.set', { key, value });
   return result.options;
 }
 
 export async function status(): Promise<InstanceSyncStatus[]> {
-  const result = await call<{ instances: InstanceSyncStatus[] }>('sync.status');
+  const result = await call('sync.status');
   return result.instances;
 }
 
@@ -64,7 +59,11 @@ export function setInstanceUnit(
   unit: SyncUnit,
   shared: boolean | null,
 ): Promise<InstanceSyncStatus> {
-  return call('instance.sync.unit', { instance, unit, shared });
+  return call('instance.sync.unit', {
+    instance,
+    unit,
+    shared: shared ?? undefined,
+  });
 }
 
 export function setInstanceUnsynced(

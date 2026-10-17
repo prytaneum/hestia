@@ -4,12 +4,23 @@
 //! compile error. Serde derive is the marshalling layer (replacing the C++
 //! `kFields` codec).
 
+use std::time::Duration;
+
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
+
+/// How long a call waits for its reply unless its contract says otherwise; a
+/// wedged handler can't hang the caller forever.
+pub const DEFAULT_TIMEOUT: Duration = Duration::from_secs(10);
 
 /// Binds a channel string to its request/response payload types.
 pub trait Contract {
     const CHANNEL: &'static str;
+    /// How long a caller waits for the reply. A contract whose handler blocks on
+    /// the network or the disk overrides it; `scripts/lib/gen-channels.py` reads
+    /// the override as `Duration::from_secs(<int> [* <int>]…)` into the
+    /// front-end's table, so keep that form.
+    const TIMEOUT: Duration = DEFAULT_TIMEOUT;
     type Params: Serialize + DeserializeOwned;
     type Result: Serialize + DeserializeOwned;
 }

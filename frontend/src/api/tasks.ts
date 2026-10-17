@@ -7,9 +7,7 @@ import { call } from './core/ipc';
 import type { ServerTask } from './types/tasks';
 
 export async function list(server: string): Promise<ServerTask[]> {
-  const result = await call<{ tasks: ServerTask[] }>('server.task.list', {
-    server,
-  });
+  const result = await call('server.task.list', { server });
   return result.tasks;
 }
 
@@ -18,7 +16,7 @@ export function save(
   server: string,
   task: Partial<ServerTask>,
 ): Promise<ServerTask> {
-  return call<ServerTask>('server.task.save', { server, task });
+  return call('server.task.save', { server, task });
 }
 
 export async function remove(server: string, id: string): Promise<void> {

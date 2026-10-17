@@ -27,13 +27,6 @@ export type LogsResult = UseQueryResult<ProcessLogLine[], HestiaError> & {
   lines: ProcessLogLine[];
 };
 
-// The daemon coalesces a tail poll's lines into one event, so the wire shape is
-// `{ id, lines: ProcessLogLine[] }` — a batch, not a single line.
-interface ProcessOutputPayload {
-  id: string;
-  lines: ProcessLogLine[];
-}
-
 export function useFollowedLogs(
   query: UseQueryResult<ProcessLogLine[], HestiaError>,
   matches: ((processId: string) => boolean) | null,
@@ -56,11 +49,11 @@ export function useFollowedLogs(
   // A new process writes a fresh log (the game rotates `latest.log` at
   // startup), so the accumulated buffer belongs to the run that just ended:
   // drop it and let the refetched tail be the new run's history.
-  useDaemonEvent<{ id: string }>('process.started', (payload) => {
+  useDaemonEvent('process.started', (payload) => {
     if (matchesRef.current?.(payload.id)) setLive([]);
   });
 
-  useDaemonEvent<ProcessOutputPayload>('process.output', (payload) => {
+  useDaemonEvent('process.output', (payload) => {
     if (!matchesRef.current?.(payload.id) || payload.lines.length === 0) return;
     setLive((lines) => {
       const merged = [...lines, ...payload.lines];

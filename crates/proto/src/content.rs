@@ -6,6 +6,7 @@
 //! carry `#[serde(default)]` so an older/newer peer decodes additive fields.
 
 use std::fmt;
+use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 
@@ -582,6 +583,7 @@ impl Contract for EntryContentEnable {
 pub struct EntryContentCheckUpdates;
 impl Contract for EntryContentCheckUpdates {
     const CHANNEL: &'static str = "content.check_updates";
+    const TIMEOUT: Duration = Duration::from_secs(120);
     type Params = EntryContentCheckUpdatesParams;
     type Result = ContentUpdatesResult;
 }
@@ -589,6 +591,7 @@ impl Contract for EntryContentCheckUpdates {
 pub struct EntryContentMatches;
 impl Contract for EntryContentMatches {
     const CHANNEL: &'static str = "content.matches";
+    const TIMEOUT: Duration = Duration::from_secs(120);
     type Params = EntryContentMatchesParams;
     type Result = ContentMatchesResult;
 }

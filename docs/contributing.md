@@ -80,6 +80,12 @@ absent** (`skip_serializing_if = "Option::is_none"`): the generated TypeScript t
 so a list, string, number or flag omitted when empty arrives as `undefined` — and a list throws when iterated.
 `tests/omission.rs` enforces it.
 
+**A slow handler says so on its contract.** `Contract::TIMEOUT` defaults to `DEFAULT_TIMEOUT` (10 s). A contract whose
+handler waits on the network, a disk tree or a person overrides it with
+`const TIMEOUT: Duration = Duration::from_secs(120);`, written as `Duration::from_secs(<int> [* <int>])` because
+`scripts/lib/gen-channels.py` reads it. `Session::call` and the desktop bridge both apply it, so no facade method or
+API function passes a timeout of its own. A job's start channel answers at once and keeps the default.
+
 **The wire is camelCase.** Every fielded proto struct carries
 `#[serde(rename_all = "camelCase")]`, so the socket speaks camelCase and the front-ends consume it with no key
 conversion (the frontend's type mirrors are camelCase). Rust field names stay `snake_case`; only the serialized form is
@@ -279,9 +285,8 @@ impl Instance<'_> {
 
 If the domain is new, add its module and `pub use` to `facades/mod.rs`, the accessor on `Client`
 (`crates/client/src/lib.rs`), and the export from the crate root. Use `try_call` when a `not_found` should surface as
-`None`,
-`call_with_timeout` for a long call, and `run_job::<C>` to block on a job — a facade method is that call and
-nothing else (see `Java::install`).
+`None`, and `run_job::<C>` to block on a job — a facade method is that call and
+nothing else (see `Java::install`). A long call is long on its contract (`Contract::TIMEOUT`), not at the call site.
 
 ---
 
@@ -370,20 +375,28 @@ inventory).
 **1. The typed function**, in the domain's module (`frontend/src/api/<domain>.ts`). Payload types are **generated** from
 `proto` by ts-rs into
 `frontend/src/api/types/` (a flat `generated/` dir plus one per-module barrel); run `scripts/gen-types.sh` after
-changing a wire type. They carry the proto names verbatim (camelCase fields), so a request whose fields are all
-serde-default is sent as a `Partial<T>` from the API function and the daemon fills the rest:
+changing a wire type or a contract. They carry the proto names verbatim (camelCase fields).
+
+The same script writes `api/types/channels.ts`, a projection of every `impl Contract`, `impl Job` and `impl Topic` in
+`crates/proto`: `Channels` maps each channel to its params and result, `Jobs` to its progress and done payloads, `Topics`
+to its event payload, and `TIMEOUTS` carries the contracts that override `TIMEOUT`. `call`, `tryCall`, `runJob`,
+`onDaemonEvent` and the browser mock are checked against it, so a function names a channel and the compiler supplies the
+rest — no `call<{ … }>` assertion, no timeout:
 
 ```ts
 // frontend/src/api/instance.ts
 export async function list(): Promise<InstanceInfo[]> {
-    const result = await call<{ instances: InstanceInfo[] }>("instance.list");
+    const result = await call("instance.list");
     return result.instances;
 }
 ```
 
-Use `tryCall` when a `not_found` should surface as `null`, pass `{ timeoutMs }`
-for a long call (mirror the Rust facade's `call_with_timeout` values), and wrap a progress-streaming operation in
-`runJob` (`core/jobs.ts`), which listens on the `job` topic for its id — see `server.create` or `java.install`.
+A request struct with a struct-level `#[serde(default)]` is typed `Partial<…>` in the table (and so are any such structs
+nested in it): the daemon fills what is omitted, so the API function may too. Params that are `Empty` or all-default can
+be left out of the call entirely. Use `tryCall` when a `not_found` should surface as `null`, and wrap a
+progress-streaming operation in `runJob(channel, params, job)` (`core/jobs.ts`), which adds the job id to the params,
+starts the channel and resolves with its `Done` payload — see `server.create` or `java.install`. Add a fixture for the
+channel to `src/mock/channels/` only when a screen needs it; it is typed against the same table.
 
 **2. The query bindings**, in the domain's `frontend/src/queries/<domain>.ts` — a factory exists when a screen uses
 it, so a channel nothing renders gets no factory, key or mock handler until a screen needs it. A read is a `queryOptions` maker in `<domain>Queries` (its key from `keys.ts` —

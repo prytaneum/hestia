@@ -3,6 +3,8 @@
 //! surface. Textures cross the wire as URLs (Mojang-hosted) or data URLs
 //! (library blobs); uploads carry the PNG as base64.
 
+use std::time::Duration;
+
 use serde::{Deserialize, Serialize};
 
 use crate::contract::{Contract, Empty};
@@ -76,6 +78,9 @@ pub struct SkinListResult {
 pub struct SkinList;
 impl Contract for SkinList {
     const CHANNEL: &'static str = "skin.list";
+    /// Every call that touches Mojang takes 30 s: a stale account token is
+    /// rotated through Microsoft inline, which multiplies the round trips.
+    const TIMEOUT: Duration = Duration::from_secs(30);
     type Params = SkinListParams;
     type Result = SkinListResult;
 }
@@ -103,6 +108,7 @@ pub struct SkinAddResult {
 pub struct SkinAdd;
 impl Contract for SkinAdd {
     const CHANNEL: &'static str = "skin.add";
+    const TIMEOUT: Duration = Duration::from_secs(30);
     type Params = SkinAddParams;
     type Result = SkinAddResult;
 }
@@ -120,6 +126,7 @@ pub struct SkinEquipParams {
 pub struct SkinEquip;
 impl Contract for SkinEquip {
     const CHANNEL: &'static str = "skin.equip";
+    const TIMEOUT: Duration = Duration::from_secs(30);
     type Params = SkinEquipParams;
     type Result = Empty;
 }
@@ -135,6 +142,7 @@ pub struct SkinResetParams {
 pub struct SkinReset;
 impl Contract for SkinReset {
     const CHANNEL: &'static str = "skin.reset";
+    const TIMEOUT: Duration = Duration::from_secs(30);
     type Params = SkinResetParams;
     type Result = Empty;
 }
@@ -164,6 +172,7 @@ pub struct SkinUpdateResult {
 pub struct SkinUpdate;
 impl Contract for SkinUpdate {
     const CHANNEL: &'static str = "skin.update";
+    const TIMEOUT: Duration = Duration::from_secs(30);
     type Params = SkinUpdateParams;
     type Result = SkinUpdateResult;
 }
@@ -196,6 +205,7 @@ pub struct CapeEquipParams {
 pub struct CapeEquip;
 impl Contract for CapeEquip {
     const CHANNEL: &'static str = "cape.equip";
+    const TIMEOUT: Duration = Duration::from_secs(30);
     type Params = CapeEquipParams;
     type Result = Empty;
 }
@@ -211,6 +221,7 @@ pub struct CapeClearParams {
 pub struct CapeClear;
 impl Contract for CapeClear {
     const CHANNEL: &'static str = "cape.clear";
+    const TIMEOUT: Duration = Duration::from_secs(30);
     type Params = CapeClearParams;
     type Result = Empty;
 }

@@ -23,10 +23,14 @@ function emptyProxy(): unknown {
   });
 }
 
+function hasFixture(channel: string): channel is keyof typeof channels {
+  return Object.hasOwn(channels, channel);
+}
+
 export function dispatch(cmd: string, args: Record<string, unknown>): unknown {
   if (cmd === 'ipc_call') {
     const channel = String(args.channel);
-    const handler = channels[channel];
+    const handler = hasFixture(channel) ? channels[channel] : undefined;
     if (handler)
       return handler((args.payload ?? {}) as Record<string, unknown>);
     console.warn(

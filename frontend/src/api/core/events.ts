@@ -8,16 +8,16 @@
 import { listen } from '@tauri-apps/api/event';
 
 import { logger } from '@/lib/log';
+import type { Topics } from '../types/channels';
 
 const log = logger('events');
 
 export const EVENT_CHANNEL = 'hestia:event';
 export const CONNECTION_CHANNEL = 'hestia:connection';
 
-export interface DaemonEvent {
-  topic: string;
-  payload: Record<string, unknown>;
-}
+export type DaemonEvent = {
+  [T in keyof Topics]: { topic: T; payload: Topics[T] };
+}[keyof Topics];
 
 export type ConnectionState = 'connected' | 'disconnected';
 
@@ -63,12 +63,12 @@ export async function onDaemonEvent(
 }
 
 /** Receive only events on one topic. */
-export async function onTopic<T = Record<string, unknown>>(
-  topic: string,
-  handler: (payload: T) => void,
+export async function onTopic<K extends keyof Topics>(
+  topic: K,
+  handler: (payload: Topics[K]) => void,
 ): Promise<() => void> {
   return onDaemonEvent((event) => {
-    if (event.topic === topic) handler(event.payload as T);
+    if (event.topic === topic) handler(event.payload as Topics[K]);
   });
 }
 

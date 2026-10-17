@@ -6,11 +6,13 @@
 //! command per channel: the daemon already validates every payload through
 //! the wire contract (`bad_request` / `unknown_channel`), so a per-channel
 //! Rust layer would only add a third naming seam that can drift. The typed
-//! surface lives once, in the frontend's `src/api/`.
+//! surface is the frontend's `src/api/`, checked against a table generated
+//! from the contracts.
 
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+use client::proto::contract::DEFAULT_TIMEOUT;
 use client::proto::events::{EventsSubscribe, EventsSubscribeParams};
 use client::{Client, IpcError};
 use serde::Serialize;
@@ -23,7 +25,6 @@ pub const EVENT_CHANNEL: &str = "hestia:event";
 /// The webview event carrying connection-state transitions.
 pub const CONNECTION_CHANNEL: &str = "hestia:connection";
 
-const DEFAULT_TIMEOUT: Duration = Duration::from_secs(10);
 const WATCH_INTERVAL: Duration = Duration::from_secs(2);
 
 #[derive(Default)]

@@ -1,5 +1,3 @@
-use std::time::Duration;
-
 use ipc::errors::IpcError;
 use proto::instance::{AddressPing, AddressPingParams};
 use proto::instance::{
@@ -86,11 +84,7 @@ impl Instance<'_> {
             loader_version,
             config,
         };
-        Ok(self
-            .session
-            .call_with_timeout::<InstanceCreate>(&params, Duration::from_secs(60))
-            .await?
-            .instance)
+        Ok(self.session.call::<InstanceCreate>(&params).await?.instance)
     }
 
     /// Move a stopped instance to another version (the profile is resolved
@@ -110,11 +104,7 @@ impl Instance<'_> {
             loader_version,
             allow_downgrade,
         };
-        Ok(self
-            .session
-            .call_with_timeout::<InstanceUpdate>(&params, Duration::from_secs(10 * 60))
-            .await?
-            .instance)
+        Ok(self.session.call::<InstanceUpdate>(&params).await?.instance)
     }
 
     pub async fn list(&self) -> Result<Vec<InstanceInfo>, IpcError> {

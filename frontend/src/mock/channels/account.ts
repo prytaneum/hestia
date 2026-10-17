@@ -5,7 +5,7 @@
  */
 import type { Account, AccountListResult } from '@/api/types';
 
-import { fail, type Handlers, str } from '../support';
+import { type ChannelHandlers, fail, str } from '../support';
 
 export const player: Account = {
   uuid: '00000000-0000-0000-0000-000000000001',
@@ -36,12 +36,12 @@ function find(ref: string): Account {
 export const resolve = (ref = ''): Account =>
   ref ? find(ref) : (accounts.find((a) => a.uuid === defaultUuid) ?? player);
 
-export const channels: Handlers = {
+export const channels: ChannelHandlers = {
   'account.list': (): AccountListResult => ({ accounts, defaultUuid }),
 
   'account.login.begin': (p) => ({
     id: 'login-1',
-    method: str(p, 'method', 'sisu'),
+    method: str(p, 'method') === 'device_code' ? 'device_code' : 'sisu',
     url: 'https://login.live.com/oauth20_authorize.srf',
     userCode: 'MOCK-CODE',
     verificationUri: 'https://microsoft.com/link',

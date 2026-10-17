@@ -3,6 +3,7 @@
 //! only thing that reads the release manifest or verifies a signature.
 
 use std::path::PathBuf;
+use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 
@@ -131,6 +132,8 @@ pub struct UpdateApplyResult {
 pub struct UpdateApply;
 impl Contract for UpdateApply {
     const CHANNEL: &'static str = "update.apply";
+    /// A package install waits on an interactive elevation prompt.
+    const TIMEOUT: Duration = Duration::from_secs(300);
     type Params = UpdateApplyParams;
     type Result = UpdateApplyResult;
 }

@@ -5,7 +5,7 @@
 import type { BackupInfo } from '@/api/types';
 
 import { jobIdOf, startJob } from '../job';
-import { ago, type Handlers, now, ok, str } from '../support';
+import { ago, type ChannelHandlers, now, ok, str } from '../support';
 import type { Resolve } from './entry';
 
 const backups = new Map<string, BackupInfo[]>([
@@ -39,7 +39,7 @@ function listOf(id: string): BackupInfo[] {
 const stamp = (): string =>
   new Date().toISOString().slice(0, 16).replace(/[-:T]/g, '').slice(0, 12);
 
-export function channels(resolve: Resolve): Handlers {
+export function channels(resolve: Resolve): ChannelHandlers {
   const job = (
     payload: Record<string, unknown>,
     channel: 'server.backup.create' | 'server.backup.restore',

@@ -3,8 +3,8 @@
  * by the id its own events carry.
  */
 import { cancelJob } from '../job';
-import { type Handlers, str } from '../support';
+import { type ChannelHandlers, str } from '../support';
 
-export const channels: Handlers = {
+export const channels: ChannelHandlers = {
   'job.cancel': (p) => ({ cancelled: cancelJob(str(p, 'id')) }),
 };

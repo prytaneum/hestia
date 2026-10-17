@@ -153,7 +153,8 @@ The whole wiring is one seam, `src/bridge.rs`:
 - a shared `Client` held as Tauri managed state, started at shell launch — so
   opening the app brings its daemon up;
 - **one generic** `ipc_call(channel, payload, timeout_ms)` command forwarding
-  through the session's `call_raw`;
+  through the session's `call_raw` (a call that names no timeout gets
+  `proto::contract::DEFAULT_TIMEOUT`; the TS layer names the contract's);
 - event forwarding: on connect the bridge claims the session's one
   event-callback slot, subscribes to *every* daemon event, and re-emits each as a
   `hestia:event` webview event.
@@ -161,8 +162,10 @@ The whole wiring is one seam, `src/bridge.rs`:
 Mirroring ~120 channels as individual Tauri commands would add a third naming
 seam that can drift from both sides while adding no safety — `invoke()` results
 are untyped JSON regardless, and the daemon already validates every payload
-through the wire contract. So the typed layer lives once, in TypeScript
-([0046](../decisions/0046-desktop-bridge-is-one-generic-command.md)).
+through the wire contract. So the typed layer is TypeScript, checked against a
+channel table generated from the contracts
+([0046](../decisions/0046-desktop-bridge-is-one-generic-command.md),
+[0084](../decisions/0084-the-ts-channel-table-is-generated-from-the-contracts.md)).
 
 A watcher task notices a lost daemon between calls, emits `hestia:connection`
 transitions, and passively reconnects. **Reconnection never spawns** — a daemon
@@ -198,11 +201,18 @@ flowchart TD
     BR -.->|"hestia:event"| BUS["event bus"] --> Q
 ```
 
-**`api/`** — `core/` holds the `ipc_call` wrapper with the SDK's timeout
-defaults, the event bus, and a `runJob` driver mirroring `Session::run_job`
-(client-generated job id, subscribe-before-start). `types/` is **generated** from
-`proto` by ts-rs; the feature-gated `#[ts]` derives never enter a production
-build. Then one module per domain, mirroring the client facades.
+**`api/`** — `core/` holds the `ipc_call` wrapper, the event bus, and a
+`runJob` driver mirroring `Session::run_job` (client-generated job id,
+subscribe-before-start). `types/` is **generated** from `proto`: ts-rs writes the
+payload structs (the feature-gated `#[ts]` derives never enter a production
+build) and `scripts/gen-types.sh` writes `channels.ts`, the `Channels` / `Jobs` /
+`Topics` tables and each contract's timeout. `call('server.status', …)` takes its
+params and returns its result from that table, applies the contract's timeout,
+and `runJob('server.create', params, job)` starts the channel and resolves with
+its `Done` payload; `onDaemonEvent` payloads are narrowed by topic. Then one
+module per domain, mirroring the client facades. The browser mock's handlers
+(`src/mock/channels`) and `queries/invalidation.ts` are typed against the same
+tables, so a renamed channel or a drifted fixture fails typecheck.
 
 **`queries/`** — one module per domain, for the channels a screen uses. Each
 exports **factories** — options objects, not hooks (`serverQueries.detail(id)`,

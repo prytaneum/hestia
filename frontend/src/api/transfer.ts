@@ -20,10 +20,7 @@ import type {
 
 /** What an export of this instance would carry, sorted by path. */
 export async function contents(instance: string): Promise<ArchiveEntry[]> {
-  const result = await call<{ entries: ArchiveEntry[] }>(
-    'instance.export.contents',
-    { instance },
-  );
+  const result = await call('instance.export.contents', { instance });
   return result.entries;
 }
 
@@ -49,17 +46,16 @@ export function exportInstance(
   input: ExportInput,
   job: JobRun,
 ): Promise<ExportDone> {
-  return runJob<ExportDone>({
-    ...job,
-    start: () =>
-      call('instance.export', {
-        instance,
-        format: input.format,
-        destination: input.destination ?? '',
-        exclude: input.exclude ?? [],
-        id: job.id,
-      }),
-  });
+  return runJob(
+    'instance.export',
+    {
+      instance,
+      format: input.format,
+      destination: input.destination ?? '',
+      exclude: input.exclude ?? [],
+    },
+    job,
+  );
 }
 
 /**
@@ -71,8 +67,5 @@ export function importInstance(
   name = '',
   job: JobRun,
 ): Promise<ImportDone> {
-  return runJob<ImportDone>({
-    ...job,
-    start: () => call('instance.import', { path, name, id: job.id }),
-  });
+  return runJob('instance.import', { path, name }, job);
 }

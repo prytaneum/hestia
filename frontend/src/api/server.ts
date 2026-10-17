@@ -7,7 +7,7 @@
 
 import { call } from './core/ipc';
 import { type JobRun, runJob } from './core/jobs';
-import type { BackupDone, BackupInfo } from './types/backup';
+import type { BackupInfo } from './types/backup';
 import type {
   ConfigEntry,
   FlavorsResult,
@@ -22,17 +22,16 @@ import type {
   ServerInfo,
   ServerPingResult,
   ServerProperty,
+  ServerStartResult,
   ServerUpdateParams,
 } from './types/server';
 
 export function flavors(): Promise<FlavorsResult> {
-  return call<FlavorsResult>('server.flavors');
+  return call('server.flavors');
 }
 
 export async function versions(flavor: string): Promise<GameVersion[]> {
-  const result = await call<{ versions: GameVersion[] }>('server.versions', {
-    flavor,
-  });
+  const result = await call('server.versions', { flavor });
   return result.versions;
 }
 
@@ -41,16 +40,13 @@ export async function loaders(
   flavor: string,
   version: string,
 ): Promise<string[]> {
-  const result = await call<{ loaders: string[] }>('server.loaders', {
-    flavor,
-    version,
-  });
+  const result = await call('server.loaders', { flavor, version });
   return result.loaders;
 }
 
 export async function list(): Promise<ServerInfo[]> {
-  const result = await call<{ servers: ServerInfo[] }>('server.list');
-  return result?.servers ?? [];
+  const result = await call('server.list');
+  return result.servers;
 }
 
 /** The server's record merged with its live process state. */
@@ -68,24 +64,18 @@ export function ping(server: string): Promise<ServerPingResult> {
   return call('server.ping', { server });
 }
 
-export async function create(
+export function create(
   params: Partial<ServerCreateParams>,
   job: JobRun,
 ): Promise<ServerDone> {
-  return await runJob<ServerDone>({
-    ...job,
-    start: () => call('server.create', { ...params, id: job.id }),
-  });
+  return runJob('server.create', params, job);
 }
 
-export async function update(
+export function update(
   params: Omit<ServerUpdateParams, 'id'>,
   job: JobRun,
 ): Promise<ServerDone> {
-  return await runJob<ServerDone>({
-    ...job,
-    start: () => call('server.update', { ...params, id: job.id }),
-  });
+  return runJob('server.update', params, job);
 }
 
 export function rename(server: string, name: string): Promise<ServerInfo> {
@@ -96,9 +86,7 @@ export async function remove(server: string): Promise<void> {
   await call('server.remove', { server });
 }
 
-export function start(
-  server: string,
-): Promise<{ processId: string; pid: number }> {
+export function start(server: string): Promise<ServerStartResult> {
   return call('server.start', { server });
 }
 
@@ -106,21 +94,15 @@ export async function stop(server: string): Promise<void> {
   await call('server.stop', { server });
 }
 
-/** Answers once the new process is up, so it waits out the old one's stop. */
-export function restart(
-  server: string,
-): Promise<{ processId: string; pid: number }> {
-  return call('server.restart', { server }, { timeoutMs: 150_000 });
+export function restart(server: string): Promise<ServerStartResult> {
+  return call('server.restart', { server });
 }
 
 export async function logs(
   server: string,
   tail?: number,
 ): Promise<ProcessLogLine[]> {
-  const result = await call<{ lines: ProcessLogLine[] }>('server.logs', {
-    server,
-    tail,
-  });
+  const result = await call('server.logs', { server, tail });
   return result.lines;
 }
 
@@ -129,7 +111,7 @@ export async function command(
   server: string,
   commandLine: string,
 ): Promise<string> {
-  const result = await call<{ response: string }>('server.command', {
+  const result = await call('server.command', {
     server,
     command: commandLine,
   });
@@ -141,10 +123,7 @@ export function complete(
   server: string,
   line: string,
 ): Promise<ServerCommandCompleteResult> {
-  return call<ServerCommandCompleteResult>('server.command.complete', {
-    server,
-    line,
-  });
+  return call('server.command.complete', { server, line });
 }
 
 /**
@@ -157,10 +136,7 @@ export const config = {
   },
 
   async list(server: string): Promise<ConfigEntry[]> {
-    const result = await call<{ entries: ConfigEntry[] }>(
-      'server.config.list',
-      { server },
-    );
+    const result = await call('server.config.list', { server });
     return result.entries;
   },
 };
@@ -170,27 +146,19 @@ export const config = {
  * in effect. Written through `config.set`.
  */
 export async function properties(server: string): Promise<ServerProperty[]> {
-  const result = await call<{ properties: ServerProperty[] }>(
-    'server.properties',
-    { server },
-  );
+  const result = await call('server.properties', { server });
   return result.properties;
 }
 
 export const backup = {
   /** Archives a running server live (world saving pauses over RCON). */
   async create(server: string, job: JobRun): Promise<BackupInfo> {
-    const done = await runJob<BackupDone>({
-      ...job,
-      start: () => call('server.backup.create', { server, id: job.id }),
-    });
+    const done = await runJob('server.backup.create', { server }, job);
     return done.backup;
   },
 
   async list(server: string): Promise<BackupInfo[]> {
-    const result = await call<{ backups: BackupInfo[] }>('server.backup.list', {
-      server,
-    });
+    const result = await call('server.backup.list', { server });
     return result.backups;
   },
 
@@ -200,11 +168,11 @@ export const backup = {
     backupId: string,
     job: JobRun,
   ): Promise<BackupInfo> {
-    const done = await runJob<BackupDone>({
-      ...job,
-      start: () =>
-        call('server.backup.restore', { server, backup: backupId, id: job.id }),
-    });
+    const done = await runJob(
+      'server.backup.restore',
+      { server, backup: backupId },
+      job,
+    );
     return done.backup;
   },
 

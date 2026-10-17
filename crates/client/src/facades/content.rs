@@ -1,5 +1,3 @@
-use std::time::Duration;
-
 use ipc::errors::IpcError;
 use proto::content::{
     ContentAddSpec, ContentDone, ContentInspect, ContentInspectParams, ContentInspectResult,
@@ -16,8 +14,6 @@ use proto::error::EntryTarget;
 use proto::minecraft::ProvisionProgress;
 
 use crate::session::{job_id, Session};
-
-const CHECK_TIMEOUT: Duration = Duration::from_secs(120);
 
 pub struct Content<'a> {
     pub(crate) session: &'a Session,
@@ -186,7 +182,7 @@ impl Content<'_> {
         };
         let result = self
             .session
-            .call_with_timeout::<EntryContentCheckUpdates>(&params, CHECK_TIMEOUT)
+            .call::<EntryContentCheckUpdates>(&params)
             .await?;
         Ok(result.updates)
     }

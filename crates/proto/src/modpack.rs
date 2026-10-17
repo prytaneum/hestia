@@ -10,6 +10,8 @@
 //! every verb on an entry that already exists names it with an
 //! [`EntryTarget`], so the side is data rather than a second channel.
 
+use std::time::Duration;
+
 use serde::{Deserialize, Serialize};
 
 use crate::content::{ContentFailure, ReleaseChannel};
@@ -308,6 +310,7 @@ impl Contract for EntryModpackStatus {
 pub struct EntryModpackPreviewUpdate;
 impl Contract for EntryModpackPreviewUpdate {
     const CHANNEL: &'static str = "modpack.preview_update";
+    const TIMEOUT: Duration = Duration::from_secs(120);
     type Params = EntryModpackFileParams;
     type Result = ModpackFilePreview;
 }
@@ -315,6 +318,7 @@ impl Contract for EntryModpackPreviewUpdate {
 pub struct EntryModpackCheckUpdate;
 impl Contract for EntryModpackCheckUpdate {
     const CHANNEL: &'static str = "modpack.check_update";
+    const TIMEOUT: Duration = Duration::from_secs(120);
     type Params = EntryModpackCheckParams;
     type Result = ModpackUpdateResult;
 }

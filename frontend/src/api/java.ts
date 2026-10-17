@@ -10,12 +10,12 @@ import type {
 } from './types/java';
 
 export async function releases(): Promise<JavaRelease[]> {
-  const result = await call<{ releases: JavaRelease[] }>('java.releases');
+  const result = await call('java.releases');
   return result.releases;
 }
 
 export async function list(): Promise<JavaRuntime[]> {
-  const result = await call<{ runtimes: JavaRuntime[] }>('java.list');
+  const result = await call('java.list');
   return result.runtimes;
 }
 
@@ -24,15 +24,7 @@ export function install(
   options: { force?: boolean },
   job: JobRun<JavaInstallProgress>,
 ): Promise<JavaInstallDone> {
-  return runJob<JavaInstallDone, JavaInstallProgress>({
-    ...job,
-    start: () =>
-      call('java.install', {
-        major,
-        id: job.id,
-        force: options.force ?? false,
-      }),
-  });
+  return runJob('java.install', { major, force: options.force ?? false }, job);
 }
 
 export async function uninstall(major: number): Promise<void> {

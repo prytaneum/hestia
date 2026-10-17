@@ -38,7 +38,7 @@ const recentLoaded = () =>
 describe('the play bar', () => {
   it('leads with the most recently played target', async () => {
     bar();
-    const { plays } = recent({}) as { plays: { name: string }[] };
+    const plays = recent?.({}).plays ?? [];
 
     await waitFor(() => expect(screen.getByText(plays[0].name)).toBeDefined());
     expect(

@@ -27,6 +27,7 @@ the alternative you rejected — that is usually the part nobody can recover lat
 - **0045** — [One event-callback slot per client `Session`](0045-one-event-callback-per-session.md)
 - **0063** — [An endpoint is scoped exactly as the data home behind it](0063-an-endpoint-is-scoped-like-its-data-home.md)
 - **0083** — [A job is its start contract, and every job reports on one topic](0083-a-job-is-its-contract-and-reports-on-one-topic.md)
+- **0084** — [The TypeScript channel table is generated from the contracts, and a contract owns its timeout](0084-the-ts-channel-table-is-generated-from-the-contracts.md)
 
 ### [Cross-cutting foundations](../architecture/common.md)
 

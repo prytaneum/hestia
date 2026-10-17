@@ -5,7 +5,7 @@
  * carried on the instance record and detail views.
  */
 import { getCurrentWindow } from '@tauri-apps/api/window';
-import { onDaemonEvent } from '../api';
+import { onDaemonEvent, type Topics } from '../api';
 import { stop as stopDaemon } from '../api/daemon';
 import { queryClient } from './client';
 import { instanceQueries } from './instance';
@@ -46,15 +46,13 @@ async function restoreWindow(): Promise<void> {
   await window.setFocus();
 }
 
-async function onStarted(payload: Record<string, unknown>): Promise<void> {
-  const id = String(payload.id ?? '');
+async function onStarted({ id }: Topics['process.started']): Promise<void> {
   if (!SESSION_ID.test(id)) return;
   running.add(id);
   if (!(await keepOpen())) await hideWindow();
 }
 
-async function onExit(payload: Record<string, unknown>): Promise<void> {
-  const id = String(payload.id ?? '');
+async function onExit({ id }: Topics['process.exit']): Promise<void> {
   if (!running.delete(id)) return;
   if (running.size === 0) await restoreWindow();
 }

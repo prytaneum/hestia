@@ -15,7 +15,7 @@ import type {
 import { jobIdOf, startJob } from '../job';
 import * as content from '../state/content';
 import * as entries from '../state/entries';
-import { bool, type Handlers, now } from '../support';
+import { bool, type ChannelHandlers, now } from '../support';
 import { targetEntry } from './entry';
 
 const PACK_MODS = ['sodium', 'fabric-api', 'lithium'];
@@ -184,7 +184,7 @@ function remove(payload: Record<string, unknown>) {
       };
 }
 
-export const channels: Handlers = {
+export const channels: ChannelHandlers = {
   'instance.modpack.install': (p) => installJob(p, false),
   'server.modpack.install': (p) => installJob(p, true),
   'modpack.update': updateJob,

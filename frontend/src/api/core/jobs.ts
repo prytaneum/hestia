@@ -10,10 +10,10 @@
  * disconnect).
  */
 import { logger } from '@/lib/log';
-import type { ErrorInfo } from '../types/error';
+import type { Channels, Jobs } from '../types/channels';
 import type { ProvisionProgress } from '../types/minecraft';
 import { onDaemonEvent } from './events';
-import { HANDLER_ERROR, HestiaError } from './ipc';
+import { HANDLER_ERROR, HestiaError, request } from './ipc';
 
 const log = logger('job');
 
@@ -48,23 +48,26 @@ export interface JobRun<TProgress = ProvisionProgress> {
   onProgress?: (progress: TProgress) => void;
 }
 
-export interface JobOptions<TProgress = ProvisionProgress>
-  extends JobRun<TProgress> {
-  /** The call that starts the job on the daemon. */
-  start: () => Promise<unknown>;
-}
+type JobChannel = keyof Jobs & keyof Channels;
+
+/** A start channel's params without the job id `runJob` supplies itself. */
+export type JobParams<K extends JobChannel> = Omit<Channels[K]['params'], 'id'>;
 
 /**
- * Run one daemon job to completion. Resolves with the done event's payload;
- * rejects with a `HestiaError` carrying the failure's structured cause.
+ * Start the job `channel` under `job.id` and run it to completion. Resolves
+ * with the done event's payload (the contract's `Done`, carried beside the
+ * event's `id`/`channel`/`state`); rejects with a `HestiaError` carrying the
+ * failure's structured cause, or `JobCancelled`.
  */
-export async function runJob<TDone, TProgress = ProvisionProgress>(
-  options: JobOptions<TProgress>,
-): Promise<TDone> {
-  const { id, onProgress } = options;
-  let resolveOutcome!: (done: TDone) => void;
-  let rejectOutcome!: (error: HestiaError) => void;
-  const outcome = new Promise<TDone>((resolve, reject) => {
+export async function runJob<K extends JobChannel>(
+  channel: K,
+  params: JobParams<K>,
+  job: JobRun<Jobs[K]['progress']>,
+): Promise<Jobs[K]['done']> {
+  const { id, onProgress } = job;
+  let resolveOutcome!: (done: Jobs[K]['done']) => void;
+  let rejectOutcome!: (error: Error) => void;
+  const outcome = new Promise<Jobs[K]['done']>((resolve, reject) => {
     resolveOutcome = resolve;
     rejectOutcome = reject;
   });
@@ -72,36 +75,36 @@ export async function runJob<TDone, TProgress = ProvisionProgress>(
   let settled = false;
   const off = await onDaemonEvent((event) => {
     if (settled || event.topic !== JOB_TOPIC || event.payload.id !== id) return;
-    switch (event.payload.state) {
+    const { payload } = event;
+    switch (payload.state) {
       case 'done':
         settled = true;
-        resolveOutcome(event.payload as TDone);
+        resolveOutcome(payload);
         break;
       case 'cancelled':
         settled = true;
         log.debug({ id }, 'job cancelled');
-        rejectOutcome(new JobCancelled(id) as unknown as HestiaError);
+        rejectOutcome(new JobCancelled(id));
         break;
       case 'failed': {
         settled = true;
         // The display site localizes the structured `ErrorInfo`; `kind` is a
         // stable fallback message, shown only if that localization ever misses.
-        const info = (event.payload.error ?? null) as ErrorInfo | null;
-        log.warn({ id, kind: info?.kind }, 'job failed');
+        log.warn({ id, kind: payload.error.kind }, 'job failed');
         rejectOutcome(
-          new HestiaError(HANDLER_ERROR, info?.kind ?? 'job failed', info),
+          new HestiaError(HANDLER_ERROR, payload.error.kind, payload.error),
         );
         break;
       }
       case 'progress':
-        onProgress?.(event.payload as unknown as TProgress);
+        onProgress?.(payload);
         break;
     }
   });
 
   try {
-    log.debug({ id }, 'job started');
-    await options.start();
+    log.debug({ id, channel }, 'job started');
+    await request(channel, { ...params, id });
     return await outcome;
   } finally {
     off();

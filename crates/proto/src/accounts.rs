@@ -1,6 +1,8 @@
 //! The accounts domain: Minecraft accounts signed in through Microsoft. Tokens
 //! never cross the wire — the daemon keeps them; clients see uuid and name.
 
+use std::time::Duration;
+
 use serde::{Deserialize, Serialize};
 
 use crate::contract::{Contract, Empty};
@@ -45,6 +47,7 @@ pub struct AccountLoginBeginResult {
 pub struct AccountLoginBegin;
 impl Contract for AccountLoginBegin {
     const CHANNEL: &'static str = "account.login.begin";
+    const TIMEOUT: Duration = Duration::from_secs(60);
     type Params = AccountLoginBeginParams;
     type Result = AccountLoginBeginResult;
 }
@@ -68,6 +71,7 @@ pub struct AccountLoginCompleteResult {
 pub struct AccountLoginComplete;
 impl Contract for AccountLoginComplete {
     const CHANNEL: &'static str = "account.login.complete";
+    const TIMEOUT: Duration = Duration::from_secs(16 * 60);
     type Params = AccountLoginCompleteParams;
     type Result = AccountLoginCompleteResult;
 }

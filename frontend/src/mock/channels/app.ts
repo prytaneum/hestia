@@ -3,7 +3,7 @@ import type { AppInfoResult, DaemonStatusResult } from '@/api/types';
 
 import { connection } from '../bus';
 import { HOME } from '../state/entries';
-import type { Handlers } from '../support';
+import type { ChannelHandlers } from '../support';
 
 const PID = 4_242;
 const started = Date.now();
@@ -17,7 +17,7 @@ export const status = (): DaemonStatusResult => ({
   quarantined: [],
 });
 
-export const channels: Handlers = {
+export const channels: ChannelHandlers = {
   'app.info': (): AppInfoResult => ({
     name: 'Hestia',
     version: '0.0.1',

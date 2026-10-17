@@ -1,7 +1,7 @@
 /** `server.task.*`: one task list per server, stored as the daemon stores it. */
 import type { ServerTask } from '@/api/types';
 
-import { fail, type Handlers, now, ok, str } from '../support';
+import { type ChannelHandlers, fail, now, ok, str } from '../support';
 
 const tasks = new Map<string, ServerTask[]>([
   [
@@ -30,7 +30,7 @@ function tasksOf(server: string): ServerTask[] {
 
 const SCHEDULE = /^(\d+[mhd]|([01]\d|2[0-3]):[0-5]\d)$/;
 
-export const channels: Handlers = {
+export const channels: ChannelHandlers = {
   'server.task.list': (p) => ({ tasks: tasksOf(str(p, 'server')) }),
 
   'server.task.save': (p) => {

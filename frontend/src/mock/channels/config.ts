@@ -4,9 +4,9 @@
  * but a mock that rejects would only turn a new setting into a dev-time crash.
  */
 import * as settings from '../state/settings';
-import { type Handlers, ok, str } from '../support';
+import { type ChannelHandlers, ok, str } from '../support';
 
-export const channels: Handlers = {
+export const channels: ChannelHandlers = {
   'config.get': (p) => ({ value: settings.get(str(p, 'key')) }),
   'config.list': () => ({ entries: settings.all() }),
   'config.set': (p) => {

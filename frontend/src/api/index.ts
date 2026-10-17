@@ -19,7 +19,6 @@ export {
 } from './core/events';
 export {
   BAD_REQUEST,
-  type CallOptions,
   CONNECTION_LOST,
   call,
   HANDLER_ERROR,
@@ -35,7 +34,7 @@ export {
 } from './core/ipc';
 export {
   JobCancelled,
-  type JobOptions,
+  type JobParams,
   type JobRun,
   jobId,
   runJob,
@@ -62,5 +61,6 @@ export * as tasks from './tasks';
 export type { ExportInput } from './transfer';
 export * as transfer from './transfer';
 export type * from './types';
+export type { Channels, Jobs, Topics } from './types/channels';
 export * as update from './update';
 export { downgradeBetween } from './version';

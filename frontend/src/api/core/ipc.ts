@@ -10,7 +10,9 @@
  */
 import { invoke } from '@tauri-apps/api/core';
 import { logger } from '@/lib/log';
+import { type Channels, TIMEOUTS } from '../types/channels';
 import type { ErrorInfo } from '../types/error';
+import type { Empty } from '../types/generated/Empty';
 
 const log = logger('ipc');
 
@@ -44,9 +46,15 @@ export function isNotFound(error: unknown): boolean {
   return error instanceof HestiaError && error.code === NOT_FOUND;
 }
 
-export interface CallOptions {
-  timeoutMs?: number;
-}
+/**
+ * A call's arguments after its channel: a channel whose params can all be
+ * omitted (`Empty`, or a `serde(default)` struct the generator marks `Partial`)
+ * takes them optionally.
+ */
+export type ParamsArg<K extends keyof Channels> =
+  Empty extends Channels[K]['params']
+    ? [params?: Channels[K]['params']]
+    : [params: Channels[K]['params']];
 
 function toHestiaError(raw: unknown): HestiaError {
   if (raw && typeof raw === 'object' && 'code' in raw && 'message' in raw) {
@@ -60,20 +68,35 @@ function toHestiaError(raw: unknown): HestiaError {
   return new HestiaError(TRANSPORT, String(raw));
 }
 
-export async function call<T>(
-  channel: string,
-  params: unknown = {},
-  options: CallOptions = {},
-): Promise<T> {
+/**
+ * Call a daemon channel. Params and result are the channel's contract
+ * (`types/channels.ts`, generated from `crates/proto`), and its timeout is the
+ * contract's `TIMEOUT`.
+ */
+export function call<K extends keyof Channels>(
+  channel: K,
+  ...args: ParamsArg<K>
+): Promise<Channels[K]['result']> {
+  return request(channel, args[0] ?? {});
+}
+
+/**
+ * The untyped-params half of `call`, for the one caller that assembles a
+ * payload generically (`runJob` adding its job id to a start channel's params).
+ */
+export async function request<K extends keyof Channels>(
+  channel: K,
+  payload: object,
+): Promise<Channels[K]['result']> {
   const started = performance.now();
   try {
-    const result = await invoke<unknown>('ipc_call', {
+    const result = await invoke<Channels[K]['result']>('ipc_call', {
       channel,
-      payload: params ?? {},
-      timeoutMs: options.timeoutMs,
+      payload,
+      timeoutMs: TIMEOUTS[channel],
     });
     log.debug({ channel, ms: elapsed(started) }, 'call ok');
-    return result as T;
+    return result;
   } catch (raw) {
     const error = toHestiaError(raw);
     log[daemonUnreachable(error) ? 'debug' : 'warn'](
@@ -112,13 +135,12 @@ export async function invokeCommand<T>(
 }
 
 /** Like `call`, but a `not_found` answer becomes `null` instead of throwing. */
-export async function tryCall<T>(
-  channel: string,
-  params: unknown = {},
-  options: CallOptions = {},
-): Promise<T | null> {
+export async function tryCall<K extends keyof Channels>(
+  channel: K,
+  ...args: ParamsArg<K>
+): Promise<Channels[K]['result'] | null> {
   try {
-    return await call<T>(channel, params, options);
+    return await call(channel, ...args);
   } catch (error) {
     if (isNotFound(error)) return null;
     throw error;

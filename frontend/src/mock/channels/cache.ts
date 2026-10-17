@@ -2,7 +2,7 @@
 import type { CacheEntry, CacheInfoResult, CacheUsage } from '@/api/types';
 
 import { HOME } from '../state/entries';
-import type { Handlers } from '../support';
+import type { ChannelHandlers } from '../support';
 
 let entries: CacheEntry[] = Array.from({ length: 6 }, (_, index) => ({
   size: 4_200_000 + index * 812_000,
@@ -15,7 +15,7 @@ const usage = (): CacheUsage => ({
   bytes: entries.reduce((total, entry) => total + entry.size, 0),
 });
 
-export const channels: Handlers = {
+export const channels: ChannelHandlers = {
   'cache.info': (): CacheInfoResult => ({ path: `${HOME}/cache`, ...usage() }),
   'cache.clear': () => {
     const reclaimed = usage();

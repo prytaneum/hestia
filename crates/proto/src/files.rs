@@ -1,6 +1,8 @@
 //! A server's game directory as a file tree. Every path is relative to that
 //! directory and `/`-separated on every platform; the empty path is its root.
 
+use std::time::Duration;
+
 use serde::{Deserialize, Serialize};
 
 use crate::contract::{Contract, Empty};
@@ -93,6 +95,9 @@ pub struct ServerFileTransferParams {
 pub struct ServerFilesMove;
 impl Contract for ServerFilesMove {
     const CHANNEL: &'static str = "server.files.move";
+    /// A world is copied or archived inside one call, so every verb that moves
+    /// a whole tree waits far longer than a plain request.
+    const TIMEOUT: Duration = Duration::from_secs(600);
     type Params = ServerFileTransferParams;
     type Result = Empty;
 }
@@ -100,6 +105,7 @@ impl Contract for ServerFilesMove {
 pub struct ServerFilesCopy;
 impl Contract for ServerFilesCopy {
     const CHANNEL: &'static str = "server.files.copy";
+    const TIMEOUT: Duration = Duration::from_secs(600);
     type Params = ServerFileTransferParams;
     type Result = Empty;
 }
@@ -115,6 +121,7 @@ pub struct ServerFilesRemoveParams {
 pub struct ServerFilesRemove;
 impl Contract for ServerFilesRemove {
     const CHANNEL: &'static str = "server.files.remove";
+    const TIMEOUT: Duration = Duration::from_secs(600);
     type Params = ServerFilesRemoveParams;
     type Result = Empty;
 }
@@ -135,6 +142,7 @@ pub struct ServerFilesImportParams {
 pub struct ServerFilesImport;
 impl Contract for ServerFilesImport {
     const CHANNEL: &'static str = "server.files.import";
+    const TIMEOUT: Duration = Duration::from_secs(600);
     type Params = ServerFilesImportParams;
     type Result = Empty;
 }
@@ -152,6 +160,7 @@ pub struct ServerFilesCompressParams {
 pub struct ServerFilesCompress;
 impl Contract for ServerFilesCompress {
     const CHANNEL: &'static str = "server.files.compress";
+    const TIMEOUT: Duration = Duration::from_secs(600);
     type Params = ServerFilesCompressParams;
     type Result = Empty;
 }
@@ -160,6 +169,7 @@ impl Contract for ServerFilesCompress {
 pub struct ServerFilesExtract;
 impl Contract for ServerFilesExtract {
     const CHANNEL: &'static str = "server.files.extract";
+    const TIMEOUT: Duration = Duration::from_secs(600);
     type Params = ServerFileTransferParams;
     type Result = Empty;
 }

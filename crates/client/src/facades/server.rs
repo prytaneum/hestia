@@ -1,5 +1,3 @@
-use std::time::Duration;
-
 use crate::session::{job_id, Session};
 use ipc::errors::IpcError;
 use proto::backup::{
@@ -134,7 +132,7 @@ impl Server<'_> {
     /// process is up, so the call outlasts its wait for the old one to exit.
     pub async fn restart(&self, server: &str) -> Result<ServerStartResult, IpcError> {
         self.session
-            .call_with_timeout::<ServerRestart>(&server_ref(server), Duration::from_secs(150))
+            .call::<ServerRestart>(&server_ref(server))
             .await
     }
 

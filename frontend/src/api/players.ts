@@ -7,7 +7,7 @@ import { call } from './core/ipc';
 import type { PlayerList, ServerPlayersResult } from './types/players';
 
 export function list(server: string): Promise<ServerPlayersResult> {
-  return call<ServerPlayersResult>('server.players', { server });
+  return call('server.players', { server });
 }
 
 /** Put `player` on `list`, or take them off it. */

@@ -5,7 +5,7 @@
 import type { PlayerEntry, PlayerList } from '@/api/types';
 
 import * as processes from '../state/processes';
-import { bool, fail, type Handlers, ok, str } from '../support';
+import { bool, type ChannelHandlers, fail, ok, str } from '../support';
 
 type Lists = Record<PlayerList, PlayerEntry[]>;
 
@@ -42,7 +42,7 @@ function requireRunning(server: string): void {
   if (!running(server)) fail('bad_request', `${server} is not running`);
 }
 
-export const channels: Handlers = {
+export const channels: ChannelHandlers = {
   'server.players': (p) => {
     const server = str(p, 'server');
     return {

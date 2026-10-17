@@ -5,7 +5,7 @@
  */
 import type { FileEntry } from '@/api/types';
 
-import { ago, fail, type Handlers, ok, str, strings } from '../support';
+import { ago, type ChannelHandlers, fail, ok, str, strings } from '../support';
 
 type Tree = Map<string, string | null>;
 
@@ -73,7 +73,7 @@ function ensureParents(tree: Tree, path: string): void {
   }
 }
 
-export const channels: Handlers = {
+export const channels: ChannelHandlers = {
   'server.files.list': (p) => {
     const tree = treeOf(str(p, 'server'));
     const dir = str(p, 'path');

@@ -6,8 +6,6 @@
 //! entry the pack landed in. That id is the
 //! only way a caller learns which entry a *creating* install just made.
 
-use std::time::Duration;
-
 use ipc::errors::IpcError;
 use proto::error::EntryTarget;
 use proto::minecraft::ProvisionProgress;
@@ -21,9 +19,6 @@ use proto::modpack::{
 };
 
 use crate::session::{job_id, Session};
-
-/// A catalogue round trip, so it outlives the default call timeout.
-const CHECK_TIMEOUT: Duration = Duration::from_secs(120);
 
 pub struct Modpack<'a> {
     pub(crate) session: &'a Session,
@@ -102,7 +97,7 @@ impl Modpack<'_> {
             path: path.to_string(),
         };
         self.session
-            .call_with_timeout::<EntryModpackPreviewUpdate>(&params, CHECK_TIMEOUT)
+            .call::<EntryModpackPreviewUpdate>(&params)
             .await
     }
 
@@ -127,7 +122,7 @@ impl Modpack<'_> {
         };
         Ok(self
             .session
-            .call_with_timeout::<EntryModpackCheckUpdate>(&params, CHECK_TIMEOUT)
+            .call::<EntryModpackCheckUpdate>(&params)
             .await?
             .update)
     }

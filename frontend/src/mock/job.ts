@@ -10,9 +10,9 @@
  * a create minted, the pack an install landed) is mutated when the job
  * finishes, not when it starts.
  */
-import type { ProvisionPhase } from '@/api/types';
+import type { Jobs, ProvisionPhase } from '@/api';
 
-import { publish } from './bus';
+import { publishJob } from './bus';
 import { str } from './support';
 
 /** How long one tick takes. Long enough to see, short enough to not wait. */
@@ -20,22 +20,22 @@ const TICK_MS = 260;
 
 const running = new Map<string, () => void>();
 
-interface Plan {
+interface Plan<K extends keyof Jobs> {
   /** The client's job id; every event of the job carries it. */
   id: string;
   /** The start channel — `server.create`, `content.add`, `java.install`, … */
-  channel: string;
+  channel: K;
   /** One progress payload per tick. */
-  ticks: Record<string, unknown>[];
-  /** The done event's payload, minus its `id`, built as the job settles. */
-  done: () => Record<string, unknown>;
+  ticks: Jobs[K]['progress'][];
+  /** The done event's payload, built as the job settles. */
+  done: () => Jobs[K]['done'];
 }
 
 /**
  * Run a plan and answer the way a daemon job channel does — with its id. A job
  * whose id is already running is answered, not started twice.
  */
-export function runPlan(plan: Plan): { id: string } {
+export function runPlan<K extends keyof Jobs>(plan: Plan<K>): { id: string } {
   if (running.has(plan.id)) return { id: plan.id };
 
   let tick = 0;
@@ -47,9 +47,7 @@ export function runPlan(plan: Plan): { id: string } {
 
   timer = window.setInterval(() => {
     if (tick < plan.ticks.length) {
-      publish('job', {
-        id: plan.id,
-        channel: plan.channel,
+      publishJob(plan.id, plan.channel, {
         state: 'progress',
         ...plan.ticks[tick],
       });
@@ -57,21 +55,12 @@ export function runPlan(plan: Plan): { id: string } {
       return;
     }
     settle();
-    publish('job', {
-      id: plan.id,
-      channel: plan.channel,
-      state: 'done',
-      ...plan.done(),
-    });
+    publishJob(plan.id, plan.channel, { state: 'done', ...plan.done() });
   }, TICK_MS);
 
   running.set(plan.id, () => {
     settle();
-    publish('job', {
-      id: plan.id,
-      channel: plan.channel,
-      state: 'cancelled',
-    });
+    publishJob(plan.id, plan.channel, { state: 'cancelled' });
   });
   return { id: plan.id };
 }
@@ -82,15 +71,21 @@ interface JobStep {
   detail?: string;
 }
 
+type ProvisionJob = {
+  [K in keyof Jobs]: Jobs[K]['progress'] extends { phase: ProvisionPhase }
+    ? K
+    : never;
+}[keyof Jobs];
+
 /**
  * A provisioning job: the `ProvisionProgress` shape most jobs publish
  * (`current`/`total` are the step counts a phase with unknown extent reports).
  */
-export function startJob(plan: {
+export function startJob<K extends ProvisionJob>(plan: {
   id: string;
-  channel: string;
+  channel: K;
   steps: JobStep[];
-  done: () => Record<string, unknown>;
+  done: () => Jobs[K]['done'];
 }): { id: string } {
   const total = plan.steps.length;
   return runPlan({

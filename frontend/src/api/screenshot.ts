@@ -9,9 +9,7 @@ import { call, invokeCommand } from './core/ipc';
 import type { Screenshot } from './types/screenshot';
 
 export async function list(instance = ''): Promise<Screenshot[]> {
-  const result = await call<{ screenshots: Screenshot[] }>('screenshot.list', {
-    instance,
-  });
+  const result = await call('screenshot.list', { instance });
   return result.screenshots;
 }
 
@@ -19,10 +17,7 @@ export async function remove(
   instance: string,
   file: string,
 ): Promise<Screenshot[]> {
-  const result = await call<{ screenshots: Screenshot[] }>(
-    'screenshot.delete',
-    { instance, file },
-  );
+  const result = await call('screenshot.delete', { instance, file });
   return result.screenshots;
 }
 

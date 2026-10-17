@@ -1,7 +1,5 @@
 //! `server.files.*` — a server's game directory as a file tree.
 
-use std::time::Duration;
-
 use proto::files::{
     FileEntry, ServerFileParams, ServerFileTransferParams, ServerFileWriteParams,
     ServerFilesCompress, ServerFilesCompressParams, ServerFilesCopy, ServerFilesExtract,
@@ -10,10 +8,6 @@ use proto::files::{
 };
 
 use crate::{IpcError, Session};
-
-/// A world is copied or archived inside one call, so anything moving whole
-/// trees waits far longer than a plain request.
-const TREE_TIMEOUT: Duration = Duration::from_secs(600);
 
 pub struct Files<'a> {
     pub(crate) session: &'a Session,
@@ -55,14 +49,14 @@ impl Files<'_> {
 
     pub async fn rename(&self, server: &str, from: &str, to: &str) -> Result<(), IpcError> {
         self.session
-            .call_with_timeout::<ServerFilesMove>(&between(server, from, to), TREE_TIMEOUT)
+            .call::<ServerFilesMove>(&between(server, from, to))
             .await?;
         Ok(())
     }
 
     pub async fn copy(&self, server: &str, from: &str, to: &str) -> Result<(), IpcError> {
         self.session
-            .call_with_timeout::<ServerFilesCopy>(&between(server, from, to), TREE_TIMEOUT)
+            .call::<ServerFilesCopy>(&between(server, from, to))
             .await?;
         Ok(())
     }
@@ -72,9 +66,7 @@ impl Files<'_> {
             server: server.to_string(),
             paths: paths.to_vec(),
         };
-        self.session
-            .call_with_timeout::<ServerFilesRemove>(&params, TREE_TIMEOUT)
-            .await?;
+        self.session.call::<ServerFilesRemove>(&params).await?;
         Ok(())
     }
 
@@ -91,9 +83,7 @@ impl Files<'_> {
             path: path.to_string(),
             sources: sources.to_vec(),
         };
-        self.session
-            .call_with_timeout::<ServerFilesImport>(&params, TREE_TIMEOUT)
-            .await?;
+        self.session.call::<ServerFilesImport>(&params).await?;
         Ok(())
     }
 
@@ -103,15 +93,13 @@ impl Files<'_> {
             paths: paths.to_vec(),
             to: to.to_string(),
         };
-        self.session
-            .call_with_timeout::<ServerFilesCompress>(&params, TREE_TIMEOUT)
-            .await?;
+        self.session.call::<ServerFilesCompress>(&params).await?;
         Ok(())
     }
 
     pub async fn extract(&self, server: &str, from: &str, to: &str) -> Result<(), IpcError> {
         self.session
-            .call_with_timeout::<ServerFilesExtract>(&between(server, from, to), TREE_TIMEOUT)
+            .call::<ServerFilesExtract>(&between(server, from, to))
             .await?;
         Ok(())
     }

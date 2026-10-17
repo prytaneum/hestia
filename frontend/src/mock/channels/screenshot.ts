@@ -5,7 +5,7 @@
 import type { Screenshot } from '@/api/types';
 
 import * as entries from '../state/entries';
-import { type Handlers, str } from '../support';
+import { type ChannelHandlers, str } from '../support';
 
 let shots: Screenshot[] = entries
   .listInstances()
@@ -22,7 +22,7 @@ let shots: Screenshot[] = entries
     ),
   );
 
-export const channels: Handlers = {
+export const channels: ChannelHandlers = {
   'screenshot.list': (payload) => {
     const instance = str(payload, 'instance');
     return {

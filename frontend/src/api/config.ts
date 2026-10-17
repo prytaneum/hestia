@@ -2,7 +2,7 @@
 import { call, tryCall } from './core/ipc';
 
 export async function get(key: string): Promise<unknown | null> {
-  const result = await tryCall<{ value: unknown }>('config.get', { key });
+  const result = await tryCall('config.get', { key });
   return result?.value ?? null;
 }
 
@@ -11,9 +11,6 @@ export async function set(key: string, value: unknown): Promise<void> {
 }
 
 export async function list(): Promise<Record<string, unknown>> {
-  const result = await call<{ entries: Record<string, unknown> }>(
-    'config.list',
-    {},
-  );
+  const result = await call('config.list');
   return result.entries;
 }

@@ -27,7 +27,7 @@ export function useNetwork(): NetworkStatus | undefined {
   const query = useQuery({ ...netQueries.status(), enabled: connected });
 
   useEffect(() => {
-    const off = onTopic<NetworkStatus>('net.state', (status) => {
+    const off = onTopic('net.state', (status) => {
       queryClient.setQueryData(keys.net.status(), status);
     });
     return () => {

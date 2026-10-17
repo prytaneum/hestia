@@ -8,7 +8,7 @@
  */
 import type { Cape, Skin, SkinVariant } from '@/api/types';
 
-import { fail, type Handlers, ok, str } from '../support';
+import { type ChannelHandlers, fail, ok, str } from '../support';
 import { capeTexture, defaultTextures, libraryTexture } from './textures';
 
 const CHARACTERS: [name: string, slim: string, classic: string][] = [
@@ -101,7 +101,7 @@ function equip(key: string): void {
   for (const skin of all()) skin.equipped = skin.key === key;
 }
 
-export const channels: Handlers = {
+export const channels: ChannelHandlers = {
   'skin.list': () => ({ skins: all(), capes }),
 
   'skin.add': (p) => {

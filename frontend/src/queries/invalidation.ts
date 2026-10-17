@@ -6,7 +6,13 @@
  * everything: the daemon may have changed while we were away.
  */
 import type { QueryKey } from '@tanstack/react-query';
-import { onConnectionChange, onDaemonEvent } from '../api';
+import {
+  type DaemonEvent,
+  type Jobs,
+  onConnectionChange,
+  onDaemonEvent,
+  type Topics,
+} from '../api';
 import { invalidate, queryClient } from './client';
 import { FOOTPRINT, keys } from './keys';
 
@@ -19,11 +25,10 @@ function entryFromProcess(processId: string, prefix: string): string | null {
 // Running state shows in both the entry's list row and its detail status, so a
 // lifecycle event refreshes those two — never the whole `all` subtree (other
 // entries, the footprint walk).
-function processKeys(payload: Record<string, unknown>): QueryKey[] {
-  const id = String(payload.id ?? '');
-  const server = entryFromProcess(id, 'server-');
+function processKeys(payload: { id: string }): QueryKey[] {
+  const server = entryFromProcess(payload.id, 'server-');
   if (server) return [keys.servers.list(), keys.servers.detail(server)];
-  const instance = entryFromProcess(id, 'instance-');
+  const instance = entryFromProcess(payload.id, 'instance-');
   // A session's exit is when what it joined is folded into the recent list.
   if (instance)
     return [
@@ -32,11 +37,6 @@ function processKeys(payload: Record<string, unknown>): QueryKey[] {
       keys.instances.detail(instance),
     ];
   return [];
-}
-
-function serverEntry(payload: Record<string, unknown>): string | null {
-  const server = payload.server as { id?: string } | undefined;
-  return server?.id ?? null;
 }
 
 /** A list refresh, plus the named entry's detail when it is known. */
@@ -49,22 +49,19 @@ function entryKeys(
   return out;
 }
 
-type KeysFor = (payload: Record<string, unknown>) => QueryKey[];
+type JobKeys = { [K in keyof Jobs]?: (done: Jobs[K]['done']) => QueryKey[] };
 
 // The job event carries only a job id, so the entry is unknowable cross-client;
 // sweep the whole entry subtree (refreshes an open Content/Backups tab). The
 // footprint walk lives outside `all` and is never triggered.
-const sweepServers: KeysFor = () => [keys.servers.all];
-const sweepEntries: KeysFor = () => [keys.servers.all, keys.instances.all];
+const sweepServers = (): QueryKey[] => [keys.servers.all];
+const sweepEntries = (): QueryKey[] => [keys.servers.all, keys.instances.all];
 
-const JOB_DONE: Record<string, KeysFor> = {
+const JOB_DONE: JobKeys = {
   'server.create': () => [keys.servers.list()],
-  'server.update': (p) => entryKeys('servers', serverEntry(p)),
-  'instance.launch': (p) =>
-    entryKeys(
-      'instances',
-      entryFromProcess(String(p.processId ?? ''), 'instance-'),
-    ),
+  'server.update': (done) => entryKeys('servers', done.server.id),
+  'instance.launch': (done) =>
+    entryKeys('instances', entryFromProcess(done.processId, 'instance-')),
   'java.install': () => [keys.java.runtimes()],
   'server.backup.create': sweepServers,
   'server.backup.restore': sweepServers,
@@ -82,33 +79,35 @@ const JOB_DONE: Record<string, KeysFor> = {
   'instance.export': () => [[FOOTPRINT]],
 };
 
-const JOB_FAILED: Record<string, KeysFor> = {
+const JOB_FAILED: { [K in keyof Jobs]?: () => QueryKey[] } = {
   // A failed create removes the half-provisioned record.
   'server.create': () => [keys.servers.list()],
 };
 
-function jobKeys(payload: Record<string, unknown>): QueryKey[] {
-  const table =
-    payload.state === 'done'
-      ? JOB_DONE
-      : payload.state === 'failed'
-        ? JOB_FAILED
-        : null;
-  return table?.[String(payload.channel ?? '')]?.(payload) ?? [];
+function doneKeys<K extends keyof Jobs>(
+  channel: K,
+  done: Jobs[K]['done'],
+): QueryKey[] {
+  return JOB_DONE[channel]?.(done) ?? [];
 }
 
-const TOPICS: Record<string, KeysFor> = {
-  'process.started': processKeys,
-  'process.exit': processKeys,
-  job: jobKeys,
-};
+function jobKeys(event: Topics['job']): QueryKey[] {
+  if (event.state === 'done') return doneKeys(event.channel, event);
+  if (event.state === 'failed') return JOB_FAILED[event.channel]?.() ?? [];
+  return [];
+}
 
-/** The key prefixes a daemon topic outdates — exported for the regression test. */
-export function invalidationKeys(
-  topic: string,
-  payload: Record<string, unknown>,
-): QueryKey[] {
-  return TOPICS[topic]?.(payload) ?? [];
+/** The key prefixes a daemon event outdates — exported for the regression test. */
+export function invalidationKeys(event: DaemonEvent): QueryKey[] {
+  switch (event.topic) {
+    case 'process.started':
+    case 'process.exit':
+      return processKeys(event.payload);
+    case 'job':
+      return jobKeys(event.payload);
+    default:
+      return [];
+  }
 }
 
 // The queries whose answer depends on reaching upstream. The version lists are
@@ -125,8 +124,8 @@ const UPSTREAM_KEYS: QueryKey[] = [
 
 let wasOffline = false;
 
-function sweepOnReturnToOnline(payload: Record<string, unknown>): void {
-  const offline = payload.state === 'offline';
+function sweepOnReturnToOnline(status: Topics['net.state']): void {
+  const offline = status.state === 'offline';
   if (wasOffline && !offline) for (const key of UPSTREAM_KEYS) invalidate(key);
   wasOffline = offline;
 }
@@ -138,8 +137,7 @@ export function startInvalidation(): void {
   if (started) return;
   started = true;
   onDaemonEvent((event) => {
-    for (const key of invalidationKeys(event.topic, event.payload))
-      invalidate(key);
+    for (const key of invalidationKeys(event)) invalidate(key);
     // Coming back online is the other reconnect: everything upstream-backed
     // failed or answered from a cached catalogue while we were out.
     if (event.topic === 'net.state') sweepOnReturnToOnline(event.payload);

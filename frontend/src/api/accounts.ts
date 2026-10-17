@@ -28,15 +28,11 @@ export function loginSisu(): Promise<Account | null> {
 export function beginLogin(
   method: LoginMethod = 'sisu',
 ): Promise<AccountLoginBeginResult> {
-  return call('account.login.begin', { method }, { timeoutMs: 60_000 });
+  return call('account.login.begin', { method });
 }
 
 export async function completeLogin(id: string, code = ''): Promise<Account> {
-  const result = await call<{ account: Account }>(
-    'account.login.complete',
-    { id, code },
-    { timeoutMs: 16 * 60_000 },
-  );
+  const result = await call('account.login.complete', { id, code });
   return result.account;
 }
 
@@ -46,9 +42,7 @@ export function list(): Promise<AccountListResult> {
 
 /** Pick the default account launches use; `account` is a name or uuid. */
 export async function switchAccount(account: string): Promise<Account> {
-  const result = await call<{ account: Account }>('account.switch', {
-    account,
-  });
+  const result = await call('account.switch', { account });
   return result.account;
 }
 

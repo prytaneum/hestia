@@ -4,9 +4,9 @@
  */
 import type { UpdateCheckResult } from '@/api/types';
 
-import type { Handlers } from '../support';
+import type { ChannelHandlers } from '../support';
 
-export const channels: Handlers = {
+export const channels: ChannelHandlers = {
   'update.check': (): UpdateCheckResult => ({
     current: '0.0.1-mock',
     install: 'unmanaged',

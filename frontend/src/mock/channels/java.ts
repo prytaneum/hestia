@@ -7,7 +7,7 @@ import type { JavaInstallPhase, JavaRelease, JavaRuntime } from '@/api/types';
 
 import { jobIdOf, runPlan } from '../job';
 import { HOME } from '../state/entries';
-import { type Handlers, num, ok } from '../support';
+import { type ChannelHandlers, num, ok } from '../support';
 
 const releases: JavaRelease[] = [
   { major: 25, lts: false },
@@ -30,7 +30,7 @@ const runtimes: JavaRuntime[] = [runtime(21, true), runtime(17, false)];
 
 const PHASES: JavaInstallPhase[] = ['resolving', 'downloading', 'extracting'];
 
-export const channels: Handlers = {
+export const channels: ChannelHandlers = {
   'java.releases': () => ({ releases }),
   'java.list': () => ({ runtimes }),
 

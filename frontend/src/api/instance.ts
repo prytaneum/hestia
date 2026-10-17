@@ -29,13 +29,11 @@ import type { ProcessLogLine } from './types/process';
 import type { ServerPingResult } from './types/server';
 
 export function flavors(): Promise<FlavorsResult> {
-  return call<FlavorsResult>('instance.flavors');
+  return call('instance.flavors');
 }
 
 export async function versions(flavor: string): Promise<GameVersion[]> {
-  const result = await call<{ versions: GameVersion[] }>('instance.versions', {
-    flavor,
-  });
+  const result = await call('instance.versions', { flavor });
   return result.versions;
 }
 
@@ -44,16 +42,13 @@ export async function loaders(
   flavor: string,
   version: string,
 ): Promise<string[]> {
-  const result = await call<{ loaders: string[] }>('instance.loaders', {
-    flavor,
-    version,
-  });
+  const result = await call('instance.loaders', { flavor, version });
   return result.loaders;
 }
 
 export async function list(): Promise<InstanceInfo[]> {
-  const result = await call<{ instances: InstanceInfo[] }>('instance.list');
-  return result?.instances ?? [];
+  const result = await call('instance.list');
+  return result.instances;
 }
 
 /** The instance's static, informational view (locations + disk footprint). */
@@ -64,11 +59,7 @@ export function info(instance: string): Promise<InstanceDetails> {
 export async function create(
   params: Partial<InstanceCreateParams>,
 ): Promise<InstanceInfo> {
-  const result = await call<{ instance: InstanceInfo }>(
-    'instance.create',
-    params,
-    { timeoutMs: 60_000 },
-  );
+  const result = await call('instance.create', params);
   return result.instance;
 }
 
@@ -76,11 +67,7 @@ export async function create(
 export async function update(
   params: Omit<InstanceUpdateParams, 'id'>,
 ): Promise<InstanceInfo> {
-  const result = await call<{ instance: InstanceInfo }>(
-    'instance.update',
-    params,
-    { timeoutMs: 10 * 60_000 },
-  );
+  const result = await call('instance.update', params);
   return result.instance;
 }
 
@@ -94,9 +81,7 @@ export async function remove(instance: string): Promise<void> {
 
 /** The save worlds, each described from its own `level.dat`. */
 export async function worlds(instance: string): Promise<WorldInfo[]> {
-  const result = await call<{ worlds: WorldInfo[] }>('instance.worlds', {
-    instance,
-  });
+  const result = await call('instance.worlds', { instance });
   return result.worlds;
 }
 
@@ -105,15 +90,13 @@ export async function worlds(instance: string): Promise<WorldInfo[]> {
  * launch of `instance` with `target` as its quick play.
  */
 export async function recent(): Promise<RecentPlay[]> {
-  const result = await call<{ plays: RecentPlay[] }>('instance.recent');
+  const result = await call('instance.recent');
   return result.plays;
 }
 
 /** The multiplayer list (`servers.dat`), in the order the game shows it. */
 export async function servers(instance: string): Promise<ServerEntry[]> {
-  const result = await call<{ servers: ServerEntry[] }>('instance.servers', {
-    instance,
-  });
+  const result = await call('instance.servers', { instance });
   return result.servers;
 }
 
@@ -159,10 +142,7 @@ export function launch(
   params: Partial<InstanceLaunchParams>,
   job: JobRun,
 ): Promise<InstanceLaunchDone> {
-  return runJob<InstanceLaunchDone>({
-    ...job,
-    start: () => call('instance.launch', { ...params, id: job.id }),
-  });
+  return runJob('instance.launch', params, job);
 }
 
 /** Stops one named session, or every session of the instance. */
@@ -175,7 +155,7 @@ export async function logs(
   instance: string,
   options: { session?: string; tail?: number } = {},
 ): Promise<ProcessLogLine[]> {
-  const result = await call<{ lines: ProcessLogLine[] }>('instance.logs', {
+  const result = await call('instance.logs', {
     instance,
     session: options.session,
     tail: options.tail,
@@ -190,10 +170,7 @@ export const config = {
   },
 
   async list(instance: string): Promise<ConfigEntry[]> {
-    const result = await call<{ entries: ConfigEntry[] }>(
-      'instance.config.list',
-      { instance },
-    );
+    const result = await call('instance.config.list', { instance });
     return result.entries;
   },
 };
