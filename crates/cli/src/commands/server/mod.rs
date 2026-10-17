@@ -8,7 +8,6 @@
 //! module is the grammar and the dispatch; each verb group lives beside it.
 
 mod backup;
-mod config;
 pub(crate) mod console;
 mod create;
 mod entry;
@@ -21,7 +20,7 @@ mod update;
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 use client::proto::content::ContentKind;
-use client::proto::error::EntryKind;
+use client::proto::error::{EntryKind, EntryTarget};
 use client::Client;
 
 use crate::commands::content::{self, ContentCmd};
@@ -218,8 +217,10 @@ pub async fn run(cmd: ServerCmd) -> Result<ExitStatus> {
             match catalogue {
                 ServerCmd::Create { args } => create::run(&client, args).await,
                 ServerCmd::List => entry::list(&client).await,
-                ServerCmd::Versions { flavor, all } => versions(&client, flavor, all).await,
-                ServerCmd::Flavors => flavors(&client).await,
+                ServerCmd::Versions { flavor, all } => {
+                    mc::list_versions(&client, EntryKind::Server, flavor, all).await
+                }
+                ServerCmd::Flavors => mc::list_flavors(&client, EntryKind::Server).await,
                 ServerCmd::Loaders { flavor, version } => loaders(&client, flavor, version).await,
                 ServerCmd::Entry(_) => unreachable!("handled above"),
             }
@@ -264,7 +265,9 @@ async fn run_unit_action(client: Client, name: String, action: ServerAction) -> 
             let reply = client.server().command(&name, &command.join(" ")).await?;
             console::show_reply(&reply)
         }
-        ServerAction::Config { cmd } => config::run(&client, &name, cmd).await,
+        ServerAction::Config { cmd } => {
+            mc::run_config(&client, EntryTarget::new(EntryKind::Server, name), cmd).await
+        }
         ServerAction::Backup { cmd } => backup::run(&client, &name, cmd).await,
         ServerAction::Files { cmd } => files::run(&client, &name, cmd).await,
         ServerAction::Players { cmd } => players::run(&client, &name, cmd).await,
@@ -300,46 +303,34 @@ async fn run_unit_action(client: Client, name: String, action: ServerAction) -> 
             )
             .await
         }
-        ServerAction::Rename { new_name } => lifecycle::rename(&client, &name, &new_name).await,
-        ServerAction::Remove => lifecycle::remove(&client, &name).await,
+        ServerAction::Rename { new_name } => {
+            let target = EntryTarget::new(EntryKind::Server, name);
+            crate::commands::lifecycle::rename_entry(&client, target, &new_name).await
+        }
+        ServerAction::Remove => {
+            let target = EntryTarget::new(EntryKind::Server, name);
+            crate::commands::lifecycle::remove_entry(&client, target).await
+        }
     }
-}
-
-async fn versions(client: &Client, flavor: Option<String>, all: bool) -> Result<()> {
-    let flavors = {
-        let _spinner = Spinner::start("fetching flavors");
-        client.server().flavors().await?
-    };
-    let flavor = mc::pick_flavor(flavors, flavor)?;
-    let versions = {
-        let _spinner = Spinner::start("fetching versions");
-        client.server().versions(&flavor).await?
-    };
-    mc::show_versions(&flavor, versions, all)
-}
-
-async fn flavors(client: &Client) -> Result<()> {
-    let flavors = {
-        let _spinner = Spinner::start("fetching flavors");
-        client.server().flavors().await?
-    };
-    mc::show_flavors(&flavors)
 }
 
 async fn loaders(client: &Client, flavor: Option<String>, version: Option<String>) -> Result<()> {
     let flavors = {
         let _spinner = Spinner::start("fetching flavors");
-        client.server().flavors().await?
+        client.entry().flavors(EntryKind::Server).await?
     };
     let flavor = mc::pick_flavor(flavors, flavor)?;
     let versions = {
         let _spinner = Spinner::start("fetching versions");
-        client.server().versions(&flavor).await?
+        client.entry().versions(EntryKind::Server, &flavor).await?
     };
     let version = mc::pick_version(versions, version)?;
     let loaders = {
         let _spinner = Spinner::start("fetching loaders");
-        client.server().loaders(&flavor, &version).await?
+        client
+            .entry()
+            .loaders(EntryKind::Server, &flavor, &version)
+            .await?
     };
     if loaders.is_empty() {
         return crate::ui::show(crate::ui::View::note(format!(

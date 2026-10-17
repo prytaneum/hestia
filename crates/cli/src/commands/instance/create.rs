@@ -3,12 +3,13 @@
 //! files materialise at the first launch.
 
 use anyhow::{bail, Result};
+use client::proto::error::EntryKind;
 use client::proto::minecraft::ConfigEntry;
 use client::Client;
 
 use super::entry;
 use crate::commands::mc;
-use crate::commands::wizard::{self, Field, WizardKind, WizardOutcome, WizardSeed};
+use crate::commands::wizard::{self, Field, WizardOutcome, WizardSeed};
 use crate::ui::{self, Spinner, View};
 
 pub(super) async fn run(
@@ -25,12 +26,15 @@ pub(super) async fn run(
     }
     let flavors = {
         let _spinner = Spinner::start("fetching flavors");
-        client.instance().flavors().await?
+        client.entry().flavors(EntryKind::Instance).await?
     };
     let flavor = mc::pick_flavor(flavors, flavor)?;
     let versions = {
         let _spinner = Spinner::start("fetching versions");
-        client.instance().versions(&flavor).await?
+        client
+            .entry()
+            .versions(EntryKind::Instance, &flavor)
+            .await?
     };
     let version = mc::pick_version(versions, version)?;
     let name = name.unwrap_or_else(|| format!("{flavor}-{version}"));
@@ -65,7 +69,7 @@ async fn run_wizard(
 ) -> Result<()> {
     let flavors = {
         let _spinner = Spinner::start("fetching flavors");
-        client.instance().flavors().await?
+        client.entry().flavors(EntryKind::Instance).await?
     };
     if let Some(flavor) = &flavor {
         if !flavors.iter().any(|f| &f.id == flavor) {
@@ -74,7 +78,7 @@ async fn run_wizard(
         }
     }
     let seed = WizardSeed {
-        kind: WizardKind::Instance,
+        kind: EntryKind::Instance,
         flavors,
         flavor,
         version,

@@ -9,6 +9,8 @@
 import { queryOptions, useQuery } from '@tanstack/react-query';
 import type {
   ConfigEntry,
+  EntryRenamed,
+  EntryTarget,
   InstanceCreateParams,
   InstanceInfo,
   InstanceLaunchDone,
@@ -18,12 +20,15 @@ import type {
   QuickPlay,
   Replace,
 } from '../api';
+import * as entry from '../api/entry';
 import * as api from '../api/instance';
-import { CATALOG_STALE_MS, mutation } from './core';
+import { mutation } from './core';
 import { useEntryIconLookup } from './icons';
 import { jobMutation } from './jobs';
 import { keys } from './keys';
 import { type LogsOptions, type LogsResult, useFollowedLogs } from './logs';
+
+const target = (id: string): EntryTarget => ({ kind: 'instance', entry: id });
 
 /** A launch, and whether it may run alongside the sessions already up. */
 interface LaunchVars {
@@ -59,24 +64,6 @@ export const instanceQueries = {
       queryFn: () => api.info(id),
       staleTime: 60_000,
     }),
-  flavors: () =>
-    queryOptions({
-      queryKey: keys.instances.flavors(),
-      queryFn: () => api.flavors(),
-      staleTime: CATALOG_STALE_MS,
-    }),
-  versions: (flavor: string) =>
-    queryOptions({
-      queryKey: keys.instances.versions(flavor),
-      queryFn: () => api.versions(flavor),
-      staleTime: CATALOG_STALE_MS,
-    }),
-  loaders: (flavor: string, version: string) =>
-    queryOptions({
-      queryKey: keys.instances.loaders(flavor, version),
-      queryFn: () => api.loaders(flavor, version),
-      staleTime: CATALOG_STALE_MS,
-    }),
   /** Save-world folder names, for the datapack world picker. */
   worlds: (id: string) =>
     queryOptions({
@@ -105,12 +92,12 @@ export const instanceQueries = {
   logs: (id: string, options: { session?: string; tail?: number } = {}) =>
     queryOptions({
       queryKey: keys.instances.logs(id, options.session, options.tail),
-      queryFn: () => api.logs(id, options),
+      queryFn: () => entry.logs(target(id), options),
     }),
   config: (id: string) =>
     queryOptions({
       queryKey: keys.instances.config(id),
-      queryFn: () => api.config.list(id),
+      queryFn: () => entry.config.list(target(id)),
     }),
 };
 
@@ -141,9 +128,9 @@ export const instanceMutations = {
       ],
     }),
   rename: (id: string) =>
-    mutation<InstanceInfo, string>({
+    mutation<EntryRenamed, string>({
       mutationKey: [...keys.instances.detail(id), 'rename'],
-      mutationFn: (name) => api.rename(id, name),
+      mutationFn: (name) => entry.rename(target(id), name),
       invalidates: () => [
         keys.instances.list(),
         keys.instances.detail(id),
@@ -153,14 +140,14 @@ export const instanceMutations = {
   remove: (id: string) =>
     mutation({
       mutationKey: [...keys.instances.detail(id), 'remove'],
-      mutationFn: () => api.remove(id),
+      mutationFn: () => entry.remove(target(id)),
       invalidates: () => [keys.instances.list()],
     }),
   /** Stops one named session, or every session of the instance. */
   stop: (id: string) =>
     mutation<void, { session?: string }>({
       mutationKey: [...keys.instances.detail(id), 'stop'],
-      mutationFn: ({ session }) => api.stop(id, session),
+      mutationFn: ({ session }) => entry.stop(target(id), session),
       invalidates: () => [keys.instances.list(), keys.instances.detail(id)],
     }),
   /** Adds an entry to the multiplayer list, or rewrites the one `server` names. */
@@ -220,7 +207,7 @@ export const instanceMutations = {
   stopAny: () =>
     mutation<void, StopVars>({
       mutationKey: [...keys.instances.all, 'stop'],
-      mutationFn: ({ id, session }) => api.stop(id, session),
+      mutationFn: ({ id, session }) => entry.stop(target(id), session),
       invalidates: ({ id }) => [
         keys.instances.list(),
         keys.instances.detail(id),
@@ -230,7 +217,7 @@ export const instanceMutations = {
   setConfig: (id: string) =>
     mutation<void, ConfigEntry>({
       mutationKey: [...keys.instances.detail(id), 'config', 'set'],
-      mutationFn: ({ key, value }) => api.config.set(id, key, value),
+      mutationFn: ({ key, value }) => entry.config.set(target(id), key, value),
       invalidates: () => [keys.instances.config(id)],
     }),
 };

@@ -6,9 +6,9 @@ mod session;
 mod spawn;
 
 pub use facades::{
-    Accounts, App, Cache, Config, Content, Daemon, Files, Host, Instance, Java, LaunchOptions,
-    Modpack, Net, Players, Process, ProcessEvent, Screenshot, Server, Skins, Sync, Tasks, Transfer,
-    Update,
+    Accounts, App, Cache, Config, Content, Daemon, Entry, Files, Host, Instance, Java,
+    LaunchOptions, Modpack, Net, Players, Process, ProcessEvent, Screenshot, Server, Skins, Sync,
+    Tasks, Transfer, Update,
 };
 pub use ipc::errors::{self, IpcError};
 pub use session::{job_id, Listener, Session};
@@ -166,6 +166,12 @@ impl Client {
 
     pub fn server(&self) -> Server<'_> {
         Server {
+            session: &self.session,
+        }
+    }
+
+    pub fn entry(&self) -> Entry<'_> {
+        Entry {
             session: &self.session,
         }
     }

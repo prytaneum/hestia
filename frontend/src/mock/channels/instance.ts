@@ -16,9 +16,8 @@ import * as catalog from '../state/catalog';
 import * as entries from '../state/entries';
 import * as processes from '../state/processes';
 import * as worlds from '../state/worlds';
-import { ago, bool, type ChannelHandlers, now, ok, str } from '../support';
+import { ago, bool, type ChannelHandlers, now, str } from '../support';
 import { resolve as resolveAccount } from './account';
-import { configHandlers } from './entry';
 
 const BANNER = [
   '[main/INFO]: Setting user: Player',
@@ -71,8 +70,6 @@ function recentPlays(): RecentPlay[] {
     .slice(0, RECENT_LIMIT);
 }
 
-const instanceConfig = configHandlers(instanceId);
-
 export const channels: ChannelHandlers = {
   'instance.list': () => entries.listInstances().map(withSessions),
 
@@ -84,10 +81,6 @@ export const channels: ChannelHandlers = {
       diskBytes: 512 * 1024 * 1024,
     };
   },
-
-  'instance.flavors': () => ({ flavors: catalog.instanceFlavors, rules: [] }),
-  'instance.versions': (p) => catalog.versionsFor(str(p, 'flavor')),
-  'instance.loaders': (p) => catalog.loaders(str(p, 'flavor')),
 
   'instance.create': (p) =>
     withSessions(
@@ -117,16 +110,6 @@ export const channels: ChannelHandlers = {
         };
       },
     });
-  },
-
-  'instance.rename': (p) =>
-    withSessions(
-      entries.rename(entries.findInstance(str(p, 'instance')), str(p, 'name')),
-    ),
-
-  'instance.remove': (p) => {
-    entries.removeEntry(instanceId(p), entries.listInstances());
-    return ok();
   },
 
   'instance.worlds': (p) => worlds.worldsOf(instanceId(p)),
@@ -190,19 +173,4 @@ export const channels: ChannelHandlers = {
       },
     });
   },
-
-  'instance.stop': (p) => {
-    processes.stopSessions(instanceId(p), str(p, 'session') || undefined);
-    return ok();
-  },
-
-  'instance.logs': (p) => {
-    const id = instanceId(p);
-    const session =
-      str(p, 'session') || processes.sessionsOf(id).at(-1)?.id || '';
-    return processes.logs(session, p.tail as number | undefined);
-  },
-
-  'instance.config.list': instanceConfig.list,
-  'instance.config.set': instanceConfig.set,
 };

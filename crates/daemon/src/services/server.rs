@@ -1,17 +1,13 @@
-//! Minecraft servers: the provider catalogue, the lifecycle over the supervisor,
-//! the rcon console, and the per-server settings. Backups live in `backup`,
-//! content installs in `content`.
+//! Minecraft servers: the lifecycle over the supervisor and the rcon console.
+//! What an instance shares lives in `entry`, backups in `backup`, content
+//! installs in `content`.
 
-use engine::Side;
 use proto::error::{EntryKind, ErrorInfo, Field};
 use proto::job::JobStarted;
-use proto::minecraft::{ConfigEntry, FlavorsResult};
 use proto::server::{
-    ServerCommand, ServerCommandComplete, ServerCommandResult, ServerConfigGet,
-    ServerConfigGetResult, ServerConfigList, ServerConfigListResult, ServerConfigSet, ServerCreate,
-    ServerDetail, ServerFlavors, ServerList, ServerLoaders, ServerLogs, ServerPing,
-    ServerProperties, ServerRemove, ServerRename, ServerRestart, ServerStart, ServerStartResult,
-    ServerStatus, ServerStop, ServerUpdate, ServerVersions,
+    ServerCommand, ServerCommandComplete, ServerCommandResult, ServerCreate, ServerDetail,
+    ServerList, ServerPing, ServerProperties, ServerRestart, ServerStart, ServerStartResult,
+    ServerStatus, ServerUpdate,
 };
 use proto::Empty;
 
@@ -19,35 +15,6 @@ use super::guards::{is_running, server_for, server_held, Hold, Intent};
 use crate::runtime::{server_process_id, Channels, JobKind};
 
 pub(super) fn register(on: &mut Channels<'_>) {
-    on.handle::<ServerFlavors, _, _>(|_: Empty, ctx| async move {
-        Ok(FlavorsResult {
-            flavors: ctx.runtime.engine().flavors(Side::Server).await,
-            rules: engine::Servers::config_rules(),
-        })
-    });
-
-    on.handle::<ServerVersions, _, _>(|p, ctx| async move {
-        let versions = ctx
-            .runtime
-            .engine()
-            .minecraft()
-            .versions(Side::Server, &p.flavor)
-            .await
-            .map_err(crate::runtime::engine_error)?;
-        Ok(versions)
-    });
-
-    on.handle::<ServerLoaders, _, _>(|p, ctx| async move {
-        let loaders = ctx
-            .runtime
-            .engine()
-            .minecraft()
-            .loader_versions(Side::Server, &p.flavor, &p.version)
-            .await
-            .map_err(crate::runtime::engine_error)?;
-        Ok(loaders)
-    });
-
     on.handle::<ServerCreate, _, _>(|p, ctx| async move {
         if p.flavor.is_empty() || p.version.is_empty() {
             return Err(ErrorInfo::FieldsRequired {
@@ -112,35 +79,6 @@ pub(super) fn register(on: &mut Channels<'_>) {
             .map_err(crate::runtime::engine_error)
     });
 
-    on.handle::<ServerRemove, _, _>(|p, ctx| async move {
-        let (record, _claim) = server_held(&ctx, &p.server, Hold::stopped(JobKind::Content))?;
-        ctx.runtime
-            .engine()
-            .servers()
-            .remove(&record.id)
-            .map_err(crate::runtime::engine_error)?;
-        ctx.runtime
-            .processes()
-            .discard(&server_process_id(&record.id));
-        tracing::info!(server = %record.id, name = %record.name, "server removed");
-        Ok(Empty {})
-    });
-
-    on.handle::<ServerRename, _, _>(|p, ctx| async move {
-        if p.name.trim().is_empty() {
-            return Err(ErrorInfo::FieldRequired { field: Field::Name });
-        }
-        let (record, _claim) = server_held(&ctx, &p.server, Hold::stopped(JobKind::Content))?;
-        let renamed = ctx
-            .runtime
-            .engine()
-            .servers()
-            .rename(&record.id, &p.name)
-            .map_err(crate::runtime::engine_error)?;
-        tracing::info!(id = %renamed.id, name = %renamed.name, "server renamed");
-        Ok(ctx.runtime.server_view(renamed))
-    });
-
     on.handle::<ServerStart, _, _>(|p, ctx| async move {
         let (record, _claim) = server_held(&ctx, &p.server, Hold::stopped(JobKind::Launch))?;
         tracing::info!(server = %record.id, name = %record.name, "starting server");
@@ -151,19 +89,6 @@ pub(super) fn register(on: &mut Channels<'_>) {
             process_id: info.id,
             pid: info.pid,
         })
-    });
-
-    on.handle::<ServerStop, _, _>(|p, ctx| async move {
-        let record = server_for(&ctx, &p.server, Intent::Read)?;
-        let process_id = server_process_id(&record.id);
-        if !is_running(&ctx, &process_id) {
-            return Err(ErrorInfo::NotRunning {
-                entry: EntryKind::Server,
-                name: record.name.clone(),
-            });
-        }
-        ctx.runtime.processes().stop(&process_id);
-        Ok(Empty {})
     });
 
     on.handle::<ServerRestart, _, _>(|p, ctx| async move {
@@ -217,58 +142,6 @@ pub(super) fn register(on: &mut Channels<'_>) {
             .server_complete(&record.id, &p.line)
             .await
             .map_err(crate::runtime::engine_error)
-    });
-
-    on.handle::<ServerLogs, _, _>(|p, ctx| async move {
-        let record = server_for(&ctx, &p.server, Intent::Read)?;
-        let lines = ctx
-            .runtime
-            .processes()
-            .logs(&server_process_id(&record.id), p.tail)
-            .unwrap_or_default();
-        Ok(lines)
-    });
-
-    on.handle::<ServerConfigGet, _, _>(|p, ctx| async move {
-        let record = server_for(&ctx, &p.server, Intent::Read)?;
-        match ctx
-            .runtime
-            .engine()
-            .servers()
-            .config_get(&record.id, &p.key)
-        {
-            Ok(Some(value)) => Ok(ServerConfigGetResult { value }),
-            Ok(None) => Err(ErrorInfo::ConfigKeyUnset { key: p.key.clone() }),
-            Err(e) => Err(crate::runtime::engine_error(e)),
-        }
-    });
-
-    on.handle::<ServerConfigSet, _, _>(|p, ctx| async move {
-        let record = server_for(&ctx, &p.server, Intent::Read)?;
-        ctx.runtime
-            .engine()
-            .servers()
-            .config_set(&record.id, &p.key, &p.value)
-            .map_err(crate::runtime::engine_error)?;
-        tracing::info!(server = %record.id, key = %p.key, "server config updated");
-        Ok(Empty {})
-    });
-
-    on.handle::<ServerConfigList, _, _>(|p, ctx| async move {
-        let record = server_for(&ctx, &p.server, Intent::Read)?;
-        let entries = ctx
-            .runtime
-            .engine()
-            .servers()
-            .config_list(&record.id)
-            .map_err(crate::runtime::engine_error)?
-            .into_iter()
-            .map(|(key, value)| ConfigEntry { key, value })
-            .collect();
-        Ok(ServerConfigListResult {
-            entries,
-            rules: engine::Servers::config_rules(),
-        })
     });
 
     on.handle::<ServerProperties, _, _>(|p, ctx| async move {

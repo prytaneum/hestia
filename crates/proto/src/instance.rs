@@ -1,5 +1,5 @@
-//! Minecraft instance (client) contracts: browsing (flavors/versions/resolve),
-//! the stored-record management, and the launch job. Unlike servers, an
+//! Minecraft instance (client) contracts: the stored-record management and the
+//! launch job; what a server shares is in `entry`. Unlike servers, an
 //! instance is a lightweight record at create time — its files (client jar,
 //! libraries, assets) are materialised by the launch job.
 
@@ -11,36 +11,10 @@ use crate::change::Scope;
 use crate::content::{ContentFailure, ContentKind};
 use crate::contract::{Contract, Empty};
 use crate::job::{Job, JobStarted};
-use crate::keys::KeyRule;
-use crate::minecraft::{
-    ConfigEntry, FlavorsResult, GameVersion, LoadersParams, ProvisionProgress, VersionsParams,
-};
+use crate::minecraft::{ConfigEntry, ProvisionProgress};
 use crate::modpack::PackPolicy;
-use crate::process::{ProcessInfo, ProcessLogLine};
+use crate::process::ProcessInfo;
 use crate::warning::WarningInfo;
-
-pub struct InstanceFlavors;
-impl Contract for InstanceFlavors {
-    const CHANNEL: &'static str = "instance.flavors";
-    type Params = Empty;
-    type Result = FlavorsResult;
-}
-
-pub struct InstanceVersions;
-impl Contract for InstanceVersions {
-    const CHANNEL: &'static str = "instance.versions";
-    type Params = VersionsParams;
-    type Result = Vec<GameVersion>;
-}
-
-/// Loader builds newest-first; empty for a flavor with no pickable loader
-/// version (vanilla, and loaders that pin one build per game version).
-pub struct InstanceLoaders;
-impl Contract for InstanceLoaders {
-    const CHANNEL: &'static str = "instance.loaders";
-    type Params = LoadersParams;
-    type Result = Vec<String>;
-}
 
 /// A managed instance: the stored record plus, when launched, its live sessions.
 /// An instance can run more than once concurrently (each launch is a session),
@@ -413,123 +387,6 @@ impl Contract for AddressPing {
     const CHANNEL: &'static str = "minecraft.ping";
     type Params = AddressPingParams;
     type Result = crate::server::ServerPingResult;
-}
-
-pub struct InstanceRemove;
-impl Contract for InstanceRemove {
-    const CHANNEL: &'static str = "instance.remove";
-    const CHANGES: Option<Scope> = Some(Scope::Entries);
-    type Params = InstanceRef;
-    type Result = Empty;
-}
-
-#[derive(Serialize, Deserialize, Default, Debug, Clone)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
-#[serde(default, rename_all = "camelCase")]
-pub struct InstanceRenameParams {
-    /// The instance to rename, by its current name or id.
-    pub instance: String,
-    /// The new display name; the id (directory slug) is re-derived from it.
-    pub name: String,
-}
-
-pub struct InstanceRename;
-impl Contract for InstanceRename {
-    const CHANNEL: &'static str = "instance.rename";
-    const CHANGES: Option<Scope> = Some(Scope::Entries);
-    type Params = InstanceRenameParams;
-    type Result = InstanceInfo;
-}
-
-#[derive(Serialize, Deserialize, Default, Debug, Clone)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
-#[serde(default, rename_all = "camelCase")]
-pub struct InstanceStopParams {
-    pub instance: String,
-    /// A specific session id to stop; all of the instance's sessions otherwise.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub session: Option<String>,
-}
-
-pub struct InstanceStop;
-impl Contract for InstanceStop {
-    const CHANNEL: &'static str = "instance.stop";
-    type Params = InstanceStopParams;
-    type Result = Empty;
-}
-
-#[derive(Serialize, Deserialize, Default, Debug, Clone)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
-#[serde(default, rename_all = "camelCase")]
-pub struct InstanceLogsParams {
-    pub instance: String,
-    /// A specific session id; the newest running (else newest) session otherwise.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub session: Option<String>,
-    /// Return only the last `tail` lines when set; all buffered lines otherwise.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub tail: Option<usize>,
-}
-
-pub struct InstanceLogs;
-impl Contract for InstanceLogs {
-    const CHANNEL: &'static str = "instance.logs";
-    type Params = InstanceLogsParams;
-    type Result = Vec<ProcessLogLine>;
-}
-
-#[derive(Serialize, Deserialize, Default, Debug, Clone)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
-#[serde(default, rename_all = "camelCase")]
-pub struct InstanceConfigGetParams {
-    pub instance: String,
-    pub key: String,
-}
-
-#[derive(Serialize, Deserialize, Default, Debug, Clone)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
-#[serde(default, rename_all = "camelCase")]
-pub struct InstanceConfigGetResult {
-    pub value: String,
-}
-
-pub struct InstanceConfigGet;
-impl Contract for InstanceConfigGet {
-    const CHANNEL: &'static str = "instance.config.get";
-    type Params = InstanceConfigGetParams;
-    type Result = InstanceConfigGetResult;
-}
-
-#[derive(Serialize, Deserialize, Default, Debug, Clone)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
-#[serde(default, rename_all = "camelCase")]
-pub struct InstanceConfigSetParams {
-    pub instance: String,
-    pub key: String,
-    pub value: String,
-}
-
-pub struct InstanceConfigSet;
-impl Contract for InstanceConfigSet {
-    const CHANNEL: &'static str = "instance.config.set";
-    const CHANGES: Option<Scope> = Some(Scope::Entries);
-    type Params = InstanceConfigSetParams;
-    type Result = Empty;
-}
-
-#[derive(Serialize, Deserialize, Default, Debug, Clone)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
-#[serde(default, rename_all = "camelCase")]
-pub struct InstanceConfigListResult {
-    pub entries: Vec<ConfigEntry>,
-    pub rules: Vec<KeyRule>,
-}
-
-pub struct InstanceConfigList;
-impl Contract for InstanceConfigList {
-    const CHANNEL: &'static str = "instance.config.list";
-    type Params = InstanceRef;
-    type Result = InstanceConfigListResult;
 }
 
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]

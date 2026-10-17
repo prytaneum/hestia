@@ -15,9 +15,9 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { VersionOption } from '@/features/shared/content/dialogs';
 import { m } from '@/paraglide/messages.js';
 import type { JobEntryKind } from '@/queries';
+import { catalogueQueries } from '@/queries/catalogue';
 import { contentQueries } from '@/queries/content';
 import { useOffline } from '@/queries/net';
-import { useEntryVersions } from '@/queries/versions';
 
 export function ModpackVersionDialog({
   pack,
@@ -59,7 +59,10 @@ export function ModpackVersionDialog({
     }),
     enabled: open && pack.projectId !== '',
   });
-  const catalogue = useEntryVersions(kind, flavor, open);
+  const catalogue = useQuery({
+    ...catalogueQueries.versions(kind, flavor),
+    enabled: open,
+  });
   const offline = useOffline();
 
   const list = published.data ?? [];

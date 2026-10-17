@@ -1,21 +1,14 @@
 use ipc::errors::IpcError;
 use proto::instance::{AddressPing, AddressPingParams};
 use proto::instance::{
-    InstanceConfigGet, InstanceConfigGetParams, InstanceConfigList, InstanceConfigSet,
-    InstanceConfigSetParams, InstanceCreate, InstanceCreateParams, InstanceDetails,
-    InstanceFlavors, InstanceInfo, InstanceInfoQuery, InstanceLaunch, InstanceLaunchDone,
-    InstanceLaunchParams, InstanceList, InstanceLoaders, InstanceLogs, InstanceLogsParams,
-    InstanceRecent, InstanceRef, InstanceRemove, InstanceRename, InstanceRenameParams,
-    InstanceServerEdit, InstanceServerEditParams, InstanceServerRef, InstanceServerRemove,
-    InstanceServers, InstanceServersArrange, InstanceServersArrangeParams,
-    InstanceServersWriteResult, InstanceStop, InstanceStopParams, InstanceUpdate,
-    InstanceUpdateDone, InstanceUpdateParams, InstanceVersions, InstanceWorlds, QuickPlay,
-    RecentPlay, Replace, ServerEntry, WorldInfo,
+    InstanceCreate, InstanceCreateParams, InstanceDetails, InstanceInfo, InstanceInfoQuery,
+    InstanceLaunch, InstanceLaunchDone, InstanceLaunchParams, InstanceList, InstanceRecent,
+    InstanceRef, InstanceServerEdit, InstanceServerEditParams, InstanceServerRef,
+    InstanceServerRemove, InstanceServers, InstanceServersArrange, InstanceServersArrangeParams,
+    InstanceServersWriteResult, InstanceUpdate, InstanceUpdateDone, InstanceUpdateParams,
+    InstanceWorlds, QuickPlay, RecentPlay, Replace, ServerEntry, WorldInfo,
 };
-use proto::minecraft::{
-    ConfigEntry, Flavor, GameVersion, LoadersParams, ProvisionProgress, VersionsParams,
-};
-use proto::process::ProcessLogLine;
+use proto::minecraft::{ConfigEntry, ProvisionProgress};
 use proto::server::ServerPingResult;
 
 use crate::session::{job_id, Session};
@@ -42,29 +35,6 @@ pub struct LaunchOptions<'a> {
 }
 
 impl Instance<'_> {
-    pub async fn flavors(&self) -> Result<Vec<Flavor>, IpcError> {
-        Ok(self
-            .session
-            .call::<InstanceFlavors>(&proto::Empty {})
-            .await?
-            .flavors)
-    }
-
-    pub async fn versions(&self, flavor: &str) -> Result<Vec<GameVersion>, IpcError> {
-        let params = VersionsParams {
-            flavor: flavor.to_string(),
-        };
-        self.session.call::<InstanceVersions>(&params).await
-    }
-
-    pub async fn loaders(&self, flavor: &str, version: &str) -> Result<Vec<String>, IpcError> {
-        let params = LoadersParams {
-            flavor: flavor.to_string(),
-            version: version.to_string(),
-        };
-        self.session.call::<InstanceLoaders>(&params).await
-    }
-
     /// Create an instance record (the profile is resolved upstream, so this can
     /// take a little while; files are materialised at launch).
     pub async fn create(
@@ -193,80 +163,6 @@ impl Instance<'_> {
                 address: address.to_string(),
             })
             .await
-    }
-
-    pub async fn remove(&self, instance: &str) -> Result<(), IpcError> {
-        self.session
-            .call::<InstanceRemove>(&instance_ref(instance))
-            .await?;
-        Ok(())
-    }
-
-    /// Rename a stopped instance; the id (directory slug) is re-derived from
-    /// the new name. Returns the updated record, whose `id` and `name` reflect
-    /// the rename.
-    pub async fn rename(&self, instance: &str, name: &str) -> Result<InstanceInfo, IpcError> {
-        let params = InstanceRenameParams {
-            instance: instance.to_string(),
-            name: name.to_string(),
-        };
-        self.session.call::<InstanceRename>(&params).await
-    }
-
-    /// Stop a session (when `session` is set) or all of the instance's sessions.
-    pub async fn stop(&self, instance: &str, session: Option<String>) -> Result<(), IpcError> {
-        let params = InstanceStopParams {
-            instance: instance.to_string(),
-            session,
-        };
-        self.session.call::<InstanceStop>(&params).await?;
-        Ok(())
-    }
-
-    pub async fn logs(
-        &self,
-        instance: &str,
-        session: Option<String>,
-        tail: Option<usize>,
-    ) -> Result<Vec<ProcessLogLine>, IpcError> {
-        let params = InstanceLogsParams {
-            instance: instance.to_string(),
-            session,
-            tail,
-        };
-        self.session.call::<InstanceLogs>(&params).await
-    }
-
-    /// Read one JVM setting; `None` when it is not set (a `not_found` from the
-    /// daemon).
-    pub async fn config_get(&self, instance: &str, key: &str) -> Result<Option<String>, IpcError> {
-        let params = InstanceConfigGetParams {
-            instance: instance.to_string(),
-            key: key.to_string(),
-        };
-        Ok(self
-            .session
-            .try_call::<InstanceConfigGet>(&params)
-            .await?
-            .map(|r| r.value))
-    }
-
-    pub async fn config_set(&self, instance: &str, key: &str, value: &str) -> Result<(), IpcError> {
-        let params = InstanceConfigSetParams {
-            instance: instance.to_string(),
-            key: key.to_string(),
-            value: value.to_string(),
-        };
-        self.session.call::<InstanceConfigSet>(&params).await?;
-        Ok(())
-    }
-
-    pub async fn config_list(&self, instance: &str) -> Result<Vec<ConfigEntry>, IpcError> {
-        Ok(self
-            .session
-            .call::<InstanceConfigList>(&instance_ref(instance))
-            .await?
-            .entries)
     }
 
     /// Launch an instance, blocking until the game process has spawned (or the

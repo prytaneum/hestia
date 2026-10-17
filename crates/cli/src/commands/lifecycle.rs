@@ -6,19 +6,15 @@
 //! common actions do not force the caller to first recall which kind a name is.
 
 use anyhow::{bail, Result};
+use client::proto::error::{EntryKind, EntryTarget};
 use client::{Client, ProcessEvent};
 
 use super::{connect, instance, server};
-use crate::ui::{self, View};
-
-enum Target {
-    Server,
-    Instance,
-}
+use crate::ui::{self, Spinner, View};
 
 /// Resolve a name (or id) to the single server or instance it identifies,
 /// erroring when it matches both or neither.
-async fn resolve(client: &Client, name: &str) -> Result<Target> {
+async fn resolve(client: &Client, name: &str) -> Result<EntryKind> {
     let is_server = client
         .server()
         .list()
@@ -32,8 +28,8 @@ async fn resolve(client: &Client, name: &str) -> Result<Target> {
         .iter()
         .any(|i| client::proto::naming::reference_matches(name, &i.id, &i.name));
     match (is_server, is_instance) {
-        (true, false) => Ok(Target::Server),
-        (false, true) => Ok(Target::Instance),
+        (true, false) => Ok(EntryKind::Server),
+        (false, true) => Ok(EntryKind::Instance),
         (true, true) => bail!(
             "'{name}' names both a server and an instance; \
              use `hestia server {name} …` or `hestia instance {name} …`"
@@ -50,8 +46,8 @@ pub async fn start(
 ) -> Result<()> {
     let client = connect().await?;
     match resolve(&client, &name).await? {
-        Target::Server => server::console::start_attached(client, &name, detach).await,
-        Target::Instance => {
+        EntryKind::Server => server::console::start_attached(client, &name, detach).await,
+        EntryKind::Instance => {
             instance::launch(
                 &client,
                 instance::Launch {
@@ -70,11 +66,11 @@ pub async fn start(
 pub async fn stop(name: String, session: Option<String>) -> Result<()> {
     let client = connect().await?;
     match resolve(&client, &name).await? {
-        Target::Server => {
+        EntryKind::Server => {
             reject_server_session(&session)?;
             server::lifecycle::stop(&client, &name).await
         }
-        Target::Instance => instance::lifecycle::stop(&client, &name, session).await,
+        EntryKind::Instance => instance::lifecycle::stop(&client, &name, session).await,
     }
 }
 
@@ -86,11 +82,11 @@ pub async fn restart(
 ) -> Result<()> {
     let client = connect().await?;
     match resolve(&client, &name).await? {
-        Target::Server => {
+        EntryKind::Server => {
             reject_server_session(&session)?;
             server::console::restart_attached(client, &name, detach).await
         }
-        Target::Instance => {
+        EntryKind::Instance => {
             instance::lifecycle::restart(
                 &client,
                 &name,
@@ -111,11 +107,13 @@ pub async fn logs(
 ) -> Result<()> {
     let client = connect().await?;
     match resolve(&client, &name).await? {
-        Target::Server => {
+        EntryKind::Server => {
             reject_server_session(&session)?;
             server::lifecycle::logs(&client, &name, tail, follow).await
         }
-        Target::Instance => instance::lifecycle::logs(&client, &name, session, tail, follow).await,
+        EntryKind::Instance => {
+            instance::lifecycle::logs(&client, &name, session, tail, follow).await
+        }
     }
 }
 
@@ -129,10 +127,34 @@ fn reject_server_session(session: &Option<String>) -> Result<()> {
 
 pub async fn rename(name: String, new_name: String) -> Result<()> {
     let client = connect().await?;
-    match resolve(&client, &name).await? {
-        Target::Server => server::lifecycle::rename(&client, &name, &new_name).await,
-        Target::Instance => instance::lifecycle::rename(&client, &name, &new_name).await,
+    let kind = resolve(&client, &name).await?;
+    rename_entry(&client, EntryTarget::new(kind, name), &new_name).await
+}
+
+pub(crate) async fn rename_entry(
+    client: &Client,
+    target: EntryTarget,
+    new_name: &str,
+) -> Result<()> {
+    let renamed = {
+        let _spinner = Spinner::start(format!("renaming '{}'", target.entry));
+        client.entry().rename(&target, new_name).await?
+    };
+    ui::show(View::line(format!(
+        "{} '{}' renamed to '{}' (id {})",
+        target.kind, target.entry, renamed.name, renamed.id
+    )))
+}
+
+pub(crate) async fn remove_entry(client: &Client, target: EntryTarget) -> Result<()> {
+    {
+        let _spinner = Spinner::start(format!("removing '{}'", target.entry));
+        client.entry().remove(&target).await?;
     }
+    ui::show(View::line(format!(
+        "{} '{}' removed",
+        target.kind, target.entry
+    )))
 }
 
 /// Stream a process's output until Ctrl-C; a stop ends it only when `one_session`.

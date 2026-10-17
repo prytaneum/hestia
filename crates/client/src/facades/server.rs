@@ -4,18 +4,13 @@ use proto::backup::{
     BackupInfo, ServerBackupCreate, ServerBackupCreateParams, ServerBackupList, ServerBackupRef,
     ServerBackupRemove, ServerBackupRestore, ServerBackupRestoreParams,
 };
-use proto::minecraft::{
-    ConfigEntry, Flavor, GameVersion, LoadersParams, ProvisionProgress, VersionsParams,
-};
-use proto::process::ProcessLogLine;
+use proto::minecraft::ProvisionProgress;
 use proto::server::{
     ServerCommand, ServerCommandComplete, ServerCommandCompleteParams, ServerCommandCompleteResult,
-    ServerCommandParams, ServerConfigGet, ServerConfigGetParams, ServerConfigList, ServerConfigSet,
-    ServerConfigSetParams, ServerCreate, ServerCreateParams, ServerDetail, ServerDetails,
-    ServerDone, ServerFlavors, ServerInfo, ServerList, ServerLoaders, ServerLogs, ServerLogsParams,
-    ServerPing, ServerPingResult, ServerProperties, ServerProperty, ServerRef, ServerRemove,
-    ServerRename, ServerRenameParams, ServerRestart, ServerStart, ServerStartResult, ServerStatus,
-    ServerStop, ServerUpdate, ServerUpdateParams, ServerVersions,
+    ServerCommandParams, ServerCreate, ServerCreateParams, ServerDetail, ServerDetails, ServerDone,
+    ServerInfo, ServerList, ServerPing, ServerPingResult, ServerProperties, ServerProperty,
+    ServerRef, ServerRestart, ServerStart, ServerStartResult, ServerStatus, ServerUpdate,
+    ServerUpdateParams,
 };
 
 pub struct Server<'a> {
@@ -23,29 +18,6 @@ pub struct Server<'a> {
 }
 
 impl Server<'_> {
-    pub async fn flavors(&self) -> Result<Vec<Flavor>, IpcError> {
-        Ok(self
-            .session
-            .call::<ServerFlavors>(&proto::Empty {})
-            .await?
-            .flavors)
-    }
-
-    pub async fn versions(&self, flavor: &str) -> Result<Vec<GameVersion>, IpcError> {
-        let params = VersionsParams {
-            flavor: flavor.to_string(),
-        };
-        self.session.call::<ServerVersions>(&params).await
-    }
-
-    pub async fn loaders(&self, flavor: &str, version: &str) -> Result<Vec<String>, IpcError> {
-        let params = LoadersParams {
-            flavor: flavor.to_string(),
-            version: version.to_string(),
-        };
-        self.session.call::<ServerLoaders>(&params).await
-    }
-
     /// Create a fully provisioned server, blocking until the daemon reports
     /// done or error and forwarding each progress event to `on_progress`.
     /// `params.eula` asserts the user accepted the Minecraft EULA; the job id
@@ -97,31 +69,8 @@ impl Server<'_> {
         self.session.call::<ServerPing>(&server_ref(server)).await
     }
 
-    pub async fn remove(&self, server: &str) -> Result<(), IpcError> {
-        self.session
-            .call::<ServerRemove>(&server_ref(server))
-            .await?;
-        Ok(())
-    }
-
-    /// Rename a stopped server; the id (directory slug) is re-derived from the
-    /// new name. Returns the updated record, whose `id` and `name` reflect the
-    /// rename.
-    pub async fn rename(&self, server: &str, name: &str) -> Result<ServerInfo, IpcError> {
-        let params = ServerRenameParams {
-            server: server.to_string(),
-            name: name.to_string(),
-        };
-        self.session.call::<ServerRename>(&params).await
-    }
-
     pub async fn start(&self, server: &str) -> Result<ServerStartResult, IpcError> {
         self.session.call::<ServerStart>(&server_ref(server)).await
-    }
-
-    pub async fn stop(&self, server: &str) -> Result<(), IpcError> {
-        self.session.call::<ServerStop>(&server_ref(server)).await?;
-        Ok(())
     }
 
     /// Stop and start a running server. The daemon answers once the new
@@ -130,18 +79,6 @@ impl Server<'_> {
         self.session
             .call::<ServerRestart>(&server_ref(server))
             .await
-    }
-
-    pub async fn logs(
-        &self,
-        server: &str,
-        tail: Option<usize>,
-    ) -> Result<Vec<ProcessLogLine>, IpcError> {
-        let params = ServerLogsParams {
-            server: server.to_string(),
-            tail,
-        };
-        self.session.call::<ServerLogs>(&params).await
     }
 
     /// Send one console command to a running server; returns its reply.
@@ -222,38 +159,6 @@ impl Server<'_> {
         };
         self.session.call::<ServerBackupRemove>(&params).await?;
         Ok(())
-    }
-
-    /// Read one setting; `None` when it is not set (a `not_found` from the
-    /// daemon).
-    pub async fn config_get(&self, server: &str, key: &str) -> Result<Option<String>, IpcError> {
-        let params = ServerConfigGetParams {
-            server: server.to_string(),
-            key: key.to_string(),
-        };
-        Ok(self
-            .session
-            .try_call::<ServerConfigGet>(&params)
-            .await?
-            .map(|r| r.value))
-    }
-
-    pub async fn config_set(&self, server: &str, key: &str, value: &str) -> Result<(), IpcError> {
-        let params = ServerConfigSetParams {
-            server: server.to_string(),
-            key: key.to_string(),
-            value: value.to_string(),
-        };
-        self.session.call::<ServerConfigSet>(&params).await?;
-        Ok(())
-    }
-
-    pub async fn config_list(&self, server: &str) -> Result<Vec<ConfigEntry>, IpcError> {
-        Ok(self
-            .session
-            .call::<ServerConfigList>(&server_ref(server))
-            .await?
-            .entries)
     }
 
     /// Every `server.properties` key the server's version defines, with the

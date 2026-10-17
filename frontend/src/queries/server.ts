@@ -14,17 +14,22 @@ import {
 import type {
   BackupInfo,
   ConfigEntry,
+  EntryRenamed,
+  EntryTarget,
   ServerCreateParams,
   ServerDone,
   ServerInfo,
   ServerUpdateParams,
 } from '../api';
+import * as entry from '../api/entry';
 import * as api from '../api/server';
-import { CATALOG_STALE_MS, mutation } from './core';
+import { mutation } from './core';
 import { useEntryIconLookup } from './icons';
 import { jobMutation } from './jobs';
 import { keys } from './keys';
 import { type LogsOptions, type LogsResult, useFollowedLogs } from './logs';
+
+const target = (id: string): EntryTarget => ({ kind: 'server', entry: id });
 
 export const serverQueries = {
   list: () =>
@@ -65,33 +70,15 @@ export const serverQueries = {
       gcTime: 0,
       retry: false,
     }),
-  flavors: () =>
-    queryOptions({
-      queryKey: keys.servers.flavors(),
-      queryFn: () => api.flavors(),
-      staleTime: CATALOG_STALE_MS,
-    }),
-  versions: (flavor: string) =>
-    queryOptions({
-      queryKey: keys.servers.versions(flavor),
-      queryFn: () => api.versions(flavor),
-      staleTime: CATALOG_STALE_MS,
-    }),
-  loaders: (flavor: string, version: string) =>
-    queryOptions({
-      queryKey: keys.servers.loaders(flavor, version),
-      queryFn: () => api.loaders(flavor, version),
-      staleTime: CATALOG_STALE_MS,
-    }),
   logs: (id: string, tail?: number) =>
     queryOptions({
       queryKey: keys.servers.logs(id, tail),
-      queryFn: () => api.logs(id, tail),
+      queryFn: () => entry.logs(target(id), { tail }),
     }),
   config: (id: string) =>
     queryOptions({
       queryKey: keys.servers.config(id),
-      queryFn: () => api.config.list(id),
+      queryFn: () => entry.config.list(target(id)),
     }),
   /** Nested under the config key, so a `config.set` refreshes it too. */
   properties: (id: string) =>
@@ -136,9 +123,9 @@ export const serverMutations = {
       ],
     }),
   rename: (id: string) =>
-    mutation<ServerInfo, string>({
+    mutation<EntryRenamed, string>({
       mutationKey: [...keys.servers.detail(id), 'rename'],
-      mutationFn: (name) => api.rename(id, name),
+      mutationFn: (name) => entry.rename(target(id), name),
       invalidates: () => [
         keys.servers.list(),
         keys.servers.detail(id),
@@ -148,7 +135,7 @@ export const serverMutations = {
   remove: (id: string) =>
     mutation({
       mutationKey: [...keys.servers.detail(id), 'remove'],
-      mutationFn: () => api.remove(id),
+      mutationFn: () => entry.remove(target(id)),
       invalidates: () => [keys.servers.list()],
     }),
   start: (id: string) =>
@@ -160,7 +147,7 @@ export const serverMutations = {
   stop: (id: string) =>
     mutation({
       mutationKey: [...keys.servers.detail(id), 'stop'],
-      mutationFn: () => api.stop(id),
+      mutationFn: () => entry.stop(target(id)),
       invalidates: () => [keys.servers.list(), keys.servers.detail(id)],
     }),
   restart: (id: string) =>
@@ -179,7 +166,7 @@ export const serverMutations = {
   stopAny: () =>
     mutation<void, string>({
       mutationKey: [...keys.servers.all, 'stop'],
-      mutationFn: (id) => api.stop(id),
+      mutationFn: (id) => entry.stop(target(id)),
       invalidates: (id) => [keys.servers.list(), keys.servers.detail(id)],
     }),
   /** One console command over RCON; touches no cached state. */
@@ -191,7 +178,7 @@ export const serverMutations = {
   setConfig: (id: string) =>
     mutation<void, ConfigEntry>({
       mutationKey: [...keys.servers.detail(id), 'config', 'set'],
-      mutationFn: ({ key, value }) => api.config.set(id, key, value),
+      mutationFn: ({ key, value }) => entry.config.set(target(id), key, value),
       invalidates: () => [keys.servers.config(id)],
     }),
   backup: {

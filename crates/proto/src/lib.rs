@@ -11,6 +11,7 @@ pub mod content;
 pub mod contract;
 pub mod daemon;
 pub mod download;
+pub mod entry;
 pub mod error;
 pub mod events;
 pub mod files;

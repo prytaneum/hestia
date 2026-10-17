@@ -28,8 +28,7 @@ the table can lag the game without ever blocking the user. The table is the
 cost 0025 declined to pay for keys: it can go stale, but staleness here only
 means a value goes unchecked, never that a key is refused.
 
-The rules ride on the result of `server.flavors`, `instance.flavors` and the two
-`config.list` channels, and the create form builds its player-count and port
+The rules ride on the result of `entry.flavors` and `entry.config.list`, and the create form builds its player-count and port
 limits from them rather than hardcoding Minecraft's. The reason is a wire-visible
 enum, so the front-end words it generically: a reason that carries data arrives
 as `{ out_of_range: { min, max } }` and is resolved through the same token tables

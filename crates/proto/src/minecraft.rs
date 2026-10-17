@@ -105,21 +105,6 @@ pub struct FlavorsResult {
     pub rules: Vec<KeyRule>,
 }
 
-#[derive(Serialize, Deserialize, Default, Debug, Clone)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
-#[serde(default, rename_all = "camelCase")]
-pub struct VersionsParams {
-    pub flavor: String,
-}
-
-#[derive(Serialize, Deserialize, Default, Debug, Clone)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
-#[serde(default, rename_all = "camelCase")]
-pub struct LoadersParams {
-    pub flavor: String,
-    pub version: String,
-}
-
 /// Where a provisioning job (server create, instance launch preparation) is.
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Default)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]

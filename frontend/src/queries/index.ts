@@ -10,6 +10,7 @@
 export * from './accounts';
 export * from './app';
 export * from './cache';
+export { catalogueQueries } from './catalogue';
 export { invalidate, queryClient } from './client';
 export * from './config';
 export { useConnection } from './connection';
@@ -61,4 +62,3 @@ export * from './sync';
 export * from './tasks';
 export * from './transfer';
 export * from './update';
-export { useEntryVersions } from './versions';

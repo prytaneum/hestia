@@ -178,11 +178,12 @@ is purely a compile-time one that keeps `make_router()` from becoming a
 | `accounts` | `account.login.begin\|login.complete`, `account.list\|switch\|remove` |
 | `skins` | `skin.list\|add\|update\|equip\|reset\|remove`, `cape.equip\|clear` |
 | `process` | `process.start\|stop\|list\|status\|logs` |
-| `server` | `server.flavors\|loaders\|versions\|resolve`, `server.create\|update\|rename\|list\|status\|info\|remove\|start\|stop\|logs\|command\|ping`, `server.config.get\|set\|list`, `server.properties` |
+| `entry` | `entry.flavors\|versions\|loaders` (aimed by a kind), `entry.rename\|remove\|stop\|logs`, `entry.config.get\|set\|list` (aimed by an `EntryTarget`) — what a server and an instance share |
+| `server` | `server.create\|update\|list\|status\|info\|start\|restart\|command\|ping`, `server.properties` |
 | `files` | `server.files.list\|read\|write\|mkdir\|move\|copy\|remove\|import\|compress\|extract` |
 | `tasks` | `server.task.list\|save\|remove` — stored on the server record; the scheduler loop runs them |
 | `players` | `server.players`, `server.players.set\|kick` — the lists are read from the server's own files; a change is a console command, so it needs the server running |
-| `instance` | the `instance.*` counterparts, plus `instance.launch\|stop\|logs`, `instance.worlds`, `instance.sync.adopt` |
+| `instance` | `instance.create\|update\|list\|info\|recent\|launch`, `instance.worlds`, `instance.servers` and its edits |
 | `backup` | `server.backup.create\|list\|restore\|remove` |
 | `content` | `content.sources\|search\|project\|versions\|inspect\|resolve_url`, and the per-entry `content.add\|list\|remove\|update\|enable\|check_updates\|matches\|set_version`, each aimed by an `EntryTarget` |
 | `modpack` | `server\|instance.modpack.install`, and the per-entry `modpack.update\|preview_update\|status\|check_update\|remove`, each aimed by an `EntryTarget` |

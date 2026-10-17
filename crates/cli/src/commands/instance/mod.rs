@@ -7,7 +7,6 @@
 //! as `instance <name> <action>`. This module is the grammar and the dispatch;
 //! each verb group lives beside it.
 
-mod config;
 mod create;
 mod entry;
 pub(crate) mod lifecycle;
@@ -22,14 +21,13 @@ use std::path::PathBuf;
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 use client::proto::content::ContentKind;
-use client::proto::error::EntryKind;
+use client::proto::error::{EntryKind, EntryTarget};
 use client::proto::instance::QuickPlay;
 use client::Client;
 
 use crate::commands::content::{self, ContentCmd};
 use crate::commands::mc;
 use crate::commands::modpack::EntryModpackCmd;
-use crate::ui::Spinner;
 
 pub use lifecycle::{launch, Launch};
 
@@ -370,8 +368,10 @@ pub async fn run(cmd: InstanceCmd) -> Result<()> {
                 InstanceCmd::Import { path, name } => transfer::import(&client, path, name).await,
                 InstanceCmd::List => entry::list(&client).await,
                 InstanceCmd::Recent => recent::list(&client).await,
-                InstanceCmd::Versions { flavor, all } => versions(&client, flavor, all).await,
-                InstanceCmd::Flavors => flavors(&client).await,
+                InstanceCmd::Versions { flavor, all } => {
+                    mc::list_versions(&client, EntryKind::Instance, flavor, all).await
+                }
+                InstanceCmd::Flavors => mc::list_flavors(&client, EntryKind::Instance).await,
                 InstanceCmd::Entry(_) => unreachable!("handled above"),
             }
         }
@@ -431,7 +431,9 @@ async fn run_action(client: &Client, name: String, action: InstanceAction) -> Re
             follow,
             session,
         } => lifecycle::logs(client, &name, session, tail, follow).await,
-        InstanceAction::Config { cmd } => config::run(client, &name, cmd).await,
+        InstanceAction::Config { cmd } => {
+            mc::run_config(client, EntryTarget::new(EntryKind::Instance, name), cmd).await
+        }
         InstanceAction::Mod { cmd } => {
             content::run_entry(client, EntryKind::Instance, ContentKind::Mod, &name, cmd).await
         }
@@ -472,9 +474,15 @@ async fn run_action(client: &Client, name: String, action: InstanceAction) -> Re
             output,
             exclude,
         } => transfer::export(client, name, format, output, exclude).await,
-        InstanceAction::Rename { new_name } => lifecycle::rename(client, &name, &new_name).await,
+        InstanceAction::Rename { new_name } => {
+            let target = EntryTarget::new(EntryKind::Instance, name);
+            crate::commands::lifecycle::rename_entry(client, target, &new_name).await
+        }
         InstanceAction::Sync { cmd } => sync_action(client, &name, cmd).await,
-        InstanceAction::Remove => lifecycle::remove(client, &name).await,
+        InstanceAction::Remove => {
+            let target = EntryTarget::new(EntryKind::Instance, name);
+            crate::commands::lifecycle::remove_entry(client, target).await
+        }
     }
 }
 
@@ -553,25 +561,4 @@ async fn pin_key(
         false => unsynced.insert(key),
     };
     Ok(client.sync().set_instance_unsynced(id, unsynced).await?)
-}
-
-async fn versions(client: &Client, flavor: Option<String>, all: bool) -> Result<()> {
-    let flavors = {
-        let _spinner = Spinner::start("fetching flavors");
-        client.instance().flavors().await?
-    };
-    let flavor = mc::pick_flavor(flavors, flavor)?;
-    let versions = {
-        let _spinner = Spinner::start("fetching versions");
-        client.instance().versions(&flavor).await?
-    };
-    mc::show_versions(&flavor, versions, all)
-}
-
-async fn flavors(client: &Client) -> Result<()> {
-    let flavors = {
-        let _spinner = Spinner::start("fetching flavors");
-        client.instance().flavors().await?
-    };
-    mc::show_flavors(&flavors)
 }

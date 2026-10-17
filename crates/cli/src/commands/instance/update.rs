@@ -23,7 +23,10 @@ pub(super) async fn run(
     let info = entry::pick_instance(client.instance().list().await?, Some(instance))?;
     let versions = {
         let _spinner = Spinner::start("fetching versions");
-        client.instance().versions(&info.flavor).await?
+        client
+            .entry()
+            .versions(client::proto::error::EntryKind::Instance, &info.flavor)
+            .await?
     };
     let version = mc::pick_version(versions.clone(), version)?;
     let is_downgrade =

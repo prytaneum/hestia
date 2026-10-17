@@ -1,5 +1,5 @@
-//! Minecraft server contracts: browsing (flavors/versions/resolve), the
-//! provision-at-create job, and lifecycle over the daemon's process supervisor.
+//! Minecraft server contracts: the provision-at-create job and lifecycle over
+//! the daemon's process supervisor. What an instance shares is in `entry`.
 //! A server is provisioned fully at create time — profile resolved, the Java
 //! runtime ensured, the server jar downloaded, the EULA recorded — so `start`
 //! is an immediate spawn.
@@ -8,40 +8,13 @@ use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 
-use crate::change::Scope;
 use crate::content::{ContentFailure, ContentKind};
 use crate::contract::{Contract, Empty};
 use crate::job::{Job, JobStarted};
-use crate::keys::KeyRule;
-use crate::minecraft::{
-    ConfigEntry, FlavorsResult, GameVersion, LoadersParams, ProvisionProgress, VersionsParams,
-};
+use crate::minecraft::{ConfigEntry, ProvisionProgress};
 use crate::modpack::PackPolicy;
-use crate::process::{ProcessInfo, ProcessLogLine};
+use crate::process::ProcessInfo;
 use crate::warning::WarningInfo;
-
-pub struct ServerFlavors;
-impl Contract for ServerFlavors {
-    const CHANNEL: &'static str = "server.flavors";
-    type Params = Empty;
-    type Result = FlavorsResult;
-}
-
-pub struct ServerVersions;
-impl Contract for ServerVersions {
-    const CHANNEL: &'static str = "server.versions";
-    type Params = VersionsParams;
-    type Result = Vec<GameVersion>;
-}
-
-/// Loader builds newest-first; empty for a flavor with no pickable loader
-/// version (vanilla, and loaders that pin one build per game version).
-pub struct ServerLoaders;
-impl Contract for ServerLoaders {
-    const CHANNEL: &'static str = "server.loaders";
-    type Params = LoadersParams;
-    type Result = Vec<String>;
-}
 
 /// A managed server: the stored record plus, when it has been started, the
 /// supervised process snapshot.
@@ -220,32 +193,6 @@ pub struct ServerRef {
     pub server: String,
 }
 
-pub struct ServerRemove;
-impl Contract for ServerRemove {
-    const CHANNEL: &'static str = "server.remove";
-    const CHANGES: Option<Scope> = Some(Scope::Entries);
-    type Params = ServerRef;
-    type Result = Empty;
-}
-
-#[derive(Serialize, Deserialize, Default, Debug, Clone)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
-#[serde(default, rename_all = "camelCase")]
-pub struct ServerRenameParams {
-    /// The server to rename, by its current name or id.
-    pub server: String,
-    /// The new display name; the id (directory slug) is re-derived from it.
-    pub name: String,
-}
-
-pub struct ServerRename;
-impl Contract for ServerRename {
-    const CHANNEL: &'static str = "server.rename";
-    const CHANGES: Option<Scope> = Some(Scope::Entries);
-    type Params = ServerRenameParams;
-    type Result = ServerInfo;
-}
-
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
 #[serde(default, rename_all = "camelCase")]
@@ -259,13 +206,6 @@ impl Contract for ServerStart {
     const CHANNEL: &'static str = "server.start";
     type Params = ServerRef;
     type Result = ServerStartResult;
-}
-
-pub struct ServerStop;
-impl Contract for ServerStop {
-    const CHANNEL: &'static str = "server.stop";
-    type Params = ServerRef;
-    type Result = Empty;
 }
 
 /// Stop a running server, wait for it to exit, and start it again. Answers
@@ -308,23 +248,6 @@ impl Contract for ServerPing {
     const CHANNEL: &'static str = "server.ping";
     type Params = ServerRef;
     type Result = ServerPingResult;
-}
-
-#[derive(Serialize, Deserialize, Default, Debug, Clone)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
-#[serde(default, rename_all = "camelCase")]
-pub struct ServerLogsParams {
-    pub server: String,
-    /// Return only the last `tail` lines when set; all buffered lines otherwise.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub tail: Option<usize>,
-}
-
-pub struct ServerLogs;
-impl Contract for ServerLogs {
-    const CHANNEL: &'static str = "server.logs";
-    type Params = ServerLogsParams;
-    type Result = Vec<ProcessLogLine>;
 }
 
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
@@ -374,21 +297,6 @@ impl Contract for ServerCommandComplete {
     type Result = ServerCommandCompleteResult;
 }
 
-#[derive(Serialize, Deserialize, Default, Debug, Clone)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
-#[serde(default, rename_all = "camelCase")]
-pub struct ServerConfigGetParams {
-    pub server: String,
-    pub key: String,
-}
-
-#[derive(Serialize, Deserialize, Default, Debug, Clone)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
-#[serde(default, rename_all = "camelCase")]
-pub struct ServerConfigGetResult {
-    pub value: String,
-}
-
 /// One `server.properties` key as this server's version defines it. The key
 /// set is the server's own — it moves with the game version — so a front-end
 /// renders what it is handed and knows no key by name.
@@ -417,45 +325,6 @@ impl Contract for ServerProperties {
     const CHANNEL: &'static str = "server.properties";
     type Params = ServerRef;
     type Result = Vec<ServerProperty>;
-}
-
-pub struct ServerConfigGet;
-impl Contract for ServerConfigGet {
-    const CHANNEL: &'static str = "server.config.get";
-    type Params = ServerConfigGetParams;
-    type Result = ServerConfigGetResult;
-}
-
-#[derive(Serialize, Deserialize, Default, Debug, Clone)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
-#[serde(default, rename_all = "camelCase")]
-pub struct ServerConfigSetParams {
-    pub server: String,
-    pub key: String,
-    pub value: String,
-}
-
-pub struct ServerConfigSet;
-impl Contract for ServerConfigSet {
-    const CHANNEL: &'static str = "server.config.set";
-    const CHANGES: Option<Scope> = Some(Scope::Entries);
-    type Params = ServerConfigSetParams;
-    type Result = Empty;
-}
-
-#[derive(Serialize, Deserialize, Default, Debug, Clone)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
-#[serde(default, rename_all = "camelCase")]
-pub struct ServerConfigListResult {
-    pub entries: Vec<ConfigEntry>,
-    pub rules: Vec<KeyRule>,
-}
-
-pub struct ServerConfigList;
-impl Contract for ServerConfigList {
-    const CHANNEL: &'static str = "server.config.list";
-    type Params = ServerRef;
-    type Result = ServerConfigListResult;
 }
 
 /// A finished create or update.

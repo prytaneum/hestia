@@ -33,7 +33,7 @@ the channel needs instead of trusting the author to remember it.
 A verb that exists on both sides is one channel aimed by an `EntryTarget`, and
 `guards::entry_for` is the third resolver: it dispatches on the target's kind to
 `server_for` or `instance_for` (`entry_held` to the held variants) and returns the owned handle a job or an engine flow takes. The
-handler therefore holds no per-side branch, and the two halves that used to be
-line-for-line copies of each other are one function. The account gate for the
+two halves that used to be line-for-line copies of each other are one function;
+the `entry` registrar branches on the kind only where the engine call differs. The account gate for the
 instance side lives there too
 ([0030](0030-instance-surface-gated-on-an-account.md)).

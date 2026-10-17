@@ -6,6 +6,7 @@
 //! its claim here and moves it into the job it starts, so the check and the
 //! claim are a single step and a refusal names the job that holds the entry.
 
+use engine::Side;
 use proto::error::{EntryKind, EntryTarget, ErrorInfo, Field};
 use proto::process::ProcessState;
 
@@ -49,26 +50,38 @@ impl Hold {
     }
 }
 
-/// Resolve the entry a verb on both sides is aimed at, applying the guards of
-/// its side. An instance is only reachable with an account, and that is
-/// checked before the lookup so a signed-out caller is told to sign in rather
-/// than that the instance does not exist — the router's prefix gate cannot see
-/// a target carried in the payload of a shared channel.
+/// The side a shared verb names, refusing an instance without an account: the
+/// router's prefix gate cannot see a side carried in the payload.
+pub(super) fn side_for(ctx: &HandlerContext, kind: EntryKind) -> Result<Side, ErrorInfo> {
+    match kind {
+        EntryKind::Server => Ok(Side::Server),
+        EntryKind::Instance => {
+            require_account(ctx)?;
+            Ok(Side::Client)
+        }
+    }
+}
+
+/// Resolve the entry a shared verb is aimed at, applying the guards of its side.
 pub(super) fn entry_for(
     ctx: &HandlerContext,
     target: &EntryTarget,
     intent: Intent,
 ) -> Result<JobEntry, ErrorInfo> {
-    let id = match target.kind {
-        EntryKind::Server => server_for(ctx, &target.entry, intent)?.id,
-        EntryKind::Instance => {
-            require_account(ctx)?;
-            instance_for(ctx, &target.entry, intent)?.id
+    let (id, name) = match side_for(ctx, target.kind)? {
+        Side::Server => {
+            let record = server_for(ctx, &target.entry, intent)?;
+            (record.id, record.name)
+        }
+        Side::Client => {
+            let record = instance_for(ctx, &target.entry, intent)?;
+            (record.id, record.name)
         }
     };
     Ok(JobEntry {
         kind: target.kind,
         id,
+        name,
     })
 }
 
@@ -78,20 +91,20 @@ pub(super) fn entry_held(
     target: &EntryTarget,
     hold: Hold,
 ) -> Result<(JobEntry, Claim), ErrorInfo> {
-    let (id, claim) = match target.kind {
-        EntryKind::Server => {
+    let (id, name, claim) = match side_for(ctx, target.kind)? {
+        Side::Server => {
             let (record, claim) = server_held(ctx, &target.entry, hold)?;
-            (record.id, claim)
+            (record.id, record.name, claim)
         }
-        EntryKind::Instance => {
-            require_account(ctx)?;
+        Side::Client => {
             let (record, claim) = instance_held(ctx, &target.entry, hold)?;
-            (record.id, claim)
+            (record.id, record.name, claim)
         }
     };
     let entry = JobEntry {
         kind: target.kind,
         id,
+        name,
     };
     Ok((entry, claim))
 }

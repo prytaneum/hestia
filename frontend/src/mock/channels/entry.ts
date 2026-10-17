@@ -1,42 +1,86 @@
 /**
- * What a server and an instance answer identically. Per-entry settings name
- * their entry with a different parameter (`server` / `instance`), so those
- * handlers are built once and registered twice (see ./instance, ./server). The
- * installed content pool and the modpack verbs name theirs with an
- * `EntryTarget`, and are single channels (see `contentChannels`, ./modpack).
+ * What a server and an instance answer identically, each a single channel that
+ * names its side in an `EntryTarget`: the `entry.*` verbs, the installed
+ * content pool (`contentChannels`) and the modpack verbs (./modpack).
  */
 import type { ContentKind, EntryTarget, InstalledContent } from '@/api/types';
 
 import { jobIdOf, startJob } from '../job';
+import * as catalog from '../state/catalog';
 import * as content from '../state/content';
 import * as entries from '../state/entries';
+import * as processes from '../state/processes';
 import { type ChannelHandlers, ok, str, strings } from '../support';
 
 /** Resolves the entry a payload names to its stable id. */
 export type Resolve = (payload: Record<string, unknown>) => string;
+
+function entryOf(target: Partial<EntryTarget> = {}): {
+  id: string;
+  name: string;
+} {
+  const entry = target.entry ?? '';
+  return target.kind === 'server'
+    ? entries.findServer(entry)
+    : entries.findInstance(entry);
+}
 
 /** The entry a payload's `target` names. */
 export function targetEntry(payload: Record<string, unknown>): {
   id: string;
   name: string;
 } {
-  const { kind, entry = '' } = (payload.target ?? {}) as Partial<EntryTarget>;
-  return kind === 'server'
-    ? entries.findServer(entry)
-    : entries.findInstance(entry);
+  return entryOf(payload.target as Partial<EntryTarget> | undefined);
 }
 
 const kindOf = (payload: Record<string, unknown>): ContentKind =>
   (payload.kind as ContentKind) ?? 'mod';
 
-export function configHandlers(resolve: Resolve) {
+export function entryChannels(): ChannelHandlers {
   return {
-    list: (p: Record<string, unknown>) => ({
-      entries: entries.entrySettings(resolve(p)),
+    'entry.flavors': (p) =>
+      p.kind === 'server'
+        ? { flavors: catalog.serverFlavors, rules: catalog.serverRules }
+        : { flavors: catalog.instanceFlavors, rules: [] },
+    'entry.versions': (p) => catalog.versionsFor(str(p, 'flavor')),
+    'entry.loaders': (p) => catalog.loaders(str(p, 'flavor')),
+
+    'entry.rename': (p) => {
+      const { id, name } = entries.rename(entryOf(p.target), str(p, 'name'));
+      return { id, name };
+    },
+
+    'entry.remove': (p) => {
+      const list =
+        p.kind === 'server' ? entries.listServers() : entries.listInstances();
+      entries.removeEntry(entryOf(p).id, list);
+      return ok();
+    },
+
+    'entry.stop': (p) => {
+      const { id } = entryOf(p.target);
+      if (p.target?.kind === 'server')
+        processes.stop(processes.serverProcessId(id));
+      else processes.stopSessions(id, p.session || undefined);
+      return ok();
+    },
+
+    'entry.logs': (p) => {
+      const { id } = entryOf(p.target);
+      const process =
+        p.target?.kind === 'server'
+          ? processes.serverProcessId(id)
+          : p.session || processes.sessionsOf(id).at(-1)?.id || '';
+      return processes.logs(process, p.tail);
+    },
+
+    'entry.config.list': (p) => ({
+      entries: entries.entrySettings(entryOf(p).id),
       rules: [],
     }),
-    set: (p: Record<string, unknown>) => {
-      entries.setEntrySetting(resolve(p), str(p, 'key'), str(p, 'value'));
+    'entry.config.set': (p) => {
+      const { id } = entryOf(p.target);
+      entries.setEntrySetting(id, str(p, 'key'), str(p, 'value'));
       return ok();
     },
   };

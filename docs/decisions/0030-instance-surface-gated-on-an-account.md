@@ -29,7 +29,9 @@ names. Prefixing `content.*` instead would have locked the catalogue (`search`,
 `project`, `versions`, …) that servers and signed-out users still need.
 
 So the gate for those verbs moves into `guards::entry_for`, the single place a
-handler turns a target into an entry. Its `Instance` arm checks
+handler turns a target into an entry. The `entry.*` verbs (flavors, versions,
+loaders, rename, remove, stop, logs, config) followed the same way; the three
+that name only a kind pass through `guards::side_for`, which `entry_for` uses. Its `Instance` arm checks
 `accounts().has_account()` and answers `sign_in_required` *before* resolving the
 entry, so a signed-out caller is told to sign in rather than that the instance
 does not exist; its `Server` arm never looks at accounts. Every handler of the

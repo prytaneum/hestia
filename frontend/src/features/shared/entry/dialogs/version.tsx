@@ -18,8 +18,7 @@ import { Notice } from '@/components/warning-notice';
 import { toastWarnings } from '@/lib/warnings';
 import { m } from '@/paraglide/messages.js';
 import type { JobEntryKind } from '@/queries';
-import { modpackQueries } from '@/queries';
-import { useEntryVersions } from '@/queries/versions';
+import { catalogueQueries, modpackQueries } from '@/queries';
 
 export interface UpdateHandle {
   mutateAsync: (params: {
@@ -49,7 +48,7 @@ export function ChangeVersionDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
-  const versions = useEntryVersions(kind, flavor);
+  const versions = useQuery(catalogueQueries.versions(kind, flavor));
   const [version, setVersion] = useState('');
   const [downgrade, setDowngrade] = useState(false);
   const [movePack, setMovePack] = useState(true);

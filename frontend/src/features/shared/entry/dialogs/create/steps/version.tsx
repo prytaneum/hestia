@@ -6,10 +6,8 @@ import { SearchInput } from '@/components/search-input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { FieldError } from '@/components/ui/field';
 import { m } from '@/paraglide/messages.js';
-import { instanceQueries } from '@/queries/instance';
+import { catalogueQueries } from '@/queries/catalogue';
 import { useOffline } from '@/queries/net';
-import { serverQueries } from '@/queries/server';
-import { useEntryVersions } from '@/queries/versions';
 
 import { type Kind, VersionRow, type WizardForm } from '../fields';
 
@@ -34,19 +32,14 @@ export function VersionStep({
   const selected = form.state.values.version.version as string;
 
   const offline = useOffline();
-  const versionsQuery = useEntryVersions(kind, flavor);
+  const versionsQuery = useQuery(catalogueQueries.versions(kind, flavor));
   const versions: GameVersion[] = versionsQuery.data ?? [];
 
   // Loaders resolve only once a version is chosen, so gate on both.
-  const serverLoaders = useQuery({
-    ...serverQueries.loaders(flavor, selected),
-    enabled: kind === 'server' && flavor !== '' && selected !== '',
+  const loadersQuery = useQuery({
+    ...catalogueQueries.loaders(kind, flavor, selected),
+    enabled: flavor !== '' && selected !== '',
   });
-  const instanceLoaders = useQuery({
-    ...instanceQueries.loaders(flavor, selected),
-    enabled: kind === 'instance' && flavor !== '' && selected !== '',
-  });
-  const loadersQuery = kind === 'server' ? serverLoaders : instanceLoaders;
   const loaders = loadersQuery.data;
 
   const q = search.trim().toLowerCase();

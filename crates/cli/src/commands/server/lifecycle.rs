@@ -2,10 +2,15 @@
 //! remove, and its captured output.
 
 use anyhow::{Context, Result};
+use client::proto::error::{EntryKind, EntryTarget};
 use client::Client;
 
 use super::entry;
 use crate::ui::{self, MonitorSample, Spinner, View};
+
+fn server_target(server: &str) -> EntryTarget {
+    EntryTarget::new(EntryKind::Server, server)
+}
 
 pub(crate) async fn start(client: &Client, server: &str) -> Result<()> {
     let pid = start_quiet(client, server).await?;
@@ -27,7 +32,7 @@ pub(crate) async fn start_quiet(client: &Client, server: &str) -> Result<u32> {
 pub(crate) async fn stop(client: &Client, server: &str) -> Result<()> {
     {
         let _spinner = Spinner::start(format!("stopping '{server}'"));
-        client.server().stop(server).await?;
+        client.entry().stop(&server_target(server), None).await?;
     }
     ui::show(View::line(format!("server '{server}' stopped")))
 }
@@ -48,25 +53,6 @@ pub(crate) async fn restart_quiet(client: &Client, server: &str) -> Result<u32> 
     Ok(restarted.pid)
 }
 
-pub(super) async fn remove(client: &Client, server: &str) -> Result<()> {
-    {
-        let _spinner = Spinner::start(format!("removing '{server}'"));
-        client.server().remove(server).await?;
-    }
-    ui::show(View::line(format!("server '{server}' removed")))
-}
-
-pub(crate) async fn rename(client: &Client, server: &str, new_name: &str) -> Result<()> {
-    let info = {
-        let _spinner = Spinner::start(format!("renaming '{server}'"));
-        client.server().rename(server, new_name).await?
-    };
-    ui::show(View::line(format!(
-        "server '{server}' renamed to '{}' (id {})",
-        info.name, info.id
-    )))
-}
-
 /// Read (or follow) the server's captured output. Following is scoped to the
 /// **server**, not to the process it happens to be running: a stop leaves the
 /// stream open and the next start resumes it, and a stopped server can be
@@ -77,7 +63,10 @@ pub(crate) async fn logs(
     tail: Option<usize>,
     follow: bool,
 ) -> Result<()> {
-    let lines = client.server().logs(server, tail).await?;
+    let lines = client
+        .entry()
+        .logs(&server_target(server), None, tail)
+        .await?;
     if lines.is_empty() && !follow {
         return ui::show(View::note("no output captured (has it been started?)"));
     }

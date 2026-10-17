@@ -4,6 +4,7 @@
 use std::sync::Arc;
 
 use anyhow::{bail, Context, Result};
+use client::proto::error::{EntryKind, EntryTarget};
 use client::proto::instance::{InstanceLaunchDone, QuickPlay, Replace};
 use client::Client;
 
@@ -27,8 +28,12 @@ pub async fn launch(client: &Client, options: Launch<'_>) -> Result<()> {
         return Ok(());
     }
     let backfill = client
-        .instance()
-        .logs(reference, Some(process_id.clone()), Some(100))
+        .entry()
+        .logs(
+            &instance_target(reference),
+            Some(process_id.clone()),
+            Some(100),
+        )
         .await
         .unwrap_or_default();
     for line in backfill {
@@ -99,7 +104,10 @@ pub(crate) async fn stop(client: &Client, instance: &str, session: Option<String
     let target = resolve_session(client, instance, &session).await?;
     {
         let _spinner = Spinner::start(format!("stopping '{instance}'"));
-        client.instance().stop(instance, target.clone()).await?;
+        client
+            .entry()
+            .stop(&instance_target(instance), target.clone())
+            .await?;
     }
     match target {
         Some(id) => ui::show(View::line(format!(
@@ -150,27 +158,12 @@ async fn resolve_session(
     }
 }
 
+fn instance_target(instance: &str) -> EntryTarget {
+    EntryTarget::new(EntryKind::Instance, instance)
+}
+
 fn session_label(process_id: &str) -> &str {
     process_id.rsplit('_').next().unwrap_or(process_id)
-}
-
-pub(super) async fn remove(client: &Client, instance: &str) -> Result<()> {
-    {
-        let _spinner = Spinner::start(format!("removing '{instance}'"));
-        client.instance().remove(instance).await?;
-    }
-    ui::show(View::line(format!("instance '{instance}' removed")))
-}
-
-pub(crate) async fn rename(client: &Client, instance: &str, new_name: &str) -> Result<()> {
-    let info = {
-        let _spinner = Spinner::start(format!("renaming '{instance}'"));
-        client.instance().rename(instance, new_name).await?
-    };
-    ui::show(View::line(format!(
-        "instance '{instance}' renamed to '{}' (id {})",
-        info.name, info.id
-    )))
 }
 
 /// Read (or follow) an instance's captured output. A named `--session` is one
@@ -186,8 +179,8 @@ pub(crate) async fn logs(
 ) -> Result<()> {
     let target = resolve_session(client, instance, &session).await?;
     let lines = client
-        .instance()
-        .logs(instance, target.clone(), tail)
+        .entry()
+        .logs(&instance_target(instance), target.clone(), tail)
         .await?;
     if lines.is_empty() && !follow {
         return ui::show(View::note("no output captured (has it been launched?)"));

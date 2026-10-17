@@ -4,13 +4,14 @@
 use std::sync::Arc;
 
 use anyhow::{bail, Context, Result};
+use client::proto::error::EntryKind;
 use client::proto::minecraft::ConfigEntry;
 use client::proto::server::ServerCreateParams;
 use client::Client;
 
 use super::entry;
 use crate::commands::mc;
-use crate::commands::wizard::{self, Field, WizardKind, WizardOutcome, WizardSeed};
+use crate::commands::wizard::{self, Field, WizardOutcome, WizardSeed};
 use crate::ui::{self, ProvisionReporter, Spinner, View};
 
 const EULA_URL: &str = "https://aka.ms/MinecraftEULA";
@@ -95,12 +96,12 @@ pub(super) async fn run(client: &Client, args: CreateArgs) -> Result<()> {
     }
     let flavors = {
         let _spinner = Spinner::start("fetching flavors");
-        client.server().flavors().await?
+        client.entry().flavors(EntryKind::Server).await?
     };
     let flavor = mc::pick_flavor(flavors, args.flavor)?;
     let versions = {
         let _spinner = Spinner::start("fetching versions");
-        client.server().versions(&flavor).await?
+        client.entry().versions(EntryKind::Server, &flavor).await?
     };
     let version = mc::pick_version(versions, args.version)?;
     let name = args.name.unwrap_or_else(|| format!("{flavor}-{version}"));
@@ -144,7 +145,7 @@ pub(super) async fn run(client: &Client, args: CreateArgs) -> Result<()> {
 async fn run_wizard(client: &Client, args: CreateArgs) -> Result<()> {
     let flavors = {
         let _spinner = Spinner::start("fetching flavors");
-        client.server().flavors().await?
+        client.entry().flavors(EntryKind::Server).await?
     };
     if let Some(flavor) = &args.flavor {
         if !flavors.iter().any(|f| &f.id == flavor) {
@@ -154,7 +155,7 @@ async fn run_wizard(client: &Client, args: CreateArgs) -> Result<()> {
     }
     let extra = build_config(None, [], args.prop)?;
     let seed = WizardSeed {
-        kind: WizardKind::Server,
+        kind: EntryKind::Server,
         flavors,
         flavor: args.flavor,
         version: args.version,

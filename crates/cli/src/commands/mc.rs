@@ -6,6 +6,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use anyhow::{bail, Context, Result};
 use clap::Subcommand;
 use client::proto::backup::BackupInfo;
+use client::proto::error::{EntryKind, EntryTarget};
 use client::proto::minecraft::{
     ConfigEntry, Flavor, GameVersion, ProvisionPhase, ProvisionProgress, VersionKind,
 };
@@ -13,7 +14,7 @@ use client::proto::process::{ProcessInfo, ProcessState};
 use client::Client;
 
 use crate::commands::content::format::kind_plural;
-use crate::ui::{self, View};
+use crate::ui::{self, Spinner, View};
 
 /// The shared `config` grammar for a server/instance: `get`/`set`/`list`,
 /// mirroring `hestia config`.
@@ -37,17 +38,42 @@ pub enum ConfigCmd {
     List,
 }
 
+/// `<server|instance> <name> config get|set|list`.
+pub async fn run_config(client: &Client, target: EntryTarget, cmd: ConfigCmd) -> Result<()> {
+    let entry = client.entry();
+    match cmd {
+        ConfigCmd::Get { key } => match entry.config_get(&target, &key).await? {
+            Some(value) => ui::show(View::line(value))?,
+            None => bail!("'{key}' is not set"),
+        },
+        ConfigCmd::Set { key, value } => {
+            entry.config_set(&target, &key, &value).await?;
+            let next = match target.kind {
+                EntryKind::Server => "start",
+                EntryKind::Instance => "launch",
+            };
+            ui::show(View::note(format!("applies from the next {next}")))?;
+        }
+        ConfigCmd::List => {
+            let entries = entry.config_list(&target).await?;
+            let defaults = jvm_defaults(client).await;
+            show_config_entries(format!("{} config", target.entry), entries, &defaults)?;
+        }
+    }
+    Ok(())
+}
+
 /// The launcher-wide JVM defaults (`defaults.memory` / `defaults.jvm-args`), an
 /// empty string when unset. An entry that leaves `memory`/`jvm-args` unset
 /// inherits these at launch, so `config list` surfaces them.
 #[derive(Default)]
-pub struct JvmDefaults {
-    pub memory: String,
-    pub jvm_args: String,
+struct JvmDefaults {
+    memory: String,
+    jvm_args: String,
 }
 
 /// Fetch the launcher-wide JVM defaults; a failed read yields empty values.
-pub async fn jvm_defaults(client: &Client) -> JvmDefaults {
+async fn jvm_defaults(client: &Client) -> JvmDefaults {
     async fn read(client: &Client, key: &str) -> String {
         client
             .config()
@@ -67,7 +93,7 @@ pub async fn jvm_defaults(client: &Client) -> JvmDefaults {
 /// Render `config list` entries as a KEY/VALUE table. A `memory`/`jvm-args`
 /// entry left unset shows the inherited launcher default (annotated), so the
 /// effective launch value is visible.
-pub fn show_config_entries(
+fn show_config_entries(
     title: impl Into<String>,
     entries: Vec<ConfigEntry>,
     defaults: &JvmDefaults,
@@ -297,7 +323,7 @@ pub fn confirm_downgrade(name: &str, data: &str, safety: &str, from: &str, to: &
 /// The non-interactive form of the selector: the available flavors as a table.
 /// Every column comes off the wire, so a flavor the daemon ships needs nothing
 /// here to describe itself.
-pub fn show_flavors(flavors: &[Flavor]) -> Result<()> {
+fn show_flavors(flavors: &[Flavor]) -> Result<()> {
     if flavors.is_empty() {
         return ui::show(View::note("no flavors are available"));
     }
@@ -348,9 +374,36 @@ fn accepts_label(flavor: &Flavor) -> String {
         .join(", ")
 }
 
+/// `<server|instance> versions`: pick a flavor, then list its game versions.
+pub async fn list_versions(
+    client: &Client,
+    kind: EntryKind,
+    flavor: Option<String>,
+    all: bool,
+) -> Result<()> {
+    let flavors = {
+        let _spinner = Spinner::start("fetching flavors");
+        client.entry().flavors(kind).await?
+    };
+    let flavor = pick_flavor(flavors, flavor)?;
+    let versions = {
+        let _spinner = Spinner::start("fetching versions");
+        client.entry().versions(kind, &flavor).await?
+    };
+    show_versions(&flavor, versions, all)
+}
+
+pub async fn list_flavors(client: &Client, kind: EntryKind) -> Result<()> {
+    let flavors = {
+        let _spinner = Spinner::start("fetching flavors");
+        client.entry().flavors(kind).await?
+    };
+    show_flavors(&flavors)
+}
+
 /// Show a version table, releases only unless `all` includes snapshots and old
 /// versions. Long lists page on a terminal and dump plainly when piped.
-pub fn show_versions(flavor: &str, versions: Vec<GameVersion>, all: bool) -> Result<()> {
+fn show_versions(flavor: &str, versions: Vec<GameVersion>, all: bool) -> Result<()> {
     let rows: Vec<Vec<String>> = versions
         .iter()
         .filter(|v| all || v.kind == VersionKind::Release)

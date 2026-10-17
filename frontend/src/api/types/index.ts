@@ -8,6 +8,7 @@ export type * from "./config";
 export type * from "./content";
 export type * from "./daemon";
 export type * from "./download";
+export type * from "./entry";
 export type * from "./error";
 export type * from "./events";
 export type * from "./files";

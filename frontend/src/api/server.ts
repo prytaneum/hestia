@@ -9,12 +9,6 @@ import { call } from './core/ipc';
 import { type JobRun, runJob } from './core/jobs';
 import type { BackupInfo } from './types/backup';
 import type {
-  ConfigEntry,
-  FlavorsResult,
-  GameVersion,
-} from './types/minecraft';
-import type { ProcessLogLine } from './types/process';
-import type {
   ServerCommandCompleteResult,
   ServerCreateParams,
   ServerDetails,
@@ -25,19 +19,6 @@ import type {
   ServerStartResult,
   ServerUpdateParams,
 } from './types/server';
-
-export function flavors(): Promise<FlavorsResult> {
-  return call('server.flavors');
-}
-
-export function versions(flavor: string): Promise<GameVersion[]> {
-  return call('server.versions', { flavor });
-}
-
-/** Loader builds for a flavor/version, newest first; empty for vanilla. */
-export function loaders(flavor: string, version: string): Promise<string[]> {
-  return call('server.loaders', { flavor, version });
-}
 
 export function list(): Promise<ServerInfo[]> {
   return call('server.list');
@@ -72,28 +53,12 @@ export function update(
   return runJob('server.update', params, job);
 }
 
-export function rename(server: string, name: string): Promise<ServerInfo> {
-  return call('server.rename', { server, name });
-}
-
-export async function remove(server: string): Promise<void> {
-  await call('server.remove', { server });
-}
-
 export function start(server: string): Promise<ServerStartResult> {
   return call('server.start', { server });
 }
 
-export async function stop(server: string): Promise<void> {
-  await call('server.stop', { server });
-}
-
 export function restart(server: string): Promise<ServerStartResult> {
   return call('server.restart', { server });
-}
-
-export function logs(server: string, tail?: number): Promise<ProcessLogLine[]> {
-  return call('server.logs', { server, tail });
 }
 
 /** One console command over the running server's RCON channel. */
@@ -115,20 +80,6 @@ export function complete(
 ): Promise<ServerCommandCompleteResult> {
   return call('server.command.complete', { server, line });
 }
-
-/**
- * The record keys (`memory`, `jvm-args`) plus any `server.properties` key.
- */
-export const config = {
-  async set(server: string, key: string, value: string): Promise<void> {
-    await call('server.config.set', { server, key, value });
-  },
-
-  async list(server: string): Promise<ConfigEntry[]> {
-    const result = await call('server.config.list', { server });
-    return result.entries;
-  },
-};
 
 /**
  * Every `server.properties` key the server's version defines, with the value

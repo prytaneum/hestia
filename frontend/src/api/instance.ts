@@ -1,8 +1,8 @@
 /**
  * The `instance.*` channels. Unlike a server, an instance is a lightweight
  * record at create — its files materialise during the `launch` job. An
- * instance can run several concurrent sessions (opt-in via `new_session`);
- * `stop` and `logs` take an optional session id.
+ * instance can run several concurrent sessions (opt-in via `new_session`).
+ * What a server shares is in `entry`.
  */
 
 import { call } from './core/ipc';
@@ -21,26 +21,7 @@ import type {
   ServerEntry,
   WorldInfo,
 } from './types/instance';
-import type {
-  ConfigEntry,
-  FlavorsResult,
-  GameVersion,
-} from './types/minecraft';
-import type { ProcessLogLine } from './types/process';
 import type { ServerPingResult } from './types/server';
-
-export function flavors(): Promise<FlavorsResult> {
-  return call('instance.flavors');
-}
-
-export function versions(flavor: string): Promise<GameVersion[]> {
-  return call('instance.versions', { flavor });
-}
-
-/** Loader builds for a flavor/version, newest first; empty for vanilla. */
-export function loaders(flavor: string, version: string): Promise<string[]> {
-  return call('instance.loaders', { flavor, version });
-}
 
 export function list(): Promise<InstanceInfo[]> {
   return call('instance.list');
@@ -63,14 +44,6 @@ export function update(
   job: JobRun,
 ): Promise<InstanceUpdateDone> {
   return runJob('instance.update', params, job);
-}
-
-export function rename(instance: string, name: string): Promise<InstanceInfo> {
-  return call('instance.rename', { instance, name });
-}
-
-export async function remove(instance: string): Promise<void> {
-  await call('instance.remove', { instance });
 }
 
 /** The save worlds, each described from its own `level.dat`. */
@@ -137,30 +110,3 @@ export function launch(
 }
 
 /** Stops one named session, or every session of the instance. */
-export async function stop(instance: string, session?: string): Promise<void> {
-  await call('instance.stop', { instance, session });
-}
-
-/** Targets the newest running session unless one is named. */
-export function logs(
-  instance: string,
-  options: { session?: string; tail?: number } = {},
-): Promise<ProcessLogLine[]> {
-  return call('instance.logs', {
-    instance,
-    session: options.session,
-    tail: options.tail,
-  });
-}
-
-/** `memory` and `jvm-args` only. */
-export const config = {
-  async set(instance: string, key: string, value: string): Promise<void> {
-    await call('instance.config.set', { instance, key, value });
-  },
-
-  async list(instance: string): Promise<ConfigEntry[]> {
-    const result = await call('instance.config.list', { instance });
-    return result.entries;
-  },
-};

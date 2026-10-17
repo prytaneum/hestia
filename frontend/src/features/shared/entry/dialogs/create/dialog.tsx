@@ -28,12 +28,13 @@ import {
 import { memGb } from '@/lib/format';
 import { toastWarnings } from '@/lib/warnings';
 import { m } from '@/paraglide/messages.js';
+import { catalogueQueries } from '@/queries/catalogue';
 import { configQueries, launcherDefaults } from '@/queries/config';
 import { useMemoryRange } from '@/queries/host';
 import { iconMutations } from '@/queries/icons';
-import { instanceMutations, instanceQueries } from '@/queries/instance';
+import { instanceMutations } from '@/queries/instance';
 import { useJobDisplay, useJobMutation } from '@/queries/jobs';
-import { serverMutations, serverQueries } from '@/queries/server';
+import { serverMutations } from '@/queries/server';
 
 import {
   FlavorOption,
@@ -68,15 +69,7 @@ export function CreateEntryDialog({
   const [search, setSearch] = useState('');
   const [showSnapshots, setShowSnapshots] = useState(false);
 
-  const serverFlavors = useQuery({
-    ...serverQueries.flavors(),
-    enabled: kind === 'server',
-  });
-  const instanceFlavors = useQuery({
-    ...instanceQueries.flavors(),
-    enabled: kind === 'instance',
-  });
-  const flavorsQuery = kind === 'server' ? serverFlavors : instanceFlavors;
+  const flavorsQuery = useQuery(catalogueQueries.flavors(kind));
   const flavors: Flavor[] = useMemo(
     () => flavorsQuery.data?.flavors ?? [],
     [flavorsQuery.data],

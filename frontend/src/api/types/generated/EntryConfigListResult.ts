@@ -2,4 +2,7 @@
 import type { ConfigEntry } from "./ConfigEntry";
 import type { KeyRule } from "./KeyRule";
 
-export type ServerConfigListResult = { entries: Array<ConfigEntry>, rules: Array<KeyRule>, };
+/**
+ * The entry's settings, and the rules a form validates them with.
+ */
+export type EntryConfigListResult = { entries: Array<ConfigEntry>, rules: Array<KeyRule>, };

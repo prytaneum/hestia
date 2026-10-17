@@ -39,6 +39,7 @@ pub enum ContentJob {
 pub struct Entry {
     pub kind: EntryKind,
     pub id: String,
+    pub name: String,
 }
 
 impl Entry {

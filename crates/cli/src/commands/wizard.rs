@@ -8,6 +8,7 @@
 use std::collections::HashMap;
 
 use anyhow::Result;
+use client::proto::error::EntryKind;
 use client::proto::instance::InstanceInfo;
 use client::proto::minecraft::{ConfigEntry, Flavor, GameVersion, ProvisionProgress, VersionKind};
 use client::proto::server::{ServerCreateParams, ServerDone};
@@ -26,21 +27,6 @@ use crate::ui::components::{Picker, PickerItem, SelectList, TextInput};
 use crate::ui::session::{self, Flow, Screen};
 
 const EULA_URL: &str = "https://aka.ms/MinecraftEULA";
-
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub enum WizardKind {
-    Server,
-    Instance,
-}
-
-impl WizardKind {
-    fn noun(self) -> &'static str {
-        match self {
-            WizardKind::Server => "server",
-            WizardKind::Instance => "instance",
-        }
-    }
-}
 
 /// How a settings field edits: free text, or cycling through fixed choices.
 #[derive(Clone)]
@@ -115,7 +101,7 @@ impl Field {
 /// Everything the wizard starts from: the catalogue, the argument prefills,
 /// and the settings schema for this entry kind.
 pub struct WizardSeed {
-    pub kind: WizardKind,
+    pub kind: EntryKind,
     pub flavors: Vec<Flavor>,
     pub flavor: Option<String>,
     pub version: Option<String>,
@@ -174,24 +160,18 @@ pub async fn run(client: &Client, seed: WizardSeed) -> Result<Option<WizardOutco
 
 async fn drive(
     client: &Client,
-    kind: WizardKind,
+    kind: EntryKind,
     mut requests: UnboundedReceiver<Request>,
     events: UnboundedSender<AppEvent>,
 ) {
     while let Some(request) = requests.recv().await {
         let event = match request {
-            Request::Versions { flavor } => {
-                let result = match kind {
-                    WizardKind::Server => client.server().versions(&flavor).await,
-                    WizardKind::Instance => client.instance().versions(&flavor).await,
-                };
-                match result {
-                    Ok(versions) => AppEvent::Versions { flavor, versions },
-                    Err(e) => AppEvent::Failed {
-                        message: e.to_string(),
-                    },
-                }
-            }
+            Request::Versions { flavor } => match client.entry().versions(kind, &flavor).await {
+                Ok(versions) => AppEvent::Versions { flavor, versions },
+                Err(e) => AppEvent::Failed {
+                    message: e.to_string(),
+                },
+            },
             Request::CreateServer(params) => {
                 let progress = events.clone();
                 match client
@@ -291,7 +271,7 @@ impl WizardScreen {
             version: seed.version.clone().unwrap_or_default(),
             name: TextInput::with_text(seed.name.as_deref().unwrap_or("")),
             fields: seed.fields.clone(),
-            eula: seed.eula || seed.kind == WizardKind::Instance,
+            eula: seed.eula || seed.kind == EntryKind::Instance,
             seed,
             requests,
             step: 0,
@@ -421,7 +401,7 @@ impl WizardScreen {
             self.name.text().trim().to_string()
         };
         match self.seed.kind {
-            WizardKind::Server => {
+            EntryKind::Server => {
                 let port = self.field_value("port").parse::<u16>().ok();
                 let params = ServerCreateParams {
                     name,
@@ -435,7 +415,7 @@ impl WizardScreen {
                 };
                 let _ = self.requests.send(Request::CreateServer(Box::new(params)));
             }
-            WizardKind::Instance => {
+            EntryKind::Instance => {
                 let _ = self
                     .requests
                     .send(Request::CreateInstance(Box::new(InstanceCreate {
@@ -580,7 +560,7 @@ impl Screen for WizardScreen {
             },
             Step::Confirm => match key.code {
                 KeyCode::Esc => return self.back(),
-                KeyCode::Char(' ') if self.seed.kind == WizardKind::Server => {
+                KeyCode::Char(' ') if self.seed.kind == EntryKind::Server => {
                     self.eula = !self.eula;
                 }
                 KeyCode::Enter => {
@@ -660,15 +640,15 @@ impl Screen for WizardScreen {
             Step::Confirm => {
                 self.draw_confirm(frame, body);
                 let text = match self.seed.kind {
-                    WizardKind::Server => "enter create · space toggle eula · esc back",
-                    WizardKind::Instance => "enter create · esc back",
+                    EntryKind::Server => "enter create · space toggle eula · esc back",
+                    EntryKind::Instance => "enter create · esc back",
                 };
                 hint(frame, footer, text);
             }
             Step::Working => {
                 let label = match self.seed.kind {
-                    WizardKind::Server => "provisioning",
-                    WizardKind::Instance => "creating",
+                    EntryKind::Server => "provisioning",
+                    EntryKind::Instance => "creating",
                 };
                 draw_working(frame, label, self.progress.as_ref());
             }
@@ -680,7 +660,7 @@ impl WizardScreen {
     fn draw_breadcrumb(&self, frame: &mut Frame, area: Rect) {
         let mut spans = vec![
             Span::styled(
-                format!("create {}", self.seed.kind.noun()),
+                format!("create {}", self.seed.kind),
                 Style::default()
                     .fg(Color::Cyan)
                     .add_modifier(Modifier::BOLD),
@@ -789,7 +769,7 @@ impl WizardScreen {
                 ])
             })
             .collect();
-        if self.seed.kind == WizardKind::Server {
+        if self.seed.kind == EntryKind::Server {
             lines.push(Line::raw(""));
             let mark = if self.eula { "[x]" } else { "[ ]" };
             lines.push(Line::styled(

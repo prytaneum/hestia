@@ -8,6 +8,7 @@ mod backup;
 mod cache;
 mod config;
 mod content;
+mod entry;
 mod files;
 mod guards;
 mod host;
@@ -46,6 +47,7 @@ pub fn make_router() -> Router {
     players::register(&mut on);
     tasks::register(&mut on);
     instance::register(&mut on);
+    entry::register(&mut on);
     screenshot::register(&mut on);
     backup::register(&mut on);
     content::register(&mut on);

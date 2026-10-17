@@ -4,6 +4,7 @@
 use std::sync::Arc;
 
 use anyhow::{bail, Context, Result};
+use client::proto::error::{EntryKind, EntryTarget};
 use client::{Client, ProcessEvent};
 
 use super::entry;
@@ -41,8 +42,12 @@ pub(crate) async fn attach(client: Client, server: &str) -> Result<()> {
     let process = entry::running_process(&info)
         .with_context(|| format!("server '{}' is not running", info.name))?;
     let backfill = client
-        .server()
-        .logs(&info.id, Some(100))
+        .entry()
+        .logs(
+            &EntryTarget::new(EntryKind::Server, &info.id),
+            None,
+            Some(100),
+        )
         .await?
         .into_iter()
         .map(|l| l.line)

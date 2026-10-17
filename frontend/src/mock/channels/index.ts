@@ -9,6 +9,7 @@ import { channels as app } from './app';
 import { channels as cache } from './cache';
 import { channels as config } from './config';
 import { channels as content } from './content';
+import { entryChannels } from './entry';
 import { channels as files } from './files';
 import { channels as host } from './host';
 import { channels as instance } from './instance';
@@ -31,6 +32,7 @@ export const channels: ChannelHandlers = {
   ...cache,
   ...config,
   ...content,
+  ...entryChannels(),
   ...files,
   ...instance,
   ...host,

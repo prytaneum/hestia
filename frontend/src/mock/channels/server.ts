@@ -15,9 +15,8 @@ import { jobIdOf, startJob } from '../job';
 import * as catalog from '../state/catalog';
 import * as entries from '../state/entries';
 import * as processes from '../state/processes';
-import { type ChannelHandlers, num, ok, str } from '../support';
+import { type ChannelHandlers, num, str } from '../support';
 import { channels as backupChannels } from './backup';
-import { configHandlers } from './entry';
 
 // The daemon's own knowledge of the file, which no front-end shares: what it
 // keeps on the record instead, what it owns, and what hardcore pins.
@@ -78,8 +77,6 @@ const withProcess = (server: ServerInfo): ServerInfo => ({
 const serverId = (payload: Record<string, unknown>): string =>
   entries.findServer(str(payload, 'server')).id;
 
-const serverConfig = configHandlers(serverId);
-
 function startServer(reference: string) {
   const server = entries.findServer(reference);
   const process = processes.start(
@@ -118,13 +115,6 @@ export const channels: ChannelHandlers = {
       favicon: '',
     };
   },
-
-  'server.flavors': () => ({
-    flavors: catalog.serverFlavors,
-    rules: catalog.serverRules,
-  }),
-  'server.versions': (p) => catalog.versionsFor(str(p, 'flavor')),
-  'server.loaders': (p) => catalog.loaders(str(p, 'flavor')),
 
   'server.create': (p) =>
     startJob({
@@ -170,33 +160,12 @@ export const channels: ChannelHandlers = {
     });
   },
 
-  'server.rename': (p) =>
-    withProcess(
-      entries.rename(entries.findServer(str(p, 'server')), str(p, 'name')),
-    ),
-
-  'server.remove': (p) => {
-    entries.removeEntry(serverId(p), entries.listServers());
-    return ok();
-  },
-
   'server.start': (p) => startServer(str(p, 'server')),
 
   'server.restart': (p) => {
     processes.stop(processes.serverProcessId(serverId(p)));
     return startServer(str(p, 'server'));
   },
-
-  'server.stop': (p) => {
-    processes.stop(processes.serverProcessId(serverId(p)));
-    return ok();
-  },
-
-  'server.logs': (p) =>
-    processes.logs(
-      processes.serverProcessId(serverId(p)),
-      p.tail as number | undefined,
-    ),
 
   // One RCON round trip. Only a running server answers — the console tab
   // renders the rejection, so refusing here is the honest response.
@@ -225,7 +194,5 @@ export const channels: ChannelHandlers = {
 
   'server.properties': (p) => properties(entries.entrySettings(serverId(p))),
 
-  'server.config.list': serverConfig.list,
-  'server.config.set': serverConfig.set,
   ...backupChannels(serverId),
 };

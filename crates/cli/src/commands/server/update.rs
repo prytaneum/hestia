@@ -29,7 +29,10 @@ pub(super) async fn run(
     }
     let versions = {
         let _spinner = Spinner::start("fetching versions");
-        client.server().versions(&info.flavor).await?
+        client
+            .entry()
+            .versions(client::proto::error::EntryKind::Server, &info.flavor)
+            .await?
     };
     let version = mc::pick_version(versions.clone(), version)?;
     let is_downgrade =
