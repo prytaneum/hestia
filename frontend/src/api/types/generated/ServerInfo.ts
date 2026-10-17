@@ -14,10 +14,9 @@ ready: boolean,
 /**
  * Allocated at create and stable thereafter — players connect to it.
  */
-gamePort?: number, 
+gamePort: number, 
 /**
- * True once RCON is configured (a server started before the console
- * existed gains one on its next start).
+ * True once RCON is configured, which happens at the first start.
  */
 console: boolean, 
 /**

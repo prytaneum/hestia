@@ -212,10 +212,7 @@ impl Engine {
             .servers
             .get(reference)
             .with_context(|| format!("unknown server: {reference}"))?;
-        let port = record
-            .game_port
-            .context("this server has no game port allocated")?;
-        ping::ping(port).await
+        ping::ping(record.game_port).await
     }
 
     /// The server's static, informational view: descriptor, locations, and the

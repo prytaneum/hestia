@@ -126,7 +126,7 @@ fn servers_store_round_trips_records() {
         record.id
     );
     assert!(!record.ready());
-    assert!(record.game_port.is_some());
+    assert_ne!(record.game_port, 0);
     let entry_dir = servers.server_dir(&record);
     assert!(entry_dir.is_dir());
     assert!(
@@ -143,7 +143,7 @@ fn servers_store_round_trips_records() {
     let second = servers.create("Other", profile.clone(), None).unwrap();
     assert_ne!(second.game_port, record.game_port);
     assert!(servers
-        .create("Third", profile.clone(), record.game_port)
+        .create("Third", profile.clone(), Some(record.game_port))
         .is_err());
     assert!(servers.remove(&second.id).unwrap());
 

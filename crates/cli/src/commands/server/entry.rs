@@ -101,13 +101,7 @@ pub(super) fn show_info(info: &ServerDetails) -> Result<()> {
             info.loader_version.clone().unwrap_or_else(|| "-".into()),
         ),
         ("java", info.java_major.to_string()),
-        (
-            "address",
-            match info.game_port {
-                Some(port) => format!("localhost:{port}"),
-                None => "-".into(),
-            },
-        ),
+        ("address", format!("localhost:{}", info.game_port)),
         ("disk", ui::human_bytes(info.disk_bytes)),
         ("jvm args", jvm_args_label(info)),
         ("folder", info.entry_dir.clone()),
@@ -131,10 +125,7 @@ fn jvm_args_label(info: &ServerDetails) -> String {
 }
 
 fn address_label(info: &ServerInfo) -> String {
-    match info.game_port {
-        Some(port) => format!("localhost:{port}"),
-        None => "-".into(),
-    }
+    format!("localhost:{}", info.game_port)
 }
 
 fn state_label(info: &ServerInfo) -> String {

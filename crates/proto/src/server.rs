@@ -58,10 +58,8 @@ pub struct ServerInfo {
     /// False while the create job is still provisioning files.
     pub ready: bool,
     /// Allocated at create and stable thereafter — players connect to it.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub game_port: Option<u16>,
-    /// True once RCON is configured (a server started before the console
-    /// existed gains one on its next start).
+    pub game_port: u16,
+    /// True once RCON is configured, which happens at the first start.
     pub console: bool,
     /// The content kinds this server can take, composed from its flavor's own
     /// loader and its side. Carried rather than re-derived, so a front-end
@@ -88,8 +86,7 @@ pub struct ServerDetails {
     pub loader_version: Option<String>,
     pub java_major: i32,
     pub created_unix: i64,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub game_port: Option<u16>,
+    pub game_port: u16,
     /// The entry root (`servers/<id>/`) — hestia's namespace.
     pub entry_dir: String,
     /// The game's working directory (`servers/<id>/data/`).

@@ -50,7 +50,7 @@ const banner = (server: ServerInfo): string[] => [
   'Loading properties',
   'Default game type: SURVIVAL',
   'Generating keypair',
-  `Starting Minecraft server on *:${server.gamePort ?? 25_565}`,
+  `Starting Minecraft server on *:${server.gamePort}`,
   'Preparing level "world"',
   'Preparing start region for dimension minecraft:overworld',
   'Time elapsed: 1275 ms',

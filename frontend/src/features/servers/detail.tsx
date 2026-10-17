@@ -307,7 +307,7 @@ function ServerDetail({
                   <div className="divide-y divide-border">
                     <Stat
                       label={m['app.label.address']()}
-                      value={`localhost:${server.gamePort ?? '—'}`}
+                      value={`localhost:${server.gamePort}`}
                     />
                     <Stat
                       label={m['app.label.loader']()}

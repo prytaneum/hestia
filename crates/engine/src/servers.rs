@@ -83,8 +83,7 @@ pub struct ServerRecord {
     #[serde(default)]
     pub phase: ServerPhase,
     /// Claimed at create and never moved — players connect to it.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub game_port: Option<u16>,
+    pub game_port: u16,
     /// Claimed at first start; internal, so it may be reallocated freely.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub rcon: Option<RconConfig>,
@@ -191,7 +190,7 @@ impl Servers {
                 name: name.to_string(),
                 created_unix: registry::now_unix(),
                 phase: ServerPhase::Provisioning,
-                game_port: Some(self.claim_game_port(port)?),
+                game_port: self.claim_game_port(port)?,
                 rcon: None,
                 jvm: JavaSettings::default(),
                 tasks: Vec::new(),
@@ -224,26 +223,20 @@ impl Servers {
         self.list()
             .iter()
             .filter(|r| Some(r.id.as_str()) != exclude)
-            .flat_map(|r| {
-                r.game_port
-                    .into_iter()
-                    .chain(r.rcon.as_ref().map(|c| c.port))
-            })
+            .flat_map(|r| [Some(r.game_port), r.rcon.as_ref().map(|c| c.port)])
+            .flatten()
             .collect()
     }
 
     /// Reconcile `server.properties` with the record's claimed ports before a
     /// spawn. The game port never moves (players depend on it) — an outside
     /// squatter is an error. The rcon port is internal and reallocates freely;
-    /// a record from before ports existed gains both here.
+    /// a first start gains its rcon here.
     pub fn ensure_start_config(&self, id: &str) -> Result<ServerRecord> {
         self.store.mutate(id, |record| {
             let claimed = self.claimed_ports(Some(&record.id));
 
-            let game_port = match record.game_port {
-                Some(port) => port,
-                None => allocate_port(GAME_PORT_BASE, &claimed)?,
-            };
+            let game_port = record.game_port;
             if claimed.contains(&game_port) || !can_bind(game_port) {
                 bail!(proto::error::ErrorInfo::PortUnavailable { port: game_port });
             }
@@ -265,7 +258,6 @@ impl Servers {
                     ("rcon.password", rcon.password.clone()),
                 ],
             )?;
-            record.game_port = Some(game_port);
             record.rcon = Some(rcon);
             Ok(record.clone())
         })

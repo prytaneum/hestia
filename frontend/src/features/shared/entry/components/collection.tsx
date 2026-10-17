@@ -38,7 +38,7 @@ export function serverToCard(
   actions: CardActions,
 ): EntryCardModel {
   const running = server.process?.state === 'running';
-  const address = server.gamePort ? `:${server.gamePort}` : '';
+  const address = `:${server.gamePort}`;
   const state = running ? m['app.status.online']() : m['app.status.stopped']();
   return {
     id: server.id,
@@ -50,9 +50,7 @@ export function serverToCard(
     ready: server.ready,
     subtitle: !server.ready
       ? m['app.status.preparing_ellipsis']()
-      : address
-        ? `${address} · ${state}`
-        : state,
+      : `${address} · ${state}`,
     busy: actions.busy,
     onStart: actions.onStart,
     onStop: actions.onStop,

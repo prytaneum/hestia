@@ -8,7 +8,7 @@ import type { WarningInfo } from "./WarningInfo";
  * disk figure is a directory walk, so this is fetched on demand, never in a
  * list.
  */
-export type ServerDetails = { id: string, name: string, flavor: string, gameVersion: string, loaderVersion?: string, javaMajor: number, createdUnix: number, gamePort?: number, 
+export type ServerDetails = { id: string, name: string, flavor: string, gameVersion: string, loaderVersion?: string, javaMajor: number, createdUnix: number, gamePort: number, 
 /**
  * The entry root (`servers/<id>/`) — hestia's namespace.
  */
