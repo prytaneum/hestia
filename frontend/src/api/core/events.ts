@@ -1,8 +1,8 @@
 /**
  * Daemon events, as the shell forwards them: one Tauri event carries every
  * daemon push (`hestia:event`), another the connection-state transitions
- * (`hestia:connection`). The bridge holds the client session's single
- * event-callback slot and subscribes to everything, so multiplexing by topic
+ * (`hestia:connection`). The bridge holds one unscoped client session
+ * listener and subscribes to everything, so multiplexing by topic
  * and job id happens here, where many concurrent listeners are natural.
  */
 import { listen } from '@tauri-apps/api/event';

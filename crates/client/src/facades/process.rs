@@ -61,76 +61,86 @@ impl Process<'_> {
     /// Stream a process's start, output, and exit as they happen. `id` is a
     /// process key, or an *entry* key (`server-<id>`, `instance-<id>`) to follow
     /// the entry across stops and starts — its processes come and go on the one
-    /// stream. Installs the session's (single) event callback, so it composes
-    /// with `call`s on the same client but not with `run_job` or another
-    /// subscription; the stream ends when the connection closes.
+    /// stream. The stream ends when the connection closes or the receiver drops.
     pub async fn subscribe(
         &self,
         id: &str,
     ) -> Result<tokio::sync::mpsc::UnboundedReceiver<ProcessEvent>, IpcError> {
-        use proto::events::{EventsSubscribe, EventsSubscribeParams};
         use proto::process::ProcessOutputEvent;
-        use proto::Topic;
 
-        self.session
-            .call::<EventsSubscribe>(&EventsSubscribeParams { id: id.to_string() })
-            .await?;
+        let mut listener = self.session.listen(Some(id));
+        self.subscribe_events(id).await?;
         let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
-        self.session.set_event_callback(Some(std::sync::Arc::new(
-            move |event: &Event| match event.topic.as_str() {
-                ProcessStartedEvent::TOPIC => {
-                    if let Ok(e) =
-                        serde_json::from_value::<ProcessStartedEvent>(event.payload.clone())
-                    {
-                        let _ = tx.send(ProcessEvent::Started(e));
-                    }
-                }
-                ProcessOutputEvent::TOPIC => {
-                    if let Ok(e) =
-                        serde_json::from_value::<ProcessOutputEvent>(event.payload.clone())
-                    {
-                        for line in e.lines {
-                            let _ = tx.send(ProcessEvent::Output(line));
+        tokio::spawn(async move {
+            loop {
+                let event = tokio::select! {
+                    _ = tx.closed() => break,
+                    event = listener.recv() => match event {
+                        Some(event) => event,
+                        None => break,
+                    },
+                };
+                match event.topic.as_str() {
+                    ProcessStartedEvent::TOPIC => {
+                        if let Ok(e) = serde_json::from_value::<ProcessStartedEvent>(event.payload)
+                        {
+                            let _ = tx.send(ProcessEvent::Started(e));
                         }
                     }
-                }
-                ProcessExitEvent::TOPIC => {
-                    if let Ok(e) = serde_json::from_value::<ProcessExitEvent>(event.payload.clone())
-                    {
-                        let _ = tx.send(ProcessEvent::Exit(e));
+                    ProcessOutputEvent::TOPIC => {
+                        if let Ok(e) = serde_json::from_value::<ProcessOutputEvent>(event.payload) {
+                            for line in e.lines {
+                                let _ = tx.send(ProcessEvent::Output(line));
+                            }
+                        }
                     }
+                    ProcessExitEvent::TOPIC => {
+                        if let Ok(e) = serde_json::from_value::<ProcessExitEvent>(event.payload) {
+                            let _ = tx.send(ProcessEvent::Exit(e));
+                        }
+                    }
+                    _ => {}
                 }
-                _ => {}
-            },
-        )));
+            }
+        });
         Ok(rx)
     }
 
     /// Stream the daemon's periodic resource samples for every running process.
-    /// Claims the session's event callback like [`subscribe`], so it does not
-    /// compose with another subscription on the same client.
     pub async fn subscribe_metrics(
         &self,
     ) -> Result<tokio::sync::mpsc::UnboundedReceiver<Vec<ProcessMetrics>>, IpcError> {
-        use proto::events::{EventsSubscribe, EventsSubscribeParams};
         use proto::process::ProcessMetricsEvent;
-        use proto::Topic;
 
-        self.session
-            .call::<EventsSubscribe>(&EventsSubscribeParams { id: String::new() })
-            .await?;
+        let mut listener = self.session.listen(None);
+        self.subscribe_events("").await?;
         let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
-        self.session
-            .set_event_callback(Some(std::sync::Arc::new(move |event: &Event| {
+        tokio::spawn(async move {
+            loop {
+                let event = tokio::select! {
+                    _ = tx.closed() => break,
+                    event = listener.recv() => match event {
+                        Some(event) => event,
+                        None => break,
+                    },
+                };
                 if event.topic == ProcessMetricsEvent::TOPIC {
-                    if let Ok(e) =
-                        serde_json::from_value::<ProcessMetricsEvent>(event.payload.clone())
-                    {
+                    if let Ok(e) = serde_json::from_value::<ProcessMetricsEvent>(event.payload) {
                         let _ = tx.send(e.samples);
                     }
                 }
-            })));
+            }
+        });
         Ok(rx)
+    }
+
+    async fn subscribe_events(&self, id: &str) -> Result<(), IpcError> {
+        use proto::events::{EventsSubscribe, EventsSubscribeParams};
+
+        self.session
+            .call::<EventsSubscribe>(&EventsSubscribeParams { id: id.to_string() })
+            .await?;
+        Ok(())
     }
 
     /// Launch a process and block until it exits, forwarding each output line to

@@ -11,7 +11,7 @@ pub use facades::{
     Update,
 };
 pub use ipc::errors::{self, IpcError};
-pub use session::{job_id, Session};
+pub use session::{job_id, Listener, Session};
 
 /// Re-export `proto` so front-ends need only depend on `client`.
 pub use proto;

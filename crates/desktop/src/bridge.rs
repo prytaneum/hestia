@@ -269,22 +269,21 @@ async fn connect(app: &AppHandle) -> Result<Arc<Client>, CallError> {
 }
 
 /// Forward every daemon event into the webview and subscribe to all of them.
-/// One connection carries every call, so the session's single event-callback
-/// slot is claimed exactly once, here.
 async fn attach(app: &AppHandle, client: Client) -> Result<Arc<Client>, CallError> {
     let client = Arc::new(client);
     let emitter = app.clone();
-    client
-        .session()
-        .set_event_callback(Some(Arc::new(move |event| {
+    let mut events = client.session().listen(None);
+    tauri::async_runtime::spawn(async move {
+        while let Some(event) = events.recv().await {
             let _ = emitter.emit(
                 EVENT_CHANNEL,
                 EventPayload {
-                    topic: event.topic.clone(),
-                    payload: event.payload.clone(),
+                    topic: event.topic,
+                    payload: event.payload,
                 },
             );
-        })));
+        }
+    });
     client
         .session()
         .call::<EventsSubscribe>(&EventsSubscribeParams::default())

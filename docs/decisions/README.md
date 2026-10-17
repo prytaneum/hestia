@@ -24,7 +24,7 @@ the alternative you rejected — that is usually the part nobody can recover lat
 - **0027** — [A warning the user did not cause is a bug in the launcher, not a notice](0027-warnings-the-user-did-not-cause.md)
 - **0028** — [Everything serialized is camelCase, except the `config.*` key vocabulary and upstream DTOs](0028-camelcase-except-the-config-vocabulary.md)
 - **0032** — [A job is cancelled by asking, at safe checkpoints — never by disconnecting](0032-jobs-are-cancelled-by-asking.md)
-- **0045** — [One event-callback slot per client `Session`](0045-one-event-callback-per-session.md)
+- **0045** — [A session routes events to its listeners, so event-driven calls do not exclude each other](0045-a-session-routes-events-to-its-listeners.md)
 - **0063** — [An endpoint is scoped exactly as the data home behind it](0063-an-endpoint-is-scoped-like-its-data-home.md)
 - **0083** — [A job is its start contract, and every job reports on one topic](0083-a-job-is-its-contract-and-reports-on-one-topic.md)
 - **0084** — [The TypeScript channel table is generated from the contracts, and a contract owns its timeout](0084-the-ts-channel-table-is-generated-from-the-contracts.md)

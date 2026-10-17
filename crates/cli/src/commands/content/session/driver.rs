@@ -1,8 +1,7 @@
 //! The async half of the session: it answers screen requests over the caller's
 //! client and injects the replies back as app events. Search, detail, and
 //! version lookups are plain request/response; the install job forwards
-//! progress and runs last, because the client `Session` has a single
-//! event-callback slot.
+//! progress.
 
 use client::proto::content::{
     ContentAddSpec, ContentDone, ContentFailure, ContentKind, ContentProject, ContentVersion,

@@ -145,13 +145,14 @@ The one way a front-end drives the daemon.
 
 **`Session`** (`session.rs`) is the connection core, private to the crate: one
 persistent, multiplexed connection whose background reader task fulfils pending
-requests by id and delivers events to an installed callback.
+requests by id and routes events to its registered listeners.
 
 | Call | Behaviour |
 |---|---|
 | `call::<C>()` | marshals through the contract, returns the `proto` result, and waits `C::TIMEOUT` for it |
 | `try_call::<C>()` | maps a `not_found` to `None` |
 | `run_job::<C: Job>()` | starts a long-running operation, hands each typed progress payload to a callback and blocks until it settles to `C::Done`, `IpcError::Cancelled` or a failure |
+| `listen(scope)` | registers an event listener: `Some(scope)` hears events whose id is in that process scope, `None` hears all; it unregisters on drop and ends when the connection closes |
 | `call_raw()` | the untyped forward the desktop bridge pipes through |
 
 **Facades** (`facades/`) are one struct per domain, reached through a `Client`
@@ -169,10 +170,10 @@ connection transitions. That is what the CLI's `-vv` buys, for every front-end
 that links `client`. Payloads are never logged
 ([0042](../decisions/0042-vv-buys-wire-visibility.md)).
 
-> **One event-callback slot per session.** `run_job` and `subscribe` both claim
-> it, so a driver must serialize event-driven calls — plain request/response
-> calls may interleave freely, but one job runs at a time
-> ([0045](../decisions/0045-one-event-callback-per-session.md)).
+> **Events fan out to listeners.** `run_job`, `Process::subscribe` and the
+> desktop bridge each hold their own listener, so event-driven calls on one
+> connection do not exclude each other
+> ([0045](../decisions/0045-a-session-routes-events-to-its-listeners.md)).
 
 ## Jobs, events and cancellation
 
@@ -267,4 +268,4 @@ rather than something each front-end invents. And a warning about something the
 - [0067 — Reachability is observed from real traffic, and offline is a state the whole system reads](../decisions/0067-reachability-is-observed-not-asked.md)
 - [0028 — camelCase everywhere, except the `config.*` vocabulary](../decisions/0028-camelcase-except-the-config-vocabulary.md)
 - [0032 — A job is cancelled by asking](../decisions/0032-jobs-are-cancelled-by-asking.md)
-- [0045 — One event-callback slot per session](../decisions/0045-one-event-callback-per-session.md)
+- [0045 — A session routes events to its listeners](../decisions/0045-a-session-routes-events-to-its-listeners.md)

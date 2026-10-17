@@ -412,12 +412,7 @@ async fn daemon_stop_all_takes_workloads_down() {
 #[tokio::test]
 async fn a_successful_mutation_publishes_what_it_changed() {
     let (daemon, client) = spawn_daemon().await;
-    let (seen, mut topics) = tokio::sync::mpsc::unbounded_channel();
-    client
-        .session()
-        .set_event_callback(Some(Arc::new(move |event: &ipc::protocol::Event| {
-            let _ = seen.send((event.topic.clone(), event.payload.clone()));
-        })));
+    let mut events = client.session().listen(None);
     client
         .session()
         .call::<client::proto::events::EventsSubscribe>(&Default::default())
@@ -435,12 +430,12 @@ async fn a_successful_mutation_publishes_what_it_changed() {
         .await
         .expect("config.set");
 
-    let (topic, payload) = tokio::time::timeout(Duration::from_secs(10), topics.recv())
+    let event = tokio::time::timeout(Duration::from_secs(10), events.recv())
         .await
         .expect("an event within the timeout")
         .expect("the stream is open");
-    assert_eq!(topic, "changed");
-    assert_eq!(payload, serde_json::json!({ "scope": "config" }));
+    assert_eq!(event.topic, "changed");
+    assert_eq!(event.payload, serde_json::json!({ "scope": "config" }));
 
     client.daemon().stop(true).await.expect("daemon.stop");
     drop(daemon);

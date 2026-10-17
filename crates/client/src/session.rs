@@ -1,6 +1,6 @@
 //! The client SDK's connection core, shared by every domain facade: one
 //! persistent, multiplexed connection whose reader task fulfils pending requests
-//! by id and delivers events to the installed callback. The typed `call::<C>()`
+//! by id and routes events to the registered listeners. The typed `call::<C>()`
 //! marshals through the contract, so facades stay one-liners and cannot drift.
 
 use std::collections::HashMap;
@@ -15,9 +15,7 @@ use proto::error::ErrorInfo;
 use proto::job::{Job, JobEvent, JobState};
 use proto::Contract;
 use serde_json::Value;
-use tokio::sync::{oneshot, Notify};
-
-type EventCallback = Arc<dyn Fn(&Event) + Send + Sync>;
+use tokio::sync::{mpsc, oneshot};
 
 /// How a job ended, other than well. Cancellation is kept apart from failure
 /// because nothing went wrong: a front-end must be able to say "cancelled"
@@ -44,7 +42,7 @@ impl Terminal {
 
 struct Shared {
     pending: Mutex<HashMap<i64, oneshot::Sender<Response>>>,
-    event_cb: Mutex<Option<EventCallback>>,
+    listeners: Mutex<Vec<(Option<String>, mpsc::UnboundedSender<Event>)>>,
     closed: AtomicBool,
     /// Set when the connection was torn down for a protocol-version mismatch, so
     /// a woken waiter reports why rather than a bare `ConnectionLost`.
@@ -63,7 +61,7 @@ impl Session {
         let (mut reader, writer) = connection.into_split();
         let shared = Arc::new(Shared {
             pending: Mutex::new(HashMap::new()),
-            event_cb: Mutex::new(None),
+            listeners: Mutex::new(Vec::new()),
             closed: AtomicBool::new(false),
             mismatch: Mutex::new(None),
         });
@@ -179,8 +177,23 @@ impl Session {
             .map_err(|e| IpcError::Malformed(e.to_string()))
     }
 
-    pub fn set_event_callback(&self, cb: Option<EventCallback>) {
-        *self.shared.event_cb.lock().unwrap() = cb;
+    /// Receive the daemon's events. `Some(scope)` hears only events whose
+    /// payload id is in that process scope; `None` hears every event. The
+    /// registration ends when the [`Listener`] drops, and the stream ends when
+    /// the connection closes. Subscribe on the daemon with `events.subscribe`
+    /// for the events to be sent at all.
+    pub fn listen(&self, scope: Option<&str>) -> Listener {
+        let (tx, rx) = mpsc::unbounded_channel();
+        {
+            let mut listeners = self.shared.listeners.lock().unwrap();
+            if !self.is_closed() {
+                listeners.push((scope.map(str::to_string), tx));
+            }
+        }
+        Listener {
+            rx,
+            shared: self.shared.clone(),
+        }
     }
 
     /// Start the job `C` under `id` and block until it settles, handing each
@@ -225,66 +238,49 @@ impl Session {
         &self,
         id: &str,
         start: F,
-        on_event: impl Fn(&Event) -> Option<Result<T, Terminal>> + Send + Sync + 'static,
-    ) -> Result<T, IpcError>
-    where
-        T: Send + 'static,
-        F: FnOnce() -> Fut,
-        Fut: std::future::Future<Output = Result<(), IpcError>>,
-    {
-        struct Outcome<T> {
-            state: Mutex<Option<Result<T, Terminal>>>,
-            notify: Notify,
-        }
-        let outcome = Arc::new(Outcome {
-            state: Mutex::new(None),
-            notify: Notify::new(),
-        });
-
-        let id_owned = id.to_string();
-        let cb_outcome = outcome.clone();
-        self.set_event_callback(Some(Arc::new(move |event: &Event| {
-            if event.payload.get("id").and_then(Value::as_str) != Some(id_owned.as_str()) {
-                return;
-            }
-            if let Some(settled) = on_event(event) {
-                *cb_outcome.state.lock().unwrap() = Some(settled);
-                cb_outcome.notify.notify_waiters();
-            }
-        })));
-
-        let result = self
-            .await_settled(id, start, &outcome.state, &outcome.notify)
-            .await;
-        self.set_event_callback(None);
-        result
-    }
-
-    async fn await_settled<T, F, Fut>(
-        &self,
-        id: &str,
-        start: F,
-        state: &Mutex<Option<Result<T, Terminal>>>,
-        notify: &Notify,
+        mut on_event: impl FnMut(&Event) -> Option<Result<T, Terminal>>,
     ) -> Result<T, IpcError>
     where
         F: FnOnce() -> Fut,
         Fut: std::future::Future<Output = Result<(), IpcError>>,
     {
         use proto::events::{EventsSubscribe, EventsSubscribeParams};
+
+        let mut listener = self.listen(Some(id));
         self.call::<EventsSubscribe>(&EventsSubscribeParams { id: id.to_string() })
             .await?;
         start().await?;
 
-        loop {
-            if let Some(result) = state.lock().unwrap().take() {
-                return result.map_err(Terminal::into_error);
+        while let Some(event) = listener.recv().await {
+            if let Some(settled) = on_event(&event) {
+                return settled.map_err(Terminal::into_error);
             }
-            if self.is_closed() {
-                return Err(self.shared.close_error());
-            }
-            let _ = tokio::time::timeout(Duration::from_millis(500), notify.notified()).await;
         }
+        Err(self.shared.close_error())
+    }
+}
+
+/// A registration on a [`Session`]'s event stream, removed on drop.
+pub struct Listener {
+    rx: mpsc::UnboundedReceiver<Event>,
+    shared: Arc<Shared>,
+}
+
+impl Listener {
+    /// The next event, or `None` once the connection has closed.
+    pub async fn recv(&mut self) -> Option<Event> {
+        self.rx.recv().await
+    }
+}
+
+impl Drop for Listener {
+    fn drop(&mut self) {
+        self.rx.close();
+        self.shared
+            .listeners
+            .lock()
+            .unwrap()
+            .retain(|(_, tx)| !tx.is_closed());
     }
 }
 
@@ -304,10 +300,14 @@ impl Shared {
                 bytes = frame.len(),
                 "event"
             );
-            let cb = self.event_cb.lock().unwrap().clone();
-            if let Some(cb) = cb {
-                cb(&event);
-            }
+            let id = event.payload.get("id").and_then(Value::as_str);
+            self.listeners.lock().unwrap().retain(|(scope, tx)| {
+                let wanted = match scope {
+                    None => true,
+                    Some(scope) => id.is_some_and(|id| proto::naming::process_in_scope(scope, id)),
+                };
+                !wanted || tx.send(event.clone()).is_ok()
+            });
             return;
         }
         match protocol::decode_response(&value) {
@@ -339,6 +339,7 @@ impl Shared {
         self.closed.store(true, Ordering::SeqCst);
         // Wake every waiter so they fail instead of blocking forever.
         let waiting = self.pending.lock().unwrap().drain().count();
+        self.listeners.lock().unwrap().clear();
         tracing::trace!(waiting, "connection closed");
     }
 

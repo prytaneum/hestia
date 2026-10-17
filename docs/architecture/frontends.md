@@ -155,8 +155,8 @@ The whole wiring is one seam, `src/bridge.rs`:
 - **one generic** `ipc_call(channel, payload, timeout_ms)` command forwarding
   through the session's `call_raw` (a call that names no timeout gets
   `proto::contract::DEFAULT_TIMEOUT`; the TS layer names the contract's);
-- event forwarding: on connect the bridge claims the session's one
-  event-callback slot, subscribes to *every* daemon event, and re-emits each as a
+- event forwarding: on connect the bridge registers an unscoped
+  session listener, subscribes to *every* daemon event, and re-emits each as a
   `hestia:event` webview event.
 
 Mirroring ~120 channels as individual Tauri commands would add a third naming
