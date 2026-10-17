@@ -34,9 +34,8 @@ pub async fn run(cmd: ConfigCmd) -> Result<()> {
             }
             client.config().set(&key, parsed).await?;
             if key == HOME_KEY {
+                super::await_stopped(&client).await?;
                 drop(client);
-                // The daemon stops itself after replying; let it release the endpoint.
-                tokio::time::sleep(std::time::Duration::from_millis(500)).await;
                 super::start().await?;
             }
         }

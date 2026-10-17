@@ -85,6 +85,13 @@ impl Session {
         self.shared.closed.load(Ordering::SeqCst)
     }
 
+    /// Resolves once the connection has closed — a stopping daemon has let go of
+    /// its endpoint by then.
+    pub async fn closed(&self) {
+        let mut listener = self.listen(None);
+        while listener.recv().await.is_some() {}
+    }
+
     /// Raw request; errors only on transport failure (a daemon-side error is a
     /// `Response` with `ok == false`).
     pub async fn call_raw(

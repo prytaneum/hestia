@@ -26,6 +26,7 @@ pub const EVENT_CHANNEL: &str = "hestia:event";
 pub const CONNECTION_CHANNEL: &str = "hestia:connection";
 
 const WATCH_INTERVAL: Duration = Duration::from_secs(2);
+const STOP_WAIT: Duration = Duration::from_secs(30);
 
 #[derive(Default)]
 pub struct Bridge {
@@ -200,6 +201,20 @@ pub(crate) async fn acquire(app: &AppHandle, bridge: &Bridge) -> Result<Arc<Clie
 /// Start the daemon and adopt the connection — the start button's trigger.
 #[tauri::command]
 pub async fn start_daemon(app: AppHandle, bridge: State<'_, Bridge>) -> Result<(), CallError> {
+    let mut state = bridge.state.lock().await;
+    ensure_started(&app, &mut state).await
+}
+
+/// Start the daemon again once the one that was asked to stop has gone;
+/// `start_daemon` alone would reach it on its way out.
+#[tauri::command]
+pub async fn relaunch_daemon(app: AppHandle, bridge: State<'_, Bridge>) -> Result<(), CallError> {
+    let stopping = bridge.state.lock().await.client.clone();
+    if let Some(client) = stopping {
+        tokio::time::timeout(STOP_WAIT, client.session().closed())
+            .await
+            .map_err(|_| CallError::other("the daemon did not stop"))?;
+    }
     let mut state = bridge.state.lock().await;
     ensure_started(&app, &mut state).await
 }

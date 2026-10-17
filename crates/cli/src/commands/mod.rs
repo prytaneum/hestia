@@ -43,6 +43,17 @@ pub async fn start() -> Result<Client> {
     Client::start().await.context("cannot start the daemon")
 }
 
+/// Wait for a daemon that was asked to stop to go, so a following [`start`]
+/// cannot reach it on its way out.
+pub async fn await_stopped(client: &Client) -> Result<()> {
+    let _spinner = Spinner::start("waiting for the daemon to stop");
+    tokio::time::timeout(STOP_WAIT, client.session().closed())
+        .await
+        .context("the daemon did not stop")
+}
+
+const STOP_WAIT: std::time::Duration = std::time::Duration::from_secs(30);
+
 /// Run a daemon job, turning Ctrl-C into an explicit cancellation of it.
 ///
 /// Ctrl-C used to kill only this process while the daemon ran the job to

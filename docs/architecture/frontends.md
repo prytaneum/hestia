@@ -185,6 +185,7 @@ each needs something only the shell process has:
 | `crash_report`, `log_write` (`diagnostics.rs`) | a webview error kills the UI without touching the Rust stack, so the shell records it into the same crash directory the daemon writes to. `log_write` routes console logging into the process `tracing` subscriber under the `ui` target |
 | `open_path`, `open_url` (`opener.rs`) | the host's default handler has to start with the host's environment, which inside an AppImage is not the shell's; `tauri-plugin-opener` passes the shell's on ([0080](../decisions/0080-only-the-shell-runs-in-the-appimage-environment.md)) |
 | `start_daemon` (`bridge.rs`) | the `Client::start()` spawn path behind the offline overlay's start button |
+| `relaunch_daemon` (`bridge.rs`) | the same spawn, after a restart or a data-home move: it waits for the stopping daemon's connection to close first, since the endpoint is shared and a start before then would reach the daemon on its way out |
 
 ## The frontend
 

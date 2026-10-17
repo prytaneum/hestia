@@ -17,8 +17,10 @@ store's root is set once.
 **Moving the home is a restart the daemon drives.** The `home` handler refuses
 while a server, game session or job is running (`WorkRunning`), validates the
 directory (absolute, creatable), writes the pointer, replies, and requests its
-own stop without stopping processes. The CLI and the desktop then start the
-daemon through their existing start paths; any other front-end reconnects.
+own stop without stopping processes. The CLI and the desktop wait for that
+connection to close, then start the daemon; any other front-end reconnects. The
+endpoint is scoped per install, not per home, so a start before the close would
+reach the daemon on its way out.
 Workloads outlive the daemon ([0034](0034-workloads-outlive-the-daemon.md)),
 which is what makes the restart cheap.
 

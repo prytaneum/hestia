@@ -2,9 +2,6 @@
 import { call, invokeCommand } from './core/ipc';
 import type { DaemonStatusResult } from './types/daemon';
 
-/** The old daemon must release the endpoint before a restart respawns. */
-const RESTART_GRACE_MS = 600;
-
 export function status(): Promise<DaemonStatusResult> {
   return call('daemon.status');
 }
@@ -28,19 +25,15 @@ export async function start(): Promise<DaemonStatusResult> {
 
 /**
  * Stop then start again — picks up a freshly built `hestiad`; supervised
- * processes are re-adopted. The grace lets the old daemon release the endpoint.
+ * processes are re-adopted.
  */
 export async function restart(): Promise<DaemonStatusResult> {
   await stop(false);
   return relaunch();
 }
 
-/** Start the daemon once a stopping one has had time to release the endpoint. */
+/** Start the daemon once a stopping one has gone. */
 export async function relaunch(): Promise<DaemonStatusResult> {
-  await delay(RESTART_GRACE_MS);
-  return start();
-}
-
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+  await invokeCommand('relaunch_daemon');
+  return status();
 }

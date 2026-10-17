@@ -80,9 +80,7 @@ pub async fn run(cmd: DaemonCmd) -> Result<ExitStatus> {
         DaemonCmd::Restart => {
             if let Ok(client) = super::connect_running().await {
                 let _ = client.daemon().stop(false).await;
-                drop(client);
-                // Give the old daemon a moment to release the endpoint.
-                tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+                super::await_stopped(&client).await?;
             }
             let client = super::start().await?;
             let info = client.app().info().await?;
