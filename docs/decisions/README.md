@@ -132,4 +132,4 @@ the alternative you rejected — that is usually the part nobody can recover lat
 - **0052** — [The tray and desktop must not share a GApplication id](0052-tray-and-desktop-app-ids.md)
 - **0056** — [Job progress paints once per frame, because the store re-renders synchronously](0056-job-progress-paints-once-per-frame.md)
 - **0080** — [Only the shell runs in the AppImage's environment](0080-only-the-shell-runs-in-the-appimage-environment.md)
-- **0086** — [The data home is fixed for the life of a daemon process](0086-the-data-home-is-fixed-for-a-daemon-process.md)
+- **0087** — [The data home is fixed for the life of a daemon process](0087-the-data-home-is-fixed-for-a-daemon-process.md)

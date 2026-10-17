@@ -127,7 +127,7 @@ it on
 
 **1. Write the subsystem** as a module under `crates/engine/src/instances/` (or a single `instances.rs` if small). Take
 a path under the data dir in the constructor and keep it as a plain `PathBuf` (the data home is fixed for the life of
-the daemon, [0086](decisions/0086-the-data-home-is-fixed-for-a-daemon-process.md)); guard only mutable state with a
+the daemon, [0087](decisions/0087-the-data-home-is-fixed-for-a-daemon-process.md)); guard only mutable state with a
 `Mutex`.
 
 ```rust

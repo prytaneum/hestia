@@ -59,7 +59,7 @@ Two rules keep this from becoming a god object:
 The data home is fixed at construction. `config set home` writes the pointer and
 the daemon stops itself (leaving workloads running); the CLI and desktop start
 it again onto the new home. It is refused while a server, game session or job
-runs ([0086](../decisions/0086-the-data-home-is-fixed-for-a-daemon-process.md)).
+runs ([0087](../decisions/0087-the-data-home-is-fixed-for-a-daemon-process.md)).
 
 ### Startup reconciliation
 
