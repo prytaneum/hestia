@@ -343,10 +343,11 @@ arrives, so a fixture that answers the start call and publishes nothing hangs
 the caller forever. Jobs here walk their phases on a timer, publish progress,
 and settle; a started entry registers a supervised process and broadcasts
 `process.started` / `.output` / `.metrics` / `.exit` like the supervisor does.
-Fixtures are typed against the generated `proto` mirrors, so a wire change fails
-the typecheck here rather than silently serving a stale shape. An unlisted
-channel is not an error: it answers with an empty-proxy value that degrades
-instead of crashing the page, and warns to the console.
+Fixtures are typed against the generated channel table, params and result both
+(a payload reader only takes a key the channel's params have), so a wire change
+fails the typecheck here rather than silently serving a stale shape. An unlisted
+channel or command fails a test outright; in browser dev it answers with an
+empty-proxy value that degrades instead of crashing the page, and warns.
 
 ## Messages
 

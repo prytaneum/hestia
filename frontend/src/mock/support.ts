@@ -19,7 +19,7 @@ export type Handlers = Record<string, Handler>;
  */
 export type ChannelHandlers = {
   [K in keyof Channels]?: (
-    payload: Record<string, unknown>,
+    payload: Partial<Channels[K]['params']>,
   ) => Channels[K]['result'];
 };
 
@@ -32,38 +32,38 @@ export const ago = (seconds: number): number => now() - seconds;
 /** What a channel whose result carries nothing answers with. */
 export const ok = (): Empty => ({});
 
-export function str(
-  payload: Record<string, unknown>,
-  key: string,
+export function str<P extends object>(
+  payload: P,
+  key: keyof P & string,
   fallback = '',
 ): string {
-  const value = payload[key];
+  const value: unknown = payload[key];
   return typeof value === 'string' && value !== '' ? value : fallback;
 }
 
-export function num(
-  payload: Record<string, unknown>,
-  key: string,
+export function num<P extends object>(
+  payload: P,
+  key: keyof P & string,
   fallback = 0,
 ): number {
-  const value = payload[key];
+  const value: unknown = payload[key];
   return typeof value === 'number' ? value : fallback;
 }
 
-export function bool(
-  payload: Record<string, unknown>,
-  key: string,
+export function bool<P extends object>(
+  payload: P,
+  key: keyof P & string,
   fallback = false,
 ): boolean {
-  const value = payload[key];
+  const value: unknown = payload[key];
   return typeof value === 'boolean' ? value : fallback;
 }
 
-export function strings(
-  payload: Record<string, unknown>,
-  key: string,
+export function strings<P extends object>(
+  payload: P,
+  key: keyof P & string,
 ): string[] {
-  const value = payload[key];
+  const value: unknown = payload[key];
   return Array.isArray(value) ? value.map(String) : [];
 }
 

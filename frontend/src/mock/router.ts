@@ -33,14 +33,19 @@ export function dispatch(cmd: string, args: Record<string, unknown>): unknown {
     const handler = hasFixture(channel) ? channels[channel] : undefined;
     if (handler)
       return handler((args.payload ?? {}) as Record<string, unknown>);
-    console.warn(
-      `[mock] no fixture for channel "${channel}" — returning empty`,
-    );
+    unlisted(`channel "${channel}"`);
     return emptyProxy();
   }
 
   const command = commands[cmd];
   if (command) return command(args);
-  console.warn(`[mock] no fixture for command "${cmd}" — returning null`);
+  unlisted(`command "${cmd}"`);
   return null;
+}
+
+/** A test that reaches an unmocked call is testing nothing, so it fails there. */
+function unlisted(what: string): void {
+  if (import.meta.env.MODE === 'test')
+    throw new Error(`[mock] no fixture for ${what}`);
+  console.warn(`[mock] no fixture for ${what} — degrading to empty`);
 }
