@@ -589,7 +589,6 @@ pub enum ErrorInfo {
     ExportInProgress {
         name: String,
     },
-    ImportInProgress,
     CreateInProgress,
     /// A server, game session or job is running, so the daemon cannot restart
     /// onto a new data home.
@@ -902,7 +901,6 @@ impl fmt::Display for ErrorInfo {
                 write!(f, "{name} has a backup or restore in progress")
             }
             ExportInProgress { name } => write!(f, "{name} is being exported"),
-            ImportInProgress => write!(f, "that import is already running"),
             CreateInProgress => write!(f, "that server is already being created"),
             WorkRunning => write!(f, "a server, game session or job is running — stop it first"),
             JavaInstallInProgress { major } => {

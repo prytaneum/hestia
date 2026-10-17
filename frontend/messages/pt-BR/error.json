@@ -47,7 +47,6 @@
       "fields_required": "{fields} são obrigatórios.",
       "hardcore_locked": "{key} fica travado em '{value}' enquanto o hardcore está ativo. Desative o hardcore primeiro.",
       "hardcore_requires": "O hardcore exige {settings}. Defina isso primeiro.",
-      "import_in_progress": "Essa importação já está em andamento.",
       "incompatible_version": "Este app e o daemon estão em versões diferentes (protocolo {got} vs {want}). Atualize o Hestia.",
       "internal": "{detail}",
       "invalid_value": "{reason}.",
