@@ -71,7 +71,7 @@ const formatOf = (path: string): ImportFormat => {
 export const channels: ChannelHandlers = {
   'instance.export.contents': (p) => {
     entries.findInstance(str(p, 'instance'));
-    return { entries: TREE };
+    return TREE;
   },
 
   'instance.import.inspect': (p) => {

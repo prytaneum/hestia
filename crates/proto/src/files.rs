@@ -27,19 +27,12 @@ pub struct ServerFileParams {
     pub path: String,
 }
 
-#[derive(Serialize, Deserialize, Default, Debug, Clone)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
-#[serde(default, rename_all = "camelCase")]
-pub struct FileListResult {
-    /// Directories first, then by name.
-    pub entries: Vec<FileEntry>,
-}
-
+/// Directories first, then by name.
 pub struct ServerFilesList;
 impl Contract for ServerFilesList {
     const CHANNEL: &'static str = "server.files.list";
     type Params = ServerFileParams;
-    type Result = FileListResult;
+    type Result = Vec<FileEntry>;
 }
 
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]

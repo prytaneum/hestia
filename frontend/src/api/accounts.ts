@@ -31,9 +31,8 @@ export function beginLogin(
   return call('account.login.begin', { method });
 }
 
-export async function completeLogin(id: string, code = ''): Promise<Account> {
-  const result = await call('account.login.complete', { id, code });
-  return result.account;
+export function completeLogin(id: string, code = ''): Promise<Account> {
+  return call('account.login.complete', { id, code });
 }
 
 export function list(): Promise<AccountListResult> {
@@ -41,9 +40,8 @@ export function list(): Promise<AccountListResult> {
 }
 
 /** Pick the default account launches use; `account` is a name or uuid. */
-export async function switchAccount(account: string): Promise<Account> {
-  const result = await call('account.switch', { account });
-  return result.account;
+export function switchAccount(account: string): Promise<Account> {
+  return call('account.switch', { account });
 }
 
 export async function remove(account: string): Promise<void> {

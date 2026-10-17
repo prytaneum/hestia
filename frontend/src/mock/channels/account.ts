@@ -47,12 +47,12 @@ export const channels: ChannelHandlers = {
     verificationUri: 'https://microsoft.com/link',
   }),
 
-  'account.login.complete': () => ({ account: player }),
+  'account.login.complete': () => player,
 
   'account.switch': (p) => {
     const account = find(str(p, 'account'));
     defaultUuid = account.uuid;
-    return { account };
+    return account;
   },
 
   'account.remove': (p) => {

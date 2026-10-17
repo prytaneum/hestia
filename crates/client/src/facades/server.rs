@@ -35,7 +35,7 @@ impl Server<'_> {
         let params = VersionsParams {
             flavor: flavor.to_string(),
         };
-        Ok(self.session.call::<ServerVersions>(&params).await?.versions)
+        self.session.call::<ServerVersions>(&params).await
     }
 
     pub async fn loaders(&self, flavor: &str, version: &str) -> Result<Vec<String>, IpcError> {
@@ -43,7 +43,7 @@ impl Server<'_> {
             flavor: flavor.to_string(),
             version: version.to_string(),
         };
-        Ok(self.session.call::<ServerLoaders>(&params).await?.loaders)
+        self.session.call::<ServerLoaders>(&params).await
     }
 
     /// Create a fully provisioned server, blocking until the daemon reports
@@ -80,11 +80,7 @@ impl Server<'_> {
     }
 
     pub async fn list(&self) -> Result<Vec<ServerInfo>, IpcError> {
-        Ok(self
-            .session
-            .call::<ServerList>(&proto::Empty {})
-            .await?
-            .servers)
+        self.session.call::<ServerList>(&proto::Empty {}).await
     }
 
     pub async fn status(&self, server: &str) -> Result<ServerInfo, IpcError> {
@@ -145,7 +141,7 @@ impl Server<'_> {
             server: server.to_string(),
             tail,
         };
-        Ok(self.session.call::<ServerLogs>(&params).await?.lines)
+        self.session.call::<ServerLogs>(&params).await
     }
 
     /// Send one console command to a running server; returns its reply.
@@ -192,11 +188,9 @@ impl Server<'_> {
     }
 
     pub async fn backup_list(&self, server: &str) -> Result<Vec<BackupInfo>, IpcError> {
-        Ok(self
-            .session
+        self.session
             .call::<ServerBackupList>(&server_ref(server))
-            .await?
-            .backups)
+            .await
     }
 
     /// Replace a stopped server's data directory with a backup's content,
@@ -265,11 +259,9 @@ impl Server<'_> {
     /// Every `server.properties` key the server's version defines, with the
     /// value in effect.
     pub async fn properties(&self, server: &str) -> Result<Vec<ServerProperty>, IpcError> {
-        Ok(self
-            .session
+        self.session
             .call::<ServerProperties>(&server_ref(server))
-            .await?
-            .properties)
+            .await
     }
 }
 

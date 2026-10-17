@@ -6,8 +6,7 @@ use proto::sync::{
     SyncDisable, SyncDisableParams, SyncEnable, SyncEnableParams, SyncGet, SyncKeys,
     SyncKeysParams, SyncOptionSet, SyncOptionSetParams, SyncOptionsGet, SyncOptionsResult,
     SyncPackRemove, SyncPackRemoveParams, SyncPackSet, SyncPackSetParams, SyncPacks,
-    SyncPacksResult, SyncSources, SyncSourcesParams, SyncSourcesResult, SyncStatus,
-    SyncStatusResult,
+    SyncPacksResult, SyncSources, SyncSourcesParams, SyncStatus,
 };
 use proto::Empty;
 
@@ -20,9 +19,7 @@ pub(super) fn register(on: &mut Channels<'_>) {
     );
 
     on.handle::<SyncSources, _, _>(|p: SyncSourcesParams, ctx| async move {
-        Ok(SyncSourcesResult {
-            sources: ctx.runtime.engine().sync_sources(p.unit),
-        })
+        Ok(ctx.runtime.engine().sync_sources(p.unit))
     });
 
     on.handle::<SyncEnable, _, _>(|p: SyncEnableParams, ctx| async move {
@@ -85,11 +82,9 @@ pub(super) fn register(on: &mut Channels<'_>) {
         Ok(SyncOptionsResult { options })
     });
 
-    on.handle::<SyncStatus, _, _>(|_: Empty, ctx| async move {
-        Ok(SyncStatusResult {
-            instances: ctx.runtime.engine().sync_status(),
-        })
-    });
+    on.handle::<SyncStatus, _, _>(
+        |_: Empty, ctx| async move { Ok(ctx.runtime.engine().sync_status()) },
+    );
 
     on.handle::<InstanceSyncUnit, _, _>(|p: InstanceSyncUnitParams, ctx| async move {
         let (record, _claim) = instance_held(&ctx, &p.instance, Hold::stopped(JobKind::Content))?;

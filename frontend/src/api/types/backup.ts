@@ -2,7 +2,6 @@
 export type { BackupDone } from "./generated/BackupDone";
 export type { BackupInfo } from "./generated/BackupInfo";
 export type { BackupKind } from "./generated/BackupKind";
-export type { BackupListResult } from "./generated/BackupListResult";
 export type { ServerBackupCreateParams } from "./generated/ServerBackupCreateParams";
 export type { ServerBackupRef } from "./generated/ServerBackupRef";
 export type { ServerBackupRestoreParams } from "./generated/ServerBackupRestoreParams";

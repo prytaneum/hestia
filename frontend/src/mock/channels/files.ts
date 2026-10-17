@@ -92,7 +92,7 @@ export const channels: ChannelHandlers = {
       .sort(
         (a, b) => Number(b.dir) - Number(a.dir) || a.name.localeCompare(b.name),
       );
-    return { entries };
+    return entries;
   },
 
   'server.files.read': (p) => {

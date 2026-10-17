@@ -3,7 +3,7 @@
 //! none — `instance.export` is what they have instead.
 
 use proto::backup::{
-    BackupListResult, ServerBackupCreate, ServerBackupList, ServerBackupRemove, ServerBackupRestore,
+    ServerBackupCreate, ServerBackupList, ServerBackupRemove, ServerBackupRestore,
 };
 use proto::error::ErrorInfo;
 use proto::job::JobStarted;
@@ -38,7 +38,7 @@ pub(super) fn register(on: &mut Channels<'_>) {
             .engine()
             .server_backups(&record.id)
             .map_err(crate::runtime::engine_error)?;
-        Ok(BackupListResult { backups })
+        Ok(backups)
     });
 
     on.handle::<ServerBackupRestore, _, _>(|p, ctx| async move {

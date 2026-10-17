@@ -36,7 +36,7 @@ fn runtime() -> JavaRuntime {
 #[tokio::test]
 async fn a_call_marshals_through_the_contract() {
     let client = Script::new()
-        .on("java.list", Reply::Ok(json!({ "runtimes": [runtime()] })))
+        .on("java.list", Reply::Ok(json!([runtime()])))
         .serve();
 
     let runtimes = client.java().list().await.expect("list");

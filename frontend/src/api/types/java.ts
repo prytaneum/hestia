@@ -3,8 +3,6 @@ export type { JavaInstallDone } from "./generated/JavaInstallDone";
 export type { JavaInstallParams } from "./generated/JavaInstallParams";
 export type { JavaInstallPhase } from "./generated/JavaInstallPhase";
 export type { JavaInstallProgress } from "./generated/JavaInstallProgress";
-export type { JavaListResult } from "./generated/JavaListResult";
 export type { JavaRelease } from "./generated/JavaRelease";
-export type { JavaReleasesResult } from "./generated/JavaReleasesResult";
 export type { JavaRuntime } from "./generated/JavaRuntime";
 export type { JavaUninstallParams } from "./generated/JavaUninstallParams";

@@ -6,9 +6,8 @@
 import { call } from './core/ipc';
 import type { ServerTask } from './types/tasks';
 
-export async function list(server: string): Promise<ServerTask[]> {
-  const result = await call('server.task.list', { server });
-  return result.tasks;
+export function list(server: string): Promise<ServerTask[]> {
+  return call('server.task.list', { server });
 }
 
 /** Creates the task when it carries no id, replaces the one it names else. */

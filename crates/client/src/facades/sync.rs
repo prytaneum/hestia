@@ -20,11 +20,7 @@ impl Sync<'_> {
         unit: proto::sync::SyncUnit,
     ) -> Result<Vec<proto::sync::SyncSource>, IpcError> {
         let params = proto::sync::SyncSourcesParams { unit };
-        Ok(self
-            .session
-            .call::<proto::sync::SyncSources>(&params)
-            .await?
-            .sources)
+        self.session.call::<proto::sync::SyncSources>(&params).await
     }
 
     /// `source` may be empty only when at most one instance holds the file.
@@ -114,11 +110,9 @@ impl Sync<'_> {
     }
 
     pub async fn status(&self) -> Result<Vec<proto::sync::InstanceSyncStatus>, IpcError> {
-        Ok(self
-            .session
+        self.session
             .call::<proto::sync::SyncStatus>(&proto::Empty {})
-            .await?
-            .instances)
+            .await
     }
 
     /// `shared` unset returns the instance to following the catalogue.

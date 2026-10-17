@@ -31,7 +31,7 @@ function tasksOf(server: string): ServerTask[] {
 const SCHEDULE = /^(\d+[mhd]|([01]\d|2[0-3]):[0-5]\d)$/;
 
 export const channels: ChannelHandlers = {
-  'server.task.list': (p) => ({ tasks: tasksOf(str(p, 'server')) }),
+  'server.task.list': (p) => tasksOf(str(p, 'server')),
 
   'server.task.save': (p) => {
     const mine = tasksOf(str(p, 'server'));

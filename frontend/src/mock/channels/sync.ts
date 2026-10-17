@@ -70,14 +70,13 @@ const unitOf = (p: Record<string, unknown>): SyncUnit =>
 export const channels: ChannelHandlers = {
   'sync.get': config,
 
-  'sync.sources': () => ({
-    sources: entries.listInstances().map((instance, index) => ({
+  'sync.sources': () =>
+    entries.listInstances().map((instance, index) => ({
       id: instance.id,
       name: instance.name,
       present: index < 2,
       modifiedUnix: Math.floor(Date.now() / 1000) - index * 86_400,
     })),
-  }),
 
   'sync.enable': (p) => {
     const source = str(p, 'source');
@@ -111,7 +110,7 @@ export const channels: ChannelHandlers = {
     return { options };
   },
 
-  'sync.status': () => ({ instances: status() }),
+  'sync.status': () => status(),
 
   'instance.sync.unit': (p) => {
     const instance = entries.findInstance(str(p, 'instance'));

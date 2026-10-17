@@ -16,8 +16,6 @@ export type { SyncPackSetParams } from "./generated/SyncPackSetParams";
 export type { SyncPacksResult } from "./generated/SyncPacksResult";
 export type { SyncSource } from "./generated/SyncSource";
 export type { SyncSourcesParams } from "./generated/SyncSourcesParams";
-export type { SyncSourcesResult } from "./generated/SyncSourcesResult";
-export type { SyncStatusResult } from "./generated/SyncStatusResult";
 export type { SyncUnit } from "./generated/SyncUnit";
 export type { SyncUnitConfig } from "./generated/SyncUnitConfig";
 export type { UnitState } from "./generated/UnitState";

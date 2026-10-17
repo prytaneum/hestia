@@ -5,9 +5,9 @@
 use engine::FileTree;
 use proto::error::{ErrorInfo, Field};
 use proto::files::{
-    FileListResult, FileReadResult, ServerFilesCompress, ServerFilesCopy, ServerFilesExtract,
-    ServerFilesImport, ServerFilesList, ServerFilesMkdir, ServerFilesMove, ServerFilesRead,
-    ServerFilesRemove, ServerFilesWrite,
+    FileReadResult, ServerFilesCompress, ServerFilesCopy, ServerFilesExtract, ServerFilesImport,
+    ServerFilesList, ServerFilesMkdir, ServerFilesMove, ServerFilesRead, ServerFilesRemove,
+    ServerFilesWrite,
 };
 use proto::Empty;
 
@@ -18,7 +18,7 @@ pub(super) fn register(on: &mut Channels<'_>) {
     on.handle::<ServerFilesList, _, _>(|p, ctx| async move {
         let tree = tree(&ctx, &p.server, Intent::Read)?;
         let entries = blocking(move || tree.list(&p.path)).await?;
-        Ok(FileListResult { entries })
+        Ok(entries)
     });
 
     on.handle::<ServerFilesRead, _, _>(|p, ctx| async move {

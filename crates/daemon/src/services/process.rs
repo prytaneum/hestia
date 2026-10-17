@@ -2,8 +2,7 @@
 
 use proto::error::ErrorInfo;
 use proto::process::{
-    ProcessList, ProcessListResult, ProcessLogs, ProcessLogsResult, ProcessStart,
-    ProcessStartResult, ProcessStatus, ProcessStop,
+    ProcessList, ProcessLogs, ProcessStart, ProcessStartResult, ProcessStatus, ProcessStop,
 };
 use proto::Empty;
 
@@ -37,11 +36,9 @@ pub(super) fn register(on: &mut Channels<'_>) {
         }
     });
 
-    on.handle::<ProcessList, _, _>(|_: Empty, ctx| async move {
-        Ok(ProcessListResult {
-            processes: ctx.runtime.processes().list(),
-        })
-    });
+    on.handle::<ProcessList, _, _>(
+        |_: Empty, ctx| async move { Ok(ctx.runtime.processes().list()) },
+    );
 
     on.handle::<ProcessStatus, _, _>(|p, ctx| async move {
         ctx.runtime
@@ -52,7 +49,7 @@ pub(super) fn register(on: &mut Channels<'_>) {
 
     on.handle::<ProcessLogs, _, _>(|p, ctx| async move {
         match ctx.runtime.processes().logs(&p.id, p.tail) {
-            Some(lines) => Ok(ProcessLogsResult { lines }),
+            Some(lines) => Ok(lines),
             None => Err(ErrorInfo::ProcessNotFound { id: p.id.clone() }),
         }
     });

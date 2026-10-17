@@ -99,20 +99,13 @@ pub struct SkinAddParams {
     pub data: String,
 }
 
-#[derive(Serialize, Deserialize, Default, Debug, Clone)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
-#[serde(default, rename_all = "camelCase")]
-pub struct SkinAddResult {
-    pub skin: Skin,
-}
-
 pub struct SkinAdd;
 impl Contract for SkinAdd {
     const CHANNEL: &'static str = "skin.add";
     const CHANGES: Option<Scope> = Some(Scope::Skins);
     const TIMEOUT: Duration = Duration::from_secs(30);
     type Params = SkinAddParams;
-    type Result = SkinAddResult;
+    type Result = Skin;
 }
 
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
@@ -164,22 +157,15 @@ pub struct SkinUpdateParams {
     pub variant: SkinVariant,
 }
 
-#[derive(Serialize, Deserialize, Default, Debug, Clone)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
-#[serde(default, rename_all = "camelCase")]
-pub struct SkinUpdateResult {
-    /// The updated library entry. A label-only update never touches Mojang,
-    /// so `equipped` here is authoritative only from `skin.list`.
-    pub skin: Skin,
-}
-
+/// Answers the updated library entry. A label-only update never touches
+/// Mojang, so `equipped` here is authoritative only from `skin.list`.
 pub struct SkinUpdate;
 impl Contract for SkinUpdate {
     const CHANNEL: &'static str = "skin.update";
     const CHANGES: Option<Scope> = Some(Scope::Skins);
     const TIMEOUT: Duration = Duration::from_secs(30);
     type Params = SkinUpdateParams;
-    type Result = SkinUpdateResult;
+    type Result = Skin;
 }
 
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]

@@ -6,16 +6,15 @@ use engine::Side;
 use proto::error::{EntryKind, ErrorInfo, Field};
 use proto::instance::{
     AddressPing, InstanceConfigGet, InstanceConfigGetResult, InstanceConfigList,
-    InstanceConfigListResult, InstanceConfigSet, InstanceCreate, InstanceCreateResult,
-    InstanceFlavors, InstanceInfoQuery, InstanceLaunch, InstanceList, InstanceListResult,
-    InstanceLoaders, InstanceLogs, InstanceRecent, InstanceRecentResult, InstanceRemove,
-    InstanceRename, InstanceServerEdit, InstanceServerRemove, InstanceServers,
-    InstanceServersArrange, InstanceServersResult, InstanceServersWriteResult, InstanceStop,
-    InstanceUpdate, InstanceVersions, InstanceWorlds, InstanceWorldsResult, Replace, ServerEntry,
+    InstanceConfigListResult, InstanceConfigSet, InstanceCreate, InstanceFlavors,
+    InstanceInfoQuery, InstanceLaunch, InstanceList, InstanceLoaders, InstanceLogs, InstanceRecent,
+    InstanceRemove, InstanceRename, InstanceServerEdit, InstanceServerRemove, InstanceServers,
+    InstanceServersArrange, InstanceServersWriteResult, InstanceStop, InstanceUpdate,
+    InstanceVersions, InstanceWorlds, Replace, ServerEntry,
 };
 use proto::job::JobStarted;
-use proto::minecraft::{ConfigEntry, FlavorsResult, LoadersResult, VersionsResult};
-use proto::process::{ProcessLogsResult, ProcessState};
+use proto::minecraft::{ConfigEntry, FlavorsResult};
+use proto::process::ProcessState;
 use proto::Empty;
 
 use super::guards::{instance_for, instance_held, Hold, Intent};
@@ -46,7 +45,7 @@ pub(super) fn register(on: &mut Channels<'_>) {
             .versions(Side::Client, &p.flavor)
             .await
             .map_err(crate::runtime::engine_error)?;
-        Ok(VersionsResult { versions })
+        Ok(versions)
     });
 
     on.handle::<InstanceLoaders, _, _>(|p, ctx| async move {
@@ -57,7 +56,7 @@ pub(super) fn register(on: &mut Channels<'_>) {
             .loader_versions(Side::Client, &p.flavor, &p.version)
             .await
             .map_err(crate::runtime::engine_error)?;
-        Ok(LoadersResult { loaders })
+        Ok(loaders)
     });
 
     on.handle::<InstanceCreate, _, _>(|p, ctx| async move {
@@ -79,9 +78,7 @@ pub(super) fn register(on: &mut Channels<'_>) {
             version = %record.profile.game_version,
             "instance created"
         );
-        Ok(InstanceCreateResult {
-            instance: ctx.runtime.instance_view(record),
-        })
+        Ok(ctx.runtime.instance_view(record))
     });
 
     on.handle::<InstanceUpdate, _, _>(|p, ctx| async move {
@@ -107,7 +104,7 @@ pub(super) fn register(on: &mut Channels<'_>) {
             .into_iter()
             .map(|r| ctx.runtime.instance_view(r))
             .collect();
-        Ok(InstanceListResult { instances })
+        Ok(instances)
     });
 
     on.handle::<InstanceInfoQuery, _, _>(|p, ctx| async move {
@@ -127,13 +124,11 @@ pub(super) fn register(on: &mut Channels<'_>) {
                 entry: EntryKind::Instance,
                 reference: p.instance.clone(),
             })?;
-        Ok(InstanceWorldsResult { worlds })
+        Ok(worlds)
     });
 
     on.handle::<InstanceRecent, _, _>(|_: Empty, ctx| async move {
-        Ok(InstanceRecentResult {
-            plays: ctx.runtime.engine().recent_plays(),
-        })
+        Ok(ctx.runtime.engine().recent_plays())
     });
 
     on.handle::<InstanceServers, _, _>(|p, ctx| async move {
@@ -142,7 +137,7 @@ pub(super) fn register(on: &mut Channels<'_>) {
             .engine()
             .instance_servers(&p.instance)
             .map_err(crate::runtime::engine_error)?;
-        Ok(InstanceServersResult { servers })
+        Ok(servers)
     });
 
     on.handle::<InstanceServerEdit, _, _>(|p, ctx| async move {
@@ -323,7 +318,7 @@ pub(super) fn register(on: &mut Channels<'_>) {
         let lines = target
             .and_then(|id| ctx.runtime.processes().logs(&id, p.tail))
             .unwrap_or_default();
-        Ok(ProcessLogsResult { lines })
+        Ok(lines)
     });
 
     on.handle::<InstanceConfigGet, _, _>(|p, ctx| async move {

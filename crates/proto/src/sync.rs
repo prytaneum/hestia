@@ -209,19 +209,12 @@ pub struct SyncSourcesParams {
     pub unit: SyncUnit,
 }
 
-#[derive(Serialize, Deserialize, Default, Debug, Clone)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
-#[serde(default, rename_all = "camelCase")]
-pub struct SyncSourcesResult {
-    pub sources: Vec<SyncSource>,
-}
-
 /// What a front-end fills its source picker from, before enabling a unit.
 pub struct SyncSources;
 impl Contract for SyncSources {
     const CHANNEL: &'static str = "sync.sources";
     type Params = SyncSourcesParams;
-    type Result = SyncSourcesResult;
+    type Result = Vec<SyncSource>;
 }
 
 /// Turn a unit on, seeded from one instance's copy. `source` may be empty only
@@ -349,18 +342,11 @@ pub struct InstanceSyncStatus {
     pub unsynced: BTreeSet<String>,
 }
 
-#[derive(Serialize, Deserialize, Default, Debug, Clone)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
-#[serde(default, rename_all = "camelCase")]
-pub struct SyncStatusResult {
-    pub instances: Vec<InstanceSyncStatus>,
-}
-
 pub struct SyncStatus;
 impl Contract for SyncStatus {
     const CHANNEL: &'static str = "sync.status";
     type Params = Empty;
-    type Result = SyncStatusResult;
+    type Result = Vec<InstanceSyncStatus>;
 }
 
 /// `shared` unset follows the catalogue, which is how a front-end tells "this

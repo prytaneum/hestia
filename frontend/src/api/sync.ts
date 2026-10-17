@@ -16,9 +16,8 @@ export function get(): Promise<SyncConfig> {
 }
 
 /** Which instances could start a unit's shared copy. */
-export async function sources(unit: SyncUnit): Promise<SyncSource[]> {
-  const result = await call('sync.sources', { unit });
-  return result.sources;
+export function sources(unit: SyncUnit): Promise<SyncSource[]> {
+  return call('sync.sources', { unit });
 }
 
 /** `source` may be empty only when at most one instance holds the file. */
@@ -48,9 +47,8 @@ export async function setOption(
   return result.options;
 }
 
-export async function status(): Promise<InstanceSyncStatus[]> {
-  const result = await call('sync.status');
-  return result.instances;
+export function status(): Promise<InstanceSyncStatus[]> {
+  return call('sync.status');
 }
 
 /** `shared` null returns the instance to following the catalogue. */

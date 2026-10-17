@@ -92,7 +92,7 @@ function startServer(reference: string) {
 }
 
 export const channels: ChannelHandlers = {
-  'server.list': () => ({ servers: entries.listServers().map(withProcess) }),
+  'server.list': () => entries.listServers().map(withProcess),
 
   'server.status': (p) => withProcess(entries.findServer(str(p, 'server'))),
 
@@ -123,10 +123,8 @@ export const channels: ChannelHandlers = {
     flavors: catalog.serverFlavors,
     rules: catalog.serverRules,
   }),
-  'server.versions': (p) => ({
-    versions: catalog.versionsFor(str(p, 'flavor')),
-  }),
-  'server.loaders': (p) => ({ loaders: catalog.loaders(str(p, 'flavor')) }),
+  'server.versions': (p) => catalog.versionsFor(str(p, 'flavor')),
+  'server.loaders': (p) => catalog.loaders(str(p, 'flavor')),
 
   'server.create': (p) =>
     startJob({
@@ -194,12 +192,11 @@ export const channels: ChannelHandlers = {
     return ok();
   },
 
-  'server.logs': (p) => ({
-    lines: processes.logs(
+  'server.logs': (p) =>
+    processes.logs(
       processes.serverProcessId(serverId(p)),
       p.tail as number | undefined,
     ),
-  }),
 
   // One RCON round trip. Only a running server answers — the console tab
   // renders the rejection, so refusing here is the honest response.
@@ -226,9 +223,7 @@ export const channels: ChannelHandlers = {
     };
   },
 
-  'server.properties': (p) => ({
-    properties: properties(entries.entrySettings(serverId(p))),
-  }),
+  'server.properties': (p) => properties(entries.entrySettings(serverId(p))),
 
   'server.config.list': serverConfig.list,
   'server.config.set': serverConfig.set,

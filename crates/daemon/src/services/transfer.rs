@@ -8,8 +8,7 @@
 use proto::error::{ErrorInfo, Field};
 use proto::job::JobStarted;
 use proto::transfer::{
-    ExportContentsResult, InstanceExport, InstanceExportContents, InstanceImport,
-    InstanceImportInspect,
+    InstanceExport, InstanceExportContents, InstanceImport, InstanceImportInspect,
 };
 
 use super::guards::{instance_for, instance_held, Hold, Intent};
@@ -38,7 +37,7 @@ pub(super) fn register(on: &mut Channels<'_>) {
             .engine()
             .export_contents(&record.id)
             .map_err(crate::runtime::engine_error)?;
-        Ok(ExportContentsResult { entries })
+        Ok(entries)
     });
 
     on.handle::<InstanceImport, _, _>(|p, ctx| async move {

@@ -14,11 +14,9 @@ impl Cache<'_> {
     }
 
     pub async fn list(&self) -> Result<Vec<proto::cache::CacheEntry>, IpcError> {
-        Ok(self
-            .session
+        self.session
             .call::<proto::cache::CacheList>(&proto::Empty {})
-            .await?
-            .entries)
+            .await
     }
 
     pub async fn clear(&self) -> Result<proto::cache::CacheUsage, IpcError> {

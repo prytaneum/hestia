@@ -2,7 +2,6 @@
 export type { ArchiveEntry } from "./generated/ArchiveEntry";
 export type { ArchiveInfo } from "./generated/ArchiveInfo";
 export type { ArchiveRef } from "./generated/ArchiveRef";
-export type { ExportContentsResult } from "./generated/ExportContentsResult";
 export type { ExportDone } from "./generated/ExportDone";
 export type { ExportFormat } from "./generated/ExportFormat";
 export type { ImportDone } from "./generated/ImportDone";

@@ -117,7 +117,7 @@ export const channels: ChannelHandlers = {
     };
     library.unshift(skin);
     equip(skin.key);
-    return { skin };
+    return skin;
   },
 
   'skin.update': (p) => {
@@ -127,7 +127,7 @@ export const channels: ChannelHandlers = {
     skin.name = str(p, 'name', skin.name);
     skin.variant =
       str(p, 'variant', skin.variant) === 'slim' ? 'slim' : 'classic';
-    return { skin };
+    return skin;
   },
 
   'skin.equip': (p) => {

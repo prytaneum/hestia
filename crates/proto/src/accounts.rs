@@ -62,20 +62,13 @@ pub struct AccountLoginCompleteParams {
     pub code: String,
 }
 
-#[derive(Serialize, Deserialize, Default, Debug, Clone)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
-#[serde(default, rename_all = "camelCase")]
-pub struct AccountLoginCompleteResult {
-    pub account: Account,
-}
-
 pub struct AccountLoginComplete;
 impl Contract for AccountLoginComplete {
     const CHANNEL: &'static str = "account.login.complete";
     const CHANGES: Option<Scope> = Some(Scope::Accounts);
     const TIMEOUT: Duration = Duration::from_secs(16 * 60);
     type Params = AccountLoginCompleteParams;
-    type Result = AccountLoginCompleteResult;
+    type Result = Account;
 }
 
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
@@ -102,19 +95,12 @@ pub struct AccountSwitchParams {
     pub account: String,
 }
 
-#[derive(Serialize, Deserialize, Default, Debug, Clone)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
-#[serde(default, rename_all = "camelCase")]
-pub struct AccountSwitchResult {
-    pub account: Account,
-}
-
 pub struct AccountSwitch;
 impl Contract for AccountSwitch {
     const CHANNEL: &'static str = "account.switch";
     const CHANGES: Option<Scope> = Some(Scope::Accounts);
     type Params = AccountSwitchParams;
-    type Result = AccountSwitchResult;
+    type Result = Account;
 }
 
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]

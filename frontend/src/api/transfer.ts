@@ -19,9 +19,8 @@ import type {
 } from './types/transfer';
 
 /** What an export of this instance would carry, sorted by path. */
-export async function contents(instance: string): Promise<ArchiveEntry[]> {
-  const result = await call('instance.export.contents', { instance });
-  return result.entries;
+export function contents(instance: string): Promise<ArchiveEntry[]> {
+  return call('instance.export.contents', { instance });
 }
 
 /** What an archive is, without importing it. The path must be absolute. */

@@ -22,11 +22,7 @@ pub struct Content<'a> {
 impl Content<'_> {
     /// The available content sources (modrinth, …).
     pub async fn sources(&self) -> Result<Vec<ContentSource>, IpcError> {
-        Ok(self
-            .session
-            .call::<ContentSources>(&proto::Empty {})
-            .await?
-            .sources)
+        self.session.call::<ContentSources>(&proto::Empty {}).await
     }
 
     /// A paginated search over a source (empty `query.source` picks the default).
@@ -59,7 +55,7 @@ impl Content<'_> {
     }
 
     pub async fn versions(&self, query: &VersionQuery) -> Result<Vec<ContentVersion>, IpcError> {
-        Ok(self.session.call::<ContentVersions>(query).await?.versions)
+        self.session.call::<ContentVersions>(query).await
     }
 
     /// Classify a daemon-local file for import (detected kind + validity).
@@ -180,11 +176,7 @@ impl Content<'_> {
             target: target.clone(),
             kind,
         };
-        let result = self
-            .session
-            .call::<EntryContentCheckUpdates>(&params)
-            .await?;
-        Ok(result.updates)
+        self.session.call::<EntryContentCheckUpdates>(&params).await
     }
 
     /// Re-pin one item to a specific published `version` (id or number).

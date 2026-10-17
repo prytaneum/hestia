@@ -14,11 +14,10 @@ use crate::contract::{Contract, Empty};
 use crate::job::{Job, JobStarted};
 use crate::keys::KeyRule;
 use crate::minecraft::{
-    ConfigEntry, FlavorsResult, LoadersParams, LoadersResult, ProvisionProgress, VersionsParams,
-    VersionsResult,
+    ConfigEntry, FlavorsResult, GameVersion, LoadersParams, ProvisionProgress, VersionsParams,
 };
 use crate::modpack::PackPolicy;
-use crate::process::{ProcessInfo, ProcessLogsResult};
+use crate::process::{ProcessInfo, ProcessLogLine};
 use crate::warning::WarningInfo;
 
 pub struct ServerFlavors;
@@ -32,14 +31,16 @@ pub struct ServerVersions;
 impl Contract for ServerVersions {
     const CHANNEL: &'static str = "server.versions";
     type Params = VersionsParams;
-    type Result = VersionsResult;
+    type Result = Vec<GameVersion>;
 }
 
+/// Loader builds newest-first; empty for a flavor with no pickable loader
+/// version (vanilla, and loaders that pin one build per game version).
 pub struct ServerLoaders;
 impl Contract for ServerLoaders {
     const CHANNEL: &'static str = "server.loaders";
     type Params = LoadersParams;
-    type Result = LoadersResult;
+    type Result = Vec<String>;
 }
 
 /// A managed server: the stored record plus, when it has been started, the
@@ -204,18 +205,11 @@ impl Job for ServerUpdate {
     type Done = ServerDone;
 }
 
-#[derive(Serialize, Deserialize, Default, Debug, Clone)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
-#[serde(default, rename_all = "camelCase")]
-pub struct ServerListResult {
-    pub servers: Vec<ServerInfo>,
-}
-
 pub struct ServerList;
 impl Contract for ServerList {
     const CHANNEL: &'static str = "server.list";
     type Params = Empty;
-    type Result = ServerListResult;
+    type Result = Vec<ServerInfo>;
 }
 
 /// Names one managed server by id or name (remove / start / stop / status).
@@ -330,7 +324,7 @@ pub struct ServerLogs;
 impl Contract for ServerLogs {
     const CHANNEL: &'static str = "server.logs";
     type Params = ServerLogsParams;
-    type Result = ProcessLogsResult;
+    type Result = Vec<ProcessLogLine>;
 }
 
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
@@ -417,19 +411,12 @@ pub struct ServerProperty {
     pub locked: bool,
 }
 
-#[derive(Serialize, Deserialize, Default, Debug, Clone)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
-#[serde(default, rename_all = "camelCase")]
-pub struct ServerPropertiesResult {
-    /// Ordered by key.
-    pub properties: Vec<ServerProperty>,
-}
-
+/// Ordered by key.
 pub struct ServerProperties;
 impl Contract for ServerProperties {
     const CHANNEL: &'static str = "server.properties";
     type Params = ServerRef;
-    type Result = ServerPropertiesResult;
+    type Result = Vec<ServerProperty>;
 }
 
 pub struct ServerConfigGet;

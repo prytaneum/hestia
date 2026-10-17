@@ -3,11 +3,10 @@
 //! instances alike.
 
 use proto::content::{
-    ContentInspect, ContentListResult, ContentMatchesResult, ContentProjectGet, ContentResolveUrl,
-    ContentSearch, ContentSources, ContentUpdatesResult, ContentVersions, ContentVersionsResult,
-    EntryContentAdd, EntryContentCheckUpdates, EntryContentEnable, EntryContentList,
-    EntryContentMatches, EntryContentRemove, EntryContentSetVersion, EntryContentUpdate,
-    SourcesResult,
+    ContentInspect, ContentListResult, ContentProjectGet, ContentResolveUrl, ContentSearch,
+    ContentSources, ContentVersions, EntryContentAdd, EntryContentCheckUpdates, EntryContentEnable,
+    EntryContentList, EntryContentMatches, EntryContentRemove, EntryContentSetVersion,
+    EntryContentUpdate,
 };
 use proto::error::{ErrorInfo, Field};
 use proto::job::JobStarted;
@@ -26,9 +25,7 @@ pub(super) fn register(on: &mut Channels<'_>) {
 
 fn register_sources(on: &mut Channels<'_>) {
     on.handle::<ContentSources, _, _>(|_: Empty, ctx| async move {
-        Ok(SourcesResult {
-            sources: ctx.runtime.engine().content().sources(),
-        })
+        Ok(ctx.runtime.engine().content().sources())
     });
 
     on.handle::<ContentSearch, _, _>(|q, ctx| async move {
@@ -79,7 +76,7 @@ fn register_sources(on: &mut Channels<'_>) {
             .versions(&q)
             .await
             .map_err(crate::runtime::engine_error)?;
-        Ok(ContentVersionsResult { versions })
+        Ok(versions)
     });
 
     on.handle::<ContentInspect, _, _>(|p, ctx| async move {
@@ -173,7 +170,7 @@ fn register_entry(on: &mut Channels<'_>) {
             .check_entry_updates(entry.entry_ref(), p.kind)
             .await
             .map_err(crate::runtime::engine_error)?;
-        Ok(ContentUpdatesResult { updates })
+        Ok(updates)
     });
 
     on.handle::<EntryContentMatches, _, _>(|p, ctx| async move {
@@ -184,7 +181,7 @@ fn register_entry(on: &mut Channels<'_>) {
             .entry_content_matches(entry.entry_ref(), p.kind, &p.item)
             .await
             .map_err(crate::runtime::engine_error)?;
-        Ok(ContentMatchesResult { matches })
+        Ok(matches)
     });
 
     on.handle::<EntryContentSetVersion, _, _>(|p, ctx| async move {

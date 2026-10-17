@@ -119,10 +119,8 @@ export function contentChannels(): ChannelHandlers {
         ),
       ),
 
-    'content.matches': () => ({ matches: [] }),
+    'content.matches': () => [],
 
-    'content.check_updates': (p) => ({
-      updates: content.updates(resolve(p), kindOf(p)),
-    }),
+    'content.check_updates': (p) => content.updates(resolve(p), kindOf(p)),
   };
 }

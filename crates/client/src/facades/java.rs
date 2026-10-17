@@ -8,19 +8,15 @@ pub struct Java<'a> {
 
 impl Java<'_> {
     pub async fn releases(&self) -> Result<Vec<proto::java::JavaRelease>, IpcError> {
-        Ok(self
-            .session
+        self.session
             .call::<proto::java::JavaReleases>(&proto::Empty {})
-            .await?
-            .releases)
+            .await
     }
 
     pub async fn list(&self) -> Result<Vec<proto::java::JavaRuntime>, IpcError> {
-        Ok(self
-            .session
+        self.session
             .call::<proto::java::JavaList>(&proto::Empty {})
-            .await?
-            .runtimes)
+            .await
     }
 
     pub async fn uninstall(&self, major: i32) -> Result<(), IpcError> {

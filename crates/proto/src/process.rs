@@ -110,18 +110,11 @@ impl Contract for ProcessStop {
     type Result = Empty;
 }
 
-#[derive(Serialize, Deserialize, Default, Debug, Clone)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
-#[serde(default, rename_all = "camelCase")]
-pub struct ProcessListResult {
-    pub processes: Vec<ProcessInfo>,
-}
-
 pub struct ProcessList;
 impl Contract for ProcessList {
     const CHANNEL: &'static str = "process.list";
     type Params = Empty;
-    type Result = ProcessListResult;
+    type Result = Vec<ProcessInfo>;
 }
 
 pub struct ProcessStatus;
@@ -141,18 +134,11 @@ pub struct ProcessLogsParams {
     pub tail: Option<usize>,
 }
 
-#[derive(Serialize, Deserialize, Default, Debug, Clone)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
-#[serde(default, rename_all = "camelCase")]
-pub struct ProcessLogsResult {
-    pub lines: Vec<ProcessLogLine>,
-}
-
 pub struct ProcessLogs;
 impl Contract for ProcessLogs {
     const CHANNEL: &'static str = "process.logs";
     type Params = ProcessLogsParams;
-    type Result = ProcessLogsResult;
+    type Result = Vec<ProcessLogLine>;
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

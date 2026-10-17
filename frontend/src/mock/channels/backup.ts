@@ -58,7 +58,7 @@ export function channels(resolve: Resolve): ChannelHandlers {
     });
 
   return {
-    'server.backup.list': (p) => ({ backups: listOf(resolve(p)) }),
+    'server.backup.list': (p) => listOf(resolve(p)),
 
     'server.backup.create': (p) =>
       job(p, 'server.backup.create', 'backup', () => {

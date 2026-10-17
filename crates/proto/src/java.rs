@@ -60,32 +60,18 @@ impl JavaInstallProgress {
     }
 }
 
-#[derive(Serialize, Deserialize, Default, Debug, Clone)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
-#[serde(default, rename_all = "camelCase")]
-pub struct JavaReleasesResult {
-    pub releases: Vec<JavaRelease>,
-}
-
 pub struct JavaReleases;
 impl Contract for JavaReleases {
     const CHANNEL: &'static str = "java.releases";
     type Params = Empty;
-    type Result = JavaReleasesResult;
-}
-
-#[derive(Serialize, Deserialize, Default, Debug, Clone)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
-#[serde(default, rename_all = "camelCase")]
-pub struct JavaListResult {
-    pub runtimes: Vec<JavaRuntime>,
+    type Result = Vec<JavaRelease>;
 }
 
 pub struct JavaList;
 impl Contract for JavaList {
     const CHANNEL: &'static str = "java.list";
     type Params = Empty;
-    type Result = JavaListResult;
+    type Result = Vec<JavaRuntime>;
 }
 
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]

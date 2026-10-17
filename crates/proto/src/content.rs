@@ -261,13 +261,6 @@ pub struct ResolvedModpack {
     pub files: Vec<ModpackFile>,
 }
 
-#[derive(Serialize, Deserialize, Default, Debug, Clone)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
-#[serde(default, rename_all = "camelCase")]
-pub struct SourcesResult {
-    pub sources: Vec<ContentSource>,
-}
-
 /// `kind` is the browse context, stamped onto the answer when supported.
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
@@ -293,13 +286,6 @@ pub struct ResolveUrlParams {
 pub struct ResolvedUrl {
     pub project: ContentProject,
     pub version_id: String,
-}
-
-#[derive(Serialize, Deserialize, Default, Debug, Clone)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
-#[serde(default, rename_all = "camelCase")]
-pub struct ContentVersionsResult {
-    pub versions: Vec<ContentVersion>,
 }
 
 /// One installed content item, as the entry's index records it. `source` is a
@@ -497,13 +483,6 @@ pub struct ContentUpdate {
     pub updatable: bool,
 }
 
-#[derive(Serialize, Deserialize, Default, Debug, Clone)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
-#[serde(default, rename_all = "camelCase")]
-pub struct ContentUpdatesResult {
-    pub updates: Vec<ContentUpdate>,
-}
-
 /// Re-pin one installed item to a specific published `version` (id or number).
 /// The swap re-installs that version like an update, applying at the next
 /// start/launch; runs as a content job.
@@ -527,13 +506,6 @@ pub struct EntryContentMatchesParams {
     pub target: EntryTarget,
     pub kind: ContentKind,
     pub item: String,
-}
-
-#[derive(Serialize, Deserialize, Default, Debug, Clone)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
-#[serde(default, rename_all = "camelCase")]
-pub struct ContentMatchesResult {
-    pub matches: Vec<ContentMatch>,
 }
 
 pub struct EntryContentAdd;
@@ -588,7 +560,7 @@ impl Contract for EntryContentCheckUpdates {
     const CHANNEL: &'static str = "content.check_updates";
     const TIMEOUT: Duration = Duration::from_secs(120);
     type Params = EntryContentCheckUpdatesParams;
-    type Result = ContentUpdatesResult;
+    type Result = Vec<ContentUpdate>;
 }
 
 pub struct EntryContentMatches;
@@ -596,7 +568,7 @@ impl Contract for EntryContentMatches {
     const CHANNEL: &'static str = "content.matches";
     const TIMEOUT: Duration = Duration::from_secs(120);
     type Params = EntryContentMatchesParams;
-    type Result = ContentMatchesResult;
+    type Result = Vec<ContentMatch>;
 }
 
 pub struct EntryContentSetVersion;
@@ -627,7 +599,7 @@ pub struct ContentSources;
 impl Contract for ContentSources {
     const CHANNEL: &'static str = "content.sources";
     type Params = Empty;
-    type Result = SourcesResult;
+    type Result = Vec<ContentSource>;
 }
 
 pub struct ContentSearch;
@@ -648,7 +620,7 @@ pub struct ContentVersions;
 impl Contract for ContentVersions {
     const CHANNEL: &'static str = "content.versions";
     type Params = VersionQuery;
-    type Result = ContentVersionsResult;
+    type Result = Vec<ContentVersion>;
 }
 
 pub struct ContentResolveUrl;

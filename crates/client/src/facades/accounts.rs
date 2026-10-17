@@ -30,11 +30,7 @@ impl Accounts<'_> {
             id: id.to_string(),
             code: code.to_string(),
         };
-        Ok(self
-            .session
-            .call::<AccountLoginComplete>(&params)
-            .await?
-            .account)
+        self.session.call::<AccountLoginComplete>(&params).await
     }
 
     /// The signed-in accounts plus the uuid launches default to.
@@ -47,7 +43,7 @@ impl Accounts<'_> {
         let params = AccountSwitchParams {
             account: reference.to_string(),
         };
-        Ok(self.session.call::<AccountSwitch>(&params).await?.account)
+        self.session.call::<AccountSwitch>(&params).await
     }
 
     pub async fn remove(&self, reference: &str) -> Result<(), IpcError> {

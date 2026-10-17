@@ -36,7 +36,7 @@ impl Skins<'_> {
             variant,
             data: data.to_string(),
         };
-        Ok(self.session.call::<SkinAdd>(&params).await?.skin)
+        self.session.call::<SkinAdd>(&params).await
     }
 
     /// Reset the account to its uuid-derived default skin.
@@ -63,7 +63,7 @@ impl Skins<'_> {
             name: name.to_string(),
             variant,
         };
-        Ok(self.session.call::<SkinUpdate>(&params).await?.skin)
+        self.session.call::<SkinUpdate>(&params).await
     }
 
     /// Remove a library entry; the equipped Mojang skin is untouched.

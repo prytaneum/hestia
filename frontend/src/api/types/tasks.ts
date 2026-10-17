@@ -2,5 +2,4 @@
 export type { ServerTask } from "./generated/ServerTask";
 export type { ServerTaskRemoveParams } from "./generated/ServerTaskRemoveParams";
 export type { ServerTaskSaveParams } from "./generated/ServerTaskSaveParams";
-export type { ServerTasksResult } from "./generated/ServerTasksResult";
 export type { TaskAction } from "./generated/TaskAction";

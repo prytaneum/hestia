@@ -2,8 +2,7 @@
 
 use proto::accounts::{
     AccountList, AccountListResult, AccountLoginBegin, AccountLoginBeginResult,
-    AccountLoginComplete, AccountLoginCompleteResult, AccountRemove, AccountSwitch,
-    AccountSwitchResult,
+    AccountLoginComplete, AccountRemove, AccountSwitch,
 };
 use proto::error::ErrorInfo;
 use proto::Empty;
@@ -38,7 +37,7 @@ pub(super) fn register(on: &mut Channels<'_>) {
             .await
             .map_err(crate::runtime::engine_error)?;
         tracing::info!(account = %account.name, "account signed in");
-        Ok(AccountLoginCompleteResult { account })
+        Ok(account)
     });
 
     on.handle::<AccountList, _, _>(|_: Empty, ctx| async move {
@@ -56,7 +55,7 @@ pub(super) fn register(on: &mut Channels<'_>) {
         match ctx.runtime.engine().accounts().switch(&p.account) {
             Ok(Some(account)) => {
                 tracing::info!(account = %account.name, "default account switched");
-                Ok(AccountSwitchResult { account })
+                Ok(account)
             }
             Ok(None) => Err(ErrorInfo::AccountNotFound {
                 reference: p.account.clone(),

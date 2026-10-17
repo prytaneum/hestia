@@ -30,23 +30,17 @@ export function flavors(): Promise<FlavorsResult> {
   return call('server.flavors');
 }
 
-export async function versions(flavor: string): Promise<GameVersion[]> {
-  const result = await call('server.versions', { flavor });
-  return result.versions;
+export function versions(flavor: string): Promise<GameVersion[]> {
+  return call('server.versions', { flavor });
 }
 
 /** Loader builds for a flavor/version, newest first; empty for vanilla. */
-export async function loaders(
-  flavor: string,
-  version: string,
-): Promise<string[]> {
-  const result = await call('server.loaders', { flavor, version });
-  return result.loaders;
+export function loaders(flavor: string, version: string): Promise<string[]> {
+  return call('server.loaders', { flavor, version });
 }
 
-export async function list(): Promise<ServerInfo[]> {
-  const result = await call('server.list');
-  return result.servers;
+export function list(): Promise<ServerInfo[]> {
+  return call('server.list');
 }
 
 /** The server's record merged with its live process state. */
@@ -98,12 +92,8 @@ export function restart(server: string): Promise<ServerStartResult> {
   return call('server.restart', { server });
 }
 
-export async function logs(
-  server: string,
-  tail?: number,
-): Promise<ProcessLogLine[]> {
-  const result = await call('server.logs', { server, tail });
-  return result.lines;
+export function logs(server: string, tail?: number): Promise<ProcessLogLine[]> {
+  return call('server.logs', { server, tail });
 }
 
 /** One console command over the running server's RCON channel. */
@@ -144,9 +134,8 @@ export const config = {
  * Every `server.properties` key the server's version defines, with the value
  * in effect. Written through `config.set`.
  */
-export async function properties(server: string): Promise<ServerProperty[]> {
-  const result = await call('server.properties', { server });
-  return result.properties;
+export function properties(server: string): Promise<ServerProperty[]> {
+  return call('server.properties', { server });
 }
 
 export const backup = {
@@ -156,9 +145,8 @@ export const backup = {
     return done.backup;
   },
 
-  async list(server: string): Promise<BackupInfo[]> {
-    const result = await call('server.backup.list', { server });
-    return result.backups;
+  list(server: string): Promise<BackupInfo[]> {
+    return call('server.backup.list', { server });
   },
 
   /** Refused while the server runs or is busy. */

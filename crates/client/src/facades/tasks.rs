@@ -14,13 +14,11 @@ pub struct Tasks<'a> {
 
 impl Tasks<'_> {
     pub async fn list(&self, server: &str) -> Result<Vec<ServerTask>, IpcError> {
-        Ok(self
-            .session
+        self.session
             .call::<ServerTaskList>(&ServerRef {
                 server: server.to_string(),
             })
-            .await?
-            .tasks)
+            .await
     }
 
     /// Create the task when its id is empty, replace the one it names

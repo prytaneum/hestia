@@ -40,18 +40,11 @@ impl Contract for CacheInfo {
     type Result = CacheInfoResult;
 }
 
-#[derive(Serialize, Deserialize, Default, Debug, Clone)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
-#[serde(default, rename_all = "camelCase")]
-pub struct CacheListResult {
-    pub entries: Vec<CacheEntry>,
-}
-
 pub struct CacheList;
 impl Contract for CacheList {
     const CHANNEL: &'static str = "cache.list";
     type Params = Empty;
-    type Result = CacheListResult;
+    type Result = Vec<CacheEntry>;
 }
 
 pub struct CacheClear;

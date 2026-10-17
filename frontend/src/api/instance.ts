@@ -33,23 +33,17 @@ export function flavors(): Promise<FlavorsResult> {
   return call('instance.flavors');
 }
 
-export async function versions(flavor: string): Promise<GameVersion[]> {
-  const result = await call('instance.versions', { flavor });
-  return result.versions;
+export function versions(flavor: string): Promise<GameVersion[]> {
+  return call('instance.versions', { flavor });
 }
 
 /** Loader builds for a flavor/version, newest first; empty for vanilla. */
-export async function loaders(
-  flavor: string,
-  version: string,
-): Promise<string[]> {
-  const result = await call('instance.loaders', { flavor, version });
-  return result.loaders;
+export function loaders(flavor: string, version: string): Promise<string[]> {
+  return call('instance.loaders', { flavor, version });
 }
 
-export async function list(): Promise<InstanceInfo[]> {
-  const result = await call('instance.list');
-  return result.instances;
+export function list(): Promise<InstanceInfo[]> {
+  return call('instance.list');
 }
 
 /** The instance's static, informational view (locations + disk footprint). */
@@ -57,11 +51,10 @@ export function info(instance: string): Promise<InstanceDetails> {
   return call('instance.info', { instance });
 }
 
-export async function create(
+export function create(
   params: Partial<InstanceCreateParams>,
 ): Promise<InstanceInfo> {
-  const result = await call('instance.create', params);
-  return result.instance;
+  return call('instance.create', params);
 }
 
 /** The instance pays for the new version at its next launch. */
@@ -81,24 +74,21 @@ export async function remove(instance: string): Promise<void> {
 }
 
 /** The save worlds, each described from its own `level.dat`. */
-export async function worlds(instance: string): Promise<WorldInfo[]> {
-  const result = await call('instance.worlds', { instance });
-  return result.worlds;
+export function worlds(instance: string): Promise<WorldInfo[]> {
+  return call('instance.worlds', { instance });
 }
 
 /**
  * What was joined lately across every instance, most recent first — each one a
  * launch of `instance` with `target` as its quick play.
  */
-export async function recent(): Promise<RecentPlay[]> {
-  const result = await call('instance.recent');
-  return result.plays;
+export function recent(): Promise<RecentPlay[]> {
+  return call('instance.recent');
 }
 
 /** The multiplayer list (`servers.dat`), in the order the game shows it. */
-export async function servers(instance: string): Promise<ServerEntry[]> {
-  const result = await call('instance.servers', { instance });
-  return result.servers;
+export function servers(instance: string): Promise<ServerEntry[]> {
+  return call('instance.servers', { instance });
 }
 
 /**
@@ -152,16 +142,15 @@ export async function stop(instance: string, session?: string): Promise<void> {
 }
 
 /** Targets the newest running session unless one is named. */
-export async function logs(
+export function logs(
   instance: string,
   options: { session?: string; tail?: number } = {},
 ): Promise<ProcessLogLine[]> {
-  const result = await call('instance.logs', {
+  return call('instance.logs', {
     instance,
     session: options.session,
     tail: options.tail,
   });
-  return result.lines;
 }
 
 /** `memory` and `jvm-args` only. */

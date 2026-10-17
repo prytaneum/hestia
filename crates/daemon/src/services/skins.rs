@@ -3,8 +3,8 @@
 //! handlers stay thin over the engine's skin flows.
 
 use proto::skins::{
-    CapeClear, CapeEquip, SkinAdd, SkinAddResult, SkinEquip, SkinList, SkinListResult, SkinRemove,
-    SkinReset, SkinUpdate, SkinUpdateResult,
+    CapeClear, CapeEquip, SkinAdd, SkinEquip, SkinList, SkinListResult, SkinRemove, SkinReset,
+    SkinUpdate,
 };
 use proto::Empty;
 
@@ -31,7 +31,7 @@ pub(super) fn register(on: &mut Channels<'_>) {
             .add_skin(&p.account, &p.name, p.variant, &p.data)
             .await
             .map_err(crate::runtime::engine_error)?;
-        Ok(SkinAddResult { skin })
+        Ok(skin)
     });
 
     on.handle::<SkinEquip, _, _>(|p, ctx| async move {
@@ -61,7 +61,7 @@ pub(super) fn register(on: &mut Channels<'_>) {
             .update_skin(&p.account, &p.key, &p.name, p.variant)
             .await
             .map_err(crate::runtime::engine_error)?;
-        Ok(SkinUpdateResult { skin })
+        Ok(skin)
     });
 
     on.handle::<SkinRemove, _, _>(|p, ctx| async move {

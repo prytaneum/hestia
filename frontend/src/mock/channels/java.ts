@@ -31,8 +31,8 @@ const runtimes: JavaRuntime[] = [runtime(21, true), runtime(17, false)];
 const PHASES: JavaInstallPhase[] = ['resolving', 'downloading', 'extracting'];
 
 export const channels: ChannelHandlers = {
-  'java.releases': () => ({ releases }),
-  'java.list': () => ({ runtimes }),
+  'java.releases': () => releases,
+  'java.list': () => runtimes,
 
   'java.install': (p) => {
     const major = num(p, 'major', 21);

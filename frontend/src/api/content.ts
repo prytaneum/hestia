@@ -31,9 +31,8 @@ export type ContentAddInput = Partial<Omit<ContentAddSpec, 'items'>> & {
   items: Partial<ContentAddItem>[];
 };
 
-export async function sources(): Promise<ContentSource[]> {
-  const result = await call('content.sources');
-  return result.sources;
+export function sources(): Promise<ContentSource[]> {
+  return call('content.sources');
 }
 
 export function search(query: Partial<SearchQuery>): Promise<SearchResult> {
@@ -52,11 +51,10 @@ export function resolveUrl(url: string): Promise<ResolvedUrl> {
   return call('content.resolve_url', { url });
 }
 
-export async function versions(
+export function versions(
   query: Partial<VersionQuery>,
 ): Promise<ContentVersion[]> {
-  const result = await call('content.versions', query);
-  return result.versions;
+  return call('content.versions', query);
 }
 
 /** Wire value of `proto::content::LOCAL_SOURCE`. */
@@ -119,21 +117,19 @@ export async function enable(
 }
 
 /** Which platform items of the kind have a newer compatible version. */
-export async function checkUpdates(
+export function checkUpdates(
   target: EntryTarget,
   kind: ContentKind,
 ): Promise<ContentUpdate[]> {
-  const result = await call('content.check_updates', { target, kind });
-  return result.updates;
+  return call('content.check_updates', { target, kind });
 }
 
-export async function matches(
+export function matches(
   target: EntryTarget,
   kind: ContentKind,
   item: string,
 ): Promise<ContentMatch[]> {
-  const result = await call('content.matches', { target, kind, item });
-  return result.matches;
+  return call('content.matches', { target, kind, item });
 }
 
 /** Re-pin one item to a specific published version (id or number). */

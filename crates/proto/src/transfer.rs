@@ -172,14 +172,6 @@ pub struct ArchiveEntry {
     pub referenced: bool,
 }
 
-#[derive(Serialize, Deserialize, Default, Debug, Clone)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
-#[serde(default, rename_all = "camelCase")]
-pub struct ExportContentsResult {
-    /// Sorted by path, so a caller can build the tree in one pass.
-    pub entries: Vec<ArchiveEntry>,
-}
-
 /// A job. A cancel discards the archive being written — an export is written
 /// through a `.part` and renamed, so a cancelled one leaves nothing behind.
 pub struct InstanceExport;
@@ -194,11 +186,12 @@ impl Job for InstanceExport {
     type Done = ExportDone;
 }
 
+/// Sorted by path, so a caller can build the tree in one pass.
 pub struct InstanceExportContents;
 impl Contract for InstanceExportContents {
     const CHANNEL: &'static str = "instance.export.contents";
     type Params = crate::instance::InstanceRef;
-    type Result = ExportContentsResult;
+    type Result = Vec<ArchiveEntry>;
 }
 
 /// A job. A cancel removes a half-built instance rather than leaving it

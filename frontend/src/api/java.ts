@@ -9,14 +9,12 @@ import type {
   JavaRuntime,
 } from './types/java';
 
-export async function releases(): Promise<JavaRelease[]> {
-  const result = await call('java.releases');
-  return result.releases;
+export function releases(): Promise<JavaRelease[]> {
+  return call('java.releases');
 }
 
-export async function list(): Promise<JavaRuntime[]> {
-  const result = await call('java.list');
-  return result.runtimes;
+export function list(): Promise<JavaRuntime[]> {
+  return call('java.list');
 }
 
 export function install(

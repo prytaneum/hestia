@@ -1,8 +1,6 @@
 //! The content-addressed download cache.
 
-use proto::cache::{
-    CacheClear, CacheEntry, CacheInfo, CacheInfoResult, CacheList, CacheListResult, CacheUsage,
-};
+use proto::cache::{CacheClear, CacheEntry, CacheInfo, CacheInfoResult, CacheList, CacheUsage};
 use proto::Empty;
 
 use crate::runtime::Channels;
@@ -32,7 +30,7 @@ pub(super) fn register(on: &mut Channels<'_>) {
                 size: e.size,
             })
             .collect();
-        Ok(CacheListResult { entries })
+        Ok(entries)
     });
 
     on.handle::<CacheClear, _, _>(|_: Empty, ctx| async move {

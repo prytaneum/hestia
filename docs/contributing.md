@@ -60,19 +60,18 @@ pub struct Instance {
     pub name: String,
 }
 
-#[derive(Serialize, Deserialize, Default, Debug, Clone)]
-#[serde(default, rename_all = "camelCase")]
-pub struct InstanceListResult {
-    pub instances: Vec<Instance>,
-}
-
 pub struct InstanceList;
 impl Contract for InstanceList {
     const CHANNEL: &'static str = "instance.list";
     type Params = Empty;
-    type Result = InstanceListResult;
+    type Result = Vec<Instance>;
 }
 ```
+
+**A result that is one list or one struct is that value, bare** — no wrapper struct. A result stays a struct when it
+carries a second field, when it is an `Option`, `bool` or `Value` (the field name is the meaning, and a bare `null`
+would read as "not found"), or when it is a list on a mutating channel that may report a degraded outcome as a
+`warnings` field ([0026](decisions/0026-degraded-outcomes-ride-on-the-result.md)).
 
 Add `pub mod instances;` to `crates/proto/src/lib.rs`. Use `#[serde(default)]` on payloads so an older/newer peer that
 omits a field still decodes (additive fields need no protocol bump). **Only an `Option` is skipped when
@@ -219,12 +218,10 @@ failure.
 
 ```rust
 // crates/daemon/src/services/instance.rs — inside register()
-use proto::instances::{InstanceList, InstanceListResult};
+use proto::instances::InstanceList;
 
 on.handle::<InstanceList, _, _ > ( | _: Empty, ctx| async move {
-Ok(InstanceListResult {
-instances: ctx.runtime.engine().instances().list(),
-})
+Ok(ctx.runtime.engine().instances().list())
 });
 ```
 
@@ -274,11 +271,9 @@ pub struct Instance<'a> {
 
 impl Instance<'_> {
     pub async fn list(&self) -> Result<Vec<proto::instances::Instance>, IpcError> {
-        Ok(self
-            .session
+        self.session
             .call::<proto::instances::InstanceList>(&proto::Empty {})
-            .await?
-            .instances)
+            .await
     }
 }
 ```
@@ -385,9 +380,8 @@ rest — no `call<{ … }>` assertion, no timeout:
 
 ```ts
 // frontend/src/api/instance.ts
-export async function list(): Promise<InstanceInfo[]> {
-    const result = await call("instance.list");
-    return result.instances;
+export function list(): Promise<InstanceInfo[]> {
+    return call("instance.list");
 }
 ```
 

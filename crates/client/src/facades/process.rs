@@ -33,11 +33,7 @@ impl Process<'_> {
     }
 
     pub async fn list(&self) -> Result<Vec<ProcessInfo>, IpcError> {
-        Ok(self
-            .session
-            .call::<ProcessList>(&proto::Empty {})
-            .await?
-            .processes)
+        self.session.call::<ProcessList>(&proto::Empty {}).await
     }
 
     pub async fn status(&self, id: &str) -> Result<ProcessInfo, IpcError> {
@@ -55,7 +51,7 @@ impl Process<'_> {
             id: id.to_string(),
             tail,
         };
-        Ok(self.session.call::<ProcessLogs>(&params).await?.lines)
+        self.session.call::<ProcessLogs>(&params).await
     }
 
     /// Stream a process's start, output, and exit as they happen. `id` is a

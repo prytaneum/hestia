@@ -60,13 +60,6 @@ pub struct BackupInfo {
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
 #[serde(default, rename_all = "camelCase")]
-pub struct BackupListResult {
-    pub backups: Vec<BackupInfo>,
-}
-
-#[derive(Serialize, Deserialize, Default, Debug, Clone)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
-#[serde(default, rename_all = "camelCase")]
 pub struct ServerBackupCreateParams {
     /// Server name or id.
     pub server: String,
@@ -107,7 +100,7 @@ pub struct ServerBackupList;
 impl Contract for ServerBackupList {
     const CHANNEL: &'static str = "server.backup.list";
     type Params = ServerRef;
-    type Result = BackupListResult;
+    type Result = Vec<BackupInfo>;
 }
 
 /// A job. A cancel discards the staging directory, so the live data is

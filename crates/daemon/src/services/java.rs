@@ -1,9 +1,7 @@
 //! Java runtime management: the provider catalogue plus install/uninstall.
 
 use proto::error::{ErrorInfo, Field, Reason};
-use proto::java::{
-    JavaInstall, JavaList, JavaListResult, JavaReleases, JavaReleasesResult, JavaUninstall,
-};
+use proto::java::{JavaInstall, JavaList, JavaReleases, JavaUninstall};
 use proto::job::JobStarted;
 use proto::Empty;
 
@@ -24,7 +22,7 @@ pub(super) fn register(on: &mut Channels<'_>) {
             .into_iter()
             .filter(|r| engine::REQUIRED_JAVA_MAJORS.contains(&r.major))
             .collect();
-        Ok(JavaReleasesResult { releases })
+        Ok(releases)
     });
 
     on.handle::<JavaList, _, _>(|_: Empty, ctx| async move {
@@ -51,7 +49,7 @@ pub(super) fn register(on: &mut Channels<'_>) {
                 runtime
             })
             .collect();
-        Ok(JavaListResult { runtimes })
+        Ok(runtimes)
     });
 
     on.handle::<JavaInstall, _, _>(|p, ctx| async move {

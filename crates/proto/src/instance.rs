@@ -13,11 +13,10 @@ use crate::contract::{Contract, Empty};
 use crate::job::{Job, JobStarted};
 use crate::keys::KeyRule;
 use crate::minecraft::{
-    ConfigEntry, FlavorsResult, LoadersParams, LoadersResult, ProvisionProgress, VersionsParams,
-    VersionsResult,
+    ConfigEntry, FlavorsResult, GameVersion, LoadersParams, ProvisionProgress, VersionsParams,
 };
 use crate::modpack::PackPolicy;
-use crate::process::{ProcessInfo, ProcessLogsResult};
+use crate::process::{ProcessInfo, ProcessLogLine};
 use crate::warning::WarningInfo;
 
 pub struct InstanceFlavors;
@@ -31,14 +30,16 @@ pub struct InstanceVersions;
 impl Contract for InstanceVersions {
     const CHANNEL: &'static str = "instance.versions";
     type Params = VersionsParams;
-    type Result = VersionsResult;
+    type Result = Vec<GameVersion>;
 }
 
+/// Loader builds newest-first; empty for a flavor with no pickable loader
+/// version (vanilla, and loaders that pin one build per game version).
 pub struct InstanceLoaders;
 impl Contract for InstanceLoaders {
     const CHANNEL: &'static str = "instance.loaders";
     type Params = LoadersParams;
-    type Result = LoadersResult;
+    type Result = Vec<String>;
 }
 
 /// A managed instance: the stored record plus, when launched, its live sessions.
@@ -83,20 +84,13 @@ pub struct InstanceCreateParams {
     pub config: Vec<ConfigEntry>,
 }
 
-#[derive(Serialize, Deserialize, Default, Debug, Clone)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
-#[serde(default, rename_all = "camelCase")]
-pub struct InstanceCreateResult {
-    pub instance: InstanceInfo,
-}
-
 pub struct InstanceCreate;
 impl Contract for InstanceCreate {
     const CHANNEL: &'static str = "instance.create";
     const CHANGES: Option<Scope> = Some(Scope::Entries);
     const TIMEOUT: Duration = Duration::from_secs(60);
     type Params = InstanceCreateParams;
-    type Result = InstanceCreateResult;
+    type Result = InstanceInfo;
 }
 
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
@@ -145,18 +139,11 @@ impl Job for InstanceUpdate {
     type Done = InstanceUpdateDone;
 }
 
-#[derive(Serialize, Deserialize, Default, Debug, Clone)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
-#[serde(default, rename_all = "camelCase")]
-pub struct InstanceListResult {
-    pub instances: Vec<InstanceInfo>,
-}
-
 pub struct InstanceList;
 impl Contract for InstanceList {
     const CHANNEL: &'static str = "instance.list";
     type Params = Empty;
-    type Result = InstanceListResult;
+    type Result = Vec<InstanceInfo>;
 }
 
 /// Names one managed instance by id or name (remove / stop).
@@ -266,19 +253,12 @@ pub struct WorldInfo {
     pub icon: String,
 }
 
-#[derive(Serialize, Deserialize, Default, Debug, Clone)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
-#[serde(default, rename_all = "camelCase")]
-pub struct InstanceWorldsResult {
-    /// The instance's save worlds, sorted by folder name.
-    pub worlds: Vec<WorldInfo>,
-}
-
+/// The instance's save worlds, sorted by folder name.
 pub struct InstanceWorlds;
 impl Contract for InstanceWorlds {
     const CHANNEL: &'static str = "instance.worlds";
     type Params = InstanceRef;
-    type Result = InstanceWorldsResult;
+    type Result = Vec<WorldInfo>;
 }
 
 /// Something a session joined, as the game's own Quick Play log reported it —
@@ -302,19 +282,12 @@ pub struct RecentPlay {
     pub icon: String,
 }
 
-#[derive(Serialize, Deserialize, Default, Debug, Clone)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
-#[serde(default, rename_all = "camelCase")]
-pub struct InstanceRecentResult {
-    /// Across every instance, most recent first, capped.
-    pub plays: Vec<RecentPlay>,
-}
-
+/// Across every instance, most recent first, capped.
 pub struct InstanceRecent;
 impl Contract for InstanceRecent {
     const CHANNEL: &'static str = "instance.recent";
     type Params = Empty;
-    type Result = InstanceRecentResult;
+    type Result = Vec<RecentPlay>;
 }
 
 /// One entry of the instance's multiplayer list, as `servers.dat` stores it.
@@ -338,20 +311,13 @@ pub struct ServerEntry {
     pub hidden: bool,
 }
 
-#[derive(Serialize, Deserialize, Default, Debug, Clone)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
-#[serde(default, rename_all = "camelCase")]
-pub struct InstanceServersResult {
-    /// The instance's multiplayer list, in the file's own order — the order the
-    /// game shows, which the player arranged.
-    pub servers: Vec<ServerEntry>,
-}
-
+/// The instance's multiplayer list, in the file's own order — the order the
+/// game shows, which the player arranged.
 pub struct InstanceServers;
 impl Contract for InstanceServers {
     const CHANNEL: &'static str = "instance.servers";
     type Params = InstanceRef;
-    type Result = InstanceServersResult;
+    type Result = Vec<ServerEntry>;
 }
 
 /// Add to, or edit, the instance's multiplayer list. `server` names the entry
@@ -509,7 +475,7 @@ pub struct InstanceLogs;
 impl Contract for InstanceLogs {
     const CHANNEL: &'static str = "instance.logs";
     type Params = InstanceLogsParams;
-    type Result = ProcessLogsResult;
+    type Result = Vec<ProcessLogLine>;
 }
 
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]

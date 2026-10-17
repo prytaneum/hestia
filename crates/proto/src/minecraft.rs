@@ -115,25 +115,9 @@ pub struct VersionsParams {
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
 #[serde(default, rename_all = "camelCase")]
-pub struct VersionsResult {
-    pub versions: Vec<GameVersion>,
-}
-
-#[derive(Serialize, Deserialize, Default, Debug, Clone)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
-#[serde(default, rename_all = "camelCase")]
 pub struct LoadersParams {
     pub flavor: String,
     pub version: String,
-}
-
-/// Loader builds newest-first; empty for a flavor with no pickable loader
-/// version (vanilla, and loaders that pin one build per game version).
-#[derive(Serialize, Deserialize, Default, Debug, Clone)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
-#[serde(default, rename_all = "camelCase")]
-pub struct LoadersResult {
-    pub loaders: Vec<String>,
 }
 
 /// Where a provisioning job (server create, instance launch preparation) is.

@@ -2,7 +2,7 @@
 //! scheduler loop in `runtime/scheduler.rs` is what runs them.
 
 use proto::error::ErrorInfo;
-use proto::tasks::{ServerTaskList, ServerTaskRemove, ServerTaskSave, ServerTasksResult};
+use proto::tasks::{ServerTaskList, ServerTaskRemove, ServerTaskSave};
 use proto::Empty;
 
 use super::guards::{server_for, Intent};
@@ -11,9 +11,7 @@ use crate::runtime::{now_unix, Channels};
 pub(super) fn register(on: &mut Channels<'_>) {
     on.handle::<ServerTaskList, _, _>(|p, ctx| async move {
         let record = server_for(&ctx, &p.server, Intent::Read)?;
-        Ok(ServerTasksResult {
-            tasks: record.tasks,
-        })
+        Ok(record.tasks)
     });
 
     on.handle::<ServerTaskSave, _, _>(|p, ctx| async move {

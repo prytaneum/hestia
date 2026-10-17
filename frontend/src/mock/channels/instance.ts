@@ -74,9 +74,7 @@ function recentPlays(): RecentPlay[] {
 const instanceConfig = configHandlers(instanceId);
 
 export const channels: ChannelHandlers = {
-  'instance.list': () => ({
-    instances: entries.listInstances().map(withSessions),
-  }),
+  'instance.list': () => entries.listInstances().map(withSessions),
 
   'instance.info': (p): InstanceDetails => {
     const instance = entries.findInstance(str(p, 'instance'));
@@ -88,13 +86,11 @@ export const channels: ChannelHandlers = {
   },
 
   'instance.flavors': () => ({ flavors: catalog.instanceFlavors, rules: [] }),
-  'instance.versions': (p) => ({
-    versions: catalog.versionsFor(str(p, 'flavor')),
-  }),
-  'instance.loaders': (p) => ({ loaders: catalog.loaders(str(p, 'flavor')) }),
+  'instance.versions': (p) => catalog.versionsFor(str(p, 'flavor')),
+  'instance.loaders': (p) => catalog.loaders(str(p, 'flavor')),
 
-  'instance.create': (p) => ({
-    instance: withSessions(
+  'instance.create': (p) =>
+    withSessions(
       entries.addInstance({
         name: str(p, 'name'),
         flavor: str(p, 'flavor', 'vanilla'),
@@ -102,7 +98,6 @@ export const channels: ChannelHandlers = {
         loaderVersion: str(p, 'loaderVersion') || undefined,
       }),
     ),
-  }),
 
   'instance.update': (p) => {
     const instance = entries.findInstance(str(p, 'instance'));
@@ -134,11 +129,11 @@ export const channels: ChannelHandlers = {
     return ok();
   },
 
-  'instance.worlds': (p) => ({ worlds: worlds.worldsOf(instanceId(p)) }),
+  'instance.worlds': (p) => worlds.worldsOf(instanceId(p)),
 
-  'instance.recent': () => ({ plays: recentPlays() }),
+  'instance.recent': () => recentPlays(),
 
-  'instance.servers': (p) => ({ servers: worlds.serversOf(instanceId(p)) }),
+  'instance.servers': (p) => worlds.serversOf(instanceId(p)),
 
   'instance.server.edit': (p) => {
     const id = instanceId(p);
@@ -205,7 +200,7 @@ export const channels: ChannelHandlers = {
     const id = instanceId(p);
     const session =
       str(p, 'session') || processes.sessionsOf(id).at(-1)?.id || '';
-    return { lines: processes.logs(session, p.tail as number | undefined) };
+    return processes.logs(session, p.tail as number | undefined);
   },
 
   'instance.config.list': instanceConfig.list,

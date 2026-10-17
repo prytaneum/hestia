@@ -27,11 +27,10 @@ const ARCHIVE = /\.(jar|zip)$/i;
 export const channels: ChannelHandlers = {
   // CurseForge is offered only once its key resolves — the same gate the
   // daemon applies, so the settings page's "source needs a key" hint is live.
-  'content.sources': () => ({
-    sources: settings.get('content.curseforge-key')
+  'content.sources': () =>
+    settings.get('content.curseforge-key')
       ? [MODRINTH, CURSEFORGE]
       : [MODRINTH],
-  }),
 
   'content.search': (p) =>
     content.search(
@@ -43,9 +42,7 @@ export const channels: ChannelHandlers = {
 
   'content.project': (p) => content.find(str(p, 'project')),
 
-  'content.versions': (p) => ({
-    versions: content.versionsOf(str(p, 'project')),
-  }),
+  'content.versions': (p) => content.versionsOf(str(p, 'project')),
 
   'content.resolve_url': (p) => content.resolveUrl(str(p, 'url')),
 

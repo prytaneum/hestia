@@ -4,8 +4,6 @@ export type { AccountListResult } from "./generated/AccountListResult";
 export type { AccountLoginBeginParams } from "./generated/AccountLoginBeginParams";
 export type { AccountLoginBeginResult } from "./generated/AccountLoginBeginResult";
 export type { AccountLoginCompleteParams } from "./generated/AccountLoginCompleteParams";
-export type { AccountLoginCompleteResult } from "./generated/AccountLoginCompleteResult";
 export type { AccountRemoveParams } from "./generated/AccountRemoveParams";
 export type { AccountSwitchParams } from "./generated/AccountSwitchParams";
-export type { AccountSwitchResult } from "./generated/AccountSwitchResult";
 export type { LoginMethod } from "./generated/LoginMethod";

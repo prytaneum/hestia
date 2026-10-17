@@ -5,15 +5,13 @@
 use engine::Side;
 use proto::error::{EntryKind, ErrorInfo, Field};
 use proto::job::JobStarted;
-use proto::minecraft::{ConfigEntry, FlavorsResult, LoadersResult, VersionsResult};
-use proto::process::ProcessLogsResult;
+use proto::minecraft::{ConfigEntry, FlavorsResult};
 use proto::server::{
     ServerCommand, ServerCommandComplete, ServerCommandResult, ServerConfigGet,
     ServerConfigGetResult, ServerConfigList, ServerConfigListResult, ServerConfigSet, ServerCreate,
-    ServerDetail, ServerFlavors, ServerList, ServerListResult, ServerLoaders, ServerLogs,
-    ServerPing, ServerProperties, ServerPropertiesResult, ServerRemove, ServerRename,
-    ServerRestart, ServerStart, ServerStartResult, ServerStatus, ServerStop, ServerUpdate,
-    ServerVersions,
+    ServerDetail, ServerFlavors, ServerList, ServerLoaders, ServerLogs, ServerPing,
+    ServerProperties, ServerRemove, ServerRename, ServerRestart, ServerStart, ServerStartResult,
+    ServerStatus, ServerStop, ServerUpdate, ServerVersions,
 };
 use proto::Empty;
 
@@ -36,7 +34,7 @@ pub(super) fn register(on: &mut Channels<'_>) {
             .versions(Side::Server, &p.flavor)
             .await
             .map_err(crate::runtime::engine_error)?;
-        Ok(VersionsResult { versions })
+        Ok(versions)
     });
 
     on.handle::<ServerLoaders, _, _>(|p, ctx| async move {
@@ -47,7 +45,7 @@ pub(super) fn register(on: &mut Channels<'_>) {
             .loader_versions(Side::Server, &p.flavor, &p.version)
             .await
             .map_err(crate::runtime::engine_error)?;
-        Ok(LoadersResult { loaders })
+        Ok(loaders)
     });
 
     on.handle::<ServerCreate, _, _>(|p, ctx| async move {
@@ -89,7 +87,7 @@ pub(super) fn register(on: &mut Channels<'_>) {
             .into_iter()
             .map(|r| ctx.runtime.server_view(r))
             .collect();
-        Ok(ServerListResult { servers })
+        Ok(servers)
     });
 
     on.handle::<ServerStatus, _, _>(|p, ctx| async move {
@@ -228,7 +226,7 @@ pub(super) fn register(on: &mut Channels<'_>) {
             .processes()
             .logs(&server_process_id(&record.id), p.tail)
             .unwrap_or_default();
-        Ok(ProcessLogsResult { lines })
+        Ok(lines)
     });
 
     on.handle::<ServerConfigGet, _, _>(|p, ctx| async move {
@@ -281,6 +279,6 @@ pub(super) fn register(on: &mut Channels<'_>) {
             .servers()
             .properties(&record.id)
             .map_err(crate::runtime::engine_error)?;
-        Ok(ServerPropertiesResult { properties })
+        Ok(properties)
     });
 }

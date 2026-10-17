@@ -20,8 +20,7 @@ export async function add(params: {
   variant: SkinVariant;
   data: string;
 }): Promise<Skin> {
-  const result = await call('skin.add', { account: '', name: '', ...params });
-  return result.skin;
+  return call('skin.add', { account: '', name: '', ...params });
 }
 
 /**
@@ -35,8 +34,7 @@ export async function update(params: {
   name: string;
   variant: SkinVariant;
 }): Promise<Skin> {
-  const result = await call('skin.update', { account: '', ...params });
-  return result.skin;
+  return call('skin.update', { account: '', ...params });
 }
 
 /** Equip a library or default skin by its key from `list`. */

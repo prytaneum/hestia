@@ -54,11 +54,7 @@ impl Instance<'_> {
         let params = VersionsParams {
             flavor: flavor.to_string(),
         };
-        Ok(self
-            .session
-            .call::<InstanceVersions>(&params)
-            .await?
-            .versions)
+        self.session.call::<InstanceVersions>(&params).await
     }
 
     pub async fn loaders(&self, flavor: &str, version: &str) -> Result<Vec<String>, IpcError> {
@@ -66,7 +62,7 @@ impl Instance<'_> {
             flavor: flavor.to_string(),
             version: version.to_string(),
         };
-        Ok(self.session.call::<InstanceLoaders>(&params).await?.loaders)
+        self.session.call::<InstanceLoaders>(&params).await
     }
 
     /// Create an instance record (the profile is resolved upstream, so this can
@@ -86,7 +82,7 @@ impl Instance<'_> {
             loader_version,
             config,
         };
-        Ok(self.session.call::<InstanceCreate>(&params).await?.instance)
+        self.session.call::<InstanceCreate>(&params).await
     }
 
     /// Move a stopped instance to another version, blocking until the daemon
@@ -107,11 +103,7 @@ impl Instance<'_> {
     }
 
     pub async fn list(&self) -> Result<Vec<InstanceInfo>, IpcError> {
-        Ok(self
-            .session
-            .call::<InstanceList>(&proto::Empty {})
-            .await?
-            .instances)
+        self.session.call::<InstanceList>(&proto::Empty {}).await
     }
 
     /// The instance's static, informational view (locations + disk footprint).
@@ -124,31 +116,23 @@ impl Instance<'_> {
     /// The instance's save worlds, each described from its own `level.dat` —
     /// the worlds a datapack can install into.
     pub async fn worlds(&self, instance: &str) -> Result<Vec<WorldInfo>, IpcError> {
-        Ok(self
-            .session
+        self.session
             .call::<InstanceWorlds>(&instance_ref(instance))
-            .await?
-            .worlds)
+            .await
     }
 
     /// What was joined lately across every instance, most recent first — each
     /// one a launch of `instance` with `target` as its quick play.
     pub async fn recent(&self) -> Result<Vec<RecentPlay>, IpcError> {
-        Ok(self
-            .session
-            .call::<InstanceRecent>(&proto::Empty {})
-            .await?
-            .plays)
+        self.session.call::<InstanceRecent>(&proto::Empty {}).await
     }
 
     /// The instance's multiplayer list (`servers.dat`), in the order the game
     /// shows it.
     pub async fn servers(&self, instance: &str) -> Result<Vec<ServerEntry>, IpcError> {
-        Ok(self
-            .session
+        self.session
             .call::<InstanceServers>(&instance_ref(instance))
-            .await?
-            .servers)
+            .await
     }
 
     /// Add an entry to the multiplayer list, or rewrite the one `target` names
@@ -250,7 +234,7 @@ impl Instance<'_> {
             session,
             tail,
         };
-        Ok(self.session.call::<InstanceLogs>(&params).await?.lines)
+        self.session.call::<InstanceLogs>(&params).await
     }
 
     /// Read one JVM setting; `None` when it is not set (a `not_found` from the

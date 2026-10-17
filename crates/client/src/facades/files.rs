@@ -15,11 +15,9 @@ pub struct Files<'a> {
 
 impl Files<'_> {
     pub async fn list(&self, server: &str, path: &str) -> Result<Vec<FileEntry>, IpcError> {
-        Ok(self
-            .session
+        self.session
             .call::<ServerFilesList>(&at(server, path))
-            .await?
-            .entries)
+            .await
     }
 
     pub async fn read(&self, server: &str, path: &str) -> Result<String, IpcError> {

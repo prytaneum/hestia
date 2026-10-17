@@ -43,18 +43,11 @@ pub struct ServerTask {
     pub last_run_unix: i64,
 }
 
-#[derive(Serialize, Deserialize, Default, Debug, Clone)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
-#[serde(default, rename_all = "camelCase")]
-pub struct ServerTasksResult {
-    pub tasks: Vec<ServerTask>,
-}
-
 pub struct ServerTaskList;
 impl Contract for ServerTaskList {
     const CHANNEL: &'static str = "server.task.list";
     type Params = ServerRef;
-    type Result = ServerTasksResult;
+    type Result = Vec<ServerTask>;
 }
 
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]

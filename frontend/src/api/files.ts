@@ -7,9 +7,8 @@
 import { call } from './core/ipc';
 import type { FileEntry } from './types/files';
 
-export async function list(server: string, path: string): Promise<FileEntry[]> {
-  const result = await call('server.files.list', { server, path });
-  return result.entries;
+export function list(server: string, path: string): Promise<FileEntry[]> {
+  return call('server.files.list', { server, path });
 }
 
 /** A text file whole; a binary or oversized one is refused. */

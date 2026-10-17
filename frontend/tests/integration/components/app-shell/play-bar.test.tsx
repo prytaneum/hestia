@@ -38,7 +38,7 @@ const recentLoaded = () =>
 describe('the play bar', () => {
   it('leads with the most recently played target', async () => {
     bar();
-    const plays = recent?.({}).plays ?? [];
+    const plays = recent?.({}) ?? [];
 
     await waitFor(() => expect(screen.getByText(plays[0].name)).toBeDefined());
     expect(
@@ -48,7 +48,7 @@ describe('the play bar', () => {
   });
 
   it('is absent while nothing has been played', async () => {
-    channels['instance.recent'] = () => ({ plays: [] });
+    channels['instance.recent'] = () => [];
     bar();
 
     await recentLoaded();
