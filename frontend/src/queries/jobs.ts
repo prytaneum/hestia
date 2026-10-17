@@ -16,7 +16,13 @@ import {
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import { logger } from '@/lib/log';
 import type { JobRun, ProvisionProgress } from '../api';
-import { HestiaError, job as jobApi, jobId, TRANSPORT } from '../api';
+import {
+  HestiaError,
+  JobCancelled,
+  job as jobApi,
+  jobId,
+  TRANSPORT,
+} from '../api';
 import { invalidate } from './client';
 
 const log = logger('jobs');
@@ -37,7 +43,7 @@ export interface JobMeta {
   entry?: JobEntry;
 }
 
-export type JobStatus = 'running' | 'done' | 'error';
+export type JobStatus = 'running' | 'done' | 'cancelled' | 'error';
 
 export interface Job<TProgress = unknown> extends JobMeta {
   /** The daemon's job id — what its events carry and `job.cancel` takes. */
@@ -154,6 +160,10 @@ export function startJob<TData, TProgress>(
       return data;
     },
     (error: unknown) => {
+      if (error instanceof JobCancelled) {
+        patch(id, { status: 'cancelled', settledAt: Date.now() });
+        throw error;
+      }
       patch(id, {
         status: 'error',
         error: asHestiaError(error),

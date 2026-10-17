@@ -37,7 +37,11 @@ export function StatusBar() {
   const toasted = useRef<Set<string>>(new Set());
   useEffect(() => {
     for (const job of jobs) {
-      if (job.status === 'error' && !toasted.current.has(job.id)) {
+      if (toasted.current.has(job.id)) continue;
+      if (job.status === 'cancelled') {
+        toasted.current.add(job.id);
+        toast(m['app.jobs.cancelled']());
+      } else if (job.status === 'error') {
         toasted.current.add(job.id);
         toast.error(
           job.error ? errorMessage(job.error) : m['app.jobs.failed'](),

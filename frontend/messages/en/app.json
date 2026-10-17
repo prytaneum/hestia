@@ -63,6 +63,7 @@
       "version_uptime": "v{version} · up {uptime}"
     },
     "jobs": {
+      "cancelled": "Cancelled.",
       "failed": "Operation failed.",
       "more": "+{count} more",
       "title": "Background jobs ({count})"

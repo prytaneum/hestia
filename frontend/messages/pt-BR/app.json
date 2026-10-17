@@ -63,6 +63,7 @@
       "version_uptime": "v{version} · ativo há {uptime}"
     },
     "jobs": {
+      "cancelled": "Cancelado.",
       "failed": "A operação falhou.",
       "more": "+{count} mais",
       "title": "Tarefas em segundo plano ({count})"
