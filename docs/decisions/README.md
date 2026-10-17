@@ -26,6 +26,7 @@ the alternative you rejected — that is usually the part nobody can recover lat
 - **0032** — [A job is cancelled by asking, at safe checkpoints — never by disconnecting](0032-jobs-are-cancelled-by-asking.md)
 - **0045** — [One event-callback slot per client `Session`](0045-one-event-callback-per-session.md)
 - **0063** — [An endpoint is scoped exactly as the data home behind it](0063-an-endpoint-is-scoped-like-its-data-home.md)
+- **0083** — [A job is its start contract, and every job reports on one topic](0083-a-job-is-its-contract-and-reports-on-one-topic.md)
 
 ### [Cross-cutting foundations](../architecture/common.md)
 
@@ -52,7 +53,7 @@ the alternative you rejected — that is usually the part nobody can recover lat
 - **0030** — [Instances are gated on a signed-in account, in the router](0030-instance-surface-gated-on-an-account.md)
 - **0031** — [An aggregation point is a directory, not a file](0031-an-aggregation-point-is-a-directory.md)
 - **0036** — [Stopping the daemon has three meanings; the front-end picks one, the wire carries two](0036-stopping-the-daemon-has-three-meanings.md)
-- **0061** — [A job family declares what differs; the runner owns the rest](0061-a-job-declares-what-differs.md)
+- **0061** — [A job declares what differs; the runner owns the rest](0061-a-job-declares-what-differs.md)
 - **0059** — [Discord presence belongs to the daemon, and is a loop rather than a hook](0059-discord-presence-is-a-daemon-loop.md)
 
 ### [Minecraft providers](../architecture/minecraft.md)

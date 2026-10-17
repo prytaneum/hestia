@@ -19,7 +19,7 @@ use clap::Subcommand;
 use client::proto::content::{ContentKind, SearchQuery, SearchSort};
 use client::proto::error::{EntryKind, EntryTarget};
 use client::proto::modpack::{
-    InstalledModpack, ModpackDoneEvent, ModpackMove, ModpackRef, ModpackTarget,
+    InstalledModpack, ModpackDone, ModpackMove, ModpackRef, ModpackTarget,
 };
 use client::Client;
 
@@ -476,7 +476,7 @@ async fn is_server(client: &Client, reference: &str) -> Result<bool> {
         .any(|s| client::proto::naming::reference_matches(reference, &s.id, &s.name)))
 }
 
-fn report(done: ModpackDoneEvent, to_server: bool) -> Result<()> {
+fn report(done: ModpackDone, to_server: bool) -> Result<()> {
     let noun = if to_server { "server" } else { "instance" };
     ui::show(View::line(format!(
         "'{}' installed into {noun} '{}'",

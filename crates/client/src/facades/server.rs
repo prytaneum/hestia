@@ -1,6 +1,5 @@
 use std::time::Duration;
 
-use crate::facades::jobs::{forward, run_backup_job};
 use crate::session::{job_id, Session};
 use ipc::errors::IpcError;
 use proto::backup::{
@@ -14,12 +13,11 @@ use proto::process::ProcessLogLine;
 use proto::server::{
     ServerCommand, ServerCommandComplete, ServerCommandCompleteParams, ServerCommandCompleteResult,
     ServerCommandParams, ServerConfigGet, ServerConfigGetParams, ServerConfigList, ServerConfigSet,
-    ServerConfigSetParams, ServerCreate, ServerCreateDoneEvent, ServerCreateParams, ServerDetail,
-    ServerDetails, ServerFlavors, ServerInfo, ServerList, ServerLoaders, ServerLogs,
-    ServerLogsParams, ServerPing, ServerPingResult, ServerProperties, ServerProperty, ServerRef,
-    ServerRemove, ServerRename, ServerRenameParams, ServerRestart, ServerStart, ServerStartResult,
-    ServerStatus, ServerStop, ServerUpdate, ServerUpdateDoneEvent, ServerUpdateParams,
-    ServerVersions,
+    ServerConfigSetParams, ServerCreate, ServerCreateParams, ServerDetail, ServerDetails,
+    ServerDone, ServerFlavors, ServerInfo, ServerList, ServerLoaders, ServerLogs, ServerLogsParams,
+    ServerPing, ServerPingResult, ServerProperties, ServerProperty, ServerRef, ServerRemove,
+    ServerRename, ServerRenameParams, ServerRestart, ServerStart, ServerStartResult, ServerStatus,
+    ServerStop, ServerUpdate, ServerUpdateParams, ServerVersions,
 };
 
 pub struct Server<'a> {
@@ -59,23 +57,12 @@ impl Server<'_> {
         &self,
         mut params: ServerCreateParams,
         on_progress: impl Fn(&ProvisionProgress) + Send + Sync + 'static,
-    ) -> Result<ServerCreateDoneEvent, IpcError> {
+    ) -> Result<ServerDone, IpcError> {
         let id = job_id("server-create");
         params.id = id.clone();
-
-        let session = self.session;
-        let payload = self
-            .session
-            .run_job(
-                &id,
-                "server.create.done",
-                "server.create.error",
-                forward(on_progress),
-                move || async move { session.call::<ServerCreate>(&params).await.map(|_| ()) },
-            )
-            .await?;
-
-        serde_json::from_value(payload).map_err(|e| IpcError::Malformed(e.to_string()))
+        self.session
+            .run_job::<ServerCreate>(&id, &params, on_progress)
+            .await
     }
 
     /// Move a stopped server to another version, blocking until the daemon
@@ -86,23 +73,12 @@ impl Server<'_> {
         &self,
         mut params: ServerUpdateParams,
         on_progress: impl Fn(&ProvisionProgress) + Send + Sync + 'static,
-    ) -> Result<ServerUpdateDoneEvent, IpcError> {
+    ) -> Result<ServerDone, IpcError> {
         let id = job_id("server-update");
         params.id = id.clone();
-
-        let session = self.session;
-        let payload = self
-            .session
-            .run_job(
-                &id,
-                "server.update.done",
-                "server.update.error",
-                forward(on_progress),
-                move || async move { session.call::<ServerUpdate>(&params).await.map(|_| ()) },
-            )
-            .await?;
-
-        serde_json::from_value(payload).map_err(|e| IpcError::Malformed(e.to_string()))
+        self.session
+            .run_job::<ServerUpdate>(&id, &params, on_progress)
+            .await
     }
 
     pub async fn list(&self) -> Result<Vec<ServerInfo>, IpcError> {
@@ -210,14 +186,11 @@ impl Server<'_> {
             server: server.to_string(),
             id: id.clone(),
         };
-        let session = self.session;
-        run_backup_job(session, &id, on_progress, move || async move {
-            session
-                .call::<ServerBackupCreate>(&params)
-                .await
-                .map(|_| ())
-        })
-        .await
+        Ok(self
+            .session
+            .run_job::<ServerBackupCreate>(&id, &params, on_progress)
+            .await?
+            .backup)
     }
 
     pub async fn backup_list(&self, server: &str) -> Result<Vec<BackupInfo>, IpcError> {
@@ -243,14 +216,11 @@ impl Server<'_> {
             backup: backup.to_string(),
             id: id.clone(),
         };
-        let session = self.session;
-        run_backup_job(session, &id, on_progress, move || async move {
-            session
-                .call::<ServerBackupRestore>(&params)
-                .await
-                .map(|_| ())
-        })
-        .await
+        Ok(self
+            .session
+            .run_job::<ServerBackupRestore>(&id, &params, on_progress)
+            .await?
+            .backup)
     }
 
     pub async fn backup_remove(&self, server: &str, backup: &str) -> Result<(), IpcError> {

@@ -5,8 +5,8 @@
 //! event-callback slot.
 
 use client::proto::content::{
-    ContentAddSpec, ContentFailure, ContentKind, ContentProject, ContentVersion, InstalledContent,
-    SearchQuery, SearchResult, VersionQuery,
+    ContentAddSpec, ContentDone, ContentFailure, ContentKind, ContentProject, ContentVersion,
+    InstalledContent, SearchQuery, SearchResult, VersionQuery,
 };
 use client::proto::error::EntryTarget;
 use client::proto::minecraft::ProvisionProgress;
@@ -163,7 +163,10 @@ async fn run_install(
         })
         .await
     {
-        Ok((items, add_failures)) => {
+        Ok(ContentDone {
+            items,
+            failures: add_failures,
+        }) => {
             failures.extend(add_failures);
             AppEvent::Done {
                 items,

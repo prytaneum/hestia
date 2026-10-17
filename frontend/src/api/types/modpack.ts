@@ -6,15 +6,11 @@ export type { EntryModpackStatusParams } from "./generated/EntryModpackStatusPar
 export type { EntryModpackUpdateParams } from "./generated/EntryModpackUpdateParams";
 export type { InstalledModpack } from "./generated/InstalledModpack";
 export type { InstanceModpackInstallParams } from "./generated/InstanceModpackInstallParams";
-export type { ModpackCancelledEvent } from "./generated/ModpackCancelledEvent";
-export type { ModpackDoneEvent } from "./generated/ModpackDoneEvent";
-export type { ModpackErrorEvent } from "./generated/ModpackErrorEvent";
+export type { ModpackDone } from "./generated/ModpackDone";
 export type { ModpackFilePreview } from "./generated/ModpackFilePreview";
 export type { ModpackFit } from "./generated/ModpackFit";
-export type { ModpackJobResult } from "./generated/ModpackJobResult";
 export type { ModpackMove } from "./generated/ModpackMove";
 export type { ModpackOverride } from "./generated/ModpackOverride";
-export type { ModpackProgressEvent } from "./generated/ModpackProgressEvent";
 export type { ModpackRef } from "./generated/ModpackRef";
 export type { ModpackRemoveResult } from "./generated/ModpackRemoveResult";
 export type { ModpackStatusResult } from "./generated/ModpackStatusResult";

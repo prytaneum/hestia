@@ -10,7 +10,7 @@ use std::collections::HashMap;
 use anyhow::Result;
 use client::proto::instance::InstanceInfo;
 use client::proto::minecraft::{ConfigEntry, Flavor, GameVersion, ProvisionProgress, VersionKind};
-use client::proto::server::{ServerCreateDoneEvent, ServerCreateParams};
+use client::proto::server::{ServerCreateParams, ServerDone};
 use client::Client;
 use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::layout::{Constraint, Layout, Rect};
@@ -130,7 +130,7 @@ pub struct WizardSeed {
 pub enum WizardOutcome {
     /// The whole create result, warnings included — the wizard's caller reports
     /// them exactly as the flag path does.
-    Server(Box<ServerCreateDoneEvent>),
+    Server(Box<ServerDone>),
     Instance(Box<InstanceInfo>),
 }
 
@@ -154,7 +154,7 @@ enum AppEvent {
         versions: Vec<GameVersion>,
     },
     Progress(ProvisionProgress),
-    ServerCreated(Box<ServerCreateDoneEvent>),
+    ServerCreated(Box<ServerDone>),
     InstanceCreated(Box<InstanceInfo>),
     Failed {
         message: String,

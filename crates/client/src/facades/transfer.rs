@@ -3,34 +3,13 @@
 //! but the concern is not the instance store.
 
 use ipc::errors::IpcError;
-use proto::content::ContentFailure;
-use proto::instance::InstanceInfo;
 use proto::minecraft::ProvisionProgress;
 use proto::transfer::{
-    ArchiveInfo, ArchiveRef, ExportFormat, ImportFormat, InstanceExport, InstanceExportParams,
-    InstanceImport, InstanceImportInspect, InstanceImportParams,
+    ArchiveInfo, ArchiveRef, ExportDone, ExportFormat, ImportDone, InstanceExport,
+    InstanceExportParams, InstanceImport, InstanceImportInspect, InstanceImportParams,
 };
-use proto::warning::WarningInfo;
-use serde_json::Value;
 
-use crate::facades::jobs::forward;
 use crate::session::{job_id, Session};
-
-/// What a finished export came to.
-pub struct Exported {
-    pub path: String,
-    pub size_bytes: u64,
-    pub files: u64,
-    pub warnings: Vec<WarningInfo>,
-}
-
-/// What a finished import came to.
-pub struct Imported {
-    pub format: ImportFormat,
-    pub instance: InstanceInfo,
-    pub failures: Vec<ContentFailure>,
-    pub warnings: Vec<WarningInfo>,
-}
 
 pub struct Transfer<'a> {
     pub(crate) session: &'a Session,
@@ -55,9 +34,8 @@ impl Transfer<'_> {
         destination: &str,
         exclude: Vec<String>,
         on_progress: impl Fn(&ProvisionProgress) + Send + Sync + 'static,
-    ) -> Result<Exported, IpcError> {
+    ) -> Result<ExportDone, IpcError> {
         let id = job_id("instance-export");
-        let session = self.session;
         let params = InstanceExportParams {
             instance: instance.to_string(),
             format,
@@ -65,22 +43,9 @@ impl Transfer<'_> {
             exclude,
             id: id.clone(),
         };
-        let payload = self
-            .session
-            .run_job(
-                &id,
-                "instance.export.done",
-                "instance.export.error",
-                forward(on_progress),
-                move || async move { session.call::<InstanceExport>(&params).await.map(|_| ()) },
-            )
-            .await?;
-        Ok(Exported {
-            path: string_field(&payload, "path"),
-            size_bytes: u64_field(&payload, "sizeBytes"),
-            files: u64_field(&payload, "files"),
-            warnings: decode(&payload, "warnings"),
-        })
+        self.session
+            .run_job::<InstanceExport>(&id, &params, on_progress)
+            .await
     }
 
     /// Import an archive as a new instance, blocking until it lands. `name`
@@ -90,56 +55,15 @@ impl Transfer<'_> {
         path: &str,
         name: &str,
         on_progress: impl Fn(&ProvisionProgress) + Send + Sync + 'static,
-    ) -> Result<Imported, IpcError> {
+    ) -> Result<ImportDone, IpcError> {
         let id = job_id("instance-import");
-        let session = self.session;
         let params = InstanceImportParams {
             path: path.to_string(),
             name: name.to_string(),
             id: id.clone(),
         };
-        let payload = self
-            .session
-            .run_job(
-                &id,
-                "instance.import.done",
-                "instance.import.error",
-                forward(on_progress),
-                move || async move { session.call::<InstanceImport>(&params).await.map(|_| ()) },
-            )
-            .await?;
-        let instance =
-            serde_json::from_value(payload.get("instance").cloned().unwrap_or(Value::Null))
-                .map_err(|e| IpcError::Malformed(e.to_string()))?;
-        Ok(Imported {
-            format: decode(&payload, "format"),
-            instance,
-            failures: decode(&payload, "failures"),
-            warnings: decode(&payload, "warnings"),
-        })
+        self.session
+            .run_job::<InstanceImport>(&id, &params, on_progress)
+            .await
     }
-}
-
-/// A best-effort field of a done event. The instance itself is decoded
-/// strictly (an import that cannot say what it created is a malformed answer);
-/// everything else here is descriptive and a missing one is not worth failing
-/// a job that already succeeded over.
-fn decode<T: serde::de::DeserializeOwned + Default>(payload: &Value, key: &str) -> T {
-    payload
-        .get(key)
-        .cloned()
-        .and_then(|v| serde_json::from_value(v).ok())
-        .unwrap_or_default()
-}
-
-fn string_field(payload: &Value, key: &str) -> String {
-    payload
-        .get(key)
-        .and_then(Value::as_str)
-        .unwrap_or_default()
-        .to_string()
-}
-
-fn u64_field(payload: &Value, key: &str) -> u64 {
-    payload.get(key).and_then(Value::as_u64).unwrap_or_default()
 }

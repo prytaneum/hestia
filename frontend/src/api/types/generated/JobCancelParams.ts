@@ -2,6 +2,6 @@
 
 export type JobCancelParams = { 
 /**
- * The job id its progress and terminal events carry.
+ * The job id its events carry.
  */
 id: string, };

@@ -2,14 +2,12 @@ use std::path::Path;
 use std::sync::Arc;
 
 use engine::Engine;
-use proto::content::{
-    ContentAddSpec, ContentCancelledEvent, ContentDoneEvent, ContentErrorEvent, ContentFailure,
-    ContentKind, ContentProgressEvent, InstalledContent,
-};
+use proto::content::{ContentAddSpec, ContentDone, ContentFailure, ContentKind, InstalledContent};
 use proto::error::EntryKind;
+use proto::job::Job;
 use proto::minecraft::ProvisionProgress;
 
-use super::job::{progress_event, settle, Cancellations, Runner, Spec};
+use super::job::{Cancellations, Runner, Spec};
 use crate::runtime::{instance_process_id, server_process_id, EventHub};
 
 /// One content install or update for one entry — what `ContentManager::start`
@@ -156,29 +154,21 @@ impl ContentManager {
 
     /// Start an install/update job off-thread, one per entry at a time.
     /// Returns the job id, or `None` if that entry is already busy.
-    pub fn start(&self, job: ContentJob, id: String) -> Option<String> {
+    pub fn start<C>(&self, job: ContentJob, id: String) -> Option<String>
+    where
+        C: Job<Progress = ProvisionProgress, Done = ContentDone>,
+    {
         let spec = Spec {
             id,
             prefix: job.id_prefix(),
             key: Some(job.key()),
-            progress: progress_event(|id, progress: &ProvisionProgress| ContentProgressEvent {
-                id,
-                progress: progress.clone(),
-            }),
-            done: settle(|id, (items, failures): Installed| ContentDoneEvent {
-                id,
-                items,
-                failures,
-            }),
-            cancelled: Some(settle(|id, ()| ContentCancelledEvent { id })),
-            error: settle(|id, e| ContentErrorEvent {
-                id,
-                error: crate::runtime::engine_error(e),
-            }),
         };
 
-        self.runner.start(spec, move |engine, reporter| {
-            Box::pin(async move { job.run(engine, &reporter.job()).await })
+        self.runner.start::<C, _>(spec, move |engine, reporter| {
+            Box::pin(async move {
+                let (items, failures) = job.run(engine, &reporter.job()).await?;
+                Ok(ContentDone { items, failures })
+            })
         })
     }
 }

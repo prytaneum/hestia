@@ -16,9 +16,9 @@
 use serde::{Deserialize, Serialize};
 
 use crate::content::ContentFailure;
-use crate::contract::{Contract, Topic};
-use crate::error::ErrorInfo;
+use crate::contract::Contract;
 use crate::instance::InstanceInfo;
+use crate::job::{Job, JobStarted};
 use crate::minecraft::ProvisionProgress;
 use crate::warning::WarningInfo;
 
@@ -122,15 +122,6 @@ pub struct InstanceImportParams {
     pub id: String,
 }
 
-/// The immediate answer of an export/import call: the job whose events carry
-/// the outcome.
-#[derive(Serialize, Deserialize, Default, Debug, Clone)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
-#[serde(default, rename_all = "camelCase")]
-pub struct TransferJobResult {
-    pub id: String,
-}
-
 /// What an archive says about itself, without importing it: enough for a
 /// front-end to name the instance it is about to create and to say what the
 /// archive actually is before anything is written.
@@ -189,11 +180,18 @@ pub struct ExportContentsResult {
     pub entries: Vec<ArchiveEntry>,
 }
 
+/// A job. A cancel discards the archive being written — an export is written
+/// through a `.part` and renamed, so a cancelled one leaves nothing behind.
 pub struct InstanceExport;
 impl Contract for InstanceExport {
     const CHANNEL: &'static str = "instance.export";
     type Params = InstanceExportParams;
-    type Result = TransferJobResult;
+    type Result = JobStarted;
+}
+
+impl Job for InstanceExport {
+    type Progress = ProvisionProgress;
+    type Done = ExportDone;
 }
 
 pub struct InstanceExportContents;
@@ -203,11 +201,19 @@ impl Contract for InstanceExportContents {
     type Result = ExportContentsResult;
 }
 
+/// A job. A cancel removes a half-built instance rather than leaving it
+/// registered: an entry that never finished importing is not one the user
+/// asked for.
 pub struct InstanceImport;
 impl Contract for InstanceImport {
     const CHANNEL: &'static str = "instance.import";
     type Params = InstanceImportParams;
-    type Result = TransferJobResult;
+    type Result = JobStarted;
+}
+
+impl Job for InstanceImport {
+    type Progress = ProvisionProgress;
+    type Done = ImportDone;
 }
 
 pub struct InstanceImportInspect;
@@ -220,20 +226,7 @@ impl Contract for InstanceImportInspect {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
 #[serde(rename_all = "camelCase")]
-pub struct ExportProgressEvent {
-    pub id: String,
-    #[serde(flatten)]
-    pub progress: ProvisionProgress,
-}
-impl Topic for ExportProgressEvent {
-    const TOPIC: &'static str = "instance.export.progress";
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
-#[serde(rename_all = "camelCase")]
-pub struct ExportDoneEvent {
-    pub id: String,
+pub struct ExportDone {
     /// Where the archive was written — the daemon picked it when the request
     /// named no destination, so this is the only place the caller learns it.
     pub path: String,
@@ -242,52 +235,10 @@ pub struct ExportDoneEvent {
     #[serde(default)]
     pub warnings: Vec<WarningInfo>,
 }
-impl Topic for ExportDoneEvent {
-    const TOPIC: &'static str = "instance.export.done";
-}
-
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
 #[serde(rename_all = "camelCase")]
-pub struct ExportErrorEvent {
-    pub id: String,
-    /// The structured cause a front-end localizes from.
-    pub error: ErrorInfo,
-}
-impl Topic for ExportErrorEvent {
-    const TOPIC: &'static str = "instance.export.error";
-}
-
-/// An export stopped at the caller's request. The archive it was writing is
-/// discarded — an export is written through a `.part` and renamed, so a
-/// cancelled one leaves nothing behind.
-#[derive(Serialize, Deserialize, Debug, Clone)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
-#[serde(rename_all = "camelCase")]
-pub struct ExportCancelledEvent {
-    pub id: String,
-}
-impl Topic for ExportCancelledEvent {
-    const TOPIC: &'static str = "instance.export.cancelled";
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
-#[serde(rename_all = "camelCase")]
-pub struct ImportProgressEvent {
-    pub id: String,
-    #[serde(flatten)]
-    pub progress: ProvisionProgress,
-}
-impl Topic for ImportProgressEvent {
-    const TOPIC: &'static str = "instance.import.progress";
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
-#[serde(rename_all = "camelCase")]
-pub struct ImportDoneEvent {
-    pub id: String,
+pub struct ImportDone {
     pub format: ImportFormat,
     pub instance: InstanceInfo,
     /// Per-item failures of an import that installs content (a pack's mods):
@@ -296,32 +247,4 @@ pub struct ImportDoneEvent {
     pub failures: Vec<ContentFailure>,
     #[serde(default)]
     pub warnings: Vec<WarningInfo>,
-}
-impl Topic for ImportDoneEvent {
-    const TOPIC: &'static str = "instance.import.done";
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
-#[serde(rename_all = "camelCase")]
-pub struct ImportErrorEvent {
-    pub id: String,
-    /// The structured cause a front-end localizes from.
-    pub error: ErrorInfo,
-}
-impl Topic for ImportErrorEvent {
-    const TOPIC: &'static str = "instance.import.error";
-}
-
-/// An import stopped at the caller's request. A half-built instance is removed
-/// rather than left registered: an entry that never finished importing is not
-/// one the user asked for.
-#[derive(Serialize, Deserialize, Debug, Clone)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
-#[serde(rename_all = "camelCase")]
-pub struct ImportCancelledEvent {
-    pub id: String,
-}
-impl Topic for ImportCancelledEvent {
-    const TOPIC: &'static str = "instance.import.cancelled";
 }

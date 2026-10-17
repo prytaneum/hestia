@@ -13,8 +13,9 @@
 use serde::{Deserialize, Serialize};
 
 use crate::content::{ContentFailure, ReleaseChannel};
-use crate::contract::{Contract, Topic};
-use crate::error::{EntryTarget, ErrorInfo};
+use crate::contract::Contract;
+use crate::error::EntryTarget;
+use crate::job::{Job, JobStarted};
 use crate::minecraft::ProvisionProgress;
 use crate::warning::WarningInfo;
 
@@ -261,32 +262,40 @@ pub struct ModpackRemoveResult {
     pub kept: Vec<String>,
 }
 
-#[derive(Serialize, Deserialize, Default, Debug, Clone)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
-#[serde(default, rename_all = "camelCase")]
-pub struct ModpackJobResult {
-    pub id: String,
-}
-
 pub struct InstanceModpackInstall;
 impl Contract for InstanceModpackInstall {
     const CHANNEL: &'static str = "instance.modpack.install";
     type Params = InstanceModpackInstallParams;
-    type Result = ModpackJobResult;
+    type Result = JobStarted;
+}
+
+impl Job for InstanceModpackInstall {
+    type Progress = ProvisionProgress;
+    type Done = ModpackDone;
 }
 
 pub struct ServerModpackInstall;
 impl Contract for ServerModpackInstall {
     const CHANNEL: &'static str = "server.modpack.install";
     type Params = ServerModpackInstallParams;
-    type Result = ModpackJobResult;
+    type Result = JobStarted;
+}
+
+impl Job for ServerModpackInstall {
+    type Progress = ProvisionProgress;
+    type Done = ModpackDone;
 }
 
 pub struct EntryModpackUpdate;
 impl Contract for EntryModpackUpdate {
     const CHANNEL: &'static str = "modpack.update";
     type Params = EntryModpackUpdateParams;
-    type Result = ModpackJobResult;
+    type Result = JobStarted;
+}
+
+impl Job for EntryModpackUpdate {
+    type Progress = ProvisionProgress;
+    type Done = ModpackDone;
 }
 
 pub struct EntryModpackStatus;
@@ -317,26 +326,16 @@ impl Contract for EntryModpackRemove {
     type Result = ModpackRemoveResult;
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
-#[serde(rename_all = "camelCase")]
-pub struct ModpackProgressEvent {
-    pub id: String,
-    #[serde(flatten)]
-    pub progress: ProvisionProgress,
-}
-impl Topic for ModpackProgressEvent {
-    const TOPIC: &'static str = "modpack.progress";
-}
-
 /// A finished pack install or update. `entry` is the entry it landed in — for a
 /// create that is the id the job just minted, which the caller has no other way
-/// to learn.
+/// to learn. Cancelling one that creates its entry discards the half-built
+/// entry, exactly as a failed create does; an install into an existing entry
+/// leaves whatever had already been written, which the next install or update
+/// reconciles.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
 #[serde(rename_all = "camelCase")]
-pub struct ModpackDoneEvent {
-    pub id: String,
+pub struct ModpackDone {
     pub entry: String,
     pub entry_name: String,
     pub pack: InstalledModpack,
@@ -346,32 +345,4 @@ pub struct ModpackDoneEvent {
     pub failures: Vec<ContentFailure>,
     #[serde(default)]
     pub warnings: Vec<WarningInfo>,
-}
-impl Topic for ModpackDoneEvent {
-    const TOPIC: &'static str = "modpack.done";
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
-#[serde(rename_all = "camelCase")]
-pub struct ModpackErrorEvent {
-    pub id: String,
-    pub error: ErrorInfo,
-}
-impl Topic for ModpackErrorEvent {
-    const TOPIC: &'static str = "modpack.error";
-}
-
-/// A pack install or update stopped at the caller's request. A create discards
-/// the half-built entry, exactly as a failed create does; an install into an
-/// existing entry leaves whatever had already been written, which the next
-/// install or update reconciles.
-#[derive(Serialize, Deserialize, Debug, Clone)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
-#[serde(rename_all = "camelCase")]
-pub struct ModpackCancelledEvent {
-    pub id: String,
-}
-impl Topic for ModpackCancelledEvent {
-    const TOPIC: &'static str = "modpack.cancelled";
 }

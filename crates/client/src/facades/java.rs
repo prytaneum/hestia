@@ -1,5 +1,4 @@
 use ipc::errors::IpcError;
-use ipc::protocol::Event;
 
 use crate::session::{job_id, Session};
 
@@ -52,36 +51,15 @@ impl Java<'_> {
             true => job_id("java-install"),
             false => id.to_string(),
         };
-        let on_event = move |event: &Event| {
-            if let Ok(progress) =
-                serde_json::from_value::<proto::java::JavaInstallProgress>(event.payload.clone())
-            {
-                on_progress(&progress);
-            }
+        let params = JavaInstallParams {
+            major,
+            id: id.clone(),
+            force,
         };
-
-        let session = self.session;
-        let install_id = id.clone();
-        let payload = self
+        let done = self
             .session
-            .run_job(
-                &id,
-                "java.install.done",
-                "java.install.error",
-                on_event,
-                move || async move {
-                    let params = JavaInstallParams {
-                        major,
-                        id: install_id,
-                        force,
-                    };
-                    session.call::<JavaInstall>(&params).await.map(|_| ())
-                },
-            )
+            .run_job::<JavaInstall>(&id, &params, on_progress)
             .await?;
-
-        let done: proto::java::JavaInstallDoneEvent =
-            serde_json::from_value(payload).map_err(|e| IpcError::Malformed(e.to_string()))?;
         Ok((done.runtime, done.already_installed))
     }
 }

@@ -219,8 +219,8 @@ live events (`useServerLogs`, `useProcessMetrics`).
   store, so an activity surface sees every in-flight job with live progress,
   surviving unmount and navigation.
 - Freshness is belt-and-suspenders: mutations invalidate their own key prefixes
-  on settle, and `queries/invalidation.ts` maps terminal daemon topics to key
-  prefixes, so changes made by the CLI, the tray or a schedule land without
+  on settle, and `queries/invalidation.ts` maps daemon topics (a finished job by its start
+  channel) to key prefixes, so changes made by the CLI, the tray or a schedule land without
   polling. A reconnect invalidates everything.
 - Streaming is hooks too — `useConnection()`, `useDaemonEvent(topic, handler)`,
   and log hooks that accumulate `process.output` onto the fetched tail. Components

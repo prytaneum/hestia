@@ -9,8 +9,8 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::contract::{Contract, Empty, Topic};
-use crate::error::ErrorInfo;
+use crate::contract::{Contract, Empty};
+use crate::job::{Job, JobStarted};
 use crate::minecraft::ProvisionProgress;
 use crate::server::ServerRef;
 
@@ -64,15 +64,6 @@ pub struct BackupListResult {
     pub backups: Vec<BackupInfo>,
 }
 
-/// The immediate answer of a backup create/restore call: the job whose
-/// events carry the outcome.
-#[derive(Serialize, Deserialize, Default, Debug, Clone)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
-#[serde(default, rename_all = "camelCase")]
-pub struct BackupJobResult {
-    pub id: String,
-}
-
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
 #[serde(default, rename_all = "camelCase")]
@@ -104,11 +95,12 @@ pub struct ServerBackupRef {
     pub backup: String,
 }
 
+/// A job. A cancel reclaims the archive being written.
 pub struct ServerBackupCreate;
 impl Contract for ServerBackupCreate {
     const CHANNEL: &'static str = "server.backup.create";
     type Params = ServerBackupCreateParams;
-    type Result = BackupJobResult;
+    type Result = JobStarted;
 }
 
 pub struct ServerBackupList;
@@ -118,11 +110,13 @@ impl Contract for ServerBackupList {
     type Result = BackupListResult;
 }
 
+/// A job. A cancel discards the staging directory, so the live data is
+/// untouched.
 pub struct ServerBackupRestore;
 impl Contract for ServerBackupRestore {
     const CHANNEL: &'static str = "server.backup.restore";
     type Params = ServerBackupRestoreParams;
-    type Result = BackupJobResult;
+    type Result = JobStarted;
 }
 
 pub struct ServerBackupRemove;
@@ -135,45 +129,16 @@ impl Contract for ServerBackupRemove {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
 #[serde(rename_all = "camelCase")]
-pub struct BackupProgressEvent {
-    pub id: String,
-    #[serde(flatten)]
-    pub progress: ProvisionProgress,
-}
-impl Topic for BackupProgressEvent {
-    const TOPIC: &'static str = "backup.progress";
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
-#[serde(rename_all = "camelCase")]
-pub struct BackupDoneEvent {
-    pub id: String,
+pub struct BackupDone {
     pub backup: BackupInfo,
 }
-impl Topic for BackupDoneEvent {
-    const TOPIC: &'static str = "backup.done";
+
+impl Job for ServerBackupCreate {
+    type Progress = ProvisionProgress;
+    type Done = BackupDone;
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
-#[serde(rename_all = "camelCase")]
-pub struct BackupErrorEvent {
-    pub id: String,
-    /// The structured cause a front-end localizes from.
-    pub error: ErrorInfo,
-}
-impl Topic for BackupErrorEvent {
-    const TOPIC: &'static str = "backup.error";
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
-#[serde(rename_all = "camelCase")]
-/// A backup or restore stopped at the caller's request. The archive it was writing is reclaimed; a restore's staging directory is discarded, so the live data is untouched.
-pub struct BackupCancelledEvent {
-    pub id: String,
-}
-impl Topic for BackupCancelledEvent {
-    const TOPIC: &'static str = "backup.cancelled";
+impl Job for ServerBackupRestore {
+    type Progress = ProvisionProgress;
+    type Done = BackupDone;
 }

@@ -8,7 +8,7 @@
  * often as not.
  */
 import { queryOptions } from '@tanstack/react-query';
-import type { ExportDoneEvent, ImportDoneEvent } from '../api';
+import type { ExportDone, ImportDone } from '../api';
 import type { ExportInput } from '../api/transfer';
 import * as api from '../api/transfer';
 import { jobMutation } from './jobs';
@@ -41,7 +41,7 @@ export const transferQueries = {
 
 export const transferMutations = {
   export: (id: string, name: string) =>
-    jobMutation<ExportDoneEvent, ExportInput>({
+    jobMutation<ExportDone, ExportInput>({
       mutationKey: [...keys.instances.detail(id), 'export'],
       meta: (input) => ({
         kind: 'instance.export',
@@ -52,7 +52,7 @@ export const transferMutations = {
       invalidates: () => [[FOOTPRINT]],
     }),
   import: () =>
-    jobMutation<ImportDoneEvent, { path: string; name?: string }>({
+    jobMutation<ImportDone, { path: string; name?: string }>({
       mutationKey: [...keys.instances.all, 'import'],
       meta: ({ path }) => ({
         kind: 'instance.import',

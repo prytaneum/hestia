@@ -4,15 +4,16 @@
 
 use engine::Side;
 use proto::error::{EntryKind, ErrorInfo, Field};
+use proto::job::JobStarted;
 use proto::minecraft::{ConfigEntry, FlavorsResult, LoadersResult, VersionsResult};
 use proto::process::ProcessLogsResult;
 use proto::server::{
     ServerCommand, ServerCommandComplete, ServerCommandResult, ServerConfigGet,
     ServerConfigGetResult, ServerConfigList, ServerConfigListResult, ServerConfigSet, ServerCreate,
-    ServerCreateResult, ServerDetail, ServerFlavors, ServerList, ServerListResult, ServerLoaders,
-    ServerLogs, ServerPing, ServerProperties, ServerPropertiesResult, ServerRemove, ServerRename,
+    ServerDetail, ServerFlavors, ServerList, ServerListResult, ServerLoaders, ServerLogs,
+    ServerPing, ServerProperties, ServerPropertiesResult, ServerRemove, ServerRename,
     ServerRestart, ServerStart, ServerStartResult, ServerStatus, ServerStop, ServerUpdate,
-    ServerUpdateResult, ServerVersions,
+    ServerVersions,
 };
 use proto::Empty;
 
@@ -59,7 +60,7 @@ pub(super) fn register(on: &mut Channels<'_>) {
             return Err(ErrorInfo::EulaRequired);
         }
         match ctx.runtime.server_creates().start(p) {
-            Some(id) => Ok(ServerCreateResult { id }),
+            Some(id) => Ok(JobStarted { id }),
             None => Err(ErrorInfo::CreateInProgress),
         }
     });
@@ -72,7 +73,7 @@ pub(super) fn register(on: &mut Channels<'_>) {
         }
         let record = server_for(&ctx, &p.server, Intent::Lifecycle)?;
         match ctx.runtime.server_updates().start(record.id, p) {
-            Some(id) => Ok(ServerUpdateResult { id }),
+            Some(id) => Ok(JobStarted { id }),
             None => Err(ErrorInfo::UpdateInProgress {
                 name: record.name.clone(),
             }),

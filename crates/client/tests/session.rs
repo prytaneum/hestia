@@ -120,12 +120,18 @@ async fn a_job_settles_on_its_done_event() {
                 json!({ "id": "j1" }),
                 vec![
                     event(
-                        "java.install.progress",
-                        json!({ "id": "j1", "phase": "downloading", "current": 5, "total": 10 }),
+                        "job",
+                        json!({
+                            "id": "j1", "channel": "java.install", "state": "progress",
+                            "phase": "downloading", "current": 5, "total": 10,
+                        }),
                     ),
                     event(
-                        "java.install.done",
-                        json!({ "id": "j1", "runtime": runtime(), "alreadyInstalled": true }),
+                        "job",
+                        json!({
+                            "id": "j1", "channel": "java.install", "state": "done",
+                            "runtime": runtime(), "alreadyInstalled": true,
+                        }),
                     ),
                 ],
             ),
@@ -159,9 +165,11 @@ async fn a_job_settles_on_its_error_event() {
             Reply::OkThen(
                 json!({ "id": "j2" }),
                 vec![event(
-                    "java.install.error",
+                    "job",
                     json!({
                         "id": "j2",
+                        "channel": "java.install",
+                        "state": "failed",
                         "error": ErrorInfo::InvalidValue {
                             field: client::proto::error::Field::JavaVersion,
                             reason: client::proto::error::Reason::JavaMajor,
@@ -185,7 +193,10 @@ async fn a_cancelled_job_is_not_reported_as_a_failure() {
             "java.install",
             Reply::OkThen(
                 json!({ "id": "j3" }),
-                vec![event("java.install.cancelled", json!({ "id": "j3" }))],
+                vec![event(
+                    "job",
+                    json!({ "id": "j3", "channel": "java.install", "state": "cancelled" }),
+                )],
             ),
         )
         .serve();
@@ -195,7 +206,7 @@ async fn a_cancelled_job_is_not_reported_as_a_failure() {
         .expect_err("cancelled");
     assert!(
         matches!(error, IpcError::Cancelled),
-        "a cancelled job derives its topic from the done topic, and is not an error"
+        "a cancelled job is its own outcome, not an error"
     );
 }
 
@@ -208,12 +219,18 @@ async fn a_job_ignores_events_belonging_to_another_job() {
                 json!({ "id": "mine" }),
                 vec![
                     event(
-                        "java.install.done",
-                        json!({ "id": "theirs", "runtime": runtime() }),
+                        "job",
+                        json!({
+                            "id": "theirs", "channel": "java.install", "state": "done",
+                            "runtime": runtime(),
+                        }),
                     ),
                     event(
-                        "java.install.done",
-                        json!({ "id": "mine", "runtime": runtime() }),
+                        "job",
+                        json!({
+                            "id": "mine", "channel": "java.install", "state": "done",
+                            "runtime": runtime(),
+                        }),
                     ),
                 ],
             ),
@@ -233,8 +250,11 @@ async fn a_job_subscribes_before_it_starts() {
         Reply::OkThen(
             json!({ "id": "j4" }),
             vec![event(
-                "java.install.done",
-                json!({ "id": "j4", "runtime": runtime() }),
+                "job",
+                json!({
+                    "id": "j4", "channel": "java.install", "state": "done",
+                    "runtime": runtime(),
+                }),
             )],
         ),
     );
@@ -275,9 +295,11 @@ async fn a_failed_self_update_reports_why() {
             "update.download",
             Reply::Job(Box::new(|id| {
                 vec![event(
-                    "update.error",
+                    "job",
                     json!({
                         "id": id,
+                        "channel": "update.download",
+                        "state": "failed",
                         "error": ErrorInfo::DownloadFailed {
                             detail: "bad signature".into(),
                         },
@@ -292,6 +314,6 @@ async fn a_failed_self_update_reports_why() {
         .expect_err("failed");
     assert!(
         matches!(error_info(&error), ErrorInfo::DownloadFailed { .. }),
-        "the update family carries a typed error like every other job, got {error:?}"
+        "the update download carries a typed error like every other job, got {error:?}"
     );
 }

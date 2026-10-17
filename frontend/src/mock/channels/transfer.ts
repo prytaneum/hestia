@@ -104,7 +104,7 @@ export const channels: Handlers = {
     const excluded = Array.isArray(p.exclude) ? p.exclude.length : 0;
     return startJob({
       id: jobIdOf(p, 'instance-export'),
-      family: 'instance.export',
+      channel: 'instance.export',
       steps: [
         { phase: 'resolving', detail: instance.name },
         { phase: 'archive', detail: 'writing the archive' },
@@ -125,7 +125,7 @@ export const channels: Handlers = {
       (path.split(/[/\\]/).pop() ?? 'Imported').replace(/\.[^.]+$/, '');
     return startJob({
       id: jobIdOf(p, 'instance-import'),
-      family: 'instance.import',
+      channel: 'instance.import',
       steps: [
         { phase: 'resolving', detail: 'reading the archive' },
         { phase: 'extract', detail: 'extracting' },

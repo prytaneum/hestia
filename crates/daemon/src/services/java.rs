@@ -2,9 +2,9 @@
 
 use proto::error::{ErrorInfo, Field, Reason};
 use proto::java::{
-    JavaInstall, JavaInstallResult, JavaList, JavaListResult, JavaReleases, JavaReleasesResult,
-    JavaUninstall,
+    JavaInstall, JavaList, JavaListResult, JavaReleases, JavaReleasesResult, JavaUninstall,
 };
+use proto::job::JobStarted;
 use proto::Empty;
 
 use crate::runtime::Channels;
@@ -62,7 +62,7 @@ pub(super) fn register(on: &mut Channels<'_>) {
             });
         }
         match ctx.runtime.java_installs().start(p.major, p.id, p.force) {
-            Some(id) => Ok(JavaInstallResult { id }),
+            Some(id) => Ok(JobStarted { id }),
             None => Err(ErrorInfo::JavaInstallInProgress { major: p.major }),
         }
     });

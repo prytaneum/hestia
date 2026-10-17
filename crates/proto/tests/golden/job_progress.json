@@ -1,5 +1,7 @@
 {
   "id": "server-content-add-1",
+  "channel": "content.add",
+  "state": "progress",
   "phase": "content",
   "current": 1024,
   "total": 4096,

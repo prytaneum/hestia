@@ -92,13 +92,17 @@ instance-only channel without touching its module. The verbs both sides share
 `BackupManager`, `ContentManager`, `ModpackManager`, `UpdateManager`.
 
 They all answer the channel immediately with a job id, run the blocking engine
-work off-thread, and publish progress/done/error events through the hub — but
-none of them implements that: `job.rs`'s `Runner` does. A manager builds a
-`Spec` naming its id, prefix, in-flight key and four topic constructors, and
-hands `Runner::start` a closure taking the engine and a `Reporter`. Claiming,
-spawning, progress coalescing, cancellation, terminal classification and logging
-are the runner's, so they cannot drift per family
-([0061](../decisions/0061-a-job-declares-what-differs.md)).
+work off-thread, and publish `JobEvent`s through the hub — but none of them
+implements that: `job.rs`'s `Runner` does. A manager builds a `Spec` naming its
+id, prefix and in-flight key, and hands `Runner::start::<C>` a closure taking
+the engine and a `Reporter` and returning `C::Done`. `C` is the start contract
+(`proto::job::Job`): it fixes the progress and done types and supplies the
+`channel` every event carries. A manager that serves several contracts takes `C`
+as a type parameter, so the event names the channel that actually started the
+job. Claiming, spawning, progress coalescing, cancellation, terminal
+classification, event construction and logging are the runner's, so they cannot
+drift per job ([0061](../decisions/0061-a-job-declares-what-differs.md),
+[0083](../decisions/0083-a-job-is-its-contract-and-reports-on-one-topic.md)).
 
 ```mermaid
 sequenceDiagram
@@ -109,22 +113,22 @@ sequenceDiagram
     participant Hub as EventHub
 
     C->>H: server.create {…}
-    H->>M: start(spec)
+    H->>M: start::<ServerCreate>(…)
     M->>M: InFlight.claim("server-<id>")
-    M-->>H: jobId
-    H-->>C: { jobId }
+    M-->>H: job id
+    H-->>C: JobStarted { id }
     M->>E: engine.provision_server(spec, job)
     loop
         E--)Hub: ProvisionProgress
-        Hub--)C: server.create.progress
+        Hub--)C: job {state: progress}
     end
     E-->>M: Ok(server) | Err
-    M--)Hub: server.create.done | .error
+    M--)Hub: job {state: done | failed | cancelled}
     Hub--)C: terminal event
     M->>M: claim released on drop
 ```
 
-`managers/job.rs` is the plumbing they share: `topic_event`, the job-id
+`managers/job.rs` is the plumbing they share: the `JobEvent` builder, the job-id
 generator, and **`InFlight<K>`** — the "one job per key" set whose `claim()`
 returns a guard released on drop, so a panicking job cannot wedge its key.
 

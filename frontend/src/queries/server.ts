@@ -14,10 +14,9 @@ import {
 import type {
   BackupInfo,
   ConfigEntry,
-  ServerCreateDoneEvent,
   ServerCreateParams,
+  ServerDone,
   ServerInfo,
-  ServerUpdateDoneEvent,
   ServerUpdateParams,
 } from '../api';
 import * as api from '../api/server';
@@ -109,7 +108,7 @@ export const serverQueries = {
 
 export const serverMutations = {
   create: () =>
-    jobMutation<ServerCreateDoneEvent, Partial<ServerCreateParams>>({
+    jobMutation<ServerDone, Partial<ServerCreateParams>>({
       mutationKey: [...keys.servers.all, 'create'],
       meta: (params) => ({
         kind: 'server.create',
@@ -119,10 +118,7 @@ export const serverMutations = {
       invalidates: () => [keys.servers.list()],
     }),
   update: (id: string) =>
-    jobMutation<
-      ServerUpdateDoneEvent,
-      Omit<ServerUpdateParams, 'server' | 'id'>
-    >({
+    jobMutation<ServerDone, Omit<ServerUpdateParams, 'server' | 'id'>>({
       mutationKey: [...keys.servers.detail(id), 'update'],
       meta: (params) => ({
         kind: 'server.update',

@@ -1,7 +1,6 @@
 use std::path::{Path, PathBuf};
 
 use ipc::errors::IpcError;
-use ipc::protocol::Event;
 
 use crate::session::{job_id, Session};
 
@@ -24,32 +23,11 @@ impl Update<'_> {
         use proto::update::{UpdateDownload, UpdateDownloadParams};
 
         let id = job_id("update");
-        let on_event = move |event: &Event| {
-            if let Ok(progress) =
-                serde_json::from_value::<proto::download::DownloadProgress>(event.payload.clone())
-            {
-                on_progress(&progress);
-            }
-        };
-
-        let session = self.session;
-        let download_id = id.clone();
-        let payload = self
+        let params = UpdateDownloadParams { id: id.clone() };
+        let done = self
             .session
-            .run_job(
-                &id,
-                "update.done",
-                "update.error",
-                on_event,
-                move || async move {
-                    let params = UpdateDownloadParams { id: download_id };
-                    session.call::<UpdateDownload>(&params).await.map(|_| ())
-                },
-            )
+            .run_job::<UpdateDownload>(&id, &params, on_progress)
             .await?;
-
-        let done: proto::update::UpdateDoneEvent =
-            serde_json::from_value(payload).map_err(|e| IpcError::Malformed(e.to_string()))?;
         Ok((done.path, done.version))
     }
 

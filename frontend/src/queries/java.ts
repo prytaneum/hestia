@@ -1,6 +1,6 @@
 /** `java.*` — query/mutation factories, consumed through useQuery/useMutation. */
 import { queryOptions } from '@tanstack/react-query';
-import type { JavaInstallDoneEvent, JavaInstallProgress } from '../api';
+import type { JavaInstallDone, JavaInstallProgress } from '../api';
 import * as api from '../api/java';
 import { CATALOG_STALE_MS, mutation } from './core';
 import { jobMutation } from './jobs';
@@ -23,7 +23,7 @@ export const javaQueries = {
 export const javaMutations = {
   install: () =>
     jobMutation<
-      JavaInstallDoneEvent,
+      JavaInstallDone,
       { major: number; force?: boolean },
       JavaInstallProgress
     >({

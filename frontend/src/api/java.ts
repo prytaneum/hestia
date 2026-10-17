@@ -3,7 +3,7 @@
 import { call } from './core/ipc';
 import { type JobRun, runJob } from './core/jobs';
 import type {
-  JavaInstallDoneEvent,
+  JavaInstallDone,
   JavaInstallProgress,
   JavaRelease,
   JavaRuntime,
@@ -23,14 +23,9 @@ export function install(
   major: number,
   options: { force?: boolean },
   job: JobRun<JavaInstallProgress>,
-): Promise<JavaInstallDoneEvent> {
-  return runJob<JavaInstallDoneEvent, JavaInstallProgress>({
+): Promise<JavaInstallDone> {
+  return runJob<JavaInstallDone, JavaInstallProgress>({
     ...job,
-    topics: {
-      progress: 'java.install.progress',
-      done: 'java.install.done',
-      error: 'java.install.error',
-    },
     start: () =>
       call('java.install', {
         major,

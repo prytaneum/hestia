@@ -4,15 +4,10 @@ use std::sync::{Arc, Mutex};
 
 use engine::{Engine, LaunchRequest};
 use proto::error::ErrorInfo;
-use proto::instance::{
-    InstanceLaunchCancelledEvent, InstanceLaunchDoneEvent, InstanceLaunchErrorEvent,
-    InstanceLaunchProgressEvent, QuickPlay,
-};
-use proto::minecraft::ProvisionProgress;
+use proto::instance::{InstanceLaunch, InstanceLaunchDone, QuickPlay};
 use proto::process::{LogSource, ProcessSpec};
-use proto::warning::WarningInfo;
 
-use super::job::{progress_event, settle, Cancellations, Runner, Spec};
+use super::job::{Cancellations, Runner, Spec};
 use crate::runtime::{
     instance_session_id, instance_session_prefix, EventHub, ProcessSupervisor, StartError,
 };
@@ -57,49 +52,33 @@ impl InstanceLaunchManager {
             id,
             prefix: "instance-launch",
             key: None,
-            progress: progress_event(|id, progress: &ProvisionProgress| {
-                InstanceLaunchProgressEvent {
-                    id,
-                    progress: progress.clone(),
-                }
-            }),
-            done: settle(|id, launched: Launched| InstanceLaunchDoneEvent {
-                id,
-                process_id: launched.process_id,
-                pid: launched.pid,
-                warnings: launched.warnings,
-            }),
-            cancelled: Some(settle(|id, ()| InstanceLaunchCancelledEvent { id })),
-            error: settle(|id, e| InstanceLaunchErrorEvent {
-                id,
-                error: crate::runtime::engine_error(e),
-            }),
         };
 
         let processes = self.processes.clone();
         let reserved = self.reserved.clone();
-        self.runner.start(spec, move |engine, reporter| {
-            Box::pin(async move {
-                let outcome = launch(
-                    engine,
-                    &processes,
-                    &session_id,
-                    LaunchRequest {
-                        instance: &instance_id,
-                        account: &account,
-                        session_seq: seq,
-                        reconcile,
-                        quick_play,
-                        offline,
-                    },
-                    &reporter.job(),
-                )
-                .await;
-                // The supervisor now owns the id (or the launch failed) — release it.
-                reserved.lock().unwrap().remove(&session_id);
-                outcome
+        self.runner
+            .start::<InstanceLaunch, _>(spec, move |engine, reporter| {
+                Box::pin(async move {
+                    let outcome = launch(
+                        engine,
+                        &processes,
+                        &session_id,
+                        LaunchRequest {
+                            instance: &instance_id,
+                            account: &account,
+                            session_seq: seq,
+                            reconcile,
+                            quick_play,
+                            offline,
+                        },
+                        &reporter.job(),
+                    )
+                    .await;
+                    // The supervisor now owns the id (or the launch failed) — release it.
+                    reserved.lock().unwrap().remove(&session_id);
+                    outcome
+                })
             })
-        })
     }
 
     /// Claim the next free session id for an instance under the reservation lock,
@@ -134,7 +113,7 @@ async fn launch(
     session_id: &str,
     request: LaunchRequest<'_>,
     on_progress: &engine::Job<'_>,
-) -> anyhow::Result<Launched> {
+) -> anyhow::Result<InstanceLaunchDone> {
     let instance_id = request.instance.to_string();
     let prepared = engine.prepare_instance(request, on_progress).await?;
 
@@ -151,7 +130,7 @@ async fn launch(
             if let Err(e) = engine.instances().mark_launched(&instance_id) {
                 tracing::warn!(instance = %instance_id, error = %e, "failed to stamp last-played");
             }
-            Ok(Launched {
+            Ok(InstanceLaunchDone {
                 process_id: info.id,
                 pid: info.pid,
                 warnings: prepared.warnings,
@@ -183,11 +162,4 @@ pub struct LaunchOrder {
     pub offline: bool,
     /// Client-supplied job id; empty asks for an allocated one.
     pub id: String,
-}
-
-/// A started session, with whatever the preparation could not do properly.
-struct Launched {
-    process_id: String,
-    pid: u32,
-    warnings: Vec<WarningInfo>,
 }

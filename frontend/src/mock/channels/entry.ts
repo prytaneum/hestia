@@ -41,14 +41,14 @@ export function configChannels(prefix: string, resolve: Resolve): Handlers {
   };
 }
 
-/** A content job settles on the shared `content.*` topics, keyed by job id. */
 function contentJob(
+  channel: 'content.add' | 'content.update' | 'content.set_version',
   payload: Record<string, unknown>,
   done: () => InstalledContent[],
 ): { id: string } {
   return startJob({
     id: jobIdOf(payload, 'content'),
-    family: 'content',
+    channel,
     steps: [
       { phase: 'resolving', detail: 'resolving versions' },
       { phase: 'content', detail: 'downloading' },
@@ -66,7 +66,7 @@ export function contentChannels(): Handlers {
     const items = Array.isArray(p.items)
       ? (p.items as Record<string, unknown>[])
       : [];
-    return contentJob(p, () =>
+    return contentJob('content.add', p, () =>
       items.flatMap((item) => {
         const path = str(item, 'path');
         if (path) return [content.installFile(id, kind, path)];
@@ -97,7 +97,7 @@ export function contentChannels(): Handlers {
     },
 
     'content.update': (p) =>
-      contentJob(p, () =>
+      contentJob('content.update', p, () =>
         str(p, 'path')
           ? content.updateFromFile(
               resolve(p),
@@ -109,7 +109,7 @@ export function contentChannels(): Handlers {
       ),
 
     'content.set_version': (p) =>
-      contentJob(p, () =>
+      contentJob('content.set_version', p, () =>
         content.setVersion(
           resolve(p),
           kindOf(p),

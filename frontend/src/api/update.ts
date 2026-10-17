@@ -6,23 +6,16 @@ import type { DownloadProgress } from './types/download';
 import type {
   UpdateApplyResult,
   UpdateCheckResult,
-  UpdateDoneEvent,
+  UpdateDone,
 } from './types/update';
 
 export function check(): Promise<UpdateCheckResult> {
   return call<UpdateCheckResult>('update.check');
 }
 
-export function download(
-  job: JobRun<DownloadProgress>,
-): Promise<UpdateDoneEvent> {
-  return runJob<UpdateDoneEvent, DownloadProgress>({
+export function download(job: JobRun<DownloadProgress>): Promise<UpdateDone> {
+  return runJob<UpdateDone, DownloadProgress>({
     ...job,
-    topics: {
-      progress: 'update.progress',
-      done: 'update.done',
-      error: 'update.error',
-    },
     start: () => call('update.download', { id: job.id }),
   });
 }

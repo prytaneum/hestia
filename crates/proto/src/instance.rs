@@ -6,8 +6,8 @@
 use serde::{Deserialize, Serialize};
 
 use crate::content::ContentKind;
-use crate::contract::{Contract, Empty, Topic};
-use crate::error::ErrorInfo;
+use crate::contract::{Contract, Empty};
+use crate::job::{Job, JobStarted};
 use crate::keys::KeyRule;
 use crate::minecraft::{
     ConfigEntry, FlavorsResult, LoadersParams, LoadersResult, ProvisionProgress, VersionsParams,
@@ -579,37 +579,25 @@ pub enum QuickPlay {
     Realm(String),
 }
 
-#[derive(Serialize, Deserialize, Default, Debug, Clone)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
-#[serde(default, rename_all = "camelCase")]
-pub struct InstanceLaunchResult {
-    pub id: String,
-}
-
+/// A job. A cancel stops it before the game is spawned: nothing was started,
+/// and whatever it had materialised stays — those files are shared and
+/// idempotent, so the next launch resumes from them.
 pub struct InstanceLaunch;
 impl Contract for InstanceLaunch {
     const CHANNEL: &'static str = "instance.launch";
     type Params = InstanceLaunchParams;
-    type Result = InstanceLaunchResult;
+    type Result = JobStarted;
+}
+
+impl Job for InstanceLaunch {
+    type Progress = ProvisionProgress;
+    type Done = InstanceLaunchDone;
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
 #[serde(rename_all = "camelCase")]
-pub struct InstanceLaunchProgressEvent {
-    pub id: String,
-    #[serde(flatten)]
-    pub progress: ProvisionProgress,
-}
-impl Topic for InstanceLaunchProgressEvent {
-    const TOPIC: &'static str = "instance.launch.progress";
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
-#[serde(rename_all = "camelCase")]
-pub struct InstanceLaunchDoneEvent {
-    pub id: String,
+pub struct InstanceLaunchDone {
     pub process_id: String,
     pub pid: u32,
     /// Degraded outcomes of a launch that nonetheless started the game — a
@@ -617,30 +605,4 @@ pub struct InstanceLaunchDoneEvent {
     /// say what it is running against.
     #[serde(default)]
     pub warnings: Vec<WarningInfo>,
-}
-impl Topic for InstanceLaunchDoneEvent {
-    const TOPIC: &'static str = "instance.launch.done";
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
-#[serde(rename_all = "camelCase")]
-pub struct InstanceLaunchErrorEvent {
-    pub id: String,
-    /// The structured cause a front-end localizes from.
-    pub error: ErrorInfo,
-}
-impl Topic for InstanceLaunchErrorEvent {
-    const TOPIC: &'static str = "instance.launch.error";
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
-#[serde(rename_all = "camelCase")]
-/// A launch stopped before the game was spawned. Nothing was started, and whatever it had materialised stays — those files are shared and idempotent, so the next launch resumes from them.
-pub struct InstanceLaunchCancelledEvent {
-    pub id: String,
-}
-impl Topic for InstanceLaunchCancelledEvent {
-    const TOPIC: &'static str = "instance.launch.cancelled";
 }

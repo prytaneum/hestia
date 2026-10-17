@@ -9,21 +9,16 @@ const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
 
 afterEach(() => vi.restoreAllMocks());
 
-const topics = {
-  progress: 'server.create.progress',
-  done: 'server.create.done',
-  error: 'server.create.error',
-};
+const channel = 'server.create';
 
 describe('runJob', () => {
   it('resolves with the done event of its own job', async () => {
     const id = jobId('server.create');
     const outcome = runJob<{ id: string; server: string }>({
       id,
-      topics,
       start: async () => {
         await settle();
-        publish('server.create.done', { id, server: 'smp' });
+        publish('job', { id, channel, state: 'done', server: 'smp' });
       },
     });
     await expect(outcome).resolves.toMatchObject({ id, server: 'smp' });
@@ -33,11 +28,15 @@ describe('runJob', () => {
     const id = jobId('server.create');
     const outcome = runJob<{ id: string; server: string }>({
       id,
-      topics,
       start: async () => {
         await settle();
-        publish('server.create.done', { id: 'someone-else', server: 'other' });
-        publish('server.create.done', { id, server: 'mine' });
+        publish('job', {
+          id: 'someone-else',
+          channel,
+          state: 'done',
+          server: 'other',
+        });
+        publish('job', { id, channel, state: 'done', server: 'mine' });
       },
     });
     await expect(outcome).resolves.toMatchObject({ server: 'mine' });
@@ -48,13 +47,12 @@ describe('runJob', () => {
     const seen: number[] = [];
     await runJob<{ id: string }, { percent: number }>({
       id,
-      topics,
       onProgress: (p) => seen.push(p.percent),
       start: async () => {
         await settle();
-        publish('server.create.progress', { id, percent: 10 });
-        publish('server.create.progress', { id, percent: 90 });
-        publish('server.create.done', { id });
+        publish('job', { id, channel, state: 'progress', percent: 10 });
+        publish('job', { id, channel, state: 'progress', percent: 90 });
+        publish('job', { id, channel, state: 'done' });
       },
     });
     expect(seen).toEqual([10, 90]);
@@ -65,12 +63,11 @@ describe('runJob', () => {
     const seen: number[] = [];
     await runJob<{ id: string }, { percent: number }>({
       id,
-      topics,
       onProgress: (p) => seen.push(p.percent),
       start: async () => {
         await settle();
-        publish('server.create.done', { id });
-        publish('server.create.progress', { id, percent: 100 });
+        publish('job', { id, channel, state: 'done' });
+        publish('job', { id, channel, state: 'progress', percent: 100 });
       },
     });
     await settle();
@@ -81,11 +78,12 @@ describe('runJob', () => {
     const id = jobId('server.create');
     const outcome = runJob<{ id: string }>({
       id,
-      topics,
       start: async () => {
         await settle();
-        publish('server.create.error', {
+        publish('job', {
           id,
+          channel,
+          state: 'failed',
           error: { kind: 'already_exists', entry: 'server', name: 'smp' },
         });
       },
@@ -100,10 +98,9 @@ describe('runJob', () => {
     const id = jobId('server.create');
     const outcome = runJob<{ id: string }>({
       id,
-      topics,
       start: async () => {
         await settle();
-        publish('server.create.cancelled', { id });
+        publish('job', { id, channel, state: 'cancelled' });
       },
     });
     await expect(outcome).rejects.toBeInstanceOf(JobCancelled);
@@ -114,7 +111,6 @@ describe('runJob', () => {
     await expect(
       runJob<{ id: string }>({
         id,
-        topics,
         start: () => Promise.reject(new HestiaError('bad_request', 'nope')),
       }),
     ).rejects.toThrow('nope');
@@ -124,9 +120,8 @@ describe('runJob', () => {
     const id = jobId('server.create');
     const outcome = runJob<{ id: string; server: string }>({
       id,
-      topics,
       start: async () => {
-        publish('server.create.done', { id, server: 'instant' });
+        publish('job', { id, channel, state: 'done', server: 'instant' });
         await settle();
       },
     });

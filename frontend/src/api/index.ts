@@ -37,7 +37,6 @@ export {
   JobCancelled,
   type JobOptions,
   type JobRun,
-  type JobTopics,
   jobId,
   runJob,
 } from './core/jobs';

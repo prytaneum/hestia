@@ -9,8 +9,9 @@ use std::fmt;
 
 use serde::{Deserialize, Serialize};
 
-use crate::contract::{Contract, Empty, Topic};
+use crate::contract::{Contract, Empty};
 use crate::error::{EntryTarget, ErrorInfo};
+use crate::job::{Job, JobStarted};
 use crate::minecraft::{Artifact, ProvisionProgress};
 
 /// What a project is — the second selector level after the source.
@@ -452,13 +453,6 @@ pub struct EntryContentUpdateParams {
     pub id: String,
 }
 
-#[derive(Serialize, Deserialize, Default, Debug, Clone)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
-#[serde(default, rename_all = "camelCase")]
-pub struct ContentJobResult {
-    pub id: String,
-}
-
 /// Enable or disable one installed item (matched by project id, slug, filename,
 /// or title). Disabling drops it from the game's load dirs while keeping the
 /// managed copy and provenance; enabling restores the mirror. `worlds` scopes a
@@ -544,7 +538,12 @@ pub struct EntryContentAdd;
 impl Contract for EntryContentAdd {
     const CHANNEL: &'static str = "content.add";
     type Params = EntryContentAddParams;
-    type Result = ContentJobResult;
+    type Result = JobStarted;
+}
+
+impl Job for EntryContentAdd {
+    type Progress = ProvisionProgress;
+    type Done = ContentDone;
 }
 
 pub struct EntryContentList;
@@ -565,7 +564,12 @@ pub struct EntryContentUpdate;
 impl Contract for EntryContentUpdate {
     const CHANNEL: &'static str = "content.update";
     type Params = EntryContentUpdateParams;
-    type Result = ContentJobResult;
+    type Result = JobStarted;
+}
+
+impl Job for EntryContentUpdate {
+    type Progress = ProvisionProgress;
+    type Done = ContentDone;
 }
 
 pub struct EntryContentEnable;
@@ -593,55 +597,24 @@ pub struct EntryContentSetVersion;
 impl Contract for EntryContentSetVersion {
     const CHANNEL: &'static str = "content.set_version";
     type Params = EntryContentSetVersionParams;
-    type Result = ContentJobResult;
+    type Result = JobStarted;
 }
 
+impl Job for EntryContentSetVersion {
+    type Progress = ProvisionProgress;
+    type Done = ContentDone;
+}
+
+/// What a content install, update or version change settled with. Cancelling
+/// one keeps the items already installed — the batch is per-item, and each one
+/// that completed is real.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
 #[serde(rename_all = "camelCase")]
-pub struct ContentProgressEvent {
-    pub id: String,
-    #[serde(flatten)]
-    pub progress: ProvisionProgress,
-}
-impl Topic for ContentProgressEvent {
-    const TOPIC: &'static str = "content.progress";
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
-#[serde(rename_all = "camelCase")]
-pub struct ContentDoneEvent {
-    pub id: String,
+pub struct ContentDone {
     pub items: Vec<InstalledContent>,
     #[serde(default)]
     pub failures: Vec<ContentFailure>,
-}
-impl Topic for ContentDoneEvent {
-    const TOPIC: &'static str = "content.done";
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
-#[serde(rename_all = "camelCase")]
-pub struct ContentErrorEvent {
-    pub id: String,
-    /// The structured cause a front-end localizes from.
-    pub error: ErrorInfo,
-}
-impl Topic for ContentErrorEvent {
-    const TOPIC: &'static str = "content.error";
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
-#[serde(rename_all = "camelCase")]
-/// A content install or update stopped at the caller's request. Items already installed stay installed — the batch is per-item, and each one that completed is real.
-pub struct ContentCancelledEvent {
-    pub id: String,
-}
-impl Topic for ContentCancelledEvent {
-    const TOPIC: &'static str = "content.cancelled";
 }
 
 pub struct ContentSources;

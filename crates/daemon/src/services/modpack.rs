@@ -11,10 +11,11 @@
 use std::path::Path;
 
 use proto::error::{ErrorInfo, Field};
+use proto::job::JobStarted;
 use proto::modpack::{
     EntryModpackCheckUpdate, EntryModpackPreviewUpdate, EntryModpackRemove, EntryModpackStatus,
-    EntryModpackUpdate, InstanceModpackInstall, ModpackJobResult, ModpackRef, ModpackStatusResult,
-    ModpackTarget, ModpackUpdateResult, ServerModpackInstall,
+    EntryModpackUpdate, InstanceModpackInstall, ModpackRef, ModpackStatusResult, ModpackTarget,
+    ModpackUpdateResult, ServerModpackInstall,
 };
 
 use super::guards::{entry_for, instance_for, server_for, Intent};
@@ -39,7 +40,7 @@ fn register_install(on: &mut Channels<'_>) {
         };
         let busy = target_name(&target);
         start(
-            ctx.runtime.modpack_jobs().start(
+            ctx.runtime.modpack_jobs().start::<InstanceModpackInstall>(
                 ModpackJob::InstallInstance {
                     pack: p.pack,
                     target,
@@ -68,7 +69,7 @@ fn register_install(on: &mut Channels<'_>) {
         };
         let busy = target_name(&target);
         start(
-            ctx.runtime.modpack_jobs().start(
+            ctx.runtime.modpack_jobs().start::<ServerModpackInstall>(
                 ModpackJob::InstallServer {
                     pack: p.pack,
                     target,
@@ -86,7 +87,7 @@ fn register_entry(on: &mut Channels<'_>) {
     on.handle::<EntryModpackUpdate, _, _>(|p, ctx| async move {
         let entry = entry_for(&ctx, &p.target, Intent::Mutate)?;
         start(
-            ctx.runtime.modpack_jobs().start(
+            ctx.runtime.modpack_jobs().start::<EntryModpackUpdate>(
                 ModpackJob::Update {
                     entry: entry.handle,
                     to: p.to,
@@ -163,9 +164,9 @@ fn target_name(target: &ModpackTarget) -> String {
     }
 }
 
-fn start(started: Option<String>, name: String) -> Result<ModpackJobResult, ErrorInfo> {
+fn start(started: Option<String>, name: String) -> Result<JobStarted, ErrorInfo> {
     match started {
-        Some(id) => Ok(ModpackJobResult { id }),
+        Some(id) => Ok(JobStarted { id }),
         None => Err(ErrorInfo::ContentInProgress { name }),
     }
 }

@@ -5,7 +5,7 @@ use proto::instance::{AddressPing, AddressPingParams};
 use proto::instance::{
     InstanceConfigGet, InstanceConfigGetParams, InstanceConfigList, InstanceConfigSet,
     InstanceConfigSetParams, InstanceCreate, InstanceCreateParams, InstanceDetails,
-    InstanceFlavors, InstanceInfo, InstanceInfoQuery, InstanceLaunch, InstanceLaunchDoneEvent,
+    InstanceFlavors, InstanceInfo, InstanceInfoQuery, InstanceLaunch, InstanceLaunchDone,
     InstanceLaunchParams, InstanceList, InstanceLoaders, InstanceLogs, InstanceLogsParams,
     InstanceRecent, InstanceRef, InstanceRemove, InstanceRename, InstanceRenameParams,
     InstanceServerEdit, InstanceServerEditParams, InstanceServerRef, InstanceServerRemove,
@@ -20,7 +20,6 @@ use proto::minecraft::{
 use proto::process::ProcessLogLine;
 use proto::server::ServerPingResult;
 
-use crate::facades::jobs::forward;
 use crate::session::{job_id, Session};
 
 pub struct Instance<'a> {
@@ -305,9 +304,8 @@ impl Instance<'_> {
         &self,
         options: LaunchOptions<'_>,
         on_progress: impl Fn(&ProvisionProgress) + Send + Sync + 'static,
-    ) -> Result<InstanceLaunchDoneEvent, IpcError> {
+    ) -> Result<InstanceLaunchDone, IpcError> {
         let id = job_id("instance-launch");
-        let session = self.session;
         let params = InstanceLaunchParams {
             instance: options.instance.to_string(),
             account: options.account.to_string(),
@@ -316,18 +314,9 @@ impl Instance<'_> {
             quick_play: options.quick_play,
             offline: options.offline,
         };
-        let payload = self
-            .session
-            .run_job(
-                &id,
-                "instance.launch.done",
-                "instance.launch.error",
-                forward(on_progress),
-                move || async move { session.call::<InstanceLaunch>(&params).await.map(|_| ()) },
-            )
-            .await?;
-
-        serde_json::from_value(payload).map_err(|e| IpcError::Malformed(e.to_string()))
+        self.session
+            .run_job::<InstanceLaunch>(&id, &params, on_progress)
+            .await
     }
 }
 

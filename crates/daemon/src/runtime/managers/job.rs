@@ -9,6 +9,7 @@ use std::sync::{Arc, Mutex};
 
 use ipc::protocol::Event;
 use proto::java::{JavaInstallPhase, JavaInstallProgress};
+use proto::job::{Job, JobEvent, JobState};
 use proto::minecraft::{ProvisionPhase, ProvisionProgress};
 
 /// Below this ratio delta a progress update is dropped, matching Modrinth's
@@ -86,10 +87,15 @@ where
     }
 }
 
-pub(crate) fn topic_event<E: proto::Topic + serde::Serialize>(event: &E) -> Event {
+fn job_event<C: Job>(id: &str, state: JobState<&C::Progress, &C::Done>) -> Event {
+    let event = JobEvent {
+        id: id.to_string(),
+        channel: C::CHANNEL.to_string(),
+        state,
+    };
     Event {
-        topic: E::TOPIC.to_string(),
-        payload: serde_json::to_value(event).unwrap_or_default(),
+        topic: proto::job::TOPIC.to_string(),
+        payload: serde_json::to_value(&event).unwrap_or_default(),
     }
 }
 
@@ -191,12 +197,12 @@ mod tests {
         );
     }
 
-    /// A job family invented for the tests: the runner never looks inside a
-    /// payload, so one stand-in family exercises every path.
-    mod family {
-        use serde::Serialize;
+    /// A job invented for the tests: the runner never looks inside a payload,
+    /// so one stand-in contract exercises every path.
+    mod stand_in {
+        use serde::{Deserialize, Serialize};
 
-        #[derive(Serialize, Clone)]
+        #[derive(Serialize, Deserialize, Clone)]
         pub struct Progress {
             pub done: u64,
         }
@@ -208,38 +214,18 @@ mod tests {
             }
         }
 
-        #[derive(Serialize)]
-        pub struct ProgressEvent {
-            pub id: String,
-            pub done: u64,
-        }
-        impl proto::Topic for ProgressEvent {
-            const TOPIC: &'static str = "test.progress";
-        }
+        #[derive(Serialize, Deserialize)]
+        pub struct Done {}
 
-        #[derive(Serialize)]
-        pub struct DoneEvent {
-            pub id: String,
+        pub struct Test;
+        impl proto::Contract for Test {
+            const CHANNEL: &'static str = "test.start";
+            type Params = proto::Empty;
+            type Result = proto::job::JobStarted;
         }
-        impl proto::Topic for DoneEvent {
-            const TOPIC: &'static str = "test.done";
-        }
-
-        #[derive(Serialize)]
-        pub struct CancelledEvent {
-            pub id: String,
-        }
-        impl proto::Topic for CancelledEvent {
-            const TOPIC: &'static str = "test.cancelled";
-        }
-
-        #[derive(Serialize)]
-        pub struct ErrorEvent {
-            pub id: String,
-            pub message: String,
-        }
-        impl proto::Topic for ErrorEvent {
-            const TOPIC: &'static str = "test.error";
+        impl proto::job::Job for Test {
+            type Progress = Progress;
+            type Done = Done;
         }
     }
 
@@ -262,34 +248,43 @@ mod tests {
         }
     }
 
-    /// The spec for the stand-in family, with `key` and `cancelled` varied per
-    /// test — everything else the runner owns.
-    fn spec(key: Option<String>, cancelled: bool) -> Spec<String, family::Progress, ()> {
+    /// The spec for the stand-in job, with `key` varied per test —
+    /// everything else the runner owns.
+    fn spec(key: Option<String>) -> Spec<String> {
         Spec {
             id: String::new(),
             prefix: "test",
             key,
-            progress: progress_event(|id, p: &family::Progress| family::ProgressEvent {
-                id,
-                done: p.done,
-            }),
-            done: settle(|id, ()| family::DoneEvent { id }),
-            cancelled: cancelled.then(|| settle(|id, ()| family::CancelledEvent { id })),
-            error: settle(|id, e: anyhow::Error| family::ErrorEvent {
-                id,
-                message: format!("{e:#}"),
-            }),
         }
     }
 
-    /// The topics published so far, drained.
+    fn start<W>(runner: &Runner<String>, key: Option<String>, work: W) -> Option<String>
+    where
+        W: for<'a> FnOnce(
+                &'a engine::Engine,
+                Reporter<'a, stand_in::Progress>,
+            ) -> Work<'a, stand_in::Done>
+            + Send
+            + 'static,
+    {
+        runner.start::<stand_in::Test, _>(spec(key), work)
+    }
+
+    /// The state of every job event published so far, drained.
     async fn topics(events: &mut tokio::sync::mpsc::UnboundedReceiver<String>) -> Vec<String> {
         let mut seen = Vec::new();
         while let Ok(Some(frame)) =
             tokio::time::timeout(Duration::from_millis(500), events.recv()).await
         {
             let value: serde_json::Value = serde_json::from_str(&frame).expect("a frame");
-            seen.push(value["event"].as_str().unwrap_or_default().to_string());
+            assert_eq!(value["event"], "job");
+            assert_eq!(value["payload"]["channel"], "test.start");
+            seen.push(
+                value["payload"]["state"]
+                    .as_str()
+                    .unwrap_or_default()
+                    .to_string(),
+            );
         }
         seen
     }
@@ -299,21 +294,17 @@ mod tests {
         let harness = harness();
         let (gate, held) = tokio::sync::oneshot::channel::<()>();
 
-        let first = harness
-            .runner
-            .start(spec(Some("entry".into()), true), move |_, _| {
-                Box::pin(async move {
-                    let _ = held.await;
-                    Ok(())
-                })
-            });
+        let first = start(&harness.runner, Some("entry".into()), move |_, _| {
+            Box::pin(async move {
+                let _ = held.await;
+                Ok(stand_in::Done {})
+            })
+        });
         assert!(first.is_some(), "the first job takes the key");
 
-        let second = harness
-            .runner
-            .start(spec(Some("entry".into()), true), |_, _| {
-                Box::pin(async { Ok(()) })
-            });
+        let second = start(&harness.runner, Some("entry".into()), |_, _| {
+            Box::pin(async { Ok(stand_in::Done {}) })
+        });
         assert!(second.is_none(), "the second is refused while it is held");
         assert!(harness.runner.in_flight("entry"));
 
@@ -323,108 +314,79 @@ mod tests {
     #[tokio::test]
     async fn a_finished_job_releases_its_key() {
         let mut harness = harness();
-        harness
-            .runner
-            .start(spec(Some("entry".into()), true), |_, _| {
-                Box::pin(async { Ok(()) })
-            })
-            .expect("started");
+        start(&harness.runner, Some("entry".into()), |_, _| {
+            Box::pin(async { Ok(stand_in::Done {}) })
+        })
+        .expect("started");
         topics(&mut harness.events).await;
 
         assert!(!harness.runner.in_flight("entry"));
-        assert!(harness
-            .runner
-            .start(spec(Some("entry".into()), true), |_, _| Box::pin(async {
-                Ok(())
-            }))
-            .is_some());
+        assert!(start(&harness.runner, Some("entry".into()), |_, _| {
+            Box::pin(async { Ok(stand_in::Done {}) })
+        })
+        .is_some());
     }
 
     #[tokio::test]
-    async fn a_keyless_family_never_refuses() {
+    async fn a_keyless_job_never_refuses() {
         let harness = harness();
         for _ in 0..3 {
-            assert!(harness
-                .runner
-                .start(spec(None, true), |_, _| Box::pin(async {
-                    tokio::task::yield_now().await;
-                    Ok(())
-                }))
-                .is_some());
+            assert!(start(&harness.runner, None, |_, _| Box::pin(async {
+                tokio::task::yield_now().await;
+                Ok(stand_in::Done {})
+            }))
+            .is_some());
         }
     }
 
     #[tokio::test]
     async fn progress_is_coalesced_and_the_job_settles_on_done() {
         let mut harness = harness();
-        harness
-            .runner
-            .start(spec(None, true), |_, reporter| {
-                Box::pin(async move {
-                    let report = reporter.checked();
-                    // A flood of sub-epsilon ticks, as an assets pass emits.
-                    for done in 0..=1000 {
-                        report(&family::Progress { done })?;
-                    }
-                    Ok(())
-                })
+        start(&harness.runner, None, |_, reporter| {
+            Box::pin(async move {
+                let report = reporter.checked();
+                // A flood of sub-epsilon ticks, as an assets pass emits.
+                for done in 0..=1000 {
+                    report(&stand_in::Progress { done })?;
+                }
+                Ok(stand_in::Done {})
             })
-            .expect("started");
+        })
+        .expect("started");
 
         let seen = topics(&mut harness.events).await;
-        assert_eq!(seen.last().map(String::as_str), Some("test.done"));
-        let progress = seen.iter().filter(|t| *t == "test.progress").count();
+        assert_eq!(seen.last().map(String::as_str), Some("done"));
+        let progress = seen.iter().filter(|t| *t == "progress").count();
         assert!(
             (1..=210).contains(&progress),
-            "every family is coalesced by the runner, got {progress} of 1001 ticks"
+            "every job is coalesced by the runner, got {progress} of 1001 ticks"
         );
     }
 
     #[tokio::test]
     async fn a_cancelled_job_settles_apart_from_a_failure() {
         let mut harness = harness();
-        harness
-            .runner
-            .start(spec(None, true), |_, reporter| {
-                Box::pin(async move {
-                    reporter.cancel().cancel();
-                    reporter.cancel().check()?;
-                    Ok(())
-                })
+        start(&harness.runner, None, |_, reporter| {
+            Box::pin(async move {
+                reporter.cancel().cancel();
+                reporter.cancel().check()?;
+                Ok(stand_in::Done {})
             })
-            .expect("started");
+        })
+        .expect("started");
 
-        assert_eq!(topics(&mut harness.events).await, vec!["test.cancelled"]);
-    }
-
-    #[tokio::test]
-    async fn a_family_with_no_cancelled_topic_reports_the_failure() {
-        let mut harness = harness();
-        harness
-            .runner
-            .start(spec(None, false), |_, reporter| {
-                Box::pin(async move {
-                    reporter.cancel().cancel();
-                    reporter.cancel().check()?;
-                    Ok(())
-                })
-            })
-            .expect("started");
-
-        assert_eq!(topics(&mut harness.events).await, vec!["test.error"]);
+        assert_eq!(topics(&mut harness.events).await, vec!["cancelled"]);
     }
 
     #[tokio::test]
     async fn a_failed_job_settles_on_its_error_topic() {
         let mut harness = harness();
-        harness
-            .runner
-            .start(spec(None, true), |_, _| {
-                Box::pin(async { Err(anyhow::anyhow!("no")) })
-            })
-            .expect("started");
+        start(&harness.runner, None, |_, _| {
+            Box::pin(async { Err(anyhow::anyhow!("no")) })
+        })
+        .expect("started");
 
-        assert_eq!(topics(&mut harness.events).await, vec!["test.error"]);
+        assert_eq!(topics(&mut harness.events).await, vec!["failed"]);
     }
 
     #[test]
@@ -512,7 +474,7 @@ impl Drop for Registered {
 }
 
 /// What a job reports through and is cancelled by. The reporter is already
-/// coalesced, so a family never decides how often to publish.
+/// coalesced, so a job never decides how often to publish.
 pub(super) struct Reporter<'a, P> {
     publish: &'a (dyn Fn(&P) + Send + Sync),
     cancel: &'a engine::Cancel,
@@ -540,25 +502,19 @@ impl<'a> Reporter<'a, ProvisionProgress> {
     }
 }
 
+type Publish<P> = Box<dyn Fn(&P) + Send + Sync>;
 type Work<'a, T> =
     std::pin::Pin<Box<dyn std::future::Future<Output = anyhow::Result<T>> + Send + 'a>>;
-type Progress<P> = Box<dyn Fn(String, &P) -> Event + Send + Sync>;
-type Settle<T> = Box<dyn FnOnce(String, T) -> Event + Send>;
 
-/// Everything one job family differs by. Claiming, spawning, coalescing,
-/// cancellation, terminal classification and logging are the runner's.
-pub(super) struct Spec<K, P, T> {
+/// What one job differs by besides its contract. Claiming, spawning,
+/// coalescing, cancellation, terminal classification, event construction and
+/// logging are the runner's.
+pub(super) struct Spec<K> {
     /// The caller's job id; empty generates one from `prefix`.
     pub id: String,
     pub prefix: &'static str,
-    /// The in-flight key. `None` admits any number of this family at once.
+    /// The in-flight key. `None` admits any number of this job at once.
     pub key: Option<K>,
-    pub progress: Progress<P>,
-    pub done: Settle<T>,
-    /// `None` reports a cancellation through `error`, for a family with no
-    /// cancelled topic of its own.
-    pub cancelled: Option<Settle<()>>,
-    pub error: Settle<anyhow::Error>,
 }
 
 /// The plumbing every worker manager runs its jobs through.
@@ -593,11 +549,14 @@ impl<K: Eq + Hash + Clone + Send + std::fmt::Debug + 'static> Runner<K> {
 
     /// Run `work` off-thread, publishing its progress and terminal outcome.
     /// Returns the job id, or `None` when the key is already claimed.
-    pub(super) fn start<P, T, F>(&self, spec: Spec<K, P, T>, work: F) -> Option<String>
+    pub(super) fn start<C, W>(&self, spec: Spec<K>, work: W) -> Option<String>
     where
-        P: Coalescible + Send + Sync + 'static,
-        T: Send + 'static,
-        F: for<'a> FnOnce(&'a engine::Engine, Reporter<'a, P>) -> Work<'a, T> + Send + 'static,
+        C: Job,
+        C::Progress: Coalescible + Send + Sync + 'static,
+        C::Done: Send + 'static,
+        W: for<'a> FnOnce(&'a engine::Engine, Reporter<'a, C::Progress>) -> Work<'a, C::Done>
+            + Send
+            + 'static,
     {
         let id = job_id(spec.id, spec.prefix);
         let claim = match spec.key {
@@ -615,8 +574,6 @@ impl<K: Eq + Hash + Clone + Send + std::fmt::Debug + 'static> Runner<K> {
         let hub = self.hub.clone();
         let cancellations = self.cancellations.clone();
         let (job_id, kind) = (id.clone(), spec.prefix);
-        let (progress, done, cancelled, error) =
-            (spec.progress, spec.done, spec.cancelled, spec.error);
         tracing::info!(job = %id, kind, "job started");
 
         tokio::spawn(async move {
@@ -625,9 +582,9 @@ impl<K: Eq + Hash + Clone + Send + std::fmt::Debug + 'static> Runner<K> {
 
             let publish_hub = hub.clone();
             let publish_id = job_id.clone();
-            let publish: Box<dyn Fn(&P) + Send + Sync> =
-                Box::new(coalesce_progress(move |p: &P| {
-                    publish_hub.publish(&progress(publish_id.clone(), p));
+            let publish: Publish<C::Progress> =
+                Box::new(coalesce_progress(move |progress: &C::Progress| {
+                    publish_hub.publish(&job_event::<C>(&publish_id, JobState::Progress(progress)));
                 }));
 
             let outcome = work(
@@ -640,39 +597,26 @@ impl<K: Eq + Hash + Clone + Send + std::fmt::Debug + 'static> Runner<K> {
             .await;
 
             let event = match outcome {
-                Ok(value) => {
+                Ok(done) => {
                     tracing::info!(job = %job_id, kind, "job done");
-                    done(job_id.clone(), value)
+                    job_event::<C>(&job_id, JobState::Done(&done))
                 }
-                Err(e) if engine::is_cancelled(&e) && cancelled.is_some() => {
+                Err(e) if engine::is_cancelled(&e) => {
                     tracing::info!(job = %job_id, kind, "job cancelled");
-                    cancelled.expect("checked")(job_id.clone(), ())
+                    job_event::<C>(&job_id, JobState::Cancelled)
                 }
                 Err(e) => {
                     tracing::error!(job = %job_id, kind, error = format!("{e:#}"), "job failed");
-                    error(job_id.clone(), e)
+                    job_event::<C>(
+                        &job_id,
+                        JobState::Failed {
+                            error: crate::runtime::engine_error(e),
+                        },
+                    )
                 }
             };
             hub.publish(&event);
         });
         Some(id)
     }
-}
-
-/// A progress-event builder for a family whose event is `{ id, progress }`.
-pub(super) fn progress_event<P, E, F>(build: F) -> Progress<P>
-where
-    E: proto::Topic + serde::Serialize,
-    F: Fn(String, &P) -> E + Send + Sync + 'static,
-{
-    Box::new(move |id, progress| topic_event(&build(id, progress)))
-}
-
-/// A terminal-event builder.
-pub(super) fn settle<T, E, F>(build: F) -> Settle<T>
-where
-    E: proto::Topic + serde::Serialize,
-    F: FnOnce(String, T) -> E + Send + 'static,
-{
-    Box::new(move |id, value| topic_event(&build(id, value)))
 }

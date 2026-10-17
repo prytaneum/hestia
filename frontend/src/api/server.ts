@@ -2,13 +2,12 @@
  * The `server.*` channels. Every per-entry call names the server by display
  * name or id (`proto::naming` resolves either). `create` and `update` are
  * jobs — the returned promise settles on the job's terminal event while
- * progress streams through the callback; backups share the `backup.*` topics,
- * disambiguated by job id.
+ * progress streams through the callback; backups are jobs too.
  */
 
 import { call } from './core/ipc';
 import { type JobRun, runJob } from './core/jobs';
-import type { BackupInfo } from './types/backup';
+import type { BackupDone, BackupInfo } from './types/backup';
 import type {
   ConfigEntry,
   FlavorsResult,
@@ -17,13 +16,12 @@ import type {
 import type { ProcessLogLine } from './types/process';
 import type {
   ServerCommandCompleteResult,
-  ServerCreateDoneEvent,
   ServerCreateParams,
   ServerDetails,
+  ServerDone,
   ServerInfo,
   ServerPingResult,
   ServerProperty,
-  ServerUpdateDoneEvent,
   ServerUpdateParams,
 } from './types/server';
 
@@ -73,14 +71,9 @@ export function ping(server: string): Promise<ServerPingResult> {
 export async function create(
   params: Partial<ServerCreateParams>,
   job: JobRun,
-): Promise<ServerCreateDoneEvent> {
-  return await runJob<ServerCreateDoneEvent>({
+): Promise<ServerDone> {
+  return await runJob<ServerDone>({
     ...job,
-    topics: {
-      progress: 'server.create.progress',
-      done: 'server.create.done',
-      error: 'server.create.error',
-    },
     start: () => call('server.create', { ...params, id: job.id }),
   });
 }
@@ -88,14 +81,9 @@ export async function create(
 export async function update(
   params: Omit<ServerUpdateParams, 'id'>,
   job: JobRun,
-): Promise<ServerUpdateDoneEvent> {
-  return await runJob<ServerUpdateDoneEvent>({
+): Promise<ServerDone> {
+  return await runJob<ServerDone>({
     ...job,
-    topics: {
-      progress: 'server.update.progress',
-      done: 'server.update.done',
-      error: 'server.update.error',
-    },
     start: () => call('server.update', { ...params, id: job.id }),
   });
 }
@@ -192,9 +180,8 @@ export async function properties(server: string): Promise<ServerProperty[]> {
 export const backup = {
   /** Archives a running server live (world saving pauses over RCON). */
   async create(server: string, job: JobRun): Promise<BackupInfo> {
-    const done = await runJob<{ id: string; backup: BackupInfo }>({
+    const done = await runJob<BackupDone>({
       ...job,
-      topics: { done: 'backup.done', error: 'backup.error' },
       start: () => call('server.backup.create', { server, id: job.id }),
     });
     return done.backup;
@@ -213,9 +200,8 @@ export const backup = {
     backupId: string,
     job: JobRun,
   ): Promise<BackupInfo> {
-    const done = await runJob<{ id: string; backup: BackupInfo }>({
+    const done = await runJob<BackupDone>({
       ...job,
-      topics: { done: 'backup.done', error: 'backup.error' },
       start: () =>
         call('server.backup.restore', { server, backup: backupId, id: job.id }),
     });

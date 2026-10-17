@@ -1,7 +1,6 @@
 /**
- * `server.backup.*`. Create and restore are jobs on the shared `backup.*`
- * topics, disambiguated by job id; the list is per server, newest first, so a
- * create shows up where the tab expects it.
+ * `server.backup.*`. Create and restore are jobs; the list is per server,
+ * newest first, so a create shows up where the tab expects it.
  */
 import type { BackupInfo } from '@/api/types';
 
@@ -43,12 +42,13 @@ const stamp = (): string =>
 export function channels(resolve: Resolve): Handlers {
   const job = (
     payload: Record<string, unknown>,
+    channel: 'server.backup.create' | 'server.backup.restore',
     phase: 'backup' | 'extract',
     done: () => BackupInfo,
   ) =>
     startJob({
       id: jobIdOf(payload, 'server-backup'),
-      family: 'backup',
+      channel,
       steps: [
         { phase: 'resolving', detail: 'pausing world saves' },
         { phase, detail: 'world' },
@@ -61,7 +61,7 @@ export function channels(resolve: Resolve): Handlers {
     'server.backup.list': (p) => ({ backups: listOf(resolve(p)) }),
 
     'server.backup.create': (p) =>
-      job(p, 'backup', () => {
+      job(p, 'server.backup.create', 'backup', () => {
         const backup: BackupInfo = {
           id: stamp(),
           kind: 'manual',
@@ -73,7 +73,7 @@ export function channels(resolve: Resolve): Handlers {
       }),
 
     'server.backup.restore': (p) =>
-      job(p, 'extract', () => {
+      job(p, 'server.backup.restore', 'extract', () => {
         const wanted = str(p, 'backup');
         const found = listOf(resolve(p)).find((entry) => entry.id === wanted);
         return (

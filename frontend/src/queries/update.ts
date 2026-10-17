@@ -9,7 +9,7 @@ import type { DownloadProgress } from '../api/types/download';
 import type {
   UpdateApplyResult,
   UpdateCheckResult,
-  UpdateDoneEvent,
+  UpdateDone,
 } from '../api/types/update';
 import * as api from '../api/update';
 import { mutation } from './core';
@@ -30,7 +30,7 @@ const updateQueries = {
 
 export const updateMutations = {
   download: () =>
-    jobMutation<UpdateDoneEvent, void, DownloadProgress>({
+    jobMutation<UpdateDone, void, DownloadProgress>({
       mutationKey: [...keys.update.all, 'download'],
       meta: () => ({ kind: 'update.download', label: 'download update' }),
       run: (_variables, job) => api.download(job),

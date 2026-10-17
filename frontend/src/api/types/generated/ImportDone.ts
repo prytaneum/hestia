@@ -4,7 +4,7 @@ import type { ImportFormat } from "./ImportFormat";
 import type { InstanceInfo } from "./InstanceInfo";
 import type { WarningInfo } from "./WarningInfo";
 
-export type ImportDoneEvent = { id: string, format: ImportFormat, instance: InstanceInfo, 
+export type ImportDone = { format: ImportFormat, instance: InstanceInfo, 
 /**
  * Per-item failures of an import that installs content (a pack's mods):
  * the rest of the instance landed, these did not.

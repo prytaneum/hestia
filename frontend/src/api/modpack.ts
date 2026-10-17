@@ -19,7 +19,7 @@ import { type JobRun, runJob } from './core/jobs';
 import type { EntryTarget } from './types/error';
 import type {
   InstalledModpack,
-  ModpackDoneEvent,
+  ModpackDone,
   ModpackFilePreview,
   ModpackMove,
   ModpackRef,
@@ -28,12 +28,6 @@ import type {
   ModpackUpdate,
 } from './types/modpack';
 
-const topics = {
-  progress: 'modpack.progress',
-  done: 'modpack.done',
-  error: 'modpack.error',
-} as const;
-
 /** Exactly one of `project`, `url`, or `path` names the pack. */
 export type PackRef = Partial<ModpackRef>;
 
@@ -41,10 +35,9 @@ export function installInstance(
   pack: PackRef,
   target: ModpackTarget,
   job: JobRun,
-): Promise<ModpackDoneEvent> {
-  return runJob<ModpackDoneEvent>({
+): Promise<ModpackDone> {
+  return runJob<ModpackDone>({
     ...job,
-    topics,
     start: () =>
       call('instance.modpack.install', { ...pack, target, id: job.id }),
   });
@@ -56,10 +49,9 @@ export function installServer(
   target: ModpackTarget,
   options: { eula?: boolean; port?: number },
   job: JobRun,
-): Promise<ModpackDoneEvent> {
-  return runJob<ModpackDoneEvent>({
+): Promise<ModpackDone> {
+  return runJob<ModpackDone>({
     ...job,
-    topics,
     start: () =>
       call('server.modpack.install', {
         ...pack,
@@ -81,10 +73,9 @@ export function update(
   target: EntryTarget,
   to: PackMove,
   job: JobRun,
-): Promise<ModpackDoneEvent> {
-  return runJob<ModpackDoneEvent>({
+): Promise<ModpackDone> {
+  return runJob<ModpackDone>({
     ...job,
-    topics,
     start: () => call('modpack.update', { target, to, id: job.id }),
   });
 }

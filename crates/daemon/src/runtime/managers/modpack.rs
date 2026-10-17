@@ -2,14 +2,12 @@ use std::sync::Arc;
 
 use engine::Engine;
 use proto::error::EntryKind;
+use proto::job::Job;
 use proto::minecraft::ProvisionProgress;
-use proto::modpack::{
-    ModpackCancelledEvent, ModpackDoneEvent, ModpackErrorEvent, ModpackMove, ModpackProgressEvent,
-    ModpackRef, ModpackTarget,
-};
+use proto::modpack::{ModpackDone, ModpackMove, ModpackRef, ModpackTarget};
 
 use super::content::Entry;
-use super::job::{progress_event, settle, Cancellations, Runner, Spec};
+use super::job::{Cancellations, Runner, Spec};
 use crate::runtime::{instance_process_id, server_process_id, EventHub};
 
 /// One pack install or update — what `ModpackManager::start` runs off-thread.
@@ -110,32 +108,27 @@ impl ModpackManager {
 
     /// Start a pack job off-thread, one per entry at a time. Returns the job id,
     /// or `None` if that entry is already busy.
-    pub fn start(&self, job: ModpackJob, id: String) -> Option<String> {
+    pub fn start<C>(&self, job: ModpackJob, id: String) -> Option<String>
+    where
+        C: Job<Progress = ProvisionProgress, Done = ModpackDone>,
+    {
         let spec = Spec {
             id,
             prefix: job.id_prefix(),
             key: job.key(),
-            progress: progress_event(|id, progress: &ProvisionProgress| ModpackProgressEvent {
-                id,
-                progress: progress.clone(),
-            }),
-            done: settle(|id, outcome: engine::ModpackOutcome| ModpackDoneEvent {
-                id,
-                entry: outcome.entry,
-                entry_name: outcome.entry_name,
-                pack: outcome.pack,
-                failures: outcome.failures,
-                warnings: outcome.warnings,
-            }),
-            cancelled: Some(settle(|id, ()| ModpackCancelledEvent { id })),
-            error: settle(|id, e| ModpackErrorEvent {
-                id,
-                error: crate::runtime::engine_error(e),
-            }),
         };
 
-        self.runner.start(spec, move |engine, reporter| {
-            Box::pin(async move { job.run(engine, &reporter.job()).await })
+        self.runner.start::<C, _>(spec, move |engine, reporter| {
+            Box::pin(async move {
+                let outcome = job.run(engine, &reporter.job()).await?;
+                Ok(ModpackDone {
+                    entry: outcome.entry,
+                    entry_name: outcome.entry_name,
+                    pack: outcome.pack,
+                    failures: outcome.failures,
+                    warnings: outcome.warnings,
+                })
+            })
         })
     }
 }

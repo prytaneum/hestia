@@ -25,56 +25,69 @@ describe('the daemon-topic invalidation map', () => {
   });
 
   it('refreshes the list after a create, successful or failed', () => {
-    expect(invalidationKeys('server.create.done', {})).toEqual([
-      keys.servers.list(),
-    ]);
-    expect(invalidationKeys('server.create.error', {})).toEqual([
-      keys.servers.list(),
-    ]);
+    for (const state of ['done', 'failed']) {
+      expect(
+        invalidationKeys('job', { channel: 'server.create', state }),
+      ).toEqual([keys.servers.list()]);
+    }
   });
 
   it('names the updated server from the event payload', () => {
     expect(
-      invalidationKeys('server.update.done', { server: { id: 'smp' } }),
+      invalidationKeys('job', {
+        channel: 'server.update',
+        state: 'done',
+        server: { id: 'smp' },
+      }),
     ).toEqual([keys.servers.list(), keys.servers.detail('smp')]);
   });
 
   it('refreshes only the list when the update names no server', () => {
-    expect(invalidationKeys('server.update.done', {})).toEqual([
-      keys.servers.list(),
-    ]);
+    expect(
+      invalidationKeys('job', { channel: 'server.update', state: 'done' }),
+    ).toEqual([keys.servers.list()]);
   });
 
   it('resolves a launch through its process id', () => {
     expect(
-      invalidationKeys('instance.launch.done', { processId: 'instance-vanilla_1' }),
+      invalidationKeys('job', {
+        channel: 'instance.launch',
+        state: 'done',
+        processId: 'instance-vanilla_1',
+      }),
     ).toEqual([keys.instances.list(), keys.instances.detail('vanilla')]);
   });
 
   it('sweeps both entry kinds for work that can land in either', () => {
-    for (const topic of ['content.done', 'modpack.done']) {
-      expect(invalidationKeys(topic, {})).toEqual([
+    for (const channel of ['content.add', 'modpack.update']) {
+      expect(invalidationKeys('job', { channel, state: 'done' })).toEqual([
         keys.servers.all,
         keys.instances.all,
       ]);
     }
   });
 
-  it('sweeps the server subtree for a backup, whose topic names no entry', () => {
-    expect(invalidationKeys('backup.done', {})).toEqual([keys.servers.all]);
+  it('sweeps the server subtree for a backup, whose event names no entry', () => {
+    expect(
+      invalidationKeys('job', { channel: 'server.backup.create', state: 'done' }),
+    ).toEqual([keys.servers.all]);
   });
 
   it('refreshes only the footprint after an export', () => {
-    expect(invalidationKeys('instance.export.done', {})).toEqual([[FOOTPRINT]]);
+    expect(
+      invalidationKeys('job', { channel: 'instance.export', state: 'done' }),
+    ).toEqual([[FOOTPRINT]]);
   });
 
   it('refreshes the runtimes after a java install', () => {
-    expect(invalidationKeys('java.install.done', {})).toEqual([
-      keys.java.runtimes(),
-    ]);
+    expect(
+      invalidationKeys('job', { channel: 'java.install', state: 'done' }),
+    ).toEqual([keys.java.runtimes()]);
   });
 
-  it('outdates nothing for an unmapped topic', () => {
-    expect(invalidationKeys('server.create.progress', {})).toEqual([]);
+  it('outdates nothing while a job is still reporting progress', () => {
+    expect(
+      invalidationKeys('job', { channel: 'server.create', state: 'progress' }),
+    ).toEqual([]);
   });
 });

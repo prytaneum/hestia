@@ -2,8 +2,8 @@
 //! published version, read which pack an entry runs, and take it back out.
 //!
 //! The install and update verbs are jobs — a pack is a hundred downloads and a
-//! game directory rewrite — so they publish the `modpack.*` topics and settle on
-//! the done event, which carries the entry the pack landed in. That id is the
+//! game directory rewrite — so they settle on a done event, which carries the
+//! entry the pack landed in. That id is the
 //! only way a caller learns which entry a *creating* install just made.
 
 use std::time::Duration;
@@ -15,12 +15,11 @@ use proto::modpack::{
     EntryModpackCheckParams, EntryModpackCheckUpdate, EntryModpackFileParams,
     EntryModpackPreviewUpdate, EntryModpackRemove, EntryModpackRemoveParams, EntryModpackStatus,
     EntryModpackStatusParams, EntryModpackUpdate, EntryModpackUpdateParams, InstalledModpack,
-    InstanceModpackInstall, InstanceModpackInstallParams, ModpackDoneEvent, ModpackFilePreview,
+    InstanceModpackInstall, InstanceModpackInstallParams, ModpackDone, ModpackFilePreview,
     ModpackMove, ModpackRef, ModpackRemoveResult, ModpackTarget, ModpackUpdate,
     ServerModpackInstall, ServerModpackInstallParams,
 };
 
-use crate::facades::jobs::forward;
 use crate::session::{job_id, Session};
 
 /// A catalogue round trip, so it outlives the default call timeout.
@@ -37,21 +36,16 @@ impl Modpack<'_> {
         pack: ModpackRef,
         target: ModpackTarget,
         on_progress: impl Fn(&ProvisionProgress) + Send + Sync + 'static,
-    ) -> Result<ModpackDoneEvent, IpcError> {
+    ) -> Result<ModpackDone, IpcError> {
         let id = job_id("instance-modpack-install");
-        let session = self.session;
         let params = InstanceModpackInstallParams {
             pack,
             target,
             id: id.clone(),
         };
-        self.drive(&id, on_progress, move || async move {
-            session
-                .call::<InstanceModpackInstall>(&params)
-                .await
-                .map(|_| ())
-        })
-        .await
+        self.session
+            .run_job::<InstanceModpackInstall>(&id, &params, on_progress)
+            .await
     }
 
     /// Install a pack into a new or existing server. `eula` is required when the
@@ -63,9 +57,8 @@ impl Modpack<'_> {
         eula: bool,
         port: Option<u16>,
         on_progress: impl Fn(&ProvisionProgress) + Send + Sync + 'static,
-    ) -> Result<ModpackDoneEvent, IpcError> {
+    ) -> Result<ModpackDone, IpcError> {
         let id = job_id("server-modpack-install");
-        let session = self.session;
         let params = ServerModpackInstallParams {
             pack,
             target,
@@ -73,13 +66,9 @@ impl Modpack<'_> {
             port,
             id: id.clone(),
         };
-        self.drive(&id, on_progress, move || async move {
-            session
-                .call::<ServerModpackInstall>(&params)
-                .await
-                .map(|_| ())
-        })
-        .await
+        self.session
+            .run_job::<ServerModpackInstall>(&id, &params, on_progress)
+            .await
     }
 
     /// Move an entry's pack to another published version (empty takes the
@@ -90,21 +79,16 @@ impl Modpack<'_> {
         target: &EntryTarget,
         to: ModpackMove,
         on_progress: impl Fn(&ProvisionProgress) + Send + Sync + 'static,
-    ) -> Result<ModpackDoneEvent, IpcError> {
+    ) -> Result<ModpackDone, IpcError> {
         let id = job_id("modpack-update");
-        let session = self.session;
         let params = EntryModpackUpdateParams {
             target: target.clone(),
             to,
             id: id.clone(),
         };
-        self.drive(&id, on_progress, move || async move {
-            session
-                .call::<EntryModpackUpdate>(&params)
-                .await
-                .map(|_| ())
-        })
-        .await
+        self.session
+            .run_job::<EntryModpackUpdate>(&id, &params, on_progress)
+            .await
     }
 
     /// What updating an entry's pack from the file at `path` would do.
@@ -158,28 +142,5 @@ impl Modpack<'_> {
             keep_content,
         };
         self.session.call::<EntryModpackRemove>(&params).await
-    }
-
-    async fn drive<F, Fut>(
-        &self,
-        id: &str,
-        on_progress: impl Fn(&ProvisionProgress) + Send + Sync + 'static,
-        start: F,
-    ) -> Result<ModpackDoneEvent, IpcError>
-    where
-        F: FnOnce() -> Fut,
-        Fut: std::future::Future<Output = Result<(), IpcError>>,
-    {
-        let payload = self
-            .session
-            .run_job(
-                id,
-                "modpack.done",
-                "modpack.error",
-                forward(on_progress),
-                start,
-            )
-            .await?;
-        serde_json::from_value(payload).map_err(|e| IpcError::Malformed(e.to_string()))
     }
 }

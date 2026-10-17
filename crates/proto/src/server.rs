@@ -7,8 +7,8 @@
 use serde::{Deserialize, Serialize};
 
 use crate::content::ContentKind;
-use crate::contract::{Contract, Empty, Topic};
-use crate::error::ErrorInfo;
+use crate::contract::{Contract, Empty};
+use crate::job::{Job, JobStarted};
 use crate::keys::KeyRule;
 use crate::minecraft::{
     ConfigEntry, FlavorsResult, LoadersParams, LoadersResult, ProvisionProgress, VersionsParams,
@@ -151,18 +151,18 @@ pub struct ServerCreateParams {
     pub id: String,
 }
 
-#[derive(Serialize, Deserialize, Default, Debug, Clone)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
-#[serde(default, rename_all = "camelCase")]
-pub struct ServerCreateResult {
-    pub id: String,
-}
-
+/// A job. A cancel discards the half-provisioned record, exactly as a failed
+/// create does — nothing un-startable is left behind.
 pub struct ServerCreate;
 impl Contract for ServerCreate {
     const CHANNEL: &'static str = "server.create";
     type Params = ServerCreateParams;
-    type Result = ServerCreateResult;
+    type Result = JobStarted;
+}
+
+impl Job for ServerCreate {
+    type Progress = ProvisionProgress;
+    type Done = ServerDone;
 }
 
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
@@ -183,18 +183,18 @@ pub struct ServerUpdateParams {
     pub id: String,
 }
 
-#[derive(Serialize, Deserialize, Default, Debug, Clone)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
-#[serde(default, rename_all = "camelCase")]
-pub struct ServerUpdateResult {
-    pub id: String,
-}
-
+/// A job. A cancel leaves the server on the phase the update reached, to be
+/// recovered by updating again; its pre-update backup is already on disk.
 pub struct ServerUpdate;
 impl Contract for ServerUpdate {
     const CHANNEL: &'static str = "server.update";
     type Params = ServerUpdateParams;
-    type Result = ServerUpdateResult;
+    type Result = JobStarted;
+}
+
+impl Job for ServerUpdate {
+    type Progress = ProvisionProgress;
+    type Done = ServerDone;
 }
 
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
@@ -458,101 +458,14 @@ impl Contract for ServerConfigList {
     type Result = ServerConfigListResult;
 }
 
+/// A finished create or update.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
 #[serde(rename_all = "camelCase")]
-pub struct ServerCreateProgressEvent {
-    pub id: String,
-    #[serde(flatten)]
-    pub progress: ProvisionProgress,
-}
-impl Topic for ServerCreateProgressEvent {
-    const TOPIC: &'static str = "server.create.progress";
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
-#[serde(rename_all = "camelCase")]
-pub struct ServerCreateDoneEvent {
-    pub id: String,
+pub struct ServerDone {
     pub server: ServerInfo,
-    /// Degraded outcomes of a create that nonetheless succeeded — a front-end
-    /// shows these under the success line.
+    /// Degraded outcomes of a create or update that nonetheless succeeded — a
+    /// front-end shows these under the success line.
     #[serde(default)]
     pub warnings: Vec<WarningInfo>,
-}
-impl Topic for ServerCreateDoneEvent {
-    const TOPIC: &'static str = "server.create.done";
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
-#[serde(rename_all = "camelCase")]
-pub struct ServerCreateErrorEvent {
-    pub id: String,
-    /// The structured cause a front-end localizes from.
-    pub error: ErrorInfo,
-}
-impl Topic for ServerCreateErrorEvent {
-    const TOPIC: &'static str = "server.create.error";
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
-#[serde(rename_all = "camelCase")]
-/// A create stopped at the caller's request. The half-provisioned record is discarded, exactly as a failed create discards it — nothing un-startable is left behind.
-pub struct ServerCreateCancelledEvent {
-    pub id: String,
-}
-impl Topic for ServerCreateCancelledEvent {
-    const TOPIC: &'static str = "server.create.cancelled";
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
-#[serde(rename_all = "camelCase")]
-pub struct ServerUpdateProgressEvent {
-    pub id: String,
-    #[serde(flatten)]
-    pub progress: ProvisionProgress,
-}
-impl Topic for ServerUpdateProgressEvent {
-    const TOPIC: &'static str = "server.update.progress";
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
-#[serde(rename_all = "camelCase")]
-pub struct ServerUpdateDoneEvent {
-    pub id: String,
-    pub server: ServerInfo,
-    /// Degraded outcomes of an update that nonetheless succeeded.
-    #[serde(default)]
-    pub warnings: Vec<WarningInfo>,
-}
-impl Topic for ServerUpdateDoneEvent {
-    const TOPIC: &'static str = "server.update.done";
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
-#[serde(rename_all = "camelCase")]
-pub struct ServerUpdateErrorEvent {
-    pub id: String,
-    /// The structured cause a front-end localizes from.
-    pub error: ErrorInfo,
-}
-impl Topic for ServerUpdateErrorEvent {
-    const TOPIC: &'static str = "server.update.error";
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
-#[serde(rename_all = "camelCase")]
-/// A version update stopped at the caller's request. The server stays on the phase the update left it in and is recovered by updating again; its pre-update backup is already on disk.
-pub struct ServerUpdateCancelledEvent {
-    pub id: String,
-}
-impl Topic for ServerUpdateCancelledEvent {
-    const TOPIC: &'static str = "server.update.cancelled";
 }

@@ -131,7 +131,7 @@ export function CreateEntryDialog({
           );
           toast.success(m['app.toast.created']({ name: created.server.name }));
           toastWarnings(created.warnings);
-          applyRandomIcon(created.id);
+          applyRandomIcon(created.server.id);
         } else {
           const instance = await createInstance.mutateAsync(
             instanceParams(value, memoryEntries),

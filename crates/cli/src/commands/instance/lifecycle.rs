@@ -5,7 +5,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::{bail, Context, Result};
-use client::proto::instance::{InstanceLaunchDoneEvent, QuickPlay};
+use client::proto::instance::{InstanceLaunchDone, QuickPlay};
 use client::proto::process::ProcessState;
 use client::Client;
 
@@ -52,7 +52,7 @@ pub struct Launch<'a> {
 }
 
 /// Launch; on an `unauthorized` (expired sign-in) offer to re-auth and retry once.
-async fn launch_once(client: &Client, options: &Launch<'_>) -> Result<InstanceLaunchDoneEvent> {
+async fn launch_once(client: &Client, options: &Launch<'_>) -> Result<InstanceLaunchDone> {
     let mut retried = false;
     loop {
         let reporter = Arc::new(ProvisionReporter::new());

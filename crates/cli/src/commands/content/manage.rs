@@ -6,7 +6,7 @@ use std::sync::Arc;
 use anyhow::{bail, Context, Result};
 use clap::Subcommand;
 use client::proto::content::{
-    ContentAddItem, ContentAddSpec, ContentFailure, ContentKind, InstalledContent,
+    ContentAddItem, ContentAddSpec, ContentDone, ContentFailure, ContentKind, InstalledContent,
 };
 use client::proto::error::{EntryKind, EntryTarget};
 use client::Client;
@@ -328,7 +328,8 @@ pub(super) async fn install_spec(
         .add(target, spec, move |p| progress.update(p))
         .await;
     reporter.finish();
-    Ok(result?)
+    let done = result?;
+    Ok((done.items, done.failures))
 }
 
 async fn list(client: &Client, entry: EntryKind, kind: ContentKind, reference: &str) -> Result<()> {
@@ -439,7 +440,10 @@ async fn update(
 
     let reporter = Arc::new(ProvisionReporter::new());
     let progress = reporter.clone();
-    let (updated, failures) = {
+    let ContentDone {
+        items: updated,
+        failures,
+    } = {
         let result = client
             .content()
             .update(&target, kind, &items, &path, move |p| progress.update(p))

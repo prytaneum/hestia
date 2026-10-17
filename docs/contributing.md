@@ -89,16 +89,17 @@ renamed. **Enums are the exception** — their variant *values* stay
 build. The one deliberate non-camel exception is the `config.*` key vocabulary (`jvm-args`, `backup-interval`, …), which
 stays kebab-case — see
 [decision 0028](decisions/0028-camelcase-except-the-config-vocabulary.md). For a daemon→client push, implement `Topic` instead of
-`Contract` — the type is its own event payload:
+`Contract` — the type is its own event payload (a long-running operation is a `Job` instead, see
+[Add a daemon channel](#add-a-daemon-channel)):
 
 ```rust
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct InstanceProgressEvent {
+pub struct ProcessStartedEvent {
     pub id: String,
-    pub percent: u8
+    pub pid: u32,
 }
-impl Topic for InstanceProgressEvent {
-    const TOPIC: &'static str = "instance.progress";
+impl Topic for ProcessStartedEvent {
+    const TOPIC: &'static str = "process.started";
 }
 ```
 
@@ -229,11 +230,29 @@ through `guards::server_for` / `guards::instance_for` with an `Intent`, which ap
 implies — never a checklist of its own.
 
 Map engine errors to codes with `ServiceError::not_found` / `bad_request` /
-`handler_error`. For a long-running operation, follow `JavaInstallManager`
-(`runtime/managers/java.rs`): kick the blocking work onto a manager that answers immediately and publishes progress /
-done / error `Topic`s through
-`ctx.runtime.hub()`. A manager that admits one job per entry takes its key from
-`InFlight` (`runtime/managers/job.rs`), whose `claim()` guard releases on drop.
+`handler_error`. For a long-running operation, make the start contract a `Job`
+in `proto`:
+
+```rust
+impl Contract for JavaInstall {
+    const CHANNEL: &'static str = "java.install";
+    type Params = JavaInstallParams;
+    type Result = JobStarted;
+}
+
+impl Job for JavaInstall {
+    type Progress = JavaInstallProgress;
+    type Done = JavaInstallDone;
+}
+```
+
+Then follow `JavaInstallManager` (`runtime/managers/java.rs`): hand
+`Runner::start::<JavaInstall>` a `Spec` and a closure returning `JavaInstallDone`;
+the runner publishes the `job` events (progress, done, failed, cancelled) with
+the contract's channel, and the handler answers `JobStarted { id }`. A manager
+that admits one job per entry takes its key from `InFlight`
+(`runtime/managers/job.rs`), whose `claim()` guard releases on drop. Document
+on the contract what a cancel leaves behind.
 
 ---
 
@@ -261,10 +280,8 @@ impl Instance<'_> {
 If the domain is new, add its module and `pub use` to `facades/mod.rs`, the accessor on `Client`
 (`crates/client/src/lib.rs`), and the export from the crate root. Use `try_call` when a `not_found` should surface as
 `None`,
-`call_with_timeout` for a long call, and `run_job` to block on a progress-streaming operation (see `Java::install` /
-`Process::run`) — or
-`facades/jobs.rs` when the job publishes the shared `backup.*` / `content.*`
-topics.
+`call_with_timeout` for a long call, and `run_job::<C>` to block on a job — a facade method is that call and
+nothing else (see `Java::install`).
 
 ---
 
@@ -366,7 +383,7 @@ export async function list(): Promise<InstanceInfo[]> {
 
 Use `tryCall` when a `not_found` should surface as `null`, pass `{ timeoutMs }`
 for a long call (mirror the Rust facade's `call_with_timeout` values), and wrap a progress-streaming operation in
-`runJob` (`core/jobs.ts`) with its progress/done/error topics — see `server.create` or `java.install`.
+`runJob` (`core/jobs.ts`), which listens on the `job` topic for its id — see `server.create` or `java.install`.
 
 **2. The query bindings**, in the domain's `frontend/src/queries/<domain>.ts` — a factory exists when a screen uses
 it, so a channel nothing renders gets no factory, key or mock handler until a screen needs it. A read is a `queryOptions` maker in `<domain>Queries` (its key from `keys.ts` —
@@ -404,8 +421,8 @@ invalidates })` consumed through `useJobMutation` — the run registers in the g
 `useEntryJobs` and any activity surface see it, outliving the component) and the hook's result adds `progress`/`job` for
 the inline case; see `serverMutations.create` or `javaMutations.install`. Factories are the source of truth: a route
 loader preloads through them (`context.queryClient.ensureQueryData(serverQueries.list())`). If a daemon event should
-refresh a query, add its terminal topic to the map in
-`queries/invalidation.ts`.
+refresh a query, add its topic to the map in `queries/invalidation.ts` — for a job, its start channel to the done (or
+failed) table.
 
 A brand-new domain adds one module file per layer plus its `export * as <domain>`
 line in `frontend/src/api/index.ts` — nothing in the Rust shell changes.

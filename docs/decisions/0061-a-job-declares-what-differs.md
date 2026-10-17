@@ -1,4 +1,4 @@
-# A job family declares what differs; the runner owns the rest
+# A job declares what differs; the runner owns the rest
 
 *Applies to: [The daemon](../architecture/daemon.md)*
 
@@ -16,15 +16,17 @@ per-file progress froze the desktop ([0056](0056-job-progress-paints-once-per-fr
 still published an event per file or per chunk. The self-update had drifted
 further: it had no `cancelled` topic, so cancelling one reported a failure.
 
-**A family now declares only what differs.** `Spec` names its id, its prefix,
-its in-flight key, and its four topic constructors; the work is one closure
-taking the engine and a `Reporter`. `Runner::start` owns everything else, so
+**A job now declares only what differs.** `Spec` names its id, its prefix and
+its in-flight key; the work is one closure taking the engine and a `Reporter`
+and returning the start contract's `Done`. `Runner::start` owns everything else
+— including building every event, since the contract fixes their shape
+([0083](0083-a-job-is-its-contract-and-reports-on-one-topic.md)) — so
 coalescing, cancellation, terminal classification and logging happen in exactly
-one place and cannot be forgotten by the next family.
+one place and cannot be forgotten by the next job.
 
 Two things fell out of it. Cancellation is classified from the error chain by
 the runner, so the instance launch's own `LaunchFailure` enum — a second
-implementation of "is this a cancel or a failure" — is gone. And a family that
+implementation of "is this a cancel or a failure" — is gone. And a job kind that
 admits any number of concurrent jobs says `key: None` rather than claiming a
 freshly generated id, which is what the modpack and transfer managers were
 doing to mean the same thing.

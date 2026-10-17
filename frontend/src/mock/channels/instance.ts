@@ -158,7 +158,7 @@ export const channels: Handlers = {
     const account = resolveAccount(str(p, 'account'));
     return startJob({
       id: jobIdOf(p, 'instance-launch'),
-      family: 'instance.launch',
+      channel: 'instance.launch',
       steps: [
         { phase: 'resolving', detail: instance.gameVersion },
         { phase: 'java', detail: `Java ${instance.javaMajor}` },

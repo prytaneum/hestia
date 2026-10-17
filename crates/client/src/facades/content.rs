@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use ipc::errors::IpcError;
 use proto::content::{
-    ContentAddSpec, ContentFailure, ContentInspect, ContentInspectParams, ContentInspectResult,
+    ContentAddSpec, ContentDone, ContentInspect, ContentInspectParams, ContentInspectResult,
     ContentKind, ContentProject, ContentProjectGet, ContentResolveUrl, ContentSearch,
     ContentSource, ContentSources, ContentUpdate, ContentVersion, ContentVersions, EntryContentAdd,
     EntryContentAddParams, EntryContentCheckUpdates, EntryContentCheckUpdatesParams,
@@ -15,7 +15,6 @@ use proto::content::{
 use proto::error::EntryTarget;
 use proto::minecraft::ProvisionProgress;
 
-use crate::facades::jobs::run_content_job;
 use crate::session::{job_id, Session};
 
 const CHECK_TIMEOUT: Duration = Duration::from_secs(120);
@@ -84,18 +83,16 @@ impl Content<'_> {
         target: &EntryTarget,
         spec: ContentAddSpec,
         on_progress: impl Fn(&ProvisionProgress) + Send + Sync + 'static,
-    ) -> Result<(Vec<InstalledContent>, Vec<ContentFailure>), IpcError> {
+    ) -> Result<ContentDone, IpcError> {
         let id = job_id("content-add");
         let params = EntryContentAddParams {
             target: target.clone(),
             spec,
             id: id.clone(),
         };
-        let session = self.session;
-        run_content_job(session, &id, on_progress, move || async move {
-            session.call::<EntryContentAdd>(&params).await.map(|_| ())
-        })
-        .await
+        self.session
+            .run_job::<EntryContentAdd>(&id, &params, on_progress)
+            .await
     }
 
     pub async fn list(
@@ -142,7 +139,7 @@ impl Content<'_> {
         items: &[String],
         path: &str,
         on_progress: impl Fn(&ProvisionProgress) + Send + Sync + 'static,
-    ) -> Result<(Vec<InstalledContent>, Vec<ContentFailure>), IpcError> {
+    ) -> Result<ContentDone, IpcError> {
         let id = job_id("content-update");
         let params = EntryContentUpdateParams {
             target: target.clone(),
@@ -151,14 +148,9 @@ impl Content<'_> {
             path: path.to_string(),
             id: id.clone(),
         };
-        let session = self.session;
-        run_content_job(session, &id, on_progress, move || async move {
-            session
-                .call::<EntryContentUpdate>(&params)
-                .await
-                .map(|_| ())
-        })
-        .await
+        self.session
+            .run_job::<EntryContentUpdate>(&id, &params, on_progress)
+            .await
     }
 
     /// Enable or disable one installed item; a non-empty `worlds` scopes a
@@ -218,14 +210,10 @@ impl Content<'_> {
             source: source.to_string(),
             id: id.clone(),
         };
-        let session = self.session;
-        run_content_job(session, &id, on_progress, move || async move {
-            session
-                .call::<EntryContentSetVersion>(&params)
-                .await
-                .map(|_| ())
-        })
-        .await
-        .map(|(items, _)| items)
+        Ok(self
+            .session
+            .run_job::<EntryContentSetVersion>(&id, &params, on_progress)
+            .await?
+            .items)
     }
 }

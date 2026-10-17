@@ -9,13 +9,9 @@
 use std::sync::Arc;
 
 use engine::Engine;
-use proto::minecraft::ProvisionProgress;
-use proto::transfer::{
-    ExportCancelledEvent, ExportDoneEvent, ExportErrorEvent, ExportFormat, ExportProgressEvent,
-    ImportCancelledEvent, ImportDoneEvent, ImportErrorEvent, ImportProgressEvent,
-};
+use proto::transfer::{ExportDone, ExportFormat, ImportDone, InstanceExport, InstanceImport};
 
-use super::job::{progress_event, settle, Cancellations, Runner, Spec};
+use super::job::{Cancellations, Runner, Spec};
 use crate::runtime::{instance_info, instance_process_id, EventHub};
 
 /// One import or export — what `TransferManager::start` runs off-thread.
@@ -75,35 +71,26 @@ impl TransferManager {
             id,
             prefix: "instance-export",
             key: Some(instance_process_id(&instance_id)),
-            progress: progress_event(|id, progress: &ProvisionProgress| ExportProgressEvent {
-                id,
-                progress: progress.clone(),
-            }),
-            done: settle(|id, export: engine::ExportOutcome| ExportDoneEvent {
-                id,
-                path: export.path.to_string_lossy().into_owned(),
-                size_bytes: export.size_bytes,
-                files: export.files,
-                warnings: export.warnings,
-            }),
-            cancelled: Some(settle(|id, ()| ExportCancelledEvent { id })),
-            error: settle(|id, e| ExportErrorEvent {
-                id,
-                error: crate::runtime::engine_error(e),
-            }),
         };
 
-        self.runner.start(spec, move |engine, reporter| {
-            Box::pin(async move {
-                engine.export_instance(
-                    &instance_id,
-                    format,
-                    &destination,
-                    &exclude,
-                    &reporter.job(),
-                )
+        self.runner
+            .start::<InstanceExport, _>(spec, move |engine, reporter| {
+                Box::pin(async move {
+                    let export = engine.export_instance(
+                        &instance_id,
+                        format,
+                        &destination,
+                        &exclude,
+                        &reporter.job(),
+                    )?;
+                    Ok(ExportDone {
+                        path: export.path.to_string_lossy().into_owned(),
+                        size_bytes: export.size_bytes,
+                        files: export.files,
+                        warnings: export.warnings,
+                    })
+                })
             })
-        })
     }
 
     fn import(&self, id: String, path: String, name: String) -> Option<String> {
@@ -111,37 +98,27 @@ impl TransferManager {
             id,
             prefix: "instance-import",
             key: None,
-            progress: progress_event(|id, progress: &ProvisionProgress| ImportProgressEvent {
-                id,
-                progress: progress.clone(),
-            }),
-            // The view an import answers with is the same one `instance.list`
-            // returns, so a front-end can drop it straight into the library it
-            // already renders.
-            done: settle(|id, done: ImportDoneEvent| ImportDoneEvent { id, ..done }),
-            cancelled: Some(settle(|id, ()| ImportCancelledEvent { id })),
-            error: settle(|id, e| ImportErrorEvent {
-                id,
-                error: crate::runtime::engine_error(e),
-            }),
         };
 
-        self.runner.start(spec, move |engine, reporter| {
-            Box::pin(async move {
-                let import = engine
-                    .import_instance(&path, &name, &reporter.job())
-                    .await?;
-                let accepts = engine.instance_accepts(&import.record.profile.flavor);
-                // A just-imported instance has no sessions by definition.
-                let instance = instance_info(import.record, Vec::new(), accepts);
-                Ok(ImportDoneEvent {
-                    id: String::new(),
-                    format: import.format,
-                    instance,
-                    failures: import.failures,
-                    warnings: import.warnings,
+        self.runner
+            .start::<InstanceImport, _>(spec, move |engine, reporter| {
+                Box::pin(async move {
+                    let import = engine
+                        .import_instance(&path, &name, &reporter.job())
+                        .await?;
+                    let accepts = engine.instance_accepts(&import.record.profile.flavor);
+                    // The view an import answers with is the same one
+                    // `instance.list` returns, so a front-end can drop it
+                    // straight into the library it already renders. A
+                    // just-imported instance has no sessions by definition.
+                    let instance = instance_info(import.record, Vec::new(), accepts);
+                    Ok(ImportDone {
+                        format: import.format,
+                        instance,
+                        failures: import.failures,
+                        warnings: import.warnings,
+                    })
                 })
             })
-        })
     }
 }

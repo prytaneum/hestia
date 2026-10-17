@@ -6,7 +6,7 @@
 import { queryOptions } from '@tanstack/react-query';
 import type {
   ContentAddInput,
-  ContentDoneEvent,
+  ContentDone,
   ContentKind,
   EntryKind,
 } from '../api';
@@ -45,7 +45,7 @@ export const entryContentQueries = {
 export const entryContentMutations = {
   /** Refused on a running or busy entry. */
   add: (kind: EntryKind, id: string) =>
-    jobMutation<ContentDoneEvent, ContentAddInput>({
+    jobMutation<ContentDone, ContentAddInput>({
       mutationKey: [...entryScope(kind).content(id), 'add'],
       meta: (spec) => ({
         kind: 'content.add',
@@ -69,7 +69,7 @@ export const entryContentMutations = {
    */
   update: (kind: EntryKind, id: string) =>
     jobMutation<
-      ContentDoneEvent,
+      ContentDone,
       { kind: ContentKind; items: string[]; path?: string }
     >({
       mutationKey: [...entryScope(kind).content(id), 'update'],
@@ -94,7 +94,7 @@ export const entryContentMutations = {
     }),
   setVersion: (kind: EntryKind, id: string) =>
     jobMutation<
-      ContentDoneEvent,
+      ContentDone,
       { kind: ContentKind; item: string; version: string; source: string }
     >({
       mutationKey: [...entryScope(kind).content(id), 'set-version'],

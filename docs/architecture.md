@@ -131,12 +131,12 @@ sequenceDiagram
 
     F->>S: client.server().create(…)
     S->>D: server.create
-    D-->>S: { jobId }
+    D-->>S: { id }
     loop until terminal
-        D--)S: server.create.progress
+        D--)S: job (state: progress)
         S--)F: progress callback
     end
-    D--)S: server.create.done | .error | .cancelled
+    D--)S: job (state: done | failed | cancelled)
 ```
 
 ## Where things live on disk

@@ -10,7 +10,7 @@ import { queryOptions } from '@tanstack/react-query';
 import { logger } from '@/lib/log';
 import type {
   InstalledModpack,
-  ModpackDoneEvent,
+  ModpackDone,
   ModpackFilePreview,
   ModpackRemoveResult,
   ModpackTarget,
@@ -77,7 +77,7 @@ export const modpackQueries = {
 export const modpackMutations = {
   /** Creates its entry unless the target names an existing one. */
   install: (kind: JobEntryKind) =>
-    jobMutation<ModpackDoneEvent, InstallInput>({
+    jobMutation<ModpackDone, InstallInput>({
       mutationKey: ['modpack', kind, 'install'],
       meta: () => ({ kind: 'modpack.install', label: 'install modpack' }),
       run: async ({ pack, target, eula, port }, job) => {
@@ -91,7 +91,7 @@ export const modpackMutations = {
       invalidates: () => [keys.servers.all, keys.instances.all, keys.icons.all],
     }),
   update: (kind: JobEntryKind, id: string) =>
-    jobMutation<ModpackDoneEvent, UpdateInput>({
+    jobMutation<ModpackDone, UpdateInput>({
       mutationKey: [...entryScope(kind).modpack(id), 'update'],
       meta: () => ({
         kind: 'modpack.update',
@@ -110,7 +110,7 @@ export const modpackMutations = {
     }),
 };
 
-async function inheritPackIcon({ entry, pack }: ModpackDoneEvent) {
+async function inheritPackIcon({ entry, pack }: ModpackDone) {
   if (!pack.iconUrl) return;
   try {
     await icons.fetch(entry, pack.iconUrl);

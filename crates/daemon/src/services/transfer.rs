@@ -6,9 +6,10 @@
 //! anything to race.
 
 use proto::error::{ErrorInfo, Field};
+use proto::job::JobStarted;
 use proto::transfer::{
     ExportContentsResult, InstanceExport, InstanceExportContents, InstanceImport,
-    InstanceImportInspect, TransferJobResult,
+    InstanceImportInspect,
 };
 
 use super::guards::{instance_for, Intent};
@@ -27,7 +28,7 @@ pub(super) fn register(on: &mut Channels<'_>) {
             p.id,
         );
         started
-            .map(|id| TransferJobResult { id })
+            .map(|id| JobStarted { id })
             .ok_or(ErrorInfo::ExportInProgress { name: record.name })
     });
 
@@ -51,7 +52,7 @@ pub(super) fn register(on: &mut Channels<'_>) {
             p.id,
         );
         started
-            .map(|id| TransferJobResult { id })
+            .map(|id| JobStarted { id })
             .ok_or(ErrorInfo::ImportInProgress)
     });
 

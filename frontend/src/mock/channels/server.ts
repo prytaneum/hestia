@@ -133,7 +133,7 @@ export const channels: Handlers = {
   'server.create': (p) =>
     startJob({
       id: jobIdOf(p, 'server-create'),
-      family: 'server.create',
+      channel: 'server.create',
       steps: [
         { phase: 'resolving', detail: str(p, 'version') },
         { phase: 'java', detail: 'Java runtime' },
@@ -158,7 +158,7 @@ export const channels: Handlers = {
     const server = entries.findServer(str(p, 'server'));
     return startJob({
       id: jobIdOf(p, 'server-update'),
-      family: 'server.update',
+      channel: 'server.update',
       steps: [
         { phase: 'backup', detail: 'backing up first' },
         { phase: 'resolving', detail: str(p, 'version') },

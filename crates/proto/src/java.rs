@@ -2,8 +2,8 @@ use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
-use crate::contract::{Contract, Empty, Topic};
-use crate::error::ErrorInfo;
+use crate::contract::{Contract, Empty};
+use crate::job::{Job, JobStarted};
 
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
@@ -96,18 +96,18 @@ pub struct JavaInstallParams {
     pub force: bool,
 }
 
-#[derive(Serialize, Deserialize, Default, Debug, Clone)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
-#[serde(default, rename_all = "camelCase")]
-pub struct JavaInstallResult {
-    pub id: String,
-}
-
+/// A job. A cancel registers nothing: the install stages into `.staging` and
+/// only a rename makes it real, so a cancelled one leaves no runtime behind.
 pub struct JavaInstall;
 impl Contract for JavaInstall {
     const CHANNEL: &'static str = "java.install";
     type Params = JavaInstallParams;
-    type Result = JavaInstallResult;
+    type Result = JobStarted;
+}
+
+impl Job for JavaInstall {
+    type Progress = JavaInstallProgress;
+    type Done = JavaInstallDone;
 }
 
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
@@ -127,47 +127,8 @@ impl Contract for JavaUninstall {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
 #[serde(rename_all = "camelCase")]
-pub struct JavaInstallProgressEvent {
-    pub id: String,
-    #[serde(flatten)]
-    pub progress: JavaInstallProgress,
-}
-impl Topic for JavaInstallProgressEvent {
-    const TOPIC: &'static str = "java.install.progress";
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
-#[serde(rename_all = "camelCase")]
-pub struct JavaInstallDoneEvent {
-    pub id: String,
+pub struct JavaInstallDone {
     pub runtime: JavaRuntime,
     #[serde(default)]
     pub already_installed: bool,
-}
-impl Topic for JavaInstallDoneEvent {
-    const TOPIC: &'static str = "java.install.done";
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
-#[serde(rename_all = "camelCase")]
-pub struct JavaInstallErrorEvent {
-    pub id: String,
-    /// The structured cause a front-end localizes from.
-    pub error: ErrorInfo,
-}
-impl Topic for JavaInstallErrorEvent {
-    const TOPIC: &'static str = "java.install.error";
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
-#[serde(rename_all = "camelCase")]
-/// A runtime install stopped at the caller's request. Nothing is registered: the install stages into `.staging` and only a rename makes it real, so a cancelled one leaves no runtime behind.
-pub struct JavaInstallCancelledEvent {
-    pub id: String,
-}
-impl Topic for JavaInstallCancelledEvent {
-    const TOPIC: &'static str = "java.install.cancelled";
 }

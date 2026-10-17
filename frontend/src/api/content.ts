@@ -11,7 +11,7 @@ import { type JobRun, runJob } from './core/jobs';
 import type {
   ContentAddItem,
   ContentAddSpec,
-  ContentDoneEvent,
+  ContentDone,
   ContentInspectResult,
   ContentKind,
   ContentListResult,
@@ -70,21 +70,14 @@ export function inspect(path: string): Promise<ContentInspectResult> {
   return call('content.inspect', { path });
 }
 
-const jobTopics = {
-  progress: 'content.progress',
-  done: 'content.done',
-  error: 'content.error',
-} as const;
-
 /** Refused on a running or busy entry. */
 export function add(
   target: EntryTarget,
   spec: ContentAddInput,
   job: JobRun,
-): Promise<ContentDoneEvent> {
-  return runJob<ContentDoneEvent>({
+): Promise<ContentDone> {
+  return runJob<ContentDone>({
     ...job,
-    topics: jobTopics,
     start: () => call('content.add', { target, ...spec, id: job.id }),
   });
 }
@@ -116,10 +109,9 @@ export function update(
   items: string[],
   path: string,
   job: JobRun,
-): Promise<ContentDoneEvent> {
-  return runJob<ContentDoneEvent>({
+): Promise<ContentDone> {
+  return runJob<ContentDone>({
     ...job,
-    topics: jobTopics,
     start: () =>
       call('content.update', { target, kind, items, path, id: job.id }),
   });
@@ -170,10 +162,9 @@ export function setVersion(
   version: string,
   source: string,
   job: JobRun,
-): Promise<ContentDoneEvent> {
-  return runJob<ContentDoneEvent>({
+): Promise<ContentDone> {
+  return runJob<ContentDone>({
     ...job,
-    topics: jobTopics,
     start: () =>
       call('content.set_version', {
         target,

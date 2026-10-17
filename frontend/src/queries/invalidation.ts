@@ -49,33 +49,59 @@ function entryKeys(
   return out;
 }
 
-const TOPICS: Record<string, (payload: Record<string, unknown>) => QueryKey[]> =
-  {
-    'process.started': processKeys,
-    'process.exit': processKeys,
-    'server.create.done': () => [keys.servers.list()],
-    // A failed create removes the half-provisioned record.
-    'server.create.error': () => [keys.servers.list()],
-    'server.update.done': (p) => entryKeys('servers', serverEntry(p)),
-    'instance.launch.done': (p) =>
-      entryKeys(
-        'instances',
-        entryFromProcess(String(p.processId ?? ''), 'instance-'),
-      ),
-    'java.install.done': () => [keys.java.runtimes()],
-    // The topic carries only a job id, so the entry is unknowable cross-client;
-    // sweep the whole entry subtree (refreshes an open Content/Backups tab). The
-    // footprint walk lives outside `all` and is never triggered.
-    'backup.done': () => [keys.servers.all],
-    'content.done': () => [keys.servers.all, keys.instances.all],
-    // A pack install can have *created* its entry, so neither list is known to
-    // be current — and the CLI or another window may have run it.
-    'modpack.done': () => [keys.servers.all, keys.instances.all],
-    // An import creates an instance; an export changes the data home's
-    // footprint when it lands in the daemon's own exports/.
-    'instance.import.done': () => [keys.instances.all],
-    'instance.export.done': () => [[FOOTPRINT]],
-  };
+type KeysFor = (payload: Record<string, unknown>) => QueryKey[];
+
+// The job event carries only a job id, so the entry is unknowable cross-client;
+// sweep the whole entry subtree (refreshes an open Content/Backups tab). The
+// footprint walk lives outside `all` and is never triggered.
+const sweepServers: KeysFor = () => [keys.servers.all];
+const sweepEntries: KeysFor = () => [keys.servers.all, keys.instances.all];
+
+const JOB_DONE: Record<string, KeysFor> = {
+  'server.create': () => [keys.servers.list()],
+  'server.update': (p) => entryKeys('servers', serverEntry(p)),
+  'instance.launch': (p) =>
+    entryKeys(
+      'instances',
+      entryFromProcess(String(p.processId ?? ''), 'instance-'),
+    ),
+  'java.install': () => [keys.java.runtimes()],
+  'server.backup.create': sweepServers,
+  'server.backup.restore': sweepServers,
+  'content.add': sweepEntries,
+  'content.update': sweepEntries,
+  'content.set_version': sweepEntries,
+  // A pack install can have *created* its entry, so neither list is known to
+  // be current — and the CLI or another window may have run it.
+  'instance.modpack.install': sweepEntries,
+  'server.modpack.install': sweepEntries,
+  'modpack.update': sweepEntries,
+  // An import creates an instance; an export changes the data home's
+  // footprint when it lands in the daemon's own exports/.
+  'instance.import': () => [keys.instances.all],
+  'instance.export': () => [[FOOTPRINT]],
+};
+
+const JOB_FAILED: Record<string, KeysFor> = {
+  // A failed create removes the half-provisioned record.
+  'server.create': () => [keys.servers.list()],
+};
+
+function jobKeys(payload: Record<string, unknown>): QueryKey[] {
+  const table =
+    payload.state === 'done'
+      ? JOB_DONE
+      : payload.state === 'failed'
+        ? JOB_FAILED
+        : null;
+  return table?.[String(payload.channel ?? '')]?.(payload) ?? [];
+}
+
+const TOPICS: Record<string, KeysFor> = {
+  'process.started': processKeys,
+  'process.exit': processKeys,
+  job: jobKeys,
+};
 
 /** The key prefixes a daemon topic outdates — exported for the regression test. */
 export function invalidationKeys(

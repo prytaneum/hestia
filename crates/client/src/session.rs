@@ -12,6 +12,7 @@ use ipc::errors::IpcError;
 use ipc::protocol::{self, DecodeError, Event, Request, Response};
 use ipc::{Connection, FrameWriter};
 use proto::error::ErrorInfo;
+use proto::job::{Job, JobEvent, JobState};
 use proto::Contract;
 use serde_json::Value;
 use tokio::sync::{oneshot, Notify};
@@ -24,15 +25,17 @@ type EventCallback = Arc<dyn Fn(&Event) + Send + Sync>;
 /// How a job ended, other than well. Cancellation is kept apart from failure
 /// because nothing went wrong: a front-end must be able to say "cancelled"
 /// rather than render it as an error.
-enum Terminal {
+pub(crate) enum Terminal {
     Cancelled,
     Failed(ErrorInfo),
+    Malformed(String),
 }
 
 impl Terminal {
     fn into_error(self) -> IpcError {
         match self {
             Terminal::Cancelled => IpcError::Cancelled,
+            Terminal::Malformed(detail) => IpcError::Malformed(detail),
             Terminal::Failed(info) => IpcError::Daemon {
                 code: info.code().to_string(),
                 message: info.to_string(),
@@ -191,23 +194,57 @@ impl Session {
         *self.shared.event_cb.lock().unwrap() = cb;
     }
 
-    /// Subscribe to `id`'s events, run `start`, and block until the done or error
-    /// topic arrives, handing every other matching event to `on_event`. Returns
-    /// the done event's payload; errors with the error event's message.
-    pub async fn run_job<F, Fut>(
+    /// Start the job `C` under `id` and block until it settles, handing each
+    /// progress payload to `on_progress`. `params` must carry `id` as its job id;
+    /// the subscription is taken before the start call so an instant job cannot
+    /// slip its terminal event past us. A cancelled job is
+    /// [`IpcError::Cancelled`], not a failure.
+    pub async fn run_job<C: Job>(
         &self,
         id: &str,
-        done_topic: &str,
-        error_topic: &str,
-        on_event: impl Fn(&Event) + Send + Sync + 'static,
+        params: &C::Params,
+        on_progress: impl Fn(&C::Progress) + Send + Sync + 'static,
+    ) -> Result<C::Done, IpcError> {
+        self.await_events(
+            id,
+            || async { self.call::<C>(params).await.map(|_| ()) },
+            move |event: &Event| {
+                if event.topic != proto::job::TOPIC {
+                    return None;
+                }
+                let decoded =
+                    serde_json::from_value::<JobEvent<C::Progress, C::Done>>(event.payload.clone());
+                match decoded.map(|job| job.state) {
+                    Ok(JobState::Progress(progress)) => {
+                        on_progress(&progress);
+                        None
+                    }
+                    Ok(JobState::Done(done)) => Some(Ok(done)),
+                    Ok(JobState::Failed { error }) => Some(Err(Terminal::Failed(error))),
+                    Ok(JobState::Cancelled) => Some(Err(Terminal::Cancelled)),
+                    Err(e) => Some(Err(Terminal::Malformed(e.to_string()))),
+                }
+            },
+        )
+        .await
+    }
+
+    /// Subscribe to `id`'s events, run `start`, and block until `on_event`
+    /// settles. `on_event` sees only events whose payload carries `id`; it
+    /// returns `None` to keep waiting.
+    pub(crate) async fn await_events<T, F, Fut>(
+        &self,
+        id: &str,
         start: F,
-    ) -> Result<Value, IpcError>
+        on_event: impl Fn(&Event) -> Option<Result<T, Terminal>> + Send + Sync + 'static,
+    ) -> Result<T, IpcError>
     where
+        T: Send + 'static,
         F: FnOnce() -> Fut,
         Fut: std::future::Future<Output = Result<(), IpcError>>,
     {
-        struct Outcome {
-            state: Mutex<Option<Result<Value, Terminal>>>,
+        struct Outcome<T> {
+            state: Mutex<Option<Result<T, Terminal>>>,
             notify: Notify,
         }
         let outcome = Arc::new(Outcome {
@@ -216,53 +253,31 @@ impl Session {
         });
 
         let id_owned = id.to_string();
-        let done = done_topic.to_string();
-        let error = error_topic.to_string();
-        // Every job family's terminal topics share one prefix
-        // (`<family>.done|error|cancelled`), so the third is derived rather than
-        // threaded through all seven facades — and `tests/wire.rs` fails the
-        // build if a family ever names it otherwise.
-        let cancelled = done.replace(".done", ".cancelled");
         let cb_outcome = outcome.clone();
         self.set_event_callback(Some(Arc::new(move |event: &Event| {
             if event.payload.get("id").and_then(Value::as_str) != Some(id_owned.as_str()) {
                 return;
             }
-            if event.topic == done {
-                *cb_outcome.state.lock().unwrap() = Some(Ok(event.payload.clone()));
+            if let Some(settled) = on_event(event) {
+                *cb_outcome.state.lock().unwrap() = Some(settled);
                 cb_outcome.notify.notify_waiters();
-            } else if event.topic == cancelled {
-                *cb_outcome.state.lock().unwrap() = Some(Err(Terminal::Cancelled));
-                cb_outcome.notify.notify_waiters();
-            } else if event.topic == error {
-                let info = event
-                    .payload
-                    .get("error")
-                    .and_then(|e| serde_json::from_value::<ErrorInfo>(e.clone()).ok())
-                    .unwrap_or_else(|| ErrorInfo::Internal {
-                        detail: "the job failed".into(),
-                    });
-                *cb_outcome.state.lock().unwrap() = Some(Err(Terminal::Failed(info)));
-                cb_outcome.notify.notify_waiters();
-            } else {
-                on_event(event);
             }
         })));
 
         let result = self
-            .run_job_inner(id, start, &outcome.state, &outcome.notify)
+            .await_settled(id, start, &outcome.state, &outcome.notify)
             .await;
         self.set_event_callback(None);
         result
     }
 
-    async fn run_job_inner<F, Fut>(
+    async fn await_settled<T, F, Fut>(
         &self,
         id: &str,
         start: F,
-        state: &Mutex<Option<Result<Value, Terminal>>>,
+        state: &Mutex<Option<Result<T, Terminal>>>,
         notify: &Notify,
-    ) -> Result<Value, IpcError>
+    ) -> Result<T, IpcError>
     where
         F: FnOnce() -> Fut,
         Fut: std::future::Future<Output = Result<(), IpcError>>,

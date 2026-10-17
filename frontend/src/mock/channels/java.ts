@@ -39,7 +39,7 @@ export const channels: Handlers = {
     const already = runtimes.some((entry) => entry.major === major);
     return runPlan({
       id: jobIdOf(p, 'java-install'),
-      family: 'java.install',
+      channel: 'java.install',
       ticks: PHASES.map((phase, index) => ({
         phase,
         current: index + 1,

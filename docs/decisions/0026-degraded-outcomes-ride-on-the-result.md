@@ -14,8 +14,8 @@ daemon's log is not where a user finds out what just happened to their data.
 So a degraded outcome is part of the operation's **result**:
 `proto::warning::WarningInfo` is a structured, exhaustive enum — the exact shape
 and discipline as `ErrorInfo`, no prose authored at a call site — carried on the
-job done events (`server.create.done`, `server.update.done`,
-`instance.launch.done`) and on the standing views that stay true afterwards
+job done events (`server.create`, `server.update`,
+`instance.launch`) and on the standing views that stay true afterwards
 (`ServerDetails`, so `server info` keeps saying it long after the create
 scrolled past). `Sync::apply` therefore *returns* its warnings instead of
 logging them, naming the unit it left the instance to settle on its own. Every

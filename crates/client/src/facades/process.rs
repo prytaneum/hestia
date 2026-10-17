@@ -5,8 +5,9 @@ use proto::process::{
     ProcessMetrics, ProcessRef, ProcessSpec, ProcessStart, ProcessStartResult, ProcessStartedEvent,
     ProcessStatus, ProcessStop,
 };
+use proto::Topic;
 
-use crate::session::{job_id, Session};
+use crate::session::{job_id, Session, Terminal};
 
 /// One event from a subscribed process's live stream.
 pub enum ProcessEvent {
@@ -146,6 +147,12 @@ impl Process<'_> {
         let id = spec.id.clone();
 
         let on_event = move |event: &Event| {
+            if event.topic == ProcessExitEvent::TOPIC {
+                return Some(
+                    serde_json::from_value::<ProcessExitEvent>(event.payload.clone())
+                        .map_err(|e| Terminal::Malformed(e.to_string())),
+                );
+            }
             if let Ok(out) =
                 serde_json::from_value::<proto::process::ProcessOutputEvent>(event.payload.clone())
             {
@@ -153,19 +160,17 @@ impl Process<'_> {
                     on_output(line);
                 }
             }
+            None
         };
 
         let session = self.session;
         let start_spec = spec.clone();
-        // process.exit is the sole terminal topic; pass an unused error topic so
-        // run_job's failure branch never fires (a non-zero exit is still "done").
-        let payload = self
-            .session
-            .run_job(&id, "process.exit", "", on_event, move || async move {
-                session.call::<ProcessStart>(&start_spec).await.map(|_| ())
-            })
-            .await?;
-
-        serde_json::from_value(payload).map_err(|e| IpcError::Malformed(e.to_string()))
+        self.session
+            .await_events(
+                &id,
+                move || async move { session.call::<ProcessStart>(&start_spec).await.map(|_| ()) },
+                on_event,
+            )
+            .await
     }
 }

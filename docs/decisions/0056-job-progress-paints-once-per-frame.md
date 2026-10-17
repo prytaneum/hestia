@@ -43,9 +43,8 @@ That coalescer existed, but the spawn/publish skeleton around it was copied per
 job family, so it had reached six of ten start sites — a backup, an export, a
 download and the self-update still published per file or per chunk. Progress
 coalescing is now the **runner's** obligation
-(`daemon/runtime/managers/job.rs`), uniform across every family by
-construction: a family declares its four topics and its work, never its
-cadence. See [0061](0061-a-job-declares-what-differs.md).
+(`daemon/runtime/managers/job.rs`), uniform across every job by
+construction: a job declares its contract and its work, never its cadence. See [0061](0061-a-job-declares-what-differs.md).
 
 The desktop's `requestAnimationFrame` store stays, as the second line it should
 always have been: it protects the render from any burst, wherever it came from.

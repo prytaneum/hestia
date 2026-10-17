@@ -11,7 +11,7 @@ import type {
   ConfigEntry,
   InstanceCreateParams,
   InstanceInfo,
-  InstanceLaunchDoneEvent,
+  InstanceLaunchDone,
   InstanceServersWriteResult,
   InstanceUpdateParams,
   QuickPlay,
@@ -211,7 +211,7 @@ export const instanceMutations = {
    * running instance is refused.
    */
   launchAny: () =>
-    jobMutation<InstanceLaunchDoneEvent, LaunchVars>({
+    jobMutation<InstanceLaunchDone, LaunchVars>({
       mutationKey: [...keys.instances.all, 'launch'],
       meta: ({ id }) => ({
         kind: 'instance.launch',

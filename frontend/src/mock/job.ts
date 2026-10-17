@@ -1,9 +1,10 @@
 /**
  * The fixture job driver. A long-running daemon operation answers its start
- * call immediately and settles later on `<family>.done`; the client's `runJob`
- * blocks until that event arrives, so a job that never publishes one hangs the
- * caller forever. This walks a plan on a timer, publishes a progress event per
- * tick, and settles — cancellably, since `job.cancel` must be able to reach it.
+ * call immediately and settles later on the `job` topic; the client's `runJob`
+ * blocks until a terminal event arrives, so a job that never publishes one
+ * hangs the caller forever. This walks a plan on a timer, publishes a progress
+ * event per tick, and settles — cancellably, since `job.cancel` must be able to
+ * reach it.
  *
  * `done` is a thunk rather than a value: what a done event reports (the entry
  * a create minted, the pack an install landed) is mutated when the job
@@ -22,9 +23,9 @@ const running = new Map<string, () => void>();
 interface Plan {
   /** The client's job id; every event of the job carries it. */
   id: string;
-  /** The topic family — `server.create`, `content`, `java.install`, … */
-  family: string;
-  /** One progress payload per tick, each published under `<family>.progress`. */
+  /** The start channel — `server.create`, `content.add`, `java.install`, … */
+  channel: string;
+  /** One progress payload per tick. */
   ticks: Record<string, unknown>[];
   /** The done event's payload, minus its `id`, built as the job settles. */
   done: () => Record<string, unknown>;
@@ -46,20 +47,31 @@ export function runPlan(plan: Plan): { id: string } {
 
   timer = window.setInterval(() => {
     if (tick < plan.ticks.length) {
-      publish(`${plan.family}.progress`, {
+      publish('job', {
         id: plan.id,
+        channel: plan.channel,
+        state: 'progress',
         ...plan.ticks[tick],
       });
       tick += 1;
       return;
     }
     settle();
-    publish(`${plan.family}.done`, { id: plan.id, ...plan.done() });
+    publish('job', {
+      id: plan.id,
+      channel: plan.channel,
+      state: 'done',
+      ...plan.done(),
+    });
   }, TICK_MS);
 
   running.set(plan.id, () => {
     settle();
-    publish(`${plan.family}.cancelled`, { id: plan.id });
+    publish('job', {
+      id: plan.id,
+      channel: plan.channel,
+      state: 'cancelled',
+    });
   });
   return { id: plan.id };
 }
@@ -71,19 +83,19 @@ interface JobStep {
 }
 
 /**
- * A provisioning job: the `ProvisionProgress` shape most job families publish
+ * A provisioning job: the `ProvisionProgress` shape most jobs publish
  * (`current`/`total` are the step counts a phase with unknown extent reports).
  */
 export function startJob(plan: {
   id: string;
-  family: string;
+  channel: string;
   steps: JobStep[];
   done: () => Record<string, unknown>;
 }): { id: string } {
   const total = plan.steps.length;
   return runPlan({
     id: plan.id,
-    family: plan.family,
+    channel: plan.channel,
     ticks: plan.steps.map((step, index) => ({
       phase: step.phase,
       current: index + 1,

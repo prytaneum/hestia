@@ -1,13 +1,11 @@
 use std::sync::Arc;
 
 use engine::Engine;
-use proto::backup::{
-    BackupCancelledEvent, BackupDoneEvent, BackupErrorEvent, BackupInfo, BackupKind,
-    BackupProgressEvent,
-};
+use proto::backup::{BackupDone, BackupKind};
+use proto::job::Job;
 use proto::minecraft::ProvisionProgress;
 
-use super::job::{progress_event, settle, Cancellations, Runner, Spec};
+use super::job::{Cancellations, Runner, Spec};
 use crate::runtime::{server_process_id, EventHub};
 
 /// One backup or restore job for one server — what `BackupManager::start`
@@ -55,38 +53,32 @@ impl BackupManager {
 
     /// Start a backup/restore job off-thread, one per entry at a time.
     /// Returns the job id, or `None` if that entry is already busy.
-    pub fn start(&self, job: BackupJob, id: String) -> Option<String> {
+    pub fn start<C>(&self, job: BackupJob, id: String) -> Option<String>
+    where
+        C: Job<Progress = ProvisionProgress, Done = BackupDone>,
+    {
         let spec = Spec {
             id,
             prefix: job.id_prefix(),
             key: Some(job.key()),
-            progress: progress_event(|id, progress: &ProvisionProgress| BackupProgressEvent {
-                id,
-                progress: progress.clone(),
-            }),
-            done: settle(|id, backup: BackupInfo| BackupDoneEvent { id, backup }),
-            cancelled: Some(settle(|id, ()| BackupCancelledEvent { id })),
-            error: settle(|id, e| BackupErrorEvent {
-                id,
-                error: crate::runtime::engine_error(e),
-            }),
         };
 
-        self.runner.start(spec, move |engine, reporter| {
+        self.runner.start::<C, _>(spec, move |engine, reporter| {
             Box::pin(async move {
                 let running = reporter.job();
-                match job {
+                let backup = match job {
                     BackupJob::ServerBackup { server_id, live } => {
                         engine
                             .backup_server(&server_id, BackupKind::Manual, live, &running)
-                            .await
+                            .await?
                     }
                     BackupJob::ServerRestore { server_id, backup } => {
                         engine
                             .restore_server_backup(&server_id, &backup, &running)
-                            .await
+                            .await?
                     }
-                }
+                };
+                Ok(BackupDone { backup })
             })
         })
     }

@@ -1,5 +1,7 @@
 {
   "id": "server-content-add-1",
+  "channel": "content.add",
+  "state": "failed",
   "error": {
     "kind": "entry_not_found",
     "entry": "server",

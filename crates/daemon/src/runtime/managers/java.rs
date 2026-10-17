@@ -1,12 +1,9 @@
 use std::sync::Arc;
 
-use engine::{Engine, JavaInstallOutcome};
-use proto::java::{
-    JavaInstallCancelledEvent, JavaInstallDoneEvent, JavaInstallErrorEvent, JavaInstallProgress,
-    JavaInstallProgressEvent,
-};
+use engine::Engine;
+use proto::java::{JavaInstall, JavaInstallDone};
 
-use super::job::{progress_event, settle, Cancellations, Runner, Spec};
+use super::job::{Cancellations, Runner, Spec};
 use crate::runtime::EventHub;
 
 pub struct JavaInstallManager {
@@ -27,35 +24,24 @@ impl JavaInstallManager {
             id,
             prefix: "java-install",
             key: Some(major),
-            progress: progress_event(|id, progress: &JavaInstallProgress| {
-                JavaInstallProgressEvent {
-                    id,
-                    progress: progress.clone(),
-                }
-            }),
-            done: settle(|id, outcome: JavaInstallOutcome| JavaInstallDoneEvent {
-                id,
-                runtime: outcome.runtime,
-                already_installed: outcome.already_installed,
-            }),
-            cancelled: Some(settle(|id, ()| JavaInstallCancelledEvent { id })),
-            error: settle(|id, e| JavaInstallErrorEvent {
-                id,
-                error: crate::runtime::engine_error(e),
-            }),
         };
 
-        self.runner.start(spec, move |engine, reporter| {
-            Box::pin(async move {
-                let cancel = reporter.cancel();
-                let report = reporter.checked();
-                engine
-                    .java()
-                    .install(major, force, cancel, move |p| {
-                        let _ = report(p);
+        self.runner
+            .start::<JavaInstall, _>(spec, move |engine, reporter| {
+                Box::pin(async move {
+                    let cancel = reporter.cancel();
+                    let report = reporter.checked();
+                    let outcome = engine
+                        .java()
+                        .install(major, force, cancel, move |p| {
+                            let _ = report(p);
+                        })
+                        .await?;
+                    Ok(JavaInstallDone {
+                        runtime: outcome.runtime,
+                        already_installed: outcome.already_installed,
                     })
-                    .await
+                })
             })
-        })
     }
 }

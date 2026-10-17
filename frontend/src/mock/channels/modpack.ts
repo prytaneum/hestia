@@ -1,9 +1,9 @@
 /**
  * `modpack.*` — what an entry runs and how its pack moves, with the side named
  * by a target; and `instance.modpack.install` / `server.modpack.install`, a
- * pack into a new or existing entry. Install and update are jobs on the shared
- * `modpack.*` topics; their done event carries the entry the pack landed in,
- * which for a creating install is the only way the caller learns its id.
+ * pack into a new or existing entry. Install and update are jobs; their done
+ * event carries the entry the pack landed in, which for a creating install is
+ * the only way the caller learns its id.
  */
 import type {
   InstalledContent,
@@ -77,7 +77,7 @@ function installJob(
 ): { id: string } {
   return startJob({
     id: jobIdOf(payload, 'modpack-install'),
-    family: 'modpack',
+    channel: server ? 'server.modpack.install' : 'instance.modpack.install',
     steps: [
       { phase: 'resolving', detail: 'reading the pack index' },
       { phase: 'java', detail: 'Java runtime' },
@@ -110,7 +110,7 @@ function updateJob(payload: Record<string, unknown>): { id: string } {
   const entry = targetEntry(payload);
   return startJob({
     id: jobIdOf(payload, 'modpack-update'),
-    family: 'modpack',
+    channel: 'modpack.update',
     steps: [
       { phase: 'resolving', detail: 'the published version' },
       { phase: 'content', detail: 'pack files' },

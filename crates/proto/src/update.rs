@@ -6,8 +6,9 @@ use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
-use crate::contract::{Contract, Empty, Topic};
+use crate::contract::{Contract, Empty};
 use crate::download::DownloadProgress;
+use crate::job::{Job, JobStarted};
 
 /// Which release feed a build follows. One manifest per channel: the channel
 /// picks the document, version precedence decides whether it is an upgrade.
@@ -95,18 +96,16 @@ pub struct UpdateDownloadParams {
     pub id: String,
 }
 
-#[derive(Serialize, Deserialize, Default, Debug, Clone)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
-#[serde(default, rename_all = "camelCase")]
-pub struct UpdateDownloadResult {
-    pub id: String,
-}
-
 pub struct UpdateDownload;
 impl Contract for UpdateDownload {
     const CHANNEL: &'static str = "update.download";
     type Params = UpdateDownloadParams;
-    type Result = UpdateDownloadResult;
+    type Result = JobStarted;
+}
+
+impl Job for UpdateDownload {
+    type Progress = DownloadProgress;
+    type Done = UpdateDone;
 }
 
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
@@ -139,44 +138,7 @@ impl Contract for UpdateApply {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
 #[serde(rename_all = "camelCase")]
-pub struct UpdateProgressEvent {
-    pub id: String,
-    #[serde(flatten)]
-    pub progress: DownloadProgress,
-}
-impl Topic for UpdateProgressEvent {
-    const TOPIC: &'static str = "update.progress";
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
-#[serde(rename_all = "camelCase")]
-pub struct UpdateDoneEvent {
-    pub id: String,
+pub struct UpdateDone {
     pub path: PathBuf,
     pub version: String,
-}
-impl Topic for UpdateDoneEvent {
-    const TOPIC: &'static str = "update.done";
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
-#[serde(rename_all = "camelCase")]
-pub struct UpdateErrorEvent {
-    pub id: String,
-    pub error: crate::error::ErrorInfo,
-}
-impl Topic for UpdateErrorEvent {
-    const TOPIC: &'static str = "update.error";
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
-#[serde(rename_all = "camelCase")]
-pub struct UpdateCancelledEvent {
-    pub id: String,
-}
-impl Topic for UpdateCancelledEvent {
-    const TOPIC: &'static str = "update.cancelled";
 }

@@ -10,7 +10,7 @@ import { useState } from 'react';
 import { toast } from 'sonner';
 
 import type {
-  ContentDoneEvent,
+  ContentDone,
   ContentKind,
   InstalledContent,
   UntrackedFile,
@@ -99,7 +99,7 @@ export function ContentSection({
       await run(batch).catch(() => undefined);
     }
   };
-  const toastFailures = (done: ContentDoneEvent) => {
+  const toastFailures = (done: ContentDone) => {
     for (const failure of done.failures) {
       toast.error(failure.title || failure.item, {
         description: errorMessageFromInfo(failure.error),

@@ -13,12 +13,13 @@ use proto::app::AppInfoResult;
 use proto::backup::BackupInfo;
 use proto::cache::{CacheEntry, CacheInfoResult};
 use proto::content::{
-    ContentAddSpec, ContentDoneEvent, ContentErrorEvent, ContentProgressEvent, ContentProject,
-    ContentVersion, EntryContentAddParams, InstalledContent, SearchQuery,
+    ContentAddSpec, ContentDone, ContentProject, ContentVersion, EntryContentAddParams,
+    InstalledContent, SearchQuery,
 };
 use proto::daemon::{DaemonStatusResult, DaemonStopParams};
 use proto::instance::{InstanceInfo, InstanceLaunchParams, RecentPlay, ServerEntry};
 use proto::java::{JavaInstallProgress, JavaRuntime};
+use proto::job::JobEvent;
 use proto::minecraft::ProvisionProgress;
 use proto::process::{
     ProcessExitEvent, ProcessInfo, ProcessMetricsEvent, ProcessOutputEvent, ProcessSpec,
@@ -126,21 +127,12 @@ golden!(
     InstalledContent,
     "installed_content.json"
 );
-golden!(
-    content_progress_event,
-    ContentProgressEvent,
-    "content_progress_event.json"
-);
-golden!(
-    content_done_event,
-    ContentDoneEvent,
-    "content_done_event.json"
-);
-golden!(
-    content_error_event,
-    ContentErrorEvent,
-    "content_error_event.json"
-);
+type ContentJobEvent = JobEvent<ProvisionProgress, ContentDone>;
+
+golden!(job_progress, ContentJobEvent, "job_progress.json");
+golden!(job_done, ContentJobEvent, "job_done.json");
+golden!(job_failed, ContentJobEvent, "job_failed.json");
+golden!(job_cancelled, ContentJobEvent, "job_cancelled.json");
 golden!(search_query, SearchQuery, "search_query.json");
 golden!(content_version, ContentVersion, "content_version.json");
 golden!(content_project, ContentProject, "content_project.json");

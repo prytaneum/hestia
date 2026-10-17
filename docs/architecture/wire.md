@@ -118,14 +118,14 @@ requests by id and delivers events to an installed callback.
 | `call::<C>()` | marshals through the contract, returns the `proto` result |
 | `try_call::<C>()` | maps a `not_found` to `None` |
 | `call_with_timeout::<C>()` | overrides the 10 s default for a long call |
-| `run_job::<C>()` | drives a long-running operation, forwarding progress events and blocking until a terminal topic arrives |
+| `run_job::<C: Job>()` | starts a long-running operation, hands each typed progress payload to a callback and blocks until it settles to `C::Done`, `IpcError::Cancelled` or a failure |
 | `call_raw()` | the untyped forward the desktop bridge pipes through |
 
 **Facades** (`facades/`) are one struct per domain, reached through a `Client`
 accessor (`client.java().install(21, …)`), mirroring the engine's domain modules
-on the other side of the socket. Methods are one-liners over `Session`.
-`facades/jobs.rs` holds the drivers the server and instance facades share, since
-backup and content jobs publish the same topics disambiguated by job id.
+on the other side of the socket. Methods are one-liners over `Session`; a job
+method is `run_job::<C>` and nothing else, since the contract already names its
+progress and done types.
 
 `spawn.rs` locates and launches the `hestiad` binary, then retries the connection
 until it is listening.
@@ -144,28 +144,48 @@ that links `client`. Payloads are never logged
 ## Jobs, events and cancellation
 
 Anything that can take minutes — a download, a Java install, a server create, a
-backup, a content install, a modpack apply — is a **job**. The channel answers
-immediately with a job id, and the work streams events under that id.
+backup, a content install, a modpack apply — is a **job**. The start channel
+answers immediately with `JobStarted { id }`, and the work streams events under
+that id on one topic, `job`.
+
+The start contract *is* the job: it implements `proto::job::Job`, declaring the
+`Progress` and `Done` payload types of its own events. Several contracts may
+declare the same ones (content add, update and set-version all settle with a
+`ContentDone`). Each event is a `JobEvent<P, D>`:
+
+```jsonc
+{ "id": "server-create-1", "channel": "server.create", "state": "progress", "phase": "java", … }
+{ "id": "server-create-1", "channel": "server.create", "state": "done", "server": { … }, "warnings": [] }
+{ "id": "server-create-1", "channel": "server.create", "state": "failed", "error": { "kind": "…" } }
+{ "id": "server-create-1", "channel": "server.create", "state": "cancelled" }
+```
+
+`channel` is the start contract's `CHANNEL`, so an observer that did not start
+the job — another window refreshing its lists — can still tell what kind it is.
+The `state` payload is flattened beside `id` and `channel`; the generated
+TypeScript is a union over `state`.
 
 ```mermaid
 stateDiagram-v2
-    [*] --> Accepted: channel returns { jobId }
+    [*] --> Accepted: channel returns { id }
     Accepted --> Running
-    Running --> Running: <i>family</i>.progress
-    Running --> Done: <i>family</i>.done  (+ warnings)
-    Running --> Failed: <i>family</i>.error
-    Running --> Cancelled: <i>family</i>.cancelled
+    Running --> Running: state progress
+    Running --> Done: state done  (+ warnings)
+    Running --> Failed: state failed
+    Running --> Cancelled: state cancelled
     Done --> [*]
     Failed --> [*]
     Cancelled --> [*]
 ```
 
-Every family names its terminal topics alike, so a driver derives them from the
-done topic. Cancellation is an **explicit act** — one `job.cancel { id }`
+What a cancel leaves behind is documented on each start contract in
+`proto`. Cancellation is an **explicit act** — one `job.cancel { id }`
 channel — and inside the engine it is cooperative and checkpointed, never a
 kill: stopping at a checkpoint leaves exactly what a network failure at the same
 point would have left, so the existing failure paths do the cleanup. A cancelled
 job is not an error ([0032](../decisions/0032-jobs-are-cancelled-by-asking.md)).
+Why one topic and the contract as the job:
+[0083](../decisions/0083-a-job-is-its-contract-and-reports-on-one-topic.md).
 
 A client subscribes with `events.subscribe`, filtered by id. The filter also
 covers *session keys beneath* an entry key, which is what lets one subscription

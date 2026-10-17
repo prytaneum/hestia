@@ -2,9 +2,12 @@
 import type { ServerInfo } from "./ServerInfo";
 import type { WarningInfo } from "./WarningInfo";
 
-export type ServerCreateDoneEvent = { id: string, server: ServerInfo, 
 /**
- * Degraded outcomes of a create that nonetheless succeeded — a front-end
- * shows these under the success line.
+ * A finished create or update.
+ */
+export type ServerDone = { server: ServerInfo, 
+/**
+ * Degraded outcomes of a create or update that nonetheless succeeded — a
+ * front-end shows these under the success line.
  */
 warnings: Array<WarningInfo>, };

@@ -64,6 +64,14 @@ fn java_install_progress_phase_is_lowercase() {
 }
 
 #[test]
+fn every_job_reports_on_the_job_topic() {
+    use proto::job::JobEvent;
+    use proto::Topic;
+
+    assert_eq!(JobEvent::<JavaInstallProgress, ()>::TOPIC, "job");
+}
+
+#[test]
 fn checksum_validation() {
     let good = Checksum {
         algorithm: HashAlgorithm::Sha1,

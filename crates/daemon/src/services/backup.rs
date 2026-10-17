@@ -3,10 +3,10 @@
 //! none — `instance.export` is what they have instead.
 
 use proto::backup::{
-    BackupJobResult, BackupListResult, ServerBackupCreate, ServerBackupList, ServerBackupRemove,
-    ServerBackupRestore,
+    BackupListResult, ServerBackupCreate, ServerBackupList, ServerBackupRemove, ServerBackupRestore,
 };
 use proto::error::ErrorInfo;
+use proto::job::JobStarted;
 use proto::Empty;
 
 use super::guards::{is_running, require_backup, server_for, Intent};
@@ -24,14 +24,14 @@ pub(super) fn register(on: &mut Channels<'_>) {
             });
         }
         let live = is_running(&ctx, &server_process_id(&record.id));
-        match ctx.runtime.backups().start(
+        match ctx.runtime.backups().start::<ServerBackupCreate>(
             BackupJob::ServerBackup {
                 server_id: record.id,
                 live,
             },
             p.id,
         ) {
-            Some(id) => Ok(BackupJobResult { id }),
+            Some(id) => Ok(JobStarted { id }),
             None => Err(ErrorInfo::BackupInProgress {
                 name: record.name.clone(),
             }),
@@ -56,14 +56,14 @@ pub(super) fn register(on: &mut Channels<'_>) {
         }
         let record = server_for(&ctx, &p.server, Intent::Mutate)?;
         require_backup(ctx.runtime.engine().server_backups(&record.id), &p.backup)?;
-        match ctx.runtime.backups().start(
+        match ctx.runtime.backups().start::<ServerBackupRestore>(
             BackupJob::ServerRestore {
                 server_id: record.id,
                 backup: p.backup,
             },
             p.id,
         ) {
-            Some(id) => Ok(BackupJobResult { id }),
+            Some(id) => Ok(JobStarted { id }),
             None => Err(ErrorInfo::BackupInProgress {
                 name: record.name.clone(),
             }),

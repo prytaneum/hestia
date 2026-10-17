@@ -11,7 +11,7 @@ import type {
   InstanceCreateParams,
   InstanceDetails,
   InstanceInfo,
-  InstanceLaunchDoneEvent,
+  InstanceLaunchDone,
   InstanceLaunchParams,
   InstanceServerEditParams,
   InstanceServersWriteResult,
@@ -158,14 +158,9 @@ export function pingAddress(address: string): Promise<ServerPingResult> {
 export function launch(
   params: Partial<InstanceLaunchParams>,
   job: JobRun,
-): Promise<InstanceLaunchDoneEvent> {
-  return runJob<InstanceLaunchDoneEvent>({
+): Promise<InstanceLaunchDone> {
+  return runJob<InstanceLaunchDone>({
     ...job,
-    topics: {
-      progress: 'instance.launch.progress',
-      done: 'instance.launch.done',
-      error: 'instance.launch.error',
-    },
     start: () => call('instance.launch', { ...params, id: job.id }),
   });
 }

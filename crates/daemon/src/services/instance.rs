@@ -7,13 +7,14 @@ use proto::error::{EntryKind, ErrorInfo, Field};
 use proto::instance::{
     AddressPing, InstanceConfigGet, InstanceConfigGetResult, InstanceConfigList,
     InstanceConfigListResult, InstanceConfigSet, InstanceCreate, InstanceCreateResult,
-    InstanceFlavors, InstanceInfoQuery, InstanceLaunch, InstanceLaunchResult, InstanceList,
-    InstanceListResult, InstanceLoaders, InstanceLogs, InstanceRecent, InstanceRecentResult,
-    InstanceRemove, InstanceRename, InstanceServerEdit, InstanceServerRemove, InstanceServers,
+    InstanceFlavors, InstanceInfoQuery, InstanceLaunch, InstanceList, InstanceListResult,
+    InstanceLoaders, InstanceLogs, InstanceRecent, InstanceRecentResult, InstanceRemove,
+    InstanceRename, InstanceServerEdit, InstanceServerRemove, InstanceServers,
     InstanceServersArrange, InstanceServersResult, InstanceServersWriteResult, InstanceStop,
     InstanceUpdate, InstanceUpdateResult, InstanceVersions, InstanceWorlds, InstanceWorldsResult,
     ServerEntry,
 };
+use proto::job::JobStarted;
 use proto::minecraft::{ConfigEntry, FlavorsResult, LoadersResult, VersionsResult};
 use proto::process::ProcessLogsResult;
 use proto::Empty;
@@ -265,7 +266,7 @@ pub(super) fn register(on: &mut Channels<'_>) {
             offline: p.offline,
             id: p.id,
         }) {
-            Some(id) => Ok(InstanceLaunchResult { id }),
+            Some(id) => Ok(JobStarted { id }),
             None => Err(ErrorInfo::Internal {
                 detail: "that instance could not be launched".into(),
             }),

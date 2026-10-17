@@ -6,9 +6,12 @@ import type { WarningInfo } from "./WarningInfo";
 /**
  * A finished pack install or update. `entry` is the entry it landed in — for a
  * create that is the id the job just minted, which the caller has no other way
- * to learn.
+ * to learn. Cancelling one that creates its entry discards the half-built
+ * entry, exactly as a failed create does; an install into an existing entry
+ * leaves whatever had already been written, which the next install or update
+ * reconciles.
  */
-export type ModpackDoneEvent = { id: string, entry: string, entryName: string, pack: InstalledModpack, 
+export type ModpackDone = { entry: string, entryName: string, pack: InstalledModpack, 
 /**
  * Per-file failures; the install continues past them, so a pack with one
  * dead download still produces a working entry minus that file.

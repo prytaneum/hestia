@@ -25,8 +25,8 @@ cancelled Java install stages and never renames, a cancelled create discards its
 record exactly as a failed one does, a cancelled backup leaves a `.part` that
 `Engine::recover()` reclaims. Nothing new had to learn how to tidy up.
 
-A cancelled job is **not** an error. It settles on its own `<family>.cancelled`
-topic (every family names its terminal topics alike, so the drivers derive it
-from the done topic), surfaces as `IpcError::Cancelled` / `JobCancelled` rather
+A cancelled job is **not** an error. It settles on its own `cancelled` state of
+the `job` topic ([0083](0083-a-job-is-its-contract-and-reports-on-one-topic.md)),
+surfaces as `IpcError::Cancelled` / `JobCancelled` rather
 than a daemon error, and is logged at info. A front-end that rendered
 cancellation as a failure would be blaming the user for what they asked for.

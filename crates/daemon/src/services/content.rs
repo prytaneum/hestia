@@ -3,13 +3,14 @@
 //! instances alike.
 
 use proto::content::{
-    ContentInspect, ContentJobResult, ContentListResult, ContentMatchesResult, ContentProjectGet,
-    ContentResolveUrl, ContentSearch, ContentSources, ContentUpdatesResult, ContentVersions,
-    ContentVersionsResult, EntryContentAdd, EntryContentCheckUpdates, EntryContentEnable,
-    EntryContentList, EntryContentMatches, EntryContentRemove, EntryContentSetVersion,
-    EntryContentUpdate, SourcesResult,
+    ContentInspect, ContentListResult, ContentMatchesResult, ContentProjectGet, ContentResolveUrl,
+    ContentSearch, ContentSources, ContentUpdatesResult, ContentVersions, ContentVersionsResult,
+    EntryContentAdd, EntryContentCheckUpdates, EntryContentEnable, EntryContentList,
+    EntryContentMatches, EntryContentRemove, EntryContentSetVersion, EntryContentUpdate,
+    SourcesResult,
 };
 use proto::error::{ErrorInfo, Field};
+use proto::job::JobStarted;
 use proto::Empty;
 
 use super::guards::{
@@ -92,14 +93,14 @@ fn register_entry(on: &mut Channels<'_>) {
     on.handle::<EntryContentAdd, _, _>(|p, ctx| async move {
         require_content_items(&p.spec)?;
         let entry = entry_for(&ctx, &p.target, Intent::Mutate)?;
-        match ctx.runtime.content_jobs().start(
+        match ctx.runtime.content_jobs().start::<EntryContentAdd>(
             ContentJob::Add {
                 entry: entry.handle,
                 spec: p.spec,
             },
             p.id,
         ) {
-            Some(id) => Ok(ContentJobResult { id }),
+            Some(id) => Ok(JobStarted { id }),
             None => Err(ErrorInfo::ContentInProgress { name: entry.name }),
         }
     });
@@ -131,7 +132,7 @@ fn register_entry(on: &mut Channels<'_>) {
         require_item_names(&p.items)?;
         require_one_for_file(&p.items, &p.path)?;
         let entry = entry_for(&ctx, &p.target, Intent::Mutate)?;
-        match ctx.runtime.content_jobs().start(
+        match ctx.runtime.content_jobs().start::<EntryContentUpdate>(
             ContentJob::Update {
                 entry: entry.handle,
                 kind: p.kind,
@@ -140,7 +141,7 @@ fn register_entry(on: &mut Channels<'_>) {
             },
             p.id,
         ) {
-            Some(id) => Ok(ContentJobResult { id }),
+            Some(id) => Ok(JobStarted { id }),
             None => Err(ErrorInfo::ContentInProgress { name: entry.name }),
         }
     });
@@ -194,7 +195,7 @@ fn register_entry(on: &mut Channels<'_>) {
             });
         }
         let entry = entry_for(&ctx, &p.target, Intent::Mutate)?;
-        match ctx.runtime.content_jobs().start(
+        match ctx.runtime.content_jobs().start::<EntryContentSetVersion>(
             ContentJob::SetVersion {
                 entry: entry.handle,
                 kind: p.kind,
@@ -204,7 +205,7 @@ fn register_entry(on: &mut Channels<'_>) {
             },
             p.id,
         ) {
-            Some(id) => Ok(ContentJobResult { id }),
+            Some(id) => Ok(JobStarted { id }),
             None => Err(ErrorInfo::ContentInProgress { name: entry.name }),
         }
     });

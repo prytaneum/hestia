@@ -13,22 +13,10 @@ import { type JobRun, runJob } from './core/jobs';
 import type {
   ArchiveEntry,
   ArchiveInfo,
-  ExportDoneEvent,
+  ExportDone,
   ExportFormat,
-  ImportDoneEvent,
+  ImportDone,
 } from './types/transfer';
-
-const exportTopics = {
-  progress: 'instance.export.progress',
-  done: 'instance.export.done',
-  error: 'instance.export.error',
-} as const;
-
-const importTopics = {
-  progress: 'instance.import.progress',
-  done: 'instance.import.done',
-  error: 'instance.import.error',
-} as const;
 
 /** What an export of this instance would carry, sorted by path. */
 export async function contents(instance: string): Promise<ArchiveEntry[]> {
@@ -60,10 +48,9 @@ export function exportInstance(
   instance: string,
   input: ExportInput,
   job: JobRun,
-): Promise<ExportDoneEvent> {
-  return runJob<ExportDoneEvent>({
+): Promise<ExportDone> {
+  return runJob<ExportDone>({
     ...job,
-    topics: exportTopics,
     start: () =>
       call('instance.export', {
         instance,
@@ -83,10 +70,9 @@ export function importInstance(
   path: string,
   name = '',
   job: JobRun,
-): Promise<ImportDoneEvent> {
-  return runJob<ImportDoneEvent>({
+): Promise<ImportDone> {
+  return runJob<ImportDone>({
     ...job,
-    topics: importTopics,
     start: () => call('instance.import', { path, name, id: job.id }),
   });
 }
