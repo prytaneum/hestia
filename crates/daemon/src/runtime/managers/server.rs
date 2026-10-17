@@ -97,12 +97,14 @@ impl Jobs {
                     true => Some(start_server(engine, &processes, &record.id).await),
                     false => None,
                 };
+                if let Some(Err(error)) = &restarted {
+                    tracing::warn!(server = %record.id, error = %error, "server not restarted after its update");
+                }
                 let changed = outcome?;
                 let mut done = provisioned(engine, (changed.record, changed.warnings));
                 done.failures = changed.failures;
                 done.server.process = processes.status(&process_id);
                 if let Some(Err(error)) = restarted {
-                    tracing::warn!(server = %record.id, error = %error, "server not restarted after its update");
                     done.warnings.push(WarningInfo::ServerNotRestarted {
                         server: record.name,
                         detail: error.to_string(),
