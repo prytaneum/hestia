@@ -16,6 +16,35 @@ import type { ContentKind, EntryKind, SearchQuery, VersionQuery } from '../api';
  */
 export const FOOTPRINT = 'footprint';
 
+/** The half of a server's and an instance's key tree that they share. */
+function entryKeys<R extends 'servers' | 'instances'>(
+  root: R,
+  kind: EntryKind,
+) {
+  const all = [root] as const;
+  const detail = (id: string) => [...all, 'detail', id] as const;
+  const content = (id: string) => [...detail(id), 'content'] as const;
+  return {
+    all,
+    list: () => [...all, 'list'] as const,
+    flavors: () => [...all, 'flavors'] as const,
+    versions: (flavor: string) => [...all, 'versions', flavor] as const,
+    loaders: (flavor: string, version: string) =>
+      [...all, 'loaders', flavor, version] as const,
+    detail,
+    info: (id: string) => [FOOTPRINT, kind, id] as const,
+    config: (id: string) => [...detail(id), 'config'] as const,
+    content,
+    contentList: (id: string, contentKind: ContentKind) =>
+      [...content(id), contentKind] as const,
+    contentUpdates: (id: string, contentKind: ContentKind) =>
+      [...content(id), 'updates', contentKind] as const,
+    contentMatches: (id: string, contentKind: ContentKind, item: string) =>
+      [...content(id), 'matches', contentKind, item] as const,
+    modpack: (id: string) => [...detail(id), 'modpack'] as const,
+  };
+}
+
 export const keys = {
   app: {
     all: ['app'] as const,
@@ -61,19 +90,10 @@ export const keys = {
     runtimes: () => [...keys.java.all, 'runtimes'] as const,
   },
   servers: {
-    all: ['servers'] as const,
-    list: () => [...keys.servers.all, 'list'] as const,
-    flavors: () => [...keys.servers.all, 'flavors'] as const,
-    versions: (flavor: string) =>
-      [...keys.servers.all, 'versions', flavor] as const,
-    loaders: (flavor: string, version: string) =>
-      [...keys.servers.all, 'loaders', flavor, version] as const,
-    detail: (id: string) => [...keys.servers.all, 'detail', id] as const,
-    info: (id: string) => [FOOTPRINT, 'server', id] as const,
+    ...entryKeys('servers', 'server'),
     ping: (id: string) => [...keys.servers.detail(id), 'ping'] as const,
     logs: (id: string, tail?: number) =>
       [...keys.servers.detail(id), 'logs', tail ?? null] as const,
-    config: (id: string) => [...keys.servers.detail(id), 'config'] as const,
     properties: (id: string) =>
       [...keys.servers.config(id), 'properties'] as const,
     backups: (id: string) => [...keys.servers.detail(id), 'backups'] as const,
@@ -86,14 +106,6 @@ export const keys = {
       [...keys.servers.files(id), 'list', path] as const,
     fileContent: (id: string, path: string) =>
       [...keys.servers.files(id), 'content', path] as const,
-    content: (id: string) => [...keys.servers.detail(id), 'content'] as const,
-    contentList: (id: string, kind: ContentKind) =>
-      [...keys.servers.content(id), kind] as const,
-    contentUpdates: (id: string, kind: ContentKind) =>
-      [...keys.servers.content(id), 'updates', kind] as const,
-    contentMatches: (id: string, kind: ContentKind, item: string) =>
-      [...keys.servers.content(id), 'matches', kind, item] as const,
-    modpack: (id: string) => [...keys.servers.detail(id), 'modpack'] as const,
   },
   // An archive is identified by its path, not by any entry — an inspect
   // happens before there is an instance to key against.
@@ -102,16 +114,8 @@ export const keys = {
     archive: (path: string) => ['transfer', 'archive', path] as const,
   },
   instances: {
-    all: ['instances'] as const,
-    list: () => [...keys.instances.all, 'list'] as const,
-    recent: () => [...keys.instances.all, 'recent'] as const,
-    flavors: () => [...keys.instances.all, 'flavors'] as const,
-    versions: (flavor: string) =>
-      [...keys.instances.all, 'versions', flavor] as const,
-    loaders: (flavor: string, version: string) =>
-      [...keys.instances.all, 'loaders', flavor, version] as const,
-    detail: (id: string) => [...keys.instances.all, 'detail', id] as const,
-    info: (id: string) => [FOOTPRINT, 'instance', id] as const,
+    ...entryKeys('instances', 'instance'),
+    recent: () => ['instances', 'recent'] as const,
     worlds: (id: string) => [...keys.instances.detail(id), 'worlds'] as const,
     servers: (id: string) => [...keys.instances.detail(id), 'servers'] as const,
     // Keyed by address, not by entry: the same server can sit in several
@@ -126,15 +130,6 @@ export const keys = {
         session ?? null,
         tail ?? null,
       ] as const,
-    config: (id: string) => [...keys.instances.detail(id), 'config'] as const,
-    content: (id: string) => [...keys.instances.detail(id), 'content'] as const,
-    contentList: (id: string, kind: ContentKind) =>
-      [...keys.instances.content(id), kind] as const,
-    contentUpdates: (id: string, kind: ContentKind) =>
-      [...keys.instances.content(id), 'updates', kind] as const,
-    contentMatches: (id: string, kind: ContentKind, item: string) =>
-      [...keys.instances.content(id), 'matches', kind, item] as const,
-    modpack: (id: string) => [...keys.instances.detail(id), 'modpack'] as const,
     exportContents: (id: string) =>
       [...keys.instances.detail(id), 'export-contents'] as const,
   },
