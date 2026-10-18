@@ -27,7 +27,7 @@ const CONCURRENT_FETCHES: usize = 16;
 pub type OnProgress<'a> = &'a crate::cancel::Job<'a>;
 
 pub fn validate_filename(name: &str) -> Result<()> {
-    if name.is_empty() || name.starts_with('.') || name.contains(['/', '\\']) {
+    if name.is_empty() || name.starts_with('.') || name.contains(['/', '\\', '"']) {
         bail!("artifact has an unsafe filename: '{name}'");
     }
     Ok(())

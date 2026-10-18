@@ -12,6 +12,7 @@ use proto::java::{JavaInstallPhase, JavaInstallProgress, JavaRelease, JavaRuntim
 use serde_json::{json, Value};
 
 use crate::download::Downloader;
+use crate::minecraft::materialize;
 
 const RUNTIME_RECORD: &str = "runtime.json";
 /// An install extracts here and is renamed into place, so a runtime is only ever
@@ -123,7 +124,7 @@ impl Java {
 
         on_progress(&phase(JavaInstallPhase::Resolving));
         let package = adoptium::resolve(major, &platform::host_target()?).await?;
-        validate_archive_name(&package.archive_name)?;
+        materialize::validate_filename(&package.archive_name)?;
         tracing::info!(
             major,
             release = %package.release_name,
@@ -257,18 +258,6 @@ impl InstallPaths {
         let _ = std::fs::remove_dir_all(&self.staging);
         let _ = std::fs::remove_file(&self.archive);
     }
-}
-
-fn validate_archive_name(name: &str) -> Result<()> {
-    if name.is_empty()
-        || name.starts_with('.')
-        || name.contains('/')
-        || name.contains('\\')
-        || name.contains('"')
-    {
-        bail!("provider returned an unsafe archive name: '{name}'");
-    }
-    Ok(())
 }
 
 fn with_suffix(path: &Path, suffix: &str) -> PathBuf {

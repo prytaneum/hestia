@@ -15,6 +15,7 @@ use proto::error::Service;
 use proto::update::{UpdateChannel, UpdateCheckResult, UpdateInfo, UpdateInstall};
 
 use crate::download::{Downloader, ProgressFn};
+use crate::minecraft::materialize;
 use crate::signature::verify_file;
 use crate::version::is_newer;
 
@@ -113,9 +114,9 @@ impl Update {
             .url
             .rsplit('/')
             .next()
-            .filter(|n| !n.is_empty())
             .context("update url has no file name")?
             .to_string();
+        materialize::validate_filename(&name)?;
         std::fs::create_dir_all(&self.dir).context("cannot create the update staging directory")?;
         let dest = self.dir.join(name);
         Downloader::new(None)
