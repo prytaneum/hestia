@@ -255,7 +255,7 @@ impl Engine {
         std::fs::create_dir_all(&game_dir)
             .with_context(|| format!("cannot create {}", game_dir.display()))?;
         if reconcile {
-            let pass = self.instance_pass(&record, &game_dir);
+            let pass = self.instance_pass(&record);
             let session = proto::naming::instance_session_id(&record.id, session_seq);
             warnings.extend(self.begin_instance_sync(&session, pass));
             warnings.extend(self.reconcile_packs(&record).await);

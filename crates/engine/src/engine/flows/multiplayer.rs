@@ -133,19 +133,6 @@ impl Engine {
         };
         Ok(ServerListWrite { servers, warnings })
     }
-
-    /// How many of the instance's sessions are still running — the sessions
-    /// that hold its shared files open.
-    pub(crate) fn running_sessions(&self, id: &str) -> u32 {
-        let prefix = proto::naming::instance_session_prefix(id);
-        self.processes()
-            .list()
-            .iter()
-            .filter(|p| {
-                p.id.starts_with(&prefix) && p.state == proto::process::ProcessState::Running
-            })
-            .count() as u32
-    }
 }
 
 /// The list as it now stands, plus what the write could not guarantee.

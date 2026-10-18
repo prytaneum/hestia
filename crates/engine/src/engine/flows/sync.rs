@@ -2,7 +2,6 @@
 //! turning a unit on from a named instance, and the per-instance overrides.
 
 use std::collections::BTreeSet;
-use std::path::Path;
 
 use anyhow::{bail, Result};
 use proto::sync::{
@@ -19,8 +18,27 @@ impl Engine {
         self.sync.config()
     }
 
-    pub(crate) fn instance_pass(&self, record: &InstanceRecord, data_dir: &Path) -> Pass {
-        pass(record, data_dir)
+    pub(crate) fn instance_pass(&self, record: &InstanceRecord) -> Pass {
+        Pass {
+            id: record.id.clone(),
+            name: record.name.clone(),
+            game_version: record.profile.game_version.clone(),
+            data_dir: self.instances.data_dir(record),
+            overrides: record.sharing.clone(),
+        }
+    }
+
+    /// How many of the instance's sessions are still running — the sessions
+    /// that hold its shared files open.
+    pub(crate) fn running_sessions(&self, id: &str) -> u32 {
+        let prefix = proto::naming::instance_session_prefix(id);
+        self.processes()
+            .list()
+            .iter()
+            .filter(|p| {
+                p.id.starts_with(&prefix) && p.state == proto::process::ProcessState::Running
+            })
+            .count() as u32
     }
 
     /// Reconcile for a launching session and record what it reconciled, so the
@@ -59,8 +77,7 @@ impl Engine {
             if self.running_sessions(&record.id) > 0 {
                 continue;
             }
-            let data_dir = self.instances.data_dir(&record);
-            let pass = self.instance_pass(&record, &data_dir);
+            let pass = self.instance_pass(&record);
             for warning in self.sync.apply(&pass) {
                 tracing::debug!(instance = %record.name, warning = %warning, "idle sync");
             }
@@ -215,31 +232,18 @@ impl Engine {
         let record = self.instances.set_overrides(&record.id, overrides)?;
         tracing::info!(instance = %record.name, "instance sync overrides changed");
         if self.running_sessions(&record.id) == 0 {
-            let data_dir = self.instances.data_dir(&record);
-            let pass = self.instance_pass(&record, &data_dir);
-            self.sync.apply(&pass);
+            self.sync.apply(&self.instance_pass(&record));
         }
         Ok(self.instance_sync_status(&record))
     }
 
     fn instance_sync_status(&self, record: &InstanceRecord) -> InstanceSyncStatus {
-        let data_dir = self.instances.data_dir(record);
-        let pass = pass(record, &data_dir);
+        let pass = self.instance_pass(record);
         InstanceSyncStatus {
             id: record.id.clone(),
             name: record.name.clone(),
             units: self.sync.status(&pass),
             unsynced: record.sharing.unsynced.clone(),
         }
-    }
-}
-
-fn pass(record: &InstanceRecord, data_dir: &Path) -> Pass {
-    Pass {
-        id: record.id.clone(),
-        name: record.name.clone(),
-        game_version: record.profile.game_version.clone(),
-        data_dir: data_dir.to_path_buf(),
-        overrides: record.sharing.clone(),
     }
 }
