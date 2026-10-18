@@ -4,6 +4,7 @@ import { useState } from 'react';
 import {
   type ContentVersion,
   downgradeBetween,
+  type EntryKind,
   type InstalledModpack,
 } from '@/api';
 import { AppDialog, DialogBody, DialogFooter } from '@/components/dialog';
@@ -14,7 +15,6 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { VersionOption } from '@/features/shared/content/dialogs';
 import { m } from '@/paraglide/messages.js';
-import type { JobEntryKind } from '@/queries';
 import { catalogueQueries } from '@/queries/catalogue';
 import { contentQueries } from '@/queries/content';
 import { useOffline } from '@/queries/net';
@@ -30,7 +30,7 @@ export function ModpackVersionDialog({
   onPick,
 }: {
   pack: InstalledModpack;
-  kind: JobEntryKind;
+  kind: EntryKind;
   flavor: string;
   gameVersion: string;
   preselect?: string;

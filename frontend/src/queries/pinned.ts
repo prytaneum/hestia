@@ -4,6 +4,7 @@
  * sync through the prefs cache.
  */
 import { useMemo } from 'react';
+import type { EntryKind } from '../api';
 import { usePrefs } from './prefs';
 
 const PINNED_ENTRIES_KEY = 'sidebar.pinned-entries';
@@ -11,9 +12,8 @@ const PINNED_ENTRIES_KEY = 'sidebar.pinned-entries';
 /** Stable empty fallback so the parse memo doesn't churn when nothing is pinned. */
 const NO_PINS: unknown[] = [];
 
-type PinnedKind = 'instance' | 'server';
 export interface PinnedEntry {
-  kind: PinnedKind;
+  kind: EntryKind;
   id: string;
 }
 

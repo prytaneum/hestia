@@ -2,7 +2,12 @@ import { useQuery } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 
-import { errorMessage, type PackPolicy, type WarningInfo } from '@/api';
+import {
+  type EntryKind,
+  errorMessage,
+  type PackPolicy,
+  type WarningInfo,
+} from '@/api';
 import { AppDialog, DialogBody, DialogFooter } from '@/components/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -17,7 +22,6 @@ import {
 import { Notice } from '@/components/warning-notice';
 import { toastWarnings } from '@/lib/warnings';
 import { m } from '@/paraglide/messages.js';
-import type { JobEntryKind } from '@/queries';
 import { catalogueQueries, modpackQueries } from '@/queries';
 
 export interface UpdateHandle {
@@ -39,7 +43,7 @@ export function ChangeVersionDialog({
   open,
   onOpenChange,
 }: {
-  kind: JobEntryKind;
+  kind: EntryKind;
   id: string;
   name: string;
   flavor: string;

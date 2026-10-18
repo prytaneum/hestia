@@ -6,8 +6,9 @@ import { errorMessage } from '@/api';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { runningSessions } from '@/lib/sessions';
 import { m } from '@/paraglide/messages.js';
-import { instanceMutations, instanceQueries } from '@/queries/instance';
-import { serverMutations, serverQueries } from '@/queries/server';
+import { entryMutations } from '@/queries/entry';
+import { instanceQueries } from '@/queries/instance';
+import { serverQueries } from '@/queries/server';
 
 const STOP_POLL_MS = 500;
 const STOP_TIMEOUT_MS = 60_000;
@@ -19,15 +20,16 @@ const STOP_TIMEOUT_MS = 60_000;
  */
 function useEntryLifecycle(kind: 'instance' | 'server', id: string) {
   const queryClient = useQueryClient();
-  const stopServer = useMutation(serverMutations.stop(id));
-  const stopInstance = useMutation(instanceMutations.stop(id));
-  const removeServer = useMutation(serverMutations.remove(id));
-  const removeInstance = useMutation(instanceMutations.remove(id));
+  const stopEntry = useMutation(entryMutations.stop(kind, id));
+  const removeEntry = useMutation(entryMutations.remove(kind, id));
+
+  const stop = () => stopEntry.mutateAsync({});
+  const remove = () => removeEntry.mutateAsync();
 
   if (kind === 'server') {
     return {
-      stop: () => stopServer.mutateAsync(),
-      remove: () => removeServer.mutateAsync(),
+      stop,
+      remove,
       isRunning: async () => {
         const servers = await queryClient.fetchQuery({
           ...serverQueries.list(),
@@ -40,8 +42,8 @@ function useEntryLifecycle(kind: 'instance' | 'server', id: string) {
     };
   }
   return {
-    stop: () => stopInstance.mutateAsync({}),
-    remove: () => removeInstance.mutateAsync(),
+    stop,
+    remove,
     isRunning: async () => {
       const instances = await queryClient.fetchQuery({
         ...instanceQueries.list(),

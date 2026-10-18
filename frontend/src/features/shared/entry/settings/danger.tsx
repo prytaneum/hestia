@@ -2,6 +2,7 @@ import { TrashIcon } from '@phosphor-icons/react';
 import { useNavigate } from '@tanstack/react-router';
 import { toast } from 'sonner';
 
+import type { EntryKind } from '@/api';
 import {
   SettingGroup,
   SettingList,
@@ -10,7 +11,6 @@ import {
 import { Button } from '@/components/ui/button';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { m } from '@/paraglide/messages.js';
-import type { JobEntryKind } from '@/queries';
 
 interface RemoveHandle {
   mutate: (v: undefined, o: { onSuccess: () => void }) => void;
@@ -23,7 +23,7 @@ export function DangerSettings({
   running,
   remove,
 }: {
-  kind: JobEntryKind;
+  kind: EntryKind;
   name: string;
   running: boolean;
   remove: RemoveHandle;

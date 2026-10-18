@@ -11,6 +11,7 @@ import {
 } from '@/features/shared/entry/settings';
 import { m } from '@/paraglide/messages.js';
 import { configQueries, launcherDefaults } from '@/queries/config';
+import { entryMutations } from '@/queries/entry';
 import { instanceMutations } from '@/queries/instance';
 import { useJobMutation } from '@/queries/jobs';
 
@@ -24,9 +25,11 @@ export function InstanceSettingsTab({
   running: boolean;
 }) {
   const globalConfig = useQuery(configQueries.list());
-  const rename = useMutation(instanceMutations.rename(instance.id));
-  const setConfig = useMutation(instanceMutations.setConfig(instance.id));
-  const remove = useMutation(instanceMutations.remove(instance.id));
+  const rename = useMutation(entryMutations.rename('instance', instance.id));
+  const setConfig = useMutation(
+    entryMutations.setConfig('instance', instance.id),
+  );
+  const remove = useMutation(entryMutations.remove('instance', instance.id));
   const update = useJobMutation(instanceMutations.update(instance.id));
 
   return (

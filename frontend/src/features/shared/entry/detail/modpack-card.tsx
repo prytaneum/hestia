@@ -10,7 +10,12 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { toast } from 'sonner';
 
-import { dialog, errorMessage, type ModpackFilePreview } from '@/api';
+import {
+  dialog,
+  type EntryKind,
+  errorMessage,
+  type ModpackFilePreview,
+} from '@/api';
 import { Stat } from '@/components/page';
 import {
   AlertDialog,
@@ -36,7 +41,6 @@ import {
 import { Thumbnail } from '@/components/ui/thumbnail';
 import { WarningNotice } from '@/components/warning-notice';
 import { m } from '@/paraglide/messages.js';
-import type { JobEntryKind } from '@/queries';
 import { modpackMutations, modpackQueries, useJobMutation } from '@/queries';
 import { ProvisionProgressView } from '../components/provision-progress';
 import { ModpackVersionDialog } from '../dialogs';
@@ -54,7 +58,7 @@ export function ModpackCard({
   gameVersion,
   running,
 }: {
-  kind: JobEntryKind;
+  kind: EntryKind;
   id: string;
   name: string;
   flavor: string;

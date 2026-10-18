@@ -14,7 +14,8 @@ import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { matchProperties, propertyControl } from '@/features/servers/lib';
 import { m } from '@/paraglide/messages.js';
-import { serverMutations, serverQueries } from '@/queries/server';
+import { entryMutations } from '@/queries/entry';
+import { serverQueries } from '@/queries/server';
 
 function PropertyControl({
   property,
@@ -73,7 +74,7 @@ export function PropertiesSettings({
   running: boolean;
 }) {
   const properties = useQuery(serverQueries.properties(id));
-  const setConfig = useMutation(serverMutations.setConfig(id));
+  const setConfig = useMutation(entryMutations.setConfig('server', id));
   const [query, setQuery] = useState('');
 
   if (properties.isPending) return <Bone className="h-64" />;

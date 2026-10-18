@@ -13,9 +13,6 @@ import {
 } from '@tanstack/react-query';
 import type {
   BackupInfo,
-  ConfigEntry,
-  EntryRenamed,
-  EntryTarget,
   ServerCreateParams,
   ServerDone,
   ServerInfo,
@@ -26,10 +23,10 @@ import * as api from '../api/server';
 import { mutation } from './core';
 import { useEntryIconLookup } from './icons';
 import { jobMutation } from './jobs';
-import { keys } from './keys';
+import { entryTarget, keys } from './keys';
 import { type LogsOptions, type LogsResult, useFollowedLogs } from './logs';
 
-const target = (id: string): EntryTarget => ({ kind: 'server', entry: id });
+const target = (id: string) => entryTarget('server', id);
 
 export const serverQueries = {
   list: () =>
@@ -75,11 +72,6 @@ export const serverQueries = {
       queryKey: keys.servers.logs(id, tail),
       queryFn: () => entry.logs(target(id), { tail }),
     }),
-  config: (id: string) =>
-    queryOptions({
-      queryKey: keys.servers.config(id),
-      queryFn: () => entry.config.list(target(id)),
-    }),
   /** Nested under the config key, so a `config.set` refreshes it too. */
   properties: (id: string) =>
     queryOptions({
@@ -122,32 +114,10 @@ export const serverMutations = {
         keys.servers.info(id),
       ],
     }),
-  rename: (id: string) =>
-    mutation<EntryRenamed, string>({
-      mutationKey: [...keys.servers.detail(id), 'rename'],
-      mutationFn: (name) => entry.rename(target(id), name),
-      invalidates: () => [
-        keys.servers.list(),
-        keys.servers.detail(id),
-        keys.servers.info(id),
-      ],
-    }),
-  remove: (id: string) =>
-    mutation({
-      mutationKey: [...keys.servers.detail(id), 'remove'],
-      mutationFn: () => entry.remove(target(id)),
-      invalidates: () => [keys.servers.list()],
-    }),
   start: (id: string) =>
     mutation<{ processId: string; pid: number }>({
       mutationKey: [...keys.servers.detail(id), 'start'],
       mutationFn: () => api.start(id),
-      invalidates: () => [keys.servers.list(), keys.servers.detail(id)],
-    }),
-  stop: (id: string) =>
-    mutation({
-      mutationKey: [...keys.servers.detail(id), 'stop'],
-      mutationFn: () => entry.stop(target(id)),
       invalidates: () => [keys.servers.list(), keys.servers.detail(id)],
     }),
   restart: (id: string) =>
@@ -174,12 +144,6 @@ export const serverMutations = {
     mutation<string, string>({
       mutationKey: [...keys.servers.detail(id), 'command'],
       mutationFn: (line) => api.command(id, line),
-    }),
-  setConfig: (id: string) =>
-    mutation<void, ConfigEntry>({
-      mutationKey: [...keys.servers.detail(id), 'config', 'set'],
-      mutationFn: ({ key, value }) => entry.config.set(target(id), key, value),
-      invalidates: () => [keys.servers.config(id)],
     }),
   backup: {
     /** Archives a running server live (world saving pauses over RCON). */

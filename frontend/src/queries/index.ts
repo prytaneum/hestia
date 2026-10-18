@@ -17,6 +17,7 @@ export { useConnection } from './connection';
 export * from './content';
 export { type MutationSpec, mutation } from './core';
 export * from './daemon';
+export * from './entry';
 export * from './entry-content';
 export { useDaemonEvent } from './events';
 export * from './files';
@@ -30,7 +31,6 @@ export {
   getJobs,
   type Job,
   type JobEntry,
-  type JobEntryKind,
   type JobHandle,
   type JobMeta,
   type JobMutationOptions,

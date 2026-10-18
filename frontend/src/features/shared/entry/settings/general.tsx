@@ -1,6 +1,7 @@
 import { ArrowsClockwiseIcon } from '@phosphor-icons/react';
 import { useState } from 'react';
 
+import type { EntryKind } from '@/api';
 import {
   SavedInput,
   SettingGroup,
@@ -9,11 +10,10 @@ import {
 } from '@/components/setting-controls';
 import { Button } from '@/components/ui/button';
 import { m } from '@/paraglide/messages.js';
-import type { JobEntryKind } from '@/queries';
 import { ChangeVersionDialog, type UpdateHandle } from '../dialogs';
 
 interface GeneralSettingsProps {
-  kind: JobEntryKind;
+  kind: EntryKind;
   entry: { id: string; name: string; flavor: string; gameVersion: string };
   running: boolean;
   rename: (name: string) => void;

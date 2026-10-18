@@ -24,7 +24,7 @@ frontend/src/
 Import everything from the barrel:
 
 ```ts
-import { serverQueries, serverMutations, useServer, keys } from '#/queries';
+import { serverQueries, serverMutations, entryMutations, useServer, keys } from '#/queries';
 ```
 
 ## The mental model
@@ -77,7 +77,7 @@ query — same shape to the caller.
 const { data: server } = useServer(id);                              // ServerInfo | undefined
 const { data: backups } = useQuery(serverQueries.backups(id));
 const { data: mods } = useQuery(entryContentQueries.list('server', id, 'mod'));
-const { data: entries } = useQuery(serverQueries.config(id));
+const { data: entries } = useQuery(entryQueries.config('server', id));
 ```
 
 Catalogue reads (`serverQueries.flavors()`, `serverQueries.versions(flavor)`,
@@ -104,8 +104,8 @@ at hook time:
 
 ```tsx
 const start = useMutation(serverMutations.start(id));
-const rename = useMutation(serverMutations.rename(id));
-const setConfig = useMutation(serverMutations.setConfig(id));
+const rename = useMutation(entryMutations.rename('server', id));
+const setConfig = useMutation(entryMutations.setConfig('server', id));
 
 start.mutate();                                  // no variables
 rename.mutate('Cozy SMP');                       // the new name

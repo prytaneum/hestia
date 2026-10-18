@@ -49,6 +49,7 @@ import {
 } from '@/features/shared/entry/detail';
 import { agoLabel, bytes, memGb } from '@/lib/format';
 import { m } from '@/paraglide/messages.js';
+import { entryMutations, entryQueries } from '@/queries/entry';
 import { useProcessMetrics } from '@/queries/metrics';
 import { serverMutations, serverQueries, useServer } from '@/queries/server';
 
@@ -125,10 +126,10 @@ function ServerDetail({
   const id = server.id;
   const info = useQuery(serverQueries.info(id));
   useAutoTour('server', Boolean(info.data));
-  const config = useQuery(serverQueries.config(id));
+  const config = useQuery(entryQueries.config('server', id));
   const install = useEntryInstall(server.name);
   const start = useMutation(serverMutations.start(id));
-  const stop = useMutation(serverMutations.stop(id));
+  const stop = useMutation(entryMutations.stop('server', id));
   const restart = useMutation(serverMutations.restart(id));
 
   const running = isRunning(server);
@@ -219,7 +220,7 @@ function ServerDetail({
                     title={m['entry.stop.title']({ name: server.name })}
                     description={m['entry.stop.server_description']()}
                     confirmLabel={m['app.action.stop']()}
-                    onConfirm={() => stop.mutate()}
+                    onConfirm={() => stop.mutate({})}
                   />
                 </>
               ) : (

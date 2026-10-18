@@ -8,9 +8,6 @@
  */
 import { queryOptions, useQuery } from '@tanstack/react-query';
 import type {
-  ConfigEntry,
-  EntryRenamed,
-  EntryTarget,
   InstanceCreateParams,
   InstanceInfo,
   InstanceLaunchDone,
@@ -25,10 +22,10 @@ import * as api from '../api/instance';
 import { mutation } from './core';
 import { useEntryIconLookup } from './icons';
 import { jobMutation } from './jobs';
-import { keys } from './keys';
+import { entryTarget, keys } from './keys';
 import { type LogsOptions, type LogsResult, useFollowedLogs } from './logs';
 
-const target = (id: string): EntryTarget => ({ kind: 'instance', entry: id });
+const target = (id: string) => entryTarget('instance', id);
 
 /** A launch, and whether it may run alongside the sessions already up. */
 interface LaunchVars {
@@ -94,11 +91,6 @@ export const instanceQueries = {
       queryKey: keys.instances.logs(id, options.session, options.tail),
       queryFn: () => entry.logs(target(id), options),
     }),
-  config: (id: string) =>
-    queryOptions({
-      queryKey: keys.instances.config(id),
-      queryFn: () => entry.config.list(target(id)),
-    }),
 };
 
 export const instanceMutations = {
@@ -126,29 +118,6 @@ export const instanceMutations = {
         keys.instances.detail(id),
         keys.instances.info(id),
       ],
-    }),
-  rename: (id: string) =>
-    mutation<EntryRenamed, string>({
-      mutationKey: [...keys.instances.detail(id), 'rename'],
-      mutationFn: (name) => entry.rename(target(id), name),
-      invalidates: () => [
-        keys.instances.list(),
-        keys.instances.detail(id),
-        keys.instances.info(id),
-      ],
-    }),
-  remove: (id: string) =>
-    mutation({
-      mutationKey: [...keys.instances.detail(id), 'remove'],
-      mutationFn: () => entry.remove(target(id)),
-      invalidates: () => [keys.instances.list()],
-    }),
-  /** Stops one named session, or every session of the instance. */
-  stop: (id: string) =>
-    mutation<void, { session?: string }>({
-      mutationKey: [...keys.instances.detail(id), 'stop'],
-      mutationFn: ({ session }) => entry.stop(target(id), session),
-      invalidates: () => [keys.instances.list(), keys.instances.detail(id)],
     }),
   /** Adds an entry to the multiplayer list, or rewrites the one `server` names. */
   serverEdit: (id: string) =>
@@ -212,13 +181,6 @@ export const instanceMutations = {
         keys.instances.list(),
         keys.instances.detail(id),
       ],
-    }),
-  /** `memory` and `jvm-args` only. */
-  setConfig: (id: string) =>
-    mutation<void, ConfigEntry>({
-      mutationKey: [...keys.instances.detail(id), 'config', 'set'],
-      mutationFn: ({ key, value }) => entry.config.set(target(id), key, value),
-      invalidates: () => [keys.instances.config(id)],
     }),
 };
 

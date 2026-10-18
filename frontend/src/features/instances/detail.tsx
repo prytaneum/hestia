@@ -50,12 +50,9 @@ import { supportsQuickPlay } from '@/lib/quick-play';
 import { runningSessions } from '@/lib/sessions';
 import { m } from '@/paraglide/messages.js';
 import { useSessionsShown } from '@/queries/config';
+import { entryMutations, entryQueries } from '@/queries/entry';
 import { entryContentQueries } from '@/queries/entry-content';
-import {
-  instanceMutations,
-  instanceQueries,
-  useInstance,
-} from '@/queries/instance';
+import { instanceQueries, useInstance } from '@/queries/instance';
 import { useProcessMetrics } from '@/queries/metrics';
 
 export type InstanceTab =
@@ -118,13 +115,13 @@ function InstanceDetail({
   const id = instance.id;
   const info = useQuery(instanceQueries.info(id));
   useAutoTour('instance', Boolean(info.data));
-  const config = useQuery(instanceQueries.config(id));
+  const config = useQuery(entryQueries.config('instance', id));
   const worlds = useQuery(instanceQueries.worlds(id));
   const install = useEntryInstall(instance.name);
   const [focus, setFocus] = useState<string | null>(null);
   const [logSession, setLogSession] = useState<string | null>(null);
   const { launch, restart, isLaunching } = useLaunchDialog();
-  const stop = useMutation(instanceMutations.stop(id));
+  const stop = useMutation(entryMutations.stop('instance', id));
   const accepts = instance.accepts;
   // Shared with the content tab's own per-kind queries (cached), just for the
   // headline count.

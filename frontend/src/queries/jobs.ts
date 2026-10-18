@@ -15,7 +15,7 @@ import {
 } from '@tanstack/react-query';
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import { logger } from '@/lib/log';
-import type { JobRun, ProvisionProgress } from '../api';
+import type { EntryKind, JobRun, ProvisionProgress } from '../api';
 import {
   HestiaError,
   JobCancelled,
@@ -27,11 +27,9 @@ import { invalidate } from './client';
 
 const log = logger('jobs');
 
-export type JobEntryKind = 'server' | 'instance';
-
 /** The entry a job acts on, when it acts on one. */
 export interface JobEntry {
-  kind: JobEntryKind;
+  kind: EntryKind;
   id: string;
 }
 
@@ -242,7 +240,7 @@ export function useJob(id: string | null): Job | null {
 }
 
 /** The jobs acting on one entry — e.g. a server card's busy indicator. */
-export function useEntryJobs(kind: JobEntryKind, id: string): Job[] {
+export function useEntryJobs(kind: EntryKind, id: string): Job[] {
   const all = useJobs();
   return useMemo(
     () => all.filter((job) => job.entry?.kind === kind && job.entry.id === id),

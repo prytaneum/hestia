@@ -9,6 +9,7 @@
 import { queryOptions } from '@tanstack/react-query';
 import { logger } from '@/lib/log';
 import type {
+  EntryKind,
   InstalledModpack,
   ModpackDone,
   ModpackFilePreview,
@@ -20,8 +21,8 @@ import * as icons from '../api/icons';
 import type { PackRef } from '../api/modpack';
 import * as api from '../api/modpack';
 import { mutation } from './core';
-import { type JobEntryKind, jobMutation } from './jobs';
-import { entryScope, keys } from './keys';
+import { jobMutation } from './jobs';
+import { entryScope, entryTarget, keys } from './keys';
 
 const log = logger('modpack');
 
@@ -36,30 +37,30 @@ interface InstallInput {
 type UpdateInput = api.PackMove;
 
 /** A pack rewrites the pool and the entry's own record, so both are swept. */
-function invalidates(kind: JobEntryKind, id: string) {
+function invalidates(kind: EntryKind, id: string) {
   const scope = entryScope(kind);
   return [scope.detail(id), scope.all];
 }
 
 export const modpackQueries = {
-  status: (kind: JobEntryKind, id: string) =>
+  status: (kind: EntryKind, id: string) =>
     queryOptions({
       queryKey: entryScope(kind).modpack(id),
       queryFn: (): Promise<InstalledModpack | null> =>
-        api.status({ kind, entry: id }),
+        api.status(entryTarget(kind, id)),
     }),
   /** Asked about one picked file, so the answer is never reused. */
-  updatePreview: (kind: JobEntryKind, id: string, path: string) =>
+  updatePreview: (kind: EntryKind, id: string, path: string) =>
     queryOptions({
       queryKey: [...entryScope(kind).modpack(id), 'preview', path],
       queryFn: (): Promise<ModpackFilePreview> =>
-        api.previewUpdate({ kind, entry: id }, path),
+        api.previewUpdate(entryTarget(kind, id), path),
       staleTime: 0,
       gcTime: 0,
     }),
   /** A catalogue round trip, so it is not refetched on every mount. */
   updateCheck: (
-    kind: JobEntryKind,
+    kind: EntryKind,
     id: string,
     enabled = true,
     gameVersion = '',
@@ -67,7 +68,7 @@ export const modpackQueries = {
     queryOptions({
       queryKey: [...entryScope(kind).modpack(id), 'check', gameVersion],
       queryFn: (): Promise<ModpackUpdate | null> =>
-        api.checkUpdate({ kind, entry: id }, gameVersion),
+        api.checkUpdate(entryTarget(kind, id), gameVersion),
       enabled,
       staleTime: 10 * 60_000,
       retry: false,
@@ -76,7 +77,7 @@ export const modpackQueries = {
 
 export const modpackMutations = {
   /** Creates its entry unless the target names an existing one. */
-  install: (kind: JobEntryKind) =>
+  install: (kind: EntryKind) =>
     jobMutation<ModpackDone, InstallInput>({
       mutationKey: ['modpack', kind, 'install'],
       meta: () => ({ kind: 'modpack.install', label: 'install modpack' }),
@@ -90,7 +91,7 @@ export const modpackMutations = {
       },
       invalidates: () => [keys.servers.all, keys.instances.all, keys.icons.all],
     }),
-  update: (kind: JobEntryKind, id: string) =>
+  update: (kind: EntryKind, id: string) =>
     jobMutation<ModpackDone, UpdateInput>({
       mutationKey: [...entryScope(kind).modpack(id), 'update'],
       meta: () => ({
@@ -98,14 +99,14 @@ export const modpackMutations = {
         label: 'update modpack',
         entry: { kind, id },
       }),
-      run: (to, job) => api.update({ kind, entry: id }, to, job),
+      run: (to, job) => api.update(entryTarget(kind, id), to, job),
       invalidates: () => invalidates(kind, id),
     }),
-  remove: (kind: JobEntryKind, id: string) =>
+  remove: (kind: EntryKind, id: string) =>
     mutation<ModpackRemoveResult, { keepContent: boolean }>({
       mutationKey: [...entryScope(kind).modpack(id), 'remove'],
       mutationFn: ({ keepContent }) =>
-        api.remove({ kind, entry: id }, keepContent),
+        api.remove(entryTarget(kind, id), keepContent),
       invalidates: () => invalidates(kind, id),
     }),
 };
