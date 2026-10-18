@@ -78,12 +78,10 @@ impl Format for Hestia {
         let descriptor = Descriptor {
             name: record.name.clone(),
             game_version: profile.game_version.clone(),
-            loader: loader.clone(),
+            loader,
             loader_version: profile.loader_version.clone().unwrap_or_default(),
         };
         let recipe = Recipe {
-            loader,
-            loader_version: profile.loader_version.clone(),
             jvm: record.jvm,
             carried: Some(Carried {
                 created_unix: record.created_unix,
@@ -279,7 +277,6 @@ mod tests {
             .carried
             .expect("hestia carries an identity");
         assert_eq!(carried.playtime_seconds, 3600);
-        assert_eq!(blueprint.recipe.loader, "fabric");
         let written = manifest(&mut reader, "").unwrap().record().unwrap();
         assert_eq!(
             written.profile.java_major, 0,

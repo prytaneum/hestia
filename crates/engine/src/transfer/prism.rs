@@ -73,15 +73,10 @@ impl Format for Prism {
             descriptor: Descriptor {
                 name: instance.name,
                 game_version: instance.game_version,
-                loader: loader.clone(),
-                loader_version: loader_version.clone().unwrap_or_default(),
-            },
-            recipe: Recipe {
                 loader,
-                loader_version,
-                jvm,
-                carried: None,
+                loader_version: loader_version.unwrap_or_default(),
             },
+            recipe: Recipe { jvm, carried: None },
         })
     }
 

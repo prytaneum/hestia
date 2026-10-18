@@ -254,13 +254,13 @@ impl Engine {
         name: &str,
         descriptor: &Descriptor,
     ) -> Result<InstanceRecord> {
-        let flavor = self.archive_flavor(&recipe.loader)?;
+        let flavor = self.archive_flavor(&descriptor.loader)?;
         let profile = self
             .minecraft
             .resolve_instance(
                 &flavor,
                 &descriptor.game_version,
-                recipe.loader_version,
+                Some(descriptor.loader_version.clone()).filter(|v| !v.is_empty()),
                 &super::meta_dir(self.data_home()),
                 Some(&self.cache),
             )

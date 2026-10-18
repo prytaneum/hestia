@@ -73,11 +73,6 @@ pub(crate) struct Descriptor {
 /// How the launcher brings an archive's instance into existence: the game
 /// version and loader resolve exactly as `instance create` resolves them.
 pub(crate) struct Recipe {
-    /// The loader's name, empty for vanilla. Checked against the registered
-    /// flavors, so an archive pinning one hestia has no flavor for is
-    /// refused by name.
-    pub(crate) loader: String,
-    pub(crate) loader_version: Option<String>,
     /// Per-instance Java settings the archive carried, where its launcher
     /// stored any.
     pub(crate) jvm: JavaSettings,
