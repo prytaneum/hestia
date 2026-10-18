@@ -9,13 +9,14 @@ use anyhow::{Context, Result};
 use async_trait::async_trait;
 use proto::content::{
     ContentDependency, ContentFile, ContentKind, ContentProject, ContentVersion, DependencyKind,
-    GalleryImage, ReleaseChannel, SearchQuery, SearchResult, SearchSort, SideSupport, VersionQuery,
+    GalleryImage, ReleaseChannel, SearchQuery, SearchResult, SearchSort, VersionQuery,
 };
 use proto::download::{Checksum, HashAlgorithm};
 use proto::error::Service;
 use proto::minecraft::Artifact;
 use serde_json::Value;
 
+use super::json::{non_empty, parse_side, str_field, u64_field};
 use super::provider::{ContentProvider, FileRef, LocalFile, UrlRef};
 
 const API: &str = "https://api.modrinth.com/v2";
@@ -477,15 +478,6 @@ fn sort_index(sort: SearchSort) -> &'static str {
     }
 }
 
-fn parse_side(s: &str) -> SideSupport {
-    match s {
-        "required" => SideSupport::Required,
-        "optional" => SideSupport::Optional,
-        "unsupported" => SideSupport::Unsupported,
-        _ => SideSupport::Unknown,
-    }
-}
-
 fn parse_channel(s: &str) -> ReleaseChannel {
     match s {
         "beta" => ReleaseChannel::Beta,
@@ -512,17 +504,6 @@ fn categories(v: &Value) -> Vec<String> {
     }
 }
 
-fn str_field(v: &Value, key: &str) -> String {
-    v.get(key)
-        .and_then(Value::as_str)
-        .unwrap_or_default()
-        .to_string()
-}
-
-fn u64_field(v: &Value, key: &str) -> u64 {
-    v.get(key).and_then(Value::as_u64).unwrap_or(0)
-}
-
 fn str_array(v: &Value, key: &str) -> Vec<String> {
     v.get(key)
         .and_then(Value::as_array)
@@ -533,10 +514,6 @@ fn str_array(v: &Value, key: &str) -> Vec<String> {
                 .collect()
         })
         .unwrap_or_default()
-}
-
-fn non_empty(opt: &Option<String>) -> Option<&str> {
-    opt.as_deref().filter(|s| !s.is_empty())
 }
 
 fn json_array(value: &str) -> String {

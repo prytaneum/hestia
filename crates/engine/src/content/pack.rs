@@ -20,6 +20,7 @@ use proto::minecraft::{Artifact, ProvisionPhase};
 use proto::transfer::ImportFormat;
 use serde_json::{Map, Value};
 
+use super::json::{parse_side, str_field};
 use super::modrinth;
 use crate::cancel::Job;
 use crate::transfer::archive::{Extracted, Reader};
@@ -325,22 +326,6 @@ fn find_loader(deps: &Map<String, Value>) -> Option<(String, String)> {
         }
     }
     None
-}
-
-fn parse_side(s: &str) -> SideSupport {
-    match s {
-        "required" => SideSupport::Required,
-        "optional" => SideSupport::Optional,
-        "unsupported" => SideSupport::Unsupported,
-        _ => SideSupport::Unknown,
-    }
-}
-
-fn str_field(v: &Value, key: &str) -> String {
-    v.get(key)
-        .and_then(Value::as_str)
-        .unwrap_or_default()
-        .to_string()
 }
 
 pub(crate) fn invalid(reason: ArchiveFault) -> anyhow::Error {

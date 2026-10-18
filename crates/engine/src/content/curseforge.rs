@@ -24,6 +24,7 @@ use serde_json::{json, Value};
 
 use crate::config::ContentSettings;
 
+use super::json::{non_empty, str_field, u64_field};
 use super::pack;
 use super::provider::{ContentProvider, LocalFile, UrlRef};
 
@@ -852,27 +853,6 @@ fn data(body: &Value) -> &Value {
 
 fn is_numeric(value: &str) -> bool {
     !value.is_empty() && value.chars().all(|c| c.is_ascii_digit())
-}
-
-fn str_field(v: &Value, key: &str) -> String {
-    v.get(key)
-        .and_then(Value::as_str)
-        .unwrap_or_default()
-        .to_string()
-}
-
-fn u64_field(v: &Value, key: &str) -> u64 {
-    let Some(value) = v.get(key) else {
-        return 0;
-    };
-    value
-        .as_u64()
-        .or_else(|| value.as_f64().map(|n| n as u64))
-        .unwrap_or_default()
-}
-
-fn non_empty(opt: &Option<String>) -> Option<&str> {
-    opt.as_deref().filter(|s| !s.is_empty())
 }
 
 #[cfg(test)]
