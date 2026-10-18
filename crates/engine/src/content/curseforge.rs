@@ -89,15 +89,7 @@ const SITE_TYPES: [(&str, ContentKind); 5] = [
     ("data-packs", ContentKind::DataPack),
 ];
 
-/// Where a modpack manifest's files land, by the class of the project each one
-/// belongs to. A world is the odd one out: it is a save, not loader content.
-const CLASS_DIRS: [(u64, &str); 5] = [
-    (6, "mods"),
-    (12, "resourcepacks"),
-    (6552, "shaderpacks"),
-    (6945, "datapacks"),
-    (17, "saves"),
-];
+const WORLD_CLASS: u64 = 17;
 
 pub struct CurseForge {
     key: RwLock<String>,
@@ -776,10 +768,11 @@ fn kind_of_class(class: u64) -> Option<ContentKind> {
 }
 
 fn class_dir(class: u64) -> &'static str {
-    CLASS_DIRS
-        .iter()
-        .find(|(c, _)| *c == class)
-        .map(|(_, dir)| *dir)
+    if class == WORLD_CLASS {
+        return "saves";
+    }
+    kind_of_class(class)
+        .and_then(|kind| super::install::kind_dir(kind).ok())
         .unwrap_or("mods")
 }
 
