@@ -1,7 +1,6 @@
 //! The screenshots the instances have taken, read where they already are.
 
 use std::path::{Path, PathBuf};
-use std::time::UNIX_EPOCH;
 
 use anyhow::{bail, Context, Result};
 use proto::screenshot::Screenshot;
@@ -71,9 +70,7 @@ impl Engine {
                     path: entry.path(),
                     taken_unix: meta
                         .as_ref()
-                        .and_then(|meta| meta.modified().ok())
-                        .and_then(|time| time.duration_since(UNIX_EPOCH).ok())
-                        .map(|since| since.as_secs() as i64)
+                        .and_then(common::modified_unix)
                         .unwrap_or_default(),
                     bytes: meta.map(|meta| meta.len()).unwrap_or_default(),
                 }

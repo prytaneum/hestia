@@ -6,7 +6,6 @@
 //! "what this session is in", never as a history; [`crate::recent`] keeps that.
 
 use std::path::{Path, PathBuf};
-use std::time::UNIX_EPOCH;
 
 use proto::instance::{GameMode, QuickPlay};
 use serde::Deserialize;
@@ -62,12 +61,7 @@ pub(crate) fn joins(session_dir: &Path) -> Vec<Play> {
 /// The log's own `lastPlayedTime` is ignored in favour of the file's mtime:
 /// they are the same moment, and one needs no date parser.
 fn read(path: &Path) -> Option<Play> {
-    let played_unix = std::fs::metadata(path)
-        .and_then(|meta| meta.modified())
-        .ok()?
-        .duration_since(UNIX_EPOCH)
-        .ok()?
-        .as_secs() as i64;
+    let played_unix = common::modified_unix(&std::fs::metadata(path).ok()?)?;
     let bytes = std::fs::read(path).ok()?;
     let entry = match serde_json::from_slice::<Vec<Entry>>(&bytes) {
         Ok(entries) => entries.into_iter().next_back()?,

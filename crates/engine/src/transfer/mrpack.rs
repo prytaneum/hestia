@@ -21,7 +21,7 @@ use super::archive::{self, Member, Writer, Written};
 use super::exclude::Rules;
 use super::Source;
 use crate::cancel::Job;
-use crate::checksum::Hasher;
+use crate::checksum;
 use crate::content::install;
 use crate::content::pack::INDEX;
 use crate::minecraft::profile::InstanceProfile;
@@ -171,23 +171,8 @@ fn embedded_warning(members: &[Member]) -> Vec<WarningInfo> {
 /// The pack format names its files by SHA-512 beside the SHA-1 hestia stores,
 /// so this is hashed on demand rather than kept — it is wanted once, at export.
 fn sha512_file(path: &Path) -> Result<String> {
-    use sha2::Digest;
-    use std::io::Read;
-
-    let mut file =
-        std::fs::File::open(path).with_context(|| format!("cannot read {}", path.display()))?;
-    let mut hasher = sha2::Sha512::new();
-    let mut buffer = [0u8; 64 * 1024];
-    loop {
-        let read = file
-            .read(&mut buffer)
-            .with_context(|| format!("cannot hash {}", path.display()))?;
-        if read == 0 {
-            break;
-        }
-        hasher.update(&buffer[..read]);
-    }
-    Ok(Hasher::hex(&hasher.finalize()))
+    checksum::digest_file::<sha2::Sha512>(path)
+        .with_context(|| format!("cannot hash {}", path.display()))
 }
 
 #[cfg(test)]

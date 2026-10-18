@@ -25,7 +25,7 @@ impl ProofKey {
         let x = point.x().expect("P-256 public point has an x coordinate");
         let y = point.y().expect("P-256 public point has a y coordinate");
         ProofKey {
-            id: format_uuid_v4(&random_bytes(16)),
+            id: uuid::Uuid::new_v4().to_string(),
             x: base64url_nopad(x),
             y: base64url_nopad(y),
             signing_key,
@@ -58,36 +58,8 @@ pub fn random_bytes(count: usize) -> Vec<u8> {
     out
 }
 
-pub fn format_uuid_v4(bytes: &[u8]) -> String {
-    assert_eq!(bytes.len(), 16, "a UUID needs exactly 16 bytes");
-    let mut b = [0u8; 16];
-    b.copy_from_slice(bytes);
-    b[6] = (b[6] & 0x0F) | 0x40; // version 4
-    b[8] = (b[8] & 0x3F) | 0x80; // variant
-    let mut out = String::with_capacity(36);
-    for (i, byte) in b.iter().enumerate() {
-        if matches!(i, 4 | 6 | 8 | 10) {
-            out.push('-');
-        }
-        out.push_str(&format!("{byte:02x}"));
-    }
-    out
-}
-
-pub fn base64_standard(data: &[u8]) -> String {
-    STANDARD.encode(data)
-}
-
 pub fn base64url_nopad(data: &[u8]) -> String {
     URL_SAFE_NO_PAD.encode(data)
-}
-
-pub fn hex(bytes: &[u8]) -> String {
-    let mut s = String::with_capacity(bytes.len() * 2);
-    for b in bytes {
-        s.push_str(&format!("{b:02x}"));
-    }
-    s
 }
 
 /// Build the base64 `Signature` header: a length-delimited message
@@ -123,7 +95,7 @@ pub fn xbox_signature_header(
     envelope.extend_from_slice(&1u32.to_be_bytes());
     envelope.extend_from_slice(&filetime.to_be_bytes());
     envelope.extend_from_slice(&signature);
-    base64_standard(&envelope)
+    STANDARD.encode(envelope)
 }
 
 #[cfg(test)]

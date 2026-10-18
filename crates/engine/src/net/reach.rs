@@ -8,7 +8,9 @@
 //! handle the daemon reaches it through.
 
 use std::sync::{Mutex, OnceLock};
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::Duration;
+
+use common::now_unix as now;
 
 use proto::net::{NetworkState, NetworkStatus};
 use tokio::sync::watch;
@@ -151,13 +153,6 @@ impl Network {
         );
         let _ = self.tx.send(updated);
     }
-}
-
-fn now() -> i64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_secs() as i64)
-        .unwrap_or(0)
 }
 
 #[cfg(test)]

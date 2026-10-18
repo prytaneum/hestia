@@ -7,7 +7,6 @@
 use std::marker::PhantomData;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
-use std::time::{SystemTime, UNIX_EPOCH};
 
 use anyhow::{bail, Context, Result};
 use proto::error::{EntryKind, ErrorInfo};
@@ -15,12 +14,7 @@ use uuid::Uuid;
 
 use crate::schema::{self, Document};
 
-pub(crate) fn now_unix() -> i64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_secs() as i64)
-        .unwrap_or(0)
-}
+pub(crate) use common::now_unix;
 
 /// `YYYYMMDD-HHMMSS` in UTC (Howard Hinnant's civil-from-days algorithm; no
 /// date-time dependency for one format). What names a backup archive and an

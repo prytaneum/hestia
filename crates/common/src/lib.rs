@@ -10,4 +10,4 @@ pub mod paths;
 mod time;
 
 pub use logging::{init_logging, FileLog, LogGuard, LogLevel};
-pub use time::local_midnight_unix;
+pub use time::{local_midnight_unix, modified_unix, now_unix};

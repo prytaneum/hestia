@@ -14,7 +14,6 @@ mod state;
 use std::collections::{BTreeSet, HashMap};
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
-use std::time::UNIX_EPOCH;
 
 use anyhow::{Context, Result};
 use proto::sync::{SyncConfig, SyncOption, SyncOverrides, SyncUnit, UnitState, UnitStatus};
@@ -177,9 +176,9 @@ impl Sync {
             return (false, None);
         };
         let path = data_dir.join(file);
-        let modified = reconcile::mtime(&path)
-            .and_then(|time| time.duration_since(UNIX_EPOCH).ok())
-            .map(|since| since.as_secs() as i64);
+        let modified = std::fs::metadata(&path)
+            .ok()
+            .and_then(|meta| common::modified_unix(&meta));
         (path.is_file(), modified)
     }
 

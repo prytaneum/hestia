@@ -1,6 +1,10 @@
 //! Incremental SHA-1 / SHA-256 hashing, the native equivalent of the C++
 //! `Hasher`. One definition every consumer (downloader, cache) verifies through.
 
+use std::fs::File;
+use std::io::{self, Read};
+use std::path::Path;
+
 use proto::download::HashAlgorithm;
 use sha1::Sha1;
 use sha2::{Digest, Sha256};
@@ -33,19 +37,27 @@ impl Hasher {
     }
 }
 
-impl Hasher {
-    /// Lower-case hex of any digest — shared with the callers that hash with a
-    /// algorithm the wire vocabulary does not carry (an `.mrpack` index names
-    /// its files by SHA-512).
-    pub(crate) fn hex(bytes: &[u8]) -> String {
-        hex(bytes)
-    }
-}
-
-fn hex(bytes: &[u8]) -> String {
+pub(crate) fn hex(bytes: &[u8]) -> String {
     let mut s = String::with_capacity(bytes.len() * 2);
     for b in bytes {
         s.push_str(&format!("{b:02x}"));
     }
     s
+}
+
+/// Streams the file, so a large archive is never held in memory. Generic over
+/// the digest because an `.mrpack` index names its files by SHA-512, which the
+/// wire's `HashAlgorithm` does not carry.
+pub(crate) fn digest_file<D: Digest>(path: &Path) -> io::Result<String> {
+    let mut file = File::open(path)?;
+    let mut hasher = D::new();
+    let mut buf = [0u8; 64 * 1024];
+    loop {
+        let n = file.read(&mut buf)?;
+        if n == 0 {
+            break;
+        }
+        hasher.update(&buf[..n]);
+    }
+    Ok(hex(&hasher.finalize()))
 }

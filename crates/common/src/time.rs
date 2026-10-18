@@ -1,4 +1,6 @@
 use std::fmt;
+use std::fs::Metadata;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use chrono::{Local, Timelike};
 use tracing_subscriber::fmt::format::Writer;
@@ -19,6 +21,17 @@ impl FormatTime for LocalTime {
 
 pub fn now_stamp() -> String {
     Local::now().format(FORMAT).to_string()
+}
+
+pub fn now_unix() -> i64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |since| since.as_secs() as i64)
+}
+
+pub fn modified_unix(meta: &Metadata) -> Option<i64> {
+    let since = meta.modified().ok()?.duration_since(UNIX_EPOCH).ok()?;
+    Some(since.as_secs() as i64)
 }
 
 /// The unix time today began at in the machine's zone — what a "daily at

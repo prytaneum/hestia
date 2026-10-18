@@ -10,19 +10,22 @@ pub(crate) use microsoft::USER_AGENT;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::Duration;
+
+use common::now_unix as now_seconds;
 
 use anyhow::{anyhow, bail, Result};
 use proto::accounts::{Account, LoginMethod};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
+use crate::checksum::hex;
 use microsoft::{
     launcher_login, minecraft_profile, poll_device_code, redeem_code, refresh_oauth,
     request_device_code, request_device_token, sisu_authenticate, sisu_authorize, xsts_authorize,
     OAuthRejected, OAuthTokens,
 };
-use signing::{base64url_nopad, format_uuid_v4, hex, random_bytes, ProofKey};
+use signing::{base64url_nopad, random_bytes, ProofKey};
 
 use crate::schema::{self, Document};
 
@@ -194,7 +197,7 @@ impl Accounts {
     }
 
     pub async fn begin_login(&self, method: LoginMethod) -> Result<LoginChallenge> {
-        let id = format_uuid_v4(&random_bytes(16));
+        let id = uuid::Uuid::new_v4().to_string();
         tracing::info!(?method, "starting sign-in");
 
         if method == LoginMethod::DeviceCode {
@@ -454,13 +457,6 @@ async fn rotate_tokens(account: &mut StoredAccount) -> Result<()> {
     account.expires_at = now_seconds() + minecraft.expires_in;
     account.needs_reauth = false;
     Ok(())
-}
-
-fn now_seconds() -> i64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_secs() as i64)
-        .unwrap_or(0)
 }
 
 fn sha256_bytes(text: &str) -> Vec<u8> {

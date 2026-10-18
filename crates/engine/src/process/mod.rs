@@ -20,7 +20,9 @@ use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::Duration;
+
+use common::now_unix;
 
 use proto::process::{
     LogSource, LogStream, ProcessExitEvent, ProcessInfo, ProcessLogLine, ProcessSpec,
@@ -44,13 +46,6 @@ const STOP_WAIT: Duration = Duration::from_secs(120);
 const STOP_POLL: Duration = Duration::from_millis(250);
 /// How often an adopted (non-child) process is checked for exit.
 const ADOPTED_POLL: Duration = Duration::from_secs(1);
-
-fn now_unix() -> i64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_secs() as i64)
-        .unwrap_or(0)
-}
 
 /// Where the supervisor's lifecycle events go. One method, since the topic name
 /// comes from `proto` and the sink never needs to know the payload shapes.

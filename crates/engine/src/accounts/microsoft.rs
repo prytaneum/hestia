@@ -2,7 +2,7 @@
 //! same signed tail: Xbox device token → sisu authorize → XSTS → launcher/login
 //! → profile.
 
-use std::time::{SystemTime, UNIX_EPOCH};
+use common::now_unix as now_seconds;
 
 use anyhow::{anyhow, bail, Context, Result};
 use proto::error::Service;
@@ -69,13 +69,6 @@ pub struct XstsToken {
 pub struct MinecraftProfile {
     pub uuid: String,
     pub name: String,
-}
-
-fn now_seconds() -> i64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_secs() as i64)
-        .unwrap_or(0)
 }
 
 /// Every step goes through the shared client, so a sign-in started while the

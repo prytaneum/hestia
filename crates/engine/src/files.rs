@@ -3,7 +3,6 @@
 //! nothing a caller names can resolve outside it.
 
 use std::path::{Component, Path, PathBuf};
-use std::time::UNIX_EPOCH;
 
 use anyhow::{bail, Result};
 use proto::error::{ErrorInfo, Field, FileFault, IoOp, Reason};
@@ -50,11 +49,7 @@ impl FileTree {
                 name,
                 dir: metadata.is_dir(),
                 size: if metadata.is_dir() { 0 } else { metadata.len() },
-                modified_unix: metadata
-                    .modified()
-                    .ok()
-                    .and_then(|at| at.duration_since(UNIX_EPOCH).ok())
-                    .map_or(0, |since| since.as_secs() as i64),
+                modified_unix: common::modified_unix(&metadata).unwrap_or(0),
             });
         }
         entries.sort_by(|a, b| {

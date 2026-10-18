@@ -10,9 +10,9 @@ use std::collections::HashSet;
 use std::fs::File;
 use std::io::Read;
 use std::path::{Path, PathBuf};
-use std::time::{SystemTime, UNIX_EPOCH};
 
 use anyhow::{bail, Context, Result};
+use common::now_unix;
 use proto::backup::{BackupInfo, BackupKind};
 use proto::error::{ArchiveFault, ArchiveFormat, ErrorInfo};
 use serde::{Deserialize, Serialize};
@@ -265,9 +265,7 @@ pub fn list(entry_dir: &Path) -> Vec<BackupInfo> {
                 kind,
                 created_unix: metadata
                     .as_ref()
-                    .and_then(|m| m.modified().ok())
-                    .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
-                    .map(|d| d.as_secs() as i64)
+                    .and_then(common::modified_unix)
                     .unwrap_or(0),
                 size: metadata.map(|m| m.len()).unwrap_or(0),
             });
@@ -464,13 +462,6 @@ fn allocate_id(entry_dir: &Path, kind: BackupKind) -> String {
 /// names a kind (a collision suffix may follow it).
 fn kind_of(stem: &str) -> Option<BackupKind> {
     stem.rsplit('-').find_map(BackupKind::parse)
-}
-
-fn now_unix() -> i64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_secs() as i64)
-        .unwrap_or(0)
 }
 
 #[cfg(test)]

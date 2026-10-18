@@ -8,17 +8,16 @@
 //! so a backup restore (which swaps `data/`) heals itself.
 
 use std::collections::HashSet;
-use std::io::Read;
 use std::path::{Path, PathBuf};
 
 use anyhow::{bail, Context, Result};
 use proto::content::{
     ContentFile, ContentKind, ContentVersion, InstalledContent, ReleaseChannel, UntrackedFile,
 };
-use proto::download::HashAlgorithm;
 use serde::{Deserialize, Serialize};
+use sha1::Sha1;
 
-use crate::checksum::Hasher;
+use crate::checksum;
 use crate::registry;
 use crate::schema::{self, Document};
 
@@ -383,18 +382,7 @@ pub(crate) fn primary_file(version: &ContentVersion) -> Result<&ContentFile> {
 }
 
 pub(crate) fn sha1_file(path: &Path) -> Result<String> {
-    let mut file =
-        std::fs::File::open(path).with_context(|| format!("cannot open {}", path.display()))?;
-    let mut hasher = Hasher::new(HashAlgorithm::Sha1);
-    let mut buf = [0u8; 64 * 1024];
-    loop {
-        let n = file.read(&mut buf)?;
-        if n == 0 {
-            break;
-        }
-        hasher.update(&buf[..n]);
-    }
-    Ok(hasher.hex_digest())
+    checksum::digest_file::<Sha1>(path).with_context(|| format!("cannot hash {}", path.display()))
 }
 
 /// Files present in the game's load dirs that no index entry accounts for —

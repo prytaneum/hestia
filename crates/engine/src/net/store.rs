@@ -30,10 +30,7 @@ pub fn load(url: &str) -> Option<String> {
 }
 
 fn entry_path(dir: &Path, url: &str) -> PathBuf {
-    let digest: String = Sha256::digest(url.as_bytes())
-        .iter()
-        .map(|b| format!("{b:02x}"))
-        .collect();
+    let digest = crate::checksum::hex(&Sha256::digest(url.as_bytes()));
     dir.join(format!("{digest}.json"))
 }
 
