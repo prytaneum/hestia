@@ -94,14 +94,6 @@ impl Drop for Share<'_> {
     }
 }
 
-/// Outcomes arrive as they finish, not in the order given.
-pub(super) async fn gather<F: Future>(fetches: impl IntoIterator<Item = F>) -> Vec<F::Output> {
-    futures_util::stream::iter(fetches)
-        .buffer_unordered(CONCURRENT_DOWNLOADS)
-        .collect()
-        .await
-}
-
 /// Fetch side by side, outcomes in the order given. Two fetches writing one
 /// `target` would race on its staging file, so the later one waits its turn and
 /// replaces the first.
@@ -123,7 +115,10 @@ where
         let fetched = fetch(item);
         async move { (order, fetched.await) }
     };
-    let mut outcomes = gather(apart.into_iter().map(&fetch)).await;
+    let mut outcomes: Vec<_> = futures_util::stream::iter(apart.into_iter().map(&fetch))
+        .buffer_unordered(CONCURRENT_DOWNLOADS)
+        .collect()
+        .await;
     for repeat in repeats {
         outcomes.push(fetch(repeat).await);
     }
