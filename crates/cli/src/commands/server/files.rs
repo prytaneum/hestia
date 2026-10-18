@@ -172,8 +172,16 @@ fn edit(path: &str, content: &str) -> Result<Option<String>> {
     }
     let name = path.rsplit('/').next().unwrap_or(path);
     // The file's own name is kept so the editor picks its syntax from it.
-    let scratch = std::env::temp_dir().join(format!("hestia-{}-{name}", std::process::id()));
-    std::fs::write(&scratch, content)
+    let dir = tempfile::Builder::new()
+        .prefix("hestia-")
+        .tempdir()
+        .context("cannot create a private scratch directory")?;
+    let scratch = dir.path().join(name);
+    std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&scratch)
+        .and_then(|mut file| std::io::Write::write_all(&mut file, content.as_bytes()))
         .with_context(|| format!("cannot write {}", scratch.display()))?;
 
     let command = std::env::var("VISUAL")
@@ -191,7 +199,6 @@ fn edit(path: &str, content: &str) -> Result<Option<String>> {
                 .with_context(|| format!("cannot read {}", scratch.display())),
             false => bail!("the editor exited with {status}; nothing was saved"),
         });
-    let _ = std::fs::remove_file(&scratch);
 
     let edited = outcome?;
     Ok((edited != content).then_some(edited))

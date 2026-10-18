@@ -697,6 +697,7 @@ dependencies = [
  "proto",
  "ratatui",
  "serde_json",
+ "tempfile",
  "tokio",
  "tracing",
  "tui-markdown",
