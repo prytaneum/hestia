@@ -22,6 +22,7 @@ import {
 import { m } from '@/paraglide/messages.js';
 import { contentQueries } from '@/queries/content';
 import { useOffline } from '@/queries/net';
+import { filterVersions } from '../lib';
 import { VersionOption } from './version-option';
 
 /**
@@ -82,13 +83,7 @@ export function ContentVersionDialog({
   );
   const list = item ? (versions.data ?? []) : [];
   const offline = useOffline();
-  const q = search.trim().toLowerCase();
-  const shown = list.filter(
-    (v) =>
-      !q ||
-      v.versionNumber.toLowerCase().includes(q) ||
-      v.gameVersions.some((g) => g.toLowerCase().includes(q)),
-  );
+  const shown = filterVersions(list, search);
   const picked = list.find((v) => v.id === pickedId) ?? null;
 
   const close = (next: boolean) => {

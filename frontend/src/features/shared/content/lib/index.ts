@@ -6,3 +6,4 @@ export {
   kindInfo,
   sourceSearch,
 } from './kinds';
+export { filterVersions } from './versions';

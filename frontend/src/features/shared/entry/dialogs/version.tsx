@@ -20,6 +20,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Notice } from '@/components/warning-notice';
+import { useOnOpen } from '@/features/shared/entry/hooks';
 import { toastWarnings } from '@/lib/warnings';
 import { m } from '@/paraglide/messages.js';
 import { catalogueQueries, modpackQueries } from '@/queries';
@@ -56,16 +57,12 @@ export function ChangeVersionDialog({
   const [version, setVersion] = useState('');
   const [downgrade, setDowngrade] = useState(false);
   const [movePack, setMovePack] = useState(true);
-  const [wasOpen, setWasOpen] = useState(open);
 
-  if (wasOpen !== open) {
-    setWasOpen(open);
-    if (open) {
-      setVersion('');
-      setDowngrade(false);
-      setMovePack(true);
-    }
-  }
+  useOnOpen(open, () => {
+    setVersion('');
+    setDowngrade(false);
+    setMovePack(true);
+  });
 
   const options = useMemo(
     () => (versions.data ?? []).filter((v) => v.id !== gameVersion),

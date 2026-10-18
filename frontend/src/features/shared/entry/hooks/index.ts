@@ -8,3 +8,4 @@ export {
   type EntryActionTarget,
   useEntryActions,
 } from './use-entry-actions';
+export { useOnOpen } from './use-on-open';

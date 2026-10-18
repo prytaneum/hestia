@@ -14,6 +14,8 @@ import { CardGridSkeleton } from '@/components/skeleton';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { VersionOption } from '@/features/shared/content/dialogs';
+import { filterVersions } from '@/features/shared/content/lib';
+import { useOnOpen } from '@/features/shared/entry/hooks';
 import { m } from '@/paraglide/messages.js';
 import { catalogueQueries } from '@/queries/catalogue';
 import { contentQueries } from '@/queries/content';
@@ -41,16 +43,12 @@ export function ModpackVersionDialog({
   const [search, setSearch] = useState('');
   const [chosen, setChosen] = useState<string | null>(null);
   const [downgrade, setDowngrade] = useState(false);
-  const [wasOpen, setWasOpen] = useState(open);
 
-  if (wasOpen !== open) {
-    setWasOpen(open);
-    if (open) {
-      setSearch('');
-      setChosen(null);
-      setDowngrade(false);
-    }
-  }
+  useOnOpen(open, () => {
+    setSearch('');
+    setChosen(null);
+    setDowngrade(false);
+  });
 
   const published = useQuery({
     ...contentQueries.versions({
@@ -66,13 +64,7 @@ export function ModpackVersionDialog({
   const offline = useOffline();
 
   const list = published.data ?? [];
-  const q = search.trim().toLowerCase();
-  const shown = list.filter(
-    (v) =>
-      !q ||
-      v.versionNumber.toLowerCase().includes(q) ||
-      v.gameVersions.some((g) => g.toLowerCase().includes(q)),
-  );
+  const shown = filterVersions(list, search);
   const picked = list.find((v) => v.id === (chosen ?? preselect)) ?? null;
   const goesBack =
     !!picked &&
