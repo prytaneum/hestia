@@ -16,14 +16,12 @@ pub(super) fn pick_server(
         bail!("no servers yet (hestia server create)");
     }
     if let Some(reference) = provided {
-        return servers
-            .into_iter()
-            .find(|s| client::proto::naming::reference_matches(&reference, &s.id, &s.name))
+        return mc::find_by_reference(servers, &reference, |s| (&s.id, &s.name))
             .with_context(|| format!("no server matches '{reference}'"));
     }
     let labels: Vec<String> = servers
         .iter()
-        .map(|s| format!("{} ({} {})", s.name, s.flavor, s.game_version))
+        .map(|s| mc::entry_label(&s.name, &s.flavor, &s.game_version))
         .collect();
     let index = ui::select("select a server", &labels)?;
     Ok(servers.into_iter().nth(index).expect("selector index"))

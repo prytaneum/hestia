@@ -24,7 +24,7 @@ use client::proto::modpack::{
 use client::Client;
 
 use super::content::BrowseCmd;
-use super::{connect, content};
+use super::{connect, content, mc};
 use crate::ui::components::PickerItem;
 use crate::ui::{self, ProvisionReporter, Spinner, View};
 
@@ -454,12 +454,8 @@ fn confirm_eula(args: &InstallArgs) -> Result<bool> {
 }
 
 async fn is_server(client: &Client, reference: &str) -> Result<bool> {
-    Ok(client
-        .server()
-        .list()
-        .await?
-        .iter()
-        .any(|s| client::proto::naming::reference_matches(reference, &s.id, &s.name)))
+    let servers = client.server().list().await?;
+    Ok(mc::find_by_reference(servers, reference, |s| (&s.id, &s.name)).is_some())
 }
 
 fn report(done: ModpackDone, to_server: bool) -> Result<()> {

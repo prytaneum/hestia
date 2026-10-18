@@ -309,15 +309,9 @@ async fn run_unit_action(client: Client, name: String, action: ServerAction) -> 
 }
 
 async fn loaders(client: &Client, flavor: Option<String>, version: Option<String>) -> Result<()> {
-    let flavors = {
-        let _spinner = Spinner::start("fetching flavors");
-        client.entry().flavors(EntryKind::Server).await?
-    };
+    let flavors = mc::fetch_flavors(client, EntryKind::Server).await?;
     let flavor = mc::pick_flavor(flavors, flavor)?;
-    let versions = {
-        let _spinner = Spinner::start("fetching versions");
-        client.entry().versions(EntryKind::Server, &flavor).await?
-    };
+    let versions = mc::fetch_versions(client, EntryKind::Server, &flavor).await?;
     let version = mc::pick_version(versions, version)?;
     let loaders = {
         let _spinner = Spinner::start("fetching loaders");

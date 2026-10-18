@@ -17,14 +17,12 @@ pub(super) fn pick_instance(
         bail!("no instances yet (hestia instance create)");
     }
     if let Some(reference) = provided {
-        return instances
-            .into_iter()
-            .find(|i| client::proto::naming::reference_matches(&reference, &i.id, &i.name))
+        return mc::find_by_reference(instances, &reference, |i| (&i.id, &i.name))
             .with_context(|| format!("no instance matches '{reference}'"));
     }
     let labels: Vec<String> = instances
         .iter()
-        .map(|i| format!("{} ({} {})", i.name, i.flavor, i.game_version))
+        .map(|i| mc::entry_label(&i.name, &i.flavor, &i.game_version))
         .collect();
     let index = ui::select("select an instance", &labels)?;
     Ok(instances.into_iter().nth(index).expect("selector index"))
@@ -39,12 +37,8 @@ pub(super) fn running_process(info: &InstanceInfo) -> Option<ProcessInfo> {
 
 /// Fetch one instance by name or id (any spelling that slugs the same).
 pub(super) async fn fetch(client: &Client, reference: &str) -> Result<InstanceInfo> {
-    client
-        .instance()
-        .list()
-        .await?
-        .into_iter()
-        .find(|i| client::proto::naming::reference_matches(reference, &i.id, &i.name))
+    let instances = client.instance().list().await?;
+    mc::find_by_reference(instances, reference, |i| (&i.id, &i.name))
         .with_context(|| format!("no instance matches '{reference}'"))
 }
 

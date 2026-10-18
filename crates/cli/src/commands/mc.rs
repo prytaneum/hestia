@@ -258,6 +258,45 @@ pub fn playtime_label(seconds: i64) -> String {
     }
 }
 
+pub async fn fetch_flavors(client: &Client, kind: EntryKind) -> Result<Vec<Flavor>> {
+    let _spinner = Spinner::start("fetching flavors");
+    Ok(client.entry().flavors(kind).await?)
+}
+
+pub async fn fetch_versions(
+    client: &Client,
+    kind: EntryKind,
+    flavor: &str,
+) -> Result<Vec<GameVersion>> {
+    let _spinner = Spinner::start("fetching versions");
+    Ok(client.entry().versions(kind, flavor).await?)
+}
+
+pub fn ensure_flavor(flavors: &[Flavor], id: &str) -> Result<()> {
+    if flavors.iter().any(|f| f.id == id) {
+        return Ok(());
+    }
+    let ids: Vec<&str> = flavors.iter().map(|f| f.id.as_str()).collect();
+    bail!("unknown flavor '{id}' (available: {})", ids.join(", "));
+}
+
+/// The first item whose id or name the user's reference names.
+pub fn find_by_reference<T>(
+    items: impl IntoIterator<Item = T>,
+    reference: &str,
+    id_and_name: impl Fn(&T) -> (&str, &str),
+) -> Option<T> {
+    items.into_iter().find(|item| {
+        let (id, name) = id_and_name(item);
+        client::proto::naming::reference_matches(reference, id, name)
+    })
+}
+
+/// `name (flavor game_version)`, the selector line for a server or instance.
+pub fn entry_label(name: &str, flavor: &str, game_version: &str) -> String {
+    format!("{name} ({flavor} {game_version})")
+}
+
 /// Return the chosen flavor id: validated when `provided`, otherwise picked from
 /// an interactive selector.
 pub fn pick_flavor(flavors: Vec<Flavor>, provided: Option<String>) -> Result<String> {
@@ -265,11 +304,8 @@ pub fn pick_flavor(flavors: Vec<Flavor>, provided: Option<String>) -> Result<Str
         bail!("no flavors are available");
     }
     if let Some(id) = provided {
-        if flavors.iter().any(|f| f.id == id) {
-            return Ok(id);
-        }
-        let ids: Vec<&str> = flavors.iter().map(|f| f.id.as_str()).collect();
-        bail!("unknown flavor '{id}' (available: {})", ids.join(", "));
+        ensure_flavor(&flavors, &id)?;
+        return Ok(id);
     }
     let labels: Vec<String> = flavors.iter().map(flavor_label).collect();
     let details: Vec<String> = flavors.iter().map(flavor_detail).collect();
@@ -381,24 +417,14 @@ pub async fn list_versions(
     flavor: Option<String>,
     all: bool,
 ) -> Result<()> {
-    let flavors = {
-        let _spinner = Spinner::start("fetching flavors");
-        client.entry().flavors(kind).await?
-    };
+    let flavors = fetch_flavors(client, kind).await?;
     let flavor = pick_flavor(flavors, flavor)?;
-    let versions = {
-        let _spinner = Spinner::start("fetching versions");
-        client.entry().versions(kind, &flavor).await?
-    };
+    let versions = fetch_versions(client, kind, &flavor).await?;
     show_versions(&flavor, versions, all)
 }
 
 pub async fn list_flavors(client: &Client, kind: EntryKind) -> Result<()> {
-    let flavors = {
-        let _spinner = Spinner::start("fetching flavors");
-        client.entry().flavors(kind).await?
-    };
-    show_flavors(&flavors)
+    show_flavors(&fetch_flavors(client, kind).await?)
 }
 
 /// Show a version table, releases only unless `all` includes snapshots and old

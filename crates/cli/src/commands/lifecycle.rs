@@ -9,24 +9,16 @@ use anyhow::{bail, Result};
 use client::proto::error::{EntryKind, EntryTarget};
 use client::{Client, ProcessEvent};
 
-use super::{connect, instance, server};
+use super::{connect, instance, mc, server};
 use crate::ui::{self, Spinner, View};
 
 /// Resolve a name (or id) to the single server or instance it identifies,
 /// erroring when it matches both or neither.
 async fn resolve(client: &Client, name: &str) -> Result<EntryKind> {
-    let is_server = client
-        .server()
-        .list()
-        .await?
-        .iter()
-        .any(|s| client::proto::naming::reference_matches(name, &s.id, &s.name));
-    let is_instance = client
-        .instance()
-        .list()
-        .await?
-        .iter()
-        .any(|i| client::proto::naming::reference_matches(name, &i.id, &i.name));
+    let servers = client.server().list().await?;
+    let is_server = mc::find_by_reference(servers, name, |s| (&s.id, &s.name)).is_some();
+    let instances = client.instance().list().await?;
+    let is_instance = mc::find_by_reference(instances, name, |i| (&i.id, &i.name)).is_some();
     match (is_server, is_instance) {
         (true, false) => Ok(EntryKind::Server),
         (false, true) => Ok(EntryKind::Instance),

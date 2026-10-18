@@ -8,7 +8,7 @@
 
 use anyhow::{bail, Result};
 
-use crate::commands::instance;
+use crate::commands::{instance, mc};
 use crate::ui;
 
 #[derive(clap::Args)]
@@ -75,7 +75,7 @@ async fn pick_instance(client: &client::Client) -> Result<String> {
         _ => {
             let labels: Vec<String> = instances
                 .iter()
-                .map(|i| format!("{} ({} {})", i.name, i.flavor, i.game_version))
+                .map(|i| mc::entry_label(&i.name, &i.flavor, &i.game_version))
                 .collect();
             let index = ui::select("what do you want to play?", &labels)?;
             Ok(instances[index].name.clone())

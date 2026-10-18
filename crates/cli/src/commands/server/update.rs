@@ -5,13 +5,14 @@
 use std::sync::Arc;
 
 use anyhow::{bail, Context, Result};
+use client::proto::error::EntryKind;
 use client::proto::server::ServerUpdateParams;
 use client::Client;
 
 use super::entry;
 use crate::commands::mc;
 use crate::commands::modpack;
-use crate::ui::{self, ProvisionReporter, Spinner, View};
+use crate::ui::{self, ProvisionReporter, View};
 
 pub(super) async fn run(
     client: &Client,
@@ -27,13 +28,7 @@ pub(super) async fn run(
     if was_running && !restart {
         confirm_update_restart(&info.name)?;
     }
-    let versions = {
-        let _spinner = Spinner::start("fetching versions");
-        client
-            .entry()
-            .versions(client::proto::error::EntryKind::Server, &info.flavor)
-            .await?
-    };
+    let versions = mc::fetch_versions(client, EntryKind::Server, &info.flavor).await?;
     let version = mc::pick_version(versions.clone(), version)?;
     let is_downgrade =
         client::proto::minecraft::downgrade_between(&versions, &info.game_version, &version)

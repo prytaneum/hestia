@@ -2,7 +2,7 @@
 //! specified flag path, and the create-time JVM settings. The record is cheap;
 //! files materialise at the first launch.
 
-use anyhow::{bail, Result};
+use anyhow::Result;
 use client::proto::error::EntryKind;
 use client::proto::minecraft::ConfigEntry;
 use client::Client;
@@ -24,18 +24,9 @@ pub(super) async fn run(
     if ui::is_interactive() && !fully_specified {
         return run_wizard(client, flavor, version, loader, name, memory).await;
     }
-    let flavors = {
-        let _spinner = Spinner::start("fetching flavors");
-        client.entry().flavors(EntryKind::Instance).await?
-    };
+    let flavors = mc::fetch_flavors(client, EntryKind::Instance).await?;
     let flavor = mc::pick_flavor(flavors, flavor)?;
-    let versions = {
-        let _spinner = Spinner::start("fetching versions");
-        client
-            .entry()
-            .versions(EntryKind::Instance, &flavor)
-            .await?
-    };
+    let versions = mc::fetch_versions(client, EntryKind::Instance, &flavor).await?;
     let version = mc::pick_version(versions, version)?;
     let name = name.unwrap_or_else(|| format!("{flavor}-{version}"));
     let config = memory
@@ -67,15 +58,9 @@ async fn run_wizard(
     name: Option<String>,
     memory: Option<String>,
 ) -> Result<()> {
-    let flavors = {
-        let _spinner = Spinner::start("fetching flavors");
-        client.entry().flavors(EntryKind::Instance).await?
-    };
+    let flavors = mc::fetch_flavors(client, EntryKind::Instance).await?;
     if let Some(flavor) = &flavor {
-        if !flavors.iter().any(|f| &f.id == flavor) {
-            let ids: Vec<&str> = flavors.iter().map(|f| f.id.as_str()).collect();
-            bail!("unknown flavor '{flavor}' (available: {})", ids.join(", "));
-        }
+        mc::ensure_flavor(&flavors, flavor)?;
     }
     let seed = WizardSeed {
         kind: EntryKind::Instance,

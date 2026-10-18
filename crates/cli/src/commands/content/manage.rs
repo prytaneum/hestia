@@ -16,6 +16,7 @@ use client::proto::instance::WorldInfo;
 
 use super::format::{kind_plural, source_label, world_label};
 use super::{session, PAGE};
+use crate::commands::mc;
 use crate::ui::{self, ProvisionReporter, View};
 
 /// The per-entry management grammar shared by every installable kind under a
@@ -648,9 +649,7 @@ async fn resolve_entry(client: &Client, entry: EntryKind, reference: &str) -> Re
             })
             .collect(),
     };
-    entries
-        .into_iter()
-        .find(|e| client::proto::naming::reference_matches(reference, &e.id, &e.name))
+    mc::find_by_reference(entries, reference, |e| (&e.id, &e.name))
         .with_context(|| format!("no {entry} matches '{reference}'"))
 }
 

@@ -12,7 +12,7 @@ use client::Client;
 use super::entry;
 use crate::commands::mc;
 use crate::commands::wizard::{self, Field, WizardOutcome, WizardSeed};
-use crate::ui::{self, ProvisionReporter, Spinner, View};
+use crate::ui::{self, ProvisionReporter, View};
 
 const EULA_URL: &str = "https://aka.ms/MinecraftEULA";
 
@@ -94,15 +94,9 @@ pub(super) async fn run(client: &Client, args: CreateArgs) -> Result<()> {
     if !args.eula {
         bail!("pass --eula to accept the Minecraft EULA ({EULA_URL})");
     }
-    let flavors = {
-        let _spinner = Spinner::start("fetching flavors");
-        client.entry().flavors(EntryKind::Server).await?
-    };
+    let flavors = mc::fetch_flavors(client, EntryKind::Server).await?;
     let flavor = mc::pick_flavor(flavors, args.flavor)?;
-    let versions = {
-        let _spinner = Spinner::start("fetching versions");
-        client.entry().versions(EntryKind::Server, &flavor).await?
-    };
+    let versions = mc::fetch_versions(client, EntryKind::Server, &flavor).await?;
     let version = mc::pick_version(versions, args.version)?;
     let name = args.name.unwrap_or_else(|| format!("{flavor}-{version}"));
     let config = build_config(
@@ -143,15 +137,9 @@ pub(super) async fn run(client: &Client, args: CreateArgs) -> Result<()> {
 /// The interactive path: the fullscreen step wizard, prefilled from whatever
 /// flags were given.
 async fn run_wizard(client: &Client, args: CreateArgs) -> Result<()> {
-    let flavors = {
-        let _spinner = Spinner::start("fetching flavors");
-        client.entry().flavors(EntryKind::Server).await?
-    };
+    let flavors = mc::fetch_flavors(client, EntryKind::Server).await?;
     if let Some(flavor) = &args.flavor {
-        if !flavors.iter().any(|f| &f.id == flavor) {
-            let ids: Vec<&str> = flavors.iter().map(|f| f.id.as_str()).collect();
-            bail!("unknown flavor '{flavor}' (available: {})", ids.join(", "));
-        }
+        mc::ensure_flavor(&flavors, flavor)?;
     }
     let extra = build_config(None, [], args.prop)?;
     let seed = WizardSeed {
