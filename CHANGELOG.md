@@ -11,8 +11,9 @@ that release's notes, rendered as markdown.
 
 Servers you can manage from end to end — files, players, scheduled tasks and a
 console that stays connected — plus shared settings rebuilt around what the game
-actually writes, smarter modpacks and local files, a new icon editor, a guided
-first run, and fixes for SteamOS and Windows.
+actually writes, smarter modpacks and local files, archives that move between
+machines, a new icon editor, a guided first run, and fixes for SteamOS, Windows
+and the AppImage.
 
 ### Servers
 
@@ -23,10 +24,12 @@ first run, and fixes for SteamOS and Windows.
 - **Players.** See who is online, the whitelist, ops and bans, and kick players
   or add and remove them from the lists — from the CLI and a new Players tab in
   the desktop, with searchable rows, player heads and a per-player menu.
-- **Scheduled tasks.** Run a restart or a console command on a schedule: an
-  interval like `30m`, `6h` or `1d`, or a daily time like `04:30`. The daemon
-  runs them while the server is up; view and edit them from the CLI or the
-  server's settings.
+- **Scheduled tasks.** Run a restart, a console command or a backup on a
+  schedule: an interval like `30m`, `6h` or `1d`, down to five minutes, or a
+  daily time like `04:30`. The daemon runs them while the server is up; view
+  and edit them from the CLI (`hestia server <name> task`) or the server's
+  settings. A backup task keeps the newest scheduled archives (7 by default,
+  `--keep` to change it) and never prunes a manual one.
 - **Restart.** Servers and instance sessions can be restarted in one step.
 - **A console that stays connected.** The RCON link is kept open per server
   instead of reconnecting for every command, so the logs stop filling with
@@ -39,9 +42,6 @@ first run, and fixes for SteamOS and Windows.
 - **A world seed at create.** The create wizard takes a seed alongside the other
   details, and the server's settings show it afterwards. It only applies to a
   world that has not been generated yet; left empty, the game picks one.
-- **A custom backup interval.** The schedule is no longer limited to the 6 hour,
-  12 hour and daily presets: pick Custom and set any number of minutes, hours or
-  days, down to the daemon's five-minute floor.
 - **Memory is capped at what the machine has.** Memory sliders stop at the
   installed RAM, and the daemon rejects a larger value.
 
@@ -75,10 +75,13 @@ first run, and fixes for SteamOS and Windows.
   the other cannot read. Keys that describe the machine or the moment — display,
   audio, `lastServer` — are never shared, and any key can be pinned local to one
   instance.
-- **Resource packs and datapacks sync by identity.** A shared pack is installed
-  wherever it fits and enabled or removed everywhere at once; `hestia sync
-  packs` manages the library from the CLI. Screenshots are not copied at all —
-  every instance's folder reads as one page.
+- **Resource packs sync by identity.** A shared pack is installed wherever it
+  fits and enabled or removed everywhere at once; `hestia sync packs` manages
+  the library from the CLI. A pack that could not install somewhere is offered
+  again on the next pass rather than read as removed. Datapacks are not synced:
+  they belong to a world, and adding one to a world nobody asked about changes
+  how it runs. Screenshots are not copied at all — every instance's folder
+  reads as one page.
 - **Content profiles are gone.** Named profiles added a layer most entries never
   used; installed content is managed in the pool directly.
 
@@ -106,6 +109,10 @@ first run, and fixes for SteamOS and Windows.
 - **Update a pack from a file.** Update a modpack from a local `.mrpack` or
   CurseForge archive, with a preview of whether it is the same pack and whether
   it would be a downgrade.
+- **Update a local file in place.** A mod you installed from disk takes a new
+  build with `update --file` or from its row in the desktop. Its enabled state
+  and per-world settings carry over, instead of a second copy landing beside
+  the first.
 - **Keep a pack's content when you remove it.** Its mods stay in the pool and
   can be managed on their own.
 - **Pack versions follow the game version.** A pack's versions are resolved per
@@ -114,8 +121,19 @@ first run, and fixes for SteamOS and Windows.
   default the pack moves to the version built for the target, and `--keep-pack`
   leaves it where it is. Picking a pack version shows whether it fits, with a
   warning when it would drift. The modpack card and dialog are decluttered.
-- **Faster installs.** Content batches download concurrently, which shortens
-  installing larger packs.
+- **Faster installs and update checks.** Content batches download
+  concurrently, which shortens installing larger packs, and checking an entry
+  for updates resolves its items in parallel.
+
+### Import and export
+
+- **A Hestia archive moves between machines.** An instance exported on Windows
+  now launches on Linux and the other way round: the archive carries what the
+  instance is, and the importing host resolves its own libraries and natives.
+  Mods and packs a source can serve again are referenced instead of packed, so
+  archives are much smaller; import downloads them and verifies each against
+  its hash. Unchecking content in the export picker now leaves the item out
+  entirely, so an import never lists something the archive does not have.
 
 ### Desktop
 
@@ -134,8 +152,32 @@ first run, and fixes for SteamOS and Windows.
 - **Files drop where they belong.** Every surface that takes one — an instance
   import, the content installer, a skin, an entry's icon — accepts a dragged
   file as well as a picked one, through one shared control.
-- **Polish.** Detail tab toolbars are aligned, the session menu stays on the
-  card, and the modpack card is hidden when an entry has no pack.
+- **Changes show up everywhere.** What you change from the CLI, the tray or a
+  schedule refreshes the desktop straight away.
+- **Polish.** An entry's actions and its pin sit in one overflow menu on its
+  header, sessions are named by when they started, detail tab toolbars are
+  aligned, the session menu stays on the card, and the modpack card is hidden
+  when an entry has no pack.
+
+### CLI
+
+- **The create wizard fills in what is missing.** `server create` and
+  `instance create` open the wizard whenever a flavor, version, name or (for a
+  server) the EULA is missing, starting from whatever you passed — `hestia
+  server create fabric` opens at the version step. A fully specified command
+  runs without it, as before.
+- **Logs follow inline.** `logs -f` streams in the terminal until Ctrl-C
+  instead of opening a fullscreen view; the server or game keeps running.
+
+### Changed
+
+- **Scheduled backups are a task.** The `backup-interval` and
+  `backup-retention` settings are gone. A schedule set in beta.1 is not carried
+  over: add it again with `hestia server <name> task backup <interval>` or
+  from the server's Tasks settings.
+- **`hestia account login --sisu` is removed.** Sign in with the device-code
+  flow.
+- **`instance create --modpack` refuses `--memory`.** It was silently ignored.
 
 ### Fixes
 
@@ -157,7 +199,29 @@ first run, and fixes for SteamOS and Windows.
   pipe even after a connection fails, so its name never disappears between
   clients. A portable build also resolves one install scope however its path is
   spelled.
-- **Dependency security updates**, including the patched `rustls` advisory.
+- **AppImage: Open folder works, and login autostart survives a reboot.** The
+  image's own libraries leaked into the file manager it launched, which then
+  crashed; host programs and the daemon now start with the host's environment.
+  A login entry registered from an AppImage runs the image itself rather than a
+  path on its temporary mount.
+- **Nothing is left half-written.** Settings, `server.properties`, synced game
+  files, skins, desktop preferences and the BuildTools jar are written through
+  a temporary file and renamed into place, and a failed download, archive or
+  import cleans up after itself. A backup restore interrupted midway puts the
+  server's data back at the next start instead of losing it.
+- **Restoring a backup says what it keeps.** The dialog claimed the current
+  data was backed up first; it is not, and the dialog now says so.
+- **A removed account stays removed** when a token refresh was already in
+  flight.
+- **Restarting the daemon is reliable.** A restart from the CLI or the desktop
+  waits for the old daemon to exit before starting the new one, a stop request
+  is no longer lost, and a failed restart after an update is logged.
+- **Smaller fixes.** A cancelled job shows as cancelled rather than failed, a
+  CurseForge pack is refused as a single content file, removing an entry also
+  removes its icon, editing a server list keeps tags Hestia does not know, and
+  the update-channel setting shows up in settings search.
+- **Dependency security updates**, including the patched `rustls` and `zip`
+  advisories.
 
 ## 1.0.0-beta.1
 
