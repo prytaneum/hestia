@@ -23,7 +23,7 @@ use super::Source;
 use crate::cancel::Job;
 use crate::checksum;
 use crate::content::install;
-use crate::content::pack::INDEX;
+use crate::content::pack::{self, INDEX};
 use crate::minecraft::profile::InstanceProfile;
 use crate::registry;
 
@@ -136,13 +136,9 @@ fn index_entry(
 fn dependencies(profile: &InstanceProfile) -> serde_json::Value {
     let mut deps = serde_json::Map::new();
     deps.insert("minecraft".to_string(), json!(profile.game_version));
-    let key = match profile.flavor.as_str() {
-        "fabric" => Some("fabric-loader"),
-        "quilt" => Some("quilt-loader"),
-        "neoforge" => Some("neoforge"),
-        "forge" => Some("forge"),
-        _ => None,
-    };
+    let key = pack::MRPACK_LOADERS
+        .iter()
+        .find_map(|(key, flavor)| (*flavor == profile.flavor).then_some(*key));
     if let (Some(key), Some(version)) = (key, profile.loader_version.as_ref()) {
         deps.insert(key.to_string(), json!(version));
     }

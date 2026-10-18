@@ -29,9 +29,13 @@ pub(crate) const INDEX: &str = "modrinth.index.json";
 const MANIFEST: &str = "manifest.json";
 const DEFAULT_OVERRIDES: &str = "overrides";
 
-/// The dependency keys that name a modloader, newest-preferred order. The loader
-/// name is the key with any `-loader` suffix stripped.
-const LOADER_KEYS: [&str; 4] = ["fabric-loader", "quilt-loader", "neoforge", "forge"];
+/// `.mrpack` dependency key to flavor, in the order an index is read.
+pub(crate) const MRPACK_LOADERS: [(&str, &str); 4] = [
+    ("fabric-loader", "fabric"),
+    ("quilt-loader", "quilt"),
+    ("neoforge", "neoforge"),
+    ("forge", "forge"),
+];
 
 /// Which side an install is for — which of the two side-specific override trees
 /// applies, and which `env` field decides whether a file is wanted.
@@ -319,13 +323,10 @@ pub fn parse_index(index: &Value) -> Result<ResolvedModpack> {
 }
 
 fn find_loader(deps: &Map<String, Value>) -> Option<(String, String)> {
-    for key in LOADER_KEYS {
-        if let Some(version) = deps.get(key).and_then(Value::as_str) {
-            let name = key.strip_suffix("-loader").unwrap_or(key).to_string();
-            return Some((name, version.to_string()));
-        }
-    }
-    None
+    MRPACK_LOADERS.iter().find_map(|(key, flavor)| {
+        let version = deps.get(*key).and_then(Value::as_str)?;
+        Some((flavor.to_string(), version.to_string()))
+    })
 }
 
 pub(crate) fn invalid(reason: ArchiveFault) -> anyhow::Error {
