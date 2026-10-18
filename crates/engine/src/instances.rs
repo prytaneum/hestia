@@ -17,7 +17,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::minecraft::launch::{JavaSettings, JVM_ARGS_KEY, MEMORY_KEY};
 use crate::minecraft::profile::InstanceProfile;
-use crate::registry::{self, Entry, Store};
+use crate::registry::{Entry, Store};
 use crate::schema::Document;
 
 pub(crate) const DATA: &str = "data";
@@ -105,7 +105,7 @@ impl Instances {
             InstanceRecord {
                 id: String::new(),
                 name: name.to_string(),
-                created_unix: registry::now_unix(),
+                created_unix: common::now_unix(),
                 last_played_unix: None,
                 playtime_seconds: 0,
                 jvm: JavaSettings::default(),
@@ -153,7 +153,7 @@ impl Instances {
     /// next launch no longer counts as a first play.
     pub fn mark_launched(&self, id: &str) -> Result<()> {
         self.store.mutate(id, |record| {
-            record.last_played_unix = Some(registry::now_unix());
+            record.last_played_unix = Some(common::now_unix());
             Ok(())
         })
     }

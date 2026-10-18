@@ -22,8 +22,6 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Duration;
 
-use common::now_unix;
-
 use proto::process::{
     LogSource, LogStream, ProcessExitEvent, ProcessInfo, ProcessLogLine, ProcessSpec,
     ProcessStartedEvent, ProcessState,
@@ -168,7 +166,7 @@ impl ProcessSupervisor {
             .spawn()
             .map_err(failed)?;
         let pid = child.id().unwrap_or(0);
-        let started_unix = now_unix();
+        let started_unix = common::now_unix();
 
         let record = ProcessRecord::for_spawn(&spec, pid, started_unix);
         let entry = Arc::new(Entry {
@@ -229,7 +227,9 @@ impl ProcessSupervisor {
                 tracing::info!(id = %record.id, pid = record.pid, "process exited while unsupervised");
                 records::save(
                     &proc_dir,
-                    &record.clone().end(ProcessState::Exited, None, now_unix()),
+                    &record
+                        .clone()
+                        .end(ProcessState::Exited, None, common::now_unix()),
                 );
                 emit(
                     self.events(),
@@ -602,7 +602,7 @@ async fn supervise(
         },
     );
 
-    records::save(&proc_dir, &record.end(state, code, now_unix()));
+    records::save(&proc_dir, &record.end(state, code, common::now_unix()));
     if let Some(observe) = &on_exit {
         observe(&entry.snapshot());
     }

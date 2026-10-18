@@ -90,8 +90,6 @@ pub async fn stop_server(
     }
 }
 
-pub(crate) use common::now_unix;
-
 pub fn server_info(
     record: ServerRecord,
     process: Option<proto::process::ProcessInfo>,
@@ -159,7 +157,7 @@ impl Runtime {
             let Some(instance_id) = instance_id_of_session(&info.id) else {
                 return;
             };
-            let elapsed = now_unix() - info.started_unix;
+            let elapsed = common::now_unix() - info.started_unix;
             if let Err(e) = session_engine
                 .instances()
                 .add_playtime(&instance_id, elapsed)

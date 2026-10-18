@@ -50,7 +50,7 @@ pub(crate) fn export(
     let index = serde_json::to_vec_pretty(&json!({
         "formatVersion": 1,
         "game": "minecraft",
-        "versionId": registry::utc_stamp(registry::now_unix()),
+        "versionId": registry::utc_stamp(common::now_unix()),
         "name": source.record.name,
         "files": files,
         "dependencies": dependencies(&source.record.profile),

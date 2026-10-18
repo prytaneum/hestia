@@ -10,7 +10,6 @@ use std::path::Path;
 use proto::content::{ContentKind, InstalledContent};
 
 use crate::content::icon;
-use crate::registry;
 
 #[derive(Debug, Clone)]
 pub(crate) struct Project {
@@ -130,7 +129,7 @@ pub(crate) fn assemble(project: Project, release: Release, holding: Holding) -> 
         filename: release.filename,
         sha1: release.sha1,
         url: release.url,
-        installed_unix: registry::now_unix(),
+        installed_unix: common::now_unix(),
         worlds: holding.worlds,
         origin: holding.origin,
         enabled: holding.enabled,

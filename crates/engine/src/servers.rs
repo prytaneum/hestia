@@ -184,7 +184,7 @@ impl Servers {
             Ok(ServerRecord {
                 id,
                 name: name.to_string(),
-                created_unix: registry::now_unix(),
+                created_unix: common::now_unix(),
                 phase: ServerPhase::Provisioning,
                 game_port: self.claim_game_port(port)?,
                 rcon: None,

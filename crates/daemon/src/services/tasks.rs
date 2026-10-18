@@ -6,7 +6,7 @@ use proto::tasks::{ServerTaskList, ServerTaskRemove, ServerTaskSave};
 use proto::Empty;
 
 use super::guards::{server_for, Intent};
-use crate::runtime::{now_unix, Channels};
+use crate::runtime::Channels;
 
 pub(super) fn register(on: &mut Channels<'_>) {
     on.handle::<ServerTaskList, _, _>(|p, ctx| async move {
@@ -19,7 +19,7 @@ pub(super) fn register(on: &mut Channels<'_>) {
         ctx.runtime
             .engine()
             .servers()
-            .save_task(&record.id, p.task, now_unix())
+            .save_task(&record.id, p.task, common::now_unix())
             .map_err(crate::runtime::engine_error)
     });
 

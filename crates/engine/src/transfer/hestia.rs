@@ -158,7 +158,7 @@ pub(crate) fn default_destination(
     format: ExportFormat,
 ) -> PathBuf {
     let slug = registry::dir_name(&record.id, &record.name);
-    let stamp = registry::utc_stamp(registry::now_unix());
+    let stamp = registry::utc_stamp(common::now_unix());
     dir.join(format!("{slug}-{stamp}.{}", format.extension()))
 }
 
@@ -174,7 +174,7 @@ pub(crate) fn export(source: &Source<'_>, destination: &Path, job: &Job<'_>) -> 
         ..source.record.clone()
     };
     let manifest = Manifest {
-        exported_unix: registry::now_unix(),
+        exported_unix: common::now_unix(),
         exported_by: format!("{} {}", common::app::NAME, common::app::VERSION),
         instance: schema::encode(&identity)?,
     };

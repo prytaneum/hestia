@@ -245,7 +245,7 @@ fn aside_named(path: &Path, tag: &str) -> PathBuf {
 /// quarantines of the same file within a second must not overwrite each other,
 /// which would defeat the point of keeping them.
 fn aside_path(path: &Path) -> PathBuf {
-    let stamp = registry::utc_stamp(registry::now_unix());
+    let stamp = registry::utc_stamp(common::now_unix());
     let first = aside_named(path, &format!("{ASIDE}-{stamp}"));
     if !first.exists() {
         return first;

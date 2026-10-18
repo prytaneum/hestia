@@ -10,8 +10,6 @@
 use std::sync::{Mutex, OnceLock};
 use std::time::Duration;
 
-use common::now_unix as now;
-
 use proto::net::{NetworkState, NetworkStatus};
 use tokio::sync::watch;
 
@@ -81,7 +79,7 @@ impl Network {
 
     pub fn observe_reachable(&self) {
         self.publish_if_changed(|state| {
-            state.status.last_online_unix = now();
+            state.status.last_online_unix = common::now_unix();
             if !state.status.offline_mode {
                 state.status.state = NetworkState::Online;
             }
@@ -106,12 +104,12 @@ impl Network {
         if status.offline_mode {
             return;
         }
-        let since_probe = now().saturating_sub(last_probe);
+        let since_probe = common::now_unix().saturating_sub(last_probe);
         let due = match status.state {
             NetworkState::Unknown => true,
             NetworkState::Offline => since_probe >= RETRY_EVERY,
             NetworkState::Online => {
-                now().saturating_sub(status.last_online_unix) >= FRESH_FOR
+                common::now_unix().saturating_sub(status.last_online_unix) >= FRESH_FOR
                     && since_probe >= FRESH_FOR
             }
         };
@@ -121,7 +119,7 @@ impl Network {
     }
 
     async fn probe(&self) {
-        self.state.lock().unwrap().last_probe_unix = now();
+        self.state.lock().unwrap().last_probe_unix = common::now_unix();
         let result = super::client()
             .head(PROBE_URL)
             .timeout(PROBE_TIMEOUT)
@@ -143,7 +141,7 @@ impl Network {
             if (state.status.state, state.status.offline_mode) == before {
                 return;
             }
-            state.status.since_unix = now();
+            state.status.since_unix = common::now_unix();
             state.status.clone()
         };
         tracing::info!(

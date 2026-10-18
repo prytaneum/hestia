@@ -12,8 +12,6 @@ use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::time::Duration;
 
-use common::now_unix as now_seconds;
-
 use anyhow::{anyhow, bail, Result};
 use proto::accounts::{Account, LoginMethod};
 use serde::{Deserialize, Serialize};
@@ -210,7 +208,7 @@ impl Accounts {
                 session_id: String::new(),
                 device_code: device.device_code,
                 interval_seconds: device.interval_seconds,
-                expires_at: now_seconds() + device.expires_in_seconds,
+                expires_at: common::now_unix() + device.expires_in_seconds,
                 clock_offset: 0,
             };
             self.pending.lock().unwrap().insert(id.clone(), session);
@@ -308,7 +306,7 @@ impl Accounts {
             name: profile.name.clone(),
             refresh_token: oauth.refresh_token,
             access_token: minecraft.access_token,
-            expires_at: now_seconds() + minecraft.expires_in,
+            expires_at: common::now_unix() + minecraft.expires_in,
             needs_reauth: false,
         };
 
@@ -351,7 +349,7 @@ impl Accounts {
         if account.needs_reauth || account.refresh_token.is_empty() {
             return Err(ReauthRequired::new(reference).into());
         }
-        if account.expires_at - now_seconds() > REFRESH_MARGIN_SECONDS {
+        if account.expires_at - common::now_unix() > REFRESH_MARGIN_SECONDS {
             return Ok(AccessToken {
                 token: account.access_token,
                 stale: false,
@@ -420,7 +418,7 @@ impl Accounts {
 
 async fn await_device_tokens(session: &LoginSession) -> Result<OAuthTokens> {
     let interval = Duration::from_secs(session.interval_seconds.max(1) as u64);
-    while now_seconds() < session.expires_at {
+    while common::now_unix() < session.expires_at {
         if let Some(tokens) = poll_device_code(&session.device_code).await? {
             return Ok(tokens);
         }
@@ -454,7 +452,7 @@ async fn rotate_tokens(account: &mut StoredAccount) -> Result<()> {
     if !oauth.refresh_token.is_empty() {
         account.refresh_token = oauth.refresh_token;
     }
-    account.expires_at = now_seconds() + minecraft.expires_in;
+    account.expires_at = common::now_unix() + minecraft.expires_in;
     account.needs_reauth = false;
     Ok(())
 }

@@ -14,8 +14,6 @@ use uuid::Uuid;
 
 use crate::schema::{self, Document};
 
-pub(crate) use common::now_unix;
-
 /// `YYYYMMDD-HHMMSS` in UTC (Howard Hinnant's civil-from-days algorithm; no
 /// date-time dependency for one format). What names a backup archive and an
 /// exported instance — anything the disk registry sorts by time.

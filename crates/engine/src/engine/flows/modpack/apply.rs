@@ -22,7 +22,6 @@ use crate::content::pool::Pool;
 use crate::content::{exclude, install, modpack, pack, record};
 use crate::engine::Engine;
 use crate::minecraft::materialize;
-use crate::registry;
 
 impl Engine {
     /// The install itself, once the entry exists: refuse a pack the entry
@@ -157,7 +156,7 @@ impl Engine {
             loader: resolved.loader.clone().unwrap_or_default(),
             loader_version: resolved.loader_version.clone().unwrap_or_default(),
             icon_url: project.map(|p| p.icon_url.clone()).unwrap_or_default(),
-            installed_unix: registry::now_unix(),
+            installed_unix: common::now_unix(),
             files: Vec::new(),
             overrides,
         };

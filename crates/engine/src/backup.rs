@@ -12,7 +12,6 @@ use std::io::Read;
 use std::path::{Path, PathBuf};
 
 use anyhow::{bail, Context, Result};
-use common::now_unix;
 use proto::backup::{BackupInfo, BackupKind};
 use proto::error::{ArchiveFault, ArchiveFormat, ErrorInfo};
 use serde::{Deserialize, Serialize};
@@ -100,7 +99,7 @@ pub fn create(
     Ok(BackupInfo {
         id,
         kind,
-        created_unix: now_unix(),
+        created_unix: common::now_unix(),
         size,
     })
 }
@@ -141,7 +140,7 @@ fn write_archive(
 
 fn append_manifest<W: std::io::Write>(builder: &mut tar::Builder<W>) -> Result<()> {
     let manifest = Manifest {
-        created_unix: now_unix(),
+        created_unix: common::now_unix(),
         created_by: format!("{} {}", common::app::NAME, common::app::VERSION),
     };
     let encoded = serde_json::to_vec_pretty(&schema::encode(&manifest)?)
@@ -446,7 +445,7 @@ fn allocate_id(entry_dir: &Path, kind: BackupKind) -> String {
     let taken: HashSet<String> = list(entry_dir).into_iter().map(|b| b.id).collect();
     let base = format!(
         "{}-{}",
-        crate::registry::utc_stamp(now_unix()),
+        crate::registry::utc_stamp(common::now_unix()),
         kind.as_str()
     );
     if !taken.contains(&base) {

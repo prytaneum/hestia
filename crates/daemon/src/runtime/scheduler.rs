@@ -10,7 +10,7 @@ use proto::backup::ServerBackupCreate;
 use proto::process::ProcessState;
 use proto::tasks::TaskAction;
 
-use super::{now_unix, server_process_id, BackupJob, JobKind, Runtime};
+use super::{server_process_id, BackupJob, JobKind, Runtime};
 
 const TICK: Duration = Duration::from_secs(60);
 
@@ -33,7 +33,7 @@ pub fn spawn_task_scheduler(runtime: Arc<Runtime>) {
 /// of retrying every tick.
 async fn run_due_tasks(runtime: &Runtime) {
     let engine = runtime.engine();
-    let now = now_unix();
+    let now = common::now_unix();
     let midnight = common::local_midnight_unix();
     for record in engine.servers().list() {
         let process_id = server_process_id(&record.id);

@@ -2,8 +2,6 @@
 //! same signed tail: Xbox device token → sisu authorize → XSTS → launcher/login
 //! → profile.
 
-use common::now_unix as now_seconds;
-
 use anyhow::{anyhow, bail, Context, Result};
 use proto::error::Service;
 use reqwest::header::HeaderMap;
@@ -169,7 +167,7 @@ fn server_clock_offset(headers: &HeaderMap) -> i64 {
     let Some(server_time) = parse_http_date(date) else {
         return 0;
     };
-    let offset = server_time - now_seconds();
+    let offset = server_time - common::now_unix();
     if offset.abs() > 60 {
         tracing::warn!(
             offset,
@@ -188,8 +186,13 @@ async fn signed_post(
     clock_offset: i64,
 ) -> Result<reqwest::Response> {
     let payload = body.to_string();
-    let signature =
-        xbox_signature_header(key, url_path, "", &payload, now_seconds() + clock_offset);
+    let signature = xbox_signature_header(
+        key,
+        url_path,
+        "",
+        &payload,
+        common::now_unix() + clock_offset,
+    );
     let mut request = crate::net::client()
         .post(url)
         .header("Content-Type", "application/json; charset=utf-8")
