@@ -12,29 +12,23 @@ use crate::sync::packs::{self, Action, Pack};
 
 use super::content::EntryRef;
 
-const UNITS: &[(SyncUnit, ContentKind)] = &[(SyncUnit::ResourcePacks, ContentKind::ResourcePack)];
-
-fn kind_of(unit: SyncUnit) -> Option<ContentKind> {
-    UNITS
-        .iter()
-        .find(|(candidate, _)| *candidate == unit)
-        .map(|(_, kind)| *kind)
-}
+const PACK_UNIT: SyncUnit = SyncUnit::ResourcePacks;
+const PACK_KIND: ContentKind = ContentKind::ResourcePack;
 
 impl Engine {
     pub async fn reconcile_packs(&self, record: &InstanceRecord) -> Vec<WarningInfo> {
-        let mut warnings = Vec::new();
-        for &(unit, kind) in UNITS {
-            if !self.sync.enabled(unit) || !record.sharing.shares(unit) {
-                continue;
-            }
-            if let Err(e) = self.settle_packs(record, kind).await {
+        let unit = PACK_UNIT;
+        if !self.sync.enabled(unit) || !record.sharing.shares(unit) {
+            return Vec::new();
+        }
+        match self.settle_packs(record, PACK_KIND).await {
+            Ok(()) => Vec::new(),
+            Err(e) => {
                 let detail = format!("{e:#}");
                 tracing::warn!(instance = %record.name, %unit, error = %detail, "pack sync skipped");
-                warnings.push(WarningInfo::SyncUnitSkipped { unit, detail });
+                vec![WarningInfo::SyncUnitSkipped { unit, detail }]
             }
         }
-        warnings
     }
 
     pub async fn reconcile_idle_packs(&self) {
@@ -49,12 +43,12 @@ impl Engine {
     /// The named instance's packs become the library, so enabling the unit
     /// starts from someone rather than from whoever reconciles first.
     pub fn seed_packs(&self, unit: SyncUnit, record: &InstanceRecord) -> Result<()> {
-        let Some(kind) = kind_of(unit) else {
+        if unit != PACK_UNIT {
             return Ok(());
-        };
-        let held = self.held_packs(record, kind)?;
+        }
+        let held = self.held_packs(record, PACK_KIND)?;
         let mut library = self.sync.library();
-        library.replace(kind, held);
+        library.replace(PACK_KIND, held);
         self.sync.save_library(&library)
     }
 
