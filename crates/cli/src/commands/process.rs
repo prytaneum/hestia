@@ -11,10 +11,11 @@
 use anyhow::Result;
 use clap::Subcommand;
 use client::proto::process::{ProcessInfo, ProcessState};
+use client::Client;
 
 use crate::commands::connect;
 use crate::exit::ExitStatus;
-use crate::ui::{self, View};
+use crate::ui::{self, MonitorSample, View};
 
 #[derive(Subcommand)]
 pub enum ProcessCmd {
@@ -117,4 +118,33 @@ fn state_label(info: &ProcessInfo) -> String {
         Some(code) if info.state != ProcessState::Running => format!("{state} ({code})"),
         _ => state,
     }
+}
+
+/// Run the fullscreen resource monitor over one process, filtering the daemon's
+/// metrics stream to it.
+pub(crate) async fn monitor_process(
+    client: &Client,
+    process_id: String,
+    title: String,
+) -> Result<()> {
+    let mut samples = client.process().subscribe_metrics().await?;
+    let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
+    let forward = tokio::spawn(async move {
+        while let Some(batch) = samples.recv().await {
+            let sample = batch
+                .into_iter()
+                .find(|m| m.id == process_id)
+                .map(|m| MonitorSample {
+                    cpu_pct: m.cpu_pct,
+                    mem_bytes: m.mem_bytes,
+                });
+            if tx.send(sample).is_err() {
+                break;
+            }
+        }
+    });
+
+    let result = tokio::task::spawn_blocking(move || ui::monitor(&title, rx)).await?;
+    forward.abort();
+    result
 }

@@ -9,7 +9,8 @@ use client::proto::instance::{InstanceLaunchDone, QuickPlay, Replace};
 use client::Client;
 
 use super::entry;
-use crate::ui::{self, MonitorSample, ProvisionReporter, Spinner, View};
+use crate::commands::process;
+use crate::ui::{self, ProvisionReporter, Spinner, View};
 
 /// Launch `reference`, rendering preparation progress, then follow its output
 /// until it exits or Ctrl-C (unless detached or piped); shared with
@@ -209,28 +210,8 @@ pub(crate) async fn monitor(
     let target = resolve_session(client, instance, &session).await?;
     let info = entry::fetch(client, instance).await?;
     let process_id = follow_target(&info, &target)?;
-
-    let mut samples = client.process().subscribe_metrics().await?;
-    let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
-    let forward = tokio::spawn(async move {
-        while let Some(batch) = samples.recv().await {
-            let sample = batch
-                .into_iter()
-                .find(|m| m.id == process_id)
-                .map(|m| MonitorSample {
-                    cpu_pct: m.cpu_pct,
-                    mem_bytes: m.mem_bytes,
-                });
-            if tx.send(sample).is_err() {
-                break;
-            }
-        }
-    });
-
     let title = format!("{} — resources", info.name);
-    let result = tokio::task::spawn_blocking(move || ui::monitor(&title, rx)).await?;
-    forward.abort();
-    result
+    process::monitor_process(client, process_id, title).await
 }
 
 /// The process id to follow: the named session, else the newest running one.

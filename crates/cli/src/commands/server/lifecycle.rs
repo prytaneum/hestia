@@ -6,7 +6,8 @@ use client::proto::error::{EntryKind, EntryTarget};
 use client::Client;
 
 use super::entry;
-use crate::ui::{self, MonitorSample, Spinner, View};
+use crate::commands::process;
+use crate::ui::{self, Spinner, View};
 
 fn server_target(server: &str) -> EntryTarget {
     EntryTarget::new(EntryKind::Server, server)
@@ -87,27 +88,6 @@ pub(crate) async fn monitor(client: &Client, server: &str) -> Result<()> {
     let info = client.server().status(server).await?;
     let process = entry::running_process(&info)
         .with_context(|| format!("server '{}' is not running", info.name))?;
-    let target = process.id;
-
-    let mut samples = client.process().subscribe_metrics().await?;
-    let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
-    let forward = tokio::spawn(async move {
-        while let Some(batch) = samples.recv().await {
-            let sample = batch
-                .into_iter()
-                .find(|m| m.id == target)
-                .map(|m| MonitorSample {
-                    cpu_pct: m.cpu_pct,
-                    mem_bytes: m.mem_bytes,
-                });
-            if tx.send(sample).is_err() {
-                break;
-            }
-        }
-    });
-
     let title = format!("{} — resources", info.name);
-    let result = tokio::task::spawn_blocking(move || ui::monitor(&title, rx)).await?;
-    forward.abort();
-    result
+    process::monitor_process(client, process.id, title).await
 }
