@@ -20,17 +20,11 @@ pub enum EntryRef<'a> {
     Instance(&'a str),
 }
 
-/// What every content and pack flow needs of the entry itself, whichever side
-/// it came from.
-pub struct Entry {
-    pub id: String,
-    pub name: String,
-    pub game_version: String,
-}
-
 /// The entry-shape a content operation needs, independent of whether the entry
 /// is a server or an instance.
 pub(in crate::engine::flows) struct EntryContent {
+    pub(in crate::engine::flows) id: String,
+    pub(in crate::engine::flows) name: String,
     pub(in crate::engine::flows) entry_dir: PathBuf,
     pub(in crate::engine::flows) data_dir: PathBuf,
     pub(in crate::engine::flows) game_version: String,
@@ -189,6 +183,8 @@ mod tests {
 
     pub(super) fn ctx() -> EntryContent {
         EntryContent {
+            id: "entry".to_string(),
+            name: "Entry".to_string(),
             entry_dir: PathBuf::from("/entry"),
             data_dir: PathBuf::from("/entry/data"),
             game_version: "1.21.1".to_string(),

@@ -227,18 +227,18 @@ impl Engine {
         to: &ModpackMove,
         job: &Job<'_>,
     ) -> Result<ModpackOutcome> {
-        let (entry, ctx) = self.content_ctx(target)?;
-        let current = require_pack(&ctx, entry_kind(target), &entry.name)?;
+        let ctx = self.content_ctx(target)?;
+        let current = require_pack(&ctx, entry_kind(target), &ctx.name)?;
         let (resolved, project, mut archive) = self.fetch_update(&current, to, job).await?;
         let allow_downgrade = to.allow_downgrade;
 
         // A pack that moved game version carries its entry with it, through the
         // same in-place update a plain version change uses.
-        if resolved.game_version != entry.game_version {
+        if resolved.game_version != ctx.game_version {
             match target {
                 EntryRef::Instance(_) => {
                     self.update_instance(
-                        &entry.id,
+                        &ctx.id,
                         &resolved.game_version,
                         resolved.loader_version.clone(),
                         allow_downgrade,
@@ -248,7 +248,7 @@ impl Engine {
                 EntryRef::Server(_) => {
                     self.update_server(
                         ServerUpdateSpec {
-                            server: entry.id.clone(),
+                            server: ctx.id.clone(),
                             version: resolved.game_version.clone(),
                             loader_version: resolved.loader_version.clone(),
                             allow_downgrade,
@@ -260,7 +260,7 @@ impl Engine {
             }
         }
         self.apply_to(
-            same_entry(target, &entry.id),
+            same_entry(target, &ctx.id),
             &resolved,
             project.as_ref(),
             &mut archive,
@@ -349,7 +349,7 @@ impl Engine {
         allow_downgrade: bool,
         job: &Job<'_>,
     ) -> Result<PackStep> {
-        let (_, ctx) = self.content_ctx(target)?;
+        let ctx = self.content_ctx(target)?;
         let current = match (pack, modpack::load(&ctx.entry_dir)) {
             (PackPolicy::Move, Some(current)) if current.game_version != version => current,
             _ => return Ok(PackStep::Stayed(Vec::new())),
@@ -385,8 +385,8 @@ impl Engine {
         target: EntryRef<'_>,
         path: &Path,
     ) -> Result<ModpackFilePreview> {
-        let (entry, ctx) = self.content_ctx(target)?;
-        let current = require_pack(&ctx, entry_kind(target), &entry.name)?;
+        let ctx = self.content_ctx(target)?;
+        let current = require_pack(&ctx, entry_kind(target), &ctx.name)?;
         let fetched = self.read_pack_file(path).await?;
         let versions = self.minecraft.versions(ctx.side, &ctx.flavor).await?;
         let (resolved, project, _) = &fetched;
@@ -404,7 +404,7 @@ impl Engine {
     }
 
     pub fn entry_modpack(&self, entry: EntryRef<'_>) -> Result<Option<InstalledModpack>> {
-        let (_, ctx) = self.content_ctx(entry)?;
+        let ctx = self.content_ctx(entry)?;
         Ok(modpack::load(&ctx.entry_dir))
     }
 
@@ -416,7 +416,7 @@ impl Engine {
         entry: EntryRef<'_>,
         game_version: &str,
     ) -> Result<Option<ModpackUpdate>> {
-        let (_, ctx) = self.content_ctx(entry)?;
+        let ctx = self.content_ctx(entry)?;
         let Some(current) = modpack::load(&ctx.entry_dir) else {
             return Ok(None);
         };
@@ -459,8 +459,8 @@ impl Engine {
         target: EntryRef<'_>,
         keep_content: bool,
     ) -> Result<ModpackRemoveResult> {
-        let (entry, ctx) = self.content_ctx(target)?;
-        let pack = require_pack(&ctx, entry_kind(target), &entry.name)?;
+        let ctx = self.content_ctx(target)?;
+        let pack = require_pack(&ctx, entry_kind(target), &ctx.name)?;
         match keep_content {
             true => release_pack(&ctx, &pack),
             false => remove_pack(&ctx, &pack),
@@ -475,13 +475,13 @@ impl Engine {
         archive: &mut pack::Archive,
         job: &Job<'_>,
     ) -> Result<ModpackOutcome> {
-        let (entry, ctx) = self.content_ctx(target)?;
+        let ctx = self.content_ctx(target)?;
         let (pack, failures, warnings) = self
             .apply_pack(&ctx, resolved, project, archive, job)
             .await?;
         Ok(ModpackOutcome {
-            entry: entry.id,
-            entry_name: entry.name,
+            entry: ctx.id,
+            entry_name: ctx.name,
             pack,
             failures,
             warnings,

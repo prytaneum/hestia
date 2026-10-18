@@ -19,8 +19,8 @@ use proto::content::{
     ContentAddSpec, ContentFailure, ContentKind, ContentMatch, InstalledContent, UntrackedFile,
 };
 
+use self::entry::EntryContent;
 pub(in crate::engine) use self::entry::EntryRef;
-use self::entry::{Entry, EntryContent};
 use self::manage::{list_content, remove_content, set_enabled, update_from_file};
 use super::phase_progress;
 use crate::content::install;
@@ -39,7 +39,7 @@ impl Engine {
         spec: &ContentAddSpec,
         on_progress: OnProgress<'_>,
     ) -> Result<(Vec<InstalledContent>, Vec<ContentFailure>)> {
-        let (_, ctx) = self.content_ctx(entry)?;
+        let ctx = self.content_ctx(entry)?;
         self.ensure_accepts(&ctx, spec.kind)?;
         self.add_content(&ctx, spec, on_progress).await
     }
@@ -51,7 +51,7 @@ impl Engine {
         entry: EntryRef<'_>,
         kind: ContentKind,
     ) -> Result<(Vec<InstalledContent>, Vec<UntrackedFile>)> {
-        let (_, ctx) = self.content_ctx(entry)?;
+        let ctx = self.content_ctx(entry)?;
         Ok(list_content(&ctx, kind))
     }
 
@@ -67,7 +67,7 @@ impl Engine {
         items: &[String],
         worlds: &[String],
     ) -> Result<usize> {
-        let (_, ctx) = self.content_ctx(entry)?;
+        let ctx = self.content_ctx(entry)?;
         let index = install::load(&ctx.entry_dir);
         resolve_all(&index, kind, items)?;
         index
@@ -87,7 +87,7 @@ impl Engine {
         item: &str,
         path: &Path,
     ) -> Result<InstalledContent> {
-        let (_, ctx) = self.content_ctx(entry)?;
+        let ctx = self.content_ctx(entry)?;
         update_from_file(&ctx, kind, item, path)
     }
 
@@ -102,7 +102,7 @@ impl Engine {
         items: &[String],
         on_progress: OnProgress<'_>,
     ) -> Result<(Vec<InstalledContent>, Vec<ContentFailure>)> {
-        let (_, ctx) = self.content_ctx(entry)?;
+        let ctx = self.content_ctx(entry)?;
         self.update_content(&ctx, kind, items, "", on_progress)
             .await
     }
@@ -123,7 +123,7 @@ impl Engine {
                 fields: vec![proto::error::Field::Item, proto::error::Field::Version]
             });
         }
-        let (_, ctx) = self.content_ctx(entry)?;
+        let ctx = self.content_ctx(entry)?;
         match source.is_empty() {
             true => {
                 self.repin_content(&ctx, kind, item, version, on_progress)
@@ -142,7 +142,7 @@ impl Engine {
         kind: ContentKind,
         item: &str,
     ) -> Result<Vec<ContentMatch>> {
-        let (_, ctx) = self.content_ctx(entry)?;
+        let ctx = self.content_ctx(entry)?;
         Ok(self
             .content_matches(&ctx, kind, item)
             .await?
@@ -163,7 +163,7 @@ impl Engine {
         enabled: bool,
         worlds: &[String],
     ) -> Result<usize> {
-        let (_, ctx) = self.content_ctx(entry)?;
+        let ctx = self.content_ctx(entry)?;
         set_enabled(&ctx, kind, item, enabled, worlds)
     }
 
@@ -175,7 +175,7 @@ impl Engine {
         entry: EntryRef<'_>,
         kind: ContentKind,
     ) -> Result<Vec<proto::content::ContentUpdate>> {
-        let (_, ctx) = self.content_ctx(entry)?;
+        let ctx = self.content_ctx(entry)?;
         self.content_updates(&ctx, kind).await
     }
 
@@ -184,43 +184,31 @@ impl Engine {
     pub(in crate::engine::flows) fn content_ctx(
         &self,
         entry: EntryRef<'_>,
-    ) -> Result<(Entry, EntryContent)> {
+    ) -> Result<EntryContent> {
         match entry {
             EntryRef::Server(reference) => {
                 let record = self.ready_server(reference)?;
-                let ctx = EntryContent {
+                Ok(EntryContent {
                     entry_dir: self.servers.server_dir(&record),
                     data_dir: self.servers.data_dir(&record),
-                    game_version: record.profile.game_version.clone(),
-                    flavor: record.profile.flavor.clone(),
+                    id: record.id,
+                    name: record.name,
+                    game_version: record.profile.game_version,
+                    flavor: record.profile.flavor,
                     side: Side::Server,
-                };
-                Ok((
-                    Entry {
-                        id: record.id,
-                        name: record.name,
-                        game_version: record.profile.game_version,
-                    },
-                    ctx,
-                ))
+                })
             }
             EntryRef::Instance(reference) => {
                 let record = self.instances.require(reference)?;
-                let ctx = EntryContent {
+                Ok(EntryContent {
                     entry_dir: self.instances.instance_dir(&record),
                     data_dir: self.instances.data_dir(&record),
-                    game_version: record.profile.game_version.clone(),
-                    flavor: record.profile.flavor.clone(),
+                    id: record.id,
+                    name: record.name,
+                    game_version: record.profile.game_version,
+                    flavor: record.profile.flavor,
                     side: Side::Client,
-                };
-                Ok((
-                    Entry {
-                        id: record.id,
-                        name: record.name,
-                        game_version: record.profile.game_version,
-                    },
-                    ctx,
-                ))
+                })
             }
         }
     }
