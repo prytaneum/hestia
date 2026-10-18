@@ -813,7 +813,7 @@ fn merge_properties(path: &Path, entries: &[(&str, String)]) -> Result<()> {
             None => lines.push(entry),
         }
     }
-    std::fs::write(path, lines.join("\n") + "\n")
+    common::atomic::write(path, (lines.join("\n") + "\n").as_bytes())
         .with_context(|| format!("cannot write {}", path.display()))
 }
 
