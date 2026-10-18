@@ -28,20 +28,18 @@ export function CapeCard({
   label,
   texture,
   equipped,
-  disabled,
   onEquip,
 }: {
   label: string;
   texture?: string;
   equipped: boolean;
-  disabled?: boolean;
   onEquip: () => void;
 }) {
   return (
     <motion.button
       variants={listItem}
       type="button"
-      disabled={disabled || equipped}
+      disabled={equipped}
       onClick={onEquip}
       aria-pressed={equipped}
       className={cn(

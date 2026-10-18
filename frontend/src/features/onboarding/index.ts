@@ -1,7 +1,5 @@
 export { GettingStarted } from './checklist';
 export {
-  FRESH,
-  ONBOARDING_KEY,
   type Onboarding,
   type OnboardingState,
   useOnboarding,

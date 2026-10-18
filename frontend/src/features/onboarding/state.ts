@@ -2,7 +2,7 @@ import { usePrefs } from '@/queries/prefs';
 
 import type { TourId } from './tour/registry';
 
-export const ONBOARDING_KEY = 'onboarding';
+const ONBOARDING_KEY = 'onboarding';
 
 export interface OnboardingState {
   welcomed: boolean;
@@ -10,7 +10,7 @@ export interface OnboardingState {
   checklistDismissed: boolean;
 }
 
-export const FRESH: OnboardingState = {
+const FRESH: OnboardingState = {
   welcomed: false,
   seen: [],
   checklistDismissed: false,

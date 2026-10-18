@@ -7,7 +7,6 @@ export {
   isArchive,
   joinPath,
   nameIssue,
-  parentPath,
   pathCrumbs,
 } from './files';
 export {

@@ -7,11 +7,6 @@ export function joinPath(dir: string, name: string): string {
   return dir === '' ? name : `${dir}/${name}`;
 }
 
-export function parentPath(path: string): string {
-  const at = path.lastIndexOf('/');
-  return at < 0 ? '' : path.slice(0, at);
-}
-
 export function baseName(path: string): string {
   return path.slice(path.lastIndexOf('/') + 1);
 }
