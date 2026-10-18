@@ -21,6 +21,7 @@ use proto::modpack::ModpackTarget;
 use proto::transfer::{ArchiveEntry, ArchiveInfo, ExportFormat, ImportFormat};
 use proto::warning::WarningInfo;
 
+use super::pick_name;
 use crate::cancel::Job;
 use crate::content::pack;
 use crate::engine::Engine;
@@ -351,13 +352,6 @@ impl Engine {
 
     pub(super) fn instance_name_taken(&self, name: &str) -> bool {
         registry::name_taken(name, self.instances.list().iter().map(|r| r.name.as_str()))
-    }
-}
-
-fn pick_name(requested: &str, from_archive: &str) -> String {
-    match requested.trim().is_empty() {
-        false => requested.trim().to_string(),
-        true => from_archive.trim().to_string(),
     }
 }
 

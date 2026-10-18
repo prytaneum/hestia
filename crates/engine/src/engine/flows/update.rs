@@ -10,7 +10,7 @@ use super::Engine;
 use crate::download::ProgressFn;
 
 impl Engine {
-    pub fn update_channel(&self) -> UpdateChannel {
+    fn update_channel(&self) -> UpdateChannel {
         self.config.settings().update.channel
     }
 

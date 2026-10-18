@@ -9,7 +9,7 @@ use proto::instance::{InstanceDetails, QuickPlay, WorldInfo};
 use proto::minecraft::{ConfigEntry, ProvisionPhase};
 use proto::warning::WarningInfo;
 
-use super::{effective_name, guard_downgrade, meta_dir};
+use super::{guard_downgrade, meta_dir, pick_name};
 use crate::content::install;
 use crate::engine::Engine;
 use crate::instances::InstanceRecord;
@@ -136,7 +136,7 @@ impl Engine {
                 Some(&self.cache),
             )
             .await?;
-        let name = effective_name(name, flavor, version);
+        let name = pick_name(name, &format!("{flavor}-{version}"));
         let record = self.instances.create(&name, profile)?;
 
         let applied = config.iter().try_for_each(|entry| {

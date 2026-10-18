@@ -59,7 +59,7 @@ pub struct ServerUpdateSpec {
 /// Where the catalogue cache lives — under `meta/`, with the rest of the files
 /// a reclaim is free to delete.
 fn catalogue_dir(home: &Path) -> PathBuf {
-    home.join("meta").join("catalogue")
+    flows::meta_dir(home).join("catalogue")
 }
 
 pub struct Engine {
@@ -98,13 +98,10 @@ impl Engine {
         let instances = Instances::new(data_home.join("instances"));
         let skins = Skins::new(data_home.join("skins"));
         let sync = Sync::new(data_home.join("shared"));
-        let settings = config.settings();
-        content.configure(&settings.content);
-        crate::net::network().set_offline_mode(settings.network.offline);
         crate::net::store::set_root(catalogue_dir(&data_home));
         let update = Update::new(data_home.join("updates"));
         let processes = Arc::new(ProcessSupervisor::new(data_home.join("processes")));
-        Engine {
+        let engine = Engine {
             data_home,
             config,
             cache,
@@ -119,7 +116,9 @@ impl Engine {
             update,
             processes,
             consoles: Consoles::default(),
-        }
+        };
+        engine.apply_settings();
+        engine
     }
 
     pub fn data_home(&self) -> &Path {
@@ -169,10 +168,14 @@ impl Engine {
         value: serde_json::Value,
     ) -> Result<(), crate::config::ConfigError> {
         self.config.set(key, value)?;
+        self.apply_settings();
+        Ok(())
+    }
+
+    fn apply_settings(&self) {
         let settings = self.config.settings();
         self.content.configure(&settings.content);
         crate::net::network().set_offline_mode(settings.network.offline);
-        Ok(())
     }
 
     /// Reachability, as the daemon reads and publishes it.

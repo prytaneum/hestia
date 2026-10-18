@@ -9,7 +9,7 @@ use proto::minecraft::ProvisionPhase;
 use proto::server::{JvmArgsSource, ServerDetails, ServerPingResult};
 use proto::warning::WarningInfo;
 
-use super::{effective_name, guard_downgrade, meta_dir, phase_progress};
+use super::{guard_downgrade, meta_dir, phase_progress, pick_name};
 use crate::content::install;
 use crate::engine::{Engine, ServerCreateSpec, ServerUpdateSpec};
 use crate::minecraft::launch::{JavaSettings, LaunchPlan};
@@ -44,7 +44,7 @@ impl Engine {
                 Some(&self.cache),
             )
             .await?;
-        let name = effective_name(&spec.name, &spec.flavor, &spec.version);
+        let name = pick_name(&spec.name, &format!("{}-{}", spec.flavor, spec.version));
         // Before the record exists: a cancel up to here leaves nothing at all,
         // not even a port claim.
         on_progress.check()?;

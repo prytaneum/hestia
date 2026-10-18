@@ -98,11 +98,10 @@ fn guard_downgrade(
     Ok(())
 }
 
-fn effective_name(name: &str, flavor: &str, version: &str) -> String {
-    if name.trim().is_empty() {
-        format!("{flavor}-{version}")
-    } else {
-        name.trim().to_string()
+fn pick_name(requested: &str, fallback: &str) -> String {
+    match requested.trim().is_empty() {
+        false => requested.trim().to_string(),
+        true => fallback.trim().to_string(),
     }
 }
 
@@ -110,7 +109,7 @@ fn effective_name(name: &str, flavor: &str, version: &str) -> String {
 /// assets, natives) — the Modrinth layout, keeping the data home itself to
 /// user-facing entries and launcher internals. Also where a flavor that builds
 /// its own artifacts works, since that build belongs to no single entry.
-fn meta_dir(home: &Path) -> PathBuf {
+pub(super) fn meta_dir(home: &Path) -> PathBuf {
     home.join("meta")
 }
 
