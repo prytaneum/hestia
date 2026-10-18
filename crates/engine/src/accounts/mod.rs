@@ -375,11 +375,14 @@ impl Accounts {
             return Err(e);
         }
         let mut file = load(path);
-        if let Some(existing) = file.accounts.iter_mut().find(|a| a.uuid == account.uuid) {
-            *existing = account.clone();
-        } else {
-            file.accounts.push(account.clone());
-        }
+        let Some(existing) = file.accounts.iter_mut().find(|a| a.uuid == account.uuid) else {
+            tracing::debug!(uuid = %account.uuid, "account removed during refresh; rotated tokens discarded");
+            return Err(proto::error::ErrorInfo::AccountNotFound {
+                reference: reference.to_string(),
+            }
+            .into());
+        };
+        *existing = account.clone();
         save(path, &file)?;
         Ok(AccessToken {
             token: account.access_token,
