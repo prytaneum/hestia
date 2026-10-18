@@ -12,8 +12,6 @@
 //! entry-first like every other per-entry verb: `hestia instance <name> modpack
 //! update`.
 
-use std::sync::Arc;
-
 use anyhow::{bail, Context, Result};
 use clap::Subcommand;
 use client::proto::content::{ContentFailure, ContentKind, SearchQuery, SearchSort};
@@ -139,24 +137,24 @@ pub async fn install(client: &Client, args: InstallArgs) -> Result<()> {
     let to_server =
         args.server || matches!(&args.into, Some(entry) if is_server(client, entry).await?);
 
-    let reporter = Arc::new(ProvisionReporter::new());
-    let progress = reporter.clone();
-    let done = match to_server {
-        true => {
-            let eula = args.eula || confirm_eula(&args)?;
+    let done = if to_server {
+        let eula = args.eula || confirm_eula(&args)?;
+        ProvisionReporter::run(None, async |on_progress| {
             client
                 .modpack()
-                .install_server(pack, target, eula, args.port, move |p| progress.update(p))
+                .install_server(pack, target, eula, args.port, on_progress)
                 .await
-        }
-        false => {
+        })
+        .await
+    } else {
+        ProvisionReporter::run(None, async |on_progress| {
             client
                 .modpack()
-                .install_instance(pack, target, move |p| progress.update(p))
+                .install_instance(pack, target, on_progress)
                 .await
-        }
+        })
+        .await
     };
-    reporter.finish();
     report(done?, to_server)
 }
 
@@ -314,14 +312,11 @@ fn pack_file(given: &str) -> Option<Result<String>> {
 }
 
 pub async fn update(client: &Client, entry: &EntryTarget, to: ModpackMove) -> Result<()> {
-    let reporter = Arc::new(ProvisionReporter::new());
-    let progress = reporter.clone();
-    let done = client
-        .modpack()
-        .update(entry, to, move |p| progress.update(p))
-        .await;
-    reporter.finish();
-    report(done?, entry.kind == EntryKind::Server)
+    let done = ProvisionReporter::run(None, async |on_progress| {
+        client.modpack().update(entry, to, on_progress).await
+    })
+    .await?;
+    report(done, entry.kind == EntryKind::Server)
 }
 
 /// Interactive fallback for a `remove` given neither `--keep` nor `--all`;

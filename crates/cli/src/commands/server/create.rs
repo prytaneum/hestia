@@ -1,8 +1,6 @@
 //! `hestia server create` — the wizard for whatever is missing, or the fully
 //! specified flag path, and the create-time settings.
 
-use std::sync::Arc;
-
 use anyhow::{bail, Context, Result};
 use client::proto::error::EntryKind;
 use client::proto::minecraft::ConfigEntry;
@@ -111,8 +109,6 @@ pub(super) async fn run(client: &Client, args: CreateArgs) -> Result<()> {
         args.prop,
     )?;
 
-    let reporter = Arc::new(ProvisionReporter::new());
-    let progress = reporter.clone();
     let params = ServerCreateParams {
         name,
         flavor,
@@ -123,12 +119,10 @@ pub(super) async fn run(client: &Client, args: CreateArgs) -> Result<()> {
         config,
         id: String::new(),
     };
-    let result = client
-        .server()
-        .create(params, move |p| progress.update(p))
-        .await;
-    reporter.finish();
-    let done = result?;
+    let done = ProvisionReporter::run(None, async |on_progress| {
+        client.server().create(params, on_progress).await
+    })
+    .await?;
     ui::show(View::line(format!("server '{}' created", done.server.name)))?;
     entry::show_status(&done.server, None)?;
     ui::show_warnings(&done.warnings)

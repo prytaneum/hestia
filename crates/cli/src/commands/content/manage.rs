@@ -1,8 +1,6 @@
 //! The management half: install, list, remove, and update content inside a
 //! server or an instance over the daemon.
 
-use std::sync::Arc;
-
 use anyhow::{bail, Context, Result};
 use clap::{Args, Subcommand};
 use client::proto::content::{
@@ -316,14 +314,10 @@ pub(super) async fn install_spec(
     target: &EntryTarget,
     spec: ContentAddSpec,
 ) -> Result<(Vec<InstalledContent>, Vec<ContentFailure>)> {
-    let reporter = Arc::new(ProvisionReporter::new());
-    let progress = reporter.clone();
-    let result = client
-        .content()
-        .add(target, spec, move |p| progress.update(p))
-        .await;
-    reporter.finish();
-    let done = result?;
+    let done = ProvisionReporter::run(None, async |on_progress| {
+        client.content().add(target, spec, on_progress).await
+    })
+    .await?;
     Ok((done.items, done.failures))
 }
 
@@ -433,19 +427,16 @@ async fn update(
     let EntryInfo { id, name, .. } = resolve_entry(client, entry, reference).await?;
     let target = EntryTarget::new(entry, id);
 
-    let reporter = Arc::new(ProvisionReporter::new());
-    let progress = reporter.clone();
     let ContentDone {
         items: updated,
         failures,
-    } = {
-        let result = client
+    } = ProvisionReporter::run(None, async |on_progress| {
+        client
             .content()
-            .update(&target, kind, &items, &path, move |p| progress.update(p))
-            .await;
-        reporter.finish();
-        result?
-    };
+            .update(&target, kind, &items, &path, on_progress)
+            .await
+    })
+    .await?;
 
     for content in &updated {
         let line = match path.is_empty() {
@@ -537,18 +528,13 @@ async fn set_version(
     let EntryInfo { id, name, .. } = resolve_entry(client, entry, reference).await?;
     let target = EntryTarget::new(entry, id);
 
-    let reporter = Arc::new(ProvisionReporter::new());
-    let progress = reporter.clone();
-    let updated = {
-        let result = client
+    let updated = ProvisionReporter::run(None, async |on_progress| {
+        client
             .content()
-            .set_version(&target, kind, &item, &version, &source, move |p| {
-                progress.update(p)
-            })
-            .await;
-        reporter.finish();
-        result?
-    };
+            .set_version(&target, kind, &item, &version, &source, on_progress)
+            .await
+    })
+    .await?;
 
     if updated.is_empty() {
         return ui::show(View::note(format!("'{item}' is already at that version")));

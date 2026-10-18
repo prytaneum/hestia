@@ -1,8 +1,6 @@
 //! Launching an instance and driving it through the supervisor: launch, stop,
 //! restart, remove, and its captured output.
 
-use std::sync::Arc;
-
 use anyhow::{bail, Context, Result};
 use client::proto::error::{EntryKind, EntryTarget};
 use client::proto::instance::{InstanceLaunchDone, QuickPlay, Replace};
@@ -60,23 +58,23 @@ pub struct Launch<'a> {
 async fn launch_once(client: &Client, options: &Launch<'_>) -> Result<InstanceLaunchDone> {
     let mut retried = false;
     loop {
-        let reporter = Arc::new(ProvisionReporter::new());
-        let progress = reporter.clone();
-        let result = client
-            .instance()
-            .launch(
-                client::LaunchOptions {
-                    instance: options.reference,
-                    account: options.account,
-                    new_session: options.new_session,
-                    quick_play: options.quick_play.clone(),
-                    offline: options.offline,
-                    replace: options.replace.clone(),
-                },
-                move |p| progress.update(p),
-            )
-            .await;
-        reporter.finish();
+        let result = ProvisionReporter::run(None, async |on_progress| {
+            client
+                .instance()
+                .launch(
+                    client::LaunchOptions {
+                        instance: options.reference,
+                        account: options.account,
+                        new_session: options.new_session,
+                        quick_play: options.quick_play.clone(),
+                        offline: options.offline,
+                        replace: options.replace.clone(),
+                    },
+                    on_progress,
+                )
+                .await
+        })
+        .await;
         match result {
             Ok(launched) => return Ok(launched),
             Err(e) if is_unauthorized(&e) => {

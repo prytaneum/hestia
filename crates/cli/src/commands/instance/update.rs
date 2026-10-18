@@ -1,8 +1,6 @@
 //! `hestia instance update` — move a stopped instance to another version. The
 //! new files download at the next launch; a downgrade confirms first.
 
-use std::sync::Arc;
-
 use anyhow::Result;
 use client::proto::error::EntryKind;
 use client::proto::instance::InstanceUpdateParams;
@@ -37,8 +35,6 @@ pub(super) async fn run(
         )?;
     }
 
-    let reporter = Arc::new(ProvisionReporter::new());
-    let progress = reporter.clone();
     let params = InstanceUpdateParams {
         instance: info.id,
         version,
@@ -47,12 +43,10 @@ pub(super) async fn run(
         pack: modpack::pack_policy(keep_pack),
         id: String::new(),
     };
-    let result = client
-        .instance()
-        .update(params, move |p| progress.update(p))
-        .await;
-    reporter.finish();
-    let done = result?;
+    let done = ProvisionReporter::run(None, async |on_progress| {
+        client.instance().update(params, on_progress).await
+    })
+    .await?;
     ui::show(View::line(format!(
         "instance '{}' updated to {} (files download at the next launch)",
         done.instance.name, done.instance.game_version

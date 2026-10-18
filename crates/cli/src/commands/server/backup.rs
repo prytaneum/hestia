@@ -2,8 +2,6 @@
 //! surface. Create and restore render live progress; restore confirms before
 //! replacing the current data. Scheduled backups are `server task backup`.
 
-use std::sync::Arc;
-
 use anyhow::Result;
 use clap::Subcommand;
 use client::Client;
@@ -40,15 +38,10 @@ pub(super) async fn run(client: &Client, server: &str, cmd: BackupCmd) -> Result
     match cmd {
         BackupCmd::Create => {
             let info = entry::pick_server(client.server().list().await?, Some(server.to_string()))?;
-            let reporter = Arc::new(ProvisionReporter::new());
-            reporter.update(&mc::backup_phase());
-            let progress = reporter.clone();
-            let result = client
-                .server()
-                .backup_create(&info.id, move |p| progress.update(p))
-                .await;
-            reporter.finish();
-            let backup = result?;
+            let backup = ProvisionReporter::run(Some(mc::backup_phase()), async |on_progress| {
+                client.server().backup_create(&info.id, on_progress).await
+            })
+            .await?;
             ui::show(View::line(format!(
                 "backup '{}' of '{}' created ({})",
                 backup.id,
@@ -73,15 +66,13 @@ pub(super) async fn run(client: &Client, server: &str, cmd: BackupCmd) -> Result
             if !force {
                 mc::confirm_restore(&info.name, "world and settings", &backup)?;
             }
-            let reporter = Arc::new(ProvisionReporter::new());
-            reporter.update(&mc::restore_phase());
-            let progress = reporter.clone();
-            let result = client
-                .server()
-                .backup_restore(&info.id, &backup.id, move |p| progress.update(p))
-                .await;
-            reporter.finish();
-            result?;
+            ProvisionReporter::run(Some(mc::restore_phase()), async |on_progress| {
+                client
+                    .server()
+                    .backup_restore(&info.id, &backup.id, on_progress)
+                    .await
+            })
+            .await?;
             ui::show(View::line(format!(
                 "backup '{}' restored onto '{}'",
                 backup.id, info.name

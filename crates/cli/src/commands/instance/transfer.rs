@@ -7,7 +7,6 @@
 //! expects rather than whatever the daemon's cwd happens to be.
 
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
 
 use anyhow::{bail, Context, Result};
 use client::proto::transfer::{ArchiveInfo, ExportFormat, ImportFormat};
@@ -32,16 +31,13 @@ pub(super) async fn export(
         None => String::new(),
     };
 
-    let reporter = Arc::new(ProvisionReporter::new());
-    let progress = reporter.clone();
-    let exported = client
-        .transfer()
-        .export(&info.id, format, &destination, exclude, move |p| {
-            progress.update(p)
-        })
-        .await;
-    reporter.finish();
-    let exported = exported?;
+    let exported = ProvisionReporter::run(None, async |on_progress| {
+        client
+            .transfer()
+            .export(&info.id, format, &destination, exclude, on_progress)
+            .await
+    })
+    .await?;
 
     ui::show(View::line(format!(
         "exported '{}' to {} ({} file(s), {})",
@@ -67,14 +63,10 @@ pub(super) async fn import(client: &Client, path: PathBuf, name: Option<String>)
     ui::show(View::line(describe(&archive)))?;
     let name = pick_name(&archive, name)?;
 
-    let reporter = Arc::new(ProvisionReporter::new());
-    let progress = reporter.clone();
-    let imported = client
-        .transfer()
-        .import(&path, &name, move |p| progress.update(p))
-        .await;
-    reporter.finish();
-    let imported = imported?;
+    let imported = ProvisionReporter::run(None, async |on_progress| {
+        client.transfer().import(&path, &name, on_progress).await
+    })
+    .await?;
 
     ui::show(View::line(format!(
         "imported '{}' ({} {})",

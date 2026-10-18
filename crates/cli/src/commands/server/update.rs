@@ -2,8 +2,6 @@
 //! confirms a restart, which the daemon performs around the update; a downgrade
 //! confirms separately.
 
-use std::sync::Arc;
-
 use anyhow::{bail, Context, Result};
 use client::proto::error::EntryKind;
 use client::proto::server::ServerUpdateParams;
@@ -42,8 +40,6 @@ pub(super) async fn run(
             &version,
         )?;
     }
-    let reporter = Arc::new(ProvisionReporter::new());
-    let progress = reporter.clone();
     let params = ServerUpdateParams {
         server: info.id,
         version,
@@ -53,12 +49,10 @@ pub(super) async fn run(
         pack: modpack::pack_policy(keep_pack),
         id: String::new(),
     };
-    let result = client
-        .server()
-        .update(params, move |p| progress.update(p))
-        .await;
-    reporter.finish();
-    let done = result?;
+    let done = ProvisionReporter::run(None, async |on_progress| {
+        client.server().update(params, on_progress).await
+    })
+    .await?;
     ui::show(View::line(format!(
         "server '{}' updated to {}",
         done.server.name, done.server.game_version

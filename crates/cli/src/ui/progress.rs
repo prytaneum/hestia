@@ -214,6 +214,8 @@ impl ByteReporter {
     }
 }
 
+pub type OnProgress = Box<dyn Fn(&ProvisionProgress) + Send + Sync>;
+
 /// Reports provisioning progress (server create / instance launch): a live
 /// gauge on a terminal, one line per phase when stderr is redirected. Byte
 /// phases (java, jars) show sizes and throughput; count phases (libraries,
@@ -226,7 +228,7 @@ pub struct ProvisionReporter {
 }
 
 impl ProvisionReporter {
-    pub fn new() -> Self {
+    fn new() -> Self {
         Self {
             animator: Animator::start(View::Spinner(
                 provision_label(ProvisionPhase::Resolving).into(),
@@ -235,6 +237,22 @@ impl ProvisionReporter {
             last_phase: Mutex::new(None),
             last_detail: Mutex::new(String::new()),
         }
+    }
+
+    /// Shows progress while `work` runs and clears it afterwards, success or
+    /// not. `initial` seeds the display before the daemon's first event.
+    pub async fn run<T>(
+        initial: Option<ProvisionProgress>,
+        work: impl AsyncFnOnce(OnProgress) -> T,
+    ) -> T {
+        let reporter = Arc::new(Self::new());
+        if let Some(initial) = &initial {
+            reporter.update(initial);
+        }
+        let progress = reporter.clone();
+        let result = work(Box::new(move |p| progress.update(p))).await;
+        reporter.finish();
+        result
     }
 
     /// Redirected: print each new thing a long step says, not just its phase.
@@ -249,7 +267,7 @@ impl ProvisionReporter {
         }
     }
 
-    pub fn update(&self, progress: &ProvisionProgress) {
+    fn update(&self, progress: &ProvisionProgress) {
         let phase_changed = {
             let mut last = self.last_phase.lock().unwrap();
             let changed = *last != Some(progress.phase);
@@ -304,7 +322,7 @@ impl ProvisionReporter {
     }
 
     /// Clear the gauge so a following message prints on a clean line.
-    pub fn finish(&self) {
+    fn finish(&self) {
         if let Some(animator) = &self.animator {
             animator.stop();
         }
