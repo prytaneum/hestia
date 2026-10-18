@@ -64,10 +64,9 @@ runs ([0087](../decisions/0087-the-data-home-is-fixed-for-a-daemon-process.md)).
 ### Startup reconciliation
 
 No job survives a daemon stop, so anything half-finished on disk at boot belongs
-to a job that will never come back. `Engine::recover()` and
-`Engine::reclaim_temp()` run before the daemon serves — and again after a
-data-home change, since the new home's leftovers are no more claimed than the old
-one's.
+to a job that will never come back. the daemon calls
+`processes().recover()` and then `Engine::recover()` once at start, before it
+serves. `Engine::recover()` runs `reclaim_temp` and the server phase reconcile.
 
 | Pass | What it settles |
 |---|---|
@@ -194,8 +193,7 @@ them wrong.
 beside a `runtime.json` record. Listing scans the directory — the disk is the
 registry.
 
-`JavaProvider` is the catalogue seam; `adoptium` (Eclipse Temurin) is the shipped
-default. `install()` runs a blocking pipeline:
+`java::adoptium` (Eclipse Temurin) is the one catalogue and is called directly. `install()` runs a blocking pipeline:
 
 ```mermaid
 flowchart LR

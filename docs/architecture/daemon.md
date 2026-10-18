@@ -11,7 +11,7 @@ boundary a compile-time fact rather than a convention.
 flowchart TB
     subgraph boot["boot"]
         MAIN["main.rs<br/><i>clap · logging · dispatch</i>"]
-        REC["engine.recover()<br/>engine.reclaim_temp()"]
+        REC["processes().recover()<br/>engine.recover()"]
         BIND["bind endpoint"]
     end
 

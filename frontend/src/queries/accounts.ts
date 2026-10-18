@@ -1,8 +1,8 @@
 /**
- * `account.*` — queries/mutations plus their 1:1 hooks. Sign-in is the
- * two-step flow: `useBeginLogin` yields what the user must act on (the sisu
- * URL, or a device code), `useCompleteLogin` blocks until the account is
- * stored — hence its long-lived pending state.
+ * `account.*` — queries/mutations, and `useAccounts` over them. Sign-in is a
+ * two-step flow: begin yields what the user must act on (the sisu URL, or a
+ * device code), complete blocks until the account is stored — hence its
+ * long-lived pending state.
  */
 import type { QueryClient } from '@tanstack/react-query';
 import {

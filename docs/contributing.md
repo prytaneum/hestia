@@ -454,7 +454,7 @@ only one side renders goes in `server.*` or
 `entry_settings.remove_title` — since paraglide flattens a dotted key to underscores and the two spellings compile to
 one identifier.
 
-Add the key to **every** locale, and run `bun run test`: the guard (`frontend/tests/messages.test.ts`) fails a locale
+Add the key to **every** locale, and run `bun run test`: the guard (`frontend/tests/unit/messages.test.ts`) fails a locale
 that has fallen behind, a translation whose `{placeholders}` differ, a referenced key that does not exist, and a defined
 key with no call site. A key reached dynamically (``m[`error.kind.${kind}`]``) has no literal call site, so its table
 must be listed in that test's `DYNAMIC_PREFIXES` — otherwise the whole table reads as dead.

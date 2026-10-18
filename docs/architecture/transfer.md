@@ -78,7 +78,7 @@ The exclusion rules are shared by every exporter
 one answer, and two writers deciding it separately is how a format quietly ships
 somebody's crash reports.
 
-Left out, following Prism's own export defaults plus two of hestia's own:
+Left out, following Prism's own export defaults plus hestia's own:
 
 | Skipped | Why |
 |---|---|
@@ -86,6 +86,8 @@ Left out, following Prism's own export defaults plus two of hestia's own:
 | `data/.cache`, `data/.fabric`, `data/.quilt` | loader caches, rebuilt on launch |
 | `.DS_Store`, `thumbs.db`, `session.lock` | OS turds and a transient world lock |
 | `*.part`, `.discard-*` | something was mid-write |
+| `backups/` | server archives, not the instance |
+| `recent.json` | where and when its owner played |
 | `instance.json` | the record travels in the manifest instead |
 | the `data/` **mirror** of a pool item | the managed copy is the record; the mirror is re-made at every launch ([0013](../decisions/0013-managed-dir-of-record.md)) |
 

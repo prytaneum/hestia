@@ -10,9 +10,9 @@ Three layers, deliberately separate:
 
 ```mermaid
 flowchart TD
-    SRC["<b>sources</b> — content/<br/>search · project · versions · resolve<br/><i>Modrinth today; the trait is the seam</i>"]
-    INST["<b>install</b> — content/install/<br/>managed dir + content.json provenance + data/ mirror"]
-    PACK["<b>modpacks</b> — content/mrpack · modpack<br/>the archive format, and which files a pack owns"]
+    SRC["<b>sources</b> — content/<br/>search · project · versions · resolve<br/><i>Modrinth · CurseForge; the trait is the seam</i>"]
+    INST["<b>install</b> — content/install.rs<br/>managed dir + content.json provenance + data/ mirror"]
+    PACK["<b>modpacks</b> — content/pack · modpack · transfer/mrpack<br/>the archive format, and which files a pack owns"]
 
     SRC --> INST
     PACK --> INST
@@ -328,7 +328,7 @@ pack policy (`move` by default, or `keep`). With `move` the daemon asks the same
 `entry_modpack_update` for the pack version built for the target game version and
 runs one job: a pack update when there is one, the plain version change plus a
 `PackNotMoved` warning when the pack has no build for the target
-([0086](../decisions/0088-the-daemon-sequences-a-version-change.md)). The
+([0088](../decisions/0088-the-daemon-sequences-a-version-change.md)). The
 `gameVersion` of `modpack.check_update` stays as the preview a front-end shows
 before the request.
 

@@ -2,7 +2,8 @@
  * The React Query layer over `../api`, one module per domain mirroring the
  * API namespaces 1:1. Each domain exports its `queryOptions`/mutation
  * factories (`serverQueries`, `serverMutations`, …) — usable directly in
- * router loaders and `useMutation` — plus a thin hook per API function.
+ * router loaders and `useMutation` — plus named hooks only where a factory
+ * cannot express the behaviour.
  * Cross-cutting pieces: the `queryClient` singleton, the key factory, the
  * global job store, the daemon-event invalidation feed, and the streaming
  * hooks (`useConnection`, `useDaemonEvent`, log following).

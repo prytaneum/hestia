@@ -184,6 +184,9 @@ each needs something only the shell process has:
 | `icons_list`, `icon_set\|remove`, `icon_fetch`, `icon_set_bytes`, `icon_config` (`icons.rs`) | a picked image is copied to `<data_home>/icons/<entry-id>.<ext>` so it survives the original moving. `icon_fetch` downloads a modpack's icon there when an entry is created from the pack. `icon_set_bytes` stores the PNG the webview baked on a 256px canvas from a background and a symbol (the randomized icon a wizard-created entry starts with, or the editor's pick), format-sniffed like a fetch, with the sidecar JSON `icon_config` reads back. The webview loads them over the asset protocol, whose scope is widened to that directory per call |
 | `crash_report`, `log_write` (`diagnostics.rs`) | a webview error kills the UI without touching the Rust stack, so the shell records it into the same crash directory the daemon writes to. `log_write` routes console logging into the process `tracing` subscriber under the `ui` target |
 | `open_path`, `open_url` (`opener.rs`) | the host's default handler has to start with the host's environment, which inside an AppImage is not the shell's; `tauri-plugin-opener` passes the shell's on ([0080](../decisions/0080-only-the-shell-runs-in-the-appimage-environment.md)) |
+| `screenshots_allow` (`screenshots.rs`) | widens the asset protocol's scope to an instance's own screenshots folder, which only the shell can do |
+| `pending_archive` (`open.rs`) | hands the webview the `.hestia` archive the app was opened with, once |
+| `ready` (`splash.rs`) | the webview reports it has painted, which reveals the window |
 | `start_daemon` (`bridge.rs`) | the `Client::start()` spawn path behind the offline overlay's start button |
 | `relaunch_daemon` (`bridge.rs`) | the same spawn, after a restart or a data-home move: it waits for the stopping daemon's connection to close first, since the endpoint is shared and a start before then would reach the daemon on its way out |
 
@@ -365,7 +368,7 @@ Nest with objects rather than underscores — paraglide flattens a dotted key to
 underscores, so `entry_settings.x` and `entry.settings_x` would compile to one
 identifier.
 
-The guard is a test, not a convention (`frontend/tests/messages.test.ts`): every
+The guard is a test, not a convention (`frontend/tests/unit/messages.test.ts`): every
 locale must cover the base locale exactly and interpolate the same
 `{placeholders}`, every referenced key must exist, and every defined key must
 have a call site. Dynamically reached tables must be declared in

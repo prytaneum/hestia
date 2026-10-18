@@ -49,9 +49,9 @@ sequenceDiagram
     D-->>F: stored account { uuid, name }
 ```
 
-The same signed tail runs again on every `access_token()` call, which is how
-token rotation works — a launch always gets a fresh token, and the front-end
-never sees one.
+`access_token()` runs the same signed tail to rotate a token, but only when it is
+within 5 minutes of expiry; when Microsoft is unreachable it yields the stored
+token flagged stale. The front-end never sees a token.
 
 - `accounts/microsoft.rs` — the HTTP steps (private to the module).
 - `accounts/signing.rs` — Xbox request signing: the proof key and the

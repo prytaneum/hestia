@@ -1,5 +1,4 @@
-//! Incremental SHA-1 / SHA-256 hashing, the native equivalent of the C++
-//! `Hasher`. One definition every consumer (downloader, cache) verifies through.
+//! Incremental SHA-1 / SHA-256 hashing. One definition every consumer (downloader, cache) verifies through.
 
 use std::fs::File;
 use std::io::{self, Read};

@@ -55,9 +55,7 @@ An unsolicited daemon→client push is a **`Topic`** — the implementing type *
 its payload. `Empty` is the `{}` payload for channels that take or return
 nothing.
 
-One module per domain: `app`, `health`, `daemon`, `config`, `cache`, `download`,
-`java`, `accounts`, `skins`, `process`, `server`, `instance`, `backup`,
-`content`, `modpack`, `sync`, `update`, `job`, `change`, `events`.
+One module per domain; `crates/proto/src/lib.rs` lists them.
 Three are shared vocabularies rather than domains of their own:
 
 - **`minecraft`** — what the `server` and `instance` domains have in common:
@@ -143,8 +141,8 @@ The one way a front-end drives the daemon.
   desktop's start button and launch).
 - `connect_to(endpoint)` targets an explicit socket.
 
-**`Session`** (`session.rs`) is the connection core, private to the crate: one
-persistent, multiplexed connection whose background reader task fulfils pending
+**`Session`** (`session.rs`) is the connection core, public but normally reached through the facades (the
+desktop uses `call_raw` and `listen`): one persistent, multiplexed connection whose background reader task fulfils pending
 requests by id and routes events to its registered listeners.
 
 | Call | Behaviour |

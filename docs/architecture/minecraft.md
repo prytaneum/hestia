@@ -104,7 +104,7 @@ store is mirrored to a named tree — under `meta/assets/virtual/<id>/`, or the
 instance's own `resources/` for the oldest — and `${game_assets}` points the
 game at it.
 
-Everything is SHA-verified through `Downloader`, with a bounded number of
+Downloads are verified through `Downloader` wherever upstream publishes a hash, with a bounded number of
 concurrent fetches. Because the roots are shared, a second instance on the same
 version costs almost nothing.
 
@@ -130,6 +130,12 @@ world can describe itself rather than being reduced to a folder name
 **`log4j.rs`** generates the per-session logging config each instance launch runs
 under — Log4Shell-safe by construction
 ([0039](../decisions/0039-per-session-log4j-config.md)).
+
+**`ping.rs`** speaks Server List Ping to a managed server on loopback or to a
+host from an instance's multiplayer list. **`servers.rs`** reads and edits that
+list (`servers.dat`, uncompressed NBT the running game rewrites on exit, keeping
+tags Hestia does not know). **`quickplay.rs`** reads the Quick Play log a 1.20+
+client writes, which names the world, server or Realm a session last joined.
 
 ## Flavors that build their own jar
 

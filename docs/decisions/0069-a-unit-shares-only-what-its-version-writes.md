@@ -31,3 +31,9 @@ one direction and guesswork in the other, and a hotbar is not worth a converter
 that silently drops what it cannot map. **Also rejected:** gating hotbars at
 1.20.5 and abandoning older instances, which would stop sharing for the era that
 has the most instances behind it.
+
+## Amended: options has no floor
+
+`options.txt` is no longer gated at 1.13. The options catalogue translates the
+keybind respelling in both directions, so options share across every version;
+the floors that remain are hotbars at 1.12 and the command history at 1.20.2.

@@ -1,6 +1,5 @@
 //! Xbox request signing: an ECDSA P-256 proof key and the FILETIME-stamped
-//! `Signature` header. One cross-platform implementation (`p256`) — the C++ tree
-//! needed an OpenSSL/CNG split; Rust does not.
+//! `Signature` header. One cross-platform implementation (`p256`).
 
 use base64::engine::general_purpose::{STANDARD, URL_SAFE_NO_PAD};
 use base64::Engine as _;
@@ -100,9 +99,7 @@ pub fn xbox_signature_header(
 
 #[cfg(test)]
 mod tests {
-    //! Signing oracle tests. The C++ tree was the byte-diff oracle before the
-    //! cutover; with one cross-platform `p256` signer there is nothing to diff
-    //! against, so these pin the wire-visible envelope layout and lean on ECDSA's
+    //! Signing tests. These pin the wire-visible envelope layout and lean on ECDSA's
     //! RFC 6979 determinism to catch a nonce/serialization regression.
 
     use super::*;

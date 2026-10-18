@@ -306,7 +306,7 @@ never a cross-entry store.
 
 | Unit | File | How two copies settle | Needs |
 |---|---|---|---|
-| `options` | `options.txt` | key by key, in the file the game wrote | 1.13 |
+| `options` | `options.txt` | key by key, in the file the game wrote | — |
 | `servers` | `servers.dat` | row by row, paired against the agreement | — |
 | `commands` | `command_history.txt` | a union, capped at the 50 lines the game keeps | 1.20.2 |
 | `hotbars` | `hotbar.nbt` | slot by slot, one store per item-format era | 1.12 |
@@ -360,9 +360,9 @@ Sharing is refused for nothing else: an arbitrary path is not a sync target,
 because the catalogue exists to name files whose format the launcher can merge
 ([0019](../decisions/0019-sync-is-a-closed-catalogue.md)).
 
-**A unit shares only what its version writes.** 1.13 respelled every keybind, so
-a pre-1.13 instance keeps its own `options.txt`; the command history and the
-creative hotbars simply do not exist before 1.20.2 and 1.12. An instance below a
+**A unit shares only what its version writes.** The command history and the
+creative hotbars simply do not exist before 1.20.2 and 1.12; `options.txt` has no
+floor, since its keybind respelling is translated. An instance below a
 unit's floor is skipped with a warning naming the version that would share it.
 The 1.20.5 item-format break is not a floor but a split: hotbars are stored per
 era, so each side shares with its own and neither writes a file the other cannot

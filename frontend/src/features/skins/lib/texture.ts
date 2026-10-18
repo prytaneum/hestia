@@ -1,7 +1,6 @@
 /**
  * Texture helpers: the shared image-loading cache, the flat cape-front blit
- * for the cape picker, and file reading for uploads. Full-body card renders
- * are posed snapshots in `skin-render` — cards never blit skin layouts here.
+ * for the cape picker, and file reading for uploads.
  */
 import { convertFileSrc } from '@tauri-apps/api/core';
 

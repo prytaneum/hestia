@@ -1,4 +1,4 @@
-/** `daemon.*` — queries/mutations plus their 1:1 hooks. */
+/** `daemon.*` — queries/mutations, and `useDaemon` over them. */
 import { queryOptions, useMutation, useQuery } from '@tanstack/react-query';
 import { useEffect, useReducer } from 'react';
 import { uptime as formatUptime } from '@/lib/format';
