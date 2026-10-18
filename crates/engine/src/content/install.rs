@@ -290,8 +290,6 @@ fn remove_quietly(path: &Path) {
     }
 }
 
-/// Whether `reference` names this item: its project id, slug, filename, or
-/// title (the human-facing ones case-insensitively).
 /// Where in `index` an incoming item lands: the same kind, and either the same
 /// project or the same filename. One rule, because a plain install and a pack
 /// apply must agree on what "already installed" means — a pack supplying a mod
@@ -304,6 +302,8 @@ pub(crate) fn replaces(index: &[InstalledContent], item: &InstalledContent) -> O
     })
 }
 
+/// Whether `reference` names this item: its project id, slug, filename, or
+/// title (the human-facing ones case-insensitively).
 pub(crate) fn matches(item: &InstalledContent, reference: &str) -> bool {
     item.project_id == reference
         || item.filename == reference
