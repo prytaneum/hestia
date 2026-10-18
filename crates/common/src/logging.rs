@@ -13,16 +13,8 @@ use crate::time::LocalTime;
 
 const ENV_FILTER: &str = "HESTIA_LOG";
 
-const CRATES: [&str; 9] = [
-    "hestia",
-    "hestiad",
-    "hestia_desktop",
-    "tray",
-    "common",
-    "client",
-    "engine",
-    "ipc",
-    "proto",
+const CRATES: [&str; 7] = [
+    "hestia", "desktop", "common", "client", "engine", "ipc", "proto",
 ];
 
 const FOREIGN_LEVEL: &str = "warn";
