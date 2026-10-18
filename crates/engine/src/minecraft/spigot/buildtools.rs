@@ -61,7 +61,13 @@ pub async fn ensure(
             request.game_version
         )
     })?;
-    std::fs::copy(&built, &target).with_context(|| format!("cannot place {}", target.display()))?;
+    let staged = common::atomic::staged(&target);
+    std::fs::copy(&built, &staged)
+        .and_then(|_| std::fs::rename(&staged, &target))
+        .inspect_err(|_| {
+            let _ = std::fs::remove_file(&staged);
+        })
+        .with_context(|| format!("cannot place {}", target.display()))?;
     Ok(())
 }
 
