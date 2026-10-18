@@ -108,10 +108,11 @@ impl Skins {
         variant: SkinVariant,
         name: &str,
     ) -> Result<LibraryEntry> {
+        validate_key(key)?;
         validate_skin_png(png)?;
         let dir = self.dir();
         fs::create_dir_all(dir).with_context(|| format!("cannot create {}", dir.display()))?;
-        fs::write(self.blob_path(key), png)?;
+        common::atomic::write(&self.blob_path(key), png)?;
 
         let mut file = load(dir);
         let entry = LibraryEntry {
@@ -136,6 +137,7 @@ impl Skins {
     /// Re-key a row (and its blob) to the texture hash Mojang reported for the
     /// same PNG. A no-op when the keys already agree.
     pub fn rekey(&self, from: &str, to: &str) -> Result<()> {
+        validate_key(to)?;
         if from == to {
             return Ok(());
         }
@@ -230,6 +232,13 @@ fn png_dimensions(data: &[u8]) -> Option<(u32, u32)> {
     Some((width, height))
 }
 
+fn validate_key(key: &str) -> Result<()> {
+    if key.is_empty() || !key.bytes().all(|b| b.is_ascii_alphanumeric()) {
+        bail!("invalid skin texture key");
+    }
+    Ok(())
+}
+
 fn load(dir: &std::path::Path) -> LibraryFile {
     registry::read_record(dir).unwrap_or_default()
 }
@@ -279,28 +288,28 @@ mod tests {
         let skins = Skins::new(dir.path().join("skins"));
 
         let entry = skins
-            .add_keyed("local-key", &png(64, 64), SkinVariant::Slim, "My Skin")
+            .add_keyed("localkey", &png(64, 64), SkinVariant::Slim, "My Skin")
             .unwrap();
         assert_eq!(skins.list().len(), 1);
         assert_eq!(skins.texture(&entry.key).unwrap(), png(64, 64));
 
-        skins.rekey(&entry.key, "mojang-key").unwrap();
+        skins.rekey(&entry.key, "mojangkey").unwrap();
         assert!(skins.entry(&entry.key).is_none());
-        let rekeyed = skins.entry("mojang-key").unwrap();
+        let rekeyed = skins.entry("mojangkey").unwrap();
         assert_eq!(rekeyed.name, "My Skin");
         assert_eq!(rekeyed.variant, SkinVariant::Slim);
-        assert_eq!(skins.texture("mojang-key").unwrap(), png(64, 64));
+        assert_eq!(skins.texture("mojangkey").unwrap(), png(64, 64));
 
         skins
-            .sync_variant("mojang-key", SkinVariant::Classic)
+            .sync_variant("mojangkey", SkinVariant::Classic)
             .unwrap();
         assert_eq!(
-            skins.entry("mojang-key").unwrap().variant,
+            skins.entry("mojangkey").unwrap().variant,
             SkinVariant::Classic
         );
 
         let updated = skins
-            .update("mojang-key", "  Renamed  ", SkinVariant::Slim)
+            .update("mojangkey", "  Renamed  ", SkinVariant::Slim)
             .unwrap()
             .unwrap();
         assert_eq!(updated.name, "Renamed");
@@ -310,8 +319,8 @@ mod tests {
             .unwrap()
             .is_none());
 
-        assert!(skins.remove("mojang-key").unwrap());
-        assert!(!skins.remove("mojang-key").unwrap());
+        assert!(skins.remove("mojangkey").unwrap());
+        assert!(!skins.remove("mojangkey").unwrap());
         assert!(skins.list().is_empty());
         let _ = fs::remove_dir_all(&dir);
     }
