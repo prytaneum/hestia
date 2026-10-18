@@ -46,13 +46,21 @@ impl std::ops::AddAssign for Reclaimed {
 /// deep walk of a data home (an asset store is six figures of files) is not
 /// something to pay for at every start.
 pub fn suffixed(dir: &Path, suffix: &str) -> Reclaimed {
+    reclaim_where(dir, |name| name.ends_with(suffix))
+}
+
+/// Empty a scratch directory of everything, keeping the directory itself.
+pub fn contents(dir: &Path) -> Reclaimed {
+    reclaim_where(dir, |_| true)
+}
+
+fn reclaim_where(dir: &Path, wanted: impl Fn(&str) -> bool) -> Reclaimed {
     let mut freed = Reclaimed::default();
     let Ok(entries) = std::fs::read_dir(dir) else {
         return freed;
     };
     for entry in entries.flatten() {
-        let name = entry.file_name();
-        if !name.to_string_lossy().ends_with(suffix) {
+        if !wanted(&entry.file_name().to_string_lossy()) {
             continue;
         }
         let path = entry.path();
@@ -68,38 +76,6 @@ pub fn suffixed(dir: &Path, suffix: &str) -> Reclaimed {
         };
         match removed {
             Ok(bytes) => {
-                tracing::debug!(path = %path.display(), bytes, "reclaimed an abandoned temp artifact");
-                freed.add(bytes);
-            }
-            Err(e) => {
-                tracing::warn!(path = %path.display(), error = %e, "cannot reclaim a temp artifact")
-            }
-        }
-    }
-    freed
-}
-
-/// Empty a scratch directory of everything, keeping the directory itself.
-pub fn contents(dir: &Path) -> Reclaimed {
-    let mut freed = Reclaimed::default();
-    let Ok(entries) = std::fs::read_dir(dir) else {
-        return freed;
-    };
-    for entry in entries.flatten() {
-        let path = entry.path();
-        let is_dir = entry.file_type().map(|k| k.is_dir()).unwrap_or(false);
-        let bytes = if is_dir {
-            crate::usage::dir_size(&path)
-        } else {
-            entry.metadata().map(|m| m.len()).unwrap_or(0)
-        };
-        let removed = if is_dir {
-            std::fs::remove_dir_all(&path)
-        } else {
-            std::fs::remove_file(&path)
-        };
-        match removed {
-            Ok(()) => {
                 tracing::debug!(path = %path.display(), bytes, "reclaimed an abandoned temp artifact");
                 freed.add(bytes);
             }

@@ -440,16 +440,8 @@ fn check_manifest(text: &str) -> Result<()> {
         tracing::warn!(error = %e, "{MANIFEST} is malformed");
         malformed()
     })?;
-    schema::decode::<Manifest>(value).map_err(|e| match e {
-        schema::SchemaError::FromTheFuture { found, .. } => ErrorInfo::ArchiveTooNew {
-            format: ArchiveFormat::Backup,
-            schema: found,
-        },
-        other => {
-            tracing::warn!(error = %other, "{MANIFEST} cannot be decoded");
-            malformed()
-        }
-    })?;
+    schema::decode::<Manifest>(value)
+        .map_err(|e| schema::archive_error(ArchiveFormat::Backup, e))?;
     Ok(())
 }
 

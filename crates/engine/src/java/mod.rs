@@ -206,7 +206,7 @@ impl Java {
         let archive_owned = paths.archive.clone();
         let staging_owned = paths.staging.clone();
         tokio::task::spawn_blocking(move || {
-            crate::extract::extract_archive(&archive_owned, &staging_owned, |_, _| {})
+            crate::extract::extract_archive(&archive_owned, &staging_owned)
         })
         .await
         .context("extraction task panicked")??;

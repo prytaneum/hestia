@@ -215,9 +215,9 @@ impl Config {
     /// Return the value at a dotted key path, or `UnknownKey` if absent.
     pub fn get(&self, key: &str) -> Result<Value, ConfigError> {
         let current = self.settings.lock().unwrap();
-        let doc = serde_json::to_value(&*current).unwrap_or(Value::Null);
-        find_node(&doc, key)
-            .cloned()
+        let mut doc = serde_json::to_value(&*current).unwrap_or(Value::Null);
+        find_node_mut(&mut doc, key)
+            .map(|node| node.take())
             .ok_or_else(|| ConfigError::UnknownKey(key.to_string()))
     }
 
@@ -270,19 +270,6 @@ fn save_settings(path: &Path, settings: &Settings) -> Result<(), ConfigError> {
 
 // The config keys are kebab-case (`defaults.jvm-args`); the settings serialize
 // camelCase, so each segment is translated to its field name before lookup.
-fn find_node<'a>(root: &'a Value, key: &str) -> Option<&'a Value> {
-    let mut node = root;
-    for segment in key.split('.') {
-        if segment.is_empty() {
-            return None;
-        }
-        node = node
-            .as_object()?
-            .get(&naming::config_key_to_field(segment))?;
-    }
-    Some(node)
-}
-
 fn find_node_mut<'a>(root: &'a mut Value, key: &str) -> Option<&'a mut Value> {
     let mut node = root;
     for segment in key.split('.') {

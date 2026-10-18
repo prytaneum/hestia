@@ -210,11 +210,9 @@ impl FileTree {
         if target.exists() && !target.is_dir() {
             bail!(rejected(to, FileFault::NotADirectory));
         }
-        crate::extract::extract_archive(&source, &target, |_, _| {}).map_err(|e| {
-            ErrorInfo::Io {
-                operation: IoOp::Extract,
-                detail: format!("{from}: {e:#}"),
-            }
+        crate::extract::extract_archive(&source, &target).map_err(|e| ErrorInfo::Io {
+            operation: IoOp::Extract,
+            detail: format!("{from}: {e:#}"),
         })?;
         tracing::info!(from, to, "archive extracted");
         Ok(())

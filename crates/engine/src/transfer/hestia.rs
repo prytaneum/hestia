@@ -52,7 +52,8 @@ impl Document for Manifest {
 
 impl Manifest {
     fn record(&self) -> Result<InstanceRecord> {
-        schema::decode::<InstanceRecord>(self.instance.clone()).map_err(unreadable)
+        schema::decode::<InstanceRecord>(self.instance.clone())
+            .map_err(|e| schema::archive_error(ArchiveFormat::Hestia, e).into())
     }
 }
 
@@ -127,23 +128,8 @@ fn manifest(reader: &mut Reader, prefix: &str) -> Result<Manifest> {
         tracing::warn!(error = %e, "{MANIFEST} is malformed");
         invalid(ArchiveFault::ManifestMalformed)
     })?;
-    schema::decode::<Manifest>(value).map_err(unreadable)
-}
-
-/// An archive is not ours to set aside, so a schema failure is refused by name:
-/// a document from a newer hestia is unsupported, anything else is invalid.
-fn unreadable(error: schema::SchemaError) -> anyhow::Error {
-    match error {
-        schema::SchemaError::FromTheFuture { found, .. } => ErrorInfo::ArchiveTooNew {
-            format: ArchiveFormat::Hestia,
-            schema: found,
-        }
-        .into(),
-        other => {
-            tracing::warn!(error = %other, "{MANIFEST} cannot be decoded");
-            invalid(ArchiveFault::ManifestMalformed).into()
-        }
-    }
+    schema::decode::<Manifest>(value)
+        .map_err(|e| schema::archive_error(ArchiveFormat::Hestia, e).into())
 }
 
 fn invalid(reason: ArchiveFault) -> ErrorInfo {

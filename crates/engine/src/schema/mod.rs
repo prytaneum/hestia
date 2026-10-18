@@ -82,6 +82,28 @@ pub(crate) enum SchemaError {
     NotAnObject { document: &'static str },
 }
 
+/// The refusal an archive's schema failure becomes: a document from a newer
+/// build is unsupported, anything else is a malformed manifest.
+pub(crate) fn archive_error(
+    format: proto::error::ArchiveFormat,
+    error: SchemaError,
+) -> proto::error::ErrorInfo {
+    use proto::error::{ArchiveFault, ErrorInfo};
+    match error {
+        SchemaError::FromTheFuture { found, .. } => ErrorInfo::ArchiveTooNew {
+            format,
+            schema: found,
+        },
+        other => {
+            tracing::warn!(error = %other, "an archive manifest cannot be decoded");
+            ErrorInfo::ArchiveInvalid {
+                format,
+                reason: ArchiveFault::ManifestMalformed,
+            }
+        }
+    }
+}
+
 /// Decode a stored JSON value, refusing one from a newer build. Pure: no file is
 /// read, written or set aside, so a caller that owns a document from somewhere
 /// other than the data home — an archive — applies its own policy to the
