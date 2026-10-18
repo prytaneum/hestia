@@ -28,7 +28,7 @@ impl Reclaimed {
         self.entries == 0
     }
 
-    fn add(&mut self, bytes: u64) {
+    pub(crate) fn add(&mut self, bytes: u64) {
         self.entries += 1;
         self.bytes += bytes;
     }

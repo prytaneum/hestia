@@ -55,6 +55,48 @@ pub fn reclaim(entry_dir: &Path) -> crate::reclaim::Reclaimed {
     crate::reclaim::suffixed(&backups_dir(entry_dir), common::atomic::SUFFIX)
 }
 
+/// Settle what an interrupted restore left beside `data_dir`. A restore sets the
+/// live data aside as `.discard-*` before moving `.restore-*` into place, so a
+/// kill in between leaves the user's only copy in the discard directory: it goes
+/// back when `data_dir` is missing, and is deleted only once `data_dir` exists.
+/// A `.restore-*` is never complete, so it is always dropped.
+pub fn recover(entry_dir: &Path, data_dir: &Path) -> crate::reclaim::Reclaimed {
+    let mut freed = crate::reclaim::Reclaimed::default();
+    let Ok(entries) = std::fs::read_dir(entry_dir) else {
+        return freed;
+    };
+    for entry in entries.flatten() {
+        let name = entry.file_name().to_string_lossy().into_owned();
+        let path = entry.path();
+        if name.starts_with(".discard-") && !data_dir.exists() {
+            match std::fs::rename(&path, data_dir) {
+                Ok(()) => tracing::warn!(
+                    from = %path.display(),
+                    to = %data_dir.display(),
+                    "put back the data an interrupted restore set aside"
+                ),
+                Err(e) => tracing::error!(
+                    path = %path.display(),
+                    error = %e,
+                    "cannot put back the data an interrupted restore set aside"
+                ),
+            }
+        } else if name.starts_with(".discard-") || name.starts_with(".restore-") {
+            let bytes = crate::usage::dir_size(&path);
+            match std::fs::remove_dir_all(&path) {
+                Ok(()) => {
+                    tracing::warn!(path = %path.display(), bytes, "removed a leftover restore directory");
+                    freed.add(bytes);
+                }
+                Err(e) => {
+                    tracing::warn!(path = %path.display(), error = %e, "cannot remove a leftover restore directory")
+                }
+            }
+        }
+    }
+    freed
+}
+
 /// Archive `data_dir` into a new backup under the entry root, skipping the
 /// top-level `exclude` names and Minecraft's transient `session.lock` files.
 /// The archive lands whole or not at all (written through a `.part` temp file).
@@ -302,10 +344,8 @@ pub fn restore(
     let backup =
         find(entry_dir, reference).with_context(|| format!("no backup matches '{reference}'"))?;
     let archive = backups_dir(entry_dir).join(format!("{}{EXTENSION}", backup.id));
+    recover(entry_dir, data_dir);
     let staging = entry_dir.join(format!(".restore-{}", backup.id));
-    if staging.exists() {
-        std::fs::remove_dir_all(&staging).context("cannot clear a stale restore staging")?;
-    }
     std::fs::create_dir_all(&staging)
         .with_context(|| format!("cannot create {}", staging.display()))?;
 
@@ -335,9 +375,6 @@ pub fn restore(
     }
 
     let trash = entry_dir.join(format!(".discard-{}", backup.id));
-    if trash.exists() {
-        std::fs::remove_dir_all(&trash).context("cannot clear a stale discard directory")?;
-    }
     if data_dir.exists() {
         std::fs::rename(data_dir, &trash).context("cannot set the current data aside")?;
     }
@@ -681,6 +718,28 @@ mod tests {
         assert!(create(entry, &missing, BackupKind::Manual, &[], &|_, _| Ok(())).is_err());
         assert!(restore(entry, &entry.join("data"), "ghost", &[], &|_, _| Ok(())).is_err());
         assert!(!remove(entry, "ghost").unwrap());
+    }
+
+    #[test]
+    fn recover_puts_back_set_aside_data_and_drops_leftovers() {
+        let entry_dir = temp_entry("recover");
+        let entry = entry_dir.path();
+        let data = entry.join("data");
+        std::fs::remove_dir_all(&data).unwrap();
+        write(&entry.join(".discard-x/world/level.dat"), "mine");
+        write(&entry.join(".restore-y/partial"), "half");
+
+        recover(entry, &data);
+        assert_eq!(
+            std::fs::read_to_string(data.join("world/level.dat")).unwrap(),
+            "mine"
+        );
+        assert!(!entry.join(".restore-y").exists());
+
+        write(&entry.join(".discard-z/old"), "old");
+        recover(entry, &data);
+        assert!(!entry.join(".discard-z").exists());
+        assert!(data.join("world/level.dat").exists());
     }
 
     #[test]

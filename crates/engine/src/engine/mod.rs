@@ -144,7 +144,9 @@ impl Engine {
         let mut freed = self.java.reclaim();
         freed += crate::reclaim::contents(&self.pack_staging());
         for record in self.servers.list() {
-            freed += crate::backup::reclaim(&self.servers.server_dir(&record));
+            let dir = self.servers.server_dir(&record);
+            freed += crate::backup::reclaim(&dir);
+            freed += crate::backup::recover(&dir, &self.servers.data_dir(&record));
         }
         if !freed.is_empty() {
             tracing::info!(
