@@ -21,7 +21,7 @@ use crate::checksum::hex;
 use microsoft::{
     launcher_login, minecraft_profile, poll_device_code, redeem_code, refresh_oauth,
     request_device_code, request_device_token, sisu_authenticate, sisu_authorize, xsts_authorize,
-    OAuthRejected, OAuthTokens,
+    OAuthRejected, OAuthTokens, XstsToken,
 };
 use signing::{base64url_nopad, random_bytes, ProofKey};
 
@@ -104,6 +104,31 @@ impl Document for AccountsFile {
     const NAME: &'static str = "accounts.json";
 }
 
+impl AccountsFile {
+    fn find(&self, reference: &str) -> Option<&StoredAccount> {
+        self.accounts
+            .iter()
+            .find(|a| a.uuid == reference || a.name == reference)
+    }
+
+    fn default_account(&self) -> Option<&StoredAccount> {
+        self.accounts
+            .iter()
+            .find(|a| a.uuid == self.default_uuid)
+            .or_else(|| self.accounts.first())
+    }
+}
+
+impl From<&StoredAccount> for Account {
+    fn from(stored: &StoredAccount) -> Self {
+        Account {
+            uuid: stored.uuid.clone(),
+            name: stored.name.clone(),
+            needs_reauth: stored.needs_reauth,
+        }
+    }
+}
+
 pub struct Accounts {
     path: PathBuf,
     pending: Mutex<HashMap<String, LoginSession>>,
@@ -124,12 +149,8 @@ impl Accounts {
     pub fn list(&self) -> Vec<Account> {
         load(self.path())
             .accounts
-            .into_iter()
-            .map(|a| Account {
-                uuid: a.uuid,
-                name: a.name,
-                needs_reauth: a.needs_reauth,
-            })
+            .iter()
+            .map(Account::from)
             .collect()
     }
 
@@ -143,14 +164,9 @@ impl Accounts {
     pub fn needs_reauth(&self, reference: &str) -> bool {
         let file = load(self.path());
         let account = if reference.is_empty() {
-            file.accounts
-                .iter()
-                .find(|a| a.uuid == file.default_uuid)
-                .or_else(|| file.accounts.first())
+            file.default_account()
         } else {
-            file.accounts
-                .iter()
-                .find(|a| a.uuid == reference || a.name == reference)
+            file.find(reference)
         };
         account.is_some_and(|a| a.needs_reauth || a.refresh_token.is_empty())
     }
@@ -159,16 +175,7 @@ impl Accounts {
     /// the first signed-in one.
     pub fn default_account(&self) -> Option<Account> {
         let file = load(self.path());
-        let stored = file
-            .accounts
-            .iter()
-            .find(|a| a.uuid == file.default_uuid)
-            .or_else(|| file.accounts.first())?;
-        Some(Account {
-            uuid: stored.uuid.clone(),
-            name: stored.name.clone(),
-            needs_reauth: stored.needs_reauth,
-        })
+        file.default_account().map(Account::from)
     }
 
     /// Make `reference` (name or uuid) the default account. Returns `None` when
@@ -176,16 +183,7 @@ impl Accounts {
     pub fn switch(&self, reference: &str) -> Result<Option<Account>> {
         let path = self.path();
         let mut file = load(path);
-        let Some(chosen) = file
-            .accounts
-            .iter()
-            .find(|a| a.uuid == reference || a.name == reference)
-            .map(|a| Account {
-                uuid: a.uuid.clone(),
-                name: a.name.clone(),
-                needs_reauth: a.needs_reauth,
-            })
-        else {
+        let Some(chosen) = file.find(reference).map(Account::from) else {
             return Ok(None);
         };
         file.default_uuid = chosen.uuid.clone();
@@ -261,18 +259,7 @@ impl Accounts {
 
         let (oauth, xsts) = if session.method == LoginMethod::DeviceCode {
             let oauth = await_device_tokens(&session).await?;
-            let key = ProofKey::generate();
-            let device = request_device_token(&key).await?;
-            let authorization = sisu_authorize(
-                "",
-                &oauth.access_token,
-                &device.token,
-                &key,
-                device.clock_offset,
-            )
-            .await?;
-            let xsts =
-                xsts_authorize(&authorization, &device.token, &key, device.clock_offset).await?;
+            let xsts = device_xsts(&oauth.access_token).await?;
             (oauth, xsts)
         } else {
             let oauth = redeem_code(code, &session.verifier).await?;
@@ -314,15 +301,11 @@ impl Accounts {
             let path = self.path();
             let mut file = load(path);
             file.accounts.retain(|a| a.uuid != record.uuid);
-            file.accounts.push(record);
+            file.accounts.push(record.clone());
             save(path, &file)?;
         }
         tracing::info!(name = %profile.name, uuid = %profile.uuid, "signed in");
-        Ok(Account {
-            uuid: profile.uuid,
-            name: profile.name,
-            needs_reauth: false,
-        })
+        Ok(Account::from(&record))
     }
 
     /// A Minecraft access token for `reference` (uuid or name), rotating the
@@ -336,14 +319,11 @@ impl Accounts {
         let path = self.path();
         let mut account = {
             let file = load(path);
-            file.accounts
-                .into_iter()
-                .find(|a| a.uuid == reference || a.name == reference)
-                .ok_or_else(|| {
-                    anyhow::Error::from(proto::error::ErrorInfo::AccountNotFound {
-                        reference: reference.to_string(),
-                    })
-                })?
+            file.find(reference).cloned().ok_or_else(|| {
+                anyhow::Error::from(proto::error::ErrorInfo::AccountNotFound {
+                    reference: reference.to_string(),
+                })
+            })?
         };
 
         if account.needs_reauth || account.refresh_token.is_empty() {
@@ -430,26 +410,24 @@ async fn await_device_tokens(session: &LoginSession) -> Result<OAuthTokens> {
     bail!(proto::error::ErrorInfo::LoginTimedOut)
 }
 
-async fn rotate_tokens(account: &mut StoredAccount) -> Result<()> {
-    if account.refresh_token.is_empty() {
-        bail!(proto::error::ErrorInfo::SessionExpired {
-            reference: account.name.clone(),
-        });
-    }
-    tracing::debug!(uuid = %account.uuid, "refreshing minecraft token");
-    let oauth = refresh_oauth(&account.refresh_token).await?;
+async fn device_xsts(oauth_access_token: &str) -> Result<XstsToken> {
     let key = ProofKey::generate();
     let device = request_device_token(&key).await?;
     let authorization = sisu_authorize(
         "",
-        &oauth.access_token,
+        oauth_access_token,
         &device.token,
         &key,
         device.clock_offset,
     )
     .await?;
-    let xsts = xsts_authorize(&authorization, &device.token, &key, device.clock_offset).await?;
+    xsts_authorize(&authorization, &device.token, &key, device.clock_offset).await
+}
 
+async fn rotate_tokens(account: &mut StoredAccount) -> Result<()> {
+    tracing::debug!(uuid = %account.uuid, "refreshing minecraft token");
+    let oauth = refresh_oauth(&account.refresh_token).await?;
+    let xsts = device_xsts(&oauth.access_token).await?;
     let minecraft = launcher_login(&xsts).await?;
     account.access_token = minecraft.access_token;
     if !oauth.refresh_token.is_empty() {
