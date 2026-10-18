@@ -283,7 +283,7 @@ impl Runtime {
     /// Ask the serve loop to shut down (the `daemon.stop` handler calls this).
     pub fn request_stop(&self, stop_processes: bool) {
         self.stop_processes.store(stop_processes, Ordering::SeqCst);
-        self.stop.notify_waiters();
+        self.stop.notify_one();
     }
 
     /// Stop on a short delay so the response being sent reaches the client

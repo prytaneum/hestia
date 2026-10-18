@@ -66,7 +66,8 @@ async fn accept_loop(listener: ipc::Listener, router: Arc<Router>, runtime: Arc<
         let (conn, peer) = match listener.accept().await {
             Ok(pair) => pair,
             Err(e) => {
-                tracing::debug!("accept failed: {e}");
+                tracing::warn!("accept failed: {e}");
+                tokio::time::sleep(std::time::Duration::from_millis(50)).await;
                 continue;
             }
         };
