@@ -6,7 +6,7 @@ use std::fs::OpenOptions;
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 
-const SUFFIX: &str = ".part";
+pub const SUFFIX: &str = ".part";
 
 /// `<file name>.part` beside `path`; appended, never substituted, so `a.dat`
 /// and `a.json` cannot share a staging file.

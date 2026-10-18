@@ -24,8 +24,6 @@ const EXTENSION: &str = ".tar.gz";
 /// so a restore refuses an archive from a newer build instead of scattering
 /// whatever it finds into the server's data directory.
 const MANIFEST: &str = "hestia.backup.json";
-/// The in-progress archive: renamed onto the real name only once written whole.
-const PART_SUFFIX: &str = ".part";
 const SESSION_LOCK: &str = "session.lock";
 
 /// Progress for an archive/restore pass: `(files done, files total)`; total
@@ -54,7 +52,7 @@ pub fn backups_dir(entry_dir: &Path) -> PathBuf {
 /// archive is never promoted (the rename is the commit), so one on disk means
 /// the job that was writing it died — see `crate::reclaim`.
 pub fn reclaim(entry_dir: &Path) -> crate::reclaim::Reclaimed {
-    crate::reclaim::suffixed(&backups_dir(entry_dir), PART_SUFFIX)
+    crate::reclaim::suffixed(&backups_dir(entry_dir), common::atomic::SUFFIX)
 }
 
 /// Archive `data_dir` into a new backup under the entry root, skipping the
@@ -86,7 +84,7 @@ pub fn create(
     }
     let id = allocate_id(entry_dir, kind);
     let path = dir.join(format!("{id}{EXTENSION}"));
-    let part = dir.join(format!("{id}{EXTENSION}{PART_SUFFIX}"));
+    let part = common::atomic::staged(&path);
 
     let written = write_archive(&part, data_dir, exclude, on_progress);
     if let Err(e) = written {

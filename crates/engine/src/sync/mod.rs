@@ -112,9 +112,10 @@ impl Sync {
             return Ok(());
         }
         let kept = self.dir().join(BACKUPS).join(id);
-        let staging = kept.join(format!("{file}.part"));
+        let target = kept.join(file);
+        let staging = common::atomic::staged(&target);
         reconcile::copy_file(&source, &staging)?;
-        std::fs::rename(&staging, kept.join(file))
+        std::fs::rename(&staging, &target)
             .with_context(|| format!("cannot keep a copy of {}", source.display()))?;
         for stamped in std::fs::read_dir(&kept).into_iter().flatten().flatten() {
             if stamped.path().is_dir() {

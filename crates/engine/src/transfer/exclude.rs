@@ -57,7 +57,10 @@ impl Rules {
 
     fn skipped(&self, relative: &str) -> bool {
         let name = relative.rsplit('/').next().unwrap_or(relative);
-        if SKIP_NAMES.contains(&name) || name.ends_with(".part") || name.starts_with(".discard-") {
+        if SKIP_NAMES.contains(&name)
+            || name.ends_with(common::atomic::SUFFIX)
+            || name.starts_with(".discard-")
+        {
             return true;
         }
         // The record travels in the manifest, which an import reads before it
