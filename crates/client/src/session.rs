@@ -202,6 +202,19 @@ impl Session {
         }
     }
 
+    /// [`listen`](Self::listen), then subscribe on the daemon. The listener is
+    /// registered first so no event sent after the subscription is missed.
+    pub async fn listen_subscribed(&self, scope: Option<&str>) -> Result<Listener, IpcError> {
+        use proto::events::{EventsSubscribe, EventsSubscribeParams};
+
+        let listener = self.listen(scope);
+        self.call::<EventsSubscribe>(&EventsSubscribeParams {
+            id: scope.unwrap_or_default().to_string(),
+        })
+        .await?;
+        Ok(listener)
+    }
+
     /// Start the job `C` under `id` and block until it settles, handing each
     /// progress payload to `on_progress`. `params` must carry `id` as its job id;
     /// the subscription is taken before the start call so an instant job cannot
@@ -250,11 +263,7 @@ impl Session {
         F: FnOnce() -> Fut,
         Fut: std::future::Future<Output = Result<(), IpcError>>,
     {
-        use proto::events::{EventsSubscribe, EventsSubscribeParams};
-
-        let mut listener = self.listen(Some(id));
-        self.call::<EventsSubscribe>(&EventsSubscribeParams { id: id.to_string() })
-            .await?;
+        let mut listener = self.listen_subscribed(Some(id)).await?;
         start().await?;
 
         while let Some(event) = listener.recv().await {

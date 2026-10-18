@@ -13,7 +13,6 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use client::proto::contract::DEFAULT_TIMEOUT;
-use client::proto::events::{EventsSubscribe, EventsSubscribeParams};
 use client::{Client, IpcError};
 use serde::Serialize;
 use serde_json::Value;
@@ -294,7 +293,7 @@ async fn connect(app: &AppHandle) -> Result<Arc<Client>, CallError> {
 async fn attach(app: &AppHandle, client: Client) -> Result<Arc<Client>, CallError> {
     let client = Arc::new(client);
     let emitter = app.clone();
-    let mut events = client.session().listen(None);
+    let mut events = client.session().listen_subscribed(None).await?;
     tauri::async_runtime::spawn(async move {
         while let Some(event) = events.recv().await {
             let _ = emitter.emit(
@@ -306,10 +305,6 @@ async fn attach(app: &AppHandle, client: Client) -> Result<Arc<Client>, CallErro
             );
         }
     });
-    client
-        .session()
-        .call::<EventsSubscribe>(&EventsSubscribeParams::default())
-        .await?;
     tracing::info!("connected to the daemon");
     Ok(client)
 }
