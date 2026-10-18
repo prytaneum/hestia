@@ -81,15 +81,7 @@ impl Engine {
         let mut kept: Vec<String> = Vec::new();
 
         job.check()?;
-        let owned: HashMap<&str, &ModpackOverride> = previous
-            .as_ref()
-            .map(|p| p.overrides.iter().map(|o| (o.path.as_str(), o)).collect())
-            .unwrap_or_default();
-        // A first install has nothing of the user's to protect, so the pack's
-        // own files win outright, as docker-mc-server's do. Once a pack is
-        // installed, an edited file is the user's and the hash record is what
-        // tells the two apart.
-        let installing = previous.is_none();
+        let ownership = Ownership::of(previous.as_ref());
         let data_dir = ctx.data_dir.clone();
         let pooled = |path: &str| managed_kind(path).filter(|kind| accepts.contains(kind));
         let written = archive.extract_overrides(side, job, |path| {
@@ -100,15 +92,7 @@ impl Engine {
             if let Some(kind) = pooled(path) {
                 return content_target(ctx, kind, filename(path)).ok();
             }
-            let writable = installing
-                || match owned.get(path) {
-                    // Known to the previous pack: only overwrite what is still
-                    // byte-for-byte what we wrote.
-                    Some(previous) => modpack::ours(&data_dir, previous),
-                    // Unknown: an existing file was not put there by a pack, so
-                    // it is the user's and is not ours to replace.
-                    None => !data_dir.join(path).exists(),
-                };
+            let writable = ownership.writable(&data_dir, path, &data_dir.join(path));
             if !writable {
                 kept.push(path.to_string());
             }
@@ -292,10 +276,7 @@ impl Engine {
         patterns: &exclude::OverridePatterns,
         job: &Job<'_>,
     ) -> Vec<ModpackOverride> {
-        let owned: HashMap<&str, &ModpackOverride> = previous
-            .map(|p| p.overrides.iter().map(|o| (o.path.as_str(), o)).collect())
-            .unwrap_or_default();
-        let installing = previous.is_none();
+        let ownership = Ownership::of(previous);
         let mut named = HashSet::new();
         let mut wanted = Vec::new();
         for file in files {
@@ -309,12 +290,7 @@ impl Engine {
                     continue;
                 }
             };
-            let writable = installing
-                || match owned.get(file.path.as_str()) {
-                    Some(previous) => modpack::ours(&ctx.data_dir, previous),
-                    None => !target.exists(),
-                };
-            if writable {
+            if ownership.writable(&ctx.data_dir, &file.path, &target) {
                 wanted.push((*file, target));
             }
         }
@@ -400,6 +376,34 @@ impl Engine {
         }
         pool.commit()?;
         Ok((recorded, failures))
+    }
+}
+
+/// Which game-directory files a pack may write, given the pack installed before it.
+struct Ownership<'a> {
+    installing: bool,
+    owned: HashMap<&'a str, &'a ModpackOverride>,
+}
+
+impl<'a> Ownership<'a> {
+    fn of(previous: Option<&'a InstalledModpack>) -> Self {
+        Ownership {
+            installing: previous.is_none(),
+            owned: previous
+                .map(|p| p.overrides.iter().map(|o| (o.path.as_str(), o)).collect())
+                .unwrap_or_default(),
+        }
+    }
+
+    /// A first install has nothing of the user's to protect, so the pack's own
+    /// files win outright, as docker-mc-server's do. Once a pack is installed,
+    /// an edited file is the user's and the hash record tells the two apart.
+    fn writable(&self, data_dir: &Path, path: &str, target: &Path) -> bool {
+        self.installing
+            || match self.owned.get(path) {
+                Some(previous) => modpack::ours(data_dir, previous),
+                None => !target.exists(),
+            }
     }
 }
 

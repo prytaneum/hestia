@@ -72,21 +72,28 @@ impl Engine {
         })
     }
 
-    /// The flavor a pack's loader names. The registry is the table: a pack's
+    /// The flavor a loader name stands for. The registry is the table: a
     /// loader name *is* hestia's flavor id where the flavor exists, so adding a
-    /// flavor needs no edit here — and a pack pinning one that does not exist is
-    /// refused by name rather than silently installed as vanilla.
+    /// flavor needs no edit here. `None` is a loader no flavor answers to, for
+    /// the caller to refuse by name rather than silently install as vanilla.
+    pub(in crate::engine) fn supported_flavor(&self, side: Side, loader: &str) -> Option<String> {
+        let wanted = match loader.is_empty() {
+            true => "vanilla",
+            false => loader,
+        };
+        self.minecraft
+            .flavors(side)
+            .iter()
+            .any(|f| f.id == wanted)
+            .then(|| wanted.to_string())
+    }
+
     pub(super) fn pack_flavor(&self, resolved: &ResolvedModpack, side: Side) -> Result<String> {
-        let flavors = self.minecraft.flavors(side);
-        let wanted = resolved
-            .loader
-            .as_deref()
-            .filter(|l| !l.is_empty())
-            .unwrap_or("vanilla");
-        match flavors.iter().any(|f| f.id == wanted) {
-            true => Ok(wanted.to_string()),
-            false => bail!(ErrorInfo::ModpackLoaderUnsupported {
-                loader: wanted.to_string()
+        let loader = resolved.loader.as_deref().unwrap_or_default();
+        match self.supported_flavor(side, loader) {
+            Some(flavor) => Ok(flavor),
+            None => bail!(ErrorInfo::ModpackLoaderUnsupported {
+                loader: loader.to_string()
             }),
         }
     }

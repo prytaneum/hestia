@@ -271,13 +271,7 @@ impl Engine {
             .await?;
         let moved = record::resource(
             &item,
-            record::Project {
-                kind: item.kind,
-                project_id: known.project.id.clone(),
-                slug: known.project.slug.clone(),
-                title: known.project.title.clone(),
-                icon_url: known.project.icon_url.clone(),
-            },
+            record::Project::of(item.kind, &known.project),
             release,
         );
         let mut pool = Pool::open(&ctx.entry_dir, &ctx.data_dir, ctx.worlds());

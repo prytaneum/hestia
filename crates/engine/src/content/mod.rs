@@ -54,13 +54,7 @@ impl Identified {
         sha1: String,
     ) -> (record::Project, record::Release) {
         (
-            record::Project {
-                kind,
-                project_id: self.project.id.clone(),
-                slug: self.project.slug.clone(),
-                title: self.project.title.clone(),
-                icon_url: self.project.icon_url.clone(),
-            },
+            record::Project::of(kind, &self.project),
             record::Release {
                 source: self.version.source.clone(),
                 version_id: self.version.id.clone(),

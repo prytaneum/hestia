@@ -316,26 +316,14 @@ impl Engine {
         })
     }
 
-    /// The flavor an archive's loader names, refused by name when there is
-    /// none — the registry is the table, exactly as it is for a modpack, so a
-    /// flavor added later needs no edit here.
     fn archive_flavor(&self, loader: &str) -> Result<String> {
-        let wanted = match loader.is_empty() {
-            true => "vanilla",
-            false => loader,
-        };
-        match self
-            .minecraft
-            .flavors(crate::minecraft::Side::Client)
-            .iter()
-            .any(|f| f.id == wanted)
-        {
-            true => Ok(wanted.to_string()),
-            false => Err(ErrorInfo::ArchiveUnsupported {
-                loader: wanted.to_string(),
-            }
-            .into()),
-        }
+        self.supported_flavor(crate::minecraft::Side::Client, loader)
+            .ok_or_else(|| {
+                ErrorInfo::ArchiveUnsupported {
+                    loader: loader.to_string(),
+                }
+                .into()
+            })
     }
 
     /// Roll back a half-built import. A registered instance whose files never
