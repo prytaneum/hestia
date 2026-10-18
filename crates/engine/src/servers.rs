@@ -172,6 +172,10 @@ impl Servers {
         self.store.get(reference)
     }
 
+    pub fn require(&self, reference: &str) -> Result<ServerRecord> {
+        self.store.require(reference)
+    }
+
     /// Register a new server: allocate its id from the name, claim its game
     /// port, create its directory, and write the (not yet ready) record.
     pub fn create(

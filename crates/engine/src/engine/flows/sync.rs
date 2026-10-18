@@ -4,7 +4,7 @@
 use std::collections::BTreeSet;
 use std::path::Path;
 
-use anyhow::{bail, Context, Result};
+use anyhow::{bail, Result};
 use proto::sync::{
     InstanceSyncStatus, SyncConfig, SyncOption, SyncOverrides, SyncSource, SyncUnit,
 };
@@ -93,11 +93,7 @@ impl Engine {
         let records = self.instances.list();
         let source = match source.trim() {
             "" => self.only_candidate(unit, &records)?,
-            reference => Some(
-                self.instances
-                    .get(reference)
-                    .with_context(|| format!("unknown instance: {reference}"))?,
-            ),
+            reference => Some(self.instances.require(reference)?),
         };
 
         let seeded_from = match &source {
@@ -213,10 +209,7 @@ impl Engine {
         reference: &str,
         mutate: impl FnOnce(&mut SyncOverrides),
     ) -> Result<InstanceSyncStatus> {
-        let record = self
-            .instances
-            .get(reference)
-            .with_context(|| format!("unknown instance: {reference}"))?;
+        let record = self.instances.require(reference)?;
         let mut overrides = record.sharing.clone();
         mutate(&mut overrides);
         let record = self.instances.set_overrides(&record.id, overrides)?;

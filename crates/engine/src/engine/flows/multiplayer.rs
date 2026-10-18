@@ -19,7 +19,7 @@ use crate::minecraft::{ping, servers};
 impl Engine {
     /// The instance's multiplayer list, in the order the game shows it.
     pub fn instance_servers(&self, reference: &str) -> Result<Vec<ServerEntry>> {
-        let record = self.instance_record(reference)?;
+        let record = self.instances.require(reference)?;
         Ok(servers::read(&self.instances.data_dir(&record)))
     }
 
@@ -33,7 +33,7 @@ impl Engine {
         target: &str,
         entry: ServerEntry,
     ) -> Result<ServerListWrite> {
-        let record = self.instance_record(reference)?;
+        let record = self.instances.require(reference)?;
         let name = entry.name.trim().to_string();
         if name.is_empty() {
             bail!(ErrorInfo::FieldRequired { field: Field::Name });
@@ -70,7 +70,7 @@ impl Engine {
     }
 
     pub fn remove_instance_server(&self, reference: &str, target: &str) -> Result<ServerListWrite> {
-        let record = self.instance_record(reference)?;
+        let record = self.instances.require(reference)?;
         let data_dir = self.instances.data_dir(&record);
         let mut list = servers::read_strict(&data_dir)?;
         let index = servers::find(&list, target).ok_or(ErrorInfo::ServerListEntryNotFound {
@@ -87,7 +87,7 @@ impl Engine {
         reference: &str,
         order: &[String],
     ) -> Result<ServerListWrite> {
-        let record = self.instance_record(reference)?;
+        let record = self.instances.require(reference)?;
         let data_dir = self.instances.data_dir(&record);
         let list = servers::read_strict(&data_dir)?;
         let Some(arranged) = servers::rearrange(&list, order) else {

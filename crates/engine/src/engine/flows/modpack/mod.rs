@@ -25,7 +25,7 @@ mod resolve;
 
 use std::path::Path;
 
-use anyhow::{Context, Result};
+use anyhow::Result;
 use proto::content::{
     ContentFailure, ContentKind, ContentProject, InstalledContent, ModpackFile, ResolvedModpack,
 };
@@ -288,10 +288,7 @@ impl Engine {
             .await?;
         match moved {
             PackStep::Moved(outcome) => Ok(VersionChange {
-                record: self
-                    .servers
-                    .get(&spec.server)
-                    .with_context(|| format!("unknown server: {}", spec.server))?,
+                record: self.servers.require(&spec.server)?,
                 warnings: outcome.warnings,
                 failures: outcome.failures,
             }),
@@ -328,10 +325,7 @@ impl Engine {
             .await?;
         match moved {
             PackStep::Moved(outcome) => Ok(VersionChange {
-                record: self
-                    .instances
-                    .get(reference)
-                    .with_context(|| format!("unknown instance: {reference}"))?,
+                record: self.instances.require(reference)?,
                 warnings: outcome.warnings,
                 failures: outcome.failures,
             }),

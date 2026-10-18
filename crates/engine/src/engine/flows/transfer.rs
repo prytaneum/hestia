@@ -83,7 +83,7 @@ impl Engine {
         exclude: &[String],
         job: &Job<'_>,
     ) -> Result<ExportOutcome> {
-        let record = self.instance_record(reference)?;
+        let record = self.instances.require(reference)?;
         let entry_dir = self.instances.instance_dir(&record);
         let data_dir = self.instances.data_dir(&record);
         let exports = self.data_home().join(EXPORTS);
@@ -119,7 +119,7 @@ impl Engine {
     /// What an export of this instance would carry, as a tree — what a caller
     /// picks its `exclude` paths out of.
     pub fn export_contents(&self, reference: &str) -> Result<Vec<ArchiveEntry>> {
-        let record = self.instance_record(reference)?;
+        let record = self.instances.require(reference)?;
         Ok(contents::list(
             &self.instances.instance_dir(&record),
             &self.instances.data_dir(&record),

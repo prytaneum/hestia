@@ -14,7 +14,7 @@ mod manage;
 
 use std::path::Path;
 
-use anyhow::{bail, Context, Result};
+use anyhow::{bail, Result};
 use proto::content::{
     ContentAddSpec, ContentFailure, ContentKind, ContentMatch, InstalledContent, UntrackedFile,
 };
@@ -187,15 +187,7 @@ impl Engine {
     ) -> Result<(Entry, EntryContent)> {
         match entry {
             EntryRef::Server(reference) => {
-                let record = self
-                    .servers
-                    .get(reference)
-                    .with_context(|| format!("unknown server: {reference}"))?;
-                if !record.ready() {
-                    bail!(proto::error::ErrorInfo::Provisioning {
-                        name: record.name.clone()
-                    });
-                }
+                let record = self.ready_server(reference)?;
                 let ctx = EntryContent {
                     entry_dir: self.servers.server_dir(&record),
                     data_dir: self.servers.data_dir(&record),
@@ -213,10 +205,7 @@ impl Engine {
                 ))
             }
             EntryRef::Instance(reference) => {
-                let record = self
-                    .instances
-                    .get(reference)
-                    .with_context(|| format!("unknown instance: {reference}"))?;
+                let record = self.instances.require(reference)?;
                 let ctx = EntryContent {
                     entry_dir: self.instances.instance_dir(&record),
                     data_dir: self.instances.data_dir(&record),

@@ -20,10 +20,7 @@ impl Engine {
                 .into_iter()
                 .filter(|record| self.shares_screenshots(record))
                 .collect(),
-            reference => vec![self
-                .instances
-                .get(reference)
-                .with_context(|| format!("unknown instance: {reference}"))?],
+            reference => vec![self.instances.require(reference)?],
         };
         let mut taken: Vec<Screenshot> = records
             .iter()
@@ -34,10 +31,7 @@ impl Engine {
     }
 
     pub fn delete_screenshot(&self, reference: &str, file: &str) -> Result<()> {
-        let record = self
-            .instances
-            .get(reference)
-            .with_context(|| format!("unknown instance: {reference}"))?;
+        let record = self.instances.require(reference)?;
         let path = self.screenshot_dir(&record).join(safe_name(file)?);
         if !path.is_file() {
             bail!("no screenshot '{file}' in '{}'", record.name);

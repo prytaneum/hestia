@@ -69,16 +69,12 @@ impl Engine {
             })
     }
 
-    /// The stored record a reference names, as the typed refusal every flow
-    /// answers an unknown instance with.
-    fn instance_record(&self, reference: &str) -> Result<crate::instances::InstanceRecord> {
-        self.instances.get(reference).ok_or_else(|| {
-            proto::error::ErrorInfo::EntryNotFound {
-                entry: proto::error::EntryKind::Instance,
-                reference: reference.to_string(),
-            }
-            .into()
-        })
+    fn ready_server(&self, reference: &str) -> Result<crate::servers::ServerRecord> {
+        let record = self.servers.require(reference)?;
+        if !record.ready() {
+            anyhow::bail!(proto::error::ErrorInfo::Provisioning { name: record.name });
+        }
+        Ok(record)
     }
 }
 

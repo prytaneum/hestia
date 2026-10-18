@@ -27,10 +27,7 @@ impl Engine {
     /// own `level.dat` — the worlds a datapack can install into, and what the
     /// player calls them. Sorted by folder, since that is the stable identity.
     pub fn instance_worlds(&self, reference: &str) -> Result<Vec<WorldInfo>> {
-        let record = self
-            .instances
-            .get(reference)
-            .with_context(|| format!("unknown instance: {reference}"))?;
+        let record = self.instances.require(reference)?;
         let saves = self.instances.data_dir(&record).join("saves");
         let mut folders: Vec<String> = std::fs::read_dir(&saves)
             .into_iter()
@@ -49,10 +46,7 @@ impl Engine {
     /// The instance's static, informational view: descriptor, locations, and
     /// the on-disk footprint (a directory walk).
     pub fn instance_detail(&self, reference: &str) -> Result<InstanceDetails> {
-        let record = self
-            .instances
-            .get(reference)
-            .with_context(|| format!("unknown instance: {reference}"))?;
+        let record = self.instances.require(reference)?;
         let entry_dir = self.instances.instance_dir(&record);
         let data_dir = self.instances.data_dir(&record);
         Ok(InstanceDetails {
@@ -96,10 +90,7 @@ impl Engine {
         loader_version: Option<String>,
         allow_downgrade: bool,
     ) -> Result<InstanceRecord> {
-        let record = self
-            .instances
-            .get(reference)
-            .with_context(|| format!("unknown instance: {reference}"))?;
+        let record = self.instances.require(reference)?;
         let versions = self
             .minecraft
             .versions(Side::Client, &record.profile.flavor)
@@ -187,10 +178,7 @@ impl Engine {
             quick_play,
             offline,
         } = request;
-        let record = self
-            .instances
-            .get(reference)
-            .with_context(|| format!("unknown instance: {reference}"))?;
+        let record = self.instances.require(reference)?;
         let entry_dir = self.instances.instance_dir(&record);
         if let Some(target) = quick_play.as_ref() {
             validate_quick_play(

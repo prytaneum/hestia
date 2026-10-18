@@ -163,8 +163,13 @@ impl<R: Entry> Store<R> {
     }
 
     pub fn require(&self, reference: &str) -> Result<R> {
-        self.get(reference)
-            .with_context(|| format!("unknown {}: {reference}", R::KIND))
+        self.get(reference).ok_or_else(|| {
+            ErrorInfo::EntryNotFound {
+                entry: R::KIND,
+                reference: reference.to_string(),
+            }
+            .into()
+        })
     }
 
     /// Add a new entry under a fresh id; `build` receives that id and returns

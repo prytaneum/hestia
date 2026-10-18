@@ -69,10 +69,7 @@ impl Engine {
     }
 
     fn server_rcon(&self, reference: &str) -> Result<(String, RconConfig)> {
-        let record = self
-            .servers
-            .get(reference)
-            .with_context(|| format!("unknown server: {reference}"))?;
+        let record = self.servers.require(reference)?;
         let rcon = record
             .rcon
             .context("this server has no console yet (restart it to enable one)")?;

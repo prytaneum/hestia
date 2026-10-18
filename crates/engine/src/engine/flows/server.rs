@@ -94,10 +94,7 @@ impl Engine {
         spec: ServerUpdateSpec,
         on_progress: OnProgress<'_>,
     ) -> Result<(ServerRecord, Vec<WarningInfo>)> {
-        let record = self
-            .servers
-            .get(&spec.server)
-            .with_context(|| format!("unknown server: {}", spec.server))?;
+        let record = self.servers.require(&spec.server)?;
         let versions = self
             .minecraft
             .versions(Side::Server, &record.profile.flavor)
@@ -184,13 +181,7 @@ impl Engine {
     /// The ready-to-spawn invocation for a provisioned server, with its ports
     /// reconciled into `server.properties`.
     pub fn server_launch_plan(&self, reference: &str) -> Result<(ServerRecord, LaunchPlan)> {
-        let record = self
-            .servers
-            .get(reference)
-            .with_context(|| format!("unknown server: {reference}"))?;
-        if !record.ready() {
-            anyhow::bail!("server '{}' is still provisioning", record.name);
-        }
+        let record = self.ready_server(reference)?;
         let record = self.servers.ensure_start_config(&record.id)?;
         let data_dir = self.servers.data_dir(&record);
         install::sync(
@@ -208,20 +199,14 @@ impl Engine {
     }
 
     pub async fn server_ping(&self, reference: &str) -> Result<ServerPingResult> {
-        let record = self
-            .servers
-            .get(reference)
-            .with_context(|| format!("unknown server: {reference}"))?;
+        let record = self.servers.require(reference)?;
         ping::ping(record.game_port).await
     }
 
     /// The server's static, informational view: descriptor, locations, and the
     /// on-disk footprint (a directory walk).
     pub fn server_detail(&self, reference: &str) -> Result<ServerDetails> {
-        let record = self
-            .servers
-            .get(reference)
-            .with_context(|| format!("unknown server: {reference}"))?;
+        let record = self.servers.require(reference)?;
         let entry_dir = self.servers.server_dir(&record);
         let data_dir = self.servers.data_dir(&record);
         let warnings = self.server_warnings(&record);

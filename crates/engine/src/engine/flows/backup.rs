@@ -5,7 +5,7 @@
 
 use std::path::PathBuf;
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result};
 use proto::backup::{BackupInfo, BackupKind};
 use proto::minecraft::{ProvisionPhase, ProvisionProgress};
 
@@ -26,13 +26,7 @@ impl Engine {
         live: bool,
         on_progress: OnProgress<'_>,
     ) -> Result<BackupInfo> {
-        let record = self
-            .servers
-            .get(reference)
-            .with_context(|| format!("unknown server: {reference}"))?;
-        if !record.ready() {
-            bail!("server '{}' is still provisioning", record.name);
-        }
+        let record = self.ready_server(reference)?;
         if live {
             self.pause_world_saves(&record.id).await?;
         }
@@ -71,13 +65,7 @@ impl Engine {
         backup: &str,
         on_progress: OnProgress<'_>,
     ) -> Result<BackupInfo> {
-        let record = self
-            .servers
-            .get(reference)
-            .with_context(|| format!("unknown server: {reference}"))?;
-        if !record.ready() {
-            bail!("server '{}' is still provisioning", record.name);
-        }
+        let record = self.ready_server(reference)?;
         run_restore(
             self.servers.server_dir(&record),
             self.servers.data_dir(&record),
@@ -90,19 +78,13 @@ impl Engine {
 
     /// A server's stored backups, newest first.
     pub fn server_backups(&self, reference: &str) -> Result<Vec<BackupInfo>> {
-        let record = self
-            .servers
-            .get(reference)
-            .with_context(|| format!("unknown server: {reference}"))?;
+        let record = self.servers.require(reference)?;
         Ok(backup::list(&self.servers.server_dir(&record)))
     }
 
     /// Delete one server backup. Returns false when no backup matches.
     pub fn remove_server_backup(&self, reference: &str, backup: &str) -> Result<bool> {
-        let record = self
-            .servers
-            .get(reference)
-            .with_context(|| format!("unknown server: {reference}"))?;
+        let record = self.servers.require(reference)?;
         backup::remove(&self.servers.server_dir(&record), backup)
     }
 
@@ -114,10 +96,7 @@ impl Engine {
         reference: &str,
         retention: usize,
     ) -> Result<Vec<BackupInfo>> {
-        let record = self
-            .servers
-            .get(reference)
-            .with_context(|| format!("unknown server: {reference}"))?;
+        let record = self.servers.require(reference)?;
         backup::prune(
             &self.servers.server_dir(&record),
             BackupKind::Scheduled,

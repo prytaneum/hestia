@@ -99,6 +99,10 @@ impl Instances {
         self.store.get(reference)
     }
 
+    pub fn require(&self, reference: &str) -> Result<InstanceRecord> {
+        self.store.require(reference)
+    }
+
     pub fn create(&self, name: &str, profile: InstanceProfile) -> Result<InstanceRecord> {
         self.adopt(
             name,

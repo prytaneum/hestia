@@ -5,7 +5,7 @@
 
 use std::path::Path;
 
-use anyhow::{bail, Context, Result};
+use anyhow::{bail, Result};
 use proto::error::{ErrorInfo, Field, Reason};
 use proto::players::{PlayerEntry, PlayerList, ServerPlayersResult};
 
@@ -25,10 +25,7 @@ impl Engine {
         reference: &str,
         running: bool,
     ) -> Result<ServerPlayersResult> {
-        let record = self
-            .servers
-            .get(reference)
-            .with_context(|| format!("unknown server: {reference}"))?;
+        let record = self.servers.require(reference)?;
         let data = self.servers.data_dir(&record);
         let online = match running {
             true => self.online_players(&record.id).await?,
