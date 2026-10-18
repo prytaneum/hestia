@@ -39,15 +39,9 @@ pub use create::CreateArgs;
         hestia server smp config set memory 4G\n  \
         hestia server smp backup create\nRun `hestia server <name> --help` for every action."
 )]
-// `Create` flattens the sizeable `CreateArgs`, which clap cannot flatten behind
-// a `Box`, so the variant is unavoidably larger than the catalogue ones.
-#[allow(clippy::large_enum_variant)]
 pub enum ServerCmd {
     /// Create a fully provisioned server (prompts for anything omitted)
-    Create {
-        #[command(flatten)]
-        args: CreateArgs,
-    },
+    Create(Box<CreateArgs>),
     /// Managed servers and their state
     #[command(visible_alias = "ls")]
     List,
@@ -215,7 +209,7 @@ pub async fn run(cmd: ServerCmd) -> Result<ExitStatus> {
         catalogue => {
             let client = super::connect().await?;
             match catalogue {
-                ServerCmd::Create { args } => create::run(&client, args).await,
+                ServerCmd::Create(args) => create::run(&client, *args).await,
                 ServerCmd::List => entry::list(&client).await,
                 ServerCmd::Versions { flavor, all } => {
                     mc::list_versions(&client, EntryKind::Server, flavor, all).await
