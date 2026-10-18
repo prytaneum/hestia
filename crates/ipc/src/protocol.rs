@@ -8,16 +8,11 @@ use thiserror::Error;
 /// change; additive fields do not need a bump.
 pub const PROTOCOL_VERSION: i64 = 1;
 
-/// Whether a peer advertising major `version` can talk to us. Same major only.
-pub fn compatible(version: i64) -> bool {
-    version == PROTOCOL_VERSION
-}
-
 /// Why an inbound envelope could not be turned into a request or response. The
 /// seam fails **closed**: a missing or foreign-major `v` refuses to decode
 /// rather than defaulting to the current version, so no caller can silently
 /// consume a frame it does not understand. The type carries the invariant —
-/// `compatible()` is not an opt-in check a decode site can forget.
+/// `decode_version()` is not an opt-in check a decode site can forget.
 #[derive(Debug, Error)]
 pub enum DecodeError {
     #[error("malformed envelope: {0}")]
@@ -26,20 +21,20 @@ pub enum DecodeError {
     IncompatibleVersion { got: i64, want: i64 },
 }
 
-/// Extract and validate an envelope's major version. A missing `v` is malformed
-/// (never an implicit "current"), and a foreign major is refused.
-fn decode_version(frame: &Value) -> Result<i64, DecodeError> {
+/// Validate an envelope's major version. A missing `v` is malformed (never an
+/// implicit "current"), and a foreign major is refused.
+fn decode_version(frame: &Value) -> Result<(), DecodeError> {
     let version = frame
         .get("v")
         .and_then(Value::as_i64)
         .ok_or_else(|| DecodeError::Malformed("missing protocol version".into()))?;
-    if !compatible(version) {
+    if version != PROTOCOL_VERSION {
         return Err(DecodeError::IncompatibleVersion {
             got: version,
             want: PROTOCOL_VERSION,
         });
     }
-    Ok(version)
+    Ok(())
 }
 
 /// A request: a channel name, a JSON payload, and an optional correlation id.
@@ -48,7 +43,6 @@ pub struct Request {
     pub channel: String,
     pub payload: Value,
     pub id: Option<i64>,
-    pub version: i64,
 }
 
 impl Request {
@@ -57,7 +51,6 @@ impl Request {
             channel: channel.into(),
             payload,
             id,
-            version: PROTOCOL_VERSION,
         }
     }
 }
@@ -71,7 +64,6 @@ pub struct Response {
     pub payload: Value,
     pub error: Option<Value>,
     pub id: Option<i64>,
-    pub version: i64,
 }
 
 impl Response {
@@ -81,7 +73,6 @@ impl Response {
             payload,
             error: None,
             id: None,
-            version: PROTOCOL_VERSION,
         }
     }
 
@@ -91,7 +82,6 @@ impl Response {
             payload: Value::Null,
             error: Some(error),
             id: None,
-            version: PROTOCOL_VERSION,
         }
     }
 }
@@ -105,7 +95,7 @@ pub struct Event {
 
 pub fn encode_request(req: &Request) -> String {
     let mut j = json!({
-        "v": req.version,
+        "v": PROTOCOL_VERSION,
         "channel": req.channel,
         "payload": req.payload,
     });
@@ -116,7 +106,7 @@ pub fn encode_request(req: &Request) -> String {
 }
 
 pub fn encode_response(res: &Response) -> String {
-    let mut j = json!({ "v": res.version, "ok": res.ok });
+    let mut j = json!({ "v": PROTOCOL_VERSION, "ok": res.ok });
     if res.ok {
         j["payload"] = res.payload.clone();
     } else {
@@ -135,7 +125,7 @@ pub fn encode_event(event: &Event) -> String {
 pub fn decode_request(frame: &str) -> Result<Request, DecodeError> {
     let j: Value =
         serde_json::from_str(frame).map_err(|e| DecodeError::Malformed(e.to_string()))?;
-    let version = decode_version(&j)?;
+    decode_version(&j)?;
     let channel = j
         .get("channel")
         .and_then(Value::as_str)
@@ -150,7 +140,6 @@ pub fn decode_request(frame: &str) -> Result<Request, DecodeError> {
         channel,
         payload,
         id,
-        version,
     })
 }
 
@@ -160,7 +149,7 @@ pub fn is_event(frame: &Value) -> bool {
 }
 
 pub fn decode_response(frame: &Value) -> Result<Response, DecodeError> {
-    let version = decode_version(frame)?;
+    decode_version(frame)?;
     let ok = frame.get("ok").and_then(Value::as_bool).unwrap_or(false);
     let id = frame.get("id").and_then(Value::as_i64);
     if ok {
@@ -169,7 +158,6 @@ pub fn decode_response(frame: &Value) -> Result<Response, DecodeError> {
             payload: frame.get("payload").cloned().unwrap_or(json!({})),
             error: None,
             id,
-            version,
         })
     } else {
         Ok(Response {
@@ -177,7 +165,6 @@ pub fn decode_response(frame: &Value) -> Result<Response, DecodeError> {
             payload: Value::Null,
             error: Some(frame.get("error").cloned().unwrap_or_else(|| json!({}))),
             id,
-            version,
         })
     }
 }
@@ -206,7 +193,6 @@ mod tests {
         let req = decode_request(&frame).expect("current-major request decodes");
         assert_eq!(req.channel, "health.ping");
         assert_eq!(req.id, Some(7));
-        assert_eq!(req.version, PROTOCOL_VERSION);
     }
 
     #[test]
