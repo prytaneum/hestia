@@ -23,10 +23,6 @@ const SIGNIN_LABEL: &str = "signin";
 const POLL_INTERVAL: Duration = Duration::from_millis(100);
 const FLOW_TIMEOUT: Duration = Duration::from_secs(10 * 60);
 
-fn other(message: impl Into<String>) -> CallError {
-    CallError::other(message)
-}
-
 /// Sign in a Microsoft account. Returns the stored account, or `None` when the
 /// user closes the sign-in window before completing (a cancel, not an error).
 #[tauri::command]
@@ -38,7 +34,7 @@ pub async fn account_login_sisu(
     tracing::info!("sisu sign-in started");
     let begin = client.accounts().begin_login(LoginMethod::Sisu).await?;
     if begin.url.is_empty() {
-        return Err(other("daemon returned no sign-in URL"));
+        return Err(CallError::other("daemon returned no sign-in URL"));
     }
 
     if let Some(existing) = app.get_webview_window(SIGNIN_LABEL) {
@@ -47,7 +43,7 @@ pub async fn account_login_sisu(
     let url = begin
         .url
         .parse()
-        .map_err(|_| other("could not parse the sign-in URL"))?;
+        .map_err(|_| CallError::other("could not parse the sign-in URL"))?;
     let window = WebviewWindowBuilder::new(&app, SIGNIN_LABEL, WebviewUrl::External(url))
         .title("Sign in to Microsoft")
         .inner_size(520.0, 720.0)
@@ -55,7 +51,7 @@ pub async fn account_login_sisu(
         .focused(true)
         .center()
         .build()
-        .map_err(|e| other(format!("could not open the sign-in window: {e}")))?;
+        .map_err(|e| CallError::other(format!("could not open the sign-in window: {e}")))?;
     let _ = window.set_focus();
     let _ = window.request_user_attention(Some(UserAttentionType::Critical));
 
@@ -64,7 +60,7 @@ pub async fn account_login_sisu(
         if started.elapsed() >= FLOW_TIMEOUT {
             tracing::warn!("sisu sign-in timed out");
             let _ = window.close();
-            return Err(other("sign-in timed out"));
+            return Err(CallError::other("sign-in timed out"));
         }
         // A closed window's title read errors — the user cancelled the flow.
         if window.title().is_err() {

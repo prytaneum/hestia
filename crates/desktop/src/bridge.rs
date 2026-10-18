@@ -111,6 +111,24 @@ impl From<IpcError> for CallError {
     }
 }
 
+impl From<std::io::Error> for CallError {
+    fn from(error: std::io::Error) -> Self {
+        CallError::other(error.to_string())
+    }
+}
+
+impl From<serde_json::Error> for CallError {
+    fn from(error: serde_json::Error) -> Self {
+        CallError::other(error.to_string())
+    }
+}
+
+impl From<reqwest::Error> for CallError {
+    fn from(error: reqwest::Error) -> Self {
+        CallError::other(error.to_string())
+    }
+}
+
 #[tauri::command]
 pub async fn ipc_call(
     app: AppHandle,
@@ -121,28 +139,17 @@ pub async fn ipc_call(
 ) -> Result<Value, CallError> {
     let client = acquire(&app, &bridge).await?;
     let timeout = timeout_ms.map_or(DEFAULT_TIMEOUT, Duration::from_millis);
-    match client.session().call_raw(&channel, payload, timeout).await {
-        Ok(response) if response.ok => Ok(response.payload),
-        Ok(response) => {
-            let raw = response.error.unwrap_or(Value::Null);
-            let info = serde_json::from_value::<client::proto::error::ErrorInfo>(raw.clone())
-                .unwrap_or(client::proto::error::ErrorInfo::Internal {
-                    detail: "daemon error".into(),
-                });
-            Err(CallError {
-                code: info.code().into(),
-                message: info.to_string(),
-                info: raw,
-            })
-        }
+    let response = match client.session().call_raw(&channel, payload, timeout).await {
+        Ok(response) => response,
         Err(error) => {
             tracing::warn!(channel, %error, "call failed");
             if client.session().is_closed() {
                 release(&app, &bridge, &client).await;
             }
-            Err(error.into())
+            return Err(error.into());
         }
-    }
+    };
+    Ok(client::must(response)?.payload)
 }
 
 /// Watch the shared connection: notice a lost daemon between calls and

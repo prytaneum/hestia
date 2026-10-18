@@ -15,7 +15,7 @@ pub use ipc::errors::IpcError;
 pub mod errors {
     pub use proto::error::code::{NOT_FOUND, UNAUTHORIZED};
 }
-pub use session::{job_id, Listener, Session};
+pub use session::{job_id, must, Listener, Session};
 
 /// Re-export `proto` so front-ends need only depend on `client`.
 pub use proto;

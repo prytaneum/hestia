@@ -31,11 +31,10 @@ impl Terminal {
         match self {
             Terminal::Cancelled => IpcError::Cancelled,
             Terminal::Malformed(detail) => IpcError::Malformed(detail),
-            Terminal::Failed(info) => IpcError::Daemon {
-                code: info.code().to_string(),
-                message: info.to_string(),
-                info: serde_json::to_value(&info).unwrap_or(Value::Null),
-            },
+            Terminal::Failed(info) => {
+                let raw = serde_json::to_value(&info).unwrap_or(Value::Null);
+                daemon_error(&info, raw)
+            }
         }
     }
 }
@@ -378,11 +377,15 @@ pub fn must(res: Response) -> Result<Response, IpcError> {
         serde_json::from_value::<ErrorInfo>(raw.clone()).unwrap_or_else(|_| ErrorInfo::Internal {
             detail: "daemon error".into(),
         });
-    Err(IpcError::Daemon {
+    Err(daemon_error(&info, raw))
+}
+
+fn daemon_error(info: &ErrorInfo, raw: Value) -> IpcError {
+    IpcError::Daemon {
         code: info.code().into(),
         message: info.to_string(),
         info: raw,
-    })
+    }
 }
 
 /// A client-generated job id lets callers subscribe before starting a job, so

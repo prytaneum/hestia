@@ -89,10 +89,10 @@ fn has_image_extension(path: &Path) -> bool {
 
 fn store(app: &AppHandle, entry_id: &str, ext: &str, bytes: &[u8]) -> Result<IconEntry, CallError> {
     let dir = icons_dir();
-    std::fs::create_dir_all(&dir).map_err(|e| CallError::other(e.to_string()))?;
+    std::fs::create_dir_all(&dir)?;
     remove_stored(&dir, entry_id);
     let target = dir.join(format!("{entry_id}.{ext}"));
-    std::fs::write(&target, bytes).map_err(|e| CallError::other(e.to_string()))?;
+    std::fs::write(&target, bytes)?;
     allow_assets(app, &dir);
     entry_for(&target).ok_or_else(|| CallError::other("cannot read the stored icon"))
 }
@@ -132,13 +132,11 @@ pub fn icon_set(
         .map(str::to_ascii_lowercase)
         .filter(|e| EXTENSIONS.contains(&e.as_str()))
         .ok_or_else(|| CallError::other("unsupported image type"))?;
-    let size = std::fs::metadata(&source)
-        .map_err(|e| CallError::other(e.to_string()))?
-        .len();
+    let size = std::fs::metadata(&source)?.len();
     if size > MAX_BYTES {
         return Err(CallError::other("image is larger than 10 MB"));
     }
-    let bytes = std::fs::read(&source).map_err(|e| CallError::other(e.to_string()))?;
+    let bytes = std::fs::read(&source)?;
     let entry = store(&app, &entry_id, &ext, &bytes)?;
     tracing::info!(entry_id, ext, size, "icon set");
     Ok(entry)
@@ -169,23 +167,17 @@ async fn download_capped(url: reqwest::Url) -> Result<Vec<u8>, CallError> {
     let client = reqwest::Client::builder()
         .user_agent(common::app::user_agent())
         .timeout(FETCH_TIMEOUT)
-        .build()
-        .map_err(|e| CallError::other(e.to_string()))?;
+        .build()?;
     let mut response = client
         .get(url)
         .send()
         .await
-        .and_then(reqwest::Response::error_for_status)
-        .map_err(|e| CallError::other(e.to_string()))?;
+        .and_then(reqwest::Response::error_for_status)?;
     if response.content_length().is_some_and(|len| len > MAX_BYTES) {
         return Err(too_large());
     }
     let mut bytes = Vec::new();
-    while let Some(chunk) = response
-        .chunk()
-        .await
-        .map_err(|e| CallError::other(e.to_string()))?
-    {
+    while let Some(chunk) = response.chunk().await? {
         bytes.extend_from_slice(&chunk);
         if bytes.len() as u64 > MAX_BYTES {
             return Err(too_large());
@@ -230,8 +222,7 @@ pub fn icon_set_bytes(
     let ext = sniff_extension(&bytes)?;
     let sidecar = sidecar_json(&config)?;
     let entry = store(&app, &entry_id, ext, &bytes)?;
-    std::fs::write(icons_dir().join(format!("{entry_id}.json")), sidecar)
-        .map_err(|e| CallError::other(e.to_string()))?;
+    std::fs::write(icons_dir().join(format!("{entry_id}.json")), sidecar)?;
     tracing::info!(entry_id, ext, byte_len = bytes.len(), "generated icon set");
     Ok(entry)
 }
@@ -245,16 +236,14 @@ pub fn icon_config(entry_id: String) -> Result<Option<Value>, CallError> {
     }
     let path = icons_dir().join(format!("{entry_id}.json"));
     match std::fs::read(&path) {
-        Ok(bytes) => serde_json::from_slice(&bytes)
-            .map(Some)
-            .map_err(|e| CallError::other(e.to_string())),
+        Ok(bytes) => Ok(Some(serde_json::from_slice(&bytes)?)),
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
-        Err(e) => Err(CallError::other(e.to_string())),
+        Err(e) => Err(e.into()),
     }
 }
 
 fn sidecar_json(config: &Value) -> Result<Vec<u8>, CallError> {
-    let encoded = serde_json::to_vec(config).map_err(|e| CallError::other(e.to_string()))?;
+    let encoded = serde_json::to_vec(config)?;
     if !config.is_object() || encoded.len() > MAX_SIDECAR_BYTES {
         return Err(CallError::other("invalid icon config"));
     }
