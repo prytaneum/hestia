@@ -11,14 +11,33 @@ use anyhow::{bail, Result};
 use crate::commands::instance;
 use crate::ui;
 
+#[derive(clap::Args)]
 pub struct Play {
-    pub reference: Option<String>,
-    pub account: Option<String>,
-    pub new_session: bool,
-    pub detach: bool,
-    pub offline: bool,
-    pub join: instance::Join,
-    pub recent: bool,
+    /// Instance name or id; the sole instance launches directly
+    instance: Option<String>,
+    #[arg(long, help = "Account name or uuid (default: the switched-to account)")]
+    account: Option<String>,
+    #[arg(short, long, help = "Return immediately instead of following the logs")]
+    detach: bool,
+    #[arg(
+        long,
+        help = "Launch another session even if one is already running (needs 'config set \
+                instance.multi-session true')"
+    )]
+    new_session: bool,
+    #[arg(
+        long,
+        help = "Play without signing in: singleplayer only, on the last known account"
+    )]
+    offline: bool,
+    #[command(flatten)]
+    join: instance::Join,
+    #[arg(
+        long,
+        conflicts_with_all = ["instance", "world", "server", "realm"],
+        help = "Pick from what was played lately and go straight back to it"
+    )]
+    recent: bool,
 }
 
 pub async fn run(play: Play) -> Result<()> {
@@ -27,7 +46,7 @@ pub async fn run(play: Play) -> Result<()> {
         let recent = instance::recent::pick(&client).await?;
         (recent.instance, Some(recent.target))
     } else {
-        let reference = match play.reference {
+        let reference = match play.instance {
             Some(reference) => reference,
             None => pick_instance(&client).await?,
         };

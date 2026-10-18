@@ -44,33 +44,7 @@ struct Cli {
 #[derive(Subcommand)]
 enum Command {
     /// Launch an instance (picks interactively when omitted)
-    Play {
-        /// Instance name or id; the sole instance launches directly
-        instance: Option<String>,
-        #[arg(long, help = "Account name or uuid (default: the switched-to account)")]
-        account: Option<String>,
-        #[arg(short, long, help = "Return immediately instead of following the logs")]
-        detach: bool,
-        #[arg(
-            long,
-            help = "Launch another session even if one is already running (needs 'config set \
-                    instance.multi-session true')"
-        )]
-        new_session: bool,
-        #[arg(
-            long,
-            help = "Play without signing in: singleplayer only, on the last known account"
-        )]
-        offline: bool,
-        #[command(flatten)]
-        join: commands::instance::Join,
-        #[arg(
-            long,
-            conflicts_with_all = ["instance", "world", "server", "realm"],
-            help = "Pick from what was played lately and go straight back to it"
-        )]
-        recent: bool,
-    },
+    Play(commands::play::Play),
     /// Minecraft accounts (Microsoft sign-in, switching)
     #[command(visible_alias = "auth")]
     Account {
@@ -298,34 +272,7 @@ async fn dispatch(command: Command) -> anyhow::Result<ExitStatus> {
         Command::Daemon { cmd } => return commands::daemon::run(cmd).await,
         Command::Server { cmd } => return commands::server::run(cmd).await,
         Command::Process { cmd } => return commands::process::run(cmd).await,
-        _ => {}
-    }
-    run_command(command).await.map(|()| ExitStatus::Active)
-}
-
-/// Everything that simply succeeds or fails.
-async fn run_command(command: Command) -> anyhow::Result<()> {
-    match command {
-        Command::Play {
-            instance,
-            account,
-            detach,
-            new_session,
-            offline,
-            join,
-            recent,
-        } => {
-            commands::play::run(commands::play::Play {
-                reference: instance,
-                account,
-                new_session,
-                detach,
-                offline,
-                join,
-                recent,
-            })
-            .await
-        }
+        Command::Play(play) => commands::play::run(play).await,
         Command::Account { cmd } => commands::account::run(cmd).await,
         Command::Java { cmd } => commands::java::run(cmd).await,
         Command::Instance { cmd } => commands::instance::run(cmd).await,
@@ -393,9 +340,6 @@ async fn run_command(command: Command) -> anyhow::Result<()> {
         Command::Screenshot { cmd } => commands::screenshot::run(cmd).await,
         Command::Sync { cmd } => commands::sync::run(cmd).await,
         Command::Update { yes } => commands::update::run(yes).await,
-        // Handled by `dispatch`: these answer with their own exit status.
-        Command::Daemon { .. } | Command::Server { .. } | Command::Process { .. } => {
-            unreachable!()
-        }
     }
+    .map(|()| ExitStatus::Active)
 }
