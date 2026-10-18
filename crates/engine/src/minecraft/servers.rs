@@ -105,14 +105,9 @@ pub fn read_strict(game_dir: &Path) -> Result<Vec<ServerEntry>> {
 }
 
 fn parse(file: &Path) -> Result<Vec<ServerEntry>> {
-    let bytes = match std::fs::read(file) {
-        Ok(bytes) => bytes,
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
-        Err(e) => return Err(e).with_context(|| format!("cannot read {}", file.display())),
-    };
-    if bytes.is_empty() {
+    let Some(bytes) = bytes(file)? else {
         return Ok(Vec::new());
-    }
+    };
     let list: ServerList = fastnbt::from_bytes(&bytes)
         .with_context(|| format!("{} is not a readable server list", file.display()))?;
     Ok(list.servers.into_iter().map(into_proto).collect())
