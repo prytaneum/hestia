@@ -3,6 +3,7 @@
 
 pub mod app;
 pub mod appimage;
+pub mod atomic;
 pub mod crash;
 pub mod logging;
 pub mod paths;

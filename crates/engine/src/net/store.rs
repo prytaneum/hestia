@@ -44,10 +44,7 @@ fn save_in(dir: &Path, url: &str, body: &str) {
     // Written through a temp and renamed, so a reader never sees a half-file
     // and a crash mid-write leaves the previous good copy in place.
     let path = entry_path(dir, url);
-    let staging = path.with_extension("part");
-    if std::fs::write(&staging, body).is_ok() && std::fs::rename(&staging, &path).is_err() {
-        let _ = std::fs::remove_file(&staging);
-    }
+    let _ = common::atomic::write(&path, body.as_bytes());
 }
 
 fn load_in(dir: &Path, url: &str) -> Option<String> {

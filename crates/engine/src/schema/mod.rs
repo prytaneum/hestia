@@ -162,17 +162,19 @@ pub(crate) fn load<T: Document>(path: &Path) -> Option<T> {
 /// failure or a crash leaves the previous version intact rather than a
 /// half-written one.
 pub(crate) fn save<T: Document>(path: &Path, document: &T) -> anyhow::Result<()> {
-    write(path, document, false)
+    write(path, document, common::atomic::write)
 }
 
-/// [`save`], with the file owner-only where permissions exist. For anything
-/// holding a token: the mode is set on the temp file *before* it is renamed
-/// into place, so the document is never briefly world-readable.
+/// [`save`], owner-only where permissions exist. For anything holding a token.
 pub(crate) fn save_private<T: Document>(path: &Path, document: &T) -> anyhow::Result<()> {
-    write(path, document, true)
+    write(path, document, common::atomic::write_private)
 }
 
-fn write<T: Document>(path: &Path, document: &T, private: bool) -> anyhow::Result<()> {
+fn write<T: Document>(
+    path: &Path,
+    document: &T,
+    commit: fn(&Path, &[u8]) -> std::io::Result<()>,
+) -> anyhow::Result<()> {
     use anyhow::Context;
 
     if let Some(parent) = path.parent() {
@@ -182,29 +184,8 @@ fn write<T: Document>(path: &Path, document: &T, private: bool) -> anyhow::Resul
     let value = encode(document)?;
     let text = serde_json::to_string_pretty(&value).context("the document serializes")?;
 
-    let part = sibling(path, "part");
-    let result = (|| -> std::io::Result<()> {
-        std::fs::write(&part, format!("{text}\n"))?;
-        if private {
-            restrict(&part)?;
-        }
-        std::fs::rename(&part, path)
-    })();
-    if result.is_err() {
-        let _ = std::fs::remove_file(&part);
-    }
-    result.with_context(|| format!("cannot write {} at {}", T::NAME, path.display()))
-}
-
-#[cfg(unix)]
-fn restrict(path: &Path) -> std::io::Result<()> {
-    use std::os::unix::fs::PermissionsExt;
-    std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600))
-}
-
-#[cfg(not(unix))]
-fn restrict(_path: &Path) -> std::io::Result<()> {
-    Ok(())
+    commit(path, format!("{text}\n").as_bytes())
+        .with_context(|| format!("cannot write {} at {}", T::NAME, path.display()))
 }
 
 fn stamp<T: Document>(value: &Value) -> Result<u32, SchemaError> {
@@ -254,30 +235,28 @@ fn set_aside<T: Document>(path: &Path, error: SchemaError) -> Option<T> {
     None
 }
 
+fn aside_named(path: &Path, tag: &str) -> PathBuf {
+    let mut name = path.file_name().unwrap_or_default().to_os_string();
+    name.push(format!(".{tag}"));
+    path.with_file_name(name)
+}
+
 /// `<file>.unreadable-<stamp>`, disambiguated if one already exists — two
 /// quarantines of the same file within a second must not overwrite each other,
 /// which would defeat the point of keeping them.
 fn aside_path(path: &Path) -> PathBuf {
     let stamp = registry::utc_stamp(registry::now_unix());
-    let first = sibling(path, &format!("{ASIDE}-{stamp}"));
+    let first = aside_named(path, &format!("{ASIDE}-{stamp}"));
     if !first.exists() {
         return first;
     }
     for attempt in 1..u32::MAX {
-        let next = sibling(path, &format!("{ASIDE}-{stamp}-{attempt}"));
+        let next = aside_named(path, &format!("{ASIDE}-{stamp}-{attempt}"));
         if !next.exists() {
             return next;
         }
     }
     first
-}
-
-/// `<path>.<suffix>` — appended, never substituted, so `config.json` becomes
-/// `config.json.part` rather than `config.part`.
-fn sibling(path: &Path, suffix: &str) -> PathBuf {
-    let mut name = path.file_name().unwrap_or_default().to_os_string();
-    name.push(format!(".{suffix}"));
-    path.with_file_name(name)
 }
 
 #[cfg(test)]

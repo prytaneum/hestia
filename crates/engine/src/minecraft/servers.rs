@@ -77,10 +77,7 @@ fn bytes(file: &Path) -> Result<Option<Vec<u8>>> {
 }
 
 fn commit(file: &Path, bytes: &[u8]) -> Result<()> {
-    let staging = file.with_extension("dat.part");
-    std::fs::write(&staging, bytes)
-        .with_context(|| format!("cannot write {}", staging.display()))?;
-    std::fs::rename(&staging, file).with_context(|| format!("cannot commit {}", file.display()))
+    common::atomic::write(file, bytes).with_context(|| format!("cannot write {}", file.display()))
 }
 
 pub fn path(game_dir: &Path) -> PathBuf {

@@ -24,10 +24,6 @@ use crate::cancel::Job;
 use crate::checksum::Hasher;
 use crate::content::pack::is_safe_path;
 
-/// The in-progress archive: renamed onto the real name only once written whole,
-/// exactly as a backup is.
-const PART_SUFFIX: &str = ".part";
-
 /// One planned archive member: the file to read and what it is called inside
 /// the archive.
 pub(crate) struct Member {
@@ -116,7 +112,7 @@ impl Writer {
             std::fs::create_dir_all(parent)
                 .with_context(|| format!("cannot create {}", parent.display()))?;
         }
-        let part = part_path(target);
+        let part = common::atomic::staged(target);
         let file =
             File::create(&part).with_context(|| format!("cannot create {}", part.display()))?;
         Ok(Writer {
@@ -333,7 +329,7 @@ impl Reader {
             std::fs::create_dir_all(parent)
                 .with_context(|| format!("cannot create {}", parent.display()))?;
         }
-        let temp = part_path(target);
+        let temp = common::atomic::staged(target);
         let mut hasher = hash.then(|| Hasher::new(HashAlgorithm::Sha1));
         {
             let mut out =
@@ -363,12 +359,6 @@ impl Reader {
 pub(crate) struct Extracted {
     pub(crate) path: String,
     pub(crate) sha1: String,
-}
-
-fn part_path(target: &Path) -> PathBuf {
-    let mut name = target.file_name().unwrap_or_default().to_os_string();
-    name.push(PART_SUFFIX);
-    target.with_file_name(name)
 }
 
 fn tick(job: &Job<'_>, phase: ProvisionPhase, current: u64, total: u64, detail: &str) {

@@ -194,7 +194,7 @@ fn unpack_native(jar: &Path, dest: &Path, exclude: &[String]) -> Result<()> {
         }
         // The natives root is shared by every session on this version, so a
         // concurrent launch must never open one of these mid-write.
-        let staging = out.with_extension("part");
+        let staging = common::atomic::staged(&out);
         let mut writer = std::fs::File::create(&staging)
             .with_context(|| format!("cannot write {}", staging.display()))?;
         std::io::copy(&mut entry, &mut writer)?;

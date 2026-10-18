@@ -62,7 +62,7 @@ impl<'a> Downloader<'a> {
         }
 
         tracing::debug!(url, dest = %destination.display(), "downloading");
-        let part = part_path(destination);
+        let part = common::atomic::staged(destination);
         let result = self.stream_to_file(url, &part, checksum, on_progress).await;
         match result {
             Ok(()) => {}
@@ -133,12 +133,6 @@ impl<'a> Downloader<'a> {
     }
 }
 
-fn part_path(destination: &Path) -> std::path::PathBuf {
-    let mut s = destination.as_os_str().to_owned();
-    s.push(".part");
-    std::path::PathBuf::from(s)
-}
-
 /// Copy a cached blob to `destination`, re-hashing on the way out. A blob that no
 /// longer matches its key is evicted and the caller falls back to the network.
 async fn serve_from_cache(
@@ -153,7 +147,7 @@ async fn serve_from_cache(
     let total = std::fs::metadata(&blob).map(|m| m.len()).unwrap_or(0);
 
     let mut input = tokio::fs::File::open(&blob).await.map_err(|e| anyhow!(e))?;
-    let part = part_path(destination);
+    let part = common::atomic::staged(destination);
     let mut output = tokio::fs::File::create(&part).await?;
     let mut hasher = Hasher::new(checksum.algorithm);
     let mut copied: u64 = 0;

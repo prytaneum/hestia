@@ -83,35 +83,12 @@ impl ProcessRecord {
 
 pub fn save(proc_dir: &Path, record: &ProcessRecord) {
     let path = proc_dir.join(FILE);
-    let part = path.with_extension("json.part");
     let result = serde_json::to_vec_pretty(record)
         .map_err(std::io::Error::other)
-        .and_then(|json| write_private(&part, &json))
-        .and_then(|()| fs::rename(&part, &path));
+        .and_then(|json| common::atomic::write_private(&path, &json));
     if let Err(e) = result {
-        let _ = fs::remove_file(&part);
         tracing::warn!(id = %record.id, "cannot persist process record: {e}");
     }
-}
-
-// The spec's env can carry secrets, so the record is owner-only, like
-// accounts.json, from the moment the temp file exists.
-#[cfg(unix)]
-fn write_private(path: &Path, contents: &[u8]) -> std::io::Result<()> {
-    use std::io::Write;
-    use std::os::unix::fs::OpenOptionsExt;
-    let mut file = fs::OpenOptions::new()
-        .create(true)
-        .write(true)
-        .truncate(true)
-        .mode(0o600)
-        .open(path)?;
-    file.write_all(contents)
-}
-
-#[cfg(not(unix))]
-fn write_private(path: &Path, contents: &[u8]) -> std::io::Result<()> {
-    fs::write(path, contents)
 }
 
 pub fn load(proc_dir: &Path) -> Option<ProcessRecord> {

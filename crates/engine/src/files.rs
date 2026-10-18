@@ -15,8 +15,6 @@ use crate::transfer::archive;
 /// world's.
 const EDITABLE_BYTES: u64 = 2 * 1024 * 1024;
 
-const PART_SUFFIX: &str = ".part";
-
 pub struct FileTree {
     root: PathBuf,
 }
@@ -90,12 +88,7 @@ impl FileTree {
             bail!(rejected(path, FileFault::TooLarge));
         }
         create_parent(&file, path)?;
-        let part = with_suffix(&file, PART_SUFFIX);
-        std::fs::write(&part, content).map_err(io(IoOp::Write, path))?;
-        std::fs::rename(&part, &file).map_err(|e| {
-            let _ = std::fs::remove_file(&part);
-            io(IoOp::Write, path)(e)
-        })?;
+        common::atomic::write(&file, content.as_ref()).map_err(io(IoOp::Write, path))?;
         tracing::debug!(path, bytes = content.len(), "file written");
         Ok(())
     }
@@ -186,7 +179,7 @@ impl FileTree {
             .map(|path| self.existing(path))
             .collect::<Result<Vec<_>>>()?;
 
-        let part = with_suffix(&target, PART_SUFFIX);
+        let part = common::atomic::staged(&target);
         let mut writer = archive::Writer::create(&target)?;
         for source in &sources {
             let Some(name) = source.file_name().and_then(|n| n.to_str()) else {
@@ -327,12 +320,6 @@ fn wire_path(path: &Path) -> String {
         .filter_map(|component| component.as_os_str().to_str())
         .collect::<Vec<_>>()
         .join("/")
-}
-
-fn with_suffix(path: &Path, suffix: &str) -> PathBuf {
-    let mut name = path.file_name().unwrap_or_default().to_os_string();
-    name.push(suffix);
-    path.with_file_name(name)
 }
 
 fn create_parent(target: &Path, path: &str) -> Result<()> {
