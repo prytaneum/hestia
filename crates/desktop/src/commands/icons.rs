@@ -103,6 +103,7 @@ fn remove_stored(dir: &Path, id: &str) {
             let _ = std::fs::remove_file(path);
         }
     }
+    let _ = std::fs::remove_file(dir.join(format!("{id}.json")));
 }
 
 #[tauri::command]

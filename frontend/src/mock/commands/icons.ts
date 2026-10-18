@@ -29,6 +29,11 @@ export const commands: Handlers = {
     return entry;
   },
 
+  icon_remove: (p) => {
+    icons.delete(str(p, 'entryId'));
+    configs.delete(str(p, 'entryId'));
+  },
+
   icon_set_bytes: (p) => {
     configs.set(str(p, 'entryId'), p?.config);
     return p?.config;

@@ -1,5 +1,7 @@
 /** The `entry.*` channels: what a server and an instance share, aimed by kind or target. */
+import { logger } from '@/lib/log';
 import { call } from './core/ipc';
+import * as icons from './icons';
 import type { EntryRenamed } from './types/entry';
 import type { EntryKind, EntryTarget } from './types/error';
 import type {
@@ -8,6 +10,8 @@ import type {
   GameVersion,
 } from './types/minecraft';
 import type { ProcessLogLine } from './types/process';
+
+const log = logger('entry');
 
 export function flavors(kind: EntryKind): Promise<FlavorsResult> {
   return call('entry.flavors', { kind });
@@ -38,6 +42,11 @@ export function rename(
 
 export async function remove(target: EntryTarget): Promise<void> {
   await call('entry.remove', target);
+  if (target.entry) {
+    await icons.remove(target.entry).catch((error) => {
+      log.warn({ error, entry: target.entry }, 'entry icon not removed');
+    });
+  }
 }
 
 /** An instance's one session when named, all of its sessions otherwise. */

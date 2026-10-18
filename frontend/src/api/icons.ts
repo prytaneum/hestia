@@ -40,6 +40,11 @@ export function fetch(entryId: string, url: string): Promise<IconEntry> {
   return invokeCommand('icon_fetch', { entryId, url });
 }
 
+/** Delete the entry's icon and generation config. */
+export function remove(entryId: string): Promise<void> {
+  return invokeCommand('icon_remove', { entryId });
+}
+
 /** Store the baked `bytes` as the entry's icon, recording `config` beside them. */
 export function generate(
   entryId: string,
