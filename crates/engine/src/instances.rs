@@ -74,10 +74,6 @@ impl Instances {
         }
     }
 
-    pub fn dir(&self) -> &Path {
-        self.store.dir()
-    }
-
     /// The instance's directory, named for its current display name, so a
     /// rename moves it; the id stays the entry's stable internal key.
     pub fn instance_dir(&self, record: &InstanceRecord) -> PathBuf {

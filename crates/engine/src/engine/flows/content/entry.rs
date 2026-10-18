@@ -61,7 +61,7 @@ impl EntryContent {
     /// instance's save folders.
     pub(in crate::engine::flows) fn worlds(&self) -> Vec<String> {
         match self.side {
-            Side::Server => vec![crate::servers::level_name(&self.data_dir)],
+            Side::Server => vec![crate::properties::level_name(&self.data_dir)],
             Side::Client => crate::instances::save_worlds(&self.data_dir),
         }
     }
