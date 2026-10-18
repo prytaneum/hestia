@@ -5,12 +5,14 @@
  * **stable id**; the wire resolves display names too, but keying by id means a
  * rename never strands a cache entry or a mutation key.
  */
+
 import {
   keepPreviousData,
   queryOptions,
   useQuery,
   useQueryClient,
 } from '@tanstack/react-query';
+import { serverProcessId } from '@/lib/process-id';
 import type {
   BackupInfo,
   ServerCreateParams,
@@ -223,7 +225,7 @@ export function useServerLogs(
   });
   return useFollowedLogs(
     query,
-    options.follow ? (processId) => processId === `server-${id}` : null,
+    options.follow ? (processId) => processId === serverProcessId(id) : null,
     options.limit,
   );
 }

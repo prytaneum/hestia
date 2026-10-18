@@ -8,6 +8,11 @@
  * and the window tracker both parse: `server-<id>` and `instance-<id>_<seq>`.
  */
 import type { ProcessInfo, ProcessLogLine } from '@/api/types';
+import {
+  instanceSessionId,
+  instanceSessionPrefix,
+  serverProcessId,
+} from '@/lib/process-id';
 
 import { publish } from '../bus';
 import { now } from '../support';
@@ -27,12 +32,10 @@ const supervised = new Map<string, Supervised>();
 let ticker = 0;
 let nextPid = 4_300;
 
-export const serverProcessId = (id: string): string => `server-${id}`;
-
 /** The next free session id of an instance — sessions are numbered from 1. */
 export function sessionId(instanceId: string): string {
   const taken = sessionsOf(instanceId).length;
-  return `instance-${instanceId}_${taken + 1}`;
+  return instanceSessionId(instanceId, taken + 1);
 }
 
 export const get = (id: string): ProcessInfo | undefined =>
@@ -42,7 +45,7 @@ export const list = (): ProcessInfo[] =>
   [...supervised.values()].map((entry) => entry.info);
 
 export function sessionsOf(instanceId: string): ProcessInfo[] {
-  const prefix = `instance-${instanceId}_`;
+  const prefix = instanceSessionPrefix(instanceId);
   return list().filter(
     (info) => info.id.startsWith(prefix) && info.state === 'running',
   );

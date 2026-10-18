@@ -4,7 +4,8 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { PinnedSection } from '@/components/app-shell/pinned-section';
 import { LaunchDialogProvider } from '@/features/instances/dialogs';
 import { findServer } from '@/mock/state/entries';
-import { isRunning, serverProcessId } from '@/mock/state/processes';
+import { serverProcessId } from '@/lib/process-id';
+import { isRunning } from '@/mock/state/processes';
 import { m } from '@/paraglide/messages.js';
 import {
   renderWithProviders,

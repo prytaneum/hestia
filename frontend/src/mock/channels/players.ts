@@ -4,6 +4,7 @@
  */
 import type { PlayerEntry, PlayerList } from '@/api/types';
 
+import { serverProcessId } from '@/lib/process-id';
 import * as processes from '../state/processes';
 import { bool, type ChannelHandlers, fail, ok, str } from '../support';
 
@@ -36,7 +37,7 @@ function listsOf(server: string): Lists {
 }
 
 const running = (server: string): boolean =>
-  processes.isRunning(processes.serverProcessId(server));
+  processes.isRunning(serverProcessId(server));
 
 function requireRunning(server: string): void {
   if (!running(server)) fail('bad_request', `${server} is not running`);

@@ -13,22 +13,17 @@ import {
   onDaemonEvent,
   type Topics,
 } from '../api';
+import { entryOfProcess } from '../lib/process-id';
 import { invalidate, queryClient } from './client';
 import { FOOTPRINT, keys } from './keys';
-
-/** The entry id a supervisor process id names (`server-<id>` / `instance-<id>_<seq>`). */
-function entryFromProcess(processId: string, prefix: string): string | null {
-  if (!processId.startsWith(prefix)) return null;
-  return processId.slice(prefix.length).split('_')[0] || null;
-}
 
 // Running state shows in both the entry's list row and its detail status, so a
 // lifecycle event refreshes those two — never the whole `all` subtree (other
 // entries, the footprint walk).
 function processKeys(payload: { id: string }): QueryKey[] {
-  const server = entryFromProcess(payload.id, 'server-');
+  const server = entryOfProcess(payload.id, 'server');
   if (server) return [keys.servers.list(), keys.servers.detail(server)];
-  const instance = entryFromProcess(payload.id, 'instance-');
+  const instance = entryOfProcess(payload.id, 'instance');
   // A session's exit is when what it joined is folded into the recent list.
   if (instance)
     return [
@@ -62,7 +57,7 @@ const JOB_DONE: JobKeys = {
   'server.update': (done) => entryKeys('servers', done.server.id),
   'instance.update': (done) => entryKeys('instances', done.instance.id),
   'instance.launch': (done) =>
-    entryKeys('instances', entryFromProcess(done.processId, 'instance-')),
+    entryKeys('instances', entryOfProcess(done.processId, 'instance')),
   'java.install': () => [keys.java.runtimes()],
   'server.backup.create': sweepServers,
   'server.backup.restore': sweepServers,

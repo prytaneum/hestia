@@ -4,7 +4,7 @@
  * content pool (`contentChannels`) and the modpack verbs (./modpack).
  */
 import type { ContentKind, EntryTarget, InstalledContent } from '@/api/types';
-
+import { serverProcessId } from '@/lib/process-id';
 import { jobIdOf, startJob } from '../job';
 import * as catalog from '../state/catalog';
 import * as content from '../state/content';
@@ -59,8 +59,7 @@ export function entryChannels(): ChannelHandlers {
 
     'entry.stop': (p) => {
       const { id } = entryOf(p.target);
-      if (p.target?.kind === 'server')
-        processes.stop(processes.serverProcessId(id));
+      if (p.target?.kind === 'server') processes.stop(serverProcessId(id));
       else processes.stopSessions(id, p.session || undefined);
       return ok();
     },
@@ -69,7 +68,7 @@ export function entryChannels(): ChannelHandlers {
       const { id } = entryOf(p.target);
       const process =
         p.target?.kind === 'server'
-          ? processes.serverProcessId(id)
+          ? serverProcessId(id)
           : p.session || processes.sessionsOf(id).at(-1)?.id || '';
       return processes.logs(process, p.tail);
     },

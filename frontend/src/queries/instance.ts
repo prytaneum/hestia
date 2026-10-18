@@ -6,7 +6,9 @@
  * from the list query. `update` is a job (a modpack moves with the version),
  * and so is `launch`, which materialises files and spawns the game.
  */
+
 import { queryOptions, useQuery } from '@tanstack/react-query';
+import { instanceSessionPrefix } from '@/lib/process-id';
 import type {
   InstanceCreateParams,
   InstanceInfo,
@@ -231,7 +233,7 @@ export function useInstanceLogs(
       ? (processId) =>
           session
             ? processId === session
-            : processId.startsWith(`instance-${id}_`)
+            : processId.startsWith(instanceSessionPrefix(id))
       : null,
     options.limit,
   );

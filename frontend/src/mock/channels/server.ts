@@ -10,7 +10,7 @@ import type {
   ServerInfo,
   ServerProperty,
 } from '@/api/types';
-
+import { serverProcessId } from '@/lib/process-id';
 import { jobIdOf, startJob } from '../job';
 import * as catalog from '../state/catalog';
 import * as entries from '../state/entries';
@@ -80,7 +80,7 @@ const serverId = (payload: Record<string, unknown>): string =>
 function startServer(reference: string) {
   const server = entries.findServer(reference);
   const process = processes.start(
-    processes.serverProcessId(server.id),
+    serverProcessId(server.id),
     `${entries.HOME}/java/${server.javaMajor}/bin/java`,
     ['-Xmx4G', '-jar', 'server.jar', 'nogui'],
     banner(server),
@@ -163,7 +163,7 @@ export const channels: ChannelHandlers = {
   'server.start': (p) => startServer(str(p, 'server')),
 
   'server.restart': (p) => {
-    processes.stop(processes.serverProcessId(serverId(p)));
+    processes.stop(serverProcessId(serverId(p)));
     return startServer(str(p, 'server'));
   },
 
