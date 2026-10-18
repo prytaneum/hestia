@@ -199,7 +199,7 @@ pub fn read_installer(bytes: &[u8]) -> Result<Installer> {
         if !entry.is_file() || entry.size() > MAX_ENTRY {
             continue;
         }
-        let name = entry.name().to_string();
+        let name = entry.name()?.into_owned();
         let wanted = name == "version.json"
             || name == "install_profile.json"
             || (name.starts_with("data/") && !name.ends_with('/'));

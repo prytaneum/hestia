@@ -942,7 +942,7 @@ fn archive_with(
     let mut writer = zip::ZipWriter::new(std::fs::File::create(&edited).expect("create"));
     for index in 0..source.len() {
         let entry = source.by_index(index).expect("a member");
-        if entry.name() != member {
+        if entry.name().expect("a member name") != member {
             writer.raw_copy_file(entry).expect("copy a member");
         }
     }

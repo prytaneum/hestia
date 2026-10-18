@@ -227,9 +227,13 @@ impl Reader {
         Ok(Reader { zip })
     }
 
-    /// Every member name in the archive, directories included.
+    /// Every member name in the archive, directories included. A name that is
+    /// not valid UTF-8 is left out; extracting it fails on its own.
     pub(crate) fn names(&self) -> Vec<String> {
-        self.zip.file_names().map(str::to_string).collect()
+        self.zip
+            .file_names()
+            .filter_map(|name| name.ok().map(|name| name.into_owned()))
+            .collect()
     }
 
     pub(crate) fn read_bytes(&mut self, name: &str) -> Result<Vec<u8>> {
@@ -288,7 +292,8 @@ impl Reader {
                 if entry.is_dir() {
                     continue;
                 }
-                let Some(relative) = entry.name().strip_prefix(tree.as_str()) else {
+                let name = entry.name().context("cannot read an archive entry name")?;
+                let Some(relative) = name.strip_prefix(tree.as_str()) else {
                     continue;
                 };
                 let relative = relative.trim_start_matches('/');
@@ -297,7 +302,7 @@ impl Reader {
                 }
                 if !is_safe_path(relative) {
                     tracing::warn!(
-                        member = entry.name(),
+                        member = %name,
                         "an archive member escapes its directory"
                     );
                     anyhow::bail!(proto::error::ErrorInfo::ArchiveInvalid {

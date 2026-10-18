@@ -175,7 +175,7 @@ fn unpack_native(jar: &Path, dest: &Path, exclude: &[String]) -> Result<()> {
         if entry.is_dir() {
             continue;
         }
-        let name = entry.name().to_string();
+        let name = entry.name()?.into_owned();
         if exclude
             .iter()
             .any(|prefix| name.starts_with(prefix.as_str()))
