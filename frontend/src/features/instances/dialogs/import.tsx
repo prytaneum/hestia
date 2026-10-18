@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Field, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Spinner } from '@/components/ui/spinner';
+import { fileName } from '@/lib/path';
 import { toastWarnings } from '@/lib/warnings';
 import { m } from '@/paraglide/messages.js';
 import { useJobMutation } from '@/queries/jobs';
@@ -162,8 +163,4 @@ export function ImportInstanceDialog({
       </DialogFooter>
     </AppDialog>
   );
-}
-
-function fileName(path: string): string {
-  return path.split(/[/\\]/).pop() ?? path;
 }

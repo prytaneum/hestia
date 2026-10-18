@@ -26,9 +26,9 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import {
-  projectKey,
   projectRef,
   SourceBadge,
+  selectionKey,
 } from '@/features/content/components';
 import { kindInfo } from '@/features/shared/content/lib';
 import { agoLabel } from '@/lib/format';
@@ -82,10 +82,10 @@ export function ReviewStep({
       <div className="divide-y divide-border border border-border">
         {picked.map((p) => (
           <ReviewItemRow
-            key={projectKey(p)}
+            key={selectionKey(p)}
             project={p}
-            versionId={versionIds[projectKey(p)] ?? ''}
-            onVersion={(id) => onVersion(projectKey(p), id)}
+            versionId={versionIds[selectionKey(p)] ?? ''}
+            onVersion={(id) => onVersion(selectionKey(p), id)}
             onRemove={() => onRemoveProject(p)}
           />
         ))}

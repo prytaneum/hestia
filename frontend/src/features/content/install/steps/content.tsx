@@ -15,10 +15,11 @@ import { contentIcon, contentKindLabel } from '@/components/icons';
 import { OfflineState } from '@/components/offline-state';
 import { PickerPanel } from '@/components/picker-panel';
 import {
-  projectKey,
+  selectionKey,
   sourceGroup,
   useSourceOptions,
 } from '@/features/content/components';
+import { sourceRef } from '@/features/content/lib';
 import {
   KindChips,
   PickRow,
@@ -66,7 +67,7 @@ export function ContentStep({
   const noWorlds = target.type === 'instance' && worlds.data?.length === 0;
   const datapackBlocked = (k: ContentKind) => k === 'data_pack' && noWorlds;
   const activeKind = kind ?? kinds[0];
-  const pickedKeys = new Set(picked.map(projectKey));
+  const pickedKeys = new Set(picked.map(selectionKey));
   const installedRefs = useInstalledRefs(target, activeKind);
   const sources = useSourceOptions(activeKind, source);
 
@@ -141,17 +142,17 @@ export function ContentStep({
       ) : (
         <div className="grid gap-2 p-0.5">
           {hits.map((p) => {
-            const installed = installedRefs.has(`${p.source}:${p.id}`);
+            const installed = installedRefs.has(sourceRef(p.source, p.id));
             return (
               <PickRow
-                key={projectKey(p)}
+                key={selectionKey(p)}
                 icon={contentIcon(p.kind)}
                 imageUrl={p.iconUrl}
                 title={p.title}
                 subtitle={`${contentKindLabel[p.kind]()} · ${m['content.browse.by_author']({ name: p.author })}`}
                 badge={installed ? m['content.installed']() : undefined}
                 disabled={installed}
-                selected={pickedKeys.has(projectKey(p))}
+                selected={pickedKeys.has(selectionKey(p))}
                 onSelect={() => onToggle(p)}
               />
             );
@@ -189,7 +190,7 @@ function LinkResult({
 
   const { project, versionId } = query.data;
   const taken = accepts.includes(project.kind);
-  const already = installed.has(`${project.source}:${project.id}`);
+  const already = installed.has(sourceRef(project.source, project.id));
   return (
     <div className="grid gap-2 p-0.5">
       <PickRow
@@ -207,7 +208,7 @@ function LinkResult({
             : m['content.kind_not_taken']()
         }
         disabled={already || !taken}
-        selected={picked.has(projectKey(project))}
+        selected={picked.has(selectionKey(project))}
         onSelect={() => onToggle(project, versionId)}
       />
     </div>

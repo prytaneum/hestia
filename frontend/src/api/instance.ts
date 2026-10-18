@@ -108,5 +108,3 @@ export function launch(
 ): Promise<InstanceLaunchDone> {
   return runJob('instance.launch', params, job);
 }
-
-/** Stops one named session, or every session of the instance. */

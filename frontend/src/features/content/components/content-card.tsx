@@ -28,8 +28,9 @@ export const projectRef = (p: Pick<ContentProject, 'slug' | 'id'>) =>
  * only within its own platform, so the source is part of the key while
  * `projectRef` stays what the daemon is asked for.
  */
-export const projectKey = (p: Pick<ContentProject, 'source' | 'slug' | 'id'>) =>
-  `${p.source}:${projectRef(p)}`;
+export const selectionKey = (
+  p: Pick<ContentProject, 'source' | 'slug' | 'id'>,
+) => `${p.source}:${projectRef(p)}`;
 
 export function ContentCard({
   project,

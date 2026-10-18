@@ -1,1 +1,1 @@
-export { mergeHits, projectKey } from './hits';
+export { mergeHits, projectKey, sourceRef } from './hits';

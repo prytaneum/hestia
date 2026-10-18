@@ -1,7 +1,9 @@
 import type { ContentProject, SearchResult } from '@/api';
 
+export const sourceRef = (source: string, id: string) => `${source}:${id}`;
+
 export const projectKey = (project: ContentProject) =>
-  `${project.source}:${project.id}`;
+  sourceRef(project.source, project.id);
 
 export function mergeHits(
   pages: SearchResult[][] | undefined,

@@ -11,6 +11,7 @@ import { queryOptions } from '@tanstack/react-query';
 import type { ExportDone, ImportDone } from '../api';
 import type { ExportInput } from '../api/transfer';
 import * as api from '../api/transfer';
+import { fileName } from '../lib/path';
 import { jobMutation } from './jobs';
 import { FOOTPRINT, keys } from './keys';
 
@@ -62,7 +63,3 @@ export const transferMutations = {
       invalidates: () => [keys.instances.list()],
     }),
 };
-
-function fileName(path: string): string {
-  return path.split(/[/\\]/).pop() ?? path;
-}

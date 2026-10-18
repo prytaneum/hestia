@@ -1,7 +1,7 @@
 import { useEffect, useReducer } from 'react';
 
 import type { ContentKind, ContentProject } from '@/api';
-import { projectKey } from '@/features/content/components';
+import { selectionKey } from '@/features/content/components';
 import type { PickedFile } from '../lib';
 
 export interface WizardInit {
@@ -51,7 +51,7 @@ function initial(init: WizardInit): WizardState {
     source: init.project?.source ?? '',
     versionIds:
       init.project && init.versionId
-        ? { [projectKey(init.project)]: init.versionId }
+        ? { [selectionKey(init.project)]: init.versionId }
         : {},
     worlds: [],
     installing: false,
@@ -68,13 +68,13 @@ function reducer(state: WizardState, action: WizardAction): WizardState {
     case 'target':
       return { ...state, targetId: action.id, worlds: [] };
     case 'toggleProject': {
-      const key = projectKey(action.project);
-      const has = state.picked.some((p) => projectKey(p) === key);
+      const key = selectionKey(action.project);
+      const has = state.picked.some((p) => selectionKey(p) === key);
       const { [key]: _dropped, ...versionIds } = state.versionIds;
       return {
         ...state,
         picked: has
-          ? state.picked.filter((p) => projectKey(p) !== key)
+          ? state.picked.filter((p) => selectionKey(p) !== key)
           : [...state.picked, action.project],
         versionIds,
       };

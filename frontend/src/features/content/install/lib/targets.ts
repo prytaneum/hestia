@@ -7,6 +7,8 @@ import type {
   ServerInfo,
 } from '@/api';
 import { content as contentApi } from '@/api';
+import { sourceRef } from '@/features/content/lib';
+import { fileName } from '@/lib/path';
 import { m } from '@/paraglide/messages.js';
 import { entryContentQueries } from '@/queries/entry-content';
 import { useInstances } from '@/queries/instance';
@@ -69,8 +71,6 @@ export interface PickedFile {
   track: string;
 }
 
-export const fileName = (path: string) => path.split(/[\\/]/).pop() ?? path;
-
 /** Ask the daemon what each picked or dropped file is, ready to be staged. */
 export function inspectFiles(paths: string[]): Promise<PickedFile[]> {
   return Promise.all(
@@ -118,7 +118,7 @@ export function useInstalledRefs(
       new Set(
         (items ?? [])
           .filter((i) => i.projectId)
-          .map((i) => `${i.source}:${i.projectId}`),
+          .map((i) => sourceRef(i.source, i.projectId)),
       ),
     [items],
   );

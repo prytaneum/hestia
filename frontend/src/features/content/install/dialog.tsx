@@ -15,7 +15,7 @@ import {
   ProgressLabel,
   ProgressValue,
 } from '@/components/ui/progress';
-import { projectKey, projectRef } from '@/features/content/components';
+import { projectRef, selectionKey } from '@/features/content/components';
 import { m } from '@/paraglide/messages.js';
 import { entryContentMutations } from '@/queries/entry-content';
 import { useJobDisplay, useJobMutation } from '@/queries/jobs';
@@ -111,7 +111,7 @@ export function ContentInstallDialog({
   const toggleProject = (p: ContentProject, versionId?: string) => {
     dispatch({ type: 'toggleProject', project: p });
     if (versionId) {
-      dispatch({ type: 'version', ref: projectKey(p), id: versionId });
+      dispatch({ type: 'version', ref: selectionKey(p), id: versionId });
     }
   };
 
@@ -171,7 +171,7 @@ export function ContentInstallDialog({
             .map((p) => ({
               project: projectRef(p),
               source: p.source,
-              version: versionIds[projectKey(p)] ?? '',
+              version: versionIds[selectionKey(p)] ?? '',
             })),
           ...files
             .filter((f) => f.kind === k)
@@ -194,7 +194,7 @@ export function ContentInstallDialog({
     } catch (e) {
       dispatch({
         type: 'installError',
-        message: e instanceof Error ? e.message : String(e),
+        message: errorMessage(e),
       });
     }
   }

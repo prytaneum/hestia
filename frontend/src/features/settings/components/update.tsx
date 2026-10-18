@@ -3,6 +3,7 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { toast } from 'sonner';
 
+import { errorMessage } from '@/api';
 import type { UpdateChannel } from '@/api/types/update';
 import { Markdown } from '@/components/markdown';
 import { OfflineNotice } from '@/components/offline-state';
@@ -95,7 +96,9 @@ export function UpdatePanel() {
         toast.success(m['settings.update.restart_required']());
       }
     } catch (e) {
-      toast.error(m['settings.update.failed'](), { description: String(e) });
+      toast.error(m['settings.update.failed'](), {
+        description: errorMessage(e),
+      });
     }
   };
 
