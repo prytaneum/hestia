@@ -2,6 +2,7 @@
 //! daemon over the client SDK, executes menu actions, and reports state
 //! changes to whatever renders the icon.
 
+use std::ops::ControlFlow;
 use std::sync::mpsc::{Receiver, RecvTimeoutError};
 use std::time::Duration;
 
@@ -55,14 +56,11 @@ fn run<S: Sink>(rx: Receiver<Action>, sink: S) {
     worker.push_state(&mut last, &sink);
     loop {
         match rx.recv_timeout(POLL_INTERVAL) {
-            Ok(Action::Quit) => {
-                crate::desktop::quit();
-                worker.stop_daemon();
-                sink.exit();
-                return;
-            }
             Ok(action) => {
-                worker.perform(action);
+                if worker.perform(action).is_break() {
+                    sink.exit();
+                    return;
+                }
                 worker.push_state(&mut last, &sink);
             }
             Err(RecvTimeoutError::Timeout) => {
@@ -83,7 +81,7 @@ struct Worker {
 }
 
 impl Worker {
-    fn perform(&mut self, action: Action) {
+    fn perform(&mut self, action: Action) -> ControlFlow<()> {
         match action {
             Action::Start => {
                 tracing::info!("starting the daemon");
@@ -99,8 +97,8 @@ impl Worker {
                 self.connect_spawning();
             }
             Action::SetAutostart(enabled) => {
-                if self.connect_if_needed() {
-                    let c = self.client.as_ref().expect("connected");
+                self.connect_if_needed();
+                if let Some(c) = &self.client {
                     if let Err(e) = self
                         .rt
                         .block_on(c.config().set(AUTOSTART_KEY, serde_json::json!(enabled)))
@@ -111,18 +109,23 @@ impl Worker {
                 }
             }
             Action::OpenDesktop => crate::desktop::launch(),
-            Action::Quit => unreachable!("quit is handled by the worker loop"),
+            Action::Quit => {
+                crate::desktop::quit();
+                self.stop_daemon();
+                return ControlFlow::Break(());
+            }
         }
+        ControlFlow::Continue(())
     }
 
     /// Quit means "stop the daemon, leave the workloads" — the third meaning of
     /// `daemon stop` (ask) has nowhere to go from a menu item, and a tray quit
     /// silently killing someone's running server would be the worse guess.
     fn stop_daemon(&mut self) {
-        if !self.connect_if_needed() {
+        self.connect_if_needed();
+        let Some(c) = &self.client else {
             return;
-        }
-        let c = self.client.as_ref().expect("connected");
+        };
         tracing::info!("quit: stopping the daemon, keeping supervised workloads");
         if let Err(e) = self.rt.block_on(c.daemon().stop(false)) {
             tracing::warn!("daemon stop failed: {e}");
@@ -139,24 +142,21 @@ impl Worker {
         }
     }
 
-    fn connect_if_needed(&mut self) -> bool {
+    fn connect_if_needed(&mut self) {
         if self.client.is_none() {
             if let Ok(c) = self.rt.block_on(Client::connect()) {
                 self.autostart = fetch_autostart(&self.rt, &c);
                 self.client = Some(c);
             }
         }
-        self.client.is_some()
     }
 
     fn poll(&mut self) -> DaemonState {
-        if !self.connect_if_needed() {
+        self.connect_if_needed();
+        let Some(c) = &self.client else {
             return DaemonState::default();
-        }
-        let status = match self.client.as_ref() {
-            None => return DaemonState::default(),
-            Some(c) => self.rt.block_on(c.daemon().status()),
         };
+        let status = self.rt.block_on(c.daemon().status());
         match status {
             Ok(s) => DaemonState {
                 running: true,
