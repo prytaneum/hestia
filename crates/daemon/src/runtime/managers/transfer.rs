@@ -10,38 +10,11 @@ use proto::transfer::{ExportDone, ExportFormat, ImportDone, InstanceExport, Inst
 use super::job::{Jobs, Spec};
 use crate::runtime::{instance_info, Claim};
 
-/// One import or export — what `Jobs::start_transfer` runs off-thread.
-pub enum TransferJob {
-    Export {
-        instance_id: String,
-        format: ExportFormat,
-        destination: String,
-        exclude: Vec<String>,
-    },
-    Import {
-        path: String,
-        name: String,
-    },
-}
-
 impl Jobs {
-    /// Start a transfer off-thread; an export carries the instance's claim.
-    pub fn start_transfer(&self, job: TransferJob, id: String, claim: Option<Claim>) -> String {
-        match job {
-            TransferJob::Export {
-                instance_id,
-                format,
-                destination,
-                exclude,
-            } => self.export(id, claim, instance_id, format, destination, exclude),
-            TransferJob::Import { path, name } => self.import(id, path, name),
-        }
-    }
-
-    fn export(
+    pub fn start_export(
         &self,
         id: String,
-        claim: Option<Claim>,
+        claim: Claim,
         instance_id: String,
         format: ExportFormat,
         destination: String,
@@ -50,7 +23,7 @@ impl Jobs {
         let spec = Spec {
             id,
             prefix: "instance-export",
-            claim,
+            claim: Some(claim),
         };
 
         self.run::<InstanceExport, _>(spec, move |engine, reporter| {
@@ -72,7 +45,7 @@ impl Jobs {
         })
     }
 
-    fn import(&self, id: String, path: String, name: String) -> String {
+    pub fn start_import(&self, id: String, path: String, name: String) -> String {
         let spec = Spec {
             id,
             prefix: "instance-import",

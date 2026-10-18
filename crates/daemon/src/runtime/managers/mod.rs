@@ -16,6 +16,5 @@ mod update;
 pub use backup::BackupJob;
 pub use content::{ContentJob, Entry as JobEntry};
 pub use instance::LaunchOrder;
-pub use job::{Cancellations, Jobs};
+pub use job::Jobs;
 pub use modpack::ModpackJob;
-pub use transfer::TransferJob;

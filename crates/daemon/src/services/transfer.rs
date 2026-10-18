@@ -12,20 +12,18 @@ use proto::transfer::{
 };
 
 use super::guards::{instance_for, instance_held, Hold, Intent};
-use crate::runtime::{Channels, JobKind, TransferJob};
+use crate::runtime::{Channels, JobKind};
 
 pub(super) fn register(on: &mut Channels<'_>) {
     on.handle::<InstanceExport, _, _>(|p, ctx| async move {
         let (record, claim) = instance_held(&ctx, &p.instance, Hold::stopped(JobKind::Export))?;
-        let id = ctx.runtime.jobs().start_transfer(
-            TransferJob::Export {
-                instance_id: record.id,
-                format: p.format,
-                destination: p.destination,
-                exclude: p.exclude,
-            },
+        let id = ctx.runtime.jobs().start_export(
             p.id,
-            Some(claim),
+            claim,
+            record.id,
+            p.format,
+            p.destination,
+            p.exclude,
         );
         Ok(JobStarted { id })
     });
@@ -42,14 +40,7 @@ pub(super) fn register(on: &mut Channels<'_>) {
 
     on.handle::<InstanceImport, _, _>(|p, ctx| async move {
         require_path(&p.path)?;
-        let id = ctx.runtime.jobs().start_transfer(
-            TransferJob::Import {
-                path: p.path,
-                name: p.name,
-            },
-            p.id,
-            None,
-        );
+        let id = ctx.runtime.jobs().start_import(p.id, p.path, p.name);
         Ok(JobStarted { id })
     });
 

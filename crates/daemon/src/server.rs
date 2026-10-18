@@ -23,7 +23,7 @@ pub async fn run_daemon(log_path: std::path::PathBuf) -> i32 {
         }
     };
 
-    let runtime = Arc::new(Runtime::new(log_path, None));
+    let runtime = Arc::new(Runtime::new(log_path));
     tracing::info!(
         version = common::app::VERSION,
         pid = std::process::id(),

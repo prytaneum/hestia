@@ -10,7 +10,7 @@ use proto::java::{JavaInstallPhase, JavaInstallProgress};
 use proto::job::{Job, JobEvent, JobState};
 use proto::minecraft::{ProvisionPhase, ProvisionProgress};
 
-use crate::runtime::{Claim, Claims, ProcessSupervisor};
+use crate::runtime::{Cancellations, Claim, Claims, ProcessSupervisor};
 
 /// Below this ratio delta a progress update is dropped, matching Modrinth's
 /// `emit_loading` (0.5%): a phase of thousands of tiny units (an instance's
@@ -111,274 +111,6 @@ pub(super) fn job_id(id: String, prefix: &str) -> String {
         generate_id(prefix)
     } else {
         id
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use std::sync::atomic::{AtomicUsize, Ordering};
-    use std::time::Duration;
-
-    use proto::java::{JavaInstallPhase, JavaInstallProgress};
-
-    use super::*;
-
-    fn downloading(current: u64, total: u64) -> JavaInstallProgress {
-        JavaInstallProgress {
-            phase: JavaInstallPhase::Downloading,
-            current,
-            total,
-        }
-    }
-
-    #[test]
-    fn coalesces_sub_epsilon_java_ticks() {
-        let emitted = AtomicUsize::new(0);
-        let forward = coalesce_progress(|_: &JavaInstallProgress| {
-            emitted.fetch_add(1, Ordering::SeqCst);
-        });
-
-        // A per-chunk download flood: one tick per 0.1% of a large archive.
-        for i in 0..=1000u64 {
-            forward(&downloading(i, 1000));
-        }
-
-        // Far fewer than the 1001 ticks: forwarded only past each 0.5% step
-        // (~200) plus the first and the terminal 100%.
-        let count = emitted.load(Ordering::SeqCst);
-        assert!(count > 0, "the first tick and completion must forward");
-        assert!(
-            count <= 210,
-            "sub-epsilon ticks must be dropped, got {count}"
-        );
-    }
-
-    /// A job invented for the tests: the runner never looks inside a payload,
-    /// so one stand-in contract exercises every path.
-    mod stand_in {
-        use serde::{Deserialize, Serialize};
-
-        #[derive(Serialize, Deserialize, Clone)]
-        pub struct Progress {
-            pub done: u64,
-        }
-        impl super::super::Coalescible for Progress {
-            type Phase = ();
-            fn phase(&self) {}
-            fn ratio(&self) -> f64 {
-                self.done as f64 / 1000.0
-            }
-        }
-
-        #[derive(Serialize, Deserialize)]
-        pub struct Done {}
-
-        pub struct Test;
-        impl proto::Contract for Test {
-            const CHANNEL: &'static str = "test.start";
-            type Params = proto::Empty;
-            type Result = proto::job::JobStarted;
-        }
-        impl proto::job::Job for Test {
-            type Progress = Progress;
-            type Done = Done;
-        }
-    }
-
-    struct Harness {
-        jobs: Jobs,
-        events: tokio::sync::mpsc::UnboundedReceiver<String>,
-        _home: tempfile::TempDir,
-    }
-
-    fn harness() -> Harness {
-        let home = tempfile::tempdir().expect("temp home");
-        let engine = Arc::new(engine::Engine::new(Some(home.path())));
-        let hub = Arc::new(crate::runtime::EventHub::default());
-        let (tx, events) = tokio::sync::mpsc::unbounded_channel();
-        hub.subscribe(1, tx, None);
-        let processes = engine.processes().clone();
-        Harness {
-            jobs: Jobs::new(
-                engine,
-                hub,
-                Claims::default(),
-                processes,
-                Cancellations::new(),
-            ),
-            events,
-            _home: home,
-        }
-    }
-
-    fn start<W>(jobs: &Jobs, work: W) -> String
-    where
-        W: for<'a> FnOnce(
-                &'a engine::Engine,
-                Reporter<'a, stand_in::Progress>,
-            ) -> Work<'a, stand_in::Done>
-            + Send
-            + 'static,
-    {
-        let spec = Spec {
-            id: String::new(),
-            prefix: "test",
-            claim: None,
-        };
-        jobs.run::<stand_in::Test, _>(spec, work)
-    }
-
-    /// The state of every job event published so far, drained.
-    async fn topics(events: &mut tokio::sync::mpsc::UnboundedReceiver<String>) -> Vec<String> {
-        let mut seen = Vec::new();
-        while let Ok(Some(frame)) =
-            tokio::time::timeout(Duration::from_millis(500), events.recv()).await
-        {
-            let value: serde_json::Value = serde_json::from_str(&frame).expect("a frame");
-            assert_eq!(value["event"], "job");
-            assert_eq!(value["payload"]["channel"], "test.start");
-            seen.push(
-                value["payload"]["state"]
-                    .as_str()
-                    .unwrap_or_default()
-                    .to_string(),
-            );
-        }
-        seen
-    }
-
-    #[tokio::test]
-    async fn progress_is_coalesced_and_the_job_settles_on_done() {
-        let mut harness = harness();
-        start(&harness.jobs, |_, reporter| {
-            Box::pin(async move {
-                let report = reporter.checked();
-                // A flood of sub-epsilon ticks, as an assets pass emits.
-                for done in 0..=1000 {
-                    report(&stand_in::Progress { done })?;
-                }
-                Ok(stand_in::Done {})
-            })
-        });
-
-        let seen = topics(&mut harness.events).await;
-        assert_eq!(seen.last().map(String::as_str), Some("done"));
-        let progress = seen.iter().filter(|t| *t == "progress").count();
-        assert!(
-            (1..=210).contains(&progress),
-            "every job is coalesced by the runner, got {progress} of 1001 ticks"
-        );
-    }
-
-    #[tokio::test]
-    async fn a_cancelled_job_settles_apart_from_a_failure() {
-        let mut harness = harness();
-        start(&harness.jobs, |_, reporter| {
-            Box::pin(async move {
-                reporter.cancel().cancel();
-                reporter.cancel().check()?;
-                Ok(stand_in::Done {})
-            })
-        });
-
-        assert_eq!(topics(&mut harness.events).await, vec!["cancelled"]);
-    }
-
-    #[tokio::test]
-    async fn a_failed_job_settles_on_its_error_topic() {
-        let mut harness = harness();
-        start(&harness.jobs, |_, _| {
-            Box::pin(async { Err(anyhow::anyhow!("no")) })
-        });
-
-        assert_eq!(topics(&mut harness.events).await, vec!["failed"]);
-    }
-
-    #[test]
-    fn forwards_on_phase_change() {
-        let emitted = AtomicUsize::new(0);
-        let forward = coalesce_progress(|_: &JavaInstallProgress| {
-            emitted.fetch_add(1, Ordering::SeqCst);
-        });
-
-        forward(&JavaInstallProgress {
-            phase: JavaInstallPhase::Resolving,
-            current: 0,
-            total: 0,
-        });
-        // Same zero ratio, new phase: a phase switch always forwards.
-        forward(&downloading(0, 0));
-        forward(&JavaInstallProgress {
-            phase: JavaInstallPhase::Extracting,
-            current: 0,
-            total: 0,
-        });
-
-        assert_eq!(emitted.load(Ordering::SeqCst), 3);
-    }
-}
-
-/// Every cancellable job currently running, keyed by its job id — the same id
-/// its progress and terminal events carry, so `job.cancel` needs nothing else to
-/// find it.
-///
-/// The registration guard releases on drop, exactly as [`Claim`] does, so a job
-/// that panics leaves no token behind for a later job to inherit.
-#[derive(Clone, Default)]
-pub struct Cancellations {
-    running: Arc<Mutex<std::collections::HashMap<String, engine::Cancel>>>,
-}
-
-impl Cancellations {
-    pub fn new() -> Self {
-        Cancellations::default()
-    }
-
-    /// Register `id` and hand back its token plus the guard that unregisters it.
-    pub(super) fn register(&self, id: &str) -> (engine::Cancel, Registered) {
-        let cancel = engine::Cancel::new();
-        self.running
-            .lock()
-            .unwrap()
-            .insert(id.to_string(), cancel.clone());
-        (
-            cancel,
-            Registered {
-                running: self.running.clone(),
-                id: id.to_string(),
-            },
-        )
-    }
-
-    pub fn any_running(&self) -> bool {
-        !self.running.lock().unwrap().is_empty()
-    }
-
-    /// Raise `id`'s cancel flag. False when no such job is running — it already
-    /// finished, or never existed; a normal race, not an error.
-    pub fn cancel(&self, id: &str) -> bool {
-        match self.running.lock().unwrap().get(id) {
-            Some(cancel) => {
-                cancel.cancel();
-                tracing::info!(job = %id, "job cancellation requested");
-                true
-            }
-            None => {
-                tracing::debug!(job = %id, "nothing to cancel");
-                false
-            }
-        }
-    }
-}
-
-pub(super) struct Registered {
-    running: Arc<Mutex<std::collections::HashMap<String, engine::Cancel>>>,
-    id: String,
-}
-
-impl Drop for Registered {
-    fn drop(&mut self) {
-        self.running.lock().unwrap().remove(&self.id);
     }
 }
 
@@ -519,5 +251,209 @@ impl Jobs {
             hub.publish(&event);
         });
         id
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::time::Duration;
+
+    use proto::java::{JavaInstallPhase, JavaInstallProgress};
+
+    use super::*;
+
+    fn downloading(current: u64, total: u64) -> JavaInstallProgress {
+        JavaInstallProgress {
+            phase: JavaInstallPhase::Downloading,
+            current,
+            total,
+        }
+    }
+
+    #[test]
+    fn coalesces_sub_epsilon_java_ticks() {
+        let emitted = AtomicUsize::new(0);
+        let forward = coalesce_progress(|_: &JavaInstallProgress| {
+            emitted.fetch_add(1, Ordering::SeqCst);
+        });
+
+        // A per-chunk download flood: one tick per 0.1% of a large archive.
+        for i in 0..=1000u64 {
+            forward(&downloading(i, 1000));
+        }
+
+        // Far fewer than the 1001 ticks: forwarded only past each 0.5% step
+        // (~200) plus the first and the terminal 100%.
+        let count = emitted.load(Ordering::SeqCst);
+        assert!(count > 0, "the first tick and completion must forward");
+        assert!(
+            count <= 210,
+            "sub-epsilon ticks must be dropped, got {count}"
+        );
+    }
+
+    /// A job invented for the tests: the runner never looks inside a payload,
+    /// so one stand-in contract exercises every path.
+    mod stand_in {
+        use serde::{Deserialize, Serialize};
+
+        #[derive(Serialize, Deserialize, Clone)]
+        pub struct Progress {
+            pub done: u64,
+        }
+        impl super::super::Coalescible for Progress {
+            type Phase = ();
+            fn phase(&self) {}
+            fn ratio(&self) -> f64 {
+                self.done as f64 / 1000.0
+            }
+        }
+
+        #[derive(Serialize, Deserialize)]
+        pub struct Done {}
+
+        pub struct Test;
+        impl proto::Contract for Test {
+            const CHANNEL: &'static str = "test.start";
+            type Params = proto::Empty;
+            type Result = proto::job::JobStarted;
+        }
+        impl proto::job::Job for Test {
+            type Progress = Progress;
+            type Done = Done;
+        }
+    }
+
+    struct Harness {
+        jobs: Jobs,
+        events: tokio::sync::mpsc::UnboundedReceiver<String>,
+        _home: tempfile::TempDir,
+    }
+
+    fn harness() -> Harness {
+        let home = tempfile::tempdir().expect("temp home");
+        let engine = Arc::new(engine::Engine::new(Some(home.path())));
+        let hub = Arc::new(crate::runtime::EventHub::default());
+        let (tx, events) = tokio::sync::mpsc::unbounded_channel();
+        hub.subscribe(1, tx, None);
+        let processes = engine.processes().clone();
+        Harness {
+            jobs: Jobs::new(
+                engine,
+                hub,
+                Claims::default(),
+                processes,
+                Cancellations::default(),
+            ),
+            events,
+            _home: home,
+        }
+    }
+
+    fn start<W>(jobs: &Jobs, work: W) -> String
+    where
+        W: for<'a> FnOnce(
+                &'a engine::Engine,
+                Reporter<'a, stand_in::Progress>,
+            ) -> Work<'a, stand_in::Done>
+            + Send
+            + 'static,
+    {
+        let spec = Spec {
+            id: String::new(),
+            prefix: "test",
+            claim: None,
+        };
+        jobs.run::<stand_in::Test, _>(spec, work)
+    }
+
+    /// The state of every job event published so far, drained.
+    async fn topics(events: &mut tokio::sync::mpsc::UnboundedReceiver<String>) -> Vec<String> {
+        let mut seen = Vec::new();
+        while let Ok(Some(frame)) =
+            tokio::time::timeout(Duration::from_millis(500), events.recv()).await
+        {
+            let value: serde_json::Value = serde_json::from_str(&frame).expect("a frame");
+            assert_eq!(value["event"], "job");
+            assert_eq!(value["payload"]["channel"], "test.start");
+            seen.push(
+                value["payload"]["state"]
+                    .as_str()
+                    .unwrap_or_default()
+                    .to_string(),
+            );
+        }
+        seen
+    }
+
+    #[tokio::test]
+    async fn progress_is_coalesced_and_the_job_settles_on_done() {
+        let mut harness = harness();
+        start(&harness.jobs, |_, reporter| {
+            Box::pin(async move {
+                let report = reporter.checked();
+                // A flood of sub-epsilon ticks, as an assets pass emits.
+                for done in 0..=1000 {
+                    report(&stand_in::Progress { done })?;
+                }
+                Ok(stand_in::Done {})
+            })
+        });
+
+        let seen = topics(&mut harness.events).await;
+        assert_eq!(seen.last().map(String::as_str), Some("done"));
+        let progress = seen.iter().filter(|t| *t == "progress").count();
+        assert!(
+            (1..=210).contains(&progress),
+            "every job is coalesced by the runner, got {progress} of 1001 ticks"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_cancelled_job_settles_apart_from_a_failure() {
+        let mut harness = harness();
+        start(&harness.jobs, |_, reporter| {
+            Box::pin(async move {
+                reporter.cancel().cancel();
+                reporter.cancel().check()?;
+                Ok(stand_in::Done {})
+            })
+        });
+
+        assert_eq!(topics(&mut harness.events).await, vec!["cancelled"]);
+    }
+
+    #[tokio::test]
+    async fn a_failed_job_settles_on_its_error_topic() {
+        let mut harness = harness();
+        start(&harness.jobs, |_, _| {
+            Box::pin(async { Err(anyhow::anyhow!("no")) })
+        });
+
+        assert_eq!(topics(&mut harness.events).await, vec!["failed"]);
+    }
+
+    #[test]
+    fn forwards_on_phase_change() {
+        let emitted = AtomicUsize::new(0);
+        let forward = coalesce_progress(|_: &JavaInstallProgress| {
+            emitted.fetch_add(1, Ordering::SeqCst);
+        });
+
+        forward(&JavaInstallProgress {
+            phase: JavaInstallPhase::Resolving,
+            current: 0,
+            total: 0,
+        });
+        // Same zero ratio, new phase: a phase switch always forwards.
+        forward(&downloading(0, 0));
+        forward(&JavaInstallProgress {
+            phase: JavaInstallPhase::Extracting,
+            current: 0,
+            total: 0,
+        });
+
+        assert_eq!(emitted.load(Ordering::SeqCst), 3);
     }
 }

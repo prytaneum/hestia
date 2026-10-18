@@ -1,6 +1,7 @@
 //! The daemon's long-lived collaborators in one place — the anti-churn seam a
 //! new subsystem hangs off, mirroring the engine's aggregate root.
 
+mod cancellations;
 mod claims;
 mod event_hub;
 mod managers;
@@ -23,13 +24,12 @@ use proto::server::ServerInfo;
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::sync::Notify;
 
+pub use cancellations::Cancellations;
 pub use claims::{create_key, Claim, Claims, JobKind};
 pub use engine::error_info as engine_error;
 pub use engine::{ExitObserver, ProcessSupervisor, StartError};
 pub use event_hub::EventHub;
-pub use managers::{
-    BackupJob, Cancellations, ContentJob, JobEntry, Jobs, LaunchOrder, ModpackJob, TransferJob,
-};
+pub use managers::{BackupJob, ContentJob, JobEntry, Jobs, LaunchOrder, ModpackJob};
 pub use metrics::spawn_metrics_sampler;
 pub use network::spawn_network_watcher;
 pub use presence::spawn_presence_updater;
@@ -152,12 +152,12 @@ pub struct Runtime {
 }
 
 impl Runtime {
-    pub fn new(log_path: PathBuf, override_home: Option<&std::path::Path>) -> Self {
-        let engine = Arc::new(Engine::new(override_home));
+    pub fn new(log_path: PathBuf) -> Self {
+        let engine = Arc::new(Engine::new(None));
         let hub = Arc::new(EventHub::default());
         // One registry for every cancellable job, keyed by job id — what
         // `job.cancel` looks a running job up in, whichever manager owns it.
-        let cancellations = Cancellations::new();
+        let cancellations = Cancellations::default();
         let session_engine = engine.clone();
         let on_exit: ExitObserver = Arc::new(move |info: &proto::process::ProcessInfo| {
             let Some(instance_id) = instance_id_of_session(&info.id) else {
@@ -293,7 +293,7 @@ impl Runtime {
     }
 
     /// Ask the serve loop to shut down (the `daemon.stop` handler calls this).
-    pub fn request_stop(&self, stop_processes: bool) {
+    fn request_stop(&self, stop_processes: bool) {
         self.stop_processes.store(stop_processes, Ordering::SeqCst);
         self.stop.notify_one();
     }
