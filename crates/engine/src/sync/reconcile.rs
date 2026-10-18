@@ -60,7 +60,8 @@ pub fn write_if_changed(path: &Path, contents: &[u8]) -> Result<()> {
         fs::create_dir_all(parent)
             .with_context(|| format!("cannot create {}", parent.display()))?;
     }
-    fs::write(path, contents).with_context(|| format!("cannot write {}", path.display()))
+    common::atomic::write(path, contents)
+        .with_context(|| format!("cannot write {}", path.display()))
 }
 
 pub fn read(path: &Path) -> Option<Vec<u8>> {
