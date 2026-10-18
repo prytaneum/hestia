@@ -148,8 +148,33 @@ fn server_backup_excludes(record: &ServerRecord) -> Vec<String> {
     ]
 }
 
-/// Run the blocking archive pass off-thread, forwarding its per-file ticks to
-/// `on_progress` as `Backup`-phase provisioning progress.
+/// Run a blocking archive pass off-thread, forwarding its per-file ticks to
+/// `on_progress` as `phase` progress. Cancellation is checked per tick: a
+/// backup discards its `.part` and a restore extracts into staging before the
+/// swap, so stopping between files leaves nothing half-written.
+async fn blocking_pass<T: Send + 'static>(
+    phase: ProvisionPhase,
+    panic_text: &'static str,
+    on_progress: OnProgress<'_>,
+    work: impl FnOnce(crate::backup::OnProgress<'_>) -> Result<T> + Send + 'static,
+) -> Result<T> {
+    let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
+    let cancel = on_progress.cancel().clone();
+    let task = tokio::task::spawn_blocking(move || {
+        work(&move |current, total| {
+            if cancel.is_cancelled() {
+                return Err(crate::cancel::Cancelled.into());
+            }
+            let _ = tx.send((current, total));
+            Ok(())
+        })
+    });
+    while let Some((current, total)) = rx.recv().await {
+        on_progress.report(&progress_in(phase, current, total));
+    }
+    task.await.context(panic_text)?
+}
+
 async fn run_backup(
     entry_dir: PathBuf,
     data_dir: PathBuf,
@@ -157,29 +182,13 @@ async fn run_backup(
     exclude: Vec<String>,
     on_progress: OnProgress<'_>,
 ) -> Result<BackupInfo> {
-    let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
-    let cancel = on_progress.cancel().clone();
-    let task = tokio::task::spawn_blocking(move || {
-        backup::create(
-            &entry_dir,
-            &data_dir,
-            kind,
-            &exclude,
-            &move |current, total| {
-                // Per file: the archive stops between entries, and its `.part`
-                // is discarded rather than promoted.
-                if cancel.is_cancelled() {
-                    return Err(crate::cancel::Cancelled.into());
-                }
-                let _ = tx.send((current, total));
-                Ok(())
-            },
-        )
-    });
-    while let Some((current, total)) = rx.recv().await {
-        on_progress.report(&progress_in(ProvisionPhase::Backup, current, total));
-    }
-    task.await.context("the backup task panicked")?
+    blocking_pass(
+        ProvisionPhase::Backup,
+        "the backup task panicked",
+        on_progress,
+        move |tick| backup::create(&entry_dir, &data_dir, kind, &exclude, tick),
+    )
+    .await
 }
 
 async fn run_restore(
@@ -189,29 +198,13 @@ async fn run_restore(
     preserve: Vec<String>,
     on_progress: OnProgress<'_>,
 ) -> Result<BackupInfo> {
-    let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
-    let cancel = on_progress.cancel().clone();
-    let task = tokio::task::spawn_blocking(move || {
-        backup::restore(
-            &entry_dir,
-            &data_dir,
-            &backup,
-            &preserve,
-            &move |current, total| {
-                // A restore extracts into staging and swaps at the end, so
-                // stopping mid-extract leaves the live data untouched.
-                if cancel.is_cancelled() {
-                    return Err(crate::cancel::Cancelled.into());
-                }
-                let _ = tx.send((current, total));
-                Ok(())
-            },
-        )
-    });
-    while let Some((current, total)) = rx.recv().await {
-        on_progress.report(&progress_in(ProvisionPhase::Extract, current, total));
-    }
-    task.await.context("the restore task panicked")?
+    blocking_pass(
+        ProvisionPhase::Extract,
+        "the restore task panicked",
+        on_progress,
+        move |tick| backup::restore(&entry_dir, &data_dir, &backup, &preserve, tick),
+    )
+    .await
 }
 
 fn progress_in(phase: ProvisionPhase, current: u64, total: u64) -> ProvisionProgress {
