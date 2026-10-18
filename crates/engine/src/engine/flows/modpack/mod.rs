@@ -36,11 +36,12 @@ use proto::modpack::{
 };
 use proto::warning::WarningInfo;
 
-use super::content::entry::{EntryContent, EntryRef, EntrySide};
+use super::content::entry::{EntryContent, EntryRef};
 use crate::cancel::Job;
 use crate::content::{install, modpack, pack};
 use crate::engine::{Engine, ServerCreateSpec, ServerUpdateSpec};
 use crate::instances::InstanceRecord;
+use crate::minecraft::Side;
 use crate::registry;
 use crate::servers::ServerRecord;
 
@@ -131,7 +132,7 @@ impl Engine {
     ) -> Result<ModpackOutcome> {
         let entry = match target {
             ModpackTarget::Create { name } => {
-                let flavor = self.pack_flavor(&resolved, EntrySide::Client)?;
+                let flavor = self.pack_flavor(&resolved, Side::Client)?;
                 job.check()?;
                 self.create_instance(
                     &pack_entry_name(name, &resolved, |n| self.instance_name_taken(n)),
@@ -177,7 +178,7 @@ impl Engine {
         let (resolved, project, mut archive) = self.fetch_pack(reference, "", job).await?;
         let entry = match target {
             ModpackTarget::Create { name } => {
-                let flavor = self.pack_flavor(&resolved, EntrySide::Server)?;
+                let flavor = self.pack_flavor(&resolved, Side::Server)?;
                 job.check()?;
                 let servers = self.servers.list();
                 let taken =
@@ -393,10 +394,7 @@ impl Engine {
         let (entry, ctx) = self.content_ctx(target)?;
         let current = require_pack(&ctx, entry_kind(target), &entry.name)?;
         let fetched = self.read_pack_file(path).await?;
-        let versions = self
-            .minecraft
-            .versions(ctx.side.side(), &ctx.flavor)
-            .await?;
+        let versions = self.minecraft.versions(ctx.side, &ctx.flavor).await?;
         let (resolved, project, _) = &fetched;
         Ok(ModpackFilePreview {
             name: pack_display_name(resolved, project.as_ref()),

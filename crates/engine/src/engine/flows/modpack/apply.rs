@@ -13,7 +13,7 @@ use proto::minecraft::ProvisionPhase;
 use proto::modpack::{InstalledModpack, ModpackOverride};
 use proto::warning::WarningInfo;
 
-use super::super::content::entry::{content_target, EntryContent, EntrySide};
+use super::super::content::entry::{content_target, EntryContent};
 use super::super::download::Download;
 use super::{pack_display_name, FileIdentity, Supplied};
 use crate::cancel::Job;
@@ -21,7 +21,7 @@ use crate::config::ModpackSettings;
 use crate::content::pool::Pool;
 use crate::content::{exclude, install, modpack, pack, record};
 use crate::engine::Engine;
-use crate::minecraft::materialize;
+use crate::minecraft::{materialize, Side};
 
 impl Engine {
     /// The install itself, once the entry exists: refuse a pack the entry
@@ -37,10 +37,7 @@ impl Engine {
     ) -> Result<(InstalledModpack, Vec<ContentFailure>, Vec<WarningInfo>)> {
         self.ensure_entry_matches(ctx, resolved)?;
         let previous = modpack::load(&ctx.entry_dir);
-        let side = match ctx.side {
-            EntrySide::Server => pack::Side::Server,
-            EntrySide::Client => pack::Side::Client,
-        };
+        let side = pack::Side::from(ctx.side);
         let accepts = self.accepted_kinds(ctx);
         let settings = self.config().settings().modpack;
         let inclusion = self.pack_inclusion(ctx, project, &settings);
@@ -200,7 +197,7 @@ impl Engine {
         project: Option<&ContentProject>,
         settings: &ModpackSettings,
     ) -> exclude::Inclusion {
-        if ctx.side != EntrySide::Server {
+        if ctx.side != Side::Server {
             return exclude::Inclusion::none();
         }
         exclude::Inclusion::new(

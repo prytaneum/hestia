@@ -25,23 +25,15 @@ use proto::minecraft::{ProvisionPhase, ProvisionProgress};
 use crate::process::{self, ProcessSupervisor, Task};
 use serde_json::Value;
 
+use super::super::launch::CLASSPATH_SEPARATOR;
 use super::super::materialize::OnProgress;
 use super::super::meta::neoforge::Installer;
+use super::super::provider::Side;
 
-/// Which half of the game an install is for. The processor list is filtered by
-/// it, and every data-table entry carries a value per side.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Side {
-    Client,
-    Server,
-}
-
-impl Side {
-    pub fn as_str(self) -> &'static str {
-        match self {
-            Side::Client => "client",
-            Side::Server => "server",
-        }
+pub(super) fn side_key(side: Side) -> &'static str {
+    match side {
+        Side::Client => "client",
+        Side::Server => "server",
     }
 }
 
@@ -143,7 +135,7 @@ pub async fn run(
             .processes
             .run(
                 Task {
-                    id: format!("install-neoforge-{}-{index}", ctx.side.as_str()),
+                    id: format!("install-neoforge-{}-{index}", side_key(ctx.side)),
                     program: ctx.java,
                     args: command,
                     cwd: ctx.root.to_path_buf(),
@@ -168,11 +160,6 @@ pub async fn run(
     Ok(())
 }
 
-#[cfg(windows)]
-const CLASSPATH_SEPARATOR: &str = ";";
-#[cfg(not(windows))]
-const CLASSPATH_SEPARATOR: &str = ":";
-
 /// Where this side's patched game jar lands, as the install profile's own data
 /// table declares it.
 ///
@@ -187,7 +174,7 @@ pub fn patched_output(installer: &Installer, side: Side, libraries: &Path) -> Op
         .profile
         .get("data")?
         .get("PATCHED")?
-        .get(side.as_str())?
+        .get(side_key(side))?
         .as_str()?;
     let coord = raw.strip_prefix('[')?.strip_suffix(']')?;
     library_path(libraries, coord).ok()
@@ -199,7 +186,7 @@ fn runs_on(processor: &Value, side: Side) -> bool {
         Some(sides) => sides
             .iter()
             .filter_map(Value::as_str)
-            .any(|s| s == side.as_str()),
+            .any(|s| s == side_key(side)),
         None => true,
     }
 }
@@ -232,14 +219,14 @@ fn data_table(
     let mut table = HashMap::new();
     if let Some(data) = installer.profile.get("data").and_then(Value::as_object) {
         for (key, sided) in data {
-            let Some(raw) = sided.get(ctx.side.as_str()).and_then(Value::as_str) else {
+            let Some(raw) = sided.get(side_key(ctx.side)).and_then(Value::as_str) else {
                 continue;
             };
             table.insert(key.clone(), resolve(raw, &libraries, staged)?);
         }
     }
     table.insert("ROOT".into(), path_string(ctx.root));
-    table.insert("SIDE".into(), ctx.side.as_str().to_string());
+    table.insert("SIDE".into(), side_key(ctx.side).to_string());
     table.insert("MINECRAFT_JAR".into(), path_string(ctx.minecraft_jar));
     table.insert("INSTALLER".into(), path_string(ctx.installer));
     Ok(table)

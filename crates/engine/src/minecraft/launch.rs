@@ -16,7 +16,7 @@ use crate::keys::{self, invalid};
 
 // Mojang's rule vocabulary spells the classpath separator per-OS; keep ours in
 // lockstep with the JVM's.
-const CLASSPATH_SEPARATOR: &str = if cfg!(windows) { ";" } else { ":" };
+pub(crate) const CLASSPATH_SEPARATOR: &str = if cfg!(windows) { ";" } else { ":" };
 
 /// The reserved per-entry JVM setting keys, shared by the server and instance
 /// `config` surfaces.

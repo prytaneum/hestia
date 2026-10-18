@@ -20,12 +20,13 @@ use proto::content::{
 };
 
 pub(in crate::engine) use self::entry::EntryRef;
-use self::entry::{Entry, EntryContent, EntrySide};
+use self::entry::{Entry, EntryContent};
 use self::manage::{list_content, remove_content, set_enabled, update_from_file};
 use super::phase_progress;
 use crate::content::install;
 use crate::engine::Engine;
 use crate::minecraft::materialize::OnProgress;
+use crate::minecraft::Side;
 
 impl Engine {
     /// Install a batch of content into an entry — each item a platform project,
@@ -200,7 +201,7 @@ impl Engine {
                     data_dir: self.servers.data_dir(&record),
                     game_version: record.profile.game_version.clone(),
                     flavor: record.profile.flavor.clone(),
-                    side: EntrySide::Server,
+                    side: Side::Server,
                 };
                 Ok((
                     Entry {
@@ -221,7 +222,7 @@ impl Engine {
                     data_dir: self.instances.data_dir(&record),
                     game_version: record.profile.game_version.clone(),
                     flavor: record.profile.flavor.clone(),
-                    side: EntrySide::Client,
+                    side: Side::Client,
                 };
                 Ok((
                     Entry {

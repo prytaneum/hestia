@@ -6,10 +6,11 @@ use std::path::PathBuf;
 
 use anyhow::{bail, Result};
 use proto::content::{ContentAddSpec, ContentKind, ContentProject, SideSupport};
+use proto::error::EntryKind;
 
-use crate::content::install;
+use crate::content::{install, pack};
 use crate::engine::Engine;
-use crate::minecraft::Side;
+use crate::minecraft::{accepted_kinds, Side};
 
 /// Which entry a content or pack flow is about. The side is a value the flow
 /// matches on, not a verb it duplicates.
@@ -34,24 +35,23 @@ pub(in crate::engine::flows) struct EntryContent {
     pub(in crate::engine::flows) data_dir: PathBuf,
     pub(in crate::engine::flows) game_version: String,
     pub(in crate::engine::flows) flavor: String,
-    pub(in crate::engine::flows) side: EntrySide,
+    pub(in crate::engine::flows) side: Side,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub(in crate::engine::flows) enum EntrySide {
-    Server,
-    Client,
-}
-
-impl EntrySide {
-    fn noun(self) -> &'static str {
-        self.side().noun()
+impl From<Side> for EntryKind {
+    fn from(side: Side) -> Self {
+        match side {
+            Side::Server => EntryKind::Server,
+            Side::Client => EntryKind::Instance,
+        }
     }
+}
 
-    pub(in crate::engine::flows) fn side(self) -> Side {
-        match self {
-            EntrySide::Server => Side::Server,
-            EntrySide::Client => Side::Client,
+impl From<Side> for pack::Side {
+    fn from(side: Side) -> Self {
+        match side {
+            Side::Server => pack::Side::Server,
+            Side::Client => pack::Side::Client,
         }
     }
 }
@@ -61,8 +61,8 @@ impl EntryContent {
     /// instance's save folders.
     pub(in crate::engine::flows) fn worlds(&self) -> Vec<String> {
         match self.side {
-            EntrySide::Server => vec![crate::servers::level_name(&self.data_dir)],
-            EntrySide::Client => crate::instances::save_worlds(&self.data_dir),
+            Side::Server => vec![crate::servers::level_name(&self.data_dir)],
+            Side::Client => crate::instances::save_worlds(&self.data_dir),
         }
     }
 }
@@ -79,10 +79,7 @@ impl Engine {
             return Ok(());
         }
         bail!(proto::error::ErrorInfo::ContentKindRejected {
-            entry: match ctx.side {
-                EntrySide::Server => proto::error::EntryKind::Server,
-                EntrySide::Client => proto::error::EntryKind::Instance,
-            },
+            entry: ctx.side.into(),
             flavor: ctx.flavor.clone(),
             requested,
             accepts,
@@ -90,35 +87,19 @@ impl Engine {
     }
 
     pub(in crate::engine::flows) fn accepted_kinds(&self, ctx: &EntryContent) -> Vec<ContentKind> {
-        accepted_kinds(
-            ctx.side,
-            self.minecraft().loads(ctx.side.side(), &ctx.flavor),
-        )
+        accepted_kinds(ctx.side, self.minecraft().loads(ctx.side, &ctx.flavor))
     }
 
     /// What a server of this flavor can take. Published on the entry views so a
     /// front-end renders the daemon's answer instead of keeping its own copy of
     /// the flavor table — the same no-drift rule the wire contracts follow.
     pub fn server_accepts(&self, flavor: &str) -> Vec<ContentKind> {
-        accepted_kinds(
-            EntrySide::Server,
-            self.minecraft().loads(Side::Server, flavor),
-        )
+        accepted_kinds(Side::Server, self.minecraft().loads(Side::Server, flavor))
     }
 
     pub fn instance_accepts(&self, flavor: &str) -> Vec<ContentKind> {
-        accepted_kinds(
-            EntrySide::Client,
-            self.minecraft().loads(Side::Client, flavor),
-        )
+        accepted_kinds(Side::Client, self.minecraft().loads(Side::Client, flavor))
     }
-}
-
-/// The composition itself lives beside the provider trait that defines `Loads`,
-/// so the flavor catalogue (`{server,instance}.flavors`) and an existing entry's
-/// `accepts` cannot disagree about what a flavor takes.
-fn accepted_kinds(side: EntrySide, loads: Option<ContentKind>) -> Vec<ContentKind> {
-    crate::minecraft::accepted_kinds(side.side(), loads)
 }
 
 /// The loader filter a kind's version lookup needs: the entry's own loader for
@@ -145,14 +126,14 @@ pub(super) fn content_loader(kind: ContentKind, flavor: &str) -> Option<String> 
 pub(super) fn side_gate(
     requested: ContentKind,
     project: &ContentProject,
-    side: EntrySide,
+    side: Side,
 ) -> Result<()> {
     if requested == ContentKind::DataPack {
         return Ok(());
     }
     let support = match side {
-        EntrySide::Server => project.server_side,
-        EntrySide::Client => project.client_side,
+        Side::Server => project.server_side,
+        Side::Client => project.client_side,
     };
     if support == SideSupport::Unsupported {
         bail!(
@@ -169,7 +150,7 @@ pub(super) fn side_gate(
 /// later. A server has one world, so its selection is always empty; so is every
 /// non-datapack kind, which mirrors into a flat dir.
 pub(super) fn datapack_worlds(ctx: &EntryContent, spec: &ContentAddSpec) -> Result<Vec<String>> {
-    if spec.kind != ContentKind::DataPack || ctx.side == EntrySide::Server {
+    if spec.kind != ContentKind::DataPack || ctx.side == Side::Server {
         return Ok(Vec::new());
     }
     let mut worlds = Vec::new();
@@ -212,7 +193,7 @@ mod tests {
             data_dir: PathBuf::from("/entry/data"),
             game_version: "1.21.1".to_string(),
             flavor: "fabric".to_string(),
-            side: EntrySide::Client,
+            side: Side::Client,
         }
     }
 
@@ -236,7 +217,7 @@ mod tests {
             client_side: SideSupport::Unsupported,
             ..ContentProject::default()
         };
-        assert!(side_gate(ContentKind::DataPack, &project, EntrySide::Client).is_ok());
-        assert!(side_gate(ContentKind::Mod, &project, EntrySide::Client).is_err());
+        assert!(side_gate(ContentKind::DataPack, &project, Side::Client).is_ok());
+        assert!(side_gate(ContentKind::Mod, &project, Side::Client).is_err());
     }
 }

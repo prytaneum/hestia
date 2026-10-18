@@ -131,7 +131,7 @@ async fn read_installer(
 /// what the launch already fetched is skipped.
 async fn run_install(
     request: &InstallRequest<'_>,
-    side: processors::Side,
+    side: Side,
     on_progress: OnProgress<'_>,
 ) -> Result<()> {
     let loader = request
@@ -158,7 +158,7 @@ async fn run_install(
 
     tracing::info!(
         loader,
-        side = side.as_str(),
+        side = processors::side_key(side),
         "building the neoforge game jar"
     );
     processors::run(
@@ -256,10 +256,6 @@ impl FlavorProvider for NeoForge {
         request: &InstallRequest<'_>,
         on: OnProgress<'_>,
     ) -> Result<()> {
-        let side = match side {
-            Side::Server => processors::Side::Server,
-            Side::Client => processors::Side::Client,
-        };
         run_install(request, side, on).await
     }
 }

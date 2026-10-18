@@ -8,18 +8,18 @@ use anyhow::{bail, Result};
 use proto::content::{
     ContentKind, ContentProject, ContentVersion, ResolvedModpack, VersionQuery, LOCAL_SOURCE,
 };
-use proto::error::{EntryKind, ErrorInfo};
+use proto::error::ErrorInfo;
 use proto::minecraft::{Artifact, ProvisionPhase};
 use proto::modpack::{InstalledModpack, ModpackMove, ModpackRef};
 use uuid::Uuid;
 
-use super::super::content::entry::{content_target, EntryContent, EntrySide};
+use super::super::content::entry::{content_target, EntryContent};
 use super::super::phase_progress;
 use super::{pack_display_name, same_pack, FileIdentity, Supplied};
 use crate::cancel::Job;
 use crate::content::{install, pack, LocalFile};
 use crate::engine::Engine;
-use crate::minecraft::materialize;
+use crate::minecraft::{materialize, Side};
 
 const STAGING: &str = "tmp";
 
@@ -64,10 +64,7 @@ impl Engine {
             return Ok(());
         }
         bail!(ErrorInfo::ModpackEntryMismatch {
-            entry: match side {
-                EntrySide::Server => EntryKind::Server,
-                EntrySide::Client => EntryKind::Instance,
-            },
+            entry: side.into(),
             flavor: ctx.flavor.clone(),
             game_version: ctx.game_version.clone(),
             pack_flavor,
@@ -79,12 +76,8 @@ impl Engine {
     /// loader name *is* hestia's flavor id where the flavor exists, so adding a
     /// flavor needs no edit here — and a pack pinning one that does not exist is
     /// refused by name rather than silently installed as vanilla.
-    pub(super) fn pack_flavor(
-        &self,
-        resolved: &ResolvedModpack,
-        side: EntrySide,
-    ) -> Result<String> {
-        let flavors = self.minecraft.flavors(side.side());
+    pub(super) fn pack_flavor(&self, resolved: &ResolvedModpack, side: Side) -> Result<String> {
+        let flavors = self.minecraft.flavors(side);
         let wanted = resolved
             .loader
             .as_deref()
