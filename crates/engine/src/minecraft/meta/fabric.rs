@@ -31,13 +31,24 @@ pub async fn game_versions() -> Result<Vec<(String, bool)>> {
         .collect())
 }
 
+async fn loader_entries(game: &str) -> Result<Vec<Value>> {
+    match fetch_json(Service::Fabric, &format!("{META}/versions/loader/{game}")).await? {
+        Value::Array(entries) => Ok(entries),
+        _ => anyhow::bail!("fabric loader response is not an array"),
+    }
+}
+
+fn newest_stable(entries: &[Value], is_stable: impl Fn(&Value) -> bool) -> Option<&Value> {
+    entries
+        .iter()
+        .find(|e| is_stable(e))
+        .or_else(|| entries.first())
+}
+
 /// Every loader build published for a game version, newest first.
 pub async fn loader_versions(game: &str) -> Result<Vec<String>> {
-    let j = fetch_json(Service::Fabric, &format!("{META}/versions/loader/{game}")).await?;
-    let arr = j
-        .as_array()
-        .context("fabric loader response is not an array")?;
-    Ok(arr
+    Ok(loader_entries(game)
+        .await?
         .iter()
         .filter_map(|e| e.get("loader")?.get("version")?.as_str().map(String::from))
         .collect())
@@ -45,23 +56,16 @@ pub async fn loader_versions(game: &str) -> Result<Vec<String>> {
 
 /// The newest loader for a game version: the first stable build, else the newest.
 pub async fn latest_loader(game: &str) -> Result<String> {
-    let j = fetch_json(Service::Fabric, &format!("{META}/versions/loader/{game}")).await?;
-    let arr = j
-        .as_array()
-        .context("fabric loader response is not an array")?;
-    let stable = arr.iter().find(|e| {
-        e.get("loader")
-            .and_then(|l| l.get("stable"))
+    let entries = loader_entries(game).await?;
+    newest_stable(&entries, |e| {
+        e.pointer("/loader/stable")
             .and_then(Value::as_bool)
             .unwrap_or(false)
-    });
-    stable
-        .or_else(|| arr.first())
-        .and_then(|e| e.get("loader"))
-        .and_then(|l| l.get("version"))
-        .and_then(Value::as_str)
-        .map(String::from)
-        .with_context(|| format!("no fabric loader is published for Minecraft {game}"))
+    })
+    .and_then(|e| e.pointer("/loader/version"))
+    .and_then(Value::as_str)
+    .map(String::from)
+    .with_context(|| format!("no fabric loader is published for Minecraft {game}"))
 }
 
 /// The newest installer: the first stable build, else the newest. The server
@@ -71,15 +75,13 @@ pub async fn latest_installer() -> Result<String> {
     let arr = j
         .as_array()
         .context("fabric installer response is not an array")?;
-    let stable = arr
-        .iter()
-        .find(|e| e.get("stable").and_then(Value::as_bool).unwrap_or(false));
-    stable
-        .or_else(|| arr.first())
-        .and_then(|e| e.get("version"))
-        .and_then(Value::as_str)
-        .map(String::from)
-        .context("no fabric installer is published")
+    newest_stable(arr, |e| {
+        e.get("stable").and_then(Value::as_bool).unwrap_or(false)
+    })
+    .and_then(|e| e.get("version"))
+    .and_then(Value::as_str)
+    .map(String::from)
+    .context("no fabric installer is published")
 }
 
 pub async fn profile_json(game: &str, loader: &str) -> Result<Value> {
