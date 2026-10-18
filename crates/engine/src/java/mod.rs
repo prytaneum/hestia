@@ -9,7 +9,7 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{bail, Context, Result};
 use proto::java::{JavaInstallPhase, JavaInstallProgress, JavaRelease, JavaRuntime};
-use serde_json::{json, Value};
+use serde::{Deserialize, Serialize};
 
 use crate::download::Downloader;
 use crate::minecraft::materialize;
@@ -266,17 +266,26 @@ fn with_suffix(path: &Path, suffix: &str) -> PathBuf {
     PathBuf::from(s)
 }
 
+#[derive(Serialize, Deserialize, Default)]
+#[serde(default)]
+struct RuntimeRecord {
+    vendor: String,
+    major: i32,
+    release_name: String,
+    executable: String,
+}
+
 fn write_runtime_record(
     install_dir: &Path,
     package: &adoptium::JavaPackage,
     relative_exe: &Path,
 ) -> Result<()> {
-    let record = json!({
-        "vendor": package.vendor,
-        "major": package.major,
-        "release_name": package.release_name,
-        "executable": to_forward_slashes(relative_exe),
-    });
+    let record = RuntimeRecord {
+        vendor: package.vendor.clone(),
+        major: package.major,
+        release_name: package.release_name.clone(),
+        executable: to_forward_slashes(relative_exe),
+    };
     let text = serde_json::to_string_pretty(&record).expect("record serializes");
     std::fs::write(install_dir.join(RUNTIME_RECORD), format!("{text}\n"))
         .with_context(|| format!("cannot write {RUNTIME_RECORD}"))?;
@@ -285,14 +294,9 @@ fn write_runtime_record(
 
 fn read_runtime(install_dir: &Path) -> Option<JavaRuntime> {
     let text = std::fs::read_to_string(install_dir.join(RUNTIME_RECORD)).ok()?;
-    let record: Value = serde_json::from_str(&text).ok()?;
-    let major = record.get("major").and_then(Value::as_i64).unwrap_or(0) as i32;
-    let executable_rel = record
-        .get("executable")
-        .and_then(Value::as_str)
-        .unwrap_or_default();
-    let executable = install_dir.join(executable_rel);
-    if major <= 0 || !executable.is_file() {
+    let record: RuntimeRecord = serde_json::from_str(&text).ok()?;
+    let executable = install_dir.join(&record.executable);
+    if record.major <= 0 || !executable.is_file() {
         return None;
     }
     let home = executable
@@ -301,17 +305,9 @@ fn read_runtime(install_dir: &Path) -> Option<JavaRuntime> {
         .unwrap_or(install_dir)
         .to_path_buf();
     Some(JavaRuntime {
-        vendor: record
-            .get("vendor")
-            .and_then(Value::as_str)
-            .unwrap_or_default()
-            .to_string(),
-        major,
-        release_name: record
-            .get("release_name")
-            .and_then(Value::as_str)
-            .unwrap_or_default()
-            .to_string(),
+        vendor: record.vendor,
+        major: record.major,
+        release_name: record.release_name,
         home,
         executable,
         // Usage is a cross-store question; the daemon's list handler fills it.

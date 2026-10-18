@@ -5,7 +5,8 @@ use anyhow::{bail, Context, Result};
 use proto::download::{Checksum, HashAlgorithm};
 use proto::error::Service;
 use proto::java::JavaRelease;
-use serde_json::Value;
+use serde::de::DeserializeOwned;
+use serde::Deserialize;
 
 use super::platform::JavaTarget;
 
@@ -20,7 +21,38 @@ pub struct JavaPackage {
     pub checksum: Checksum,
 }
 
-async fn fetch_json(url: &str, query: &[(&str, &str)]) -> Result<Value> {
+#[derive(Deserialize, Default)]
+#[serde(default)]
+struct AvailableReleases {
+    available_releases: Option<Vec<i32>>,
+    available_lts_releases: Vec<i32>,
+}
+
+#[derive(Deserialize, Default)]
+#[serde(default)]
+struct Asset {
+    release_name: String,
+    binary: Binary,
+}
+
+#[derive(Deserialize, Default)]
+#[serde(default)]
+struct Binary {
+    os: String,
+    architecture: String,
+    image_type: String,
+    package: Package,
+}
+
+#[derive(Deserialize, Default)]
+#[serde(default)]
+struct Package {
+    link: String,
+    name: String,
+    checksum: String,
+}
+
+async fn fetch_json<T: DeserializeOwned>(url: &str, query: &[(&str, &str)]) -> Result<T> {
     tracing::debug!(url, "adoptium GET");
     let response = crate::net::send(
         Some(Service::Adoptium),
@@ -36,7 +68,7 @@ async fn fetch_json(url: &str, query: &[(&str, &str)]) -> Result<Value> {
 
 pub async fn releases() -> Result<Vec<JavaRelease>> {
     let j = fetch_json(&format!("{API_BASE}/v3/info/available_releases"), &[]).await?;
-    releases_from_json(&j)
+    releases_from_json(j)
 }
 
 pub async fn resolve(major: i32, target: &JavaTarget) -> Result<JavaPackage> {
@@ -51,76 +83,43 @@ pub async fn resolve(major: i32, target: &JavaTarget) -> Result<JavaPackage> {
         ],
     )
     .await?;
-    package_from_json(&assets, major, target)
+    package_from_json(assets, major, target)
 }
 
-fn releases_from_json(j: &Value) -> Result<Vec<JavaRelease>> {
+fn releases_from_json(j: AvailableReleases) -> Result<Vec<JavaRelease>> {
     let available = j
-        .get("available_releases")
-        .and_then(Value::as_array)
+        .available_releases
         .context("adoptium response is missing available_releases")?;
-    let lts = j
-        .get("available_lts_releases")
-        .and_then(Value::as_array)
-        .cloned()
-        .unwrap_or_default();
-
     let mut releases: Vec<JavaRelease> = available
-        .iter()
-        .filter_map(|m| m.as_i64())
+        .into_iter()
         .map(|major| JavaRelease {
-            major: major as i32,
-            lts: lts.iter().any(|l| l.as_i64() == Some(major)),
+            major,
+            lts: j.available_lts_releases.contains(&major),
         })
         .collect();
     releases.sort_by_key(|r| r.major);
     Ok(releases)
 }
 
-fn package_from_json(assets: &Value, major: i32, target: &JavaTarget) -> Result<JavaPackage> {
-    let assets = assets
-        .as_array()
-        .context("adoptium assets response is not an array")?;
+fn package_from_json(assets: Vec<Asset>, major: i32, target: &JavaTarget) -> Result<JavaPackage> {
     for asset in assets {
-        let binary = asset.get("binary").cloned().unwrap_or(Value::Null);
-        let os = binary.get("os").and_then(Value::as_str).unwrap_or_default();
-        let arch = binary
-            .get("architecture")
-            .and_then(Value::as_str)
-            .unwrap_or_default();
-        let image = binary
-            .get("image_type")
-            .and_then(Value::as_str)
-            .unwrap_or_default();
-        if os != target.os || arch != target.arch || image != "jdk" {
+        let binary = asset.binary;
+        if binary.os != target.os
+            || binary.architecture != target.arch
+            || binary.image_type != "jdk"
+        {
             continue;
         }
-        let package = binary.get("package").cloned().unwrap_or(Value::Null);
+        let package = binary.package;
         let resolved = JavaPackage {
             vendor: "temurin".to_string(),
             major,
-            release_name: asset
-                .get("release_name")
-                .and_then(Value::as_str)
-                .unwrap_or_default()
-                .to_string(),
-            url: package
-                .get("link")
-                .and_then(Value::as_str)
-                .unwrap_or_default()
-                .to_string(),
-            archive_name: package
-                .get("name")
-                .and_then(Value::as_str)
-                .unwrap_or_default()
-                .to_string(),
+            release_name: asset.release_name,
+            url: package.link,
+            archive_name: package.name,
             checksum: Checksum {
                 algorithm: HashAlgorithm::Sha256,
-                hex: package
-                    .get("checksum")
-                    .and_then(Value::as_str)
-                    .unwrap_or_default()
-                    .to_string(),
+                hex: package.checksum,
             },
         };
         if resolved.url.is_empty()
