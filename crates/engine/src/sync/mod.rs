@@ -117,12 +117,6 @@ impl Sync {
         reconcile::copy_file(&source, &staging)?;
         std::fs::rename(&staging, &target)
             .with_context(|| format!("cannot keep a copy of {}", source.display()))?;
-        for stamped in std::fs::read_dir(&kept).into_iter().flatten().flatten() {
-            if stamped.path().is_dir() {
-                let _ = std::fs::remove_file(stamped.path().join(file));
-                let _ = std::fs::remove_dir(stamped.path());
-            }
-        }
         Ok(())
     }
 
@@ -194,9 +188,9 @@ impl Sync {
             if !catalogue.enabled(unit) || !pass.overrides.shares(unit) {
                 continue;
             }
-            if catalogue::file(unit).is_none() {
+            let Some(file) = catalogue::file(unit) else {
                 continue;
-            }
+            };
             if !catalogue::supports(unit, &pass.game_version) {
                 tracing::info!(instance = %pass.name, version = %pass.game_version, %unit, "sync skipped a unit this version cannot share");
                 warnings.push(WarningInfo::SyncUnitUnsupported {
@@ -206,7 +200,7 @@ impl Sync {
                 });
                 continue;
             }
-            if let Err(e) = self.settle(unit, pass, shared, &catalogue) {
+            if let Err(e) = self.settle(unit, file, pass, shared, &catalogue) {
                 let detail = format!("{e:#}");
                 tracing::warn!(%unit, error = %detail, "sync skipped a unit");
                 warnings.push(WarningInfo::SyncUnitSkipped { unit, detail });
@@ -218,6 +212,7 @@ impl Sync {
     fn settle(
         &self,
         unit: SyncUnit,
+        file: &str,
         pass: &Pass,
         shared: &Path,
         catalogue: &Catalogue,
@@ -227,9 +222,6 @@ impl Sync {
         let baselines = in_era(&shared.join(BASELINES).join(&pass.id), era);
         std::fs::create_dir_all(&baselines)
             .with_context(|| format!("cannot create {}", baselines.display()))?;
-        let Some(file) = catalogue::file(unit) else {
-            return Ok(());
-        };
         let agreed = baselines.join(file);
         let interrupted = baselines.join(format!("{file}.pending"));
         if interrupted.exists() {
@@ -481,15 +473,11 @@ mod tests {
 
         let sync = sharing(&shared);
         let kept = shared.join(BACKUPS).join("test");
-        write_at(&kept.join("1700000000").join("options.txt"), "old\n", 50);
-        write_at(&kept.join("1700000000").join("servers.dat"), "other\n", 50);
         sync.back_up(SyncUnit::Options, "test", &data).unwrap();
 
         assert!(fs::read_to_string(kept.join("options.txt"))
             .unwrap()
             .contains("guiScale:4"));
-        assert!(!kept.join("1700000000").join("options.txt").exists());
-        assert!(kept.join("1700000000").join("servers.dat").exists());
         assert!(!kept.join("options.txt.part").exists());
     }
 
