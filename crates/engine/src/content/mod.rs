@@ -232,12 +232,9 @@ impl Content {
             return refused(filename, format!("no file at {}", p.display()));
         }
         match inspect::classify(p) {
-            Ok(detected) => ContentInspectResult {
+            Ok(kind) => ContentInspectResult {
                 valid: true,
-                kind: match detected {
-                    inspect::Detected::Kind(kind) => Some(kind),
-                    inspect::Detected::Unknown => None,
-                },
+                kind,
                 filename,
                 ..ContentInspectResult::default()
             },

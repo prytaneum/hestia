@@ -17,15 +17,10 @@ const MOD_MANIFESTS: [&str; 5] = [
     "mcmod.info",
 ];
 
-pub(crate) enum Detected {
-    Kind(ContentKind),
-    Unknown,
-}
-
 /// Errors only when the file is not a readable archive or is a modpack — both
 /// un-installable as single-file content. An unrecognised but valid zip is
-/// [`Detected::Unknown`].
-pub(crate) fn classify(path: &Path) -> Result<Detected> {
+/// `None`.
+pub(crate) fn classify(path: &Path) -> Result<Option<ContentKind>> {
     let mut reader = Reader::open(path).with_context(|| {
         format!(
             "'{}' is not a readable .jar or .zip archive",
@@ -43,20 +38,20 @@ pub(crate) fn classify(path: &Path) -> Result<Detected> {
         );
     }
     if MOD_MANIFESTS.iter().any(|m| has(m)) {
-        return Ok(Detected::Kind(ContentKind::Mod));
+        return Ok(Some(ContentKind::Mod));
     }
     if has("pack.mcmeta") {
         // A datapack carries `data/`, a resourcepack `assets/`; both have pack.mcmeta.
-        return Ok(Detected::Kind(if under("data/") && !under("assets/") {
+        return Ok(Some(if under("data/") && !under("assets/") {
             ContentKind::DataPack
         } else {
             ContentKind::ResourcePack
         }));
     }
     if under("shaders/") {
-        return Ok(Detected::Kind(ContentKind::Shader));
+        return Ok(Some(ContentKind::Shader));
     }
-    Ok(Detected::Unknown)
+    Ok(None)
 }
 
 fn file_name(path: &Path) -> std::borrow::Cow<'_, str> {
@@ -99,11 +94,7 @@ mod tests {
 
     fn kind(tag: &str, entries: &[&str]) -> Option<ContentKind> {
         let path = archive(tag, entries);
-        let out = classify(path.path()).ok();
-        match out {
-            Some(Detected::Kind(k)) => Some(k),
-            _ => None,
-        }
+        classify(path.path()).ok().flatten()
     }
 
     #[test]
@@ -134,7 +125,7 @@ mod tests {
     #[test]
     fn unknown_archive_is_valid_but_unclassified() {
         let path = archive("unknown", &["random.txt"]);
-        assert!(matches!(classify(path.path()), Ok(Detected::Unknown)));
+        assert!(matches!(classify(path.path()), Ok(None)));
     }
 
     #[test]
@@ -143,7 +134,7 @@ mod tests {
         assert!(classify(pack.path()).is_err());
 
         let plain = archive("plain-manifest", &["manifest.json"]);
-        assert!(matches!(classify(plain.path()), Ok(Detected::Unknown)));
+        assert!(matches!(classify(plain.path()), Ok(None)));
 
         let curse = tempfile::Builder::new()
             .prefix("hestia-inspect-curse-")

@@ -449,7 +449,7 @@ pub(super) fn import_file(
     }
     materialize::validate_filename(filename)?;
     match inspect::classify(source)? {
-        inspect::Detected::Kind(detected) if detected != kind => tracing::warn!(
+        Some(detected) if detected != kind => tracing::warn!(
             file = %filename,
             ?detected,
             requested = ?kind,
