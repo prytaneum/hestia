@@ -757,8 +757,14 @@ impl Default for ErrorInfo {
     }
 }
 
+/// The error codes a client branches on.
+pub mod code {
+    pub const NOT_FOUND: &str = "not_found";
+    pub const UNAUTHORIZED: &str = "unauthorized";
+}
+
 impl ErrorInfo {
-    /// The coarse `ipc::errors` category this variant answers with.
+    /// The coarse category this variant answers with.
     pub fn code(&self) -> &'static str {
         use ErrorInfo::*;
         match self {
@@ -774,9 +780,9 @@ impl ErrorInfo {
             | FileNotFound { .. }
             | TaskNotFound { .. }
             | ConfigKeyUnknown { .. }
-            | ConfigKeyUnset { .. } => "not_found",
+            | ConfigKeyUnset { .. } => code::NOT_FOUND,
             SignInRequired | SessionExpired { .. } | LoginDeclined | LoginTimedOut => {
-                "unauthorized"
+                code::UNAUTHORIZED
             }
             UnknownChannel { .. } => "unknown_channel",
             IncompatibleVersion { .. } => "version_mismatch",

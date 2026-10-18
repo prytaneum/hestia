@@ -1,9 +1,3 @@
-//! The error codes a client branches on. The daemon's codes are produced by
-//! `ErrorInfo::code()` in `proto`, which cannot depend on this crate.
-
-pub const NOT_FOUND: &str = "not_found";
-pub const UNAUTHORIZED: &str = "unauthorized";
-
 use thiserror::Error;
 
 /// A transport- or protocol-level failure surfaced to callers of the client SDK.

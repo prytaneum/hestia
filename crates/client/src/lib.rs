@@ -10,7 +10,11 @@ pub use facades::{
     LaunchOptions, Modpack, Net, Players, Process, ProcessEvent, Screenshot, Server, Skins, Sync,
     Tasks, Transfer, Update,
 };
-pub use ipc::errors::{self, IpcError};
+pub use ipc::errors::IpcError;
+
+pub mod errors {
+    pub use proto::error::code::{NOT_FOUND, UNAUTHORIZED};
+}
 pub use session::{job_id, Listener, Session};
 
 /// Re-export `proto` so front-ends need only depend on `client`.

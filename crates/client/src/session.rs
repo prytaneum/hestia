@@ -174,7 +174,7 @@ impl Session {
             serde_json::to_value(params).map_err(|e| IpcError::Malformed(e.to_string()))?;
         let res = self.call_raw(C::CHANNEL, payload, C::TIMEOUT).await?;
         let res = match must(res) {
-            Err(IpcError::Daemon { code, .. }) if code == ipc::errors::NOT_FOUND => {
+            Err(IpcError::Daemon { code, .. }) if code == proto::error::code::NOT_FOUND => {
                 return Ok(None)
             }
             other => other?,

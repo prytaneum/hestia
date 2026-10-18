@@ -57,7 +57,9 @@ async fn a_daemon_error_arrives_as_a_typed_failure() {
         .serve();
 
     let error = client.java().uninstall(21).await.expect_err("not found");
-    assert!(matches!(&error, IpcError::Daemon { code, .. } if code == ipc::errors::NOT_FOUND));
+    assert!(
+        matches!(&error, IpcError::Daemon { code, .. } if code == proto::error::code::NOT_FOUND)
+    );
     assert!(matches!(
         error_info(&error),
         ErrorInfo::EntryNotFound { .. }
