@@ -63,12 +63,18 @@ pub async fn start_server(
     };
     match processes.start(spec).await {
         Ok(info) => Ok(info),
-        Err(StartError::EmptyProgram | StartError::InvalidId(_)) => Err(ErrorInfo::Internal {
+        Err(e) => Err(start_error("server", e)),
+    }
+}
+
+pub fn start_error(what: &str, error: StartError) -> ErrorInfo {
+    match error {
+        StartError::EmptyProgram | StartError::InvalidId(_) => ErrorInfo::Internal {
             detail: "invalid launch plan".into(),
-        }),
-        Err(e @ StartError::Spawn { .. }) => Err(ErrorInfo::Internal {
-            detail: format!("cannot spawn the server: {e}"),
-        }),
+        },
+        StartError::Spawn { .. } => ErrorInfo::Internal {
+            detail: format!("cannot spawn the {what}: {error}"),
+        },
     }
 }
 

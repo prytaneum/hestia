@@ -5,6 +5,8 @@
 use std::sync::Mutex;
 
 use ipc::protocol::{encode_event, Event};
+use proto::Topic;
+use serde::Serialize;
 use serde_json::Value;
 use tokio::sync::mpsc::UnboundedSender;
 
@@ -50,6 +52,18 @@ impl EventHub {
         subs.retain(|s| s.conn_id != conn_id);
         if subs.len() < before {
             tracing::debug!(conn = conn_id, "event subscriptions removed");
+        }
+    }
+
+    /// Publish a topic as its own payload; one that fails to serialise is
+    /// logged and dropped.
+    pub fn publish_topic<T: Topic + Serialize>(&self, topic: &T) {
+        match serde_json::to_value(topic) {
+            Ok(payload) => self.publish(&Event {
+                topic: T::TOPIC.to_string(),
+                payload,
+            }),
+            Err(e) => tracing::warn!(topic = T::TOPIC, error = %e, "event not serialisable"),
         }
     }
 

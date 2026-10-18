@@ -10,8 +10,8 @@ use proto::process::{LogSource, ProcessSpec};
 
 use super::job::{Jobs, Spec};
 use crate::runtime::{
-    instance_info, instance_session_id, instance_session_prefix, Claim, ProcessSupervisor,
-    StartError,
+    instance_info, instance_session_id, instance_session_prefix, start_error, Claim,
+    ProcessSupervisor,
 };
 
 impl Jobs {
@@ -161,14 +161,7 @@ async fn launch(
                 warnings: prepared.warnings,
             })
         }
-        Err(StartError::EmptyProgram | StartError::InvalidId(_)) => Err(ErrorInfo::Internal {
-            detail: "invalid launch plan".to_string(),
-        }
-        .into()),
-        Err(e @ StartError::Spawn { .. }) => Err(ErrorInfo::Internal {
-            detail: format!("cannot spawn the game: {e}"),
-        }
-        .into()),
+        Err(e) => Err(start_error("game", e).into()),
     }
 }
 

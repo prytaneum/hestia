@@ -9,9 +9,7 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use ipc::protocol::Event;
 use proto::net::NetworkStatus;
-use proto::Topic;
 
 use super::Runtime;
 
@@ -41,11 +39,5 @@ pub fn spawn_network_watcher(runtime: Arc<Runtime>) {
 }
 
 fn publish(runtime: &Runtime, status: &NetworkStatus) {
-    let Ok(payload) = serde_json::to_value(status) else {
-        return;
-    };
-    runtime.hub().publish(&Event {
-        topic: NetworkStatus::TOPIC.to_string(),
-        payload,
-    });
+    runtime.hub().publish_topic(status);
 }

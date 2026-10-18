@@ -7,10 +7,10 @@ use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
 
-use ipc::protocol::{Event, Request, Response};
+use ipc::protocol::{Request, Response};
 use proto::change::{ChangedEvent, Scope};
 use proto::error::ErrorInfo;
-use proto::{Contract, Topic};
+use proto::Contract;
 use serde_json::Value;
 use tracing::Instrument;
 
@@ -101,13 +101,7 @@ impl Router {
 }
 
 fn publish_changed(runtime: &Runtime, scope: Scope) {
-    let Ok(payload) = serde_json::to_value(ChangedEvent { scope }) else {
-        return;
-    };
-    runtime.hub().publish(&Event {
-        topic: ChangedEvent::TOPIC.to_string(),
-        payload,
-    });
+    runtime.hub().publish_topic(&ChangedEvent { scope });
 }
 
 /// The registrar handed to every service: binds a typed contract handler onto the
