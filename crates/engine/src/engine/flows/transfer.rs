@@ -182,8 +182,9 @@ impl Engine {
         let record = self.record_for(recipe, &name, &descriptor).await?;
         let entry_dir = self.instances.instance_dir(&record);
         let data_dir = self.instances.data_dir(&record);
-        std::fs::create_dir_all(&data_dir)
-            .with_context(|| format!("cannot create {}", data_dir.display()))?;
+        let created = std::fs::create_dir_all(&data_dir)
+            .with_context(|| format!("cannot create {}", data_dir.display()));
+        self.unwind_on_failure(&record, created)?;
 
         let landed = instance.land(
             &mut reader,
