@@ -1,11 +1,12 @@
 //! Classify a local file for import by reading its zip central directory.
 
-use std::fs::File;
 use std::path::Path;
 
 use anyhow::{bail, Context, Result};
 use proto::content::ContentKind;
-use zip::ZipArchive;
+
+use super::pack;
+use crate::transfer::archive::Reader;
 
 // Loader-agnostic: a new flavor adds its manifest name here.
 const MOD_MANIFESTS: [&str; 5] = [
@@ -25,18 +26,17 @@ pub(crate) enum Detected {
 /// un-installable as single-file content. An unrecognised but valid zip is
 /// [`Detected::Unknown`].
 pub(crate) fn classify(path: &Path) -> Result<Detected> {
-    let file = File::open(path).with_context(|| format!("cannot open {}", path.display()))?;
-    let archive = ZipArchive::new(file).with_context(|| {
+    let mut reader = Reader::open(path).with_context(|| {
         format!(
             "'{}' is not a readable .jar or .zip archive",
             file_name(path)
         )
     })?;
-    let names: Vec<&str> = archive.file_names().collect();
-    let has = |entry: &str| names.contains(&entry);
+    let names = reader.names();
+    let has = |entry: &str| names.iter().any(|n| n == entry);
     let under = |dir: &str| names.iter().any(|n| n.starts_with(dir));
 
-    if has("modrinth.index.json") {
+    if pack::locate(&names, |root| pack::is_curseforge_pack(&mut reader, root)).is_some() {
         bail!(
             "'{}' is a modpack; install it when creating an instance, not as a single file",
             file_name(path)
@@ -67,6 +67,7 @@ fn file_name(path: &Path) -> std::borrow::Cow<'_, str> {
 
 #[cfg(test)]
 mod tests {
+    use std::fs::File;
     use std::io::Write;
 
     use zip::write::SimpleFileOptions;
@@ -140,6 +141,22 @@ mod tests {
     fn modpack_and_non_archive_are_rejected() {
         let pack = archive("modpack", &["modrinth.index.json"]);
         assert!(classify(pack.path()).is_err());
+
+        let plain = archive("plain-manifest", &["manifest.json"]);
+        assert!(matches!(classify(plain.path()), Ok(Detected::Unknown)));
+
+        let curse = tempfile::Builder::new()
+            .prefix("hestia-inspect-curse-")
+            .suffix(".zip")
+            .tempfile()
+            .expect("temp file");
+        let mut zip = ZipWriter::new(File::create(curse.path()).unwrap());
+        zip.start_file("manifest.json", SimpleFileOptions::default())
+            .unwrap();
+        zip.write_all(br#"{"manifestType":"minecraftModpack"}"#)
+            .unwrap();
+        zip.finish().unwrap();
+        assert!(classify(curse.path()).is_err());
 
         let junk = tempfile::Builder::new()
             .prefix("hestia-inspect-junk-")
