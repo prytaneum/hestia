@@ -13,8 +13,6 @@
 use std::collections::HashSet;
 use std::path::Path;
 
-use proto::content::ContentKind;
-
 use crate::content::install;
 use crate::schema::Document;
 
@@ -100,14 +98,12 @@ fn mirrored_paths(entry_dir: &Path, data_dir: &Path) -> HashSet<String> {
     let worlds = crate::instances::save_worlds(data_dir);
     install::load(entry_dir)
         .iter()
-        .flat_map(|item| match item.kind {
-            ContentKind::DataPack => install::target_worlds(item, &worlds)
-                .iter()
-                .map(|world| format!("data/{world}/datapacks/{}", item.filename))
-                .collect(),
-            kind => install::kind_dir(kind)
-                .map(|dir| vec![format!("data/{dir}/{}", item.filename)])
-                .unwrap_or_default(),
+        .filter_map(|item| install::mirror_paths(data_dir, item, &worlds).ok())
+        .flatten()
+        .filter_map(|path| {
+            let relative = path.strip_prefix(data_dir).ok()?;
+            let parts: Vec<_> = relative.iter().map(|part| part.to_string_lossy()).collect();
+            Some(format!("data/{}", parts.join("/")))
         })
         .collect()
 }

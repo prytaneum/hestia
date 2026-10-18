@@ -139,7 +139,7 @@ fn place(
 
 /// Every `data/` path an item's managed file is mirrored to: one per target
 /// world for a datapack, the single flat load dir for the other kinds.
-fn mirror_paths(
+pub(crate) fn mirror_paths(
     data_dir: &Path,
     item: &InstalledContent,
     worlds: &[String],
