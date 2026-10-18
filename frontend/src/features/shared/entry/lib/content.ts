@@ -148,12 +148,3 @@ export interface SectionProps {
   onKindChange: (kind?: ContentKind) => void;
   action?: ReactNode;
 }
-
-export type ListResult = {
-  data?: { items: InstalledContent[]; untracked: UntrackedFile[] };
-};
-export type UpdatesResult = {
-  data?: { filename: string; updatable: boolean }[];
-  isFetching: boolean;
-  refetch: () => void;
-};

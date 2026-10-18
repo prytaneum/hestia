@@ -25,14 +25,13 @@ export function useServerCards(): {
 
   const cards = useMemo(
     () =>
-      (servers.data ?? []).map((server) => ({
-        ...serverToCard(server, {
+      (servers.data ?? []).map((server) =>
+        serverToCard(server, {
           busy: busyId === server.id,
           onStart: () => start.mutate(server.id),
           onStop: () => stop.mutate(server.id),
         }),
-        iconUrl: server.iconUrl,
-      })),
+      ),
     [servers.data, busyId, start, stop],
   );
   return { cards, isPending: servers.isPending };
@@ -50,22 +49,15 @@ export function useInstanceCards(): {
     () =>
       (instances.data ?? []).map((instance) => {
         const stopping = stop.isPending && stop.variables?.id === instance.id;
-        return {
-          ...instanceToCard(
-            instance,
-            {
-              busy: isLaunching(instance.id) || stopping,
-              launching: isLaunching(instance.id),
-              stopping,
-              onStart: () => launch(instance),
-              onStop: (session) => stop.mutate({ id: instance.id, session }),
-              onNewSession: () => launch(instance, { newSession: true }),
-              onRestart: (session) => restart(instance, session),
-            },
-            instance.lastPlayedUnix,
-          ),
-          iconUrl: instance.iconUrl,
-        };
+        return instanceToCard(instance, {
+          busy: isLaunching(instance.id) || stopping,
+          launching: isLaunching(instance.id),
+          stopping,
+          onStart: () => launch(instance),
+          onStop: (session) => stop.mutate({ id: instance.id, session }),
+          onNewSession: () => launch(instance, { newSession: true }),
+          onRestart: (session) => restart(instance, session),
+        });
       }),
     [instances.data, isLaunching, launch, restart, stop],
   );

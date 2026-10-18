@@ -9,12 +9,10 @@ export {
   filterUntracked,
   installedRef,
   kindLoader,
-  type ListResult,
   packWorlds,
   parseOrigin,
   rowKey,
   type SectionProps,
-  type UpdatesResult,
   worldEnabled,
   worldName,
 } from './content';

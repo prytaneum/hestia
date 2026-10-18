@@ -42,10 +42,8 @@ import {
   filterContent,
   filterUntracked,
   installedRef,
-  type ListResult,
   rowKey,
   type SectionProps,
-  type UpdatesResult,
 } from '../lib';
 import { ContentListResult } from './content-list';
 import { TabToolbar } from './toolbar';
@@ -66,13 +64,6 @@ export function ContentSection({
   const { id } = entry;
   const isServer = entry.kind === 'server';
 
-  const offline = useOffline();
-  const lists = useQueries({
-    queries: kinds.map((k) => entryContentQueries.list(entry.kind, id, k)),
-  });
-  const updates = useQueries({
-    queries: kinds.map((k) => entryContentQueries.updates(entry.kind, id, k)),
-  });
   // A datapack that names no world targets every world the instance has, so the
   // per-world rows need the entry's current list. A server has exactly one.
   const worlds = useQuery({
@@ -167,9 +158,6 @@ export function ContentSection({
         kind={kind}
         onKindChange={onKindChange}
         action={action}
-        lists={lists}
-        updates={updates}
-        offline={offline}
       />
     </ContentCtx.Provider>
   );
@@ -180,15 +168,19 @@ function ContentSectionView({
   kind,
   onKindChange,
   action,
-  lists,
-  updates,
-  offline,
-}: Omit<SectionProps, 'entry'> & {
-  lists: ListResult[];
-  updates: UpdatesResult[];
-  offline: boolean;
-}) {
-  const { handlers, busy } = useContent();
+}: Omit<SectionProps, 'entry'>) {
+  const { entry, handlers, busy } = useContent();
+  const offline = useOffline();
+  const lists = useQueries({
+    queries: kinds.map((k) =>
+      entryContentQueries.list(entry.kind, entry.id, k),
+    ),
+  });
+  const updates = useQueries({
+    queries: kinds.map((k) =>
+      entryContentQueries.updates(entry.kind, entry.id, k),
+    ),
+  });
   const items = lists.flatMap((q) => q.data?.items ?? []);
   const updatable = new Set(
     updates.flatMap((q) =>

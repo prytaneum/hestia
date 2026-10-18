@@ -34,7 +34,7 @@ export type CardActions = {
 
 /** Map a live server record to the card shape, with its quick actions wired. */
 export function serverToCard(
-  server: ServerInfo,
+  server: ServerInfo & { iconUrl?: string },
   actions: CardActions,
 ): EntryCardModel {
   const running = server.process?.state === 'running';
@@ -46,6 +46,7 @@ export function serverToCard(
     kind: 'server',
     flavor: server.flavor,
     version: server.gameVersion,
+    iconUrl: server.iconUrl,
     running,
     ready: server.ready,
     subtitle: !server.ready
@@ -59,9 +60,8 @@ export function serverToCard(
 
 /** Map a live instance record to the card shape, with its quick actions wired. */
 export function instanceToCard(
-  instance: InstanceInfo,
+  instance: InstanceInfo & { iconUrl?: string },
   actions: CardActions,
-  lastPlayedUnix?: number,
 ): EntryCardModel {
   const sessions = runningSessions(instance);
   return {
@@ -70,13 +70,14 @@ export function instanceToCard(
     kind: 'instance',
     flavor: instance.flavor,
     version: instance.gameVersion,
+    iconUrl: instance.iconUrl,
     running: sessions.length > 0,
     ready: true,
     subtitle:
       sessions.length > 0
         ? m['entry.sessions_running']({ count: sessions.length })
-        : lastPlayedUnix
-          ? `${m['app.label.last_played']()} ${agoLabel(lastPlayedUnix)}`
+        : instance.lastPlayedUnix
+          ? `${m['app.label.last_played']()} ${agoLabel(instance.lastPlayedUnix)}`
           : m['app.status.stopped'](),
     sessions,
     busy: actions.busy,
