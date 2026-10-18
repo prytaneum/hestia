@@ -54,33 +54,47 @@ impl<'a> Downloader<'a> {
             }
         }
 
-        if let (Some(cache), Some(checksum)) = (self.cache, checksum) {
-            if serve_from_cache(cache, destination, checksum, on_progress).await? {
-                tracing::debug!(hex = %checksum.hex, "cache hit");
-                return Ok(());
-            }
-        }
-
-        tracing::debug!(url, dest = %destination.display(), "downloading");
         let part = common::atomic::staged(destination);
-        let result = self.stream_to_file(url, &part, checksum, on_progress).await;
-        match result {
-            Ok(()) => {}
+        let outcome = self.fill_part(url, &part, checksum, on_progress).await;
+        let from_cache = match outcome {
+            Ok(from_cache) => from_cache,
             Err(e) => {
                 let _ = tokio::fs::remove_file(&part).await;
                 return Err(e);
             }
-        }
+        };
 
         tokio::fs::rename(&part, destination)
             .await
             .with_context(|| format!("cannot move {} into place", part.display()))?;
 
+        if from_cache {
+            return Ok(());
+        }
         if let (Some(cache), Some(checksum)) = (self.cache, checksum) {
             cache.store(destination, checksum);
         }
         tracing::debug!(url, dest = %destination.display(), "download complete");
         Ok(())
+    }
+
+    async fn fill_part(
+        &self,
+        url: &str,
+        part: &Path,
+        checksum: Option<&Checksum>,
+        on_progress: &ProgressFn<'_>,
+    ) -> Result<bool> {
+        if let (Some(cache), Some(checksum)) = (self.cache, checksum) {
+            if serve_from_cache(cache, part, checksum, on_progress).await? {
+                tracing::debug!(hex = %checksum.hex, "cache hit");
+                return Ok(true);
+            }
+        }
+        tracing::debug!(url, "downloading");
+        self.stream_to_file(url, part, checksum, on_progress)
+            .await?;
+        Ok(false)
     }
 
     async fn stream_to_file(
@@ -98,28 +112,15 @@ impl<'a> Downloader<'a> {
         }
         let total = response.content_length().unwrap_or(0);
 
-        let mut file = tokio::fs::File::create(part)
-            .await
-            .with_context(|| format!("cannot open {} for writing", part.display()))?;
-        let mut hasher = checksum.map(|c| Hasher::new(c.algorithm));
-        let mut downloaded: u64 = 0;
-
+        let mut sink = Sink::create(part, checksum, total).await?;
         let stream = response.bytes_stream();
         futures_util::pin_mut!(stream);
         while let Some(chunk) = stream.next().await {
             let chunk = chunk.map_err(|e| net::stream_failure(None, &e))?;
-            file.write_all(&chunk).await?;
-            if let Some(h) = hasher.as_mut() {
-                h.update(&chunk);
-            }
-            downloaded += chunk.len() as u64;
-            on_progress(&DownloadProgress { downloaded, total })?;
+            sink.push(&chunk, on_progress).await?;
         }
-        file.flush().await?;
-        drop(file);
 
-        if let (Some(hasher), Some(checksum)) = (hasher, checksum) {
-            let actual = hasher.hex_digest();
+        if let (Some(actual), Some(checksum)) = (sink.finish().await?, checksum) {
             let expected = checksum.hex.to_lowercase();
             if actual != expected {
                 bail!(proto::error::ErrorInfo::DownloadFailed {
@@ -133,11 +134,49 @@ impl<'a> Downloader<'a> {
     }
 }
 
-/// Copy a cached blob to `destination`, re-hashing on the way out. A blob that no
+struct Sink {
+    file: tokio::fs::File,
+    hasher: Option<Hasher>,
+    written: u64,
+    total: u64,
+}
+
+impl Sink {
+    async fn create(part: &Path, checksum: Option<&Checksum>, total: u64) -> Result<Self> {
+        let file = tokio::fs::File::create(part)
+            .await
+            .with_context(|| format!("cannot open {} for writing", part.display()))?;
+        Ok(Sink {
+            file,
+            hasher: checksum.map(|c| Hasher::new(c.algorithm)),
+            written: 0,
+            total,
+        })
+    }
+
+    async fn push(&mut self, chunk: &[u8], on_progress: &ProgressFn<'_>) -> Result<()> {
+        self.file.write_all(chunk).await?;
+        if let Some(h) = self.hasher.as_mut() {
+            h.update(chunk);
+        }
+        self.written += chunk.len() as u64;
+        on_progress(&DownloadProgress {
+            downloaded: self.written,
+            total: self.total,
+        })
+    }
+
+    async fn finish(mut self) -> Result<Option<String>> {
+        self.file.flush().await?;
+        Ok(self.hasher.map(|h| h.hex_digest()))
+    }
+}
+
+/// Copy a cached blob into `part`, re-hashing on the way out. A blob that no
 /// longer matches its key is evicted and the caller falls back to the network.
 async fn serve_from_cache(
     cache: &Cache,
-    destination: &Path,
+    part: &Path,
     checksum: &Checksum,
     on_progress: &ProgressFn<'_>,
 ) -> Result<bool> {
@@ -147,10 +186,7 @@ async fn serve_from_cache(
     let total = std::fs::metadata(&blob).map(|m| m.len()).unwrap_or(0);
 
     let mut input = tokio::fs::File::open(&blob).await.map_err(|e| anyhow!(e))?;
-    let part = common::atomic::staged(destination);
-    let mut output = tokio::fs::File::create(&part).await?;
-    let mut hasher = Hasher::new(checksum.algorithm);
-    let mut copied: u64 = 0;
+    let mut sink = Sink::create(part, Some(checksum), total).await?;
     let mut buf = vec![0u8; 64 * 1024];
 
     use tokio::io::AsyncReadExt;
@@ -159,23 +195,14 @@ async fn serve_from_cache(
         if n == 0 {
             break;
         }
-        output.write_all(&buf[..n]).await?;
-        hasher.update(&buf[..n]);
-        copied += n as u64;
-        on_progress(&DownloadProgress {
-            downloaded: copied,
-            total,
-        })?;
+        sink.push(&buf[..n], on_progress).await?;
     }
-    output.flush().await?;
-    drop(output);
 
-    if hasher.hex_digest() != checksum.hex.to_lowercase() {
+    if sink.finish().await?.as_deref() != Some(checksum.hex.to_lowercase().as_str()) {
         tracing::warn!(hex = %checksum.hex, "cache blob is corrupt; evicting and refetching");
         cache.evict(checksum);
-        let _ = tokio::fs::remove_file(&part).await;
+        let _ = tokio::fs::remove_file(part).await;
         return Ok(false);
     }
-    tokio::fs::rename(&part, destination).await?;
     Ok(true)
 }
