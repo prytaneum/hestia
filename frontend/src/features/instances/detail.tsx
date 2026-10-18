@@ -1,9 +1,4 @@
-import {
-  GlobeIcon,
-  PlayIcon,
-  PlusIcon,
-  WarningCircleIcon,
-} from '@phosphor-icons/react';
+import { GlobeIcon, PlayIcon, WarningCircleIcon } from '@phosphor-icons/react';
 import { useMutation, useQueries, useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import type { ContentKind } from '@/api';
@@ -35,17 +30,15 @@ import {
   EntryIconMenu,
   EntryRunControl,
 } from '@/features/shared/entry/components';
+import { ResourceCards } from '@/features/shared/entry/components/resource-panel';
 import {
-  type LiveResources,
-  ResourceCards,
-} from '@/features/shared/entry/components/resource-panel';
-import {
-  ContentSection,
+  EntryContentTab,
   ModpackCard,
   SideCard,
   StatCard,
+  useLiveResources,
 } from '@/features/shared/entry/detail';
-import { agoLabel, bytes, memGb, uptime } from '@/lib/format';
+import { agoLabel, bytes, uptime } from '@/lib/format';
 import { supportsQuickPlay } from '@/lib/quick-play';
 import { runningSessions } from '@/lib/sessions';
 import { m } from '@/paraglide/messages.js';
@@ -53,7 +46,6 @@ import { useSessionsShown } from '@/queries/config';
 import { entryMutations, entryQueries } from '@/queries/entry';
 import { entryContentQueries } from '@/queries/entry-content';
 import { instanceQueries, useInstance } from '@/queries/instance';
-import { useProcessMetrics } from '@/queries/metrics';
 
 export type InstanceTab =
   | 'overview'
@@ -138,22 +130,12 @@ function InstanceDetail({
   const perSession = useSessionsShown(sessions.length);
   const liveSession =
     sessions.find((s) => s.id === focus) ?? sessions[sessions.length - 1];
-  const metrics = useProcessMetrics(liveSession?.id ?? null);
-
-  const memoryLimitGb = (() => {
-    const value = config.data?.find((e) => e.key === 'memory')?.value;
-    return value ? memGb(value) : 4;
-  })();
-
-  const live: LiveResources = {
+  const { live, memoryLimitGb } = useLiveResources({
     running,
-    memoryLimitGb,
-    diskBytes: info.data?.diskBytes ?? 0,
-    series: metrics.series.map((s) => ({
-      cpu: s.cpuPct,
-      mem: s.memBytes / (1024 * 1024),
-    })),
-  };
+    config: config.data,
+    diskBytes: info.data?.diskBytes,
+    processId: liveSession?.id ?? null,
+  });
 
   const worldList = worlds.data ?? [];
   const joinable = supportsQuickPlay(instance.gameVersion);
@@ -344,34 +326,18 @@ function InstanceDetail({
           </div>
         </TabsContent>
 
-        <TabsContent
-          {...install.getRootProps()}
-          value="content"
-          className="flex flex-col p-5"
-        >
-          <ContentSection
-            entry={{
-              kind: 'instance',
-              id,
-              flavor: instance.flavor,
-              gameVersion: instance.gameVersion,
-            }}
-            kinds={accepts}
-            kind={contentKind}
-            onKindChange={onContentKindChange}
-            action={
-              <Button
-                size="sm"
-                variant="outline"
-                data-icon="inline-start"
-                onClick={install.start}
-              >
-                <PlusIcon weight="bold" />
-                {m['content.add']()}
-              </Button>
-            }
-          />
-        </TabsContent>
+        <EntryContentTab
+          install={install}
+          entry={{
+            kind: 'instance',
+            id,
+            flavor: instance.flavor,
+            gameVersion: instance.gameVersion,
+          }}
+          kinds={accepts}
+          kind={contentKind}
+          onKindChange={onContentKindChange}
+        />
 
         <TabsContent value="worlds" className="flex flex-col p-5">
           {worlds.isPending ? (

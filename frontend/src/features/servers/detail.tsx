@@ -1,12 +1,10 @@
 import {
   ArrowClockwiseIcon,
   PlayIcon,
-  PlusIcon,
   PowerIcon,
   WarningCircleIcon,
 } from '@phosphor-icons/react';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { useMemo } from 'react';
 import type { ContentKind, ServerInfo } from '@/api';
 import { DetailHero } from '@/components/detail-hero';
 import { Empty } from '@/components/empty';
@@ -37,20 +35,17 @@ import {
   EntryActionsMenu,
   EntryIconMenu,
 } from '@/features/shared/entry/components';
+import { ResourceCards } from '@/features/shared/entry/components/resource-panel';
 import {
-  type LiveResources,
-  ResourceCards,
-} from '@/features/shared/entry/components/resource-panel';
-import {
-  ContentSection,
+  EntryContentTab,
   ModpackCard,
   SideCard,
   StatCard,
+  useLiveResources,
 } from '@/features/shared/entry/detail';
-import { agoLabel, bytes, memGb } from '@/lib/format';
+import { agoLabel, bytes } from '@/lib/format';
 import { m } from '@/paraglide/messages.js';
 import { entryMutations, entryQueries } from '@/queries/entry';
-import { useProcessMetrics } from '@/queries/metrics';
 import { serverMutations, serverQueries, useServer } from '@/queries/server';
 
 export type ServerTab =
@@ -134,12 +129,12 @@ function ServerDetail({
 
   const running = isRunning(server);
   const ping = useQuery({ ...serverQueries.ping(id), enabled: running });
-  const metrics = useProcessMetrics(server.process?.id ?? null);
-
-  const memoryLimitGb = useMemo(() => {
-    const value = config.data?.find((e) => e.key === 'memory')?.value;
-    return value ? memGb(value) : 4;
-  }, [config.data]);
+  const { live, memoryLimitGb } = useLiveResources({
+    running,
+    config: config.data,
+    diskBytes: info.data?.diskBytes,
+    processId: server.process?.id ?? null,
+  });
 
   const statusTone = !server.ready ? 'warn' : running ? 'on' : 'off';
   const statusLabel = !server.ready
@@ -147,16 +142,6 @@ function ServerDetail({
     : running
       ? m['app.status.online']()
       : m['app.status.stopped']();
-
-  const live: LiveResources = {
-    running,
-    memoryLimitGb,
-    diskBytes: info.data?.diskBytes ?? 0,
-    series: metrics.series.map((s) => ({
-      cpu: s.cpuPct,
-      mem: s.memBytes / (1024 * 1024),
-    })),
-  };
 
   return (
     <div className="flex h-full flex-col">
@@ -345,34 +330,18 @@ function ServerDetail({
           <ServerConsoleTab id={id} running={running} name={server.name} />
         </TabsContent>
 
-        <TabsContent
-          {...install.getRootProps()}
-          value="content"
-          className="flex flex-col p-5"
-        >
-          <ContentSection
-            entry={{
-              kind: 'server',
-              id,
-              flavor: server.flavor,
-              gameVersion: server.gameVersion,
-            }}
-            kinds={server.accepts ?? []}
-            kind={contentKind}
-            onKindChange={onContentKindChange}
-            action={
-              <Button
-                size="sm"
-                variant="outline"
-                data-icon="inline-start"
-                onClick={install.start}
-              >
-                <PlusIcon weight="bold" />
-                {m['content.add']()}
-              </Button>
-            }
-          />
-        </TabsContent>
+        <EntryContentTab
+          install={install}
+          entry={{
+            kind: 'server',
+            id,
+            flavor: server.flavor,
+            gameVersion: server.gameVersion,
+          }}
+          kinds={server.accepts ?? []}
+          kind={contentKind}
+          onKindChange={onContentKindChange}
+        />
 
         <TabsContent value="players" className="flex min-h-0 flex-col p-5">
           <ServerPlayersTab id={id} running={running} />
