@@ -7,7 +7,8 @@
 //! provider impls that hold no aggregate reference. `Engine::network()` is the
 //! handle the daemon reaches it through.
 
-use std::sync::{Mutex, OnceLock};
+use std::sync::atomic::{AtomicI64, Ordering};
+use std::sync::OnceLock;
 use std::time::Duration;
 
 use proto::net::{NetworkState, NetworkStatus};
@@ -30,30 +31,21 @@ pub fn network() -> &'static Network {
 }
 
 pub struct Network {
-    state: Mutex<State>,
     tx: watch::Sender<NetworkStatus>,
-}
-
-struct State {
-    status: NetworkStatus,
-    last_probe_unix: i64,
+    last_probe_unix: AtomicI64,
 }
 
 impl Network {
     fn new() -> Self {
-        let status = NetworkStatus::default();
-        let (tx, _) = watch::channel(status.clone());
+        let (tx, _) = watch::channel(NetworkStatus::default());
         Network {
-            state: Mutex::new(State {
-                status,
-                last_probe_unix: 0,
-            }),
             tx,
+            last_probe_unix: AtomicI64::new(0),
         }
     }
 
     pub fn status(&self) -> NetworkStatus {
-        self.state.lock().unwrap().status.clone()
+        self.tx.borrow().clone()
     }
 
     pub fn subscribe(&self) -> watch::Receiver<NetworkStatus> {
@@ -63,13 +55,13 @@ impl Network {
     /// Whether the user has pinned the daemon offline, so nothing should be
     /// attempted at all.
     pub fn pinned(&self) -> bool {
-        self.state.lock().unwrap().status.offline_mode
+        self.tx.borrow().offline_mode
     }
 
     pub fn set_offline_mode(&self, offline: bool) {
-        self.publish_if_changed(|state| {
-            state.status.offline_mode = offline;
-            state.status.state = if offline {
+        self.publish_if_changed(|status| {
+            status.offline_mode = offline;
+            status.state = if offline {
                 NetworkState::Offline
             } else {
                 NetworkState::Unknown
@@ -78,18 +70,18 @@ impl Network {
     }
 
     pub fn observe_reachable(&self) {
-        self.publish_if_changed(|state| {
-            state.status.last_online_unix = common::now_unix();
-            if !state.status.offline_mode {
-                state.status.state = NetworkState::Online;
+        self.publish_if_changed(|status| {
+            status.last_online_unix = common::now_unix();
+            if !status.offline_mode {
+                status.state = NetworkState::Online;
             }
         });
     }
 
     pub fn observe_unreachable(&self) {
-        self.publish_if_changed(|state| {
-            if !state.status.offline_mode {
-                state.status.state = NetworkState::Offline;
+        self.publish_if_changed(|status| {
+            if !status.offline_mode {
+                status.state = NetworkState::Offline;
             }
         });
     }
@@ -97,10 +89,8 @@ impl Network {
     /// Confirm the current state if it has gone stale. Called on a short tick by
     /// the daemon's watcher; the pacing lives here so the caller is just a clock.
     pub async fn refresh(&self) {
-        let (status, last_probe) = {
-            let state = self.state.lock().unwrap();
-            (state.status.clone(), state.last_probe_unix)
-        };
+        let status = self.status();
+        let last_probe = self.last_probe_unix.load(Ordering::Relaxed);
         if status.offline_mode {
             return;
         }
@@ -119,7 +109,8 @@ impl Network {
     }
 
     async fn probe(&self) {
-        self.state.lock().unwrap().last_probe_unix = common::now_unix();
+        self.last_probe_unix
+            .store(common::now_unix(), Ordering::Relaxed);
         let result = super::client()
             .head(PROBE_URL)
             .timeout(PROBE_TIMEOUT)
@@ -131,25 +122,26 @@ impl Network {
         }
     }
 
-    fn publish_if_changed(&self, change: impl FnOnce(&mut State)) {
+    fn publish_if_changed(&self, change: impl FnOnce(&mut NetworkStatus)) {
         // `last_online_unix` moves on every successful request; only a state
         // change is worth an event, or a busy download would publish per chunk.
-        let updated = {
-            let mut state = self.state.lock().unwrap();
-            let before = (state.status.state, state.status.offline_mode);
-            change(&mut state);
-            if (state.status.state, state.status.offline_mode) == before {
-                return;
+        let changed = self.tx.send_if_modified(|status| {
+            let before = (status.state, status.offline_mode);
+            change(status);
+            if (status.state, status.offline_mode) == before {
+                return false;
             }
-            state.status.since_unix = common::now_unix();
-            state.status.clone()
-        };
-        tracing::info!(
-            state = ?updated.state,
-            pinned = updated.offline_mode,
-            "network reachability changed"
-        );
-        let _ = self.tx.send(updated);
+            status.since_unix = common::now_unix();
+            true
+        });
+        if changed {
+            let status = self.tx.borrow();
+            tracing::info!(
+                state = ?status.state,
+                pinned = status.offline_mode,
+                "network reachability changed"
+            );
+        }
     }
 }
 
