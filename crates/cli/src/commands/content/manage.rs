@@ -4,7 +4,7 @@
 use std::sync::Arc;
 
 use anyhow::{bail, Context, Result};
-use clap::Subcommand;
+use clap::{Args, Subcommand};
 use client::proto::content::{
     ContentAddItem, ContentAddSpec, ContentDone, ContentFailure, ContentKind, InstalledContent,
 };
@@ -25,31 +25,7 @@ use crate::ui::{self, ProvisionReporter, View};
 pub enum ContentCmd {
     /// Install content (a project slug/id, a source URL, or a local --file)
     #[command(visible_alias = "install")]
-    Add {
-        /// Project slug/id or a source project URL (prompts to search when omitted)
-        item: Option<String>,
-        #[arg(long, help = "Pin a specific version (id or version number)")]
-        version: Option<String>,
-        #[arg(
-            long,
-            help = "Import a local file instead of a project",
-            conflicts_with = "version"
-        )]
-        file: Option<String>,
-        #[arg(long, help = "Override the stored filename (url/file installs)")]
-        filename: Option<String>,
-        #[arg(
-            short = 'S',
-            long,
-            help = "Content source to install from (default: the first configured one)"
-        )]
-        source: Option<String>,
-        #[arg(
-            long,
-            help = "For a datapack on an instance: a save world to load it in (repeatable; every world when omitted)"
-        )]
-        world: Vec<String>,
-    },
+    Add(AddArgs),
     /// Installed content of this kind
     #[command(visible_alias = "ls")]
     List,
@@ -106,6 +82,34 @@ pub enum ContentCmd {
     },
 }
 
+/// What `add` installs and how.
+#[derive(Args)]
+pub struct AddArgs {
+    /// Project slug/id or a source project URL (prompts to search when omitted)
+    item: Option<String>,
+    #[arg(long, help = "Pin a specific version (id or version number)")]
+    version: Option<String>,
+    #[arg(
+        long,
+        help = "Import a local file instead of a project",
+        conflicts_with = "version"
+    )]
+    file: Option<String>,
+    #[arg(long, help = "Override the stored filename (url/file installs)")]
+    filename: Option<String>,
+    #[arg(
+        short = 'S',
+        long,
+        help = "Content source to install from (default: the first configured one)"
+    )]
+    source: Option<String>,
+    #[arg(
+        long,
+        help = "For a datapack on an instance: a save world to load it in (repeatable; every world when omitted)"
+    )]
+    world: Vec<String>,
+}
+
 /// `hestia <server|instance> <name> <kind> add|list|remove|update`.
 pub async fn run_entry(
     client: &Client,
@@ -115,19 +119,7 @@ pub async fn run_entry(
     cmd: ContentCmd,
 ) -> Result<()> {
     match cmd {
-        ContentCmd::Add {
-            item,
-            version,
-            file,
-            filename,
-            source,
-            world,
-        } => {
-            add(
-                client, entry, kind, reference, item, version, file, filename, source, world,
-            )
-            .await
-        }
+        ContentCmd::Add(args) => add(client, entry, kind, reference, args).await,
         ContentCmd::List => list(client, entry, kind, reference).await,
         ContentCmd::Remove { items, world } => {
             remove(client, entry, kind, reference, items, world).await
@@ -156,19 +148,21 @@ pub async fn run_entry(
     }
 }
 
-#[allow(clippy::too_many_arguments)]
 async fn add(
     client: &Client,
     entry: EntryKind,
     kind: ContentKind,
     reference: &str,
-    item: Option<String>,
-    version: Option<String>,
-    file: Option<String>,
-    filename: Option<String>,
-    source: Option<String>,
-    world: Vec<String>,
+    args: AddArgs,
 ) -> Result<()> {
+    let AddArgs {
+        item,
+        version,
+        file,
+        filename,
+        source,
+        world,
+    } = args;
     let info = resolve_entry(client, entry, reference).await?;
     let source = source.unwrap_or_default();
 
