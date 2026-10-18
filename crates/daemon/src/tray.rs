@@ -5,7 +5,7 @@
 //! means no tray. The tray itself enforces one instance per endpoint, so
 //! spawning on every serve needs no duplicate check here.
 
-use std::process::{Command, Stdio};
+use std::process::Command;
 
 fn suppressed() -> bool {
     std::env::var_os("HESTIA_NO_TRAY").is_some_and(|value| !value.is_empty() && value != "0")
@@ -38,28 +38,7 @@ pub fn spawn() {
     };
 
     let mut cmd = Command::new(&program);
-    cmd.stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null());
-
-    #[cfg(unix)]
-    {
-        use std::os::unix::process::CommandExt;
-        // Detach into its own session — the tray outlives the daemon by design.
-        // SAFETY: setsid is async-signal-safe and valid in the forked child.
-        unsafe {
-            cmd.pre_exec(|| {
-                libc::setsid();
-                Ok(())
-            });
-        }
-    }
-    #[cfg(windows)]
-    {
-        use std::os::windows::process::CommandExt;
-        const DETACHED_PROCESS: u32 = 0x0000_0008;
-        cmd.creation_flags(DETACHED_PROCESS);
-    }
+    common::process::detach(&mut cmd);
 
     match cmd.spawn() {
         Ok(child) => tracing::info!(pid = child.id(), "tray spawned"),

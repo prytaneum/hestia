@@ -17,6 +17,9 @@ tracing-subscriber = { workspace = true }
 flexi_logger = { workspace = true }
 chrono = { workspace = true }
 
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
 # husky-rs installs the repo's git hooks (.husky/) via its build script on
 # `cargo test`. The virtual workspace has no root package to host it, so it lives
 # on this foundational leaf crate, which every `cargo test` compiles.

@@ -4,7 +4,7 @@
 //! re-focuses the existing window rather than opening another), so the tray
 //! need not track it.
 
-use std::process::{Command, Stdio};
+use std::process::Command;
 
 pub fn launch() {
     spawn(&[], "desktop launched", "cannot launch the desktop");
@@ -30,28 +30,8 @@ fn spawn(args: &[&str], ok_msg: &str, err_msg: &str) {
     };
 
     let mut cmd = Command::new(&program);
-    cmd.args(args)
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null());
-
-    #[cfg(unix)]
-    {
-        use std::os::unix::process::CommandExt;
-        // SAFETY: setsid is async-signal-safe and valid in the forked child.
-        unsafe {
-            cmd.pre_exec(|| {
-                libc::setsid();
-                Ok(())
-            });
-        }
-    }
-    #[cfg(windows)]
-    {
-        use std::os::windows::process::CommandExt;
-        const DETACHED_PROCESS: u32 = 0x0000_0008;
-        cmd.creation_flags(DETACHED_PROCESS);
-    }
+    cmd.args(args);
+    common::process::detach(&mut cmd);
 
     match cmd.spawn() {
         Ok(child) => tracing::info!(pid = child.id(), "{ok_msg}"),

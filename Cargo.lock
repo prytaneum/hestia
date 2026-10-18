@@ -709,7 +709,6 @@ version = "1.0.0-beta.2"
 dependencies = [
  "common",
  "ipc",
- "libc",
  "proto",
  "serde",
  "serde_json",
@@ -755,6 +754,7 @@ dependencies = [
  "chrono",
  "flexi_logger",
  "husky-rs",
+ "libc",
  "serde_json",
  "tempfile",
  "tracing",

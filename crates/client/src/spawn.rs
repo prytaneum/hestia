@@ -14,35 +14,14 @@ pub fn spawn_daemon() -> std::io::Result<()> {
     let program = common::paths::sibling_binary(names).unwrap_or_else(|| PathBuf::from(names[0]));
     tracing::debug!(program = %program.display(), "spawning the daemon");
     let mut cmd = Command::new(program);
-    cmd.arg("serve")
-        .stdin(std::process::Stdio::null())
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null());
+    cmd.arg("serve");
     // Started from the AppImage's shell, it would hand that environment on to
     // every game it launches; it links nothing from the image.
     if let Some(env) = common::appimage::sidecar_env() {
         cmd.env_clear().envs(env);
     }
 
-    #[cfg(unix)]
-    {
-        use std::os::unix::process::CommandExt;
-        // Detach from the frontend's session — the daemon outlives it.
-        // SAFETY: setsid is async-signal-safe and valid in the forked child.
-        unsafe {
-            cmd.pre_exec(|| {
-                libc::setsid();
-                Ok(())
-            });
-        }
-    }
-    #[cfg(windows)]
-    {
-        use std::os::windows::process::CommandExt;
-        const DETACHED_PROCESS: u32 = 0x0000_0008;
-        cmd.creation_flags(DETACHED_PROCESS);
-    }
-
+    common::process::detach(&mut cmd);
     cmd.spawn().map(|_| ())
 }
 
