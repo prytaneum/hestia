@@ -100,6 +100,15 @@ const INDEX: Entry[] = [
     ),
   },
   {
+    id: 'update-channel',
+    tab: 'general',
+    group: 'updates',
+    text: text(
+      m['settings.update.channel_label'],
+      m['settings.update.channel_hint'],
+    ),
+  },
+  {
     id: 'update',
     tab: 'general',
     group: 'updates',
