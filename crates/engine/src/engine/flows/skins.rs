@@ -57,6 +57,28 @@ impl Engine {
         }
     }
 
+    /// The profile a change answered with, fetched when the answer carried none.
+    async fn settle_profile(
+        &self,
+        reference: &str,
+        token: &str,
+        answered: Option<mojang::Profile>,
+    ) -> Result<mojang::Profile> {
+        let profile = match answered {
+            Some(profile) => profile,
+            None => mojang::fetch_profile(token).await?,
+        };
+        self.skins().store_profile(reference, profile.clone());
+        Ok(profile)
+    }
+
+    fn cache_profile(&self, reference: &str, answered: Option<mojang::Profile>) {
+        match answered {
+            Some(profile) => self.skins().store_profile(reference, profile),
+            None => self.skins().invalidate_profile(reference),
+        }
+    }
+
     /// The account's skin picture: library entries, the vanilla defaults, and —
     /// when neither covers it — the equipped external skin; plus the owned
     /// capes. At most one skin and one cape are marked equipped.
@@ -75,11 +97,10 @@ impl Engine {
             }
             let mut variant = entry.variant;
             let equipped = !equipped_seen && active.is_some_and(|a| a.key == entry.key);
-            if equipped {
-                let profile_variant = active.expect("equipped implies active").variant;
-                if profile_variant != variant {
-                    self.skins().sync_variant(&entry.key, profile_variant)?;
-                    variant = profile_variant;
+            if let Some(active) = active.filter(|_| equipped) {
+                if active.variant != variant {
+                    self.skins().sync_variant(&entry.key, active.variant)?;
+                    variant = active.variant;
                 }
             }
             equipped_seen |= equipped;
@@ -155,11 +176,8 @@ impl Engine {
 
         let (reference, token) = self.begin_skin_change(account).await?;
 
-        let after = match mojang::upload_skin(&token, png.clone(), variant).await? {
-            Some(profile) => profile,
-            None => mojang::fetch_profile(&token).await?,
-        };
-        self.skins().store_profile(&reference, after.clone());
+        let uploaded = mojang::upload_skin(&token, png.clone(), variant).await?;
+        let after = self.settle_profile(&reference, &token, uploaded).await?;
         let key = after
             .active_skin()
             .map(|s| s.key.clone())
@@ -202,10 +220,8 @@ impl Engine {
             let profile = mojang::fetch_profile(&token).await?;
             if profile.active_skin().is_some_and(|a| a.key == key) {
                 let png = self.skins().texture(key)?;
-                match mojang::upload_skin(&token, png, variant).await? {
-                    Some(profile) => self.skins().store_profile(&reference, profile),
-                    None => self.skins().invalidate_profile(&reference),
-                }
+                let uploaded = mojang::upload_skin(&token, png, variant).await?;
+                self.cache_profile(&reference, uploaded);
                 tracing::info!(
                     key,
                     ?variant,
@@ -257,20 +273,15 @@ impl Engine {
 
         if let Some(entry) = self.skins().entry(key) {
             let png = self.skins().texture(key)?;
-            let after = match mojang::upload_skin(&token, png, entry.variant).await? {
-                Some(profile) => profile,
-                None => mojang::fetch_profile(&token).await?,
-            };
-            self.skins().store_profile(&reference, after.clone());
+            let uploaded = mojang::upload_skin(&token, png, entry.variant).await?;
+            let after = self.settle_profile(&reference, &token, uploaded).await?;
             if let Some(active) = after.active_skin() {
                 self.skins().rekey(key, &active.key)?;
             }
         } else if let Some(default) = defaults::find(key) {
-            match mojang::set_skin_url(&token, &defaults::texture_url(key), default.variant).await?
-            {
-                Some(profile) => self.skins().store_profile(&reference, profile),
-                None => self.skins().invalidate_profile(&reference),
-            }
+            let set =
+                mojang::set_skin_url(&token, &defaults::texture_url(key), default.variant).await?;
+            self.cache_profile(&reference, set);
         } else {
             bail!(proto::error::ErrorInfo::SkinNotFound {
                 key: key.to_string()
@@ -331,9 +342,7 @@ impl Engine {
             }
         }
     }
-}
 
-impl Engine {
     fn next_library_skin_name(&self) -> String {
         let highest = self
             .skins()
