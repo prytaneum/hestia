@@ -340,7 +340,17 @@ pub fn pick_version(versions: Vec<GameVersion>, provided: Option<String>) -> Res
 
 /// Interactive fallback for a missing `--downgrade`; errors when stdin is not
 /// a terminal so scripts must pass the flag explicitly.
-pub fn confirm_downgrade(name: &str, data: &str, safety: &str, from: &str, to: &str) -> Result<()> {
+pub fn confirm_downgrade(kind: EntryKind, name: &str, from: &str, to: &str) -> Result<()> {
+    let (data, safety) = match kind {
+        EntryKind::Server => (
+            "a world",
+            "the current data is backed up automatically first",
+        ),
+        EntryKind::Instance => (
+            "saves",
+            "nothing is backed up first (instances have no backups)",
+        ),
+    };
     let downgrade = ui::confirm(
         &format!(
             "{to} is older than {from}, and Minecraft cannot load {data} \

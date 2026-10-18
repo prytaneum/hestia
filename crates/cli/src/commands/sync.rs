@@ -87,6 +87,107 @@ impl Unit {
     }
 }
 
+#[derive(Subcommand)]
+pub enum SyncAction {
+    /// Where this instance stands on each shared thing
+    Status,
+    /// Take part in one shared thing again
+    On {
+        /// What to share
+        unit: Unit,
+    },
+    /// Keep this instance's own copy of one shared thing
+    Off {
+        /// What to keep to itself
+        unit: Unit,
+    },
+    /// Keep one game setting to this instance (e.g. guiScale)
+    Local {
+        /// The `options.txt` key
+        key: String,
+    },
+    /// Share one game setting with the other instances again
+    Share {
+        /// The `options.txt` key
+        key: String,
+    },
+}
+
+pub async fn instance_action(client: &Client, id: &str, cmd: SyncAction) -> Result<()> {
+    let status = match cmd {
+        SyncAction::Status => client
+            .sync()
+            .status()
+            .await?
+            .into_iter()
+            .find(|entry| entry.id == id)
+            .unwrap_or_default(),
+        SyncAction::On { unit } => {
+            client
+                .sync()
+                .set_instance_unit(id, unit.proto(), Some(true))
+                .await?
+        }
+        SyncAction::Off { unit } => {
+            client
+                .sync()
+                .set_instance_unit(id, unit.proto(), Some(false))
+                .await?
+        }
+        SyncAction::Local { key } => pin_key(client, id, key, false).await?,
+        SyncAction::Share { key } => pin_key(client, id, key, true).await?,
+    };
+
+    let rows: Vec<Vec<String>> = status
+        .units
+        .iter()
+        .map(|unit| {
+            vec![
+                unit_name(unit.unit).to_string(),
+                state_label(unit.state).to_string(),
+            ]
+        })
+        .collect();
+    ui::show(View::table(
+        format!("{} — shared settings", status.name),
+        ["WHAT", "STATE"],
+        rows,
+    ))?;
+    if !status.unsynced.is_empty() {
+        ui::show(View::note(format!(
+            "settings it keeps to itself: {}",
+            status
+                .unsynced
+                .iter()
+                .cloned()
+                .collect::<Vec<_>>()
+                .join(", ")
+        )))?;
+    }
+    Ok(())
+}
+
+async fn pin_key(
+    client: &Client,
+    id: &str,
+    key: String,
+    shared: bool,
+) -> Result<InstanceSyncStatus> {
+    let mut unsynced = client
+        .sync()
+        .status()
+        .await?
+        .into_iter()
+        .find(|entry| entry.id == id)
+        .unwrap_or_default()
+        .unsynced;
+    match shared {
+        true => unsynced.remove(&key),
+        false => unsynced.insert(key),
+    };
+    Ok(client.sync().set_instance_unsynced(id, unsynced).await?)
+}
+
 pub async fn run(cmd: SyncCmd) -> Result<()> {
     let client = super::connect().await?;
     match cmd {
@@ -148,7 +249,7 @@ async fn list_packs(client: &Client) -> Result<()> {
     ))
 }
 
-pub fn unit_name(unit: SyncUnit) -> &'static str {
+fn unit_name(unit: SyncUnit) -> &'static str {
     match unit {
         SyncUnit::Options => "options",
         SyncUnit::Servers => "servers",
@@ -159,7 +260,7 @@ pub fn unit_name(unit: SyncUnit) -> &'static str {
     }
 }
 
-pub fn state_label(state: UnitState) -> &'static str {
+fn state_label(state: UnitState) -> &'static str {
     match state {
         UnitState::Synced => "synced",
         UnitState::Pending => "shares at next launch",

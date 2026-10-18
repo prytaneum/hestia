@@ -274,23 +274,7 @@ async fn confirm_file_update(
         }
     }
     if preview.downgrade && !to.allow_downgrade {
-        let (data, safety) = match entry.kind == EntryKind::Server {
-            true => (
-                "a world",
-                "the current data is backed up automatically first",
-            ),
-            false => (
-                "saves",
-                "nothing is backed up first (instances have no backups)",
-            ),
-        };
-        super::mc::confirm_downgrade(
-            name,
-            data,
-            safety,
-            &pack.game_version,
-            &preview.game_version,
-        )?;
+        super::mc::confirm_downgrade(entry.kind, name, &pack.game_version, &preview.game_version)?;
     }
     Ok(ModpackMove {
         path,
@@ -425,7 +409,11 @@ async fn search_for_pack(client: &Client, source: &str) -> Result<String> {
         .iter()
         .map(|h| PickerItem {
             label: h.title.clone(),
-            tag: format!("{} · {}", compact(h.downloads), h.description),
+            tag: format!(
+                "{} · {}",
+                content::format::compact(h.downloads),
+                h.description
+            ),
             stable: true,
         })
         .collect();
@@ -481,13 +469,4 @@ fn show_pack(pack: &InstalledModpack) -> Result<()> {
         ("content", pack.files.len().to_string()),
         ("pack files", pack.overrides.len().to_string()),
     ]))
-}
-
-/// `12.3k` — the same compaction the browse tables use for download counts.
-fn compact(n: u64) -> String {
-    match n {
-        0..=999 => n.to_string(),
-        1_000..=999_999 => format!("{:.1}k", n as f64 / 1_000.0),
-        _ => format!("{:.1}M", n as f64 / 1_000_000.0),
-    }
 }

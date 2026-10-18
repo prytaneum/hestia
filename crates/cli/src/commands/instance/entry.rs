@@ -45,7 +45,11 @@ pub(super) async fn fetch(client: &Client, reference: &str) -> Result<InstanceIn
 /// The short handle for a session: the sequence suffix of its process id
 /// (`instance-modded_2` → `2`), which is what the user targets with `--session`.
 pub(super) fn session_handle(process: &ProcessInfo) -> &str {
-    process.id.rsplit('_').next().unwrap_or(&process.id)
+    session_handle_of(&process.id)
+}
+
+pub(super) fn session_handle_of(process_id: &str) -> &str {
+    process_id.rsplit('_').next().unwrap_or(process_id)
 }
 
 /// Resolve a `--session` argument (the short handle or the full process id)

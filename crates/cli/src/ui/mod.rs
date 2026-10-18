@@ -25,6 +25,7 @@ use client::proto::warning::WarningInfo;
 
 pub use components::PickerItem;
 pub use progress::{ByteReporter, ProvisionReporter, Spinner};
+pub use render::human_bytes;
 pub use session::console::{Completions, ConsoleEvent, ConsoleLink};
 pub use session::monitor::MonitorSample;
 pub use view::View;
@@ -63,6 +64,20 @@ pub fn show_warnings(warnings: &[WarningInfo]) -> Result<()> {
     Ok(())
 }
 
+fn require_choice(count: usize) -> Result<()> {
+    if count == 0 {
+        bail!("nothing to select");
+    }
+    if !is_interactive() {
+        bail!("no interactive terminal; pass the choice as an argument");
+    }
+    Ok(())
+}
+
+fn cancelled<T>(choice: Option<T>) -> Result<T> {
+    choice.ok_or_else(|| anyhow!("selection cancelled"))
+}
+
 /// Prompt the user to pick one of `items`, returning its index. Requires an
 /// interactive terminal; errors otherwise so callers can ask for an argument.
 pub fn select(prompt: &str, items: &[String]) -> Result<usize> {
@@ -72,31 +87,22 @@ pub fn select(prompt: &str, items: &[String]) -> Result<usize> {
 /// The same prompt with a dimmed second line per item — for a choice whose
 /// label cannot say enough on its own.
 pub fn select_detailed(prompt: &str, items: &[String], details: &[String]) -> Result<usize> {
-    if items.is_empty() {
-        bail!("nothing to select");
-    }
-    if !is_interactive() {
-        bail!("no interactive terminal; pass the choice as an argument");
-    }
-    session::run(
+    require_choice(items.len())?;
+    cancelled(session::run(
         session::prompt::SelectScreen::new(prompt, items, details),
         None,
-    )?
-    .ok_or_else(|| anyhow!("selection cancelled"))
+    )?)
 }
 
 /// Prompt the user to check any number of `items`, returning their indices.
 /// Requires an interactive terminal; errors otherwise so callers can ask for
 /// arguments instead.
 pub fn multi_select(prompt: &str, items: &[String]) -> Result<Vec<usize>> {
-    if items.is_empty() {
-        bail!("nothing to select");
-    }
-    if !is_interactive() {
-        bail!("no interactive terminal; pass the choice as an argument");
-    }
-    session::run(session::prompt::MultiSelectScreen::new(prompt, items), None)?
-        .ok_or_else(|| anyhow!("selection cancelled"))
+    require_choice(items.len())?;
+    cancelled(session::run(
+        session::prompt::MultiSelectScreen::new(prompt, items),
+        None,
+    )?)
 }
 
 /// Ask for one line of input inline; an empty answer takes `default`, shown in
@@ -123,14 +129,11 @@ pub fn input(text: &str, default: &str) -> Result<String> {
 /// an interactive terminal; errors otherwise so callers can ask for an
 /// argument.
 pub fn pick(prompt: &str, items: Vec<PickerItem>) -> Result<usize> {
-    if items.is_empty() {
-        bail!("nothing to select");
-    }
-    if !is_interactive() {
-        bail!("no interactive terminal; pass the choice as an argument");
-    }
-    session::run(session::prompt::PickerScreen::new(prompt, items), None)?
-        .ok_or_else(|| anyhow!("selection cancelled"))
+    require_choice(items.len())?;
+    cancelled(session::run(
+        session::prompt::PickerScreen::new(prompt, items),
+        None,
+    )?)
 }
 
 /// Ask for one line inline on the current screen: the prompt goes to stderr
@@ -158,12 +161,7 @@ pub fn prompt_confirm(text: &str) -> Result<bool> {
 /// from stdin (an empty answer cancels). Errors without an interactive
 /// terminal.
 pub fn prompt_select(text: &str, items: &[String]) -> Result<usize> {
-    if items.is_empty() {
-        bail!("nothing to select");
-    }
-    if !is_interactive() {
-        bail!("no interactive terminal; pass the choice as an argument");
-    }
+    require_choice(items.len())?;
     eprintln!("{text}:");
     for (index, item) in items.iter().enumerate() {
         eprintln!("  {}. {item}", index + 1);
@@ -221,9 +219,4 @@ pub fn monitor(
         bail!("no interactive terminal");
     }
     session::run(session::monitor::MonitorScreen::new(title), Some(samples))
-}
-
-/// Render a byte count in human units (KB, MB, …).
-pub fn human_bytes(bytes: u64) -> String {
-    render::human_bytes(bytes)
 }

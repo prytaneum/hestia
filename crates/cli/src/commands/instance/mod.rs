@@ -293,37 +293,11 @@ enum InstanceAction {
     /// What this instance shares with the others (see `hestia sync status`)
     Sync {
         #[command(subcommand)]
-        cmd: SyncAction,
+        cmd: crate::commands::sync::SyncAction,
     },
     /// Delete the instance (its saves and all)
     #[command(visible_alias = "rm")]
     Remove,
-}
-
-#[derive(Subcommand)]
-pub enum SyncAction {
-    /// Where this instance stands on each shared thing
-    Status,
-    /// Take part in one shared thing again
-    On {
-        /// What to share
-        unit: crate::commands::sync::Unit,
-    },
-    /// Keep this instance's own copy of one shared thing
-    Off {
-        /// What to keep to itself
-        unit: crate::commands::sync::Unit,
-    },
-    /// Keep one game setting to this instance (e.g. guiScale)
-    Local {
-        /// The `options.txt` key
-        key: String,
-    },
-    /// Share one game setting with the other instances again
-    Share {
-        /// The `options.txt` key
-        key: String,
-    },
 }
 
 pub async fn run(cmd: InstanceCmd) -> Result<()> {
@@ -475,87 +449,14 @@ async fn run_action(client: &Client, name: String, action: InstanceAction) -> Re
             let target = EntryTarget::new(EntryKind::Instance, name);
             crate::commands::lifecycle::rename_entry(client, target, &new_name).await
         }
-        InstanceAction::Sync { cmd } => sync_action(client, &name, cmd).await,
+        InstanceAction::Sync { cmd } => {
+            let info =
+                entry::pick_instance(client.instance().list().await?, Some(name.to_string()))?;
+            crate::commands::sync::instance_action(client, &info.id, cmd).await
+        }
         InstanceAction::Remove => {
             let target = EntryTarget::new(EntryKind::Instance, name);
             crate::commands::lifecycle::remove_entry(client, target).await
         }
     }
-}
-
-async fn sync_action(client: &Client, name: &str, cmd: SyncAction) -> Result<()> {
-    use crate::commands::sync::{state_label, unit_name};
-
-    let info = entry::pick_instance(client.instance().list().await?, Some(name.to_string()))?;
-    let status = match cmd {
-        SyncAction::Status => {
-            let all = client.sync().status().await?;
-            all.into_iter()
-                .find(|entry| entry.id == info.id)
-                .unwrap_or_default()
-        }
-        SyncAction::On { unit } => {
-            client
-                .sync()
-                .set_instance_unit(&info.id, unit.proto(), Some(true))
-                .await?
-        }
-        SyncAction::Off { unit } => {
-            client
-                .sync()
-                .set_instance_unit(&info.id, unit.proto(), Some(false))
-                .await?
-        }
-        SyncAction::Local { key } => pin_key(client, &info.id, key, false).await?,
-        SyncAction::Share { key } => pin_key(client, &info.id, key, true).await?,
-    };
-
-    let rows: Vec<Vec<String>> = status
-        .units
-        .iter()
-        .map(|unit| {
-            vec![
-                unit_name(unit.unit).to_string(),
-                state_label(unit.state).to_string(),
-            ]
-        })
-        .collect();
-    crate::ui::show(crate::ui::View::table(
-        format!("{} — shared settings", status.name),
-        ["WHAT", "STATE"],
-        rows,
-    ))?;
-    if !status.unsynced.is_empty() {
-        crate::ui::show(crate::ui::View::note(format!(
-            "settings it keeps to itself: {}",
-            status
-                .unsynced
-                .iter()
-                .cloned()
-                .collect::<Vec<_>>()
-                .join(", ")
-        )))?;
-    }
-    Ok(())
-}
-
-async fn pin_key(
-    client: &Client,
-    id: &str,
-    key: String,
-    shared: bool,
-) -> Result<client::proto::sync::InstanceSyncStatus> {
-    let mut unsynced = client
-        .sync()
-        .status()
-        .await?
-        .into_iter()
-        .find(|entry| entry.id == id)
-        .unwrap_or_default()
-        .unsynced;
-    match shared {
-        true => unsynced.remove(&key),
-        false => unsynced.insert(key),
-    };
-    Ok(client.sync().set_instance_unsynced(id, unsynced).await?)
 }

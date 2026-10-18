@@ -44,7 +44,7 @@ pub fn kind_plural(kind: ContentKind) -> &'static str {
 }
 
 /// A large count in compact units (180204729 → "180.2M").
-pub(super) fn compact(n: u64) -> String {
+pub(crate) fn compact(n: u64) -> String {
     if n >= 1_000_000 {
         format!("{:.1}M", n as f64 / 1_000_000.0)
     } else if n >= 1_000 {

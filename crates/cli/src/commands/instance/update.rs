@@ -27,9 +27,8 @@ pub(super) async fn run(
             == Some(true);
     if is_downgrade && !downgrade {
         mc::confirm_downgrade(
+            client::proto::error::EntryKind::Instance,
             &info.name,
-            "saves",
-            "nothing is backed up first (instances have no backups)",
             &info.game_version,
             &version,
         )?;

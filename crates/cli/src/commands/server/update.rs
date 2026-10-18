@@ -33,9 +33,8 @@ pub(super) async fn run(
             == Some(true);
     if is_downgrade && !downgrade {
         mc::confirm_downgrade(
+            client::proto::error::EntryKind::Server,
             &info.name,
-            "a world",
-            "the current data is backed up automatically first",
             &info.game_version,
             &version,
         )?;

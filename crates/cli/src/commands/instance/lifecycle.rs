@@ -111,7 +111,7 @@ pub(crate) async fn stop(client: &Client, instance: &str, session: Option<String
     match target {
         Some(id) => ui::show(View::line(format!(
             "instance '{instance}' session {} stopped",
-            session_label(&id)
+            entry::session_handle_of(&id)
         ))),
         None => ui::show(View::line(format!("instance '{instance}' stopped"))),
     }
@@ -159,10 +159,6 @@ async fn resolve_session(
 
 fn instance_target(instance: &str) -> EntryTarget {
     EntryTarget::new(EntryKind::Instance, instance)
-}
-
-fn session_label(process_id: &str) -> &str {
-    process_id.rsplit('_').next().unwrap_or(process_id)
 }
 
 /// Read (or follow) an instance's captured output. A named `--session` is one
