@@ -118,7 +118,7 @@ impl<'r> Channels<'r> {
 
     /// Register a handler for contract `C`: decode `C::Params` (a malformed
     /// payload answers `bad_request`), invoke `f`, and encode the returned
-    /// `C::Result`. The handler returns `ServiceError` for a typed failure.
+    /// `C::Result`. The handler returns an `ErrorInfo` variant for a typed failure.
     pub fn handle<C, F, Fut>(&mut self, f: F)
     where
         C: Contract + 'static,

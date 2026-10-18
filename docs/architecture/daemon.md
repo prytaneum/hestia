@@ -71,7 +71,7 @@ outbound channel for streaming. The peer is authorized once, at accept.
 `Router` maps a channel string to a handler; an unknown channel becomes a
 well-formed error response. `Channels` is the registrar: `on.handle::<C>(…)`
 decodes `C::Params` (a malformed payload answers `bad_request` for you), invokes
-the handler, and encodes `C::Result`, mapping a returned `ServiceError` to its
+the handler, and encodes `C::Result`, mapping a returned `ErrorInfo` to its
 protocol code.
 
 Because the channel name and payload shapes come from the contract, a handler
@@ -146,7 +146,7 @@ same `server-<id>` / `instance-<id>` form.
 
 | Loop | Cadence | What it does |
 |---|---|---|
-| `scheduler.rs` | every minute | run each **running** server's due **scheduled tasks** — a restart (stop, wait for exit, start through the same `Runtime::start_server` a client's start uses), a console command, or a backup (a `Backup` job archiving as `scheduled`, then pruning the scheduled archives beyond the task's retention; a stopped server's world cannot change, so it is never re-archived). A task is stamped before it runs, so a failure waits for its next slot instead of retrying every minute, and it takes the entry's claim first, so none runs while a backup or version change owns the tree |
+| `scheduler.rs` | every minute | run each **running** server's due **scheduled tasks** — a restart (stop, wait for exit, start through the same `start_server` a client's start uses), a console command, or a backup (a `Backup` job archiving as `scheduled`, then pruning the scheduled archives beyond the task's retention; a stopped server's world cannot change, so it is never re-archived). A task is stamped before it runs, so a failure waits for its next slot instead of retrying every minute, and it takes the entry's claim first, so none runs while a backup or version change owns the tree |
 | `metrics.rs` | every 2 s | sample CPU and memory for supervised processes, normalising CPU by logical core count so a multi-threaded JVM reports a share of the machine rather than 800% |
 | `presence.rs` | every 5 s, on its own thread | publish Discord Rich Presence — the newest running session, else idle — sending only when the card changed. Gated on `discord.enabled` and skipped entirely under `HESTIA_NO_PRESENCE=1`; a missing Discord client is polled for at a sixth of the rate ([0059](../decisions/0059-discord-presence-is-a-daemon-loop.md)) |
 

@@ -17,8 +17,8 @@ A few rules hold everywhere; the recipes below assume them.
   client's facades, the engine aggregate) is a module *directory*, never one growing file: the thing that aggregates
   stays thin and each domain gets its own file beside it.
 - **Single-word module names** (`config`, not `config_store`). Follow Rust naming throughout.
-- **Errors:** `thiserror` enums in library crates, mapped to an `ipc::errors` code at the daemon's service boundary (via
-  `ServiceError`); `anyhow` at binary edges and for multi-step engine operations. Don't panic on recoverable errors.
+- **Errors:** `thiserror` enums in library crates, mapped to an `ErrorInfo` variant at the daemon's service boundary (handlers return
+  `ServiceResult`); `anyhow` at binary edges and for multi-step engine operations. Don't panic on recoverable errors.
 - **Logging:** `tracing` at appropriate levels. **Never log tokens or secrets.**
 - **Identity comes from one place:** `common::app` (`NAME`, `VERSION`, `ID`,
   `VENDOR`, `CHANNEL`). Don't hard-code the product name or version.
@@ -213,7 +213,7 @@ chain; it is re-added, keyed on the stamp already on every file, when a released
 One `on.handle::<C>(…)` in the domain's `register()`
 (`crates/daemon/src/services/<domain>.rs`). The registrar decodes `C::Params` (a malformed payload answers `bad_request`
 for you) and encodes the returned
-`C::Result`; the handler reaches collaborators through `ctx.runtime.*()` and returns a `ServiceError` for a typed
+`C::Result`; the handler reaches collaborators through `ctx.runtime.*()` and returns an `ErrorInfo` variant for a typed
 failure.
 
 ```rust
@@ -230,8 +230,7 @@ line to `services/mod.rs` — the only change `make_router()` ever needs. A hand
 through `guards::server_for` / `guards::instance_for` with an `Intent`, which applies every exclusion that intent
 implies — never a checklist of its own.
 
-Map engine errors to codes with `ServiceError::not_found` / `bad_request` /
-`handler_error`. For a long-running operation, make the start contract a `Job`
+Map engine errors to an `ErrorInfo` variant. For a long-running operation, make the start contract a `Job`
 in `proto`:
 
 ```rust

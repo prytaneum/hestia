@@ -5,7 +5,7 @@
 //!   hestiad stop      ask a running daemon to stop; supervised processes keep running
 //!
 //! main() only bootstraps: CLI parsing, logging init, and dispatch. The serve
-//! loop lives in server.rs; every channel lives in services.rs.
+//! loop lives in server.rs; every channel lives in services/.
 
 mod autostart;
 mod runtime;
