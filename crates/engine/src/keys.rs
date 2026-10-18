@@ -1,7 +1,7 @@
 use proto::error::{ErrorInfo, Reason};
 use proto::keys::{KeyKind, KeyRule};
 
-use crate::minecraft::launch::{normalize_memory, parse_jvm_args};
+use crate::jvm::{normalize_memory, parse_jvm_args};
 
 pub(crate) fn rule(key: &str, kind: KeyKind) -> KeyRule {
     KeyRule {

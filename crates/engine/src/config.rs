@@ -12,8 +12,8 @@ use proto::update::UpdateChannel;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+use crate::jvm::{normalize_memory, parse_jvm_args, JavaSettings};
 use crate::keys::invalid;
-use crate::minecraft::launch::{normalize_memory, parse_jvm_args, JavaSettings};
 use crate::schema::{self, Document};
 
 /// The config schema. A setting is a typed field with its default; a nested

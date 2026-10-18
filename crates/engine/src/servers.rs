@@ -17,8 +17,9 @@ use proto::server::ServerProperty;
 use proto::tasks::ServerTask;
 use serde::{Deserialize, Serialize};
 
+use crate::jvm::JavaSettings;
 use crate::keys::invalid;
-use crate::minecraft::launch::{self, JavaSettings, LaunchPlan};
+use crate::minecraft::launch::{self, LaunchPlan};
 use crate::minecraft::materialize::{self, OnProgress};
 use crate::minecraft::profile::ServerProfile;
 use crate::process::{Outcome, ProcessSupervisor, Task};

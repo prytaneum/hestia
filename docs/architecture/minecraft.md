@@ -111,6 +111,8 @@ version costs almost nothing.
 **`launch`** is pure assembly of a **`LaunchPlan`** (program, args, cwd):
 classpath joining and Mojang `${placeholder}` substitution for auth, paths and
 names. No I/O — which is what makes it unit-testable, and it is unit-tested.
+The per-entry memory and `jvm-args` settings it receives (`JavaSettings`, whose
+memory check queries the host) live in the engine's `jvm` module, outside it.
 
 **`rcon`** is a minimal RCON client — connect, authenticate, then commands whose
 multi-packet replies it reads to the end. It is the server console's transport,

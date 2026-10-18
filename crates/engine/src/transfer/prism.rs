@@ -20,7 +20,7 @@ use serde_json::Value;
 use super::archive::Reader;
 use super::{pool, Blueprint, Descriptor, Format, Landed, Recipe, Target};
 use crate::cancel::Job;
-use crate::minecraft::launch::{JavaSettings, JVM_ARGS_KEY, MEMORY_KEY};
+use crate::jvm::{JavaSettings, JVM_ARGS_KEY, MEMORY_KEY};
 
 pub(crate) const CONFIG: &str = "instance.cfg";
 pub(crate) const PACK: &str = "mmc-pack.json";

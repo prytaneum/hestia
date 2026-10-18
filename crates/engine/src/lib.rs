@@ -19,6 +19,7 @@ mod files;
 pub mod host;
 mod instances;
 mod java;
+mod jvm;
 mod keys;
 mod minecraft;
 mod net;
@@ -53,7 +54,8 @@ pub use error::error_info;
 pub use files::FileTree;
 pub use instances::{InstanceRecord, Instances};
 pub use java::{Java, JavaInstallOutcome};
-pub use minecraft::launch::{JavaSettings, LaunchPlan};
+pub use jvm::JavaSettings;
+pub use minecraft::launch::LaunchPlan;
 pub use minecraft::profile::{
     AssetIndex, InstanceProfile, Library, Native, ServerJar, ServerProfile,
 };

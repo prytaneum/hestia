@@ -55,7 +55,7 @@ use crate::cancel::Job;
 use crate::content::pack;
 use crate::content::pack::shallowest;
 use crate::instances::InstanceRecord;
-use crate::minecraft::launch::JavaSettings;
+use crate::jvm::JavaSettings;
 use crate::minecraft::profile::InstanceProfile;
 use archive::{Reader, Written};
 

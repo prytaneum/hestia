@@ -15,7 +15,7 @@ use proto::keys::KeyRule;
 use proto::sync::SyncOverrides;
 use serde::{Deserialize, Serialize};
 
-use crate::minecraft::launch::{JavaSettings, JVM_ARGS_KEY, MEMORY_KEY};
+use crate::jvm::{JavaSettings, JVM_ARGS_KEY, MEMORY_KEY};
 use crate::minecraft::profile::InstanceProfile;
 use crate::registry::{Entry, Store};
 use crate::schema::Document;
