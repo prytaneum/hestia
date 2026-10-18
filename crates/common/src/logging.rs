@@ -70,14 +70,14 @@ impl<'a> MakeWriter<'a> for GatedStderr {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum LogLevel {
-    Trace,
-    Debug,
-    Info,
-    Warn,
-    Error,
     Off,
+    Error,
+    Warn,
+    Info,
+    Debug,
+    Trace,
 }
 
 impl Default for LogLevel {
@@ -91,25 +91,6 @@ impl Default for LogLevel {
 }
 
 impl LogLevel {
-    fn verbosest(self, other: LogLevel) -> LogLevel {
-        if self.verbosity() >= other.verbosity() {
-            self
-        } else {
-            other
-        }
-    }
-
-    fn verbosity(self) -> u8 {
-        match self {
-            LogLevel::Off => 0,
-            LogLevel::Error => 1,
-            LogLevel::Warn => 2,
-            LogLevel::Info => 3,
-            LogLevel::Debug => 4,
-            LogLevel::Trace => 5,
-        }
-    }
-
     fn as_str(self) -> &'static str {
         match self {
             LogLevel::Trace => "trace",
@@ -180,7 +161,6 @@ pub fn init_logging(console_level: LogLevel, file: Option<FileLog>) -> LogGuard 
         if file.level != LogLevel::Off {
             match rotating_writer(
                 &file.dir(),
-                None,
                 Criterion::AgeOrSize(Age::Day, LATEST_MAX_BYTES),
                 Cleanup::KeepLogAndCompressedFiles(LATEST_KEEP_PLAIN, LATEST_KEEP_ARCHIVED),
             ) {
@@ -199,7 +179,6 @@ pub fn init_logging(console_level: LogLevel, file: Option<FileLog>) -> LogGuard 
         if file.firehose {
             match rotating_writer(
                 &file.dir().join("debug"),
-                None,
                 Criterion::Size(DEBUG_MAX_BYTES),
                 Cleanup::KeepCompressedFiles(DEBUG_KEEP_ARCHIVED),
             ) {
@@ -220,7 +199,7 @@ pub fn init_logging(console_level: LogLevel, file: Option<FileLog>) -> LogGuard 
     let global = if firehose {
         EnvFilter::new("trace")
     } else {
-        app_filter(console_level.verbosest(file.as_ref().map_or(LogLevel::Off, |f| f.level)))
+        app_filter(console_level.max(file.as_ref().map_or(LogLevel::Off, |f| f.level)))
     };
     tracing_subscriber::registry()
         .with(global)
@@ -267,7 +246,6 @@ where
 
 fn rotating_writer(
     dir: &Path,
-    discriminant: Option<&str>,
     criterion: Criterion,
     cleanup: Cleanup,
 ) -> Result<
@@ -278,7 +256,6 @@ fn rotating_writer(
         .directory(dir)
         .suppress_basename()
         .suppress_timestamp()
-        .o_discriminant(discriminant)
         .suffix("log");
 
     let (writer, handle) = FileLogWriter::builder(spec)
