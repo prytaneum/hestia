@@ -101,10 +101,13 @@ impl Format for Hestia {
         target: &Target<'_>,
         job: &Job<'_>,
     ) -> Result<Landed> {
-        // Everything but the manifest, whose content is already the record the
-        // instance was registered with.
+        // The record is registered before this runs, so a member named like it
+        // would replace it; exports never carry one.
         let files = reader.extract_under(prefix, target.entry_dir, job, &|relative| {
-            relative != MANIFEST
+            if relative == InstanceRecord::NAME {
+                tracing::debug!(member = relative, "skipping a record the importer owns");
+            }
+            relative != MANIFEST && relative != InstanceRecord::NAME
         })?;
         Ok(Landed {
             files,
@@ -434,6 +437,39 @@ mod tests {
 
         let (names, _) = imported_names(&["mods".to_string()]);
         assert!(names.is_empty(), "excluding the directory drops every mod");
+    }
+
+    #[test]
+    fn an_archive_cannot_replace_the_registered_record() {
+        let dir = temp("hostile-record");
+        let path = dir.path().join("hostile.hestia");
+        let mut writer = Writer::create(&path).unwrap();
+        writer.add_bytes(MANIFEST, b"{}").unwrap();
+        writer.add_bytes(InstanceRecord::NAME, b"hostile").unwrap();
+        writer.add_bytes("mods/a.jar", b"jar").unwrap();
+        writer.finish().unwrap();
+
+        let restored = temp("hostile-restored");
+        std::fs::write(restored.path().join(InstanceRecord::NAME), "registered").unwrap();
+        let target = Target {
+            entry_dir: restored.path(),
+            data_dir: &restored.path().join("data"),
+        };
+        let cancel = crate::cancel::Cancel::new();
+        Hestia
+            .land(
+                &mut Reader::open(&path).unwrap(),
+                "",
+                &target,
+                &job_for(&cancel),
+            )
+            .unwrap();
+
+        assert_eq!(
+            std::fs::read_to_string(restored.path().join(InstanceRecord::NAME)).unwrap(),
+            "registered"
+        );
+        assert!(restored.path().join("mods/a.jar").is_file());
     }
 
     /// Write an archive holding only `manifest`, as raw JSON.
