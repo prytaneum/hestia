@@ -9,75 +9,60 @@ import { open, save } from '@tauri-apps/plugin-dialog';
 /** Single-file content is a jar or zip; a `.mrpack` is a modpack, not offered here. */
 export const CONTENT_EXTENSIONS = ['jar', 'zip'];
 
-/**
- * Pick content files and return their absolute paths (empty if the dialog was
- * dismissed). Each path is passed straight to `content.add`'s `path` field.
- */
-export async function pickContentFiles(): Promise<string[]> {
-  const selection = await open({
-    multiple: true,
-    directory: false,
-    filters: [{ name: 'Content', extensions: CONTENT_EXTENSIONS }],
-  });
-  if (Array.isArray(selection)) return selection;
-  return typeof selection === 'string' ? [selection] : [];
-}
+const named = (name: string, extensions?: string[]) =>
+  extensions && [{ name, extensions }];
 
-/** Pick one content file to update a local item from, or null when dismissed. */
-export async function pickContentFile(): Promise<string | null> {
+async function pickOne(
+  name: string,
+  extensions?: string[],
+): Promise<string | null> {
   const selection = await open({
     multiple: false,
     directory: false,
-    filters: [{ name: 'Content', extensions: CONTENT_EXTENSIONS }],
+    filters: named(name, extensions),
   });
   return typeof selection === 'string' ? selection : null;
 }
 
-/** Pick any files to copy into a server's directory; empty when dismissed. */
-export async function pickFiles(): Promise<string[]> {
-  const selection = await open({ multiple: true, directory: false });
+async function pickMany(
+  name: string,
+  extensions?: string[],
+): Promise<string[]> {
+  const selection = await open({
+    multiple: true,
+    directory: false,
+    filters: named(name, extensions),
+  });
   if (Array.isArray(selection)) return selection;
   return typeof selection === 'string' ? [selection] : [];
 }
+
+/** Pick content files and return their absolute paths (empty if dismissed). */
+export const pickContentFiles = () => pickMany('Content', CONTENT_EXTENSIONS);
+
+/** Pick one content file to update a local item from, or null when dismissed. */
+export const pickContentFile = () => pickOne('Content', CONTENT_EXTENSIONS);
+
+/** Pick any files to copy into a server's directory; empty when dismissed. */
+export const pickFiles = () => pickMany('Files');
 
 /** The image formats an entry icon accepts, by extension. */
 export const IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'webp', 'gif'];
 
 /** Pick one image and return its absolute path, or null when dismissed. */
-export async function pickImage(): Promise<string | null> {
-  const selection = await open({
-    multiple: false,
-    directory: false,
-    filters: [{ name: 'Images', extensions: IMAGE_EXTENSIONS }],
-  });
-  return typeof selection === 'string' ? selection : null;
-}
+export const pickImage = () => pickOne('Images', IMAGE_EXTENSIONS);
 
 /** The archive formats an instance import accepts, by extension. */
 export const ARCHIVE_EXTENSIONS = ['hestia', 'mrpack', 'zip'];
 
 /** Pick one instance archive to import; empty when dismissed. */
 export async function pickInstanceArchive(): Promise<string[]> {
-  const selection = await open({
-    multiple: false,
-    directory: false,
-    filters: [{ name: 'Instance archives', extensions: ARCHIVE_EXTENSIONS }],
-  });
-  return typeof selection === 'string' ? [selection] : [];
+  const path = await pickOne('Instance archives', ARCHIVE_EXTENSIONS);
+  return path ? [path] : [];
 }
-
-/** The pack formats an update from a file accepts, by extension. */
-const PACK_EXTENSIONS = ['mrpack', 'zip'];
 
 /** Pick one modpack file and return its absolute path, or null when dismissed. */
-export async function pickPackFile(): Promise<string | null> {
-  const selection = await open({
-    multiple: false,
-    directory: false,
-    filters: [{ name: 'Modpacks', extensions: PACK_EXTENSIONS }],
-  });
-  return typeof selection === 'string' ? selection : null;
-}
+export const pickPackFile = () => pickOne('Modpacks', ['mrpack', 'zip']);
 
 /**
  * Ask where to write an export. Returns an absolute path, or null when

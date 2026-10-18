@@ -10,7 +10,7 @@ import { queryOptions, useQuery } from '@tanstack/react-query';
 import type { Skin, SkinListResult, SkinVariant } from '../api';
 import * as api from '../api/skins';
 import { queryClient } from './client';
-import { mutation } from './core';
+import { mutation, optimisticUpdate } from './core';
 import { keys } from './keys';
 
 export const skinQueries = {
@@ -28,12 +28,7 @@ function optimisticList(
   account: string,
   update: (list: SkinListResult) => SkinListResult,
 ): (() => void) | undefined {
-  const key = keys.skins.list(account);
-  void queryClient.cancelQueries({ queryKey: key });
-  const previous = queryClient.getQueryData<SkinListResult>(key);
-  if (!previous) return undefined;
-  queryClient.setQueryData<SkinListResult>(key, update(previous));
-  return () => queryClient.setQueryData(key, previous);
+  return optimisticUpdate(keys.skins.list(account), update);
 }
 
 // An external row exists only while equipped; equipping another drops it.

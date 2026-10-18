@@ -6,7 +6,7 @@
  */
 import type { QueryKey, UseMutationOptions } from '@tanstack/react-query';
 import type { HestiaError } from '../api';
-import { invalidate } from './client';
+import { invalidate, queryClient } from './client';
 
 /** Staleness for the upstream catalogue reads (flavors/versions/loaders/profile). */
 export const CATALOG_STALE_MS = 5 * 60_000;
@@ -20,6 +20,18 @@ export interface MutationSpec<TData, TVariables> {
   onSuccess?: (data: TData, variables: TVariables) => void;
   /** Key prefixes swept when the mutation settles, success or error. */
   invalidates?: (variables: TVariables) => QueryKey[];
+}
+
+/** Writes `update(cached)` under `key` now; returns the undo, or nothing when the key is uncached. */
+export function optimisticUpdate<T>(
+  key: QueryKey,
+  update: (previous: T) => T,
+): (() => void) | undefined {
+  void queryClient.cancelQueries({ queryKey: key });
+  const previous = queryClient.getQueryData<T>(key);
+  if (!previous) return undefined;
+  queryClient.setQueryData<T>(key, update(previous));
+  return () => queryClient.setQueryData(key, previous);
 }
 
 interface OptimisticContext {

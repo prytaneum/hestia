@@ -4,9 +4,8 @@ import { useEffect, useReducer } from 'react';
 import { uptime as formatUptime } from '@/lib/format';
 import type { DaemonStatusResult } from '../api';
 import * as api from '../api/daemon';
-import { queryClient } from './client';
 import { useConnection } from './connection';
-import { mutation } from './core';
+import { mutation, optimisticUpdate } from './core';
 import { keys } from './keys';
 
 const daemonQueries = {
@@ -30,16 +29,14 @@ const daemonMutations = {
     mutation<DaemonStatusResult, void>({
       mutationKey: [...keys.daemon.all, 'restart'],
       mutationFn: () => api.restart(),
-      optimistic: () => {
-        const key = keys.daemon.status();
-        const previous = queryClient.getQueryData<DaemonStatusResult>(key);
-        if (previous) {
-          queryClient.setQueryData(key, { ...previous, uptimeSeconds: 0 });
-        }
-        return () => {
-          if (previous) queryClient.setQueryData(key, previous);
-        };
-      },
+      optimistic: () =>
+        optimisticUpdate<DaemonStatusResult>(
+          keys.daemon.status(),
+          (status) => ({
+            ...status,
+            uptimeSeconds: 0,
+          }),
+        ),
       invalidates: () => [keys.daemon.all],
     }),
 };

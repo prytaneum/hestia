@@ -1,7 +1,6 @@
 import { queryOptions, useMutation, useQuery } from '@tanstack/react-query';
 import * as api from '../api/prefs';
-import { queryClient } from './client';
-import { mutation } from './core';
+import { mutation, optimisticUpdate } from './core';
 import { keys } from './keys';
 
 export const prefsQueries = {
@@ -17,12 +16,7 @@ export const prefsQueries = {
 function optimisticPrefs(
   update: (prefs: Record<string, unknown>) => Record<string, unknown>,
 ): (() => void) | undefined {
-  const key = keys.prefs.list();
-  void queryClient.cancelQueries({ queryKey: key });
-  const previous = queryClient.getQueryData<Record<string, unknown>>(key);
-  if (!previous) return undefined;
-  queryClient.setQueryData(key, update(previous));
-  return () => queryClient.setQueryData(key, previous);
+  return optimisticUpdate(keys.prefs.list(), update);
 }
 
 const prefsMutations = {
