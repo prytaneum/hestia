@@ -24,10 +24,23 @@ fn path() -> PathBuf {
 }
 
 fn load(path: &Path) -> Map {
-    std::fs::read_to_string(path)
-        .ok()
-        .and_then(|text| serde_json::from_str(&text).ok())
-        .unwrap_or_default()
+    let text = match std::fs::read_to_string(path) {
+        Ok(text) => text,
+        Err(e) => {
+            if e.kind() != std::io::ErrorKind::NotFound {
+                tracing::warn!(error = %e, "prefs unreadable; using defaults");
+            }
+            return Map::new();
+        }
+    };
+    serde_json::from_str(&text).unwrap_or_else(|e| {
+        let corrupt = path.with_extension("json.corrupt");
+        tracing::warn!(error = %e, kept = %corrupt.display(), "prefs unparsable; quarantining");
+        if let Err(e) = std::fs::rename(path, &corrupt) {
+            tracing::warn!(error = %e, "could not quarantine prefs");
+        }
+        Map::new()
+    })
 }
 
 fn save(path: &Path, values: &Map) -> Result<(), CallError> {
@@ -35,7 +48,8 @@ fn save(path: &Path, values: &Map) -> Result<(), CallError> {
         std::fs::create_dir_all(parent).map_err(|e| CallError::other(e.to_string()))?;
     }
     let text = serde_json::to_string_pretty(values).map_err(|e| CallError::other(e.to_string()))?;
-    std::fs::write(path, format!("{text}\n")).map_err(|e| CallError::other(e.to_string()))
+    common::atomic::write(path, format!("{text}\n").as_bytes())
+        .map_err(|e| CallError::other(e.to_string()))
 }
 
 #[tauri::command]
