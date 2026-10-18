@@ -42,6 +42,26 @@ pub struct Entry {
     pub name: String,
 }
 
+impl From<engine::ServerRecord> for Entry {
+    fn from(record: engine::ServerRecord) -> Self {
+        Entry {
+            kind: EntryKind::Server,
+            id: record.id,
+            name: record.name,
+        }
+    }
+}
+
+impl From<engine::InstanceRecord> for Entry {
+    fn from(record: engine::InstanceRecord) -> Self {
+        Entry {
+            kind: EntryKind::Instance,
+            id: record.id,
+            name: record.name,
+        }
+    }
+}
+
 impl Entry {
     pub fn entry_ref(&self) -> engine::EntryRef<'_> {
         match self.kind {

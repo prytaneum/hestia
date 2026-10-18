@@ -9,7 +9,7 @@ use proto::error::ErrorInfo;
 use proto::job::JobStarted;
 use proto::Empty;
 
-use super::guards::{is_running, require_backup, server_for, server_held, Hold, Intent};
+use super::guards::{require_backup, server_for, server_held, Hold, Intent};
 use crate::runtime::{server_process_id, BackupJob, Channels, JobKind};
 
 pub(super) fn register(on: &mut Channels<'_>) {
@@ -18,7 +18,7 @@ pub(super) fn register(on: &mut Channels<'_>) {
         if !record.ready() {
             return Err(ErrorInfo::Provisioning { name: record.name });
         }
-        let live = is_running(&ctx, &server_process_id(&record.id));
+        let live = ctx.runtime.process_running(&server_process_id(&record.id));
         let id = ctx.runtime.jobs().start_backup::<ServerBackupCreate>(
             BackupJob::ServerBackup {
                 server_id: record.id,

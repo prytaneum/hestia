@@ -12,7 +12,7 @@ use proto::minecraft::{ConfigEntry, FlavorsResult};
 use proto::process::ProcessState;
 use proto::Empty;
 
-use super::guards::{entry_for, entry_held, is_running, side_for, Hold, Intent};
+use super::guards::{entry_for, entry_held, side_for, Hold, Intent};
 use crate::runtime::{engine_error, server_process_id, Channels, JobKind};
 
 pub(super) fn register(on: &mut Channels<'_>) {
@@ -101,7 +101,7 @@ pub(super) fn register(on: &mut Channels<'_>) {
             }
             (EntryKind::Server, None) => {
                 let process_id = server_process_id(&entry.id);
-                if !is_running(&ctx, &process_id) {
+                if !ctx.runtime.process_running(&process_id) {
                     return Err(not_running());
                 }
                 ctx.runtime.processes().stop(&process_id);

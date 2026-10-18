@@ -8,7 +8,6 @@
 
 use engine::Side;
 use proto::error::{EntryKind, EntryTarget, ErrorInfo, Field};
-use proto::process::ProcessState;
 
 use crate::runtime::{
     create_key, instance_process_id, require_account, server_process_id, Claim, HandlerContext,
@@ -68,21 +67,10 @@ pub(super) fn entry_for(
     target: &EntryTarget,
     intent: Intent,
 ) -> Result<JobEntry, ErrorInfo> {
-    let (id, name) = match side_for(ctx, target.kind)? {
-        Side::Server => {
-            let record = server_for(ctx, &target.entry, intent)?;
-            (record.id, record.name)
-        }
-        Side::Client => {
-            let record = instance_for(ctx, &target.entry, intent)?;
-            (record.id, record.name)
-        }
-    };
-    Ok(JobEntry {
-        kind: target.kind,
-        id,
-        name,
-    })
+    match side_for(ctx, target.kind)? {
+        Side::Server => Ok(server_for(ctx, &target.entry, intent)?.into()),
+        Side::Client => Ok(instance_for(ctx, &target.entry, intent)?.into()),
+    }
 }
 
 /// [`entry_for`], taking the entry's claim.
@@ -91,22 +79,16 @@ pub(super) fn entry_held(
     target: &EntryTarget,
     hold: Hold,
 ) -> Result<(JobEntry, Claim), ErrorInfo> {
-    let (id, name, claim) = match side_for(ctx, target.kind)? {
+    match side_for(ctx, target.kind)? {
         Side::Server => {
             let (record, claim) = server_held(ctx, &target.entry, hold)?;
-            (record.id, record.name, claim)
+            Ok((record.into(), claim))
         }
         Side::Client => {
             let (record, claim) = instance_held(ctx, &target.entry, hold)?;
-            (record.id, record.name, claim)
+            Ok((record.into(), claim))
         }
-    };
-    let entry = JobEntry {
-        kind: target.kind,
-        id,
-        name,
-    };
-    Ok((entry, claim))
+    }
 }
 
 /// Resolve a server and refuse anything `intent` may not race.
@@ -138,7 +120,7 @@ pub(super) fn server_held(
     refuse_provisioning(ctx, &record)?;
     let process_id = server_process_id(&record.id);
     let claim = take(ctx, EntryKind::Server, &process_id, &record.name, hold.kind)?;
-    if hold.stopped && is_running(ctx, &process_id) {
+    if hold.stopped && ctx.runtime.process_running(&process_id) {
         return Err(ErrorInfo::EntryRunning {
             entry: EntryKind::Server,
             name: record.name,
@@ -268,11 +250,27 @@ pub(super) fn find_instance(
         })
 }
 
-pub(super) fn is_running(ctx: &HandlerContext, process_id: &str) -> bool {
-    ctx.runtime
-        .processes()
-        .status(process_id)
-        .is_some_and(|info| info.state == ProcessState::Running)
+/// Resolve a server for a read and refuse unless it is up.
+pub(super) fn server_running(
+    ctx: &HandlerContext,
+    reference: &str,
+) -> Result<engine::ServerRecord, ErrorInfo> {
+    let record = server_for(ctx, reference, Intent::Read)?;
+    require_running(ctx, &record)?;
+    Ok(record)
+}
+
+pub(super) fn require_running(
+    ctx: &HandlerContext,
+    record: &engine::ServerRecord,
+) -> Result<(), ErrorInfo> {
+    match ctx.runtime.process_running(&server_process_id(&record.id)) {
+        true => Ok(()),
+        false => Err(ErrorInfo::NotRunning {
+            entry: EntryKind::Server,
+            name: record.name.clone(),
+        }),
+    }
 }
 
 pub(super) fn require_content_items(

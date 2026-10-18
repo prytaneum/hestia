@@ -2,7 +2,7 @@
 //! What an instance shares lives in `entry`, backups in `backup`, content
 //! installs in `content`.
 
-use proto::error::{EntryKind, ErrorInfo, Field};
+use proto::error::{ErrorInfo, Field};
 use proto::job::JobStarted;
 use proto::server::{
     ServerCommand, ServerCommandComplete, ServerCommandResult, ServerCreate, ServerDetail,
@@ -11,8 +11,8 @@ use proto::server::{
 };
 use proto::Empty;
 
-use super::guards::{is_running, server_for, server_held, Hold, Intent};
-use crate::runtime::{server_process_id, Channels, JobKind};
+use super::guards::{require_running, server_for, server_held, server_running, Hold, Intent};
+use crate::runtime::{Channels, JobKind};
 
 pub(super) fn register(on: &mut Channels<'_>) {
     on.handle::<ServerCreate, _, _>(|p, ctx| async move {
@@ -93,12 +93,7 @@ pub(super) fn register(on: &mut Channels<'_>) {
 
     on.handle::<ServerRestart, _, _>(|p, ctx| async move {
         let (record, _claim) = server_held(&ctx, &p.server, Hold::live(JobKind::Launch))?;
-        if !is_running(&ctx, &server_process_id(&record.id)) {
-            return Err(ErrorInfo::NotRunning {
-                entry: EntryKind::Server,
-                name: record.name.clone(),
-            });
-        }
+        require_running(&ctx, &record)?;
         tracing::info!(server = %record.id, name = %record.name, "restarting server");
         let info = ctx.runtime.restart_server(&record).await?;
         Ok(ServerStartResult {
@@ -113,13 +108,7 @@ pub(super) fn register(on: &mut Channels<'_>) {
                 field: Field::Command,
             });
         }
-        let record = server_for(&ctx, &p.server, Intent::Read)?;
-        if !is_running(&ctx, &server_process_id(&record.id)) {
-            return Err(ErrorInfo::NotRunning {
-                entry: EntryKind::Server,
-                name: record.name.clone(),
-            });
-        }
+        let record = server_running(&ctx, &p.server)?;
         let response = ctx
             .runtime
             .engine()
@@ -130,13 +119,7 @@ pub(super) fn register(on: &mut Channels<'_>) {
     });
 
     on.handle::<ServerCommandComplete, _, _>(|p, ctx| async move {
-        let record = server_for(&ctx, &p.server, Intent::Read)?;
-        if !is_running(&ctx, &server_process_id(&record.id)) {
-            return Err(ErrorInfo::NotRunning {
-                entry: EntryKind::Server,
-                name: record.name.clone(),
-            });
-        }
+        let record = server_running(&ctx, &p.server)?;
         ctx.runtime
             .engine()
             .server_complete(&record.id, &p.line)

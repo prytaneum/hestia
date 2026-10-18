@@ -224,6 +224,12 @@ impl Runtime {
         sessions
     }
 
+    pub fn process_running(&self, id: &str) -> bool {
+        self.processes()
+            .status(id)
+            .is_some_and(|info| info.state == proto::process::ProcessState::Running)
+    }
+
     /// True while any session of the instance is still running.
     pub fn instance_running(&self, id: &str) -> bool {
         self.instance_sessions(id)

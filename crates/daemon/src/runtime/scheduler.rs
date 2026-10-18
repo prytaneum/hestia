@@ -7,7 +7,6 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use proto::backup::ServerBackupCreate;
-use proto::process::ProcessState;
 use proto::tasks::TaskAction;
 
 use super::{server_process_id, BackupJob, JobKind, Runtime};
@@ -43,7 +42,7 @@ async fn run_due_tasks(runtime: &Runtime) {
         for task in record.tasks.iter().filter(|task| task.enabled) {
             let due = engine::Schedule::parse(&task.schedule)
                 .is_ok_and(|schedule| schedule.due(task.last_run_unix, now, midnight));
-            if !due || !is_running(runtime, &process_id) {
+            if !due || !runtime.process_running(&process_id) {
                 continue;
             }
             // A backup or a version change owns the tree; a task under it would
@@ -90,11 +89,4 @@ async fn run_due_tasks(runtime: &Runtime) {
             }
         }
     }
-}
-
-fn is_running(runtime: &Runtime, process_id: &str) -> bool {
-    runtime
-        .processes()
-        .status(process_id)
-        .is_some_and(|p| p.state == ProcessState::Running)
 }
