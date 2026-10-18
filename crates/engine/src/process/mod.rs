@@ -87,6 +87,23 @@ struct Entry {
 }
 
 impl Entry {
+    fn new(info: ProcessInfo, log_path: PathBuf, err_path: Option<PathBuf>) -> Arc<Self> {
+        Arc::new(Entry {
+            info: Mutex::new(info),
+            log_path,
+            err_path,
+            stopping: AtomicBool::new(false),
+            stop_notify: Notify::new(),
+        })
+    }
+
+    fn request_stop(&self) {
+        self.stopping.store(true, Ordering::SeqCst);
+        // notify_one stores a permit, so a stop that races ahead of the
+        // supervision task's wait is not lost.
+        self.stop_notify.notify_one();
+    }
+
     fn snapshot(&self) -> ProcessInfo {
         self.info.lock().unwrap().clone()
     }
@@ -169,13 +186,7 @@ impl ProcessSupervisor {
         let started_unix = common::now_unix();
 
         let record = ProcessRecord::for_spawn(&spec, pid, started_unix);
-        let entry = Arc::new(Entry {
-            info: Mutex::new(record.info()),
-            log_path: io.log_path,
-            err_path: io.err_path,
-            stopping: AtomicBool::new(false),
-            stop_notify: Notify::new(),
-        });
+        let entry = Entry::new(record.info(), io.log_path, io.err_path);
         self.table
             .lock()
             .unwrap()
@@ -245,13 +256,7 @@ impl ProcessSupervisor {
 
             let (log_path, err_path) = log_paths(&record.spec, &proc_dir);
             let tail_from = std::fs::metadata(&log_path).map(|m| m.len()).unwrap_or(0);
-            let entry = Arc::new(Entry {
-                info: Mutex::new(record.info()),
-                log_path,
-                err_path,
-                stopping: AtomicBool::new(false),
-                stop_notify: Notify::new(),
-            });
+            let entry = Entry::new(record.info(), log_path, err_path);
             self.table
                 .lock()
                 .unwrap()
@@ -319,10 +324,7 @@ impl ProcessSupervisor {
         match entry {
             Some(entry) => {
                 tracing::info!(id, "stop requested");
-                entry.stopping.store(true, Ordering::SeqCst);
-                // notify_one stores a permit, so a stop that races ahead of the
-                // supervision task's wait is not lost.
-                entry.stop_notify.notify_one();
+                entry.request_stop();
                 true
             }
             None => false,
@@ -363,8 +365,7 @@ impl ProcessSupervisor {
         }
         tracing::info!(count = running.len(), "stopping supervised processes");
         for entry in &running {
-            entry.stopping.store(true, Ordering::SeqCst);
-            entry.stop_notify.notify_one();
+            entry.request_stop();
         }
         let deadline = tokio::time::Instant::now() + STOP_GRACE + Duration::from_secs(5);
         while tokio::time::Instant::now() < deadline {
@@ -504,33 +505,24 @@ fn open_log(path: &Path) -> std::io::Result<std::fs::File> {
 fn prepare_stdio(spec: &ProcessSpec, proc_dir: &Path) -> std::io::Result<PreparedIo> {
     std::fs::create_dir_all(proc_dir)?;
     let (log_path, err_path) = log_paths(spec, proc_dir);
-    match &spec.log {
-        LogSource::Capture => {
-            let tail_from = std::fs::metadata(&log_path).map(|m| m.len()).unwrap_or(0);
+    // The process rotates/rewrites its own log; only lines written after this
+    // spawn are its output.
+    let tail_from = std::fs::metadata(&log_path).map(|m| m.len()).unwrap_or(0);
+    let (out, err): (Stdio, Stdio) = match &err_path {
+        None => {
             let file = open_log(&log_path)?;
             let err = file.try_clone()?;
-            Ok(PreparedIo {
-                out: file.into(),
-                err: err.into(),
-                log_path,
-                err_path,
-                tail_from,
-            })
+            (file.into(), err.into())
         }
-        LogSource::File(_) => {
-            let err_file = open_log(err_path.as_deref().expect("file source has an err path"))?;
-            // The process rotates/rewrites its own log; only lines written
-            // after this spawn are its output.
-            let tail_from = std::fs::metadata(&log_path).map(|m| m.len()).unwrap_or(0);
-            Ok(PreparedIo {
-                out: Stdio::null(),
-                err: err_file.into(),
-                log_path,
-                err_path,
-                tail_from,
-            })
-        }
-    }
+        Some(err_path) => (Stdio::null(), open_log(err_path)?.into()),
+    };
+    Ok(PreparedIo {
+        out,
+        err,
+        log_path,
+        err_path,
+        tail_from,
+    })
 }
 
 fn build_command(spec: &ProcessSpec, out: Stdio, err: Stdio) -> Command {
