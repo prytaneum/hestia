@@ -112,7 +112,7 @@ async fn stop(id: &str) -> Result<()> {
 /// The exit code is part of a terminal state's story — an adopted process
 /// reports none, which is a known gap, not a missing value.
 fn state_label(info: &ProcessInfo) -> String {
-    let state = format!("{:?}", info.state).to_lowercase();
+    let state = info.state.to_string();
     match info.exit_code {
         Some(code) if info.state != ProcessState::Running => format!("{state} ({code})"),
         _ => state,

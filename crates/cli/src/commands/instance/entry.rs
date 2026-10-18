@@ -161,7 +161,7 @@ fn show_sessions(sessions: &[ProcessInfo]) -> Result<()> {
                 vec![
                     session_handle(s).to_string(),
                     s.pid.to_string(),
-                    format!("{:?}", s.state).to_lowercase(),
+                    s.state.to_string(),
                 ]
             })
             .collect();

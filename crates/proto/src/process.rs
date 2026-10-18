@@ -1,4 +1,5 @@
 use std::collections::BTreeMap;
+use std::fmt;
 use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
@@ -43,6 +44,16 @@ pub enum ProcessState {
     Exited,
     /// Terminated by a `process.stop`.
     Killed,
+}
+
+impl fmt::Display for ProcessState {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            ProcessState::Running => "running",
+            ProcessState::Exited => "exited",
+            ProcessState::Killed => "killed",
+        })
+    }
 }
 
 /// A snapshot of one tracked process.

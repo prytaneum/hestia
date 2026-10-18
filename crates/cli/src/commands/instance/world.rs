@@ -96,14 +96,11 @@ fn mode_label(world: &WorldInfo) -> String {
     if !world.read {
         return "unreadable".into();
     }
-    let mut label = format!("{:?}", world.game_mode).to_lowercase();
+    let mut label = world.game_mode.to_string();
     if world.hardcore {
         label.push_str(" hardcore");
     } else {
-        label = format!(
-            "{label} ({})",
-            format!("{:?}", world.difficulty).to_lowercase()
-        );
+        label = format!("{label} ({})", world.difficulty);
     }
     if world.cheats {
         label.push_str(" +cheats");

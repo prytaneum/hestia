@@ -21,7 +21,7 @@ pub(super) async fn list(client: &Client) -> Result<()> {
                 kind_label(&play.target).to_string(),
                 target(&play.target).to_string(),
                 play.instance_name.clone(),
-                format!("{:?}", play.game_mode).to_lowercase(),
+                play.game_mode.to_string(),
                 mc::last_played_label(Some(play.played_unix)),
             ]
         })

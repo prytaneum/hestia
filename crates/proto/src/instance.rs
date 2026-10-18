@@ -3,6 +3,7 @@
 //! instance is a lightweight record at create time — its files (client jar,
 //! libraries, assets) are materialised by the launch job.
 
+use std::fmt;
 use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
@@ -175,6 +176,17 @@ pub enum GameMode {
     Spectator,
 }
 
+impl fmt::Display for GameMode {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            GameMode::Survival => "survival",
+            GameMode::Creative => "creative",
+            GameMode::Adventure => "adventure",
+            GameMode::Spectator => "spectator",
+        })
+    }
+}
+
 /// A world's difficulty, from its `level.dat` `Difficulty`.
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, Default, PartialEq, Eq)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
@@ -185,6 +197,17 @@ pub enum Difficulty {
     #[default]
     Normal,
     Hard,
+}
+
+impl fmt::Display for Difficulty {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            Difficulty::Peaceful => "peaceful",
+            Difficulty::Easy => "easy",
+            Difficulty::Normal => "normal",
+            Difficulty::Hard => "hard",
+        })
+    }
 }
 
 /// One save world of an instance, described from its own `level.dat` rather than
