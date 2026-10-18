@@ -23,9 +23,13 @@ pub fn write(path: &Path, bytes: &[u8]) -> io::Result<()> {
 /// [`write`], owner-only where permissions exist. The mode is applied when the
 /// staged file is created, so the contents are never readable by others.
 pub fn write_private(path: &Path, bytes: &[u8]) -> io::Result<()> {
-    let mut options = OpenOptions::new();
+    let options = OpenOptions::new();
     #[cfg(unix)]
-    std::os::unix::fs::OpenOptionsExt::mode(&mut options, 0o600);
+    let options = {
+        let mut options = options;
+        std::os::unix::fs::OpenOptionsExt::mode(&mut options, 0o600);
+        options
+    };
     commit(path, bytes, options)
 }
 
