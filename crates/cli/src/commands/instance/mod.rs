@@ -86,10 +86,11 @@ pub enum InstanceCmd {
         #[arg(long, help = "Set -Xms and -Xmx together (e.g. 4G, 2048M)")]
         memory: Option<String>,
         /// Build the instance from a modpack — a slug, a URL, or a .mrpack
-        /// path. The pack names the flavor and version, so both are ignored.
+        /// path. The pack names the flavor and version, so neither they nor --memory
+        /// can be combined with it.
         #[arg(
             long,
-            conflicts_with_all = ["flavor", "version", "loader"],
+            conflicts_with_all = ["flavor", "version", "loader", "memory"],
             help = "Build from a modpack (slug, URL, or .mrpack path)"
         )]
         modpack: Option<String>,
@@ -339,14 +340,10 @@ pub async fn run(cmd: InstanceCmd) -> Result<()> {
             let client = super::connect().await?;
             match catalogue {
                 InstanceCmd::Create {
-                    flavor,
-                    version,
-                    loader,
                     name,
-                    memory,
                     modpack: Some(pack),
+                    ..
                 } => {
-                    let _ = (flavor, version, loader, memory);
                     crate::commands::modpack::install(
                         &client,
                         crate::commands::modpack::InstallArgs {
