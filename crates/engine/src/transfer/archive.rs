@@ -172,9 +172,18 @@ impl Writer {
 
     pub(crate) fn finish(&mut self) -> Result<Written> {
         let zip = self.zip.take().expect("writer is open");
-        zip.finish().context("finalising the archive")?.sync_all()?;
-        std::fs::rename(&self.part, &self.target)
-            .with_context(|| format!("cannot finalise {}", self.target.display()))?;
+        let committed = zip
+            .finish()
+            .context("finalising the archive")
+            .and_then(|file| Ok(file.sync_all()?))
+            .and_then(|()| {
+                std::fs::rename(&self.part, &self.target)
+                    .with_context(|| format!("cannot finalise {}", self.target.display()))
+            });
+        if committed.is_err() {
+            let _ = std::fs::remove_file(&self.part);
+        }
+        committed?;
         let size_bytes = std::fs::metadata(&self.target)
             .map(|m| m.len())
             .unwrap_or(0);
@@ -331,7 +340,7 @@ impl Reader {
         }
         let temp = common::atomic::staged(target);
         let mut hasher = hash.then(|| Hasher::new(HashAlgorithm::Sha1));
-        {
+        let placed = (|| -> Result<()> {
             let mut out =
                 File::create(&temp).with_context(|| format!("cannot write {}", temp.display()))?;
             let mut buf = [0u8; 64 * 1024];
@@ -348,9 +357,14 @@ impl Reader {
                 out.write_all(&buf[..n])
                     .with_context(|| format!("cannot write {}", temp.display()))?;
             }
+            drop(out);
+            std::fs::rename(&temp, target)
+                .with_context(|| format!("cannot place {}", target.display()))
+        })();
+        if placed.is_err() {
+            let _ = std::fs::remove_file(&temp);
         }
-        std::fs::rename(&temp, target)
-            .with_context(|| format!("cannot place {}", target.display()))?;
+        placed?;
         Ok(hasher.map(Hasher::hex_digest).unwrap_or_default())
     }
 }
