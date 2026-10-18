@@ -45,14 +45,15 @@ impl Engine {
             });
         }
         let data_dir = self.instances.data_dir(&record);
-        let mut list = servers::read_strict(&data_dir)?;
+        let mut rows = servers::read_rows(&data_dir)?;
+        let list = servers::entries(&rows);
         let entry = ServerEntry {
             name,
             address: entry.address.trim().to_string(),
             ..entry
         };
         match target.trim() {
-            "" => list.push(entry),
+            "" => rows.push(servers::overlay(servers::Row::new(), &entry)),
             target => {
                 let index =
                     servers::find(&list, target).ok_or(ErrorInfo::ServerListEntryNotFound {
@@ -60,24 +61,27 @@ impl Engine {
                     })?;
                 // The icon is the game's cache for that row, not something a
                 // caller supplies, so an edit keeps whatever is already there.
-                list[index] = ServerEntry {
-                    icon: std::mem::take(&mut list[index].icon),
+                let entry = ServerEntry {
+                    icon: list[index].icon.clone(),
                     ..entry
                 };
+                rows[index] = servers::overlay(std::mem::take(&mut rows[index]), &entry);
             }
         }
-        self.commit_server_list(&record, list)
+        self.commit_server_list(&record, rows)
     }
 
     pub fn remove_instance_server(&self, reference: &str, target: &str) -> Result<ServerListWrite> {
         let record = self.instances.require(reference)?;
         let data_dir = self.instances.data_dir(&record);
-        let mut list = servers::read_strict(&data_dir)?;
-        let index = servers::find(&list, target).ok_or(ErrorInfo::ServerListEntryNotFound {
-            reference: target.to_string(),
-        })?;
-        list.remove(index);
-        self.commit_server_list(&record, list)
+        let mut rows = servers::read_rows(&data_dir)?;
+        let index = servers::find(&servers::entries(&rows), target).ok_or(
+            ErrorInfo::ServerListEntryNotFound {
+                reference: target.to_string(),
+            },
+        )?;
+        rows.remove(index);
+        self.commit_server_list(&record, rows)
     }
 
     /// Rewrite the list into the order `order` names — the arrangement a
@@ -89,13 +93,14 @@ impl Engine {
     ) -> Result<ServerListWrite> {
         let record = self.instances.require(reference)?;
         let data_dir = self.instances.data_dir(&record);
-        let list = servers::read_strict(&data_dir)?;
-        let Some(arranged) = servers::rearrange(&list, order) else {
+        let rows = servers::read_rows(&data_dir)?;
+        let Some(permutation) = servers::rearrange(&servers::entries(&rows), order) else {
             bail!(ErrorInfo::InvalidValue {
                 field: Field::Order,
                 reason: Reason::ListOrder,
             });
         };
+        let arranged = permutation.into_iter().map(|i| rows[i].clone()).collect();
         self.commit_server_list(&record, arranged)
     }
 
@@ -114,9 +119,10 @@ impl Engine {
     fn commit_server_list(
         &self,
         record: &InstanceRecord,
-        servers: Vec<ServerEntry>,
+        rows: Vec<servers::Row>,
     ) -> Result<ServerListWrite> {
-        servers::write(&self.instances.data_dir(record), &servers)?;
+        servers::write_rows(&self.instances.data_dir(record), &rows)?;
+        let servers = servers::entries(&rows);
         let sessions = self.running_sessions(&record.id);
         let warnings = if sessions > 0 {
             tracing::warn!(

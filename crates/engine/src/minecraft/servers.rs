@@ -21,28 +21,6 @@ use serde::{Deserialize, Serialize};
 
 pub const FILE: &str = "servers.dat";
 
-/// The file's root compound. `servers` is the only tag the game writes.
-#[derive(Serialize, Deserialize, Default)]
-struct ServerList {
-    servers: Vec<Entry>,
-}
-
-/// One list row in the file's own spelling. Every field is optional in
-/// practice: entries written by older versions and by third-party editors omit
-/// what they do not set, and an omission must not hide the row.
-#[derive(Serialize, Deserialize, Default)]
-#[serde(default)]
-struct Entry {
-    name: String,
-    ip: String,
-    #[serde(skip_serializing_if = "String::is_empty")]
-    icon: String,
-    #[serde(rename = "acceptTextures", skip_serializing_if = "Option::is_none")]
-    accept_textures: Option<i8>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    hidden: Option<i8>,
-}
-
 pub type Row = HashMap<String, fastnbt::Value>;
 
 #[derive(Serialize, Deserialize, Default)]
@@ -88,8 +66,8 @@ pub fn path(game_dir: &Path) -> PathBuf {
 /// an empty list; an unreadable one logs and reads as empty, so a corrupt
 /// `servers.dat` cannot make the instance itself unlistable.
 pub fn read(game_dir: &Path) -> Vec<ServerEntry> {
-    match parse(&path(game_dir)) {
-        Ok(entries) => entries,
+    match read_rows(game_dir) {
+        Ok(rows) => entries(&rows),
         Err(e) => {
             tracing::debug!(instance_dir = %game_dir.display(), error = %e, "cannot read servers.dat");
             Vec::new()
@@ -97,28 +75,31 @@ pub fn read(game_dir: &Path) -> Vec<ServerEntry> {
     }
 }
 
-/// The same read, but a parse failure is an error rather than an empty list —
-/// the form a write must use, since rewriting the file from an empty list would
-/// throw away a list we merely failed to decode.
-pub fn read_strict(game_dir: &Path) -> Result<Vec<ServerEntry>> {
-    parse(&path(game_dir))
+pub fn entries(rows: &[Row]) -> Vec<ServerEntry> {
+    rows.iter().map(into_proto).collect()
 }
 
-fn parse(file: &Path) -> Result<Vec<ServerEntry>> {
-    let Some(bytes) = bytes(file)? else {
-        return Ok(Vec::new());
-    };
-    let list: ServerList = fastnbt::from_bytes(&bytes)
-        .with_context(|| format!("{} is not a readable server list", file.display()))?;
-    Ok(list.servers.into_iter().map(into_proto).collect())
-}
-
-pub fn write(game_dir: &Path, servers: &[ServerEntry]) -> Result<()> {
-    let list = ServerList {
-        servers: servers.iter().map(from_proto).collect(),
-    };
-    let bytes = fastnbt::to_bytes(&list).context("cannot encode the server list")?;
-    commit(&path(game_dir), &bytes)
+/// `row` with the fields Hestia models set from `entry`; every other tag the
+/// file carries is left as it was.
+pub fn overlay(mut row: Row, entry: &ServerEntry) -> Row {
+    let text = |value: &str| fastnbt::Value::String(value.to_string());
+    row.insert("name".into(), text(&entry.name));
+    row.insert("ip".into(), text(&entry.address));
+    if entry.icon.is_empty() {
+        row.remove("icon");
+    } else {
+        row.insert("icon".into(), text(&entry.icon));
+    }
+    row.insert(
+        "acceptTextures".into(),
+        fastnbt::Value::Byte(i8::from(entry.accept_textures)),
+    );
+    if entry.hidden {
+        row.insert("hidden".into(), fastnbt::Value::Byte(1));
+    } else {
+        row.remove("hidden");
+    }
+    row
 }
 
 /// Find an entry by name or by address, case-insensitively — the two things a
@@ -135,15 +116,15 @@ pub fn find(servers: &[ServerEntry], reference: &str) -> Option<usize> {
         })
 }
 
-/// Rewrite the list into the order `order` names, each entry by name or
-/// address. The visible entries are dealt back into their own slots in that
+/// The permutation (new slot to old index) that puts the list into the order
+/// `order` names, each entry by name or address. The visible entries are dealt back into their own slots in that
 /// order; the game's hidden scratch rows are not part of the list anyone
 /// arranges, so they stay exactly where they are.
 ///
 /// `None` when `order` does not name each visible entry exactly once — the
 /// list moved underneath the caller, and guessing at the intended arrangement
 /// would silently reorder rows the caller never saw.
-pub fn rearrange(servers: &[ServerEntry], order: &[String]) -> Option<Vec<ServerEntry>> {
+pub fn rearrange(servers: &[ServerEntry], order: &[String]) -> Option<Vec<usize>> {
     let mut slots: Vec<usize> = servers
         .iter()
         .enumerate()
@@ -154,12 +135,12 @@ pub fn rearrange(servers: &[ServerEntry], order: &[String]) -> Option<Vec<Server
         return None;
     }
 
-    let mut arranged = servers.to_vec();
+    let mut arranged: Vec<usize> = (0..servers.len()).collect();
     let mut taken = vec![false; servers.len()];
     for (slot, reference) in slots.drain(..).zip(order) {
         let found = find_available(servers, reference, &taken)?;
         taken[found] = true;
-        arranged[slot] = servers[found].clone();
+        arranged[slot] = found;
     }
     Some(arranged)
 }
@@ -183,23 +164,18 @@ fn find_available(servers: &[ServerEntry], reference: &str, taken: &[bool]) -> O
         })
 }
 
-fn into_proto(entry: Entry) -> ServerEntry {
+fn into_proto(row: &Row) -> ServerEntry {
+    let text = |key: &str| match row.get(key) {
+        Some(fastnbt::Value::String(value)) => value.clone(),
+        _ => String::new(),
+    };
+    let flag = |key: &str| matches!(row.get(key), Some(fastnbt::Value::Byte(byte)) if *byte != 0);
     ServerEntry {
-        name: entry.name,
-        address: entry.ip,
-        icon: entry.icon,
-        accept_textures: entry.accept_textures.unwrap_or(0) != 0,
-        hidden: entry.hidden.unwrap_or(0) != 0,
-    }
-}
-
-fn from_proto(entry: &ServerEntry) -> Entry {
-    Entry {
-        name: entry.name.clone(),
-        ip: entry.address.clone(),
-        icon: entry.icon.clone(),
-        accept_textures: Some(i8::from(entry.accept_textures)),
-        hidden: entry.hidden.then_some(1),
+        name: text("name"),
+        address: text("ip"),
+        icon: text("icon"),
+        accept_textures: flag("acceptTextures"),
+        hidden: flag("hidden"),
     }
 }
 
@@ -226,7 +202,8 @@ mod tests {
             },
             entry("LAN box", "192.168.1.10"),
         ];
-        write(dir.path(), &servers).unwrap();
+        let rows: Vec<Row> = servers.iter().map(|s| overlay(Row::new(), s)).collect();
+        write_rows(dir.path(), &rows).unwrap();
         assert_eq!(read(dir.path()), servers);
     }
 
@@ -234,7 +211,7 @@ mod tests {
     fn a_missing_file_is_an_empty_list() {
         let dir = tempfile::tempdir().unwrap();
         assert!(read(dir.path()).is_empty());
-        assert!(read_strict(dir.path()).unwrap().is_empty());
+        assert!(read_rows(dir.path()).unwrap().is_empty());
     }
 
     #[test]
@@ -242,7 +219,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         std::fs::write(path(dir.path()), b"not nbt at all").unwrap();
         assert!(read(dir.path()).is_empty());
-        assert!(read_strict(dir.path()).is_err());
+        assert!(read_rows(dir.path()).is_err());
     }
 
     #[test]
@@ -253,10 +230,7 @@ mod tests {
             entry("C", "c.net"),
         ];
         let order = ["C".to_string(), "a.net".to_string(), "B".to_string()];
-        assert_eq!(
-            names(&rearrange(&servers, &order).unwrap()),
-            ["C", "A", "B"]
-        );
+        assert_eq!(names(&arrange(&servers, &order).unwrap()), ["C", "A", "B"]);
     }
 
     #[test]
@@ -267,7 +241,7 @@ mod tests {
         };
         let servers = vec![entry("A", "a.net"), hidden, entry("B", "b.net")];
         let arranged =
-            rearrange(&servers, &["B".to_string(), "A".to_string()]).expect("visible order");
+            arrange(&servers, &["B".to_string(), "A".to_string()]).expect("visible order");
         assert_eq!(names(&arranged), ["B", "scratch", "A"]);
         assert!(arranged[1].hidden);
         assert!(rearrange(&servers, &["scratch".to_string(), "A".to_string()]).is_none());
@@ -293,7 +267,7 @@ mod tests {
             entry("SMP", "two.example.net"),
         ];
         let order = ["SMP".to_string(), "two.example.net".to_string()];
-        let arranged = rearrange(&servers, &order).expect("both placed");
+        let arranged = arrange(&servers, &order).expect("both placed");
         assert_eq!(
             arranged
                 .iter()
@@ -301,6 +275,16 @@ mod tests {
                 .collect::<Vec<_>>(),
             ["one.example.net", "two.example.net"]
         );
+    }
+
+    fn arrange(servers: &[ServerEntry], order: &[String]) -> Option<Vec<ServerEntry>> {
+        let permutation = rearrange(servers, order)?;
+        Some(
+            permutation
+                .into_iter()
+                .map(|i| servers[i].clone())
+                .collect(),
+        )
     }
 
     fn names(servers: &[ServerEntry]) -> Vec<&str> {
@@ -313,5 +297,16 @@ mod tests {
         assert_eq!(find(&servers, "hermitcraft"), Some(0));
         assert_eq!(find(&servers, "SMP.example.net"), Some(0));
         assert_eq!(find(&servers, "nothing"), None);
+    }
+
+    #[test]
+    fn edits_keep_the_tags_this_build_does_not_model() {
+        let mut carried = Row::new();
+        carried.insert("acceptTextures".into(), fastnbt::Value::Byte(1));
+        carried.insert("previewsChat".into(), fastnbt::Value::Byte(1));
+        let kept = overlay(carried, &entry("Renamed", "a.net"));
+        assert_eq!(kept.get("previewsChat"), Some(&fastnbt::Value::Byte(1)));
+        assert_eq!(kept.get("acceptTextures"), Some(&fastnbt::Value::Byte(0)));
+        assert_eq!(into_proto(&kept).name, "Renamed");
     }
 }
