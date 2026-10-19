@@ -32,7 +32,7 @@ impl Java<'_> {
     /// runtime and whether it was already installed.
     ///
     /// `id` is the caller's job id — pass one to be able to cancel this install
-    /// (`Client::cancel_job`); empty generates one, which is fine for a caller
+    /// (`Jobs::cancel`); empty generates one, which is fine for a caller
     /// that will never cancel.
     pub async fn install(
         &self,

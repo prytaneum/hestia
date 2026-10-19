@@ -510,6 +510,13 @@ version needs `--downgrade`. A pack file is the only way a pack no source publis
 a file holding a different pack needs `--other-pack`. On a terminal both are asked rather than refused. Files the pack wrote into the game directory that you have since edited are never
 overwritten or deleted; the command says which it kept.
 
+## Jobs
+
+```bash
+hestia job list                  # running jobs: id, channel, entry, age, stage
+hestia job cancel <id>           # cancel one by the id `job list` shows
+```
+
 ## Download cache
 
 ```bash

@@ -7,6 +7,7 @@ pub mod content;
 pub mod daemon;
 pub mod instance;
 pub mod java;
+pub mod job;
 pub mod lifecycle;
 mod mc;
 pub mod modpack;
@@ -75,7 +76,7 @@ pub async fn cancellable<T>(
         tokio::select! {
             outcome = &mut job => return outcome,
             _ = tokio::signal::ctrl_c() => {
-                let _ = client.cancel_job(id).await;
+                let _ = client.jobs().cancel(id).await;
             }
         }
     }

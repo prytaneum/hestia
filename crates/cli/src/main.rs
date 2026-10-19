@@ -172,6 +172,11 @@ enum Command {
     },
     /// The content sources that can serve
     Sources,
+    /// Running jobs
+    Job {
+        #[command(subcommand)]
+        cmd: commands::job::JobCmd,
+    },
     /// Download cache
     Cache {
         #[command(subcommand)]
@@ -275,6 +280,7 @@ async fn dispatch(command: Command) -> anyhow::Result<ExitStatus> {
         Command::Play(play) => commands::play::run(play).await,
         Command::Account { cmd } => commands::account::run(cmd).await,
         Command::Java { cmd } => commands::java::run(cmd).await,
+        Command::Job { cmd } => commands::job::run(cmd).await,
         Command::Instance { cmd } => commands::instance::run(cmd).await,
         Command::Start {
             target,
