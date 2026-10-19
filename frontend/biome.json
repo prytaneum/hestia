@@ -28,9 +28,29 @@
   "linter": {
     "enabled": true,
     "rules": {
-      "preset": "recommended"
+      "preset": "recommended",
+      "style": {
+        "noRestrictedImports": {
+          "level": "error",
+          "options": {
+            "paths": {
+              "sonner": "Notify through @/lib/notify, which owns the toast rules."
+            }
+          }
+        }
+      }
     }
   },
+  "overrides": [
+    {
+      "includes": ["**/src/lib/notify.ts", "**/src/components/ui/sonner.tsx"],
+      "linter": {
+        "rules": {
+          "style": { "noRestrictedImports": "off" }
+        }
+      }
+    }
+  ],
   "javascript": {
     "formatter": {
       "quoteStyle": "single",
