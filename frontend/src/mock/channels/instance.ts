@@ -11,13 +11,15 @@ import type {
   ServerEntry,
 } from '@/api/types';
 
-import { jobIdOf, startJob } from '../job';
+import { jobIdOf, startJob, subjectOf } from '../job';
 import * as catalog from '../state/catalog';
 import * as entries from '../state/entries';
 import * as processes from '../state/processes';
 import * as worlds from '../state/worlds';
 import { ago, bool, type ChannelHandlers, now, str } from '../support';
 import { resolve as resolveAccount } from './account';
+
+const MB = 1024 * 1024;
 
 const BANNER = [
   '[main/INFO]: Setting user: Player',
@@ -97,6 +99,7 @@ export const channels: ChannelHandlers = {
     return startJob({
       id: jobIdOf(p, 'instance-update'),
       channel: 'instance.update',
+      subject: subjectOf('instance', instance.id),
       steps: [{ phase: 'resolving', detail: str(p, 'version') }],
       done: () => {
         instance.gameVersion = str(p, 'version', instance.gameVersion);
@@ -152,12 +155,13 @@ export const channels: ChannelHandlers = {
     return startJob({
       id: jobIdOf(p, 'instance-launch'),
       channel: 'instance.launch',
+      subject: subjectOf('instance', instance.id),
       steps: [
         { phase: 'resolving', detail: instance.gameVersion },
-        { phase: 'java', detail: `Java ${instance.javaMajor}` },
-        { phase: 'libraries', detail: 'libraries' },
-        { phase: 'assets', detail: 'assets' },
-        { phase: 'client', detail: 'client jar' },
+        { phase: 'java', detail: `Java ${instance.javaMajor}`, bytes: 48 * MB },
+        { phase: 'libraries', detail: 'libraries', bytes: 62 * MB },
+        { phase: 'assets', detail: 'assets', bytes: 134 * MB },
+        { phase: 'client', detail: 'client jar', bytes: 26 * MB },
       ],
       done: () => {
         if (p.replace) processes.stopSessions(instance.id);

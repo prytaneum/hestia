@@ -3,9 +3,14 @@
  * names its side in an `EntryTarget`: the `entry.*` verbs, the installed
  * content pool (`contentChannels`) and the modpack verbs (./modpack).
  */
-import type { ContentKind, EntryTarget, InstalledContent } from '@/api/types';
+import type {
+  ContentKind,
+  EntryTarget,
+  InstalledContent,
+  JobSubject,
+} from '@/api/types';
 import { serverProcessId } from '@/lib/process-id';
-import { jobIdOf, startJob } from '../job';
+import { jobIdOf, startJob, subjectOf } from '../job';
 import * as catalog from '../state/catalog';
 import * as content from '../state/content';
 import * as entries from '../state/entries';
@@ -31,6 +36,15 @@ export function targetEntry(payload: Record<string, unknown>): {
   name: string;
 } {
   return entryOf(payload.target as Partial<EntryTarget> | undefined);
+}
+
+/** The job subject for the entry a payload's `target` names. */
+export function targetSubject(payload: Record<string, unknown>): JobSubject {
+  const target = payload.target as Partial<EntryTarget> | undefined;
+  return subjectOf(
+    target?.kind === 'server' ? 'server' : 'instance',
+    targetEntry(payload).id,
+  );
 }
 
 const kindOf = (payload: Record<string, unknown>): ContentKind =>
@@ -93,6 +107,7 @@ function contentJob(
   return startJob({
     id: jobIdOf(payload, 'content'),
     channel,
+    subject: targetSubject(payload),
     steps: [
       { phase: 'resolving', detail: 'resolving versions' },
       { phase: 'content', detail: 'downloading' },

@@ -20,9 +20,24 @@
  * generated `proto` mirrors, so a wire change breaks the typecheck here rather
  * than silently serving a stale shape.
  */
+import { channels as instanceChannels } from './channels/instance';
 import { installInternals } from './internals';
+import { listInstances } from './state/entries';
+
+declare global {
+  interface Window {
+    /** Dev console: `__hestiaMock.foreignLaunch()` starts a launch no webview asked for. */
+    __hestiaMock?: { foreignLaunch: () => void };
+  }
+}
 
 export async function installBrowserMock(): Promise<void> {
   installInternals();
+  window.__hestiaMock = {
+    foreignLaunch: () => {
+      const [instance] = listInstances();
+      instanceChannels['instance.launch']?.({ instance: instance.id });
+    },
+  };
   console.info('[mock] running against the fixture daemon (browser dev mode)');
 }

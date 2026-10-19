@@ -12,11 +12,11 @@ import type {
   ModpackMove,
 } from '@/api/types';
 
-import { jobIdOf, startJob } from '../job';
+import { jobIdOf, startJob, subjectOf } from '../job';
 import * as content from '../state/content';
 import * as entries from '../state/entries';
 import { bool, type ChannelHandlers, now } from '../support';
-import { targetEntry } from './entry';
+import { targetEntry, targetSubject } from './entry';
 
 const PACK_MODS = ['sodium', 'fabric-api', 'lithium'];
 const LATEST = '1.5.0';
@@ -75,9 +75,15 @@ function installJob(
   payload: Record<string, unknown>,
   server: boolean,
 ): { id: string } {
+  const target = (payload.target ?? {}) as Target;
+  const existing =
+    target.mode === 'existing' ? landing(payload, server).id : '';
   return startJob({
     id: jobIdOf(payload, 'modpack-install'),
     channel: server ? 'server.modpack.install' : 'instance.modpack.install',
+    subject: existing
+      ? subjectOf(server ? 'server' : 'instance', existing)
+      : undefined,
     steps: [
       { phase: 'resolving', detail: 'reading the pack index' },
       { phase: 'java', detail: 'Java runtime' },
@@ -111,6 +117,7 @@ function updateJob(payload: Record<string, unknown>): { id: string } {
   return startJob({
     id: jobIdOf(payload, 'modpack-update'),
     channel: 'modpack.update',
+    subject: targetSubject(payload),
     steps: [
       { phase: 'resolving', detail: 'the published version' },
       { phase: 'content', detail: 'pack files' },

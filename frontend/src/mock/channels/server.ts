@@ -11,7 +11,7 @@ import type {
   ServerProperty,
 } from '@/api/types';
 import { serverProcessId } from '@/lib/process-id';
-import { jobIdOf, startJob } from '../job';
+import { jobIdOf, startJob, subjectOf } from '../job';
 import * as catalog from '../state/catalog';
 import * as entries from '../state/entries';
 import * as processes from '../state/processes';
@@ -146,6 +146,7 @@ export const channels: ChannelHandlers = {
     return startJob({
       id: jobIdOf(p, 'server-update'),
       channel: 'server.update',
+      subject: subjectOf('server', server.id),
       steps: [
         { phase: 'backup', detail: 'backing up first' },
         { phase: 'resolving', detail: str(p, 'version') },

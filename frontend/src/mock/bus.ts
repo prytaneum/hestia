@@ -9,7 +9,7 @@
  */
 import { emit } from '@tauri-apps/api/event';
 
-import type { JobState, Jobs, Topics } from '@/api';
+import type { JobState, JobSubject, Jobs, Topics } from '@/api';
 import { CONNECTION_CHANNEL, EVENT_CHANNEL } from '@/api/core/events';
 
 /** Publish one daemon event: what a `Topic` implementor sends over the wire. */
@@ -25,10 +25,11 @@ export function publishJob<K extends keyof Jobs>(
   id: string,
   channel: K,
   state: JobState<Jobs[K]['progress'], Jobs[K]['done']>,
+  subject?: JobSubject,
 ): void {
   void emit(EVENT_CHANNEL, {
     topic: 'job',
-    payload: { id, channel, ...state },
+    payload: { id, channel, subject, ...state },
   });
 }
 

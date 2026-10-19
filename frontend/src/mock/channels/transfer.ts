@@ -5,7 +5,7 @@
  */
 import type { ArchiveEntry, ArchiveInfo, ImportFormat } from '@/api/types';
 
-import { jobIdOf, startJob } from '../job';
+import { jobIdOf, startJob, subjectOf } from '../job';
 import * as entries from '../state/entries';
 import { type ChannelHandlers, str } from '../support';
 
@@ -105,6 +105,7 @@ export const channels: ChannelHandlers = {
     return startJob({
       id: jobIdOf(p, 'instance-export'),
       channel: 'instance.export',
+      subject: subjectOf('instance', instance.id),
       steps: [
         { phase: 'resolving', detail: instance.name },
         { phase: 'archive', detail: 'writing the archive' },

@@ -4,7 +4,7 @@
  */
 import type { BackupInfo } from '@/api/types';
 
-import { jobIdOf, startJob } from '../job';
+import { jobIdOf, startJob, subjectOf } from '../job';
 import { ago, type ChannelHandlers, now, ok, str } from '../support';
 import type { Resolve } from './entry';
 
@@ -49,6 +49,7 @@ export function channels(resolve: Resolve): ChannelHandlers {
     startJob({
       id: jobIdOf(payload, 'server-backup'),
       channel,
+      subject: subjectOf('server', resolve(payload)),
       steps: [
         { phase: 'resolving', detail: 'pausing world saves' },
         { phase, detail: 'world' },
