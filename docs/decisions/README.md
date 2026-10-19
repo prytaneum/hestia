@@ -30,6 +30,7 @@ the alternative you rejected — that is usually the part nobody can recover lat
 - **0084** — [The TypeScript channel table is generated from the contracts, and a contract owns its timeout](0084-the-ts-channel-table-is-generated-from-the-contracts.md)
 - **0085** — [A mutating call names the state it changes, and the registrar publishes it on one topic](0085-a-mutating-call-names-what-it-changed.md)
 - **0086** — [An entry's tree has one claim, held for as long as a job or handler changes it](0086-an-entry-has-one-claim.md)
+- **0090** — [The daemon keeps the job registry](0090-the-daemon-keeps-the-job-registry.md)
 
 ### [Cross-cutting foundations](../architecture/common.md)
 
@@ -134,3 +135,4 @@ the alternative you rejected — that is usually the part nobody can recover lat
 - **0056** — [Job progress paints once per frame, because the store re-renders synchronously](0056-job-progress-paints-once-per-frame.md)
 - **0080** — [Only the shell runs in the AppImage's environment](0080-only-the-shell-runs-in-the-appimage-environment.md)
 - **0087** — [The data home is fixed for the life of a daemon process](0087-the-data-home-is-fixed-for-a-daemon-process.md)
+- **0089** — [A job outcome is reported once, by the job store](0089-a-job-outcome-is-reported-once.md)

@@ -218,6 +218,8 @@ point would have left, so the existing failure paths do the cleanup. A cancelled
 job is not an error ([0032](../decisions/0032-jobs-are-cancelled-by-asking.md)).
 Why one topic and the contract as the job:
 [0083](../decisions/0083-a-job-is-its-contract-and-reports-on-one-topic.md).
+The daemon keeps the registry of running jobs, so any client can list them
+([0090](../decisions/0090-the-daemon-keeps-the-job-registry.md)).
 
 A plain call that mutates reports too. Its contract sets `Contract::CHANGES` to
 a coarse `change::Scope` (`entries`, `accounts`, `skins`, `config`, `java`,

@@ -231,7 +231,8 @@ live events (`useServerLogs`, `useProcessMetrics`).
   its `detail(id)` prefix so one sweep refreshes the whole entry.
 - Long-running operations are **job mutations** routed through a global job
   store, so an activity surface sees every in-flight job with live progress,
-  surviving unmount and navigation.
+  surviving unmount and navigation. The store alone reports a job's outcome
+  ([0089](../decisions/0089-a-job-outcome-is-reported-once.md)).
 - Freshness is belt-and-suspenders: mutations invalidate their own key prefixes
   on settle, and `queries/invalidation.ts` maps daemon topics (a finished job by its start
   channel, a `changed` event by its scope) to key prefixes, so changes made by the CLI, the tray or a schedule land without
