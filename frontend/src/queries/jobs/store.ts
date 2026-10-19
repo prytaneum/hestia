@@ -223,7 +223,7 @@ function announce(
       title: m['app.jobs.failed_title']({ title }),
       action: own.retry && {
         label: m['app.toast.retry'](),
-        onClick: own.retry,
+        onClick: () => retryJob(job.id),
       },
     });
     return;
