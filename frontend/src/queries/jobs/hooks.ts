@@ -60,6 +60,17 @@ export function useLaunchJob(instanceId: string): Job | null {
   );
 }
 
+/** The ids of the running launches, oldest first; progress ticks do not change it. */
+export function useRunningLaunchIds(): string[] {
+  const key = useSyncExternalStore(subscribe, () =>
+    getJobs()
+      .filter(isRunningLaunch)
+      .map((job) => job.id)
+      .join(','),
+  );
+  return useMemo(() => (key ? key.split(',') : []), [key]);
+}
+
 /**
  * Whether a launch of an instance is running; with a `target`, only a launch
  * joining that world or server, so one row spins rather than all of them.

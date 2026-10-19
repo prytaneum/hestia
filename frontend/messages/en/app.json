@@ -246,7 +246,8 @@
         "world": "World"
       },
       "recent": "Recently played",
-      "recent_play": "{kind} · {instance}"
+      "recent_play": "{kind} · {instance}",
+      "started": "Started"
     },
     "search": {
       "content": "Search content",

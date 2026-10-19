@@ -1,6 +1,7 @@
 import { Outlet, useLocation } from '@tanstack/react-router';
 
 import { FileDropOverlay } from '@/components/app-shell/file-drop-overlay';
+import { LaunchBar, useLaunchBar } from '@/components/app-shell/launch-bar';
 import { OfflineOverlay } from '@/components/app-shell/offline-overlay';
 import { PlayBar } from '@/components/app-shell/play-bar';
 import { SearchProvider } from '@/components/app-shell/search-context';
@@ -12,6 +13,7 @@ import { WelcomeDialog } from '@/features/onboarding/welcome';
 
 export function AppLayout() {
   const { pathname } = useLocation();
+  const launch = useLaunchBar();
 
   return (
     <SearchProvider>
@@ -26,7 +28,11 @@ export function AppLayout() {
               <main className="flex-1 overflow-y-auto">
                 <Outlet />
               </main>
-              {pathname === '/' && <PlayBar />}
+              {launch ? (
+                <LaunchBar {...launch} />
+              ) : (
+                pathname === '/' && <PlayBar />
+              )}
               <StatusBar />
             </div>
           </div>

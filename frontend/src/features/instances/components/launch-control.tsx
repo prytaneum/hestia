@@ -21,7 +21,7 @@ import {
 } from '@/queries/jobs';
 
 /** A launch settling sooner than this never shows progress. */
-const SHOW_AFTER_MS = 300;
+export const SHOW_AFTER_MS = 300;
 /** Once shown, progress stays at least this long. */
 const MIN_SHOWN_MS = 400;
 
