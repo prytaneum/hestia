@@ -11,7 +11,6 @@ import { Bone } from '@/components/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { matchProperties, propertyControl } from '@/features/servers/lib';
-import { notify } from '@/lib/notify';
 import { m } from '@/paraglide/messages.js';
 import { entryMutations } from '@/queries/entry';
 import { serverQueries } from '@/queries/server';
@@ -23,7 +22,7 @@ function PropertyControl({
 }: {
   property: ServerProperty;
   onCommit: (value: string) => void;
-  onSave: (value: string) => void;
+  onSave: (value: string) => Promise<unknown>;
 }) {
   const id = `property-${property.key}`;
   const disabled = property.managed || property.locked;
@@ -130,10 +129,7 @@ export function PropertiesSettings({
                   setConfig.mutate({ key: property.key, value })
                 }
                 onSave={(value) =>
-                  setConfig.mutate(
-                    { key: property.key, value },
-                    { onSuccess: () => notify.success(m['app.toast.saved']()) },
-                  )
+                  setConfig.mutateAsync({ key: property.key, value })
                 }
               />
             </SettingRow>

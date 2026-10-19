@@ -70,12 +70,9 @@ export function GeneralTab() {
               id="data-dir"
               mono
               value={entries.home ?? ''}
-              onSave={(value) => {
-                if (value)
-                  moveHome.mutate(value, {
-                    onSuccess: () => notify.success(m['app.toast.saved']()),
-                  });
-              }}
+              onSave={(value) =>
+                value ? moveHome.mutateAsync(value) : Promise.resolve()
+              }
               confirm={{
                 title: m['settings.data_dir_confirm_title'](),
                 description: m['settings.data_dir_confirm_description'](),

@@ -259,6 +259,7 @@
       "targets": "Search servers and instances"
     },
     "status": {
+      "copied": "Copied",
       "idle": "Idle",
       "live": "Live",
       "loading": "Loading…",
@@ -266,6 +267,8 @@
       "preparing": "Preparing",
       "preparing_ellipsis": "Preparing…",
       "running": "Running",
+      "saved": "Saved",
+      "saving": "Saving…",
       "stopped": "Stopped"
     },
     "time": {
@@ -280,15 +283,12 @@
       "close": "Dismiss notification",
       "content_added": "Content added to {name}",
       "content_updated": "Content in {name} updated",
-      "copied": "Copied",
       "created": "{name} created",
       "failed_count": "{failed} of {total} failed",
       "failed_only": "{failed} failed",
       "notifications": "Notifications",
       "removed": "{name} removed",
-      "renamed": "Renamed to {name}",
       "retry": "Retry",
-      "saved": "Saved",
       "started": "{name} started",
       "updated": "{name} updated",
       "view_details": "View details",

@@ -1,4 +1,4 @@
-import { screen, waitFor } from '@testing-library/react';
+import { screen } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ConfigEntry } from '@/api';
@@ -99,9 +99,7 @@ describe('the shared entry settings tab', () => {
     await userEvent.clear(args);
     await userEvent.type(args, '-Xshare:off{Enter}');
 
-    await waitFor(() =>
-      expect(screen.getByText(m['app.toast.saved']())).toBeDefined(),
-    );
+    expect(await screen.findAllByText(m['app.status.saved']())).not.toHaveLength(0);
   });
 
   it('locks the destructive and identity controls while the entry runs', async () => {
@@ -158,8 +156,6 @@ describe('the server properties tab', () => {
   it('saves a typed property and confirms it', async () => {
     showProperties();
     await userEvent.type(await screen.findByLabelText(/^motd/), '!{Enter}');
-    await waitFor(() =>
-      expect(screen.getByText(m['app.toast.saved']())).toBeDefined(),
-    );
+    expect(await screen.findAllByText(m['app.status.saved']())).not.toHaveLength(0);
   });
 });

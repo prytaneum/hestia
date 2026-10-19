@@ -3,11 +3,12 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import { lazy, Suspense, useState } from 'react';
 import { errorMessage } from '@/api';
 import { Empty } from '@/components/empty';
+import { SaveButton, SaveStatus } from '@/components/save-button';
 import { Bone } from '@/components/skeleton';
 import { Button } from '@/components/ui/button';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { baseName, editorLanguage } from '@/features/servers/lib';
-import { notify } from '@/lib/notify';
+import { useSaveState } from '@/hooks/use-save-state';
 import { m } from '@/paraglide/messages.js';
 import { filesMutations, filesQueries } from '@/queries/files';
 
@@ -28,6 +29,7 @@ export function FileEditor({
 }) {
   const content = useQuery(filesQueries.content(id, path));
   const write = useMutation(filesMutations.write(id));
+  const { state, run } = useSaveState();
   const [draft, setDraft] = useState<string | null>(null);
   const [saved, setSaved] = useState<string | null>(null);
   const [leaving, setLeaving] = useState(false);
@@ -38,14 +40,8 @@ export function FileEditor({
   const save = () => {
     if (draft === null || draft === stored) return;
     const text = draft;
-    write.mutate(
-      { path, content: text },
-      {
-        onSuccess: () => {
-          setSaved(text);
-          notify.success(m['app.toast.saved']());
-        },
-      },
+    void run(() =>
+      write.mutateAsync({ path, content: text }).then(() => setSaved(text)),
     );
   };
 
@@ -71,9 +67,12 @@ export function FileEditor({
             {m['server.files.editor.unsaved']()}
           </span>
         )}
-        <Button size="sm" disabled={!dirty || write.isPending} onClick={save}>
-          {m['app.action.save']()}
-        </Button>
+        <SaveStatus state={state} />
+        <SaveButton
+          state={state}
+          disabled={!dirty && state === 'idle'}
+          onClick={save}
+        />
       </div>
 
       {content.isPending ? (

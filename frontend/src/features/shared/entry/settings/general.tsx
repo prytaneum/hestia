@@ -16,7 +16,7 @@ interface GeneralSettingsProps {
   kind: EntryKind;
   entry: { id: string; name: string; flavor: string; gameVersion: string };
   running: boolean;
-  rename: (name: string) => void;
+  rename: (name: string) => Promise<unknown>;
   update: UpdateHandle;
 }
 
@@ -49,9 +49,7 @@ export function GeneralSettings({
             trailing
             value={entry.name}
             disabled={running}
-            onSave={(name) => {
-              if (name) rename(name);
-            }}
+            onSave={(name) => (name ? rename(name) : Promise.resolve())}
           />
         </SettingRow>
 

@@ -1,6 +1,6 @@
 import { type ReactNode, useState } from 'react';
 
-import { Button } from '@/components/ui/button';
+import { SaveButton, SaveStatus } from '@/components/save-button';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import {
   Field,
@@ -13,6 +13,7 @@ import {
 } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
+import { useSaveState } from '@/hooks/use-save-state';
 import { cn } from '@/lib/utils';
 import { m } from '@/paraglide/messages.js';
 
@@ -120,7 +121,8 @@ export function SwitchRow({
 
 /**
  * A text setting that commits on purpose: Save appears once the value differs
- * and the write confirms with a toast. `confirm` gates the save behind a
+ * and the button confirms the write inline. `onSave` returns the write so the
+ * button can follow it; a failed write keeps the typed value. `confirm` gates the save behind a
  * dialog, for a value whose change moves the whole daemon.
  */
 export function SavedInput({
@@ -136,7 +138,7 @@ export function SavedInput({
 }: {
   id: string;
   value: string;
-  onSave: (value: string) => void;
+  onSave: (value: string) => Promise<unknown>;
   type?: 'password' | 'number';
   mono?: boolean;
   placeholder?: string;
@@ -146,12 +148,18 @@ export function SavedInput({
   confirm?: { title: string; description: string };
 }) {
   const [draft, setDraft] = useState<string | null>(null);
+  const [seenValue, setSeenValue] = useState(value);
+  const { state, run } = useSaveState();
   const current = draft ?? value;
   const dirty = current.trim() !== value;
 
-  const save = () => {
+  if (value !== seenValue) {
+    setSeenValue(value);
     setDraft(null);
-    onSave(current.trim());
+  }
+
+  const save = () => {
+    if (dirty) void run(() => onSave(current.trim()));
   };
 
   return (
@@ -177,23 +185,18 @@ export function SavedInput({
           if (e.key === 'Enter' && dirty && !confirm) save();
         }}
       />
-      {dirty &&
+      <SaveStatus state={state} />
+      {(dirty || state !== 'idle') &&
         (confirm ? (
           <ConfirmDialog
-            trigger={
-              <Button variant="outline" size="sm">
-                {m['app.action.save']()}
-              </Button>
-            }
+            trigger={<SaveButton variant="outline" state={state} />}
             title={confirm.title}
             description={confirm.description}
             confirmLabel={m['app.action.save']()}
             onConfirm={save}
           />
         ) : (
-          <Button variant="outline" size="sm" onClick={save}>
-            {m['app.action.save']()}
-          </Button>
+          <SaveButton variant="outline" state={state} onClick={save} />
         ))}
     </div>
   );

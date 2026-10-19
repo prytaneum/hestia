@@ -1,9 +1,7 @@
 /** The daemon config the settings page reads (`config.list`) and writes. */
 import { useMutation, useQuery } from '@tanstack/react-query';
 import type { UpdateChannel } from '@/api/types/update';
-import { notify } from '@/lib/notify';
 
-import { m } from '@/paraglide/messages.js';
 import { configMutations, configQueries } from '@/queries/config';
 
 export interface ModpackConfig {
@@ -26,8 +24,8 @@ interface ConfigEntries {
 
 /**
  * The config read plus the two ways to write it. A toggle reports itself — the
- * control moves — so only a typed value confirms with a toast, where nothing
- * else would tell you the daemon took it.
+ * control moves — so only a typed value is saved on purpose, and its button
+ * follows the returned write.
  */
 export function useConfig() {
   const config = useQuery(configQueries.list());
@@ -39,9 +37,6 @@ export function useConfig() {
     busy: setConfig.isPending,
     commit: (key: string, value: unknown) => setConfig.mutate({ key, value }),
     save: (key: string, value: unknown) =>
-      setConfig.mutate(
-        { key, value },
-        { onSuccess: () => notify.success(m['app.toast.saved']()) },
-      ),
+      setConfig.mutateAsync({ key, value }),
   };
 }

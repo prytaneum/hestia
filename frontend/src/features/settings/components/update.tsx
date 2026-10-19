@@ -37,7 +37,7 @@ const CHANNEL_LABELS: Record<UpdateChannel, () => string> = {
 
 /** Which feed {@link UpdatePanel} checks — a daemon setting, not a preference. */
 export function UpdateChannelField() {
-  const { entries, save } = useConfig();
+  const { entries, commit } = useConfig();
 
   return (
     <Field>
@@ -47,7 +47,7 @@ export function UpdateChannelField() {
       <Select
         value={entries.update?.channel ?? 'stable'}
         onValueChange={(value) => {
-          if (value) save('update.channel', value);
+          if (value) commit('update.channel', value);
         }}
       >
         <SelectTrigger id="update-channel" className="w-full max-w-md">

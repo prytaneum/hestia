@@ -56,7 +56,7 @@ function CurseForgeKey({
   onSave,
 }: {
   value: string;
-  onSave: (value: string) => void;
+  onSave: (value: string) => Promise<unknown>;
 }) {
   const sources = useQuery(contentQueries.sources());
   const ready = (sources.data ?? []).some((s) => s.id === 'curseforge');

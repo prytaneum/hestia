@@ -1,4 +1,5 @@
 import {
+  CheckIcon,
   CopyIcon,
   DotsThreeIcon,
   HardDrivesIcon,
@@ -20,7 +21,7 @@ import {
 import { Spinner } from '@/components/ui/spinner';
 import { StatusDot } from '@/components/ui/status-dot';
 import { pngSource, Thumbnail } from '@/components/ui/thumbnail';
-import { notify } from '@/lib/notify';
+import { useSaveState } from '@/hooks/use-save-state';
 import { m } from '@/paraglide/messages.js';
 import { instanceQueries } from '@/queries/instance';
 
@@ -41,6 +42,8 @@ export function ServerRow({
 }) {
   const status = useQuery(instanceQueries.serverStatus(server.address));
   const online = status.isSuccess;
+  const copy = useSaveState();
+  const copied = copy.state === 'saved';
 
   return (
     <div className="flex items-center gap-3 px-3 py-2.5">
@@ -116,14 +119,20 @@ export function ServerRow({
             {m['app.action.edit']()}
           </DropdownMenuItem>
           <DropdownMenuItem
+            closeOnClick={false}
             onClick={() =>
-              navigator.clipboard
-                .writeText(server.address)
-                .then(() => notify.success(m['app.toast.copied']()))
+              void copy.run(() => navigator.clipboard.writeText(server.address))
             }
           >
-            <CopyIcon />
-            {m['instance.servers.copy_address']()}
+            {copied ? <CheckIcon aria-hidden /> : <CopyIcon aria-hidden />}
+            <span aria-hidden={copied}>
+              {copied
+                ? m['app.status.copied']()
+                : m['instance.servers.copy_address']()}
+            </span>
+            <span role="status" className="sr-only">
+              {copied ? m['app.status.copied']() : ''}
+            </span>
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem variant="destructive" onClick={onRemove}>

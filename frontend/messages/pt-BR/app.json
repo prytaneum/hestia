@@ -259,6 +259,7 @@
       "targets": "Pesquisar servidores e instâncias"
     },
     "status": {
+      "copied": "Copiado",
       "idle": "Ocioso",
       "live": "Ao vivo",
       "loading": "Carregando…",
@@ -266,6 +267,8 @@
       "preparing": "Preparando",
       "preparing_ellipsis": "Preparando…",
       "running": "Em execução",
+      "saved": "Salvo",
+      "saving": "Salvando…",
       "stopped": "Parado"
     },
     "time": {
@@ -280,15 +283,12 @@
       "close": "Dispensar notificação",
       "content_added": "Conteúdo adicionado a {name}",
       "content_updated": "Conteúdo de {name} atualizado",
-      "copied": "Copiado",
       "created": "{name} criado",
       "failed_count": "{failed} de {total} falharam",
       "failed_only": "{failed} falharam",
       "notifications": "Notificações",
       "removed": "{name} removido",
-      "renamed": "Renomeado para {name}",
       "retry": "Tentar novamente",
-      "saved": "Salvo",
       "started": "{name} iniciado",
       "updated": "{name} atualizado",
       "view_details": "Ver detalhes",
