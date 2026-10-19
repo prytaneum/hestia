@@ -294,39 +294,43 @@ Rules that keep it from drifting:
   pipeline hit-tests the pointer by hand. A zone with a `label` gets the shell's
   `FileDropOverlay`.
 
-## Notifications, Activity and saves
+## Notifications and saves
 
 Every piece of feedback has one surface, and one owner
 ([0089](../decisions/0089-a-job-outcome-is-reported-once.md)):
 
 | Surface | For |
 |---|---|
-| Toast | an outcome that happened off-screen or in the background |
+| Toast | the moment an outcome arrives that happened off-screen or in the background |
 | Inline | feedback on the control in view, such as a routine "saved" |
-| Activity | history, and anything to come back to |
+| Notification list | every notice of the session, and anything to come back to |
 | `WarningNotice` | a degraded state that is still true |
 
 Toasts go through `lib/notify.ts`, the only module allowed to import `sonner`
-(a lint rule enforces it). They sit bottom-right, above the status bar, tinted
-by kind with the app's own tokens, at most three at once.
+(a lint rule enforces it). They are plain: bottom-right above the status bar, a
+neutral icon, the title and a muted description, at most three at once.
 
 - Success, info and warning toasts expire; an error, and any toast carrying an
-  action (Retry, View), stays until dismissed.
+  action (Retry, Open folder), stays until dismissed and alone has a close
+  button.
+- Every toast is also recorded in the notification list (`lib/notifications.ts`),
+  under the toast's id, so a repeat replaces its entry as it replaces its toast.
+  `quiet` records without a toast.
 - A finished operation is one toast: `notify.outcome` folds its warnings and
   failed items into the description, never one toast each.
 - The job store reports a job's outcome and a call site never toasts a failure.
-  A cancelled or interrupted job shows nothing, and a job another client started
-  (the CLI, a schedule) never toasts; it appears only in Activity.
-- A repeat under the same id replaces its toast, so a retry swaps the failure
-  for its new outcome.
+  A cancel says nothing. A job another client started (the CLI, a schedule), a
+  job interrupted by a daemon restart, and an outcome a dialog already showed
+  are recorded quietly.
 
-**Activity** is the status bar's popover, fed by the job store. The trigger shows
-the newest running job with its stage and percent, a count of the rest, or a
-badge for failures not yet seen; opening the panel marks them seen. The panel
-lists running jobs (progress and Cancel) and recent settled ones (outcome,
-Retry for a failed job this window started, open its entry, dismiss), with
-Clear for the settled. A toast's View action opens the panel on that job's row.
-A polite status region announces when a job starts, changes stage or settles,
+**The bell** at the right of the status bar opens the notification panel,
+modelled on JetBrains IDEs' notification tool window. While jobs run, a spinner
+and their count sit beside it; a dot on it marks unread notices, red when one is
+an error. The panel lists running jobs first (title, stage, percent, a bar and
+Cancel), then the session's notices newest first (title, time, description, its
+one action, remove on hover), with Clear all. Opening it clears the toasts off
+the screen, since each is already listed; closing it marks everything read. A
+polite status region announces when a job starts, changes stage or settles,
 never on a percentage tick. The store mirrors the daemon's registry
 (`job.list`, then `job` events carrying each job's subject), so jobs started
 from the CLI or before a reload appear too.

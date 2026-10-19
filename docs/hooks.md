@@ -131,8 +131,8 @@ Anything that streams progress events — server create/update, instance launch,
 downloads — is a **job mutation**. Two guarantees:
 
 1. **Every run lands in the global job store**, no matter which component fired it or whether that component is still
-   mounted. The Activity panel subscribes with `useJobs()` (and the daemon's `job.list` seeds it); a per-entry busy indicator with
-   `useEntryJobs(kind, id)`.
+   mounted. The status bar's notification bell subscribes with `useJobs()` (and the daemon's `job.list` seeds it); a
+   per-entry busy indicator with `useBusyJob(kind, id)` or `useEntryJobs(kind, id)`.
 2. **`useJobMutation` adds the local view**: the same mutation result plus
    `progress` (the job's latest progress payload) and `job` (the store's record) for the run this call site started.
 
@@ -158,25 +158,22 @@ function CreateServer() {
 ```
 
 ```tsx
-function ActivityPanel() {
-    const jobs = useJobs();
+function RunningJobs() {
+    const jobs = useJobs().filter((job) => job.status === 'running');
     return jobs.map((job) => (
         <Row key={ job.id }>
-            <span>{ job.label }</span>
-            { job.status === 'running' && <Gauge progress={ job.progress } /> }
-            { job.status === 'error' && <em>{ job.error?.message }</em> }
-            { job.status !== 'running' && (
-                <button type="button" onClick={ () => dismissJob(job.id) }>×</button>
-            ) }
+            <span>{ jobTitle(job) }</span>
+            <Gauge progress={ job.progress } />
+            <button type="button" onClick={ () => cancelJob(job.id) }>×</button>
         </Row>
     ));
 }
 ```
 
-A `Job` carries `kind` (`'server.create'`, `'backup.restore'`, …), an optional `entry`
-(`{ kind: 'server' | 'instance', id }`), `status`
-(`running | done | error`), the latest `progress`, and timestamps. Settled jobs stay listed until `dismissJob(id)` /
-`clearSettledJobs()` (the store caps how many settled jobs it keeps).
+A `Job` carries its `channel` (`'server.create'`, `'server.backup.restore'`, …), an optional `subject`
+(`{ kind: 'server' | 'instance', id }`), its `origin` (`own` or adopted `foreign`), `status`
+(`running | done | failed | cancelled | interrupted`), the latest `progress`, and timestamps. The store keeps a capped
+number of settled jobs; what the user should see of a settled job is its notification, not the job record.
 
 A component that fires a job but renders no inline progress can use plain
 `useMutation(serverMutations.backup.create(id))` — the run is tracked globally either way; `useJobMutation` only adds

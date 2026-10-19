@@ -12,18 +12,19 @@ that release's notes, rendered as markdown.
 Every running job in one place, launch progress where you press Play, and
 quieter, clearer notifications.
 
-- **Activity.** The status bar's job list is now an Activity panel: running jobs
-  with progress and cancel, recent ones with retry, open-entry and dismiss, and
-  a badge for failures you have not seen. Jobs started from the CLI, or before
-  the window reloaded, show up too.
+- **Notifications.** A bell in the status bar opens every running job, with
+  progress and cancel, and every notification of the session, so a toast you
+  missed or dismissed is still there, with its Retry or Open folder. A dot on
+  the bell marks unread ones, red for an error. Jobs started from the CLI, or
+  before the window reloaded, show up too.
 - **Launch progress.** The Play button turns into the progress readout while an
   instance launches, with stage, percent, bytes, speed and time left, and the
   play bar keeps showing it on every page. The first-launch dialog is gone.
 - **Inline saves.** Settings confirm on the control you used instead of a
   "Saved" toast.
-- **Notifications.** Toasts appear bottom-right above the status bar. A job's
-  outcome is reported once, errors stay until dismissed, and cancelling or a job
-  started elsewhere no longer pops a toast.
+- **Toasts.** Plain toasts bottom-right above the status bar. A job's outcome is
+  reported once, errors stay until dismissed, and cancelling or a job started
+  elsewhere no longer pops a toast.
 - **CLI.** `hestia job list` shows the daemon's running jobs and
   `hestia job cancel <id>` cancels one. `hestia play` shows one download bar
   across the whole launch instead of one per phase.

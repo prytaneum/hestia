@@ -424,7 +424,7 @@ const rename = useMutation(instanceMutations.rename(id));
 
 A progress-streaming operation is a `jobMutation({ mutationKey, meta, run,
 invalidates, notify })` consumed through `useJobMutation` — the run registers in the global job store (so `useJobs`/
-`useEntryJobs` and the Activity panel see it, outliving the component) and the hook's result adds `progress`/`job` for
+`useEntryJobs` and the notification bell see it, outliving the component) and the hook's result adds `progress`/`job` for
 the inline case; see `serverMutations.create` or `javaMutations.install`. `meta` names the job's `channel` and, when it
 acts on an entry, its `subject`. The store reports the job's outcome once
 ([0089](decisions/0089-a-job-outcome-is-reported-once.md)): a failure toasts with Retry on its own, and a success toasts
