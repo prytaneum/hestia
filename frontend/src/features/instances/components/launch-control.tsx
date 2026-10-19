@@ -40,24 +40,26 @@ const IDLE: Record<Size, { size: 'sm' | 'default'; height?: string }> = {
 };
 
 /**
- * Whether the progress state is on screen: it waits `SHOW_AFTER_MS` for a
- * launch to still be running, and once up it outlasts the launch to
- * `MIN_SHOWN_MS`, so a quick launch never flashes.
+ * Whether the progress state is on screen: it waits until the launch has run
+ * `SHOW_AFTER_MS` (counted from the job's start, so a control mounted mid-launch
+ * shows at once), and once up it outlasts the launch to `MIN_SHOWN_MS`, so a
+ * quick launch never flashes.
  */
-function useProgressShown(running: boolean): boolean {
+function useProgressShown(startedAt: number | null): boolean {
+  const running = startedAt !== null;
   const [shown, setShown] = useState(false);
   const shownAt = useRef(0);
   useEffect(() => {
     if (running === shown) return;
     const wait = running
-      ? SHOW_AFTER_MS
+      ? Math.max(0, SHOW_AFTER_MS - (Date.now() - startedAt))
       : Math.max(0, MIN_SHOWN_MS - (Date.now() - shownAt.current));
     const timer = setTimeout(() => {
       shownAt.current = Date.now();
       setShown(running);
     }, wait);
     return () => clearTimeout(timer);
-  }, [running, shown]);
+  }, [running, shown, startedAt]);
   return shown;
 }
 
@@ -113,7 +115,7 @@ export function LaunchControl({
     launching && (launching.target ?? null) === (quickPlay?.target ?? null)
       ? launching
       : null;
-  const shown = useProgressShown(own !== null);
+  const shown = useProgressShown(own?.startedAt ?? null);
   const last = useRef<Job | null>(null);
   if (own) last.current = own;
   useJobDisplay(own, shown);
