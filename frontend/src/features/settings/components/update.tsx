@@ -1,8 +1,6 @@
 import { ArrowClockwiseIcon, DownloadSimpleIcon } from '@phosphor-icons/react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
-import { toast } from 'sonner';
-
 import type { UpdateChannel } from '@/api/types/update';
 import { Markdown } from '@/components/markdown';
 import { OfflineNotice } from '@/components/offline-state';
@@ -22,6 +20,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useConfig } from '@/features/settings/use-config';
+import { notify } from '@/lib/notify';
 import { cn } from '@/lib/utils';
 import { m } from '@/paraglide/messages.js';
 import { appQueries } from '@/queries/app';
@@ -93,7 +92,7 @@ export function UpdatePanel() {
         apply.mutate(staged.path, {
           onSuccess: (applied) => {
             if (!applied.relaunches) {
-              toast.success(m['settings.update.restart_required']());
+              notify.success(m['settings.update.restart_required']());
             }
           },
         }),

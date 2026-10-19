@@ -8,14 +8,7 @@ import {
 } from '@phosphor-icons/react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { toast } from 'sonner';
-
-import {
-  dialog,
-  type EntryKind,
-  errorMessage,
-  type ModpackFilePreview,
-} from '@/api';
+import { dialog, type EntryKind, type ModpackFilePreview } from '@/api';
 import { Stat } from '@/components/page';
 import {
   AlertDialog,
@@ -40,6 +33,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Thumbnail } from '@/components/ui/thumbnail';
 import { WarningNotice } from '@/components/warning-notice';
+import { notify } from '@/lib/notify';
 import { m } from '@/paraglide/messages.js';
 import { modpackMutations, modpackQueries, useJobMutation } from '@/queries';
 import { ProvisionProgressView } from '../components/provision-progress';
@@ -114,7 +108,7 @@ export function ModpackCard({
       }
       setFromFile({ path, preview });
     } catch (error) {
-      toast.error(errorMessage(error));
+      notify.failure(error, { id: `modpack:${kind}:${id}:preview` });
     }
   };
 
@@ -122,7 +116,7 @@ export function ModpackCard({
     remove
       .mutateAsync({ keepContent })
       .then((result) => {
-        toast.success(
+        notify.success(
           keepContent
             ? m['content.modpack.released']({ files: result.releasedFiles })
             : m['content.modpack.removed']({
@@ -131,9 +125,11 @@ export function ModpackCard({
               }),
         );
         if (result.kept.length)
-          toast.info(m['content.modpack.kept']({ count: result.kept.length }));
+          notify.info(m['content.modpack.kept']({ count: result.kept.length }));
       })
-      .catch((error) => toast.error(errorMessage(error)));
+      .catch((error) =>
+        notify.failure(error, { id: `modpack:${kind}:${id}:remove` }),
+      );
 
   return (
     <SideCard title={m['content.modpack.title']()}>

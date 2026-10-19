@@ -1,7 +1,5 @@
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
-import { toast } from 'sonner';
-
 import type { ServerProperty } from '@/api';
 import { SearchInput } from '@/components/search-input';
 import {
@@ -13,6 +11,7 @@ import { Bone } from '@/components/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { matchProperties, propertyControl } from '@/features/servers/lib';
+import { notify } from '@/lib/notify';
 import { m } from '@/paraglide/messages.js';
 import { entryMutations } from '@/queries/entry';
 import { serverQueries } from '@/queries/server';
@@ -133,7 +132,7 @@ export function PropertiesSettings({
                 onSave={(value) =>
                   setConfig.mutate(
                     { key: property.key, value },
-                    { onSuccess: () => toast.success(m['app.toast.saved']()) },
+                    { onSuccess: () => notify.success(m['app.toast.saved']()) },
                   )
                 }
               />

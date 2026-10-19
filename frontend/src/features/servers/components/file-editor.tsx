@@ -1,14 +1,13 @@
 import { ArrowLeftIcon, FileXIcon } from '@phosphor-icons/react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { lazy, Suspense, useState } from 'react';
-import { toast } from 'sonner';
-
 import { errorMessage } from '@/api';
 import { Empty } from '@/components/empty';
 import { Bone } from '@/components/skeleton';
 import { Button } from '@/components/ui/button';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { baseName, editorLanguage } from '@/features/servers/lib';
+import { notify } from '@/lib/notify';
 import { m } from '@/paraglide/messages.js';
 import { filesMutations, filesQueries } from '@/queries/files';
 
@@ -44,7 +43,7 @@ export function FileEditor({
       {
         onSuccess: () => {
           setSaved(text);
-          toast.success(m['app.toast.saved']());
+          notify.success(m['app.toast.saved']());
         },
       },
     );

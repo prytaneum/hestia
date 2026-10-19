@@ -2,8 +2,6 @@ import { CaretLeftIcon, CaretRightIcon } from '@phosphor-icons/react';
 import { revalidateLogic } from '@tanstack/react-form';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { toast } from 'sonner';
-
 import type { ConfigEntry, Flavor } from '@/api';
 import { dialog } from '@/api';
 import { AppDialog, DialogFooter } from '@/components/dialog';
@@ -26,6 +24,7 @@ import {
   type WizardValues,
 } from '@/features/shared/entry/lib';
 import { memGb } from '@/lib/format';
+import { notify } from '@/lib/notify';
 import { m } from '@/paraglide/messages.js';
 import { catalogueQueries } from '@/queries/catalogue';
 import { configQueries, launcherDefaults } from '@/queries/config';
@@ -126,7 +125,7 @@ export function CreateEntryDialog({
           const instance = await createInstance.mutateAsync(
             instanceParams(value, memoryEntries),
           );
-          toast.success(m['app.toast.created']({ name: instance.name }));
+          notify.success(m['app.toast.created']({ name: instance.name }));
           applyRandomIcon(instance.id);
         }
         onOpenChange(false);

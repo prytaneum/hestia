@@ -1,7 +1,5 @@
 import { ArrowCounterClockwiseIcon } from '@phosphor-icons/react';
 import { useMutation } from '@tanstack/react-query';
-import { toast } from 'sonner';
-
 import { Button } from '@/components/ui/button';
 import {
   Field,
@@ -28,6 +26,7 @@ import {
 } from '@/features/settings/components';
 import { useConfig } from '@/features/settings/use-config';
 import { type Locale, useLocale } from '@/hooks/locale';
+import { notify } from '@/lib/notify';
 import { m } from '@/paraglide/messages.js';
 import { locales } from '@/paraglide/runtime.js';
 import { configMutations } from '@/queries/config';
@@ -74,7 +73,7 @@ export function GeneralTab() {
               onSave={(value) => {
                 if (value)
                   moveHome.mutate(value, {
-                    onSuccess: () => toast.success(m['app.toast.saved']()),
+                    onSuccess: () => notify.success(m['app.toast.saved']()),
                   });
               }}
               confirm={{
@@ -183,7 +182,7 @@ function TutorialField() {
         data-icon="inline-start"
         onClick={() => {
           onboarding.update({ seen: [] });
-          toast.success(m['settings.tutorial.reset']());
+          notify.success(m['settings.tutorial.reset']());
         }}
       >
         <ArrowCounterClockwiseIcon />

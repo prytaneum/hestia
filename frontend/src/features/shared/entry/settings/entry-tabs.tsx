@@ -1,7 +1,6 @@
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { toast } from 'sonner';
-
 import type { ConfigEntry, EntryKind } from '@/api';
+import { notify } from '@/lib/notify';
 import { m } from '@/paraglide/messages.js';
 import { configQueries, launcherDefaults } from '@/queries/config';
 import { entryMutations } from '@/queries/entry';
@@ -43,7 +42,9 @@ export function useEntrySettingsTabs({
             rename={(name) =>
               rename.mutate(name, {
                 onSuccess: (updated) =>
-                  toast.success(m['app.toast.renamed']({ name: updated.name })),
+                  notify.success(
+                    m['app.toast.renamed']({ name: updated.name }),
+                  ),
               })
             }
             update={update}

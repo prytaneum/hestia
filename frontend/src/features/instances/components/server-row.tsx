@@ -7,8 +7,6 @@ import {
   TrashIcon,
 } from '@phosphor-icons/react';
 import { useQuery } from '@tanstack/react-query';
-import { toast } from 'sonner';
-
 import type { ServerEntry } from '@/api';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -22,6 +20,7 @@ import {
 import { Spinner } from '@/components/ui/spinner';
 import { StatusDot } from '@/components/ui/status-dot';
 import { pngSource, Thumbnail } from '@/components/ui/thumbnail';
+import { notify } from '@/lib/notify';
 import { m } from '@/paraglide/messages.js';
 import { instanceQueries } from '@/queries/instance';
 
@@ -120,7 +119,7 @@ export function ServerRow({
             onClick={() =>
               navigator.clipboard
                 .writeText(server.address)
-                .then(() => toast.success(m['app.toast.copied']()))
+                .then(() => notify.success(m['app.toast.copied']()))
             }
           >
             <CopyIcon />

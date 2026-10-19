@@ -9,12 +9,11 @@ import {
   QueryClient,
   type QueryKey,
 } from '@tanstack/react-query';
-import { toast } from 'sonner';
 
 import { logger } from '@/lib/log';
+import { notify } from '@/lib/notify';
 import {
   CONNECTION_LOST,
-  errorMessage,
   type HestiaError,
   NOT_FOUND,
   OFFLINE,
@@ -63,18 +62,18 @@ export const queryClient = new QueryClient({
       // A query may opt out of the toast (e.g. a ping a stopped server can't
       // answer) via meta.silent.
       if (query.meta?.silent || quiet) return;
-      toast.error(errorMessage(error), { id: query.queryHash });
+      notify.failure(error, { id: `query:${query.queryHash}` });
     },
   }),
   mutationCache: new MutationCache({
     onError: (error, _vars, _ctx, mutation) => {
-      if (mutation.meta?.job) return;
+      if (mutation.meta?.job || mutation.meta?.notify === false) return;
       log.warn(
         { key: mutation.options.mutationKey?.join('.'), code: error.code },
         `mutation failed: ${error.message}`,
       );
       if (silentMutation(error)) return;
-      toast.error(errorMessage(error));
+      notify.failure(error, { id: `mutation:${mutation.mutationId}` });
     },
   }),
   defaultOptions: {

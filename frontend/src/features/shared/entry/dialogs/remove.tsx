@@ -1,9 +1,8 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from '@tanstack/react-router';
-import { toast } from 'sonner';
 
-import { errorMessage } from '@/api';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import { notify } from '@/lib/notify';
 import { runningSessions } from '@/lib/sessions';
 import { m } from '@/paraglide/messages.js';
 import { entryMutations } from '@/queries/entry';
@@ -20,8 +19,14 @@ const STOP_TIMEOUT_MS = 60_000;
  */
 function useEntryLifecycle(kind: 'instance' | 'server', id: string) {
   const queryClient = useQueryClient();
-  const stopEntry = useMutation(entryMutations.stop(kind, id));
-  const removeEntry = useMutation(entryMutations.remove(kind, id));
+  const stopEntry = useMutation({
+    ...entryMutations.stop(kind, id),
+    meta: { notify: false },
+  });
+  const removeEntry = useMutation({
+    ...entryMutations.remove(kind, id),
+    meta: { notify: false },
+  });
 
   const stop = () => stopEntry.mutateAsync({});
   const remove = () => removeEntry.mutateAsync();
@@ -116,11 +121,13 @@ export function RemoveEntryDialog({
       destructive
       confirmLabel={removeLabel}
       onConfirm={() => {
-        toast.promise(stopAndRemove(), {
-          loading: m['entry.remove.removing']({ name }),
-          success: m['app.toast.removed']({ name }),
-          error: (error: unknown) => errorMessage(error),
-        });
+        notify
+          .promise(stopAndRemove(), {
+            id: `remove:${kind}:${id}`,
+            loading: m['entry.remove.removing']({ name }),
+            success: () => m['app.toast.removed']({ name }),
+          })
+          .catch(() => undefined);
       }}
     />
   );

@@ -1,10 +1,9 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { toast } from 'sonner';
-
-import { errorMessage, system } from '@/api';
+import { system } from '@/api';
 // Not the dialogs barrel: its launch dialog imports the entry components back.
 import { ExportInstanceDialog } from '@/features/instances/dialogs/export';
+import { notify } from '@/lib/notify';
 import { instanceQueries } from '@/queries/instance';
 import { usePinned } from '@/queries/pinned';
 import { serverQueries } from '@/queries/server';
@@ -36,7 +35,9 @@ export function useEntryActions(entry: EntryActionTarget) {
         : queryClient.fetchQuery(instanceQueries.info(id));
     info
       .then(({ entryDir }) => system.openPath(entryDir))
-      .catch((error: Error) => toast.error(errorMessage(error)));
+      .catch((error: Error) =>
+        notify.failure(error, { id: `open-folder:${kind}:${id}` }),
+      );
   };
 
   return {

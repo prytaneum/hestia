@@ -1,7 +1,5 @@
 import { TrashIcon } from '@phosphor-icons/react';
 import { useNavigate } from '@tanstack/react-router';
-import { toast } from 'sonner';
-
 import type { EntryKind } from '@/api';
 import {
   SettingGroup,
@@ -10,6 +8,7 @@ import {
 } from '@/components/setting-controls';
 import { Button } from '@/components/ui/button';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import { notify } from '@/lib/notify';
 import { m } from '@/paraglide/messages.js';
 
 interface RemoveHandle {
@@ -64,7 +63,7 @@ export function DangerSettings({
             onConfirm={() =>
               remove.mutate(undefined, {
                 onSuccess: () => {
-                  toast.success(m['app.toast.removed']({ name }));
+                  notify.success(m['app.toast.removed']({ name }));
                   navigate({ to: server ? '/servers' : '/instances' });
                 },
               })

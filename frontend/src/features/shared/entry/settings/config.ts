@@ -1,6 +1,5 @@
-import { toast } from 'sonner';
-
 import type { ConfigEntry } from '@/api';
+import { notify } from '@/lib/notify';
 import { m } from '@/paraglide/messages.js';
 
 export interface SetConfig {
@@ -27,7 +26,7 @@ export function entryConfig(setConfig: SetConfig) {
     save: (key: string, value: string) =>
       setConfig.mutate(
         { key, value },
-        { onSuccess: () => toast.success(m['app.toast.saved']()) },
+        { onSuccess: () => notify.success(m['app.toast.saved']()) },
       ),
   };
 }

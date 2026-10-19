@@ -16,8 +16,6 @@ import {
 } from '@phosphor-icons/react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
-import { toast } from 'sonner';
-
 import { dialog, type FileEntry } from '@/api';
 import { Empty } from '@/components/empty';
 import { Bone } from '@/components/skeleton';
@@ -44,6 +42,7 @@ import { TabToolbar } from '@/features/shared/entry/detail';
 import { useDropzone } from '@/hooks/use-dropzone';
 import { ANY_FILE } from '@/lib/file-drop';
 import { agoLabel, bytes } from '@/lib/format';
+import { notify } from '@/lib/notify';
 import { cn } from '@/lib/utils';
 import { m } from '@/paraglide/messages.js';
 import { filesMutations, filesQueries } from '@/queries/files';
@@ -138,7 +137,7 @@ export function ServerFilesTab({
       { path, sources },
       {
         onSuccess: () =>
-          toast.success(m['server.files.uploaded']({ count: sources.length })),
+          notify.success(m['server.files.uploaded']({ count: sources.length })),
       },
     );
   };

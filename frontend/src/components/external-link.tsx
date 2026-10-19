@@ -1,7 +1,7 @@
 import type { ComponentProps } from 'react';
-import { toast } from 'sonner';
 
-import { errorMessage, system } from '@/api';
+import { system } from '@/api';
+import { notify } from '@/lib/notify';
 
 /**
  * A link that opens in the system browser rather than navigating the webview.
@@ -18,7 +18,9 @@ export function ExternalLink({ href, onClick, ...rest }: ComponentProps<'a'>) {
         if (!href) return;
         system
           .openUrl(href)
-          .catch((error: Error) => toast.error(errorMessage(error)));
+          .catch((error: Error) =>
+            notify.failure(error, { id: `open-url:${href}` }),
+          );
       }}
     />
   );

@@ -1,7 +1,5 @@
 import { BroomIcon } from '@phosphor-icons/react';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { toast } from 'sonner';
-
 import { Button } from '@/components/ui/button';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import {
@@ -13,6 +11,7 @@ import {
 import { StatusDot } from '@/components/ui/status-dot';
 import { Setting, SettingsSection } from '@/features/settings/components';
 import { bytes } from '@/lib/format';
+import { notify } from '@/lib/notify';
 import { m } from '@/paraglide/messages.js';
 import { cacheMutations, cacheQueries } from '@/queries/cache';
 import { useDaemon } from '@/queries/daemon';
@@ -68,7 +67,7 @@ function CacheField() {
         onConfirm={() =>
           clear.mutate(undefined, {
             onSuccess: (usage) =>
-              toast.success(
+              notify.success(
                 m['app.toast.cache_cleared']({ size: bytes(usage.bytes) }),
               ),
           })

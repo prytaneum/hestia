@@ -1,6 +1,5 @@
 import { UploadSimpleIcon } from '@phosphor-icons/react';
 import { useEffect, useRef, useState } from 'react';
-import { toast } from 'sonner';
 import type { Cape, Skin, SkinVariant } from '@/api';
 import { AppDialog, DialogBody, DialogFooter } from '@/components/dialog';
 import { Button } from '@/components/ui/button';
@@ -14,6 +13,7 @@ import {
   TEXTURE_EXTENSIONS,
 } from '@/features/skins/lib';
 import { useDropzone } from '@/hooks/use-dropzone';
+import { notify } from '@/lib/notify';
 import { cn } from '@/lib/utils';
 import { m } from '@/paraglide/messages.js';
 
@@ -78,7 +78,7 @@ export function EditSkinDialog({
     onDrop: ([path]) => {
       readTexturePath(path)
         .then(setTexture)
-        .catch(() => toast.error(m['skin.texture_unreadable']()));
+        .catch(() => notify.error(m['skin.texture_unreadable']()));
     },
   });
 

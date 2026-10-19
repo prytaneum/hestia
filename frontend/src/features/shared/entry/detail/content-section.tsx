@@ -7,10 +7,8 @@ import {
 } from '@phosphor-icons/react';
 import { useMutation, useQueries, useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
-import { toast } from 'sonner';
-
 import type { ContentKind, InstalledContent, UntrackedFile } from '@/api';
-import { dialog, errorMessage, system } from '@/api';
+import { dialog, system } from '@/api';
 import { Empty } from '@/components/empty';
 import { contentIcon } from '@/components/icons';
 import { OfflineNotice } from '@/components/offline-state';
@@ -19,6 +17,7 @@ import { Button } from '@/components/ui/button';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { KindChips } from '@/features/shared/content/components';
 import { kindInfo } from '@/features/shared/content/lib';
+import { notify } from '@/lib/notify';
 import { m } from '@/paraglide/messages.js';
 import {
   entryContentMutations,
@@ -363,7 +362,7 @@ function UntrackedFiles({ files }: { files: UntrackedFile[] }) {
   if (files.length === 0) return null;
   const reveal = (path: string) => {
     system.revealPath(path).catch((error: Error) => {
-      toast.error(errorMessage(error));
+      notify.failure(error, { id: `reveal:${path}` });
     });
   };
   return (

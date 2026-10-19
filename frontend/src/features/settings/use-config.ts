@@ -1,8 +1,7 @@
 /** The daemon config the settings page reads (`config.list`) and writes. */
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { toast } from 'sonner';
-
 import type { UpdateChannel } from '@/api/types/update';
+import { notify } from '@/lib/notify';
 
 import { m } from '@/paraglide/messages.js';
 import { configMutations, configQueries } from '@/queries/config';
@@ -42,7 +41,7 @@ export function useConfig() {
     save: (key: string, value: unknown) =>
       setConfig.mutate(
         { key, value },
-        { onSuccess: () => toast.success(m['app.toast.saved']()) },
+        { onSuccess: () => notify.success(m['app.toast.saved']()) },
       ),
   };
 }
