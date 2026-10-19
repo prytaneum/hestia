@@ -115,7 +115,7 @@ export function ModpackCard({
   const removePack = (keepContent: boolean) =>
     remove
       .mutateAsync({ keepContent })
-      .then((result) => {
+      .then((result) =>
         notify.success(
           keepContent
             ? m['content.modpack.released']({ files: result.releasedFiles })
@@ -123,13 +123,16 @@ export function ModpackCard({
                 files: result.removedFiles,
                 overrides: result.removedOverrides,
               }),
-        );
-        if (result.kept.length)
-          notify.info(m['content.modpack.kept']({ count: result.kept.length }));
-      })
-      .catch((error) =>
-        notify.failure(error, { id: `modpack:${kind}:${id}:remove` }),
-      );
+          {
+            id: `modpack:${kind}:${id}:remove`,
+            description: result.kept.length
+              ? m['content.modpack.kept']({ count: result.kept.length })
+              : undefined,
+          },
+        ),
+      )
+      // The MutationCache reports the failure; only the rejection is consumed.
+      .catch(() => undefined);
 
   return (
     <SideCard title={m['content.modpack.title']()}>
