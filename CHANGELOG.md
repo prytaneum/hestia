@@ -7,6 +7,26 @@ is what is written here.
 One `## <version>` heading per release. Everything until the next heading is
 that release's notes, rendered as markdown.
 
+## 1.0.0-beta.3
+
+Every running job in one place, launch progress where you press Play, and
+quieter, clearer notifications.
+
+- **Activity.** The status bar's job list is now an Activity panel: running jobs
+  with progress and cancel, recent ones with retry, open-entry and dismiss, and
+  a badge for failures you have not seen. Jobs started from the CLI, or before
+  the window reloaded, show up too.
+- **Launch progress.** The Play button turns into the progress readout while an
+  instance launches, with stage, percent, bytes, speed and time left, and the
+  play bar keeps showing it on every page. The first-launch dialog is gone.
+- **Inline saves.** Settings confirm on the control you used instead of a
+  "Saved" toast.
+- **Notifications.** Toasts appear bottom-right above the status bar. A job's
+  outcome is reported once, errors stay until dismissed, and cancelling or a job
+  started elsewhere no longer pops a toast.
+- **CLI.** `hestia job list` shows the daemon's running jobs and
+  `hestia job cancel <id>` cancels one.
+
 ## 1.0.0-beta.2
 
 Servers you can manage from end to end — files, players, scheduled tasks and a

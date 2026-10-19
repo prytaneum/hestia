@@ -97,7 +97,10 @@ implements that: `Jobs::run` in `job.rs` does. A `start_*` function builds a
 `Spec` naming its id, prefix and the claim it holds, and hands `run::<C>` a
 closure taking the engine and a `Reporter` and returning `C::Done`. `C` is the
 start contract (`proto::job::Job`): it fixes the progress and done types and
-supplies the `channel` every event carries. A family that serves several
+supplies the `channel` every event carries. While a job runs, `run` keeps its
+`JobInfo` (id, channel, subject, start time, last progress) in a registry that
+`job.list` returns, and every event carries the job's `subject`, so any client
+sees the same running set ([0090](../decisions/0090-the-daemon-keeps-the-job-registry.md)). A family that serves several
 contracts takes `C` as a type parameter, so the event names the channel that
 actually started the job. Spawning, progress coalescing, cancellation, terminal
 classification, event construction and logging are the runner's, so they cannot
@@ -171,7 +174,7 @@ is purely a compile-time one that keeps `make_router()` from becoming a
 
 | Registrar | Channels |
 |---|---|
-| `lifecycle` | `health.ping`, `app.info`, `daemon.status\|stop`, `events.subscribe`, `job.cancel` |
+| `lifecycle` | `health.ping`, `app.info`, `daemon.status\|stop`, `events.subscribe`, `job.list\|cancel` |
 | `config` | `config.get\|set\|list` — the reserved `home`/`autostart` keys routed to the path pointer and login registration |
 | `cache` | `cache.info\|list\|clear` |
 | `java` | `java.releases\|list\|install\|uninstall` |

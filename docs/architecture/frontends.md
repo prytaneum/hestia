@@ -294,6 +294,57 @@ Rules that keep it from drifting:
   pipeline hit-tests the pointer by hand. A zone with a `label` gets the shell's
   `FileDropOverlay`.
 
+## Notifications, Activity and saves
+
+Every piece of feedback has one surface, and one owner
+([0089](../decisions/0089-a-job-outcome-is-reported-once.md)):
+
+| Surface | For |
+|---|---|
+| Toast | an outcome that happened off-screen or in the background |
+| Inline | feedback on the control in view, such as a routine "saved" |
+| Activity | history, and anything to come back to |
+| `WarningNotice` | a degraded state that is still true |
+
+Toasts go through `lib/notify.ts`, the only module allowed to import `sonner`
+(a lint rule enforces it). They sit bottom-right, above the status bar, tinted
+by kind with the app's own tokens, at most three at once.
+
+- Success, info and warning toasts expire; an error, and any toast carrying an
+  action (Retry, View), stays until dismissed.
+- A finished operation is one toast: `notify.outcome` folds its warnings and
+  failed items into the description, never one toast each.
+- The job store reports a job's outcome and a call site never toasts a failure.
+  A cancelled or interrupted job shows nothing, and a job another client started
+  (the CLI, a schedule) never toasts; it appears only in Activity.
+- A repeat under the same id replaces its toast, so a retry swaps the failure
+  for its new outcome.
+
+**Activity** is the status bar's popover, fed by the job store. The trigger shows
+the newest running job with its stage and percent, a count of the rest, or a
+badge for failures not yet seen; opening the panel marks them seen. The panel
+lists running jobs (progress and Cancel) and recent settled ones (outcome,
+Retry for a failed job this window started, open its entry, dismiss), with
+Clear for the settled. A toast's View action opens the panel on that job's row.
+A polite status region announces when a job starts, changes stage or settles,
+never on a percentage tick. The store mirrors the daemon's registry
+(`job.list`, then `job` events carrying each job's subject), so jobs started
+from the CLI or before a reload appear too.
+
+**Inline saves.** A routine write confirms on the control that made it, through
+`useSaveState` (idle, saving, saved) and `SaveButton`: a spinner only if the
+write outlasts a short delay, a check for two seconds after. A failure
+returns the control to idle and is reported by the mutation cache, so a save
+never toasts "Saved".
+
+**The launch readout.** The Play (or Join) button becomes the launch's progress
+readout while the instance launches: ember fill, stage, percent, bytes, rate and
+ETA from the job's overall byte totals, with Cancel beside it. It appears once a
+launch outlasts a short threshold, counted from the job's start, so a quick
+launch never flashes. While a launch downloads, the play bar carries it on every
+route, pinned to its instance and quick-play target, and holds its outcome
+briefly once it settles.
+
 ## Two kinds of offline
 
 The daemon being down and the *internet* being unreachable are separate states
@@ -437,3 +488,4 @@ id, or on Linux each would block the other
 - [0052 — The tray and desktop must not share a GApplication id](../decisions/0052-tray-and-desktop-app-ids.md)
 - [0068 — The tray speaks the tray protocol, not a library that might be installed](../decisions/0068-the-tray-speaks-the-tray-protocol.md)
 - [0080 — Only the shell runs in the AppImage's environment](../decisions/0080-only-the-shell-runs-in-the-appimage-environment.md)
+- [0089 — A job outcome is reported once, by the job store](../decisions/0089-a-job-outcome-is-reported-once.md)
