@@ -8,8 +8,10 @@
  * connection leaves the work running, and only this asks it to stop.
  */
 import { call } from './core/ipc';
+import type { JobInfo } from './types/job';
 
-export function list() {
+/** The jobs the daemon is running, whichever client started them. */
+export function list(): Promise<JobInfo[]> {
   return call('job.list');
 }
 

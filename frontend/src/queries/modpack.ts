@@ -80,7 +80,7 @@ export const modpackMutations = {
   install: (kind: EntryKind) =>
     jobMutation<ModpackDone, InstallInput>({
       mutationKey: ['modpack', kind, 'install'],
-      meta: () => ({ kind: `${kind}.modpack.install` }),
+      meta: () => ({ channel: `${kind}.modpack.install` }),
       run: async ({ pack, target, eula, port }, job) => {
         const done =
           kind === 'server'
@@ -95,8 +95,8 @@ export const modpackMutations = {
     jobMutation<ModpackDone, UpdateInput>({
       mutationKey: [...entryScope(kind).modpack(id), 'update'],
       meta: () => ({
-        kind: 'modpack.update',
-        entry: { kind, id },
+        channel: 'modpack.update',
+        subject: { kind, id },
       }),
       run: (to, job) => api.update(entryTarget(kind, id), to, job),
       invalidates: () => invalidates(kind, id),

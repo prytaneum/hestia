@@ -16,6 +16,7 @@ import {
   HANDLER_ERROR,
   HestiaError,
   JobCancelled,
+  JobInterrupted,
   job as jobApi,
   jobId,
   onConnectionChange,
@@ -34,8 +35,8 @@ export interface JobEntry {
 
 export interface JobMeta {
   /** The job's start channel; its title is the `app.jobs.kind.<channel>` message. */
-  kind: keyof Jobs;
-  entry?: JobEntry;
+  channel: keyof Jobs;
+  subject?: JobEntry;
 }
 
 export type JobStatus =
@@ -71,8 +72,14 @@ export interface Job<TProgress = unknown> {
 
 const MAX_SETTLED = 50;
 
+/** What only this webview's own jobs carry: the keys to sweep and the run to abort. */
+interface Own {
+  sweep: QueryKey[];
+  abort: AbortController;
+}
+
 const jobs = new Map<string, Job>();
-const sweeps = new Map<string, QueryKey[]>();
+const owned = new Map<string, Own>();
 const listeners = new Set<() => void>();
 let snapshot: Job[] = [];
 let frame: number | null = null;
@@ -156,10 +163,12 @@ function settle(id: string, outcome: Outcome): void {
     'job settled',
   );
   jobs.set(id, { ...job, ...outcome, settledAt: Date.now() });
-  const keys = sweeps.get(id) ?? [];
-  sweeps.delete(id);
+  const own = owned.get(id);
+  owned.delete(id);
   emit();
-  for (const key of keys) invalidate(key);
+  if (outcome.status === 'interrupted')
+    own?.abort.abort(new JobInterrupted(id));
+  for (const key of own?.sweep ?? []) invalidate(key);
 }
 
 function adopt(
@@ -271,13 +280,14 @@ export function startJob<TData>(
   run: (job: JobRun) => Promise<TData>,
   invalidates: QueryKey[] = [],
 ): JobHandle<TData> {
-  const id = jobId(meta.kind);
-  log.debug({ id, channel: meta.kind, entry: meta.entry?.id }, 'job started');
-  sweeps.set(id, invalidates);
+  const id = jobId(meta.channel);
+  log.debug({ id, channel: meta.channel }, 'job started');
+  const abort = new AbortController();
+  owned.set(id, { sweep: invalidates, abort });
   register({
     id,
-    channel: meta.kind,
-    subject: meta.entry ?? null,
+    channel: meta.channel,
+    subject: meta.subject ?? null,
     origin: 'own',
     status: 'running',
     progress: null,
@@ -289,7 +299,7 @@ export function startJob<TData>(
     seen: false,
   });
 
-  const result = run({ id }).then(
+  const result = run({ id, signal: abort.signal }).then(
     (data) => {
       settle(id, { status: 'done', done: data });
       return data;

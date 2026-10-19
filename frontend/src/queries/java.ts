@@ -28,7 +28,7 @@ export const javaMutations = {
       JavaInstallProgress
     >({
       mutationKey: [...keys.java.all, 'install'],
-      meta: () => ({ kind: 'java.install' }),
+      meta: () => ({ channel: 'java.install' }),
       run: ({ major, force }, job) => api.install(major, { force }, job),
       invalidates: () => [keys.java.all],
     }),

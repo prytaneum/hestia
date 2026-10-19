@@ -34,6 +34,7 @@ export {
 } from './core/ipc';
 export {
   JobCancelled,
+  JobInterrupted,
   type JobParams,
   type JobRun,
   jobId,

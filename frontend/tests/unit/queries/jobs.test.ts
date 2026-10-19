@@ -1,5 +1,10 @@
 import { afterEach, beforeAll, describe, expect, it } from 'vitest';
-import { HestiaError, type JobInfo, type ProvisionProgress } from '@/api';
+import {
+  HestiaError,
+  type JobInfo,
+  JobInterrupted,
+  type ProvisionProgress,
+} from '@/api';
 import { connection, publish, publishJob } from '@/mock/bus';
 import { channels } from '@/mock/channels';
 import {
@@ -15,7 +20,7 @@ import {
 import { installFakeDaemon } from '../../support';
 
 const meta = (over: Partial<JobMeta> = {}): JobMeta => ({
-  kind: 'server.create',
+  channel: 'server.create',
   ...over,
 });
 
@@ -161,7 +166,18 @@ describe('the job store', () => {
   });
 
   it('hydrates: adopts a running job and interrupts a vanished one', async () => {
-    const vanished = startJob(meta(), () => new Promise(() => {}));
+    const vanished = startJob(
+      meta(),
+      (job) =>
+        new Promise((_, reject) =>
+          job.signal?.addEventListener('abort', () =>
+            reject(job.signal?.reason),
+          ),
+        ),
+    );
+    const interrupted = expect(vanished.result).rejects.toBeInstanceOf(
+      JobInterrupted,
+    );
     listed = [
       {
         id: 'bg-1',
@@ -182,11 +198,12 @@ describe('the job store', () => {
       progress: { current: 2 },
     });
     expect(find(vanished.id)?.status).toBe('interrupted');
+    await interrupted;
   });
 
   it('tags the entry a job acts on', () => {
     const { id } = startJob(
-      meta({ entry: { kind: 'instance', id: 'inst-1' } }),
+      meta({ subject: { kind: 'instance', id: 'inst-1' } }),
       () => new Promise(() => {}),
     );
     expect(find(id)?.subject).toEqual({ kind: 'instance', id: 'inst-1' });

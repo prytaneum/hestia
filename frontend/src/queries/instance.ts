@@ -110,8 +110,8 @@ export const instanceMutations = {
     >({
       mutationKey: [...keys.instances.detail(id), 'update'],
       meta: () => ({
-        kind: 'instance.update',
-        entry: { kind: 'instance', id },
+        channel: 'instance.update',
+        subject: { kind: 'instance', id },
       }),
       run: (params, job) => api.update({ ...params, instance: id }, job),
       invalidates: () => [
@@ -161,8 +161,8 @@ export const instanceMutations = {
     jobMutation<InstanceLaunchDone, LaunchVars>({
       mutationKey: [...keys.instances.all, 'launch'],
       meta: ({ id }) => ({
-        kind: 'instance.launch',
-        entry: { kind: 'instance', id },
+        channel: 'instance.launch',
+        subject: { kind: 'instance', id },
       }),
       run: ({ id, newSession, quickPlay, replace }, job) =>
         api.launch({ instance: id, newSession, quickPlay, replace }, job),

@@ -25,7 +25,7 @@ let finish: ((value: string) => void) | null = null;
 
 const spec = jobMutation<string, void>({
   mutationKey: ['test', 'job'],
-  meta: () => ({ kind: 'server.create', label: 'create' }),
+  meta: () => ({ channel: 'server.create' }),
   run: (_variables, job) => {
     received.push(job.id);
     return new Promise<string>((resolve) => {

@@ -13,7 +13,7 @@ import {
 } from '../../../support';
 
 const meta = (over: Partial<JobMeta> = {}): JobMeta => ({
-  kind: 'server.create',
+  channel: 'server.create',
   ...over,
 });
 
@@ -49,7 +49,10 @@ describe('the status bar', () => {
   it('prefers the entry’s live name over the job label', async () => {
     const server = listServers()[0];
     startJob(
-      meta({ kind: 'server.update', entry: { kind: 'server', id: server.id } }),
+      meta({
+        channel: 'server.update',
+        subject: { kind: 'server', id: server.id },
+      }),
       pendingJob,
     );
 

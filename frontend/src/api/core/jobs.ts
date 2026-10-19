@@ -39,12 +39,25 @@ export class JobCancelled extends Error {
 }
 
 /**
+ * The rejection a job settles with when the daemon no longer knows it (it
+ * restarted under the job), so no terminal event will ever arrive.
+ */
+export class JobInterrupted extends Error {
+  constructor(readonly id: string) {
+    super('interrupted');
+    this.name = 'JobInterrupted';
+  }
+}
+
+/**
  * One run's identity, minted by the caller and threaded into the API function.
  * Passed in rather than reported back so the caller's tracking cannot be
- * orphaned by an `await` on the way to `runJob`.
+ * orphaned by an `await` on the way to `runJob`. Aborting `signal` settles the
+ * run with its reason when no terminal event can come.
  */
 export interface JobRun {
   id: string;
+  signal?: AbortSignal;
 }
 
 type JobChannel = keyof Jobs & keyof Channels;
@@ -63,7 +76,7 @@ export async function runJob<K extends JobChannel>(
   params: JobParams<K>,
   job: JobRun,
 ): Promise<Jobs[K]['done']> {
-  const { id } = job;
+  const { id, signal } = job;
   let resolveOutcome!: (done: Jobs[K]['done']) => void;
   let rejectOutcome!: (error: Error) => void;
   const outcome = new Promise<Jobs[K]['done']>((resolve, reject) => {
@@ -72,6 +85,15 @@ export async function runJob<K extends JobChannel>(
   });
 
   let settled = false;
+  signal?.addEventListener(
+    'abort',
+    () => {
+      if (settled) return;
+      settled = true;
+      rejectOutcome(signal.reason);
+    },
+    { once: true },
+  );
   const off = await onDaemonEvent((event) => {
     if (settled || event.topic !== JOB_TOPIC || event.payload.id !== id) return;
     const { payload } = event;

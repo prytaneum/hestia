@@ -44,8 +44,8 @@ export const transferMutations = {
     jobMutation<ExportDone, ExportInput>({
       mutationKey: [...keys.instances.detail(id), 'export'],
       meta: () => ({
-        kind: 'instance.export',
-        entry: { kind: 'instance', id },
+        channel: 'instance.export',
+        subject: { kind: 'instance', id },
       }),
       run: (input, job) => api.exportInstance(id, input, job),
       invalidates: () => [[FOOTPRINT]],
@@ -53,7 +53,7 @@ export const transferMutations = {
   import: () =>
     jobMutation<ImportDone, { path: string; name?: string }>({
       mutationKey: [...keys.instances.all, 'import'],
-      meta: () => ({ kind: 'instance.import' }),
+      meta: () => ({ channel: 'instance.import' }),
       run: ({ path, name }, job) => api.importInstance(path, name ?? '', job),
       invalidates: () => [keys.instances.list()],
     }),

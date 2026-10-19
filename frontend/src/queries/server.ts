@@ -91,7 +91,7 @@ export const serverMutations = {
   create: () =>
     jobMutation<ServerDone, Partial<ServerCreateParams>>({
       mutationKey: [...keys.servers.all, 'create'],
-      meta: () => ({ kind: 'server.create' }),
+      meta: () => ({ channel: 'server.create' }),
       run: (params, job) => api.create(params, job),
       invalidates: () => [keys.servers.list()],
     }),
@@ -102,8 +102,8 @@ export const serverMutations = {
     >({
       mutationKey: [...keys.servers.detail(id), 'update'],
       meta: () => ({
-        kind: 'server.update',
-        entry: { kind: 'server', id },
+        channel: 'server.update',
+        subject: { kind: 'server', id },
       }),
       run: (params, job) => api.update({ ...params, server: id }, job),
       invalidates: () => [
@@ -149,8 +149,8 @@ export const serverMutations = {
       jobMutation<BackupInfo>({
         mutationKey: [...keys.servers.backups(id), 'create'],
         meta: () => ({
-          kind: 'server.backup.create',
-          entry: { kind: 'server', id },
+          channel: 'server.backup.create',
+          subject: { kind: 'server', id },
         }),
         run: (_variables, job) => api.backup.create(id, job),
         invalidates: () => [keys.servers.backups(id), keys.servers.info(id)],
@@ -160,8 +160,8 @@ export const serverMutations = {
       jobMutation<BackupInfo, string>({
         mutationKey: [...keys.servers.backups(id), 'restore'],
         meta: () => ({
-          kind: 'server.backup.restore',
-          entry: { kind: 'server', id },
+          channel: 'server.backup.restore',
+          subject: { kind: 'server', id },
         }),
         run: (backupId, job) => api.backup.restore(id, backupId, job),
         invalidates: () => [keys.servers.detail(id), keys.servers.info(id)],
