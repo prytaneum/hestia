@@ -1,7 +1,7 @@
 import { useMutation } from '@tanstack/react-query';
 import { useMemo } from 'react';
 
-import { useLaunchDialog } from '@/features/instances/dialogs/launch';
+import { useLaunch } from '@/features/instances/hooks';
 import { instanceMutations, useInstances } from '@/queries/instance';
 import { serverMutations, useServers } from '@/queries/server';
 import {
@@ -42,7 +42,7 @@ export function useInstanceCards(): {
   isPending: boolean;
 } {
   const instances = useInstances();
-  const { launch, restart, isLaunching } = useLaunchDialog();
+  const { launch, restart, isLaunching } = useLaunch();
   const stop = useMutation(instanceMutations.stopAny());
 
   const cards = useMemo(
@@ -53,10 +53,10 @@ export function useInstanceCards(): {
           busy: isLaunching(instance.id) || stopping,
           launching: isLaunching(instance.id),
           stopping,
-          onStart: () => launch(instance),
+          onStart: () => launch(instance.id),
           onStop: (session) => stop.mutate({ id: instance.id, session }),
-          onNewSession: () => launch(instance, { newSession: true }),
-          onRestart: (session) => restart(instance, session),
+          onNewSession: () => launch(instance.id, { newSession: true }),
+          onRestart: (session) => restart(instance.id, session),
         });
       }),
     [instances.data, isLaunching, launch, restart, stop],

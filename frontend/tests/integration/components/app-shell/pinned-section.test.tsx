@@ -2,7 +2,6 @@ import { screen, waitFor } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
 import { afterEach, describe, expect, it } from 'vitest';
 import { PinnedSection } from '@/components/app-shell/pinned-section';
-import { LaunchDialogProvider } from '@/features/instances/dialogs';
 import { findServer } from '@/mock/state/entries';
 import { serverProcessId } from '@/lib/process-id';
 import { isRunning } from '@/mock/state/processes';
@@ -19,12 +18,7 @@ afterEach(async () => {
 });
 
 async function pinServer(id: string) {
-  renderWithProviders(
-    <LaunchDialogProvider>
-      <PinnedSection pathname="/" />
-    </LaunchDialogProvider>,
-    { route: true },
-  );
+  renderWithProviders(<PinnedSection pathname="/" />, { route: true });
   const add = await screen.findByRole('button', {
     name: m['app.label.pin_entries'](),
   });

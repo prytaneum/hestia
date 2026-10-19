@@ -1,4 +1,4 @@
-import { GlobeIcon, PlayIcon, WarningCircleIcon } from '@phosphor-icons/react';
+import { GlobeIcon, WarningCircleIcon } from '@phosphor-icons/react';
 import { useMutation, useQueries, useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import type { ContentKind } from '@/api';
@@ -8,8 +8,6 @@ import { entryIcon } from '@/components/icons';
 import { Stat, TabCount } from '@/components/page';
 import { Bone } from '@/components/skeleton';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Spinner } from '@/components/ui/spinner';
 import { StatusDot } from '@/components/ui/status-dot';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
@@ -18,7 +16,8 @@ import {
   useEntryInstall,
 } from '@/features/content/install';
 import { SessionList, WorldRow } from '@/features/instances/components';
-import { useLaunchDialog } from '@/features/instances/dialogs';
+import { LaunchControl } from '@/features/instances/components/launch-control';
+import { useLaunch } from '@/features/instances/hooks';
 import {
   InstanceLogsTab,
   InstanceServersTab,
@@ -115,7 +114,7 @@ function InstanceDetail({
   const install = useEntryInstall(instance.name);
   const [focus, setFocus] = useState<string | null>(null);
   const [logSession, setLogSession] = useState<string | null>(null);
-  const { launch, restart, isLaunching } = useLaunchDialog();
+  const { launch, restart, isLaunching } = useLaunch();
   const stop = useMutation(entryMutations.stop('instance', id));
   const accepts = instance.accepts;
   // Shared with the content tab's own per-kind queries (cached), just for the
@@ -181,21 +180,16 @@ function InstanceDetail({
                   sessions={sessions}
                   busy={stop.isPending}
                   launching={isLaunching(id)}
-                  onNewSession={() => launch(instance, { newSession: true })}
-                  onRestart={(session) => restart(instance, session)}
+                  onNewSession={() => launch(id, { newSession: true })}
+                  onRestart={(session) => restart(id, session)}
                   onStop={(session) => stop.mutate({ session })}
                 />
               ) : (
-                <Button
-                  data-icon="inline-start"
-                  disabled={isLaunching(id) || job !== null}
-                  title={job ? busyReason(job) : undefined}
-                  className="bg-ember text-ember-foreground hover:bg-ember/90"
-                  onClick={() => launch(instance)}
-                >
-                  {isLaunching(id) ? <Spinner /> : <PlayIcon weight="fill" />}
-                  {m['app.action.play']()}
-                </Button>
+                <LaunchControl
+                  instanceId={id}
+                  disabled={job !== null}
+                  disabledReason={job ? busyReason(job) : undefined}
+                />
               )}
             </span>
             <EntryActionsMenu
@@ -361,17 +355,15 @@ function InstanceDetail({
                 <WorldRow
                   key={world.folder}
                   world={world}
-                  playing={isLaunching(id, world.folder)}
-                  disabledReason={
-                    joinable
-                      ? undefined
-                      : m['instance.quick_play.unsupported']()
-                  }
-                  onPlay={() =>
-                    launch(instance, {
-                      quickPlay: { kind: 'world', target: world.folder },
-                      newSession: running,
-                    })
+                  play={
+                    <LaunchControl
+                      instanceId={id}
+                      size="sm"
+                      quickPlay={{ kind: 'world', target: world.folder }}
+                      newSession={running}
+                      disabled={!joinable}
+                      disabledReason={m['instance.quick_play.unsupported']()}
+                    />
                   }
                 />
               ))}

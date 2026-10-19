@@ -41,6 +41,8 @@ export interface JobMeta {
   /** The job's start channel; its title is the `app.jobs.kind.<channel>` message. */
   channel: keyof Jobs;
   subject?: JobEntry;
+  /** What a launch joins (a world folder or server address); absent for a plain launch. */
+  target?: string;
 }
 
 export type JobStatus =
@@ -61,6 +63,8 @@ export interface Job<TProgress = unknown> {
   id: string;
   channel: string;
   subject: JobEntry | null;
+  /** The join target of an own launch; the daemon does not report it, so an adopted job has none. */
+  target: string | null;
   /** `own` when this webview started it; `foreign` when it was adopted. */
   origin: 'own' | 'foreign';
   status: JobStatus;
@@ -261,6 +265,7 @@ function adopt(
     id,
     channel,
     subject,
+    target: null,
     origin: 'foreign',
     status: 'running',
     progress: progress ?? null,
@@ -374,6 +379,7 @@ export function startJob<TData>(
     id,
     channel: meta.channel,
     subject: meta.subject ?? null,
+    target: meta.target ?? null,
     origin: 'own',
     status: 'running',
     progress: null,

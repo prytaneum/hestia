@@ -2,8 +2,14 @@
   "$schema": "https://inlang.com/schema/inlang-message-format",
   "instance": {
     "launch": {
-      "preparing": "Preparando os arquivos para a primeira execução…",
-      "title": "Iniciando {name}"
+      "cancel": "Cancelar inicialização",
+      "eta_hours": "cerca de {count} h restantes",
+      "eta_minutes": "cerca de {count} min restantes",
+      "eta_seconds": "menos de um minuto restante",
+      "name": "{action}, {status}",
+      "starting": "Iniciando…",
+      "status": "{stage} {percent}%",
+      "value_text": "{stage}, {percent}%"
     },
     "logs": {
       "all_sessions": "Todas as sessões"

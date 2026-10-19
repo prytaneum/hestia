@@ -3,7 +3,6 @@ import {
   CloudIcon,
   GlobeHemisphereWestIcon,
   HardDrivesIcon,
-  PlayIcon,
 } from '@phosphor-icons/react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
@@ -20,9 +19,9 @@ import {
   DropdownMenuLabel,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Spinner } from '@/components/ui/spinner';
 import { pngSource, Thumbnail } from '@/components/ui/thumbnail';
-import { useLaunchDialog } from '@/features/instances/dialogs';
+import { LaunchControl } from '@/features/instances/components/launch-control';
+import { useLaunch } from '@/features/instances/hooks';
 import { anchor } from '@/features/onboarding';
 import { EntryRunControl } from '@/features/shared/entry/components';
 import { agoLabel } from '@/lib/format';
@@ -61,7 +60,7 @@ export function PlayBar() {
   const { signedIn } = useAccounts();
   const instances = useInstances();
   const recent = useQuery(instanceQueries.recent());
-  const { launch, isLaunching } = useLaunchDialog();
+  const { launch, isLaunching } = useLaunch();
   const stop = useMutation(instanceMutations.stopAny());
   const [selKey, setSelKey] = useState<string | null>(null);
 
@@ -74,11 +73,8 @@ export function PlayBar() {
 
   const { play, instance } = sel;
   const sessions = runningSessions(instance);
-  const launching = isLaunching(instance.id, play.target.target);
+  const launching = isLaunching(instance.id);
   const stopping = stop.isPending && stop.variables?.id === instance.id;
-  const busy = launching || stopping;
-  const join = (newSession: boolean) =>
-    launch(instance, { quickPlay: play.target, newSession });
 
   return (
     <div
@@ -153,20 +149,20 @@ export function PlayBar() {
           size="sm"
           busy={stopping}
           launching={launching}
-          onNewSession={() => join(true)}
+          onNewSession={() =>
+            launch(instance.id, { quickPlay: play.target, newSession: true })
+          }
           onStop={(session) => stop.mutate({ id: instance.id, session })}
         />
       ) : (
-        <Button
-          data-icon="inline-start"
-          disabled={!signedIn || busy}
-          title={signedIn ? undefined : m['account.sign_in_to_play']()}
-          onClick={() => join(false)}
-          className="bg-ember text-ember-foreground hover:bg-ember/90"
-        >
-          {busy ? <Spinner /> : <PlayIcon weight="fill" />}
-          {m['app.action.join']()}
-        </Button>
+        <LaunchControl
+          instanceId={instance.id}
+          size="bar"
+          label="join"
+          quickPlay={play.target}
+          disabled={!signedIn || stopping}
+          disabledReason={signedIn ? undefined : m['account.sign_in_to_play']()}
+        />
       )}
     </div>
   );

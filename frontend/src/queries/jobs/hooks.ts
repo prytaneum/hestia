@@ -43,6 +43,47 @@ export function useBusyJob(kind: EntryKind, id: string): Job | null {
   );
 }
 
+const isRunningLaunch = (job: Job): boolean =>
+  job.status === 'running' && job.channel === 'instance.launch';
+
+/**
+ * The running launch of an instance, for the control that becomes its progress
+ * readout. Selecting the job re-renders only when its own progress moves.
+ */
+export function useLaunchJob(instanceId: string): Job | null {
+  return useSyncExternalStore(
+    subscribe,
+    () =>
+      getJobs().find(
+        (job) => isRunningLaunch(job) && job.subject?.id === instanceId,
+      ) ?? null,
+  );
+}
+
+/**
+ * Whether a launch of an instance is running; with a `target`, only a launch
+ * joining that world or server, so one row spins rather than all of them.
+ * The snapshot is the set of launches as a string, so progress ticks do not
+ * re-render the caller.
+ */
+export function useIsLaunching(): (id: string, target?: string) => boolean {
+  const key = useSyncExternalStore(subscribe, () =>
+    JSON.stringify(
+      getJobs()
+        .filter(isRunningLaunch)
+        .map((job) => [job.subject?.id, job.target]),
+    ),
+  );
+  return useMemo(() => {
+    const launching = JSON.parse(key) as [string, string | null][];
+    return (id, target) =>
+      launching.some(
+        ([launchId, joined]) =>
+          launchId === id && (target === undefined || joined === target),
+      );
+  }, [key]);
+}
+
 /**
  * Claim a job's display while a surface shows its progress, so it is never on
  * screen twice. The release on cleanup is what hands a dismissed dialog's job

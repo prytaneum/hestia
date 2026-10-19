@@ -4,7 +4,6 @@ import {
   DotsThreeIcon,
   HardDrivesIcon,
   PencilSimpleIcon,
-  PlayIcon,
   TrashIcon,
 } from '@phosphor-icons/react';
 import { useQuery } from '@tanstack/react-query';
@@ -18,7 +17,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Spinner } from '@/components/ui/spinner';
 import { StatusDot } from '@/components/ui/status-dot';
 import { pngSource, Thumbnail } from '@/components/ui/thumbnail';
 import { useSaveState } from '@/hooks/use-save-state';
@@ -27,16 +25,12 @@ import { instanceQueries } from '@/queries/instance';
 
 export function ServerRow({
   server,
-  joinable,
-  playing,
-  onPlay,
+  play,
   onEdit,
   onRemove,
 }: {
   server: ServerEntry;
-  joinable: boolean;
-  playing: boolean;
-  onPlay: () => void;
+  play: React.ReactNode;
   onEdit: () => void;
   onRemove: () => void;
 }) {
@@ -87,18 +81,7 @@ export function ServerRow({
         </Badge>
       )}
 
-      <Button
-        size="sm"
-        variant="ghost"
-        data-icon="inline-start"
-        className="shrink-0"
-        disabled={playing || !joinable}
-        title={joinable ? undefined : m['instance.quick_play.unsupported']()}
-        onClick={onPlay}
-      >
-        {playing ? <Spinner /> : <PlayIcon weight="fill" />}
-        {m['app.action.join']()}
-      </Button>
+      <div className="shrink-0">{play}</div>
 
       <DropdownMenu>
         <DropdownMenuTrigger

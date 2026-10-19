@@ -168,9 +168,10 @@ export const instanceMutations = {
   launchAny: () =>
     jobMutation<InstanceLaunchDone, LaunchVars>({
       mutationKey: [...keys.instances.all, 'launch'],
-      meta: ({ id }) => ({
+      meta: ({ id, quickPlay }) => ({
         channel: 'instance.launch',
         subject: { kind: 'instance', id },
+        target: quickPlay?.target,
       }),
       run: ({ id, newSession, quickPlay, replace }, job) =>
         api.launch({ instance: id, newSession, quickPlay, replace }, job),

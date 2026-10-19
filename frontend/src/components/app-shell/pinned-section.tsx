@@ -19,7 +19,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { StatusDot } from '@/components/ui/status-dot';
 import { Thumbnail } from '@/components/ui/thumbnail';
-import { useLaunchDialog } from '@/features/instances/dialogs';
+import { useLaunch } from '@/features/instances/hooks';
 import {
   busyReason,
   EntryContextMenu,
@@ -170,12 +170,11 @@ export function PinnedSection({ pathname }: { pathname: string }) {
     saveRef.current(pinned.map(({ kind, id }) => ({ kind, id })));
   }, [ready, instances.data, servers.data, pinned, pinnedEntries]);
 
-  const { launch, isLaunching } = useLaunchDialog();
+  const { launch, isLaunching } = useLaunch();
   const startServer = useMutation(serverMutations.startAny());
   const play = (pin: PinnedEntry) => {
     if (pin.kind === 'server') return startServer.mutate(pin.id);
-    const instance = instanceList.find((i) => i.id === pin.id);
-    if (instance) launch(instance);
+    launch(pin.id);
   };
   const isStarting = (pin: PinnedEntry) =>
     pin.kind === 'server'

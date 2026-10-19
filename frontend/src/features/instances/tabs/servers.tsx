@@ -19,10 +19,8 @@ import { Button } from '@/components/ui/button';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { Spinner } from '@/components/ui/spinner';
 import { ServerReorderList, ServerRow } from '@/features/instances/components';
-import {
-  ServerEntryDialog,
-  useLaunchDialog,
-} from '@/features/instances/dialogs';
+import { LaunchControl } from '@/features/instances/components/launch-control';
+import { ServerEntryDialog } from '@/features/instances/dialogs';
 import { TabToolbar } from '@/features/shared/entry/detail';
 import { notify } from '@/lib/notify';
 import { supportsQuickPlay } from '@/lib/quick-play';
@@ -43,7 +41,6 @@ import { keys } from '@/queries/keys';
 export function InstanceServersTab({ instance }: { instance: InstanceInfo }) {
   const client = useQueryClient();
   const servers = useQuery(instanceQueries.servers(instance.id));
-  const { launch, isLaunching } = useLaunchDialog();
   const remove = useMutation(instanceMutations.serverRemove(instance.id));
   const arrange = useMutation(instanceMutations.serversArrange(instance.id));
   const [editing, setEditing] = useState<ServerEntry | null | undefined>(
@@ -151,13 +148,16 @@ export function InstanceServersTab({ instance }: { instance: InstanceInfo }) {
             <ServerRow
               key={`${server.name}:${server.address}`}
               server={server}
-              joinable={joinable}
-              playing={isLaunching(instance.id, server.address)}
-              onPlay={() =>
-                launch(instance, {
-                  quickPlay: { kind: 'server', target: server.address },
-                  newSession: running,
-                })
+              play={
+                <LaunchControl
+                  instanceId={instance.id}
+                  size="sm"
+                  label="join"
+                  quickPlay={{ kind: 'server', target: server.address }}
+                  newSession={running}
+                  disabled={!joinable}
+                  disabledReason={m['instance.quick_play.unsupported']()}
+                />
               }
               onEdit={() => setEditing(server)}
               onRemove={() => setRemoving(server)}

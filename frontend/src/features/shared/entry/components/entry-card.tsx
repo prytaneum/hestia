@@ -10,6 +10,7 @@ import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { Spinner } from '@/components/ui/spinner';
 import { StatusDot } from '@/components/ui/status-dot';
 import { Thumbnail } from '@/components/ui/thumbnail';
+import { LaunchControl } from '@/features/instances/components/launch-control';
 import { layoutMorph, listItem } from '@/lib/motion';
 import { cn } from '@/lib/utils';
 import { m } from '@/paraglide/messages.js';
@@ -139,6 +140,16 @@ function ActionButton({
         }
         confirmLabel={m['app.action.stop']()}
         onConfirm={() => entry.onStop?.()}
+      />
+    );
+  }
+  if (entry.kind === 'instance' && !square) {
+    return (
+      <LaunchControl
+        instanceId={entry.id}
+        size="sm"
+        disabled={!entry.ready || entry.stopping || job !== null}
+        disabledReason={job ? busyReason(job) : undefined}
       />
     );
   }

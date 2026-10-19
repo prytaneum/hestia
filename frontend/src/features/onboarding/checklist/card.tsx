@@ -6,7 +6,7 @@ import {
 import { motion } from 'motion/react';
 
 import { Button } from '@/components/ui/button';
-import { useLaunchDialog } from '@/features/instances/dialogs';
+import { useLaunch } from '@/features/instances/hooks';
 import { listContainer, listItem } from '@/lib/motion';
 import { cn } from '@/lib/utils';
 import { m } from '@/paraglide/messages.js';
@@ -26,7 +26,7 @@ export function GettingStarted({
   const accounts = useAccounts();
   const instances = useInstances();
   const servers = useServers();
-  const { launch } = useLaunchDialog();
+  const { launch } = useLaunch();
 
   const steps = progress({
     signedIn: accounts.signedIn,
@@ -55,7 +55,7 @@ export function GettingStarted({
         break;
       case 'play': {
         const instance = (instances.data ?? [])[0];
-        if (instance) launch(instance);
+        if (instance) launch(instance.id);
         break;
       }
     }

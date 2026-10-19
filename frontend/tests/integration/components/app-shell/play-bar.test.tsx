@@ -1,7 +1,6 @@
 import { screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 import { PlayBar } from '@/components/app-shell/play-bar';
-import { LaunchDialogProvider } from '@/features/instances/dialogs';
 import { channels } from '@/mock/channels';
 import { m } from '@/paraglide/messages.js';
 import { queryClient } from '@/queries';
@@ -20,13 +19,7 @@ afterEach(async () => {
   resetQueryCache();
 });
 
-const bar = () =>
-  renderWithProviders(
-    <LaunchDialogProvider>
-      <PlayBar />
-    </LaunchDialogProvider>,
-    { route: true },
-  );
+const bar = () => renderWithProviders(<PlayBar />, { route: true });
 
 const recentLoaded = () =>
   waitFor(() =>

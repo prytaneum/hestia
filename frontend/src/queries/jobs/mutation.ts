@@ -92,6 +92,17 @@ export function jobMutation<
   };
 }
 
+/**
+ * Start a job without a mutation hook, for a caller that only fires it: the
+ * store owns progress, notification and retry, so nothing has to stay mounted.
+ */
+export function runJobMutation<TData, TVariables, TProgress>(
+  options: JobMutationOptions<TData, TVariables, TProgress>,
+  variables: TVariables,
+): void {
+  start(options.job, variables).result.catch(() => undefined);
+}
+
 export type JobMutationResult<TData, TVariables, TProgress> = UseMutationResult<
   TData,
   HestiaError,

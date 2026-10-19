@@ -1,8 +1,5 @@
-import { PlayIcon } from '@phosphor-icons/react';
 import type { WorldInfo } from '@/api';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Spinner } from '@/components/ui/spinner';
 import { WorldIcon } from '@/features/shared/entry/components';
 import { agoLabel, bytes } from '@/lib/format';
 import { m } from '@/paraglide/messages.js';
@@ -15,20 +12,16 @@ const msg = m as unknown as Record<string, () => string>;
  * world we could not read shows its folder and says so, rather than presenting
  * defaults as facts.
  *
- * `onPlay` adds the join-on-start action; without it the row is the plain
+ * `play` adds the join-on-start action; without it the row is the plain
  * listing the datapack picker renders.
  */
 export function WorldRow({
   world,
-  onPlay,
-  playing = false,
-  disabledReason,
+  play,
 }: {
   world: WorldInfo;
-  onPlay?: () => void;
-  playing?: boolean;
-  /** Why playing is unavailable (an older game version); enables it when unset. */
-  disabledReason?: string;
+  /** The join control; absent leaves the plain listing. */
+  play?: React.ReactNode;
 }) {
   return (
     <div className="group flex items-center gap-3 px-3 py-2.5">
@@ -64,20 +57,7 @@ export function WorldRow({
           {world.version}
         </Badge>
       )}
-      {onPlay && (
-        <Button
-          size="sm"
-          variant="ghost"
-          data-icon="inline-start"
-          className="shrink-0"
-          disabled={playing || disabledReason != null}
-          title={disabledReason}
-          onClick={onPlay}
-        >
-          {playing ? <Spinner /> : <PlayIcon weight="fill" />}
-          {m['app.action.play']()}
-        </Button>
-      )}
+      {play && <div className="shrink-0">{play}</div>}
     </div>
   );
 }

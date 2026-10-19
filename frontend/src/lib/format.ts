@@ -25,6 +25,19 @@ export function bytes(n: number): string {
   return `${value.toFixed(value < 10 && unit > 0 ? 1 : 0)} ${units[unit]}`;
 }
 
+const BYTE_UNITS = ['B', 'KB', 'MB', 'GB'];
+
+/** `current / total` sharing the total's unit: `120 / 340 MB`. */
+export function bytesOf(current: number, total: number): string {
+  let unit = 0;
+  while (total / 1024 ** (unit + 1) >= 1 && unit < BYTE_UNITS.length - 1) {
+    unit++;
+  }
+  const scale = 1024 ** unit;
+  const digits = total / scale < 10 && unit > 0 ? 1 : 0;
+  return `${(current / scale).toFixed(digits)} / ${(total / scale).toFixed(digits)} ${BYTE_UNITS[unit]}`;
+}
+
 const MEMORY_UNIT_GB: Record<string, number> = { k: 1024 ** 2, m: 1024, g: 1 };
 
 /**

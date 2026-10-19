@@ -1,10 +1,18 @@
 export { openActivity, setActivityOpen, useActivity } from './activity';
-export { useBusyJob, useEntryJobs, useJobDisplay, useJobs } from './hooks';
+export {
+  useBusyJob,
+  useEntryJobs,
+  useIsLaunching,
+  useJobDisplay,
+  useJobs,
+  useLaunchJob,
+} from './hooks';
 export {
   type JobMutationOptions,
   type JobMutationResult,
   type JobSpec,
   jobMutation,
+  runJobMutation,
   useJobMutation,
 } from './mutation';
 export {
