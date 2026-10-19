@@ -441,12 +441,30 @@ async fn a_successful_mutation_publishes_what_it_changed() {
     drop(daemon);
 }
 
+/// The job adds a mod whose local file is a FIFO: hashing it blocks until a
+/// writer opens the pipe, so the job is provably still running when listed.
 #[tokio::test]
-async fn a_settled_job_is_gone_from_the_job_list() {
-    use client::proto::java::{JavaInstall, JavaInstallParams};
-    use client::proto::job::JobList;
+async fn a_running_job_is_listed_with_its_subject_until_it_settles() {
+    use std::os::unix::fs::OpenOptionsExt;
+    use std::sync::atomic::{AtomicBool, Ordering};
 
-    let (daemon, client) = spawn_daemon().await;
+    use client::proto::content::{EntryContentAdd, EntryContentAddParams};
+    use client::proto::job::{JobList, JobSubject};
+
+    let home = temp_home();
+    let server_dir = home.path().join("servers").join("e2e");
+    std::fs::create_dir_all(server_dir.join("data")).expect("server dir");
+    std::fs::write(
+        server_dir.join("server.json"),
+        r#"{"schemaVersion":1,"id":"e2e","name":"e2e","createdUnix":0,"phase":"ready","gamePort":25565,
+            "profile":{"flavor":"fabric","gameVersion":"1.21.1"}}"#,
+    )
+    .expect("server record");
+    let fifo = home.path().join("blocking.jar");
+    let made = Command::new("mkfifo").arg(&fifo).status().expect("mkfifo");
+    assert!(made.success(), "mkfifo failed");
+
+    let (daemon, client) = spawn_daemon_at(home.path().to_path_buf(), Some(home)).await;
     let mut events = client.session().listen(None);
     client
         .session()
@@ -454,15 +472,54 @@ async fn a_settled_job_is_gone_from_the_job_list() {
         .await
         .expect("events.subscribe");
 
-    let params = JavaInstallParams {
-        major: 1,
+    let params = EntryContentAddParams {
+        target: EntryTarget::new(EntryKind::Server, "e2e"),
+        spec: ContentAddSpec {
+            kind: ContentKind::Mod,
+            items: vec![ContentAddItem {
+                path: fifo.to_string_lossy().into_owned(),
+                ..Default::default()
+            }],
+            ..Default::default()
+        },
         ..Default::default()
     };
     let started = client
         .session()
-        .call::<JavaInstall>(&params)
+        .call::<EntryContentAdd>(&params)
         .await
-        .expect("java.install starts");
+        .expect("content.add starts");
+
+    let listed = client
+        .session()
+        .call::<JobList>(&Default::default())
+        .await
+        .expect("job.list while running");
+    assert_eq!(listed.len(), 1, "the running job is listed");
+    assert_eq!(listed[0].id, started.id);
+    assert_eq!(
+        listed[0].subject,
+        Some(JobSubject {
+            kind: EntryKind::Server,
+            id: "e2e".into(),
+        })
+    );
+
+    // Each read of the pipe (hash, then copy) waits for a writer; a writer
+    // that opens and closes hands the reader an empty file.
+    let stop = Arc::new(AtomicBool::new(false));
+    let writer = {
+        let (stop, fifo) = (stop.clone(), fifo.clone());
+        std::thread::spawn(move || {
+            while !stop.load(Ordering::Relaxed) {
+                let _ = std::fs::OpenOptions::new()
+                    .write(true)
+                    .custom_flags(libc::O_NONBLOCK)
+                    .open(&fifo);
+                std::thread::sleep(Duration::from_millis(10));
+            }
+        })
+    };
 
     loop {
         let event = tokio::time::timeout(Duration::from_secs(60), events.recv())
@@ -476,6 +533,8 @@ async fn a_settled_job_is_gone_from_the_job_list() {
             break;
         }
     }
+    stop.store(true, Ordering::Relaxed);
+    writer.join().expect("writer thread");
 
     let listed = client
         .session()
