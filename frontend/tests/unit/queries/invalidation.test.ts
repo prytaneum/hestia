@@ -13,6 +13,8 @@ const progress: ProvisionProgress = {
   detail: '',
   item: 0,
   items: 0,
+  overallCurrent: 0,
+  overallTotal: 0,
 };
 
 const created: DaemonEvent = {

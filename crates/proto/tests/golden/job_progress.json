@@ -7,5 +7,7 @@
   "total": 4096,
   "detail": "Sodium",
   "item": 2,
-  "items": 5
+  "items": 5,
+  "overallCurrent": 0,
+  "overallTotal": 0
 }

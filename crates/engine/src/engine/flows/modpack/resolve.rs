@@ -185,6 +185,7 @@ impl Engine {
             artifact,
             &staged,
             ProvisionPhase::Content,
+            None,
             job,
         )
         .await;

@@ -11,6 +11,7 @@ mod meta;
 mod neoforge;
 mod paper;
 pub(crate) mod ping;
+pub(crate) mod plan;
 pub mod profile;
 mod provider;
 pub(crate) mod quickplay;

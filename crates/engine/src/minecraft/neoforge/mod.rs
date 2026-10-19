@@ -22,6 +22,7 @@ use proto::minecraft::GameVersion;
 
 use super::materialize::{self, OnProgress};
 use super::meta::{mojang, neoforge};
+use super::plan;
 use super::profile::{InstanceProfile, ServerJar, ServerLaunch, ServerProfile};
 use super::provider::{
     FlavorInfo, FlavorProvider, InstallRequest, ResolveRequest, Side, BOTH_SIDES,
@@ -148,13 +149,12 @@ async fn run_install(
         return Ok(());
     }
 
-    materialize::ensure_libraries(
-        request.cache,
+    let missing = plan::missing_libraries(
         &mojang::libraries(&installer.profile),
         &libraries,
-        on_progress,
-    )
-    .await?;
+        &materialize::present,
+    )?;
+    materialize::ensure_libraries(request.cache, &missing, &libraries, None, on_progress).await?;
 
     tracing::info!(
         loader,

@@ -1,9 +1,8 @@
 //! Materialises resolved profile pieces onto disk: single artifacts (jars),
-//! Maven-layout libraries, and the shared asset store. Every ensure is
-//! idempotent — a file already present at the expected size is skipped — so a
-//! launch only pays for what is missing.
+//! Maven-layout libraries, and the shared asset store. A launch pays only for
+//! what is missing: an artifact is skipped when present at the expected size,
+//! and libraries and assets are fetched from the lists `plan` found missing.
 
-use std::collections::HashSet;
 use std::path::{Component, Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 
@@ -13,6 +12,7 @@ use proto::download::{Checksum, HashAlgorithm};
 use proto::minecraft::{Artifact, ProvisionPhase, ProvisionProgress};
 use serde_json::Value;
 
+use super::plan::{AssetObject, Meter, Tally};
 use super::profile::{AssetIndex, Library, Native};
 
 use crate::cache::Cache;
@@ -46,7 +46,7 @@ pub fn safe_join(root: &Path, relative: &str) -> Result<PathBuf> {
     Ok(root.join(rel))
 }
 
-fn present(path: &Path, size: u64) -> bool {
+pub(crate) fn present(path: &Path, size: u64) -> bool {
     match std::fs::metadata(path) {
         Ok(m) => m.is_file() && (size == 0 || m.len() == size),
         Err(_) => false,
@@ -59,12 +59,14 @@ pub async fn ensure_artifact(
     artifact: &Artifact,
     destination: &Path,
     phase: ProvisionPhase,
+    tally: Option<&Tally>,
     on_progress: OnProgress<'_>,
 ) -> Result<()> {
     if present(destination, artifact.size) {
         return Ok(());
     }
     on_progress.check()?;
+    let meter = Meter::new(tally);
     Downloader::new(cache)
         .fetch(
             &artifact.url,
@@ -74,6 +76,7 @@ pub async fn ensure_artifact(
                 // Per chunk: a large artifact stops promptly, and its `.part`
                 // is discarded by the failure path rather than promoted.
                 on_progress.check()?;
+                meter.reach(dp.downloaded);
                 on_progress.report(&ProvisionProgress {
                     phase,
                     current: dp.downloaded,
@@ -84,65 +87,133 @@ pub async fn ensure_artifact(
                 Ok(())
             },
         )
-        .await
+        .await?;
+    meter.reach(artifact.size);
+    Ok(())
 }
 
-/// Ensure every library under `root` (Maven layout), reporting completed/total
-/// counts. Duplicate paths (a modloader profile layered over the base game) are
-/// fetched once.
-pub async fn ensure_libraries(
-    cache: Option<&Cache>,
-    libraries: &[Library],
-    root: &Path,
-    on_progress: OnProgress<'_>,
-) -> Result<()> {
-    let mut seen = HashSet::new();
-    let mut targets: Vec<Library> = Vec::new();
-    for library in libraries {
-        if seen.insert(library.path.as_str()) {
-            targets.push(library.clone());
+/// A batch of files fetched side by side, reported as one phase. With a
+/// `tally` the phase carries bytes (`current`/`total`) and the file count
+/// (`item`/`items`); without one it carries only completed/total files.
+struct Fetched<'a> {
+    job: OnProgress<'a>,
+    phase: ProvisionPhase,
+    tally: Option<&'a Tally>,
+    files_total: u64,
+    bytes_total: u64,
+    files: AtomicU64,
+    bytes: AtomicU64,
+}
+
+impl<'a> Fetched<'a> {
+    fn new(
+        job: OnProgress<'a>,
+        phase: ProvisionPhase,
+        tally: Option<&'a Tally>,
+        files_total: u64,
+        bytes_total: u64,
+    ) -> Self {
+        Fetched {
+            job,
+            phase,
+            tally,
+            files_total,
+            bytes_total,
+            files: AtomicU64::new(0),
+            bytes: AtomicU64::new(0),
         }
     }
-    let total = targets.len() as u64;
-    let done = AtomicU64::new(0);
-    report_count(on_progress, ProvisionPhase::Libraries, 0, total, "");
+
+    fn meter(&self) -> Meter<'a> {
+        Meter::new(self.tally)
+    }
+
+    fn written(&self, meter: &Meter<'_>, bytes: u64, detail: &str) {
+        self.bytes.fetch_add(meter.reach(bytes), Ordering::Relaxed);
+        self.report(detail);
+    }
+
+    fn completed(&self, meter: &Meter<'_>, size: u64, detail: &str) {
+        self.bytes.fetch_add(meter.reach(size), Ordering::Relaxed);
+        self.files.fetch_add(1, Ordering::Relaxed);
+        self.report(detail);
+    }
+
+    fn report(&self, detail: &str) {
+        let files = self.files.load(Ordering::Relaxed);
+        let progress = match self.tally {
+            Some(_) => ProvisionProgress {
+                phase: self.phase,
+                current: self.bytes.load(Ordering::Relaxed),
+                total: self.bytes_total,
+                detail: detail.to_string(),
+                item: files,
+                items: self.files_total,
+                ..ProvisionProgress::default()
+            },
+            None => ProvisionProgress {
+                phase: self.phase,
+                current: files,
+                total: self.files_total,
+                detail: detail.to_string(),
+                ..ProvisionProgress::default()
+            },
+        };
+        self.job.report(&progress);
+    }
+}
+
+/// Fetch the libraries a plan found missing under `root` (Maven layout).
+pub async fn ensure_libraries(
+    cache: Option<&Cache>,
+    missing: &[Library],
+    root: &Path,
+    tally: Option<&Tally>,
+    on_progress: OnProgress<'_>,
+) -> Result<()> {
+    if missing.is_empty() {
+        return Ok(());
+    }
+    let fetched = Fetched::new(
+        on_progress,
+        ProvisionPhase::Libraries,
+        tally,
+        missing.len() as u64,
+        missing.iter().map(|l| l.artifact.size).sum(),
+    );
+    fetched.report("");
 
     // Owned items: a closure taking a reference and returning an async block
     // trips rustc's higher-ranked lifetime inference (rust-lang/rust#89976).
-    let fetches = targets.into_iter().map(|library| {
-        let done = &done;
+    let fetches = missing.iter().cloned().map(|library| {
+        let fetched = &fetched;
         async move {
             on_progress.check()?;
             let destination = safe_join(root, &library.path)?;
-            if !present(&destination, library.artifact.size) {
-                Downloader::new(cache)
-                    .fetch(
-                        &library.artifact.url,
-                        &destination,
-                        library.artifact.checksum.as_ref(),
-                        &|_| Ok(()),
-                    )
-                    .await
-                    .with_context(|| format!("library {}", library.name))?;
-            }
-            let current = done.fetch_add(1, Ordering::Relaxed) + 1;
-            report_count(
-                on_progress,
-                ProvisionPhase::Libraries,
-                current,
-                total,
-                &library.name,
-            );
+            let meter = fetched.meter();
+            Downloader::new(cache)
+                .fetch(
+                    &library.artifact.url,
+                    &destination,
+                    library.artifact.checksum.as_ref(),
+                    &|dp| {
+                        on_progress.check()?;
+                        fetched.written(&meter, dp.downloaded, &library.name);
+                        Ok(())
+                    },
+                )
+                .await
+                .with_context(|| format!("library {}", library.name))?;
+            fetched.completed(&meter, library.artifact.size, &library.name);
             Ok::<(), anyhow::Error>(())
         }
     });
     drain(fetches).await
 }
 
-/// Ensure every native library is downloaded under `libraries_root` and
-/// unpacked into `natives_dir`, which is what `-Djava.library.path` names.
-pub async fn ensure_natives(
-    cache: Option<&Cache>,
+/// Unpack every native library, already downloaded under `libraries_root`, into
+/// `natives_dir`, which is what `-Djava.library.path` names.
+pub fn ensure_natives(
     natives: &[Native],
     libraries_root: &Path,
     natives_dir: &Path,
@@ -151,9 +222,6 @@ pub async fn ensure_natives(
     if natives.is_empty() {
         return Ok(());
     }
-    let jars: Vec<Library> = natives.iter().map(|n| n.library.clone()).collect();
-    ensure_libraries(cache, &jars, libraries_root, on_progress).await?;
-
     std::fs::create_dir_all(natives_dir)
         .with_context(|| format!("cannot create {}", natives_dir.display()))?;
     for native in natives {
@@ -205,25 +273,32 @@ fn unpack_native(jar: &Path, dest: &Path, exclude: &[String]) -> Result<()> {
     Ok(())
 }
 
-/// Ensure the asset index and every object it names under `root`
-/// (`indexes/<id>.json` + `objects/<hh>/<hash>`), reporting completed/total
-/// counts. Objects are content-addressed, so the store is shared by every
-/// version and never fetched twice.
-///
-/// Returns the directory the game must be pointed at (`${game_assets}`) when
-/// the index declares a legacy layout — a client too old to read the hashed
-/// store wants a tree named the way the index names it — and `None` when the
-/// modern store is what it reads.
-pub async fn ensure_assets(
+/// An asset index read from disk: every object it names, and the directory the
+/// game must be pointed at (`${game_assets}`) when the index declares a legacy
+/// layout — a client too old to read the hashed store wants a tree named the
+/// way the index names it. `None` when the modern store is what it reads.
+pub struct AssetStore {
+    pub mapped: Option<PathBuf>,
+    pub objects: Vec<AssetObject>,
+}
+
+/// Fetch the asset index (`indexes/<id>.json`) when missing and read it. It is
+/// small, and a launch needs its objects to know what it has to download.
+pub async fn read_assets(
     cache: Option<&Cache>,
     index: &AssetIndex,
     root: &Path,
     game_dir: &Path,
     on_progress: OnProgress<'_>,
-) -> Result<Option<PathBuf>> {
+) -> Result<AssetStore> {
     validate_filename(&index.id)?;
     let index_path = root.join("indexes").join(format!("{}.json", index.id));
     if !present(&index_path, index.artifact.size) {
+        on_progress.report(&ProvisionProgress {
+            phase: ProvisionPhase::Resolving,
+            detail: "asset index".to_string(),
+            ..ProvisionProgress::default()
+        });
         Downloader::new(cache)
             .fetch(
                 &index.artifact.url,
@@ -252,7 +327,7 @@ pub async fn ensure_assets(
         .and_then(Value::as_object)
         .context("asset index has no objects map")?;
 
-    let mut entries: Vec<(&String, String, u64)> = Vec::new();
+    let mut entries = Vec::with_capacity(objects.len());
     for (name, object) in objects {
         let Some(hash) = object.get("hash").and_then(Value::as_str) else {
             continue;
@@ -260,93 +335,86 @@ pub async fn ensure_assets(
         if hash.len() != 40 || !hash.bytes().all(|b| b.is_ascii_hexdigit()) {
             bail!("asset index names an invalid object hash: '{hash}'");
         }
-        entries.push((
-            name,
-            hash.to_string(),
-            object.get("size").and_then(Value::as_u64).unwrap_or(0),
-        ));
+        entries.push(AssetObject {
+            name: name.clone(),
+            hash: hash.to_string(),
+            size: object.get("size").and_then(Value::as_u64).unwrap_or(0),
+        });
+    }
+    Ok(AssetStore {
+        mapped,
+        objects: entries,
+    })
+}
+
+/// Fetch the objects a plan found missing into the content-addressed store under
+/// `root` (`objects/<hh>/<hash>`), shared by every version and never fetched
+/// twice, then mirror the whole index into the legacy tree when it declares one.
+pub async fn ensure_assets(
+    store: &AssetStore,
+    missing: &[AssetObject],
+    root: &Path,
+    index_id: &str,
+    tally: Option<&Tally>,
+    on_progress: OnProgress<'_>,
+) -> Result<()> {
+    let objects_root = root.join("objects");
+    let fetched = Fetched::new(
+        on_progress,
+        ProvisionPhase::Assets,
+        tally,
+        missing.len() as u64,
+        missing.iter().map(|o| o.size).sum(),
+    );
+    if !missing.is_empty() {
+        fetched.report(index_id);
     }
 
-    let mut seen = HashSet::new();
-    let todo: Vec<(String, u64)> = entries
-        .iter()
-        .filter(|(_, hash, _)| seen.insert(hash.clone()))
-        .map(|(_, hash, size)| (hash.clone(), *size))
-        .collect();
-
-    let total = todo.len() as u64;
-    let done = AtomicU64::new(0);
-    report_count(on_progress, ProvisionPhase::Assets, 0, total, &index.id);
-
-    let objects_root = root.join("objects");
-    let fetches = todo.into_iter().map(|(hash, size)| {
-        let done = &done;
+    let fetches = missing.iter().cloned().map(|object| {
+        let fetched = &fetched;
         let objects_root = &objects_root;
-        let index_id = &index.id;
         async move {
             on_progress.check()?;
-            let prefix = hash[..2].to_string();
-            let destination = objects_root.join(&prefix).join(&hash);
-            if !present(&destination, size) {
-                let checksum = Checksum {
-                    algorithm: HashAlgorithm::Sha1,
-                    hex: hash.clone(),
-                };
-                // The objects tree is itself content-addressed; going through
-                // the download cache would only store every asset twice.
-                Downloader::new(None)
-                    .fetch(
-                        &format!("{ASSET_HOST}/{prefix}/{hash}"),
-                        &destination,
-                        Some(&checksum),
-                        &|_| Ok(()),
-                    )
-                    .await
-                    .with_context(|| format!("asset object {hash}"))?;
-            }
-            let current = done.fetch_add(1, Ordering::Relaxed) + 1;
-            report_count(
-                on_progress,
-                ProvisionPhase::Assets,
-                current,
-                total,
-                index_id,
-            );
+            let checksum = Checksum {
+                algorithm: HashAlgorithm::Sha1,
+                hex: object.hash.clone(),
+            };
+            let meter = fetched.meter();
+            // The objects tree is itself content-addressed; going through
+            // the download cache would only store every asset twice.
+            Downloader::new(None)
+                .fetch(
+                    &format!("{ASSET_HOST}/{}/{}", &object.hash[..2], object.hash),
+                    &object.path(objects_root),
+                    Some(&checksum),
+                    &|dp| {
+                        on_progress.check()?;
+                        fetched.written(&meter, dp.downloaded, index_id);
+                        Ok(())
+                    },
+                )
+                .await
+                .with_context(|| format!("asset object {}", object.hash))?;
+            fetched.completed(&meter, object.size, index_id);
             Ok::<(), anyhow::Error>(())
         }
     });
     drain(fetches).await?;
 
-    if let Some(dir) = &mapped {
-        for (name, hash, size) in &entries {
-            let destination = safe_join(dir, name)?;
-            if present(&destination, *size) {
+    if let Some(dir) = &store.mapped {
+        for object in &store.objects {
+            let destination = safe_join(dir, &object.name)?;
+            if present(&destination, object.size) {
                 continue;
             }
             if let Some(parent) = destination.parent() {
                 std::fs::create_dir_all(parent)?;
             }
-            std::fs::copy(objects_root.join(&hash[..2]).join(hash), &destination)
+            std::fs::copy(object.path(&objects_root), &destination)
                 .with_context(|| format!("cannot write {}", destination.display()))?;
         }
     }
-    Ok(mapped)
-}
-
-fn report_count(
-    on_progress: OnProgress<'_>,
-    phase: ProvisionPhase,
-    current: u64,
-    total: u64,
-    detail: &str,
-) {
-    on_progress.report(&ProvisionProgress {
-        phase,
-        current,
-        total,
-        detail: detail.to_string(),
-        ..ProvisionProgress::default()
-    });
+    Ok(())
 }
 
 /// Run the fetch futures a few at a time, failing fast on the first error.

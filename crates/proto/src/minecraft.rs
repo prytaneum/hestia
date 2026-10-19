@@ -133,6 +133,11 @@ pub enum ProvisionPhase {
 /// side (a content install, a modpack) reports the bytes of the whole batch;
 /// when a file's size is not known up front it counts files instead, as `item`
 /// (1-based) of `items`. Both are zero otherwise.
+///
+/// A launch plans its downloads up front and reports `overallCurrent` of
+/// `overallTotal` bytes across every phase; the pair only moves forward and
+/// stays at its last value through a phase that has no bytes. `0/0` means the
+/// job has no plan, and `current`/`total` are all there is.
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
 #[serde(default, rename_all = "camelCase")]
@@ -143,6 +148,8 @@ pub struct ProvisionProgress {
     pub detail: String,
     pub item: u64,
     pub items: u64,
+    pub overall_current: u64,
+    pub overall_total: u64,
 }
 
 impl ProvisionProgress {
@@ -152,6 +159,9 @@ impl ProvisionProgress {
     /// bar instead of snapping back on each per-unit reset. Shared by the CLI
     /// gauge, the daemon's progress coalescing, and the desktop's mirror.
     pub fn ratio(&self) -> f64 {
+        if self.overall_total > 0 {
+            return (self.overall_current as f64 / self.overall_total as f64).clamp(0.0, 1.0);
+        }
         let unit = if self.total > 0 {
             (self.current as f64 / self.total as f64).clamp(0.0, 1.0)
         } else {
@@ -184,6 +194,20 @@ mod tests {
         assert_eq!(downgrade_between(&list, "1.20.4", "1.21.1"), Some(false));
         assert_eq!(downgrade_between(&list, "1.21.1", "1.20.4"), Some(true));
         assert_eq!(downgrade_between(&list, "1.21", "1.21"), Some(false));
+    }
+
+    #[test]
+    fn a_planned_total_outranks_the_phase_extent() {
+        let progress = ProvisionProgress {
+            current: 1,
+            total: 1,
+            item: 3,
+            items: 3,
+            overall_current: 25,
+            overall_total: 100,
+            ..ProvisionProgress::default()
+        };
+        assert_eq!(progress.ratio(), 0.25);
     }
 
     #[test]

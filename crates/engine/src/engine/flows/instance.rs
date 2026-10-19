@@ -6,16 +6,19 @@ use std::path::{Path, PathBuf};
 use anyhow::{bail, Context, Result};
 use proto::error::{ErrorInfo, Field, Reason};
 use proto::instance::{InstanceDetails, QuickPlay, WorldInfo};
-use proto::minecraft::{ConfigEntry, ProvisionPhase};
+use proto::minecraft::{ConfigEntry, ProvisionPhase, ProvisionProgress};
 use proto::warning::WarningInfo;
 
 use super::{guard_downgrade, meta_dir, pick_name};
+use crate::cancel::Job;
 use crate::content::install;
 use crate::engine::Engine;
 use crate::instances::InstanceRecord;
 use crate::minecraft::launch::{self, InstancePaths, LaunchAccount, LaunchPlan};
 use crate::minecraft::log4j;
 use crate::minecraft::materialize::{self, OnProgress};
+use crate::minecraft::plan::{self, PlanInput, Tally};
+use crate::minecraft::profile::Library;
 use crate::minecraft::{ping, quickplay, world, Side};
 
 /// Per-session files under the instance root, not `data/`, so a backup and an
@@ -189,10 +192,6 @@ impl Engine {
         }
         let (account, mut warnings) = self.launch_account(account, offline).await?;
 
-        let java = self
-            .ensure_java(record.profile.java_major, on_progress)
-            .await?;
-
         materialize::validate_filename(&record.profile.game_version)?;
         let meta = meta_dir(self.data_home());
         // `versions/<id>/<id>.jar`, Mojang's own layout rather than a name of
@@ -205,33 +204,73 @@ impl Engine {
             .join("versions")
             .join(&record.profile.game_version)
             .join(format!("{}.jar", record.profile.game_version));
-        materialize::ensure_artifact(
-            None,
-            &record.profile.client,
-            &client_jar,
-            ProvisionPhase::Client,
-            on_progress,
-        )
-        .await?;
-
         let libraries_root = meta.join("libraries");
-        materialize::ensure_libraries(
-            None,
-            &record.profile.libraries,
-            &libraries_root,
+        let assets_root = meta.join("assets");
+        let game_dir = self.instances.data_dir(&record);
+
+        let store = materialize::read_assets(
+            Some(&self.cache),
+            &record.profile.asset_index,
+            &assets_root,
+            &game_dir,
             on_progress,
         )
         .await?;
+        let libraries: Vec<Library> = record
+            .profile
+            .libraries
+            .iter()
+            .chain(record.profile.natives.iter().map(|n| &n.library))
+            .cloned()
+            .collect();
+        let plan = plan::plan_downloads(
+            &PlanInput {
+                client: &record.profile.client,
+                client_jar: &client_jar,
+                libraries: &libraries,
+                libraries_root: &libraries_root,
+                assets: &store.objects,
+                objects_root: &assets_root.join("objects"),
+            },
+            materialize::present,
+        )?;
+        let java_bytes = self
+            .java
+            .download_size(record.profile.java_major)
+            .await
+            .unwrap_or_else(|e| {
+                tracing::warn!(error = %e, "cannot size the java download; launching without it in the total");
+                0
+            });
+        let tally = Tally::new(plan.bytes + java_bytes);
+        let stamped = |progress: &ProvisionProgress| {
+            let mut progress = progress.clone();
+            tally.stamp(&mut progress);
+            on_progress.report(&progress);
+        };
+        let job = Job::new(&stamped, on_progress.cancel());
+        let tally = Some(&tally);
+
+        let java = self
+            .ensure_java(record.profile.java_major, tally, &job)
+            .await?;
+
+        if plan.client {
+            materialize::ensure_artifact(
+                None,
+                &record.profile.client,
+                &client_jar,
+                ProvisionPhase::Client,
+                tally,
+                &job,
+            )
+            .await?;
+        }
+
+        materialize::ensure_libraries(None, &plan.libraries, &libraries_root, tally, &job).await?;
 
         let natives_dir = meta.join("natives").join(&record.profile.game_version);
-        materialize::ensure_natives(
-            None,
-            &record.profile.natives,
-            &libraries_root,
-            &natives_dir,
-            on_progress,
-        )
-        .await?;
+        materialize::ensure_natives(&record.profile.natives, &libraries_root, &natives_dir, &job)?;
 
         self.minecraft
             .install(
@@ -247,11 +286,10 @@ impl Engine {
                     cache: None,
                     processes: self.processes(),
                 },
-                on_progress,
+                &job,
             )
             .await?;
 
-        let game_dir = self.instances.data_dir(&record);
         std::fs::create_dir_all(&game_dir)
             .with_context(|| format!("cannot create {}", game_dir.display()))?;
         if reconcile {
@@ -264,15 +302,16 @@ impl Engine {
         }
         // After the sync pass: a legacy index mirrors into the game directory,
         // which that pass reconciles.
-        let assets_root = meta.join("assets");
-        let mapped_assets = materialize::ensure_assets(
-            Some(&self.cache),
-            &record.profile.asset_index,
+        materialize::ensure_assets(
+            &store,
+            &plan.assets,
             &assets_root,
-            &game_dir,
-            on_progress,
+            &record.profile.asset_index.id,
+            tally,
+            &job,
         )
         .await?;
+        let mapped_assets = store.mapped;
 
         // Per-session logging lives under the instance root (not data/, so it is
         // outside backups): each concurrent session gets its own file the

@@ -67,6 +67,8 @@ describe('useJobMutation', () => {
         detail: '',
         item: 0,
         items: 0,
+        overallCurrent: 0,
+        overallTotal: 0,
       }),
     );
     await waitFor(() =>

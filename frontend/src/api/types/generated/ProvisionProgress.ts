@@ -8,5 +8,10 @@ import type { ProvisionPhase } from "./ProvisionPhase";
  * side (a content install, a modpack) reports the bytes of the whole batch;
  * when a file's size is not known up front it counts files instead, as `item`
  * (1-based) of `items`. Both are zero otherwise.
+ *
+ * A launch plans its downloads up front and reports `overallCurrent` of
+ * `overallTotal` bytes across every phase; the pair only moves forward and
+ * stays at its last value through a phase that has no bytes. `0/0` means the
+ * job has no plan, and `current`/`total` are all there is.
  */
-export type ProvisionProgress = { phase: ProvisionPhase, current: number, total: number, detail: string, item: number, items: number, };
+export type ProvisionProgress = { phase: ProvisionPhase, current: number, total: number, detail: string, item: number, items: number, overallCurrent: number, overallTotal: number, };

@@ -19,6 +19,7 @@ pub struct JavaPackage {
     pub url: String,
     pub archive_name: String,
     pub checksum: Checksum,
+    pub size: u64,
 }
 
 #[derive(Deserialize, Default)]
@@ -50,6 +51,7 @@ struct Package {
     link: String,
     name: String,
     checksum: String,
+    size: u64,
 }
 
 async fn fetch_json<T: DeserializeOwned>(url: &str, query: &[(&str, &str)]) -> Result<T> {
@@ -121,6 +123,7 @@ fn package_from_json(assets: Vec<Asset>, major: i32, target: &JavaTarget) -> Res
                 algorithm: HashAlgorithm::Sha256,
                 hex: package.checksum,
             },
+            size: package.size,
         };
         if resolved.url.is_empty()
             || resolved.archive_name.is_empty()

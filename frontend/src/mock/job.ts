@@ -98,6 +98,8 @@ export function startJob<K extends ProvisionJob>(plan: {
       detail: step.detail ?? '',
       item: 0,
       items: 0,
+      overallCurrent: 0,
+      overallTotal: 0,
     })),
     done: plan.done,
   });

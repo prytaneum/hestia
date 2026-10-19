@@ -55,7 +55,7 @@ impl Engine {
         // against the schema the server itself generated.
         let provisioned = async {
             let java = self
-                .ensure_java(record.profile.java_major, on_progress)
+                .ensure_java(record.profile.java_major, None, on_progress)
                 .await?;
             on_progress.check()?;
             self.servers.provision(&record)?;
@@ -125,7 +125,9 @@ impl Engine {
                 .await
                 .context("pre-update backup failed")?;
         }
-        let java = self.ensure_java(profile.java_major, on_progress).await?;
+        let java = self
+            .ensure_java(profile.java_major, None, on_progress)
+            .await?;
         // The pre-update backup is on disk by now, so a cancel here costs
         // nothing: the server is still on its old version.
         on_progress.check()?;
@@ -152,6 +154,7 @@ impl Engine {
                 artifact,
                 &data.join(&artifact.filename),
                 ProvisionPhase::Server,
+                None,
                 on_progress,
             )
             .await?;

@@ -288,6 +288,14 @@ impl ProvisionReporter {
             _ if progress.total == 0 && !progress.detail.is_empty() => {
                 View::Spinner(progress.detail.clone())
             }
+            _ if progress.overall_total > 0 => {
+                let rate = self.rate.lock().unwrap().observe(progress.overall_current);
+                View::Gauge {
+                    label: gauge_label(progress.phase),
+                    ratio: overall_ratio(progress),
+                    detail: overall_detail(progress, rate),
+                }
+            }
             ProvisionPhase::Java
             | ProvisionPhase::Server
             | ProvisionPhase::Client
@@ -356,6 +364,25 @@ fn bytes_detail(progress: &ProvisionProgress, rate: f64) -> String {
         parts.push(progress.detail.clone());
     }
     parts.push(size_detail(progress.current, progress.total, rate));
+    parts.join(" · ")
+}
+
+/// The detail line of a launch with a planned total: what is downloading, its
+/// file count, and the whole launch's bytes rather than the phase's.
+fn overall_detail(progress: &ProvisionProgress, rate: f64) -> String {
+    let mut parts = vec![if progress.detail.is_empty() {
+        provision_noun(progress.phase).to_string()
+    } else {
+        progress.detail.clone()
+    }];
+    if progress.items > 0 {
+        parts.push(format!("{}/{} files", progress.item, progress.items));
+    }
+    parts.push(size_detail(
+        progress.overall_current,
+        progress.overall_total,
+        rate,
+    ));
     parts.join(" · ")
 }
 

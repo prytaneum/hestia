@@ -91,6 +91,17 @@ impl Java {
         removed
     }
 
+    /// Bytes an install of `major` would download: `0` when it is already
+    /// installed, so a launch can plan its total before fetching anything.
+    pub async fn download_size(&self, major: i32) -> Result<u64> {
+        if self.installed().iter().any(|r| r.major == major) {
+            return Ok(0);
+        }
+        Ok(adoptium::resolve(major, &platform::host_target()?)
+            .await?
+            .size)
+    }
+
     /// Blocking resolve → download → extract → register; a failed install leaves
     /// nothing behind. An already-installed line is returned as-is unless `force`.
     pub async fn install(

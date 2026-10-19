@@ -38,14 +38,22 @@ use proto::minecraft::{ProvisionPhase, ProvisionProgress};
 
 use super::Engine;
 use crate::minecraft::materialize::OnProgress;
+use crate::minecraft::plan::{Meter, Tally};
 
 impl Engine {
     /// The installed runtime for `major`, installing it when missing.
-    async fn ensure_java(&self, major: i32, on_progress: OnProgress<'_>) -> Result<PathBuf> {
+    async fn ensure_java(
+        &self,
+        major: i32,
+        tally: Option<&Tally>,
+        on_progress: OnProgress<'_>,
+    ) -> Result<PathBuf> {
         let detail = format!("java {major}");
+        let meter = Meter::new(tally);
         let outcome = self
             .java
             .install(major, false, on_progress.cancel(), |jp| {
+                meter.reach(jp.current);
                 on_progress.report(&ProvisionProgress {
                     phase: ProvisionPhase::Java,
                     current: jp.current,
