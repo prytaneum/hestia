@@ -20,19 +20,17 @@ function announcement(
     case 'running': {
       const stage = stageOf(job);
       if (before === undefined)
-        return m['app.jobs.panel.announce_started']({ title });
-      return stage
-        ? m['app.jobs.panel.announce_stage']({ title, stage })
-        : null;
+        return m['app.jobs.announce.started']({ title });
+      return stage ? m['app.jobs.announce.stage']({ title, stage }) : null;
     }
     case 'done':
-      return m['app.jobs.panel.announce_done']({ title });
+      return m['app.jobs.announce.done']({ title });
     case 'failed':
       return m['app.jobs.failed_title']({ title });
     case 'cancelled':
-      return m['app.jobs.panel.announce_cancelled']({ title });
+      return m['app.jobs.announce.cancelled']({ title });
     case 'interrupted':
-      return m['app.jobs.panel.announce_interrupted']({ title });
+      return m['app.jobs.announce.interrupted']({ title });
   }
 }
 

@@ -101,32 +101,16 @@
           "download": "Downloading the update"
         }
       },
-      "more": "+{count} more",
-      "panel": {
-        "announce_cancelled": "{title} cancelled",
-        "announce_done": "{title} finished",
-        "announce_interrupted": "{title} interrupted",
-        "announce_stage": "{title}: {stage}",
-        "announce_started": "{title} started",
-        "cancel": "Cancel {title}",
-        "clear": "Clear finished",
-        "dismiss": "Dismiss {title}",
-        "empty": "No recent activity",
-        "failed_count": "{count} failed",
-        "label": "Activity",
-        "open": "Open",
-        "open_label": "Open {title}",
-        "recent": "Recent",
-        "retry": "Retry",
-        "retry_label": "Retry {title}",
-        "running": "Running",
-        "running_count": "{count} running",
-        "status_cancelled": "Cancelled",
-        "status_done": "Done",
-        "status_failed": "Failed",
-        "status_interrupted": "Interrupted — the daemon restarted",
-        "summary": "Activity, {summary}"
+      "announce": {
+        "cancelled": "{title} cancelled",
+        "done": "{title} finished",
+        "interrupted": "{title} interrupted",
+        "stage": "{title}: {stage}",
+        "started": "{title} started"
       },
+      "cancel": "Cancel {title}",
+      "interrupted": "{title} interrupted",
+      "interrupted_detail": "The daemon restarted before it finished",
       "verb": {
         "content": {
           "add": "Adding content",
@@ -239,6 +223,16 @@
       "works_body": "Launching instances and running servers, the content already installed, worlds, backups, and settings.",
       "works_title": "Still works"
     },
+    "notifications": {
+      "clear": "Clear all",
+      "empty": "No notifications",
+      "label": "Notifications",
+      "more": "+{count} more",
+      "remove": "Remove {title}",
+      "running_count": "{count} running",
+      "summary": "Notifications, {summary}",
+      "unread_count": "{count} unread"
+    },
     "playbar": {
       "kind": {
         "realm": "Realm",
@@ -287,12 +281,10 @@
       "created": "{name} created",
       "failed_count": "{failed} of {total} failed",
       "failed_only": "{failed} failed",
-      "notifications": "Notifications",
       "removed": "{name} removed",
       "retry": "Retry",
       "started": "{name} started",
       "updated": "{name} updated",
-      "view_details": "View details",
       "warning_count": "{count} warnings"
     },
     "validation": {

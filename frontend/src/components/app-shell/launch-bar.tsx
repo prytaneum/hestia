@@ -8,15 +8,11 @@ import {
   LaunchControl,
   SHOW_AFTER_MS,
 } from '@/features/instances/components/launch-control';
+import { setNotificationsOpen } from '@/lib/notifications';
 import { cn } from '@/lib/utils';
 import { m } from '@/paraglide/messages.js';
 import { useInstances } from '@/queries/instance';
-import {
-  getJobs,
-  type Job,
-  openActivity,
-  useRunningLaunchIds,
-} from '@/queries/jobs';
+import { getJobs, type Job, useRunningLaunchIds } from '@/queries/jobs';
 
 const HANDOFF_MS = 1000;
 
@@ -86,8 +82,12 @@ export function LaunchBar({ job, more }: LaunchBarState) {
 
       <div className="ml-auto flex items-center gap-3">
         {more > 0 && (
-          <Button variant="ghost" size="sm" onClick={() => openActivity()}>
-            {m['app.jobs.more']({ count: more })}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setNotificationsOpen(true)}
+          >
+            {m['app.notifications.more']({ count: more })}
           </Button>
         )}
         {job.status === 'running' ? (

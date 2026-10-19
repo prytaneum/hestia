@@ -1,6 +1,6 @@
 import { Link } from '@tanstack/react-router';
 
-import { Activity } from '@/components/app-shell/activity';
+import { Notifications } from '@/components/app-shell/notifications';
 import { StatusDot } from '@/components/ui/status-dot';
 import { anchor } from '@/features/onboarding';
 import { m } from '@/paraglide/messages.js';
@@ -25,7 +25,7 @@ export function StatusBar() {
         <span className="font-mono">v{daemon.status.version}</span>
       )}
 
-      <Activity />
+      <Notifications />
     </footer>
   );
 }

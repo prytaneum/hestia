@@ -7,6 +7,7 @@ import {
   warningHint,
   warningMessage,
 } from '@/api';
+import { record } from '@/lib/notifications';
 import { m } from '@/paraglide/messages.js';
 
 const SUCCESS_MS = 6_000;
@@ -15,9 +16,11 @@ const WARNING_MS = 8_000;
 export type NotifyAction = { label: string; onClick: () => void };
 
 export type NotifyOptions = {
-  id?: string | number;
+  id?: string;
   description?: string;
   action?: NotifyAction;
+  /** Keep it in the notification list without showing a toast. */
+  quiet?: boolean;
 };
 
 export type Outcome = {
@@ -38,11 +41,18 @@ const DURATIONS: Record<Kind, number> = {
   error: Number.POSITIVE_INFINITY,
 };
 
+let unnamed = 0;
+
 function show(kind: Kind, title: string, options: NotifyOptions = {}) {
-  const { action, ...rest } = options;
+  const { action, quiet, description } = options;
+  unnamed += 1;
+  const id = options.id ?? `notice-${unnamed}`;
+  record({ id, kind, title, description, action });
+  if (quiet) return;
   const duration = action ? Number.POSITIVE_INFINITY : DURATIONS[kind];
-  return toast[kind](title, {
-    ...rest,
+  toast[kind](title, {
+    id,
+    description,
     // Only a toast that never expires needs a way to close it.
     closeButton: duration === Number.POSITIVE_INFINITY,
     duration,
@@ -50,7 +60,7 @@ function show(kind: Kind, title: string, options: NotifyOptions = {}) {
   });
 }
 
-export function outcomeDescription({
+function outcomeDescription({
   description,
   warnings = [],
   failures,
@@ -84,7 +94,7 @@ export const notify = {
     show('error', title, options),
 
   /** One toast for a finished operation, its warnings and failed items folded in. */
-  outcome(outcome: Outcome) {
+  outcome(outcome: Outcome, { quiet }: { quiet?: boolean } = {}) {
     const degraded =
       (outcome.warnings?.length ?? 0) > 0 ||
       (outcome.failures?.failed ?? 0) > 0;
@@ -92,6 +102,7 @@ export const notify = {
       id: outcome.id,
       description: outcomeDescription(outcome),
       action: outcome.action,
+      quiet,
     });
   },
 
@@ -116,7 +127,8 @@ export const notify = {
       id,
       title,
       action,
-    }: { id: string; title?: string; action?: NotifyAction },
+      quiet,
+    }: { id: string; title?: string; action?: NotifyAction; quiet?: boolean },
   ) {
     if (error instanceof JobCancelled || error instanceof JobInterrupted) {
       return;
@@ -126,7 +138,13 @@ export const notify = {
       id,
       description: title ? message : undefined,
       action,
+      quiet,
     });
+  },
+
+  /** Clear the screen of toasts; each is already kept in the notification list. */
+  dismissAll() {
+    toast.dismiss();
   },
 
   /** Loading under one id, replaced in place by the settled toast. */

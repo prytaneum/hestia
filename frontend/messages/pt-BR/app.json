@@ -101,32 +101,16 @@
           "download": "Baixando a atualização"
         }
       },
-      "more": "+{count} mais",
-      "panel": {
-        "announce_cancelled": "{title} cancelado",
-        "announce_done": "{title} concluído",
-        "announce_interrupted": "{title} interrompido",
-        "announce_stage": "{title}: {stage}",
-        "announce_started": "{title} iniciado",
-        "cancel": "Cancelar: {title}",
-        "clear": "Limpar concluídas",
-        "dismiss": "Dispensar: {title}",
-        "empty": "Nenhuma atividade recente",
-        "failed_count": "{count} falharam",
-        "label": "Atividade",
-        "open": "Abrir",
-        "open_label": "Abrir: {title}",
-        "recent": "Recentes",
-        "retry": "Tentar novamente",
-        "retry_label": "Tentar novamente: {title}",
-        "running": "Em andamento",
-        "running_count": "{count} em andamento",
-        "status_cancelled": "Cancelado",
-        "status_done": "Concluído",
-        "status_failed": "Falhou",
-        "status_interrupted": "Interrompido — o daemon reiniciou",
-        "summary": "Atividade, {summary}"
+      "announce": {
+        "cancelled": "{title} cancelado",
+        "done": "{title} concluído",
+        "interrupted": "{title} interrompido",
+        "stage": "{title}: {stage}",
+        "started": "{title} iniciado"
       },
+      "cancel": "Cancelar: {title}",
+      "interrupted": "{title} interrompido",
+      "interrupted_detail": "O daemon reiniciou antes de terminar",
       "verb": {
         "content": {
           "add": "Adicionando conteúdo",
@@ -239,6 +223,16 @@
       "works_body": "Iniciar instâncias e executar servidores, o conteúdo já instalado, mundos, backups e configurações.",
       "works_title": "Continua funcionando"
     },
+    "notifications": {
+      "clear": "Limpar tudo",
+      "empty": "Nenhuma notificação",
+      "label": "Notificações",
+      "more": "+{count} mais",
+      "remove": "Remover: {title}",
+      "running_count": "{count} em andamento",
+      "summary": "Notificações, {summary}",
+      "unread_count": "{count} não lidas"
+    },
     "playbar": {
       "kind": {
         "realm": "Realm",
@@ -287,12 +281,10 @@
       "created": "{name} criado",
       "failed_count": "{failed} de {total} falharam",
       "failed_only": "{failed} falharam",
-      "notifications": "Notificações",
       "removed": "{name} removido",
       "retry": "Tentar novamente",
       "started": "{name} iniciado",
       "updated": "{name} atualizado",
-      "view_details": "Ver detalhes",
       "warning_count": "{count} avisos"
     },
     "validation": {

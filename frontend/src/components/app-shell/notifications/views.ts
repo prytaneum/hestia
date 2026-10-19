@@ -4,12 +4,9 @@ import { useServers } from '@/queries/server';
 
 export interface JobView {
   title: string;
-  iconUrl?: string;
-  /** The entry the job acts on is still in the library, so it can be opened. */
-  openable: boolean;
 }
 
-/** Resolves a job to what Activity shows for it, from the cached entry lists. */
+/** Resolves a job to what the bell's panel shows for it, from the cached entry lists. */
 export function useJobViews(): (job: Job) => JobView {
   const instances = useInstances().data;
   const servers = useServers().data;
@@ -22,10 +19,6 @@ export function useJobViews(): (job: Job) => JobView {
           ? servers
           : undefined;
     const entry = entries?.find((candidate) => candidate.id === subject?.id);
-    return {
-      title: jobTitle(job, entry?.name),
-      iconUrl: entry?.iconUrl,
-      openable: entry !== undefined,
-    };
+    return { title: jobTitle(job, entry?.name) };
   };
 }

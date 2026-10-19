@@ -1,4 +1,3 @@
-export { openActivity, setActivityOpen, useActivity } from './activity';
 export {
   useBusyJob,
   useEntryJobs,
@@ -20,7 +19,6 @@ export {
   backgroundJob,
   cancelJob,
   clearSettledJobs,
-  dismissJob,
   foregroundJob,
   getJobs,
   type Job,
@@ -29,8 +27,6 @@ export {
   type JobMeta,
   type JobOutcome,
   type JobStatus,
-  markFailuresSeen,
-  retryJob,
   startJob,
   startJobs,
 } from './store';

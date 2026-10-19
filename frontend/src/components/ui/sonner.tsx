@@ -29,7 +29,7 @@ const Toaster = ({ ...props }: ToasterProps) => {
       position="bottom-right"
       offset={{ bottom: 40, right: 16 }}
       visibleToasts={3}
-      containerAriaLabel={m['app.toast.notifications']()}
+      containerAriaLabel={m['app.notifications.label']()}
       icons={{
         success: <CheckCircleIcon className="size-4" />,
         info: <InfoIcon className="size-4" />,

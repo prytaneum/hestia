@@ -18,7 +18,8 @@ export const busyReason = (job: Job): string =>
 /**
  * A running job on an entry's card or row: spinner, verb and, once measured,
  * the percentage. Text carries the state, not colour, and the chip is not a
- * live region — Activity's status region announces start, stage and settle.
+ * live region — the notification bell's status region announces start, stage
+ * and settle.
  */
 export function EntryJobChip({ job }: { job: Job }) {
   const progress = job.progress as ProvisionProgress | null;
@@ -45,7 +46,7 @@ export function CancelJobButton({ job, title }: { job: Job; title: string }) {
     <Button
       variant="ghost"
       size="icon-xs"
-      aria-label={m['app.jobs.panel.cancel']({ title })}
+      aria-label={m['app.jobs.cancel']({ title })}
       onClick={() => {
         cancelJob(job.id).catch(() => {});
       }}

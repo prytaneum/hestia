@@ -1,8 +1,9 @@
 import { screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 import { StatusBar } from '@/components/app-shell/status-bar';
+import { clearNotices } from '@/lib/notifications';
+import { notify } from '@/lib/notify';
 import { status as daemonStatus } from '@/mock/channels/app';
-import { listServers } from '@/mock/state/entries';
 import { m } from '@/paraglide/messages.js';
 import { foregroundJob, type JobMeta, startJob } from '@/queries/jobs';
 import {
@@ -17,10 +18,16 @@ const meta = (over: Partial<JobMeta> = {}): JobMeta => ({
   ...over,
 });
 
-const title = m['app.jobs.kind.server.create']();
+const bell = (summary?: string) =>
+  screen.queryByRole('button', {
+    name: summary
+      ? m['app.notifications.summary']({ summary })
+      : m['app.notifications.label'](),
+  });
 
 afterEach(async () => {
   await resetJobs();
+  clearNotices();
   resetQueryCache();
 });
 
@@ -35,57 +42,28 @@ describe('the status bar', () => {
     );
   });
 
-  it('shows nothing about jobs while none are running', () => {
-    renderWithProviders(<StatusBar />);
-    expect(screen.queryByText(title)).toBeNull();
-  });
-
-  it('surfaces a running background job by its label', async () => {
-    startJob(meta(), pendingJob);
-    renderWithProviders(<StatusBar />);
-    await waitFor(() => expect(screen.getByText(title)).toBeDefined());
-  });
-
-  it('prefers the entry’s live name over the job label', async () => {
-    const server = listServers()[0];
-    startJob(
-      meta({
-        channel: 'server.update',
-        subject: { kind: 'server', id: server.id },
-      }),
-      pendingJob,
-    );
-
-    renderWithProviders(<StatusBar />);
-    await waitFor(() =>
-      expect(
-        screen.getByText(m['app.jobs.kind.server.update']({ name: server.name })),
-      ).toBeDefined(),
-    );
-  });
-
-  it('counts the jobs beyond the one shown inline', async () => {
+  it('counts the running background jobs on the bell', async () => {
     startJob(meta(), pendingJob);
     startJob(meta(), pendingJob);
     renderWithProviders(<StatusBar />);
-    await waitFor(() =>
-      expect(screen.getByText(m['app.jobs.more']({ count: 1 }))).toBeDefined(),
-    );
+    const running = m['app.notifications.running_count']({ count: 2 });
+    await waitFor(() => expect(bell(running)).not.toBeNull());
   });
 
-  it('hides a job a modal has taken into the foreground', async () => {
+  it('leaves a job a modal has taken into the foreground out of the count', async () => {
     const { id } = startJob(meta(), pendingJob);
     renderWithProviders(<StatusBar />);
-    await waitFor(() => expect(screen.getByText(title)).toBeDefined());
+    const running = m['app.notifications.running_count']({ count: 1 });
+    await waitFor(() => expect(bell(running)).not.toBeNull());
 
     foregroundJob(id);
-    await waitFor(() => expect(screen.queryByText(title)).toBeNull());
+    await waitFor(() => expect(bell()).not.toBeNull());
   });
 
-  it('drops a job from the bar once it settles', async () => {
-    const handle = startJob(meta(), () => Promise.resolve('ok'));
+  it('says how many notifications are unread', async () => {
     renderWithProviders(<StatusBar />);
-    await handle.result;
-    await waitFor(() => expect(screen.queryByText(title)).toBeNull());
+    notify.success('SMP backed up', { quiet: true });
+    const unread = m['app.notifications.unread_count']({ count: 1 });
+    await waitFor(() => expect(bell(unread)).not.toBeNull());
   });
 });

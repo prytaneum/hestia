@@ -1,8 +1,7 @@
-import { act, renderHook } from '@testing-library/react';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@/lib/notify', () => ({
-  notify: { failure: vi.fn(), outcome: vi.fn() },
+  notify: { failure: vi.fn(), outcome: vi.fn(), warning: vi.fn() },
 }));
 
 import {
@@ -17,16 +16,12 @@ import { channels } from '@/mock/channels';
 import {
   backgroundJob,
   clearSettledJobs,
-  dismissJob,
   foregroundJob,
   getJobs,
   type JobMeta,
-  markFailuresSeen,
-  retryJob,
   type JobOutcome,
   startJob,
   startJobs,
-  useActivity,
 } from '@/queries/jobs';
 import { installFakeDaemon } from '../../support';
 
@@ -232,17 +227,6 @@ describe('the job store', () => {
     expect(find(id)?.background).toBe(true);
   });
 
-  it('dismisses a settled job but never a running one', async () => {
-    const running = startJob(meta(), () => new Promise(() => {}));
-    dismissJob(running.id);
-    expect(find(running.id)).toBeDefined();
-
-    const settled = startJob(meta(), () => Promise.resolve('ok'));
-    await settled.result;
-    dismissJob(settled.id);
-    expect(find(settled.id)).toBeUndefined();
-  });
-
   it('clears settled jobs and leaves running ones', async () => {
     const running = startJob(meta(), () => new Promise(() => {}));
     const settled = startJob(meta(), () => Promise.resolve('ok'));
@@ -254,33 +238,6 @@ describe('the job store', () => {
   });
 });
 
-describe('retrying and reading failures', () => {
-  it('keeps the retry after a failure and drops the failed row when it runs', async () => {
-    const retry = vi.fn();
-    const handle = startJob(meta(), () => Promise.reject(new Error('x')), {
-      retry,
-    });
-    await handle.result.catch(() => {});
-    expect(find(handle.id)).toMatchObject({ status: 'failed', seen: false });
-
-    markFailuresSeen();
-    expect(find(handle.id)?.seen).toBe(true);
-
-    retryJob(handle.id);
-    expect(retry).toHaveBeenCalledTimes(1);
-    expect(find(handle.id)).toBeUndefined();
-  });
-
-  it('offers no retry for a job this webview did not start', async () => {
-    publishJob('cli-3', 'server.create', {
-      state: 'failed',
-      error: { kind: 'already_exists', entry: 'server', name: 'smp' },
-    });
-    await flush();
-    expect(find('cli-3')?.retry).toBeNull();
-  });
-});
-
 describe('job outcome notifications', () => {
   const failure = new HestiaError('handler_error', 'nope');
   const done = (over: Partial<JobOutcome> = {}) => ({
@@ -288,17 +245,18 @@ describe('job outcome notifications', () => {
   });
 
   it('reports a failure once, though the event and the rejection both land', async () => {
-    const handle = startJob(meta(), () => Promise.reject(failure), {
-      retry: () => {},
-    });
+    const retry = vi.fn();
+    const handle = startJob(meta(), () => Promise.reject(failure), { retry });
     publishJob(handle.id, 'server.create', {
       state: 'failed',
       error: { kind: 'already_exists', entry: 'server', name: 'smp' },
     });
     await expect(handle.result).rejects.toBe(failure);
     expect(notify.failure).toHaveBeenCalledTimes(1);
-    expect(vi.mocked(notify.failure).mock.calls[0][1].id).toBe(`job:${handle.id}`);
-    expect(vi.mocked(notify.failure).mock.calls[0][1].action).toBeDefined();
+    const options = vi.mocked(notify.failure).mock.calls[0][1];
+    expect(options).toMatchObject({ id: `job:${handle.id}`, quiet: false });
+    options.action?.onClick();
+    expect(retry).toHaveBeenCalledTimes(1);
   });
 
   it('says nothing about a cancel', async () => {
@@ -310,40 +268,41 @@ describe('job outcome notifications', () => {
     expect(notify.outcome).not.toHaveBeenCalled();
   });
 
-  it('never toasts a foreign failure, and leaves it unseen', async () => {
+  it('keeps a foreign failure in the list without a toast or a retry', async () => {
     publishJob('cli-2', 'server.backup.create', {
       state: 'failed',
       error: { kind: 'already_exists', entry: 'server', name: 'smp' },
     });
     await flush();
-    expect(find('cli-2')).toMatchObject({ status: 'failed', seen: false });
-    expect(notify.failure).not.toHaveBeenCalled();
+    expect(find('cli-2')?.status).toBe('failed');
+    expect(notify.failure).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ id: 'job:cli-2', quiet: true, action: undefined }),
+    );
+  });
+
+  it('keeps an interrupted job in the list without a toast', async () => {
+    const vanished = startJob(meta(), () => new Promise(() => {}));
+    connection('connected');
+    await flush();
+    await flush();
+    expect(find(vanished.id)?.status).toBe('interrupted');
+    expect(notify.warning).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({ id: `job:${vanished.id}`, quiet: true }),
+    );
   });
 
   it('toasts the declared outcome when nobody watched', async () => {
     const handle = startJob(meta(), () => Promise.resolve('ok'), done());
     await handle.result;
-    expect(notify.outcome).toHaveBeenCalledWith({
-      title: 'Created SMP',
-      id: `job:${handle.id}`,
-    });
-  });
-
-  it('points a degraded outcome at its Activity row', async () => {
-    const handle = startJob(
-      meta(),
-      () => Promise.resolve('ok'),
-      done({ failures: { failed: 2, total: 5 } }),
+    expect(notify.outcome).toHaveBeenCalledWith(
+      { title: 'Created SMP', id: `job:${handle.id}` },
+      { quiet: false },
     );
-    await handle.result;
-    const activity = renderHook(() => useActivity());
-    const toast = vi.mocked(notify.outcome).mock.calls[0][0];
-    expect(toast.action?.label).toBeDefined();
-    act(() => toast.action?.onClick());
-    expect(activity.result.current).toEqual({ open: true, focus: handle.id });
   });
 
-  it('skips the success toast of a job a surface displayed, but not its warnings', async () => {
+  it('only records the success of a job a surface displayed, but toasts its warnings', async () => {
     let finish!: (value: string) => void;
     const watched = startJob(
       meta(),
@@ -353,7 +312,7 @@ describe('job outcome notifications', () => {
     foregroundJob(watched.id);
     finish('ok');
     await watched.result;
-    expect(notify.outcome).not.toHaveBeenCalled();
+    expect(vi.mocked(notify.outcome).mock.calls[0][1]).toEqual({ quiet: true });
 
     const degraded = startJob(
       meta(),
@@ -366,10 +325,10 @@ describe('job outcome notifications', () => {
     foregroundJob(degraded.id);
     finish('ok');
     await degraded.result;
-    expect(notify.outcome).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(notify.outcome).mock.calls[1][1]).toEqual({ quiet: false });
   });
 
-  it('leaves a failure to a surface that renders it inline', async () => {
+  it('only records a failure a surface renders inline', async () => {
     const handle = startJob(meta(), () => new Promise(() => {}));
     foregroundJob(handle.id, true);
     publishJob(handle.id, 'server.create', {
@@ -377,6 +336,6 @@ describe('job outcome notifications', () => {
       error: { kind: 'already_exists', entry: 'server', name: 'smp' },
     });
     await flush();
-    expect(notify.failure).not.toHaveBeenCalled();
+    expect(vi.mocked(notify.failure).mock.calls[0][1].quiet).toBe(true);
   });
 });
