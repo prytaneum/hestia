@@ -3,7 +3,6 @@ import type { EntryKind } from '../../api';
 import {
   backgroundJob,
   foregroundJob,
-  getJob,
   getJobs,
   type Job,
   subscribe,
@@ -12,12 +11,6 @@ import {
 /** Every tracked job, oldest first. */
 export function useJobs(): Job[] {
   return useSyncExternalStore(subscribe, getJobs);
-}
-
-export function useJob(id: string | null): Job | null {
-  return useSyncExternalStore(subscribe, () =>
-    id ? (getJob(id) ?? null) : null,
-  );
 }
 
 /** The jobs acting on one entry — e.g. a server card's busy indicator. */

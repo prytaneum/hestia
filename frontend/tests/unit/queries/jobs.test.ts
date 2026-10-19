@@ -1,3 +1,4 @@
+import { act, renderHook } from '@testing-library/react';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@/lib/notify', () => ({
@@ -20,9 +21,12 @@ import {
   foregroundJob,
   getJobs,
   type JobMeta,
+  markFailuresSeen,
+  retryJob,
   type JobOutcome,
   startJob,
   startJobs,
+  useActivity,
 } from '@/queries/jobs';
 import { installFakeDaemon } from '../../support';
 
@@ -248,6 +252,33 @@ describe('the job store', () => {
   });
 });
 
+describe('retrying and reading failures', () => {
+  it('keeps the retry after a failure and drops the failed row when it runs', async () => {
+    const retry = vi.fn();
+    const handle = startJob(meta(), () => Promise.reject(new Error('x')), {
+      retry,
+    });
+    await handle.result.catch(() => {});
+    expect(find(handle.id)).toMatchObject({ status: 'failed', seen: false });
+
+    markFailuresSeen();
+    expect(find(handle.id)?.seen).toBe(true);
+
+    retryJob(handle.id);
+    expect(retry).toHaveBeenCalledTimes(1);
+    expect(find(handle.id)).toBeUndefined();
+  });
+
+  it('offers no retry for a job this webview did not start', async () => {
+    publishJob('cli-3', 'server.create', {
+      state: 'failed',
+      error: { kind: 'already_exists', entry: 'server', name: 'smp' },
+    });
+    await flush();
+    expect(find('cli-3')?.retry).toBeNull();
+  });
+});
+
 describe('job outcome notifications', () => {
   const failure = new HestiaError('handler_error', 'nope');
   const done = (over: Partial<JobOutcome> = {}) => ({
@@ -294,6 +325,20 @@ describe('job outcome notifications', () => {
       title: 'Created SMP',
       id: `job:${handle.id}`,
     });
+  });
+
+  it('points a degraded outcome at its Activity row', async () => {
+    const handle = startJob(
+      meta(),
+      () => Promise.resolve('ok'),
+      done({ failures: { failed: 2, total: 5 } }),
+    );
+    await handle.result;
+    const activity = renderHook(() => useActivity());
+    const toast = vi.mocked(notify.outcome).mock.calls[0][0];
+    expect(toast.action?.label).toBeDefined();
+    act(() => toast.action?.onClick());
+    expect(activity.result.current).toEqual({ open: true, focus: handle.id });
   });
 
   it('skips the success toast of a job a surface displayed, but not its warnings', async () => {

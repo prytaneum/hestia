@@ -48,7 +48,11 @@ function show(kind: Kind, title: string, options: NotifyOptions = {}) {
   });
 }
 
-function outcomeDescription({ description, warnings = [], failures }: Outcome) {
+export function outcomeDescription({
+  description,
+  warnings = [],
+  failures,
+}: Pick<Outcome, 'description' | 'warnings' | 'failures'>) {
   const parts: string[] = description ? [description] : [];
   if (failures && failures.failed > 0) {
     parts.push(

@@ -27,9 +27,6 @@ export * from './instance';
 export { startInvalidation } from './invalidation';
 export * from './java';
 export {
-  clearSettledJobs,
-  dismissJob,
-  getJobs,
   type Job,
   type JobEntry,
   type JobHandle,
@@ -42,7 +39,6 @@ export {
   startJob,
   startJobs,
   useEntryJobs,
-  useJob,
   useJobDisplay,
   useJobMutation,
   useJobs,

@@ -101,7 +101,31 @@
         }
       },
       "more": "+{count} mais",
-      "title": "Tarefas em segundo plano ({count})"
+      "panel": {
+        "announce_cancelled": "{title} cancelado",
+        "announce_done": "{title} concluído",
+        "announce_interrupted": "{title} interrompido",
+        "announce_stage": "{title}: {stage}",
+        "announce_started": "{title} iniciado",
+        "cancel": "Cancelar: {title}",
+        "clear": "Limpar concluídas",
+        "dismiss": "Dispensar: {title}",
+        "empty": "Nenhuma atividade recente",
+        "failed_count": "{count} falharam",
+        "label": "Atividade",
+        "open": "Abrir",
+        "open_label": "Abrir: {title}",
+        "recent": "Recentes",
+        "retry": "Tentar novamente",
+        "retry_label": "Tentar novamente: {title}",
+        "running": "Em andamento",
+        "running_count": "{count} em andamento",
+        "status_cancelled": "Cancelado",
+        "status_done": "Concluído",
+        "status_failed": "Falhou",
+        "status_interrupted": "Interrompido — o daemon reiniciou",
+        "summary": "Atividade, {summary}"
+      }
     },
     "label": {
       "address": "Endereço",
@@ -231,6 +255,7 @@
       "saved": "Salvo",
       "started": "{name} iniciado",
       "updated": "{name} atualizado",
+      "view_details": "Ver detalhes",
       "warning_count": "{count} avisos"
     },
     "validation": {

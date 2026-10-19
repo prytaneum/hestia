@@ -26,6 +26,7 @@ import {
   TRANSPORT,
 } from '../../api';
 import { invalidate } from '../client';
+import { openActivity } from './activity';
 import { entryName, jobTitle } from './title';
 
 const log = logger('jobs');
@@ -72,7 +73,12 @@ export interface Job<TProgress = unknown> {
   background: boolean;
   /** The claiming surface renders this job's failure itself. */
   ownsError: boolean;
+  /** A failure the user has not yet had a chance to read; only failures count. */
   seen: boolean;
+  /** What a finished own job declared about itself; Activity renders it. */
+  outcome: JobOutcome | null;
+  /** Runs the same job again; only an own job carries one. */
+  retry: (() => void) | null;
 }
 
 const MAX_SETTLED = 50;
@@ -136,10 +142,6 @@ export function subscribe(listener: () => void): () => void {
   };
 }
 
-export function getJob(id: string): Job | undefined {
-  return jobs.get(id);
-}
-
 function patch(id: string, changes: Partial<Job>, coalesce = false): void {
   const job = jobs.get(id);
   if (!job) return;
@@ -181,15 +183,23 @@ function settle(id: string, outcome: Outcome): void {
     { id, channel: job.channel, status: outcome.status },
     'job settled',
   );
-  const settled = { ...job, ...outcome, settledAt: Date.now() };
-  jobs.set(id, settled);
   const own = owned.get(id);
   owned.delete(id);
+  const described =
+    outcome.status === 'done' ? (own?.notify?.(outcome.done) ?? null) : null;
+  const settled = {
+    ...job,
+    ...outcome,
+    outcome: described,
+    seen: job.ownsError && !job.background,
+    settledAt: Date.now(),
+  };
+  jobs.set(id, settled);
   emit();
   if (outcome.status === 'interrupted')
     own?.abort.abort(new JobInterrupted(id));
   for (const key of own?.sweep ?? []) invalidate(key);
-  if (own) announce(settled, outcome, own);
+  if (own) announce(settled, outcome, own, described);
 }
 
 /**
@@ -198,7 +208,12 @@ function settle(id: string, outcome: Outcome): void {
  * job never toasts. A surface that watched the job finish needs no success
  * toast, but warnings and failures it did not render still go out.
  */
-function announce(job: Job, outcome: Outcome, own: Own): void {
+function announce(
+  job: Job,
+  outcome: Outcome,
+  own: Own,
+  described: JobOutcome | null,
+): void {
   const id = `job:${job.id}`;
   if (outcome.status === 'failed') {
     if (job.ownsError && !job.background) return;
@@ -214,12 +229,24 @@ function announce(job: Job, outcome: Outcome, own: Own): void {
     return;
   }
   if (outcome.status !== 'done') return;
-  const described = own.notify?.(outcome.done);
   if (!described) return;
   const watched = !job.background;
   const failures = watched && job.ownsError ? undefined : described.failures;
-  if (watched && !described.warnings?.length && !failures?.failed) return;
-  notify.outcome({ ...described, failures, id });
+  const degraded = !!described.warnings?.length || !!failures?.failed;
+  if (watched && !degraded) return;
+  notify.outcome({
+    ...described,
+    failures,
+    id,
+    action:
+      described.action ??
+      (degraded
+        ? {
+            label: m['app.toast.view_details'](),
+            onClick: () => openActivity(job.id),
+          }
+        : undefined),
+  });
 }
 
 function adopt(
@@ -244,6 +271,8 @@ function adopt(
     background: true,
     ownsError: false,
     seen: false,
+    outcome: null,
+    retry: null,
   });
 }
 
@@ -355,6 +384,8 @@ export function startJob<TData>(
     background: true,
     ownsError: false,
     seen: false,
+    outcome: null,
+    retry: options.retry ?? null,
   });
 
   const result = run({ id, signal: abort.signal }).then(
@@ -403,6 +434,26 @@ export function dismissJob(id: string): void {
   if (!job || job.status === 'running') return;
   jobs.delete(id);
   emit();
+}
+
+/** Start a failed own job again and drop its failed row, so Activity lists it once. */
+export function retryJob(id: string): void {
+  const job = jobs.get(id);
+  if (job?.status !== 'failed' || !job.retry) return;
+  jobs.delete(id);
+  emit();
+  job.retry();
+}
+
+/** The user has seen every failure Activity lists. */
+export function markFailuresSeen(): void {
+  let changed = false;
+  for (const job of jobs.values()) {
+    if (job.status !== 'failed' || job.seen) continue;
+    jobs.set(job.id, { ...job, seen: true });
+    changed = true;
+  }
+  if (changed) emit();
 }
 
 export function clearSettledJobs(): void {

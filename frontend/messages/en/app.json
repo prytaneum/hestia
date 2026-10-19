@@ -101,7 +101,31 @@
         }
       },
       "more": "+{count} more",
-      "title": "Background jobs ({count})"
+      "panel": {
+        "announce_cancelled": "{title} cancelled",
+        "announce_done": "{title} finished",
+        "announce_interrupted": "{title} interrupted",
+        "announce_stage": "{title}: {stage}",
+        "announce_started": "{title} started",
+        "cancel": "Cancel {title}",
+        "clear": "Clear finished",
+        "dismiss": "Dismiss {title}",
+        "empty": "No recent activity",
+        "failed_count": "{count} failed",
+        "label": "Activity",
+        "open": "Open",
+        "open_label": "Open {title}",
+        "recent": "Recent",
+        "retry": "Retry",
+        "retry_label": "Retry {title}",
+        "running": "Running",
+        "running_count": "{count} running",
+        "status_cancelled": "Cancelled",
+        "status_done": "Done",
+        "status_failed": "Failed",
+        "status_interrupted": "Interrupted — the daemon restarted",
+        "summary": "Activity, {summary}"
+      }
     },
     "label": {
       "address": "Address",
@@ -231,6 +255,7 @@
       "saved": "Saved",
       "started": "{name} started",
       "updated": "{name} updated",
+      "view_details": "View details",
       "warning_count": "{count} warnings"
     },
     "validation": {

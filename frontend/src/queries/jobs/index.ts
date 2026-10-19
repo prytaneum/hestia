@@ -1,4 +1,5 @@
-export { useEntryJobs, useJob, useJobDisplay, useJobs } from './hooks';
+export { openActivity, setActivityOpen, useActivity } from './activity';
+export { useEntryJobs, useJobDisplay, useJobs } from './hooks';
 export {
   type JobMutationOptions,
   type JobMutationResult,
@@ -19,6 +20,8 @@ export {
   type JobMeta,
   type JobOutcome,
   type JobStatus,
+  markFailuresSeen,
+  retryJob,
   startJob,
   startJobs,
 } from './store';
