@@ -13,8 +13,10 @@ import { Thumbnail } from '@/components/ui/thumbnail';
 import { layoutMorph, listItem } from '@/lib/motion';
 import { cn } from '@/lib/utils';
 import { m } from '@/paraglide/messages.js';
+import { type Job, useBusyJob } from '@/queries/jobs';
 import type { View } from './collection';
 import { EntryContextMenu } from './entry-menu';
+import { busyReason, EntryJobChip } from './job-chip';
 import { EntryRunControl } from './run-control';
 
 export interface EntryCardModel {
@@ -85,10 +87,12 @@ function StatusBadge({
 
 function ActionButton({
   entry,
+  job,
   size = 'sm',
   square = false,
 }: {
   entry: EntryCardModel;
+  job: Job | null;
   size?: 'sm' | 'xs';
   /** Grid cards: a bare square icon, no label. */
   square?: boolean;
@@ -141,16 +145,18 @@ function ActionButton({
   return (
     <Button
       size={square ? 'icon-lg' : size}
-      disabled={!entry.ready || entry.busy}
+      disabled={!entry.ready || entry.busy || job !== null}
       aria-label={
         entry.kind === 'server'
           ? m['app.action.start']()
           : m['app.action.play']()
       }
       title={
-        entry.kind === 'server'
-          ? m['app.action.start']()
-          : m['app.action.play']()
+        job
+          ? busyReason(job)
+          : entry.kind === 'server'
+            ? m['app.action.start']()
+            : m['app.action.play']()
       }
       onClick={(e) => {
         e.preventDefault();
@@ -175,6 +181,7 @@ export function EntryTile({
   entry: EntryCardModel;
   view: View;
 }) {
+  const job = useBusyJob(entry.kind, entry.id);
   const status = statusOf(entry);
   const Icon = entryIcon(entry.kind);
   const grid = view === 'grid';
@@ -228,13 +235,22 @@ export function EntryTile({
           </span>
         </motion.div>
 
-        {status && (
+        {(job || status) && (
           <motion.div
             layout="position"
             transition={layoutMorph}
             className={cn(grid && 'absolute top-2 left-2')}
           >
-            <StatusBadge status={status} overlay={grid} />
+            {job ? (
+              <Badge
+                variant="secondary"
+                className={cn(grid && 'bg-background/80 backdrop-blur-xs')}
+              >
+                <EntryJobChip job={job} />
+              </Badge>
+            ) : (
+              status && <StatusBadge status={status} overlay={grid} />
+            )}
           </motion.div>
         )}
 
@@ -252,7 +268,7 @@ export function EntryTile({
               grid && 'absolute right-3 bottom-3 grid',
             )}
           >
-            <ActionButton entry={entry} square={grid} />
+            <ActionButton entry={entry} job={job} square={grid} />
           </div>
         </motion.div>
       </MotionLink>

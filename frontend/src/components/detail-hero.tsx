@@ -17,6 +17,7 @@ export function DetailHero({
   name,
   badges,
   actions,
+  busy,
 }: {
   parentLabel: string;
   parentTo: LinkProps['to'];
@@ -30,6 +31,8 @@ export function DetailHero({
   name: string;
   badges: ReactNode;
   actions: ReactNode;
+  /** A running job on the entry, shown under the banner. */
+  busy?: ReactNode;
 }) {
   return (
     <div className="border-b border-border">
@@ -46,23 +49,26 @@ export function DetailHero({
         <span className="text-foreground">{name}</span>
       </div>
 
-      <div className="flex items-end gap-4 bg-muted/25 px-5 pt-8 pb-5">
-        <Thumbnail src={iconUrl} icon={Icon} size="2xl" className="group">
-          {iconAction && (
-            <span className="absolute right-1 bottom-1 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100">
-              {iconAction}
-            </span>
-          )}
-        </Thumbnail>
-        <div className="min-w-0 flex-1">
-          <h1 className="truncate font-heading text-xl font-semibold">
-            {name}
-          </h1>
-          <div className="mt-2 flex flex-wrap items-center gap-1.5">
-            {badges}
+      <div className="bg-muted/25">
+        <div className="flex items-end gap-4 px-5 pt-8 pb-5">
+          <Thumbnail src={iconUrl} icon={Icon} size="2xl" className="group">
+            {iconAction && (
+              <span className="absolute right-1 bottom-1 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100">
+                {iconAction}
+              </span>
+            )}
+          </Thumbnail>
+          <div className="min-w-0 flex-1">
+            <h1 className="truncate font-heading text-xl font-semibold">
+              {name}
+            </h1>
+            <div className="mt-2 flex flex-wrap items-center gap-1.5">
+              {badges}
+            </div>
           </div>
+          <div className="flex shrink-0 items-center gap-2">{actions}</div>
         </div>
-        <div className="flex shrink-0 items-center gap-2">{actions}</div>
+        {busy && <div className="px-5 pb-4">{busy}</div>}
       </div>
     </div>
   );

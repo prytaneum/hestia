@@ -20,10 +20,15 @@ import {
 import { StatusDot } from '@/components/ui/status-dot';
 import { Thumbnail } from '@/components/ui/thumbnail';
 import { useLaunchDialog } from '@/features/instances/dialogs';
-import { EntryContextMenu } from '@/features/shared/entry/components';
+import {
+  busyReason,
+  EntryContextMenu,
+  EntryJobChip,
+} from '@/features/shared/entry/components';
 import { cn } from '@/lib/utils';
 import { m } from '@/paraglide/messages.js';
 import { useInstances } from '@/queries/instance';
+import { type Job, useBusyJob } from '@/queries/jobs';
 import { type PinnedEntry, pinKey, usePinned } from '@/queries/pinned';
 import { serverMutations, serverQueries, useServers } from '@/queries/server';
 
@@ -286,6 +291,7 @@ function PinnedRow({
 }) {
   const key = pinKey(entry);
   const dragging = reorder.isDragging(key);
+  const job = useBusyJob(entry.kind, entry.id);
   const playable = entry.ready && !entry.running;
   const playLabel =
     entry.kind === 'server' ? m['app.action.start']() : m['app.action.play']();
@@ -308,6 +314,7 @@ function PinnedRow({
           entry={entry}
           pathname={pathname}
           dragging={dragging}
+          job={job}
           className={cn(
             playable && 'group-focus-within/pin:pr-8 group-hover/pin:pr-8',
           )}
@@ -318,10 +325,10 @@ function PinnedRow({
         <button
           type="button"
           aria-label={playLabel}
-          title={playLabel}
-          disabled={starting}
+          title={job ? busyReason(job) : playLabel}
+          disabled={starting || job !== null}
           onClick={onPlay}
-          className="absolute top-1/2 right-2.5 grid size-5 -translate-y-1/2 place-items-center text-muted-foreground opacity-0 transition-[opacity,color] outline-none group-hover/pin:opacity-100 hover:text-ember focus-visible:opacity-100 focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-40"
+          className="absolute top-1/2 right-2.5 grid size-5 -translate-y-1/2 place-items-center text-muted-foreground opacity-0 transition-[opacity,color] outline-none group-hover/pin:opacity-100 hover:text-ember focus-visible:opacity-100 focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-40"
         >
           <PlayIcon weight="fill" className="size-3" />
         </button>
@@ -335,15 +342,17 @@ function PinnedLink({
   entry,
   pathname,
   dragging,
+  job,
   className: triggerClass,
   ...trigger
 }: {
   entry: ResolvedPin;
   pathname: string;
   dragging: boolean;
+  job: Job | null;
 } & React.ComponentProps<'a'>) {
   const active = pathname === `/${entry.kind}s/${entry.id}`;
-  const content = <PinnedLinkContent entry={entry} />;
+  const content = <PinnedLinkContent entry={entry} job={job} />;
   const className = cn(pinnedLinkClass(active, dragging), triggerClass);
 
   if (entry.kind === 'server') {
@@ -381,7 +390,13 @@ function pinnedLinkClass(active: boolean, dragging: boolean) {
   );
 }
 
-function PinnedLinkContent({ entry }: { entry: ResolvedPin }) {
+function PinnedLinkContent({
+  entry,
+  job,
+}: {
+  entry: ResolvedPin;
+  job: Job | null;
+}) {
   const Icon = entry.kind === 'server' ? HardDrivesIcon : CubeIcon;
   return (
     <>
@@ -391,7 +406,11 @@ function PinnedLinkContent({ entry }: { entry: ResolvedPin }) {
           {entry.name}
         </span>
         <span className="block truncate font-mono text-[10px] text-muted-foreground">
-          {entry.flavor} · {entry.version}
+          {job ? (
+            <EntryJobChip job={job} />
+          ) : (
+            `${entry.flavor} · ${entry.version}`
+          )}
         </span>
       </span>
       <span className="flex shrink-0 items-center gap-1.5">

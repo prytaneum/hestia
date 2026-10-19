@@ -1,5 +1,5 @@
 export { openActivity, setActivityOpen, useActivity } from './activity';
-export { useEntryJobs, useJobDisplay, useJobs } from './hooks';
+export { useBusyJob, useEntryJobs, useJobDisplay, useJobs } from './hooks';
 export {
   type JobMutationOptions,
   type JobMutationResult,
@@ -25,4 +25,4 @@ export {
   startJob,
   startJobs,
 } from './store';
-export { jobTitle, subjectName } from './title';
+export { jobTitle, jobVerb, subjectName } from './title';

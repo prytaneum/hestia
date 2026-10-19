@@ -14,13 +14,15 @@ import { useNavigate } from '@tanstack/react-router';
 import { errorMessage, type ProvisionProgress } from '@/api';
 import { Button } from '@/components/ui/button';
 import { Thumbnail } from '@/components/ui/thumbnail';
-import { ProvisionProgressView } from '@/features/shared/entry/components';
+import {
+  CancelJobButton,
+  ProvisionProgressView,
+} from '@/features/shared/entry/components';
 import { agoLabel } from '@/lib/format';
 import { outcomeDescription } from '@/lib/notify';
 import { cn } from '@/lib/utils';
 import { m } from '@/paraglide/messages.js';
 import {
-  cancelJob,
   dismissJob,
   type Job,
   retryJob,
@@ -95,16 +97,7 @@ function RunningRow({ job, view }: { job: Job; view: JobView }) {
           progress={job.progress as ProvisionProgress | null}
         />
       </div>
-      <Button
-        variant="ghost"
-        size="icon-xs"
-        aria-label={m['app.jobs.panel.cancel']({ title: view.title })}
-        onClick={() => {
-          cancelJob(job.id).catch(() => {});
-        }}
-      >
-        <XIcon />
-      </Button>
+      <CancelJobButton job={job} title={view.title} />
     </li>
   );
 }

@@ -28,6 +28,11 @@ export function jobTitle(job: Job, entryName?: string): string {
   return msg[`app.jobs.kind.${job.channel}`]?.({ name }) ?? job.channel;
 }
 
+/** What a job is doing, without the entry: "Backing up". */
+export function jobVerb(job: Job): string {
+  return msg[`app.jobs.verb.${job.channel}`]?.() ?? jobTitle(job);
+}
+
 /** The entry's name for a toast, or its generic noun while the list is unloaded. */
 export function subjectName(subject: JobEntry): string {
   return entryName(subject) ?? msg[`domain.entry_type.${subject.kind}`]();

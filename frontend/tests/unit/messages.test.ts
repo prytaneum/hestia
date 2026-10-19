@@ -18,6 +18,7 @@ const BASE_LOCALE = 'en';
 const DYNAMIC_PREFIXES = [
   'app.crash.',
   'app.jobs.kind.',
+  'app.jobs.verb.',
   'error.kind.',
   'error.code.',
   'error.token.',

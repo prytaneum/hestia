@@ -32,8 +32,10 @@ import {
   ServerSettingsTab,
 } from '@/features/servers/tabs';
 import {
+  busyReason,
   EntryActionsMenu,
   EntryIconMenu,
+  EntryJobProgress,
 } from '@/features/shared/entry/components';
 import { ResourceCards } from '@/features/shared/entry/components/resource-panel';
 import {
@@ -46,6 +48,7 @@ import {
 import { agoLabel, bytes } from '@/lib/format';
 import { m } from '@/paraglide/messages.js';
 import { entryMutations, entryQueries } from '@/queries/entry';
+import { useBusyJob } from '@/queries/jobs';
 import { serverMutations, serverQueries, useServer } from '@/queries/server';
 
 export type ServerTab =
@@ -126,6 +129,7 @@ function ServerDetail({
   const start = useMutation(serverMutations.start(id));
   const stop = useMutation(entryMutations.stop('server', id));
   const restart = useMutation(serverMutations.restart(id));
+  const job = useBusyJob('server', id);
 
   const running = isRunning(server);
   const ping = useQuery({ ...serverQueries.ping(id), enabled: running });
@@ -152,6 +156,7 @@ function ServerDetail({
         iconUrl={server.iconUrl}
         iconAction={<EntryIconMenu id={id} />}
         name={server.name}
+        busy={job && <EntryJobProgress job={job} name={server.name} />}
         badges={
           <>
             <Badge variant="secondary" className="uppercase">
@@ -176,7 +181,10 @@ function ServerDetail({
                       <Button
                         variant="outline"
                         data-icon="inline-start"
-                        disabled={stop.isPending || restart.isPending}
+                        disabled={
+                          stop.isPending || restart.isPending || job !== null
+                        }
+                        title={job ? busyReason(job) : undefined}
                       >
                         {restart.isPending ? (
                           <Spinner />
@@ -210,7 +218,8 @@ function ServerDetail({
                 </>
               ) : (
                 <Button
-                  disabled={!server.ready || start.isPending}
+                  disabled={!server.ready || start.isPending || job !== null}
+                  title={job ? busyReason(job) : undefined}
                   data-icon="inline-start"
                   className="bg-ember text-ember-foreground hover:bg-ember/90"
                   onClick={() => start.mutate()}

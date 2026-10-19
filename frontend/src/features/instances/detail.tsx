@@ -26,8 +26,10 @@ import {
 } from '@/features/instances/tabs';
 import { anchor, useAutoTour } from '@/features/onboarding';
 import {
+  busyReason,
   EntryActionsMenu,
   EntryIconMenu,
+  EntryJobProgress,
   EntryRunControl,
 } from '@/features/shared/entry/components';
 import { ResourceCards } from '@/features/shared/entry/components/resource-panel';
@@ -46,6 +48,7 @@ import { useSessionsShown } from '@/queries/config';
 import { entryMutations, entryQueries } from '@/queries/entry';
 import { entryContentQueries } from '@/queries/entry-content';
 import { instanceQueries, useInstance } from '@/queries/instance';
+import { useBusyJob } from '@/queries/jobs';
 
 export type InstanceTab =
   | 'overview'
@@ -125,6 +128,7 @@ function InstanceDetail({
     0,
   );
 
+  const job = useBusyJob('instance', id);
   const sessions = runningSessions(instance);
   const running = sessions.length > 0;
   const perSession = useSessionsShown(sessions.length);
@@ -149,6 +153,7 @@ function InstanceDetail({
         iconUrl={instance.iconUrl}
         iconAction={<EntryIconMenu id={id} />}
         name={instance.name}
+        busy={job && <EntryJobProgress job={job} name={instance.name} />}
         badges={
           <>
             <Badge variant="secondary" className="uppercase">
@@ -183,7 +188,8 @@ function InstanceDetail({
               ) : (
                 <Button
                   data-icon="inline-start"
-                  disabled={isLaunching(id)}
+                  disabled={isLaunching(id) || job !== null}
+                  title={job ? busyReason(job) : undefined}
                   className="bg-ember text-ember-foreground hover:bg-ember/90"
                   onClick={() => launch(instance)}
                 >

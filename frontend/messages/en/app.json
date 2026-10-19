@@ -63,6 +63,7 @@
       "version_uptime": "v{version} · up {uptime}"
     },
     "jobs": {
+      "busy": "Busy: {verb}",
       "failed_title": "{title} failed",
       "kind": {
         "content": {
@@ -125,6 +126,41 @@
         "status_failed": "Failed",
         "status_interrupted": "Interrupted — the daemon restarted",
         "summary": "Activity, {summary}"
+      },
+      "verb": {
+        "content": {
+          "add": "Adding content",
+          "set_version": "Changing a version",
+          "update": "Updating content"
+        },
+        "instance": {
+          "export": "Exporting",
+          "import": "Importing",
+          "modpack": {
+            "install": "Installing a modpack"
+          },
+          "update": "Updating"
+        },
+        "java": {
+          "install": "Installing Java"
+        },
+        "modpack": {
+          "update": "Updating the modpack"
+        },
+        "server": {
+          "backup": {
+            "create": "Backing up",
+            "restore": "Restoring a backup"
+          },
+          "create": "Creating",
+          "modpack": {
+            "install": "Installing a modpack"
+          },
+          "update": "Updating"
+        },
+        "update": {
+          "download": "Downloading the update"
+        }
       }
     },
     "label": {

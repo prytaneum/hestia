@@ -24,6 +24,26 @@ export function useEntryJobs(kind: EntryKind, id: string): Job[] {
 }
 
 /**
+ * The running job holding an entry's claim, for a surface that marks it busy
+ * and disables what the daemon would refuse. A launch is left to the launch
+ * control. Selecting the job keeps every other card from re-rendering on its
+ * progress.
+ */
+export function useBusyJob(kind: EntryKind, id: string): Job | null {
+  return useSyncExternalStore(
+    subscribe,
+    () =>
+      getJobs().find(
+        (job) =>
+          job.status === 'running' &&
+          job.channel !== 'instance.launch' &&
+          job.subject?.kind === kind &&
+          job.subject.id === id,
+      ) ?? null,
+  );
+}
+
+/**
  * Claim a job's display while a surface shows its progress, so it is never on
  * screen twice. The release on cleanup is what hands a dismissed dialog's job
  * back to the status bar.

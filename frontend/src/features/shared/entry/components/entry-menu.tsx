@@ -20,8 +20,10 @@ import {
   ContextMenuTrigger,
 } from '@/components/ui/context-menu';
 import { m } from '@/paraglide/messages.js';
+import { useBusyJob } from '@/queries/jobs';
 import { serverMutations } from '@/queries/server';
 import { type EntryActionTarget, useEntryActions } from '../hooks';
+import { busyReason } from './job-chip';
 
 /**
  * The right-click menu every surface showing an entry shares. `children` is the
@@ -40,6 +42,7 @@ export function EntryContextMenu({
   const actions = useEntryActions(entry);
   const [restarting, setRestarting] = useState(false);
   const restart = useMutation(serverMutations.restart(id));
+  const job = useBusyJob(kind, id);
 
   const openSettings = () => {
     const search = { tab: 'settings' as const };
@@ -77,7 +80,8 @@ export function EntryContextMenu({
         </ContextMenuItem>
         {kind === 'server' && entry.running && (
           <ContextMenuItem
-            disabled={restart.isPending}
+            disabled={restart.isPending || job !== null}
+            title={job ? busyReason(job) : undefined}
             onClick={() => setRestarting(true)}
           >
             <ArrowClockwiseIcon />

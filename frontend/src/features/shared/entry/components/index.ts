@@ -14,6 +14,12 @@ export { type EntryCardModel, EntryTile } from './entry-card';
 export { EntryContextMenu } from './entry-menu';
 export { EntryIconMenu } from './icon-menu';
 export {
+  busyReason,
+  CancelJobButton,
+  EntryJobChip,
+  EntryJobProgress,
+} from './job-chip';
+export {
   isMeasurable,
   overallRatio,
   ProvisionProgressView,
