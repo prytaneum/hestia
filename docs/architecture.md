@@ -185,7 +185,7 @@ obvious unit to reclaim ([0054](decisions/0054-meta-root-for-materialised-files.
 
 ## Project status
 
-Hestia is at its second beta (`v1.0.0-beta.2`), and the vertical slice is
+Hestia is at its third beta (`v1.0.0-beta.3`), and the vertical slice is
 complete: every capability below works end to end, from the wire contract to at
 least one front-end.
 

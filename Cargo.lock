@@ -687,7 +687,7 @@ checksum = "1c133bc6a41be0d194c306b5506d15e6feeea7b1d6604bd3f8310dfb2ca96486"
 
 [[package]]
 name = "cli"
-version = "1.0.0-beta.2"
+version = "1.0.0-beta.3"
 dependencies = [
  "anyhow",
  "clap",
@@ -705,7 +705,7 @@ dependencies = [
 
 [[package]]
 name = "client"
-version = "1.0.0-beta.2"
+version = "1.0.0-beta.3"
 dependencies = [
  "common",
  "ipc",
@@ -749,7 +749,7 @@ dependencies = [
 
 [[package]]
 name = "common"
-version = "1.0.0-beta.2"
+version = "1.0.0-beta.3"
 dependencies = [
  "chrono",
  "flexi_logger",
@@ -1018,7 +1018,7 @@ dependencies = [
 
 [[package]]
 name = "daemon"
-version = "1.0.0-beta.2"
+version = "1.0.0-beta.3"
 dependencies = [
  "anyhow",
  "clap",
@@ -1164,7 +1164,7 @@ dependencies = [
 
 [[package]]
 name = "desktop"
-version = "1.0.0-beta.2"
+version = "1.0.0-beta.3"
 dependencies = [
  "client",
  "common",
@@ -1418,7 +1418,7 @@ checksum = "66b7e2430c6dff6a955451e2cfc438f09cea1965a9d6f87f7e3b90decc014099"
 
 [[package]]
 name = "engine"
-version = "1.0.0-beta.2"
+version = "1.0.0-beta.3"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2506,7 +2506,7 @@ dependencies = [
 
 [[package]]
 name = "ipc"
-version = "1.0.0-beta.2"
+version = "1.0.0-beta.3"
 dependencies = [
  "common",
  "libc",
@@ -3983,7 +3983,7 @@ dependencies = [
 
 [[package]]
 name = "proto"
-version = "1.0.0-beta.2"
+version = "1.0.0-beta.3"
 dependencies = [
  "serde",
  "serde_json",
@@ -6059,7 +6059,7 @@ dependencies = [
 
 [[package]]
 name = "tray"
-version = "1.0.0-beta.2"
+version = "1.0.0-beta.3"
 dependencies = [
  "anyhow",
  "client",
