@@ -3,6 +3,7 @@
   "server": {
     "backup": {
       "create": "Create backup",
+      "created": "Backup of {name} created",
       "delete": {
         "aria": "Delete backup",
         "description": "The archive from {when} will be permanently deleted.",
@@ -12,7 +13,8 @@
       "restore": {
         "description": "This overwrites the current game data with the archive from {when}. The current data is not kept, so create a backup first if you want one.",
         "title": "Restore backup?"
-      }
+      },
+      "restored": "Backup of {name} restored"
     },
     "console": {
       "clear": "Clear console",

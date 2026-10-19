@@ -86,7 +86,6 @@ export function GeneralSettings({
       <ChangeVersionDialog
         kind={kind}
         id={entry.id}
-        name={entry.name}
         flavor={entry.flavor}
         gameVersion={entry.gameVersion}
         update={update}

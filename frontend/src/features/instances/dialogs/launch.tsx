@@ -10,7 +10,6 @@ import {
 import type { InstanceInfo, QuickPlay, Replace } from '@/api';
 import { AppDialog } from '@/components/dialog';
 import { ProvisionProgressView } from '@/features/shared/entry/components';
-import { toastWarnings } from '@/lib/warnings';
 import { m } from '@/paraglide/messages.js';
 import { instanceMutations } from '@/queries/instance';
 import { useJobDisplay, useJobMutation } from '@/queries/jobs';
@@ -67,18 +66,12 @@ export function LaunchDialogProvider({
   const { mutate, isPending, variables } = mutation;
   const launch = useCallback(
     (instance: InstanceInfo, options?: LaunchOptions) => {
-      // The session is running either way; the warnings say what it runs
-      // against (an unshared saves folder, say), so they follow a backgrounded
-      // launch too.
-      mutate(
-        {
-          id: instance.id,
-          newSession: options?.newSession,
-          quickPlay: options?.quickPlay,
-          replace: options?.replace,
-        },
-        { onSuccess: (done) => toastWarnings(done.warnings) },
-      );
+      mutate({
+        id: instance.id,
+        newSession: options?.newSession,
+        quickPlay: options?.quickPlay,
+        replace: options?.replace,
+      });
       if (instance.lastPlayedUnix == null) {
         setTarget({ id: instance.id, name: instance.name });
       }

@@ -9,6 +9,7 @@
 
 import { queryOptions, useQuery } from '@tanstack/react-query';
 import { instanceSessionPrefix } from '@/lib/process-id';
+import { m } from '@/paraglide/messages.js';
 import type {
   InstanceCreateParams,
   InstanceInfo,
@@ -23,7 +24,7 @@ import * as entry from '../api/entry';
 import * as api from '../api/instance';
 import { mutation } from './core';
 import { useEntryIconLookup } from './icons';
-import { jobMutation } from './jobs';
+import { jobMutation, subjectName } from './jobs';
 import { entryTarget, keys } from './keys';
 import { type LogsOptions, type LogsResult, useFollowedLogs } from './logs';
 
@@ -119,6 +120,13 @@ export const instanceMutations = {
         keys.instances.detail(id),
         keys.instances.info(id),
       ],
+      notify: {
+        done: (done) => ({
+          title: m['app.toast.updated']({ name: done.instance.name }),
+          failures: { failed: done.failures.length },
+          warnings: done.warnings,
+        }),
+      },
     }),
   /** Adds an entry to the multiplayer list, or rewrites the one `server` names. */
   serverEdit: (id: string) =>
@@ -171,6 +179,17 @@ export const instanceMutations = {
         keys.instances.detail(id),
         keys.accounts.all,
       ],
+      notify: {
+        done: (done, { id }) =>
+          done.warnings.length > 0
+            ? {
+                title: m['app.toast.started']({
+                  name: subjectName({ kind: 'instance', id }),
+                }),
+                warnings: done.warnings,
+              }
+            : null,
+      },
     }),
   /** `session` stops just that one; absent stops every session. */
   stopAny: () =>

@@ -17,8 +17,9 @@ export {
   type JobEntry,
   type JobHandle,
   type JobMeta,
+  type JobOutcome,
   type JobStatus,
   startJob,
   startJobs,
 } from './store';
-export { jobTitle } from './title';
+export { jobTitle, subjectName } from './title';

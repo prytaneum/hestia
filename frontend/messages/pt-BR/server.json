@@ -3,6 +3,7 @@
   "server": {
     "backup": {
       "create": "Criar backup",
+      "created": "Backup de {name} criado",
       "delete": {
         "aria": "Excluir backup",
         "description": "O arquivo de {when} será excluído permanentemente.",
@@ -12,7 +13,8 @@
       "restore": {
         "description": "Isto sobrescreve os dados atuais do jogo com o arquivo de {when}. Os dados atuais não são mantidos, então crie um backup antes se quiser um.",
         "title": "Restaurar backup?"
-      }
+      },
+      "restored": "Backup de {name} restaurado"
     },
     "console": {
       "clear": "Limpar console",

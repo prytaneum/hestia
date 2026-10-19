@@ -7,7 +7,13 @@ import {
 import { useMemo, useState } from 'react';
 import type { HestiaError, JobRun, ProvisionProgress } from '../../api';
 import { useJobs } from './hooks';
-import { type Job, type JobMeta, startJob } from './store';
+import {
+  type Job,
+  type JobHandle,
+  type JobMeta,
+  type JobOutcome,
+  startJob,
+} from './store';
 
 export interface JobSpec<TData, TVariables, TProgress> {
   mutationKey: QueryKey;
@@ -15,6 +21,13 @@ export interface JobSpec<TData, TVariables, TProgress> {
   run: (variables: TVariables, job: JobRun) => Promise<TData>;
   /** Key prefixes swept when the job settles, however it ends. */
   invalidates?: (variables: TVariables) => QueryKey[];
+  /**
+   * The store toasts this when the job finishes, wherever it was started from.
+   * A failure is reported by the store too; a spec never toasts one.
+   */
+  notify?: {
+    done?: (done: TData, variables: TVariables) => JobOutcome | null;
+  };
   /** Type-only: carries `TProgress` to the hook's result; never set. */
   progress?: TProgress;
 }
@@ -31,9 +44,34 @@ export type JobMutationOptions<TData, TVariables, TProgress> = Omit<
 > & {
   job: Pick<
     JobSpec<TData, TVariables, TProgress>,
-    'meta' | 'run' | 'invalidates'
+    'meta' | 'run' | 'invalidates' | 'notify'
   >;
 };
+
+/**
+ * The one `startJob` call. Retry re-enters it with the same variables, and
+ * nothing awaits that run: the store has already reported how it ended.
+ */
+function start<TData, TVariables, TProgress>(
+  spec: JobOptionsOf<TData, TVariables, TProgress>,
+  variables: TVariables,
+): JobHandle<TData> {
+  return startJob<TData>(
+    spec.meta(variables),
+    (job) => spec.run(variables, job),
+    {
+      invalidates: spec.invalidates?.(variables),
+      notify: (done) => spec.notify?.done?.(done, variables) ?? null,
+      retry: () => void start(spec, variables).result.catch(() => undefined),
+    },
+  );
+}
+
+type JobOptionsOf<TData, TVariables, TProgress> = JobMutationOptions<
+  TData,
+  TVariables,
+  TProgress
+>['job'];
 
 export function jobMutation<
   TData,
@@ -44,7 +82,13 @@ export function jobMutation<
 ): JobMutationOptions<TData, TVariables, TProgress> {
   return {
     mutationKey: spec.mutationKey,
-    job: { meta: spec.meta, run: spec.run, invalidates: spec.invalidates },
+    meta: { job: true },
+    job: {
+      meta: spec.meta,
+      run: spec.run,
+      invalidates: spec.invalidates,
+      notify: spec.notify,
+    },
   };
 }
 
@@ -74,11 +118,7 @@ export function useJobMutation<TData, TVariables, TProgress>(
   const mutation = useMutation<TData, HestiaError, TVariables>({
     ...options,
     mutationFn: (variables) => {
-      const handle = startJob<TData>(
-        options.job.meta(variables),
-        (job) => options.job.run(variables, job),
-        options.job.invalidates?.(variables),
-      );
+      const handle = start(options.job, variables);
       setStartedIds((ids) => [...ids, handle.id]);
       return handle.result;
     },

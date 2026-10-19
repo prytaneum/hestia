@@ -13,6 +13,7 @@ import {
   useQueryClient,
 } from '@tanstack/react-query';
 import { serverProcessId } from '@/lib/process-id';
+import { m } from '@/paraglide/messages.js';
 import type {
   BackupInfo,
   ServerCreateParams,
@@ -24,7 +25,7 @@ import * as entry from '../api/entry';
 import * as api from '../api/server';
 import { mutation } from './core';
 import { useEntryIconLookup } from './icons';
-import { jobMutation } from './jobs';
+import { jobMutation, subjectName } from './jobs';
 import { entryTarget, keys } from './keys';
 import { type LogsOptions, type LogsResult, useFollowedLogs } from './logs';
 
@@ -94,6 +95,12 @@ export const serverMutations = {
       meta: () => ({ channel: 'server.create' }),
       run: (params, job) => api.create(params, job),
       invalidates: () => [keys.servers.list()],
+      notify: {
+        done: (done) => ({
+          title: m['app.toast.created']({ name: done.server.name }),
+          warnings: done.warnings,
+        }),
+      },
     }),
   update: (id: string) =>
     jobMutation<
@@ -111,6 +118,13 @@ export const serverMutations = {
         keys.servers.detail(id),
         keys.servers.info(id),
       ],
+      notify: {
+        done: (done) => ({
+          title: m['app.toast.updated']({ name: done.server.name }),
+          failures: { failed: done.failures.length },
+          warnings: done.warnings,
+        }),
+      },
     }),
   start: (id: string) =>
     mutation<{ processId: string; pid: number }>({
@@ -154,6 +168,13 @@ export const serverMutations = {
         }),
         run: (_variables, job) => api.backup.create(id, job),
         invalidates: () => [keys.servers.backups(id), keys.servers.info(id)],
+        notify: {
+          done: () => ({
+            title: m['server.backup.created']({
+              name: subjectName({ kind: 'server', id }),
+            }),
+          }),
+        },
       }),
     /** Refused while the server runs or is busy; swaps `data/` wholesale. */
     restore: (id: string) =>
@@ -165,6 +186,13 @@ export const serverMutations = {
         }),
         run: (backupId, job) => api.backup.restore(id, backupId, job),
         invalidates: () => [keys.servers.detail(id), keys.servers.info(id)],
+        notify: {
+          done: () => ({
+            title: m['server.backup.restored']({
+              name: subjectName({ kind: 'server', id }),
+            }),
+          }),
+        },
       }),
     remove: (id: string) =>
       mutation<void, string>({

@@ -1,10 +1,9 @@
 import { CaretRightIcon } from '@phosphor-icons/react';
 import { useQuery } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
-import { toast } from 'sonner';
 
 import type { ArchiveEntry, ExportFormat } from '@/api';
-import { dialog, errorMessage, system } from '@/api';
+import { dialog } from '@/api';
 import { AppDialog, DialogFooter } from '@/components/dialog';
 import { Bone } from '@/components/skeleton';
 import { Button } from '@/components/ui/button';
@@ -17,7 +16,6 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { bytes } from '@/lib/format';
-import { toastWarnings } from '@/lib/warnings';
 import { m } from '@/paraglide/messages.js';
 import { useJobMutation } from '@/queries/jobs';
 import { transferMutations, transferQueries } from '@/queries/transfer';
@@ -102,25 +100,7 @@ export function ExportInstanceDialog({
     );
     if (!destination) return;
     onOpenChange(false);
-    run.mutate(
-      { format, destination, exclude: excludedRoots(excluded) },
-      {
-        onSuccess: (done) => {
-          toast.success(m['instance.export.done']({ name }), {
-            description: m['instance.export.summary']({
-              files: done.files,
-              size: bytes(done.sizeBytes),
-            }),
-            action: {
-              label: m['app.action.open_folder'](),
-              onClick: () => void system.openPath(parentOf(done.path)),
-            },
-          });
-          toastWarnings(done.warnings);
-        },
-        onError: (error) => toast.error(errorMessage(error)),
-      },
-    );
+    run.mutate({ format, destination, exclude: excludedRoots(excluded) });
   };
 
   return (
@@ -286,9 +266,4 @@ function Row({
       )}
     </li>
   );
-}
-
-function parentOf(path: string): string {
-  const cut = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'));
-  return cut > 0 ? path.slice(0, cut) : path;
 }

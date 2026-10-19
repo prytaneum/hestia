@@ -8,6 +8,7 @@
  */
 import { queryOptions } from '@tanstack/react-query';
 import { logger } from '@/lib/log';
+import { m } from '@/paraglide/messages.js';
 import type {
   EntryKind,
   InstalledModpack,
@@ -21,8 +22,19 @@ import * as icons from '../api/icons';
 import type { PackRef } from '../api/modpack';
 import * as api from '../api/modpack';
 import { mutation } from './core';
-import { jobMutation } from './jobs';
+import { type JobOutcome, jobMutation } from './jobs';
 import { entryScope, entryTarget, keys } from './keys';
+
+function packOutcome(title: string, done: ModpackDone): JobOutcome {
+  return {
+    title,
+    failures: {
+      failed: done.failures.length,
+      total: done.pack.files.length + done.failures.length,
+    },
+    warnings: done.warnings,
+  };
+}
 
 const log = logger('modpack');
 
@@ -90,6 +102,13 @@ export const modpackMutations = {
         return done;
       },
       invalidates: () => [keys.servers.all, keys.instances.all, keys.icons.all],
+      notify: {
+        done: (done) =>
+          packOutcome(
+            m['content.modpack.install_into']({ name: done.entryName }),
+            done,
+          ),
+      },
     }),
   update: (kind: EntryKind, id: string) =>
     jobMutation<ModpackDone, UpdateInput>({
@@ -100,6 +119,10 @@ export const modpackMutations = {
       }),
       run: (to, job) => api.update(entryTarget(kind, id), to, job),
       invalidates: () => invalidates(kind, id),
+      notify: {
+        done: (done) =>
+          packOutcome(m['app.toast.updated']({ name: done.entryName }), done),
+      },
     }),
   remove: (kind: EntryKind, id: string) =>
     mutation<ModpackRemoveResult, { keepContent: boolean }>({

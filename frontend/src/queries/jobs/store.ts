@@ -11,6 +11,8 @@
  */
 import type { QueryKey } from '@tanstack/react-query';
 import { logger } from '@/lib/log';
+import { notify, type Outcome as Toast } from '@/lib/notify';
+import { m } from '@/paraglide/messages.js';
 import type { EntryKind, JobRun, Jobs, Topics } from '../../api';
 import {
   HANDLER_ERROR,
@@ -24,6 +26,7 @@ import {
   TRANSPORT,
 } from '../../api';
 import { invalidate } from '../client';
+import { entryName, jobTitle } from './title';
 
 const log = logger('jobs');
 
@@ -67,14 +70,30 @@ export interface Job<TProgress = unknown> {
   settledAt: number | null;
   /** Shown in the status bar; a modal foregrounds its job to hide it there. */
   background: boolean;
+  /** The claiming surface renders this job's failure itself. */
+  ownsError: boolean;
   seen: boolean;
 }
 
 const MAX_SETTLED = 50;
 
-/** What only this webview's own jobs carry: the keys to sweep and the run to abort. */
+/** The outcome toast a job declares; the store adds the id it is keyed by. */
+export type JobOutcome = Omit<Toast, 'id'>;
+
+export interface JobOptions<TData> {
+  /** Key prefixes swept when the job settles, however it ends. */
+  invalidates?: QueryKey[];
+  /** Describes a finished run for the toast; `null` says nothing. */
+  notify?: (done: TData) => JobOutcome | null;
+  /** Starts the same run again, offered on the failure toast. */
+  retry?: () => void;
+}
+
+/** What only this webview's own jobs carry: what to sweep, say, retry and abort. */
 interface Own {
   sweep: QueryKey[];
+  notify?: (done: unknown) => JobOutcome | null;
+  retry?: () => void;
   abort: AbortController;
 }
 
@@ -162,13 +181,45 @@ function settle(id: string, outcome: Outcome): void {
     { id, channel: job.channel, status: outcome.status },
     'job settled',
   );
-  jobs.set(id, { ...job, ...outcome, settledAt: Date.now() });
+  const settled = { ...job, ...outcome, settledAt: Date.now() };
+  jobs.set(id, settled);
   const own = owned.get(id);
   owned.delete(id);
   emit();
   if (outcome.status === 'interrupted')
     own?.abort.abort(new JobInterrupted(id));
   for (const key of own?.sweep ?? []) invalidate(key);
+  if (own) announce(settled, outcome, own);
+}
+
+/**
+ * The one reporter of an own job's end, keyed `job:<id>` so it never repeats.
+ * A cancel or an interruption says nothing (Activity shows them); a foreign
+ * job never toasts. A surface that watched the job finish needs no success
+ * toast, but warnings and failures it did not render still go out.
+ */
+function announce(job: Job, outcome: Outcome, own: Own): void {
+  const id = `job:${job.id}`;
+  if (outcome.status === 'failed') {
+    if (job.ownsError && !job.background) return;
+    const title = jobTitle(job, entryName(job.subject));
+    notify.failure(outcome.error, {
+      id,
+      title: m['app.jobs.failed_title']({ title }),
+      action: own.retry && {
+        label: m['app.toast.retry'](),
+        onClick: own.retry,
+      },
+    });
+    return;
+  }
+  if (outcome.status !== 'done') return;
+  const described = own.notify?.(outcome.done);
+  if (!described) return;
+  const watched = !job.background;
+  const failures = watched && job.ownsError ? undefined : described.failures;
+  if (watched && !described.warnings?.length && !failures?.failed) return;
+  notify.outcome({ ...described, failures, id });
 }
 
 function adopt(
@@ -191,6 +242,7 @@ function adopt(
     startedAt,
     settledAt: null,
     background: true,
+    ownsError: false,
     seen: false,
   });
 }
@@ -278,12 +330,17 @@ export interface JobHandle<TData> {
 export function startJob<TData>(
   meta: JobMeta,
   run: (job: JobRun) => Promise<TData>,
-  invalidates: QueryKey[] = [],
+  options: JobOptions<TData> = {},
 ): JobHandle<TData> {
   const id = jobId(meta.channel);
   log.debug({ id, channel: meta.channel }, 'job started');
   const abort = new AbortController();
-  owned.set(id, { sweep: invalidates, abort });
+  owned.set(id, {
+    sweep: options.invalidates ?? [],
+    notify: options.notify as Own['notify'],
+    retry: options.retry,
+    abort,
+  });
   register({
     id,
     channel: meta.channel,
@@ -296,6 +353,7 @@ export function startJob<TData>(
     startedAt: Date.now(),
     settledAt: null,
     background: true,
+    ownsError: false,
     seen: false,
   });
 
@@ -317,10 +375,14 @@ export function startJob<TData>(
   return { id, result };
 }
 
-/** Hide a job from the status bar while a modal owns its display. */
-export function foregroundJob(id: string): void {
-  if (jobs.get(id)?.background === false) return;
-  patch(id, { background: false });
+/**
+ * Hide a job from the status bar while a modal owns its display;
+ * `ownsError` says the modal renders the failure itself.
+ */
+export function foregroundJob(id: string, ownsError = false): void {
+  const job = jobs.get(id);
+  if (job?.background === false && job.ownsError === ownsError) return;
+  patch(id, { background: false, ownsError });
 }
 
 /** Reveal a job in the status bar after its modal is closed. */

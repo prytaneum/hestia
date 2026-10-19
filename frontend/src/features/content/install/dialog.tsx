@@ -94,7 +94,7 @@ export function ContentInstallDialog({
   const add = useJobMutation(
     entryContentMutations.add(target?.type ?? 'instance', targetId),
   );
-  useJobDisplay(add.job, open);
+  useJobDisplay(add.job, open, { ownsError: true });
   const selectedCount = picked.length + files.length;
   const fileKinds = files
     .map((f) => f.kind)

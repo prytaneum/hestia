@@ -1,8 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
-import { toast } from 'sonner';
 
-import { type ContentProject, errorMessage } from '@/api';
+import type { ContentProject } from '@/api';
 import { AppDialog, DialogBody, DialogFooter } from '@/components/dialog';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -114,7 +113,7 @@ export function ModpackInstallDialog({
 
   async function run() {
     try {
-      const result = await install.mutateAsync({
+      await install.mutateAsync({
         pack: {
           source: project.source,
           project: project.id,
@@ -126,12 +125,9 @@ export function ModpackInstallDialog({
             : { mode: 'create', name: name.trim() },
         eula,
       });
-      toast.success(
-        m['content.modpack.install_into']({ name: result.entryName }),
-      );
       onOpenChange(false);
-    } catch (error) {
-      toast.error(errorMessage(error));
+    } catch {
+      // The job store reports the failure; the dialog just stays open.
     }
   }
 

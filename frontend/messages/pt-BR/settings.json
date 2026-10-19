@@ -126,7 +126,6 @@
       "checking": "Verificando…",
       "current": "Versão {version}",
       "downloading": "Baixando…",
-      "failed": "Falha na atualização",
       "install": "Atualizar e reiniciar",
       "installing": "Atualizando…",
       "manual": "Esta cópia do Hestia se atualiza por outro caminho — baixe a versão {version} na página de lançamentos",

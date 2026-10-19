@@ -3,7 +3,6 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { toast } from 'sonner';
 
-import { errorMessage } from '@/api';
 import type { UpdateChannel } from '@/api/types/update';
 import { Markdown } from '@/components/markdown';
 import { OfflineNotice } from '@/components/offline-state';
@@ -88,19 +87,17 @@ export function UpdatePanel() {
   const version = app.data?.version ?? '';
   const working = download.isPending || apply.isPending;
 
-  const install = async () => {
-    try {
-      const staged = await download.mutateAsync();
-      const applied = await apply.mutateAsync(staged.path);
-      if (!applied.relaunches) {
-        toast.success(m['settings.update.restart_required']());
-      }
-    } catch (e) {
-      toast.error(m['settings.update.failed'](), {
-        description: errorMessage(e),
-      });
-    }
-  };
+  const install = () =>
+    download.mutate(undefined, {
+      onSuccess: (staged) =>
+        apply.mutate(staged.path, {
+          onSuccess: (applied) => {
+            if (!applied.relaunches) {
+              toast.success(m['settings.update.restart_required']());
+            }
+          },
+        }),
+    });
 
   return (
     <>
@@ -146,7 +143,7 @@ export function UpdatePanel() {
             <Button
               size="sm"
               data-icon="inline-start"
-              onClick={() => void install()}
+              onClick={install}
               disabled={working}
             >
               <DownloadSimpleIcon className="size-4" />

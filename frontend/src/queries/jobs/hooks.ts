@@ -35,11 +35,15 @@ export function useEntryJobs(kind: EntryKind, id: string): Job[] {
  * screen twice. The release on cleanup is what hands a dismissed dialog's job
  * back to the status bar.
  */
-export function useJobDisplay(job: Job | null, shown: boolean): void {
+export function useJobDisplay(
+  job: Job | null,
+  shown: boolean,
+  { ownsError = false }: { ownsError?: boolean } = {},
+): void {
   const id = shown && job?.status === 'running' ? job.id : null;
   useEffect(() => {
     if (!id) return;
-    foregroundJob(id);
+    foregroundJob(id, ownsError);
     return () => backgroundJob(id);
-  }, [id]);
+  }, [id, ownsError]);
 }

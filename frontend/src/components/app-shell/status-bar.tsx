@@ -1,9 +1,7 @@
 import { CaretUpIcon, XIcon } from '@phosphor-icons/react';
 import { Link } from '@tanstack/react-router';
-import { useEffect, useRef } from 'react';
-import { toast } from 'sonner';
 
-import { errorMessage, type ProvisionProgress } from '@/api';
+import type { ProvisionProgress } from '@/api';
 import { Button } from '@/components/ui/button';
 import {
   Popover,
@@ -31,24 +29,6 @@ export function StatusBar() {
   const jobs = useJobs();
   const instances = useInstances();
   const servers = useServers();
-
-  // Background jobs no longer block the UI, so a failed one has no modal to
-  // report it — surface each error once through a toast instead.
-  const toasted = useRef<Set<string>>(new Set());
-  useEffect(() => {
-    for (const job of jobs) {
-      if (toasted.current.has(job.id)) continue;
-      if (job.status === 'cancelled') {
-        toasted.current.add(job.id);
-        toast(m['app.jobs.cancelled']());
-      } else if (job.status === 'failed') {
-        toasted.current.add(job.id);
-        toast.error(
-          job.error ? errorMessage(job.error) : m['app.jobs.failed'](),
-        );
-      }
-    }
-  }, [jobs]);
 
   const running = jobs.filter(
     (job) => job.status === 'running' && job.background,

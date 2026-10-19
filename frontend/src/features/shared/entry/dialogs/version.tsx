@@ -1,13 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
-import { toast } from 'sonner';
 
-import {
-  type EntryKind,
-  errorMessage,
-  type PackPolicy,
-  type WarningInfo,
-} from '@/api';
+import type { EntryKind, PackPolicy } from '@/api';
 import { AppDialog, DialogBody, DialogFooter } from '@/components/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -21,7 +15,6 @@ import {
 } from '@/components/ui/select';
 import { Notice } from '@/components/warning-notice';
 import { useOnOpen } from '@/features/shared/entry/hooks';
-import { toastWarnings } from '@/lib/warnings';
 import { m } from '@/paraglide/messages.js';
 import { catalogueQueries, modpackQueries } from '@/queries';
 
@@ -30,14 +23,13 @@ export interface UpdateHandle {
     version: string;
     allowDowngrade: boolean;
     pack: PackPolicy;
-  }) => Promise<{ warnings: WarningInfo[] }>;
+  }) => Promise<unknown>;
   isPending: boolean;
 }
 
 export function ChangeVersionDialog({
   kind,
   id,
-  name,
   flavor,
   gameVersion,
   update,
@@ -46,7 +38,6 @@ export function ChangeVersionDialog({
 }: {
   kind: EntryKind;
   id: string;
-  name: string;
   flavor: string;
   gameVersion: string;
   update: UpdateHandle;
@@ -85,16 +76,14 @@ export function ChangeVersionDialog({
   const apply = async () => {
     if (!version) return;
     try {
-      const done = await update.mutateAsync({
+      await update.mutateAsync({
         version,
         allowDowngrade: downgrade,
         pack: movePack ? 'move' : 'keep',
       });
-      toastWarnings(done.warnings);
-      toast.success(m['app.toast.updated']({ name }));
       onOpenChange(false);
-    } catch (error) {
-      toast.error(errorMessage(error));
+    } catch {
+      // The job store reports the failure; the dialog just stays open.
     }
   };
 

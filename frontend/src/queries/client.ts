@@ -16,7 +16,6 @@ import {
   CONNECTION_LOST,
   errorMessage,
   type HestiaError,
-  JobCancelled,
   NOT_FOUND,
   OFFLINE,
   TIMEOUT,
@@ -69,13 +68,7 @@ export const queryClient = new QueryClient({
   }),
   mutationCache: new MutationCache({
     onError: (error, _vars, _ctx, mutation) => {
-      if (error instanceof JobCancelled) {
-        log.debug(
-          { key: mutation.options.mutationKey?.join('.') },
-          'cancelled',
-        );
-        return;
-      }
+      if (mutation.meta?.job) return;
       log.warn(
         { key: mutation.options.mutationKey?.join('.'), code: error.code },
         `mutation failed: ${error.message}`,

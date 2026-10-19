@@ -1,10 +1,16 @@
-import { afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+
+vi.mock('@/lib/notify', () => ({
+  notify: { failure: vi.fn(), outcome: vi.fn() },
+}));
+
 import {
   HestiaError,
   type JobInfo,
   JobInterrupted,
   type ProvisionProgress,
 } from '@/api';
+import { notify } from '@/lib/notify';
 import { connection, publish, publishJob } from '@/mock/bus';
 import { channels } from '@/mock/channels';
 import {
@@ -14,6 +20,7 @@ import {
   foregroundJob,
   getJobs,
   type JobMeta,
+  type JobOutcome,
   startJob,
   startJobs,
 } from '@/queries/jobs';
@@ -49,6 +56,7 @@ beforeAll(async () => {
 });
 
 afterEach(() => {
+  vi.clearAllMocks();
   listed = [];
   clearSettledJobs();
 });
@@ -237,5 +245,91 @@ describe('the job store', () => {
     clearSettledJobs();
     expect(find(settled.id)).toBeUndefined();
     expect(find(running.id)?.status).toBe('running');
+  });
+});
+
+describe('job outcome notifications', () => {
+  const failure = new HestiaError('handler_error', 'nope');
+  const done = (over: Partial<JobOutcome> = {}) => ({
+    notify: () => ({ title: 'Created SMP', ...over }),
+  });
+
+  it('reports a failure once, though the event and the rejection both land', async () => {
+    const handle = startJob(meta(), () => Promise.reject(failure), {
+      retry: () => {},
+    });
+    publishJob(handle.id, 'server.create', {
+      state: 'failed',
+      error: { kind: 'already_exists', entry: 'server', name: 'smp' },
+    });
+    await expect(handle.result).rejects.toBe(failure);
+    expect(notify.failure).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(notify.failure).mock.calls[0][1].id).toBe(`job:${handle.id}`);
+    expect(vi.mocked(notify.failure).mock.calls[0][1].action).toBeDefined();
+  });
+
+  it('says nothing about a cancel', async () => {
+    const handle = startJob(meta(), () => new Promise(() => {}), done());
+    publishJob(handle.id, 'server.create', { state: 'cancelled' });
+    await flush();
+    expect(find(handle.id)?.status).toBe('cancelled');
+    expect(notify.failure).not.toHaveBeenCalled();
+    expect(notify.outcome).not.toHaveBeenCalled();
+  });
+
+  it('never toasts a foreign failure, and leaves it unseen', async () => {
+    publishJob('cli-2', 'server.backup.create', {
+      state: 'failed',
+      error: { kind: 'already_exists', entry: 'server', name: 'smp' },
+    });
+    await flush();
+    expect(find('cli-2')).toMatchObject({ status: 'failed', seen: false });
+    expect(notify.failure).not.toHaveBeenCalled();
+  });
+
+  it('toasts the declared outcome when nobody watched', async () => {
+    const handle = startJob(meta(), () => Promise.resolve('ok'), done());
+    await handle.result;
+    expect(notify.outcome).toHaveBeenCalledWith({
+      title: 'Created SMP',
+      id: `job:${handle.id}`,
+    });
+  });
+
+  it('skips the success toast of a job a surface displayed, but not its warnings', async () => {
+    let finish!: (value: string) => void;
+    const watched = startJob(
+      meta(),
+      () => new Promise<string>((resolve) => (finish = resolve)),
+      done(),
+    );
+    foregroundJob(watched.id);
+    finish('ok');
+    await watched.result;
+    expect(notify.outcome).not.toHaveBeenCalled();
+
+    const degraded = startJob(
+      meta(),
+      () =>
+        new Promise<string>((resolve) => {
+          finish = resolve;
+        }),
+      done({ warnings: [{ kind: 'unknown' } as never] }),
+    );
+    foregroundJob(degraded.id);
+    finish('ok');
+    await degraded.result;
+    expect(notify.outcome).toHaveBeenCalledTimes(1);
+  });
+
+  it('leaves a failure to a surface that renders it inline', async () => {
+    const handle = startJob(meta(), () => new Promise(() => {}));
+    foregroundJob(handle.id, true);
+    publishJob(handle.id, 'server.create', {
+      state: 'failed',
+      error: { kind: 'already_exists', entry: 'server', name: 'smp' },
+    });
+    await flush();
+    expect(notify.failure).not.toHaveBeenCalled();
   });
 });

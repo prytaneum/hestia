@@ -63,8 +63,7 @@
       "version_uptime": "v{version} · ativo há {uptime}"
     },
     "jobs": {
-      "cancelled": "Cancelado.",
-      "failed": "A operação falhou.",
+      "failed_title": "Falha: {title}",
       "kind": {
         "content": {
           "add": "Adicionando conteúdo a {name}",
@@ -218,12 +217,17 @@
     },
     "toast": {
       "cache_cleared": "Cache limpo ({size} recuperado)",
+      "content_added": "Conteúdo adicionado a {name}",
+      "content_updated": "Conteúdo de {name} atualizado",
       "copied": "Copiado",
       "created": "{name} criado",
       "failed_count": "{failed} de {total} falharam",
+      "failed_only": "{failed} falharam",
       "removed": "{name} removido",
       "renamed": "Renomeado para {name}",
+      "retry": "Tentar novamente",
       "saved": "Salvo",
+      "started": "{name} iniciado",
       "updated": "{name} atualizado",
       "warning_count": "{count} avisos"
     },

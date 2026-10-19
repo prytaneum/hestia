@@ -9,13 +9,8 @@ import { useMutation, useQueries, useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { toast } from 'sonner';
 
-import type {
-  ContentDone,
-  ContentKind,
-  InstalledContent,
-  UntrackedFile,
-} from '@/api';
-import { dialog, errorMessage, errorMessageFromInfo, system } from '@/api';
+import type { ContentKind, InstalledContent, UntrackedFile } from '@/api';
+import { dialog, errorMessage, system } from '@/api';
 import { Empty } from '@/components/empty';
 import { contentIcon } from '@/components/icons';
 import { OfflineNotice } from '@/components/offline-state';
@@ -90,13 +85,6 @@ export function ContentSection({
       await run(batch).catch(() => undefined);
     }
   };
-  const toastFailures = (done: ContentDone) => {
-    for (const failure of done.failures) {
-      toast.error(failure.title || failure.item, {
-        description: errorMessageFromInfo(failure.error),
-      });
-    }
-  };
 
   const handlers: ContentHandlers = {
     // An omitted `worlds` covers every world the item targets — how the wire
@@ -115,10 +103,7 @@ export function ContentSection({
         worlds,
       }),
     onUpdate: (item) =>
-      update.mutate(
-        { kind: item.kind, items: [installedRef(item)] },
-        { onSuccess: toastFailures },
-      ),
+      update.mutate({ kind: item.kind, items: [installedRef(item)] }),
     onUpdateFromFile: async (item) => {
       const path = await dialog.pickContentFile();
       if (path)
@@ -132,10 +117,7 @@ export function ContentSection({
         source: version.source,
       }),
     onRemoveMany: (rows) => void runBatches(rows, remove.mutateAsync),
-    onUpdateMany: (rows) =>
-      void runBatches(rows, (batch) =>
-        update.mutateAsync(batch).then(toastFailures),
-      ),
+    onUpdateMany: (rows) => void runBatches(rows, update.mutateAsync),
   };
 
   // Read off the job store rather than these mutations: a content job started

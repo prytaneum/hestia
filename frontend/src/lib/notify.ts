@@ -22,8 +22,10 @@ export type NotifyOptions = {
 export type Outcome = {
   id: string;
   title: string;
+  description?: string;
+  action?: NotifyAction;
   warnings?: WarningInfo[];
-  failures?: { failed: number; total: number };
+  failures?: { failed: number; total?: number };
 };
 
 type Kind = 'success' | 'info' | 'warning' | 'error';
@@ -45,14 +47,16 @@ function show(kind: Kind, title: string, options: NotifyOptions = {}) {
   });
 }
 
-function outcomeDescription({ warnings = [], failures }: Outcome) {
-  const parts: string[] = [];
+function outcomeDescription({ description, warnings = [], failures }: Outcome) {
+  const parts: string[] = description ? [description] : [];
   if (failures && failures.failed > 0) {
     parts.push(
-      m['app.toast.failed_count']({
-        failed: failures.failed,
-        total: failures.total,
-      }),
+      failures.total === undefined
+        ? m['app.toast.failed_only']({ failed: failures.failed })
+        : m['app.toast.failed_count']({
+            failed: failures.failed,
+            total: failures.total,
+          }),
     );
   }
   if (warnings.length === 1) parts.push(warningMessage(warnings[0]));
@@ -74,16 +78,25 @@ export const notify = {
 
   /** One toast for a finished operation, its warnings and failed items folded in. */
   outcome(outcome: Outcome) {
-    const description = outcomeDescription(outcome);
-    const degraded = description !== undefined;
+    const degraded =
+      (outcome.warnings?.length ?? 0) > 0 ||
+      (outcome.failures?.failed ?? 0) > 0;
     return show(degraded ? 'warning' : 'success', outcome.title, {
       id: outcome.id,
-      description,
+      description: outcomeDescription(outcome),
+      action: outcome.action,
     });
   },
 
   /** A cancelled or interrupted job is not a failure and shows nothing. */
-  failure(error: unknown, { id, title }: { id: string; title?: string }) {
+  failure(
+    error: unknown,
+    {
+      id,
+      title,
+      action,
+    }: { id: string; title?: string; action?: NotifyAction },
+  ) {
     if (error instanceof JobCancelled || error instanceof JobInterrupted) {
       return;
     }
@@ -91,6 +104,7 @@ export const notify = {
     return show('error', title ?? message, {
       id,
       description: title ? message : undefined,
+      action,
     });
   },
 

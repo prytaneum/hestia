@@ -8,10 +8,13 @@
  * often as not.
  */
 import { queryOptions } from '@tanstack/react-query';
-import type { ExportDone, ImportDone } from '../api';
+import { bytes } from '@/lib/format';
+import { parentOf } from '@/lib/path';
+import { m } from '@/paraglide/messages.js';
+import { type ExportDone, type ImportDone, system } from '../api';
 import type { ExportInput } from '../api/transfer';
 import * as api from '../api/transfer';
-import { jobMutation } from './jobs';
+import { jobMutation, subjectName } from './jobs';
 import { FOOTPRINT, keys } from './keys';
 
 export const transferQueries = {
@@ -49,6 +52,22 @@ export const transferMutations = {
       }),
       run: (input, job) => api.exportInstance(id, input, job),
       invalidates: () => [[FOOTPRINT]],
+      notify: {
+        done: (done) => ({
+          title: m['instance.export.done']({
+            name: subjectName({ kind: 'instance', id }),
+          }),
+          description: m['instance.export.summary']({
+            files: done.files,
+            size: bytes(done.sizeBytes),
+          }),
+          action: {
+            label: m['app.action.open_folder'](),
+            onClick: () => void system.openPath(parentOf(done.path)),
+          },
+          warnings: done.warnings,
+        }),
+      },
     }),
   import: () =>
     jobMutation<ImportDone, { path: string; name?: string }>({
@@ -56,5 +75,12 @@ export const transferMutations = {
       meta: () => ({ channel: 'instance.import' }),
       run: ({ path, name }, job) => api.importInstance(path, name ?? '', job),
       invalidates: () => [keys.instances.list()],
+      notify: {
+        done: (done) => ({
+          title: m['instance.import.done']({ name: done.instance.name }),
+          failures: { failed: done.failures.length },
+          warnings: done.warnings,
+        }),
+      },
     }),
 };

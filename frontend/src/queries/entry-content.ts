@@ -4,6 +4,7 @@
  * `kind` argument. Keys stay per entry and nest under its stable id.
  */
 import { queryOptions } from '@tanstack/react-query';
+import { m } from '@/paraglide/messages.js';
 import type {
   ContentAddInput,
   ContentDone,
@@ -12,8 +13,23 @@ import type {
 } from '../api';
 import * as api from '../api/content';
 import { mutation } from './core';
-import { jobMutation } from './jobs';
+import { type JobOutcome, jobMutation, subjectName } from './jobs';
 import { entryScope, entryTarget } from './keys';
+
+/** Silent unless an item failed: the rows already show what landed. */
+function failuresOutcome(
+  title: string,
+  { items, failures }: ContentDone,
+): JobOutcome | null {
+  if (failures.length === 0) return null;
+  return {
+    title,
+    failures: {
+      failed: failures.length,
+      total: items.length + failures.length,
+    },
+  };
+}
 
 export const entryContentQueries = {
   list: (kind: EntryKind, id: string, contentKind: ContentKind) =>
@@ -53,6 +69,15 @@ export const entryContentMutations = {
       }),
       run: (spec, job) => api.add(entryTarget(kind, id), spec, job),
       invalidates: () => invalidates(kind, id),
+      notify: {
+        done: (done) =>
+          failuresOutcome(
+            m['app.toast.content_added']({
+              name: subjectName({ kind, id }),
+            }),
+            done,
+          ),
+      },
     }),
   /** One call for the whole batch; a name matching nothing removes none. */
   remove: (kind: EntryKind, id: string) =>
@@ -79,6 +104,15 @@ export const entryContentMutations = {
       run: ({ kind: contentKind, items, path = '' }, job) =>
         api.update(entryTarget(kind, id), contentKind, items, path, job),
       invalidates: () => invalidates(kind, id),
+      notify: {
+        done: (done) =>
+          failuresOutcome(
+            m['app.toast.content_updated']({
+              name: subjectName({ kind, id }),
+            }),
+            done,
+          ),
+      },
     }),
   enable: (kind: EntryKind, id: string) =>
     mutation<
@@ -110,6 +144,15 @@ export const entryContentMutations = {
           job,
         ),
       invalidates: () => invalidates(kind, id),
+      notify: {
+        done: (done) =>
+          failuresOutcome(
+            m['app.toast.content_updated']({
+              name: subjectName({ kind, id }),
+            }),
+            done,
+          ),
+      },
     }),
 };
 

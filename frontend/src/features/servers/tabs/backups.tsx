@@ -1,6 +1,5 @@
 import { ArchiveIcon, PlusIcon, TrashIcon } from '@phosphor-icons/react';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { toast } from 'sonner';
 
 import type { BackupInfo, BackupKind } from '@/api';
 import { Empty } from '@/components/empty';
@@ -46,11 +45,7 @@ export function ServerBackupsTab({
           variant="outline"
           data-icon="inline-start"
           disabled={create.isPending}
-          onClick={() =>
-            create.mutate(undefined, {
-              onSuccess: () => toast.success(m['app.toast.saved']()),
-            })
-          }
+          onClick={() => create.mutate()}
         >
           <PlusIcon weight="bold" />
           {m['server.backup.create']()}
@@ -96,11 +91,7 @@ export function ServerBackupsTab({
                   when: agoLabel(backup.createdUnix),
                 })}
                 confirmLabel={m['app.action.restore']()}
-                onConfirm={() =>
-                  restore.mutate(backup.id, {
-                    onSuccess: () => toast.success(m['app.toast.saved']()),
-                  })
-                }
+                onConfirm={() => restore.mutate(backup.id)}
               />
               <ConfirmDialog
                 trigger={

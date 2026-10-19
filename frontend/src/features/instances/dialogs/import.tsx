@@ -1,10 +1,9 @@
 import { WarningIcon } from '@phosphor-icons/react';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
-import { toast } from 'sonner';
 
 import type { ImportFormat } from '@/api';
-import { dialog, errorMessage, errorMessageFromInfo } from '@/api';
+import { dialog, errorMessage } from '@/api';
 import { AppDialog, DialogBody, DialogFooter } from '@/components/dialog';
 import { FileDropButton } from '@/components/file-drop-button';
 import { Badge } from '@/components/ui/badge';
@@ -13,7 +12,6 @@ import { Field, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Spinner } from '@/components/ui/spinner';
 import { fileName } from '@/lib/path';
-import { toastWarnings } from '@/lib/warnings';
 import { m } from '@/paraglide/messages.js';
 import { useJobMutation } from '@/queries/jobs';
 import { transferMutations, transferQueries } from '@/queries/transfer';
@@ -64,23 +62,7 @@ export function ImportInstanceDialog({
 
   const start = () => {
     onOpenChange(false);
-    run.mutate(
-      { path, name },
-      {
-        onSuccess: (done) => {
-          toast.success(
-            m['instance.import.done']({ name: done.instance.name }),
-          );
-          for (const failure of done.failures) {
-            toast.error(failure.title, {
-              description: errorMessageFromInfo(failure.error),
-            });
-          }
-          toastWarnings(done.warnings);
-        },
-        onError: (error) => toast.error(errorMessage(error)),
-      },
-    );
+    run.mutate({ path, name });
   };
 
   const unreadable = path.length > 0 && archive.isError;

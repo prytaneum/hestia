@@ -26,7 +26,6 @@ import {
   type WizardValues,
 } from '@/features/shared/entry/lib';
 import { memGb } from '@/lib/format';
-import { toastWarnings } from '@/lib/warnings';
 import { m } from '@/paraglide/messages.js';
 import { catalogueQueries } from '@/queries/catalogue';
 import { configQueries, launcherDefaults } from '@/queries/config';
@@ -122,8 +121,6 @@ export function CreateEntryDialog({
           const created = await createServer.mutateAsync(
             serverParams(value, memoryEntries),
           );
-          toast.success(m['app.toast.created']({ name: created.server.name }));
-          toastWarnings(created.warnings);
           applyRandomIcon(created.server.id);
         } else {
           const instance = await createInstance.mutateAsync(
@@ -134,8 +131,8 @@ export function CreateEntryDialog({
         }
         onOpenChange(false);
       } catch {
-        // The global mutation error handler surfaces the toast; swallow here so
-        // the dialog stays open without a second notification.
+        // The job store and the mutation cache report the failure; swallow
+        // here so the dialog stays open without a second notification.
       }
     },
   });

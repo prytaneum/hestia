@@ -95,13 +95,11 @@ export function ModpackCard({
       : check.data?.fitting;
 
   const applyFile = (path: string, preview: ModpackFilePreview) =>
-    update
-      .mutateAsync({
-        path,
-        allowDowngrade: preview.downgrade,
-        allowOtherPack: !preview.samePack,
-      })
-      .catch((error) => toast.error(errorMessage(error)));
+    update.mutate({
+      path,
+      allowDowngrade: preview.downgrade,
+      allowOtherPack: !preview.samePack,
+    });
 
   const updateFromFile = async () => {
     const path = await dialog.pickPackFile();
@@ -111,7 +109,7 @@ export function ModpackCard({
         modpackQueries.updatePreview(kind, id, path),
       );
       if (preview.samePack && !preview.downgrade) {
-        await applyFile(path, preview);
+        applyFile(path, preview);
         return;
       }
       setFromFile({ path, preview });
@@ -232,11 +230,7 @@ export function ModpackCard({
             size="sm"
             className="w-full"
             disabled={locked || check.isLoading}
-            onClick={() =>
-              update
-                .mutateAsync({})
-                .catch((error) => toast.error(errorMessage(error)))
-            }
+            onClick={() => update.mutate({})}
           >
             <ArrowsClockwiseIcon data-icon="inline-start" />
             {check.data?.updatable
@@ -269,9 +263,7 @@ export function ModpackCard({
         open={picking}
         onOpenChange={setPicking}
         onPick={(version, allowDowngrade) =>
-          update
-            .mutateAsync({ version: version.id, allowDowngrade })
-            .catch((error) => toast.error(errorMessage(error)))
+          update.mutate({ version: version.id, allowDowngrade })
         }
       />
 
