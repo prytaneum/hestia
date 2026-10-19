@@ -45,6 +45,30 @@ async fn a_call_marshals_through_the_contract() {
 }
 
 #[tokio::test]
+async fn a_job_list_decodes_its_subject() {
+    let client = Script::new()
+        .on(
+            "job.list",
+            Reply::Ok(json!([{
+                "id": "j1",
+                "channel": "instance.launch",
+                "subject": { "kind": "instance", "id": "abc" },
+                "startedUnix": 7,
+                "progress": { "phase": "assets" }
+            }])),
+        )
+        .serve();
+
+    let jobs = client.jobs().list().await.expect("list");
+    let subject = jobs[0].subject.as_ref().expect("subject");
+    assert_eq!(
+        (subject.kind, subject.id.as_str()),
+        (EntryKind::Instance, "abc")
+    );
+    assert_eq!(jobs[0].started_unix, 7);
+}
+
+#[tokio::test]
 async fn a_daemon_error_arrives_as_a_typed_failure() {
     let client = Script::new()
         .on(

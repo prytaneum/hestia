@@ -6,7 +6,7 @@ mod session;
 mod spawn;
 
 pub use facades::{
-    Accounts, App, Cache, Config, Content, Daemon, Entry, Files, Host, Instance, Java,
+    Accounts, App, Cache, Config, Content, Daemon, Entry, Files, Host, Instance, Java, Jobs,
     LaunchOptions, Modpack, Net, Players, Process, ProcessEvent, Screenshot, Server, Skins, Sync,
     Tasks, Transfer, Update,
 };
@@ -106,6 +106,12 @@ impl Client {
             .call::<proto::job::JobCancel>(&params)
             .await?
             .cancelled)
+    }
+
+    pub fn jobs(&self) -> Jobs<'_> {
+        Jobs {
+            session: &self.session,
+        }
     }
 
     pub fn config(&self) -> Config<'_> {
