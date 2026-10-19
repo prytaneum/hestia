@@ -90,7 +90,7 @@ const MAX_SETTLED = 50;
 /** The outcome toast a job declares; the store adds the id it is keyed by. */
 export type JobOutcome = Omit<Toast, 'id'>;
 
-export interface JobOptions<TData> {
+interface JobOptions<TData> {
   /** Key prefixes swept when the job settles, however it ends. */
   invalidates?: QueryKey[];
   /** Describes a finished run for the toast; `null` says nothing. */

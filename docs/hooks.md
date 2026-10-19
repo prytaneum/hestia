@@ -131,7 +131,7 @@ Anything that streams progress events — server create/update, instance launch,
 downloads — is a **job mutation**. Two guarantees:
 
 1. **Every run lands in the global job store**, no matter which component fired it or whether that component is still
-   mounted. An activity panel/toast surface subscribes with `useJobs()`; a per-entry busy indicator with
+   mounted. The Activity panel subscribes with `useJobs()` (and the daemon's `job.list` seeds it); a per-entry busy indicator with
    `useEntryJobs(kind, id)`.
 2. **`useJobMutation` adds the local view**: the same mutation result plus
    `progress` (the job's latest progress payload) and `job` (the store's record) for the run this call site started.
@@ -233,7 +233,7 @@ that run's history.
 
 ```tsx
 useDaemonEvent<ProcessExit>('process.exit', (exit) => {
-    if (!exit.success) toast.error(`${ exit.id } crashed`);
+    if (!exit.success) notify.error(`${ exit.id } crashed`);
 });
 ```
 
