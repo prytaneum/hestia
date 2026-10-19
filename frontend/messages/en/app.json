@@ -220,10 +220,12 @@
       "cache_cleared": "Cache cleared ({size} reclaimed)",
       "copied": "Copied",
       "created": "{name} created",
+      "failed_count": "{failed} of {total} failed",
       "removed": "{name} removed",
       "renamed": "Renamed to {name}",
       "saved": "Saved",
-      "updated": "{name} updated"
+      "updated": "{name} updated",
+      "warning_count": "{count} warnings"
     },
     "validation": {
       "choose_version": "Choose a version to continue.",
