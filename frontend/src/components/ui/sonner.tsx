@@ -32,9 +32,9 @@ const Toaster = ({ ...props }: ToasterProps) => {
       closeButton
       containerAriaLabel={m['app.toast.notifications']()}
       icons={{
-        success: <CheckCircleIcon className="size-4 text-success" />,
-        info: <InfoIcon className="size-4 text-info" />,
-        warning: <WarningIcon className="size-4 text-warning" />,
+        success: <CheckCircleIcon className="size-4 text-ember" />,
+        info: <InfoIcon className="size-4 text-muted-foreground" />,
+        warning: <WarningIcon className="size-4 text-amber" />,
         error: <XCircleIcon className="size-4 text-destructive" />,
         loading: <SpinnerIcon className="size-4 animate-spin" />,
       }}
@@ -52,9 +52,9 @@ const Toaster = ({ ...props }: ToasterProps) => {
         closeButtonAriaLabel: m['app.toast.close'](),
         classNames: {
           toast: 'rounded-none !border-l-2',
-          success: '!border-l-success',
-          info: '!border-l-info',
-          warning: '!border-l-warning',
+          success: '!border-l-ember',
+          info: '!border-l-muted-foreground',
+          warning: '!border-l-amber',
           error: '!border-l-destructive',
           icon: 'rounded-none',
           actionButton: '!rounded-none',
