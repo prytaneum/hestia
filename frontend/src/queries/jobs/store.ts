@@ -11,7 +11,7 @@
  */
 import type { QueryKey } from '@tanstack/react-query';
 import { logger } from '@/lib/log';
-import type { EntryKind, JobRun, Topics } from '../../api';
+import type { EntryKind, JobRun, Jobs, Topics } from '../../api';
 import {
   HANDLER_ERROR,
   HestiaError,
@@ -33,10 +33,8 @@ export interface JobEntry {
 }
 
 export interface JobMeta {
-  /** The start channel, e.g. `server.create` — what an activity surface groups by. */
-  kind: string;
-  /** A short human fallback; the UI may localize from `channel`/`subject` instead. */
-  label: string;
+  /** The job's start channel; its title is the `app.jobs.kind.<channel>` message. */
+  kind: keyof Jobs;
   entry?: JobEntry;
 }
 
@@ -57,7 +55,6 @@ export interface Job<TProgress = unknown> {
   /** The daemon's job id — what its events carry and `job.cancel` takes. */
   id: string;
   channel: string;
-  label: string;
   subject: JobEntry | null;
   /** `own` when this webview started it; `foreign` when it was adopted. */
   origin: 'own' | 'foreign';
@@ -176,7 +173,6 @@ function adopt(
   register({
     id,
     channel,
-    label: channel,
     subject,
     origin: 'foreign',
     status: 'running',
@@ -281,7 +277,6 @@ export function startJob<TData>(
   register({
     id,
     channel: meta.kind,
-    label: meta.label,
     subject: meta.entry ?? null,
     origin: 'own',
     status: 'running',

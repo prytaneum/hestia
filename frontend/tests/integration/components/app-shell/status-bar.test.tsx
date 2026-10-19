@@ -14,9 +14,10 @@ import {
 
 const meta = (over: Partial<JobMeta> = {}): JobMeta => ({
   kind: 'server.create',
-  label: 'create smp',
   ...over,
 });
+
+const title = m['app.jobs.kind.server.create']();
 
 afterEach(async () => {
   await resetJobs();
@@ -36,27 +37,33 @@ describe('the status bar', () => {
 
   it('shows nothing about jobs while none are running', () => {
     renderWithProviders(<StatusBar />);
-    expect(screen.queryByText('create smp')).toBeNull();
+    expect(screen.queryByText(title)).toBeNull();
   });
 
   it('surfaces a running background job by its label', async () => {
     startJob(meta(), pendingJob);
     renderWithProviders(<StatusBar />);
-    await waitFor(() => expect(screen.getByText('create smp')).toBeDefined());
+    await waitFor(() => expect(screen.getByText(title)).toBeDefined());
   });
 
   it('prefers the entry’s live name over the job label', async () => {
     const server = listServers()[0];
-    startJob(meta({ entry: { kind: 'server', id: server.id } }), pendingJob);
+    startJob(
+      meta({ kind: 'server.update', entry: { kind: 'server', id: server.id } }),
+      pendingJob,
+    );
 
     renderWithProviders(<StatusBar />);
-    await waitFor(() => expect(screen.getByText(server.name)).toBeDefined());
-    expect(screen.queryByText('create smp')).toBeNull();
+    await waitFor(() =>
+      expect(
+        screen.getByText(m['app.jobs.kind.server.update']({ name: server.name })),
+      ).toBeDefined(),
+    );
   });
 
   it('counts the jobs beyond the one shown inline', async () => {
     startJob(meta(), pendingJob);
-    startJob(meta({ label: 'create creative' }), pendingJob);
+    startJob(meta(), pendingJob);
     renderWithProviders(<StatusBar />);
     await waitFor(() =>
       expect(screen.getByText(m['app.jobs.more']({ count: 1 }))).toBeDefined(),
@@ -66,16 +73,16 @@ describe('the status bar', () => {
   it('hides a job a modal has taken into the foreground', async () => {
     const { id } = startJob(meta(), pendingJob);
     renderWithProviders(<StatusBar />);
-    await waitFor(() => expect(screen.getByText('create smp')).toBeDefined());
+    await waitFor(() => expect(screen.getByText(title)).toBeDefined());
 
     foregroundJob(id);
-    await waitFor(() => expect(screen.queryByText('create smp')).toBeNull());
+    await waitFor(() => expect(screen.queryByText(title)).toBeNull());
   });
 
   it('drops a job from the bar once it settles', async () => {
     const handle = startJob(meta(), () => Promise.resolve('ok'));
     renderWithProviders(<StatusBar />);
     await handle.result;
-    await waitFor(() => expect(screen.queryByText('create smp')).toBeNull());
+    await waitFor(() => expect(screen.queryByText(title)).toBeNull());
   });
 });

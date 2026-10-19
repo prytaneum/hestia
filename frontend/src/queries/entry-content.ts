@@ -47,9 +47,8 @@ export const entryContentMutations = {
   add: (kind: EntryKind, id: string) =>
     jobMutation<ContentDone, ContentAddInput>({
       mutationKey: [...entryScope(kind).content(id), 'add'],
-      meta: (spec) => ({
+      meta: () => ({
         kind: 'content.add',
-        label: `add ${spec.kind}`,
         entry: { kind, id },
       }),
       run: (spec, job) => api.add(entryTarget(kind, id), spec, job),
@@ -73,9 +72,8 @@ export const entryContentMutations = {
       { kind: ContentKind; items: string[]; path?: string }
     >({
       mutationKey: [...entryScope(kind).content(id), 'update'],
-      meta: ({ kind: contentKind }) => ({
+      meta: () => ({
         kind: 'content.update',
-        label: `update ${contentKind}s`,
         entry: { kind, id },
       }),
       run: ({ kind: contentKind, items, path = '' }, job) =>
@@ -98,9 +96,8 @@ export const entryContentMutations = {
       { kind: ContentKind; item: string; version: string; source: string }
     >({
       mutationKey: [...entryScope(kind).content(id), 'set-version'],
-      meta: ({ kind: contentKind }) => ({
-        kind: 'content.update',
-        label: `pin ${contentKind}`,
+      meta: () => ({
+        kind: 'content.set_version',
         entry: { kind, id },
       }),
       run: ({ kind: contentKind, item, version, source }, job) =>

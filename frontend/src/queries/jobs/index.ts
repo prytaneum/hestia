@@ -21,3 +21,4 @@ export {
   startJob,
   startJobs,
 } from './store';
+export { jobTitle } from './title';

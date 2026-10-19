@@ -11,7 +11,6 @@ import { queryOptions } from '@tanstack/react-query';
 import type { ExportDone, ImportDone } from '../api';
 import type { ExportInput } from '../api/transfer';
 import * as api from '../api/transfer';
-import { fileName } from '../lib/path';
 import { jobMutation } from './jobs';
 import { FOOTPRINT, keys } from './keys';
 
@@ -41,12 +40,11 @@ export const transferQueries = {
 };
 
 export const transferMutations = {
-  export: (id: string, name: string) =>
+  export: (id: string) =>
     jobMutation<ExportDone, ExportInput>({
       mutationKey: [...keys.instances.detail(id), 'export'],
-      meta: (input) => ({
+      meta: () => ({
         kind: 'instance.export',
-        label: `export ${name} (${input.format})`,
         entry: { kind: 'instance', id },
       }),
       run: (input, job) => api.exportInstance(id, input, job),
@@ -55,10 +53,7 @@ export const transferMutations = {
   import: () =>
     jobMutation<ImportDone, { path: string; name?: string }>({
       mutationKey: [...keys.instances.all, 'import'],
-      meta: ({ path }) => ({
-        kind: 'instance.import',
-        label: `import ${fileName(path)}`,
-      }),
+      meta: () => ({ kind: 'instance.import' }),
       run: ({ path, name }, job) => api.importInstance(path, name ?? '', job),
       invalidates: () => [keys.instances.list()],
     }),

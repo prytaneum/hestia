@@ -17,6 +17,7 @@ const BASE_LOCALE = 'en';
 
 const DYNAMIC_PREFIXES = [
   'app.crash.',
+  'app.jobs.kind.',
   'error.kind.',
   'error.code.',
   'error.token.',
@@ -116,6 +117,21 @@ describe('daemon error vocabulary', () => {
     expect(members.filter((value) => !(`error.token.${value}` in base))).toEqual(
       [],
     );
+  });
+});
+
+describe('job titles', () => {
+  it('has a title for every job channel', () => {
+    const channels = [
+      ...readFileSync(join(GENERATED, '..', 'channels.ts'), 'utf8')
+        .split('export interface Jobs {')[1]
+        .split('\n}')[0]
+        .matchAll(/^\s+"([\w.]+)":/gm),
+    ].map((match) => match[1]);
+    expect(channels.length).toBeGreaterThan(0);
+    expect(
+      channels.filter((channel) => !(`app.jobs.kind.${channel}` in base)),
+    ).toEqual([]);
   });
 });
 

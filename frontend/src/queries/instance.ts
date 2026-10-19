@@ -109,9 +109,8 @@ export const instanceMutations = {
       Omit<InstanceUpdateParams, 'instance' | 'id'>
     >({
       mutationKey: [...keys.instances.detail(id), 'update'],
-      meta: (params) => ({
+      meta: () => ({
         kind: 'instance.update',
-        label: `update to ${params.version}`,
         entry: { kind: 'instance', id },
       }),
       run: (params, job) => api.update({ ...params, instance: id }, job),
@@ -163,7 +162,6 @@ export const instanceMutations = {
       mutationKey: [...keys.instances.all, 'launch'],
       meta: ({ id }) => ({
         kind: 'instance.launch',
-        label: 'launch',
         entry: { kind: 'instance', id },
       }),
       run: ({ id, newSession, quickPlay, replace }, job) =>

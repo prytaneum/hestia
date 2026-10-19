@@ -65,6 +65,42 @@
     "jobs": {
       "cancelled": "Cancelado.",
       "failed": "A operação falhou.",
+      "kind": {
+        "content": {
+          "add": "Adicionando conteúdo a {name}",
+          "set_version": "Alterando uma versão em {name}",
+          "update": "Atualizando o conteúdo de {name}"
+        },
+        "instance": {
+          "export": "Exportando {name}",
+          "import": "Importando uma instância",
+          "launch": "Iniciando {name}",
+          "modpack": {
+            "install": "Instalando um modpack"
+          },
+          "update": "Atualizando {name}"
+        },
+        "java": {
+          "install": "Instalando o Java"
+        },
+        "modpack": {
+          "update": "Atualizando o modpack de {name}"
+        },
+        "server": {
+          "backup": {
+            "create": "Fazendo backup de {name}",
+            "restore": "Restaurando um backup de {name}"
+          },
+          "create": "Criando um servidor",
+          "modpack": {
+            "install": "Instalando um modpack"
+          },
+          "update": "Atualizando {name}"
+        },
+        "update": {
+          "download": "Baixando a atualização"
+        }
+      },
       "more": "+{count} mais",
       "title": "Tarefas em segundo plano ({count})"
     },

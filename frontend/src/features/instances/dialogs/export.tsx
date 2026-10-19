@@ -76,7 +76,7 @@ export function ExportInstanceDialog({
     [tree, excluded],
   );
 
-  const run = useJobMutation(transferMutations.export(id, name));
+  const run = useJobMutation(transferMutations.export(id));
 
   const toggle = (path: string, checked: boolean) => {
     setExcluded((current) => {

@@ -16,7 +16,6 @@ import { installFakeDaemon } from '../../support';
 
 const meta = (over: Partial<JobMeta> = {}): JobMeta => ({
   kind: 'server.create',
-  label: 'create',
   ...over,
 });
 

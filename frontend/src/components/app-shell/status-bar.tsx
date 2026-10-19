@@ -22,7 +22,7 @@ import {
 import { m } from '@/paraglide/messages.js';
 import { useDaemon } from '@/queries/daemon';
 import { useInstances } from '@/queries/instance';
-import { cancelJob, type Job, useJobs } from '@/queries/jobs';
+import { cancelJob, type Job, jobTitle, useJobs } from '@/queries/jobs';
 import { useNetwork } from '@/queries/net';
 import { useServers } from '@/queries/server';
 
@@ -54,17 +54,13 @@ export function StatusBar() {
     (job) => job.status === 'running' && job.background,
   );
   const nameOf = (job: Job): string => {
-    if (job.subject?.kind === 'instance') {
-      return (
-        instances.data?.find((i) => i.id === job.subject?.id)?.name ?? job.label
-      );
-    }
-    if (job.subject?.kind === 'server') {
-      return (
-        servers.data?.find((s) => s.id === job.subject?.id)?.name ?? job.label
-      );
-    }
-    return job.label;
+    const entries =
+      job.subject?.kind === 'instance'
+        ? instances.data
+        : job.subject?.kind === 'server'
+          ? servers.data
+          : undefined;
+    return jobTitle(job, entries?.find((e) => e.id === job.subject?.id)?.name);
   };
 
   return (

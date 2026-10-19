@@ -65,6 +65,42 @@
     "jobs": {
       "cancelled": "Cancelled.",
       "failed": "Operation failed.",
+      "kind": {
+        "content": {
+          "add": "Adding content to {name}",
+          "set_version": "Changing a version in {name}",
+          "update": "Updating content in {name}"
+        },
+        "instance": {
+          "export": "Exporting {name}",
+          "import": "Importing an instance",
+          "launch": "Launching {name}",
+          "modpack": {
+            "install": "Installing a modpack"
+          },
+          "update": "Updating {name}"
+        },
+        "java": {
+          "install": "Installing Java"
+        },
+        "modpack": {
+          "update": "Updating the modpack of {name}"
+        },
+        "server": {
+          "backup": {
+            "create": "Backing up {name}",
+            "restore": "Restoring a backup of {name}"
+          },
+          "create": "Creating a server",
+          "modpack": {
+            "install": "Installing a modpack"
+          },
+          "update": "Updating {name}"
+        },
+        "update": {
+          "download": "Downloading the update"
+        }
+      },
       "more": "+{count} more",
       "title": "Background jobs ({count})"
     },

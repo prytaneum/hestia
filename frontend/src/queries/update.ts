@@ -32,7 +32,7 @@ export const updateMutations = {
   download: () =>
     jobMutation<UpdateDone, void, DownloadProgress>({
       mutationKey: [...keys.update.all, 'download'],
-      meta: () => ({ kind: 'update.download', label: 'download update' }),
+      meta: () => ({ kind: 'update.download' }),
       run: (_variables, job) => api.download(job),
     }),
   apply: () =>
