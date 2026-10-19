@@ -441,6 +441,53 @@ async fn a_successful_mutation_publishes_what_it_changed() {
     drop(daemon);
 }
 
+#[tokio::test]
+async fn a_settled_job_is_gone_from_the_job_list() {
+    use client::proto::java::{JavaInstall, JavaInstallParams};
+    use client::proto::job::JobList;
+
+    let (daemon, client) = spawn_daemon().await;
+    let mut events = client.session().listen(None);
+    client
+        .session()
+        .call::<client::proto::events::EventsSubscribe>(&Default::default())
+        .await
+        .expect("events.subscribe");
+
+    let params = JavaInstallParams {
+        major: 1,
+        ..Default::default()
+    };
+    let started = client
+        .session()
+        .call::<JavaInstall>(&params)
+        .await
+        .expect("java.install starts");
+
+    loop {
+        let event = tokio::time::timeout(Duration::from_secs(60), events.recv())
+            .await
+            .expect("the job settles")
+            .expect("the stream is open");
+        if event.topic == "job"
+            && event.payload["id"] == started.id.as_str()
+            && event.payload["state"] != "progress"
+        {
+            break;
+        }
+    }
+
+    let listed = client
+        .session()
+        .call::<JobList>(&Default::default())
+        .await
+        .expect("job.list");
+    assert!(listed.is_empty(), "a settled job must not be listed");
+
+    client.daemon().stop(true).await.expect("daemon.stop");
+    drop(daemon);
+}
+
 fn sodium_spec() -> ContentAddSpec {
     ContentAddSpec {
         kind: ContentKind::Mod,

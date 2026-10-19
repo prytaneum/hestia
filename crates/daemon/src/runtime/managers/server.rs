@@ -1,4 +1,5 @@
 use engine::{Engine, ServerCreateSpec, ServerRecord, ServerUpdateSpec};
+use proto::error::EntryKind;
 use proto::process::ProcessState;
 use proto::server::{
     ServerCreate, ServerCreateParams, ServerDone, ServerUpdate, ServerUpdateParams,
@@ -38,6 +39,7 @@ impl Jobs {
             id: params.id.clone(),
             prefix: "server-create",
             claim: Some(claim),
+            subject: None,
         };
 
         Some(self.run::<ServerCreate, _>(spec, move |engine, reporter| {
@@ -71,6 +73,7 @@ impl Jobs {
             id: params.id.clone(),
             prefix: "server-update",
             claim: Some(claim),
+            subject: Spec::subject(EntryKind::Server, &record.id),
         };
         let processes = self.processes.clone();
 

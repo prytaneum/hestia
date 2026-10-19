@@ -1,13 +1,14 @@
 //! The plumbing every job family shares: event publishing, job ids, and the
 //! [`Jobs`] value each family hangs its `start_*` function off.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 
 use ipc::protocol::Event;
+use proto::error::EntryKind;
 use proto::java::{JavaInstallPhase, JavaInstallProgress};
-use proto::job::{Job, JobEvent, JobState};
+use proto::job::{Job, JobEvent, JobInfo, JobState, JobSubject};
 use proto::minecraft::{ProvisionPhase, ProvisionProgress};
 
 use crate::runtime::{Cancellations, Claim, Claims, ProcessSupervisor};
@@ -87,11 +88,15 @@ where
     }
 }
 
-fn job_event<C: Job>(id: &str, state: JobState<&C::Progress, &C::Done>) -> Event {
+fn job_event<C: Job>(
+    id: &str,
+    subject: &Option<JobSubject>,
+    state: JobState<&C::Progress, &C::Done>,
+) -> Event {
     let event = JobEvent {
         id: id.to_string(),
         channel: C::CHANNEL.to_string(),
-        subject: None,
+        subject: subject.clone(),
         state,
     };
     Event {
@@ -158,7 +163,21 @@ pub(super) struct Spec {
     /// What the job holds for as long as it runs. `None` admits any number of
     /// this job at once.
     pub claim: Option<Claim>,
+    /// The entry the job acts on; `None` for a global job or one whose entry
+    /// does not exist yet.
+    pub subject: Option<JobSubject>,
 }
+
+impl Spec {
+    pub(super) fn subject(kind: EntryKind, id: &str) -> Option<JobSubject> {
+        Some(JobSubject {
+            kind,
+            id: id.to_string(),
+        })
+    }
+}
+
+type Registry = Arc<Mutex<HashMap<String, JobInfo>>>;
 
 /// Every job family, one `start_*` function each (in the family's own file),
 /// over the collaborators they share.
@@ -166,6 +185,7 @@ pub struct Jobs {
     engine: Arc<engine::Engine>,
     hub: Arc<crate::runtime::EventHub>,
     cancellations: Cancellations,
+    running: Registry,
     pub(super) claims: Claims,
     pub(super) processes: Arc<ProcessSupervisor>,
     /// Session ids reserved between seq allocation and the supervisor accepting
@@ -185,10 +205,18 @@ impl Jobs {
             engine,
             hub,
             cancellations,
+            running: Registry::default(),
             claims,
             processes,
             reserved: Arc::default(),
         }
+    }
+
+    /// Every job still running, oldest first.
+    pub fn list(&self) -> Vec<JobInfo> {
+        let mut jobs: Vec<JobInfo> = self.running.lock().unwrap().values().cloned().collect();
+        jobs.sort_by(|a, b| a.started_unix.cmp(&b.started_unix).then(a.id.cmp(&b.id)));
+        jobs
     }
 
     /// Run `work` off-thread, publishing its progress and terminal outcome.
@@ -207,8 +235,21 @@ impl Jobs {
         let engine = self.engine.clone();
         let hub = self.hub.clone();
         let cancellations = self.cancellations.clone();
+        let running = self.running.clone();
+        let subject = spec.subject;
         let (job_id, kind) = (id.clone(), spec.prefix);
         tracing::info!(job = %id, kind, "job started");
+
+        running.lock().unwrap().insert(
+            id.clone(),
+            JobInfo {
+                id: id.clone(),
+                channel: C::CHANNEL.to_string(),
+                subject: subject.clone(),
+                started_unix: common::now_unix().max(0) as u64,
+                progress: None,
+            },
+        );
 
         tokio::spawn(async move {
             let _claim = claim;
@@ -216,9 +257,19 @@ impl Jobs {
 
             let publish_hub = hub.clone();
             let publish_id = job_id.clone();
+            let publish_subject = subject.clone();
+            let publish_running = running.clone();
             let publish: Publish<C::Progress> =
                 Box::new(coalesce_progress(move |progress: &C::Progress| {
-                    publish_hub.publish(&job_event::<C>(&publish_id, JobState::Progress(progress)));
+                    let value = serde_json::to_value(progress).ok();
+                    if let Some(info) = publish_running.lock().unwrap().get_mut(&publish_id) {
+                        info.progress = value;
+                    }
+                    publish_hub.publish(&job_event::<C>(
+                        &publish_id,
+                        &publish_subject,
+                        JobState::Progress(progress),
+                    ));
                 }));
 
             let outcome = work(
@@ -233,22 +284,24 @@ impl Jobs {
             let event = match outcome {
                 Ok(done) => {
                     tracing::info!(job = %job_id, kind, "job done");
-                    job_event::<C>(&job_id, JobState::Done(&done))
+                    job_event::<C>(&job_id, &subject, JobState::Done(&done))
                 }
                 Err(e) if engine::is_cancelled(&e) => {
                     tracing::info!(job = %job_id, kind, "job cancelled");
-                    job_event::<C>(&job_id, JobState::Cancelled)
+                    job_event::<C>(&job_id, &subject, JobState::Cancelled)
                 }
                 Err(e) => {
                     tracing::error!(job = %job_id, kind, error = format!("{e:#}"), "job failed");
                     job_event::<C>(
                         &job_id,
+                        &subject,
                         JobState::Failed {
                             error: crate::runtime::engine_error(e),
                         },
                     )
                 }
             };
+            running.lock().unwrap().remove(&job_id);
             hub.publish(&event);
         });
         id
@@ -365,8 +418,47 @@ mod tests {
             id: String::new(),
             prefix: "test",
             claim: None,
+            subject: Spec::subject(EntryKind::Server, "smp"),
         };
         jobs.run::<stand_in::Test, _>(spec, work)
+    }
+
+    #[tokio::test]
+    async fn a_job_is_listed_with_its_subject_and_progress_until_it_settles() {
+        for outcome in ["done", "failed", "cancelled"] {
+            let mut harness = harness();
+            let (reached, reached_rx) = tokio::sync::oneshot::channel::<()>();
+            let (release, release_rx) = tokio::sync::oneshot::channel::<()>();
+            let id = start(&harness.jobs, move |_, reporter| {
+                Box::pin(async move {
+                    reporter.checked()(&stand_in::Progress { done: 500 })?;
+                    let _ = reached.send(());
+                    let _ = release_rx.await;
+                    match outcome {
+                        "done" => Ok(stand_in::Done {}),
+                        "failed" => Err(anyhow::anyhow!("no")),
+                        _ => {
+                            reporter.cancel().cancel();
+                            reporter.cancel().check()?;
+                            Ok(stand_in::Done {})
+                        }
+                    }
+                })
+            });
+            reached_rx.await.unwrap();
+
+            let listed = harness.jobs.list();
+            assert_eq!(listed.len(), 1);
+            assert_eq!(listed[0].id, id);
+            assert_eq!(listed[0].channel, "test.start");
+            assert_eq!(listed[0].subject, Spec::subject(EntryKind::Server, "smp"));
+            assert_eq!(listed[0].progress, Some(serde_json::json!({ "done": 500 })));
+
+            release.send(()).unwrap();
+            let seen = topics(&mut harness.events).await;
+            assert_eq!(seen.last().map(String::as_str), Some(outcome));
+            assert!(harness.jobs.list().is_empty(), "{outcome} must unlist");
+        }
     }
 
     /// The state of every job event published so far, drained.

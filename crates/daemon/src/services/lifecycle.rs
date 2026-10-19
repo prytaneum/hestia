@@ -4,7 +4,7 @@ use proto::app::{AppInfo, AppInfoResult};
 use proto::daemon::{DaemonStatus, DaemonStatusResult, DaemonStop, DaemonStopResult};
 use proto::events::{EventsSubscribe, EventsSubscribeResult};
 use proto::health::{Ping, PingResult};
-use proto::job::{JobCancel, JobCancelResult};
+use proto::job::{JobCancel, JobCancelResult, JobList};
 use proto::Empty;
 
 use crate::runtime::Channels;
@@ -45,6 +45,8 @@ pub(super) fn register(on: &mut Channels<'_>) {
             cancelled: ctx.runtime.cancellations().cancel(&p.id),
         })
     });
+
+    on.handle::<JobList, _, _>(|_: Empty, ctx| async move { Ok(ctx.runtime.jobs().list()) });
 
     on.handle::<DaemonStop, _, _>(|p, ctx| async move {
         tracing::info!(stop_processes = p.stop_processes, "daemon stop requested");

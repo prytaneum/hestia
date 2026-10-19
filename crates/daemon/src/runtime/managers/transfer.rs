@@ -5,6 +5,7 @@
 //! import has no entry to claim yet (that is what it creates), exactly as a
 //! modpack install that creates its entry has none.
 
+use proto::error::EntryKind;
 use proto::transfer::{ExportDone, ExportFormat, ImportDone, InstanceExport, InstanceImport};
 
 use super::job::{Jobs, Spec};
@@ -24,6 +25,7 @@ impl Jobs {
             id,
             prefix: "instance-export",
             claim: Some(claim),
+            subject: Spec::subject(EntryKind::Instance, &instance_id),
         };
 
         self.run::<InstanceExport, _>(spec, move |engine, reporter| {
@@ -50,6 +52,7 @@ impl Jobs {
             id,
             prefix: "instance-import",
             claim: None,
+            subject: None,
         };
 
         self.run::<InstanceImport, _>(spec, move |engine, reporter| {

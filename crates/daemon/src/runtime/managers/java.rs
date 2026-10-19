@@ -15,6 +15,7 @@ impl Jobs {
             id,
             prefix: "java-install",
             claim: Some(claim),
+            subject: None,
         };
 
         Some(self.run::<JavaInstall, _>(spec, move |engine, reporter| {

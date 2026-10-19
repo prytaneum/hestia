@@ -9,6 +9,7 @@ impl Jobs {
             id,
             prefix: "update",
             claim: None,
+            subject: None,
         };
 
         self.run::<UpdateDownload, _>(spec, move |engine, reporter| {

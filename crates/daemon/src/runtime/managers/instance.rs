@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
 use engine::{Engine, LaunchRequest};
-use proto::error::ErrorInfo;
+use proto::error::{EntryKind, ErrorInfo};
 use proto::instance::{
     InstanceLaunch, InstanceLaunchDone, InstanceUpdate, InstanceUpdateDone, InstanceUpdateParams,
     QuickPlay,
@@ -27,6 +27,7 @@ impl Jobs {
             id: params.id.clone(),
             prefix: "instance-update",
             claim: Some(claim),
+            subject: Spec::subject(EntryKind::Instance, &instance_id),
         };
 
         self.run::<InstanceUpdate, _>(spec, move |engine, reporter| {
@@ -71,6 +72,7 @@ impl Jobs {
             id,
             prefix: "instance-launch",
             claim: None,
+            subject: Spec::subject(EntryKind::Instance, &instance_id),
         };
 
         let processes = self.processes.clone();

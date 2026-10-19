@@ -1,6 +1,6 @@
 use engine::Engine;
 use proto::error::EntryKind;
-use proto::job::Job;
+use proto::job::{Job, JobSubject};
 use proto::minecraft::ProvisionProgress;
 use proto::modpack::{ModpackDone, ModpackMove, ModpackRef, ModpackTarget};
 
@@ -35,6 +35,21 @@ impl ModpackJob {
                 EntryKind::Server => "server-modpack-update",
                 EntryKind::Instance => "instance-modpack-update",
             },
+        }
+    }
+
+    fn subject(&self) -> Option<JobSubject> {
+        match self {
+            ModpackJob::InstallInstance {
+                target: ModpackTarget::Existing { entry },
+                ..
+            } => Spec::subject(EntryKind::Instance, entry),
+            ModpackJob::InstallServer {
+                target: ModpackTarget::Existing { entry },
+                ..
+            } => Spec::subject(EntryKind::Server, entry),
+            ModpackJob::Update { entry, .. } => entry.subject(),
+            _ => None,
         }
     }
 
@@ -79,6 +94,7 @@ impl Jobs {
             id,
             prefix: job.id_prefix(),
             claim,
+            subject: job.subject(),
         };
 
         self.run::<C, _>(spec, move |engine, reporter| {

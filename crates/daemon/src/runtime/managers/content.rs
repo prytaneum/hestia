@@ -3,7 +3,7 @@ use std::path::Path;
 use engine::Engine;
 use proto::content::{ContentAddSpec, ContentDone, ContentFailure, ContentKind, InstalledContent};
 use proto::error::EntryKind;
-use proto::job::Job;
+use proto::job::{Job, JobSubject};
 use proto::minecraft::ProvisionProgress;
 
 use super::job::{Jobs, Spec};
@@ -63,6 +63,10 @@ impl From<engine::InstanceRecord> for Entry {
 }
 
 impl Entry {
+    pub fn subject(&self) -> Option<JobSubject> {
+        Spec::subject(self.kind, &self.id)
+    }
+
     pub fn entry_ref(&self) -> engine::EntryRef<'_> {
         match self.kind {
             EntryKind::Server => engine::EntryRef::Server(&self.id),
@@ -74,6 +78,14 @@ impl Entry {
 type Installed = (Vec<InstalledContent>, Vec<ContentFailure>);
 
 impl ContentJob {
+    fn entry(&self) -> &Entry {
+        match self {
+            ContentJob::Add { entry, .. }
+            | ContentJob::Update { entry, .. }
+            | ContentJob::SetVersion { entry, .. } => entry,
+        }
+    }
+
     fn id_prefix(&self) -> &'static str {
         match self {
             ContentJob::Add { entry, .. } => match entry.kind {
@@ -149,6 +161,7 @@ impl Jobs {
             id,
             prefix: job.id_prefix(),
             claim: Some(claim),
+            subject: job.entry().subject(),
         };
 
         self.run::<C, _>(spec, move |engine, reporter| {

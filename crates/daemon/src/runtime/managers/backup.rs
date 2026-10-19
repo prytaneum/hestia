@@ -1,4 +1,5 @@
 use proto::backup::{BackupDone, BackupKind};
+use proto::error::EntryKind;
 use proto::job::Job;
 use proto::minecraft::ProvisionProgress;
 
@@ -22,6 +23,13 @@ pub enum BackupJob {
 }
 
 impl BackupJob {
+    fn server_id(&self) -> &str {
+        match self {
+            BackupJob::ServerBackup { server_id, .. }
+            | BackupJob::ServerRestore { server_id, .. } => server_id,
+        }
+    }
+
     fn id_prefix(&self) -> &'static str {
         match self {
             BackupJob::ServerBackup { .. } => "server-backup",
@@ -41,6 +49,7 @@ impl Jobs {
             id,
             prefix: job.id_prefix(),
             claim: Some(claim),
+            subject: Spec::subject(EntryKind::Server, job.server_id()),
         };
 
         self.run::<C, _>(spec, move |engine, reporter| {
