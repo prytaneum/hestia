@@ -19,8 +19,8 @@
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
-use crate::contract::{Contract, Topic};
-use crate::error::ErrorInfo;
+use crate::contract::{Contract, Empty, Topic};
+use crate::error::{EntryKind, ErrorInfo};
 
 /// A start channel: answers with [`JobStarted`], then reports on the `job` topic.
 pub trait Job: Contract<Result = JobStarted> {
@@ -60,8 +60,45 @@ pub struct JobEvent<P, D> {
     /// The start contract's `CHANNEL`, so an observer that did not start the job
     /// can still tell what kind it is.
     pub channel: String,
+    /// The entry the job acts on, when it acts on one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "ts", ts(optional))]
+    pub subject: Option<JobSubject>,
     #[serde(flatten)]
     pub state: JobState<P, D>,
+}
+
+/// The entry a job acts on.
+#[derive(Serialize, Deserialize, Default, Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
+#[serde(default, rename_all = "camelCase")]
+pub struct JobSubject {
+    pub kind: EntryKind,
+    pub id: String,
+}
+
+/// A running job, as `job.list` reports it.
+#[derive(Serialize, Deserialize, Default, Debug, Clone)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
+#[serde(default, rename_all = "camelCase")]
+pub struct JobInfo {
+    pub id: String,
+    pub channel: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub subject: Option<JobSubject>,
+    pub started_unix: u64,
+    /// The last progress payload; untyped because the registry spans every job
+    /// family, so a front-end narrows it by `channel`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "ts", ts(type = "unknown"))]
+    pub progress: Option<serde_json::Value>,
+}
+
+pub struct JobList;
+impl Contract for JobList {
+    const CHANNEL: &'static str = "job.list";
+    type Params = Empty;
+    type Result = Vec<JobInfo>;
 }
 
 /// The one topic every [`JobEvent`] publishes on, whatever its payload types.

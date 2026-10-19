@@ -1,0 +1,6 @@
+{
+  "id": "server-content-add-1",
+  "channel": "content.add",
+  "subject": { "kind": "server", "id": "abc123" },
+  "state": "cancelled"
+}

@@ -2,5 +2,7 @@
 export type { JobCancelParams } from "./generated/JobCancelParams";
 export type { JobCancelResult } from "./generated/JobCancelResult";
 export type { JobEvent } from "./generated/JobEvent";
+export type { JobInfo } from "./generated/JobInfo";
 export type { JobStarted } from "./generated/JobStarted";
 export type { JobState } from "./generated/JobState";
+export type { JobSubject } from "./generated/JobSubject";

@@ -91,6 +91,7 @@ fn job_event<C: Job>(id: &str, state: JobState<&C::Progress, &C::Done>) -> Event
     let event = JobEvent {
         id: id.to_string(),
         channel: C::CHANNEL.to_string(),
+        subject: None,
         state,
     };
     Event {

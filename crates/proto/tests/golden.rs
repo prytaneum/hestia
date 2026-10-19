@@ -19,7 +19,7 @@ use proto::content::{
 use proto::daemon::{DaemonStatusResult, DaemonStopParams};
 use proto::instance::{InstanceInfo, InstanceLaunchParams, RecentPlay, ServerEntry};
 use proto::java::{JavaInstallProgress, JavaRuntime};
-use proto::job::JobEvent;
+use proto::job::{JobEvent, JobInfo};
 use proto::minecraft::ProvisionProgress;
 use proto::process::{
     ProcessExitEvent, ProcessInfo, ProcessMetricsEvent, ProcessOutputEvent, ProcessSpec,
@@ -133,6 +133,12 @@ golden!(job_progress, ContentJobEvent, "job_progress.json");
 golden!(job_done, ContentJobEvent, "job_done.json");
 golden!(job_failed, ContentJobEvent, "job_failed.json");
 golden!(job_cancelled, ContentJobEvent, "job_cancelled.json");
+golden!(
+    job_event_subject,
+    ContentJobEvent,
+    "job_progress_subject.json"
+);
+golden!(job_info, JobInfo, "job_info.json");
 golden!(search_query, SearchQuery, "search_query.json");
 golden!(content_version, ContentVersion, "content_version.json");
 golden!(content_project, ContentProject, "content_project.json");

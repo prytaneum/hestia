@@ -99,6 +99,7 @@ import type { JavaRuntime } from "./generated/JavaRuntime";
 import type { JavaUninstallParams } from "./generated/JavaUninstallParams";
 import type { JobCancelParams } from "./generated/JobCancelParams";
 import type { JobCancelResult } from "./generated/JobCancelResult";
+import type { JobInfo } from "./generated/JobInfo";
 import type { JobStarted } from "./generated/JobStarted";
 import type { ModpackDone } from "./generated/ModpackDone";
 import type { ModpackFilePreview } from "./generated/ModpackFilePreview";
@@ -253,6 +254,7 @@ export interface Channels {
   "java.releases": { params: Empty; result: Array<JavaRelease> };
   "java.uninstall": { params: Partial<JavaUninstallParams>; result: Empty };
   "job.cancel": { params: Partial<JobCancelParams>; result: JobCancelResult };
+  "job.list": { params: Empty; result: Array<JobInfo> };
   "minecraft.ping": { params: Partial<AddressPingParams>; result: ServerPingResult };
   "modpack.check_update": { params: Omit<Partial<EntryModpackCheckParams>, "target"> & { "target"?: Partial<EntryTarget> }; result: ModpackUpdateResult };
   "modpack.preview_update": { params: Omit<Partial<EntryModpackFileParams>, "target"> & { "target"?: Partial<EntryTarget> }; result: ModpackFilePreview };
