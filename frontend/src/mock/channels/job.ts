@@ -6,5 +6,6 @@ import { cancelJob } from '../job';
 import { type ChannelHandlers, str } from '../support';
 
 export const channels: ChannelHandlers = {
+  'job.list': () => [],
   'job.cancel': (p) => ({ cancelled: cancelJob(str(p, 'id')) }),
 };

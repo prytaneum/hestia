@@ -109,7 +109,7 @@ export function LaunchDialogProvider({
       target &&
       job &&
       job.status !== 'running' &&
-      job.entry?.id === target.id
+      job.subject?.id === target.id
     ) {
       setTarget(null);
     }

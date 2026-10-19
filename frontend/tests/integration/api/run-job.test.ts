@@ -3,7 +3,6 @@ import {
   HestiaError,
   JobCancelled,
   jobId,
-  type ProvisionProgress,
   runJob,
 } from '@/api';
 import { publishJob } from '@/mock/bus';
@@ -13,20 +12,9 @@ import { installFakeDaemon } from '../../support';
 
 installFakeDaemon();
 
-const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
-
 const server = listServers()[0];
 const channel = 'server.create';
 const fixture = channels[channel];
-
-const step = (current: number): ProvisionProgress => ({
-  phase: 'resolving',
-  current,
-  total: 2,
-  detail: '',
-  item: 0,
-  items: 0,
-});
 
 function onStart(start: () => void) {
   channels[channel] = (payload) => {
@@ -85,42 +73,6 @@ describe('runJob', () => {
     );
     const done = await runJob(channel, {}, { id });
     expect(done.server.name).toBe('mine');
-  });
-
-  it('streams progress until it settles', async () => {
-    const id = jobId(channel);
-    const seen: number[] = [];
-    onStart(() =>
-      later(() => {
-        publishJob(id, channel, { state: 'progress', ...step(1) });
-        publishJob(id, channel, { state: 'progress', ...step(2) });
-        publishJob(id, channel, { state: 'done', server, warnings: [], failures: [] });
-      }),
-    );
-    await runJob(
-      channel,
-      {},
-      { id, onProgress: (progress) => seen.push(progress.current) },
-    );
-    expect(seen).toEqual([1, 2]);
-  });
-
-  it('stops reporting progress once the job is done', async () => {
-    const id = jobId(channel);
-    const seen: number[] = [];
-    onStart(() =>
-      later(() => {
-        publishJob(id, channel, { state: 'done', server, warnings: [], failures: [] });
-        publishJob(id, channel, { state: 'progress', ...step(2) });
-      }),
-    );
-    await runJob(
-      channel,
-      {},
-      { id, onProgress: (progress) => seen.push(progress.current) },
-    );
-    await settle();
-    expect(seen).toEqual([]);
   });
 
   it('rejects with the structured error the daemon reported', async () => {

@@ -41,7 +41,7 @@ export function StatusBar() {
       if (job.status === 'cancelled') {
         toasted.current.add(job.id);
         toast(m['app.jobs.cancelled']());
-      } else if (job.status === 'error') {
+      } else if (job.status === 'failed') {
         toasted.current.add(job.id);
         toast.error(
           job.error ? errorMessage(job.error) : m['app.jobs.failed'](),
@@ -54,14 +54,14 @@ export function StatusBar() {
     (job) => job.status === 'running' && job.background,
   );
   const nameOf = (job: Job): string => {
-    if (job.entry?.kind === 'instance') {
+    if (job.subject?.kind === 'instance') {
       return (
-        instances.data?.find((i) => i.id === job.entry?.id)?.name ?? job.label
+        instances.data?.find((i) => i.id === job.subject?.id)?.name ?? job.label
       );
     }
-    if (job.entry?.kind === 'server') {
+    if (job.subject?.kind === 'server') {
       return (
-        servers.data?.find((s) => s.id === job.entry?.id)?.name ?? job.label
+        servers.data?.find((s) => s.id === job.subject?.id)?.name ?? job.label
       );
     }
     return job.label;

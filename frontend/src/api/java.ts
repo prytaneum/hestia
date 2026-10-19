@@ -2,12 +2,7 @@
 
 import { call } from './core/ipc';
 import { type JobRun, runJob } from './core/jobs';
-import type {
-  JavaInstallDone,
-  JavaInstallProgress,
-  JavaRelease,
-  JavaRuntime,
-} from './types/java';
+import type { JavaInstallDone, JavaRelease, JavaRuntime } from './types/java';
 
 export function releases(): Promise<JavaRelease[]> {
   return call('java.releases');
@@ -20,7 +15,7 @@ export function list(): Promise<JavaRuntime[]> {
 export function install(
   major: number,
   options: { force?: boolean },
-  job: JobRun<JavaInstallProgress>,
+  job: JobRun,
 ): Promise<JavaInstallDone> {
   return runJob('java.install', { major, force: options.force ?? false }, job);
 }

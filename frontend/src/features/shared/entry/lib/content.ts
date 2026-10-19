@@ -25,7 +25,7 @@ const CONTENT_JOBS = ['content.add', 'content.update'];
 /** Whether one of an entry's jobs is a content change still running. */
 export const contentBusy = (jobs: Job[]): boolean =>
   jobs.some(
-    (job) => job.status === 'running' && CONTENT_JOBS.includes(job.kind),
+    (job) => job.status === 'running' && CONTENT_JOBS.includes(job.channel),
   );
 
 /** How the daemon matches an item: its project id, else its filename. */

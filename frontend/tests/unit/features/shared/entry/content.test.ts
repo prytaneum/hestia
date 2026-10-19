@@ -10,8 +10,8 @@ const item = (
 ): InstalledContent =>
   ({ kind, projectId, filename }) as InstalledContent;
 
-const job = (kind: string, status: Job['status']): Job =>
-  ({ kind, status }) as Job;
+const job = (channel: string, status: Job['status']): Job =>
+  ({ channel, status }) as Job;
 
 describe('contentBatches', () => {
   it('groups rows into one call per kind', () => {
@@ -46,7 +46,7 @@ describe('contentBusy', () => {
 
   it('ignores a settled one, and jobs that hold no content lock', () => {
     expect(contentBusy([job('content.update', 'done')])).toBe(false);
-    expect(contentBusy([job('content.add', 'error')])).toBe(false);
+    expect(contentBusy([job('content.add', 'failed')])).toBe(false);
     expect(contentBusy([job('instance.launch', 'running')])).toBe(false);
     expect(contentBusy([])).toBe(false);
   });

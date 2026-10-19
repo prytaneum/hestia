@@ -1,5 +1,6 @@
 /**
- * `job.cancel` — stopping a long-running daemon operation.
+ * `job.list` and `job.cancel` — observing and stopping long-running daemon
+ * operations.
  *
  * One channel for every job family, because a job is identified by the id its
  * own progress and terminal events carry. A job outlives the client that
@@ -7,6 +8,10 @@
  * connection leaves the work running, and only this asks it to stop.
  */
 import { call } from './core/ipc';
+
+export function list() {
+  return call('job.list');
+}
 
 /**
  * Ask the daemon to cancel a running job. `false` means it was already over —

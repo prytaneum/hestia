@@ -1,7 +1,8 @@
 /**
  * The job driver, mirroring the client SDK's `Session::run_job`: generate a
  * job id, listen for its events, start the job, then settle on its terminal
- * state while streaming progress. Every job reports on the one `job` topic;
+ * state. Progress is not its concern: the job store listens to the same topic
+ * for every job, this webview's or not. Every job reports on the one `job` topic;
  * the event handler is installed *before* the start call, so even a job that
  * finishes instantly cannot slip its terminal event past us. No per-job
  * `events.subscribe` is issued: the desktop bridge already holds one
@@ -11,7 +12,6 @@
  */
 import { logger } from '@/lib/log';
 import type { Channels, Jobs } from '../types/channels';
-import type { ProvisionProgress } from '../types/minecraft';
 import { onDaemonEvent } from './events';
 import { HANDLER_ERROR, HestiaError, request } from './ipc';
 
@@ -43,9 +43,8 @@ export class JobCancelled extends Error {
  * Passed in rather than reported back so the caller's tracking cannot be
  * orphaned by an `await` on the way to `runJob`.
  */
-export interface JobRun<TProgress = ProvisionProgress> {
+export interface JobRun {
   id: string;
-  onProgress?: (progress: TProgress) => void;
 }
 
 type JobChannel = keyof Jobs & keyof Channels;
@@ -62,9 +61,9 @@ export type JobParams<K extends JobChannel> = Omit<Channels[K]['params'], 'id'>;
 export async function runJob<K extends JobChannel>(
   channel: K,
   params: JobParams<K>,
-  job: JobRun<Jobs[K]['progress']>,
+  job: JobRun,
 ): Promise<Jobs[K]['done']> {
-  const { id, onProgress } = job;
+  const { id } = job;
   let resolveOutcome!: (done: Jobs[K]['done']) => void;
   let rejectOutcome!: (error: Error) => void;
   const outcome = new Promise<Jobs[K]['done']>((resolve, reject) => {
@@ -96,9 +95,6 @@ export async function runJob<K extends JobChannel>(
         );
         break;
       }
-      case 'progress':
-        onProgress?.(payload);
-        break;
     }
   });
 

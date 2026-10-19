@@ -40,6 +40,7 @@ export {
   type JobStatus,
   jobMutation,
   startJob,
+  startJobs,
   useEntryJobs,
   useJob,
   useJobDisplay,

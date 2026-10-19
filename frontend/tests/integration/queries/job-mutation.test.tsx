@@ -1,8 +1,19 @@
 import { screen, waitFor } from '@testing-library/react';
 import { act } from 'react';
-import { afterEach, describe, expect, it } from 'vitest';
-import { jobMutation, useJobMutation } from '@/queries/jobs';
-import { renderWithProviders, resetJobs, resetQueryCache } from '../../support';
+import { afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { publishJob } from '@/mock/bus';
+import { jobMutation, startJobs, useJobMutation } from '@/queries/jobs';
+import {
+  installFakeDaemon,
+  renderWithProviders,
+  resetJobs,
+  resetQueryCache,
+} from '../../support';
+
+beforeAll(async () => {
+  installFakeDaemon();
+  await startJobs();
+});
 
 afterEach(async () => {
   await resetJobs();
@@ -10,15 +21,13 @@ afterEach(async () => {
 });
 
 const received: string[] = [];
-let report: ((progress: number) => void) | null = null;
 let finish: ((value: string) => void) | null = null;
 
-const spec = jobMutation<string, void, number>({
+const spec = jobMutation<string, void>({
   mutationKey: ['test', 'job'],
   meta: () => ({ kind: 'server.create', label: 'create' }),
   run: (_variables, job) => {
     received.push(job.id);
-    report = (progress) => job.onProgress?.(progress);
     return new Promise<string>((resolve) => {
       finish = resolve;
     });
@@ -33,7 +42,7 @@ function Harness() {
         go
       </button>
       <span data-testid="id">{run.job?.id ?? '-'}</span>
-      <span data-testid="progress">{run.progress ?? '-'}</span>
+      <span data-testid="progress">{run.progress?.current ?? '-'}</span>
       <span data-testid="status">{run.job?.status ?? '-'}</span>
     </div>
   );
@@ -49,7 +58,17 @@ describe('useJobMutation', () => {
       expect(screen.getByTestId('id').textContent).toBe(received[0]),
     );
 
-    act(() => report?.(42));
+    act(() =>
+      publishJob(received[0], 'server.create', {
+        state: 'progress',
+        phase: 'resolving',
+        current: 42,
+        total: 100,
+        detail: '',
+        item: 0,
+        items: 0,
+      }),
+    );
     await waitFor(() =>
       expect(screen.getByTestId('progress').textContent).toBe('42'),
     );

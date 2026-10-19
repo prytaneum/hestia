@@ -12,7 +12,7 @@ import { initDesktopShell } from './lib/desktop';
 import { watchFileDrops } from './lib/file-drop';
 import { log } from './lib/log';
 import { reportReady } from './lib/splash';
-import { queryClient, startInvalidation } from './queries';
+import { queryClient, startInvalidation, startJobs } from './queries';
 import { startSessionTracking } from './queries/sessions';
 import { getRouter } from './router';
 import './styles.css';
@@ -27,6 +27,9 @@ installCrashHandlers();
 log.info({ mode: import.meta.env.MODE }, 'ui starting');
 initDesktopShell();
 startInvalidation();
+startJobs().catch(() => {
+  // Outside the Tauri shell there is no daemon to mirror.
+});
 watchOpenedArchives();
 watchFileDrops();
 startSessionTracking();
