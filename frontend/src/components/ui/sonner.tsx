@@ -29,37 +29,35 @@ const Toaster = ({ ...props }: ToasterProps) => {
       position="bottom-right"
       offset={{ bottom: 40, right: 16 }}
       visibleToasts={3}
-      closeButton
       containerAriaLabel={m['app.toast.notifications']()}
       icons={{
-        success: <CheckCircleIcon className="size-4 text-ember" />,
-        info: <InfoIcon className="size-4 text-muted-foreground" />,
-        warning: <WarningIcon className="size-4 text-amber" />,
-        error: <XCircleIcon className="size-4 text-destructive" />,
+        success: <CheckCircleIcon className="size-4" />,
+        info: <InfoIcon className="size-4" />,
+        warning: <WarningIcon className="size-4" />,
+        error: <XCircleIcon className="size-4" />,
         loading: <SpinnerIcon className="size-4 animate-spin" />,
       }}
       style={
         {
           '--normal-bg': 'var(--popover)',
           '--normal-text': 'var(--popover-foreground)',
-          '--normal-border':
-            'color-mix(in oklab, var(--foreground) 10%, transparent)',
+          '--normal-border': 'var(--border)',
           '--border-radius': '0px',
+          '--toast-close-button-start': 'unset',
+          '--toast-close-button-end': '4px',
+          '--toast-close-button-transform': 'translateY(4px)',
         } as React.CSSProperties
       }
       toastOptions={{
         style: { fontSize: 'var(--text-xs)' },
         closeButtonAriaLabel: m['app.toast.close'](),
         classNames: {
-          toast: 'rounded-none !border-l-2',
-          success: '!border-l-ember',
-          info: '!border-l-muted-foreground',
-          warning: '!border-l-amber',
-          error: '!border-l-destructive',
-          icon: 'rounded-none',
+          toast: 'pr-8',
+          title: 'font-medium',
+          description: '!text-muted-foreground',
           actionButton: '!rounded-none',
-          cancelButton: '!rounded-none',
-          closeButton: '!rounded-none !opacity-100',
+          closeButton:
+            '!border-0 !bg-transparent text-muted-foreground hover:text-foreground',
         },
       }}
       {...props}

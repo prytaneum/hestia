@@ -32,7 +32,9 @@ describe('notify', () => {
     expect(toast.warning.mock.calls[0][1].duration).toBe(8_000);
     expect(toast.error.mock.calls[0][1].duration).toBe(Infinity);
     expect(toast.info.mock.calls[0][1].duration).toBe(Infinity);
-    expect(toast.success.mock.calls[0][1].closeButton).toBe(true);
+    expect(toast.success.mock.calls[0][1].closeButton).toBe(false);
+    expect(toast.error.mock.calls[0][1].closeButton).toBe(true);
+    expect(toast.info.mock.calls[0][1].closeButton).toBe(true);
   });
 
   it('folds warnings and failed items into one toast', () => {

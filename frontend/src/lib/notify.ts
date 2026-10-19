@@ -40,10 +40,12 @@ const DURATIONS: Record<Kind, number> = {
 
 function show(kind: Kind, title: string, options: NotifyOptions = {}) {
   const { action, ...rest } = options;
+  const duration = action ? Number.POSITIVE_INFINITY : DURATIONS[kind];
   return toast[kind](title, {
     ...rest,
-    closeButton: true,
-    duration: action ? Number.POSITIVE_INFINITY : DURATIONS[kind],
+    // Only a toast that never expires needs a way to close it.
+    closeButton: duration === Number.POSITIVE_INFINITY,
+    duration,
     action: action && { label: action.label, onClick: action.onClick },
   });
 }
