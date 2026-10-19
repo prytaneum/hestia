@@ -25,7 +25,8 @@ quieter, clearer notifications.
   outcome is reported once, errors stay until dismissed, and cancelling or a job
   started elsewhere no longer pops a toast.
 - **CLI.** `hestia job list` shows the daemon's running jobs and
-  `hestia job cancel <id>` cancels one.
+  `hestia job cancel <id>` cancels one. `hestia play` shows one download bar
+  across the whole launch instead of one per phase.
 
 ## 1.0.0-beta.2
 

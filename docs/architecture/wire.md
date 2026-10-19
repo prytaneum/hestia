@@ -190,12 +190,30 @@ declare the same ones (content add, update and set-version all settle with a
 { "id": "server-create-1", "channel": "server.create", "state": "done", "server": { … }, "warnings": [] }
 { "id": "server-create-1", "channel": "server.create", "state": "failed", "error": { "kind": "…" } }
 { "id": "server-create-1", "channel": "server.create", "state": "cancelled" }
+{ "id": "server-backup-2", "channel": "server.backup.create", "subject": { "kind": "server", "id": "smp" }, "state": "progress", … }
 ```
 
 `channel` is the start contract's `CHANNEL`, so an observer that did not start
 the job — another window refreshing its lists — can still tell what kind it is.
-The `state` payload is flattened beside `id` and `channel`; the generated
+`subject` names the entry the job acts on (`JobSubject { kind, id }`) and is
+absent for a job that has none yet: a Java install, an update download, or a
+create or import whose entry does not exist until it finishes. The `state`
+payload is flattened beside `id`, `channel` and `subject`; the generated
 TypeScript is a union over `state`.
+
+A launch's `ProvisionProgress` also carries `overallCurrent` of `overallTotal`
+bytes: the launch plans everything it must download before fetching anything,
+and the pair only moves forward across phases, holding its value through a phase
+with no bytes (unpacking natives, a loader install). `0/0` means the job has no
+plan, and the per-phase `current`/`total` are all there is.
+
+`job.list` answers with every running job as a `JobInfo` — `id`, `channel`,
+`subject`, `startedUnix` and the last `progress` payload, untyped because the
+registry spans every job family (a client narrows it by `channel`). A job leaves
+the list before its terminal event is published, so a list read after that
+event never shows it. A client reads it on connect to adopt work started
+elsewhere or before a reload; a job that vanished from it died with a daemon
+restart.
 
 ```mermaid
 stateDiagram-v2

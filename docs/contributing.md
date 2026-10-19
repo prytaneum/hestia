@@ -423,9 +423,16 @@ const rename = useMutation(instanceMutations.rename(id));
 ```
 
 A progress-streaming operation is a `jobMutation({ mutationKey, meta, run,
-invalidates })` consumed through `useJobMutation` — the run registers in the global job store (so `useJobs`/
-`useEntryJobs` and any activity surface see it, outliving the component) and the hook's result adds `progress`/`job` for
-the inline case; see `serverMutations.create` or `javaMutations.install`. Factories are the source of truth: a route
+invalidates, notify })` consumed through `useJobMutation` — the run registers in the global job store (so `useJobs`/
+`useEntryJobs` and the Activity panel see it, outliving the component) and the hook's result adds `progress`/`job` for
+the inline case; see `serverMutations.create` or `javaMutations.install`. `meta` names the job's `channel` and, when it
+acts on an entry, its `subject`. The store reports the job's outcome once
+([0089](decisions/0089-a-job-outcome-is-reported-once.md)): a failure toasts with Retry on its own, and a success toasts
+only what `notify.done(done, variables)` returns — a title, plus any warnings and failed items, which fold into that one
+toast — or nothing when it returns `null`. Never toast a job's outcome at the call site, and never import `sonner`
+outside `lib/notify.ts` (biome refuses it): every other toast goes through `notify`, and a write the user is looking at
+confirms inline with `useSaveState` instead. A new job channel needs an `app.jobs.kind.<channel>` title and an
+`app.jobs.verb.<channel>` verb in every locale; the message test fails a channel without a title. Factories are the source of truth: a route
 loader preloads through them (`context.queryClient.ensureQueryData(serverQueries.list())`). If a daemon event should
 refresh a query, add its topic to the map in `queries/invalidation.ts` — for a job, its start channel to the done (or
 failed) table.
