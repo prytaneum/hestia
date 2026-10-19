@@ -4,6 +4,7 @@ import {
   JobCancelled,
   JobInterrupted,
   type WarningInfo,
+  warningHint,
   warningMessage,
 } from '@/api';
 import { m } from '@/paraglide/messages.js';
@@ -85,6 +86,20 @@ export const notify = {
       id: outcome.id,
       description: outcomeDescription(outcome),
       action: outcome.action,
+    });
+  },
+
+  /** A degraded-but-done write: all its warnings as one toast, never one each. */
+  warnings(warnings: WarningInfo[] | undefined, { id }: { id: string }) {
+    const [first, ...rest] = warnings ?? [];
+    if (!first) return;
+    const parts = [warningHint(first)];
+    if (rest.length > 0) {
+      parts.push(m['app.toast.warning_count']({ count: rest.length + 1 }));
+    }
+    return show('warning', warningMessage(first), {
+      id,
+      description: parts.filter(Boolean).join(' · ') || undefined,
     });
   },
 

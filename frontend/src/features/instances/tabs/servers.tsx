@@ -24,9 +24,9 @@ import {
   useLaunchDialog,
 } from '@/features/instances/dialogs';
 import { TabToolbar } from '@/features/shared/entry/detail';
+import { notify } from '@/lib/notify';
 import { supportsQuickPlay } from '@/lib/quick-play';
 import { runningSessions } from '@/lib/sessions';
-import { toastWarnings } from '@/lib/warnings';
 import { m } from '@/paraglide/messages.js';
 import { instanceMutations, instanceQueries } from '@/queries/instance';
 import { keys } from '@/queries/keys';
@@ -68,7 +68,7 @@ export function InstanceServersTab({ instance }: { instance: InstanceInfo }) {
     if (!order) return;
     arrange.mutate(order, {
       onSuccess: (written) => {
-        toastWarnings(written.warnings);
+        notify.warnings(written.warnings, { id: 'servers-list:write' });
         setOrder(null);
       },
     });
@@ -188,7 +188,8 @@ export function InstanceServersTab({ instance }: { instance: InstanceInfo }) {
           const target = removing;
           if (!target) return;
           remove.mutate(target.name || target.address, {
-            onSuccess: (written) => toastWarnings(written.warnings),
+            onSuccess: (written) =>
+              notify.warnings(written.warnings, { id: 'servers-list:write' }),
           });
           setRemoving(null);
         }}
