@@ -1,0 +1,52 @@
+# Plugins are WASM components on wasmtime, with WIT as the one ABI
+
+*Applies to: [The engine](../architecture/engine.md), [The socket boundary](../architecture/wire.md)*
+
+Hestia needs third-party extensions that run inside the daemon without being able
+to read the user's tokens, escape their own directory or take the daemon down.
+
+**A plugin is a WASM component, run by wasmtime's component model.** Guests
+target WASI 0.2 (`wasm32-wasip2`). The host is async and lives in the engine,
+so a guest can make blocking calls without ever holding a tokio worker. A plugin
+is compiled once into a cached `InstancePre`; every call gets a **fresh
+`Store`** from it, so no call can see another's memory.
+
+**The ABI is one WIT package**, `hestia:plugin` in `crates/sdk/wit`. Its version
+is the only API version: `proto::plugin::API_VERSION` is typed from it and a test
+fails on drift. Compatibility is semver: a manifest's `api = "^0.N.x"` loads on a
+host `0.N.y` with `y >= x`. An older patch is refused at install with the Hestia
+version it needs, instead of failing at instantiation on a missing import.
+
+**The boundary carries proto JSON as strings.** `host.call` and `host.run-job`
+take and return JSON, so every existing contract crosses unchanged and the host
+does not mirror `proto` in WIT. Type safety therefore comes from the SDK's proto
+types, not from WIT records. What the component model buys is WASI, permission
+stubs at the linker, and bindings for any guest language.
+
+`lifecycle.init` runs once on enable, on a store that is dropped afterwards. It
+is for one-time setup in the plugin's `data/` directory, not for state held in
+memory. There is no key/value interface: a plugin persists to its preopened
+`data/` directory.
+
+## Threat model
+
+| Asset | Defended by |
+|---|---|
+| Account tokens, RCON passwords | A guest reaches the daemon only through `host.call` / `host.run-job`, limited to contracts whose `Contract::PLUGIN` is `Some` and granted; the check fails closed. Secret-bearing channels (`server.files.read`, `server.properties`, `config.get`/`config.list`, `process.logs`, `entry.logs`, `process.output`, sign-in and token channels) stay `None` ([0092](0092-a-contract-names-the-permission-a-plugin-needs.md)). No environment access; network access only to granted hosts |
+| The user's files | WASI filesystem is empty except the plugin's own preopened `data/` directory |
+| Native code execution | The WASM sandbox bounds the guest itself: no syscalls but the WASI imports the linker supplies, and no dylib is ever loaded. Permissions in the unrestricted tier ([0092](0092-a-contract-names-the-permission-a-plugin-needs.md)) grant native code execution by design, and the install prompt states them as full access to the computer |
+| The daemon's availability | An epoch tick yields a spinning guest, a wall-clock timeout bounds each call, `StoreLimits` and a pooling allocator cap memory globally, and at most 4 calls run concurrently per plugin. A timed-out or cancelled call's store is dropped and never reused |
+| Capabilities (what a call may do) | A channel call is checked against its contract's `PLUGIN` permission by the host before dispatch. A gated interface the user did not grant is linked as a stub whose every function returns `permission-denied` |
+
+The trust boundary is guest code against the daemon. The data home is one trust
+domain: someone who can already write it can replace the daemon too, so a local
+writer of the data home is out of scope.
+
+**Rejected:**
+
+- **Native dylibs**: no sandbox, and an ABI that breaks per compiler version.
+- **Extism**: its strength is many host languages, worth nothing with one Rust host; it trades typed WIT contracts and linker-level capability denial for a bytes-in/bytes-out ABI.
+- **Out-of-process plugins over the socket**: sandboxing would rest on the OS per platform, and every plugin would be one more long-lived process to supervise.
+- **Embedded scripting**: one language for every author, and a sandbox we would have to build.
+- **WASI 0.3 now**: ratified, but most guest toolchains besides Rust (TinyGo, componentize-py, componentize-js) still target 0.2; the host can move later.
+- **One long-lived instance per plugin**: re-entry deadlocks, and a cancelled call leaves the instance unusable.

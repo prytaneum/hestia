@@ -50,6 +50,7 @@ the alternative you rejected — that is usually the part nobody can recover lat
 - **0066** — [A channel picks the feed, not an entry inside one](0066-a-channel-picks-the-feed-not-the-entry.md)
 - **0067** — [Reachability is observed from real traffic, and offline is a state the whole system reads](0067-reachability-is-observed-not-asked.md)
 - **0068** — [The tray speaks the tray protocol, not a library that might be installed](0068-the-tray-speaks-the-tray-protocol.md)
+- **0091** — [Plugins are WASM components on wasmtime, with WIT as the one ABI](0091-plugins-are-wasm-components.md)
 
 ### [The daemon](../architecture/daemon.md)
 
