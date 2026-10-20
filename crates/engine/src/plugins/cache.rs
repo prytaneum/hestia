@@ -62,7 +62,7 @@ impl ComponentCache {
         }
         let component = Component::new(engine, wasm)?;
         if let Err(error) = self.store(&component, &artifact, &digest) {
-            tracing::warn!(artifact = %artifact.display(), "cannot cache the compiled plugin: {error:#}");
+            tracing::warn!(artifact = %artifact.display(), error = %format!("{error:#}"), "cannot cache the compiled plugin");
             discard(&artifact, &digest);
         }
         Ok(component)
@@ -83,7 +83,7 @@ impl ComponentCache {
         match unsafe { Component::deserialize(engine, &bytes) } {
             Ok(component) => Some(component),
             Err(error) => {
-                tracing::warn!(artifact = %artifact.display(), "cached plugin artifact is unusable; recompiling: {error:#}");
+                tracing::warn!(artifact = %artifact.display(), error = %format!("{error:#}"), "cached plugin artifact is unusable; recompiling");
                 discard(artifact, digest);
                 None
             }

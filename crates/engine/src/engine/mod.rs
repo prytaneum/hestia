@@ -147,6 +147,7 @@ impl Engine {
         let mut freed = self.java.reclaim();
         freed += self.plugins.reclaim();
         freed += crate::reclaim::contents(&self.pack_staging());
+        freed += crate::reclaim::suffixed(&self.plugin_cache_dir(), common::atomic::SUFFIX);
         for record in self.servers.list() {
             let dir = self.servers.server_dir(&record);
             freed += crate::backup::reclaim(&dir);
@@ -159,6 +160,11 @@ impl Engine {
                 "reclaimed abandoned temp artifacts"
             );
         }
+    }
+
+    /// Where compiled plugin components are cached.
+    pub fn plugin_cache_dir(&self) -> PathBuf {
+        flows::meta_dir(&self.data_home).join("plugins")
     }
 
     pub fn config(&self) -> &Config {
