@@ -112,6 +112,9 @@ A call that mutates state another client renders sets `const CHANGES: Option<Sco
 contract; the daemon then publishes `changed` after it succeeds, and the desktop maps the scope in
 `queries/invalidation.ts` ([0085](decisions/0085-a-mutating-call-names-what-it-changed.md)).
 
+A contract a plugin may call sets `const PLUGIN: Option<Permission> = Some(Permission::…)`; one it must never reach goes
+on `DENIED` in `crates/proto/tests/permission.rs` ([0092](decisions/0092-a-contract-names-the-permission-a-plugin-needs.md)).
+
 If you change an existing payload's shape, update `crates/proto/tests/` (the
 `wire`/`golden` encodings are pinned on purpose).
 

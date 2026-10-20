@@ -31,6 +31,7 @@ the alternative you rejected — that is usually the part nobody can recover lat
 - **0085** — [A mutating call names the state it changes, and the registrar publishes it on one topic](0085-a-mutating-call-names-what-it-changed.md)
 - **0086** — [An entry's tree has one claim, held for as long as a job or handler changes it](0086-an-entry-has-one-claim.md)
 - **0090** — [The daemon keeps the job registry](0090-the-daemon-keeps-the-job-registry.md)
+- **0092** — [A contract names the permission a plugin needs, and an unnamed one is closed](0092-a-contract-names-the-permission-a-plugin-needs.md)
 
 ### [Cross-cutting foundations](../architecture/common.md)
 

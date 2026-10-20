@@ -55,6 +55,9 @@ An unsolicited daemon→client push is a **`Topic`** — the implementing type *
 its payload. `Empty` is the `{}` payload for channels that take or return
 nothing.
 
+A contract or topic a plugin may reach names its permission in `PLUGIN`; the
+default `None` is closed ([0092](../decisions/0092-a-contract-names-the-permission-a-plugin-needs.md)).
+
 One module per domain; `crates/proto/src/lib.rs` lists them.
 Three are shared vocabularies rather than domains of their own:
 
@@ -287,3 +290,4 @@ rather than something each front-end invents. And a warning about something the
 - [0028 — camelCase everywhere, except the `config.*` vocabulary](../decisions/0028-camelcase-except-the-config-vocabulary.md)
 - [0032 — A job is cancelled by asking](../decisions/0032-jobs-are-cancelled-by-asking.md)
 - [0045 — A session routes events to its listeners](../decisions/0045-a-session-routes-events-to-its-listeners.md)
+- [0092 — A contract names the permission a plugin needs, and an unnamed one is closed](../decisions/0092-a-contract-names-the-permission-a-plugin-needs.md)
