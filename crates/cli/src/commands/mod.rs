@@ -12,6 +12,7 @@ pub mod lifecycle;
 mod mc;
 pub mod modpack;
 pub mod play;
+pub mod plugin;
 pub mod process;
 pub mod screenshot;
 pub mod server;

@@ -155,6 +155,11 @@ enum Command {
         #[command(subcommand)]
         cmd: commands::content::BrowseCmd,
     },
+    /// Manage launcher plugins
+    Plugin {
+        #[command(subcommand)]
+        cmd: commands::plugin::PluginCmd,
+    },
     /// Search mods on a content source (alias for `mod search`)
     Search {
         /// Search terms
@@ -319,6 +324,7 @@ async fn dispatch(command: Command) -> anyhow::Result<ExitStatus> {
         Command::ServerPlugin { cmd } => {
             commands::content::run_browse(client::proto::content::ContentKind::Plugin, cmd).await
         }
+        Command::Plugin { cmd } => commands::plugin::run(cmd).await,
         Command::Search {
             query,
             loader,

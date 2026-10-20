@@ -686,6 +686,19 @@ naming both flags — a script has to state which it meant. With nothing running
 immediately. The tray's **Quit** and the desktop's stop button always mean
 `--keep`: neither can ask, and neither should end a running server on your behalf.
 
+## Launcher plugins
+
+`hestia plugin` manages plugins that extend Hestia itself; server plugins are `hestia server-plugin` and
+`hestia server <name> plugin`.
+
+```bash
+hestia plugin list               # id, name, version, state, source
+hestia plugin info <id>          # manifest, state, permissions, last error, call counters
+hestia plugin enable <id>        # load it
+hestia plugin disable <id>       # unload it; it stays installed
+hestia plugin remove <id>        # confirms first; -y skips the prompt
+```
+
 ## Updating Hestia
 
 ```bash
