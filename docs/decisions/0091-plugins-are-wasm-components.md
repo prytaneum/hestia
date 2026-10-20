@@ -54,6 +54,18 @@ The trust boundary is guest code against the daemon. The data home is one trust
 domain: someone who can already write it can replace the daemon too, so a local
 writer of the data home is out of scope.
 
+**Compiled components are cached under `meta/plugins/`** as
+`<wasm-sha256>-<config-hash>.cwasm`, beside a `.sha256` of the artifact itself,
+so a daemon start does not recompile every enabled plugin. The config hash is
+wasmtime's `precompile_compatibility_hash`, which covers its own version and the
+engine settings, so a wasmtime bump or a config change misses the cache. The
+`.wasm` hash is verified first; a missing, truncated or mismatching artifact, or a
+failed `deserialize`, is deleted and compiled afresh. `Component::deserialize` is
+`unsafe` because it trusts its input; the artifact hash guards corruption only.
+A writer of the data home could already edit grants, so it is out of scope.
+wasmtime's own global cache directory stays off: the cache is part of `meta/`,
+which is one unit to reclaim ([0054](0054-meta-root-for-materialised-files.md)).
+
 **Licensing.** A plugin compiles `proto`, the SDK and the WIT bindings into its
 own component, which under GPL-3.0-only would make every plugin a derivative
 work. Those three are `MIT OR Apache-2.0`: `crates/proto` and `crates/sdk`
