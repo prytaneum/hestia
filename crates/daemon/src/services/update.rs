@@ -18,7 +18,10 @@ pub(super) fn register(on: &mut Channels<'_>) {
 
     on.handle::<UpdateDownload, _, _>(|params, ctx| async move {
         Ok(JobStarted {
-            id: ctx.runtime.jobs().start_update_download(params.id),
+            id: ctx
+                .runtime
+                .jobs()
+                .start_update_download(params.id, ctx.chain.clone()),
         })
     });
 

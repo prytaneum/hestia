@@ -26,6 +26,7 @@ tokio = { workspace = true }
 tracing = { workspace = true }
 clap = { workspace = true }
 anyhow = { workspace = true }
+async-trait = { workspace = true }
 sysinfo = { workspace = true }
 discord-rich-presence = { workspace = true }
 

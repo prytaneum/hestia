@@ -1233,6 +1233,7 @@ name = "daemon"
 version = "1.0.0-beta.3"
 dependencies = [
  "anyhow",
+ "async-trait",
  "clap",
  "client",
  "common",

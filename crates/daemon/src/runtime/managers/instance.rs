@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use engine::{Engine, LaunchRequest};
+use engine::{CallChain, Engine, LaunchRequest};
 use proto::error::{EntryKind, ErrorInfo};
 use proto::instance::{
     InstanceLaunch, InstanceLaunchDone, InstanceUpdate, InstanceUpdateDone, InstanceUpdateParams,
@@ -22,12 +22,14 @@ impl Jobs {
         instance_id: String,
         params: InstanceUpdateParams,
         claim: Claim,
+        chain: CallChain,
     ) -> String {
         let spec = Spec {
             id: params.id.clone(),
             prefix: "instance-update",
             claim: Some(claim),
             subject: Spec::subject(EntryKind::Instance, &instance_id),
+            chain,
         };
 
         self.run::<InstanceUpdate, _>(spec, move |engine, reporter| {
@@ -55,7 +57,7 @@ impl Jobs {
     /// Prepare and spawn a fresh session of an instance off-thread. Instances may
     /// run several sessions at once, so this takes no claim — it does not
     /// refuse a running instance. Returns the launch job id.
-    pub fn start_instance_launch(&self, order: LaunchOrder) -> String {
+    pub fn start_instance_launch(&self, order: LaunchOrder, chain: CallChain) -> String {
         let LaunchOrder {
             instance_id,
             instance_name,
@@ -73,6 +75,7 @@ impl Jobs {
             prefix: "instance-launch",
             claim: None,
             subject: Spec::subject(EntryKind::Instance, &instance_id),
+            chain,
         };
 
         let processes = self.processes.clone();

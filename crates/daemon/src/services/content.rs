@@ -98,6 +98,7 @@ fn register_entry(on: &mut Channels<'_>) {
             },
             p.id,
             claim,
+            ctx.chain.clone(),
         );
         Ok(JobStarted { id })
     });
@@ -138,6 +139,7 @@ fn register_entry(on: &mut Channels<'_>) {
             },
             p.id,
             claim,
+            ctx.chain.clone(),
         );
         Ok(JobStarted { id })
     });
@@ -201,6 +203,7 @@ fn register_entry(on: &mut Channels<'_>) {
             },
             p.id,
             claim,
+            ctx.chain.clone(),
         );
         Ok(JobStarted { id })
     });

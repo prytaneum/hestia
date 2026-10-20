@@ -57,7 +57,7 @@ pub(super) fn register(on: &mut Channels<'_>) {
         let id = ctx
             .runtime
             .jobs()
-            .start_instance_update(record.id, p, claim);
+            .start_instance_update(record.id, p, claim, ctx.chain.clone());
         Ok(JobStarted { id })
     });
 
@@ -201,16 +201,19 @@ pub(super) fn register(on: &mut Channels<'_>) {
                 });
             }
         }
-        let id = ctx.runtime.jobs().start_instance_launch(LaunchOrder {
-            instance_id: record.id,
-            instance_name: record.name,
-            account: p.account,
-            reconcile: !running,
-            quick_play: p.quick_play,
-            offline: p.offline,
-            replace,
-            id: p.id,
-        });
+        let id = ctx.runtime.jobs().start_instance_launch(
+            LaunchOrder {
+                instance_id: record.id,
+                instance_name: record.name,
+                account: p.account,
+                reconcile: !running,
+                quick_play: p.quick_play,
+                offline: p.offline,
+                replace,
+                id: p.id,
+            },
+            ctx.chain.clone(),
+        );
         Ok(JobStarted { id })
     });
 }

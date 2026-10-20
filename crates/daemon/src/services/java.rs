@@ -62,7 +62,7 @@ pub(super) fn register(on: &mut Channels<'_>) {
         match ctx
             .runtime
             .jobs()
-            .start_java_install(p.major, p.id, p.force)
+            .start_java_install(p.major, p.id, p.force, ctx.chain.clone())
         {
             Some(id) => Ok(JobStarted { id }),
             None => Err(ErrorInfo::JavaInstallInProgress { major: p.major }),

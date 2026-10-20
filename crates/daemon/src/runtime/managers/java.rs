@@ -1,3 +1,4 @@
+use engine::CallChain;
 use proto::java::{JavaInstall, JavaInstallDone};
 
 use super::job::{Jobs, Spec};
@@ -6,7 +7,13 @@ use crate::runtime::JobKind;
 impl Jobs {
     /// Start an install off-thread, one per release line at a time. Returns the
     /// job id, or `None` if that line is already installing.
-    pub fn start_java_install(&self, major: i32, id: String, force: bool) -> Option<String> {
+    pub fn start_java_install(
+        &self,
+        major: i32,
+        id: String,
+        force: bool,
+        chain: CallChain,
+    ) -> Option<String> {
         let claim = self
             .claims
             .claim(format!("java-{major}"), JobKind::Install)
@@ -16,6 +23,7 @@ impl Jobs {
             prefix: "java-install",
             claim: Some(claim),
             subject: None,
+            chain,
         };
 
         Some(self.run::<JavaInstall, _>(spec, move |engine, reporter| {

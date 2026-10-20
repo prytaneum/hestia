@@ -3,14 +3,15 @@
 //! carries the connection's outbound channel, so streaming channels
 //! (`events.subscribe`) are ordinary handlers.
 
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
 use ipc::protocol::{decode_request, encode_response, DecodeError};
 use ipc::Connection;
 use tracing::Instrument;
 
-use crate::runtime::{HandlerContext, Router, Runtime};
+use engine::CallChain;
+
+use crate::runtime::{Caller, HandlerContext, Router, RouterHost, Runtime};
 use crate::services::make_router;
 
 pub async fn run_daemon(log_path: std::path::PathBuf) -> i32 {
@@ -42,6 +43,14 @@ pub async fn run_daemon(log_path: std::path::PathBuf) -> i32 {
     crate::runtime::spawn_network_watcher(runtime.clone());
     let presence = crate::runtime::spawn_presence_updater(runtime.clone());
     let router = Arc::new(make_router());
+    if let Err(error) = runtime
+        .plugins()
+        .attach(Arc::new(RouterHost::new(router.clone(), &runtime)))
+    {
+        tracing::error!(%error, "plugins are unavailable");
+    }
+    let plugins = runtime.plugins().clone();
+    tokio::spawn(async move { plugins.load_enabled().await });
 
     tracing::info!("hestiad listening on {}", endpoint.display());
     crate::tray::spawn();
@@ -50,6 +59,7 @@ pub async fn run_daemon(log_path: std::path::PathBuf) -> i32 {
         _ = runtime.stopped() => tracing::info!("stop requested"),
         _ = shutdown_signal() => tracing::info!("signal received"),
     }
+    runtime.plugins().shutdown();
     runtime.shutdown_workloads().await;
     // A game session outlives this process, but the presence connection does
     // not — left alone, Discord keeps showing whatever was published last.
@@ -61,7 +71,6 @@ pub async fn run_daemon(log_path: std::path::PathBuf) -> i32 {
 }
 
 async fn accept_loop(listener: ipc::Listener, router: Arc<Router>, runtime: Arc<Runtime>) {
-    static COUNTER: AtomicU64 = AtomicU64::new(1);
     loop {
         let (conn, peer) = match listener.accept().await {
             Ok(pair) => pair,
@@ -80,7 +89,7 @@ async fn accept_loop(listener: ipc::Listener, router: Arc<Router>, runtime: Arc<
         }
         let router = router.clone();
         let runtime = runtime.clone();
-        let conn_id = COUNTER.fetch_add(1, Ordering::Relaxed);
+        let conn_id = runtime.hub().next_subscriber_id();
         // A span per connection, so every request and handler log it fans out is
         // tagged with the connection id and peer uid — the traceability seam.
         let span = tracing::info_span!("conn", id = conn_id, uid = peer.uid);
@@ -140,6 +149,8 @@ async fn serve_connection(
             runtime: runtime.clone(),
             conn_id,
             out: out_tx.clone(),
+            caller: Caller::Client,
+            chain: CallChain::default(),
         };
         let router = router.clone();
         tokio::spawn(async move {

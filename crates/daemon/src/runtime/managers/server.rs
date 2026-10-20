@@ -1,4 +1,4 @@
-use engine::{Engine, ServerCreateSpec, ServerRecord, ServerUpdateSpec};
+use engine::{CallChain, Engine, ServerCreateSpec, ServerRecord, ServerUpdateSpec};
 use proto::error::EntryKind;
 use proto::process::ProcessState;
 use proto::server::{
@@ -26,7 +26,11 @@ fn provisioned(engine: &Engine, outcome: (engine::ServerRecord, Vec<WarningInfo>
 impl Jobs {
     /// Start a provisioning job off-thread, one per server name at a time.
     /// Returns the job id, or `None` if that name is already being created.
-    pub fn start_server_create(&self, params: ServerCreateParams) -> Option<String> {
+    pub fn start_server_create(
+        &self,
+        params: ServerCreateParams,
+        chain: CallChain,
+    ) -> Option<String> {
         let name = match params.name.trim() {
             "" => format!("{}-{}", params.flavor, params.version),
             name => name.to_string(),
@@ -40,6 +44,7 @@ impl Jobs {
             prefix: "server-create",
             claim: Some(claim),
             subject: None,
+            chain,
         };
 
         Some(self.run::<ServerCreate, _>(spec, move |engine, reporter| {
@@ -68,12 +73,14 @@ impl Jobs {
         record: ServerRecord,
         params: ServerUpdateParams,
         claim: Claim,
+        chain: CallChain,
     ) -> String {
         let spec = Spec {
             id: params.id.clone(),
             prefix: "server-update",
             claim: Some(claim),
             subject: Spec::subject(EntryKind::Server, &record.id),
+            chain,
         };
         let processes = self.processes.clone();
 

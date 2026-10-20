@@ -24,7 +24,7 @@ pub(super) fn register(on: &mut Channels<'_>) {
         if !p.eula {
             return Err(ErrorInfo::EulaRequired);
         }
-        match ctx.runtime.jobs().start_server_create(p) {
+        match ctx.runtime.jobs().start_server_create(p, ctx.chain.clone()) {
             Some(id) => Ok(JobStarted { id }),
             None => Err(ErrorInfo::CreateInProgress),
         }
@@ -41,7 +41,10 @@ pub(super) fn register(on: &mut Channels<'_>) {
             false => Hold::stopped(JobKind::Update),
         };
         let (record, claim) = server_held(&ctx, &p.server, hold)?;
-        let id = ctx.runtime.jobs().start_server_update(record, p, claim);
+        let id = ctx
+            .runtime
+            .jobs()
+            .start_server_update(record, p, claim, ctx.chain.clone());
         Ok(JobStarted { id })
     });
 

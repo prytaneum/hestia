@@ -2,6 +2,7 @@
 //! unknown channel or a handler failure becomes a protocol-level error response,
 //! so the caller always gets a well-formed `Response` back.
 
+use std::any::TypeId;
 use std::collections::HashMap;
 use std::future::Future;
 use std::pin::Pin;
@@ -10,6 +11,8 @@ use std::sync::Arc;
 use ipc::protocol::{Request, Response};
 use proto::change::{ChangedEvent, Scope};
 use proto::error::ErrorInfo;
+use proto::job::JobStarted;
+use proto::plugin::Permission;
 use proto::Contract;
 use serde_json::Value;
 use tracing::Instrument;
@@ -50,9 +53,19 @@ fn is_polled(channel: &str) -> bool {
 type BoxFuture = Pin<Box<dyn Future<Output = Response> + Send>>;
 type Handler = Arc<dyn Fn(Request, HandlerContext) -> BoxFuture + Send + Sync>;
 
+/// How a plugin may reach a channel its contract opened to plugins.
+#[derive(Debug, Clone, Copy)]
+pub struct PluginAccess {
+    pub permission: Permission,
+    /// The channel starts a job (it answers `JobStarted`), so `host.run-job`
+    /// can follow it to its end.
+    pub job: bool,
+}
+
 #[derive(Default)]
 pub struct Router {
     handlers: HashMap<String, Handler>,
+    plugin_access: HashMap<String, PluginAccess>,
 }
 
 impl Router {
@@ -60,12 +73,18 @@ impl Router {
         self.handlers.insert(channel.to_string(), handler);
     }
 
+    /// `None` for a channel a plugin may not reach, including an unknown one.
+    pub fn plugin_access(&self, channel: &str) -> Option<PluginAccess> {
+        self.plugin_access.get(channel).copied()
+    }
+
     pub async fn route(&self, request: Request, ctx: HandlerContext) -> Response {
         let polled = is_polled(&request.channel);
         let span = tracing::info_span!(
             "req",
             channel = %request.channel,
-            id = request.id.unwrap_or_default()
+            id = request.id.unwrap_or_default(),
+            caller = %ctx.caller
         );
         async move {
             match self.handlers.get(&request.channel) {
@@ -125,6 +144,15 @@ impl<'r> Channels<'r> {
         F: Fn(C::Params, HandlerContext) -> Fut + Send + Sync + Clone + 'static,
         Fut: Future<Output = ServiceResult<C::Result>> + Send + 'static,
     {
+        if let Some(permission) = C::PLUGIN {
+            self.router.plugin_access.insert(
+                C::CHANNEL.to_string(),
+                PluginAccess {
+                    permission,
+                    job: TypeId::of::<C::Result>() == TypeId::of::<JobStarted>(),
+                },
+            );
+        }
         self.router.on(
             C::CHANNEL,
             Arc::new(move |req: Request, ctx: HandlerContext| {

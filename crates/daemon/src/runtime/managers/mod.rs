@@ -16,5 +16,7 @@ mod update;
 pub use backup::BackupJob;
 pub use content::{ContentJob, Entry as JobEntry};
 pub use instance::LaunchOrder;
+pub(crate) use job::generate_id as generate_job_id;
 pub use job::Jobs;
 pub use modpack::ModpackJob;
+pub use transfer::ExportOrder;

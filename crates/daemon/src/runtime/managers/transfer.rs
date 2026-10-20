@@ -5,27 +5,39 @@
 //! import has no entry to claim yet (that is what it creates), exactly as a
 //! modpack install that creates its entry has none.
 
+use engine::CallChain;
 use proto::error::EntryKind;
 use proto::transfer::{ExportDone, ExportFormat, ImportDone, InstanceExport, InstanceImport};
 
 use super::job::{Jobs, Spec};
 use crate::runtime::{instance_info, Claim};
 
+/// What a caller asks the manager to export; owns its strings since the job
+/// outlives the request.
+pub struct ExportOrder {
+    /// Client-supplied job id; empty asks for an allocated one.
+    pub id: String,
+    pub instance_id: String,
+    pub format: ExportFormat,
+    pub destination: String,
+    pub exclude: Vec<String>,
+}
+
 impl Jobs {
-    pub fn start_export(
-        &self,
-        id: String,
-        claim: Claim,
-        instance_id: String,
-        format: ExportFormat,
-        destination: String,
-        exclude: Vec<String>,
-    ) -> String {
+    pub fn start_export(&self, order: ExportOrder, claim: Claim, chain: CallChain) -> String {
+        let ExportOrder {
+            id,
+            instance_id,
+            format,
+            destination,
+            exclude,
+        } = order;
         let spec = Spec {
             id,
             prefix: "instance-export",
             claim: Some(claim),
             subject: Spec::subject(EntryKind::Instance, &instance_id),
+            chain,
         };
 
         self.run::<InstanceExport, _>(spec, move |engine, reporter| {
@@ -47,12 +59,13 @@ impl Jobs {
         })
     }
 
-    pub fn start_import(&self, id: String, path: String, name: String) -> String {
+    pub fn start_import(&self, id: String, path: String, name: String, chain: CallChain) -> String {
         let spec = Spec {
             id,
             prefix: "instance-import",
             claim: None,
             subject: None,
+            chain,
         };
 
         self.run::<InstanceImport, _>(spec, move |engine, reporter| {

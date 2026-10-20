@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use engine::Engine;
+use engine::{CallChain, Engine};
 use proto::content::{ContentAddSpec, ContentDone, ContentFailure, ContentKind, InstalledContent};
 use proto::error::EntryKind;
 use proto::job::{Job, JobSubject};
@@ -153,7 +153,13 @@ impl ContentJob {
 impl Jobs {
     /// Start an install/update job off-thread, holding the entry's claim until
     /// it settles.
-    pub fn start_content<C>(&self, job: ContentJob, id: String, claim: Claim) -> String
+    pub fn start_content<C>(
+        &self,
+        job: ContentJob,
+        id: String,
+        claim: Claim,
+        chain: CallChain,
+    ) -> String
     where
         C: Job<Progress = ProvisionProgress, Done = ContentDone>,
     {
@@ -162,6 +168,7 @@ impl Jobs {
             prefix: job.id_prefix(),
             claim: Some(claim),
             subject: job.entry().subject(),
+            chain,
         };
 
         self.run::<C, _>(spec, move |engine, reporter| {

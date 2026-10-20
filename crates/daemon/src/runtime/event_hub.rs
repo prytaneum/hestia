@@ -2,6 +2,7 @@
 //! `events.subscribe` channel). Each subscriber holds the sender for its
 //! connection's writer task; a closed connection is pruned on the next publish.
 
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Mutex;
 
 use ipc::protocol::{encode_event, Event};
@@ -22,9 +23,15 @@ struct Sub {
 #[derive(Default)]
 pub struct EventHub {
     subs: Mutex<Vec<Sub>>,
+    last_subscriber_id: AtomicU64,
 }
 
 impl EventHub {
+    /// A subscriber id no other connection or job watch holds.
+    pub fn next_subscriber_id(&self) -> u64 {
+        self.last_subscriber_id.fetch_add(1, Ordering::Relaxed) + 1
+    }
+
     pub fn subscribe(&self, conn_id: u64, out: UnboundedSender<String>, filter: Option<String>) {
         tracing::debug!(
             conn = conn_id,

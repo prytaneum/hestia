@@ -7,16 +7,18 @@ mod event_hub;
 mod managers;
 mod metrics;
 mod network;
+mod plugins;
 mod presence;
 pub mod router;
 mod scheduler;
 
+use std::fmt;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Instant;
 
-use engine::{Engine, InstanceRecord, ServerRecord};
+use engine::{CallChain, Engine, InstanceRecord, ServerRecord};
 use proto::error::ErrorInfo;
 use proto::instance::InstanceInfo;
 use proto::process::{LogSource, ProcessInfo, ProcessSpec};
@@ -29,9 +31,10 @@ pub use claims::{create_key, Claim, Claims, JobKind};
 pub use engine::error_info as engine_error;
 pub use engine::{ExitObserver, ProcessSupervisor, StartError};
 pub use event_hub::EventHub;
-pub use managers::{BackupJob, ContentJob, JobEntry, Jobs, LaunchOrder, ModpackJob};
+pub use managers::{BackupJob, ContentJob, ExportOrder, JobEntry, Jobs, LaunchOrder, ModpackJob};
 pub use metrics::spawn_metrics_sampler;
 pub use network::spawn_network_watcher;
+pub use plugins::{Plugins, RouterHost};
 pub use presence::spawn_presence_updater;
 pub use router::{error_response, require_account, Channels, Router};
 pub use scheduler::spawn_task_scheduler;
@@ -146,6 +149,7 @@ pub struct Runtime {
     processes: Arc<ProcessSupervisor>,
     log_path: PathBuf,
     cancellations: Cancellations,
+    plugins: Arc<Plugins>,
     started: Instant,
     stop: Notify,
     stop_processes: AtomicBool,
@@ -153,7 +157,13 @@ pub struct Runtime {
 
 impl Runtime {
     pub fn new(log_path: PathBuf) -> Self {
-        let engine = Arc::new(Engine::new(None));
+        Runtime::over(Engine::new(None), log_path)
+    }
+
+    /// Build over a given engine, the seam a test crosses to use a temporary
+    /// data home.
+    pub fn over(engine: Engine, log_path: PathBuf) -> Self {
+        let engine = Arc::new(engine);
         let hub = Arc::new(EventHub::default());
         // One registry for every cancellable job, keyed by job id — what
         // `job.cancel` looks a running job up in, whichever manager owns it.
@@ -183,12 +193,14 @@ impl Runtime {
             processes.clone(),
             cancellations.clone(),
         );
+        let plugins = Arc::new(Plugins::new(engine.clone(), hub.clone()));
         Runtime {
             engine,
             hub,
             jobs,
             claims,
             cancellations,
+            plugins,
             processes,
             log_path,
             started: Instant::now(),
@@ -275,6 +287,10 @@ impl Runtime {
         &self.jobs
     }
 
+    pub fn plugins(&self) -> &Arc<Plugins> {
+        &self.plugins
+    }
+
     /// Who holds each entry's tree right now.
     pub fn claims(&self) -> &Claims {
         &self.claims
@@ -322,12 +338,30 @@ impl Runtime {
     }
 }
 
+/// Who a request came from, for the request span.
+#[derive(Clone, Debug)]
+pub enum Caller {
+    Client,
+    Plugin(String),
+}
+
+impl fmt::Display for Caller {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Caller::Client => f.write_str("client"),
+            Caller::Plugin(id) => write!(f, "plugin:{id}"),
+        }
+    }
+}
+
 /// What every handler receives: the shared runtime, the calling connection's
 /// outbound channel (so streaming handlers like `events.subscribe` can push to
-/// it).
+/// it), and who is calling. `chain` is the plugins already on the call path.
 #[derive(Clone)]
 pub struct HandlerContext {
     pub runtime: Arc<Runtime>,
     pub conn_id: u64,
     pub out: UnboundedSender<String>,
+    pub caller: Caller,
+    pub chain: CallChain,
 }
