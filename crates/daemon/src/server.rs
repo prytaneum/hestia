@@ -14,7 +14,7 @@ use engine::CallChain;
 use crate::runtime::{Caller, HandlerContext, Router, RouterHost, Runtime};
 use crate::services::make_router;
 
-pub async fn run_daemon(log_path: std::path::PathBuf) -> i32 {
+pub async fn run_daemon(log_path: std::path::PathBuf, safe_mode: bool) -> i32 {
     let endpoint = ipc::endpoint::default_endpoint();
     let listener = match ipc::bind(&endpoint).await {
         Ok(l) => l,
@@ -24,8 +24,9 @@ pub async fn run_daemon(log_path: std::path::PathBuf) -> i32 {
         }
     };
 
-    let runtime = Arc::new(Runtime::new(log_path));
+    let runtime = Arc::new(Runtime::new(log_path, safe_mode));
     tracing::info!(
+        safe_mode,
         version = common::app::VERSION,
         pid = std::process::id(),
         home = %runtime.engine().data_home().display(),

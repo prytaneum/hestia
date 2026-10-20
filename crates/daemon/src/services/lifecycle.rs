@@ -34,6 +34,7 @@ pub(super) fn register(on: &mut Channels<'_>) {
             uptime_seconds: ctx.runtime.uptime_seconds(),
             home: ctx.runtime.engine().data_home().to_path_buf(),
             log: ctx.runtime.log_path().clone(),
+            safe_mode: ctx.runtime.plugins().safe_mode(),
             quarantined: engine::quarantined::all(),
         })
     });

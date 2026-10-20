@@ -24,6 +24,7 @@ use crate::runtime::router::ServiceResult;
 pub use host::RouterHost;
 
 const INIT_TIMEOUT: Duration = Duration::from_secs(10);
+const SAFE_MODE_NOTE: &str = "not loaded: the daemon is in safe mode";
 
 struct Slot {
     state: PluginState,
@@ -43,17 +44,24 @@ pub struct Plugins {
     sandbox: OnceLock<Arc<PluginRuntime>>,
     slots: Mutex<HashMap<String, Slot>>,
     shutting_down: AtomicBool,
+    safe_mode: bool,
 }
 
 impl Plugins {
-    pub fn new(engine: Arc<Engine>, hub: Arc<EventHub>) -> Self {
+    pub fn new(engine: Arc<Engine>, hub: Arc<EventHub>, safe_mode: bool) -> Self {
         Plugins {
             engine,
             hub,
+            safe_mode,
             sandbox: OnceLock::new(),
             slots: Mutex::new(HashMap::new()),
             shutting_down: AtomicBool::new(false),
         }
+    }
+
+    /// No third-party plugin loads this run.
+    pub fn safe_mode(&self) -> bool {
+        self.safe_mode
     }
 
     /// Creates the sandbox that plugins run in; `host` is what they may call.
@@ -209,6 +217,16 @@ impl Plugins {
 
     async fn activate(&self, record: PluginRecord) {
         let id = record.id.clone();
+        if self.safe_mode {
+            tracing::info!(plugin = %id, "plugin not loaded in safe mode");
+            self.settle(
+                &id,
+                PluginState::Disabled,
+                Some(SAFE_MODE_NOTE.into()),
+                None,
+            );
+            return;
+        }
         match self.try_activate(&record).await {
             Ok(Activation::Ready(loaded)) => self.settle(&id, PluginState::Enabled, None, loaded),
             Ok(Activation::NeedsApproval) => {
@@ -297,7 +315,7 @@ mod tests {
 
     fn plugins_over(home: &std::path::Path) -> (Plugins, Arc<Engine>) {
         let engine = Arc::new(Engine::new(Some(home)));
-        let plugins = Plugins::new(engine.clone(), Arc::new(EventHub::default()));
+        let plugins = Plugins::new(engine.clone(), Arc::new(EventHub::default()), false);
         (plugins, engine)
     }
 
@@ -337,6 +355,25 @@ mod tests {
         plugins.settle("demo", PluginState::Failed, Some("late".into()), None);
 
         assert!(plugins.slots.lock().unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn safe_mode_loads_nothing_and_says_why() {
+        let home = tempfile::tempdir().unwrap();
+        let engine = Arc::new(Engine::new(Some(home.path())));
+        let plugins = Arc::new(Plugins::new(
+            engine.clone(),
+            Arc::new(EventHub::default()),
+            true,
+        ));
+        install(&engine, true);
+
+        plugins.load_enabled().await;
+
+        let slots = plugins.slots.lock().unwrap();
+        assert_eq!(slots["demo"].state, PluginState::Disabled);
+        assert_eq!(slots["demo"].error.as_deref(), Some(SAFE_MODE_NOTE));
+        assert!(slots["demo"].loaded.is_none());
     }
 
     #[tokio::test]

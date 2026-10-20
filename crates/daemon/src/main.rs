@@ -35,6 +35,14 @@ struct Cli {
         conflicts_with = "verbose"
     )]
     quiet: bool,
+    /// Start without third-party plugins, for this run only
+    #[arg(
+        long,
+        global = true,
+        env = "HESTIA_SAFE_MODE",
+        value_parser = clap::builder::BoolishValueParser::new()
+    )]
+    safe_mode: bool,
     #[command(subcommand)]
     command: Option<Command>,
 }
@@ -96,7 +104,7 @@ fn main() -> ExitCode {
             let file = common::FileLog::for_binary("hestiad", None, level).with_firehose();
             let log_path = file.active_path();
             let _guard = common::init_logging(level, Some(file));
-            rt.block_on(server::run_daemon(log_path))
+            rt.block_on(server::run_daemon(log_path, cli.safe_mode))
         }
     };
     ExitCode::from(code as u8)

@@ -61,12 +61,18 @@ impl Client {
     /// Start the daemon if not already running, then connect. The one path
     /// that spawns `hestiad` — every explicit start action routes through here.
     pub async fn start() -> Result<Client, IpcError> {
+        Client::start_with(false).await
+    }
+
+    /// [`Client::start`], spawning the daemon in safe mode when `safe_mode`.
+    /// A daemon that is already running keeps the mode it started in.
+    pub async fn start_with(safe_mode: bool) -> Result<Client, IpcError> {
         let endpoint = ipc::endpoint::default_endpoint();
         if let Ok(conn) = ipc::connect(&endpoint).await {
             return Ok(Client::over(conn));
         }
         tracing::debug!(endpoint = %endpoint.display(), "daemon not running; starting it");
-        spawn::spawn_daemon()?;
+        spawn::spawn_daemon(safe_mode)?;
         match spawn::connect_with_retry(&endpoint).await {
             Some(conn) => Ok(Client::over(conn)),
             None => Err(IpcError::ConnectionLost),

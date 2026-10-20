@@ -156,13 +156,13 @@ pub struct Runtime {
 }
 
 impl Runtime {
-    pub fn new(log_path: PathBuf) -> Self {
-        Runtime::over(Engine::new(None), log_path)
+    pub fn new(log_path: PathBuf, safe_mode: bool) -> Self {
+        Runtime::over(Engine::new(None), log_path, safe_mode)
     }
 
     /// Build over a given engine, the seam a test crosses to use a temporary
     /// data home.
-    pub fn over(engine: Engine, log_path: PathBuf) -> Self {
+    pub fn over(engine: Engine, log_path: PathBuf, safe_mode: bool) -> Self {
         let engine = Arc::new(engine);
         let hub = Arc::new(EventHub::default());
         // One registry for every cancellable job, keyed by job id — what
@@ -193,7 +193,7 @@ impl Runtime {
             processes.clone(),
             cancellations.clone(),
         );
-        let plugins = Arc::new(Plugins::new(engine.clone(), hub.clone()));
+        let plugins = Arc::new(Plugins::new(engine.clone(), hub.clone(), safe_mode));
         Runtime {
             engine,
             hub,

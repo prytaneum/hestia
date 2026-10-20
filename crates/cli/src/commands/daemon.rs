@@ -13,7 +13,11 @@ pub enum DaemonCmd {
     /// Running (pid, uptime, home, log) or stopped
     Status,
     /// Start the daemon
-    Start,
+    Start {
+        /// Load no third-party plugins, for this run only
+        #[arg(long)]
+        safe_mode: bool,
+    },
     /// Stop the daemon; asks what to do with running workloads (--all stops
     /// them too, --keep leaves them running)
     Stop {
@@ -26,8 +30,15 @@ pub enum DaemonCmd {
     },
     /// Stop then start; picks up a newly built hestiad. Supervised processes
     /// keep running and are re-adopted
-    Restart,
+    Restart {
+        /// Load no third-party plugins, for this run only
+        #[arg(long)]
+        safe_mode: bool,
+    },
 }
+
+const SAFE_MODE_NOTICE: &str =
+    "safe mode: third-party plugins are not loaded; restart the daemon without --safe-mode or HESTIA_SAFE_MODE to leave it";
 
 pub async fn run(cmd: DaemonCmd) -> Result<ExitStatus> {
     match cmd {
@@ -45,6 +56,9 @@ pub async fn run(cmd: DaemonCmd) -> Result<ExitStatus> {
                         ("home", s.home.display().to_string()),
                         ("log", s.log.display().to_string()),
                     ]))?;
+                    if s.safe_mode {
+                        ui::show(View::note(SAFE_MODE_NOTICE))?;
+                    }
                     ui::show_warnings(&s.quarantined)?;
                     Ok(ExitStatus::Active)
                 }
@@ -54,13 +68,20 @@ pub async fn run(cmd: DaemonCmd) -> Result<ExitStatus> {
                 }
             }
         }
-        DaemonCmd::Start => {
-            let client = super::start().await?;
+        DaemonCmd::Start { safe_mode } => {
+            let client = super::start(safe_mode).await?;
+            let running_safe = client.daemon().status().await?.safe_mode;
+            if safe_mode && !running_safe {
+                bail!("the daemon is already running with plugins; restart it with `hestia daemon restart --safe-mode`");
+            }
             let info = client.app().info().await?;
             ui::show(View::line(format!(
                 "hestiad running ({} {})",
                 info.name, info.version
             )))?;
+            if running_safe {
+                ui::show(View::note(SAFE_MODE_NOTICE))?;
+            }
         }
         DaemonCmd::Stop { all, keep } => match super::connect_running().await {
             Ok(client) => {
@@ -77,17 +98,20 @@ pub async fn run(cmd: DaemonCmd) -> Result<ExitStatus> {
             }
             Err(_) => ui::show(View::line("hestiad is not running"))?,
         },
-        DaemonCmd::Restart => {
+        DaemonCmd::Restart { safe_mode } => {
             if let Ok(client) = super::connect_running().await {
                 let _ = client.daemon().stop(false).await;
                 super::await_stopped(&client).await?;
             }
-            let client = super::start().await?;
+            let client = super::start(safe_mode).await?;
             let info = client.app().info().await?;
             ui::show(View::line(format!(
                 "hestiad restarted ({} {})",
                 info.name, info.version
             )))?;
+            if client.daemon().status().await?.safe_mode {
+                ui::show(View::note(SAFE_MODE_NOTICE))?;
+            }
         }
     }
     Ok(ExitStatus::Active)

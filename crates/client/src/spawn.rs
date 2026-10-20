@@ -9,12 +9,15 @@ use ipc::Connection;
 
 /// Start the daemon detached from this process's session, so it outlives the
 /// front-end that spawned it.
-pub fn spawn_daemon() -> std::io::Result<()> {
+pub fn spawn_daemon(safe_mode: bool) -> std::io::Result<()> {
     let names = common::app::DAEMON_BIN;
     let program = common::paths::sibling_binary(names).unwrap_or_else(|| PathBuf::from(names[0]));
     tracing::debug!(program = %program.display(), "spawning the daemon");
     let mut cmd = Command::new(program);
     cmd.arg("serve");
+    if safe_mode {
+        cmd.arg("--safe-mode");
+    }
     // Started from the AppImage's shell, it would hand that environment on to
     // every game it launches; it links nothing from the image.
     if let Some(env) = common::appimage::sidecar_env() {

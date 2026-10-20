@@ -36,7 +36,7 @@ pub async fn run(cmd: ConfigCmd) -> Result<()> {
             if key == HOME_KEY {
                 super::await_stopped(&client).await?;
                 drop(client);
-                super::start().await?;
+                super::start(false).await?;
             }
         }
         ConfigCmd::List => {

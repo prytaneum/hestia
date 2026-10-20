@@ -29,7 +29,7 @@ tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 flexi_logger = { version = "0.31.9", default-features = false, features = ["compress"] }
 chrono = { version = "0.4.42", default-features = false, features = ["clock"] }
-clap = { version = "4.6.1", features = ["derive"] }
+clap = { version = "4.6.1", features = ["derive", "env"] }
 ratatui = { version = "0.30.2", features = ["unstable-rendered-line-info"] }
 tui-markdown = { version = "0.3.8", default-features = false }
 reqwest = { version = "0.13.4", default-features = false, features = ["rustls", "json", "stream", "form", "query", "multipart"] }

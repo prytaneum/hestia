@@ -663,7 +663,11 @@ hestia daemon restart            # restart it (workloads survive)
 hestia daemon stop               # asks about running workloads (piped: --all/--keep)
 hestia daemon stop --all         # stop supervised processes too
 hestia daemon stop --keep        # leave them running (script-safe)
+hestia daemon restart --safe-mode  # restart without third-party plugins
 ```
+
+Safe mode (`--safe-mode` on `daemon start`/`restart`, or `HESTIA_SAFE_MODE=1` for `hestiad`) applies to one run only.
+Installed plugins stay listed, disabled with the reason, and `hestia daemon status` says the daemon is in safe mode.
 
 Underneath the entry verbs sits the supervisor's own view — every workload the daemon is running, across servers and
 instances, keyed the way the supervisor keys them. Reach for it when the entry-scoped verbs cannot answer: a server's

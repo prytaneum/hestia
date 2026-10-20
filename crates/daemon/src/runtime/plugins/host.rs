@@ -250,7 +250,11 @@ mod tests {
     fn harness(router: Router) -> Harness {
         let home = tempfile::tempdir().expect("temp home");
         let engine = engine::Engine::new(Some(home.path()));
-        let runtime = Arc::new(Runtime::over(engine, home.path().join("hestiad.log")));
+        let runtime = Arc::new(Runtime::over(
+            engine,
+            home.path().join("hestiad.log"),
+            false,
+        ));
         let host = RouterHost::new(Arc::new(router), &runtime);
         Harness {
             host,
