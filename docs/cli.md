@@ -454,8 +454,8 @@ hestia search sodium             # with a query: prints results (alias for
                                  #   `mod search`)
 hestia mod search sodium -l fabric -g 1.21.1   # filter by loader / version
 hestia modpack search "create"   # browse other kinds: modpack, resourcepack,
-hestia resourcepack search faithful            #   shader, datapack, plugin
-hestia plugin search luckperms   # server plugins (paper/folia/bukkit/spigot)
+hestia resourcepack search faithful            #   shader, datapack, server-plugin
+hestia server-plugin search luckperms   # server plugins (paper/folia/bukkit/spigot)
 hestia mod info sodium           # a project's details (downloads, sides, …)
 hestia mod versions sodium -l fabric -g 1.21.1  # downloadable versions
 hestia mod search jei -S curseforge             # search another source

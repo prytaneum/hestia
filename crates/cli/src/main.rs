@@ -151,7 +151,7 @@ enum Command {
         cmd: commands::content::BrowseCmd,
     },
     /// Browse server plugins on a content source
-    Plugin {
+    ServerPlugin {
         #[command(subcommand)]
         cmd: commands::content::BrowseCmd,
     },
@@ -316,7 +316,7 @@ async fn dispatch(command: Command) -> anyhow::Result<ExitStatus> {
         Command::Datapack { cmd } => {
             commands::content::run_browse(client::proto::content::ContentKind::DataPack, cmd).await
         }
-        Command::Plugin { cmd } => {
+        Command::ServerPlugin { cmd } => {
             commands::content::run_browse(client::proto::content::ContentKind::Plugin, cmd).await
         }
         Command::Search {

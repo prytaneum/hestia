@@ -43,6 +43,7 @@ pub const RESERVED_IDS: &[&str] = &[
     "screenshot",
     "search",
     "server",
+    "server-plugin",
     "shader",
     "sources",
     "start",
