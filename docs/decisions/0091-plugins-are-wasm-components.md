@@ -17,6 +17,18 @@ fails on drift. Compatibility is semver: a manifest's `api = "^0.N.x"` loads on 
 host `0.N.y` with `y >= x`. An older patch is refused at install with the Hestia
 version it needs, instead of failing at instantiation on a missing import.
 
+**Only a breaking change bumps the minor; an additive one bumps the patch.**
+`crates/proto/tests/plugin_api.rs` snapshots every plugin-reachable contract and
+topic, the types they name and the WIT files into `tests/golden/plugin-api.json`.
+A changed snapshot at an unchanged version fails and says which kind it is.
+Additive (a new channel or interface, a new optional or defaulted field) bumps the
+patch of the WIT package and `API_VERSION`, so an older host refuses a plugin that
+needs it. Breaking (a removed or renamed field, a changed type, a removed channel,
+a new required field, a new enum or WIT variant case) bumps the `0.N`; a breaking
+change under an unchanged minor fails even if the version string moved. Either
+way, regenerate the snapshot afterwards with `HESTIA_UPDATE_GOLDEN=1`. The host
+never serves two versions.
+
 **The boundary carries proto JSON as strings.** `host.call` and `host.run-job`
 take and return JSON, so every existing contract crosses unchanged and the host
 does not mirror `proto` in WIT. Type safety therefore comes from the SDK's proto

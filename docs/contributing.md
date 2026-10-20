@@ -116,7 +116,10 @@ A contract a plugin may call sets `const PLUGIN: Option<Permission> = Some(Permi
 on `DENIED` in `crates/proto/tests/permission.rs` ([0092](decisions/0092-a-contract-names-the-permission-a-plugin-needs.md)).
 
 If you change an existing payload's shape, update `crates/proto/tests/` (the
-`wire`/`golden` encodings are pinned on purpose).
+`wire`/`golden` encodings are pinned on purpose). A plugin-reachable contract's shape is also snapshotted by
+`tests/plugin_api.rs`: a change there needs an `API_VERSION` bump, then
+`HESTIA_UPDATE_GOLDEN=1 cargo test -p proto --test plugin_api`
+([0091](decisions/0091-plugins-are-wasm-components.md) has the additive vs breaking rule).
 
 ---
 
