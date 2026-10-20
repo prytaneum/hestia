@@ -10,6 +10,7 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
 use crate::change::Scope;
+use crate::plugin::Permission;
 
 /// How long a call waits for its reply unless its contract says otherwise; a
 /// wedged handler can't hang the caller forever.
@@ -27,6 +28,10 @@ pub trait Contract {
     /// [`ChangedEvent`](crate::change::ChangedEvent) so other clients refresh;
     /// a read leaves it `None`, and a job reports on the `job` topic instead.
     const CHANGES: Option<Scope> = None;
+    /// The permission a plugin needs to call this channel. `None` makes the
+    /// channel unreachable from plugins, so a new contract is closed until it is
+    /// classified ([0092](../../docs/decisions/0092-a-contract-names-the-permission-a-plugin-needs.md)).
+    const PLUGIN: Option<Permission> = None;
     type Params: Serialize + DeserializeOwned;
     type Result: Serialize + DeserializeOwned;
 }
@@ -35,6 +40,8 @@ pub trait Contract {
 /// is its own payload.
 pub trait Topic {
     const TOPIC: &'static str;
+    /// The permission a plugin needs to receive this event; `None` withholds it.
+    const PLUGIN: Option<Permission> = None;
 }
 
 /// An empty payload: serializes to `{}` and decodes from it, matching the C++

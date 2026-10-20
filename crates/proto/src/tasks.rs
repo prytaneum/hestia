@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::change::Scope;
 use crate::contract::{Contract, Empty};
+use crate::plugin::Permission;
 use crate::server::ServerRef;
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -46,6 +47,7 @@ pub struct ServerTask {
 pub struct ServerTaskList;
 impl Contract for ServerTaskList {
     const CHANNEL: &'static str = "server.task.list";
+    const PLUGIN: Option<Permission> = Some(Permission::EntriesRead);
     type Params = ServerRef;
     type Result = Vec<ServerTask>;
 }
@@ -63,6 +65,7 @@ pub struct ServerTaskSaveParams {
 pub struct ServerTaskSave;
 impl Contract for ServerTaskSave {
     const CHANNEL: &'static str = "server.task.save";
+    const PLUGIN: Option<Permission> = Some(Permission::EntriesWrite);
     const CHANGES: Option<Scope> = Some(Scope::Entries);
     type Params = ServerTaskSaveParams;
     type Result = ServerTask;
@@ -79,6 +82,7 @@ pub struct ServerTaskRemoveParams {
 pub struct ServerTaskRemove;
 impl Contract for ServerTaskRemove {
     const CHANNEL: &'static str = "server.task.remove";
+    const PLUGIN: Option<Permission> = Some(Permission::EntriesWrite);
     const CHANGES: Option<Scope> = Some(Scope::Entries);
     type Params = ServerTaskRemoveParams;
     type Result = Empty;

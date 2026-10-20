@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 use crate::change::Scope;
 use crate::contract::{Contract, Empty};
 use crate::job::{Job, JobStarted};
+use crate::plugin::Permission;
 
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
@@ -63,6 +64,7 @@ impl JavaInstallProgress {
 pub struct JavaReleases;
 impl Contract for JavaReleases {
     const CHANNEL: &'static str = "java.releases";
+    const PLUGIN: Option<Permission> = Some(Permission::JavaManage);
     type Params = Empty;
     type Result = Vec<JavaRelease>;
 }
@@ -70,6 +72,7 @@ impl Contract for JavaReleases {
 pub struct JavaList;
 impl Contract for JavaList {
     const CHANNEL: &'static str = "java.list";
+    const PLUGIN: Option<Permission> = Some(Permission::JavaManage);
     type Params = Empty;
     type Result = Vec<JavaRuntime>;
 }
@@ -88,6 +91,7 @@ pub struct JavaInstallParams {
 pub struct JavaInstall;
 impl Contract for JavaInstall {
     const CHANNEL: &'static str = "java.install";
+    const PLUGIN: Option<Permission> = Some(Permission::JavaManage);
     type Params = JavaInstallParams;
     type Result = JobStarted;
 }
@@ -107,6 +111,7 @@ pub struct JavaUninstallParams {
 pub struct JavaUninstall;
 impl Contract for JavaUninstall {
     const CHANNEL: &'static str = "java.uninstall";
+    const PLUGIN: Option<Permission> = Some(Permission::JavaManage);
     const CHANGES: Option<Scope> = Some(Scope::Java);
     type Params = JavaUninstallParams;
     type Result = Empty;

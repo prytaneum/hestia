@@ -9,6 +9,7 @@ use crate::contract::{Contract, Empty};
 use crate::error::{EntryKind, EntryTarget};
 use crate::keys::KeyRule;
 use crate::minecraft::{ConfigEntry, FlavorsResult, GameVersion};
+use crate::plugin::Permission;
 use crate::process::ProcessLogLine;
 
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
@@ -21,6 +22,7 @@ pub struct EntryFlavorsParams {
 pub struct EntryFlavors;
 impl Contract for EntryFlavors {
     const CHANNEL: &'static str = "entry.flavors";
+    const PLUGIN: Option<Permission> = Some(Permission::EntriesRead);
     type Params = EntryFlavorsParams;
     type Result = FlavorsResult;
 }
@@ -36,6 +38,7 @@ pub struct EntryVersionsParams {
 pub struct EntryVersions;
 impl Contract for EntryVersions {
     const CHANNEL: &'static str = "entry.versions";
+    const PLUGIN: Option<Permission> = Some(Permission::EntriesRead);
     type Params = EntryVersionsParams;
     type Result = Vec<GameVersion>;
 }
@@ -54,6 +57,7 @@ pub struct EntryLoadersParams {
 pub struct EntryLoaders;
 impl Contract for EntryLoaders {
     const CHANNEL: &'static str = "entry.loaders";
+    const PLUGIN: Option<Permission> = Some(Permission::EntriesRead);
     type Params = EntryLoadersParams;
     type Result = Vec<String>;
 }
@@ -62,6 +66,7 @@ impl Contract for EntryLoaders {
 pub struct EntryRemove;
 impl Contract for EntryRemove {
     const CHANNEL: &'static str = "entry.remove";
+    const PLUGIN: Option<Permission> = Some(Permission::EntriesWrite);
     const CHANGES: Option<Scope> = Some(Scope::Entries);
     type Params = EntryTarget;
     type Result = Empty;
@@ -87,6 +92,7 @@ pub struct EntryRenamed {
 pub struct EntryRename;
 impl Contract for EntryRename {
     const CHANNEL: &'static str = "entry.rename";
+    const PLUGIN: Option<Permission> = Some(Permission::EntriesWrite);
     const CHANGES: Option<Scope> = Some(Scope::Entries);
     type Params = EntryRenameParams;
     type Result = EntryRenamed;
@@ -105,6 +111,7 @@ pub struct EntryStopParams {
 pub struct EntryStop;
 impl Contract for EntryStop {
     const CHANNEL: &'static str = "entry.stop";
+    const PLUGIN: Option<Permission> = Some(Permission::ProcessesControl);
     type Params = EntryStopParams;
     type Result = Empty;
 }
@@ -164,6 +171,7 @@ pub struct EntryConfigSetParams {
 pub struct EntryConfigSet;
 impl Contract for EntryConfigSet {
     const CHANNEL: &'static str = "entry.config.set";
+    const PLUGIN: Option<Permission> = Some(Permission::EntriesWrite);
     const CHANGES: Option<Scope> = Some(Scope::Entries);
     type Params = EntryConfigSetParams;
     type Result = Empty;

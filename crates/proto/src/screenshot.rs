@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::change::Scope;
 use crate::contract::Contract;
+use crate::plugin::Permission;
 
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
@@ -39,6 +40,7 @@ pub struct ScreenshotListResult {
 pub struct ScreenshotList;
 impl Contract for ScreenshotList {
     const CHANNEL: &'static str = "screenshot.list";
+    const PLUGIN: Option<Permission> = Some(Permission::EntriesRead);
     type Params = ScreenshotListParams;
     type Result = ScreenshotListResult;
 }
@@ -55,6 +57,7 @@ pub struct ScreenshotDeleteParams {
 pub struct ScreenshotDelete;
 impl Contract for ScreenshotDelete {
     const CHANNEL: &'static str = "screenshot.delete";
+    const PLUGIN: Option<Permission> = Some(Permission::EntriesWrite);
     const CHANGES: Option<Scope> = Some(Scope::Screenshots);
     type Params = ScreenshotDeleteParams;
     type Result = ScreenshotListResult;

@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::change::Scope;
 use crate::contract::{Contract, Empty};
+use crate::plugin::Permission;
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Default)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
@@ -83,6 +84,7 @@ pub struct AccountListResult {
 pub struct AccountList;
 impl Contract for AccountList {
     const CHANNEL: &'static str = "account.list";
+    const PLUGIN: Option<Permission> = Some(Permission::AccountsRead);
     type Params = Empty;
     type Result = AccountListResult;
 }

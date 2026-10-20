@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::change::Scope;
 use crate::contract::{Contract, Empty};
+use crate::plugin::Permission;
 use crate::server::ServerRef;
 
 /// One of the lists a server keeps a player on.
@@ -44,6 +45,7 @@ pub struct ServerPlayersResult {
 pub struct ServerPlayers;
 impl Contract for ServerPlayers {
     const CHANNEL: &'static str = "server.players";
+    const PLUGIN: Option<Permission> = Some(Permission::EntriesRead);
     type Params = ServerRef;
     type Result = ServerPlayersResult;
 }
@@ -64,6 +66,7 @@ pub struct ServerPlayerSetParams {
 pub struct ServerPlayerSet;
 impl Contract for ServerPlayerSet {
     const CHANNEL: &'static str = "server.players.set";
+    const PLUGIN: Option<Permission> = Some(Permission::EntriesWrite);
     const CHANGES: Option<Scope> = Some(Scope::Entries);
     type Params = ServerPlayerSetParams;
     type Result = Empty;
@@ -80,6 +83,7 @@ pub struct ServerPlayerKickParams {
 pub struct ServerPlayerKick;
 impl Contract for ServerPlayerKick {
     const CHANNEL: &'static str = "server.players.kick";
+    const PLUGIN: Option<Permission> = Some(Permission::EntriesWrite);
     type Params = ServerPlayerKickParams;
     type Result = Empty;
 }

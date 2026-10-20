@@ -20,6 +20,7 @@ use crate::contract::Contract;
 use crate::error::EntryTarget;
 use crate::job::{Job, JobStarted};
 use crate::minecraft::ProvisionProgress;
+use crate::plugin::Permission;
 use crate::warning::WarningInfo;
 
 /// Which pack to install: exactly one of `project` (a platform project,
@@ -280,6 +281,7 @@ pub struct ModpackRemoveResult {
 pub struct InstanceModpackInstall;
 impl Contract for InstanceModpackInstall {
     const CHANNEL: &'static str = "instance.modpack.install";
+    const PLUGIN: Option<Permission> = Some(Permission::ContentWrite);
     type Params = InstanceModpackInstallParams;
     type Result = JobStarted;
 }
@@ -292,6 +294,7 @@ impl Job for InstanceModpackInstall {
 pub struct ServerModpackInstall;
 impl Contract for ServerModpackInstall {
     const CHANNEL: &'static str = "server.modpack.install";
+    const PLUGIN: Option<Permission> = Some(Permission::ContentWrite);
     type Params = ServerModpackInstallParams;
     type Result = JobStarted;
 }
@@ -304,6 +307,7 @@ impl Job for ServerModpackInstall {
 pub struct EntryModpackUpdate;
 impl Contract for EntryModpackUpdate {
     const CHANNEL: &'static str = "modpack.update";
+    const PLUGIN: Option<Permission> = Some(Permission::ContentWrite);
     type Params = EntryModpackUpdateParams;
     type Result = JobStarted;
 }
@@ -316,6 +320,7 @@ impl Job for EntryModpackUpdate {
 pub struct EntryModpackStatus;
 impl Contract for EntryModpackStatus {
     const CHANNEL: &'static str = "modpack.status";
+    const PLUGIN: Option<Permission> = Some(Permission::ContentRead);
     type Params = EntryModpackStatusParams;
     type Result = ModpackStatusResult;
 }
@@ -323,6 +328,7 @@ impl Contract for EntryModpackStatus {
 pub struct EntryModpackPreviewUpdate;
 impl Contract for EntryModpackPreviewUpdate {
     const CHANNEL: &'static str = "modpack.preview_update";
+    const PLUGIN: Option<Permission> = Some(Permission::ContentRead);
     const TIMEOUT: Duration = Duration::from_secs(120);
     type Params = EntryModpackFileParams;
     type Result = ModpackFilePreview;
@@ -331,6 +337,7 @@ impl Contract for EntryModpackPreviewUpdate {
 pub struct EntryModpackCheckUpdate;
 impl Contract for EntryModpackCheckUpdate {
     const CHANNEL: &'static str = "modpack.check_update";
+    const PLUGIN: Option<Permission> = Some(Permission::ContentRead);
     const TIMEOUT: Duration = Duration::from_secs(120);
     type Params = EntryModpackCheckParams;
     type Result = ModpackUpdateResult;
@@ -339,6 +346,7 @@ impl Contract for EntryModpackCheckUpdate {
 pub struct EntryModpackRemove;
 impl Contract for EntryModpackRemove {
     const CHANNEL: &'static str = "modpack.remove";
+    const PLUGIN: Option<Permission> = Some(Permission::ContentWrite);
     const CHANGES: Option<Scope> = Some(Scope::Entries);
     type Params = EntryModpackRemoveParams;
     type Result = ModpackRemoveResult;

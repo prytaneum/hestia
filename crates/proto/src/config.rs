@@ -3,6 +3,7 @@ use serde_json::Value;
 
 use crate::change::Scope;
 use crate::contract::{Contract, Empty};
+use crate::plugin::Permission;
 
 /// Reserved keys the daemon routes to their own subsystem instead of the settings
 /// store: the data-directory pointer and the login registration.
@@ -43,6 +44,7 @@ pub struct ConfigSetParams {
 pub struct ConfigSet;
 impl Contract for ConfigSet {
     const CHANNEL: &'static str = "config.set";
+    const PLUGIN: Option<Permission> = Some(Permission::ConfigWrite);
     const CHANGES: Option<Scope> = Some(Scope::Config);
     type Params = ConfigSetParams;
     type Result = Empty;

@@ -75,6 +75,59 @@ pub enum Permission {
     ProcessSpawn,
 }
 
+/// How far a permission reaches. An unrestricted one can run native code, so
+/// the install prompt states it as full access to the computer.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Tier {
+    Sandboxed,
+    Unrestricted,
+}
+
+impl Permission {
+    pub fn tier(self) -> Tier {
+        match self {
+            Permission::EntriesWrite
+            | Permission::ContentWrite
+            | Permission::ConfigWrite
+            | Permission::ProcessesControl
+            | Permission::ProcessSpawn => Tier::Unrestricted,
+            Permission::EntriesRead
+            | Permission::ContentRead
+            | Permission::AccountsRead
+            | Permission::ConfigRead
+            | Permission::JavaManage
+            | Permission::Network
+            | Permission::UiCss
+            | Permission::LaunchPatch => Tier::Sandboxed,
+        }
+    }
+
+    /// One line for the install prompt.
+    pub fn description(self) -> &'static str {
+        match self {
+            Permission::EntriesRead => "See your servers and instances and their settings",
+            Permission::EntriesWrite => {
+                "Create, change and delete servers and instances, including their files"
+            }
+            Permission::ProcessesControl => {
+                "Start and stop servers and games, and run console commands"
+            }
+            Permission::ContentRead => "Search and inspect mods, packs and other content",
+            Permission::ContentWrite => "Install, update and remove mods, packs and other content",
+            Permission::AccountsRead => "See the names of signed-in accounts, never their tokens",
+            Permission::ConfigRead => "Read launcher settings",
+            Permission::ConfigWrite => "Change launcher settings, including default JVM arguments",
+            Permission::JavaManage => "Install and remove Java runtimes",
+            Permission::Network => "Connect to the hosts it lists",
+            Permission::UiCss => "Restyle the app with its own stylesheet",
+            Permission::LaunchPatch => {
+                "Adjust launch settings from an allowlist when a game or server starts"
+            }
+            Permission::ProcessSpawn => "Run the programs it lists",
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Default, Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
 #[serde(default, rename_all = "camelCase")]

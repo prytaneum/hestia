@@ -6,6 +6,7 @@ use std::time::Duration;
 use serde::{Deserialize, Serialize};
 
 use crate::contract::{Contract, Empty};
+use crate::plugin::Permission;
 
 #[derive(Serialize, Deserialize, Default, Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
@@ -31,6 +32,7 @@ pub struct ServerFileParams {
 pub struct ServerFilesList;
 impl Contract for ServerFilesList {
     const CHANNEL: &'static str = "server.files.list";
+    const PLUGIN: Option<Permission> = Some(Permission::EntriesRead);
     type Params = ServerFileParams;
     type Result = Vec<FileEntry>;
 }
@@ -64,6 +66,7 @@ pub struct ServerFileWriteParams {
 pub struct ServerFilesWrite;
 impl Contract for ServerFilesWrite {
     const CHANNEL: &'static str = "server.files.write";
+    const PLUGIN: Option<Permission> = Some(Permission::EntriesWrite);
     type Params = ServerFileWriteParams;
     type Result = Empty;
 }
@@ -71,6 +74,7 @@ impl Contract for ServerFilesWrite {
 pub struct ServerFilesMkdir;
 impl Contract for ServerFilesMkdir {
     const CHANNEL: &'static str = "server.files.mkdir";
+    const PLUGIN: Option<Permission> = Some(Permission::EntriesWrite);
     type Params = ServerFileParams;
     type Result = Empty;
 }
@@ -88,6 +92,7 @@ pub struct ServerFileTransferParams {
 pub struct ServerFilesMove;
 impl Contract for ServerFilesMove {
     const CHANNEL: &'static str = "server.files.move";
+    const PLUGIN: Option<Permission> = Some(Permission::EntriesWrite);
     /// A world is copied or archived inside one call, so every verb that moves
     /// a whole tree waits far longer than a plain request.
     const TIMEOUT: Duration = Duration::from_secs(600);
@@ -98,6 +103,7 @@ impl Contract for ServerFilesMove {
 pub struct ServerFilesCopy;
 impl Contract for ServerFilesCopy {
     const CHANNEL: &'static str = "server.files.copy";
+    const PLUGIN: Option<Permission> = Some(Permission::EntriesWrite);
     const TIMEOUT: Duration = Duration::from_secs(600);
     type Params = ServerFileTransferParams;
     type Result = Empty;
@@ -114,6 +120,7 @@ pub struct ServerFilesRemoveParams {
 pub struct ServerFilesRemove;
 impl Contract for ServerFilesRemove {
     const CHANNEL: &'static str = "server.files.remove";
+    const PLUGIN: Option<Permission> = Some(Permission::EntriesWrite);
     const TIMEOUT: Duration = Duration::from_secs(600);
     type Params = ServerFilesRemoveParams;
     type Result = Empty;
@@ -135,6 +142,7 @@ pub struct ServerFilesImportParams {
 pub struct ServerFilesImport;
 impl Contract for ServerFilesImport {
     const CHANNEL: &'static str = "server.files.import";
+    const PLUGIN: Option<Permission> = Some(Permission::EntriesWrite);
     const TIMEOUT: Duration = Duration::from_secs(600);
     type Params = ServerFilesImportParams;
     type Result = Empty;
@@ -153,6 +161,7 @@ pub struct ServerFilesCompressParams {
 pub struct ServerFilesCompress;
 impl Contract for ServerFilesCompress {
     const CHANNEL: &'static str = "server.files.compress";
+    const PLUGIN: Option<Permission> = Some(Permission::EntriesWrite);
     const TIMEOUT: Duration = Duration::from_secs(600);
     type Params = ServerFilesCompressParams;
     type Result = Empty;
@@ -162,6 +171,7 @@ impl Contract for ServerFilesCompress {
 pub struct ServerFilesExtract;
 impl Contract for ServerFilesExtract {
     const CHANNEL: &'static str = "server.files.extract";
+    const PLUGIN: Option<Permission> = Some(Permission::EntriesWrite);
     const TIMEOUT: Duration = Duration::from_secs(600);
     type Params = ServerFileTransferParams;
     type Result = Empty;

@@ -20,6 +20,7 @@ use crate::contract::Contract;
 use crate::instance::InstanceInfo;
 use crate::job::{Job, JobStarted};
 use crate::minecraft::ProvisionProgress;
+use crate::plugin::Permission;
 use crate::warning::WarningInfo;
 
 /// What an export writes. `Hestia` is hestia's own archive — the instance's
@@ -177,6 +178,7 @@ pub struct ArchiveEntry {
 pub struct InstanceExport;
 impl Contract for InstanceExport {
     const CHANNEL: &'static str = "instance.export";
+    const PLUGIN: Option<Permission> = Some(Permission::EntriesWrite);
     type Params = InstanceExportParams;
     type Result = JobStarted;
 }
@@ -190,6 +192,7 @@ impl Job for InstanceExport {
 pub struct InstanceExportContents;
 impl Contract for InstanceExportContents {
     const CHANNEL: &'static str = "instance.export.contents";
+    const PLUGIN: Option<Permission> = Some(Permission::EntriesRead);
     type Params = crate::instance::InstanceRef;
     type Result = Vec<ArchiveEntry>;
 }
@@ -200,6 +203,7 @@ impl Contract for InstanceExportContents {
 pub struct InstanceImport;
 impl Contract for InstanceImport {
     const CHANNEL: &'static str = "instance.import";
+    const PLUGIN: Option<Permission> = Some(Permission::EntriesWrite);
     type Params = InstanceImportParams;
     type Result = JobStarted;
 }

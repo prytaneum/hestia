@@ -15,6 +15,7 @@ use crate::contract::{Contract, Empty};
 use crate::error::{EntryTarget, ErrorInfo};
 use crate::job::{Job, JobStarted};
 use crate::minecraft::{Artifact, ProvisionProgress};
+use crate::plugin::Permission;
 
 /// What a project is — the second selector level after the source.
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -511,6 +512,7 @@ pub struct EntryContentMatchesParams {
 pub struct EntryContentAdd;
 impl Contract for EntryContentAdd {
     const CHANNEL: &'static str = "content.add";
+    const PLUGIN: Option<Permission> = Some(Permission::ContentWrite);
     type Params = EntryContentAddParams;
     type Result = JobStarted;
 }
@@ -523,6 +525,7 @@ impl Job for EntryContentAdd {
 pub struct EntryContentList;
 impl Contract for EntryContentList {
     const CHANNEL: &'static str = "content.list";
+    const PLUGIN: Option<Permission> = Some(Permission::ContentRead);
     type Params = EntryContentListParams;
     type Result = ContentListResult;
 }
@@ -530,6 +533,7 @@ impl Contract for EntryContentList {
 pub struct EntryContentRemove;
 impl Contract for EntryContentRemove {
     const CHANNEL: &'static str = "content.remove";
+    const PLUGIN: Option<Permission> = Some(Permission::ContentWrite);
     const CHANGES: Option<Scope> = Some(Scope::Entries);
     type Params = EntryContentRemoveParams;
     type Result = Empty;
@@ -538,6 +542,7 @@ impl Contract for EntryContentRemove {
 pub struct EntryContentUpdate;
 impl Contract for EntryContentUpdate {
     const CHANNEL: &'static str = "content.update";
+    const PLUGIN: Option<Permission> = Some(Permission::ContentWrite);
     type Params = EntryContentUpdateParams;
     type Result = JobStarted;
 }
@@ -550,6 +555,7 @@ impl Job for EntryContentUpdate {
 pub struct EntryContentEnable;
 impl Contract for EntryContentEnable {
     const CHANNEL: &'static str = "content.enable";
+    const PLUGIN: Option<Permission> = Some(Permission::ContentWrite);
     const CHANGES: Option<Scope> = Some(Scope::Entries);
     type Params = EntryContentEnableParams;
     type Result = Empty;
@@ -558,6 +564,7 @@ impl Contract for EntryContentEnable {
 pub struct EntryContentCheckUpdates;
 impl Contract for EntryContentCheckUpdates {
     const CHANNEL: &'static str = "content.check_updates";
+    const PLUGIN: Option<Permission> = Some(Permission::ContentRead);
     const TIMEOUT: Duration = Duration::from_secs(120);
     type Params = EntryContentCheckUpdatesParams;
     type Result = Vec<ContentUpdate>;
@@ -566,6 +573,7 @@ impl Contract for EntryContentCheckUpdates {
 pub struct EntryContentMatches;
 impl Contract for EntryContentMatches {
     const CHANNEL: &'static str = "content.matches";
+    const PLUGIN: Option<Permission> = Some(Permission::ContentRead);
     const TIMEOUT: Duration = Duration::from_secs(120);
     type Params = EntryContentMatchesParams;
     type Result = Vec<ContentMatch>;
@@ -574,6 +582,7 @@ impl Contract for EntryContentMatches {
 pub struct EntryContentSetVersion;
 impl Contract for EntryContentSetVersion {
     const CHANNEL: &'static str = "content.set_version";
+    const PLUGIN: Option<Permission> = Some(Permission::ContentWrite);
     type Params = EntryContentSetVersionParams;
     type Result = JobStarted;
 }
@@ -598,6 +607,7 @@ pub struct ContentDone {
 pub struct ContentSources;
 impl Contract for ContentSources {
     const CHANNEL: &'static str = "content.sources";
+    const PLUGIN: Option<Permission> = Some(Permission::ContentRead);
     type Params = Empty;
     type Result = Vec<ContentSource>;
 }
@@ -605,6 +615,7 @@ impl Contract for ContentSources {
 pub struct ContentSearch;
 impl Contract for ContentSearch {
     const CHANNEL: &'static str = "content.search";
+    const PLUGIN: Option<Permission> = Some(Permission::ContentRead);
     type Params = SearchQuery;
     type Result = SearchResult;
 }
@@ -612,6 +623,7 @@ impl Contract for ContentSearch {
 pub struct ContentProjectGet;
 impl Contract for ContentProjectGet {
     const CHANNEL: &'static str = "content.project";
+    const PLUGIN: Option<Permission> = Some(Permission::ContentRead);
     type Params = ProjectParams;
     type Result = ContentProject;
 }
@@ -619,6 +631,7 @@ impl Contract for ContentProjectGet {
 pub struct ContentVersions;
 impl Contract for ContentVersions {
     const CHANNEL: &'static str = "content.versions";
+    const PLUGIN: Option<Permission> = Some(Permission::ContentRead);
     type Params = VersionQuery;
     type Result = Vec<ContentVersion>;
 }
@@ -626,6 +639,7 @@ impl Contract for ContentVersions {
 pub struct ContentResolveUrl;
 impl Contract for ContentResolveUrl {
     const CHANNEL: &'static str = "content.resolve_url";
+    const PLUGIN: Option<Permission> = Some(Permission::ContentRead);
     type Params = ResolveUrlParams;
     type Result = ResolvedUrl;
 }

@@ -14,6 +14,7 @@ use crate::contract::{Contract, Empty};
 use crate::job::{Job, JobStarted};
 use crate::minecraft::{ConfigEntry, ProvisionProgress};
 use crate::modpack::PackPolicy;
+use crate::plugin::Permission;
 use crate::process::ProcessInfo;
 use crate::warning::WarningInfo;
 
@@ -62,6 +63,7 @@ pub struct InstanceCreateParams {
 pub struct InstanceCreate;
 impl Contract for InstanceCreate {
     const CHANNEL: &'static str = "instance.create";
+    const PLUGIN: Option<Permission> = Some(Permission::EntriesWrite);
     const CHANGES: Option<Scope> = Some(Scope::Entries);
     const TIMEOUT: Duration = Duration::from_secs(60);
     type Params = InstanceCreateParams;
@@ -105,6 +107,7 @@ pub struct InstanceUpdateDone {
 pub struct InstanceUpdate;
 impl Contract for InstanceUpdate {
     const CHANNEL: &'static str = "instance.update";
+    const PLUGIN: Option<Permission> = Some(Permission::EntriesWrite);
     type Params = InstanceUpdateParams;
     type Result = JobStarted;
 }
@@ -117,6 +120,7 @@ impl Job for InstanceUpdate {
 pub struct InstanceList;
 impl Contract for InstanceList {
     const CHANNEL: &'static str = "instance.list";
+    const PLUGIN: Option<Permission> = Some(Permission::EntriesRead);
     type Params = Empty;
     type Result = Vec<InstanceInfo>;
 }
@@ -160,6 +164,7 @@ pub struct InstanceDetails {
 pub struct InstanceInfoQuery;
 impl Contract for InstanceInfoQuery {
     const CHANNEL: &'static str = "instance.info";
+    const PLUGIN: Option<Permission> = Some(Permission::EntriesRead);
     type Params = InstanceRef;
     type Result = InstanceDetails;
 }
@@ -254,6 +259,7 @@ pub struct WorldInfo {
 pub struct InstanceWorlds;
 impl Contract for InstanceWorlds {
     const CHANNEL: &'static str = "instance.worlds";
+    const PLUGIN: Option<Permission> = Some(Permission::EntriesRead);
     type Params = InstanceRef;
     type Result = Vec<WorldInfo>;
 }
@@ -283,6 +289,7 @@ pub struct RecentPlay {
 pub struct InstanceRecent;
 impl Contract for InstanceRecent {
     const CHANNEL: &'static str = "instance.recent";
+    const PLUGIN: Option<Permission> = Some(Permission::EntriesRead);
     type Params = Empty;
     type Result = Vec<RecentPlay>;
 }
@@ -313,6 +320,7 @@ pub struct ServerEntry {
 pub struct InstanceServers;
 impl Contract for InstanceServers {
     const CHANNEL: &'static str = "instance.servers";
+    const PLUGIN: Option<Permission> = Some(Permission::EntriesRead);
     type Params = InstanceRef;
     type Result = Vec<ServerEntry>;
 }
@@ -346,6 +354,7 @@ pub struct InstanceServersWriteResult {
 pub struct InstanceServerEdit;
 impl Contract for InstanceServerEdit {
     const CHANNEL: &'static str = "instance.server.edit";
+    const PLUGIN: Option<Permission> = Some(Permission::EntriesWrite);
     const CHANGES: Option<Scope> = Some(Scope::Entries);
     type Params = InstanceServerEditParams;
     type Result = InstanceServersWriteResult;
@@ -363,6 +372,7 @@ pub struct InstanceServerRef {
 pub struct InstanceServerRemove;
 impl Contract for InstanceServerRemove {
     const CHANNEL: &'static str = "instance.server.remove";
+    const PLUGIN: Option<Permission> = Some(Permission::EntriesWrite);
     const CHANGES: Option<Scope> = Some(Scope::Entries);
     type Params = InstanceServerRef;
     type Result = InstanceServersWriteResult;
@@ -389,6 +399,7 @@ pub struct InstanceServersArrangeParams {
 pub struct InstanceServersArrange;
 impl Contract for InstanceServersArrange {
     const CHANNEL: &'static str = "instance.servers.arrange";
+    const PLUGIN: Option<Permission> = Some(Permission::EntriesWrite);
     const CHANGES: Option<Scope> = Some(Scope::Entries);
     type Params = InstanceServersArrangeParams;
     type Result = InstanceServersWriteResult;
@@ -475,6 +486,7 @@ pub enum QuickPlay {
 pub struct InstanceLaunch;
 impl Contract for InstanceLaunch {
     const CHANNEL: &'static str = "instance.launch";
+    const PLUGIN: Option<Permission> = Some(Permission::ProcessesControl);
     type Params = InstanceLaunchParams;
     type Result = JobStarted;
 }
