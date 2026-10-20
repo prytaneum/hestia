@@ -258,7 +258,7 @@ impl InstallPaths {
         let install_dir = base.join(format!("{}-{}", package.vendor, package.major));
         InstallPaths {
             archive: base.join(SCRATCH).join(&package.archive_name),
-            staging: with_suffix(&install_dir, STAGING_SUFFIX),
+            staging: crate::reclaim::with_suffix(&install_dir, STAGING_SUFFIX),
             install_dir,
         }
     }
@@ -269,12 +269,6 @@ impl InstallPaths {
         let _ = std::fs::remove_dir_all(&self.staging);
         let _ = std::fs::remove_file(&self.archive);
     }
-}
-
-fn with_suffix(path: &Path, suffix: &str) -> PathBuf {
-    let mut s = path.as_os_str().to_owned();
-    s.push(suffix);
-    PathBuf::from(s)
 }
 
 #[derive(Serialize, Deserialize, Default)]

@@ -23,6 +23,7 @@ mod jvm;
 mod keys;
 mod minecraft;
 mod net;
+mod plugins;
 mod process;
 mod properties;
 mod recent;
@@ -63,6 +64,7 @@ pub use minecraft::{
     FlavorInfo, FlavorProvider, Loads, Minecraft, ResolveRequest, Side, REQUIRED_JAVA_MAJORS,
 };
 pub use net::Network;
+pub use plugins::{PluginRecord, Plugins};
 pub use process::{ExitObserver, ProcessEvents, ProcessSupervisor, StartError};
 pub use schema::notices as quarantined;
 pub use servers::{RconConfig, ServerPhase, ServerRecord, Servers};

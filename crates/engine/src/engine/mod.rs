@@ -25,6 +25,7 @@ use crate::content::Content;
 use crate::instances::Instances;
 use crate::java::Java;
 use crate::minecraft::Minecraft;
+use crate::plugins::Plugins;
 use crate::process::ProcessSupervisor;
 use crate::servers::Servers;
 use crate::skins::Skins;
@@ -72,6 +73,7 @@ pub struct Engine {
     content: Content,
     servers: Servers,
     instances: Instances,
+    plugins: Plugins,
     skins: Skins,
     sync: Sync,
     update: Update,
@@ -96,6 +98,7 @@ impl Engine {
         let accounts = Accounts::new(data_home.join("accounts.json"));
         let servers = Servers::new(data_home.join("servers"));
         let instances = Instances::new(data_home.join("instances"));
+        let plugins = Plugins::new(data_home.join("plugins"));
         let skins = Skins::new(data_home.join("skins"));
         let sync = Sync::new(data_home.join("shared"));
         crate::net::store::set_root(catalogue_dir(&data_home));
@@ -111,6 +114,7 @@ impl Engine {
             content,
             servers,
             instances,
+            plugins,
             skins,
             sync,
             update,
@@ -141,6 +145,7 @@ impl Engine {
     /// these belongs to a job that will never finish.
     fn reclaim_temp(&self) {
         let mut freed = self.java.reclaim();
+        freed += self.plugins.reclaim();
         freed += crate::reclaim::contents(&self.pack_staging());
         for record in self.servers.list() {
             let dir = self.servers.server_dir(&record);
@@ -209,6 +214,10 @@ impl Engine {
 
     pub fn instances(&self) -> &Instances {
         &self.instances
+    }
+
+    pub fn plugins(&self) -> &Plugins {
+        &self.plugins
     }
 
     pub fn skins(&self) -> &Skins {

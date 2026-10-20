@@ -2,7 +2,8 @@
 //! servers, instances).
 
 use engine::{
-    Cache, Config, InstanceProfile, Instances, ServerJar, ServerPhase, ServerProfile, Servers,
+    Cache, Config, InstanceProfile, Instances, PluginRecord, Plugins, ServerJar, ServerPhase,
+    ServerProfile, Servers,
 };
 use proto::download::{Checksum, HashAlgorithm};
 
@@ -567,4 +568,65 @@ fn instance_config_rejects_unknown_keys() {
     // Non-JVM keys are rejected (no properties file for instances).
     assert!(instances.config_set(id, "motd", "hi").is_err());
     assert!(instances.config_get(id, "motd").is_err());
+}
+
+fn plugin_record(id: &str) -> PluginRecord {
+    PluginRecord {
+        id: id.into(),
+        wasm_sha256: Some("ab".repeat(32)),
+        enabled: true,
+        ..PluginRecord::default()
+    }
+}
+
+#[test]
+fn plugin_record_round_trips_and_removes() {
+    let dir = temp_dir("plugins");
+    let plugins = Plugins::new(dir.path().join("plugins"));
+    plugins.save(&plugin_record("alpha")).unwrap();
+
+    let stored = plugins.get("alpha").unwrap();
+    assert_eq!(stored.wasm_sha256, plugin_record("alpha").wasm_sha256);
+    assert!(plugins.data_dir("alpha").unwrap().is_dir());
+
+    assert!(plugins.set_enabled("alpha", false).unwrap());
+    assert!(!plugins.get("alpha").unwrap().enabled);
+
+    assert!(plugins.remove("alpha").unwrap());
+    assert!(plugins.get("alpha").is_none());
+    assert!(!plugins.remove("alpha").unwrap());
+}
+
+#[test]
+fn plugin_scan_skips_a_directory_without_a_record() {
+    let dir = temp_dir("plugins-scan");
+    let root = dir.path().join("plugins");
+    let plugins = Plugins::new(root.clone());
+    plugins.save(&plugin_record("alpha")).unwrap();
+    std::fs::create_dir_all(root.join("stray")).unwrap();
+
+    let ids: Vec<_> = plugins.list().into_iter().map(|p| p.id).collect();
+    assert_eq!(ids, ["alpha"]);
+}
+
+#[test]
+fn plugin_ids_that_escape_the_directory_are_refused() {
+    let dir = temp_dir("plugins-id");
+    let plugins = Plugins::new(dir.path().join("plugins"));
+    assert!(plugins.plugin_dir("../escape").is_err());
+    assert!(plugins.remove("..").is_err());
+    assert!(plugins.save(&plugin_record("Bad/Id")).is_err());
+}
+
+#[test]
+fn a_plugin_record_from_a_newer_schema_is_set_aside() {
+    let dir = temp_dir("plugins-newer");
+    let root = dir.path().join("plugins");
+    let plugins = Plugins::new(root.clone());
+    plugins.save(&plugin_record("alpha")).unwrap();
+    let record = root.join("alpha").join("plugin.json");
+    std::fs::write(&record, r#"{"schemaVersion": 999, "id": "alpha"}"#).unwrap();
+
+    assert!(plugins.list().is_empty());
+    assert!(!record.exists());
 }

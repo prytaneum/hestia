@@ -49,6 +49,13 @@ pub fn suffixed(dir: &Path, suffix: &str) -> Reclaimed {
     reclaim_where(dir, |name| name.ends_with(suffix))
 }
 
+/// `path` with `suffix` appended to its final component.
+pub(crate) fn with_suffix(path: &Path, suffix: &str) -> std::path::PathBuf {
+    let mut name = path.as_os_str().to_owned();
+    name.push(suffix);
+    name.into()
+}
+
 /// Empty a scratch directory of everything, keeping the directory itself.
 pub fn contents(dir: &Path) -> Reclaimed {
     reclaim_where(dir, |_| true)
