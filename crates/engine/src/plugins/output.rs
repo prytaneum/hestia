@@ -1,14 +1,16 @@
+use std::io;
+use std::pin::Pin;
 use std::sync::{Arc, Mutex};
+use std::task::{Context, Poll};
 use std::time::{Duration, Instant};
 
-use async_trait::async_trait;
-use bytes::Bytes;
-use tracing::{Level, Span};
+use tokio::io::AsyncWrite;
+use tracing::Level;
 use wasmtime_wasi::cli::{IsTerminal, StdoutStream};
-use wasmtime_wasi::p2::{OutputStream, Pollable, StreamError};
 
 const LINES_PER_SECOND: u32 = 100;
 const MAX_LINE_BYTES: usize = 8 * 1024;
+const WINDOW: Duration = Duration::from_secs(1);
 
 struct Window {
     started: Instant,
@@ -17,16 +19,16 @@ struct Window {
 }
 
 /// Where everything a plugin says ends up: its `log` import and its captured
-/// stdout and stderr, under one `plugin` span and one shared rate limit.
+/// stdout and stderr, under one plugin id and one shared rate limit.
 pub(crate) struct PluginLog {
-    span: Span,
+    id: String,
     window: Mutex<Window>,
 }
 
 impl PluginLog {
     pub(crate) fn new(plugin: &str) -> Arc<Self> {
         Arc::new(PluginLog {
-            span: tracing::info_span!(parent: None, "plugin", plugin = %plugin),
+            id: plugin.to_owned(),
             window: Mutex::new(Window {
                 started: Instant::now(),
                 lines: 0,
@@ -41,10 +43,7 @@ impl PluginLog {
         for text in text.lines() {
             let (allowed, dropped_before) = self.admit();
             if let Some(dropped) = dropped_before {
-                self.emit(
-                    Level::WARN,
-                    &format!("{dropped} log lines dropped (limit {LINES_PER_SECOND}/s)"),
-                );
+                self.emit_dropped(dropped);
             }
             if allowed {
                 self.emit(level, truncate(text));
@@ -52,10 +51,23 @@ impl PluginLog {
         }
     }
 
+    /// Reports lines dropped in a window that has since closed, so a plugin
+    /// that floods the log and then goes quiet is still noticed.
+    pub(crate) fn report_dropped(&self) {
+        let dropped = {
+            let mut window = self.window.lock().unwrap();
+            if window.started.elapsed() < WINDOW || window.dropped == 0 {
+                return;
+            }
+            std::mem::take(&mut window.dropped)
+        };
+        self.emit_dropped(dropped);
+    }
+
     fn admit(&self) -> (bool, Option<u32>) {
         let mut window = self.window.lock().unwrap();
         let mut dropped_before = None;
-        if window.started.elapsed() >= Duration::from_secs(1) {
+        if window.started.elapsed() >= WINDOW {
             if window.dropped > 0 {
                 dropped_before = Some(window.dropped);
             }
@@ -73,14 +85,22 @@ impl PluginLog {
         (true, dropped_before)
     }
 
+    fn emit_dropped(&self, dropped: u32) {
+        self.emit(
+            Level::WARN,
+            &format!("{dropped} log lines dropped (limit {LINES_PER_SECOND}/s)"),
+        );
+    }
+
     fn emit(&self, level: Level, text: &str) {
-        self.span.in_scope(|| match level {
-            Level::TRACE => tracing::trace!("{text}"),
-            Level::DEBUG => tracing::debug!("{text}"),
-            Level::INFO => tracing::info!("{text}"),
-            Level::WARN => tracing::warn!("{text}"),
-            Level::ERROR => tracing::error!("{text}"),
-        });
+        let plugin = &self.id;
+        match level {
+            Level::TRACE => tracing::trace!(%plugin, "{text}"),
+            Level::DEBUG => tracing::debug!(%plugin, "{text}"),
+            Level::INFO => tracing::info!(%plugin, "{text}"),
+            Level::WARN => tracing::warn!(%plugin, "{text}"),
+            Level::ERROR => tracing::error!(%plugin, "{text}"),
+        }
     }
 }
 
@@ -124,12 +144,8 @@ impl IsTerminal for Captured {
 }
 
 impl StdoutStream for Captured {
-    fn async_stream(&self) -> Box<dyn tokio::io::AsyncWrite + Send + Sync> {
-        Box::new(tokio::io::sink())
-    }
-
-    fn p2_stream(&self) -> Box<dyn OutputStream> {
-        Box::new(LineStream {
+    fn async_stream(&self) -> Box<dyn AsyncWrite + Send + Sync> {
+        Box::new(LineSplitter {
             log: self.log.clone(),
             level: self.level,
             partial: Vec::new(),
@@ -137,13 +153,13 @@ impl StdoutStream for Captured {
     }
 }
 
-struct LineStream {
+struct LineSplitter {
     log: Arc<PluginLog>,
     level: Level,
     partial: Vec<u8>,
 }
 
-impl LineStream {
+impl LineSplitter {
     fn flush_partial(&mut self) {
         if !self.partial.is_empty() {
             let text = String::from_utf8_lossy(&self.partial).into_owned();
@@ -153,14 +169,13 @@ impl LineStream {
     }
 }
 
-#[async_trait]
-impl Pollable for LineStream {
-    async fn ready(&mut self) {}
-}
-
-impl OutputStream for LineStream {
-    fn write(&mut self, bytes: Bytes) -> Result<(), StreamError> {
-        for byte in bytes {
+impl AsyncWrite for LineSplitter {
+    fn poll_write(
+        mut self: Pin<&mut Self>,
+        _: &mut Context<'_>,
+        buf: &[u8],
+    ) -> Poll<io::Result<usize>> {
+        for &byte in buf {
             if byte == b'\n' {
                 self.flush_partial();
             } else {
@@ -170,19 +185,19 @@ impl OutputStream for LineStream {
                 }
             }
         }
-        Ok(())
+        Poll::Ready(Ok(buf.len()))
     }
 
-    fn flush(&mut self) -> Result<(), StreamError> {
-        Ok(())
+    fn poll_flush(self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<io::Result<()>> {
+        Poll::Ready(Ok(()))
     }
 
-    fn check_write(&mut self) -> Result<usize, StreamError> {
-        Ok(MAX_LINE_BYTES)
+    fn poll_shutdown(self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<io::Result<()>> {
+        Poll::Ready(Ok(()))
     }
 }
 
-impl Drop for LineStream {
+impl Drop for LineSplitter {
     fn drop(&mut self) {
         self.flush_partial();
     }

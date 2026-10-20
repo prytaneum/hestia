@@ -30,6 +30,7 @@ pub const PROVIDER_TIMEOUT: Duration = Duration::from_secs(30);
 const EPOCH_TICK: Duration = Duration::from_millis(10);
 const POOL_SLOTS: u32 = 16;
 const MEMORY_LIMIT: usize = 256 * 1024 * 1024;
+const TABLE_ELEMENTS: usize = 20_000;
 const CALLS_PER_PLUGIN: usize = 4;
 const TRAP_LIMIT: usize = 3;
 const TRAP_WINDOW: Duration = Duration::from_secs(10 * 60);
@@ -126,6 +127,7 @@ impl PluginRuntime {
             .max_core_instances_per_component(16)
             .max_memories_per_component(1)
             .max_tables_per_component(4)
+            .table_elements(TABLE_ELEMENTS)
             .max_memory_size(MEMORY_LIMIT);
         let mut config = Config::new();
         config
@@ -288,7 +290,7 @@ impl LoadedPlugin {
             let instance = self.pre.instantiate_async(&mut store).await?;
             run(&mut store, &instance).await
         };
-        match timeout_at(deadline, attempt).await {
+        let outcome = match timeout_at(deadline, attempt).await {
             Err(_) => {
                 self.timeouts.fetch_add(1, Ordering::Relaxed);
                 tracing::warn!(plugin = %self.id, ?timeout, "plugin call timed out");
@@ -308,7 +310,9 @@ impl LoadedPlugin {
                 );
                 Ok(value)
             }
-        }
+        };
+        self.log.report_dropped();
+        outcome
     }
 
     fn new_store(&self, chain: CallChain) -> wasmtime::Result<Store<PluginState>> {
@@ -323,7 +327,7 @@ impl LoadedPlugin {
             .memory_size(MEMORY_LIMIT)
             .memories(1)
             .tables(4)
-            .table_elements(100_000)
+            .table_elements(TABLE_ELEMENTS)
             .instances(16)
             .trap_on_grow_failure(true)
             .build();

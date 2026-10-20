@@ -33,7 +33,6 @@ tokio = { workspace = true }
 futures-util = { workspace = true }
 anyhow = { workspace = true }
 async-trait = { workspace = true }
-bytes = { workspace = true }
 wasmtime = { workspace = true }
 wasmtime-wasi = { workspace = true }
 p256 = { version = "0.14.0", features = ["ecdsa"] }
