@@ -135,8 +135,8 @@ fn load(
     wat: &str,
     permissions: &[Permission],
 ) -> (Arc<LoadedPlugin>, tempfile::TempDir) {
-    let runtime = PluginRuntime::new(host.clone()).unwrap();
     let data = tempfile::tempdir().unwrap();
+    let runtime = PluginRuntime::new(host.clone(), data.path().join("cache")).unwrap();
     let plugin = runtime
         .load(
             &record(wat, permissions),
@@ -253,8 +253,8 @@ async fn three_traps_take_the_plugin_out_of_service() {
 #[tokio::test]
 async fn a_component_that_differs_from_its_recorded_hash_is_not_compiled() {
     let host = Arc::new(TestHost::default());
-    let runtime = PluginRuntime::new(host).unwrap();
     let data = tempfile::tempdir().unwrap();
+    let runtime = PluginRuntime::new(host, data.path().join("cache")).unwrap();
     let recorded = guest(false, "");
     let tampered = guest(false, "unreachable");
 

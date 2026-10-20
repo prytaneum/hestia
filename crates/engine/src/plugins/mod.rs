@@ -3,6 +3,7 @@
 //! record. The directory scan is the registry. The [`PluginRuntime`] runs an enabled
 //! plugin's component sandboxed ([0091](../../../../docs/decisions/0091-plugins-are-wasm-components.md)).
 
+mod cache;
 mod chain;
 mod imports;
 mod output;

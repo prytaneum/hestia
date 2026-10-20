@@ -9,11 +9,12 @@ use proto::plugin::Grant;
 use sha2::{Digest, Sha256};
 use tokio::sync::{Semaphore, SemaphorePermit};
 use tokio::time::{timeout_at, Instant};
-use wasmtime::component::{Component, HasSelf, Linker, ResourceTable};
+use wasmtime::component::{HasSelf, Linker, ResourceTable};
 use wasmtime::{Config, Engine, InstanceAllocationStrategy, PoolingAllocationConfig, Store};
 use wasmtime::{StoreLimits, StoreLimitsBuilder};
 use wasmtime_wasi::{FsPerms, WasiCtxBuilder};
 
+use super::cache::ComponentCache;
 use super::chain::{CallChain, ChainError};
 use super::imports::bindings::{self, hestia::plugin::types::PluginError};
 use super::imports::{Gate, HostCalls, PluginState};
@@ -109,10 +110,12 @@ pub struct PluginRuntime {
     pool: Arc<Semaphore>,
     host: Arc<dyn HostCalls>,
     ticker: Arc<Ticker>,
+    cache: ComponentCache,
 }
 
 impl PluginRuntime {
-    pub fn new(host: Arc<dyn HostCalls>) -> anyhow::Result<Self> {
+    /// `cache_dir` holds the compiled components (`meta/plugins/`).
+    pub fn new(host: Arc<dyn HostCalls>, cache_dir: PathBuf) -> anyhow::Result<Self> {
         let mut pooling = PoolingAllocationConfig::new();
         pooling
             .total_component_instances(POOL_SLOTS)
@@ -143,6 +146,7 @@ impl PluginRuntime {
 
         let ticker = Arc::new(Ticker::start(engine.clone())?);
         Ok(PluginRuntime {
+            cache: ComponentCache::new(cache_dir, &engine),
             engine,
             linker: Arc::new(linker),
             pool: Arc::new(Semaphore::new(POOL_SLOTS as usize)),
@@ -170,7 +174,9 @@ impl PluginRuntime {
                 actual,
             });
         }
-        let component = Component::new(&self.engine, wasm)
+        let component = self
+            .cache
+            .component(&self.engine, expected, wasm)
             .map_err(|error| LoadError::Component(format!("{error:#}")))?;
         let instance_pre = self
             .linker
