@@ -26,6 +26,7 @@ pub mod modpack;
 pub mod naming;
 pub mod net;
 pub mod players;
+pub mod plugin;
 pub mod process;
 pub mod screenshot;
 pub mod server;

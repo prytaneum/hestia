@@ -1,6 +1,7 @@
 [workspace]
 resolver = "2"
 members = ["crates/*"]
+exclude = ["crates/sdk"]
 
 [workspace.package]
 version = "1.0.0-beta.3"

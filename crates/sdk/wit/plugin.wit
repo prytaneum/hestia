@@ -1,0 +1,47 @@
+package hestia:plugin@0.1.0;
+
+interface types {
+    /// A JSON document in the shape of the matching `proto` type.
+    type json = string;
+
+    variant plugin-error {
+        /// The plugin lacks the permission the call needs.
+        permission-denied(string),
+        not-found(string),
+        invalid(string),
+        failed(string),
+    }
+}
+
+interface log {
+    trace: func(message: string);
+    debug: func(message: string);
+    info: func(message: string);
+    warn: func(message: string);
+    error: func(message: string);
+}
+
+interface host {
+    use types.{json, plugin-error};
+
+    /// Calls a daemon channel with the `proto` params as JSON; returns the `proto` result as JSON.
+    call: func(channel: string, payload: json) -> result<json, plugin-error>;
+
+    /// Starts a `Job` channel and returns its `Done` payload as JSON once it settles.
+    run-job: func(channel: string, payload: json) -> result<json, plugin-error>;
+}
+
+interface lifecycle {
+    use types.{plugin-error};
+
+    /// Runs once when the plugin is enabled, on a store dropped afterwards: nothing
+    /// kept in memory survives it. Use it for one-time setup in `data/` and for
+    /// validating the plugin's environment.
+    init: func() -> result<_, plugin-error>;
+}
+
+world plugin {
+    import log;
+    import host;
+    export lifecycle;
+}
