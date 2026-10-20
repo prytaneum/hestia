@@ -3,6 +3,10 @@ import type { WarningInfo } from "./WarningInfo";
 
 export type DaemonStatusResult = { pid: number, version: string, uptimeSeconds: number, home: string, log: string, 
 /**
+ * This run loads no third-party plugins; it ends when the daemon restarts.
+ */
+safeMode: boolean, 
+/**
  * Documents this daemon could not read and set aside since it started. Not
  * caused by any one request, so they have no result of their own to ride
  * out on and are reported here instead.

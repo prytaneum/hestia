@@ -24,6 +24,15 @@ export function StatusBar() {
       {daemon.status && (
         <span className="font-mono">v{daemon.status.version}</span>
       )}
+      {daemon.status?.safeMode && (
+        <span
+          className="inline-flex items-center gap-1.5"
+          title={m['app.daemon.safe_mode_hint']()}
+        >
+          <StatusDot tone="warn" />
+          {m['app.daemon.safe_mode']()}
+        </span>
+      )}
 
       <Notifications />
     </footer>

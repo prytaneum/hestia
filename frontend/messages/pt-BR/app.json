@@ -58,6 +58,8 @@
       "restart_description": "O launcher desconecta brevemente durante a reinicialização. Servidores e instâncias em execução continuam rodando.",
       "restart_title": "Reiniciar o daemon?",
       "restarting": "Reiniciando…",
+      "safe_mode": "modo seguro",
+      "safe_mode_hint": "Os plugins de terceiros não foram carregados. Reinicie o daemon sem o modo seguro para sair dele.",
       "start": "Iniciar daemon",
       "starting": "Iniciando…",
       "version_uptime": "v{version} · ativo há {uptime}"

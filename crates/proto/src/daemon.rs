@@ -14,6 +14,8 @@ pub struct DaemonStatusResult {
     pub uptime_seconds: i64,
     pub home: PathBuf,
     pub log: PathBuf,
+    /// This run loads no third-party plugins; it ends when the daemon restarts.
+    pub safe_mode: bool,
     /// Documents this daemon could not read and set aside since it started. Not
     /// caused by any one request, so they have no result of their own to ride
     /// out on and are reported here instead.

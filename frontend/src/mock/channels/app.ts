@@ -14,6 +14,7 @@ export const status = (): DaemonStatusResult => ({
   uptimeSeconds: Math.floor((Date.now() - started) / 1000),
   home: HOME,
   log: `${HOME}/logs/hestiad.log`,
+  safeMode: false,
   quarantined: [],
 });
 

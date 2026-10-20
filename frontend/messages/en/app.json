@@ -58,6 +58,8 @@
       "restart_description": "The launcher briefly disconnects while it restarts. Running servers and instances keep running.",
       "restart_title": "Restart the daemon?",
       "restarting": "Restarting…",
+      "safe_mode": "safe mode",
+      "safe_mode_hint": "Third-party plugins are not loaded. Restart the daemon without safe mode to leave it.",
       "start": "Start daemon",
       "starting": "Starting…",
       "version_uptime": "v{version} · up {uptime}"
