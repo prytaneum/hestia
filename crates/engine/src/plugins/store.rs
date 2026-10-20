@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use std::sync::Mutex;
 
 use anyhow::{bail, Context, Result};
-use proto::plugin::{is_plugin_id, Grant, PluginSource};
+use proto::plugin::{is_plugin_id, Grant, Manifest, PluginSource};
 use serde::{Deserialize, Serialize};
 
 use crate::reclaim::{self, Reclaimed};
@@ -12,7 +12,15 @@ use crate::schema::Document;
 
 pub(crate) const PACKAGE: &str = "package";
 pub(crate) const DATA: &str = "data";
+const MANIFEST: &str = "plugin.toml";
 const STAGING_SUFFIX: &str = ".staging";
+
+/// An installed package read from disk: its validated manifest and, unless it
+/// is theme-only, the component bytes.
+pub struct PluginPackage {
+    pub manifest: Manifest,
+    pub wasm: Option<Vec<u8>>,
+}
 
 /// What the daemon remembers about an installed plugin. Holds no secrets: a
 /// plugin's secret settings live with the credential store, not here.
@@ -66,6 +74,36 @@ impl Plugins {
 
     pub fn data_dir(&self, id: &str) -> Result<PathBuf> {
         Ok(self.plugin_dir(id)?.join(DATA))
+    }
+
+    /// Blocking: reads and validates the installed manifest.
+    pub fn read_manifest(&self, id: &str) -> Result<Manifest> {
+        let path = self.package_dir(id)?.join(MANIFEST);
+        let text = std::fs::read_to_string(&path)
+            .with_context(|| format!("cannot read {}", path.display()))?;
+        let manifest: Manifest =
+            toml::from_str(&text).with_context(|| format!("invalid {}", path.display()))?;
+        manifest.validate()?;
+        if manifest.id != id {
+            bail!("{} declares plugin `{}`", path.display(), manifest.id);
+        }
+        Ok(manifest)
+    }
+
+    /// Blocking: reads the manifest and the component it names.
+    pub fn read_package(&self, id: &str) -> Result<PluginPackage> {
+        let package = self.package_dir(id)?;
+        let manifest = self.read_manifest(id)?;
+        let wasm = manifest
+            .wasm
+            .as_ref()
+            .map(|relative| {
+                let component = package.join(relative);
+                std::fs::read(&component)
+                    .with_context(|| format!("cannot read {}", component.display()))
+            })
+            .transpose()?;
+        Ok(PluginPackage { manifest, wasm })
     }
 
     pub fn list(&self) -> Vec<PluginRecord> {

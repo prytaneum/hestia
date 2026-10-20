@@ -20,7 +20,7 @@ fn guest(calls_host: bool, body: &str) -> String {
     let (import, core_import, with) = if calls_host {
         (
             format!(
-                r#"(import "hestia:plugin/host@0.1.0" (instance $host
+                r#"(import "hestia:plugin/host@0.2.0" (instance $host
                     (type $e {PLUGIN_ERROR})
                     (export "plugin-error" (type $error (eq $e)))
                     (export "call" (func (param "channel" string) (param "payload" string)
@@ -38,7 +38,7 @@ fn guest(calls_host: bool, body: &str) -> String {
     };
     format!(
         r#"(component
-            (import "hestia:plugin/types@0.1.0" (instance $types
+            (import "hestia:plugin/types@0.2.0" (instance $types
                 (type $e {PLUGIN_ERROR})
                 (export "plugin-error" (type (eq $e)))))
             (alias export $types "plugin-error" (type $err))
@@ -65,7 +65,7 @@ fn guest(calls_host: bool, body: &str) -> String {
                     (memory (core memory $libc "memory"))
                     (realloc (core func $libc "realloc"))))
             (instance $lifecycle (export "init" (func $init)))
-            (export "hestia:plugin/lifecycle@0.1.0" (instance $lifecycle)))"#
+            (export "hestia:plugin/lifecycle@0.2.0" (instance $lifecycle)))"#
     )
 }
 

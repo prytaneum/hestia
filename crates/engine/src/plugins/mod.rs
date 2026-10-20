@@ -16,4 +16,4 @@ pub use runtime::{
     CallError, LoadError, LoadedPlugin, PluginRuntime, PluginStats, EVENT_TIMEOUT, HOOK_TIMEOUT,
     PROVIDER_TIMEOUT, UI_TIMEOUT,
 };
-pub use store::{PluginRecord, Plugins};
+pub use store::{PluginPackage, PluginRecord, Plugins};
