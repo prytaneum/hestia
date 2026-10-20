@@ -111,13 +111,18 @@ impl Plugins {
             return Ok(false);
         }
         let staging = reclaim::with_suffix(&dir, STAGING_SUFFIX);
+        if staging.exists() {
+            std::fs::remove_dir_all(&staging)
+                .with_context(|| format!("cannot clear {}", staging.display()))?;
+        }
         std::fs::rename(&dir, &staging)
             .with_context(|| format!("cannot remove {}", dir.display()))?;
         let record = registry::record_path::<PluginRecord>(&staging);
         std::fs::remove_file(&record)
             .with_context(|| format!("cannot remove {}", record.display()))?;
-        std::fs::remove_dir_all(&staging)
-            .with_context(|| format!("cannot remove {}", staging.display()))?;
+        if let Err(error) = std::fs::remove_dir_all(&staging) {
+            tracing::warn!(plugin = %id, %error, "plugin files left for startup reclaim");
+        }
         tracing::info!(plugin = %id, "plugin removed");
         Ok(true)
     }
