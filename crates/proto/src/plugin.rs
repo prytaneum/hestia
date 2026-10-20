@@ -52,6 +52,7 @@ pub const RESERVED_IDS: &[&str] = &[
 ];
 
 const ID_LENGTH: std::ops::RangeInclusive<usize> = 2..=40;
+const CONTRIBUTION_ID_LENGTH: std::ops::RangeInclusive<usize> = 1..=40;
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
@@ -282,7 +283,7 @@ pub enum ManifestError {
     MissingApi,
     #[error("path `{0}` must be relative and stay inside the package")]
     PathEscapes(String),
-    #[error("contribution id `{0}` must be lowercase letters, digits or dashes")]
+    #[error("contribution id `{0}` must be 1-40 lowercase letters, digits or dashes")]
     BadContributionId(String),
     #[error("id `{0}` is declared twice in the same list")]
     DuplicateId(String),
@@ -314,7 +315,8 @@ impl Manifest {
             }
         }
         let contributes = &self.contributes;
-        let lists: [Vec<&String>; 6] = [
+        let lists: [Vec<&String>; 7] = [
+            self.settings.iter().map(|setting| &setting.key).collect(),
             self.programs.iter().map(|program| &program.id).collect(),
             contributes
                 .commands
@@ -333,7 +335,7 @@ impl Manifest {
         for ids in lists {
             let mut seen = BTreeSet::new();
             for id in ids {
-                if !is_slug(id, 1..=40) {
+                if !is_slug(id, CONTRIBUTION_ID_LENGTH) {
                     return Err(ManifestError::BadContributionId(id.clone()));
                 }
                 if !seen.insert(id) {
@@ -421,10 +423,10 @@ fn stays_inside(path: &str) -> bool {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
 #[serde(rename_all = "snake_case")]
 pub enum PluginState {
-    #[default]
     Enabled,
     Disabled,
     Failed,
+    #[default]
     NeedsApproval,
 }
 

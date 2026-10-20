@@ -120,6 +120,21 @@ mod manifest {
     }
 
     #[test]
+    fn rejects_a_setting_key_declared_twice() {
+        let mut manifest = valid();
+        manifest.settings = [SettingKind::String, SettingKind::Secret]
+            .map(|kind| Setting {
+                key: "token".into(),
+                kind,
+            })
+            .into();
+        assert_eq!(
+            manifest.validate(),
+            Err(ManifestError::DuplicateId("token".into()))
+        );
+    }
+
+    #[test]
     fn api_must_match_the_host_minor_and_not_be_a_newer_patch() {
         for api in ["^0.3.0", "^1.2.0", "^0.2.1"] {
             let mut manifest = valid();
