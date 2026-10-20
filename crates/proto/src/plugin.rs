@@ -451,6 +451,11 @@ pub struct PluginInfo {
     /// What the user approved, not what the manifest now asks for.
     pub grant: Grant,
     pub last_error: Option<String>,
+    pub calls: u64,
+    pub traps: u64,
+    pub timeouts: u64,
+    /// Size of the plugin's `data/` directory.
+    pub data_bytes: u64,
 }
 
 pub struct PluginList;

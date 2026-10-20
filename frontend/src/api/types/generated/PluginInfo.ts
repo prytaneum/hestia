@@ -12,4 +12,8 @@ sha256: string,
 /**
  * What the user approved, not what the manifest now asks for.
  */
-grant: Grant, lastError?: string, };
+grant: Grant, lastError?: string, calls: number, traps: number, timeouts: number, 
+/**
+ * Size of the plugin's `data/` directory.
+ */
+dataBytes: number, };
