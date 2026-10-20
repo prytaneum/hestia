@@ -24,7 +24,8 @@ A changed snapshot at an unchanged version fails and says which kind it is.
 Additive (a new channel or interface, a new optional or defaulted field) bumps the
 patch of the WIT package and `API_VERSION`, so an older host refuses a plugin that
 needs it. Breaking (a removed or renamed field, a changed type, a removed channel,
-a new required field, a new enum or WIT variant case) bumps the `0.N`; a breaking
+a new required field, a new enum, WIT variant case, record field or flag, a new
+WIT export or a new function in an exported interface) bumps the `0.N`; a breaking
 change under an unchanged minor fails even if the version string moved. Either
 way, regenerate the snapshot afterwards with `HESTIA_UPDATE_GOLDEN=1`. The host
 never serves two versions.
