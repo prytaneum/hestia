@@ -4,4 +4,4 @@
  * A body of state a front-end renders and another client can change. Coarse on
  * purpose: a reader refetches the scope, so the event names no entry.
  */
-export type Scope = "entries" | "accounts" | "skins" | "config" | "java" | "sync" | "screenshots" | "cache";
+export type Scope = "entries" | "accounts" | "skins" | "config" | "java" | "sync" | "screenshots" | "cache" | "plugins";

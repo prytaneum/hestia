@@ -27,6 +27,7 @@ pub enum Scope {
     Sync,
     Screenshots,
     Cache,
+    Plugins,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]

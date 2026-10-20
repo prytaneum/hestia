@@ -105,6 +105,7 @@ const CHANGED: Record<Topics['changed']['scope'], QueryKey[]> = {
   sync: [keys.sync.all],
   screenshots: [keys.screenshots.all],
   cache: [keys.cache.all, [FOOTPRINT]],
+  plugins: [],
 };
 
 /** The key prefixes a daemon event outdates — exported for the regression test. */

@@ -9,6 +9,8 @@ publish.workspace = true
 [dependencies]
 serde = { workspace = true }
 serde_json = { workspace = true }
+sha2 = { workspace = true }
+thiserror = { workspace = true }
 # TypeScript codegen for the wire error surface; feature-gated so it never
 # enters production builds. Regenerate with `scripts/gen-types.sh`.
 ts-rs = { workspace = true, optional = true }
