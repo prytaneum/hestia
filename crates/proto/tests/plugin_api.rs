@@ -275,7 +275,8 @@ fn wit_files() -> BTreeMap<String, String> {
         .filter(|path| path.extension().and_then(|e| e.to_str()) == Some("wit"))
         .map(|path| {
             let name = path.file_name().unwrap().to_string_lossy().into_owned();
-            (name, fs::read_to_string(&path).unwrap())
+            let text = fs::read_to_string(&path).unwrap();
+            (name, wit_lines(&text).join("\n"))
         })
         .collect()
 }
@@ -356,21 +357,46 @@ fn wit_lines(text: &str) -> Vec<&str> {
         .collect()
 }
 
-/// Lines inside a `variant` or `enum` block: a new case changes a type the guest receives.
-fn choice_lines(text: &str) -> Vec<&str> {
-    let mut inside = false;
-    let mut lines = Vec::new();
-    for line in wit_lines(text) {
-        if inside && line.starts_with('}') {
-            inside = false;
-        } else if inside {
-            lines.push(line);
-        } else if (line.starts_with("variant ") || line.starts_with("enum ")) && line.ends_with('{')
+/// Lines whose addition breaks an installed plugin: wasmtime checks types structurally, so a
+/// new case, record field or flag changes a type the guest imports or receives; a new export
+/// or a new function in an exported interface is one an older guest does not provide.
+fn breaking_lines(text: &str) -> Vec<&str> {
+    let lines = wit_lines(text);
+    let exported: Vec<&str> = lines
+        .iter()
+        .filter_map(|line| line.strip_prefix("export ")?.strip_suffix(';'))
+        .collect();
+    let mut breaking = Vec::new();
+    let mut in_exported_interface = false;
+    let mut in_type_block = false;
+    for line in lines {
+        if line.starts_with("export ") {
+            breaking.push(line);
+        } else if in_type_block {
+            if line.starts_with('}') {
+                in_type_block = false;
+            } else {
+                breaking.push(line);
+            }
+        } else if line.starts_with('}') {
+            in_exported_interface = false;
+        } else if in_exported_interface {
+            breaking.push(line);
+            in_type_block = line.ends_with('{');
+        } else if let Some(name) = line
+            .strip_prefix("interface ")
+            .and_then(|rest| rest.strip_suffix(" {"))
         {
-            inside = true;
+            in_exported_interface = exported.contains(&name);
+        } else if line.ends_with('{')
+            && ["variant ", "enum ", "record ", "flags "]
+                .iter()
+                .any(|keyword| line.starts_with(keyword))
+        {
+            in_type_block = true;
         }
     }
-    lines
+    breaking
 }
 
 fn diff_wit(old: &Value, new: &Value, changes: &mut Vec<Change>) {
@@ -387,10 +413,10 @@ fn diff_wit(old: &Value, new: &Value, changes: &mut Vec<Change>) {
         for line in before.iter().filter(|line| !after.contains(line)) {
             changes.push(breaking(format!("{file}: `{line}` removed or changed")));
         }
-        let cases = choice_lines(replacement.as_str().unwrap());
+        let breaking_additions = breaking_lines(replacement.as_str().unwrap());
         for line in after.iter().filter(|line| !before.contains(line)) {
             let what = format!("{file}: `{line}` added");
-            if cases.contains(line) {
+            if breaking_additions.contains(line) {
                 changes.push(breaking(what));
             } else {
                 changes.push(additive(what));
@@ -511,7 +537,8 @@ fn write_snapshot(path: &Path, snapshot: &Value) {
 fn plugin_api_matches_its_snapshot() {
     let current = current_snapshot();
     let path = golden_path();
-    if std::env::var_os("HESTIA_UPDATE_GOLDEN").is_some() {
+    let updating = std::env::var_os("HESTIA_UPDATE_GOLDEN").is_some();
+    if updating && !path.exists() {
         write_snapshot(&path, &current);
         return;
     }
@@ -535,6 +562,10 @@ fn plugin_api_matches_its_snapshot() {
              (and `proto::plugin::API_VERSION`) so older hosts refuse plugins that need this, \
              then {regenerate}\n{listing}"
         );
+    }
+    if updating {
+        write_snapshot(&path, &current);
+        return;
     }
     panic!("the plugin API changed and its snapshot is stale; {regenerate}\n{listing}");
 }
@@ -589,4 +620,24 @@ fn only_a_member_old_payloads_can_omit_is_additive() {
         &variants(json!({ "A": "A", "B": "B" })),
     );
     assert!(changes[0].breaking);
+}
+
+#[test]
+fn only_an_import_the_host_adds_is_additive_in_wit() {
+    let snapshot = |wit: &str| json!({ "wit": { "plugin.wit": wit } });
+    let base = "interface host {\ncall: func();\n}\ninterface lifecycle {\ninit: func();\n}\nrecord point {\nx: u32,\n}\nworld plugin {\nimport host;\nexport lifecycle;\n}";
+    let verdict = |old: &str, new: &str| {
+        let mut changes = Vec::new();
+        diff_wit(&snapshot(old), &snapshot(new), &mut changes);
+        changes.iter().all(|change| change.breaking)
+    };
+    let with = |anchor: &str, extra: &str| base.replacen(anchor, &format!("{anchor}\n{extra}"), 1);
+
+    assert!(!verdict(base, &with("interface host {", "run: func();")));
+    assert!(verdict(
+        base,
+        &with("interface lifecycle {", "shutdown: func();")
+    ));
+    assert!(verdict(base, &with("export lifecycle;", "export other;")));
+    assert!(verdict(base, &with("record point {", "y: u32,")));
 }
