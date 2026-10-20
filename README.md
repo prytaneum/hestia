@@ -181,6 +181,9 @@ is usually one line in each of five places.
 
 [GPL-3.0-only](LICENSE) © 2026 toraaoo — published by [prytaneum](https://github.com/prytaneum)
 
+The exception is what a plugin compiles against: `crates/proto`, the plugin SDK (`crates/sdk`) and its WIT package are
+`MIT OR Apache-2.0`, so a plugin may use any license.
+
 The desktop skin preview and its thumbnail renderer are ported from
 [Modrinth's launcher](https://github.com/modrinth/code) (GPL-3.0-only, © Rinth, Inc.) — the reason Hestia is GPL rather
 than MIT.

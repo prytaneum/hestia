@@ -42,6 +42,13 @@ The trust boundary is guest code against the daemon. The data home is one trust
 domain: someone who can already write it can replace the daemon too, so a local
 writer of the data home is out of scope.
 
+**Licensing.** A plugin compiles `proto`, the SDK and the WIT bindings into its
+own component, which under GPL-3.0-only would make every plugin a derivative
+work. Those three are `MIT OR Apache-2.0`: `crates/proto` and `crates/sdk`
+(which holds the WIT package) each carry `LICENSE-MIT` and `LICENSE-APACHE`.
+Everything else, Hestia itself, stays GPL-3.0-only. `proto` holds no code ported
+from a GPL source (the Modrinth-derived code is frontend-only).
+
 **Rejected:**
 
 - **Native dylibs**: no sandbox, and an ABI that breaks per compiler version.

@@ -253,8 +253,8 @@ certificate; the install-day scare is the lesser one.
 
 The intended route is [SignPath Foundation](https://signpath.org/terms.html), which issues a free OV certificate to
 qualifying open source projects and signs in its own pipeline (the key is never held here). Hestia meets the licence
-(GPL-3.0-only, no dual-licensing), no-proprietary-components, maintained and documented conditions. Two things are
-outstanding, and their order is forced:
+(GPL-3.0-only, with `proto` and the plugin SDK under the permissive MIT OR Apache-2.0; no commercial dual-licensing),
+no-proprietary-components, maintained and documented conditions. Two things are outstanding, and their order is forced:
 
 1. **A release must exist first** — the Foundation signs already-released software, so the first tags necessarily ship
    unsigned.
