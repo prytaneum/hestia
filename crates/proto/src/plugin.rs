@@ -236,7 +236,7 @@ pub enum ManifestError {
 
 impl Manifest {
     pub fn validate(&self) -> Result<(), ManifestError> {
-        if !is_slug(&self.id, ID_LENGTH) {
+        if !is_plugin_id(&self.id) {
             return Err(ManifestError::BadId(self.id.clone()));
         }
         if RESERVED_IDS.contains(&self.id.as_str()) {
@@ -312,6 +312,11 @@ impl Manifest {
                 .collect(),
         }
     }
+}
+
+/// The shape of a plugin id, which is also its directory name.
+pub fn is_plugin_id(id: &str) -> bool {
+    is_slug(id, ID_LENGTH)
 }
 
 fn is_slug(value: &str, length: std::ops::RangeInclusive<usize>) -> bool {
