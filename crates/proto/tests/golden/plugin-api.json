@@ -1,5 +1,5 @@
 {
-  "apiVersion": "0.1.0",
+  "apiVersion": "0.2.0",
   "channels": {
     "account.list": {
       "params": "Empty",
@@ -1150,6 +1150,7 @@
         "NothingToDo": "NothingToDo { what: Task, }",
         "Offline": "Offline { service: Option<Service>, }",
         "OfflineMode": "OfflineMode",
+        "PluginNotFound": "PluginNotFound { id: String, }",
         "PortUnavailable": "PortUnavailable { port: u16, }",
         "ProcessNotFound": "ProcessNotFound { id: String, }",
         "Provisioning": "Provisioning { name: String, }",

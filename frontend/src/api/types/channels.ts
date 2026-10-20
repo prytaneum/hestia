@@ -111,6 +111,7 @@ import type { NetworkStatus } from "./generated/NetworkStatus";
 import type { PingResult } from "./generated/PingResult";
 import type { PluginInfo } from "./generated/PluginInfo";
 import type { PluginRef } from "./generated/PluginRef";
+import type { PluginStateEvent } from "./generated/PluginStateEvent";
 import type { ProcessExitEvent } from "./generated/ProcessExitEvent";
 import type { ProcessInfo } from "./generated/ProcessInfo";
 import type { ProcessLogLine } from "./generated/ProcessLogLine";
@@ -357,6 +358,7 @@ export interface Topics {
   "changed": ChangedEvent;
   "job": JobEvents;
   "net.state": NetworkStatus;
+  "plugin.state": PluginStateEvent;
   "process.exit": ProcessExitEvent;
   "process.metrics": ProcessMetricsEvent;
   "process.output": ProcessOutputEvent;
@@ -373,6 +375,7 @@ export const TIMEOUTS: Partial<Record<keyof Channels, number>> = {
   "instance.create": 60000,
   "modpack.check_update": 120000,
   "modpack.preview_update": 120000,
+  "plugin.enable": 60000,
   "server.files.compress": 600000,
   "server.files.copy": 600000,
   "server.files.extract": 600000,

@@ -7,14 +7,15 @@
 //! so the CLI's `pack` can validate one without a daemon.
 
 use std::collections::{BTreeMap, BTreeSet};
+use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 use crate::change::Scope;
-use crate::contract::{Contract, Empty};
+use crate::contract::{Contract, Empty, Topic};
 
-pub const API_VERSION: &str = "0.1.0";
+pub const API_VERSION: &str = "0.2.0";
 
 /// Ids a plugin may not take: the CLI's top-level verbs, which a contributed
 /// command would otherwise shadow.
@@ -273,7 +274,7 @@ pub enum ManifestError {
     ReservedId(String),
     #[error("version `{0}` is not a semantic version")]
     BadVersion(String),
-    #[error("api `{0}` is not a caret requirement like ^0.1.0")]
+    #[error("api `{0}` is not a caret requirement like ^0.2.0")]
     BadApi(String),
     #[error("api `{required}` is not satisfied by host API {host}")]
     ApiMismatch { required: String, host: String },
@@ -458,6 +459,20 @@ pub struct PluginInfo {
     pub data_bytes: u64,
 }
 
+/// Published on every state transition of a plugin.
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
+#[serde(rename_all = "camelCase")]
+pub struct PluginStateEvent {
+    pub id: String,
+    pub state: PluginState,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
+}
+impl Topic for PluginStateEvent {
+    const TOPIC: &'static str = "plugin.state";
+}
+
 pub struct PluginList;
 impl Contract for PluginList {
     const CHANNEL: &'static str = "plugin.list";
@@ -482,6 +497,7 @@ impl Contract for PluginGet {
 pub struct PluginEnable;
 impl Contract for PluginEnable {
     const CHANNEL: &'static str = "plugin.enable";
+    const TIMEOUT: Duration = Duration::from_secs(60);
     const CHANGES: Option<Scope> = Some(Scope::Plugins);
     type Params = PluginRef;
     type Result = PluginInfo;

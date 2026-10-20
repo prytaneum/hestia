@@ -509,6 +509,9 @@ pub enum ErrorInfo {
     TaskNotFound {
         id: String,
     },
+    PluginNotFound {
+        id: String,
+    },
     /// No file or directory at `path` in the entry's tree.
     FileNotFound {
         path: String,
@@ -761,6 +764,7 @@ impl Default for ErrorInfo {
 pub mod code {
     pub const NOT_FOUND: &str = "not_found";
     pub const UNAUTHORIZED: &str = "unauthorized";
+    pub const BAD_REQUEST: &str = "bad_request";
 }
 
 impl ErrorInfo {
@@ -779,6 +783,7 @@ impl ErrorInfo {
             | VersionNotFound { .. }
             | FileNotFound { .. }
             | TaskNotFound { .. }
+            | PluginNotFound { .. }
             | ConfigKeyUnknown { .. }
             | ConfigKeyUnset { .. } => code::NOT_FOUND,
             SignInRequired | SessionExpired { .. } | LoginDeclined | LoginTimedOut => {
@@ -793,7 +798,7 @@ impl ErrorInfo {
             | DownloadFailed { .. }
             | StopTimedOut { .. }
             | Internal { .. } => "handler_error",
-            _ => "bad_request",
+            _ => code::BAD_REQUEST,
         }
     }
 }
@@ -874,6 +879,7 @@ impl fmt::Display for ErrorInfo {
             AccountNotFound { reference } => write!(f, "no account matches '{reference}'"),
             VersionNotFound { reference } => write!(f, "no version matches '{reference}'"),
             TaskNotFound { id } => write!(f, "no scheduled task '{id}'"),
+            PluginNotFound { id } => write!(f, "no plugin '{id}' is installed"),
             FileNotFound { path } => write!(f, "no file or directory at '{path}'"),
             FileRejected { path, reason } => write!(f, "'{path}' was refused: {reason}"),
             ConfigKeyUnknown { key } => write!(f, "unknown config key '{key}'"),

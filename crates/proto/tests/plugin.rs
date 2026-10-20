@@ -25,7 +25,7 @@ mod manifest {
         Manifest {
             id: "tunnel".into(),
             version: "1.2.3".into(),
-            api: Some("^0.1.0".into()),
+            api: Some("^0.2.0".into()),
             wasm: Some("plugin.wasm".into()),
             ..Manifest::default()
         }
@@ -121,7 +121,7 @@ mod manifest {
 
     #[test]
     fn api_must_match_the_host_minor_and_not_be_a_newer_patch() {
-        for api in ["^0.2.0", "^1.1.0", "^0.1.1"] {
+        for api in ["^0.3.0", "^1.2.0", "^0.2.1"] {
             let mut manifest = valid();
             manifest.api = Some(api.into());
             assert!(

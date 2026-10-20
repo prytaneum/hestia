@@ -10,6 +10,7 @@ export type { PluginInfo } from "./generated/PluginInfo";
 export type { PluginRef } from "./generated/PluginRef";
 export type { PluginSource } from "./generated/PluginSource";
 export type { PluginState } from "./generated/PluginState";
+export type { PluginStateEvent } from "./generated/PluginStateEvent";
 export type { Program } from "./generated/Program";
 export type { ProviderContribution } from "./generated/ProviderContribution";
 export type { Setting } from "./generated/Setting";

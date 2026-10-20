@@ -68,6 +68,7 @@
       "nothing_to_do": "Nada para {what}.",
       "offline": "Não foi possível acessar {service} — você parece estar offline.",
       "offline_mode": "O Hestia está em modo offline. Desative nas Configurações para voltar a ficar online.",
+      "plugin_not_found": "Nenhum plugin '{id}' está instalado.",
       "port_unavailable": "A porta {port} está indisponível.",
       "process_not_found": "Nenhum processo '{id}'.",
       "provisioning": "{name} ainda está sendo configurado.",

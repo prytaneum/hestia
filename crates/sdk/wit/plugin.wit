@@ -1,4 +1,4 @@
-package hestia:plugin@0.1.0;
+package hestia:plugin@0.2.0;
 
 interface types {
     /// A JSON document in the shape of the matching `proto` type.
