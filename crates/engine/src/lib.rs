@@ -64,7 +64,11 @@ pub use minecraft::{
     FlavorInfo, FlavorProvider, Loads, Minecraft, ResolveRequest, Side, REQUIRED_JAVA_MAJORS,
 };
 pub use net::Network;
-pub use plugins::{PluginRecord, Plugins};
+pub use plugins::{
+    CallChain, CallError, ChainError, HostCalls, HostError, LoadError, LoadedPlugin, PluginRecord,
+    PluginRuntime, PluginStats, Plugins, EVENT_TIMEOUT, HOOK_TIMEOUT, MAX_CHAIN_DEPTH,
+    PROVIDER_TIMEOUT, UI_TIMEOUT,
+};
 pub use process::{ExitObserver, ProcessEvents, ProcessSupervisor, StartError};
 pub use schema::notices as quarantined;
 pub use servers::{RconConfig, ServerPhase, ServerRecord, Servers};
