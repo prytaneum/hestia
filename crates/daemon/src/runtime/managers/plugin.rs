@@ -5,26 +5,32 @@ use engine::CallChain;
 use proto::plugin::{PluginInstall, PluginInstallProgress};
 
 use super::job::{Jobs, Spec};
-use crate::runtime::Plugins;
+use crate::runtime::{JobKind, Plugins};
 
 impl Jobs {
+    /// `None` if `plugin` is already installing.
     pub fn start_plugin_install(
         &self,
         plugins: Arc<Plugins>,
+        plugin: &str,
         id: String,
         path: PathBuf,
         approve: String,
         chain: CallChain,
-    ) -> String {
+    ) -> Option<String> {
+        let claim = self
+            .claims
+            .claim(format!("plugin-{plugin}"), JobKind::Install)
+            .ok()?;
         let spec = Spec {
             id,
             prefix: "plugin-install",
-            claim: None,
+            claim: Some(claim),
             subject: None,
             chain,
         };
 
-        self.run::<PluginInstall, _>(spec, move |_, reporter| {
+        Some(self.run::<PluginInstall, _>(spec, move |_, reporter| {
             Box::pin(async move {
                 let report = reporter.checked();
                 let record = plugins.install(&path, &approve, reporter.cancel(), &|phase| {
@@ -32,6 +38,6 @@ impl Jobs {
                 })?;
                 Ok(plugins.installed(record).await)
             })
-        })
+        }))
     }
 }

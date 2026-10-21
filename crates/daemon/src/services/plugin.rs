@@ -2,6 +2,7 @@
 
 use std::path::{Path, PathBuf};
 
+use proto::error::ErrorInfo;
 use proto::job::JobStarted;
 use proto::plugin::{
     PluginDisable, PluginEnable, PluginGet, PluginInspect, PluginInstall, PluginList, PluginRemove,
@@ -35,13 +36,24 @@ pub(super) fn register(on: &mut Channels<'_>) {
     });
 
     on.handle::<PluginInstall, _, _>(|p, ctx| async move {
-        let id = ctx.runtime.jobs().start_plugin_install(
+        let plugin = ctx
+            .runtime
+            .engine()
+            .plugins()
+            .inspect(Path::new(&p.path))
+            .map_err(crate::runtime::engine_error)?
+            .manifest
+            .id;
+        match ctx.runtime.jobs().start_plugin_install(
             ctx.runtime.plugins().clone(),
+            &plugin,
             p.id,
             PathBuf::from(p.path),
             p.approve,
             ctx.chain.clone(),
-        );
-        Ok(JobStarted { id })
+        ) {
+            Some(id) => Ok(JobStarted { id }),
+            None => Err(ErrorInfo::PluginInstallInProgress { id: plugin }),
+        }
     });
 }

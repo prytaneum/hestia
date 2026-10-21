@@ -69,6 +69,7 @@
       "offline": "Não foi possível acessar {service} — você parece estar offline.",
       "offline_mode": "O Hestia está em modo offline. Desative nas Configurações para voltar a ficar online.",
       "plugin_approval_stale": "As permissões do plugin mudaram desde que você as revisou.",
+      "plugin_install_in_progress": "'{id}' já está sendo instalado.",
       "plugin_invalid": "Não é um pacote de plugin válido: {detail}",
       "plugin_not_found": "Nenhum plugin '{id}' está instalado.",
       "port_unavailable": "A porta {port} está indisponível.",

@@ -605,6 +605,9 @@ pub enum ErrorInfo {
     JavaInstallInProgress {
         major: i32,
     },
+    PluginInstallInProgress {
+        id: String,
+    },
 
     // --- auth ---
     SignInRequired,
@@ -929,6 +932,7 @@ impl fmt::Display for ErrorInfo {
             JavaInstallInProgress { major } => {
                 write!(f, "java {major} is already being installed")
             }
+            PluginInstallInProgress { id } => write!(f, "'{id}' is already being installed"),
             SignInRequired => write!(f, "sign in with a Microsoft account first"),
             SessionExpired { reference } => {
                 write!(f, "your sign-in for '{reference}' expired — sign in again")
