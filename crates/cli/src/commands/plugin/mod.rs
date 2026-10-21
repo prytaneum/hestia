@@ -125,18 +125,18 @@ fn info(plugin: &PluginInfo) -> Result<()> {
     if !manifest.authors.is_empty() {
         rows.push(("Authors", manifest.authors.join(", ")));
     }
-    let permissions: Vec<&str> = plugin
+    let permissions: Vec<String> = plugin
         .grant
         .permissions
         .iter()
-        .map(|p| p.description())
+        .map(ToString::to_string)
         .collect();
     rows.push((
         "Permissions",
         if permissions.is_empty() {
             "none".to_string()
         } else {
-            permissions.join("; ")
+            permissions.join(", ")
         },
     ));
     if let Some(error) = &plugin.last_error {
