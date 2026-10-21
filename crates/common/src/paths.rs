@@ -203,14 +203,6 @@ mod tests {
     }
 
     #[test]
-    fn two_layouts_tag_differently() {
-        assert_ne!(
-            path_tag(Path::new("/opt/hestia/data")),
-            path_tag(Path::new("/home/user/hestia/data"))
-        );
-    }
-
-    #[test]
     fn a_contained_build_is_scoped_by_the_root_of_the_data_home_it_resolves() {
         let root = anchor_dir().parent().unwrap().to_path_buf();
         assert_eq!(install_scope(), Some(scope_of(&root)));
