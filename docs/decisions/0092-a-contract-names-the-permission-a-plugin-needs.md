@@ -13,29 +13,40 @@ host calls a channel for a plugin only when the constant is `Some` and the user
 granted that permission. `None` means unreachable, so a new contract is closed
 until someone classifies it.
 
-**The vocabulary is one permission per domain, split read and write:**
-`entries_read`, `entries_write`, `processes_control`, `content_read`,
-`content_write`, `accounts_read` (profiles only), `config_read`, `config_write`,
-`java_manage`, `network`, `ui_css`, `launch_patch`, `process_spawn`. Each has a
-one-line description for the install prompt.
+**A permission is `domain:action`**, the shape of Slack's `channels:read` and
+Tauri's `fs:allow-read`. The domain is the channel prefix it opens, so a reader
+maps a permission to its channels at a glance:
+
+| Domain | Actions | Opens |
+|---|---|---|
+| `entry` | `read`, `write` | `server.*`, `instance.*`, `entry.*`, `sync.*`, `screenshot.*` |
+| `process` | `read`, `control`, `spawn` | `process.list`/`status` and its topics; stopping, starting and the console; the programs the manifest declares |
+| `content` | `read`, `write` | `content.*`, `modpack.*` |
+| `account` | `read` | profiles only, never tokens |
+| `config` | `read`, `write` | `config.*` |
+| `java` | `read`, `manage` | `java.list`/`releases`; `java.install`/`uninstall` |
+| `network` | `connect` | outbound HTTP to the hosts the manifest lists |
+| `ui` | `css` | a theme's stylesheet |
+| `launch` | `patch` | an allowlisted patch from a launch or server-start hook |
+
+Each has a one-line description for the install prompt.
 
 **Two tiers.** `Permission::tier()` is `Sandboxed` or `Unrestricted`. The
 unrestricted permissions each reach native code, because the game runs what they
-write: `entries_write` and `config_write` (per-entry and `defaults.jvm-args` take
-`-javaagent:`; `server.files.write` places jars), `content_write` (`content.add`
-places jars), `processes_control` (the console runs operator commands) and
-`process_spawn` (runs programs). The install prompt states them as full access
+write: `entry:write` and `config:write` (per-entry and `defaults.jvm-args` take
+`-javaagent:`; `server.files.write` places jars), `content:write` (`content.add`
+places jars), `process:control` (the console runs operator commands) and
+`process:spawn` (runs programs). The install prompt states them as full access
 to the computer, the way Deno documents `--allow-run` and `--allow-ffi`.
 
 **Every existing contract is classified.** A classified contract's shape is
-therefore part of the plugin API: changing it is a breaking change and bumps the
-`0.N` of `API_VERSION`.
+therefore part of the plugin API: changing it bumps `API_VERSION`.
 
 **Always `None`, whatever the domain:**
 
 | Channel | Why |
 |---|---|
-| `process.start` | Arbitrary program, argv and env; plugins spawn only through `process_spawn` |
+| `process.start` | Arbitrary program, argv and env; plugins spawn only through `process:spawn` |
 | `process.logs`, `entry.logs`, `process.output` | An old client prints its session id to stdout |
 | `server.files.read`, `server.properties` | `server.properties` holds `rcon.password` until these redact it |
 | `entry.config.get`, `entry.config.list` | A server's config falls through to `server.properties`, which holds `rcon.password`, until these redact `properties::SECRET` |
@@ -59,3 +70,6 @@ Rejected:
   misclassification [0085](0085-a-mutating-call-names-what-it-changed.md)
   rejected: `server.players.set`, `skin.equip`.
 - **A permission per channel.** An install prompt nobody can read.
+- **One verb set for every domain** (only `read`/`write`). `process:write` for
+  the console and `network:write` for outbound HTTP read as something else; a
+  descriptive verb says what the user is approving.

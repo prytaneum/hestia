@@ -40,7 +40,7 @@ pub struct ScreenshotListResult {
 pub struct ScreenshotList;
 impl Contract for ScreenshotList {
     const CHANNEL: &'static str = "screenshot.list";
-    const PLUGIN: Option<Permission> = Some(Permission::EntriesRead);
+    const PLUGIN: Option<Permission> = Some(Permission::EntryRead);
     type Params = ScreenshotListParams;
     type Result = ScreenshotListResult;
 }
@@ -57,7 +57,7 @@ pub struct ScreenshotDeleteParams {
 pub struct ScreenshotDelete;
 impl Contract for ScreenshotDelete {
     const CHANNEL: &'static str = "screenshot.delete";
-    const PLUGIN: Option<Permission> = Some(Permission::EntriesWrite);
+    const PLUGIN: Option<Permission> = Some(Permission::EntryWrite);
     const CHANGES: Option<Scope> = Some(Scope::Screenshots);
     type Params = ScreenshotDeleteParams;
     type Result = ScreenshotListResult;

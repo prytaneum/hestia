@@ -113,8 +113,7 @@ impl Gate {
                 &format!("lacks the permission for channel `{channel}`"),
             );
             return Err(PluginError::PermissionDenied(format!(
-                "channel `{channel}` needs the `{}` permission",
-                permission_name(needed)
+                "channel `{channel}` needs the `{needed}` permission"
             )));
         }
         let payload: Value = serde_json::from_str(payload)
@@ -137,13 +136,6 @@ impl Gate {
             Err(HostError::Invalid(message)) => Err(PluginError::Invalid(message)),
             Err(HostError::Failed(message)) => Err(PluginError::Failed(message)),
         }
-    }
-}
-
-fn permission_name(permission: Permission) -> String {
-    match serde_json::to_value(permission) {
-        Ok(Value::String(name)) => name,
-        _ => format!("{permission:?}"),
     }
 }
 

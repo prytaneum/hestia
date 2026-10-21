@@ -152,14 +152,14 @@ const BRIEF: Duration = Duration::from_millis(300);
 #[tokio::test]
 async fn a_call_past_its_timeout_is_cut_off_and_the_next_one_runs_fresh() {
     let host = Arc::new(TestHost {
-        permission: Some(Permission::EntriesRead),
+        permission: Some(Permission::EntryRead),
         stall_first: true,
         ..TestHost::default()
     });
     let (plugin, _data) = load(
         &host,
         &guest(true, CALL_HOST_OR_TRAP),
-        &[Permission::EntriesRead],
+        &[Permission::EntryRead],
     );
 
     let first = plugin.init(&CallChain::default(), BRIEF).await;
@@ -194,13 +194,13 @@ async fn a_spinning_guest_neither_starves_the_runtime_nor_outlives_its_timeout()
 #[tokio::test]
 async fn a_plugin_reached_again_through_its_own_host_call_is_refused() {
     let host = Arc::new(TestHost {
-        permission: Some(Permission::EntriesRead),
+        permission: Some(Permission::EntryRead),
         ..TestHost::default()
     });
     let (plugin, _data) = load(
         &host,
         &guest(true, CALL_HOST_OR_TRAP),
-        &[Permission::EntriesRead],
+        &[Permission::EntryRead],
     );
     *host.reenter.lock().unwrap() = Some(plugin.clone());
 
@@ -219,8 +219,8 @@ async fn a_plugin_reached_again_through_its_own_host_call_is_refused() {
 #[tokio::test]
 async fn a_channel_the_plugin_lacks_the_permission_for_never_reaches_the_host() {
     for (offered, granted) in [
-        (Some(Permission::EntriesRead), &[][..]),
-        (None, &[Permission::EntriesRead][..]),
+        (Some(Permission::EntryRead), &[][..]),
+        (None, &[Permission::EntryRead][..]),
     ] {
         let host = Arc::new(TestHost {
             permission: offered,

@@ -93,7 +93,7 @@ pub struct ServerBackupRef {
 pub struct ServerBackupCreate;
 impl Contract for ServerBackupCreate {
     const CHANNEL: &'static str = "server.backup.create";
-    const PLUGIN: Option<Permission> = Some(Permission::EntriesWrite);
+    const PLUGIN: Option<Permission> = Some(Permission::EntryWrite);
     type Params = ServerBackupCreateParams;
     type Result = JobStarted;
 }
@@ -101,7 +101,7 @@ impl Contract for ServerBackupCreate {
 pub struct ServerBackupList;
 impl Contract for ServerBackupList {
     const CHANNEL: &'static str = "server.backup.list";
-    const PLUGIN: Option<Permission> = Some(Permission::EntriesRead);
+    const PLUGIN: Option<Permission> = Some(Permission::EntryRead);
     type Params = ServerRef;
     type Result = Vec<BackupInfo>;
 }
@@ -111,7 +111,7 @@ impl Contract for ServerBackupList {
 pub struct ServerBackupRestore;
 impl Contract for ServerBackupRestore {
     const CHANNEL: &'static str = "server.backup.restore";
-    const PLUGIN: Option<Permission> = Some(Permission::EntriesWrite);
+    const PLUGIN: Option<Permission> = Some(Permission::EntryWrite);
     type Params = ServerBackupRestoreParams;
     type Result = JobStarted;
 }
@@ -119,7 +119,7 @@ impl Contract for ServerBackupRestore {
 pub struct ServerBackupRemove;
 impl Contract for ServerBackupRemove {
     const CHANNEL: &'static str = "server.backup.remove";
-    const PLUGIN: Option<Permission> = Some(Permission::EntriesWrite);
+    const PLUGIN: Option<Permission> = Some(Permission::EntryWrite);
     const CHANGES: Option<Scope> = Some(Scope::Entries);
     type Params = ServerBackupRef;
     type Result = Empty;

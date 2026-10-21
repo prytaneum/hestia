@@ -47,7 +47,7 @@ pub struct ServerTask {
 pub struct ServerTaskList;
 impl Contract for ServerTaskList {
     const CHANNEL: &'static str = "server.task.list";
-    const PLUGIN: Option<Permission> = Some(Permission::EntriesRead);
+    const PLUGIN: Option<Permission> = Some(Permission::EntryRead);
     type Params = ServerRef;
     type Result = Vec<ServerTask>;
 }
@@ -65,7 +65,7 @@ pub struct ServerTaskSaveParams {
 pub struct ServerTaskSave;
 impl Contract for ServerTaskSave {
     const CHANNEL: &'static str = "server.task.save";
-    const PLUGIN: Option<Permission> = Some(Permission::EntriesWrite);
+    const PLUGIN: Option<Permission> = Some(Permission::EntryWrite);
     const CHANGES: Option<Scope> = Some(Scope::Entries);
     type Params = ServerTaskSaveParams;
     type Result = ServerTask;
@@ -82,7 +82,7 @@ pub struct ServerTaskRemoveParams {
 pub struct ServerTaskRemove;
 impl Contract for ServerTaskRemove {
     const CHANNEL: &'static str = "server.task.remove";
-    const PLUGIN: Option<Permission> = Some(Permission::EntriesWrite);
+    const PLUGIN: Option<Permission> = Some(Permission::EntryWrite);
     const CHANGES: Option<Scope> = Some(Scope::Entries);
     type Params = ServerTaskRemoveParams;
     type Result = Empty;

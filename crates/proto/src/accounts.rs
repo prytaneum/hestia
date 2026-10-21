@@ -84,7 +84,7 @@ pub struct AccountListResult {
 pub struct AccountList;
 impl Contract for AccountList {
     const CHANNEL: &'static str = "account.list";
-    const PLUGIN: Option<Permission> = Some(Permission::AccountsRead);
+    const PLUGIN: Option<Permission> = Some(Permission::AccountRead);
     type Params = Empty;
     type Result = AccountListResult;
 }

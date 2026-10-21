@@ -64,7 +64,7 @@ impl JavaInstallProgress {
 pub struct JavaReleases;
 impl Contract for JavaReleases {
     const CHANNEL: &'static str = "java.releases";
-    const PLUGIN: Option<Permission> = Some(Permission::JavaManage);
+    const PLUGIN: Option<Permission> = Some(Permission::JavaRead);
     type Params = Empty;
     type Result = Vec<JavaRelease>;
 }
@@ -72,7 +72,7 @@ impl Contract for JavaReleases {
 pub struct JavaList;
 impl Contract for JavaList {
     const CHANNEL: &'static str = "java.list";
-    const PLUGIN: Option<Permission> = Some(Permission::JavaManage);
+    const PLUGIN: Option<Permission> = Some(Permission::JavaRead);
     type Params = Empty;
     type Result = Vec<JavaRuntime>;
 }

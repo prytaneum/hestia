@@ -20,7 +20,7 @@ const DENIED: &[&str] = &[
     "process.output",
     "server.files.read",
     "server.properties",
-    // Arbitrary program, argv and env; plugins spawn only through `process_spawn`
+    // Arbitrary program, argv and env; plugins spawn only through `process:spawn`
     "process.start",
     // Sign-in, tokens and the account itself
     "account.login.begin",

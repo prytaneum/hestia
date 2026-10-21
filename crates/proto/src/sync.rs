@@ -146,7 +146,7 @@ pub struct SyncPacksResult {
 pub struct SyncPacks;
 impl Contract for SyncPacks {
     const CHANNEL: &'static str = "sync.packs.get";
-    const PLUGIN: Option<Permission> = Some(Permission::EntriesRead);
+    const PLUGIN: Option<Permission> = Some(Permission::EntryRead);
     type Params = Empty;
     type Result = SyncPacksResult;
 }
@@ -164,7 +164,7 @@ pub struct SyncPackSetParams {
 pub struct SyncPackSet;
 impl Contract for SyncPackSet {
     const CHANNEL: &'static str = "sync.packs.set";
-    const PLUGIN: Option<Permission> = Some(Permission::EntriesWrite);
+    const PLUGIN: Option<Permission> = Some(Permission::EntryWrite);
     const CHANGES: Option<Scope> = Some(Scope::Sync);
     type Params = SyncPackSetParams;
     type Result = SyncPacksResult;
@@ -182,7 +182,7 @@ pub struct SyncPackRemoveParams {
 pub struct SyncPackRemove;
 impl Contract for SyncPackRemove {
     const CHANNEL: &'static str = "sync.packs.remove";
-    const PLUGIN: Option<Permission> = Some(Permission::EntriesWrite);
+    const PLUGIN: Option<Permission> = Some(Permission::EntryWrite);
     const CHANGES: Option<Scope> = Some(Scope::Sync);
     type Params = SyncPackRemoveParams;
     type Result = SyncPacksResult;
@@ -191,7 +191,7 @@ impl Contract for SyncPackRemove {
 pub struct SyncGet;
 impl Contract for SyncGet {
     const CHANNEL: &'static str = "sync.get";
-    const PLUGIN: Option<Permission> = Some(Permission::EntriesRead);
+    const PLUGIN: Option<Permission> = Some(Permission::EntryRead);
     type Params = Empty;
     type Result = SyncConfig;
 }
@@ -218,7 +218,7 @@ pub struct SyncSourcesParams {
 pub struct SyncSources;
 impl Contract for SyncSources {
     const CHANNEL: &'static str = "sync.sources";
-    const PLUGIN: Option<Permission> = Some(Permission::EntriesRead);
+    const PLUGIN: Option<Permission> = Some(Permission::EntryRead);
     type Params = SyncSourcesParams;
     type Result = Vec<SyncSource>;
 }
@@ -237,7 +237,7 @@ pub struct SyncEnableParams {
 pub struct SyncEnable;
 impl Contract for SyncEnable {
     const CHANNEL: &'static str = "sync.enable";
-    const PLUGIN: Option<Permission> = Some(Permission::EntriesWrite);
+    const PLUGIN: Option<Permission> = Some(Permission::EntryWrite);
     const CHANGES: Option<Scope> = Some(Scope::Sync);
     type Params = SyncEnableParams;
     type Result = SyncConfig;
@@ -254,7 +254,7 @@ pub struct SyncDisableParams {
 pub struct SyncDisable;
 impl Contract for SyncDisable {
     const CHANNEL: &'static str = "sync.disable";
-    const PLUGIN: Option<Permission> = Some(Permission::EntriesWrite);
+    const PLUGIN: Option<Permission> = Some(Permission::EntryWrite);
     const CHANGES: Option<Scope> = Some(Scope::Sync);
     type Params = SyncDisableParams;
     type Result = SyncConfig;
@@ -270,7 +270,7 @@ pub struct SyncKeysParams {
 pub struct SyncKeys;
 impl Contract for SyncKeys {
     const CHANNEL: &'static str = "sync.options.keys";
-    const PLUGIN: Option<Permission> = Some(Permission::EntriesRead);
+    const PLUGIN: Option<Permission> = Some(Permission::EntryRead);
     type Params = SyncKeysParams;
     type Result = SyncConfig;
 }
@@ -295,7 +295,7 @@ pub struct SyncOptionsResult {
 pub struct SyncOptionsGet;
 impl Contract for SyncOptionsGet {
     const CHANNEL: &'static str = "sync.options.get";
-    const PLUGIN: Option<Permission> = Some(Permission::EntriesRead);
+    const PLUGIN: Option<Permission> = Some(Permission::EntryRead);
     type Params = Empty;
     type Result = SyncOptionsResult;
 }
@@ -312,7 +312,7 @@ pub struct SyncOptionSetParams {
 pub struct SyncOptionSet;
 impl Contract for SyncOptionSet {
     const CHANNEL: &'static str = "sync.options.set";
-    const PLUGIN: Option<Permission> = Some(Permission::EntriesWrite);
+    const PLUGIN: Option<Permission> = Some(Permission::EntryWrite);
     const CHANGES: Option<Scope> = Some(Scope::Sync);
     type Params = SyncOptionSetParams;
     type Result = SyncOptionsResult;
@@ -356,7 +356,7 @@ pub struct InstanceSyncStatus {
 pub struct SyncStatus;
 impl Contract for SyncStatus {
     const CHANNEL: &'static str = "sync.status";
-    const PLUGIN: Option<Permission> = Some(Permission::EntriesRead);
+    const PLUGIN: Option<Permission> = Some(Permission::EntryRead);
     type Params = Empty;
     type Result = Vec<InstanceSyncStatus>;
 }
@@ -376,7 +376,7 @@ pub struct InstanceSyncUnitParams {
 pub struct InstanceSyncUnit;
 impl Contract for InstanceSyncUnit {
     const CHANNEL: &'static str = "instance.sync.unit";
-    const PLUGIN: Option<Permission> = Some(Permission::EntriesRead);
+    const PLUGIN: Option<Permission> = Some(Permission::EntryRead);
     type Params = InstanceSyncUnitParams;
     type Result = InstanceSyncStatus;
 }
@@ -393,7 +393,7 @@ pub struct InstanceSyncKeysParams {
 pub struct InstanceSyncKeys;
 impl Contract for InstanceSyncKeys {
     const CHANNEL: &'static str = "instance.sync.keys";
-    const PLUGIN: Option<Permission> = Some(Permission::EntriesRead);
+    const PLUGIN: Option<Permission> = Some(Permission::EntryRead);
     type Params = InstanceSyncKeysParams;
     type Result = InstanceSyncStatus;
 }

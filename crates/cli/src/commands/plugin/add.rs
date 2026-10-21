@@ -71,13 +71,14 @@ fn grant_rows(grant: &Grant) -> Vec<(&'static str, String)> {
         .permissions
         .iter()
         .partition(|permission| permission.tier() == Tier::Unrestricted);
+    let line = |permission: &Permission| format!("{permission} — {}", permission.description());
     let mut rows: Vec<(&'static str, String)> = unrestricted
         .into_iter()
-        .map(|permission| ("Full access", permission.description().to_string()))
+        .map(|permission| ("Full access", line(permission)))
         .chain(
             sandboxed
                 .into_iter()
-                .map(|permission| ("Permission", permission.description().to_string())),
+                .map(|permission| ("Permission", line(permission))),
         )
         .collect();
     rows.extend(grant.programs.iter().map(|program| {

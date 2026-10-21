@@ -3,7 +3,7 @@
   "channels": {
     "account.list": {
       "params": "Empty",
-      "permission": "AccountsRead",
+      "permission": "AccountRead",
       "result": "AccountListResult"
     },
     "config.set": {
@@ -84,78 +84,78 @@
     },
     "entry.config.set": {
       "params": "EntryConfigSetParams",
-      "permission": "EntriesWrite",
+      "permission": "EntryWrite",
       "result": "Empty"
     },
     "entry.flavors": {
       "params": "EntryFlavorsParams",
-      "permission": "EntriesRead",
+      "permission": "EntryRead",
       "result": "FlavorsResult"
     },
     "entry.loaders": {
       "params": "EntryLoadersParams",
-      "permission": "EntriesRead",
+      "permission": "EntryRead",
       "result": "Vec<String>"
     },
     "entry.remove": {
       "params": "EntryTarget",
-      "permission": "EntriesWrite",
+      "permission": "EntryWrite",
       "result": "Empty"
     },
     "entry.rename": {
       "params": "EntryRenameParams",
-      "permission": "EntriesWrite",
+      "permission": "EntryWrite",
       "result": "EntryRenamed"
     },
     "entry.stop": {
       "params": "EntryStopParams",
-      "permission": "ProcessesControl",
+      "permission": "ProcessControl",
       "result": "Empty"
     },
     "entry.versions": {
       "params": "EntryVersionsParams",
-      "permission": "EntriesRead",
+      "permission": "EntryRead",
       "result": "Vec<GameVersion>"
     },
     "instance.create": {
       "params": "InstanceCreateParams",
-      "permission": "EntriesWrite",
+      "permission": "EntryWrite",
       "result": "InstanceInfo"
     },
     "instance.export": {
       "done": "ExportDone",
       "params": "InstanceExportParams",
-      "permission": "EntriesWrite",
+      "permission": "EntryWrite",
       "progress": "ProvisionProgress",
       "result": "JobStarted"
     },
     "instance.export.contents": {
       "params": "crate::instance::InstanceRef",
-      "permission": "EntriesRead",
+      "permission": "EntryRead",
       "result": "Vec<ArchiveEntry>"
     },
     "instance.import": {
       "done": "ImportDone",
       "params": "InstanceImportParams",
-      "permission": "EntriesWrite",
+      "permission": "EntryWrite",
       "progress": "ProvisionProgress",
       "result": "JobStarted"
     },
     "instance.info": {
       "params": "InstanceRef",
-      "permission": "EntriesRead",
+      "permission": "EntryRead",
       "result": "InstanceDetails"
     },
     "instance.launch": {
       "done": "InstanceLaunchDone",
       "params": "InstanceLaunchParams",
-      "permission": "ProcessesControl",
+      "permission": "ProcessControl",
       "progress": "ProvisionProgress",
       "result": "JobStarted"
     },
     "instance.list": {
       "params": "Empty",
-      "permission": "EntriesRead",
+      "permission": "EntryRead",
       "result": "Vec<InstanceInfo>"
     },
     "instance.modpack.install": {
@@ -167,49 +167,49 @@
     },
     "instance.recent": {
       "params": "Empty",
-      "permission": "EntriesRead",
+      "permission": "EntryRead",
       "result": "Vec<RecentPlay>"
     },
     "instance.server.edit": {
       "params": "InstanceServerEditParams",
-      "permission": "EntriesWrite",
+      "permission": "EntryWrite",
       "result": "InstanceServersWriteResult"
     },
     "instance.server.remove": {
       "params": "InstanceServerRef",
-      "permission": "EntriesWrite",
+      "permission": "EntryWrite",
       "result": "InstanceServersWriteResult"
     },
     "instance.servers": {
       "params": "InstanceRef",
-      "permission": "EntriesRead",
+      "permission": "EntryRead",
       "result": "Vec<ServerEntry>"
     },
     "instance.servers.arrange": {
       "params": "InstanceServersArrangeParams",
-      "permission": "EntriesWrite",
+      "permission": "EntryWrite",
       "result": "InstanceServersWriteResult"
     },
     "instance.sync.keys": {
       "params": "InstanceSyncKeysParams",
-      "permission": "EntriesRead",
+      "permission": "EntryRead",
       "result": "InstanceSyncStatus"
     },
     "instance.sync.unit": {
       "params": "InstanceSyncUnitParams",
-      "permission": "EntriesRead",
+      "permission": "EntryRead",
       "result": "InstanceSyncStatus"
     },
     "instance.update": {
       "done": "InstanceUpdateDone",
       "params": "InstanceUpdateParams",
-      "permission": "EntriesWrite",
+      "permission": "EntryWrite",
       "progress": "ProvisionProgress",
       "result": "JobStarted"
     },
     "instance.worlds": {
       "params": "InstanceRef",
-      "permission": "EntriesRead",
+      "permission": "EntryRead",
       "result": "Vec<WorldInfo>"
     },
     "java.install": {
@@ -221,12 +221,12 @@
     },
     "java.list": {
       "params": "Empty",
-      "permission": "JavaManage",
+      "permission": "JavaRead",
       "result": "Vec<JavaRuntime>"
     },
     "java.releases": {
       "params": "Empty",
-      "permission": "JavaManage",
+      "permission": "JavaRead",
       "result": "Vec<JavaRelease>"
     },
     "java.uninstall": {
@@ -263,135 +263,135 @@
     },
     "process.exit": {
       "payload": "ProcessExitEvent",
-      "permission": "EntriesRead"
+      "permission": "ProcessRead"
     },
     "process.list": {
       "params": "Empty",
-      "permission": "EntriesRead",
+      "permission": "ProcessRead",
       "result": "Vec<ProcessInfo>"
     },
     "process.metrics": {
       "payload": "ProcessMetricsEvent",
-      "permission": "EntriesRead"
+      "permission": "ProcessRead"
     },
     "process.started": {
       "payload": "ProcessStartedEvent",
-      "permission": "EntriesRead"
+      "permission": "ProcessRead"
     },
     "process.status": {
       "params": "ProcessRef",
-      "permission": "EntriesRead",
+      "permission": "ProcessRead",
       "result": "ProcessInfo"
     },
     "process.stop": {
       "params": "ProcessRef",
-      "permission": "ProcessesControl",
+      "permission": "ProcessControl",
       "result": "Empty"
     },
     "screenshot.delete": {
       "params": "ScreenshotDeleteParams",
-      "permission": "EntriesWrite",
+      "permission": "EntryWrite",
       "result": "ScreenshotListResult"
     },
     "screenshot.list": {
       "params": "ScreenshotListParams",
-      "permission": "EntriesRead",
+      "permission": "EntryRead",
       "result": "ScreenshotListResult"
     },
     "server.backup.create": {
       "done": "BackupDone",
       "params": "ServerBackupCreateParams",
-      "permission": "EntriesWrite",
+      "permission": "EntryWrite",
       "progress": "ProvisionProgress",
       "result": "JobStarted"
     },
     "server.backup.list": {
       "params": "ServerRef",
-      "permission": "EntriesRead",
+      "permission": "EntryRead",
       "result": "Vec<BackupInfo>"
     },
     "server.backup.remove": {
       "params": "ServerBackupRef",
-      "permission": "EntriesWrite",
+      "permission": "EntryWrite",
       "result": "Empty"
     },
     "server.backup.restore": {
       "done": "BackupDone",
       "params": "ServerBackupRestoreParams",
-      "permission": "EntriesWrite",
+      "permission": "EntryWrite",
       "progress": "ProvisionProgress",
       "result": "JobStarted"
     },
     "server.command": {
       "params": "ServerCommandParams",
-      "permission": "ProcessesControl",
+      "permission": "ProcessControl",
       "result": "ServerCommandResult"
     },
     "server.command.complete": {
       "params": "ServerCommandCompleteParams",
-      "permission": "EntriesRead",
+      "permission": "EntryRead",
       "result": "ServerCommandCompleteResult"
     },
     "server.create": {
       "done": "ServerDone",
       "params": "ServerCreateParams",
-      "permission": "EntriesWrite",
+      "permission": "EntryWrite",
       "progress": "ProvisionProgress",
       "result": "JobStarted"
     },
     "server.files.compress": {
       "params": "ServerFilesCompressParams",
-      "permission": "EntriesWrite",
+      "permission": "EntryWrite",
       "result": "Empty"
     },
     "server.files.copy": {
       "params": "ServerFileTransferParams",
-      "permission": "EntriesWrite",
+      "permission": "EntryWrite",
       "result": "Empty"
     },
     "server.files.extract": {
       "params": "ServerFileTransferParams",
-      "permission": "EntriesWrite",
+      "permission": "EntryWrite",
       "result": "Empty"
     },
     "server.files.import": {
       "params": "ServerFilesImportParams",
-      "permission": "EntriesWrite",
+      "permission": "EntryWrite",
       "result": "Empty"
     },
     "server.files.list": {
       "params": "ServerFileParams",
-      "permission": "EntriesRead",
+      "permission": "EntryRead",
       "result": "Vec<FileEntry>"
     },
     "server.files.mkdir": {
       "params": "ServerFileParams",
-      "permission": "EntriesWrite",
+      "permission": "EntryWrite",
       "result": "Empty"
     },
     "server.files.move": {
       "params": "ServerFileTransferParams",
-      "permission": "EntriesWrite",
+      "permission": "EntryWrite",
       "result": "Empty"
     },
     "server.files.remove": {
       "params": "ServerFilesRemoveParams",
-      "permission": "EntriesWrite",
+      "permission": "EntryWrite",
       "result": "Empty"
     },
     "server.files.write": {
       "params": "ServerFileWriteParams",
-      "permission": "EntriesWrite",
+      "permission": "EntryWrite",
       "result": "Empty"
     },
     "server.info": {
       "params": "ServerRef",
-      "permission": "EntriesRead",
+      "permission": "EntryRead",
       "result": "ServerDetails"
     },
     "server.list": {
       "params": "Empty",
-      "permission": "EntriesRead",
+      "permission": "EntryRead",
       "result": "Vec<ServerInfo>"
     },
     "server.modpack.install": {
@@ -403,114 +403,114 @@
     },
     "server.ping": {
       "params": "ServerRef",
-      "permission": "EntriesRead",
+      "permission": "EntryRead",
       "result": "ServerPingResult"
     },
     "server.players": {
       "params": "ServerRef",
-      "permission": "EntriesRead",
+      "permission": "EntryRead",
       "result": "ServerPlayersResult"
     },
     "server.players.kick": {
       "params": "ServerPlayerKickParams",
-      "permission": "EntriesWrite",
+      "permission": "EntryWrite",
       "result": "Empty"
     },
     "server.players.set": {
       "params": "ServerPlayerSetParams",
-      "permission": "EntriesWrite",
+      "permission": "EntryWrite",
       "result": "Empty"
     },
     "server.restart": {
       "params": "ServerRef",
-      "permission": "ProcessesControl",
+      "permission": "ProcessControl",
       "result": "ServerStartResult"
     },
     "server.start": {
       "params": "ServerRef",
-      "permission": "ProcessesControl",
+      "permission": "ProcessControl",
       "result": "ServerStartResult"
     },
     "server.status": {
       "params": "ServerRef",
-      "permission": "EntriesRead",
+      "permission": "EntryRead",
       "result": "ServerInfo"
     },
     "server.task.list": {
       "params": "ServerRef",
-      "permission": "EntriesRead",
+      "permission": "EntryRead",
       "result": "Vec<ServerTask>"
     },
     "server.task.remove": {
       "params": "ServerTaskRemoveParams",
-      "permission": "EntriesWrite",
+      "permission": "EntryWrite",
       "result": "Empty"
     },
     "server.task.save": {
       "params": "ServerTaskSaveParams",
-      "permission": "EntriesWrite",
+      "permission": "EntryWrite",
       "result": "ServerTask"
     },
     "server.update": {
       "done": "ServerDone",
       "params": "ServerUpdateParams",
-      "permission": "EntriesWrite",
+      "permission": "EntryWrite",
       "progress": "ProvisionProgress",
       "result": "JobStarted"
     },
     "sync.disable": {
       "params": "SyncDisableParams",
-      "permission": "EntriesWrite",
+      "permission": "EntryWrite",
       "result": "SyncConfig"
     },
     "sync.enable": {
       "params": "SyncEnableParams",
-      "permission": "EntriesWrite",
+      "permission": "EntryWrite",
       "result": "SyncConfig"
     },
     "sync.get": {
       "params": "Empty",
-      "permission": "EntriesRead",
+      "permission": "EntryRead",
       "result": "SyncConfig"
     },
     "sync.options.get": {
       "params": "Empty",
-      "permission": "EntriesRead",
+      "permission": "EntryRead",
       "result": "SyncOptionsResult"
     },
     "sync.options.keys": {
       "params": "SyncKeysParams",
-      "permission": "EntriesRead",
+      "permission": "EntryRead",
       "result": "SyncConfig"
     },
     "sync.options.set": {
       "params": "SyncOptionSetParams",
-      "permission": "EntriesWrite",
+      "permission": "EntryWrite",
       "result": "SyncOptionsResult"
     },
     "sync.packs.get": {
       "params": "Empty",
-      "permission": "EntriesRead",
+      "permission": "EntryRead",
       "result": "SyncPacksResult"
     },
     "sync.packs.remove": {
       "params": "SyncPackRemoveParams",
-      "permission": "EntriesWrite",
+      "permission": "EntryWrite",
       "result": "SyncPacksResult"
     },
     "sync.packs.set": {
       "params": "SyncPackSetParams",
-      "permission": "EntriesWrite",
+      "permission": "EntryWrite",
       "result": "SyncPacksResult"
     },
     "sync.sources": {
       "params": "SyncSourcesParams",
-      "permission": "EntriesRead",
+      "permission": "EntryRead",
       "result": "Vec<SyncSource>"
     },
     "sync.status": {
       "params": "Empty",
-      "permission": "EntriesRead",
+      "permission": "EntryRead",
       "result": "Vec<InstanceSyncStatus>"
     }
   },

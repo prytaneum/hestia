@@ -154,7 +154,7 @@ mod manifest {
         let base = valid();
         let widened: Vec<Manifest> = vec![
             Manifest {
-                permissions: vec![Permission::Network],
+                permissions: vec![Permission::NetworkConnect],
                 ..base.clone()
             },
             Manifest {
@@ -202,9 +202,9 @@ mod manifest {
     #[test]
     fn a_grant_ignores_declaration_order() {
         let mut a = valid();
-        a.permissions = vec![Permission::Network, Permission::ContentRead];
+        a.permissions = vec![Permission::NetworkConnect, Permission::ContentRead];
         let mut b = valid();
-        b.permissions = vec![Permission::ContentRead, Permission::Network];
+        b.permissions = vec![Permission::ContentRead, Permission::NetworkConnect];
         assert_eq!(a.grant().digest(), b.grant().digest());
     }
 }

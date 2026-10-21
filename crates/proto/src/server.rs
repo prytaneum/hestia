@@ -101,7 +101,7 @@ pub enum JvmArgsSource {
 pub struct ServerDetail;
 impl Contract for ServerDetail {
     const CHANNEL: &'static str = "server.info";
-    const PLUGIN: Option<Permission> = Some(Permission::EntriesRead);
+    const PLUGIN: Option<Permission> = Some(Permission::EntryRead);
     type Params = ServerRef;
     type Result = ServerDetails;
 }
@@ -133,7 +133,7 @@ pub struct ServerCreateParams {
 pub struct ServerCreate;
 impl Contract for ServerCreate {
     const CHANNEL: &'static str = "server.create";
-    const PLUGIN: Option<Permission> = Some(Permission::EntriesWrite);
+    const PLUGIN: Option<Permission> = Some(Permission::EntryWrite);
     type Params = ServerCreateParams;
     type Result = JobStarted;
 }
@@ -172,7 +172,7 @@ pub struct ServerUpdateParams {
 pub struct ServerUpdate;
 impl Contract for ServerUpdate {
     const CHANNEL: &'static str = "server.update";
-    const PLUGIN: Option<Permission> = Some(Permission::EntriesWrite);
+    const PLUGIN: Option<Permission> = Some(Permission::EntryWrite);
     type Params = ServerUpdateParams;
     type Result = JobStarted;
 }
@@ -185,7 +185,7 @@ impl Job for ServerUpdate {
 pub struct ServerList;
 impl Contract for ServerList {
     const CHANNEL: &'static str = "server.list";
-    const PLUGIN: Option<Permission> = Some(Permission::EntriesRead);
+    const PLUGIN: Option<Permission> = Some(Permission::EntryRead);
     type Params = Empty;
     type Result = Vec<ServerInfo>;
 }
@@ -209,7 +209,7 @@ pub struct ServerStartResult {
 pub struct ServerStart;
 impl Contract for ServerStart {
     const CHANNEL: &'static str = "server.start";
-    const PLUGIN: Option<Permission> = Some(Permission::ProcessesControl);
+    const PLUGIN: Option<Permission> = Some(Permission::ProcessControl);
     type Params = ServerRef;
     type Result = ServerStartResult;
 }
@@ -219,7 +219,7 @@ impl Contract for ServerStart {
 pub struct ServerRestart;
 impl Contract for ServerRestart {
     const CHANNEL: &'static str = "server.restart";
-    const PLUGIN: Option<Permission> = Some(Permission::ProcessesControl);
+    const PLUGIN: Option<Permission> = Some(Permission::ProcessControl);
     /// Answers once the new process is up, so it outlasts the wait for the old
     /// one to exit.
     const TIMEOUT: Duration = Duration::from_secs(150);
@@ -230,7 +230,7 @@ impl Contract for ServerRestart {
 pub struct ServerStatus;
 impl Contract for ServerStatus {
     const CHANNEL: &'static str = "server.status";
-    const PLUGIN: Option<Permission> = Some(Permission::EntriesRead);
+    const PLUGIN: Option<Permission> = Some(Permission::EntryRead);
     type Params = ServerRef;
     type Result = ServerInfo;
 }
@@ -254,7 +254,7 @@ pub struct ServerPingResult {
 pub struct ServerPing;
 impl Contract for ServerPing {
     const CHANNEL: &'static str = "server.ping";
-    const PLUGIN: Option<Permission> = Some(Permission::EntriesRead);
+    const PLUGIN: Option<Permission> = Some(Permission::EntryRead);
     type Params = ServerRef;
     type Result = ServerPingResult;
 }
@@ -277,7 +277,7 @@ pub struct ServerCommandResult {
 pub struct ServerCommand;
 impl Contract for ServerCommand {
     const CHANNEL: &'static str = "server.command";
-    const PLUGIN: Option<Permission> = Some(Permission::ProcessesControl);
+    const PLUGIN: Option<Permission> = Some(Permission::ProcessControl);
     type Params = ServerCommandParams;
     type Result = ServerCommandResult;
 }
@@ -303,7 +303,7 @@ pub struct ServerCommandCompleteResult {
 pub struct ServerCommandComplete;
 impl Contract for ServerCommandComplete {
     const CHANNEL: &'static str = "server.command.complete";
-    const PLUGIN: Option<Permission> = Some(Permission::EntriesRead);
+    const PLUGIN: Option<Permission> = Some(Permission::EntryRead);
     type Params = ServerCommandCompleteParams;
     type Result = ServerCommandCompleteResult;
 }

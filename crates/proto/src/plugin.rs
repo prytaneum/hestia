@@ -7,6 +7,7 @@
 //! so the CLI's `pack` can validate one without a daemon.
 
 use std::collections::{BTreeMap, BTreeSet};
+use std::fmt;
 use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
@@ -58,25 +59,41 @@ const CONTRIBUTION_ID_LENGTH: std::ops::RangeInclusive<usize> = 1..=40;
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
-#[serde(rename_all = "snake_case")]
 pub enum Permission {
-    EntriesRead,
-    EntriesWrite,
-    ProcessesControl,
+    #[serde(rename = "entry:read")]
+    EntryRead,
+    #[serde(rename = "entry:write")]
+    EntryWrite,
+    #[serde(rename = "process:read")]
+    ProcessRead,
+    #[serde(rename = "process:control")]
+    ProcessControl,
+    /// Run only the programs in [`Manifest::programs`].
+    #[serde(rename = "process:spawn")]
+    ProcessSpawn,
+    #[serde(rename = "content:read")]
     ContentRead,
+    #[serde(rename = "content:write")]
     ContentWrite,
     /// Profiles only, never tokens.
-    AccountsRead,
+    #[serde(rename = "account:read")]
+    AccountRead,
+    #[serde(rename = "config:read")]
     ConfigRead,
+    #[serde(rename = "config:write")]
     ConfigWrite,
+    #[serde(rename = "java:read")]
+    JavaRead,
+    #[serde(rename = "java:manage")]
     JavaManage,
     /// Outbound HTTP to the hosts in [`Manifest::network`].
-    Network,
+    #[serde(rename = "network:connect")]
+    NetworkConnect,
+    #[serde(rename = "ui:css")]
     UiCss,
     /// Return an allowlisted patch from a launch or server-start hook.
+    #[serde(rename = "launch:patch")]
     LaunchPatch,
-    /// Run only the programs in [`Manifest::programs`].
-    ProcessSpawn,
 }
 
 /// How far a permission reaches. An unrestricted one can run native code, so
@@ -90,17 +107,19 @@ pub enum Tier {
 impl Permission {
     pub fn tier(self) -> Tier {
         match self {
-            Permission::EntriesWrite
+            Permission::EntryWrite
             | Permission::ContentWrite
             | Permission::ConfigWrite
-            | Permission::ProcessesControl
+            | Permission::ProcessControl
             | Permission::ProcessSpawn => Tier::Unrestricted,
-            Permission::EntriesRead
+            Permission::EntryRead
+            | Permission::ProcessRead
             | Permission::ContentRead
-            | Permission::AccountsRead
+            | Permission::AccountRead
             | Permission::ConfigRead
+            | Permission::JavaRead
             | Permission::JavaManage
-            | Permission::Network
+            | Permission::NetworkConnect
             | Permission::UiCss
             | Permission::LaunchPatch => Tier::Sandboxed,
         }
@@ -109,25 +128,37 @@ impl Permission {
     /// One line for the install prompt.
     pub fn description(self) -> &'static str {
         match self {
-            Permission::EntriesRead => "See your servers and instances and their settings",
-            Permission::EntriesWrite => {
+            Permission::EntryRead => "See your servers and instances and their settings",
+            Permission::EntryWrite => {
                 "Create, change and delete servers and instances, including their files"
             }
-            Permission::ProcessesControl => {
+            Permission::ProcessRead => "See which servers and games are running",
+            Permission::ProcessControl => {
                 "Start and stop servers and games, and run console commands"
             }
+            Permission::ProcessSpawn => "Run the programs it lists",
             Permission::ContentRead => "Search and inspect mods, packs and other content",
             Permission::ContentWrite => "Install, update and remove mods, packs and other content",
-            Permission::AccountsRead => "See the names of signed-in accounts, never their tokens",
+            Permission::AccountRead => "See the names of signed-in accounts, never their tokens",
             Permission::ConfigRead => "Read launcher settings",
             Permission::ConfigWrite => "Change launcher settings, including default JVM arguments",
+            Permission::JavaRead => "See installed and available Java runtimes",
             Permission::JavaManage => "Install and remove Java runtimes",
-            Permission::Network => "Connect to the hosts it lists",
+            Permission::NetworkConnect => "Connect to the hosts it lists",
             Permission::UiCss => "Restyle the app with its own stylesheet",
             Permission::LaunchPatch => {
                 "Adjust launch settings from an allowlist when a game or server starts"
             }
-            Permission::ProcessSpawn => "Run the programs it lists",
+        }
+    }
+}
+
+/// The `domain:action` name a manifest declares.
+impl fmt::Display for Permission {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match serde_json::to_value(self) {
+            Ok(serde_json::Value::String(name)) => f.write_str(&name),
+            _ => Err(fmt::Error),
         }
     }
 }
