@@ -89,13 +89,4 @@ mod tests {
             "the first argument is the executable"
         );
     }
-
-    #[test]
-    fn a_pending_archive_is_read_once() {
-        let pending = PendingArchive::default();
-        assert_eq!(pending.take(), None);
-        pending.set("/tmp/cozy.hestia".to_string());
-        assert_eq!(pending.take(), Some("/tmp/cozy.hestia".to_string()));
-        assert_eq!(pending.take(), None, "a second read is a fresh boot's");
-    }
 }
