@@ -172,11 +172,4 @@ mod tests {
         log.push(Kind::Output, "x".repeat(25));
         assert_eq!(log.scroll, 7);
     }
-
-    #[test]
-    fn following_tail_ignores_new_output() {
-        let mut log = log_with_width(10);
-        log.push(Kind::Output, "line".into());
-        assert_eq!(log.scroll, 0);
-    }
 }

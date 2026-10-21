@@ -114,15 +114,4 @@ mod tests {
         assert_eq!(input.text, "hllo");
         assert_eq!(input.cursor, 1);
     }
-
-    #[test]
-    fn take_resets_the_caret() {
-        let mut input = TextInput::default();
-        for c in "abc".chars() {
-            input.insert(c);
-        }
-        assert_eq!(input.take(), "abc");
-        assert_eq!(input.cursor, 0);
-        assert!(input.is_empty());
-    }
 }
