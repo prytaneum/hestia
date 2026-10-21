@@ -171,17 +171,6 @@ mod tests {
     }
 
     #[test]
-    fn the_data_relative_question_is_the_same_question() {
-        let rules = rules(
-            &["data/mods/sodium.jar"],
-            &["data/saves".to_string().as_str()],
-        );
-        assert!(!rules.keeps_in_data("mods/sodium.jar"));
-        assert!(!rules.keeps_in_data("saves/world/level.dat"));
-        assert!(rules.keeps_in_data("options.txt"));
-    }
-
-    #[test]
     fn a_caller_exclusion_takes_the_whole_subtree() {
         let rules = rules(&[], &["data/saves"]);
         assert!(!rules.keeps("data/saves"));

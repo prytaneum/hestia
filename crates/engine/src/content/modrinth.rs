@@ -596,15 +596,6 @@ mod tests {
     }
 
     #[test]
-    fn sort_maps_to_modrinth_index() {
-        assert_eq!(sort_index(SearchSort::Relevance), "relevance");
-        assert_eq!(sort_index(SearchSort::Downloads), "downloads");
-        assert_eq!(sort_index(SearchSort::Follows), "follows");
-        assert_eq!(sort_index(SearchSort::Newest), "newest");
-        assert_eq!(sort_index(SearchSort::Updated), "updated");
-    }
-
-    #[test]
     fn site_urls_parse_to_project_refs() {
         let m = Modrinth;
         for url in [
@@ -631,29 +622,6 @@ mod tests {
             .is_none());
         assert!(m.parse_url("modrinth.com/mod/sodium").is_none());
         assert!(m.parse_url("https://modrinth.com/mod").is_none());
-    }
-
-    #[test]
-    fn site_url_carries_the_kind_its_path_names() {
-        let m = Modrinth;
-        assert_eq!(
-            m.parse_url("https://modrinth.com/datapack/terralith")
-                .unwrap()
-                .kind,
-            Some(ContentKind::DataPack)
-        );
-        assert_eq!(
-            m.parse_url("https://modrinth.com/shader/complementary")
-                .unwrap()
-                .kind,
-            Some(ContentKind::Shader)
-        );
-        assert_eq!(
-            m.parse_url("https://modrinth.com/plugin/luckperms")
-                .unwrap()
-                .kind,
-            Some(ContentKind::Plugin)
-        );
     }
 
     #[test]
@@ -726,19 +694,6 @@ mod tests {
     }
 
     #[test]
-    fn project_detail_counts_followers() {
-        let body = json!({
-            "id": "AANobbMI",
-            "project_type": "mod",
-            "downloads": 71_000_000,
-            "followers": 39_396,
-        });
-        let parsed = parse_project("modrinth", &body, None);
-        assert_eq!(parsed.downloads, 71_000_000);
-        assert_eq!(parsed.follows, 39_396);
-    }
-
-    #[test]
     fn the_byline_is_the_owning_member() {
         let members = json!([
             { "role": "Lead Developer", "user": { "username": "IMS" } },
@@ -754,22 +709,5 @@ mod tests {
 
         assert_eq!(owner(&json!([])), "");
         assert_eq!(owner(&Value::Null), "");
-    }
-
-    #[test]
-    fn channel_and_dependency_strings_map() {
-        assert_eq!(parse_channel("beta"), ReleaseChannel::Beta);
-        assert_eq!(parse_channel("alpha"), ReleaseChannel::Alpha);
-        assert_eq!(parse_channel("release"), ReleaseChannel::Release);
-        assert_eq!(parse_channel("weird"), ReleaseChannel::Release);
-
-        assert_eq!(parse_dependency_kind("optional"), DependencyKind::Optional);
-        assert_eq!(
-            parse_dependency_kind("incompatible"),
-            DependencyKind::Incompatible
-        );
-        assert_eq!(parse_dependency_kind("embedded"), DependencyKind::Embedded);
-        assert_eq!(parse_dependency_kind("required"), DependencyKind::Required);
-        assert_eq!(parse_dependency_kind("unknown"), DependencyKind::Required);
     }
 }

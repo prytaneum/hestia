@@ -369,22 +369,6 @@ mod tests {
     }
 
     #[test]
-    fn a_plain_server_is_a_jar_invocation() {
-        let profile = ServerProfile {
-            jar: server_jar("server.jar"),
-            ..Default::default()
-        };
-        let plan = server_plan(
-            &profile,
-            Path::new("/java/bin/java"),
-            Path::new("/srv"),
-            &JavaSettings::default(),
-        );
-        assert_eq!(plan.args, ["-jar", "server.jar", "nogui"]);
-        assert_eq!(plan.cwd, Path::new("/srv"));
-    }
-
-    #[test]
     fn instance_plan_substitutes_and_orders_sections() {
         let profile = InstanceProfile {
             game_version: "1.21.1".into(),

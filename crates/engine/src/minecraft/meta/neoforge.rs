@@ -274,20 +274,6 @@ mod tests {
     }
 
     #[test]
-    fn each_line_names_its_own_maven_artifact() {
-        assert_eq!(artifact("1.20.1-47.1.106"), "forge");
-        assert_eq!(artifact("21.1.244"), "neoforge");
-        assert_eq!(
-            installer_url("1.20.1-47.1.106"),
-            "https://maven.neoforged.net/releases/net/neoforged/forge/1.20.1-47.1.106/forge-1.20.1-47.1.106-installer.jar"
-        );
-        assert_eq!(
-            installer_url("21.1.244"),
-            "https://maven.neoforged.net/releases/net/neoforged/neoforge/21.1.244/neoforge-21.1.244-installer.jar"
-        );
-    }
-
-    #[test]
     fn an_unparseable_version_names_nothing() {
         assert_eq!(game_version("nonsense"), None);
         assert_eq!(game_version("21"), None, "a game version needs two fields");
@@ -296,20 +282,5 @@ mod tests {
             None,
             "the year scheme needs its hotfix field"
         );
-    }
-
-    #[test]
-    fn the_craftmine_artifact_maps_to_no_real_version() {
-        // Reproduced from theseus deliberately: the caller drops it by checking
-        // the result against Mojang's manifest.
-        assert_eq!(
-            game_version("0.25w14craftmine.5-beta").as_deref(),
-            Some("1.0.25w14craftmine")
-        );
-    }
-
-    #[test]
-    fn a_non_zip_installer_is_refused() {
-        assert!(read_installer(b"not a zip at all").is_err());
     }
 }

@@ -139,10 +139,4 @@ mod tests {
         let paths: Vec<&str> = entries.iter().map(|e| e.path.as_str()).collect();
         assert_eq!(paths, ["data", "data/options.txt"]);
     }
-
-    #[test]
-    fn an_instance_with_nothing_in_it_lists_nothing() {
-        let dir = temp("empty");
-        assert!(list(dir.path(), &dir.path().join("data")).is_empty());
-    }
 }

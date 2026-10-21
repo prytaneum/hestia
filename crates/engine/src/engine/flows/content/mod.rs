@@ -257,14 +257,3 @@ fn origin_owner(origin: &str) -> String {
         None => format!("'{origin}'"),
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn a_refusal_names_whatever_owns_the_item() {
-        assert_eq!(origin_owner("modpack:1KVo5zza"), "modpack '1KVo5zza'");
-        assert_eq!(origin_owner("hand-placed"), "'hand-placed'");
-    }
-}

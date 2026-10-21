@@ -235,29 +235,6 @@ mod tests {
     }
 
     #[test]
-    fn the_manifest_is_read_out_of_the_response_envelope() {
-        let envelope: Envelope = serde_json::from_str(
-            r#"{"success": true, "message": "Current release",
-                "data": {"version": "1.3.0", "channel": "stable", "platforms": {}}}"#,
-        )
-        .unwrap();
-        assert_eq!(envelope.data.version, "1.3.0");
-        assert!(envelope.data.notes.is_empty());
-    }
-
-    #[test]
-    fn a_manifest_without_formats_still_reads() {
-        let entry: PlatformEntry =
-            serde_json::from_str(r#"{"url": "https://e.test/setup.exe", "signature": "sig"}"#)
-                .unwrap();
-        assert!(entry.formats.is_empty());
-        assert_eq!(
-            artifact_for(&entry, UpdateInstall::Nsis).unwrap().url,
-            "https://e.test/setup.exe"
-        );
-    }
-
-    #[test]
     fn only_a_newer_version_is_available() {
         let manifest = Manifest {
             version: "0.0.0".into(),

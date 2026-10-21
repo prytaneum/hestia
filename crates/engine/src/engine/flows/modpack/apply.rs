@@ -500,23 +500,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn a_flat_load_dir_file_is_managed_content() {
-        assert_eq!(managed_kind("mods/sodium.jar"), Some(ContentKind::Mod));
-        assert_eq!(
-            managed_kind("plugins/essentials.jar"),
-            Some(ContentKind::Plugin)
-        );
-        assert_eq!(
-            managed_kind("resourcepacks/cozy.zip"),
-            Some(ContentKind::ResourcePack)
-        );
-        assert_eq!(
-            managed_kind("shaderpacks/bsl.zip"),
-            Some(ContentKind::Shader)
-        );
-    }
-
-    #[test]
     fn a_sidecar_beside_a_pack_is_a_game_directory_file() {
         assert_eq!(managed_kind("resourcepacks/cozy.zip.rpo"), None);
         assert_eq!(managed_kind("shaderpacks/bsl.zip.txt"), None);

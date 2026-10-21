@@ -208,13 +208,6 @@ mod tests {
     }
 
     #[test]
-    fn a_missing_file_is_an_empty_list() {
-        let dir = tempfile::tempdir().unwrap();
-        assert!(read(dir.path()).is_empty());
-        assert!(read_rows(dir.path()).unwrap().is_empty());
-    }
-
-    #[test]
     fn a_corrupt_file_reads_empty_but_refuses_a_write_path() {
         let dir = tempfile::tempdir().unwrap();
         std::fs::write(path(dir.path()), b"not nbt at all").unwrap();

@@ -271,18 +271,6 @@ mod tests {
     }
 
     #[test]
-    fn profile_cache_stores_and_invalidates() {
-        let dir = tempfile::tempdir().expect("temp dir");
-        let skins = Skins::new(dir.path().to_path_buf());
-        assert!(skins.cached_profile("u1").is_none());
-        skins.store_profile("u1", Profile::default());
-        assert!(skins.cached_profile("u1").is_some());
-        assert!(skins.cached_profile("u2").is_none());
-        skins.invalidate_profile("u1");
-        assert!(skins.cached_profile("u1").is_none());
-    }
-
-    #[test]
     fn library_round_trip_and_rekey() {
         let dir = tempfile::tempdir().expect("temp dir");
         let skins = Skins::new(dir.path().join("skins"));

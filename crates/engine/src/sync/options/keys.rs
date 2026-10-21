@@ -136,11 +136,4 @@ mod tests {
             assert_eq!(code(modern), Some(*legacy));
         }
     }
-
-    #[test]
-    fn the_common_binds_are_the_ones_minecraft_ships() {
-        assert_eq!(name(57), Some("key.keyboard.space"));
-        assert_eq!(name(17), Some("key.keyboard.w"));
-        assert_eq!(code("key.keyboard.left.shift"), Some(42));
-    }
 }

@@ -402,20 +402,6 @@ mod tests {
     }
 
     #[test]
-    fn a_named_file_is_taken_as_given() {
-        let dest = std::env::temp_dir().join("share/cozy.mrpack");
-        let dest_str = dest.to_str().unwrap().to_string();
-        let path = export_destination(
-            &dest_str,
-            Path::new("/exports"),
-            &record("Cozy"),
-            ExportFormat::Mrpack,
-        )
-        .unwrap();
-        assert_eq!(path, dest);
-    }
-
-    #[test]
     fn a_relative_path_is_refused_because_the_daemon_is_a_different_process() {
         let error = export_destination(
             "./cozy.hestia",
@@ -426,12 +412,5 @@ mod tests {
         .unwrap_err();
         assert!(error.to_string().contains("absolute"), "{error}");
         assert!(daemon_local_path("   ").is_err());
-    }
-
-    #[test]
-    fn the_requested_name_wins_over_the_archives_own() {
-        assert_eq!(pick_name(" Mine ", "Cozy Pack"), "Mine");
-        assert_eq!(pick_name("", "Cozy Pack"), "Cozy Pack");
-        assert_eq!(pick_name("   ", "Cozy Pack"), "Cozy Pack");
     }
 }

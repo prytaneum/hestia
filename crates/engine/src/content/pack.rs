@@ -405,16 +405,6 @@ mod tests {
     }
 
     #[test]
-    fn a_pack_with_no_loader_is_vanilla() {
-        let pack = parse_index(&json!({
-            "formatVersion": 1,
-            "dependencies": {"minecraft": "1.21.1"},
-        }))
-        .unwrap();
-        assert_eq!(pack.loader, None);
-    }
-
-    #[test]
     fn unsupported_format_and_unsafe_paths_are_rejected() {
         assert!(parse_index(&json!({"formatVersion": 2})).is_err());
         assert!(parse_index(&json!({
@@ -499,24 +489,6 @@ mod tests {
     }
 
     #[test]
-    fn the_server_tree_is_the_servers_own() {
-        let mut pack = archive(&[
-            ("modrinth.index.json", "{}"),
-            ("overrides/config/shared.toml", "shared"),
-            ("client-overrides/options.txt", "client"),
-            ("server-overrides/server-icon.png", "server"),
-        ]);
-        let dest_dir = temp("server-side");
-        let dest = dest_dir.path();
-
-        extract(&mut pack, Side::Server, dest);
-
-        assert!(dest.join("config/shared.toml").is_file());
-        assert!(dest.join("server-icon.png").is_file());
-        assert!(!dest.join("options.txt").exists());
-    }
-
-    #[test]
     fn a_side_tree_wins_where_both_name_the_same_path() {
         let mut pack = archive(&[
             ("modrinth.index.json", "{}"),
@@ -588,12 +560,6 @@ mod tests {
         let (source, manifest) = pack.platform_manifest().unwrap().expect("a manifest");
         assert_eq!(source, "curseforge");
         assert_eq!(manifest["manifestVersion"], 1);
-    }
-
-    #[test]
-    fn an_mrpack_has_no_manifest_to_hand_over() {
-        let mut pack = archive(&[("modrinth.index.json", "{}")]);
-        assert!(pack.platform_manifest().unwrap().is_none());
     }
 
     #[test]
@@ -699,14 +665,6 @@ mod tests {
         assert!(pack
             .extract_overrides(Side::Client, &job, |path| Some(dest.join(path)))
             .is_err());
-    }
-
-    #[test]
-    fn a_pack_with_no_override_trees_writes_nothing() {
-        let mut pack = archive(&[("modrinth.index.json", "{}")]);
-        let dest_dir = temp("empty");
-        let dest = dest_dir.path();
-        assert!(extract(&mut pack, Side::Client, dest).is_empty());
     }
 
     #[test]

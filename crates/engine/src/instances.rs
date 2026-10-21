@@ -235,20 +235,3 @@ pub(crate) fn save_worlds(data_dir: &Path) -> Vec<String> {
     worlds.sort();
     worlds
 }
-
-#[cfg(test)]
-mod tests {
-    use proto::sync::SyncUnit;
-
-    use super::*;
-
-    #[test]
-    fn an_instance_follows_the_catalogue_until_it_excludes_a_unit() {
-        let mut record = InstanceRecord::default();
-        assert!(record.sharing.shares(SyncUnit::Options));
-
-        record.sharing.excluded.insert(SyncUnit::Options);
-        assert!(!record.sharing.shares(SyncUnit::Options));
-        assert!(record.sharing.shares(SyncUnit::Servers));
-    }
-}

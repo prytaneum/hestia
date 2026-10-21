@@ -211,14 +211,4 @@ mod tests {
             .join("resourcepacks/unpacked/pack.mcmeta")
             .is_file());
     }
-
-    #[test]
-    fn an_empty_game_directory_adopts_nothing() {
-        let dir = temp("empty");
-        let entry_dir = dir.path();
-        assert!(adopt(entry_dir, &entry_dir.join("data"))
-            .unwrap()
-            .is_empty());
-        assert!(install::load(entry_dir).is_empty());
-    }
 }

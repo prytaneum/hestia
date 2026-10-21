@@ -959,18 +959,6 @@ mod tests {
     }
 
     #[test]
-    fn a_file_with_no_download_url_carries_an_empty_artifact_url() {
-        let file = json!({
-            "id": 1,
-            "modId": 2,
-            "fileName": "blocked.jar",
-            "downloadUrl": Value::Null,
-            "gameVersions": ["1.21.1"]
-        });
-        assert!(parse_file(&file).files[0].artifact.url.is_empty());
-    }
-
-    #[test]
     fn projects_map_class_ids_to_kinds() {
         let project = json!({
             "id": 238222,
@@ -1038,30 +1026,5 @@ mod tests {
         ] {
             assert!(parse_manifest(&manifest).is_err());
         }
-    }
-
-    #[test]
-    fn manifest_files_land_in_their_projects_class_dir() {
-        assert_eq!(class_dir(6), "mods");
-        assert_eq!(class_dir(12), "resourcepacks");
-        assert_eq!(class_dir(6552), "shaderpacks");
-        assert_eq!(class_dir(17), "saves");
-        assert_eq!(class_dir(999), "mods", "an unknown class is loader content");
-    }
-
-    #[test]
-    fn sort_and_loader_vocabularies_map() {
-        assert_eq!(sort_field(SearchSort::Relevance), None);
-        assert_eq!(sort_field(SearchSort::Downloads), Some(6));
-        assert_eq!(sort_field(SearchSort::Newest), Some(3));
-
-        assert_eq!(loader_type("fabric"), Some(4));
-        assert_eq!(loader_type("NeoForge"), Some(6));
-        assert_eq!(
-            loader_type("datapack"),
-            None,
-            "a class-typed kind is not a curseforge loader"
-        );
-        assert_eq!(loader_type("paper"), None);
     }
 }

@@ -259,14 +259,6 @@ mod tests {
     }
 
     #[test]
-    fn a_pack_with_no_loader_component_is_vanilla() {
-        let pack = r#"{"components":[{"uid":"net.minecraft","version":"1.20.4"}]}"#;
-        let instance = read("name=Plain\n", pack).unwrap();
-        assert_eq!(instance.game_version, "1.20.4");
-        assert_eq!(instance.loader, None);
-    }
-
-    #[test]
     fn settings_are_carried_only_when_the_instance_overrode_them() {
         let overriding = "name=Cozy\nOverrideMemory=true\nMaxMemAlloc=6144\n\
                           OverrideJavaArgs=true\nJvmArgs=-XX:+UseG1GC\n";

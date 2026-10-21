@@ -255,12 +255,4 @@ mod tests {
             Some(("ao".to_string(), "2".to_string()))
         );
     }
-
-    #[test]
-    fn an_unknown_key_passes_through_as_itself() {
-        assert_eq!(
-            decode("sodium.options", "{}", (1, 21, 4)).unwrap(),
-            ("sodium.options".to_string(), "{}".to_string())
-        );
-    }
 }

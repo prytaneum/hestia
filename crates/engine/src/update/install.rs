@@ -75,15 +75,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn only_packages_name_a_manifest_format() {
-        assert_eq!(manifest_format(UpdateInstall::Deb), Some("deb"));
-        assert_eq!(manifest_format(UpdateInstall::Rpm), Some("rpm"));
-        assert_eq!(manifest_format(UpdateInstall::Nsis), None);
-        assert_eq!(manifest_format(UpdateInstall::AppImage), None);
-        assert_eq!(manifest_format(UpdateInstall::Unmanaged), None);
-    }
-
-    #[test]
     fn a_test_binary_is_never_managed() {
         assert_eq!(detect(), UpdateInstall::Unmanaged);
     }

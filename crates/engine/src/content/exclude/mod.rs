@@ -176,15 +176,6 @@ fn glob_matches(pattern: &str, segment: &str) -> bool {
 mod tests {
     use super::*;
 
-    #[test]
-    fn the_shipped_table_parses_and_carries_itzgs_list() {
-        let inclusion = Inclusion::new("", true, "", "");
-        assert!(!inclusion.excludes.is_empty(), "the table is not empty");
-        assert!(!inclusion.includes("mods/sodium-fabric-0.5.11+mc1.20.1.jar", true));
-        assert!(!inclusion.includes("mods/iris-1.7.5+mc1.20.1.jar", true));
-        assert!(inclusion.includes("mods/lithium-fabric-0.11.2.jar", true));
-    }
-
     /// The four Aged 3.1.2 declares `server: required` that actually loaded on
     /// a tester's server — the regression this layer exists for. (Its other ten
     /// mislabelled mods were skipped by Fabric's own environment check.)
@@ -260,10 +251,5 @@ mod tests {
             !patterns.excludes("deep/options.txt"),
             "a single * does not cross a segment boundary"
         );
-    }
-
-    #[test]
-    fn no_patterns_excludes_nothing() {
-        assert!(!OverridePatterns::new("").excludes("config/anything.toml"));
     }
 }

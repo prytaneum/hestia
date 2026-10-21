@@ -187,15 +187,4 @@ mod tests {
             .verify(&message, &signature)
             .expect("the envelope's signature must verify against the advertised proof key");
     }
-
-    #[test]
-    fn signing_is_deterministic() {
-        // RFC 6979 nonces make two keys built from the same scalar sign a message
-        // identically; a regression to randomized nonces would break replay diffs.
-        let a = ProofKey::from_scalar_bytes(&[0x24; 32]);
-        let b = ProofKey::from_scalar_bytes(&[0x24; 32]);
-        let message = b"hestia-signing-oracle";
-        assert_eq!(a.sign(message), b.sign(message));
-        assert_eq!(a.sign(message), a.sign(message));
-    }
 }

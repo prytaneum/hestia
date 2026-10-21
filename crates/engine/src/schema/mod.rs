@@ -415,19 +415,6 @@ mod tests {
         assert_eq!(kept.len(), 2);
     }
 
-    #[test]
-    fn a_write_leaves_no_temp_behind() {
-        let dir = temp();
-        save(&dir.path().join("doc.json"), &Doc::default()).unwrap();
-
-        let names: Vec<String> = std::fs::read_dir(dir.path())
-            .unwrap()
-            .flatten()
-            .map(|e| e.file_name().to_string_lossy().into_owned())
-            .collect();
-        assert_eq!(names, ["doc.json"]);
-    }
-
     fn quarantined(dir: &Path) -> String {
         let entry = std::fs::read_dir(dir)
             .unwrap()

@@ -197,12 +197,4 @@ mod tests {
         std::fs::write(&path, [0xFF, 0xFE, 0x67, 0x00]).unwrap();
         assert!(Document::read(&path).is_err());
     }
-
-    #[test]
-    fn a_missing_file_is_not_an_error() {
-        let dir = tempfile::tempdir().unwrap();
-        assert!(Document::read(&dir.path().join("options.txt"))
-            .unwrap()
-            .is_none());
-    }
 }

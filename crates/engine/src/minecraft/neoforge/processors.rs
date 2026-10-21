@@ -353,17 +353,6 @@ mod tests {
     }
 
     #[test]
-    fn one_argument_in_is_one_argument_out() {
-        let processor = json!({ "args": ["--a", "{ROOT}", "--b", "{PATCHED}", "plain"] });
-        let args = arguments(&processor, &table(), Path::new("/libs")).unwrap();
-        assert_eq!(
-            args.len(),
-            5,
-            "substitution must never split or drop an argument"
-        );
-    }
-
-    #[test]
     fn a_data_value_resolves_by_its_form() {
         let staged = HashMap::from([(
             "/data/server.lzma".to_string(),

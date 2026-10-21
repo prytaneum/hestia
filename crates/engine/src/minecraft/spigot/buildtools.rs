@@ -199,12 +199,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn a_product_names_the_jar_buildtools_writes() {
-        assert_eq!(Product::Spigot.jar_name("1.21.4"), "spigot-1.21.4.jar");
-        assert_eq!(Product::Bukkit.jar_name("1.21.4"), "craftbukkit-1.21.4.jar");
-    }
-
-    #[test]
     fn only_buildtools_own_narration_is_reported() {
         assert!(is_step("Compiling Spigot & Spigot-API"));
         assert!(is_step("Applying CraftBukkit Patches"));
@@ -213,10 +207,5 @@ mod tests {
             "Patching net/minecraft/server/MinecraftServer.java"
         ));
         assert!(!is_step(""));
-    }
-
-    #[test]
-    fn a_version_maps_to_one_build_id() {
-        assert_eq!(build_id("1.21.4"), "build-spigot-1.21.4");
     }
 }

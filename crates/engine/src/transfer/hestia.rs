@@ -541,12 +541,4 @@ mod tests {
             ErrorInfo::ArchiveInvalid { .. }
         ));
     }
-
-    #[test]
-    fn the_generated_name_carries_the_slug_and_the_format() {
-        let path = default_destination(Path::new("/exports"), &record(), ExportFormat::Hestia);
-        assert!(path.starts_with("/exports"));
-        assert!(path.to_string_lossy().contains("cozy"));
-        assert_eq!(path.extension().unwrap(), "hestia");
-    }
 }

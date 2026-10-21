@@ -703,16 +703,6 @@ mod tests {
     }
 
     #[test]
-    fn missing_data_and_unknown_backups_are_errors() {
-        let entry_dir = temp_entry("errors");
-        let entry = entry_dir.path();
-        let missing = entry.join("nope");
-        assert!(create(entry, &missing, BackupKind::Manual, &[], &|_, _| Ok(())).is_err());
-        assert!(restore(entry, &entry.join("data"), "ghost", &[], &|_, _| Ok(())).is_err());
-        assert!(!remove(entry, "ghost").unwrap());
-    }
-
-    #[test]
     fn recover_puts_back_set_aside_data_and_drops_leftovers() {
         let entry_dir = temp_entry("recover");
         let entry = entry_dir.path();

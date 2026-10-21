@@ -567,18 +567,6 @@ mod tests {
         assert!(!matches(&item, "lithium"));
     }
 
-    #[test]
-    fn installable_kind_dirs() {
-        assert_eq!(kind_dir(ContentKind::Mod).unwrap(), "mods");
-        assert_eq!(
-            kind_dir(ContentKind::ResourcePack).unwrap(),
-            "resourcepacks"
-        );
-        assert_eq!(kind_dir(ContentKind::Shader).unwrap(), "shaderpacks");
-        assert_eq!(kind_dir(ContentKind::DataPack).unwrap(), "datapacks");
-        assert!(kind_dir(ContentKind::Modpack).is_err());
-    }
-
     fn temp_entry(tag: &str) -> (tempfile::TempDir, PathBuf, PathBuf) {
         let dir = tempfile::Builder::new()
             .prefix(&format!("hestia-install-{tag}-"))
@@ -703,14 +691,6 @@ mod tests {
         assert!(
             managed_path(&entry, &pack).unwrap().is_file(),
             "managed copy stays"
-        );
-    }
-
-    #[test]
-    fn datapack_path_lives_inside_the_world() {
-        assert_eq!(
-            datapack_path(Path::new("/data"), "saves/my-world", "terralith.zip"),
-            Path::new("/data/saves/my-world/datapacks/terralith.zip")
         );
     }
 

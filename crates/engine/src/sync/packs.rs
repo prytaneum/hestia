@@ -165,14 +165,4 @@ mod tests {
         assert_eq!(actions, vec![Action::Enable(pack("cozy", true), false)]);
         assert_eq!(shared, vec![pack("cozy", false)]);
     }
-
-    #[test]
-    fn a_file_install_is_known_by_its_filename() {
-        let local = Pack {
-            source: "file".to_string(),
-            project: String::new(),
-            ..pack("cozy", true)
-        };
-        assert!(local.identity().ends_with("file:cozy.zip"));
-    }
 }

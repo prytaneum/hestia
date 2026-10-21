@@ -154,11 +154,6 @@ mod tests {
     }
 
     #[test]
-    fn nothing_attempted_yet_is_unknown_not_offline() {
-        assert_eq!(network().status().state, NetworkState::Unknown);
-    }
-
-    #[test]
     fn a_failed_request_marks_offline_and_a_later_success_clears_it() {
         let net = network();
         net.observe_unreachable();

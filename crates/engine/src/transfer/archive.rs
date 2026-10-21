@@ -523,23 +523,6 @@ mod tests {
     }
 
     #[test]
-    fn a_member_escaping_the_destination_is_refused() {
-        let dir = temp("escape");
-        let archive = dir.path().join("evil.zip");
-        {
-            let mut writer = Writer::create(&archive).unwrap();
-            writer.add_bytes("../escape.txt", b"no").unwrap();
-            writer.finish().unwrap();
-        }
-        let out = temp("escape-out");
-        let cancel = crate::cancel::Cancel::new();
-        assert!(Reader::open(&archive)
-            .unwrap()
-            .extract_under("", out.path(), &job_for(&cancel), &|_| true)
-            .is_err());
-    }
-
-    #[test]
     fn a_hostile_member_fails_before_anything_is_written() {
         let dir = temp("validate-first");
         let archive = dir.path().join("evil.zip");

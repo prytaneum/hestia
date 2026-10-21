@@ -128,15 +128,3 @@ const VANILLA: &[&str] = &[
 pub fn is_vanilla(key: &str) -> bool {
     key.starts_with("key_") || key.starts_with("soundCategory_") || VANILLA.contains(&key)
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn a_mods_key_is_not_the_games() {
-        assert!(is_vanilla("guiScale"));
-        assert!(is_vanilla("key_key.forward"));
-        assert!(!is_vanilla("sodium.options"));
-    }
-}

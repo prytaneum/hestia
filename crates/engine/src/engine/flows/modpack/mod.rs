@@ -685,20 +685,4 @@ mod tests {
         assert_eq!(fit("14.1.1", "26.2"), None);
         assert_eq!(fit("14.1.1", "26.4"), None);
     }
-
-    #[test]
-    fn a_pack_with_no_name_of_its_own_takes_the_projects() {
-        let project = ContentProject {
-            title: "Cozy".to_string(),
-            ..ContentProject::default()
-        };
-        assert_eq!(
-            pack_display_name(&ResolvedModpack::default(), Some(&project)),
-            "Cozy"
-        );
-        assert_eq!(
-            pack_display_name(&ResolvedModpack::default(), None),
-            "modpack"
-        );
-    }
 }

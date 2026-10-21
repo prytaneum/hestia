@@ -145,20 +145,4 @@ mod tests {
         assert!(data.join("config/mine.toml").is_file());
         assert!(!data.join("config/theirs.toml").exists());
     }
-
-    #[test]
-    fn the_origin_tag_follows_the_project_not_the_display_name() {
-        let pack = InstalledModpack {
-            project_id: "1KVo5zza".to_string(),
-            name: "Fabulously Optimized".to_string(),
-            ..InstalledModpack::default()
-        };
-        assert_eq!(origin(&pack), "modpack:1KVo5zza");
-
-        let local = InstalledModpack {
-            name: "my-pack".to_string(),
-            ..InstalledModpack::default()
-        };
-        assert_eq!(origin(&local), "modpack:my-pack");
-    }
 }

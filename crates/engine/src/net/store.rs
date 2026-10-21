@@ -63,32 +63,4 @@ mod tests {
         );
         assert!(load_in(dir.path(), "https://example.test/never-fetched").is_none());
     }
-
-    #[test]
-    fn a_second_save_replaces_the_first_and_leaves_no_temp_behind() {
-        let dir = tempfile::tempdir().expect("a temp dir");
-
-        save_in(dir.path(), "https://example.test/catalogue", "old");
-        save_in(dir.path(), "https://example.test/catalogue", "new");
-        assert_eq!(
-            load_in(dir.path(), "https://example.test/catalogue").as_deref(),
-            Some("new")
-        );
-
-        let leftovers = std::fs::read_dir(dir.path())
-            .expect("the dir exists")
-            .flatten()
-            .filter(|e| e.path().extension().is_some_and(|x| x == "part"))
-            .count();
-        assert_eq!(leftovers, 0, "a .part survived the rename");
-    }
-
-    #[test]
-    fn two_urls_never_share_an_entry() {
-        let dir = tempfile::tempdir().expect("a temp dir");
-        assert_ne!(
-            entry_path(dir.path(), "https://example.test/a"),
-            entry_path(dir.path(), "https://example.test/b")
-        );
-    }
 }

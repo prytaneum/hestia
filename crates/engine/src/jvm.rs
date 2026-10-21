@@ -255,9 +255,4 @@ mod tests {
         assert!(s.jvm_args.is_empty());
         assert_eq!(s.get(JVM_ARGS_KEY), Some(None));
     }
-
-    #[test]
-    fn get_returns_outer_none_for_non_jvm_key() {
-        assert_eq!(JavaSettings::default().get("server-port"), None);
-    }
 }

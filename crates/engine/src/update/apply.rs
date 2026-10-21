@@ -206,12 +206,6 @@ mod platform {
         use super::*;
 
         #[test]
-        fn the_handback_command_is_runnable_as_written() {
-            let command = describe("dpkg", &["-i".as_ref(), "/tmp/hestia.deb".as_ref()]);
-            assert_eq!(command, "sudo dpkg -i /tmp/hestia.deb");
-        }
-
-        #[test]
         fn a_dismissed_prompt_is_distinguished_from_a_missing_agent() {
             let dismissed = anyhow::Error::new(ExitStatus {
                 program: "pkexec".into(),

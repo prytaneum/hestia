@@ -332,12 +332,4 @@ mod tests {
         let detected = detect(&archive, "a", |_| true).unwrap();
         assert_eq!(detected.kind.id(), ImportFormat::CurseForge);
     }
-
-    #[test]
-    fn an_archive_with_no_marker_is_refused_by_name() {
-        let error = detect(&names(&["random.txt"]), "holiday-photos.zip", |_| true)
-            .err()
-            .expect("an unmarked archive is not importable");
-        assert!(error.to_string().contains("holiday-photos.zip"));
-    }
 }

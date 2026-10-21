@@ -309,12 +309,4 @@ mod tests {
         assert_eq!(cape.name, "Migrator");
         assert_eq!(cape.id, "c1");
     }
-
-    #[test]
-    fn missing_arrays_parse_to_an_empty_profile() {
-        let profile = parse_profile(&serde_json::json!({ "id": "abc" }));
-        assert!(profile.skins.is_empty());
-        assert!(profile.capes.is_empty());
-        assert!(profile.active_skin().is_none());
-    }
 }

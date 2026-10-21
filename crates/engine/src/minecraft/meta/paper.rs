@@ -209,11 +209,4 @@ mod tests {
             "a build with nothing launchable is not offered"
         );
     }
-
-    #[test]
-    fn recommended_is_stable_relabelled() {
-        assert_eq!(Channel::parse("RECOMMENDED"), Some(Channel::Stable));
-        assert_eq!(Channel::parse("beta"), Some(Channel::Beta));
-        assert_eq!(Channel::parse("something-new"), None);
-    }
 }

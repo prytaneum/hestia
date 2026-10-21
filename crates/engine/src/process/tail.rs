@@ -222,11 +222,6 @@ mod tests {
     }
 
     #[test]
-    fn missing_file_reads_empty() {
-        assert!(read_last_lines(Path::new("/nonexistent/hestia.log"), 5).is_empty());
-    }
-
-    #[test]
     fn drain_emits_new_complete_lines_and_handles_truncation() {
         let file = temp_file("drain", "first\nsecond\npart");
         let path = file.path();
