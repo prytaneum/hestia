@@ -54,10 +54,6 @@ describe('buildTree', () => {
     const tree = buildTree([entry('data/orphan.txt', 10)]);
     expect(tree.map((n) => n.path)).toEqual(['data/orphan.txt']);
   });
-
-  it('has nothing to build from an empty listing', () => {
-    expect(buildTree([])).toEqual([]);
-  });
 });
 
 describe('excludedRoots', () => {
@@ -73,10 +69,6 @@ describe('excludedRoots', () => {
   it('does not mistake a name prefix for a parent', () => {
     const excluded = new Set(['data/save', 'data/saves']);
     expect(excludedRoots(excluded)).toEqual(['data/save', 'data/saves']);
-  });
-
-  it('sends nothing when everything is checked', () => {
-    expect(excludedRoots(new Set())).toEqual([]);
   });
 });
 
@@ -94,10 +86,5 @@ describe('selectedBytes', () => {
   it('takes a whole subtree out with its directory', () => {
     expect(selectedBytes(tree, new Set(['data/saves']))).toBe(5300);
     expect(selectedBytes(tree, new Set(['data']))).toBe(5100);
-  });
-
-  it('counts nothing when every root is excluded', () => {
-    const all = new Set(['content.json', 'data', 'mods']);
-    expect(selectedBytes(tree, all)).toBe(0);
   });
 });

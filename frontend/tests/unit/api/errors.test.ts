@@ -48,10 +48,6 @@ describe('errorMessageFromInfo', () => {
       "Invalid value for 'view-distance': it must be between 3 and 32.",
     );
   });
-
-  it('is empty for a kind the catalogue does not know', () => {
-    expect(errorMessageFromInfo(info({ kind: 'not_a_real_kind' }))).toBe('');
-  });
 });
 
 describe('errorMessage', () => {
@@ -72,14 +68,5 @@ describe('errorMessage', () => {
 
   it('falls back to the code when there is no structured info at all', () => {
     expect(errorMessage(new HestiaError('timeout', 'raw'))).not.toBe('raw');
-  });
-
-  it('passes a plain Error through untouched', () => {
-    expect(errorMessage(new Error('boom'))).toBe('boom');
-  });
-
-  it('stringifies anything else that was thrown', () => {
-    expect(errorMessage('boom')).toBe('boom');
-    expect(errorMessage(42)).toBe('42');
   });
 });

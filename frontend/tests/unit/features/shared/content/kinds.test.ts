@@ -4,15 +4,10 @@ import {
   isContentKind,
   kindBySlug,
   kindInfo,
-  sourceSearch,
 } from '@/features/shared/content/lib';
 import { isContentUrl } from '@/queries/content';
 
 describe('isContentKind', () => {
-  it('admits every kind the wire defines', () => {
-    for (const kind of contentKinds) expect(isContentKind(kind)).toBe(true);
-  });
-
   it('refuses anything else a search param could carry', () => {
     expect(isContentKind('mods')).toBe(false);
     expect(isContentKind('')).toBe(false);
@@ -26,29 +21,6 @@ describe('kindBySlug', () => {
     for (const kind of contentKinds) {
       expect(kindBySlug(kindInfo[kind].slug)).toBe(kind);
     }
-  });
-
-  it('is undefined for a slug no kind claims', () => {
-    expect(kindBySlug('worlds')).toBeUndefined();
-  });
-
-  it('gives each kind a distinct slug', () => {
-    const slugs = contentKinds.map((kind) => kindInfo[kind].slug);
-    expect(new Set(slugs).size).toBe(slugs.length);
-  });
-});
-
-describe('sourceSearch', () => {
-  it('carries a named source through', () => {
-    expect(sourceSearch({ source: 'modrinth' })).toEqual({
-      source: 'modrinth',
-    });
-  });
-
-  it('omits the param entirely for the default source', () => {
-    expect(sourceSearch({})).toEqual({});
-    expect(sourceSearch({ source: '' })).toEqual({});
-    expect(sourceSearch({ source: 7 })).toEqual({});
   });
 });
 

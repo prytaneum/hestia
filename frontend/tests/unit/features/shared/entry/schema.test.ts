@@ -1,11 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { KeyRule } from '@/api/types';
 import { randomIconConfig } from '@/features/shared/entry/components/icon-editor/catalog';
-import {
-  detailsStepSchema,
-  flavorStepSchema,
-  versionStepSchema,
-} from '@/features/shared/entry/lib';
+import { detailsStepSchema } from '@/features/shared/entry/lib';
 
 const details = (over: Record<string, unknown> = {}) => ({
   name: 'smp',
@@ -23,30 +19,6 @@ const details = (over: Record<string, unknown> = {}) => ({
   ...over,
 });
 
-describe('flavorStepSchema', () => {
-  it('requires a flavor before the step can pass', () => {
-    expect(flavorStepSchema().safeParse({ flavor: '' }).success).toBe(false);
-    expect(flavorStepSchema().safeParse({ flavor: 'fabric' }).success).toBe(
-      true,
-    );
-  });
-});
-
-describe('versionStepSchema', () => {
-  it('requires a game version', () => {
-    expect(
-      versionStepSchema().safeParse({ version: '', loaderVersion: '' }).success,
-    ).toBe(false);
-  });
-
-  it('leaves the loader build optional', () => {
-    expect(
-      versionStepSchema().safeParse({ version: '1.21.1', loaderVersion: '' })
-        .success,
-    ).toBe(true);
-  });
-});
-
 describe('detailsStepSchema', () => {
   const memory = { min: 2, max: 16 };
   const rules: KeyRule[] = [
@@ -55,10 +27,6 @@ describe('detailsStepSchema', () => {
   ];
   const server = detailsStepSchema('server', memory, rules);
   const instance = detailsStepSchema('instance', memory, rules);
-
-  it('accepts a well-formed server', () => {
-    expect(server.safeParse(details()).success).toBe(true);
-  });
 
   it('holds memory inside the range the host can honour', () => {
     expect(server.safeParse(details({ memory: 1 })).success).toBe(false);

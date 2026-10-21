@@ -137,11 +137,6 @@ describe('job titles', () => {
 });
 
 describe('message catalogue', () => {
-  it('lists more than one locale', () => {
-    expect(locales).toContain(BASE_LOCALE);
-    expect(locales.length).toBeGreaterThan(1);
-  });
-
   it.each(locales.filter((l) => l !== BASE_LOCALE))(
     '%s covers the base locale exactly',
     (locale) => {

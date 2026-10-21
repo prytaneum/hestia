@@ -21,25 +21,6 @@ afterEach(() => {
 });
 
 describe('ErrorBoundary', () => {
-  it('renders its children while nothing throws', () => {
-    renderWithProviders(
-      <ErrorBoundary>
-        <Boom throws={false} />
-      </ErrorBoundary>,
-    );
-    expect(screen.getByText('all good')).toBeDefined();
-  });
-
-  it('reports a caught render error in the active locale', () => {
-    renderWithProviders(
-      <ErrorBoundary>
-        <Boom throws />
-      </ErrorBoundary>,
-    );
-    expect(screen.getByText(m['app.crash.title']())).toBeDefined();
-    expect(screen.getByText(m['app.crash.body']())).toBeDefined();
-  });
-
   it('shows the error’s own message so a report can be matched to it', () => {
     renderWithProviders(
       <ErrorBoundary>

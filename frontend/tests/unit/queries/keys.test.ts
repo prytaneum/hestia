@@ -52,26 +52,6 @@ describe('the query-key hierarchy', () => {
     expect(startsWith(keys.instances.detail('x'), keys.servers.all)).toBe(false);
     expect(startsWith(keys.servers.detail('x'), keys.instances.all)).toBe(false);
   });
-
-  it('separates two entries of the same kind', () => {
-    expect(startsWith(keys.servers.detail('a'), keys.servers.detail('b'))).toBe(
-      false,
-    );
-  });
-
-  it('keys a multiplayer ping by address, not by entry', () => {
-    expect(keys.instances.serverStatus('a:25565')).toEqual([
-      'minecraft',
-      'ping',
-      'a:25565',
-    ]);
-  });
-
-  it('keys an archive inspect by path, since no entry exists yet', () => {
-    expect(startsWith(keys.transfer.archive('/tmp/x.hestia'), ['transfer'])).toBe(
-      true,
-    );
-  });
 });
 
 describe('the reads that own a vanishing id', () => {

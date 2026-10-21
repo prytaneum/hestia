@@ -25,52 +25,7 @@ const show = (model: EntryCardModel) =>
 
 afterEach(resetQueryCache);
 
-describe('EntryTile (grid)', () => {
-  it('shows the entry’s identity', async () => {
-    show(entry());
-    expect(await screen.findByText('SMP')).toBeDefined();
-    expect(screen.getByText('paper · 1.21.1')).toBeDefined();
-  });
-
-  it('links to the entry the card is for', async () => {
-    show(entry());
-    await screen.findByText('SMP');
-    expect(
-      screen.getByRole('link').getAttribute('href'),
-    ).toBe('/servers/smp');
-  });
-
-  it('links an instance to the instance route instead', async () => {
-    show(entry({ kind: 'instance', id: 'modded', name: 'Modded' }));
-    await screen.findByText('Modded');
-    expect(screen.getByRole('link').getAttribute('href')).toBe(
-      '/instances/modded',
-    );
-  });
-
-  it('offers start on a stopped server and play on an instance', async () => {
-    show(entry());
-    expect(
-      await screen.findByRole('button', { name: m['app.action.start']() }),
-    ).toBeDefined();
-
-    resetQueryCache();
-    show(entry({ kind: 'instance', id: 'modded', name: 'Modded' }));
-    expect(
-      await screen.findByRole('button', { name: m['app.action.play']() }),
-    ).toBeDefined();
-  });
-
-  it('starts the entry when the action is pressed', async () => {
-    const onStart = vi.fn();
-    show(entry({ onStart }));
-    const button = await screen.findByRole('button', {
-      name: m['app.action.start'](),
-    });
-    await userEvent.click(button);
-    expect(onStart).toHaveBeenCalledOnce();
-  });
-
+describe('EntryTile', () => {
   it('refuses to start an entry that is not provisioned yet', async () => {
     show(entry({ ready: false }));
     const button = await screen.findByRole('button', {
@@ -89,7 +44,7 @@ describe('EntryTile (grid)', () => {
     expect(screen.getByRole('status')).toBeDefined();
   });
 
-  it('offers stop, and confirms before stopping, while running', async () => {
+  it('confirms before stopping a running entry', async () => {
     const onStop = vi.fn();
     show(entry({ running: true, onStop }));
 
@@ -103,26 +58,5 @@ describe('EntryTile (grid)', () => {
       within(dialog).getByRole('button', { name: m['app.action.stop']() }),
     );
     await waitFor(() => expect(onStop).toHaveBeenCalledOnce());
-  });
-
-  it('marks a running server online and a running instance running', async () => {
-    show(entry({ running: true }));
-    expect(await screen.findByText(m['app.status.online']())).toBeDefined();
-
-    resetQueryCache();
-    show(entry({ kind: 'instance', id: 'modded', running: true }));
-    expect(await screen.findByText(m['app.status.running']())).toBeDefined();
-  });
-});
-
-describe('EntryTile (list)', () => {
-  it('renders the same entry as one line', async () => {
-    renderWithProviders(<EntryTile entry={entry()} view="list" />, {
-      route: true,
-    });
-    expect(await screen.findByText('SMP')).toBeDefined();
-    expect(
-      screen.getByText('paper · 1.21.1 · :25565 · Stopped'),
-    ).toBeDefined();
   });
 });

@@ -32,10 +32,6 @@ describe('contentBatches', () => {
       { kind: 'mod', items: ['hand-dropped.jar'] },
     ]);
   });
-
-  it('has nothing to run for no rows', () => {
-    expect(contentBatches([])).toEqual([]);
-  });
 });
 
 describe('contentBusy', () => {

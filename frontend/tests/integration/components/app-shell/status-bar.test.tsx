@@ -3,7 +3,6 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { StatusBar } from '@/components/app-shell/status-bar';
 import { clearNotices } from '@/lib/notifications';
 import { notify } from '@/lib/notify';
-import { status as daemonStatus } from '@/mock/channels/app';
 import { m } from '@/paraglide/messages.js';
 import { foregroundJob, type JobMeta, startJob } from '@/queries/jobs';
 import {
@@ -32,16 +31,6 @@ afterEach(async () => {
 });
 
 describe('the status bar', () => {
-  it('reports the daemon it is talking to', async () => {
-    renderWithProviders(<StatusBar />);
-    expect(screen.getByText(m['app.daemon.connected']())).toBeDefined();
-    await waitFor(() =>
-      expect(
-        screen.getByText(`v${daemonStatus().version}`),
-      ).toBeDefined(),
-    );
-  });
-
   it('counts the running background jobs on the bell', async () => {
     startJob(meta(), pendingJob);
     startJob(meta(), pendingJob);

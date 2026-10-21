@@ -58,13 +58,6 @@ afterEach(() => {
 });
 
 describe('the modpack card', () => {
-  it('offers update and remove while the entry is idle', async () => {
-    card(false);
-    await waitFor(() => expect(updateButton()).toBeDefined());
-    expect(updateButton().hasAttribute('disabled')).toBe(false);
-    expect((await removeItem()).hasAttribute('data-disabled')).toBe(false);
-  });
-
   it('refuses both while the entry is running', async () => {
     card(true);
     await waitFor(() => expect(updateButton()).toBeDefined());

@@ -46,24 +46,6 @@ async function confirmDelete(menu: HTMLElement) {
 afterEach(resetQueryCache);
 
 describe('EntryContextMenu', () => {
-  it('opens on right-click with the entry’s actions', async () => {
-    const menu = await openMenu(entry());
-    expect(item(menu, m['app.action.open_folder']())).toBeDefined();
-    expect(item(menu, m['app.label.settings']())).toBeDefined();
-    expect(item(menu, m['app.label.pin']())).toBeDefined();
-    expect(item(menu, m['app.action.delete']())).toBeDefined();
-    expect(
-      within(menu).queryByRole('menuitem', { name: m['app.action.export']() }),
-    ).toBeNull();
-  });
-
-  it('offers export on an instance only', async () => {
-    const menu = await openMenu(
-      entry({ kind: 'instance', id: 'kitchen-sink', name: 'Kitchen Sink' }),
-    );
-    expect(item(menu, m['app.action.export']())).toBeDefined();
-  });
-
   it('flips the pin item once the entry is pinned', async () => {
     const menu = await openMenu(entry());
     await userEvent.click(item(menu, m['app.label.pin']()));

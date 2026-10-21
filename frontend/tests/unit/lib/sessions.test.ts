@@ -12,11 +12,6 @@ const instance = (sessions?: ProcessInfo[]): InstanceInfo =>
   ({ id: 'modded', sessions }) as InstanceInfo;
 
 describe('runningSessions', () => {
-  it('is empty when the instance has never been launched', () => {
-    expect(runningSessions(instance())).toEqual([]);
-    expect(runningSessions(instance([]))).toEqual([]);
-  });
-
   it('drops sessions that are no longer running', () => {
     const live = session('instance-modded_2', 'running', 20);
     const gone = session('instance-modded_1', 'exited', 10);

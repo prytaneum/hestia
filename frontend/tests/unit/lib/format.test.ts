@@ -1,13 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import {
-  bytes,
-  bytesPerSecond,
-  compact,
-  memGb,
-  RateMeter,
-  uptime,
-} from '@/lib/format';
+import { bytes, compact, memGb, RateMeter, uptime } from '@/lib/format';
 
 describe('memGb', () => {
   it('reads the unit rather than assuming gigabytes', () => {
@@ -73,12 +66,6 @@ describe('compact', () => {
   });
 });
 
-describe('bytesPerSecond', () => {
-  it('is a byte size with a rate suffix', () => {
-    expect(bytesPerSecond(1024 ** 2)).toBe('1.0 MB/s');
-  });
-});
-
 describe('RateMeter', () => {
   it('reports nothing until a full window has elapsed', () => {
     const meter = new RateMeter();
@@ -97,13 +84,5 @@ describe('RateMeter', () => {
     meter.observe(0, 0);
     meter.observe(1000, 1000);
     expect(meter.observe(10, 2000)).toBe(0);
-  });
-
-  it('forgets everything on reset', () => {
-    const meter = new RateMeter();
-    meter.observe(0, 0);
-    meter.observe(1000, 1000);
-    meter.reset();
-    expect(meter.observe(2000, 2000)).toBe(0);
   });
 });

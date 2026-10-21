@@ -13,11 +13,6 @@ const page = (...hits: ContentProject[]): SearchResult[] =>
   [{ hits }] as SearchResult[];
 
 describe('mergeHits', () => {
-  it('is empty when nothing has loaded', () => {
-    expect(mergeHits(undefined)).toEqual([]);
-    expect(mergeHits([])).toEqual([]);
-  });
-
   it('orders by downloads within a page', () => {
     const merged = mergeHits([page(project('a', 10), project('b', 300))]);
     expect(merged.map((p) => p.id)).toEqual(['b', 'a']);

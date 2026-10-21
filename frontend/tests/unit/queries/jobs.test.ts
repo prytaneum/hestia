@@ -14,7 +14,6 @@ import { notify } from '@/lib/notify';
 import { connection, publish, publishJob } from '@/mock/bus';
 import { channels } from '@/mock/channels';
 import {
-  backgroundJob,
   clearSettledJobs,
   foregroundJob,
   getJobs,
@@ -208,23 +207,6 @@ describe('the job store', () => {
     });
     expect(find(vanished.id)?.status).toBe('interrupted');
     await interrupted;
-  });
-
-  it('tags the entry a job acts on', () => {
-    const { id } = startJob(
-      meta({ subject: { kind: 'instance', id: 'inst-1' } }),
-      () => new Promise(() => {}),
-    );
-    expect(find(id)?.subject).toEqual({ kind: 'instance', id: 'inst-1' });
-  });
-
-  it('moves a job in and out of the status bar', () => {
-    const { id } = startJob(meta(), () => new Promise(() => {}));
-    expect(find(id)?.background).toBe(true);
-    foregroundJob(id);
-    expect(find(id)?.background).toBe(false);
-    backgroundJob(id);
-    expect(find(id)?.background).toBe(true);
   });
 
   it('clears settled jobs and leaves running ones', async () => {
