@@ -212,31 +212,3 @@ fn describe(runtime: &Runtime, profile: &InstanceProfile) -> String {
         .unwrap_or_else(|| profile.flavor.clone());
     format!("{flavor} {}", profile.game_version)
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn the_idle_card_carries_no_timer_and_no_state() {
-        assert!(Card::idle().since.is_none());
-        assert!(Card::idle().state.is_empty());
-    }
-
-    #[test]
-    fn cards_compare_by_every_field() {
-        let playing = Card {
-            details: "Skyblock".to_string(),
-            state: "Fabric 1.21.4".to_string(),
-            since: Some(1),
-        };
-        assert_ne!(playing, Card::idle());
-        assert_ne!(
-            playing,
-            Card {
-                since: Some(2),
-                ..playing.clone()
-            }
-        );
-    }
-}

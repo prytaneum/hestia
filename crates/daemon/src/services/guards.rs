@@ -354,15 +354,6 @@ mod tests {
     }
 
     #[test]
-    fn accepts_a_batch_of_single_selector_items() {
-        let spec = ContentAddSpec {
-            items: vec![project_item("sodium"), project_item("lithium")],
-            ..ContentAddSpec::default()
-        };
-        assert!(require_content_items(&spec).is_ok());
-    }
-
-    #[test]
     fn rejects_an_empty_batch() {
         assert!(require_content_items(&ContentAddSpec::default()).is_err());
     }

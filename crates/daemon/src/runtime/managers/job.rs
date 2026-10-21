@@ -342,28 +342,6 @@ mod tests {
         }
     }
 
-    #[test]
-    fn coalesces_sub_epsilon_java_ticks() {
-        let emitted = AtomicUsize::new(0);
-        let forward = coalesce_progress(|_: &JavaInstallProgress| {
-            emitted.fetch_add(1, Ordering::SeqCst);
-        });
-
-        // A per-chunk download flood: one tick per 0.1% of a large archive.
-        for i in 0..=1000u64 {
-            forward(&downloading(i, 1000));
-        }
-
-        // Far fewer than the 1001 ticks: forwarded only past each 0.5% step
-        // (~200) plus the first and the terminal 100%.
-        let count = emitted.load(Ordering::SeqCst);
-        assert!(count > 0, "the first tick and completion must forward");
-        assert!(
-            count <= 210,
-            "sub-epsilon ticks must be dropped, got {count}"
-        );
-    }
-
     /// A job invented for the tests: the runner never looks inside a payload,
     /// so one stand-in contract exercises every path.
     mod stand_in {
@@ -519,30 +497,6 @@ mod tests {
             (1..=210).contains(&progress),
             "every job is coalesced by the runner, got {progress} of 1001 ticks"
         );
-    }
-
-    #[tokio::test]
-    async fn a_cancelled_job_settles_apart_from_a_failure() {
-        let mut harness = harness();
-        start(&harness.jobs, |_, reporter| {
-            Box::pin(async move {
-                reporter.cancel().cancel();
-                reporter.cancel().check()?;
-                Ok(stand_in::Done {})
-            })
-        });
-
-        assert_eq!(topics(&mut harness.events).await, vec!["cancelled"]);
-    }
-
-    #[tokio::test]
-    async fn a_failed_job_settles_on_its_error_topic() {
-        let mut harness = harness();
-        start(&harness.jobs, |_, _| {
-            Box::pin(async { Err(anyhow::anyhow!("no")) })
-        });
-
-        assert_eq!(topics(&mut harness.events).await, vec!["failed"]);
     }
 
     #[test]

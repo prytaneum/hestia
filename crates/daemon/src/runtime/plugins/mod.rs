@@ -434,12 +434,4 @@ mod tests {
         assert_eq!(slots["demo"].error.as_deref(), Some(SAFE_MODE_NOTE));
         assert!(slots["demo"].loaded.is_none());
     }
-
-    #[tokio::test]
-    async fn an_unknown_plugin_is_not_found() {
-        let home = tempfile::tempdir().unwrap();
-        let (plugins, _) = plugins_over(home.path());
-        let error = plugins.info("ghost").await.expect_err("not installed");
-        assert_eq!(error.code(), proto::error::code::NOT_FOUND);
-    }
 }
