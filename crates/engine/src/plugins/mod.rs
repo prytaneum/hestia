@@ -6,12 +6,14 @@
 mod cache;
 mod chain;
 mod imports;
+mod install;
 mod output;
 mod runtime;
 mod store;
 
 pub use chain::{CallChain, ChainError, MAX_CHAIN_DEPTH};
 pub use imports::{HostCalls, HostError};
+pub use install::Inspection;
 pub use runtime::{
     CallError, LoadError, LoadedPlugin, PluginRuntime, PluginStats, EVENT_TIMEOUT, HOOK_TIMEOUT,
     PROVIDER_TIMEOUT, UI_TIMEOUT,

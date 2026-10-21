@@ -12,8 +12,8 @@ use crate::schema::Document;
 
 pub(crate) const PACKAGE: &str = "package";
 pub(crate) const DATA: &str = "data";
-const MANIFEST: &str = "plugin.toml";
-const STAGING_SUFFIX: &str = ".staging";
+pub(super) const MANIFEST: &str = "plugin.toml";
+pub(super) const STAGING_SUFFIX: &str = ".staging";
 
 /// An installed package read from disk: its validated manifest and, unless it
 /// is theme-only, the component bytes.
@@ -45,7 +45,7 @@ impl Document for PluginRecord {
 
 pub struct Plugins {
     dir: PathBuf,
-    writes: Mutex<()>,
+    pub(super) writes: Mutex<()>,
 }
 
 impl Plugins {

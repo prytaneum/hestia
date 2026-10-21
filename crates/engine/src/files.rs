@@ -324,7 +324,7 @@ fn create_parent(target: &Path, path: &str) -> Result<()> {
 
 /// Copy a file, or a directory and everything under it. Links are not
 /// followed: a tree linking to its own ancestor would never finish.
-fn copy_tree(from: &Path, to: &Path) -> std::io::Result<()> {
+pub(crate) fn copy_tree(from: &Path, to: &Path) -> std::io::Result<()> {
     let metadata = std::fs::symlink_metadata(from)?;
     if metadata.is_symlink() {
         tracing::debug!(path = %from.display(), "skipping a link while copying");

@@ -1560,3 +1560,102 @@ async fn a_cancelled_launch_stops_at_a_checkpoint() {
         "a cancellation is not a failure"
     );
 }
+
+fn plugin_manifest(network: &[&str]) -> String {
+    let permissions = if network.is_empty() {
+        ""
+    } else {
+        "\"network\""
+    };
+    format!(
+        "id = \"tunnel\"\nversion = \"1.0.0\"\napi = \"^{}\"\nwasm = \"plugin.wasm\"\n\
+         permissions = [{permissions}]\nnetwork = {network:?}\n",
+        proto::plugin::API_VERSION
+    )
+}
+
+fn install_plugin(
+    plugins: &engine::Plugins,
+    package: &std::path::Path,
+    approve: &str,
+) -> anyhow::Result<engine::PluginRecord> {
+    plugins.install(package, approve, &Cancel::new(), &|_| {}, |_| Ok(()))
+}
+
+#[test]
+fn a_reinstall_that_widens_the_grant_needs_its_own_approval() {
+    let home = tempfile::tempdir().expect("temp home");
+    let source = tempfile::tempdir().expect("package dir");
+    let engine = engine::Engine::new(Some(home.path()));
+    let plugins = engine.plugins();
+    std::fs::write(source.path().join("plugin.wasm"), b"component").unwrap();
+    std::fs::write(source.path().join("plugin.toml"), plugin_manifest(&[])).unwrap();
+    let first = plugins.inspect(source.path()).expect("inspect");
+    install_plugin(plugins, source.path(), &first.grant_digest).expect("install");
+    let kept = plugins.data_dir("tunnel").unwrap().join("state.json");
+    std::fs::write(&kept, "{}").unwrap();
+
+    std::fs::write(
+        source.path().join("plugin.toml"),
+        plugin_manifest(&["api.example.com"]),
+    )
+    .unwrap();
+    let refused = install_plugin(plugins, source.path(), &first.grant_digest)
+        .expect_err("the old approval does not cover a new host");
+    assert!(matches!(
+        engine::error_info(refused),
+        ErrorInfo::PluginApprovalStale
+    ));
+    assert!(
+        plugins.read_manifest("tunnel").unwrap().network.is_empty(),
+        "the refused package is not installed"
+    );
+
+    let widened = plugins.inspect(source.path()).expect("inspect");
+    let record = install_plugin(plugins, source.path(), &widened.grant_digest).expect("update");
+    assert!(record.grant.network.contains("api.example.com"));
+    assert!(kept.exists(), "an update keeps the plugin's data");
+}
+
+#[test]
+fn a_package_the_runtime_refuses_leaves_nothing_behind() {
+    use std::io::Write;
+    use zip::write::SimpleFileOptions;
+
+    let home = tempfile::tempdir().expect("temp home");
+    let source = tempfile::tempdir().expect("package dir");
+    let engine = engine::Engine::new(Some(home.path()));
+    let package = source.path().join("tunnel.hplugin");
+    let mut zip = zip::ZipWriter::new(std::fs::File::create(&package).unwrap());
+    for (name, body) in [
+        ("plugin.toml", plugin_manifest(&[]).into_bytes()),
+        ("plugin.wasm", b"not a component".to_vec()),
+    ] {
+        zip.start_file(name, SimpleFileOptions::default()).unwrap();
+        zip.write_all(&body).unwrap();
+    }
+    zip.finish().unwrap();
+
+    let digest = engine
+        .plugins()
+        .inspect(&package)
+        .expect("inspect")
+        .grant_digest;
+    let refused = engine
+        .plugins()
+        .install(&package, &digest, &Cancel::new(), &|_| {}, |_| {
+            anyhow::bail!("not a component")
+        })
+        .expect_err("the runtime refuses it");
+
+    assert!(matches!(
+        engine::error_info(refused),
+        ErrorInfo::PluginInvalid { .. }
+    ));
+    assert!(engine.plugins().get("tunnel").is_none());
+    assert_eq!(
+        std::fs::read_dir(home.path().join("plugins")).map_or(0, |dir| dir.count()),
+        0,
+        "no package and no staging directory is left"
+    );
+}

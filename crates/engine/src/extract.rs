@@ -3,6 +3,7 @@
 //! platform.
 
 use std::fs::File;
+use std::io::Read;
 use std::path::Path;
 
 use anyhow::{bail, Context, Result};
@@ -39,8 +40,17 @@ fn extract_tar_gz(archive: &Path, dest: &Path) -> Result<()> {
 }
 
 fn extract_zip(archive: &Path, dest: &Path) -> Result<()> {
+    extract_zip_capped(archive, dest, u64::MAX)
+}
+
+/// Extract a zip, failing once it has written more than `max_bytes`. The bytes
+/// are counted as they are written: an entry's declared size is the archive's
+/// own claim and a zip bomb lies about it.
+pub fn extract_zip_capped(archive: &Path, dest: &Path, max_bytes: u64) -> Result<()> {
+    std::fs::create_dir_all(dest)?;
     let file = File::open(archive).with_context(|| format!("cannot open {}", archive.display()))?;
     let mut zip = zip::ZipArchive::new(file).context("opening zip archive")?;
+    let mut remaining = max_bytes;
 
     for i in 0..zip.len() {
         let mut entry = zip.by_index(i)?;
@@ -55,7 +65,14 @@ fn extract_zip(archive: &Path, dest: &Path) -> Result<()> {
                 std::fs::create_dir_all(parent)?;
             }
             let mut writer = File::create(&out)?;
-            std::io::copy(&mut entry, &mut writer)?;
+            let written = std::io::copy(
+                &mut (&mut entry).take(remaining.saturating_add(1)),
+                &mut writer,
+            )?;
+            if written > remaining {
+                bail!("archive expands past {max_bytes} bytes");
+            }
+            remaining -= written;
             #[cfg(unix)]
             {
                 use std::os::unix::fs::PermissionsExt;

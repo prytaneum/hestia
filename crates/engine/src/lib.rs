@@ -65,8 +65,8 @@ pub use minecraft::{
 };
 pub use net::Network;
 pub use plugins::{
-    CallChain, CallError, ChainError, HostCalls, HostError, LoadError, LoadedPlugin, PluginPackage,
-    PluginRecord, PluginRuntime, PluginStats, Plugins, EVENT_TIMEOUT, HOOK_TIMEOUT,
+    CallChain, CallError, ChainError, HostCalls, HostError, Inspection, LoadError, LoadedPlugin,
+    PluginPackage, PluginRecord, PluginRuntime, PluginStats, Plugins, EVENT_TIMEOUT, HOOK_TIMEOUT,
     MAX_CHAIN_DEPTH, PROVIDER_TIMEOUT, UI_TIMEOUT,
 };
 pub use process::{ExitObserver, ProcessEvents, ProcessSupervisor, StartError};

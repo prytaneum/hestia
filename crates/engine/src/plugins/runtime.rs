@@ -176,16 +176,7 @@ impl PluginRuntime {
                 actual,
             });
         }
-        let component = self
-            .cache
-            .component(&self.engine, expected, wasm)
-            .map_err(|error| LoadError::Component(format!("{error:#}")))?;
-        let instance_pre = self
-            .linker
-            .instantiate_pre(&component)
-            .map_err(|error| LoadError::Component(format!("{error:#}")))?;
-        let pre = bindings::PluginPre::new(instance_pre)
-            .map_err(|error| LoadError::Component(format!("{error:#}")))?;
+        let pre = self.link(expected, wasm)?;
         tracing::info!(plugin = %record.id, "plugin loaded");
         Ok(LoadedPlugin {
             id: Arc::from(record.id.as_str()),
@@ -204,6 +195,28 @@ impl PluginRuntime {
             disabled: AtomicBool::new(false),
             _ticker: self.ticker.clone(),
         })
+    }
+
+    /// Compiles and links without running any guest code. CPU-heavy.
+    pub fn check(&self, wasm: &[u8]) -> Result<(), LoadError> {
+        self.link(&hex(&Sha256::digest(wasm)), wasm).map(drop)
+    }
+
+    fn link(
+        &self,
+        sha256: &str,
+        wasm: &[u8],
+    ) -> Result<bindings::PluginPre<PluginState>, LoadError> {
+        let component = self
+            .cache
+            .component(&self.engine, sha256, wasm)
+            .map_err(|error| LoadError::Component(format!("{error:#}")))?;
+        let instance_pre = self
+            .linker
+            .instantiate_pre(&component)
+            .map_err(|error| LoadError::Component(format!("{error:#}")))?;
+        bindings::PluginPre::new(instance_pre)
+            .map_err(|error| LoadError::Component(format!("{error:#}")))
     }
 }
 
