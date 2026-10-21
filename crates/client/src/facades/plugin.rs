@@ -1,7 +1,10 @@
 use ipc::errors::IpcError;
-use proto::plugin::{PluginInfo, PluginRef};
+use proto::plugin::{
+    PluginInfo, PluginInspection, PluginInstallParams, PluginInstallProgress, PluginPackageRef,
+    PluginRef,
+};
 
-use crate::session::Session;
+use crate::session::{job_id, Session};
 
 pub struct Plugin<'a> {
     pub(crate) session: &'a Session,
@@ -37,6 +40,34 @@ impl Plugin<'_> {
             .call::<proto::plugin::PluginRemove>(&reference(id))
             .await?;
         Ok(())
+    }
+
+    /// `path` must be absolute: the daemon resolves it.
+    pub async fn inspect(&self, path: &str) -> Result<PluginInspection, IpcError> {
+        let params = PluginPackageRef {
+            path: path.to_string(),
+        };
+        self.session
+            .call::<proto::plugin::PluginInspect>(&params)
+            .await
+    }
+
+    /// `approve` is the grant digest from [`Self::inspect`] the user agreed to.
+    pub async fn install(
+        &self,
+        path: &str,
+        approve: &str,
+        on_progress: impl Fn(&PluginInstallProgress) + Send + Sync + 'static,
+    ) -> Result<PluginInfo, IpcError> {
+        let id = job_id("plugin-install");
+        let params = PluginInstallParams {
+            id: id.clone(),
+            path: path.to_string(),
+            approve: approve.to_string(),
+        };
+        self.session
+            .run_job::<proto::plugin::PluginInstall>(&id, &params, on_progress)
+            .await
     }
 }
 

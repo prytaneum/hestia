@@ -11,6 +11,7 @@ use proto::error::EntryKind;
 use proto::java::{JavaInstallPhase, JavaInstallProgress};
 use proto::job::{Job, JobEvent, JobInfo, JobState, JobSubject};
 use proto::minecraft::{ProvisionPhase, ProvisionProgress};
+use proto::plugin::{PluginInstallPhase, PluginInstallProgress};
 
 use crate::runtime::{Cancellations, Claim, Claims, ProcessSupervisor};
 
@@ -45,6 +46,16 @@ impl Coalescible for JavaInstallProgress {
     }
     fn ratio(&self) -> f64 {
         JavaInstallProgress::ratio(self)
+    }
+}
+
+impl Coalescible for PluginInstallProgress {
+    type Phase = PluginInstallPhase;
+    fn phase(&self) -> PluginInstallPhase {
+        self.phase
+    }
+    fn ratio(&self) -> f64 {
+        PluginInstallProgress::ratio(self)
     }
 }
 

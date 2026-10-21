@@ -9,6 +9,7 @@ mod instance;
 mod java;
 mod job;
 mod modpack;
+mod plugin;
 mod server;
 mod transfer;
 mod update;

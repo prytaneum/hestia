@@ -6,16 +6,19 @@
 mod host;
 
 use std::collections::HashMap;
+use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Duration;
 
 use anyhow::Context;
 use engine::{
-    CallChain, Engine, HostCalls, LoadedPlugin, PluginRecord, PluginRuntime, PluginStats,
+    CallChain, Cancel, Engine, HostCalls, LoadedPlugin, PluginRecord, PluginRuntime, PluginStats,
 };
 use proto::error::ErrorInfo;
-use proto::plugin::{Manifest, PluginInfo, PluginState, PluginStateEvent};
+use proto::plugin::{
+    Manifest, PluginInfo, PluginInspection, PluginInstallPhase, PluginState, PluginStateEvent,
+};
 use tokio::task::{spawn_blocking, JoinSet};
 
 use super::EventHub;
@@ -133,6 +136,57 @@ impl Plugins {
         record.enabled = false;
         self.settle(id, PluginState::Disabled, None, None);
         Ok(self.info_of(record).await)
+    }
+
+    pub async fn inspect(&self, path: &Path) -> ServiceResult<PluginInspection> {
+        let inspection = self
+            .engine
+            .plugins()
+            .inspect(path)
+            .map_err(super::engine_error)?;
+        let installed_grant = inspection
+            .installed
+            .as_ref()
+            .map(|record| record.grant.clone())
+            .unwrap_or_default();
+        let replaces = match inspection.installed {
+            Some(record) => Some(self.info_of(record).await),
+            None => None,
+        };
+        Ok(PluginInspection {
+            widened: inspection.grant.widening_over(&installed_grant),
+            manifest: inspection.manifest,
+            grant: inspection.grant,
+            grant_digest: inspection.grant_digest,
+            replaces,
+        })
+    }
+
+    /// Blocking: compiles the component on the calling thread.
+    pub fn install(
+        &self,
+        path: &Path,
+        approve: &str,
+        cancel: &Cancel,
+        on_phase: &dyn Fn(PluginInstallPhase),
+    ) -> anyhow::Result<PluginRecord> {
+        let sandbox = self
+            .sandbox
+            .get()
+            .cloned()
+            .context("the plugin runtime is not running")?;
+        self.engine
+            .plugins()
+            .install(path, approve, cancel, on_phase, |wasm| {
+                sandbox.check(wasm).map_err(Into::into)
+            })
+    }
+
+    pub async fn installed(&self, record: PluginRecord) -> PluginInfo {
+        if record.enabled {
+            self.activate(record.clone()).await;
+        }
+        self.info_of(record).await
     }
 
     pub fn remove(&self, id: &str) -> ServiceResult<()> {
