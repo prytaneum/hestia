@@ -15,7 +15,7 @@ use sha2::{Digest, Sha256};
 use crate::change::Scope;
 use crate::contract::{Contract, Empty, Topic};
 
-pub const API_VERSION: &str = "0.2.0";
+pub const API_VERSION: &str = "1.0.0";
 
 /// Ids a plugin may not take: the CLI's top-level verbs, which a contributed
 /// command would otherwise shadow.
@@ -224,7 +224,7 @@ pub struct Manifest {
     pub id: String,
     pub name: String,
     pub version: String,
-    /// Caret requirement on the host ABI, `^0.N.x`. Written by `pack`; a
+    /// Caret requirement on the host ABI, `^N.M.x`. Written by `pack`; a
     /// theme-only package has none.
     pub api: Option<String>,
     pub description: String,
@@ -276,7 +276,7 @@ pub enum ManifestError {
     ReservedId(String),
     #[error("version `{0}` is not a semantic version")]
     BadVersion(String),
-    #[error("api `{0}` is not a caret requirement like ^0.2.0")]
+    #[error("api `{0}` is not a caret requirement like ^1.0.0")]
     BadApi(String),
     #[error("api `{required}` is not satisfied by host API {host}")]
     ApiMismatch { required: String, host: String },
@@ -393,7 +393,7 @@ fn semver_core(version: &str) -> Option<(u64, u64, u64)> {
     parts.next().is_none().then_some(triple)
 }
 
-/// A guest built against `0.N.x` runs on a host with the same `0.N` and a patch
+/// A guest built against `N.M.x` runs on a host with the same `N.M` and a patch
 /// at least `x`: a newer guest patch may import something the host lacks.
 fn check_api(api: &str) -> Result<(), ManifestError> {
     let required = api
