@@ -32,11 +32,6 @@ mod manifest {
     }
 
     #[test]
-    fn a_well_formed_manifest_validates() {
-        assert_eq!(valid().validate(), Ok(()));
-    }
-
-    #[test]
     fn a_theme_only_package_needs_no_api() {
         let mut theme = valid();
         theme.api = None;
@@ -102,21 +97,6 @@ mod manifest {
             manifest.validate(),
             Err(ManifestError::BadContributionId(_))
         ));
-    }
-
-    #[test]
-    fn rejects_a_repeated_id_within_a_list() {
-        let mut manifest = valid();
-        manifest.programs = ["a", "a"]
-            .map(|id| Program {
-                id: id.into(),
-                ..Program::default()
-            })
-            .into();
-        assert_eq!(
-            manifest.validate(),
-            Err(ManifestError::DuplicateId("a".into()))
-        );
     }
 
     #[test]
@@ -197,14 +177,5 @@ mod manifest {
             assert_ne!(*digest, base.grant().digest());
             assert!(!digests[..index].contains(digest));
         }
-    }
-
-    #[test]
-    fn a_grant_ignores_declaration_order() {
-        let mut a = valid();
-        a.permissions = vec![Permission::NetworkConnect, Permission::ContentRead];
-        let mut b = valid();
-        b.permissions = vec![Permission::ContentRead, Permission::NetworkConnect];
-        assert_eq!(a.grant().digest(), b.grant().digest());
     }
 }

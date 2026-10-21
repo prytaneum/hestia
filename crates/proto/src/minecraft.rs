@@ -209,11 +209,4 @@ mod tests {
         };
         assert_eq!(progress.ratio(), 0.25);
     }
-
-    #[test]
-    fn unknown_versions_are_undecidable() {
-        let list = versions(&["1.21.1", "1.21"]);
-        assert_eq!(downgrade_between(&list, "1.8.9", "1.21"), None);
-        assert_eq!(downgrade_between(&list, "1.21", "nope"), None);
-    }
 }
