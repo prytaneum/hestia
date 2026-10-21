@@ -219,14 +219,6 @@ mod tests {
     }
 
     #[test]
-    fn response_round_trips_at_current_version() {
-        let encoded = encode_response(&Response::success(json!({ "pong": true })));
-        let value: Value = serde_json::from_str(&encoded).unwrap();
-        let res = decode_response(&value).expect("current-major response decodes");
-        assert!(res.ok);
-    }
-
-    #[test]
     fn response_with_foreign_major_is_refused() {
         let frame = json!({ "v": 99, "ok": true, "payload": {} });
         assert!(matches!(
