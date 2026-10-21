@@ -1565,7 +1565,7 @@ fn plugin_manifest(network: &[&str]) -> String {
     let permissions = if network.is_empty() {
         ""
     } else {
-        "\"network\""
+        "\"network:connect\""
     };
     format!(
         "id = \"tunnel\"\nversion = \"1.0.0\"\napi = \"^{}\"\nwasm = \"plugin.wasm\"\n\
