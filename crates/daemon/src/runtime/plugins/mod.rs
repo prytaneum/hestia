@@ -112,7 +112,18 @@ impl Plugins {
     }
 
     pub async fn info(&self, id: &str) -> ServiceResult<PluginInfo> {
-        Ok(self.info_of(self.record(id)?).await)
+        let mut info = self.info_of(self.record(id)?).await;
+        let engine = self.engine.clone();
+        let id = id.to_string();
+        info.data_bytes = spawn_blocking(move || {
+            engine
+                .plugins()
+                .data_dir(&id)
+                .map_or(0, |dir| engine::dir_size(&dir))
+        })
+        .await
+        .ok();
+        Ok(info)
     }
 
     pub async fn enable(&self, id: &str) -> ServiceResult<PluginInfo> {
@@ -215,15 +226,9 @@ impl Plugins {
     async fn info_of(&self, record: PluginRecord) -> PluginInfo {
         let engine = self.engine.clone();
         let id = record.id.clone();
-        let (manifest, data_bytes) = spawn_blocking(move || {
-            let data_bytes = engine
-                .plugins()
-                .data_dir(&id)
-                .map_or(0, |dir| engine::dir_size(&dir));
-            (engine.plugins().read_manifest(&id), data_bytes)
-        })
-        .await
-        .unwrap_or_else(|error| (Err(error.into()), 0));
+        let manifest = spawn_blocking(move || engine.plugins().read_manifest(&id))
+            .await
+            .unwrap_or_else(|error| Err(error.into()));
         let (state, last_error, stats) = {
             let slots = self.slots.lock().unwrap();
             match slots.get(&record.id) {
@@ -265,7 +270,7 @@ impl Plugins {
             calls: stats.calls,
             traps: stats.traps,
             timeouts: stats.timeouts,
-            data_bytes,
+            data_bytes: None,
         }
     }
 

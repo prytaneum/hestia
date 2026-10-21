@@ -142,7 +142,9 @@ fn info(plugin: &PluginInfo) -> Result<()> {
     if let Some(error) = &plugin.last_error {
         rows.push(("Last error", error.clone()));
     }
-    rows.push(("Data", ui::human_bytes(plugin.data_bytes)));
+    if let Some(bytes) = plugin.data_bytes {
+        rows.push(("Data", ui::human_bytes(bytes)));
+    }
     rows.push((
         "Calls",
         format!(

@@ -14,6 +14,7 @@ sha256: string,
  */
 grant: Grant, lastError?: string, calls: number, traps: number, timeouts: number, 
 /**
- * Size of the plugin's `data/` directory.
+ * Size of the plugin's `data/` directory, measured only by `plugin.info`:
+ * walking every plugin's tree on each `plugin.list` costs too much.
  */
-dataBytes: number, };
+dataBytes?: number, };

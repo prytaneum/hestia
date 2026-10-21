@@ -504,8 +504,10 @@ pub struct PluginInfo {
     pub calls: u64,
     pub traps: u64,
     pub timeouts: u64,
-    /// Size of the plugin's `data/` directory.
-    pub data_bytes: u64,
+    /// Size of the plugin's `data/` directory, measured only by `plugin.info`:
+    /// walking every plugin's tree on each `plugin.list` costs too much.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub data_bytes: Option<u64>,
 }
 
 /// Published on every state transition of a plugin.
