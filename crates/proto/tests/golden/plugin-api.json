@@ -1,0 +1,2922 @@
+{
+  "apiVersion": "1.0.0",
+  "channels": {
+    "account.list": {
+      "params": "Empty",
+      "permission": "AccountsRead",
+      "result": "AccountListResult"
+    },
+    "config.set": {
+      "params": "ConfigSetParams",
+      "permission": "ConfigWrite",
+      "result": "Empty"
+    },
+    "content.add": {
+      "done": "ContentDone",
+      "params": "EntryContentAddParams",
+      "permission": "ContentWrite",
+      "progress": "ProvisionProgress",
+      "result": "JobStarted"
+    },
+    "content.check_updates": {
+      "params": "EntryContentCheckUpdatesParams",
+      "permission": "ContentRead",
+      "result": "Vec<ContentUpdate>"
+    },
+    "content.enable": {
+      "params": "EntryContentEnableParams",
+      "permission": "ContentWrite",
+      "result": "Empty"
+    },
+    "content.list": {
+      "params": "EntryContentListParams",
+      "permission": "ContentRead",
+      "result": "ContentListResult"
+    },
+    "content.matches": {
+      "params": "EntryContentMatchesParams",
+      "permission": "ContentRead",
+      "result": "Vec<ContentMatch>"
+    },
+    "content.project": {
+      "params": "ProjectParams",
+      "permission": "ContentRead",
+      "result": "ContentProject"
+    },
+    "content.remove": {
+      "params": "EntryContentRemoveParams",
+      "permission": "ContentWrite",
+      "result": "Empty"
+    },
+    "content.resolve_url": {
+      "params": "ResolveUrlParams",
+      "permission": "ContentRead",
+      "result": "ResolvedUrl"
+    },
+    "content.search": {
+      "params": "SearchQuery",
+      "permission": "ContentRead",
+      "result": "SearchResult"
+    },
+    "content.set_version": {
+      "done": "ContentDone",
+      "params": "EntryContentSetVersionParams",
+      "permission": "ContentWrite",
+      "progress": "ProvisionProgress",
+      "result": "JobStarted"
+    },
+    "content.sources": {
+      "params": "Empty",
+      "permission": "ContentRead",
+      "result": "Vec<ContentSource>"
+    },
+    "content.update": {
+      "done": "ContentDone",
+      "params": "EntryContentUpdateParams",
+      "permission": "ContentWrite",
+      "progress": "ProvisionProgress",
+      "result": "JobStarted"
+    },
+    "content.versions": {
+      "params": "VersionQuery",
+      "permission": "ContentRead",
+      "result": "Vec<ContentVersion>"
+    },
+    "entry.config.set": {
+      "params": "EntryConfigSetParams",
+      "permission": "EntriesWrite",
+      "result": "Empty"
+    },
+    "entry.flavors": {
+      "params": "EntryFlavorsParams",
+      "permission": "EntriesRead",
+      "result": "FlavorsResult"
+    },
+    "entry.loaders": {
+      "params": "EntryLoadersParams",
+      "permission": "EntriesRead",
+      "result": "Vec<String>"
+    },
+    "entry.remove": {
+      "params": "EntryTarget",
+      "permission": "EntriesWrite",
+      "result": "Empty"
+    },
+    "entry.rename": {
+      "params": "EntryRenameParams",
+      "permission": "EntriesWrite",
+      "result": "EntryRenamed"
+    },
+    "entry.stop": {
+      "params": "EntryStopParams",
+      "permission": "ProcessesControl",
+      "result": "Empty"
+    },
+    "entry.versions": {
+      "params": "EntryVersionsParams",
+      "permission": "EntriesRead",
+      "result": "Vec<GameVersion>"
+    },
+    "instance.create": {
+      "params": "InstanceCreateParams",
+      "permission": "EntriesWrite",
+      "result": "InstanceInfo"
+    },
+    "instance.export": {
+      "done": "ExportDone",
+      "params": "InstanceExportParams",
+      "permission": "EntriesWrite",
+      "progress": "ProvisionProgress",
+      "result": "JobStarted"
+    },
+    "instance.export.contents": {
+      "params": "crate::instance::InstanceRef",
+      "permission": "EntriesRead",
+      "result": "Vec<ArchiveEntry>"
+    },
+    "instance.import": {
+      "done": "ImportDone",
+      "params": "InstanceImportParams",
+      "permission": "EntriesWrite",
+      "progress": "ProvisionProgress",
+      "result": "JobStarted"
+    },
+    "instance.info": {
+      "params": "InstanceRef",
+      "permission": "EntriesRead",
+      "result": "InstanceDetails"
+    },
+    "instance.launch": {
+      "done": "InstanceLaunchDone",
+      "params": "InstanceLaunchParams",
+      "permission": "ProcessesControl",
+      "progress": "ProvisionProgress",
+      "result": "JobStarted"
+    },
+    "instance.list": {
+      "params": "Empty",
+      "permission": "EntriesRead",
+      "result": "Vec<InstanceInfo>"
+    },
+    "instance.modpack.install": {
+      "done": "ModpackDone",
+      "params": "InstanceModpackInstallParams",
+      "permission": "ContentWrite",
+      "progress": "ProvisionProgress",
+      "result": "JobStarted"
+    },
+    "instance.recent": {
+      "params": "Empty",
+      "permission": "EntriesRead",
+      "result": "Vec<RecentPlay>"
+    },
+    "instance.server.edit": {
+      "params": "InstanceServerEditParams",
+      "permission": "EntriesWrite",
+      "result": "InstanceServersWriteResult"
+    },
+    "instance.server.remove": {
+      "params": "InstanceServerRef",
+      "permission": "EntriesWrite",
+      "result": "InstanceServersWriteResult"
+    },
+    "instance.servers": {
+      "params": "InstanceRef",
+      "permission": "EntriesRead",
+      "result": "Vec<ServerEntry>"
+    },
+    "instance.servers.arrange": {
+      "params": "InstanceServersArrangeParams",
+      "permission": "EntriesWrite",
+      "result": "InstanceServersWriteResult"
+    },
+    "instance.sync.keys": {
+      "params": "InstanceSyncKeysParams",
+      "permission": "EntriesRead",
+      "result": "InstanceSyncStatus"
+    },
+    "instance.sync.unit": {
+      "params": "InstanceSyncUnitParams",
+      "permission": "EntriesRead",
+      "result": "InstanceSyncStatus"
+    },
+    "instance.update": {
+      "done": "InstanceUpdateDone",
+      "params": "InstanceUpdateParams",
+      "permission": "EntriesWrite",
+      "progress": "ProvisionProgress",
+      "result": "JobStarted"
+    },
+    "instance.worlds": {
+      "params": "InstanceRef",
+      "permission": "EntriesRead",
+      "result": "Vec<WorldInfo>"
+    },
+    "java.install": {
+      "done": "JavaInstallDone",
+      "params": "JavaInstallParams",
+      "permission": "JavaManage",
+      "progress": "JavaInstallProgress",
+      "result": "JobStarted"
+    },
+    "java.list": {
+      "params": "Empty",
+      "permission": "JavaManage",
+      "result": "Vec<JavaRuntime>"
+    },
+    "java.releases": {
+      "params": "Empty",
+      "permission": "JavaManage",
+      "result": "Vec<JavaRelease>"
+    },
+    "java.uninstall": {
+      "params": "JavaUninstallParams",
+      "permission": "JavaManage",
+      "result": "Empty"
+    },
+    "modpack.check_update": {
+      "params": "EntryModpackCheckParams",
+      "permission": "ContentRead",
+      "result": "ModpackUpdateResult"
+    },
+    "modpack.preview_update": {
+      "params": "EntryModpackFileParams",
+      "permission": "ContentRead",
+      "result": "ModpackFilePreview"
+    },
+    "modpack.remove": {
+      "params": "EntryModpackRemoveParams",
+      "permission": "ContentWrite",
+      "result": "ModpackRemoveResult"
+    },
+    "modpack.status": {
+      "params": "EntryModpackStatusParams",
+      "permission": "ContentRead",
+      "result": "ModpackStatusResult"
+    },
+    "modpack.update": {
+      "done": "ModpackDone",
+      "params": "EntryModpackUpdateParams",
+      "permission": "ContentWrite",
+      "progress": "ProvisionProgress",
+      "result": "JobStarted"
+    },
+    "process.exit": {
+      "payload": "ProcessExitEvent",
+      "permission": "EntriesRead"
+    },
+    "process.list": {
+      "params": "Empty",
+      "permission": "EntriesRead",
+      "result": "Vec<ProcessInfo>"
+    },
+    "process.metrics": {
+      "payload": "ProcessMetricsEvent",
+      "permission": "EntriesRead"
+    },
+    "process.started": {
+      "payload": "ProcessStartedEvent",
+      "permission": "EntriesRead"
+    },
+    "process.status": {
+      "params": "ProcessRef",
+      "permission": "EntriesRead",
+      "result": "ProcessInfo"
+    },
+    "process.stop": {
+      "params": "ProcessRef",
+      "permission": "ProcessesControl",
+      "result": "Empty"
+    },
+    "screenshot.delete": {
+      "params": "ScreenshotDeleteParams",
+      "permission": "EntriesWrite",
+      "result": "ScreenshotListResult"
+    },
+    "screenshot.list": {
+      "params": "ScreenshotListParams",
+      "permission": "EntriesRead",
+      "result": "ScreenshotListResult"
+    },
+    "server.backup.create": {
+      "done": "BackupDone",
+      "params": "ServerBackupCreateParams",
+      "permission": "EntriesWrite",
+      "progress": "ProvisionProgress",
+      "result": "JobStarted"
+    },
+    "server.backup.list": {
+      "params": "ServerRef",
+      "permission": "EntriesRead",
+      "result": "Vec<BackupInfo>"
+    },
+    "server.backup.remove": {
+      "params": "ServerBackupRef",
+      "permission": "EntriesWrite",
+      "result": "Empty"
+    },
+    "server.backup.restore": {
+      "done": "BackupDone",
+      "params": "ServerBackupRestoreParams",
+      "permission": "EntriesWrite",
+      "progress": "ProvisionProgress",
+      "result": "JobStarted"
+    },
+    "server.command": {
+      "params": "ServerCommandParams",
+      "permission": "ProcessesControl",
+      "result": "ServerCommandResult"
+    },
+    "server.command.complete": {
+      "params": "ServerCommandCompleteParams",
+      "permission": "EntriesRead",
+      "result": "ServerCommandCompleteResult"
+    },
+    "server.create": {
+      "done": "ServerDone",
+      "params": "ServerCreateParams",
+      "permission": "EntriesWrite",
+      "progress": "ProvisionProgress",
+      "result": "JobStarted"
+    },
+    "server.files.compress": {
+      "params": "ServerFilesCompressParams",
+      "permission": "EntriesWrite",
+      "result": "Empty"
+    },
+    "server.files.copy": {
+      "params": "ServerFileTransferParams",
+      "permission": "EntriesWrite",
+      "result": "Empty"
+    },
+    "server.files.extract": {
+      "params": "ServerFileTransferParams",
+      "permission": "EntriesWrite",
+      "result": "Empty"
+    },
+    "server.files.import": {
+      "params": "ServerFilesImportParams",
+      "permission": "EntriesWrite",
+      "result": "Empty"
+    },
+    "server.files.list": {
+      "params": "ServerFileParams",
+      "permission": "EntriesRead",
+      "result": "Vec<FileEntry>"
+    },
+    "server.files.mkdir": {
+      "params": "ServerFileParams",
+      "permission": "EntriesWrite",
+      "result": "Empty"
+    },
+    "server.files.move": {
+      "params": "ServerFileTransferParams",
+      "permission": "EntriesWrite",
+      "result": "Empty"
+    },
+    "server.files.remove": {
+      "params": "ServerFilesRemoveParams",
+      "permission": "EntriesWrite",
+      "result": "Empty"
+    },
+    "server.files.write": {
+      "params": "ServerFileWriteParams",
+      "permission": "EntriesWrite",
+      "result": "Empty"
+    },
+    "server.info": {
+      "params": "ServerRef",
+      "permission": "EntriesRead",
+      "result": "ServerDetails"
+    },
+    "server.list": {
+      "params": "Empty",
+      "permission": "EntriesRead",
+      "result": "Vec<ServerInfo>"
+    },
+    "server.modpack.install": {
+      "done": "ModpackDone",
+      "params": "ServerModpackInstallParams",
+      "permission": "ContentWrite",
+      "progress": "ProvisionProgress",
+      "result": "JobStarted"
+    },
+    "server.ping": {
+      "params": "ServerRef",
+      "permission": "EntriesRead",
+      "result": "ServerPingResult"
+    },
+    "server.players": {
+      "params": "ServerRef",
+      "permission": "EntriesRead",
+      "result": "ServerPlayersResult"
+    },
+    "server.players.kick": {
+      "params": "ServerPlayerKickParams",
+      "permission": "EntriesWrite",
+      "result": "Empty"
+    },
+    "server.players.set": {
+      "params": "ServerPlayerSetParams",
+      "permission": "EntriesWrite",
+      "result": "Empty"
+    },
+    "server.restart": {
+      "params": "ServerRef",
+      "permission": "ProcessesControl",
+      "result": "ServerStartResult"
+    },
+    "server.start": {
+      "params": "ServerRef",
+      "permission": "ProcessesControl",
+      "result": "ServerStartResult"
+    },
+    "server.status": {
+      "params": "ServerRef",
+      "permission": "EntriesRead",
+      "result": "ServerInfo"
+    },
+    "server.task.list": {
+      "params": "ServerRef",
+      "permission": "EntriesRead",
+      "result": "Vec<ServerTask>"
+    },
+    "server.task.remove": {
+      "params": "ServerTaskRemoveParams",
+      "permission": "EntriesWrite",
+      "result": "Empty"
+    },
+    "server.task.save": {
+      "params": "ServerTaskSaveParams",
+      "permission": "EntriesWrite",
+      "result": "ServerTask"
+    },
+    "server.update": {
+      "done": "ServerDone",
+      "params": "ServerUpdateParams",
+      "permission": "EntriesWrite",
+      "progress": "ProvisionProgress",
+      "result": "JobStarted"
+    },
+    "sync.disable": {
+      "params": "SyncDisableParams",
+      "permission": "EntriesWrite",
+      "result": "SyncConfig"
+    },
+    "sync.enable": {
+      "params": "SyncEnableParams",
+      "permission": "EntriesWrite",
+      "result": "SyncConfig"
+    },
+    "sync.get": {
+      "params": "Empty",
+      "permission": "EntriesRead",
+      "result": "SyncConfig"
+    },
+    "sync.options.get": {
+      "params": "Empty",
+      "permission": "EntriesRead",
+      "result": "SyncOptionsResult"
+    },
+    "sync.options.keys": {
+      "params": "SyncKeysParams",
+      "permission": "EntriesRead",
+      "result": "SyncConfig"
+    },
+    "sync.options.set": {
+      "params": "SyncOptionSetParams",
+      "permission": "EntriesWrite",
+      "result": "SyncOptionsResult"
+    },
+    "sync.packs.get": {
+      "params": "Empty",
+      "permission": "EntriesRead",
+      "result": "SyncPacksResult"
+    },
+    "sync.packs.remove": {
+      "params": "SyncPackRemoveParams",
+      "permission": "EntriesWrite",
+      "result": "SyncPacksResult"
+    },
+    "sync.packs.set": {
+      "params": "SyncPackSetParams",
+      "permission": "EntriesWrite",
+      "result": "SyncPacksResult"
+    },
+    "sync.sources": {
+      "params": "SyncSourcesParams",
+      "permission": "EntriesRead",
+      "result": "Vec<SyncSource>"
+    },
+    "sync.status": {
+      "params": "Empty",
+      "permission": "EntriesRead",
+      "result": "Vec<InstanceSyncStatus>"
+    }
+  },
+  "types": {
+    "Account": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "name": "pub name: String",
+        "needs_reauth": "pub needs_reauth: bool",
+        "uuid": "pub uuid: String"
+      }
+    },
+    "AccountListResult": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "accounts": "pub accounts: Vec<Account>",
+        "default_uuid": "pub default_uuid: String"
+      }
+    },
+    "ArchiveEntry": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "directory": "pub directory: bool",
+        "name": "pub name: String",
+        "path": "pub path: String",
+        "referenced": "pub referenced: bool",
+        "size_bytes": "pub size_bytes: u64"
+      }
+    },
+    "ArchiveFault": {
+      "attributes": [
+        "serde(rename_all = \"snake_case\")"
+      ],
+      "kind": "enum",
+      "members": {
+        "FileUnpublished": "FileUnpublished",
+        "FormatVersion": "FormatVersion",
+        "ManifestMalformed": "ManifestMalformed",
+        "ManifestMissing": "ManifestMissing",
+        "ManifestType": "ManifestType",
+        "NoComponents": "NoComponents",
+        "NoGameVersion": "NoGameVersion",
+        "NotAnArchive": "NotAnArchive",
+        "UnsafePath": "UnsafePath"
+      }
+    },
+    "ArchiveFormat": {
+      "attributes": [
+        "serde(rename_all = \"snake_case\")"
+      ],
+      "kind": "enum",
+      "members": {
+        "Backup": "Backup",
+        "CurseForge": "serde(rename = \"curseforge\") CurseForge",
+        "Hestia": "Hestia",
+        "Mrpack": "Mrpack",
+        "Prism": "Prism",
+        "Zip": "Zip"
+      }
+    },
+    "Artifact": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "checksum": "serde(skip_serializing_if = \"Option::is_none\") pub checksum: Option<Checksum>",
+        "filename": "pub filename: String",
+        "size": "pub size: u64",
+        "url": "pub url: String"
+      }
+    },
+    "BackupDone": {
+      "attributes": [
+        "serde(rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "backup": "pub backup: BackupInfo"
+      }
+    },
+    "BackupInfo": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "created_unix": "pub created_unix: i64",
+        "id": "pub id: String",
+        "kind": "pub kind: BackupKind",
+        "size": "pub size: u64"
+      }
+    },
+    "BackupKind": {
+      "attributes": [
+        "serde(rename_all = \"snake_case\")"
+      ],
+      "kind": "enum",
+      "members": {
+        "Manual": "Manual",
+        "Scheduled": "Scheduled",
+        "Update": "Update"
+      }
+    },
+    "Checksum": {
+      "attributes": [
+        "serde(rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "algorithm": "pub algorithm: HashAlgorithm",
+        "hex": "serde(default) pub hex: String"
+      }
+    },
+    "ConfigEntry": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "key": "pub key: String",
+        "value": "pub value: String"
+      }
+    },
+    "ConfigSetParams": {
+      "attributes": [
+        "serde(rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "key": "pub key: String",
+        "value": "pub value: Value"
+      }
+    },
+    "ContentAddItem": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "filename": "pub filename: String",
+        "path": "pub path: String",
+        "project": "pub project: String",
+        "source": "pub source: String",
+        "url": "pub url: String",
+        "version": "pub version: String"
+      }
+    },
+    "ContentAddSpec": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "items": "pub items: Vec<ContentAddItem>",
+        "kind": "pub kind: ContentKind",
+        "source": "pub source: String",
+        "worlds": "pub worlds: Vec<String>"
+      }
+    },
+    "ContentDependency": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "kind": "pub kind: DependencyKind",
+        "project_id": "pub project_id: String",
+        "version_id": "pub version_id: String"
+      }
+    },
+    "ContentDone": {
+      "attributes": [
+        "serde(rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "failures": "serde(default) pub failures: Vec<ContentFailure>",
+        "items": "pub items: Vec<InstalledContent>"
+      }
+    },
+    "ContentFailure": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "error": "pub error: ErrorInfo",
+        "item": "pub item: String",
+        "title": "pub title: String"
+      }
+    },
+    "ContentFile": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "artifact": "pub artifact: Artifact",
+        "primary": "pub primary: bool"
+      }
+    },
+    "ContentKind": {
+      "attributes": [
+        "serde(rename_all = \"snake_case\")"
+      ],
+      "kind": "enum",
+      "members": {
+        "DataPack": "DataPack",
+        "Mod": "Mod",
+        "Modpack": "Modpack",
+        "Plugin": "Plugin",
+        "ResourcePack": "ResourcePack",
+        "Shader": "Shader"
+      }
+    },
+    "ContentListResult": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "items": "pub items: Vec<InstalledContent>",
+        "untracked": "pub untracked: Vec<UntrackedFile>"
+      }
+    },
+    "ContentMatch": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "project": "pub project: ContentProject",
+        "version_number": "pub version_number: String"
+      }
+    },
+    "ContentProject": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "author": "pub author: String",
+        "body": "pub body: String",
+        "categories": "pub categories: Vec<String>",
+        "client_side": "pub client_side: SideSupport",
+        "description": "pub description: String",
+        "downloads": "pub downloads: u64",
+        "follows": "pub follows: u64",
+        "gallery": "pub gallery: Vec<GalleryImage>",
+        "icon_url": "pub icon_url: String",
+        "id": "pub id: String",
+        "kind": "pub kind: ContentKind",
+        "kinds": "pub kinds: Vec<ContentKind>",
+        "server_side": "pub server_side: SideSupport",
+        "slug": "pub slug: String",
+        "source": "pub source: String",
+        "title": "pub title: String"
+      }
+    },
+    "ContentSource": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "id": "pub id: String",
+        "kinds": "pub kinds: Vec<ContentKind>",
+        "name": "pub name: String"
+      }
+    },
+    "ContentUpdate": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "current_version_id": "pub current_version_id: String",
+        "current_version_number": "pub current_version_number: String",
+        "filename": "pub filename: String",
+        "latest_version_id": "pub latest_version_id: String",
+        "latest_version_number": "pub latest_version_number: String",
+        "project_id": "pub project_id: String",
+        "updatable": "pub updatable: bool"
+      }
+    },
+    "ContentVersion": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "channel": "pub channel: ReleaseChannel",
+        "date_published": "pub date_published: String",
+        "dependencies": "pub dependencies: Vec<ContentDependency>",
+        "downloads": "pub downloads: u64",
+        "featured": "pub featured: bool",
+        "files": "pub files: Vec<ContentFile>",
+        "game_versions": "pub game_versions: Vec<String>",
+        "id": "pub id: String",
+        "loaders": "pub loaders: Vec<String>",
+        "name": "pub name: String",
+        "project_id": "pub project_id: String",
+        "source": "pub source: String",
+        "version_number": "pub version_number: String"
+      }
+    },
+    "DependencyKind": {
+      "attributes": [
+        "serde(rename_all = \"snake_case\")"
+      ],
+      "kind": "enum",
+      "members": {
+        "Embedded": "Embedded",
+        "Incompatible": "Incompatible",
+        "Optional": "Optional",
+        "Required": "Required"
+      }
+    },
+    "Difficulty": {
+      "attributes": [
+        "serde(rename_all = \"snake_case\")"
+      ],
+      "kind": "enum",
+      "members": {
+        "Easy": "Easy",
+        "Hard": "Hard",
+        "Normal": "Normal",
+        "Peaceful": "Peaceful"
+      }
+    },
+    "Empty": {
+      "attributes": [],
+      "kind": "struct",
+      "members": {}
+    },
+    "EntryConfigSetParams": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "key": "pub key: String",
+        "target": "pub target: EntryTarget",
+        "value": "pub value: String"
+      }
+    },
+    "EntryContentAddParams": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "id": "pub id: String",
+        "spec": "serde(flatten) pub spec: ContentAddSpec",
+        "target": "pub target: EntryTarget"
+      }
+    },
+    "EntryContentCheckUpdatesParams": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "kind": "pub kind: ContentKind",
+        "target": "pub target: EntryTarget"
+      }
+    },
+    "EntryContentEnableParams": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "enabled": "pub enabled: bool",
+        "item": "pub item: String",
+        "kind": "pub kind: ContentKind",
+        "target": "pub target: EntryTarget",
+        "worlds": "pub worlds: Vec<String>"
+      }
+    },
+    "EntryContentListParams": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "kind": "pub kind: ContentKind",
+        "target": "pub target: EntryTarget"
+      }
+    },
+    "EntryContentMatchesParams": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "item": "pub item: String",
+        "kind": "pub kind: ContentKind",
+        "target": "pub target: EntryTarget"
+      }
+    },
+    "EntryContentRemoveParams": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "items": "pub items: Vec<String>",
+        "kind": "pub kind: ContentKind",
+        "target": "pub target: EntryTarget",
+        "worlds": "pub worlds: Vec<String>"
+      }
+    },
+    "EntryContentSetVersionParams": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "id": "pub id: String",
+        "item": "pub item: String",
+        "kind": "pub kind: ContentKind",
+        "source": "pub source: String",
+        "target": "pub target: EntryTarget",
+        "version": "pub version: String"
+      }
+    },
+    "EntryContentUpdateParams": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "id": "pub id: String",
+        "items": "pub items: Vec<String>",
+        "kind": "pub kind: ContentKind",
+        "path": "pub path: String",
+        "target": "pub target: EntryTarget"
+      }
+    },
+    "EntryFlavorsParams": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "kind": "pub kind: EntryKind"
+      }
+    },
+    "EntryKind": {
+      "attributes": [
+        "serde(rename_all = \"snake_case\")"
+      ],
+      "kind": "enum",
+      "members": {
+        "Instance": "Instance",
+        "Server": "Server"
+      }
+    },
+    "EntryLoadersParams": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "flavor": "pub flavor: String",
+        "kind": "pub kind: EntryKind",
+        "version": "pub version: String"
+      }
+    },
+    "EntryModpackCheckParams": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "game_version": "pub game_version: String",
+        "target": "pub target: EntryTarget"
+      }
+    },
+    "EntryModpackFileParams": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "path": "pub path: String",
+        "target": "pub target: EntryTarget"
+      }
+    },
+    "EntryModpackRemoveParams": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "keep_content": "pub keep_content: bool",
+        "target": "pub target: EntryTarget"
+      }
+    },
+    "EntryModpackStatusParams": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "target": "pub target: EntryTarget"
+      }
+    },
+    "EntryModpackUpdateParams": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "id": "pub id: String",
+        "target": "pub target: EntryTarget",
+        "to": "pub to: ModpackMove"
+      }
+    },
+    "EntryRenameParams": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "name": "pub name: String",
+        "target": "pub target: EntryTarget"
+      }
+    },
+    "EntryRenamed": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "id": "pub id: String",
+        "name": "pub name: String"
+      }
+    },
+    "EntryStopParams": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "session": "serde(skip_serializing_if = \"Option::is_none\") pub session: Option<String>",
+        "target": "pub target: EntryTarget"
+      }
+    },
+    "EntryTarget": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "entry": "pub entry: String",
+        "kind": "pub kind: EntryKind"
+      }
+    },
+    "EntryVersionsParams": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "flavor": "pub flavor: String",
+        "kind": "pub kind: EntryKind"
+      }
+    },
+    "ErrorInfo": {
+      "attributes": [
+        "serde(tag = \"kind\", rename_all = \"snake_case\")"
+      ],
+      "kind": "enum",
+      "members": {
+        "AccountNotFound": "AccountNotFound { reference: String, }",
+        "AlreadyExists": "AlreadyExists { entry: EntryKind, name: String, }",
+        "ArchiveInvalid": "ArchiveInvalid { format: ArchiveFormat, reason: ArchiveFault, }",
+        "ArchiveTooNew": "ArchiveTooNew { format: ArchiveFormat, schema: u32, }",
+        "ArchiveUnrecognised": "ArchiveUnrecognised { filename: String, }",
+        "ArchiveUnsupported": "ArchiveUnsupported { loader: String, }",
+        "BackupInProgress": "BackupInProgress { name: String, }",
+        "BackupNotFound": "BackupNotFound { reference: String, }",
+        "ConfigInvalid": "ConfigInvalid { key: String, reason: Reason, }",
+        "ConfigKeyUnknown": "ConfigKeyUnknown { key: String, }",
+        "ConfigKeyUnset": "ConfigKeyUnset { key: String, }",
+        "ConfigRejected": "ConfigRejected { key: String, }",
+        "ConfigTypeMismatch": "ConfigTypeMismatch { key: String, expected: ValueKind, }",
+        "ContentDownloadBlocked": "ContentDownloadBlocked { title: String, source: String, }",
+        "ContentInProgress": "ContentInProgress { name: String, }",
+        "ContentKindMismatch": "ContentKindMismatch { title: String, actual: ContentKind, expected: ContentKind, }",
+        "ContentKindRejected": "ContentKindRejected { entry: EntryKind, flavor: String, requested: ContentKind, accepts: Vec<ContentKind>, }",
+        "ContentNotFound": "ContentNotFound { reference: String, }",
+        "ContentSourceUnavailable": "ContentSourceUnavailable { source: String, }",
+        "CreateInProgress": "CreateInProgress",
+        "DownloadFailed": "DownloadFailed { detail: String, }",
+        "ElevationRequired": "ElevationRequired { command: String, }",
+        "EntryNotFound": "EntryNotFound { entry: EntryKind, reference: String, }",
+        "EntryRunning": "EntryRunning { entry: EntryKind, name: String, }",
+        "EulaRequired": "EulaRequired",
+        "ExportInProgress": "ExportInProgress { name: String, }",
+        "FieldRequired": "FieldRequired { field: Field, }",
+        "FieldsRequired": "FieldsRequired { fields: Vec<Field>, }",
+        "FileNotFound": "FileNotFound { path: String, }",
+        "FileRejected": "FileRejected { path: String, reason: FileFault, }",
+        "HardcoreLocked": "HardcoreLocked { key: String, value: String, }",
+        "HardcoreRequires": "HardcoreRequires { settings: Vec<String>, }",
+        "IncompatibleVersion": "IncompatibleVersion { got: i64, want: i64, }",
+        "Internal": "Internal { detail: String, }",
+        "InvalidValue": "InvalidValue { field: Field, reason: Reason, }",
+        "Io": "Io { operation: IoOp, detail: String, }",
+        "JavaInstallInProgress": "JavaInstallInProgress { major: i32, }",
+        "LoginDeclined": "LoginDeclined",
+        "LoginTimedOut": "LoginTimedOut",
+        "MalformedRequest": "MalformedRequest { detail: String, }",
+        "MissingRequirement": "MissingRequirement { flavor: String, name: String, url: String, }",
+        "ModpackDifferentPack": "ModpackDifferentPack { installed: String, given: String, }",
+        "ModpackEntryMismatch": "serde(rename_all = \"camelCase\") ModpackEntryMismatch { entry: EntryKind, flavor: String, game_version: String, pack_flavor: String, pack_game_version: String, }",
+        "ModpackInvalid": "ModpackInvalid { reason: ArchiveFault, }",
+        "ModpackLoaderUnsupported": "ModpackLoaderUnsupported { loader: String, }",
+        "ModpackNotInstalled": "ModpackNotInstalled { entry: EntryKind, name: String, }",
+        "MultiSessionDisabled": "MultiSessionDisabled { name: String, }",
+        "MutuallyExclusive": "MutuallyExclusive { options: Vec<Field>, }",
+        "NotAModpack": "NotAModpack { reference: String, }",
+        "NotRunning": "NotRunning { entry: EntryKind, name: String, }",
+        "NothingToDo": "NothingToDo { what: Task, }",
+        "Offline": "Offline { service: Option<Service>, }",
+        "OfflineMode": "OfflineMode",
+        "PluginApprovalStale": "PluginApprovalStale",
+        "PluginInstallInProgress": "PluginInstallInProgress { id: String, }",
+        "PluginInvalid": "PluginInvalid { detail: String, }",
+        "PluginNotFound": "PluginNotFound { id: String, }",
+        "PortUnavailable": "PortUnavailable { port: u16, }",
+        "ProcessNotFound": "ProcessNotFound { id: String, }",
+        "Provisioning": "Provisioning { name: String, }",
+        "QuickPlayUnsupported": "QuickPlayUnsupported { version: String, }",
+        "ServerListEntryNotFound": "ServerListEntryNotFound { reference: String, }",
+        "SessionExpired": "SessionExpired { reference: String, }",
+        "SignInRequired": "SignInRequired",
+        "SkinNotFound": "SkinNotFound { key: String, }",
+        "StopTimedOut": "StopTimedOut { name: String, }",
+        "SyncSourceRequired": "SyncSourceRequired { unit: crate::sync::SyncUnit, candidates: Vec<String>, }",
+        "SyncUnitDisabled": "SyncUnitDisabled { unit: crate::sync::SyncUnit, }",
+        "TaskNotFound": "TaskNotFound { id: String, }",
+        "TextureNotPng": "TextureNotPng",
+        "TextureSizeUnsupported": "TextureSizeUnsupported { width: u32, height: u32, }",
+        "UnknownChannel": "UnknownChannel { channel: String, }",
+        "UnsupportedContentUrl": "UnsupportedContentUrl { url: String, }",
+        "UnsupportedOperation": "UnsupportedOperation { reason: Unsupported, }",
+        "UpdateInProgress": "UpdateInProgress { name: String, }",
+        "Upstream": "Upstream { service: Service, detail: String, }",
+        "VersionNotFound": "VersionNotFound { reference: String, }",
+        "WorkRunning": "WorkRunning",
+        "WorldNotFound": "WorldNotFound { world: String, }"
+      }
+    },
+    "ExportDone": {
+      "attributes": [
+        "serde(rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "files": "pub files: u64",
+        "path": "pub path: String",
+        "size_bytes": "pub size_bytes: u64",
+        "warnings": "serde(default) pub warnings: Vec<WarningInfo>"
+      }
+    },
+    "ExportFormat": {
+      "attributes": [
+        "serde(rename_all = \"snake_case\")"
+      ],
+      "kind": "enum",
+      "members": {
+        "Hestia": "Hestia",
+        "Mrpack": "Mrpack"
+      }
+    },
+    "Field": {
+      "attributes": [
+        "serde(rename_all = \"snake_case\")"
+      ],
+      "kind": "enum",
+      "members": {
+        "Address": "Address",
+        "Backup": "Backup",
+        "Command": "Command",
+        "Flavor": "Flavor",
+        "Item": "Item",
+        "JavaVersion": "JavaVersion",
+        "JvmArgs": "JvmArgs",
+        "Memory": "Memory",
+        "Name": "Name",
+        "Order": "Order",
+        "Path": "Path",
+        "Player": "Player",
+        "ProcessId": "ProcessId",
+        "Program": "Program",
+        "Project": "Project",
+        "Realm": "Realm",
+        "Retention": "Retention",
+        "Schedule": "Schedule",
+        "Url": "Url",
+        "Version": "Version",
+        "World": "World"
+      }
+    },
+    "FileEntry": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "dir": "pub dir: bool",
+        "modified_unix": "pub modified_unix: i64",
+        "name": "pub name: String",
+        "path": "pub path: String",
+        "size": "pub size: u64"
+      }
+    },
+    "FileFault": {
+      "attributes": [
+        "serde(rename_all = \"snake_case\")"
+      ],
+      "kind": "enum",
+      "members": {
+        "AlreadyExists": "AlreadyExists",
+        "ArchiveFormat": "ArchiveFormat",
+        "IntoItself": "IntoItself",
+        "IsADirectory": "IsADirectory",
+        "NotADirectory": "NotADirectory",
+        "NotText": "NotText",
+        "OutsideEntry": "OutsideEntry",
+        "TooLarge": "TooLarge"
+      }
+    },
+    "Flavor": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "accepts": "pub accepts: Vec<ContentKind>",
+        "id": "pub id: String",
+        "name": "pub name: String",
+        "requires": "pub requires: Vec<Requirement>",
+        "summary": "pub summary: String"
+      }
+    },
+    "FlavorsResult": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "flavors": "pub flavors: Vec<Flavor>",
+        "rules": "pub rules: Vec<KeyRule>"
+      }
+    },
+    "GalleryImage": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "description": "pub description: String",
+        "featured": "pub featured: bool",
+        "title": "pub title: String",
+        "url": "pub url: String"
+      }
+    },
+    "GameMode": {
+      "attributes": [
+        "serde(rename_all = \"snake_case\")"
+      ],
+      "kind": "enum",
+      "members": {
+        "Adventure": "Adventure",
+        "Creative": "Creative",
+        "Spectator": "Spectator",
+        "Survival": "Survival"
+      }
+    },
+    "GameVersion": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "id": "pub id: String",
+        "kind": "pub kind: VersionKind",
+        "stable": "pub stable: bool"
+      }
+    },
+    "HashAlgorithm": {
+      "attributes": [
+        "serde(rename_all = \"lowercase\")"
+      ],
+      "kind": "enum",
+      "members": {
+        "Sha1": "Sha1",
+        "Sha256": "Sha256"
+      }
+    },
+    "ImportDone": {
+      "attributes": [
+        "serde(rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "failures": "serde(default) pub failures: Vec<ContentFailure>",
+        "format": "pub format: ImportFormat",
+        "instance": "pub instance: InstanceInfo",
+        "warnings": "serde(default) pub warnings: Vec<WarningInfo>"
+      }
+    },
+    "ImportFormat": {
+      "attributes": [
+        "serde(rename_all = \"snake_case\")"
+      ],
+      "kind": "enum",
+      "members": {
+        "CurseForge": "serde(rename = \"curseforge\") CurseForge",
+        "Hestia": "Hestia",
+        "Mrpack": "Mrpack",
+        "Prism": "Prism"
+      }
+    },
+    "InstalledContent": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "disabled_worlds": "pub disabled_worlds: Vec<String>",
+        "enabled": "pub enabled: bool",
+        "filename": "pub filename: String",
+        "icon_url": "pub icon_url: String",
+        "installed_unix": "pub installed_unix: i64",
+        "kind": "pub kind: ContentKind",
+        "origin": "pub origin: String",
+        "project_id": "pub project_id: String",
+        "sha1": "pub sha1: String",
+        "slug": "pub slug: String",
+        "source": "pub source: String",
+        "title": "pub title: String",
+        "url": "pub url: String",
+        "version_id": "pub version_id: String",
+        "version_number": "pub version_number: String",
+        "worlds": "pub worlds: Vec<String>"
+      }
+    },
+    "InstalledModpack": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "files": "pub files: Vec<String>",
+        "game_version": "pub game_version: String",
+        "icon_url": "pub icon_url: String",
+        "installed_unix": "pub installed_unix: i64",
+        "loader": "pub loader: String",
+        "loader_version": "pub loader_version: String",
+        "name": "pub name: String",
+        "overrides": "pub overrides: Vec<ModpackOverride>",
+        "project_id": "pub project_id: String",
+        "slug": "pub slug: String",
+        "source": "pub source: String",
+        "version_id": "pub version_id: String",
+        "version_number": "pub version_number: String"
+      }
+    },
+    "InstanceCreateParams": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "config": "pub config: Vec<ConfigEntry>",
+        "flavor": "pub flavor: String",
+        "loader_version": "serde(skip_serializing_if = \"Option::is_none\") pub loader_version: Option<String>",
+        "name": "pub name: String",
+        "version": "pub version: String"
+      }
+    },
+    "InstanceDetails": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "created_unix": "pub created_unix: i64",
+        "data_dir": "pub data_dir: String",
+        "disk_bytes": "pub disk_bytes: u64",
+        "entry_dir": "pub entry_dir: String",
+        "flavor": "pub flavor: String",
+        "game_version": "pub game_version: String",
+        "id": "pub id: String",
+        "java_major": "pub java_major: i32",
+        "last_played_unix": "serde(skip_serializing_if = \"Option::is_none\") pub last_played_unix: Option<i64>",
+        "loader_version": "serde(skip_serializing_if = \"Option::is_none\") pub loader_version: Option<String>",
+        "name": "pub name: String",
+        "playtime_seconds": "pub playtime_seconds: i64"
+      }
+    },
+    "InstanceExportParams": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "destination": "pub destination: String",
+        "exclude": "pub exclude: Vec<String>",
+        "format": "pub format: ExportFormat",
+        "id": "pub id: String",
+        "instance": "pub instance: String"
+      }
+    },
+    "InstanceImportParams": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "id": "pub id: String",
+        "name": "pub name: String",
+        "path": "pub path: String"
+      }
+    },
+    "InstanceInfo": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "accepts": "serde(default) pub accepts: Vec<ContentKind>",
+        "created_unix": "pub created_unix: i64",
+        "flavor": "pub flavor: String",
+        "game_version": "pub game_version: String",
+        "id": "pub id: String",
+        "java_major": "pub java_major: i32",
+        "last_played_unix": "serde(skip_serializing_if = \"Option::is_none\") pub last_played_unix: Option<i64>",
+        "loader_version": "serde(skip_serializing_if = \"Option::is_none\") pub loader_version: Option<String>",
+        "name": "pub name: String",
+        "playtime_seconds": "pub playtime_seconds: i64",
+        "sessions": "pub sessions: Vec<ProcessInfo>"
+      }
+    },
+    "InstanceLaunchDone": {
+      "attributes": [
+        "serde(rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "pid": "pub pid: u32",
+        "process_id": "pub process_id: String",
+        "warnings": "serde(default) pub warnings: Vec<WarningInfo>"
+      }
+    },
+    "InstanceLaunchParams": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "account": "pub account: String",
+        "id": "pub id: String",
+        "instance": "pub instance: String",
+        "new_session": "serde(default) pub new_session: bool",
+        "offline": "serde(default) pub offline: bool",
+        "quick_play": "serde(default, skip_serializing_if = \"Option::is_none\") pub quick_play: Option<QuickPlay>",
+        "replace": "serde(default, skip_serializing_if = \"Option::is_none\") pub replace: Option<Replace>"
+      }
+    },
+    "InstanceModpackInstallParams": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "id": "pub id: String",
+        "pack": "serde(flatten) pub pack: ModpackRef",
+        "target": "pub target: ModpackTarget"
+      }
+    },
+    "InstanceRef": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "instance": "pub instance: String"
+      }
+    },
+    "InstanceServerEditParams": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "accept_textures": "pub accept_textures: bool",
+        "address": "pub address: String",
+        "instance": "pub instance: String",
+        "name": "pub name: String",
+        "server": "pub server: String"
+      }
+    },
+    "InstanceServerRef": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "instance": "pub instance: String",
+        "server": "pub server: String"
+      }
+    },
+    "InstanceServersArrangeParams": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "instance": "pub instance: String",
+        "order": "pub order: Vec<String>"
+      }
+    },
+    "InstanceServersWriteResult": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "servers": "pub servers: Vec<ServerEntry>",
+        "warnings": "serde(default) pub warnings: Vec<WarningInfo>"
+      }
+    },
+    "InstanceSyncKeysParams": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "instance": "pub instance: String",
+        "unsynced": "pub unsynced: BTreeSet<String>"
+      }
+    },
+    "InstanceSyncStatus": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "id": "pub id: String",
+        "name": "pub name: String",
+        "units": "pub units: Vec<UnitStatus>",
+        "unsynced": "pub unsynced: BTreeSet<String>"
+      }
+    },
+    "InstanceSyncUnitParams": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "instance": "pub instance: String",
+        "shared": "pub shared: Option<bool>",
+        "unit": "pub unit: SyncUnit"
+      }
+    },
+    "InstanceUpdateDone": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "failures": "pub failures: Vec<ContentFailure>",
+        "instance": "pub instance: InstanceInfo",
+        "warnings": "pub warnings: Vec<WarningInfo>"
+      }
+    },
+    "InstanceUpdateParams": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "allow_downgrade": "pub allow_downgrade: bool",
+        "id": "pub id: String",
+        "instance": "pub instance: String",
+        "loader_version": "serde(skip_serializing_if = \"Option::is_none\") pub loader_version: Option<String>",
+        "pack": "pub pack: PackPolicy",
+        "version": "pub version: String"
+      }
+    },
+    "IoOp": {
+      "attributes": [
+        "serde(rename_all = \"snake_case\")"
+      ],
+      "kind": "enum",
+      "members": {
+        "Copy": "Copy",
+        "Create": "Create",
+        "Extract": "Extract",
+        "Link": "Link",
+        "Move": "Move",
+        "Open": "Open",
+        "Read": "Read",
+        "Remove": "Remove",
+        "Unlink": "Unlink",
+        "Write": "Write"
+      }
+    },
+    "JavaInstallDone": {
+      "attributes": [
+        "serde(rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "already_installed": "serde(default) pub already_installed: bool",
+        "runtime": "pub runtime: JavaRuntime"
+      }
+    },
+    "JavaInstallParams": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "force": "pub force: bool",
+        "id": "pub id: String",
+        "major": "pub major: i32"
+      }
+    },
+    "JavaInstallPhase": {
+      "attributes": [
+        "serde(rename_all = \"lowercase\")"
+      ],
+      "kind": "enum",
+      "members": {
+        "Downloading": "Downloading",
+        "Extracting": "Extracting",
+        "Resolving": "Resolving"
+      }
+    },
+    "JavaInstallProgress": {
+      "attributes": [
+        "serde(rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "current": "serde(default) pub current: u64",
+        "phase": "pub phase: JavaInstallPhase",
+        "total": "serde(default) pub total: u64"
+      }
+    },
+    "JavaRelease": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "lts": "pub lts: bool",
+        "major": "pub major: i32"
+      }
+    },
+    "JavaRuntime": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "executable": "pub executable: PathBuf",
+        "home": "pub home: PathBuf",
+        "in_use": "pub in_use: bool",
+        "major": "pub major: i32",
+        "release_name": "pub release_name: String",
+        "vendor": "pub vendor: String"
+      }
+    },
+    "JavaUninstallParams": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "major": "pub major: i32"
+      }
+    },
+    "JobStarted": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "id": "pub id: String"
+      }
+    },
+    "JvmArgsSource": {
+      "attributes": [
+        "serde(rename_all = \"snake_case\")"
+      ],
+      "kind": "enum",
+      "members": {
+        "Defaults": "Defaults",
+        "Entry": "Entry",
+        "Flavor": "Flavor",
+        "None": "None"
+      }
+    },
+    "KeyKind": {
+      "attributes": [
+        "serde(tag = \"type\", rename_all = \"snake_case\")"
+      ],
+      "kind": "enum",
+      "members": {
+        "Boolean": "Boolean",
+        "Choice": "Choice { values: Vec<String> }",
+        "Integer": "Integer { min: i64, max: i64 }",
+        "JvmArgs": "JvmArgs",
+        "Memory": "Memory"
+      }
+    },
+    "KeyRule": {
+      "attributes": [
+        "serde(rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "key": "pub key: String",
+        "kind": "pub kind: KeyKind"
+      }
+    },
+    "ModpackDone": {
+      "attributes": [
+        "serde(rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "entry": "pub entry: String",
+        "entry_name": "pub entry_name: String",
+        "failures": "serde(default) pub failures: Vec<ContentFailure>",
+        "pack": "pub pack: InstalledModpack",
+        "warnings": "serde(default) pub warnings: Vec<WarningInfo>"
+      }
+    },
+    "ModpackFilePreview": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "downgrade": "pub downgrade: bool",
+        "game_version": "pub game_version: String",
+        "name": "pub name: String",
+        "same_pack": "pub same_pack: bool",
+        "version_number": "pub version_number: String"
+      }
+    },
+    "ModpackFit": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "channel": "pub channel: ReleaseChannel",
+        "game_version": "pub game_version: String",
+        "version_id": "pub version_id: String",
+        "version_number": "pub version_number: String"
+      }
+    },
+    "ModpackMove": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "allow_downgrade": "pub allow_downgrade: bool",
+        "allow_other_pack": "pub allow_other_pack: bool",
+        "path": "pub path: String",
+        "version": "pub version: String"
+      }
+    },
+    "ModpackOverride": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "path": "pub path: String",
+        "sha1": "pub sha1: String"
+      }
+    },
+    "ModpackRef": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "path": "pub path: String",
+        "project": "pub project: String",
+        "source": "pub source: String",
+        "url": "pub url: String",
+        "version": "pub version: String"
+      }
+    },
+    "ModpackRemoveResult": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "kept": "pub kept: Vec<String>",
+        "released_files": "pub released_files: u32",
+        "removed_files": "pub removed_files: u32",
+        "removed_overrides": "pub removed_overrides: u32"
+      }
+    },
+    "ModpackStatusResult": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "pack": "serde(skip_serializing_if = \"Option::is_none\") pub pack: Option<InstalledModpack>"
+      }
+    },
+    "ModpackTarget": {
+      "attributes": [
+        "serde(tag = \"mode\", rename_all = \"snake_case\")"
+      ],
+      "kind": "enum",
+      "members": {
+        "Create": "Create { name: String }",
+        "Existing": "Existing { entry: String }"
+      }
+    },
+    "ModpackUpdate": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "current_version_id": "pub current_version_id: String",
+        "current_version_number": "pub current_version_number: String",
+        "fitting": "serde(skip_serializing_if = \"Option::is_none\") pub fitting: Option<ModpackFit>",
+        "latest_version_id": "pub latest_version_id: String",
+        "latest_version_number": "pub latest_version_number: String",
+        "updatable": "pub updatable: bool"
+      }
+    },
+    "ModpackUpdateResult": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "update": "serde(skip_serializing_if = \"Option::is_none\") pub update: Option<ModpackUpdate>"
+      }
+    },
+    "PackPolicy": {
+      "attributes": [
+        "serde(rename_all = \"snake_case\")"
+      ],
+      "kind": "enum",
+      "members": {
+        "Keep": "Keep",
+        "Move": "Move"
+      }
+    },
+    "PlayerEntry": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "name": "pub name: String",
+        "reason": "serde(skip_serializing_if = \"Option::is_none\") pub reason: Option<String>",
+        "uuid": "pub uuid: String"
+      }
+    },
+    "PlayerList": {
+      "attributes": [
+        "serde(rename_all = \"snake_case\")"
+      ],
+      "kind": "enum",
+      "members": {
+        "Banned": "Banned",
+        "Ops": "Ops",
+        "Whitelist": "Whitelist"
+      }
+    },
+    "ProcessExitEvent": {
+      "attributes": [
+        "serde(rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "exit_code": "serde(skip_serializing_if = \"Option::is_none\") pub exit_code: Option<i32>",
+        "id": "pub id: String",
+        "state": "pub state: ProcessState",
+        "success": "pub success: bool"
+      }
+    },
+    "ProcessInfo": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "args": "pub args: Vec<String>",
+        "exit_code": "serde(skip_serializing_if = \"Option::is_none\") pub exit_code: Option<i32>",
+        "id": "pub id: String",
+        "pid": "pub pid: u32",
+        "program": "pub program: String",
+        "started_unix": "pub started_unix: i64",
+        "state": "pub state: ProcessState"
+      }
+    },
+    "ProcessMetrics": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "cpu_pct": "pub cpu_pct: f32",
+        "id": "pub id: String",
+        "mem_bytes": "pub mem_bytes: u64"
+      }
+    },
+    "ProcessMetricsEvent": {
+      "attributes": [
+        "serde(rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "samples": "pub samples: Vec<ProcessMetrics>"
+      }
+    },
+    "ProcessRef": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "id": "pub id: String"
+      }
+    },
+    "ProcessStartedEvent": {
+      "attributes": [
+        "serde(rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "id": "pub id: String",
+        "pid": "pub pid: u32"
+      }
+    },
+    "ProcessState": {
+      "attributes": [
+        "serde(rename_all = \"lowercase\")"
+      ],
+      "kind": "enum",
+      "members": {
+        "Exited": "Exited",
+        "Killed": "Killed",
+        "Running": "Running"
+      }
+    },
+    "Program": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "args": "pub args: Vec<String>",
+        "command": "pub command: String",
+        "env": "pub env: BTreeSet<String>",
+        "id": "pub id: String",
+        "sha256": "pub sha256: BTreeMap<String, String>"
+      }
+    },
+    "ProjectParams": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "kind": "pub kind: Option<ContentKind>",
+        "project": "pub project: String",
+        "source": "pub source: String"
+      }
+    },
+    "ProvisionPhase": {
+      "attributes": [
+        "serde(rename_all = \"snake_case\")"
+      ],
+      "kind": "enum",
+      "members": {
+        "Archive": "Archive",
+        "Assets": "Assets",
+        "Backup": "Backup",
+        "Client": "Client",
+        "Content": "Content",
+        "Extract": "Extract",
+        "Java": "Java",
+        "Libraries": "Libraries",
+        "Overrides": "Overrides",
+        "Resolving": "Resolving",
+        "Server": "Server"
+      }
+    },
+    "ProvisionProgress": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "current": "pub current: u64",
+        "detail": "pub detail: String",
+        "item": "pub item: u64",
+        "items": "pub items: u64",
+        "overall_current": "pub overall_current: u64",
+        "overall_total": "pub overall_total: u64",
+        "phase": "pub phase: ProvisionPhase",
+        "total": "pub total: u64"
+      }
+    },
+    "QuickPlay": {
+      "attributes": [
+        "serde(rename_all = \"snake_case\", tag = \"kind\", content = \"target\")"
+      ],
+      "kind": "enum",
+      "members": {
+        "Realm": "Realm(String)",
+        "Server": "Server(String)",
+        "World": "World(String)"
+      }
+    },
+    "Reason": {
+      "attributes": [
+        "serde(rename_all = \"snake_case\")"
+      ],
+      "kind": "enum",
+      "members": {
+        "AbsolutePath": "AbsolutePath",
+        "JavaMajor": "JavaMajor",
+        "JvmArgsPrefix": "JvmArgsPrefix",
+        "ListOrder": "ListOrder",
+        "MemoryExceedsHost": "MemoryExceedsHost",
+        "MemoryFormat": "MemoryFormat",
+        "NotBoolean": "NotBoolean",
+        "NotOneOf": "NotOneOf { values: Vec<String> }",
+        "NotWholeNumber": "NotWholeNumber",
+        "OutOfRange": "OutOfRange { min: i64, max: i64 }",
+        "PlayerName": "PlayerName",
+        "ProcessIdCharset": "ProcessIdCharset",
+        "RealmId": "RealmId",
+        "ScheduleFormat": "ScheduleFormat",
+        "ServerAddress": "ServerAddress"
+      }
+    },
+    "RecentPlay": {
+      "attributes": [
+        "serde(rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "game_mode": "pub game_mode: GameMode",
+        "icon": "serde(default) pub icon: String",
+        "instance": "pub instance: String",
+        "instance_name": "pub instance_name: String",
+        "name": "pub name: String",
+        "played_unix": "pub played_unix: i64",
+        "target": "pub target: QuickPlay"
+      }
+    },
+    "ReleaseChannel": {
+      "attributes": [
+        "serde(rename_all = \"snake_case\")"
+      ],
+      "kind": "enum",
+      "members": {
+        "Alpha": "Alpha",
+        "Beta": "Beta",
+        "Release": "Release"
+      }
+    },
+    "Replace": {
+      "attributes": [
+        "serde(rename_all = \"snake_case\", tag = \"kind\", content = \"session\")"
+      ],
+      "kind": "enum",
+      "members": {
+        "All": "All",
+        "One": "One(String)"
+      }
+    },
+    "Requirement": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "name": "pub name: String",
+        "url": "pub url: String"
+      }
+    },
+    "ResolveUrlParams": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "url": "pub url: String"
+      }
+    },
+    "ResolvedUrl": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "project": "pub project: ContentProject",
+        "version_id": "pub version_id: String"
+      }
+    },
+    "Screenshot": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "bytes": "pub bytes: u64",
+        "file": "pub file: String",
+        "instance": "pub instance: String",
+        "instance_name": "pub instance_name: String",
+        "path": "pub path: PathBuf",
+        "taken_unix": "pub taken_unix: i64"
+      }
+    },
+    "ScreenshotDeleteParams": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "file": "pub file: String",
+        "instance": "pub instance: String"
+      }
+    },
+    "ScreenshotListParams": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "instance": "pub instance: String"
+      }
+    },
+    "ScreenshotListResult": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "screenshots": "pub screenshots: Vec<Screenshot>"
+      }
+    },
+    "SearchQuery": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "categories": "pub categories: Vec<String>",
+        "game_version": "pub game_version: Option<String>",
+        "kind": "pub kind: ContentKind",
+        "limit": "pub limit: u32",
+        "loader": "pub loader: Option<String>",
+        "offset": "pub offset: u32",
+        "query": "pub query: String",
+        "sort": "pub sort: SearchSort",
+        "source": "pub source: String"
+      }
+    },
+    "SearchResult": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "hits": "pub hits: Vec<ContentProject>",
+        "limit": "pub limit: u32",
+        "offset": "pub offset: u32",
+        "total": "pub total: u32"
+      }
+    },
+    "SearchSort": {
+      "attributes": [
+        "serde(rename_all = \"snake_case\")"
+      ],
+      "kind": "enum",
+      "members": {
+        "Downloads": "Downloads",
+        "Follows": "Follows",
+        "Newest": "Newest",
+        "Relevance": "Relevance",
+        "Updated": "Updated"
+      }
+    },
+    "ServerBackupCreateParams": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "id": "pub id: String",
+        "server": "pub server: String"
+      }
+    },
+    "ServerBackupRef": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "backup": "pub backup: String",
+        "server": "pub server: String"
+      }
+    },
+    "ServerBackupRestoreParams": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "backup": "pub backup: String",
+        "id": "pub id: String",
+        "server": "pub server: String"
+      }
+    },
+    "ServerCommandCompleteParams": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "line": "pub line: String",
+        "server": "pub server: String"
+      }
+    },
+    "ServerCommandCompleteResult": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "arguments": "pub arguments: Vec<String>",
+        "completions": "pub completions: Vec<String>"
+      }
+    },
+    "ServerCommandParams": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "command": "pub command: String",
+        "server": "pub server: String"
+      }
+    },
+    "ServerCommandResult": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "response": "pub response: String"
+      }
+    },
+    "ServerCreateParams": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "config": "pub config: Vec<ConfigEntry>",
+        "eula": "pub eula: bool",
+        "flavor": "pub flavor: String",
+        "id": "pub id: String",
+        "loader_version": "serde(skip_serializing_if = \"Option::is_none\") pub loader_version: Option<String>",
+        "name": "pub name: String",
+        "port": "serde(skip_serializing_if = \"Option::is_none\") pub port: Option<u16>",
+        "version": "pub version: String"
+      }
+    },
+    "ServerDetails": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "created_unix": "pub created_unix: i64",
+        "data_dir": "pub data_dir: String",
+        "disk_bytes": "pub disk_bytes: u64",
+        "entry_dir": "pub entry_dir: String",
+        "flavor": "pub flavor: String",
+        "game_port": "pub game_port: u16",
+        "game_version": "pub game_version: String",
+        "id": "pub id: String",
+        "java_major": "pub java_major: i32",
+        "jvm_args": "serde(default) pub jvm_args: Vec<String>",
+        "jvm_args_source": "pub jvm_args_source: JvmArgsSource",
+        "loader_version": "serde(skip_serializing_if = \"Option::is_none\") pub loader_version: Option<String>",
+        "name": "pub name: String",
+        "warnings": "serde(default) pub warnings: Vec<WarningInfo>"
+      }
+    },
+    "ServerDone": {
+      "attributes": [
+        "serde(rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "failures": "serde(default) pub failures: Vec<ContentFailure>",
+        "server": "pub server: ServerInfo",
+        "warnings": "serde(default) pub warnings: Vec<WarningInfo>"
+      }
+    },
+    "ServerEntry": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "accept_textures": "pub accept_textures: bool",
+        "address": "pub address: String",
+        "hidden": "pub hidden: bool",
+        "icon": "pub icon: String",
+        "name": "pub name: String"
+      }
+    },
+    "ServerFileParams": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "path": "pub path: String",
+        "server": "pub server: String"
+      }
+    },
+    "ServerFileTransferParams": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "from": "pub from: String",
+        "server": "pub server: String",
+        "to": "pub to: String"
+      }
+    },
+    "ServerFileWriteParams": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "content": "pub content: String",
+        "path": "pub path: String",
+        "server": "pub server: String"
+      }
+    },
+    "ServerFilesCompressParams": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "paths": "pub paths: Vec<String>",
+        "server": "pub server: String",
+        "to": "pub to: String"
+      }
+    },
+    "ServerFilesImportParams": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "path": "pub path: String",
+        "server": "pub server: String",
+        "sources": "pub sources: Vec<String>"
+      }
+    },
+    "ServerFilesRemoveParams": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "paths": "pub paths: Vec<String>",
+        "server": "pub server: String"
+      }
+    },
+    "ServerInfo": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "accepts": "serde(default) pub accepts: Vec<ContentKind>",
+        "console": "pub console: bool",
+        "created_unix": "pub created_unix: i64",
+        "flavor": "pub flavor: String",
+        "game_port": "pub game_port: u16",
+        "game_version": "pub game_version: String",
+        "id": "pub id: String",
+        "java_major": "pub java_major: i32",
+        "loader_version": "serde(skip_serializing_if = \"Option::is_none\") pub loader_version: Option<String>",
+        "name": "pub name: String",
+        "process": "serde(skip_serializing_if = \"Option::is_none\") pub process: Option<ProcessInfo>",
+        "ready": "pub ready: bool"
+      }
+    },
+    "ServerModpackInstallParams": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "eula": "pub eula: bool",
+        "id": "pub id: String",
+        "pack": "serde(flatten) pub pack: ModpackRef",
+        "port": "serde(skip_serializing_if = \"Option::is_none\") pub port: Option<u16>",
+        "target": "pub target: ModpackTarget"
+      }
+    },
+    "ServerPingResult": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "favicon": "pub favicon: String",
+        "motd": "pub motd: String",
+        "players_max": "pub players_max: u32",
+        "players_online": "pub players_online: u32",
+        "version": "pub version: String"
+      }
+    },
+    "ServerPlayerKickParams": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "player": "pub player: String",
+        "server": "pub server: String"
+      }
+    },
+    "ServerPlayerSetParams": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "list": "pub list: PlayerList",
+        "listed": "pub listed: bool",
+        "player": "pub player: String",
+        "server": "pub server: String"
+      }
+    },
+    "ServerPlayersResult": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "banned": "pub banned: Vec<PlayerEntry>",
+        "online": "pub online: Vec<PlayerEntry>",
+        "ops": "pub ops: Vec<PlayerEntry>",
+        "whitelist": "pub whitelist: Vec<PlayerEntry>"
+      }
+    },
+    "ServerRef": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "server": "pub server: String"
+      }
+    },
+    "ServerStartResult": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "pid": "pub pid: u32",
+        "process_id": "pub process_id: String"
+      }
+    },
+    "ServerTask": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "action": "pub action: TaskAction",
+        "command": "pub command: String",
+        "enabled": "pub enabled: bool",
+        "id": "pub id: String",
+        "last_run_unix": "pub last_run_unix: i64",
+        "retention": "serde(skip_serializing_if = \"Option::is_none\") pub retention: Option<u32>",
+        "schedule": "pub schedule: String"
+      }
+    },
+    "ServerTaskRemoveParams": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "id": "pub id: String",
+        "server": "pub server: String"
+      }
+    },
+    "ServerTaskSaveParams": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "server": "pub server: String",
+        "task": "pub task: ServerTask"
+      }
+    },
+    "ServerUpdateParams": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "allow_downgrade": "pub allow_downgrade: bool",
+        "id": "pub id: String",
+        "loader_version": "serde(skip_serializing_if = \"Option::is_none\") pub loader_version: Option<String>",
+        "pack": "pub pack: PackPolicy",
+        "restart": "pub restart: bool",
+        "server": "pub server: String",
+        "version": "pub version: String"
+      }
+    },
+    "Service": {
+      "attributes": [
+        "serde(rename_all = \"snake_case\")"
+      ],
+      "kind": "enum",
+      "members": {
+        "Adoptium": "Adoptium",
+        "CurseForge": "CurseForge",
+        "Fabric": "Fabric",
+        "Microsoft": "Microsoft",
+        "Modrinth": "Modrinth",
+        "Mojang": "Mojang",
+        "NeoForge": "NeoForge",
+        "Paper": "Paper",
+        "Release": "Release",
+        "Spigot": "Spigot",
+        "Xbox": "Xbox"
+      }
+    },
+    "SharedPack": {
+      "attributes": [
+        "serde(rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "enabled": "pub enabled: bool",
+        "filename": "pub filename: String",
+        "kind": "pub kind: crate::content::ContentKind",
+        "project": "pub project: String",
+        "source": "pub source: String",
+        "title": "pub title: String"
+      }
+    },
+    "SideSupport": {
+      "attributes": [
+        "serde(rename_all = \"snake_case\")"
+      ],
+      "kind": "enum",
+      "members": {
+        "Optional": "Optional",
+        "Required": "Required",
+        "Unknown": "Unknown",
+        "Unsupported": "Unsupported"
+      }
+    },
+    "SyncConfig": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "shared_dir": "pub shared_dir: PathBuf",
+        "units": "pub units: Vec<SyncUnitConfig>",
+        "unsynced": "pub unsynced: BTreeSet<String>"
+      }
+    },
+    "SyncDisableParams": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "unit": "pub unit: SyncUnit"
+      }
+    },
+    "SyncEnableParams": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "source": "pub source: String",
+        "unit": "pub unit: SyncUnit"
+      }
+    },
+    "SyncKeysParams": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "unsynced": "pub unsynced: BTreeSet<String>"
+      }
+    },
+    "SyncOption": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "key": "pub key: String",
+        "synced": "pub synced: bool",
+        "value": "pub value: String"
+      }
+    },
+    "SyncOptionSetParams": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "key": "pub key: String",
+        "value": "pub value: String"
+      }
+    },
+    "SyncOptionsResult": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "options": "pub options: Vec<SyncOption>"
+      }
+    },
+    "SyncPackRemoveParams": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "pack": "pub pack: String"
+      }
+    },
+    "SyncPackSetParams": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "enabled": "pub enabled: bool",
+        "pack": "pub pack: String"
+      }
+    },
+    "SyncPacksResult": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "packs": "pub packs: Vec<SharedPack>"
+      }
+    },
+    "SyncSource": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "id": "pub id: String",
+        "modified_unix": "pub modified_unix: Option<i64>",
+        "name": "pub name: String",
+        "present": "pub present: bool"
+      }
+    },
+    "SyncSourcesParams": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "unit": "pub unit: SyncUnit"
+      }
+    },
+    "SyncUnit": {
+      "attributes": [
+        "serde(rename_all = \"snake_case\")"
+      ],
+      "kind": "enum",
+      "members": {
+        "Commands": "Commands",
+        "Hotbars": "Hotbars",
+        "Options": "Options",
+        "ResourcePacks": "ResourcePacks",
+        "Screenshots": "Screenshots",
+        "Servers": "Servers"
+      }
+    },
+    "SyncUnitConfig": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "enabled": "pub enabled: bool",
+        "seeded_from": "pub seeded_from: String",
+        "unit": "pub unit: SyncUnit"
+      }
+    },
+    "Task": {
+      "attributes": [
+        "serde(rename_all = \"snake_case\")"
+      ],
+      "kind": "enum",
+      "members": {
+        "BackUp": "BackUp",
+        "Install": "Install",
+        "Modify": "Modify"
+      }
+    },
+    "TaskAction": {
+      "attributes": [
+        "serde(rename_all = \"snake_case\")"
+      ],
+      "kind": "enum",
+      "members": {
+        "Backup": "Backup",
+        "Command": "Command",
+        "Restart": "Restart"
+      }
+    },
+    "UnitState": {
+      "attributes": [
+        "serde(rename_all = \"snake_case\")"
+      ],
+      "kind": "enum",
+      "members": {
+        "Off": "Off",
+        "Overridden": "Overridden",
+        "Pending": "Pending",
+        "Synced": "Synced",
+        "Unsupported": "Unsupported"
+      }
+    },
+    "UnitStatus": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "state": "pub state: UnitState",
+        "unit": "pub unit: SyncUnit"
+      }
+    },
+    "Unsupported": {
+      "attributes": [
+        "serde(rename_all = \"snake_case\")"
+      ],
+      "kind": "enum",
+      "members": {
+        "DatapacksPerWorld": "DatapacksPerWorld",
+        "FileUpdatesLocalOnly": "FileUpdatesLocalOnly",
+        "FileUpdatesOneItem": "FileUpdatesOneItem",
+        "ModpackNotSingleFile": "ModpackNotSingleFile",
+        "ModpackNotUpdatable": "ModpackNotUpdatable",
+        "WorldsForDatapacksOnly": "WorldsForDatapacksOnly"
+      }
+    },
+    "UntrackedFile": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "name": "pub name: String",
+        "path": "pub path: String"
+      }
+    },
+    "ValueKind": {
+      "attributes": [
+        "serde(rename_all = \"snake_case\")"
+      ],
+      "kind": "enum",
+      "members": {
+        "Array": "Array",
+        "Boolean": "Boolean",
+        "Null": "Null",
+        "Number": "Number",
+        "Object": "Object",
+        "String": "String"
+      }
+    },
+    "VersionKind": {
+      "attributes": [
+        "serde(rename_all = \"snake_case\")"
+      ],
+      "kind": "enum",
+      "members": {
+        "OldAlpha": "OldAlpha",
+        "OldBeta": "OldBeta",
+        "Release": "Release",
+        "Snapshot": "Snapshot"
+      }
+    },
+    "VersionQuery": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "game_version": "pub game_version: Option<String>",
+        "loader": "pub loader: Option<String>",
+        "project": "pub project: String",
+        "source": "pub source: String"
+      }
+    },
+    "WarningInfo": {
+      "attributes": [
+        "serde(tag = \"kind\", rename_all = \"snake_case\")"
+      ],
+      "kind": "enum",
+      "members": {
+        "DocumentQuarantined": "DocumentQuarantined { document: String, path: String, detail: String, }",
+        "ExportFilesEmbedded": "ExportFilesEmbedded { count: u32, files: Vec<String> }",
+        "ImportContentMissing": "ImportContentMissing { count: u32, files: Vec<String> }",
+        "ImportFilesUntracked": "ImportFilesUntracked { count: u32, files: Vec<String> }",
+        "LaunchedOffline": "LaunchedOffline { account: String }",
+        "ModpackFilesExcluded": "ModpackFilesExcluded { count: u32, files: Vec<String> }",
+        "ModpackOverridesKept": "ModpackOverridesKept { count: u32, paths: Vec<String> }",
+        "PackNotMoved": "PackNotMoved { pack: String, version_number: String, pack_game_version: String, target: String, }",
+        "PropertiesSchemaMissing": "PropertiesSchemaMissing { name: String }",
+        "ServerListInUse": "ServerListInUse { instance: String, sessions: u32 }",
+        "ServerNotRestarted": "ServerNotRestarted { server: String, detail: String }",
+        "SessionNotVerified": "SessionNotVerified { account: String }",
+        "SyncUnitSkipped": "SyncUnitSkipped { unit: crate::sync::SyncUnit, detail: String, }",
+        "SyncUnitUnsupported": "SyncUnitUnsupported { instance: String, unit: crate::sync::SyncUnit, requires: String, }"
+      }
+    },
+    "WorldInfo": {
+      "attributes": [
+        "serde(default, rename_all = \"camelCase\")"
+      ],
+      "kind": "struct",
+      "members": {
+        "cheats": "pub cheats: bool",
+        "difficulty": "pub difficulty: Difficulty",
+        "folder": "pub folder: String",
+        "game_mode": "pub game_mode: GameMode",
+        "hardcore": "pub hardcore: bool",
+        "icon": "pub icon: String",
+        "last_played_unix": "serde(skip_serializing_if = \"Option::is_none\") pub last_played_unix: Option<i64>",
+        "name": "pub name: String",
+        "read": "pub read: bool",
+        "size_bytes": "pub size_bytes: u64",
+        "version": "pub version: String"
+      }
+    }
+  },
+  "wit": {
+    "plugin.wit": "interface types {\ntype json = string;\nvariant plugin-error {\npermission-denied(string),\nnot-found(string),\ninvalid(string),\nfailed(string),\n}\n}\ninterface log {\ntrace: func(message: string);\ndebug: func(message: string);\ninfo: func(message: string);\nwarn: func(message: string);\nerror: func(message: string);\n}\ninterface host {\nuse types.{json, plugin-error};\ncall: func(channel: string, payload: json) -> result<json, plugin-error>;\nrun-job: func(channel: string, payload: json) -> result<json, plugin-error>;\n}\ninterface lifecycle {\nuse types.{plugin-error};\ninit: func() -> result<_, plugin-error>;\n}\nworld plugin {\nimport log;\nimport host;\nexport lifecycle;\n}"
+  }
+}

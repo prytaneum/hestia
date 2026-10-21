@@ -135,7 +135,7 @@ mod manifest {
     }
 
     #[test]
-    fn api_must_match_the_host_minor_and_not_be_a_newer_patch() {
+    fn api_must_share_the_host_major_and_not_be_newer() {
         for api in ["^2.0.0", "^1.1.0", "^1.0.1"] {
             let mut manifest = valid();
             manifest.api = Some(api.into());

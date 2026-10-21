@@ -408,15 +408,15 @@ fn semver_core(version: &str) -> Option<(u64, u64, u64)> {
     parts.next().is_none().then_some(triple)
 }
 
-/// A guest built against `N.M.x` runs on a host with the same `N.M` and a patch
-/// at least `x`: a newer guest patch may import something the host lacks.
+/// Caret semantics: a guest built against `^N.M.P` runs on a host `N.m.p` at
+/// or above `N.M.P`. A newer guest may import something the host lacks.
 fn check_api(api: &str) -> Result<(), ManifestError> {
     let required = api
         .strip_prefix('^')
         .and_then(semver_core)
         .ok_or_else(|| ManifestError::BadApi(api.to_string()))?;
     let host = semver_core(API_VERSION).expect("API_VERSION is a semantic version");
-    if required.0 == host.0 && required.1 == host.1 && required.2 <= host.2 {
+    if required.0 == host.0 && required <= host {
         Ok(())
     } else {
         Err(ManifestError::ApiMismatch {
