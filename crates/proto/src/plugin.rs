@@ -14,6 +14,7 @@ use sha2::{Digest, Sha256};
 
 use crate::change::Scope;
 use crate::contract::{Contract, Empty, Topic};
+use crate::job::{Job, JobStarted};
 
 pub const API_VERSION: &str = "1.0.0";
 
@@ -265,6 +266,20 @@ impl Grant {
             .iter()
             .map(|byte| format!("{byte:02x}"))
             .collect()
+    }
+
+    /// What this grant asks for beyond `installed`.
+    pub fn widening_over(&self, installed: &Grant) -> Grant {
+        Grant {
+            permissions: &self.permissions - &installed.permissions,
+            network: &self.network - &installed.network,
+            programs: &self.programs - &installed.programs,
+            launch_properties: &self.launch_properties - &installed.launch_properties,
+            hooks: &self.hooks - &installed.hooks,
+            events: &self.events - &installed.events,
+            secret_settings: &self.secret_settings - &installed.secret_settings,
+            ui_css: &self.ui_css - &installed.ui_css,
+        }
     }
 }
 
@@ -520,4 +535,88 @@ impl Contract for PluginRemove {
     const CHANGES: Option<Scope> = Some(Scope::Plugins);
     type Params = PluginRef;
     type Result = Empty;
+}
+
+#[derive(Serialize, Deserialize, Default, Debug, Clone)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
+#[serde(default, rename_all = "camelCase")]
+pub struct PluginPackageRef {
+    /// A `.hplugin` file or a folder holding `plugin.toml`.
+    pub path: String,
+}
+
+/// What installing a package would grant, read without running any of it.
+#[derive(Serialize, Deserialize, Default, Debug, Clone)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
+#[serde(default, rename_all = "camelCase")]
+pub struct PluginInspection {
+    pub manifest: Manifest,
+    pub grant: Grant,
+    /// Hand this back as [`PluginInstallParams::approve`] to approve exactly
+    /// this grant.
+    pub grant_digest: String,
+    /// The installed plugin of the same id, which the install would update.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub replaces: Option<PluginInfo>,
+    /// What the grant adds over the installed one; all of it when new.
+    pub widened: Grant,
+}
+
+pub struct PluginInspect;
+impl Contract for PluginInspect {
+    const CHANNEL: &'static str = "plugin.inspect";
+    type Params = PluginPackageRef;
+    type Result = PluginInspection;
+}
+
+#[derive(Serialize, Deserialize, Default, Debug, Clone)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
+#[serde(default, rename_all = "camelCase")]
+pub struct PluginInstallParams {
+    pub id: String,
+    pub path: String,
+    /// The grant digest the user approved; the install refuses a package whose
+    /// own grant digests differently.
+    pub approve: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
+#[serde(rename_all = "snake_case")]
+pub enum PluginInstallPhase {
+    Extracting,
+    Verifying,
+    Installing,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
+#[serde(rename_all = "camelCase")]
+pub struct PluginInstallProgress {
+    pub phase: PluginInstallPhase,
+}
+
+impl PluginInstallProgress {
+    /// Overall completion in `0.0..=1.0`.
+    pub fn ratio(&self) -> f64 {
+        match self.phase {
+            PluginInstallPhase::Extracting => 0.0,
+            PluginInstallPhase::Verifying => 0.5,
+            PluginInstallPhase::Installing => 0.9,
+        }
+    }
+}
+
+/// A job. A cancel leaves nothing behind: the package is staged beside the
+/// plugins and only the final renames make it installed.
+pub struct PluginInstall;
+impl Contract for PluginInstall {
+    const CHANNEL: &'static str = "plugin.install";
+    type Params = PluginInstallParams;
+    type Result = JobStarted;
+}
+
+impl Job for PluginInstall {
+    type Progress = PluginInstallProgress;
+    type Done = PluginInfo;
 }

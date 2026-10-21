@@ -46,6 +46,8 @@ const DENIED: &[&str] = &[
     "plugin.enable",
     "plugin.disable",
     "plugin.remove",
+    "plugin.inspect",
+    "plugin.install",
     "plugin.state",
     // Other clients' subscriptions and jobs
     "events.subscribe",

@@ -4,7 +4,7 @@
 //! front-end renders its own localized string from the tag + typed fields.
 //!
 //! Semantic variants translate fully with their fields; operational variants
-//! (`MalformedRequest`, `Io`, `Upstream`, `DownloadFailed`,
+//! (`MalformedRequest`, `Io`, `Upstream`, `DownloadFailed`, `PluginInvalid`,
 //! `Internal`) carry an unbounded English `detail` — a per-path filesystem
 //! message is not localizable and is shown as secondary text under a translated
 //! headline. A semantic variant never carries prose: what it would have said is
@@ -512,6 +512,12 @@ pub enum ErrorInfo {
     PluginNotFound {
         id: String,
     },
+    /// The package's grant is not the one the caller approved; inspect it again.
+    PluginApprovalStale,
+    /// The package cannot be installed: unreadable, malformed or not a component.
+    PluginInvalid {
+        detail: String,
+    },
     /// No file or directory at `path` in the entry's tree.
     FileNotFound {
         path: String,
@@ -880,6 +886,11 @@ impl fmt::Display for ErrorInfo {
             VersionNotFound { reference } => write!(f, "no version matches '{reference}'"),
             TaskNotFound { id } => write!(f, "no scheduled task '{id}'"),
             PluginNotFound { id } => write!(f, "no plugin '{id}' is installed"),
+            PluginApprovalStale => write!(
+                f,
+                "the package's permissions changed since you reviewed them"
+            ),
+            PluginInvalid { detail } => write!(f, "not a valid plugin package: {detail}"),
             FileNotFound { path } => write!(f, "no file or directory at '{path}'"),
             FileRejected { path, reason } => write!(f, "'{path}' was refused: {reason}"),
             ConfigKeyUnknown { key } => write!(f, "unknown config key '{key}'"),

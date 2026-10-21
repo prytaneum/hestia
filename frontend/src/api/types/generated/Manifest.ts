@@ -7,7 +7,7 @@ import type { Setting } from "./Setting";
 
 export type Manifest = { id: string, name: string, version: string, 
 /**
- * Caret requirement on the host ABI, `^0.N.x`. Written by `pack`; a
+ * Caret requirement on the host ABI, `^N.M.x`. Written by `pack`; a
  * theme-only package has none.
  */
 api?: string, description: string, authors: Array<string>, homepage?: string, 

@@ -88,6 +88,9 @@
         "modpack": {
           "update": "Atualizando o modpack de {name}"
         },
+        "plugin": {
+          "install": "Instalando um plugin"
+        },
         "server": {
           "backup": {
             "create": "Fazendo backup de {name}",
@@ -132,6 +135,9 @@
         },
         "modpack": {
           "update": "Atualizando o modpack"
+        },
+        "plugin": {
+          "install": "Instalando um plugin"
         },
         "server": {
           "backup": {
