@@ -1,5 +1,9 @@
 //! `hestia plugin …` — launcher plugins. Server plugins are `hestia server-plugin`.
 
+mod add;
+
+use std::path::PathBuf;
+
 use anyhow::{bail, Context, Result};
 use clap::Subcommand;
 use client::proto::plugin::{PluginInfo, PluginSource, PluginState};
@@ -12,6 +16,12 @@ pub enum PluginCmd {
     /// Installed plugins and their state
     #[command(alias = "ls")]
     List,
+    /// Install or update a plugin from a .hplugin file or a folder
+    Add {
+        path: PathBuf,
+        #[arg(short = 'y', long, help = "Approve exactly the permissions shown")]
+        yes: bool,
+    },
     /// One plugin's manifest, grant and health
     Info { id: String },
     /// Load a plugin
@@ -32,6 +42,7 @@ pub async fn run(cmd: PluginCmd) -> Result<()> {
     let plugins = client.plugin();
     match cmd {
         PluginCmd::List => list(plugins.list().await?),
+        PluginCmd::Add { path, yes } => add::add(plugins, &path, yes).await,
         PluginCmd::Info { id } => info(&plugins.info(&id).await?),
         PluginCmd::Enable { id } => {
             let plugin = plugins.enable(&id).await?;

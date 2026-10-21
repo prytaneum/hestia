@@ -693,6 +693,7 @@ immediately. The tray's **Quit** and the desktop's stop button always mean
 
 ```bash
 hestia plugin list               # id, name, version, state, source
+hestia plugin add <path>         # a .hplugin or a folder; shows the permissions, confirms; -y approves them
 hestia plugin info <id>          # manifest, state, permissions, last error, call counters
 hestia plugin enable <id>        # load it
 hestia plugin disable <id>       # unload it; it stays installed
