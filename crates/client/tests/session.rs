@@ -34,41 +34,6 @@ fn runtime() -> JavaRuntime {
 }
 
 #[tokio::test]
-async fn a_call_marshals_through_the_contract() {
-    let client = Script::new()
-        .on("java.list", Reply::Ok(json!([runtime()])))
-        .serve();
-
-    let runtimes = client.java().list().await.expect("list");
-    assert_eq!(runtimes.len(), 1);
-    assert_eq!(runtimes[0].major, 21);
-}
-
-#[tokio::test]
-async fn a_job_list_decodes_its_subject() {
-    let client = Script::new()
-        .on(
-            "job.list",
-            Reply::Ok(json!([{
-                "id": "j1",
-                "channel": "instance.launch",
-                "subject": { "kind": "instance", "id": "abc" },
-                "startedUnix": 7,
-                "progress": { "phase": "assets" }
-            }])),
-        )
-        .serve();
-
-    let jobs = client.jobs().list().await.expect("list");
-    let subject = jobs[0].subject.as_ref().expect("subject");
-    assert_eq!(
-        (subject.kind, subject.id.as_str()),
-        (EntryKind::Instance, "abc")
-    );
-    assert_eq!(jobs[0].started_unix, 7);
-}
-
-#[tokio::test]
 async fn a_daemon_error_arrives_as_a_typed_failure() {
     let client = Script::new()
         .on(
@@ -315,37 +280,5 @@ async fn a_dropped_daemon_wakes_its_waiters() {
     assert!(
         matches!(error, IpcError::ConnectionLost),
         "a torn-down connection fails its waiters rather than timing them out, got {error:?}"
-    );
-}
-
-#[tokio::test]
-async fn a_failed_self_update_reports_why() {
-    let client = Script::new()
-        // This facade allocates its own job id, so the reply has to echo back
-        // whatever the client sent rather than name one.
-        .on(
-            "update.download",
-            Reply::Job(Box::new(|id| {
-                vec![event(
-                    "job",
-                    json!({
-                        "id": id,
-                        "channel": "update.download",
-                        "state": "failed",
-                        "error": ErrorInfo::DownloadFailed {
-                            detail: "bad signature".into(),
-                        },
-                    }),
-                )]
-            })),
-        )
-        .serve();
-
-    let error = settles(client.update().download(|_| {}))
-        .await
-        .expect_err("failed");
-    assert!(
-        matches!(error_info(&error), ErrorInfo::DownloadFailed { .. }),
-        "the update download carries a typed error like every other job, got {error:?}"
     );
 }

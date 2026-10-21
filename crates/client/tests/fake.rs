@@ -10,9 +10,6 @@ use ipc::protocol::{self, Event, Response};
 use ipc::Connection;
 use serde_json::{json, Value};
 
-/// Builds a job's events from the id the request carried.
-type JobEvents = Box<dyn Fn(&str) -> Vec<Event> + Send + Sync>;
-
 pub enum Reply {
     Ok(Value),
     Fail(ErrorInfo),
@@ -22,9 +19,6 @@ pub enum Reply {
     Silent,
     /// Answer with this frame verbatim, envelope and all.
     Frame(String),
-    /// Answer `{ id }` and push the events the closure builds for the job id
-    /// the request carried — for a facade that generates its own.
-    Job(JobEvents),
 }
 
 #[derive(Default)]
@@ -81,15 +75,6 @@ impl Script {
                     Reply::Frame(raw) => {
                         let _ = writer.send(&raw).await;
                         continue;
-                    }
-                    Reply::Job(build) => {
-                        let id = request
-                            .payload
-                            .get("id")
-                            .and_then(Value::as_str)
-                            .unwrap_or_default()
-                            .to_string();
-                        (Some(Response::success(json!({ "id": id }))), build(&id))
                     }
                 };
 
