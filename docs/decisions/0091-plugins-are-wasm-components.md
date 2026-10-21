@@ -20,13 +20,17 @@ instead of failing at instantiation on a missing import.
 
 **A breaking change bumps the major; an additive one bumps the minor.**
 `crates/proto/tests/plugin_api.rs` snapshots every plugin-reachable contract and
-topic, the types they name and the WIT files into `tests/golden/plugin-api.json`.
-A changed snapshot without the bump it needs fails and says which kind it is.
-Additive: a new channel or interface, a new optional or defaulted field.
-Breaking: a removed or renamed field, a changed type, a removed channel, a new
-required field, a new enum, WIT variant case, record field or flag, a new WIT
-export or a new function in an exported interface. Regenerate the snapshot
-afterwards with `HESTIA_UPDATE_GOLDEN=1`. The host never serves two versions.
+topic, the ts-rs declarations of the types they reach and the WIT files into
+`tests/golden/plugin-api.json`. A changed snapshot under an unchanged version
+fails; the author picks the bump. Additive: a new channel or interface, a new
+optional or defaulted field. Breaking: a removed or renamed field, a changed
+type, a removed channel, a new required field, a new enum, WIT variant case,
+record field or flag, a new WIT export or a new function in an exported
+interface. Regenerate the snapshot afterwards with `HESTIA_UPDATE_GOLDEN=1`. The
+host never serves two versions. An earlier version of the test parsed proto's
+source and classified each change itself; it was ~650 lines of a hand-written
+Rust parser with its own known misreadings, to automate a decision a reviewer
+makes in seconds from the snapshot's diff.
 
 **The boundary carries proto JSON as strings.** `host.call` and `host.run-job`
 take and return JSON, so every existing contract crosses unchanged and the host

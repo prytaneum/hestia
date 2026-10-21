@@ -118,8 +118,10 @@ on `DENIED` in `crates/proto/tests/permission.rs` ([0092](decisions/0092-a-contr
 If you change an existing payload's shape, update `crates/proto/tests/` (the
 `wire`/`golden` encodings are pinned on purpose). A plugin-reachable contract's shape is also snapshotted by
 `tests/plugin_api.rs`: a change there needs an `API_VERSION` bump, then
-`HESTIA_UPDATE_GOLDEN=1 cargo test -p proto --test plugin_api`
-([0091](decisions/0091-plugins-are-wasm-components.md) has the additive vs breaking rule).
+`HESTIA_UPDATE_GOLDEN=1 cargo test -p proto --features ts --test plugin_api`
+([0091](decisions/0091-plugins-are-wasm-components.md) has the additive vs breaking rule). It needs the `ts`
+feature, so plain `cargo test` skips it; CI and the pre-push hook run it. A new contract, job or topic goes in its
+`api()` list, which the test checks against every `impl` in `src/`.
 
 ---
 

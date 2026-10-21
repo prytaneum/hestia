@@ -34,9 +34,11 @@ jobs:
       - name: fmt
         run: cargo fmt --all --check
       - name: clippy
-        run: cargo clippy --workspace --exclude desktop --all-targets -- -D warnings
+        run: cargo clippy --workspace --exclude desktop --all-targets --features proto/ts -- -D warnings
       - name: test
         run: cargo test --workspace --exclude desktop
+      - name: plugin API snapshot
+        run: cargo test -p proto --features ts --test plugin_api
 
   frontend:
     runs-on: ubuntu-latest

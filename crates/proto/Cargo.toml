@@ -17,3 +17,7 @@ ts-rs = { workspace = true, optional = true }
 
 [features]
 ts = ["dep:ts-rs"]
+
+[[test]]
+name = "plugin_api"
+required-features = ["ts"]

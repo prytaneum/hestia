@@ -59,8 +59,9 @@ fi
 if [ "$run_rust" -eq 1 ]; then
     echo "husky: rust — fmt, clippy, test"
     cargo fmt --all --check
-    cargo clippy --workspace --exclude desktop --all-targets -- -D warnings
+    cargo clippy --workspace --exclude desktop --all-targets --features proto/ts -- -D warnings
     cargo test --workspace --exclude desktop
+    cargo test -p proto --features ts --test plugin_api
 fi
 
 if [ "$run_frontend" -eq 1 ]; then
