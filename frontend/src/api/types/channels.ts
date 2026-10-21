@@ -111,6 +111,7 @@ import type { NetworkStatus } from "./generated/NetworkStatus";
 import type { PingResult } from "./generated/PingResult";
 import type { PluginInfo } from "./generated/PluginInfo";
 import type { PluginInspection } from "./generated/PluginInspection";
+import type { PluginInstallDone } from "./generated/PluginInstallDone";
 import type { PluginInstallParams } from "./generated/PluginInstallParams";
 import type { PluginInstallProgress } from "./generated/PluginInstallProgress";
 import type { PluginPackageRef } from "./generated/PluginPackageRef";
@@ -348,7 +349,7 @@ export interface Jobs {
   "instance.update": { progress: ProvisionProgress; done: InstanceUpdateDone };
   "java.install": { progress: JavaInstallProgress; done: JavaInstallDone };
   "modpack.update": { progress: ProvisionProgress; done: ModpackDone };
-  "plugin.install": { progress: PluginInstallProgress; done: PluginInfo };
+  "plugin.install": { progress: PluginInstallProgress; done: PluginInstallDone };
   "server.backup.create": { progress: ProvisionProgress; done: BackupDone };
   "server.backup.restore": { progress: ProvisionProgress; done: BackupDone };
   "server.create": { progress: ProvisionProgress; done: ServerDone };

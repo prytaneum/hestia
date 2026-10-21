@@ -25,6 +25,7 @@ pub async fn add(plugins: client::Plugin<'_>, path: &Path, yes: bool) -> Result<
         plugins
             .install(&path, &inspection.grant_digest, |_| {})
             .await?
+            .plugin
     };
     ui::show(View::line(format!(
         "'{id}' {} installed",

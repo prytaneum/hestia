@@ -8,6 +8,7 @@ export type { PageContribution } from "./generated/PageContribution";
 export type { Permission } from "./generated/Permission";
 export type { PluginInfo } from "./generated/PluginInfo";
 export type { PluginInspection } from "./generated/PluginInspection";
+export type { PluginInstallDone } from "./generated/PluginInstallDone";
 export type { PluginInstallParams } from "./generated/PluginInstallParams";
 export type { PluginInstallPhase } from "./generated/PluginInstallPhase";
 export type { PluginInstallProgress } from "./generated/PluginInstallProgress";

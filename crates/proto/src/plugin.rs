@@ -616,7 +616,16 @@ impl Contract for PluginInstall {
     type Result = JobStarted;
 }
 
+/// Wraps the plugin because a job event's `state` tag would collide with
+/// `PluginInfo::state`.
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
+#[serde(rename_all = "camelCase")]
+pub struct PluginInstallDone {
+    pub plugin: PluginInfo,
+}
+
 impl Job for PluginInstall {
     type Progress = PluginInstallProgress;
-    type Done = PluginInfo;
+    type Done = PluginInstallDone;
 }

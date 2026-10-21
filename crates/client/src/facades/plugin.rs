@@ -1,7 +1,7 @@
 use ipc::errors::IpcError;
 use proto::plugin::{
-    PluginInfo, PluginInspection, PluginInstallParams, PluginInstallProgress, PluginPackageRef,
-    PluginRef,
+    PluginInfo, PluginInspection, PluginInstallDone, PluginInstallParams, PluginInstallProgress,
+    PluginPackageRef, PluginRef,
 };
 
 use crate::session::{job_id, Session};
@@ -58,7 +58,7 @@ impl Plugin<'_> {
         path: &str,
         approve: &str,
         on_progress: impl Fn(&PluginInstallProgress) + Send + Sync + 'static,
-    ) -> Result<PluginInfo, IpcError> {
+    ) -> Result<PluginInstallDone, IpcError> {
         let id = job_id("plugin-install");
         let params = PluginInstallParams {
             id: id.clone(),

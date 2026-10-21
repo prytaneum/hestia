@@ -2,7 +2,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use engine::CallChain;
-use proto::plugin::{PluginInstall, PluginInstallProgress};
+use proto::plugin::{PluginInstall, PluginInstallDone, PluginInstallProgress};
 
 use super::job::{Jobs, Spec};
 use crate::runtime::{JobKind, Plugins};
@@ -36,7 +36,9 @@ impl Jobs {
                 let record = plugins.install(&path, &approve, reporter.cancel(), &|phase| {
                     let _ = report(&PluginInstallProgress { phase });
                 })?;
-                Ok(plugins.installed(record).await)
+                Ok(PluginInstallDone {
+                    plugin: plugins.installed(record).await,
+                })
             })
         }))
     }
