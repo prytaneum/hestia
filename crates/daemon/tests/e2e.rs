@@ -7,12 +7,14 @@
 //! domain-socket transport. Windows is validated through the win-VM flow.
 #![cfg(unix)]
 
+use std::path::{Path, PathBuf};
 use std::process::{Child, Command};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Duration;
 
 use client::proto::content::{ContentAddItem, ContentAddSpec, ContentKind};
 use client::proto::error::{EntryKind, EntryTarget, ErrorInfo};
+use client::proto::plugin::{PluginState, API_VERSION};
 use client::proto::process::{ProcessSpec, ProcessState};
 use client::{Client, ProcessEvent};
 
@@ -510,4 +512,69 @@ async fn an_instance_target_is_gated_on_an_account_but_a_server_target_is_not() 
         client::error_info(&missing),
         ErrorInfo::EntryNotFound { .. }
     ));
+}
+
+/// The `hello` example built into a component, once per test run.
+fn hello_component() -> &'static Path {
+    static COMPONENT: OnceLock<PathBuf> = OnceLock::new();
+    COMPONENT.get_or_init(|| {
+        let manifest =
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("../../examples/plugins/hello/Cargo.toml");
+        let target_dir = Path::new(env!("CARGO_TARGET_TMPDIR")).join("plugins");
+        let output = Command::new(env!("CARGO"))
+            .args(["build", "--release", "--target", "wasm32-wasip2"])
+            .arg("--manifest-path")
+            .arg(&manifest)
+            .arg("--target-dir")
+            .arg(&target_dir)
+            .output()
+            .expect("run cargo");
+        assert!(
+            output.status.success(),
+            "building the hello plugin failed (is the target installed? \
+             `rustup target add wasm32-wasip2`):\n{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        target_dir.join("wasm32-wasip2/release/hello.wasm")
+    })
+}
+
+#[tokio::test]
+async fn a_plugin_component_runs_its_init_on_install_and_on_enable() {
+    let (daemon, client) = spawn_daemon().await;
+    let package = tempfile::tempdir().unwrap();
+    std::fs::write(
+        package.path().join("plugin.toml"),
+        format!("id = \"hello\"\nversion = \"0.1.0\"\napi = \"^{API_VERSION}\"\nwasm = \"plugin.wasm\"\n"),
+    )
+    .unwrap();
+    std::fs::copy(hello_component(), package.path().join("plugin.wasm")).unwrap();
+    let path = package.path().to_str().unwrap();
+
+    let inspection = client.plugin().inspect(path).await.unwrap();
+    let installed = client
+        .plugin()
+        .install(path, &inspection.grant_digest, |_| {})
+        .await
+        .unwrap()
+        .plugin;
+    assert_eq!(
+        installed.state,
+        PluginState::Enabled,
+        "{:?}",
+        installed.last_error
+    );
+    let greeting = daemon.home.join("plugins/hello/data/greeting.json");
+    assert_eq!(std::fs::read_to_string(&greeting).unwrap(), "\"hello\"");
+
+    client.plugin().disable("hello").await.unwrap();
+    std::fs::remove_file(&greeting).unwrap();
+    let enabled = client.plugin().enable("hello").await.unwrap();
+    assert_eq!(
+        enabled.state,
+        PluginState::Enabled,
+        "{:?}",
+        enabled.last_error
+    );
+    assert!(greeting.exists(), "enabling runs init again");
 }

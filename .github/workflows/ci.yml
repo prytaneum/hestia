@@ -30,6 +30,8 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy, rustfmt
+          # The plugin tests build example plugins into components.
+          targets: wasm32-wasip2
       - uses: Swatinem/rust-cache@v2
       - name: fmt
         run: cargo fmt --all --check

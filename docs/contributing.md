@@ -478,9 +478,11 @@ must be listed in that test's `DYNAMIC_PREFIXES` — otherwise the whole table r
 
 ## Build & run
 
-The core loop needs no webview or frontend deps:
+The core loop needs no webview or frontend deps. The tests build the example plugins under `examples/plugins/` into
+components, so `cargo test` needs the `wasm32-wasip2` target:
 
 ```bash
+rustup target add wasm32-wasip2
 cargo build -p cli -p daemon
 cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
