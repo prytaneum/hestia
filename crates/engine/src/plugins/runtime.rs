@@ -5,7 +5,7 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use futures_util::future::BoxFuture;
-use proto::plugin::Grant;
+use proto::plugin::{Grant, DATA_MOUNT};
 use sha2::{Digest, Sha256};
 use tokio::sync::{Semaphore, SemaphorePermit};
 use tokio::time::{timeout_at, Instant};
@@ -34,7 +34,6 @@ const TABLE_ELEMENTS: usize = 20_000;
 const CALLS_PER_PLUGIN: usize = 4;
 const TRAP_LIMIT: usize = 3;
 const TRAP_WINDOW: Duration = Duration::from_secs(10 * 60);
-const DATA_MOUNT: &str = "/data";
 
 #[derive(Debug, thiserror::Error)]
 pub enum LoadError {

@@ -19,6 +19,10 @@ use crate::job::{Job, JobStarted};
 
 pub const API_VERSION: &str = "1.0.0";
 
+/// Where a plugin sees its `data/` directory: the host preopens it here and the
+/// SDK reads and writes under it.
+pub const DATA_MOUNT: &str = "/data";
+
 /// Ids a plugin may not take: the CLI's top-level verbs, which a contributed
 /// command would otherwise shadow.
 pub const RESERVED_IDS: &[&str] = &[
