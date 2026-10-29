@@ -1,0 +1,21 @@
+[package]
+name = "hestia-sdk"
+# Always the WIT package version: `pack` reads the plugin API from it.
+version = "1.0.0"
+edition.workspace = true
+license = "MIT OR Apache-2.0"
+rust-version.workspace = true
+publish.workspace = true
+description = "Write Hestia plugins in Rust"
+repository = "https://github.com/prytaneum/hestia"
+include = ["src/**", "wit/**", "LICENSE-MIT", "LICENSE-APACHE"]
+
+[lib]
+name = "hestia"
+
+[dependencies]
+proto = { path = "../proto", version = "1.0.0-beta.3", default-features = false }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+wit-bindgen = { version = "0.63.0", default-features = false, features = ["macros", "realloc", "std"] }
