@@ -2,8 +2,10 @@ import { useMutation } from '@tanstack/react-query';
 import { useState } from 'react';
 
 import { dialog, errorMessage, type PluginInspection } from '@/api';
+import type { PluginInstallTarget, PluginPackage } from '@/api/plugin';
 import { FileDropButton } from '@/components/file-drop-button';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { approvalDialog, describeApproval } from '@/features/settings/lib';
 import { notify } from '@/lib/notify';
 import { m } from '@/paraglide/messages.js';
@@ -11,22 +13,30 @@ import { useJobMutation } from '@/queries/jobs';
 import { pluginMutations } from '@/queries/plugin';
 
 interface Candidate {
-  path: string;
+  source: PluginPackage;
   inspection: PluginInspection;
 }
 
+/** A link's package was downloaded by the inspect; install that file, not the link again. */
+function installTarget({ source, inspection }: Candidate): PluginInstallTarget {
+  return 'path' in source
+    ? { path: source.path }
+    : { staged: inspection.staged ?? '' };
+}
+
 /**
- * Install from a local package: inspect it, have the user approve exactly what
- * it asks for in a native dialog, then install against that grant's digest. A
- * grant too long for the dialog is read here first; a source other than a file
- * is another picker feeding `inspectPackage`.
+ * Install from a local package or an https link: inspect it, have the user
+ * approve exactly what it asks for in a native dialog, then install against
+ * that grant's digest. A grant too long for the dialog is read here first.
  */
 export function PluginInstall() {
   const inspect = useMutation(pluginMutations.inspect());
   const install = useJobMutation(pluginMutations.install());
   const [review, setReview] = useState<Candidate | null>(null);
+  const [url, setUrl] = useState('');
 
-  const approve = async ({ path, inspection }: Candidate) => {
+  const approve = async (candidate: Candidate) => {
+    const { inspection } = candidate;
     setReview(null);
     const { title, message } = approvalDialog(inspection);
     const approved = await dialog.ask(message, {
@@ -37,15 +47,15 @@ export function PluginInstall() {
     if (approved)
       install.mutate({
         id: inspection.manifest.id,
-        path,
         approve: inspection.grantDigest,
+        ...installTarget(candidate),
       });
   };
 
-  const inspectPackage = async (path: string) => {
+  const inspectPackage = async (source: PluginPackage) => {
     try {
-      const inspection = await inspect.mutateAsync(path);
-      const candidate = { path, inspection };
+      const inspection = await inspect.mutateAsync(source);
+      const candidate = { source, inspection };
       if (approvalDialog(inspection).complete) await approve(candidate);
       else setReview(candidate);
     } catch (error) {
@@ -60,8 +70,31 @@ export function PluginInstall() {
         hint={m['settings.plugins.choose_hint']()}
         accept={dialog.PLUGIN_EXTENSIONS}
         pick={dialog.pickPluginPackage}
-        onFiles={([path]) => void inspectPackage(path)}
+        onFiles={([path]) => void inspectPackage({ path })}
       />
+      <form
+        className="flex gap-2"
+        onSubmit={(event) => {
+          event.preventDefault();
+          const link = url.trim();
+          if (link) void inspectPackage({ url: link });
+        }}
+      >
+        <Input
+          type="url"
+          value={url}
+          onChange={(event) => setUrl(event.target.value)}
+          placeholder={m['settings.plugins.url_placeholder']()}
+          aria-label={m['settings.plugins.url_label']()}
+        />
+        <Button
+          type="submit"
+          size="sm"
+          disabled={!url.trim() || inspect.isPending}
+        >
+          {m['app.action.install']()}
+        </Button>
+      </form>
       {review && (
         <Review
           candidate={review}

@@ -97,7 +97,8 @@ export const channels: ChannelHandlers = {
     if (at >= 0) plugins.splice(at, 1);
     return ok();
   },
-  'plugin.inspect': () => ({
+  'plugin.inspect': (p) => ({
+    ...(p.url ? { staged: 'mock-staged' } : {}),
     manifest: {
       ...manifest('new-plugin', 'New plugin'),
       permissions: requested.permissions,

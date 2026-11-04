@@ -80,6 +80,8 @@
       },
       "choose": "Instalar um plugin",
       "choose_hint": "Escolha um arquivo .hplugin ou solte-o aqui",
+      "url_label": "Link do plugin",
+      "url_placeholder": "Ou cole um link https para um arquivo .hplugin",
       "continue": "Continuar",
       "empty": "Nenhum plugin instalado.",
       "grant": {

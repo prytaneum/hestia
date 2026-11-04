@@ -25,14 +25,20 @@ export async function remove(id: string): Promise<void> {
   await call('plugin.remove', { id });
 }
 
-/** What installing the package at `path` would grant; runs none of it. */
-export function inspect(path: string): Promise<PluginInspection> {
-  return call('plugin.inspect', { path });
+/** A local file or folder, or an https link the daemon downloads once. */
+export type PluginPackage = { path: string } | { url: string };
+
+/** A local package by its path, or a downloaded one by its inspection's `staged` token. */
+export type PluginInstallTarget = { path: string } | { staged: string };
+
+/** What installing the package would grant; runs none of it. */
+export function inspect(source: PluginPackage): Promise<PluginInspection> {
+  return call('plugin.inspect', source);
 }
 
 /** `approve` is the `grantDigest` of the inspection the user approved. */
 export function install(
-  params: { id: string; path: string; approve: string },
+  params: { id: string; approve: string } & PluginInstallTarget,
   job: JobRun,
 ): Promise<PluginInstallDone> {
   return runJob('plugin.install', params, job);

@@ -12,11 +12,10 @@ import { mutation } from './core';
 import { jobMutation } from './jobs';
 import { keys } from './keys';
 
-export interface PluginInstallVariables {
+export type PluginInstallVariables = {
   id: string;
-  path: string;
   approve: string;
-}
+} & api.PluginInstallTarget;
 
 export const pluginQueries = {
   list: () =>
@@ -46,9 +45,9 @@ export const pluginMutations = {
       invalidates: () => [keys.plugins.all],
     }),
   inspect: () =>
-    mutation<PluginInspection, string>({
+    mutation<PluginInspection, api.PluginPackage>({
       mutationKey: [...keys.plugins.all, 'inspect'],
-      mutationFn: (path) => api.inspect(path),
+      mutationFn: (source) => api.inspect(source),
     }),
   install: () =>
     jobMutation<
