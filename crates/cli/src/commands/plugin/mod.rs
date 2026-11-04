@@ -1,6 +1,10 @@
 //! `hestia plugin …` — launcher plugins. Server plugins are `hestia server-plugin`.
 
 mod add;
+mod cargo;
+mod new;
+mod pack;
+mod repo;
 
 use std::path::PathBuf;
 
@@ -13,6 +17,22 @@ use crate::ui::{self, View};
 
 #[derive(Subcommand)]
 pub enum PluginCmd {
+    /// Create a plugin, and a plugin repository around it when there is none
+    New {
+        /// The plugin id, also its folder name
+        id: String,
+    },
+    /// Build plugins into dist/<id>-<version>.hplugin
+    Pack {
+        /// Plugins to pack; all of the repository's by default
+        ids: Vec<String>,
+    },
+    #[command(flatten)]
+    Manage(ManageCmd),
+}
+
+#[derive(Subcommand)]
+pub enum ManageCmd {
     /// Installed plugins and their state
     #[command(alias = "ls")]
     List,
@@ -38,13 +58,21 @@ pub enum PluginCmd {
 }
 
 pub async fn run(cmd: PluginCmd) -> Result<()> {
+    match cmd {
+        PluginCmd::New { id } => new::run(&id),
+        PluginCmd::Pack { ids } => pack::run(&ids),
+        PluginCmd::Manage(cmd) => manage(cmd).await,
+    }
+}
+
+async fn manage(cmd: ManageCmd) -> Result<()> {
     let client = connect().await?;
     let plugins = client.plugin();
     match cmd {
-        PluginCmd::List => list(plugins.list().await?),
-        PluginCmd::Add { path, yes } => add::add(plugins, &path, yes).await,
-        PluginCmd::Info { id } => info(&plugins.info(&id).await?),
-        PluginCmd::Enable { id } => {
+        ManageCmd::List => list(plugins.list().await?),
+        ManageCmd::Add { path, yes } => add::add(plugins, &path, yes).await,
+        ManageCmd::Info { id } => info(&plugins.info(&id).await?),
+        ManageCmd::Enable { id } => {
             let plugin = plugins.enable(&id).await?;
             let reason = plugin.last_error.unwrap_or_default();
             match plugin.state {
@@ -61,11 +89,11 @@ pub async fn run(cmd: PluginCmd) -> Result<()> {
                 }
             }
         }
-        PluginCmd::Disable { id } => {
+        ManageCmd::Disable { id } => {
             plugins.disable(&id).await?;
             ui::show(View::line(format!("'{id}' disabled")))
         }
-        PluginCmd::Remove { id, yes } => {
+        ManageCmd::Remove { id, yes } => {
             if !yes {
                 confirm_remove(&id)?;
             }

@@ -1,0 +1,11 @@
+[package]
+name = "{id}"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+hestia-sdk = { git = "https://github.com/prytaneum/hestia", tag = "{sdk_tag}" }

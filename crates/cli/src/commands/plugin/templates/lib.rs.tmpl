@@ -1,0 +1,12 @@
+use hestia::{Error, Plugin};
+
+struct Entry;
+
+impl Plugin for Entry {
+    fn init() -> Result<(), Error> {
+        hestia::log::info("{id} loaded");
+        Ok(())
+    }
+}
+
+hestia::plugin!(Entry);

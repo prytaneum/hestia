@@ -23,6 +23,8 @@ ratatui = { workspace = true }
 tempfile.workspace = true
 tui-markdown = { workspace = true }
 serde_json = { workspace = true }
+toml = { workspace = true }
+zip = { workspace = true }
 tokio = { workspace = true }
 futures-util = { workspace = true }
 anyhow = { workspace = true }

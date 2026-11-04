@@ -700,6 +700,21 @@ hestia plugin disable <id>       # unload it; it stays installed
 hestia plugin remove <id>        # confirms first; -y skips the prompt
 ```
 
+Writing one needs no daemon. A plugin lives in a repository: a cargo workspace (`members = ["plugins/*"]`) with one
+`plugins/<id>/` folder per plugin, holding `plugin.toml`, `Cargo.toml`, `src/` and optionally `assets/` and `themes/`.
+
+```bash
+hestia plugin new <id>           # outside a repository: creates ./<id>/ with the workspace and plugins/<id>/;
+                                 #   inside one: adds only plugins/<id>/
+hestia plugin pack [id…]         # from anywhere in the repository: build and write dist/<id>-<version>.hplugin
+```
+
+`pack` runs `cargo build --release --target wasm32-wasip2` (needs `rustup target add wasm32-wasip2`), writes the `api`
+requirement into the packaged `plugin.toml` from the `hestia-sdk` version cargo resolved (never type it yourself), and
+bundles `plugin.toml`, the component, `assets/` and `themes/`. A theme-only plugin (no `Cargo.toml`, no `wasm`) skips
+cargo and carries no `api`; list its folder under the workspace's `exclude`, since `plugins/*` would otherwise expect a
+crate there. The scaffold pins `hestia-sdk` to the git tag of the running Hestia version (`v<version>`).
+
 ## Updating Hestia
 
 ```bash
