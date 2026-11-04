@@ -13,6 +13,7 @@ export const SETTINGS_TABS = [
   'java',
   'content',
   'instances',
+  'plugins',
   'storage',
 ] as const;
 
@@ -27,6 +28,7 @@ export type SettingsGroup =
   | 'modpack'
   | 'instance-behaviour'
   | 'sync'
+  | 'plugins'
   | 'storage'
   | 'daemon';
 
@@ -184,6 +186,16 @@ const INDEX: Entry[] = [
     text: text(
       m['settings.sync.options.label'],
       m['settings.sync.options.hint'],
+    ),
+  },
+  {
+    id: 'plugins',
+    tab: 'plugins',
+    group: 'plugins',
+    text: text(
+      m['settings.tabs.plugins'],
+      m['settings.plugins.hint'],
+      m['settings.plugins.choose'],
     ),
   },
   {

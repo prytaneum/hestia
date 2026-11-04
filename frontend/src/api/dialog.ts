@@ -4,7 +4,7 @@
  * which only the shell's native picker can produce — a browser file input hands
  * back a sandboxed `File`, never a path.
  */
-import { open, save } from '@tauri-apps/plugin-dialog';
+import { ask as nativeAsk, open, save } from '@tauri-apps/plugin-dialog';
 
 /** Single-file content is a jar or zip; a `.mrpack` is a modpack, not offered here. */
 export const CONTENT_EXTENSIONS = ['jar', 'zip'];
@@ -63,6 +63,26 @@ export async function pickInstanceArchive(): Promise<string[]> {
 
 /** Pick one modpack file and return its absolute path, or null when dismissed. */
 export const pickPackFile = () => pickOne('Modpacks', ['mrpack', 'zip']);
+
+/** The plugin package extension. */
+export const PLUGIN_EXTENSIONS = ['hplugin'];
+
+/** Pick one plugin package; empty when dismissed. */
+export async function pickPluginPackage(): Promise<string[]> {
+  const path = await pickOne('Plugins', PLUGIN_EXTENSIONS);
+  return path ? [path] : [];
+}
+
+/**
+ * A native yes/no box. Plugin approval goes through this rather than a
+ * webview modal so a stylesheet contributed by a theme cannot hide or fake it.
+ */
+export function ask(
+  message: string,
+  options: { title: string; okLabel: string; cancelLabel: string },
+): Promise<boolean> {
+  return nativeAsk(message, { ...options, kind: 'warning' });
+}
 
 /**
  * Ask where to write an export. Returns an absolute path, or null when

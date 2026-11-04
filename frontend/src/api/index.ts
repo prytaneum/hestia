@@ -53,6 +53,7 @@ export type { PackRef } from './modpack';
 export * as modpack from './modpack';
 export * as net from './net';
 export * as players from './players';
+export * as plugin from './plugin';
 export * as prefs from './prefs';
 export * as screenshot from './screenshot';
 export * as server from './server';

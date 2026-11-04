@@ -59,6 +59,7 @@ const JOB_DONE: JobKeys = {
   'instance.launch': (done) =>
     entryKeys('instances', entryOfProcess(done.processId, 'instance')),
   'java.install': () => [keys.java.runtimes()],
+  'plugin.install': () => [keys.plugins.all],
   'server.backup.create': sweepServers,
   'server.backup.restore': sweepServers,
   'content.add': sweepEntries,
@@ -105,7 +106,7 @@ const CHANGED: Record<Topics['changed']['scope'], QueryKey[]> = {
   sync: [keys.sync.all],
   screenshots: [keys.screenshots.all],
   cache: [keys.cache.all, [FOOTPRINT]],
-  plugins: [],
+  plugins: [keys.plugins.all],
 };
 
 /** The key prefixes a daemon event outdates — exported for the regression test. */
@@ -118,6 +119,8 @@ export function invalidationKeys(event: DaemonEvent): QueryKey[] {
       return jobKeys(event.payload);
     case 'changed':
       return CHANGED[event.payload.scope];
+    case 'plugin.state':
+      return [keys.plugins.all];
     default:
       return [];
   }

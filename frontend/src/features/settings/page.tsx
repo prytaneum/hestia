@@ -17,6 +17,7 @@ import {
   GeneralTab,
   InstancesTab,
   JavaTab,
+  PluginsTab,
   StorageTab,
 } from '@/features/settings/tabs';
 import { useConfig } from '@/features/settings/use-config';
@@ -28,6 +29,7 @@ const TAB_LABELS: Record<SettingsTab, () => string> = {
   java: m['settings.tabs.java'],
   content: m['settings.tabs.content'],
   instances: m['settings.tabs.instances'],
+  plugins: m['settings.tabs.plugins'],
   storage: m['settings.tabs.storage'],
 };
 
@@ -123,6 +125,11 @@ export function SettingsPage({
               <TabsContent value="instances">
                 <FieldGroup>
                   <InstancesTab />
+                </FieldGroup>
+              </TabsContent>
+              <TabsContent value="plugins">
+                <FieldGroup>
+                  <PluginsTab />
                 </FieldGroup>
               </TabsContent>
               <TabsContent value="storage">

@@ -283,6 +283,13 @@ Rules that keep it from drifting:
   browse pages and the entry content tabs resolve against. Everything else is
   one-directional — `library → instances`, `instances → content`,
   `servers → content` — so the feature graph is acyclic.
+- **Plugin approval is a native dialog, never a webview modal.** The Plugins
+  settings tab inspects a package (`plugin.inspect`), shows its grant through
+  `dialog.ask` (`@tauri-apps/plugin-dialog`) with full-access permissions first,
+  and installs against the inspected `grantDigest`. A message box does not
+  scroll, so a grant past `MAX_DIALOG_LINES` gets a summary in the dialog and
+  the full list in an in-page review the user continues from. Permission text
+  is the `domain.plugin.permission.*` messages, keyed by a typed table.
 - **A dropped file goes through one pipeline** (`lib/file-drop`), shaped like
   `react-dropzone`: `useDropzone({ accept, onDrop, multiple, disabled, label })`
   returns `getRootProps()` to spread on the element that takes the drop and

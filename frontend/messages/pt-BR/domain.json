@@ -81,6 +81,38 @@
       "resolving_profile": "Resolvendo perfil",
       "writing_pack_files": "Gravando arquivos do pacote"
     },
+    "plugin": {
+      "permission": {
+        "account_read": "Ver os nomes das contas conectadas, nunca os tokens",
+        "config_read": "Ler as configurações do launcher",
+        "config_write": "Alterar as configurações do launcher, incluindo os argumentos padrão da JVM",
+        "content_read": "Buscar e inspecionar mods, pacotes e outros conteúdos",
+        "content_write": "Instalar, atualizar e remover mods, pacotes e outros conteúdos",
+        "entry_read": "Ver seus servidores e instâncias e as configurações deles",
+        "entry_write": "Criar, alterar e excluir servidores e instâncias, incluindo seus arquivos",
+        "java_manage": "Instalar e remover runtimes do Java",
+        "java_read": "Ver os runtimes do Java instalados e disponíveis",
+        "launch_patch": "Ajustar configurações de inicialização, a partir de uma lista permitida, quando um jogo ou servidor inicia",
+        "network_connect": "Conectar-se aos hosts que ele lista",
+        "process_control": "Iniciar e parar servidores e jogos, e executar comandos do console",
+        "process_read": "Ver quais servidores e jogos estão em execução",
+        "process_spawn": "Executar os programas que ele lista",
+        "ui_css": "Mudar o visual do app com uma folha de estilo própria"
+      },
+      "source": {
+        "dev": "Desenvolvimento",
+        "file": "Arquivo",
+        "folder": "Pasta",
+        "git": "Git",
+        "url": "URL"
+      },
+      "state": {
+        "disabled": "Desativado",
+        "enabled": "Ativado",
+        "failed": "Com falha",
+        "needs_approval": "Aguardando aprovação"
+      }
+    },
     "sync_state": {
       "off": "não compartilhado",
       "overridden": "mantém o próprio",

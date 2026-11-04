@@ -69,7 +69,39 @@
       "title": "Modpacks"
     },
     "no_default": "No default set",
-    "search_empty": "No setting matches “{query}”.",
+    "plugins": {
+      "approval": {
+        "full_access_warning": "This plugin asks for full access to your computer: it can change your servers and instances, install content and run programs.",
+        "more": "…and {count} more. Review the full list on the Plugins page.",
+        "none": "It asks for no permissions.",
+        "nothing_new": "It asks for nothing new.",
+        "install_title": "Install {name} {version}?",
+        "update_title": "Update {name} from {from} to {to}?"
+      },
+      "choose": "Install a plugin",
+      "choose_hint": "Choose a .hplugin file or drop it here",
+      "continue": "Continue",
+      "empty": "No plugins installed.",
+      "grant": {
+        "events": "Events it listens to",
+        "full_access": "Full access to your computer",
+        "hooks": "Hooks",
+        "launch_properties": "Launch properties it may set",
+        "network": "Network hosts",
+        "permissions": "Permissions",
+        "programs": "Programs it can run",
+        "secret_settings": "Secret settings",
+        "themes": "Themes"
+      },
+      "hint": "Plugins extend Hestia. A plugin only gets what you approve when you install it.",
+      "installed": "{name} installed",
+      "remove_description": "This removes the plugin and deletes all the data it stored. It can't be undone.",
+      "remove_title": "Remove {name}?",
+      "review_hint": "This list is too long for the approval dialog. Read it here, then continue.",
+      "review_title": "Review {name} {version}",
+      "version": "v{version}"
+    },
+    "search_empty":"No setting matches “{query}”.",
     "search_placeholder": "Search settings",
     "source_needs_key": "Needs a key",
     "source_ready": "Ready",
@@ -109,6 +141,7 @@
       "general": "General",
       "instances": "Instances",
       "java": "Java",
+      "plugins": "Plugins",
       "storage": "Storage"
     },
     "tutorial": {

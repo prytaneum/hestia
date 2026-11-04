@@ -7,6 +7,7 @@ export {
   useFiltering,
 } from './filtered';
 export { ModpackSettings } from './modpack';
+export { PluginList } from './plugins';
 export { RuntimeList } from './runtimes';
 export { SyncSettings } from './sync';
 export { UpdateChannelField, UpdatePanel } from './update';

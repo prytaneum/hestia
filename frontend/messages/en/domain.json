@@ -81,6 +81,38 @@
       "resolving_profile": "Resolving profile",
       "writing_pack_files": "Writing pack files"
     },
+    "plugin": {
+      "permission": {
+        "account_read": "See the names of signed-in accounts, never their tokens",
+        "config_read": "Read launcher settings",
+        "config_write": "Change launcher settings, including default JVM arguments",
+        "content_read": "Search and inspect mods, packs and other content",
+        "content_write": "Install, update and remove mods, packs and other content",
+        "entry_read": "See your servers and instances and their settings",
+        "entry_write": "Create, change and delete servers and instances, including their files",
+        "java_manage": "Install and remove Java runtimes",
+        "java_read": "See installed and available Java runtimes",
+        "launch_patch": "Adjust launch settings from an allowlist when a game or server starts",
+        "network_connect": "Connect to the hosts it lists",
+        "process_control": "Start and stop servers and games, and run console commands",
+        "process_read": "See which servers and games are running",
+        "process_spawn": "Run the programs it lists",
+        "ui_css": "Restyle the app with its own stylesheet"
+      },
+      "source": {
+        "dev": "Development",
+        "file": "File",
+        "folder": "Folder",
+        "git": "Git",
+        "url": "URL"
+      },
+      "state": {
+        "disabled": "Disabled",
+        "enabled": "Enabled",
+        "failed": "Failed",
+        "needs_approval": "Needs approval"
+      }
+    },
     "sync_state": {
       "off": "not shared",
       "overridden": "keeps its own",
