@@ -17,6 +17,7 @@ pub mod events;
 pub mod files;
 pub mod health;
 pub mod host;
+pub mod image;
 pub mod instance;
 pub mod java;
 pub mod job;

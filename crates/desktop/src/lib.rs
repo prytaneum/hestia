@@ -1,5 +1,6 @@
 mod bridge;
 mod commands;
+mod proxy;
 
 use bridge::Bridge;
 use tauri::Manager;
@@ -64,6 +65,7 @@ pub fn run() {
         )
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_process::init())
+        .register_asynchronous_uri_scheme_protocol(proxy::SCHEME, proxy::serve)
         .manage(Bridge::default())
         .manage(commands::open::PendingArchive::default())
         .setup(|app| {

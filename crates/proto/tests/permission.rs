@@ -62,6 +62,7 @@ const DENIED: &[&str] = &[
     "cache.info",
     "cache.list",
     "cache.clear",
+    "image.fetch",
     // No permission fits
     "app.info",
     "host.info",

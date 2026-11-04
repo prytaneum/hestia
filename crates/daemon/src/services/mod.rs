@@ -12,6 +12,7 @@ mod entry;
 mod files;
 mod guards;
 mod host;
+mod image;
 mod instance;
 mod java;
 mod lifecycle;
@@ -40,6 +41,7 @@ pub fn make_router() -> Router {
     java::register(&mut on);
     net::register(&mut on);
     host::register(&mut on);
+    image::register(&mut on);
     accounts::register(&mut on);
     skins::register(&mut on);
     process::register(&mut on);

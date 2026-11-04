@@ -4,6 +4,7 @@ import rehypeSanitize from 'rehype-sanitize';
 import remarkGfm from 'remark-gfm';
 
 import { ExternalLink } from '@/components/external-link';
+import { remoteImage } from '@/lib/remote-image';
 import { cn } from '@/lib/utils';
 
 /**
@@ -59,6 +60,15 @@ export function Markdown({
               <div className="my-3 max-w-full overflow-x-auto">
                 <table {...rest}>{children}</table>
               </div>
+            );
+          },
+          img({ node: _node, src, alt, ...rest }) {
+            return (
+              <img
+                {...rest}
+                src={typeof src === 'string' ? remoteImage(src) : undefined}
+                alt={alt}
+              />
             );
           },
           a({ children, node: _node, ...rest }) {

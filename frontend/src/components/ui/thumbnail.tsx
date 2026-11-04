@@ -1,6 +1,7 @@
 import type { Icon } from '@phosphor-icons/react';
 import { type ReactNode, useState } from 'react';
 
+import { remoteImage } from '@/lib/remote-image';
 import { cn } from '@/lib/utils';
 
 const sizes = {
@@ -62,7 +63,7 @@ export function Thumbnail({
         <Glyph className={glyph} />
       ) : (
         <img
-          src={shown}
+          src={remoteImage(shown)}
           alt=""
           onError={() => setBroken((failed) => [...failed, shown])}
           onLoad={(e) =>

@@ -4,6 +4,8 @@
  */
 import { convertFileSrc } from '@tauri-apps/api/core';
 
+import { remoteImage } from '@/lib/remote-image';
+
 /** The one format a skin texture comes in, by extension. */
 export const TEXTURE_EXTENSIONS = ['png'];
 
@@ -16,7 +18,7 @@ export function loadTexture(src: string): Promise<HTMLImageElement> {
       const img = new Image();
       img.onload = () => resolve(img);
       img.onerror = () => reject(new Error(`failed to load texture: ${src}`));
-      img.src = src;
+      img.src = remoteImage(src);
     });
     textures.set(src, pending);
   }

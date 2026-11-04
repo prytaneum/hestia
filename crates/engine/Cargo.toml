@@ -37,7 +37,7 @@ wasmtime = { workspace = true }
 wasmtime-wasi = { workspace = true }
 p256 = { version = "0.14.0", features = ["ecdsa"] }
 getrandom = "0.4"
-base64 = "0.23.1"
+base64 = { workspace = true }
 minisign-verify = "0.3"
 
 [target.'cfg(windows)'.dependencies]

@@ -165,6 +165,7 @@ fn api() -> Api {
         files::ServerFilesWrite,
         health::Ping,
         host::HostInfo,
+        image::ImageFetch,
         instance::AddressPing, instance::InstanceCreate, instance::InstanceInfoQuery,
         instance::InstanceLaunch, instance::InstanceList, instance::InstanceRecent,
         instance::InstanceServerEdit, instance::InstanceServerRemove, instance::InstanceServers,

@@ -25,6 +25,7 @@ use crate::content::Content;
 use crate::instances::Instances;
 use crate::java::Java;
 use crate::minecraft::Minecraft;
+use crate::net::image::ImageProxy;
 use crate::plugins::{Plugins, Remote};
 use crate::process::ProcessSupervisor;
 use crate::servers::Servers;
@@ -67,6 +68,7 @@ pub struct Engine {
     data_home: PathBuf,
     config: Config,
     cache: Cache,
+    images: ImageProxy,
     java: Java,
     accounts: Accounts,
     minecraft: Minecraft,
@@ -95,6 +97,7 @@ impl Engine {
         tracing::info!(home = %data_home.display(), "engine data home");
         let config = Config::new(common::paths::config_path(Some(&data_home)));
         let cache = Cache::new(data_home.join("cache"));
+        let images = ImageProxy::new(data_home.join("cache"));
         let java = Java::new(data_home.join("java"));
         let accounts = Accounts::new(data_home.join("accounts.json"));
         let servers = Servers::new(data_home.join("servers"));
@@ -110,6 +113,7 @@ impl Engine {
             data_home,
             config,
             cache,
+            images,
             java,
             accounts,
             minecraft,
@@ -199,6 +203,16 @@ impl Engine {
 
     pub fn cache(&self) -> &Cache {
         &self.cache
+    }
+
+    /// A remote image for the webview, base64-encoded; see [`ImageProxy`].
+    pub async fn fetch_image(&self, url: &str) -> anyhow::Result<proto::image::ImageFetchResult> {
+        use base64::Engine as _;
+        let image = self.images.fetch(url).await?;
+        Ok(proto::image::ImageFetchResult {
+            mime: image.mime,
+            bytes: base64::engine::general_purpose::STANDARD.encode(image.bytes),
+        })
     }
 
     pub fn java(&self) -> &Java {

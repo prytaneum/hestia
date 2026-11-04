@@ -187,6 +187,7 @@ Hits are **re-hashed on the way out**, so a damaged blob is evicted and the fetc
 falls back to the network. The cache can make things faster; it can never make
 them wrong.
 
+<<<<<<< HEAD
 **`Downloader::untrusted(max_bytes)`** is for a link a user typed rather than one
 a catalogue vouches for: it uses a client whose redirect policy refuses any hop
 off https, and aborts a body larger than the cap. A plugin installed from a URL
@@ -197,6 +198,29 @@ and installs the held file, so nothing is downloaded twice and the file approved
 is the file installed. The token is a random id looked up in memory, never a
 path; an uninstalled package is dropped 15 minutes after it was fetched, and
 `tmp/` is emptied at startup. The record keeps the `url` and the `url` source.
+
+### Remote images
+
+The webview never contacts an image host. `image.fetch` (`net/image/`) fetches
+for it, and the desktop serves the bytes over the `hestia-image` scheme (see
+[Front-ends](frontends.md#the-rust-shell-is-a-pipe)). Because the URL comes from
+untrusted content (a project description, a theme), the fetch runs on
+`net::guard::client()`: a client whose `dns_resolver` refuses any name that
+resolves to a loopback, private, link-local, CGNAT, multicast or unspecified
+address (IPv4, IPv6 and IPv4-mapped IPv6) and dials the addresses it vetted, with
+no proxy and no cookies. Redirects are walked by the proxy itself, at most five,
+each hop re-checked: https only, a host name rather than an IP literal, no
+credentials. The body is capped at 10 MiB while streaming, the whole fetch at
+15 s, and the bytes must sniff as png, jpeg, gif, webp, avif or svg — the
+sniffed type is the one returned. `net::guard` is the shared piece other
+untrusted-URL fetches reuse.
+
+A fetched image is stored in the cache by its SHA-256, and `cache/images.json`
+maps URL to `{sha256, mime, fetchedUnix}` (written through a temp and renamed,
+bounded to 256 entries, oldest dropped along with blobs nothing else references).
+A repeat view — or any view while offline — is served from there without a
+request; a missing or damaged blob behind an entry is a miss and refetches.
+`cache usage` counts the index and `cache clear` deletes it.
 
 ## Java runtimes
 

@@ -5,6 +5,8 @@
 //! A fetch written anywhere else would be a request with no timeout — the shape
 //! that turns a dropped connection into a job that hangs until it is cancelled.
 
+pub(crate) mod guard;
+pub(crate) mod image;
 mod reach;
 mod retry;
 pub(crate) mod store;

@@ -14,6 +14,7 @@ export type * from "./events";
 export type * from "./files";
 export type * from "./health";
 export type * from "./host";
+export type * from "./image";
 export type * from "./instance";
 export type * from "./java";
 export type * from "./job";

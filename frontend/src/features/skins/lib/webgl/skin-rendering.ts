@@ -5,6 +5,7 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { clone as cloneSkeleton } from 'three/examples/jsm/utils/SkeletonUtils.js';
 
 import type { SkinVariant } from '@/api';
+import { remoteImage } from '@/lib/remote-image';
 import classicModel from '../../assets/classic-player.gltf?url';
 import slimModel from '../../assets/slim-player.gltf?url';
 
@@ -52,7 +53,7 @@ export function loadTexture(url: string): Promise<THREE.Texture> {
   loader.setCrossOrigin('anonymous');
   const load = new Promise<THREE.Texture>((resolve, reject) => {
     loader.load(
-      url,
+      remoteImage(url),
       (texture) => {
         texture.colorSpace = THREE.SRGBColorSpace;
         texture.flipY = false;

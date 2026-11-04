@@ -72,6 +72,8 @@ import type { FileReadResult } from "./generated/FileReadResult";
 import type { FlavorsResult } from "./generated/FlavorsResult";
 import type { GameVersion } from "./generated/GameVersion";
 import type { HostInfoResult } from "./generated/HostInfoResult";
+import type { ImageFetchParams } from "./generated/ImageFetchParams";
+import type { ImageFetchResult } from "./generated/ImageFetchResult";
 import type { ImportDone } from "./generated/ImportDone";
 import type { InstanceCreateParams } from "./generated/InstanceCreateParams";
 import type { InstanceDetails } from "./generated/InstanceDetails";
@@ -239,6 +241,7 @@ export interface Channels {
   "events.subscribe": { params: EventsSubscribeParams; result: EventsSubscribeResult };
   "health.ping": { params: Empty; result: PingResult };
   "host.info": { params: Empty; result: HostInfoResult };
+  "image.fetch": { params: Partial<ImageFetchParams>; result: ImageFetchResult };
   "instance.create": { params: Omit<Partial<InstanceCreateParams>, "config"> & { "config"?: Array<Partial<ConfigEntry>> }; result: InstanceInfo };
   "instance.export": { params: Partial<InstanceExportParams>; result: JobStarted };
   "instance.export.contents": { params: Partial<InstanceRef>; result: Array<ArchiveEntry> };
@@ -380,6 +383,7 @@ export const TIMEOUTS: Partial<Record<keyof Channels, number>> = {
   "cape.equip": 30000,
   "content.check_updates": 120000,
   "content.matches": 120000,
+  "image.fetch": 30000,
   "instance.create": 60000,
   "modpack.check_update": 120000,
   "modpack.preview_update": 120000,

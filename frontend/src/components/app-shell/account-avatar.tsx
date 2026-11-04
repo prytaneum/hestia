@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 
 import { drawHead, HEAD, loadTexture } from '@/features/skins/lib';
+import { remoteImage } from '@/lib/remote-image';
 import { cn } from '@/lib/utils';
 
 /** The face is 8×8; only a whole-number scale renders every pixel the same size. */
@@ -98,9 +99,11 @@ export function AccountAvatar({
 
   return (
     <img
-      src={`https://api.mineatar.io/face/${uuid}?scale=${Math.min(MAX_SCALE, scale * 2)}${
-        bust ? `&v=${encodeURIComponent(bust)}` : ''
-      }`}
+      src={remoteImage(
+        `https://api.mineatar.io/face/${uuid}?scale=${Math.min(MAX_SCALE, scale * 2)}${
+          bust ? `&v=${encodeURIComponent(bust)}` : ''
+        }`,
+      )}
       alt=""
       width={edge}
       height={edge}
