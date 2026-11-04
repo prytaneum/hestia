@@ -1,6 +1,6 @@
 import { Slider as SliderPrimitive } from '@base-ui/react/slider';
 
-import { cn } from '@/lib/utils';
+import { cn, slots } from '@/lib/utils';
 
 function Slider({
   className,
@@ -43,11 +43,10 @@ function Slider({
             className="bg-primary select-none data-horizontal:h-full data-vertical:w-full"
           />
         </SliderPrimitive.Track>
-        {Array.from({ length: _values.length }, (_, index) => (
+        {slots(_values.length).map((thumb) => (
           <SliderPrimitive.Thumb
             data-slot="slider-thumb"
-            // biome-ignore lint/suspicious/noArrayIndexKey: fixed-count thumbs, never reordered
-            key={index}
+            key={thumb}
             className="relative block size-3 shrink-0 rounded-none border border-ring bg-white ring-ring/50 transition-[color,box-shadow] select-none after:absolute after:-inset-2 hover:ring-1 focus-visible:ring-1 focus-visible:outline-hidden active:ring-1 disabled:pointer-events-none disabled:opacity-50"
           />
         ))}

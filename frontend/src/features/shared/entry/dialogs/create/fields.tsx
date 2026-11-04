@@ -12,9 +12,6 @@ export type Step = 'flavor' | 'version' | 'details';
 
 export const STEPS: Step[] = ['flavor', 'version', 'details'];
 
-// biome-ignore lint/suspicious/noExplicitAny: the wizard form's generic type is internal to TanStack Form.
-export type WizardForm = any;
-
 export const GAMEMODES: Array<{ value: string; label: () => string }> = [
   { value: 'survival', label: m['domain.gamemode.survival'] },
   { value: 'creative', label: m['domain.gamemode.creative'] },

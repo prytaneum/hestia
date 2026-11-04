@@ -1,4 +1,4 @@
-import { useEffect, useReducer } from 'react';
+import { useReducer, useState } from 'react';
 
 import type { ContentKind, ContentProject } from '@/api';
 import { selectionKey } from '@/features/content/components';
@@ -140,9 +140,10 @@ function reducer(state: WizardState, action: WizardAction): WizardState {
  */
 export function useInstallWizard(init: WizardInit) {
   const [state, dispatch] = useReducer(reducer, init, initial);
-  // biome-ignore lint/correctness/useExhaustiveDependencies: reset only on open.
-  useEffect(() => {
+  const [wasOpen, setWasOpen] = useState(init.open);
+  if (init.open !== wasOpen) {
+    setWasOpen(init.open);
     if (init.open) dispatch({ type: 'reset', init });
-  }, [init.open]);
+  }
   return [state, dispatch] as const;
 }
