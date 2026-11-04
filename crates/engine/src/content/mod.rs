@@ -20,6 +20,7 @@ pub(crate) mod record;
 
 use std::collections::{BTreeSet, HashMap};
 use std::path::Path;
+use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use proto::content::{
@@ -28,6 +29,7 @@ use proto::content::{
 };
 
 use crate::config::ContentSettings;
+use crate::roster::{RegisterError, Roster};
 use provider::ContentProvider;
 pub(crate) use provider::{LocalFile, UrlRef};
 
@@ -128,17 +130,15 @@ async fn identify_with(
 }
 
 pub struct Content {
-    providers: Vec<Box<dyn ContentProvider>>,
+    providers: Roster<dyn ContentProvider>,
 }
 
 impl Default for Content {
     fn default() -> Self {
-        Content {
-            providers: vec![
-                Box::new(modrinth::Modrinth),
-                Box::new(curseforge::CurseForge::default()),
-            ],
-        }
+        Self::with_providers(vec![
+            Box::new(modrinth::Modrinth),
+            Box::new(curseforge::CurseForge::default()),
+        ])
     }
 }
 
@@ -150,13 +150,44 @@ impl Content {
     /// Build over a given registry rather than the shipped one. The seam a test
     /// crosses to install content without reaching a platform.
     pub fn with_providers(providers: Vec<Box<dyn ContentProvider>>) -> Self {
-        Content { providers }
+        Content {
+            providers: Roster::builtin(providers.into_iter().map(|p| {
+                let provider: Arc<dyn ContentProvider> = p.into();
+                (provider.id().to_string(), provider)
+            })),
+        }
+    }
+
+    /// Add `owner`'s source. Its id must read `<owner>.<id>`, so it cannot
+    /// shadow a built-in.
+    pub fn register(
+        &self,
+        owner: &str,
+        provider: Arc<dyn ContentProvider>,
+    ) -> Result<(), RegisterError> {
+        self.providers
+            .register(owner, provider.id(), provider.clone())
+    }
+
+    /// Remove every source `owner` registered. Content already installed from
+    /// one keeps its record; [`Content::offers`] reports the source gone.
+    pub fn unregister(&self, owner: &str) -> usize {
+        self.providers.unregister(owner)
+    }
+
+    /// Whether `source` can serve right now. A record naming a source that
+    /// answers no is still listed; only a request through it is refused.
+    pub fn offers(&self, source: &str) -> bool {
+        self.providers
+            .snapshot()
+            .iter()
+            .any(|p| p.id() == source && p.available())
     }
 
     /// Hand each source the settings it needs. Called at startup and after
     /// every `config set`, so a key takes effect on the running daemon.
     pub fn configure(&self, settings: &ContentSettings) {
-        for provider in &self.providers {
+        for provider in self.providers.snapshot() {
             provider.configure(settings);
         }
     }
@@ -167,7 +198,7 @@ impl Content {
         if files.is_empty() {
             return found;
         }
-        for provider in self.providers.iter().filter(|p| p.available()) {
+        for provider in self.providers.snapshot().iter().filter(|p| p.available()) {
             match identify_with(provider.as_ref(), files).await {
                 Ok(matched) => {
                     for (sha1, identified) in matched {
@@ -240,6 +271,7 @@ impl Content {
     /// is unset is registered but not offered.
     pub fn sources(&self) -> Vec<ContentSource> {
         self.providers
+            .snapshot()
             .iter()
             .filter(|p| p.available())
             .map(|p| ContentSource {
@@ -335,6 +367,7 @@ impl Content {
     /// returning the owning source id and the reference it names.
     pub(crate) fn parse_url(&self, url: &str) -> Option<(String, UrlRef)> {
         self.providers
+            .snapshot()
             .iter()
             .find_map(|p| p.parse_url(url).map(|r| (p.id().to_string(), r)))
     }
@@ -343,19 +376,16 @@ impl Content {
     /// source that can serve. A source that is registered but unconfigured is
     /// refused by name rather than reported unknown, since the difference is
     /// what the user has to act on.
-    fn provider(&self, id: &str) -> Result<&dyn ContentProvider> {
+    fn provider(&self, id: &str) -> Result<Arc<dyn ContentProvider>> {
+        let providers = self.providers.snapshot();
         if id.is_empty() {
-            return self
-                .providers
-                .iter()
-                .map(AsRef::as_ref)
+            return providers
+                .into_iter()
                 .find(|p| p.available())
                 .context("no content source is configured");
         }
-        let provider = self
-            .providers
-            .iter()
-            .map(AsRef::as_ref)
+        let provider = providers
+            .into_iter()
             .find(|p| p.id() == id)
             .with_context(|| format!("unknown content source: {id}"))?;
         if !provider.available() {

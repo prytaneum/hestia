@@ -22,11 +22,13 @@ mod vanilla;
 pub(crate) mod world;
 
 use std::path::Path;
+use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use proto::minecraft::{Flavor, GameVersion};
 
 use crate::cache::Cache;
+use crate::roster::{RegisterError, Roster};
 use profile::{InstanceProfile, ServerProfile};
 
 pub use provider::{accepted_kinds, unmet, InstallRequest, Prerequisite, Side};
@@ -38,22 +40,20 @@ pub use provider::{FlavorInfo, FlavorProvider, Loads, ResolveRequest};
 pub const REQUIRED_JAVA_MAJORS: [i32; 4] = [8, 16, 17, 21];
 
 pub struct Minecraft {
-    flavors: Vec<Box<dyn FlavorProvider>>,
+    flavors: Roster<dyn FlavorProvider>,
 }
 
 impl Default for Minecraft {
     fn default() -> Self {
-        Minecraft {
-            flavors: vec![
-                Box::new(vanilla::Vanilla),
-                Box::new(fabric::Fabric),
-                Box::new(paper::PaperProject::paper()),
-                Box::new(paper::PaperProject::folia()),
-                Box::new(spigot::BuildTools::spigot()),
-                Box::new(spigot::BuildTools::bukkit()),
-                Box::new(neoforge::NeoForge),
-            ],
-        }
+        Self::with_providers(vec![
+            Box::new(vanilla::Vanilla),
+            Box::new(fabric::Fabric),
+            Box::new(paper::PaperProject::paper()),
+            Box::new(paper::PaperProject::folia()),
+            Box::new(spigot::BuildTools::spigot()),
+            Box::new(spigot::BuildTools::bukkit()),
+            Box::new(neoforge::NeoForge),
+        ])
     }
 }
 
@@ -65,11 +65,34 @@ impl Minecraft {
     /// Build over a given registry rather than the shipped one. The seam a test
     /// crosses to resolve a profile without reaching upstream.
     pub fn with_providers(flavors: Vec<Box<dyn FlavorProvider>>) -> Self {
-        Minecraft { flavors }
+        Minecraft {
+            flavors: Roster::builtin(flavors.into_iter().map(|p| {
+                let provider: Arc<dyn FlavorProvider> = p.into();
+                (provider.info().id.to_string(), provider)
+            })),
+        }
+    }
+
+    /// Add `owner`'s flavor. Its id must read `<owner>.<id>`, so it cannot
+    /// shadow a built-in.
+    pub fn register(
+        &self,
+        owner: &str,
+        provider: Arc<dyn FlavorProvider>,
+    ) -> Result<(), RegisterError> {
+        let id = provider.info().id.to_string();
+        self.flavors.register(owner, &id, provider)
+    }
+
+    /// Remove every flavor `owner` registered. An entry already created from
+    /// one keeps its record and loads nothing, as for any unregistered flavor.
+    pub fn unregister(&self, owner: &str) -> usize {
+        self.flavors.unregister(owner)
     }
 
     pub fn flavors(&self, side: Side) -> Vec<Flavor> {
         self.flavors
+            .snapshot()
             .iter()
             .map(|p| p.info())
             .filter(|info| info.sides.contains(&side))
@@ -172,10 +195,10 @@ impl Minecraft {
             .await
     }
 
-    fn provider(&self, side: Side, flavor: &str) -> Result<&dyn FlavorProvider> {
+    fn provider(&self, side: Side, flavor: &str) -> Result<Arc<dyn FlavorProvider>> {
         self.flavors
-            .iter()
-            .map(AsRef::as_ref)
+            .snapshot()
+            .into_iter()
             .find(|p| p.info().id == flavor && p.info().sides.contains(&side))
             .with_context(|| format!("unknown {} flavor: {flavor}", side.noun()))
     }

@@ -5,6 +5,8 @@
 
 mod buildtools;
 
+use std::borrow::Cow;
+
 use anyhow::Result;
 use async_trait::async_trait;
 use proto::content::ContentKind;
@@ -75,9 +77,9 @@ impl BuildTools {
     pub const fn bukkit() -> Self {
         BuildTools {
             info: FlavorInfo {
-                id: "bukkit",
-                name: "CraftBukkit",
-                summary: "The plugin server Spigot is built on, without its speed-ups. Pick Spigot unless you need this exactly.",
+                id: Cow::Borrowed("bukkit"),
+                name: Cow::Borrowed("CraftBukkit"),
+                summary: Cow::Borrowed("The plugin server Spigot is built on, without its speed-ups. Pick Spigot unless you need this exactly."),
                 loads: Some(ContentKind::Plugin),
                 requires: PREREQUISITES,
                 sides: SERVER_ONLY,
@@ -89,9 +91,9 @@ impl BuildTools {
     pub const fn spigot() -> Self {
         BuildTools {
             info: FlavorInfo {
-                id: "spigot",
-                name: "Spigot",
-                summary: "The classic plugin server, with the largest plugin library. Nobody may hand it out ready-made, so Hestia builds it here the first time — allow a few minutes.",
+                id: Cow::Borrowed("spigot"),
+                name: Cow::Borrowed("Spigot"),
+                summary: Cow::Borrowed("The classic plugin server, with the largest plugin library. Nobody may hand it out ready-made, so Hestia builds it here the first time — allow a few minutes."),
                 loads: Some(ContentKind::Plugin),
                 requires: PREREQUISITES,
                 sides: SERVER_ONLY,

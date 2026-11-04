@@ -2,6 +2,7 @@
 //! self-contained launcher jar; the client merges Fabric's libraries and main
 //! class over the vanilla profile.
 
+use std::borrow::Cow;
 use std::collections::HashMap;
 
 use anyhow::Result;
@@ -16,10 +17,11 @@ use super::provider::{FlavorInfo, FlavorProvider, ResolveRequest, BOTH_SIDES};
 const ID: &str = "fabric";
 
 const INFO: FlavorInfo = FlavorInfo {
-    id: ID,
-    name: "Fabric",
-    summary:
+    id: Cow::Borrowed(ID),
+    name: Cow::Borrowed("Fabric"),
+    summary: Cow::Borrowed(
         "A light, fast-moving mod loader. Usually the first to support a new Minecraft version.",
+    ),
     loads: Some(ContentKind::Mod),
     requires: &[],
     sides: BOTH_SIDES,

@@ -161,6 +161,46 @@ async fn a_batch_installs_its_roots_and_their_required_dependencies_once() {
     assert_eq!(installed.len(), 3, "two roots plus the shared dependency");
 }
 
+#[tokio::test]
+async fn content_from_a_source_that_is_gone_still_lists_as_unoffered() {
+    let home = tempfile::tempdir().expect("temp home");
+    let files = fixture::Files::serve().await;
+    let source = fixture::Source {
+        projects: vec![fixture::project("sodium", ContentKind::Mod)],
+        versions: vec![fixture::version("sodium", &files, "1.21", &[])],
+    };
+    let (engine, id) = instance(home.path(), source).await;
+    let (cancel, report) = (Cancel::new(), |_: &ProvisionProgress| {});
+    engine
+        .add_entry_content(
+            EntryRef::Instance(&id),
+            &add(&["sodium"]),
+            &job(&cancel, &report),
+        )
+        .await
+        .expect("install from the source");
+    let installed_from = engine
+        .entry_content(EntryRef::Instance(&id), ContentKind::Mod)
+        .expect("list")
+        .0[0]
+        .source
+        .clone();
+    assert!(engine.content().offers(&installed_from));
+
+    let without_source = fixture::engine(
+        home.path(),
+        vec![fixture::Flavor::resolving("fabric")],
+        vec![],
+    );
+
+    let (items, _) = without_source
+        .entry_content(EntryRef::Instance(&id), ContentKind::Mod)
+        .expect("the entry still lists");
+    assert_eq!(items.len(), 1, "the record survives its source");
+    assert_eq!(items[0].source, installed_from);
+    assert!(!without_source.content().offers(&installed_from));
+}
+
 fn local_mod(dir: &std::path::Path, name: &str) -> String {
     built_mod(dir, name, name)
 }

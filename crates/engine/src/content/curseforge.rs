@@ -105,11 +105,11 @@ impl Default for CurseForge {
 
 #[async_trait]
 impl ContentProvider for CurseForge {
-    fn id(&self) -> &'static str {
+    fn id(&self) -> &str {
         ID
     }
 
-    fn name(&self) -> &'static str {
+    fn name(&self) -> &str {
         NAME
     }
 

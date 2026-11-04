@@ -12,6 +12,8 @@
 //! so the existing loader-version seam carries it, exactly as Fabric's loader
 //! builds do.
 
+use std::borrow::Cow;
+
 use anyhow::Result;
 use async_trait::async_trait;
 use proto::content::ContentKind;
@@ -79,9 +81,9 @@ impl PaperProject {
     pub const fn paper() -> Self {
         PaperProject {
             info: FlavorInfo {
-                id: "paper",
-                name: "Paper",
-                summary: "A faster server that runs Bukkit plugins, tuned by the Paper team for each version.",
+                id: Cow::Borrowed("paper"),
+                name: Cow::Borrowed("Paper"),
+                summary: Cow::Borrowed("A faster server that runs Bukkit plugins, tuned by the Paper team for each version."),
                 loads: Some(ContentKind::Plugin),
                 requires: &[],
                 sides: SERVER_ONLY,
@@ -95,9 +97,9 @@ impl PaperProject {
     pub const fn folia() -> Self {
         PaperProject {
             info: FlavorInfo {
-                id: "folia",
-                name: "Folia",
-                summary: "Paper spread across CPU cores, for very large worlds. Only plugins made for Folia will work.",
+                id: Cow::Borrowed("folia"),
+                name: Cow::Borrowed("Folia"),
+                summary: Cow::Borrowed("Paper spread across CPU cores, for very large worlds. Only plugins made for Folia will work."),
                 loads: Some(ContentKind::Plugin),
                 requires: &[],
                 sides: SERVER_ONLY,
@@ -113,14 +115,14 @@ impl FlavorProvider for PaperProject {
     }
 
     async fn versions(&self) -> Result<Vec<GameVersion>> {
-        game_versions(self.info.id).await
+        game_versions(&self.info.id).await
     }
 
     async fn loader_versions(&self, game: &str) -> Result<Vec<String>> {
-        build_numbers(self.info.id, game).await
+        build_numbers(&self.info.id, game).await
     }
 
     async fn resolve_server(&self, request: &ResolveRequest<'_>) -> Result<ServerProfile> {
-        resolve(self.info.id, request).await
+        resolve(&self.info.id, request).await
     }
 }

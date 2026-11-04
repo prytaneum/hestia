@@ -1,6 +1,8 @@
 //! Vanilla (Mojang) — server jar and client, resolved straight from a version's
 //! piston-meta detail JSON.
 
+use std::borrow::Cow;
+
 use anyhow::Result;
 use async_trait::async_trait;
 use proto::minecraft::GameVersion;
@@ -12,9 +14,9 @@ use super::provider::{FlavorInfo, FlavorProvider, ResolveRequest, BOTH_SIDES};
 const ID: &str = "vanilla";
 
 const INFO: FlavorInfo = FlavorInfo {
-    id: ID,
-    name: "Vanilla",
-    summary: "Mojang's game, unchanged. Takes datapacks only — no mods or plugins.",
+    id: Cow::Borrowed(ID),
+    name: Cow::Borrowed("Vanilla"),
+    summary: Cow::Borrowed("Mojang's game, unchanged. Takes datapacks only — no mods or plugins."),
     loads: None,
     requires: &[],
     sides: BOTH_SIDES,

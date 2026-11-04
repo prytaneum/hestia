@@ -3,6 +3,7 @@
 //! launch profile. The `Minecraft` aggregate holds one boxed registry —
 //! adding a flavor is a new impl plus one line in `Minecraft::default`.
 
+use std::borrow::Cow;
 use std::path::Path;
 
 use anyhow::{bail, Result};
@@ -131,12 +132,12 @@ pub async fn unmet(required: &[Prerequisite]) -> Vec<Requirement> {
 }
 
 pub struct FlavorInfo {
-    pub id: &'static str,
-    pub name: &'static str,
+    pub id: Cow<'static, str>,
+    pub name: Cow<'static, str>,
     /// One line describing the distribution — what it is, and anything about
     /// running it a user should know before choosing it. Rendered by every
     /// front-end, so a new flavor needs no front-end change to explain itself.
-    pub summary: &'static str,
+    pub summary: Cow<'static, str>,
     pub loads: Loads,
     /// Tools this flavor needs on the machine; none for all but a flavor that
     /// builds its own artifacts.

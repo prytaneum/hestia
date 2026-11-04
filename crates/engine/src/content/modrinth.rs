@@ -90,11 +90,11 @@ pub(crate) fn cdn_file(url: &str) -> Option<FileRef> {
 
 #[async_trait]
 impl ContentProvider for Modrinth {
-    fn id(&self) -> &'static str {
+    fn id(&self) -> &str {
         ID
     }
 
-    fn name(&self) -> &'static str {
+    fn name(&self) -> &str {
         "Modrinth"
     }
 

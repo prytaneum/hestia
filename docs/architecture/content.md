@@ -27,6 +27,13 @@ to serve. `modrinth` and `curseforge` are the shipped sources — adding one is 
 new impl plus one line in `Content::new`, the same shape as the flavor registry.
 Stateless but for the API keys `configure()` hands down.
 
+The registry is runtime-mutable: `Content::register(owner, provider)` adds a
+source and `unregister(owner)` removes everything that owner added. The
+built-ins belong to `builtin` and are never removed; any other source's id must
+read `<owner>.<id>`, so it cannot shadow one. Content already installed from a
+source that is gone keeps its record and still lists; `Content::offers` reports
+the source as not serving, and a request through it is refused as unknown.
+
 Every platform response is mapped into the normalized `proto::content` types at
 this boundary, so a front-end never sees a platform's raw shape
 ([0010](../decisions/0010-one-content-provider-trait.md)).

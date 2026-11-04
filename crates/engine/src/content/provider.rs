@@ -50,8 +50,8 @@ impl LocalFile {
 
 #[async_trait]
 pub trait ContentProvider: Send + Sync {
-    fn id(&self) -> &'static str;
-    fn name(&self) -> &'static str;
+    fn id(&self) -> &str;
+    fn name(&self) -> &str;
     /// What this platform catalogues; a front-end offers it for those alone.
     fn kinds(&self) -> Vec<ContentKind>;
     /// Whether it can serve as configured — an unset API key, today.

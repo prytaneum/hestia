@@ -13,6 +13,7 @@
 
 pub(crate) mod processors;
 
+use std::borrow::Cow;
 use std::path::Path;
 
 use anyhow::{Context, Result};
@@ -33,9 +34,9 @@ use crate::download::Downloader;
 const ID: &str = "neoforge";
 
 const INFO: FlavorInfo = FlavorInfo {
-    id: ID,
-    name: "NeoForge",
-    summary: "Mod loader for big, content-heavy modpacks. The first launch prepares the game files, so it takes a few minutes.",
+    id: Cow::Borrowed(ID),
+    name: Cow::Borrowed("NeoForge"),
+    summary: Cow::Borrowed("Mod loader for big, content-heavy modpacks. The first launch prepares the game files, so it takes a few minutes."),
     loads: Some(ContentKind::Mod),
     requires: &[],
     sides: BOTH_SIDES,

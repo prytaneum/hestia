@@ -29,6 +29,7 @@ mod properties;
 mod recent;
 mod reclaim;
 mod registry;
+mod roster;
 mod schema;
 mod servers;
 mod signature;
@@ -70,6 +71,7 @@ pub use plugins::{
     MAX_CHAIN_DEPTH, PROVIDER_TIMEOUT, UI_TIMEOUT,
 };
 pub use process::{ExitObserver, ProcessEvents, ProcessSupervisor, StartError};
+pub use roster::RegisterError;
 pub use schema::notices as quarantined;
 pub use servers::{RconConfig, ServerPhase, ServerRecord, Servers};
 pub use skins::Skins;

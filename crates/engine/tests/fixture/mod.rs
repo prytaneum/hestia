@@ -26,9 +26,9 @@ pub struct Flavor {
 
 fn info(id: &'static str) -> FlavorInfo {
     FlavorInfo {
-        id,
-        name: "Fixture",
-        summary: "a flavor that exists only in tests",
+        id: id.into(),
+        name: "Fixture".into(),
+        summary: "a flavor that exists only in tests".into(),
         loads: Some(ContentKind::Mod),
         requires: &[],
         sides: &[Side::Server, Side::Client],

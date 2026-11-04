@@ -30,6 +30,10 @@ unknown flavor.
 | `spigot` | ✓ | | plugins | compiled on your machine with BuildTools |
 | `bukkit` | ✓ | | plugins | likewise (CraftBukkit) |
 
+The registry is runtime-mutable: `Minecraft::register(owner, provider)` and
+`unregister(owner)`, with the same ownership rules as content sources (built-ins
+are `builtin` and permanent; any other id reads `<owner>.<id>`).
+
 A provider names itself in one `FlavorInfo` (`id`, `name`, `summary`, the
 content its loader consumes as `loads`, the prerequisites it needs on this
 machine as `requires`, and its `sides`), lists the game versions it supports, and
