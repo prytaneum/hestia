@@ -164,8 +164,10 @@ impl Plugins {
             Some(record) => Some(self.info_of(record).await),
             None => None,
         };
+        let widened = inspection.grant.widening_over(&installed_grant);
         Ok(PluginInspection {
-            widened: inspection.grant.widening_over(&installed_grant),
+            unrestricted: widened.unrestricted(),
+            widened,
             manifest: inspection.manifest,
             grant: inspection.grant,
             grant_digest: inspection.grant_digest,

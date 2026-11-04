@@ -4,12 +4,7 @@ import { useState } from 'react';
 import { dialog, errorMessage, type PluginInspection } from '@/api';
 import { FileDropButton } from '@/components/file-drop-button';
 import { Button } from '@/components/ui/button';
-import {
-  approvalDialog,
-  describeSections,
-  grantSections,
-  grantToApprove,
-} from '@/features/settings/lib';
+import { approvalDialog, describeApproval } from '@/features/settings/lib';
 import { notify } from '@/lib/notify';
 import { m } from '@/paraglide/messages.js';
 import { useJobMutation } from '@/queries/jobs';
@@ -88,9 +83,7 @@ function Review({
   onCancel: () => void;
 }) {
   const { manifest } = candidate.inspection;
-  const sections = describeSections(
-    grantSections(grantToApprove(candidate.inspection)),
-  );
+  const sections = describeApproval(candidate.inspection);
 
   return (
     <div className="space-y-3 border border-border p-3">

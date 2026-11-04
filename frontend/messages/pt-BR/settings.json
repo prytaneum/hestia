@@ -72,7 +72,7 @@
     "plugins": {
       "approval": {
         "full_access_warning": "Este plugin pede acesso total ao seu computador: ele pode alterar seus servidores e instâncias, instalar conteúdo e executar programas.",
-        "more": "…e mais {count}. Veja a lista completa na página Plugins.",
+        "more": "…e mais. A lista completa está na página Plugins.",
         "none": "Ele não pede nenhuma permissão.",
         "nothing_new": "Ele não pede nada de novo.",
         "install_title": "Instalar {name} {version}?",

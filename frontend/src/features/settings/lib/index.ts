@@ -2,10 +2,8 @@ export {
   type ApprovalDialog,
   approvalDialog,
   type DescribedSection,
-  describeSections,
-  grantToApprove,
+  describeApproval,
 } from './approval';
-export { type GrantSection, grantSections } from './grant';
 export {
   firstTabWithMatch,
   SETTINGS_TABS,

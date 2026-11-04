@@ -1,11 +1,21 @@
-import type { Grant, Permission, PluginInspection } from '@/api/types';
+import type { Permission, PluginInspection } from '@/api/types';
 import { m } from '@/paraglide/messages.js';
-import {
-  type GrantSection,
-  type GrantSectionKind,
-  grantSections,
-  hasFullAccess,
-} from './grant';
+
+type GrantSectionKind =
+  | 'full_access'
+  | 'permissions'
+  | 'programs'
+  | 'network'
+  | 'launch_properties'
+  | 'hooks'
+  | 'events'
+  | 'secret_settings'
+  | 'themes';
+
+interface GrantSection {
+  kind: GrantSectionKind;
+  items: string[];
+}
 
 /**
  * A native message box has no scroll: GTK grows it past the screen and Windows
@@ -49,12 +59,40 @@ export interface DescribedSection {
   lines: string[];
 }
 
-/** What an approval covers: the whole grant when new, only the widening on an update. */
-export const grantToApprove = (inspection: PluginInspection): Grant =>
-  inspection.replaces ? inspection.widened : inspection.grant;
+/**
+ * What an approval covers: the whole grant when new, only the widening on an
+ * update. Which permissions are full access is the daemon's call
+ * (`inspection.unrestricted`), listed first.
+ */
+function sectionsToApprove(inspection: PluginInspection): GrantSection[] {
+  const grant = inspection.replaces ? inspection.widened : inspection.grant;
+  const full = new Set<Permission>(inspection.unrestricted);
+  const sections: GrantSection[] = [
+    { kind: 'full_access', items: inspection.unrestricted },
+    {
+      kind: 'permissions',
+      items: grant.permissions.filter((permission) => !full.has(permission)),
+    },
+    {
+      kind: 'programs',
+      items: grant.programs.map((program) =>
+        [program.id, [program.command, ...program.args].join(' ')].join(': '),
+      ),
+    },
+    { kind: 'network', items: grant.network },
+    { kind: 'launch_properties', items: grant.launchProperties },
+    { kind: 'hooks', items: grant.hooks },
+    { kind: 'events', items: grant.events },
+    { kind: 'secret_settings', items: grant.secretSettings },
+    { kind: 'themes', items: grant.uiCss },
+  ];
+  return sections.filter((section) => section.items.length > 0);
+}
 
-export function describeSections(sections: GrantSection[]): DescribedSection[] {
-  return sections.map(({ kind, items }) => ({
+export function describeApproval(
+  inspection: PluginInspection,
+): DescribedSection[] {
+  return sectionsToApprove(inspection).map(({ kind, items }) => ({
     heading: HEADING[kind](),
     lines:
       kind === 'full_access' || kind === 'permissions'
@@ -86,10 +124,9 @@ export function approvalDialog(inspection: PluginInspection): ApprovalDialog {
         version: manifest.version,
       });
 
-  const grant = grantToApprove(inspection);
-  const sections = describeSections(grantSections(grant));
+  const sections = describeApproval(inspection);
   const lines: string[] = [];
-  if (hasFullAccess(grant))
+  if (inspection.unrestricted.length > 0)
     lines.push(m['settings.plugins.approval.full_access_warning'](), '');
   if (sections.length === 0)
     lines.push(
@@ -104,7 +141,6 @@ export function approvalDialog(inspection: PluginInspection): ApprovalDialog {
   if (lines.length <= MAX_DIALOG_LINES)
     return { title, message: lines.join('\n'), complete: true };
   const kept = lines.slice(0, MAX_DIALOG_LINES - 2);
-  const hidden = lines.length - kept.length;
-  kept.push('', m['settings.plugins.approval.more']({ count: hidden }));
+  kept.push('', m['settings.plugins.approval.more']());
   return { title, message: kept.join('\n'), complete: false };
 }

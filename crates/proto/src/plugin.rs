@@ -303,6 +303,15 @@ impl Grant {
             .collect()
     }
 
+    /// The permissions that reach beyond the sandbox.
+    pub fn unrestricted(&self) -> Vec<Permission> {
+        self.permissions
+            .iter()
+            .copied()
+            .filter(|permission| permission.tier() == Tier::Unrestricted)
+            .collect()
+    }
+
     /// What this grant asks for beyond `installed`.
     pub fn widening_over(&self, installed: &Grant) -> Grant {
         Grant {
@@ -597,6 +606,10 @@ pub struct PluginInspection {
     pub replaces: Option<PluginInfo>,
     /// What the grant adds over the installed one; all of it when new.
     pub widened: Grant,
+    /// The unrestricted permissions in what the install asks the user to
+    /// approve (`widened`; the whole grant when new), so a front-end states
+    /// full access without a tier table of its own.
+    pub unrestricted: Vec<Permission>,
 }
 
 pub struct PluginInspect;

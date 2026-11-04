@@ -72,7 +72,7 @@
     "plugins": {
       "approval": {
         "full_access_warning": "This plugin asks for full access to your computer: it can change your servers and instances, install content and run programs.",
-        "more": "…and {count} more. Review the full list on the Plugins page.",
+        "more": "…and more. The full list is on the Plugins page.",
         "none": "It asks for no permissions.",
         "nothing_new": "It asks for nothing new.",
         "install_title": "Install {name} {version}?",

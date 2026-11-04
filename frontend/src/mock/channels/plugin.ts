@@ -105,6 +105,7 @@ export const channels: ChannelHandlers = {
     grant: requested,
     grantDigest: 'mock-digest',
     widened: requested,
+    unrestricted: ['entry:write', 'process:control'],
   }),
   'plugin.install': (p) =>
     runPlan({
