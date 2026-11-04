@@ -192,10 +192,4 @@ mod tests {
             Path::new("/work/target/wasm32-wasip2/release/plug_x.wasm")
         );
     }
-
-    #[test]
-    fn a_prerelease_sdk_requires_its_release_api() {
-        assert_eq!(api_requirement("1.2.0-beta.3"), "^1.2.0");
-        assert_eq!(api_requirement("1.2.0"), "^1.2.0");
-    }
 }

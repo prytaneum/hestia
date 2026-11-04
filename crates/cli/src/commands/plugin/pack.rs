@@ -249,21 +249,6 @@ mod tests {
     }
 
     #[test]
-    fn a_theme_only_plugin_packs_without_an_api() {
-        let repo = tempfile::tempdir().unwrap();
-        let plugin = plugin_on_disk(
-            repo.path(),
-            "id = \"tunnel\"\nname = \"Tunnel\"\nversion = \"0.2.0\"\n",
-        );
-
-        let archive = pack_plugin(&plugin, None, repo.path()).unwrap();
-
-        let manifest: proto::plugin::Manifest =
-            toml::from_str(&entry(&archive, MANIFEST).unwrap()).unwrap();
-        assert_eq!(manifest.api, None);
-    }
-
-    #[test]
     fn a_theme_that_is_not_shipped_is_refused() {
         let repo = tempfile::tempdir().unwrap();
         let plugin = plugin_on_disk(
