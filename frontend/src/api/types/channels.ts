@@ -384,6 +384,7 @@ export const TIMEOUTS: Partial<Record<keyof Channels, number>> = {
   "modpack.check_update": 120000,
   "modpack.preview_update": 120000,
   "plugin.enable": 60000,
+  "plugin.inspect": 120000,
   "server.files.compress": 600000,
   "server.files.copy": 600000,
   "server.files.extract": 600000,

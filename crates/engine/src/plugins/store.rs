@@ -29,6 +29,8 @@ pub struct PluginPackage {
 pub struct PluginRecord {
     pub id: String,
     pub source: PluginSource,
+    /// Where a [`PluginSource::Url`] install came from.
+    pub url: Option<String>,
     pub wasm_sha256: Option<String>,
     /// Package-relative theme file to its hex sha256.
     pub theme_sha256: BTreeMap<String, String>,

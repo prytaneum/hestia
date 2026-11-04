@@ -1,7 +1,5 @@
 //! Installed plugins: what is loaded and in which state.
 
-use std::path::{Path, PathBuf};
-
 use proto::error::ErrorInfo;
 use proto::job::JobStarted;
 use proto::plugin::{
@@ -10,6 +8,7 @@ use proto::plugin::{
 use proto::Empty;
 
 use crate::runtime::Channels;
+use crate::runtime::Package;
 
 pub(super) fn register(on: &mut Channels<'_>) {
     on.handle::<PluginList, _, _>(
@@ -32,15 +31,17 @@ pub(super) fn register(on: &mut Channels<'_>) {
     });
 
     on.handle::<PluginInspect, _, _>(|p, ctx| async move {
-        ctx.runtime.plugins().inspect(Path::new(&p.path)).await
+        let package = Package::fetch(ctx.runtime.engine(), &p).await?;
+        ctx.runtime.plugins().inspect(&package).await
     });
 
     on.handle::<PluginInstall, _, _>(|p, ctx| async move {
+        let package = Package::held(ctx.runtime.engine(), &p)?;
         let plugin = ctx
             .runtime
             .engine()
             .plugins()
-            .inspect(Path::new(&p.path))
+            .inspect(package.path())
             .map_err(crate::runtime::engine_error)?
             .manifest
             .id;
@@ -48,7 +49,7 @@ pub(super) fn register(on: &mut Channels<'_>) {
             ctx.runtime.plugins().clone(),
             &plugin,
             p.id,
-            PathBuf::from(p.path),
+            package,
             p.approve,
             ctx.chain.clone(),
         ) {

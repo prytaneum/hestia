@@ -46,6 +46,19 @@ impl Plugin<'_> {
     pub async fn inspect(&self, path: &str) -> Result<PluginInspection, IpcError> {
         let params = PluginPackageRef {
             path: path.to_string(),
+            ..PluginPackageRef::default()
+        };
+        self.session
+            .call::<proto::plugin::PluginInspect>(&params)
+            .await
+    }
+
+    /// The daemon downloads an https `url`; install the result with
+    /// [`Self::install_staged`] using [`PluginInspection::staged`].
+    pub async fn inspect_url(&self, url: &str) -> Result<PluginInspection, IpcError> {
+        let params = PluginPackageRef {
+            url: url.to_string(),
+            ..PluginPackageRef::default()
         };
         self.session
             .call::<proto::plugin::PluginInspect>(&params)
@@ -59,14 +72,37 @@ impl Plugin<'_> {
         approve: &str,
         on_progress: impl Fn(&PluginInstallProgress) + Send + Sync + 'static,
     ) -> Result<PluginInstallDone, IpcError> {
-        let id = job_id("plugin-install");
         let params = PluginInstallParams {
-            id: id.clone(),
             path: path.to_string(),
             approve: approve.to_string(),
+            ..PluginInstallParams::default()
         };
+        self.run_install(params, on_progress).await
+    }
+
+    /// Installs the file the daemon downloaded for an [`Self::inspect_url`].
+    pub async fn install_staged(
+        &self,
+        staged: &str,
+        approve: &str,
+        on_progress: impl Fn(&PluginInstallProgress) + Send + Sync + 'static,
+    ) -> Result<PluginInstallDone, IpcError> {
+        let params = PluginInstallParams {
+            staged: staged.to_string(),
+            approve: approve.to_string(),
+            ..PluginInstallParams::default()
+        };
+        self.run_install(params, on_progress).await
+    }
+
+    async fn run_install(
+        &self,
+        mut params: PluginInstallParams,
+        on_progress: impl Fn(&PluginInstallProgress) + Send + Sync + 'static,
+    ) -> Result<PluginInstallDone, IpcError> {
+        params.id = job_id("plugin-install");
         self.session
-            .run_job::<proto::plugin::PluginInstall>(&id, &params, on_progress)
+            .run_job::<proto::plugin::PluginInstall>(&params.id.clone(), &params, on_progress)
             .await
     }
 }

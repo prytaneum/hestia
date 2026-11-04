@@ -1,10 +1,10 @@
-use std::path::PathBuf;
 use std::sync::Arc;
 
 use engine::CallChain;
 use proto::plugin::{PluginInstall, PluginInstallDone, PluginInstallProgress};
 
 use super::job::{Jobs, Spec};
+use crate::runtime::Package;
 use crate::runtime::{JobKind, Plugins};
 
 impl Jobs {
@@ -14,7 +14,7 @@ impl Jobs {
         plugins: Arc<Plugins>,
         plugin: &str,
         id: String,
-        path: PathBuf,
+        package: Package,
         approve: String,
         chain: CallChain,
     ) -> Option<String> {
@@ -33,7 +33,7 @@ impl Jobs {
         Some(self.run::<PluginInstall, _>(spec, move |_, reporter| {
             Box::pin(async move {
                 let report = reporter.checked();
-                let record = plugins.install(&path, &approve, reporter.cancel(), &|phase| {
+                let record = plugins.install(&package, &approve, reporter.cancel(), &|phase| {
                     let _ = report(&PluginInstallProgress { phase });
                 })?;
                 Ok(PluginInstallDone {

@@ -4,9 +4,9 @@
 //! [`RouterHost`].
 
 mod host;
+mod package;
 
 use std::collections::HashMap;
-use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Duration;
@@ -25,6 +25,7 @@ use super::EventHub;
 use crate::runtime::router::ServiceResult;
 
 pub use host::RouterHost;
+pub use package::Package;
 
 const INIT_TIMEOUT: Duration = Duration::from_secs(10);
 const SAFE_MODE_NOTE: &str = "not loaded: the daemon is in safe mode";
@@ -149,12 +150,13 @@ impl Plugins {
         Ok(self.info_of(record).await)
     }
 
-    pub async fn inspect(&self, path: &Path) -> ServiceResult<PluginInspection> {
-        let inspection = self
-            .engine
-            .plugins()
-            .inspect(path)
-            .map_err(super::engine_error)?;
+    /// A downloaded package is kept for the install only if it is a plugin.
+    pub async fn inspect(&self, package: &Package) -> ServiceResult<PluginInspection> {
+        let inspected = self.engine.plugins().inspect(package.path());
+        if inspected.is_err() {
+            self.discard(package);
+        }
+        let inspection = inspected.map_err(super::engine_error)?;
         let installed_grant = inspection
             .installed
             .as_ref()
@@ -172,13 +174,14 @@ impl Plugins {
             grant: inspection.grant,
             grant_digest: inspection.grant_digest,
             replaces,
+            staged: package.token().map(str::to_string),
         })
     }
 
     /// Blocking: compiles the component on the calling thread.
     pub fn install(
         &self,
-        path: &Path,
+        package: &Package,
         approve: &str,
         cancel: &Cancel,
         on_phase: &dyn Fn(PluginInstallPhase),
@@ -188,11 +191,25 @@ impl Plugins {
             .get()
             .cloned()
             .context("the plugin runtime is not running")?;
-        self.engine
-            .plugins()
-            .install(path, approve, cancel, on_phase, |wasm| {
-                sandbox.check(wasm).map_err(Into::into)
-            })
+        let validate = |wasm: &[u8]| sandbox.check(wasm).map_err(Into::into);
+        let record = match package {
+            Package::Local(path) => self
+                .engine
+                .plugins()
+                .install(path, approve, cancel, on_phase, validate)?,
+            Package::Downloaded { staged, .. } => self
+                .engine
+                .plugins()
+                .install_downloaded(staged, approve, cancel, on_phase, validate)?,
+        };
+        self.discard(package);
+        Ok(record)
+    }
+
+    fn discard(&self, package: &Package) {
+        if let Some(token) = package.token() {
+            self.engine.plugin_downloads().discard(token);
+        }
     }
 
     pub async fn installed(&self, record: PluginRecord) -> PluginInfo {
@@ -266,6 +283,7 @@ impl Plugins {
             manifest,
             state,
             source: record.source,
+            url: record.url,
             sha256: record.wasm_sha256.unwrap_or_default(),
             grant: record.grant,
             last_error,

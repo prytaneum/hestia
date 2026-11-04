@@ -509,6 +509,9 @@ pub struct PluginInfo {
     pub manifest: Manifest,
     pub state: PluginState,
     pub source: PluginSource,
+    /// Where a `url` install came from.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub url: Option<String>,
     /// Of the installed package.
     pub sha256: String,
     /// What the user approved, not what the manifest now asks for.
@@ -589,6 +592,9 @@ impl Contract for PluginRemove {
 pub struct PluginPackageRef {
     /// A `.hplugin` file or a folder holding `plugin.toml`.
     pub path: String,
+    /// An https link to a `.hplugin` file, instead of `path`. The daemon
+    /// downloads it once and answers with [`PluginInspection::staged`].
+    pub url: String,
 }
 
 /// What installing a package would grant, read without running any of it.
@@ -610,11 +616,18 @@ pub struct PluginInspection {
     /// approve (`widened`; the whole grant when new), so a front-end states
     /// full access without a tier table of its own.
     pub unrestricted: Vec<Permission>,
+    /// For a `url` inspection: names the downloaded file. Hand it back as
+    /// [`PluginInstallParams::staged`] so the install uses that file and does
+    /// not download again.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub staged: Option<String>,
 }
 
+/// With a `url`, downloads the package, which can take a while.
 pub struct PluginInspect;
 impl Contract for PluginInspect {
     const CHANNEL: &'static str = "plugin.inspect";
+    const TIMEOUT: Duration = Duration::from_secs(2 * 60);
     type Params = PluginPackageRef;
     type Result = PluginInspection;
 }
@@ -624,7 +637,10 @@ impl Contract for PluginInspect {
 #[serde(default, rename_all = "camelCase")]
 pub struct PluginInstallParams {
     pub id: String,
+    /// Instead of `staged`.
     pub path: String,
+    /// The token from [`PluginInspection::staged`], instead of `path`.
+    pub staged: String,
     /// The grant digest the user approved; the install refuses a package whose
     /// own grant digests differently.
     pub approve: String,

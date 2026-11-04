@@ -18,11 +18,24 @@ pub type ProgressFn<'a> = dyn Fn(&DownloadProgress) -> Result<()> + Send + Sync 
 
 pub struct Downloader<'a> {
     cache: Option<&'a Cache>,
+    untrusted_limit: Option<u64>,
 }
 
 impl<'a> Downloader<'a> {
     pub fn new(cache: Option<&'a Cache>) -> Self {
-        Downloader { cache }
+        Downloader {
+            cache,
+            untrusted_limit: None,
+        }
+    }
+
+    /// For a URL a user typed: refuses a redirect off https and a body larger
+    /// than `max_bytes`. The caller checks the scheme of `url` itself.
+    pub fn untrusted(max_bytes: u64) -> Downloader<'static> {
+        Downloader {
+            cache: None,
+            untrusted_limit: Some(max_bytes),
+        }
     }
 
     /// Fetch `url` to `destination`. Errors on a network error, a non-2xx status,
@@ -104,13 +117,18 @@ impl<'a> Downloader<'a> {
         checksum: Option<&Checksum>,
         on_progress: &ProgressFn<'_>,
     ) -> Result<()> {
-        let response = net::send(None, net::client().get(url)).await?;
+        let client = match self.untrusted_limit {
+            Some(_) => net::https_only_client(),
+            None => net::client(),
+        };
+        let response = net::send(None, client.get(url)).await?;
         if !response.status().is_success() {
             bail!(proto::error::ErrorInfo::DownloadFailed {
                 detail: format!("{url}: HTTP {}", response.status().as_u16()),
             });
         }
         let total = response.content_length().unwrap_or(0);
+        self.ensure_within_limit(url, total)?;
 
         let mut sink = Sink::create(part, checksum, total).await?;
         let stream = response.bytes_stream();
@@ -118,6 +136,7 @@ impl<'a> Downloader<'a> {
         while let Some(chunk) = stream.next().await {
             let chunk = chunk.map_err(|e| net::stream_failure(None, &e))?;
             sink.push(&chunk, on_progress).await?;
+            self.ensure_within_limit(url, sink.written)?;
         }
 
         if let (Some(actual), Some(checksum)) = (sink.finish().await?, checksum) {
@@ -131,6 +150,15 @@ impl<'a> Downloader<'a> {
             }
         }
         Ok(())
+    }
+
+    fn ensure_within_limit(&self, url: &str, size: u64) -> Result<()> {
+        match self.untrusted_limit {
+            Some(limit) if size > limit => bail!(proto::error::ErrorInfo::DownloadFailed {
+                detail: format!("{url}: larger than {limit} bytes"),
+            }),
+            _ => Ok(()),
+        }
     }
 }
 

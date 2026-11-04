@@ -4,4 +4,9 @@ export type PluginPackageRef = {
 /**
  * A `.hplugin` file or a folder holding `plugin.toml`.
  */
-path: string, };
+path: string, 
+/**
+ * An https link to a `.hplugin` file, instead of `path`. The daemon
+ * downloads it once and answers with [`PluginInspection::staged`].
+ */
+url: string, };

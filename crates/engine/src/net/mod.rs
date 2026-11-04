@@ -34,14 +34,36 @@ const META_TIMEOUT: Duration = Duration::from_secs(45);
 /// small fetches an asset materialisation makes.
 pub(crate) fn client() -> &'static reqwest::Client {
     static CLIENT: OnceLock<reqwest::Client> = OnceLock::new();
+    CLIENT.get_or_init(|| builder().build().expect("default reqwest client builds"))
+}
+
+/// For a URL a user typed rather than one a catalogue vouches for: a redirect
+/// may not leave https, so a link cannot be downgraded in flight.
+pub(crate) fn https_only_client() -> &'static reqwest::Client {
+    const MAX_REDIRECTS: usize = 5;
+    static CLIENT: OnceLock<reqwest::Client> = OnceLock::new();
     CLIENT.get_or_init(|| {
-        reqwest::Client::builder()
-            .user_agent(common::app::user_agent())
-            .connect_timeout(CONNECT_TIMEOUT)
-            .read_timeout(READ_TIMEOUT)
+        let policy = reqwest::redirect::Policy::custom(|attempt| {
+            if attempt.url().scheme() != "https" {
+                attempt.error("redirected away from https")
+            } else if attempt.previous().len() >= MAX_REDIRECTS {
+                attempt.error("too many redirects")
+            } else {
+                attempt.follow()
+            }
+        });
+        builder()
+            .redirect(policy)
             .build()
-            .expect("default reqwest client builds")
+            .expect("https-only reqwest client builds")
     })
+}
+
+fn builder() -> reqwest::ClientBuilder {
+    reqwest::Client::builder()
+        .user_agent(common::app::user_agent())
+        .connect_timeout(CONNECT_TIMEOUT)
+        .read_timeout(READ_TIMEOUT)
 }
 
 /// Send `request`, retrying what is worth retrying and recording what the

@@ -11,6 +11,7 @@ use proto::error::ErrorInfo;
 use proto::plugin::{Grant, Manifest, PluginInstallPhase, PluginSource};
 use sha2::{Digest, Sha256};
 
+use super::remote::Staged;
 use super::store::{PluginRecord, Plugins, MANIFEST, PACKAGE, STAGING_SUFFIX};
 use crate::cancel::Cancel;
 use crate::checksum::{digest_file, hex};
@@ -139,6 +140,37 @@ impl Plugins {
         on_phase: &dyn Fn(PluginInstallPhase),
         validate: impl FnOnce(&[u8]) -> Result<()>,
     ) -> Result<PluginRecord> {
+        self.install_from(path, None, approve, cancel, on_phase, validate)
+    }
+
+    /// [`Self::install`] of an archive fetched from `url`, which the record keeps.
+    pub fn install_downloaded(
+        &self,
+        staged: &Staged,
+        approve: &str,
+        cancel: &Cancel,
+        on_phase: &dyn Fn(PluginInstallPhase),
+        validate: impl FnOnce(&[u8]) -> Result<()>,
+    ) -> Result<PluginRecord> {
+        self.install_from(
+            &staged.path,
+            Some(&staged.url),
+            approve,
+            cancel,
+            on_phase,
+            validate,
+        )
+    }
+
+    fn install_from(
+        &self,
+        path: &Path,
+        url: Option<&str>,
+        approve: &str,
+        cancel: &Cancel,
+        on_phase: &dyn Fn(PluginInstallPhase),
+        validate: impl FnOnce(&[u8]) -> Result<()>,
+    ) -> Result<PluginRecord> {
         let source = Source::at(path)?;
         let id = source
             .read_manifest()
@@ -196,7 +228,12 @@ impl Plugins {
         self.swap_package(&dir, &staged, &staging.join(RETIRED))?;
         let record = PluginRecord {
             id: id.clone(),
-            source: source.kind(),
+            source: if url.is_some() {
+                PluginSource::Url
+            } else {
+                source.kind()
+            },
+            url: url.map(str::to_string),
             wasm_sha256,
             theme_sha256,
             grant,

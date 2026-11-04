@@ -26,4 +26,10 @@ widened: Grant,
  * approve (`widened`; the whole grant when new), so a front-end states
  * full access without a tier table of its own.
  */
-unrestricted: Array<Permission>, };
+unrestricted: Array<Permission>, 
+/**
+ * For a `url` inspection: names the downloaded file. Hand it back as
+ * [`PluginInstallParams::staged`] so the install uses that file and does
+ * not download again.
+ */
+staged?: string, };

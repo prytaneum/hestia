@@ -1,16 +1,16 @@
-use std::path::Path;
-
 use anyhow::{bail, Context, Result};
 use client::proto::plugin::{Grant, Permission, PluginInspection, Tier};
 
 use crate::ui::{self, Spinner, View};
 
-pub async fn add(plugins: client::Plugin<'_>, path: &Path, yes: bool) -> Result<()> {
-    let path = std::fs::canonicalize(path)
-        .with_context(|| format!("cannot resolve {}", path.display()))?
-        .to_string_lossy()
-        .into_owned();
-    let inspection = plugins.inspect(&path).await?;
+pub async fn add(plugins: client::Plugin<'_>, target: &str, yes: bool) -> Result<()> {
+    let from_url = target.contains("://");
+    let inspection = if from_url {
+        let _spinner = Spinner::start("downloading");
+        plugins.inspect_url(target).await?
+    } else {
+        plugins.inspect(&resolve(target)?).await?
+    };
     show_grant(&inspection)?;
     if !yes {
         let install = ui::confirm("install it?", "install", "cancel")
@@ -22,15 +22,24 @@ pub async fn add(plugins: client::Plugin<'_>, path: &Path, yes: bool) -> Result<
     let id = &inspection.manifest.id;
     let plugin = {
         let _spinner = Spinner::start(format!("installing {id}"));
-        plugins
-            .install(&path, &inspection.grant_digest, |_| {})
-            .await?
-            .plugin
+        let digest = &inspection.grant_digest;
+        match &inspection.staged {
+            Some(staged) => plugins.install_staged(staged, digest, |_| {}).await?,
+            None => plugins.install(&resolve(target)?, digest, |_| {}).await?,
+        }
+        .plugin
     };
     ui::show(View::line(format!(
         "'{id}' {} installed",
         plugin.manifest.version
     )))
+}
+
+fn resolve(path: &str) -> Result<String> {
+    Ok(std::fs::canonicalize(path)
+        .with_context(|| format!("cannot resolve {path}"))?
+        .to_string_lossy()
+        .into_owned())
 }
 
 fn show_grant(inspection: &PluginInspection) -> Result<()> {

@@ -6,8 +6,6 @@ mod new;
 mod pack;
 mod repo;
 
-use std::path::PathBuf;
-
 use anyhow::{bail, Context, Result};
 use clap::Subcommand;
 use client::proto::plugin::{PluginInfo, PluginSource, PluginState};
@@ -36,9 +34,10 @@ pub enum ManageCmd {
     /// Installed plugins and their state
     #[command(alias = "ls")]
     List,
-    /// Install or update a plugin from a .hplugin file or a folder
+    /// Install or update a plugin from a .hplugin file, a folder or an https link
     Add {
-        path: PathBuf,
+        #[arg(value_name = "PATH_OR_URL")]
+        target: String,
         #[arg(short = 'y', long, help = "Approve exactly the permissions shown")]
         yes: bool,
     },
@@ -70,7 +69,7 @@ async fn manage(cmd: ManageCmd) -> Result<()> {
     let plugins = client.plugin();
     match cmd {
         ManageCmd::List => list(plugins.list().await?),
-        ManageCmd::Add { path, yes } => add::add(plugins, &path, yes).await,
+        ManageCmd::Add { target, yes } => add::add(plugins, &target, yes).await,
         ManageCmd::Info { id } => info(&plugins.info(&id).await?),
         ManageCmd::Enable { id } => {
             let plugin = plugins.enable(&id).await?;

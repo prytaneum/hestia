@@ -34,7 +34,7 @@ pub use event_hub::EventHub;
 pub use managers::{BackupJob, ContentJob, ExportOrder, JobEntry, Jobs, LaunchOrder, ModpackJob};
 pub use metrics::spawn_metrics_sampler;
 pub use network::spawn_network_watcher;
-pub use plugins::{Plugins, RouterHost};
+pub use plugins::{Package, Plugins, RouterHost};
 pub use presence::spawn_presence_updater;
 pub use router::{error_response, require_account, Channels, Router};
 pub use scheduler::spawn_task_scheduler;

@@ -6,6 +6,10 @@ import type { PluginState } from "./PluginState";
 
 export type PluginInfo = { manifest: Manifest, state: PluginState, source: PluginSource, 
 /**
+ * Where a `url` install came from.
+ */
+url?: string, 
+/**
  * Of the installed package.
  */
 sha256: string, 
