@@ -708,7 +708,15 @@ Writing one needs no daemon. A plugin lives in a repository: a cargo workspace (
 hestia plugin new <id>           # outside a repository: creates ./<id>/ with the workspace and plugins/<id>/;
                                  #   inside one: adds only plugins/<id>/
 hestia plugin pack [id…]         # from anywhere in the repository: build and write dist/<id>-<version>.hplugin
+hestia plugin check [dir]        # validate the repository against the one shape
+hestia plugin index [--previous <https-url|file>] [--add dist/*.hplugin] [--repository <https-url>]
+                                 # write dist/hestia-index.json, the repository's listing
 ```
+
+The shape, the index format and the release flow are in [plugins/repository.md](plugins/repository.md). `check`
+needs `[workspace.metadata.hestia]` (`name`, `label`, `website`, `key`) and a theme-only plugin listed in `exclude`;
+`pack` and `index` run it first. `index` keeps the previous index's builds and revocations, adds each package with its
+sha256, bumps `version`, and takes `commit` from git and `repository` from `--repository` or the `origin` remote.
 
 `pack` runs `cargo build --release --target wasm32-wasip2` (needs `rustup target add wasm32-wasip2`), writes the `api`
 requirement into the packaged `plugin.toml` from the `hestia-sdk` version cargo resolved (never type it yourself), and

@@ -32,6 +32,7 @@ the alternative you rejected — that is usually the part nobody can recover lat
 - **0086** — [An entry's tree has one claim, held for as long as a job or handler changes it](0086-an-entry-has-one-claim.md)
 - **0090** — [The daemon keeps the job registry](0090-the-daemon-keeps-the-job-registry.md)
 - **0092** — [A contract names the permission a plugin needs, and an unnamed one is closed](0092-a-contract-names-the-permission-a-plugin-needs.md)
+- **0094** — [A plugin repository has one shape, and it is also the store it declares](0094-a-plugin-repository-has-one-shape.md)
 
 ### [Cross-cutting foundations](../architecture/common.md)
 
