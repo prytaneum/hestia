@@ -14,7 +14,7 @@ use std::time::Duration;
 
 use anyhow::Context;
 use engine::{
-    CallChain, Cancel, Engine, HostCalls, Listings, LoadedPlugin, PluginRecord, PluginRuntime,
+    is_official_signer, CallChain, Cancel, Engine, HostCalls, Listings, LoadedPlugin, PluginRecord, PluginRuntime,
     PluginStats, Roster,
 };
 use proto::error::ErrorInfo;
@@ -398,6 +398,7 @@ impl Plugins {
             state,
             source: record.source,
             url: record.url,
+            official: is_official_signer(record.signer.as_deref()),
             signer: record.signer,
             repository: record.repository,
             obsolete,

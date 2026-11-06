@@ -160,14 +160,15 @@ impl Content {
     }
 
     /// Add `owner`'s source. Its id must read `<owner>.<id>`, so it cannot
-    /// shadow a built-in.
+    /// shadow a built-in, unless `official` (signed by the official plugins key).
     pub fn register(
         &self,
         owner: &str,
+        official: bool,
         provider: Arc<dyn ContentProvider>,
     ) -> Result<(), RegisterError> {
         self.providers
-            .register(owner, provider.id(), provider.clone())
+            .register(owner, official, provider.id(), provider.clone())
     }
 
     /// Remove every source `owner` registered. Content already installed from

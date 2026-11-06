@@ -93,6 +93,8 @@
       "key_id": "Key {key}",
       "obsolete": "Obsolete",
       "obsolete_hint": "No repository you added lists this plugin any more. It keeps running, but gets no updates.",
+      "official": "Official",
+      "official_hint": "Signed by the official Hestia plugins key.",
       "repos": {
         "add": "Add",
         "add_placeholder": "owner/repo or https://…/hestia-index.json",

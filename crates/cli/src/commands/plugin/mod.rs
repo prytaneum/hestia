@@ -192,7 +192,11 @@ fn list(plugins: Vec<PluginInfo>) -> Result<()> {
             .map(|p| {
                 vec![
                     p.manifest.id,
-                    p.manifest.name,
+                    if p.official {
+                        format!("{} (official)", p.manifest.name)
+                    } else {
+                        p.manifest.name
+                    },
                     p.manifest.version,
                     state_label(p.state).to_string(),
                     if p.obsolete {
@@ -217,6 +221,9 @@ fn info(plugin: &PluginInfo) -> Result<()> {
     ];
     if let Some(signer) = &plugin.signer {
         rows.push(("Signer", signer.clone()));
+    }
+    if plugin.official {
+        rows.push(("Official", "signed by the official plugins key".to_string()));
     }
     if let Some(repository) = &plugin.repository {
         rows.push(("Repository", repository.clone()));

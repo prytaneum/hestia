@@ -13,6 +13,7 @@ mod http;
 mod imports;
 mod index;
 mod install;
+mod official;
 mod output;
 mod patch;
 mod remote;
@@ -34,6 +35,7 @@ pub use hooks::{
 pub use imports::{CommandRun, HostCalls, HostError};
 pub(crate) use index::{declared_key, expand, open};
 pub use install::Inspection;
+pub use official::{is_official_signer, refuse_official_key};
 pub use patch::LaunchPatch;
 pub use remote::{Origin, Remote, Staged};
 pub use repos::{key_id_of, revocation, verify_build, verify_index, RepoError};

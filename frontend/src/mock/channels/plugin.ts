@@ -96,6 +96,7 @@ const installed = ({
     grant,
     unrestricted,
     obsolete: false,
+    official: false,
     calls: stats.calls,
     traps: stats.traps,
     timeouts: stats.timeouts,

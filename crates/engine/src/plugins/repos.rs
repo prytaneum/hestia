@@ -14,6 +14,8 @@ pub enum RepoError {
     BadKey(String),
     #[error("signed by a key other than the trusted one")]
     WrongKey,
+    #[error("key {0} is the official plugins key, which only the official store may pin")]
+    OfficialKey(String),
     #[error("the signature does not verify")]
     BadSignature,
     #[error("the index now names key {declared}, but key {pinned} was trusted")]
@@ -36,6 +38,7 @@ impl From<RepoError> for ErrorInfo {
                 detail: error.to_string(),
             },
             RepoError::WrongKey
+            | RepoError::OfficialKey(_)
             | RepoError::BadSignature
             | RepoError::WrongSubject { .. }
             | RepoError::Rollback { .. } => ErrorInfo::RepositoryRefused {

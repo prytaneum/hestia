@@ -786,6 +786,8 @@ pub struct PluginInfo {
     /// Key id of the repository key that signed the package.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub signer: Option<String>,
+    /// Signed by the official-plugins key; derived from `signer` on every read.
+    pub official: bool,
     /// The index URL of the repository it was installed from.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub repository: Option<String>,

@@ -19,7 +19,7 @@ use crate::checksum::hex;
 use crate::net;
 use crate::plugins::{
     build_catalogue, cache_index, cached_index, declared_key, expand, key_id_of, open, pick,
-    verify_build, Installed, Listings, Origin, Pick, RepositoryEntry, Source,
+    refuse_official_key, verify_build, Installed, Listings, Origin, Pick, RepositoryEntry, Source,
 };
 
 const INDEX_CAP: u64 = 8 * 1024 * 1024;
@@ -71,7 +71,11 @@ impl Engine {
         let (bytes, signature) = self.fetch_signed(&url).await.map_err(not_an_index)?;
         let key = match &existing {
             Some(entry) => entry.key.clone(),
-            None => declared_key(&bytes).map_err(ErrorInfo::from)?,
+            None => {
+                let declared = declared_key(&bytes).map_err(ErrorInfo::from)?;
+                refuse_official_key(&declared).map_err(ErrorInfo::from)?;
+                declared
+            }
         };
         let cached = existing
             .as_ref()

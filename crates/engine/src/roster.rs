@@ -42,10 +42,13 @@ impl<T: ?Sized> Roster<T> {
     }
 
     /// `id` must be `<owner>.<local>`, so a plugin's provider cannot shadow a
-    /// built-in, whose ids carry no dot-prefixed owner.
+    /// built-in, whose ids carry no dot-prefixed owner. An `official` owner
+    /// ([0099](../../../docs/decisions/0099-official-plugins-are-signed.md))
+    /// may also register a bare id, which is how it replaces a core feature.
     pub(crate) fn register(
         &self,
         owner: &str,
+        official: bool,
         id: &str,
         item: Arc<T>,
     ) -> Result<(), RegisterError> {
@@ -56,7 +59,7 @@ impl<T: ?Sized> Roster<T> {
             .strip_prefix(owner)
             .and_then(|rest| rest.strip_prefix('.'))
             .is_some_and(|local| !local.is_empty());
-        if !namespaced {
+        if !namespaced && !official {
             return Err(RegisterError::NotNamespaced {
                 owner: owner.to_string(),
                 id: id.to_string(),
@@ -113,7 +116,7 @@ mod tests {
     fn a_plugin_entry_is_listed_until_its_owner_unregisters() {
         let roster = roster();
         roster
-            .register("acme", "acme.hangar", Arc::from("acme.hangar"))
+            .register("acme", false, "acme.hangar", Arc::from("acme.hangar"))
             .expect("namespaced");
         assert_eq!(listed(&roster), ["modrinth", "acme.hangar"]);
 
@@ -126,20 +129,33 @@ mod tests {
         let roster = roster();
         assert_eq!(roster.unregister(BUILTIN_OWNER), 0);
         assert!(matches!(
-            roster.register("acme", "modrinth", Arc::from("evil")),
+            roster.register("acme", false, "modrinth", Arc::from("evil")),
             Err(RegisterError::NotNamespaced { .. })
         ));
         assert!(matches!(
-            roster.register(BUILTIN_OWNER, "builtin.x", Arc::from("evil")),
+            roster.register(BUILTIN_OWNER, true, "builtin.x", Arc::from("evil")),
             Err(RegisterError::ReservedOwner(_))
         ));
         roster
-            .register("acme", "acme.x", Arc::from("one"))
+            .register("acme", false, "acme.x", Arc::from("one"))
             .expect("first");
         assert!(matches!(
-            roster.register("acme", "acme.x", Arc::from("two")),
+            roster.register("acme", false, "acme.x", Arc::from("two")),
             Err(RegisterError::Duplicate(_))
         ));
         assert_eq!(listed(&roster), ["modrinth", "one"]);
+    }
+
+    #[test]
+    fn only_an_official_owner_registers_a_bare_id() {
+        let roster = roster();
+        assert!(matches!(
+            roster.register("acme", false, "hangar", Arc::from("one")),
+            Err(RegisterError::NotNamespaced { .. })
+        ));
+        roster
+            .register("acme", true, "hangar", Arc::from("two"))
+            .expect("official");
+        assert_eq!(listed(&roster), ["modrinth", "two"]);
     }
 }

@@ -692,7 +692,7 @@ immediately. The tray's **Quit** and the desktop's stop button always mean
 `hestia server <name> plugin`.
 
 ```bash
-hestia plugin list               # id, name, version, state, source (obsolete ones say so)
+hestia plugin list               # id, name, version, state, source (obsolete ones say so; official ones are marked)
 hestia plugin add <path>         # a .hplugin or a folder; shows the permissions, confirms; -y approves them
 hestia plugin add <https-url>    # a link to a .hplugin (https only, 64 MiB max), then the same prompt
 hestia plugin add <id>           # from an added repository: its newest build for this Hestia

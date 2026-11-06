@@ -66,7 +66,7 @@ pub use minecraft::{
 };
 pub use net::Network;
 pub use plugins::{
-    command_args, find_command, key_id_of, revocation, verify_build, verify_index, BeforeLaunch,
+    command_args, find_command, is_official_signer, key_id_of, refuse_official_key, revocation, verify_build, verify_index, BeforeLaunch,
     CallChain, CallError, ChainError, CommandRun, Hook, HookOutcome, Hooks, HostCalls, HostError,
     Inspection, LaunchContext, LaunchPatch, Listings, LoadError, LoadedPlugin, Origin, Participant,
     PluginPackage, PluginRecord, PluginRuntime, PluginStats, Plugins, Remote, RepoError, Roster,

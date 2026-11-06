@@ -102,6 +102,14 @@ export function PluginRow({ plugin }: { plugin: PluginInfo }) {
                     {store.label}
                   </Badge>
                 )}
+                {plugin.official && (
+                  <Badge
+                    variant="secondary"
+                    title={m['settings.plugins.official_hint']()}
+                  >
+                    {m['settings.plugins.official']()}
+                  </Badge>
+                )}
                 {plugin.obsolete && (
                   <Badge
                     variant="secondary"

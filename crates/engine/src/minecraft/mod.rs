@@ -78,10 +78,11 @@ impl Minecraft {
     pub fn register(
         &self,
         owner: &str,
+        official: bool,
         provider: Arc<dyn FlavorProvider>,
     ) -> Result<(), RegisterError> {
         let id = provider.info().id.to_string();
-        self.flavors.register(owner, &id, provider)
+        self.flavors.register(owner, official, &id, provider)
     }
 
     /// Remove every flavor `owner` registered. An entry already created from
