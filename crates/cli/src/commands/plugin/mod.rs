@@ -196,7 +196,6 @@ fn source_label(source: PluginSource) -> &'static str {
         PluginSource::File => "file",
         PluginSource::Folder => "folder",
         PluginSource::Url => "url",
-        PluginSource::Git => "git",
         PluginSource::Dev => "dev",
     }
 }

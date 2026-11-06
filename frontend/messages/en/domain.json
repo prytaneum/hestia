@@ -103,7 +103,6 @@
         "dev": "Development",
         "file": "File",
         "folder": "Folder",
-        "git": "Git",
         "url": "URL"
       },
       "state": {

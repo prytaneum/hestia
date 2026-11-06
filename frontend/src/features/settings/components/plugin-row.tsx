@@ -34,7 +34,6 @@ const SOURCE_LABEL: Record<PluginSource, () => string> = {
   file: m['domain.plugin.source.file'],
   folder: m['domain.plugin.source.folder'],
   url: m['domain.plugin.source.url'],
-  git: m['domain.plugin.source.git'],
   dev: m['domain.plugin.source.dev'],
 };
 

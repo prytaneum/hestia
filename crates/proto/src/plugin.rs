@@ -498,7 +498,6 @@ pub enum PluginSource {
     File,
     Folder,
     Url,
-    Git,
     Dev,
 }
 
