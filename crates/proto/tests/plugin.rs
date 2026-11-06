@@ -73,6 +73,35 @@ mod manifest {
     }
 
     #[test]
+    fn a_declared_launch_property_must_be_one_no_plugin_is_refused() {
+        let declaring = |key: &str| {
+            let mut manifest = valid();
+            manifest.launch.properties.push(key.into());
+            manifest.validate()
+        };
+        assert_eq!(declaring("my.mod.flag"), Ok(()));
+        for key in [
+            "java.library.path",
+            "Java.Library.Path",
+            "java.system.class.loader",
+            "java.security.manager",
+            "jdk.module.path",
+            "log4j2.configurationFile",
+            "java.class.path",
+            "my.agent.path",
+            "",
+            "has space",
+            "a=b",
+        ] {
+            assert_eq!(
+                declaring(key),
+                Err(ManifestError::BadLaunchProperty(key.into())),
+                "{key}"
+            );
+        }
+    }
+
+    #[test]
     fn every_hook_validates_and_stays_sandboxed() {
         for (name, needs) in proto::plugin::HOOKS {
             let manifest = hooked(name, needs);

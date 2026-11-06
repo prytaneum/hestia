@@ -496,6 +496,8 @@ pub enum ManifestError {
     },
     #[error("page `{0}` appears on an entry and must declare its kind")]
     PageNeedsKind(String),
+    #[error("launch property `{0}` is not a valid name, or is one no plugin may set")]
+    BadLaunchProperty(String),
     #[error("network host `{0}` must be a domain name or `*.` and a domain, not an address")]
     BadNetworkHost(String),
 }
@@ -537,6 +539,14 @@ impl Manifest {
         }
         if let Some(host) = self.network.iter().find(|host| !is_network_host(host)) {
             return Err(ManifestError::BadNetworkHost(host.clone()));
+        }
+        if let Some(key) = self
+            .launch
+            .properties
+            .iter()
+            .find(|key| !is_launch_property(key))
+        {
+            return Err(ManifestError::BadLaunchProperty(key.clone()));
         }
         let contributes = &self.contributes;
         let lists: [Vec<&String>; 7] = [
@@ -645,6 +655,30 @@ fn is_slug(value: &str, length: std::ops::RangeInclusive<usize>) -> bool {
         && value
             .bytes()
             .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'-')
+}
+
+/// Whether `key` may be declared in `[launch] properties` and set by a launch
+/// hook: a plain property name that is not one a plugin could use to load code,
+/// redirect libraries or weaken the JVM. No declaration unlocks a refused one.
+pub fn is_launch_property(key: &str) -> bool {
+    const REFUSED_NAMES: [&str; 4] = [
+        "java.library.path",
+        "java.system.class.loader",
+        "java.ext.dirs",
+        "java.endorsed.dirs",
+    ];
+    const REFUSED_PREFIXES: [&str; 4] = ["java.security.", "jdk.", "sun.", "log4j"];
+    const REFUSED_PARTS: [&str; 4] = ["agent", "classpath", "class.path", "module"];
+    let lower = key.to_ascii_lowercase();
+    (1..=100).contains(&key.len())
+        && key
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b'-'))
+        && !REFUSED_NAMES.contains(&lower.as_str())
+        && !REFUSED_PREFIXES
+            .iter()
+            .any(|prefix| lower.starts_with(prefix))
+        && !REFUSED_PARTS.iter().any(|part| lower.contains(part))
 }
 
 /// A granted host: a domain name, or `*.` and a domain of at least two labels

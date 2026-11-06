@@ -104,6 +104,9 @@ pub enum WarningInfo {
     /// A plugin's interceptor timed out, trapped or could not run, so the
     /// operation went ahead without it.
     PluginHookFailed { plugin: String, hook: String },
+    /// A launch hook asked for an argument outside what a plugin may set, so it
+    /// was left out of the launch.
+    LaunchArgDropped { plugin: String, arg: String },
 }
 
 impl WarningInfo {
@@ -164,6 +167,9 @@ impl WarningInfo {
             PluginHookFailed { plugin, .. } => format!(
                 "the plugin was skipped; disable or update `{plugin}` if this keeps happening"
             ),
+            LaunchArgDropped { plugin, .. } => {
+                format!("the game runs without it; update or remove `{plugin}` if it matters")
+            }
             DocumentQuarantined { path, .. } => format!(
                 "nothing was deleted — the file is at `{path}`; update hestia if it came from a \
                  newer version, or delete it once you have what you need from it"
@@ -243,6 +249,10 @@ impl fmt::Display for WarningInfo {
             PluginHookFailed { plugin, hook } => write!(
                 f,
                 "plugin '{plugin}' did not finish its {hook} hook, so it was skipped"
+            ),
+            LaunchArgDropped { plugin, arg } => write!(
+                f,
+                "plugin '{plugin}' asked for the launch argument '{arg}', which a plugin may not set, so it was dropped"
             ),
             DocumentQuarantined {
                 document, detail, ..
