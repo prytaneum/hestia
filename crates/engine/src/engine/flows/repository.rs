@@ -315,10 +315,10 @@ impl Engine {
                 .into());
             }
         }
-        Ok(join_all(entries.into_iter().map(|entry| self.sync(entry))).await)
+        Ok(join_all(entries.into_iter().map(|entry| self.sync_repository(entry))).await)
     }
 
-    async fn sync(&self, entry: RepositoryEntry) -> Synced {
+    async fn sync_repository(&self, entry: RepositoryEntry) -> Synced {
         let cached = cached_index(&entry.url);
         let fetched = async {
             let (bytes, signature) = self.fetch_signed(&entry.url).await?;
