@@ -30,6 +30,9 @@ allow = [
     # strictly less than the MIT terms already allowed above, so it carries
     # nothing into a GPL-3.0-only distribution (ksni, the tray's D-Bus stack).
     "Unlicense",
+    # Another public-domain dedication, under the same reasoning as the
+    # Unlicense (tiny-keccak, via tauri-plugin-deep-link's rust-ini).
+    "CC0-1.0",
 ]
 confidence-threshold = 0.9
 
