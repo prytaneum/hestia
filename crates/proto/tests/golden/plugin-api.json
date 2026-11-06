@@ -529,7 +529,7 @@
     "ConfigSetParams": "type ConfigSetParams = { key: string, value: unknown, };",
     "ContentAddItem": "type ContentAddItem = { project: string, version: string, url: string, path: string, filename: string, source: string, };",
     "ContentDependency": "type ContentDependency = { projectId: string, versionId: string, kind: DependencyKind, };",
-    "ContentDone": "type ContentDone = { items: Array<InstalledContent>, failures: Array<ContentFailure>, };",
+    "ContentDone": "type ContentDone = { items: Array<InstalledContent>, failures: Array<ContentFailure>, warnings: Array<WarningInfo>, };",
     "ContentFailure": "type ContentFailure = { item: string, title: string, error: ErrorInfo, };",
     "ContentFile": "type ContentFile = { artifact: Artifact, primary: boolean, };",
     "ContentKind": "type ContentKind = \"mod\" | \"modpack\" | \"resource_pack\" | \"shader\" | \"data_pack\" | \"plugin\";",

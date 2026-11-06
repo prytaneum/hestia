@@ -138,7 +138,10 @@ impl Engine {
                     .add_entry_content(entry, &spec, &CallChain::default(), &job)
                     .await
                 {
-                    Ok((_, failed)) => failed.first().map(|failure| failure.error.to_string()),
+                    Ok(done) => done
+                        .failures
+                        .first()
+                        .map(|failure| failure.error.to_string()),
                     Err(e) => Some(format!("{e:#}")),
                 };
                 if let Some(reason) = reason {

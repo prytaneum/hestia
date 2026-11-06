@@ -16,7 +16,8 @@ use std::path::Path;
 
 use anyhow::{bail, Result};
 use proto::content::{
-    ContentAddSpec, ContentFailure, ContentKind, ContentMatch, InstalledContent, UntrackedFile,
+    ContentAddSpec, ContentDone, ContentFailure, ContentKind, ContentMatch, InstalledContent,
+    UntrackedFile,
 };
 
 use self::entry::EntryContent;
@@ -40,7 +41,7 @@ impl Engine {
         spec: &ContentAddSpec,
         chain: &CallChain,
         on_progress: OnProgress<'_>,
-    ) -> Result<(Vec<InstalledContent>, Vec<ContentFailure>)> {
+    ) -> Result<ContentDone> {
         let ctx = self.content_ctx(entry)?;
         self.ensure_accepts(&ctx, spec.kind)?;
         self.add_content(&ctx, spec, chain, on_progress).await

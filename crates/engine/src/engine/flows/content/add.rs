@@ -7,12 +7,13 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{bail, Context, Result};
 use proto::content::{
-    ContentAddItem, ContentAddSpec, ContentFailure, ContentKind, ContentProject, ContentVersion,
-    DependencyKind, InstalledContent, LOCAL_SOURCE,
+    ContentAddItem, ContentAddSpec, ContentDone, ContentFailure, ContentKind, ContentProject,
+    ContentVersion, DependencyKind, InstalledContent, LOCAL_SOURCE,
 };
 use proto::download::HashAlgorithm;
 use proto::error::ErrorInfo;
 use proto::minecraft::ProvisionPhase;
+use proto::warning::WarningInfo;
 
 use super::super::download::Download;
 use super::entry::{content_target, datapack_worlds, side_gate, EntryContent};
@@ -48,7 +49,7 @@ impl Engine {
         spec: &ContentAddSpec,
         chain: &CallChain,
         on_progress: OnProgress<'_>,
-    ) -> Result<(Vec<InstalledContent>, Vec<ContentFailure>)> {
+    ) -> Result<ContentDone> {
         install::kind_dir(spec.kind)?;
         if spec.items.is_empty() {
             bail!(proto::error::ErrorInfo::NothingToDo {
@@ -145,11 +146,11 @@ impl Engine {
                 Err(e) => failures.push(failure(&item.path, "", crate::error_info(e))),
             }
         }
-        let (mut platform_items, mut platform_failures) = self
+        let mut platform = self
             .add_platform_content(ctx, spec.kind, roots, &worlds, chain, on_progress)
             .await;
-        items.append(&mut platform_items);
-        failures.append(&mut platform_failures);
+        items.append(&mut platform.items);
+        failures.append(&mut platform.failures);
 
         let mut pool = Pool::open(&ctx.entry_dir, &ctx.data_dir, ctx.worlds());
         let mut recorded = Vec::new();
@@ -179,7 +180,11 @@ impl Engine {
                 "content install failed"
             );
         }
-        Ok((items, failures))
+        Ok(ContentDone {
+            items,
+            failures,
+            warnings: platform.warnings,
+        })
     }
 
     /// Resolve every platform root (and, for mods, required dependencies —
@@ -194,11 +199,12 @@ impl Engine {
         worlds: &[String],
         chain: &CallChain,
         on_progress: OnProgress<'_>,
-    ) -> (Vec<InstalledContent>, Vec<ContentFailure>) {
+    ) -> ContentDone {
         let mut items = Vec::new();
         let mut failures = Vec::new();
+        let mut warnings = Vec::new();
         if roots.is_empty() {
-            return (items, failures);
+            return ContentDone::default();
         }
         on_progress.report(&phase_progress(ProvisionPhase::Resolving));
 
@@ -321,9 +327,12 @@ impl Engine {
 
         let mut downloads = Vec::new();
         for (node, version) in planned {
-            if let Err(refused) = self.vet_release(ctx, kind, &node, &version, chain).await {
-                failures.push(failure(&node.given, &node.project.title, refused));
-                continue;
+            match self.vet_release(ctx, kind, &node, &version, chain).await {
+                Ok(mut skipped) => warnings.append(&mut skipped),
+                Err(refused) => {
+                    failures.push(failure(&node.given, &node.project.title, refused));
+                    continue;
+                }
             }
             match plan_release(ctx, kind, &node.project.title, &version) {
                 Ok(download) => downloads.push(((node, version), download)),
@@ -357,7 +366,11 @@ impl Engine {
                 )),
             }
         }
-        (items, failures)
+        ContentDone {
+            items,
+            failures,
+            warnings,
+        }
     }
 
     /// Asks the `before-content-install` plugins about one resolved file. A veto
@@ -370,9 +383,9 @@ impl Engine {
         node: &Node,
         version: &ContentVersion,
         chain: &CallChain,
-    ) -> Result<(), ErrorInfo> {
+    ) -> Result<Vec<WarningInfo>, ErrorInfo> {
         let Ok(file) = install::primary_file(version) else {
-            return Ok(());
+            return Ok(Vec::new());
         };
         let artifact = &file.artifact;
         let context = InstallContext {
@@ -395,7 +408,7 @@ impl Engine {
             .run::<BeforeContentInstall>(&context, chain)
             .await
         {
-            Ok(_) => Ok(()),
+            Ok(outcome) => Ok(outcome.warnings),
             Err(ErrorInfo::PluginVetoed {
                 plugin,
                 hook,

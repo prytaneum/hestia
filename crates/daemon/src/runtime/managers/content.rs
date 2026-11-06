@@ -75,7 +75,13 @@ impl Entry {
     }
 }
 
-type Installed = (Vec<InstalledContent>, Vec<ContentFailure>);
+fn installed(items: Vec<InstalledContent>, failures: Vec<ContentFailure>) -> ContentDone {
+    ContentDone {
+        items,
+        failures,
+        warnings: Vec::new(),
+    }
+}
 
 impl ContentJob {
     fn entry(&self) -> &Entry {
@@ -108,7 +114,7 @@ impl ContentJob {
         engine: &Engine,
         chain: &CallChain,
         on_progress: &engine::Job<'_>,
-    ) -> anyhow::Result<Installed> {
+    ) -> anyhow::Result<ContentDone> {
         match self {
             ContentJob::Add { entry, spec } => {
                 engine
@@ -123,12 +129,11 @@ impl ContentJob {
             } => match items.first() {
                 Some(item) if !path.is_empty() => engine
                     .update_entry_content_from_file(entry.entry_ref(), kind, item, Path::new(&path))
-                    .map(|item| (vec![item], Vec::new())),
-                _ => {
-                    engine
-                        .update_entry_content(entry.entry_ref(), kind, &items, on_progress)
-                        .await
-                }
+                    .map(|item| installed(vec![item], Vec::new())),
+                _ => engine
+                    .update_entry_content(entry.entry_ref(), kind, &items, on_progress)
+                    .await
+                    .map(|(items, failures)| installed(items, failures)),
             },
             ContentJob::SetVersion {
                 entry,
@@ -146,7 +151,7 @@ impl ContentJob {
                     on_progress,
                 )
                 .await
-                .map(|items| (items, Vec::new())),
+                .map(|items| installed(items, Vec::new())),
         }
     }
 }
@@ -173,10 +178,7 @@ impl Jobs {
         };
 
         self.run::<C, _>(spec, move |engine, reporter| {
-            Box::pin(async move {
-                let (items, failures) = job.run(engine, &chain, &reporter.job()).await?;
-                Ok(ContentDone { items, failures })
-            })
+            Box::pin(async move { job.run(engine, &chain, &reporter.job()).await })
         })
     }
 }

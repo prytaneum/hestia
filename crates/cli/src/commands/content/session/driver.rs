@@ -9,6 +9,7 @@ use client::proto::content::{
 };
 use client::proto::error::EntryTarget;
 use client::proto::minecraft::ProvisionProgress;
+use client::proto::warning::WarningInfo;
 use client::Client;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 
@@ -61,6 +62,7 @@ pub(super) enum AppEvent {
         items: Vec<InstalledContent>,
         removed: Vec<InstalledContent>,
         failures: Vec<ContentFailure>,
+        warnings: Vec<WarningInfo>,
     },
     Failed {
         message: String,
@@ -152,6 +154,7 @@ async fn run_install(
             items: Vec::new(),
             removed,
             failures,
+            warnings: Vec::new(),
         };
     }
 
@@ -165,12 +168,14 @@ async fn run_install(
         Ok(ContentDone {
             items,
             failures: add_failures,
+            warnings,
         }) => {
             failures.extend(add_failures);
             AppEvent::Done {
                 items,
                 removed,
                 failures,
+                warnings,
             }
         }
         Err(e) => AppEvent::Failed {

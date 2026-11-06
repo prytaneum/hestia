@@ -22,6 +22,7 @@ use client::proto::content::{
 };
 use client::proto::error::EntryTarget;
 use client::proto::minecraft::ProvisionProgress;
+use client::proto::warning::WarningInfo;
 use client::Client;
 use ratatui::crossterm::event::{KeyEvent, MouseEvent, MouseEventKind};
 use ratatui::Frame;
@@ -49,6 +50,7 @@ pub struct SessionReport {
     pub items: Vec<InstalledContent>,
     pub removed: Vec<InstalledContent>,
     pub failures: Vec<ContentFailure>,
+    pub warnings: Vec<WarningInfo>,
     pub error: Option<String>,
 }
 
@@ -166,11 +168,13 @@ impl Screen for ContentSession {
                 items,
                 removed,
                 failures,
+                warnings,
             } => {
                 return Flow::Done(Some(SessionReport {
                     items,
                     removed,
                     failures,
+                    warnings,
                     error: None,
                 }))
             }
@@ -180,6 +184,7 @@ impl Screen for ContentSession {
                         items: Vec::new(),
                         removed: Vec::new(),
                         failures: Vec::new(),
+                        warnings: Vec::new(),
                         error: Some(message),
                     }))
                 }

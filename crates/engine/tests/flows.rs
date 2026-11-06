@@ -5,7 +5,7 @@
 mod fixture;
 
 use engine::{CallChain, Cancel, EntryRef, Job, LaunchRequest, ServerCreateSpec};
-use proto::content::{ContentAddItem, ContentAddSpec, ContentKind};
+use proto::content::{ContentAddItem, ContentAddSpec, ContentDone, ContentKind};
 use proto::error::ErrorInfo;
 use proto::instance::QuickPlay;
 use proto::minecraft::ProvisionProgress;
@@ -142,7 +142,11 @@ async fn a_batch_installs_its_roots_and_their_required_dependencies_once() {
     let (engine, id) = instance(home.path(), source).await;
     let (cancel, report) = (Cancel::new(), |_: &ProvisionProgress| {});
 
-    let (installed, failures) = engine
+    let ContentDone {
+        items: installed,
+        failures,
+        ..
+    } = engine
         .add_entry_content(
             EntryRef::Instance(&id),
             &add(&["sodium", "iris"]),
@@ -378,7 +382,11 @@ async fn a_local_file_a_source_recognises_installs_tracked_and_alone() {
         ..ContentAddSpec::default()
     };
 
-    let (installed, failures) = engine
+    let ContentDone {
+        items: installed,
+        failures,
+        ..
+    } = engine
         .add_entry_content(
             EntryRef::Instance(&id),
             &spec,
@@ -426,7 +434,11 @@ async fn a_file_kept_local_can_later_move_to_a_source_that_recognises_it() {
         ..ContentAddSpec::default()
     };
 
-    let (installed, failures) = engine
+    let ContentDone {
+        items: installed,
+        failures,
+        ..
+    } = engine
         .add_entry_content(
             EntryRef::Instance(&id),
             &spec,
@@ -931,7 +943,7 @@ async fn with_referenceable_mod(
     };
     let (engine, id) = instance(home, source).await;
     let (cancel, report) = (Cancel::new(), |_: &ProvisionProgress| {});
-    let (_, failures) = engine
+    let ContentDone { failures, .. } = engine
         .add_entry_content(
             EntryRef::Instance(&id),
             &add(&["sodium"]),
@@ -1097,7 +1109,11 @@ async fn a_root_that_fails_does_not_stop_the_batch() {
     let (engine, id) = instance(home.path(), source).await;
     let (cancel, report) = (Cancel::new(), |_: &ProvisionProgress| {});
 
-    let (installed, failures) = engine
+    let ContentDone {
+        items: installed,
+        failures,
+        ..
+    } = engine
         .add_entry_content(
             EntryRef::Instance(&id),
             &add(&["ghost", "sodium"]),
@@ -1919,7 +1935,11 @@ mod launch_hooks {
         );
         let (cancel, report) = (Cancel::new(), |_: &ProvisionProgress| {});
 
-        let (installed, failures) = engine
+        let ContentDone {
+            items: installed,
+            failures,
+            ..
+        } = engine
             .add_entry_content(
                 EntryRef::Instance(&id),
                 &add(&["sodium"]),

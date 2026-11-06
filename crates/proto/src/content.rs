@@ -16,6 +16,7 @@ use crate::error::{EntryTarget, ErrorInfo};
 use crate::job::{Job, JobStarted};
 use crate::minecraft::{Artifact, ProvisionProgress};
 use crate::plugin::Permission;
+use crate::warning::WarningInfo;
 
 /// What a project is — the second selector level after the source.
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -599,13 +600,17 @@ impl Job for EntryContentSetVersion {
 /// What a content install, update or version change settled with. Cancelling
 /// one keeps the items already installed — the batch is per-item, and each one
 /// that completed is real.
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Default, Debug, Clone)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
 #[serde(rename_all = "camelCase")]
 pub struct ContentDone {
     pub items: Vec<InstalledContent>,
     #[serde(default)]
     pub failures: Vec<ContentFailure>,
+    /// What went ahead degraded, such as a `before-content-install` plugin that
+    /// could not answer and was skipped.
+    #[serde(default)]
+    pub warnings: Vec<WarningInfo>,
 }
 
 pub struct ContentSources;

@@ -205,8 +205,9 @@ async fn add(
         worlds,
     };
     let target = EntryTarget::new(entry, info.id.clone());
-    let (installed, failures) = install_spec(client, &target, spec).await?;
-    show_install_report(&info.name, &installed, &[], &failures)
+    let done = install_spec(client, &target, spec).await?;
+    show_install_report(&info.name, &done.items, &[], &done.failures)?;
+    ui::show_warnings(&done.warnings)
 }
 
 /// The interactive install path: the fullscreen search → review → install
@@ -251,7 +252,8 @@ async fn add_session(
             if let Some(error) = report.error {
                 bail!(error);
             }
-            show_install_report(&info.name, &report.items, &report.removed, &report.failures)
+            show_install_report(&info.name, &report.items, &report.removed, &report.failures)?;
+            ui::show_warnings(&report.warnings)
         }
     }
 }
@@ -314,12 +316,11 @@ pub(super) async fn install_spec(
     client: &Client,
     target: &EntryTarget,
     spec: ContentAddSpec,
-) -> Result<(Vec<InstalledContent>, Vec<ContentFailure>)> {
-    let done = ProvisionReporter::run(None, async |on_progress| {
+) -> Result<ContentDone> {
+    Ok(ProvisionReporter::run(None, async |on_progress| {
         client.content().add(target, spec, on_progress).await
     })
-    .await?;
-    Ok((done.items, done.failures))
+    .await?)
 }
 
 async fn list(client: &Client, entry: EntryKind, kind: ContentKind, reference: &str) -> Result<()> {
@@ -436,6 +437,7 @@ async fn update(
     let ContentDone {
         items: updated,
         failures,
+        ..
     } = ProvisionReporter::run(None, async |on_progress| {
         client
             .content()
