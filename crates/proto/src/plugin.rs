@@ -516,6 +516,9 @@ pub struct PluginInfo {
     pub sha256: String,
     /// What the user approved, not what the manifest now asks for.
     pub grant: Grant,
+    /// The permissions in `grant` that reach beyond the sandbox, so a front-end
+    /// flags full access without a tier table of its own.
+    pub unrestricted: Vec<Permission>,
     pub last_error: Option<String>,
     pub calls: u64,
     pub traps: u64,

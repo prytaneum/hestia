@@ -285,6 +285,7 @@ impl Plugins {
             source: record.source,
             url: record.url,
             sha256: record.wasm_sha256.unwrap_or_default(),
+            unrestricted: record.grant.unrestricted(),
             grant: record.grant,
             last_error,
             calls: stats.calls,
