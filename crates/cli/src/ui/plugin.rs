@@ -2,7 +2,7 @@
 //! lists the actions a tree offers. The mapping is total: every node becomes
 //! views, never a panic.
 
-use client::proto::ui::{Action, Field, ListItem, Tone, UiNode};
+use client::proto::ui::{Action, FormField, ListItem, Tone, UiNode};
 
 use super::{markdown, View};
 
@@ -14,7 +14,7 @@ const BAR_WIDTH: usize = 20;
 pub struct Choice {
     pub label: String,
     pub action: Action,
-    pub fields: Vec<Field>,
+    pub fields: Vec<FormField>,
 }
 
 pub fn views(node: &UiNode) -> Vec<View> {
@@ -72,14 +72,14 @@ fn push_views(node: &UiNode, out: &mut Vec<View>) {
     }
 }
 
-fn field_summary(field: &Field) -> (String, String) {
+fn field_summary(field: &FormField) -> (String, String) {
     match field {
-        Field::Text { label, value, .. } | Field::Select { label, value, .. } => {
+        FormField::Text { label, value, .. } | FormField::Select { label, value, .. } => {
             (label.clone(), value.clone())
         }
-        Field::Number { label, value, .. } => (label.clone(), value.to_string()),
-        Field::Toggle { label, value, .. } => (label.clone(), value.to_string()),
-        Field::Entry { label, kind, .. } => (label.clone(), format!("<{kind}>")),
+        FormField::Number { label, value, .. } => (label.clone(), value.to_string()),
+        FormField::Toggle { label, value, .. } => (label.clone(), value.to_string()),
+        FormField::Entry { label, kind, .. } => (label.clone(), format!("<{kind}>")),
     }
 }
 
@@ -281,7 +281,7 @@ mod tests {
         let form = UiNode::Form {
             id: "f".into(),
             fields: vec![
-                Field::Select {
+                FormField::Select {
                     name: "s".into(),
                     label: "Pick".into(),
                     options: vec![SelectOption {
@@ -290,7 +290,7 @@ mod tests {
                     }],
                     value: "a".into(),
                 },
-                Field::Entry {
+                FormField::Entry {
                     name: "e".into(),
                     label: "Server".into(),
                     kind: EntryKind::Server,

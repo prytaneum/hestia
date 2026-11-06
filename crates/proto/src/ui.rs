@@ -134,7 +134,7 @@ pub struct Submit {
     rename_all = "snake_case",
     rename_all_fields = "camelCase"
 )]
-pub enum Field {
+pub enum FormField {
     Text {
         name: String,
         label: String,
@@ -212,7 +212,7 @@ pub enum UiNode {
     },
     Form {
         id: String,
-        fields: Vec<Field>,
+        fields: Vec<FormField>,
         submit: Submit,
     },
     Button {

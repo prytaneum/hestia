@@ -6,7 +6,7 @@
 use anyhow::{anyhow, bail, Result};
 use client::proto::error::EntryKind;
 use client::proto::plugin::{PageContext, PageSlot, PluginInfo, PluginUiActionParams, PluginUiRenderParams};
-use client::proto::ui::{Effect, Field, Tone, UiNode};
+use client::proto::ui::{Effect, FormField, Tone, UiNode};
 use client::Client;
 use serde_json::{Map, Number, Value};
 use tracing::debug;
@@ -190,34 +190,34 @@ fn parse(argv: &[String]) -> Result<Options> {
     Ok(options)
 }
 
-fn name(field: &Field) -> &str {
+fn name(field: &FormField) -> &str {
     match field {
-        Field::Text { name, .. }
-        | Field::Number { name, .. }
-        | Field::Toggle { name, .. }
-        | Field::Select { name, .. }
-        | Field::Entry { name, .. } => name,
+        FormField::Text { name, .. }
+        | FormField::Number { name, .. }
+        | FormField::Toggle { name, .. }
+        | FormField::Select { name, .. }
+        | FormField::Entry { name, .. } => name,
     }
 }
 
-fn default(field: &Field) -> Option<Value> {
+fn default(field: &FormField) -> Option<Value> {
     match field {
-        Field::Text { value, .. } | Field::Select { value, .. } => Some(Value::from(value.clone())),
-        Field::Number { value, .. } => Number::from_f64(*value).map(Value::Number),
-        Field::Toggle { value, .. } => Some(Value::Bool(*value)),
-        Field::Entry { .. } => None,
+        FormField::Text { value, .. } | FormField::Select { value, .. } => Some(Value::from(value.clone())),
+        FormField::Number { value, .. } => Number::from_f64(*value).map(Value::Number),
+        FormField::Toggle { value, .. } => Some(Value::Bool(*value)),
+        FormField::Entry { .. } => None,
     }
 }
 
-fn coerce(field: &Field, raw: &str) -> Result<Value> {
+fn coerce(field: &FormField, raw: &str) -> Result<Value> {
     match field {
-        Field::Number { name, .. } => raw
+        FormField::Number { name, .. } => raw
             .parse::<f64>()
             .ok()
             .and_then(Number::from_f64)
             .map(Value::Number)
             .ok_or_else(|| anyhow!("{name} takes a number, not '{raw}'")),
-        Field::Toggle { name, .. } => raw
+        FormField::Toggle { name, .. } => raw
             .parse()
             .map(Value::Bool)
             .map_err(|_| anyhow!("{name} takes true or false, not '{raw}'")),
@@ -227,7 +227,7 @@ fn coerce(field: &Field, raw: &str) -> Result<Value> {
 
 async fn scripted_values(
     client: &Client,
-    fields: &[Field],
+    fields: &[FormField],
     given: &[(String, String)],
 ) -> Result<Value> {
     let mut values = Map::new();
@@ -235,7 +235,7 @@ async fn scripted_values(
         let key = name(field);
         let raw = given.iter().rev().find(|(k, _)| k == key).map(|(_, v)| v);
         let value = match (raw, field) {
-            (Some(raw), Field::Entry { kind, .. }) => Value::from(entry_id(client, *kind, raw).await?),
+            (Some(raw), FormField::Entry { kind, .. }) => Value::from(entry_id(client, *kind, raw).await?),
             (Some(raw), field) => coerce(field, raw)?,
             (None, field) => {
                 default(field).ok_or_else(|| anyhow!("pass a value with --set {key}=<name>"))?
@@ -246,23 +246,23 @@ async fn scripted_values(
     Ok(Value::Object(values))
 }
 
-async fn prompted_values(client: &Client, fields: &[Field]) -> Result<Value> {
+async fn prompted_values(client: &Client, fields: &[FormField]) -> Result<Value> {
     let mut values = Map::new();
     for field in fields {
         let value = match field {
-            Field::Text { label, value, .. } => Value::from(ui::input(label, value)?),
-            Field::Number { label, value, .. } => {
+            FormField::Text { label, value, .. } => Value::from(ui::input(label, value)?),
+            FormField::Number { label, value, .. } => {
                 coerce(field, &ui::input(label, &value.to_string())?)?
             }
-            Field::Toggle { label, value, .. } => {
+            FormField::Toggle { label, value, .. } => {
                 let items = if *value { ["yes", "no"] } else { ["no", "yes"] }.map(String::from);
                 Value::Bool(items[ui::select(label, &items)?] == "yes")
             }
-            Field::Select { label, options, .. } => {
+            FormField::Select { label, options, .. } => {
                 let labels: Vec<String> = options.iter().map(|o| o.label.clone()).collect();
                 Value::from(options[ui::select(label, &labels)?].value.clone())
             }
-            Field::Entry { label, kind, .. } => {
+            FormField::Entry { label, kind, .. } => {
                 let entries = entries(client, *kind).await?;
                 let names: Vec<String> = entries.iter().map(|(_, name)| name.clone()).collect();
                 Value::from(entries[ui::select(label, &names)?].0.clone())
@@ -333,14 +333,14 @@ mod tests {
 
     #[test]
     fn values_are_typed_by_their_field() {
-        let number = Field::Number {
+        let number = FormField::Number {
             name: "n".into(),
             label: String::new(),
             value: 0.0,
         };
         assert_eq!(coerce(&number, "2.5").unwrap(), serde_json::json!(2.5));
         assert!(coerce(&number, "x").is_err());
-        let toggle = Field::Toggle {
+        let toggle = FormField::Toggle {
             name: "t".into(),
             label: String::new(),
             value: false,

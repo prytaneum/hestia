@@ -15,7 +15,7 @@
 use proto::ui::{Direction, Pair, Submit, TableRow, Variant};
 use serde_json::Value;
 
-pub use proto::ui::{Action, Effect, Field, Tone, UiNode};
+pub use proto::ui::{Action, Effect, FormField, Tone, UiNode};
 
 /// A click or submit that carries no payload.
 pub fn action(id: impl Into<String>) -> Action {
@@ -115,7 +115,7 @@ pub fn button(label: impl Into<String>, action_id: impl Into<String>) -> UiNode 
 
 pub fn form(
     id: impl Into<String>,
-    fields: impl IntoIterator<Item = Field>,
+    fields: impl IntoIterator<Item = FormField>,
     submit_label: impl Into<String>,
     action_id: impl Into<String>,
 ) -> UiNode {
@@ -148,7 +148,7 @@ mod tests {
             table(["World"], [row(["smp"])]),
             form(
                 "new",
-                [Field::Text {
+                [FormField::Text {
                     name: "name".into(),
                     label: "Name".into(),
                     value: String::new(),

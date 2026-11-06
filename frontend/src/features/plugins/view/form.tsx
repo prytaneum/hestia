@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 
 import type { EntryKind } from '@/api';
-import type { UiNode } from '@/api/types/ui';
+import type { FormField, UiNode } from '@/api/types/ui';
 import { Button } from '@/components/ui/button';
 import { Field, FieldGroup, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
@@ -23,20 +23,6 @@ import { useView } from './context';
 
 type FormNode = Extract<UiNode, { type: 'form' }>;
 type Value = string | number | boolean;
-
-/** Mirrors `proto::ui::Field`; the generated `Field` name is taken by the error enum. */
-type FormField =
-  | { type: 'text'; name: string; label: string; value: string }
-  | { type: 'number'; name: string; label: string; value: number }
-  | { type: 'toggle'; name: string; label: string; value: boolean }
-  | {
-      type: 'select';
-      name: string;
-      label: string;
-      options: Array<{ value: string; label: string }>;
-      value: string;
-    }
-  | { type: 'entry'; name: string; label: string; kind: EntryKind };
 
 function EntryPicker({
   kind,
@@ -105,9 +91,8 @@ function initial(fields: FormField[]): Record<string, Value> {
   );
 }
 
-export function UiForm({ fields: raw, submit }: FormNode) {
+export function UiForm({ fields, submit }: FormNode) {
   const { run, pending } = useView();
-  const fields = raw as unknown as FormField[];
   const [values, setValues] = useState(() => initial(fields));
   const set = (name: string, value: Value) =>
     setValues((previous) => ({ ...previous, [name]: value }));
