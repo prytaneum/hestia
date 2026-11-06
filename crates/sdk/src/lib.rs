@@ -32,7 +32,7 @@ pub mod ui;
 pub use call::{call, run_job};
 pub use command::args;
 pub use error::Error;
-pub use hooks::{LaunchContext, LaunchPatch, ServerContext};
+pub use hooks::{InstallContext, LaunchContext, LaunchPatch, ServerContext};
 /// The daemon's wire contracts and domain types, the same ones the CLI uses.
 pub use proto;
 use proto::plugin::PageContext;
@@ -132,6 +132,17 @@ pub trait Plugin {
     fn before_server_start(context: ServerContext) -> Result<LaunchPatch, String> {
         let _ = context;
         Ok(LaunchPatch::default())
+    }
+
+    /// Runs for each file about to be installed into a server or instance, for a
+    /// plugin that declares the `before-content-install` hook; a required
+    /// dependency is its own call. An `Err` refuses that file, and its text is
+    /// shown to the user with the file name. The context holds names and a
+    /// sha1, never the file's bytes, and a plugin that fails or overruns its two
+    /// seconds is skipped: this is a convenience check, not a security scanner.
+    fn before_content_install(context: InstallContext) -> Result<(), String> {
+        let _ = context;
+        Ok(())
     }
 }
 
@@ -238,6 +249,14 @@ macro_rules! plugin {
                 > {
                     <$plugin as $crate::Plugin>::before_server_start(ctx)
                         .map(::core::convert::Into::into)
+                }
+            }
+
+            impl $crate::bindings::exports::hestia::plugin::content_hooks::Guest for Export {
+                fn before_content_install(
+                    ctx: $crate::InstallContext,
+                ) -> ::core::result::Result<(), ::std::string::String> {
+                    <$plugin as $crate::Plugin>::before_content_install(ctx)
                 }
             }
 

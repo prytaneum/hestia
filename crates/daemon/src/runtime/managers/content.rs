@@ -106,12 +106,13 @@ impl ContentJob {
     async fn run(
         self,
         engine: &Engine,
+        chain: &CallChain,
         on_progress: &engine::Job<'_>,
     ) -> anyhow::Result<Installed> {
         match self {
             ContentJob::Add { entry, spec } => {
                 engine
-                    .add_entry_content(entry.entry_ref(), &spec, on_progress)
+                    .add_entry_content(entry.entry_ref(), &spec, chain, on_progress)
                     .await
             }
             ContentJob::Update {
@@ -168,12 +169,12 @@ impl Jobs {
             prefix: job.id_prefix(),
             claim: Some(claim),
             subject: job.entry().subject(),
-            chain,
+            chain: chain.clone(),
         };
 
         self.run::<C, _>(spec, move |engine, reporter| {
             Box::pin(async move {
-                let (items, failures) = job.run(engine, &reporter.job()).await?;
+                let (items, failures) = job.run(engine, &chain, &reporter.job()).await?;
                 Ok(ContentDone { items, failures })
             })
         })

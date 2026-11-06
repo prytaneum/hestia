@@ -68,6 +68,8 @@ fn guest(calls_host: bool, body: &str) -> String {
                     (i32.const 160))
                 (func (export "before-server-start") (param i32) (result i32)
                     (i32.const 160))
+                (func (export "before-content-install") (param i32) (result i32)
+                    (i32.const 160))
                 (func (export "init") (result i32)
                     {body}
                     (i32.store8 (i32.const 128) (i32.const 0))
@@ -133,7 +135,21 @@ fn guest(calls_host: bool, body: &str) -> String {
                 (export "server-context" (type $server_context))
                 (export "before-launch" (func $before_launch))
                 (export "before-server-start" (func $before_server_start)))
-            (export "hestia:plugin/launch-hooks@1.0.0" (instance $launch_hooks)))"#
+            (export "hestia:plugin/launch-hooks@1.0.0" (instance $launch_hooks))
+            (type $install_context (record
+                (field "entry-id" string) (field "entry-type" string)
+                (field "source" string) (field "project-id" string)
+                (field "version-id" string) (field "file-name" string)
+                (field "sha1" string) (field "kind" string)))
+            (func $before_content_install (param "ctx" $install_context)
+                (result (result (error string)))
+                (canon lift (core func $main "before-content-install")
+                    (memory (core memory $libc "memory"))
+                    (realloc (core func $libc "realloc"))))
+            (instance $content_hooks
+                (export "install-context" (type $install_context))
+                (export "before-content-install" (func $before_content_install)))
+            (export "hestia:plugin/content-hooks@1.0.0" (instance $content_hooks)))"#
     )
 }
 

@@ -146,6 +146,7 @@ async fn a_batch_installs_its_roots_and_their_required_dependencies_once() {
         .add_entry_content(
             EntryRef::Instance(&id),
             &add(&["sodium", "iris"]),
+            &NO_CHAIN,
             &job(&cancel, &report),
         )
         .await
@@ -175,6 +176,7 @@ async fn content_from_a_source_that_is_gone_still_lists_with_its_source_missing(
         .add_entry_content(
             EntryRef::Instance(&id),
             &add(&["sodium"]),
+            &NO_CHAIN,
             &job(&cancel, &report),
         )
         .await
@@ -234,7 +236,7 @@ async fn with_local_mod(
         ..ContentAddSpec::default()
     };
     engine
-        .add_entry_content(EntryRef::Instance(&id), &spec, &job(&cancel, &report))
+        .add_entry_content(EntryRef::Instance(&id), &spec, &NO_CHAIN, &job(&cancel, &report))
         .await
         .expect("import the local build");
     (engine, id)
@@ -372,7 +374,7 @@ async fn a_local_file_a_source_recognises_installs_tracked_and_alone() {
     };
 
     let (installed, failures) = engine
-        .add_entry_content(EntryRef::Instance(&id), &spec, &job(&cancel, &report))
+        .add_entry_content(EntryRef::Instance(&id), &spec, &NO_CHAIN, &job(&cancel, &report))
         .await
         .expect("the batch runs");
 
@@ -415,7 +417,7 @@ async fn a_file_kept_local_can_later_move_to_a_source_that_recognises_it() {
     };
 
     let (installed, failures) = engine
-        .add_entry_content(EntryRef::Instance(&id), &spec, &job(&cancel, &report))
+        .add_entry_content(EntryRef::Instance(&id), &spec, &NO_CHAIN, &job(&cancel, &report))
         .await
         .expect("the batch runs");
 
@@ -918,6 +920,7 @@ async fn with_referenceable_mod(
         .add_entry_content(
             EntryRef::Instance(&id),
             &add(&["sodium"]),
+            &NO_CHAIN,
             &job(&cancel, &report),
         )
         .await
@@ -1083,6 +1086,7 @@ async fn a_root_that_fails_does_not_stop_the_batch() {
         .add_entry_content(
             EntryRef::Instance(&id),
             &add(&["ghost", "sodium"]),
+            &NO_CHAIN,
             &job(&cancel, &report),
         )
         .await
@@ -1113,7 +1117,7 @@ async fn a_shared_pack_that_does_not_fit_stays_offered_and_never_warns() {
         ..add(&["cozy"])
     };
     engine
-        .add_entry_content(EntryRef::Instance(&alpha), &cozy, &job(&cancel, &report))
+        .add_entry_content(EntryRef::Instance(&alpha), &cozy, &NO_CHAIN, &job(&cancel, &report))
         .await
         .expect("install the pack where it fits");
     engine
@@ -1153,7 +1157,7 @@ async fn updatable(home: &std::path::Path, icon: &str) -> (engine::Engine, Strin
     let mut spec = add(&["sodium"]);
     spec.items[0].version = older.id.clone();
     engine
-        .add_entry_content(EntryRef::Instance(&id), &spec, &job(&cancel, &report))
+        .add_entry_content(EntryRef::Instance(&id), &spec, &NO_CHAIN, &job(&cancel, &report))
         .await
         .expect("install the older version");
     (engine, id, files)
@@ -1263,7 +1267,7 @@ async fn an_item_that_cannot_update_leaves_the_rest_of_the_batch_recorded() {
         item.version = format!("{}-1", item.project);
     }
     engine
-        .add_entry_content(EntryRef::Instance(&id), &spec, &job(&cancel, &report))
+        .add_entry_content(EntryRef::Instance(&id), &spec, &NO_CHAIN, &job(&cancel, &report))
         .await
         .expect("install the older versions");
 
@@ -1645,6 +1649,43 @@ mod launch_hooks {
         }
     }
 
+    fn attach_probe<const P: usize, const H: usize>(
+        engine: &engine::Engine,
+        home: &std::path::Path,
+        answers: &[(&str, &Value)],
+        permissions: [Permission; P],
+        hooks: [&str; H],
+    ) -> (Arc<Loaded>, std::path::PathBuf) {
+        let wasm = std::fs::read(fixture::probe::component()).expect("probe component");
+        let runtime =
+            PluginRuntime::new(Arc::new(NoHost), home.join("plugin-cache")).expect("runtime");
+        let record = PluginRecord {
+            id: "probe".into(),
+            wasm_sha256: Some(
+                Sha256::digest(&wasm)
+                    .iter()
+                    .map(|byte| format!("{byte:02x}"))
+                    .collect(),
+            ),
+            grant: Grant {
+                permissions: permissions.into(),
+                hooks: hooks.map(String::from).into(),
+                launch_properties: ["my.mod.flag".to_string()].into(),
+                ..Grant::default()
+            },
+            ..PluginRecord::default()
+        };
+        let data = home.join("probe-data");
+        std::fs::create_dir_all(&data).expect("data dir");
+        for (name, answer) in answers {
+            std::fs::write(data.join(format!("{name}.json")), answer.to_string()).expect("answer");
+        }
+        let plugin = runtime.load(&record, &wasm, data.clone()).expect("load");
+        let roster = Arc::new(Loaded(vec![Arc::new(plugin)]));
+        engine.hooks().attach(&roster);
+        (roster, data)
+    }
+
     struct Rig {
         engine: engine::Engine,
         instance: String,
@@ -1665,35 +1706,14 @@ mod launch_hooks {
             .0
             .id;
 
-        let wasm = std::fs::read(fixture::probe::component()).expect("probe component");
-        let runtime = PluginRuntime::new(Arc::new(NoHost), home.path().join("plugin-cache"))
-            .expect("runtime");
-        let record = PluginRecord {
-            id: "probe".into(),
-            wasm_sha256: Some(
-                Sha256::digest(&wasm)
-                    .iter()
-                    .map(|byte| format!("{byte:02x}"))
-                    .collect(),
-            ),
-            grant: Grant {
-                permissions: [Permission::LaunchPatch, Permission::AccountRead].into(),
-                hooks: ["before-launch", "before-server-start"]
-                    .map(String::from)
-                    .into(),
-                launch_properties: ["my.mod.flag".to_string()].into(),
-                ..Grant::default()
-            },
-            ..PluginRecord::default()
-        };
-        let data = home.path().join("probe-data");
-        std::fs::create_dir_all(&data).expect("data dir");
-        for file in ["launch.json", "server.json"] {
-            std::fs::write(data.join(file), answer.to_string()).expect("answer");
-        }
-        let plugin = runtime.load(&record, &wasm, data.clone()).expect("load");
-        let roster = Arc::new(Loaded(vec![Arc::new(plugin)]));
-        engine.hooks().attach(&roster);
+        let answers = [("launch", &answer), ("server", &answer)];
+        let (roster, data) = attach_probe(
+            &engine,
+            home.path(),
+            &answers,
+            [Permission::LaunchPatch, Permission::AccountRead],
+            ["before-launch", "before-server-start"],
+        );
         Rig {
             engine,
             instance,
@@ -1842,5 +1862,53 @@ mod launch_hooks {
             (hook.as_str(), reason.as_str()),
             ("before-server-start", "maintenance")
         );
+    }
+
+    #[tokio::test]
+    async fn a_refused_file_is_named_and_the_rest_of_the_batch_installs() {
+        let home = tempfile::tempdir().expect("temp home");
+        let files = fixture::Files::serve().await;
+        let source = fixture::Source {
+            projects: vec![
+                fixture::project("sodium", ContentKind::Mod),
+                fixture::project("fabric-api", ContentKind::Mod),
+            ],
+            versions: vec![
+                fixture::version("sodium", &files, "1.21", &["fabric-api"]),
+                fixture::version("fabric-api", &files, "1.21", &[]),
+            ],
+        };
+        let (engine, id) = instance(home.path(), source).await;
+        let refused = json!(["fabric-api.jar"]);
+        let (_roster, data) = attach_probe(
+            &engine,
+            home.path(),
+            &[("content", &refused)],
+            [Permission::ContentRead],
+            ["before-content-install"],
+        );
+        let (cancel, report) = (Cancel::new(), |_: &ProvisionProgress| {});
+
+        let (installed, failures) = engine
+            .add_entry_content(
+                EntryRef::Instance(&id),
+                &add(&["sodium"]),
+                &NO_CHAIN,
+                &job(&cancel, &report),
+            )
+            .await
+            .expect("the batch runs");
+
+        let names: Vec<&str> = installed.iter().map(|i| i.project_id.as_str()).collect();
+        assert_eq!(names, ["sodium"], "only the dependency is refused");
+        let [failure] = failures.as_slice() else {
+            panic!("one refusal expected: {failures:?}");
+        };
+        let ErrorInfo::PluginVetoed { hook, reason, .. } = &failure.error else {
+            panic!("not a veto: {:?}", failure.error);
+        };
+        assert_eq!(hook, "before-content-install");
+        assert!(reason.starts_with("fabric-api.jar: "), "{reason}");
+        assert!(data.join("content.json").is_file());
     }
 }

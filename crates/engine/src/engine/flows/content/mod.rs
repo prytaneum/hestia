@@ -27,6 +27,7 @@ use crate::content::install;
 use crate::engine::Engine;
 use crate::minecraft::materialize::OnProgress;
 use crate::minecraft::Side;
+use crate::plugins::CallChain;
 
 impl Engine {
     /// Install a batch of content into an entry — each item a platform project,
@@ -37,11 +38,12 @@ impl Engine {
         &self,
         entry: EntryRef<'_>,
         spec: &ContentAddSpec,
+        chain: &CallChain,
         on_progress: OnProgress<'_>,
     ) -> Result<(Vec<InstalledContent>, Vec<ContentFailure>)> {
         let ctx = self.content_ctx(entry)?;
         self.ensure_accepts(&ctx, spec.kind)?;
-        self.add_content(&ctx, spec, on_progress).await
+        self.add_content(&ctx, spec, chain, on_progress).await
     }
 
     /// An entry's installed items of one kind, plus untracked filenames found

@@ -21,7 +21,7 @@ use wasmtime_wasi_http::WasiHttpCtx;
 use super::cache::ComponentCache;
 use super::chain::{CallChain, ChainError};
 use super::http::PluginHttp;
-use super::imports::bindings::exports::hestia::plugin::launch_hooks;
+use super::imports::bindings::exports::hestia::plugin::{content_hooks, launch_hooks};
 use super::imports::bindings::{self, hestia::plugin::types::PluginError};
 use super::imports::{CommandRun, Gate, HostCalls, PluginState};
 use super::output::{Captured, PluginLog};
@@ -426,6 +426,25 @@ impl LoadedPlugin {
                 instance
                     .hestia_plugin_launch_hooks()
                     .call_before_server_start(store, &context)
+                    .await
+            })
+        })
+        .await
+    }
+
+    /// Runs the plugin's `content-hooks.before-content-install` under `timeout`;
+    /// the inner error is the plugin's veto reason.
+    pub(super) async fn before_content_install(
+        &self,
+        chain: &CallChain,
+        context: content_hooks::InstallContext,
+        timeout: Duration,
+    ) -> Result<Result<(), String>, CallError> {
+        self.guarded(chain, timeout, None, move |store, instance| {
+            Box::pin(async move {
+                instance
+                    .hestia_plugin_content_hooks()
+                    .call_before_content_install(store, &context)
                     .await
             })
         })

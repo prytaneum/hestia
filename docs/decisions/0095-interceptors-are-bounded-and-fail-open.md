@@ -29,9 +29,22 @@ regardless of plugins is enforced by the host itself (the launch-patch allowlist
 `launch:patch` and `account:read` for launch and server-start, `content:read` alone for content install. All are
 sandboxed tier, so a hook plugin is not presented as full access to the computer.
 
-**Hooks run before the entry's claim is taken** ([0086](0086-an-entry-has-one-claim.md)), so the claim is never held for
-the sum of the deadlines.
+**The three hooks** share that machinery and differ in what they may answer:
+
+| Hook | Called | May answer |
+|---|---|---|
+| `before-launch` | once per instance launch, after the plan is assembled | an allowlisted patch, or a veto |
+| `before-server-start` | once per server start, before spawn | the same patch with its game arguments ignored (a server has no window), or a veto |
+| `before-content-install` | once per resolved file, a required dependency being its own call | a veto of that file only, never a write |
+
+A refused file fails its own item and the rest of the batch installs; the veto's reason is prefixed with the file name
+(`fabric-api.jar: …`) so the user can tell which dependency was refused. The hook receives names, ids and the sha1, not
+the file's bytes. It is a convenience check and **not a security scanner**: it fails open like every hook.
+
+**Where the claim stands** ([0086](0086-an-entry-has-one-claim.md)). An instance launch holds no claim, so its hook never
+stalls one. A server start and a content install do hold the entry's claim while the hook runs, because the claim is
+what keeps the entry stopped (or untouched) between the check and the act; the cost is at most 2 s per plugin on that
+entry alone.
 
 **Rejected.** Failing closed on a timeout or trap (one broken plugin could then block every launch, and the user would
-have to find and disable it before playing); running a hook while holding the entry claim (it would stall every other
-operation on the entry for up to 2 s per plugin); ordering by install time (a reinstall would reorder patches).
+have to find and disable it before playing); ordering by install time (a reinstall would reorder patches).

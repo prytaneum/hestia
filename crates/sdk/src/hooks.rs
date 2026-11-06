@@ -1,7 +1,9 @@
-//! What a launch hook receives and may answer. See [`Plugin::before_launch`](crate::Plugin::before_launch)
+//! What the interceptor hooks receive and may answer. See [`Plugin::before_launch`](crate::Plugin::before_launch)
 //! and [`Plugin::before_server_start`](crate::Plugin::before_server_start), which answer the same patch.
 
 use crate::bindings::exports::hestia::plugin::launch_hooks as wit;
+
+pub use crate::bindings::exports::hestia::plugin::content_hooks::InstallContext;
 
 pub use wit::{LaunchContext, ServerContext};
 

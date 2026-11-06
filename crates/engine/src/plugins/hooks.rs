@@ -11,9 +11,11 @@ use futures_util::future::BoxFuture;
 use proto::error::ErrorInfo;
 use proto::warning::WarningInfo;
 
+mod content;
 mod launch;
 mod server;
 
+pub use content::{BeforeContentInstall, InstallContext};
 pub use launch::{BeforeLaunch, LaunchContext};
 pub use server::{BeforeServerStart, ServerContext};
 

@@ -47,3 +47,25 @@ interface launch-hooks {
     /// server has no window. An error vetoes the start.
     before-server-start: func(ctx: server-context) -> result<launch-patch, string>;
 }
+
+interface content-hooks {
+    /// One resolved file about to be installed; a required dependency is its own
+    /// call. There are no file bytes: this is a convenience check by name and
+    /// hash, not a security scanner, and a plugin that fails is skipped.
+    record install-context {
+        entry-id: string,
+        /// `server` or `instance`.
+        entry-type: string,
+        source: string,
+        project-id: string,
+        version-id: string,
+        file-name: string,
+        /// Empty when the source publishes no sha1 for the file.
+        sha1: string,
+        kind: string,
+    }
+
+    /// Runs before the file is downloaded into the entry. An error vetoes this
+    /// file only; its text is shown to the user with the file name.
+    before-content-install: func(ctx: install-context) -> result<_, string>;
+}

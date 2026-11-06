@@ -10,6 +10,7 @@ use proto::content::{
     ContentAddItem, ContentAddSpec, ContentFailure, ContentKind, ContentProject, ContentVersion,
     DependencyKind, InstalledContent, LOCAL_SOURCE,
 };
+use proto::download::HashAlgorithm;
 use proto::error::ErrorInfo;
 use proto::minecraft::ProvisionPhase;
 
@@ -20,6 +21,7 @@ use crate::content::pool::Pool;
 use crate::content::{inspect, install, record, Identified, LocalFile};
 use crate::engine::Engine;
 use crate::minecraft::materialize::{self, OnProgress};
+use crate::plugins::{BeforeContentInstall, CallChain, InstallContext};
 
 /// One platform selector of a batch, resolved from its item: where it came
 /// from (`given`, for failure reporting), which source serves it, and the
@@ -44,6 +46,7 @@ impl Engine {
         &self,
         ctx: &EntryContent,
         spec: &ContentAddSpec,
+        chain: &CallChain,
         on_progress: OnProgress<'_>,
     ) -> Result<(Vec<InstalledContent>, Vec<ContentFailure>)> {
         install::kind_dir(spec.kind)?;
@@ -143,7 +146,7 @@ impl Engine {
             }
         }
         let (mut platform_items, mut platform_failures) = self
-            .add_platform_content(ctx, spec.kind, roots, &worlds, on_progress)
+            .add_platform_content(ctx, spec.kind, roots, &worlds, chain, on_progress)
             .await;
         items.append(&mut platform_items);
         failures.append(&mut platform_failures);
@@ -189,6 +192,7 @@ impl Engine {
         kind: ContentKind,
         roots: Vec<PlatformRoot>,
         worlds: &[String],
+        chain: &CallChain,
         on_progress: OnProgress<'_>,
     ) -> (Vec<InstalledContent>, Vec<ContentFailure>) {
         let mut items = Vec::new();
@@ -317,6 +321,10 @@ impl Engine {
 
         let mut downloads = Vec::new();
         for (node, version) in planned {
+            if let Err(refused) = self.vet_release(ctx, kind, &node, &version, chain).await {
+                failures.push(failure(&node.given, &node.project.title, refused));
+                continue;
+            }
             match plan_release(ctx, kind, &node.project.title, &version) {
                 Ok(download) => downloads.push(((node, version), download)),
                 Err(e) => failures.push(failure(
@@ -350,6 +358,51 @@ impl Engine {
             }
         }
         (items, failures)
+    }
+
+    /// Asks the `before-content-install` plugins about one resolved file. A veto
+    /// names the file in its reason, so a refused dependency is recognisable.
+    /// A file the version does not have is left for `plan_release` to report.
+    async fn vet_release(
+        &self,
+        ctx: &EntryContent,
+        kind: ContentKind,
+        node: &Node,
+        version: &ContentVersion,
+        chain: &CallChain,
+    ) -> Result<(), ErrorInfo> {
+        let Ok(file) = install::primary_file(version) else {
+            return Ok(());
+        };
+        let artifact = &file.artifact;
+        let context = InstallContext {
+            entry_id: ctx.id.clone(),
+            entry_type: ctx.side.into(),
+            source: version.source.clone(),
+            project_id: node.project.id.clone(),
+            version_id: version.id.clone(),
+            file_name: artifact.filename.clone(),
+            sha1: artifact
+                .checksum
+                .as_ref()
+                .filter(|checksum| checksum.algorithm == HashAlgorithm::Sha1)
+                .map(|checksum| checksum.hex.clone())
+                .unwrap_or_default(),
+            kind,
+        };
+        match self.hooks().run::<BeforeContentInstall>(&context, chain).await {
+            Ok(_) => Ok(()),
+            Err(ErrorInfo::PluginVetoed {
+                plugin,
+                hook,
+                reason,
+            }) => Err(ErrorInfo::PluginVetoed {
+                plugin,
+                hook,
+                reason: format!("{}: {reason}", artifact.filename),
+            }),
+            Err(other) => Err(other),
+        }
     }
 
     /// One version's file, fetched on its own. `kind` is the *requested* kind,

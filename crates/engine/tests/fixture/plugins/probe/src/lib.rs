@@ -3,7 +3,9 @@ use std::time::Duration;
 use hestia::proto::plugin::PageContext;
 use hestia::proto::{server::ServerList, Empty};
 use hestia::ui::{self, Action, Effect, Tone, UiNode};
-use hestia::{json, Error, LaunchContext, LaunchPatch, Plugin, ServerContext, Value};
+use hestia::{
+    json, Error, InstallContext, LaunchContext, LaunchPatch, Plugin, ServerContext, Value,
+};
 
 struct Probe;
 
@@ -69,6 +71,17 @@ impl Plugin for Probe {
     fn before_server_start(context: ServerContext) -> Result<LaunchPatch, String> {
         let _ = hestia::data::save("context", &format!("{context:?}"));
         answer("server")
+    }
+
+    fn before_content_install(context: InstallContext) -> Result<(), String> {
+        let refused: Vec<String> = hestia::data::load("content")
+            .ok()
+            .flatten()
+            .unwrap_or_default();
+        match refused.contains(&context.file_name) {
+            true => Err("not on this list".into()),
+            false => Ok(()),
+        }
     }
 
     fn run(command: &str, args: Value) -> Result<Value, Error> {
