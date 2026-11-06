@@ -94,6 +94,8 @@
       "key_id": "Chave {key}",
       "obsolete": "Obsoleto",
       "obsolete_hint": "Nenhum repositório que você adicionou lista mais este plugin. Ele continua funcionando, mas não recebe atualizações.",
+      "dev": "Dev",
+      "dev_hint": "Executando de uma pasta neste computador. Recarrega quando os arquivos mudam.",
       "official": "Oficial",
       "official_hint": "Assinado pela chave oficial de plugins do Hestia.",
       "repos": {

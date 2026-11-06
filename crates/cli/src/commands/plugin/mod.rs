@@ -5,6 +5,7 @@ mod browse;
 mod cargo;
 mod check;
 mod config;
+mod dev;
 mod index;
 mod keygen;
 mod new;
@@ -36,6 +37,13 @@ pub enum PluginCmd {
         /// Sign each package with this minisign secret key, writing <file>.minisig
         #[arg(long, value_name = "SECRET_KEY")]
         sign: Option<std::path::PathBuf>,
+    },
+    /// Run a plugin from its folder, reload it on every rebuild and stream its log
+    Dev {
+        /// A plugin folder of the repository; the current directory by default
+        dir: Option<std::path::PathBuf>,
+        #[arg(short = 'y', long, help = "Approve exactly the permissions shown")]
+        yes: bool,
     },
     /// Check that the repository follows the one shape plugin repositories have
     Check {
@@ -126,6 +134,7 @@ pub async fn run(cmd: PluginCmd) -> Result<()> {
     match cmd {
         PluginCmd::New { id } => new::run(&id),
         PluginCmd::Pack { ids, sign } => pack::run(&ids, sign.as_deref()),
+        PluginCmd::Dev { dir, yes } => dev::run(dir.as_deref(), yes).await,
         PluginCmd::Check { dir } => check::run(dir.as_deref()),
         PluginCmd::Index {
             previous,

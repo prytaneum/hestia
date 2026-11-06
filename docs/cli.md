@@ -741,6 +741,7 @@ hestia plugin index [--previous <https-url|file>] [--add dist/*.hplugin] [--repo
 hestia plugin keygen [--out <dir>] [--unencrypted]
                                  # write a minisign key pair and declare the public key in Cargo.toml
 hestia plugin pack --sign <secret key>   # also write <package>.minisig
+hestia plugin dev [dir] [-y]     # run plugins/<id>/ in place, reload on every rebuild, stream its log
 ```
 
 The shape, the index format and the release flow are in [plugins/repository.md](plugins/repository.md). `check`
@@ -753,6 +754,17 @@ requirement into the packaged `plugin.toml` from the `hestia-sdk` version cargo 
 bundles `plugin.toml`, the component, `assets/` and `themes/`. A theme-only plugin (no `Cargo.toml`, no `wasm`) skips
 cargo and carries no `api`; list its folder under the workspace's `exclude`, since `plugins/*` would otherwise expect a
 crate there. The scaffold pins `hestia-sdk` to the git tag of the running Hestia version (`v<version>`).
+
+`dev` skips the pack-reinstall loop. From a plugin folder (or with `dir`) it builds the component, stages
+`dist/dev/<id>/` (the same files `pack` would zip), installs that folder in dev mode and shows the permissions to
+approve once. The daemon reads the folder in place and polls its manifest, component and themes once a second; when one
+changes it reloads the plugin (calls already running finish on the old component) and the command prints the new
+state. Rebuild with `cargo build --release --target wasm32-wasip2` and `dev` re-stages the new component. The plugin's
+`log` lines and stdout/stderr stream to the terminal until Ctrl-C; the plugin stays installed as source `dev`
+(marked so in `plugin list` and the desktop Plugins page) until `hestia plugin remove <id>`. A manifest that now asks
+for more than you approved leaves the plugin at `needs approval`; run `dev` again to approve it. A folder with no
+`Cargo.toml` is treated as an already unpacked package and installed as it is. A dev folder inside the data home's
+`plugins/` directory is refused. Only dev plugins publish `plugin.log`, a topic no plugin can receive.
 
 ### Plugin commands
 

@@ -221,7 +221,7 @@ fn resolve(path: &str) -> Result<String> {
         .into_owned())
 }
 
-fn show_grant(inspection: &PluginInspection) -> Result<()> {
+pub(super) fn show_grant(inspection: &PluginInspection) -> Result<()> {
     let manifest = &inspection.manifest;
     let (heading, grant) = match &inspection.replaces {
         Some(installed) => (

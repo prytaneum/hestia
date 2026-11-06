@@ -95,13 +95,13 @@ fn select(all: Vec<PluginDir>, ids: &[String]) -> Result<Vec<PluginDir>> {
         .collect())
 }
 
-/// Writes `dist/<id>-<version>.hplugin`. The `api` requirement comes from the
-/// SDK the component was built against; the author never writes it.
-fn pack_plugin(
+/// The package's manifest and files by package-relative name. The `api`
+/// requirement comes from the SDK the component was built against; the author
+/// never writes it.
+pub(super) fn package_files(
     plugin: &PluginDir,
     component: Option<&cargo::Component>,
-    dist: &Path,
-) -> Result<PathBuf> {
+) -> Result<(proto::plugin::Manifest, Vec<(String, Vec<u8>)>)> {
     let mut manifest = plugin.manifest.clone();
     let mut manifest_text = std::fs::read_to_string(plugin.path.join(MANIFEST))?;
     if let Some(component) = component {
@@ -124,7 +124,16 @@ fn pack_plugin(
         collect(&plugin.path, bundled, &mut files)?;
     }
     check_themes(&manifest, &files)?;
+    Ok((manifest, files))
+}
 
+/// Writes `dist/<id>-<version>.hplugin`.
+fn pack_plugin(
+    plugin: &PluginDir,
+    component: Option<&cargo::Component>,
+    dist: &Path,
+) -> Result<PathBuf> {
+    let (manifest, files) = package_files(plugin, component)?;
     let archive = dist.join(format!("{}-{}.hplugin", manifest.id, manifest.version));
     let mut temp = NamedTempFile::new_in(dist)?;
     write_zip(temp.as_file_mut(), &files)?;

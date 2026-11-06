@@ -94,6 +94,8 @@
       "key_id": "Key {key}",
       "obsolete": "Obsolete",
       "obsolete_hint": "No repository you added lists this plugin any more. It keeps running, but gets no updates.",
+      "dev": "Dev",
+      "dev_hint": "Running from a folder on this computer. It reloads when its files change.",
       "official": "Official",
       "official_hint": "Signed by the official Hestia plugins key.",
       "repos": {

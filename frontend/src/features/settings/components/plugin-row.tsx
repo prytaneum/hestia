@@ -119,6 +119,14 @@ export function PluginRow({ plugin }: { plugin: PluginInfo }) {
                     {m['settings.plugins.obsolete']()}
                   </Badge>
                 )}
+                {plugin.source === 'dev' && (
+                  <Badge
+                    variant="secondary"
+                    title={m['settings.plugins.dev_hint']()}
+                  >
+                    {m['settings.plugins.dev']()}
+                  </Badge>
+                )}
                 {!on && (
                   <Badge variant={attention ? 'destructive' : 'outline'}>
                     {STATE_LABEL[plugin.state]()}
