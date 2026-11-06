@@ -1,11 +1,14 @@
 //! Installed plugins: what is loaded and in which state.
 
-use proto::error::ErrorInfo;
-use proto::job::JobStarted;
+use proto::error::{EntryKind, ErrorInfo};
+use proto::job::{JobStarted, JobSubject};
 use proto::plugin::{
-    PluginDisable, PluginEnable, PluginGet, PluginInspect, PluginInstall, PluginList, PluginRemove,
+    CommandScope, PluginDisable, PluginEnable, PluginGet, PluginInspect, PluginInstall, PluginList,
+    PluginRemove, PluginRun,
 };
 use proto::Empty;
+
+use super::guards::{instance_for, server_for, Intent};
 
 use crate::runtime::Channels;
 use crate::runtime::Package;
@@ -56,5 +59,40 @@ pub(super) fn register(on: &mut Channels<'_>) {
             Some(id) => Ok(JobStarted { id }),
             None => Err(ErrorInfo::PluginInstallInProgress { id: plugin }),
         }
+    });
+
+    on.handle::<PluginRun, _, _>(|p, ctx| async move {
+        let plugins = ctx.runtime.plugins();
+        let (command, loaded) = plugins.command(&p.plugin, &p.command).await?;
+        let scoped = match (command.scope, p.entry.as_deref()) {
+            (CommandScope::Server, Some(reference)) => {
+                let record = server_for(&ctx, reference, Intent::Idle)?;
+                Some((EntryKind::Server, record.id))
+            }
+            (CommandScope::Instance, Some(reference)) => {
+                let record = instance_for(&ctx, reference, Intent::Idle)?;
+                Some((EntryKind::Instance, record.id))
+            }
+            _ => None,
+        };
+        let args = engine::command_args(
+            &p.plugin,
+            &command,
+            scoped
+                .as_ref()
+                .map(|(_, id)| id.as_str())
+                .or(p.entry.as_deref()),
+            &p.args,
+        )?;
+        let subject = scoped.map(|(kind, id)| JobSubject { kind, id });
+        let id = ctx.runtime.jobs().start_plugin_run(
+            loaded,
+            p.command,
+            args,
+            p.id,
+            subject,
+            ctx.chain.clone(),
+        );
+        Ok(JobStarted { id })
     });
 }

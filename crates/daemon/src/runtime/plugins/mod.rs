@@ -17,7 +17,8 @@ use engine::{
 };
 use proto::error::ErrorInfo;
 use proto::plugin::{
-    Manifest, PluginInfo, PluginInspection, PluginInstallPhase, PluginState, PluginStateEvent,
+    CommandContribution, Manifest, PluginInfo, PluginInspection, PluginInstallPhase, PluginState,
+    PluginStateEvent,
 };
 use tokio::task::{spawn_blocking, JoinSet};
 
@@ -217,6 +218,32 @@ impl Plugins {
             self.activate(record.clone()).await;
         }
         self.info_of(record).await
+    }
+
+    /// The command `name` of `id`'s manifest and the plugin that runs it.
+    pub async fn command(
+        &self,
+        id: &str,
+        name: &str,
+    ) -> ServiceResult<(CommandContribution, Arc<LoadedPlugin>)> {
+        self.record(id)?;
+        let engine = self.engine.clone();
+        let plugin = id.to_string();
+        let manifest = spawn_blocking(move || engine.plugins().read_manifest(&plugin))
+            .await
+            .map_err(|error| internal(error.into()))?
+            .map_err(internal)?;
+        let command = engine::find_command(&manifest, name)?.clone();
+        let loaded = self
+            .slots
+            .lock()
+            .unwrap()
+            .get(id)
+            .filter(|slot| slot.state == PluginState::Enabled)
+            .and_then(|slot| slot.loaded.clone())
+            .filter(|loaded| !loaded.is_disabled())
+            .ok_or_else(|| ErrorInfo::PluginUnavailable { id: id.to_string() })?;
+        Ok((command, loaded))
     }
 
     pub fn remove(&self, id: &str) -> ServiceResult<()> {

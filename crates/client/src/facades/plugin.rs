@@ -1,7 +1,7 @@
 use ipc::errors::IpcError;
 use proto::plugin::{
     PluginInfo, PluginInspection, PluginInstallDone, PluginInstallParams, PluginInstallProgress,
-    PluginPackageRef, PluginRef,
+    PluginPackageRef, PluginRef, PluginRunDone, PluginRunParams, PluginRunProgress,
 };
 
 use crate::session::{job_id, Session};
@@ -93,6 +93,19 @@ impl Plugin<'_> {
             ..PluginInstallParams::default()
         };
         self.run_install(params, on_progress).await
+    }
+
+    /// Runs a command the plugin contributes and waits for its output. The
+    /// caller fills `plugin`, `command`, `entry` (for a scoped command) and `args`.
+    pub async fn run(
+        &self,
+        mut params: PluginRunParams,
+        on_progress: impl Fn(&PluginRunProgress) + Send + Sync + 'static,
+    ) -> Result<PluginRunDone, IpcError> {
+        params.id = job_id("plugin-run");
+        self.session
+            .run_job::<proto::plugin::PluginRun>(&params.id.clone(), &params, on_progress)
+            .await
     }
 
     async fn run_install(

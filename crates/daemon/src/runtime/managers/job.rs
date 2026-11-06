@@ -11,7 +11,7 @@ use proto::error::EntryKind;
 use proto::java::{JavaInstallPhase, JavaInstallProgress};
 use proto::job::{Job, JobEvent, JobInfo, JobState, JobSubject};
 use proto::minecraft::{ProvisionPhase, ProvisionProgress};
-use proto::plugin::{PluginInstallPhase, PluginInstallProgress};
+use proto::plugin::{PluginInstallPhase, PluginInstallProgress, PluginRunProgress};
 
 use crate::runtime::{Cancellations, Claim, Claims, ProcessSupervisor};
 
@@ -56,6 +56,21 @@ impl Coalescible for PluginInstallProgress {
     }
     fn ratio(&self) -> f64 {
         PluginInstallProgress::ratio(self)
+    }
+}
+
+/// The phase is a hash of the message, so a new message is forwarded even
+/// when the plugin cannot say how far along it is.
+impl Coalescible for PluginRunProgress {
+    type Phase = u64;
+    fn phase(&self) -> u64 {
+        use std::hash::{Hash, Hasher};
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        self.message.hash(&mut hasher);
+        hasher.finish()
+    }
+    fn ratio(&self) -> f64 {
+        PluginRunProgress::ratio(self)
     }
 }
 
