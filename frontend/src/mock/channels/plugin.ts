@@ -95,6 +95,7 @@ const installed = ({
     sha256: '9f2c4e81a7d05b3c6e1f8a2d4b7c9e0f1a3d5b7c9e2f4a6b8d0c1e3f5a7b9d2c',
     grant,
     unrestricted,
+    obsolete: false,
     calls: stats.calls,
     traps: stats.traps,
     timeouts: stats.timeouts,
@@ -218,7 +219,7 @@ export const channels: ChannelHandlers = {
           unrestricted: ['entry:write', 'process:control'],
         });
         plugins.push(plugin);
-        return { plugin };
+        return { plugin, warnings: [] };
       },
     }),
 };
