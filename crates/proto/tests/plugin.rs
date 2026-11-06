@@ -133,11 +133,29 @@ mod manifest {
         manifest.contributes.themes.push(ThemeContribution {
             id: "dusk".into(),
             file: "../dusk.css".into(),
+            ..Default::default()
         });
         assert!(matches!(
             manifest.validate(),
             Err(ManifestError::PathEscapes(_))
         ));
+    }
+
+    #[test]
+    fn a_theme_needs_the_ui_css_permission() {
+        let mut manifest = valid();
+        manifest.contributes.themes.push(ThemeContribution {
+            id: "dusk".into(),
+            name: "Dusk".into(),
+            file: "themes/dusk.css".into(),
+            ..Default::default()
+        });
+        assert_eq!(
+            manifest.validate(),
+            Err(ManifestError::ThemeNeedsUiCss("dusk".into()))
+        );
+        manifest.permissions.push(Permission::UiCss);
+        assert_eq!(manifest.validate(), Ok(()));
     }
 
     fn paged(slot: PageSlot, kind: Option<EntryKind>, icon: Option<&str>) -> Manifest {

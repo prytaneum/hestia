@@ -20,7 +20,7 @@ use engine::{
 use proto::error::ErrorInfo;
 use proto::plugin::{
     CommandContribution, Manifest, PageContribution, PluginInfo, PluginInspection,
-    PluginInstallPhase, PluginPage, PluginState, PluginStateEvent,
+    PluginInstallPhase, PluginPage, PluginState, PluginStateEvent, PluginTheme,
 };
 use tokio::task::{spawn_blocking, JoinSet};
 
@@ -282,6 +282,29 @@ impl Plugins {
             );
         }
         pages
+    }
+
+    /// Every theme of the plugins that are enabled, running or not.
+    pub async fn themes(&self) -> Vec<PluginTheme> {
+        self.list()
+            .await
+            .into_iter()
+            .filter(|info| info.state == PluginState::Enabled)
+            .flat_map(|info| {
+                let plugin = info.manifest.id;
+                info.manifest
+                    .contributes
+                    .themes
+                    .into_iter()
+                    .map(move |theme| PluginTheme {
+                        plugin: plugin.clone(),
+                        id: theme.id,
+                        name: theme.name,
+                        appearance: theme.appearance,
+                        file: theme.file,
+                    })
+            })
+            .collect()
     }
 
     async fn manifest(&self, id: &str) -> ServiceResult<Manifest> {

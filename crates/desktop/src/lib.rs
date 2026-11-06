@@ -98,6 +98,7 @@ pub fn run() {
             commands::prefs::prefs_list,
             commands::prefs::prefs_set,
             commands::prefs::prefs_remove,
+            commands::safemode::safe_mode,
             commands::icons::icons_list,
             commands::icons::icon_set,
             commands::icons::icon_remove,

@@ -213,7 +213,7 @@ mod tests {
         let repo = tempfile::tempdir().unwrap();
         let plugin = plugin_on_disk(
             repo.path(),
-            "id = \"tunnel\"\nname = \"Tunnel\"\nversion = \"0.2.0\"\nwasm = \"plugin.wasm\"\n\n[[contributes.themes]]\nid = \"dark\"\nfile = \"themes/dark.css\"\n",
+            "id = \"tunnel\"\nname = \"Tunnel\"\nversion = \"0.2.0\"\nwasm = \"plugin.wasm\"\npermissions = [\"ui:css\"]\n\n[[contributes.themes]]\nid = \"dark\"\nname = \"Dark\"\nfile = \"themes/dark.css\"\n",
         );
         let wasm = repo.path().join("built.wasm");
         std::fs::write(&wasm, "component").unwrap();

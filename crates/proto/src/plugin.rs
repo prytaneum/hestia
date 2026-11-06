@@ -324,11 +324,25 @@ impl PageContribution {
     }
 }
 
+/// The colour scheme a theme is written for. The app is dark; a `light` theme
+/// switches it to the light palette, `dark` and `both` keep the dark one.
+#[derive(Serialize, Deserialize, Default, Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
+#[serde(rename_all = "snake_case")]
+pub enum Appearance {
+    Light,
+    Dark,
+    #[default]
+    Both,
+}
+
 #[derive(Serialize, Deserialize, Default, Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
 #[serde(default, rename_all = "camelCase")]
 pub struct ThemeContribution {
     pub id: String,
+    pub name: String,
+    pub appearance: Appearance,
     /// Package-relative path of the stylesheet.
     pub file: String,
 }
@@ -497,6 +511,8 @@ pub enum ManifestError {
     },
     #[error("page `{0}` appears on an entry and must declare its kind")]
     PageNeedsKind(String),
+    #[error("theme `{0}` restyles the app and must be granted the permission `ui:css`")]
+    ThemeNeedsUiCss(String),
     #[error("launch property `{0}` is not a valid name, or is one no plugin may set")]
     BadLaunchProperty(String),
     #[error("network host `{0}` must be a domain name or `*.` and a domain, not an address")]
@@ -589,6 +605,11 @@ impl Manifest {
                 if !seen.insert(&arg.name) {
                     return Err(ManifestError::DuplicateId(arg.name.clone()));
                 }
+            }
+        }
+        if let Some(theme) = contributes.themes.first() {
+            if !self.permissions.contains(&Permission::UiCss) {
+                return Err(ManifestError::ThemeNeedsUiCss(theme.id.clone()));
             }
         }
         for hook in &contributes.hooks {
@@ -1089,6 +1110,27 @@ impl Contract for PluginPages {
     const CHANNEL: &'static str = "plugin.pages";
     type Params = Empty;
     type Result = Vec<PluginPage>;
+}
+
+/// A theme of an enabled plugin. `file` is package-relative; the webview
+/// builds the `hestia-plugin` URL itself because its form differs per platform.
+#[derive(Serialize, Deserialize, Default, Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
+#[serde(default, rename_all = "camelCase")]
+pub struct PluginTheme {
+    pub plugin: String,
+    pub id: String,
+    pub name: String,
+    pub appearance: Appearance,
+    pub file: String,
+}
+
+/// The themes of every enabled plugin.
+pub struct PluginThemes;
+impl Contract for PluginThemes {
+    const CHANNEL: &'static str = "plugin.themes";
+    type Params = Empty;
+    type Result = Vec<PluginTheme>;
 }
 
 /// Where a page is drawn. An `entry` page receives the server or instance it

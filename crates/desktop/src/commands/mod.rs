@@ -8,5 +8,6 @@ pub mod link;
 pub mod open;
 pub mod opener;
 pub mod prefs;
+pub mod safemode;
 pub mod screenshots;
 pub mod splash;
