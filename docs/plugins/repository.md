@@ -100,6 +100,8 @@ each beside the other catalogue caches.
 
 A repository is the minisign key it declares ([0097](../decisions/0097-trust-follows-the-repository-key.md)).
 
+A plugin is **official** when its recorded signer is the official-plugins key ([0099](../decisions/0099-official-plugins-are-signed.md)); `repo add` refuses an index that declares that key.
+
 ```bash
 hestia plugin keygen [--out <dir>] [--unencrypted]
 hestia plugin index --sign <secret key> ...
