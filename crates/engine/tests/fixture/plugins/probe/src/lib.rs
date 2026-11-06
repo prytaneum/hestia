@@ -14,6 +14,9 @@ impl Plugin for Probe {
                 std::hint::black_box(&hoard);
                 Ok(())
             }
+            Some(mode) if mode.starts_with("get ") => {
+                hestia::http::get(&mode["get ".len()..]).map(drop)
+            }
             _ => Ok(()),
         }
     }

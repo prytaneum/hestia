@@ -7,6 +7,7 @@ mod cache;
 mod chain;
 mod command;
 mod hooks;
+mod http;
 mod imports;
 mod install;
 mod output;

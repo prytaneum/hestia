@@ -8,8 +8,10 @@ use tracing::Level;
 use wasmtime::component::ResourceTable;
 use wasmtime::StoreLimits;
 use wasmtime_wasi::{WasiCtx, WasiCtxView, WasiView};
+use wasmtime_wasi_http::{WasiHttpCtx, WasiHttpCtxView, WasiHttpView};
 
 use super::chain::CallChain;
+use super::http::PluginHttp;
 use super::output::PluginLog;
 use crate::cancel::Cancel;
 
@@ -79,6 +81,8 @@ pub struct CommandRun {
 pub(crate) struct PluginState {
     pub(crate) run: Option<Arc<CommandRun>>,
     pub(crate) wasi: WasiCtx,
+    pub(crate) http: WasiHttpCtx,
+    pub(crate) http_hooks: PluginHttp,
     pub(crate) table: ResourceTable,
     pub(crate) limits: StoreLimits,
     pub(crate) log: Arc<PluginLog>,
@@ -100,6 +104,16 @@ impl WasiView for PluginState {
         WasiCtxView {
             ctx: &mut self.wasi,
             table: &mut self.table,
+        }
+    }
+}
+
+impl WasiHttpView for PluginState {
+    fn http(&mut self) -> WasiHttpCtxView<'_> {
+        WasiHttpCtxView {
+            ctx: &mut self.http,
+            table: &mut self.table,
+            hooks: &mut self.http_hooks,
         }
     }
 }

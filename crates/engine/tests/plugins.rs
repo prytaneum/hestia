@@ -84,6 +84,10 @@ struct Probe {
 
 impl Probe {
     fn load(permissions: &[Permission]) -> Probe {
+        Probe::load_with_network(permissions, &[])
+    }
+
+    fn load_with_network(permissions: &[Permission], network: &[&str]) -> Probe {
         let wasm = std::fs::read(probe_component()).unwrap();
         let data = tempfile::tempdir().unwrap();
         let runtime =
@@ -98,6 +102,7 @@ impl Probe {
             ),
             grant: Grant {
                 permissions: permissions.iter().copied().collect(),
+                network: network.iter().map(|host| host.to_string()).collect(),
                 ..Grant::default()
             },
             ..PluginRecord::default()
@@ -283,6 +288,46 @@ async fn a_channel_outside_the_grant_answers_permission_denied_and_the_plugin_st
 
     probe.set_mode("idle");
     probe.init().await.unwrap();
+}
+
+async fn http_refusal(probe: &Probe, url: &str) -> String {
+    probe.set_mode(&format!("get {url}"));
+    match probe.init().await {
+        Err(CallError::Guest(message)) => message,
+        other => panic!("{other:?}"),
+    }
+}
+
+#[tokio::test]
+async fn http_without_the_network_permission_is_refused_and_the_plugin_still_loads() {
+    let probe = Probe::load_with_network(&[], &["example.com"]);
+
+    let message = http_refusal(&probe, "https://example.com/").await;
+    assert!(message.contains("HttpRequestDenied"), "{message}");
+}
+
+#[tokio::test]
+async fn http_to_a_host_outside_the_allowlist_is_refused() {
+    let probe = Probe::load_with_network(&[Permission::NetworkConnect], &["example.com"]);
+
+    let message = http_refusal(&probe, "https://other.example.org/").await;
+    assert!(message.contains("HttpRequestDenied"), "{message}");
+}
+
+#[tokio::test]
+async fn http_to_an_ip_address_is_refused_even_when_listed() {
+    let probe = Probe::load_with_network(&[Permission::NetworkConnect], &["127.0.0.1"]);
+
+    let message = http_refusal(&probe, "https://127.0.0.1/").await;
+    assert!(message.contains("DestinationIpProhibited"), "{message}");
+}
+
+#[tokio::test]
+async fn http_to_a_granted_name_that_resolves_to_this_machine_is_refused() {
+    let probe = Probe::load_with_network(&[Permission::NetworkConnect], &["localhost"]);
+
+    let message = http_refusal(&probe, "https://localhost/").await;
+    assert!(message.contains("DestinationIpProhibited"), "{message}");
 }
 
 #[tokio::test]

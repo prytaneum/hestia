@@ -23,6 +23,7 @@ mod call;
 mod command;
 pub mod data;
 mod error;
+pub mod http;
 pub mod log;
 pub mod progress;
 

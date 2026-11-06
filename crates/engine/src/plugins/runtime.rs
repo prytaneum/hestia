@@ -14,9 +14,11 @@ use wasmtime::component::{HasSelf, Linker, ResourceTable};
 use wasmtime::{Config, Engine, InstanceAllocationStrategy, PoolingAllocationConfig, Store};
 use wasmtime::{StoreLimits, StoreLimitsBuilder};
 use wasmtime_wasi::{FsPerms, WasiCtxBuilder};
+use wasmtime_wasi_http::WasiHttpCtx;
 
 use super::cache::ComponentCache;
 use super::chain::{CallChain, ChainError};
+use super::http::PluginHttp;
 use super::imports::bindings::{self, hestia::plugin::types::PluginError};
 use super::imports::{CommandRun, Gate, HostCalls, PluginState};
 use super::output::{Captured, PluginLog};
@@ -147,6 +149,8 @@ impl PluginRuntime {
 
         let mut linker = Linker::new(&engine);
         wasmtime_wasi::p2::add_to_linker_async(&mut linker)
+            .map_err(|error| anyhow::anyhow!("{error:#}"))?;
+        wasmtime_wasi_http::p2::add_only_http_to_linker_async(&mut linker)
             .map_err(|error| anyhow::anyhow!("{error:#}"))?;
         bindings::Plugin::add_to_linker::<PluginState, HasSelf<PluginState>>(
             &mut linker,
@@ -434,6 +438,12 @@ impl LoadedPlugin {
         let state = PluginState {
             run,
             wasi: wasi.build(),
+            http: WasiHttpCtx::new(),
+            http_hooks: PluginHttp {
+                plugin: self.id.clone(),
+                grant: self.grant.clone(),
+                log: self.log.clone(),
+            },
             table: ResourceTable::new(),
             limits,
             log: self.log.clone(),

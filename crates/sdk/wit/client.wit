@@ -1,0 +1,8 @@
+package hestia:plugin@1.0.0;
+
+/// What `hestia::http` imports: the standard `wasi:http` client. It is a world
+/// of its own so the host's bindings for `plugin` do not generate it.
+world http-client {
+    import wasi:http/types@0.2.12;
+    import wasi:http/outgoing-handler@0.2.12;
+}
