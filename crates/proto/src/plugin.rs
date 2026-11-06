@@ -900,6 +900,21 @@ impl Topic for PluginStateEvent {
     const TOPIC: &'static str = "plugin.state";
 }
 
+/// One line a dev plugin logged, for `hestia plugin dev`. Published only for a
+/// plugin installed from a dev folder; never reachable by plugins.
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
+#[serde(rename_all = "camelCase")]
+pub struct PluginLogEvent {
+    /// The plugin's id.
+    pub id: String,
+    pub level: String,
+    pub text: String,
+}
+impl Topic for PluginLogEvent {
+    const TOPIC: &'static str = "plugin.log";
+}
+
 pub struct PluginList;
 impl Contract for PluginList {
     const CHANNEL: &'static str = "plugin.list";
@@ -1078,6 +1093,9 @@ pub struct PluginInstallParams {
     /// The grant digest the user approved; the install refuses a package whose
     /// own grant digests differently.
     pub approve: String,
+    /// Run the folder at `path` in place instead of copying it, and reload it
+    /// when its component or themes change.
+    pub dev: bool,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq)]

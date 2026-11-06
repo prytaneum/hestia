@@ -62,6 +62,7 @@ const DENIED: &[&str] = &[
     "plugin.ui.render",
     "plugin.ui.action",
     "plugin.state",
+    "plugin.log",
     // Other clients' subscriptions and jobs
     "events.subscribe",
     "job.list",

@@ -35,6 +35,8 @@ pub struct PluginRecord {
     pub signer: Option<String>,
     /// Index URL the package was installed from.
     pub repository: Option<String>,
+    /// The folder a [`PluginSource::Dev`] plugin runs from, in place.
+    pub dev_path: Option<PathBuf>,
     pub wasm_sha256: Option<String>,
     /// Package-relative theme file to its hex sha256.
     pub theme_sha256: BTreeMap<String, String>,
@@ -50,7 +52,7 @@ impl Document for PluginRecord {
 }
 
 pub struct Plugins {
-    dir: PathBuf,
+    pub(super) dir: PathBuf,
     pub(super) writes: Mutex<()>,
 }
 
@@ -74,8 +76,17 @@ impl Plugins {
         Ok(self.dir.join(id))
     }
 
+    /// Where the package is read from: the dev folder for a dev plugin.
     pub fn package_dir(&self, id: &str) -> Result<PathBuf> {
-        Ok(self.plugin_dir(id)?.join(PACKAGE))
+        let dir = self.plugin_dir(id)?;
+        Ok(match registry::read_record::<PluginRecord>(&dir) {
+            Some(PluginRecord {
+                source: PluginSource::Dev,
+                dev_path: Some(path),
+                ..
+            }) => path,
+            _ => dir.join(PACKAGE),
+        })
     }
 
     pub fn data_dir(&self, id: &str) -> Result<PathBuf> {

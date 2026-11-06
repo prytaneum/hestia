@@ -215,7 +215,7 @@ fn api() -> Api {
     each!(api.topic:
         change::ChangedEvent,
         net::NetworkStatus,
-        plugin::PluginStateEvent,
+        plugin::PluginLogEvent, plugin::PluginStateEvent,
         process::ProcessExitEvent, process::ProcessMetricsEvent, process::ProcessOutputEvent,
         process::ProcessStartedEvent,
     );

@@ -5,7 +5,7 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use futures_util::future::BoxFuture;
-use proto::plugin::{Grant, PageContext, DATA_MOUNT};
+use proto::plugin::{Grant, PageContext, PluginSource, DATA_MOUNT};
 use proto::ui::{Action, Effect, UiNode};
 use serde::de::DeserializeOwned;
 use serde_json::Value;
@@ -205,7 +205,10 @@ impl PluginRuntime {
             grant: Arc::new(record.grant.clone()),
             data_dir,
             settings: Arc::new(settings),
-            log: PluginLog::new(&record.id),
+            log: PluginLog::new(
+                &record.id,
+                (record.source == PluginSource::Dev).then(|| self.host.clone()),
+            ),
             pool: self.pool.clone(),
             concurrent: Semaphore::new(CALLS_PER_PLUGIN),
             calls: AtomicU64::new(0),

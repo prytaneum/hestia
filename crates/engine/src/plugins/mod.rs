@@ -8,6 +8,7 @@ mod cache;
 mod catalogue;
 mod chain;
 mod command;
+mod dev;
 mod hooks;
 mod http;
 mod imports;

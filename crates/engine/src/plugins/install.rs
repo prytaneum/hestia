@@ -33,13 +33,13 @@ pub struct Inspection {
     pub installed: Option<PluginRecord>,
 }
 
-enum Source {
+pub(super) enum Source {
     Archive(PathBuf),
     Folder(PathBuf),
 }
 
 impl Source {
-    fn at(path: &Path) -> Result<Source> {
+    pub(super) fn at(path: &Path) -> Result<Source> {
         if path.is_dir() {
             Ok(Source::Folder(path.to_path_buf()))
         } else if path.is_file() {
@@ -56,7 +56,7 @@ impl Source {
         }
     }
 
-    fn read_manifest(&self) -> Result<Manifest> {
+    pub(super) fn read_manifest(&self) -> Result<Manifest> {
         let text = match self {
             Source::Folder(dir) => read_limited(File::open(dir.join(MANIFEST))?)?,
             Source::Archive(file) => {
@@ -93,11 +93,37 @@ impl Drop for Staging {
     }
 }
 
-fn invalid(detail: impl std::fmt::Display) -> anyhow::Error {
+pub(super) fn invalid(detail: impl std::fmt::Display) -> anyhow::Error {
     ErrorInfo::PluginInvalid {
         detail: detail.to_string(),
     }
     .into()
+}
+
+/// Hashes the component (after `validate` accepts it) and the themes of the
+/// package under `root`.
+pub(super) fn digest_package(
+    manifest: &Manifest,
+    root: &Path,
+    validate: impl FnOnce(&[u8]) -> Result<()>,
+) -> Result<(Option<String>, BTreeMap<String, String>)> {
+    let wasm_sha256 = manifest
+        .wasm
+        .as_ref()
+        .map(|relative| {
+            let wasm = std::fs::read(root.join(relative))
+                .map_err(|error| invalid(format!("cannot read {relative}: {error}")))?;
+            validate(&wasm).map_err(|error| invalid(format!("{error:#}")))?;
+            Ok::<_, anyhow::Error>(hex(&Sha256::digest(&wasm)))
+        })
+        .transpose()?;
+    let mut theme_sha256 = BTreeMap::new();
+    for theme in &manifest.contributes.themes {
+        let sha256 = digest_file::<Sha256>(&root.join(&theme.file))
+            .map_err(|error| invalid(format!("cannot read {}: {error}", theme.file)))?;
+        theme_sha256.insert(theme.file.clone(), sha256);
+    }
+    Ok((wasm_sha256, theme_sha256))
 }
 
 fn read_limited(reader: impl Read) -> Result<String> {
@@ -205,22 +231,7 @@ impl Plugins {
             tracing::warn!(plugin = %id, "install refused: the grant is not the one approved");
             bail!(ErrorInfo::PluginApprovalStale);
         }
-        let wasm_sha256 = manifest
-            .wasm
-            .as_ref()
-            .map(|relative| {
-                let wasm = std::fs::read(staged.join(relative))
-                    .map_err(|error| invalid(format!("cannot read {relative}: {error}")))?;
-                validate(&wasm).map_err(|error| invalid(format!("{error:#}")))?;
-                Ok::<_, anyhow::Error>(hex(&Sha256::digest(&wasm)))
-            })
-            .transpose()?;
-        let mut theme_sha256 = BTreeMap::new();
-        for theme in &manifest.contributes.themes {
-            let sha256 = digest_file::<Sha256>(&staged.join(&theme.file))
-                .map_err(|error| invalid(format!("cannot read {}: {error}", theme.file)))?;
-            theme_sha256.insert(theme.file.clone(), sha256);
-        }
+        let (wasm_sha256, theme_sha256) = digest_package(&manifest, &staged, validate)?;
         cancel.check()?;
 
         on_phase(PluginInstallPhase::Installing);
@@ -237,6 +248,7 @@ impl Plugins {
                 None => source.kind(),
             },
             url: downloaded.map(|staged| staged.url.clone()),
+            dev_path: None,
             signer: origin.map(|origin| origin.signer.clone()),
             repository: origin.map(|origin| origin.repository.clone()),
             wasm_sha256,

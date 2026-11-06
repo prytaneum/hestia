@@ -8,6 +8,8 @@ use tokio::io::AsyncWrite;
 use tracing::Level;
 use wasmtime_wasi::cli::{IsTerminal, StdoutStream};
 
+use super::imports::HostCalls;
+
 const LINES_PER_SECOND: u32 = 100;
 const MAX_LINE_BYTES: usize = 8 * 1024;
 const WINDOW: Duration = Duration::from_secs(1);
@@ -22,13 +24,16 @@ struct Window {
 /// stdout and stderr, under one plugin id and one shared rate limit.
 pub(crate) struct PluginLog {
     id: String,
+    dev_sink: Option<Arc<dyn HostCalls>>,
     window: Mutex<Window>,
 }
 
 impl PluginLog {
-    pub(crate) fn new(plugin: &str) -> Arc<Self> {
+    /// `dev_sink` also receives every line, for a dev plugin only.
+    pub(crate) fn new(plugin: &str, dev_sink: Option<Arc<dyn HostCalls>>) -> Arc<Self> {
         Arc::new(PluginLog {
             id: plugin.to_owned(),
+            dev_sink,
             window: Mutex::new(Window {
                 started: Instant::now(),
                 lines: 0,
@@ -100,6 +105,9 @@ impl PluginLog {
             Level::INFO => tracing::info!(%plugin, "{text}"),
             Level::WARN => tracing::warn!(%plugin, "{text}"),
             Level::ERROR => tracing::error!(%plugin, "{text}"),
+        }
+        if let Some(sink) = &self.dev_sink {
+            sink.dev_log(plugin, level.as_str(), text);
         }
     }
 }

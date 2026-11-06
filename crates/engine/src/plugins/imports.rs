@@ -63,6 +63,9 @@ pub trait HostCalls: Send + Sync {
         channel: &str,
         payload: Value,
     ) -> Result<Value, HostError>;
+
+    /// A line a dev plugin logged, already rate-limited and truncated.
+    fn dev_log(&self, _plugin: &str, _level: &str, _text: &str) {}
 }
 
 const PROGRESS_MESSAGE_CHARS: usize = 512;
