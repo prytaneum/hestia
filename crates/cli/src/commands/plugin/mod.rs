@@ -1,6 +1,7 @@
 //! `hestia plugin …` — launcher plugins. Server plugins are `hestia server-plugin`.
 
 mod add;
+mod browse;
 mod cargo;
 mod check;
 mod index;
@@ -10,6 +11,7 @@ mod pack;
 mod repo;
 pub(crate) mod run;
 mod sign;
+mod store;
 
 use anyhow::{bail, Context, Result};
 use clap::Subcommand;
@@ -71,12 +73,27 @@ pub enum ManageCmd {
     /// Installed plugins and their state
     #[command(alias = "ls")]
     List,
-    /// Install or update a plugin from a .hplugin file, a folder or an https link
+    /// Install or update a plugin from a repository, a .hplugin file, a folder or a link
     Add {
-        #[arg(value_name = "PATH_OR_URL")]
+        /// A plugin id or <label>/<id> from a repository you added, a path, a link to a
+        /// .hplugin file, or a repository's index link (offers to add it, then to pick plugins)
+        #[arg(value_name = "PLUGIN_OR_PATH_OR_URL")]
         target: String,
         #[arg(short = 'y', long, help = "Approve exactly the permissions shown")]
         yes: bool,
+    },
+    /// Plugins the added repositories offer
+    Browse {
+        /// Matches id, name and description
+        query: Option<String>,
+        /// Only this repository (label, name or index URL)
+        #[arg(long)]
+        repo: Option<String>,
+    },
+    /// Plugin repositories: the stores whose signing keys you trust
+    Repo {
+        #[command(subcommand)]
+        cmd: store::StoreCmd,
     },
     /// One plugin's manifest, grant and health
     Info { id: String },
@@ -115,6 +132,8 @@ async fn manage(cmd: ManageCmd) -> Result<()> {
     match cmd {
         ManageCmd::List => list(plugins.list().await?),
         ManageCmd::Add { target, yes } => add::add(plugins, &target, yes).await,
+        ManageCmd::Browse { query, repo } => browse::run(plugins, query, repo.as_deref()).await,
+        ManageCmd::Repo { cmd } => store::run(cmd, plugins).await,
         ManageCmd::Info { id } => info(&plugins.info(&id).await?),
         ManageCmd::Enable { id } => {
             let plugin = plugins.enable(&id).await?;
@@ -175,7 +194,11 @@ fn list(plugins: Vec<PluginInfo>) -> Result<()> {
                     p.manifest.name,
                     p.manifest.version,
                     state_label(p.state).to_string(),
-                    source_label(p.source).to_string(),
+                    if p.obsolete {
+                        format!("{} (obsolete)", source_label(p.source))
+                    } else {
+                        source_label(p.source).to_string()
+                    },
                 ]
             })
             .collect(),
@@ -191,6 +214,18 @@ fn info(plugin: &PluginInfo) -> Result<()> {
         ("State", state_label(plugin.state).to_string()),
         ("Source", source_label(plugin.source).to_string()),
     ];
+    if let Some(signer) = &plugin.signer {
+        rows.push(("Signer", signer.clone()));
+    }
+    if let Some(repository) = &plugin.repository {
+        rows.push(("Repository", repository.clone()));
+    }
+    if plugin.obsolete {
+        rows.push((
+            "Obsolete",
+            "no repository you added lists it any more; it gets no updates".to_string(),
+        ));
+    }
     if !manifest.description.is_empty() {
         rows.push(("Description", manifest.description.clone()));
     }
@@ -241,6 +276,7 @@ fn source_label(source: PluginSource) -> &'static str {
         PluginSource::File => "file",
         PluginSource::Folder => "folder",
         PluginSource::Url => "url",
+        PluginSource::Repo => "repository",
         PluginSource::Dev => "dev",
     }
 }
