@@ -187,7 +187,6 @@ Hits are **re-hashed on the way out**, so a damaged blob is evicted and the fetc
 falls back to the network. The cache can make things faster; it can never make
 them wrong.
 
-<<<<<<< HEAD
 **`Downloader::untrusted(max_bytes)`** is for a link a user typed rather than one
 a catalogue vouches for: it uses a client whose redirect policy refuses any hop
 off https, and aborts a body larger than the cap. A plugin installed from a URL
