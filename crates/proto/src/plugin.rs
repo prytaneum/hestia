@@ -277,6 +277,12 @@ impl CommandScope {
     }
 }
 
+/// The `kind` of a [`ProviderContribution`] that adds a content source.
+pub const CONTENT_PROVIDER: &str = "content";
+
+/// What any provider needs: to read what it serves and to reach its hosts.
+const PROVIDER_PERMISSIONS: [Permission; 2] = [Permission::ContentRead, Permission::NetworkConnect];
+
 /// The argument every scoped command receives; a declared argument may not take it.
 pub const ENTRY_ARG: &str = "entry";
 
@@ -556,6 +562,15 @@ pub enum ManifestError {
     BadSetting { key: String, detail: String },
     #[error("network host `{0}` must be a domain name or `*.` and a domain, not an address")]
     BadNetworkHost(String),
+    #[error("provider kind `{0}` is not one this host offers")]
+    UnknownProviderKind(String),
+    #[error("provider `{provider}` needs the permission `{permission}`")]
+    ProviderPermissionMissing {
+        provider: String,
+        permission: Permission,
+    },
+    #[error("provider `{0}` needs at least one network host to fetch from")]
+    ProviderNeedsHosts(String),
 }
 
 impl Manifest {
@@ -690,6 +705,23 @@ impl Manifest {
                 if !seen.insert(id) {
                     return Err(ManifestError::DuplicateId(id.clone()));
                 }
+            }
+        }
+        for provider in &contributes.providers {
+            if provider.kind != CONTENT_PROVIDER {
+                return Err(ManifestError::UnknownProviderKind(provider.kind.clone()));
+            }
+            if let Some(missing) = PROVIDER_PERMISSIONS
+                .iter()
+                .find(|permission| !self.permissions.contains(permission))
+            {
+                return Err(ManifestError::ProviderPermissionMissing {
+                    provider: provider.id.clone(),
+                    permission: *missing,
+                });
+            }
+            if self.network.is_empty() {
+                return Err(ManifestError::ProviderNeedsHosts(provider.id.clone()));
             }
         }
         Ok(())

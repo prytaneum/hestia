@@ -228,6 +228,34 @@ mod manifest {
     }
 
     #[test]
+    fn a_provider_needs_content_read_and_network_hosts() {
+        let mut manifest = valid();
+        manifest.contributes.providers.push(ProviderContribution {
+            kind: "content".into(),
+            id: "index".into(),
+        });
+        assert_eq!(
+            manifest.validate(),
+            Err(ManifestError::ProviderPermissionMissing {
+                provider: "index".into(),
+                permission: Permission::ContentRead
+            })
+        );
+        manifest.permissions = vec![Permission::ContentRead, Permission::NetworkConnect];
+        assert_eq!(
+            manifest.validate(),
+            Err(ManifestError::ProviderNeedsHosts("index".into()))
+        );
+        manifest.network = vec!["index.example.com".into()];
+        assert_eq!(manifest.validate(), Ok(()));
+        manifest.contributes.providers[0].kind = "mystery".into();
+        assert_eq!(
+            manifest.validate(),
+            Err(ManifestError::UnknownProviderKind("mystery".into()))
+        );
+    }
+
+    #[test]
     fn event_patterns_are_a_topic_or_a_trailing_glob() {
         let mut manifest = valid();
         manifest.contributes.events = vec!["server.*".into(), "job".into()];

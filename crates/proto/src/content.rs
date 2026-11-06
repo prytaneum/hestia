@@ -82,6 +82,29 @@ pub struct ContentSource {
     pub kinds: Vec<ContentKind>,
 }
 
+/// What a plugin's content source says of itself: the `info` of the
+/// `content-source` export, which the host turns into a [`ContentSource`].
+#[derive(Serialize, Deserialize, Default, Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
+#[serde(default, rename_all = "camelCase")]
+pub struct SourceInfo {
+    pub name: String,
+    pub kinds: Vec<ContentKind>,
+}
+
+/// A project (and optionally a version) a plugin's source recognised in a page
+/// URL: the answer of the `content-source` export's `parse-url`.
+#[derive(Serialize, Deserialize, Default, Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
+#[serde(default, rename_all = "camelCase")]
+pub struct SourceUrl {
+    pub project: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub version: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub kind: Option<ContentKind>,
+}
+
 /// A gallery image on a project. Search hits carry only `url`; the detail call
 /// fills the caption fields.
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
