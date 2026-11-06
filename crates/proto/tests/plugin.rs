@@ -16,9 +16,11 @@ fn api_version_matches_the_wit_package() {
 }
 
 mod manifest {
+    use proto::error::EntryKind;
     use proto::plugin::{
-        CommandArg, CommandContribution, CommandScope, Manifest, ManifestError, Permission,
-        Program, ProviderContribution, Setting, SettingKind, ThemeContribution,
+        CommandArg, CommandContribution, CommandScope, Manifest, ManifestError, PageContribution,
+        PageSlot, Permission, Program, ProviderContribution, Setting, SettingKind,
+        ThemeContribution,
     };
 
     fn valid() -> Manifest {
@@ -107,6 +109,47 @@ mod manifest {
             manifest.validate(),
             Err(ManifestError::PathEscapes(_))
         ));
+    }
+
+    fn paged(slot: PageSlot, kind: Option<EntryKind>, icon: Option<&str>) -> Manifest {
+        let mut manifest = valid();
+        manifest.contributes.pages.push(PageContribution {
+            id: "overview".into(),
+            title: "Overview".into(),
+            icon: icon.map(str::to_string),
+            slot,
+            kind,
+        });
+        manifest
+    }
+
+    #[test]
+    fn an_entry_page_needs_a_kind() {
+        assert_eq!(paged(PageSlot::Nav, None, None).validate(), Ok(()));
+        assert_eq!(
+            paged(PageSlot::Entry, None, None).validate(),
+            Err(ManifestError::PageNeedsKind("overview".into()))
+        );
+        assert_eq!(
+            paged(PageSlot::Entry, Some(EntryKind::Server), None).validate(),
+            Ok(())
+        );
+    }
+
+    #[test]
+    fn a_page_icon_is_a_name_or_a_path_inside_the_package() {
+        assert_eq!(paged(PageSlot::Nav, None, Some("chart")).validate(), Ok(()));
+        assert_eq!(
+            paged(PageSlot::Nav, None, Some("assets/icon.svg")).validate(),
+            Ok(())
+        );
+        for icon in ["../icon.svg", "/icon.svg", "a/../../icon.png"] {
+            assert_eq!(
+                paged(PageSlot::Nav, None, Some(icon)).validate(),
+                Err(ManifestError::PathEscapes(icon.into())),
+                "{icon}"
+            );
+        }
     }
 
     #[test]

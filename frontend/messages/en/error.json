@@ -74,6 +74,7 @@
       "plugin_install_in_progress": "'{id}' is already being installed.",
       "plugin_invalid": "Not a valid plugin package: {detail}",
       "plugin_not_found": "No plugin '{id}' is installed.",
+      "plugin_ui_invalid": "Plugin '{plugin}' returned a page '{page}' that Hestia cannot draw.",
       "plugin_unavailable": "Plugin '{id}' is not running.",
       "plugin_vetoed": "Plugin '{plugin}' refused at {hook}: {reason}",
       "port_unavailable": "Port {port} is unavailable.",

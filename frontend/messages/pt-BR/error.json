@@ -74,6 +74,7 @@
       "plugin_install_in_progress": "'{id}' já está sendo instalado.",
       "plugin_invalid": "Não é um pacote de plugin válido: {detail}",
       "plugin_not_found": "Nenhum plugin '{id}' está instalado.",
+      "plugin_ui_invalid": "O plugin '{plugin}' devolveu a página '{page}', que o Hestia não consegue exibir.",
       "plugin_unavailable": "O plugin '{id}' não está em execução.",
       "plugin_vetoed": "O plugin '{plugin}' recusou em {hook}: {reason}",
       "port_unavailable": "A porta {port} está indisponível.",

@@ -537,6 +537,12 @@ pub enum ErrorInfo {
         id: String,
         detail: String,
     },
+    /// A plugin answered a page render or action with something outside the UI
+    /// vocabulary. The detail stays in the daemon log.
+    PluginUiInvalid {
+        plugin: String,
+        page: String,
+    },
     /// A plugin's interceptor refused the operation. `reason` is the plugin's
     /// own words, shown as secondary text.
     PluginVetoed {
@@ -833,6 +839,7 @@ impl ErrorInfo {
             | DownloadFailed { .. }
             | StopTimedOut { .. }
             | PluginCallFailed { .. }
+            | PluginUiInvalid { .. }
             | Internal { .. } => "handler_error",
             _ => code::BAD_REQUEST,
         }
@@ -928,6 +935,10 @@ impl fmt::Display for ErrorInfo {
             } => write!(f, "plugin '{plugin}' command '{command}': {detail}"),
             PluginUnavailable { id } => write!(f, "plugin '{id}' is not running"),
             PluginCallFailed { id, detail } => write!(f, "plugin '{id}' failed: {detail}"),
+            PluginUiInvalid { plugin, page } => write!(
+                f,
+                "plugin '{plugin}' returned a page '{page}' that cannot be drawn"
+            ),
             PluginVetoed {
                 plugin,
                 hook,

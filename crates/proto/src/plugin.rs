@@ -15,7 +15,9 @@ use sha2::{Digest, Sha256};
 
 use crate::change::Scope;
 use crate::contract::{Contract, Empty, Topic};
+use crate::error::EntryKind;
 use crate::job::{Job, JobStarted};
+use crate::ui::{Action, Effect, UiNode};
 
 pub const API_VERSION: &str = "1.0.0";
 
@@ -290,6 +292,35 @@ pub struct ProviderContribution {
 #[serde(default, rename_all = "camelCase")]
 pub struct PageContribution {
     pub id: String,
+    pub title: String,
+    /// A name from the app's icon set, or a package-relative path of an image.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub icon: Option<String>,
+    pub slot: PageSlot,
+    /// The kind of entry an `entry` page appears on.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub kind: Option<EntryKind>,
+}
+
+/// Where a contributed page appears.
+#[derive(Serialize, Deserialize, Default, Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
+#[serde(rename_all = "snake_case")]
+pub enum PageSlot {
+    #[default]
+    Nav,
+    Entry,
+    Settings,
+}
+
+impl PageContribution {
+    /// An icon with a `/` or a `.` is a path inside the package; anything else
+    /// is a name from the app's icon set.
+    pub fn icon_path(&self) -> Option<&str> {
+        self.icon
+            .as_deref()
+            .filter(|icon| icon.contains(['/', '.']))
+    }
 }
 
 #[derive(Serialize, Deserialize, Default, Debug, Clone, PartialEq, Eq)]
@@ -463,6 +494,8 @@ pub enum ManifestError {
         hook: String,
         permission: Permission,
     },
+    #[error("page `{0}` appears on an entry and must declare its kind")]
+    PageNeedsKind(String),
     #[error("network host `{0}` must be a domain name or `*.` and a domain, not an address")]
     BadNetworkHost(String),
 }
@@ -490,6 +523,16 @@ impl Manifest {
         for path in paths {
             if !stays_inside(path) {
                 return Err(ManifestError::PathEscapes(path.clone()));
+            }
+        }
+        for page in &self.contributes.pages {
+            if let Some(icon) = page.icon_path() {
+                if !stays_inside(icon) {
+                    return Err(ManifestError::PathEscapes(icon.to_string()));
+                }
+            }
+            if page.slot == PageSlot::Entry && page.kind.is_none() {
+                return Err(ManifestError::PageNeedsKind(page.id.clone()));
             }
         }
         if let Some(host) = self.network.iter().find(|host| !is_network_host(host)) {
@@ -962,4 +1005,73 @@ pub struct PluginRunDone {
 impl Job for PluginRun {
     type Progress = PluginRunProgress;
     type Done = PluginRunDone;
+}
+
+/// A page of an enabled plugin and the plugin that contributes it.
+#[derive(Serialize, Deserialize, Default, Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
+#[serde(default, rename_all = "camelCase")]
+pub struct PluginPage {
+    pub plugin: String,
+    pub page: PageContribution,
+}
+
+/// The pages of every enabled plugin that can answer a render.
+pub struct PluginPages;
+impl Contract for PluginPages {
+    const CHANNEL: &'static str = "plugin.pages";
+    type Params = Empty;
+    type Result = Vec<PluginPage>;
+}
+
+/// Where a page is drawn. An `entry` page receives the server or instance it
+/// sits on; the daemon replaces the reference with the entry's id.
+#[derive(Serialize, Deserialize, Default, Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
+#[serde(default, rename_all = "camelCase")]
+pub struct PageContext {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub entry: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Default, Debug, Clone)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
+#[serde(default, rename_all = "camelCase")]
+pub struct PluginUiRenderParams {
+    pub plugin: String,
+    pub page: String,
+    pub context: PageContext,
+}
+
+/// Asks the plugin for the current tree of one of its pages. The tree is checked
+/// against the UI vocabulary before it is answered.
+pub struct PluginUiRender;
+impl Contract for PluginUiRender {
+    const CHANNEL: &'static str = "plugin.ui.render";
+    const TIMEOUT: Duration = Duration::from_secs(10);
+    type Params = PluginUiRenderParams;
+    type Result = UiNode;
+}
+
+#[derive(Serialize, Deserialize, Default, Debug, Clone)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
+#[serde(default, rename_all = "camelCase")]
+pub struct PluginUiActionParams {
+    pub plugin: String,
+    pub page: String,
+    pub action: Action,
+    /// The submitted form's values by field name; an empty object for a button.
+    #[cfg_attr(feature = "ts", ts(type = "unknown"))]
+    pub values: serde_json::Value,
+    pub context: PageContext,
+}
+
+/// Sends a click or a submit to the plugin; it answers what the front-end
+/// should do next.
+pub struct PluginUiAction;
+impl Contract for PluginUiAction {
+    const CHANNEL: &'static str = "plugin.ui.action";
+    const TIMEOUT: Duration = Duration::from_secs(10);
+    type Params = PluginUiActionParams;
+    type Result = Vec<Effect>;
 }
