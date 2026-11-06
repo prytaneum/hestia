@@ -27,10 +27,25 @@ to serve. `modrinth` and `curseforge` are the shipped sources — adding one is 
 new impl plus one line in `Content::new`, the same shape as the flavor registry.
 Stateless but for the API keys `configure()` hands down.
 
-The registry is runtime-mutable: `Content::register(owner, provider)` adds a
-source and `unregister(owner)` removes everything that owner added. The
+The registry is runtime-mutable: `Content::register(owner, official, provider)`
+adds a source and `unregister(owner)` removes everything that owner added. The
 built-ins belong to `builtin` and are never removed; any other source's id must
-read `<owner>.<id>`, so it cannot shadow one. Content already installed from a
+read `<owner>.<id>` (only a plugin signed by the official key may take a bare
+id), so it cannot shadow one.
+
+A plugin adds a source with `contributes.providers = [{ kind = "content", id }]`
+and the `content-source` export (`sdk/wit/providers.wit`; the SDK's
+`Plugin::source_*` methods). The manifest must also hold `content:read`,
+`network:connect` and at least one network host, or it does not validate. When
+the daemon enables the plugin it asks each contributed source to describe itself
+and registers a `PluginContentProvider` as `<plugin>.<id>`; disabling, removing
+or replacing the plugin unregisters it. The adapter calls the guest with a 30 s
+deadline (`PROVIDER_TIMEOUT`), stamps its own id on everything returned, and maps
+a guest failure to `PluginCallFailed` naming the plugin, never a raw message. The
+guest only describes files; the engine downloads them, and the adapter drops any
+version file whose URL is not https on one of the plugin's granted hosts, using
+the same host matching as `wasi:http`. `examples/plugins/static-index` is a
+source that serves an index compiled into the component. Content already installed from a
 source that is gone keeps its record, still lists and still loads;
 `content.list` names it in `unavailableSources` (from
 `Content::missing_sources`), the CLI marks its rows `unavailable`, the desktop

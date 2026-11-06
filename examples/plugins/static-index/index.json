@@ -1,0 +1,31 @@
+{
+  "projects": [
+    {
+      "id": "cobble-tweaks",
+      "slug": "cobble-tweaks",
+      "kind": "mod",
+      "kinds": ["mod"],
+      "title": "Cobble Tweaks",
+      "description": "Small cobblestone adjustments, served from a static index.",
+      "author": "static-index",
+      "clientSide": "required",
+      "serverSide": "required"
+    }
+  ],
+  "versions": [
+    {
+      "id": "cobble-tweaks-1",
+      "projectId": "cobble-tweaks",
+      "name": "Cobble Tweaks",
+      "versionNumber": "1.0.0",
+      "gameVersions": ["1.21"],
+      "loaders": ["fabric"],
+      "files": [
+        {
+          "artifact": { "url": "cobble-tweaks-1.0.0.jar", "filename": "cobble-tweaks-1.0.0.jar" },
+          "primary": true
+        }
+      ]
+    }
+  ]
+}
