@@ -6,6 +6,7 @@ import type { AccountLoginBeginResult } from "./generated/AccountLoginBeginResul
 import type { AccountLoginCompleteParams } from "./generated/AccountLoginCompleteParams";
 import type { AccountRemoveParams } from "./generated/AccountRemoveParams";
 import type { AccountSwitchParams } from "./generated/AccountSwitchParams";
+import type { Action } from "./generated/Action";
 import type { AddressPingParams } from "./generated/AddressPingParams";
 import type { AppInfoResult } from "./generated/AppInfoResult";
 import type { ArchiveEntry } from "./generated/ArchiveEntry";
@@ -18,6 +19,8 @@ import type { CacheInfoResult } from "./generated/CacheInfoResult";
 import type { CacheUsage } from "./generated/CacheUsage";
 import type { CapeClearParams } from "./generated/CapeClearParams";
 import type { CapeEquipParams } from "./generated/CapeEquipParams";
+import type { Catalogue } from "./generated/Catalogue";
+import type { CatalogueParams } from "./generated/CatalogueParams";
 import type { ChangedEvent } from "./generated/ChangedEvent";
 import type { ConfigEntry } from "./generated/ConfigEntry";
 import type { ConfigGetParams } from "./generated/ConfigGetParams";
@@ -38,6 +41,7 @@ import type { DaemonStatusResult } from "./generated/DaemonStatusResult";
 import type { DaemonStopParams } from "./generated/DaemonStopParams";
 import type { DaemonStopResult } from "./generated/DaemonStopResult";
 import type { DownloadProgress } from "./generated/DownloadProgress";
+import type { Effect } from "./generated/Effect";
 import type { Empty } from "./generated/Empty";
 import type { EntryConfigGetParams } from "./generated/EntryConfigGetParams";
 import type { EntryConfigListResult } from "./generated/EntryConfigListResult";
@@ -110,18 +114,24 @@ import type { ModpackRemoveResult } from "./generated/ModpackRemoveResult";
 import type { ModpackStatusResult } from "./generated/ModpackStatusResult";
 import type { ModpackUpdateResult } from "./generated/ModpackUpdateResult";
 import type { NetworkStatus } from "./generated/NetworkStatus";
+import type { PageContext } from "./generated/PageContext";
 import type { PingResult } from "./generated/PingResult";
+import type { PluginAssetParams } from "./generated/PluginAssetParams";
+import type { PluginAssetResult } from "./generated/PluginAssetResult";
 import type { PluginInfo } from "./generated/PluginInfo";
 import type { PluginInspection } from "./generated/PluginInspection";
 import type { PluginInstallDone } from "./generated/PluginInstallDone";
 import type { PluginInstallParams } from "./generated/PluginInstallParams";
 import type { PluginInstallProgress } from "./generated/PluginInstallProgress";
 import type { PluginPackageRef } from "./generated/PluginPackageRef";
+import type { PluginPage } from "./generated/PluginPage";
 import type { PluginRef } from "./generated/PluginRef";
 import type { PluginRunDone } from "./generated/PluginRunDone";
 import type { PluginRunParams } from "./generated/PluginRunParams";
 import type { PluginRunProgress } from "./generated/PluginRunProgress";
 import type { PluginStateEvent } from "./generated/PluginStateEvent";
+import type { PluginUiActionParams } from "./generated/PluginUiActionParams";
+import type { PluginUiRenderParams } from "./generated/PluginUiRenderParams";
 import type { ProcessExitEvent } from "./generated/ProcessExitEvent";
 import type { ProcessInfo } from "./generated/ProcessInfo";
 import type { ProcessLogLine } from "./generated/ProcessLogLine";
@@ -135,6 +145,12 @@ import type { ProcessStartedEvent } from "./generated/ProcessStartedEvent";
 import type { ProjectParams } from "./generated/ProjectParams";
 import type { ProvisionProgress } from "./generated/ProvisionProgress";
 import type { RecentPlay } from "./generated/RecentPlay";
+import type { RepositoryAddParams } from "./generated/RepositoryAddParams";
+import type { RepositoryAdded } from "./generated/RepositoryAdded";
+import type { RepositoryInfo } from "./generated/RepositoryInfo";
+import type { RepositoryRef } from "./generated/RepositoryRef";
+import type { RepositoryRefreshParams } from "./generated/RepositoryRefreshParams";
+import type { RepositoryRefreshed } from "./generated/RepositoryRefreshed";
 import type { ResolveUrlParams } from "./generated/ResolveUrlParams";
 import type { ResolvedUrl } from "./generated/ResolvedUrl";
 import type { ScreenshotDeleteParams } from "./generated/ScreenshotDeleteParams";
@@ -191,6 +207,7 @@ import type { SyncPackSetParams } from "./generated/SyncPackSetParams";
 import type { SyncPacksResult } from "./generated/SyncPacksResult";
 import type { SyncSource } from "./generated/SyncSource";
 import type { SyncSourcesParams } from "./generated/SyncSourcesParams";
+import type { UiNode } from "./generated/UiNode";
 import type { UpdateApplyParams } from "./generated/UpdateApplyParams";
 import type { UpdateApplyResult } from "./generated/UpdateApplyResult";
 import type { UpdateCheckResult } from "./generated/UpdateCheckResult";
@@ -276,14 +293,23 @@ export interface Channels {
   "modpack.status": { params: Omit<Partial<EntryModpackStatusParams>, "target"> & { "target"?: Partial<EntryTarget> }; result: ModpackStatusResult };
   "modpack.update": { params: Omit<Partial<EntryModpackUpdateParams>, "target" | "to"> & { "target"?: Partial<EntryTarget>; "to"?: Partial<ModpackMove> }; result: JobStarted };
   "net.status": { params: Empty; result: NetworkStatus };
+  "plugin.asset": { params: Partial<PluginAssetParams>; result: PluginAssetResult };
+  "plugin.catalogue": { params: Partial<CatalogueParams>; result: Catalogue };
   "plugin.disable": { params: Partial<PluginRef>; result: PluginInfo };
   "plugin.enable": { params: Partial<PluginRef>; result: PluginInfo };
   "plugin.info": { params: Partial<PluginRef>; result: PluginInfo };
   "plugin.inspect": { params: Partial<PluginPackageRef>; result: PluginInspection };
   "plugin.install": { params: Partial<PluginInstallParams>; result: JobStarted };
   "plugin.list": { params: Empty; result: Array<PluginInfo> };
+  "plugin.pages": { params: Empty; result: Array<PluginPage> };
   "plugin.remove": { params: Partial<PluginRef>; result: Empty };
+  "plugin.repo.add": { params: Partial<RepositoryAddParams>; result: RepositoryAdded };
+  "plugin.repo.list": { params: Empty; result: Array<RepositoryInfo> };
+  "plugin.repo.refresh": { params: Partial<RepositoryRefreshParams>; result: RepositoryRefreshed };
+  "plugin.repo.remove": { params: Partial<RepositoryRef>; result: Empty };
   "plugin.run": { params: Partial<PluginRunParams>; result: JobStarted };
+  "plugin.ui.action": { params: Omit<Partial<PluginUiActionParams>, "action" | "context"> & { "action"?: Partial<Action>; "context"?: Partial<PageContext> }; result: Array<Effect> };
+  "plugin.ui.render": { params: Omit<Partial<PluginUiRenderParams>, "context"> & { "context"?: Partial<PageContext> }; result: UiNode };
   "process.list": { params: Empty; result: Array<ProcessInfo> };
   "process.logs": { params: Partial<ProcessLogsParams>; result: Array<ProcessLogLine> };
   "process.start": { params: Partial<ProcessSpec>; result: ProcessStartResult };
@@ -392,8 +418,13 @@ export const TIMEOUTS: Partial<Record<keyof Channels, number>> = {
   "instance.create": 60000,
   "modpack.check_update": 120000,
   "modpack.preview_update": 120000,
+  "plugin.catalogue": 120000,
   "plugin.enable": 60000,
   "plugin.inspect": 120000,
+  "plugin.repo.add": 60000,
+  "plugin.repo.refresh": 120000,
+  "plugin.ui.action": 10000,
+  "plugin.ui.render": 10000,
   "server.files.compress": 600000,
   "server.files.copy": 600000,
   "server.files.extract": 600000,

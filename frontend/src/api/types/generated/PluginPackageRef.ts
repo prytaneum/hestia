@@ -9,4 +9,10 @@ path: string,
  * An https link to a `.hplugin` file, instead of `path`. The daemon
  * downloads it once and answers with [`PluginInspection::staged`].
  */
-url: string, };
+url: string, 
+/**
+ * The index URL of a configured repository, with `plugin`, instead of
+ * `path` and `url`: the daemon downloads and verifies the newest
+ * compatible build.
+ */
+repo: string, plugin: string, };

@@ -3,4 +3,4 @@
 /**
  * Why a path in an entry's file tree was refused.
  */
-export type FileFault = "outside_entry" | "already_exists" | "not_a_directory" | "is_a_directory" | "too_large" | "not_text" | "archive_format" | "into_itself";
+export type FileFault = "outside_entry" | "already_exists" | "not_a_directory" | "is_a_directory" | "too_large" | "not_text" | "archive_format" | "into_itself" | "unsupported_type";

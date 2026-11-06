@@ -7,9 +7,22 @@ import type { PluginState } from "./PluginState";
 
 export type PluginInfo = { manifest: Manifest, state: PluginState, source: PluginSource, 
 /**
- * Where a `url` install came from.
+ * Where a `url` or `repo` install downloaded from.
  */
 url?: string, 
+/**
+ * Key id of the repository key that signed the package.
+ */
+signer?: string, 
+/**
+ * The index URL of the repository it was installed from.
+ */
+repository?: string, 
+/**
+ * Signed, but no configured repository with that key lists it any more:
+ * it keeps running and gets no updates.
+ */
+obsolete: boolean, 
 /**
  * Of the installed package.
  */
