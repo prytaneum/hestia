@@ -27,6 +27,7 @@ mod hooks;
 pub mod http;
 pub mod log;
 pub mod progress;
+pub mod settings;
 pub mod ui;
 
 pub use call::{call, run_job};
@@ -92,6 +93,12 @@ pub trait Plugin {
     /// the oldest.
     fn on_event(topic: &str, payload: Value) {
         let _ = (topic, payload);
+    }
+
+    /// Runs after the user changed or cleared the setting `key`; read the new
+    /// value with [`settings::get`].
+    fn on_settings_changed(key: &str) {
+        let _ = key;
     }
 
     /// Draws a page the manifest contributes; build the tree with [`ui`]. An
@@ -190,6 +197,12 @@ macro_rules! plugin {
                 fn on_event(topic: ::std::string::String, payload: ::std::string::String) {
                     let payload = $crate::serde_json::from_str(&payload).unwrap_or_default();
                     <$plugin as $crate::Plugin>::on_event(&topic, payload)
+                }
+            }
+
+            impl $crate::bindings::exports::hestia::plugin::settings_changed::Guest for Export {
+                fn on_settings_changed(key: ::std::string::String) {
+                    <$plugin as $crate::Plugin>::on_settings_changed(&key)
                 }
             }
 

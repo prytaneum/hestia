@@ -25,6 +25,7 @@ use super::imports::bindings::exports::hestia::plugin::{content_hooks, launch_ho
 use super::imports::bindings::{self, hestia::plugin::types::PluginError};
 use super::imports::{CommandRun, Gate, HostCalls, PluginState};
 use super::output::{Captured, PluginLog};
+use super::settings::PluginSettings;
 use super::store::PluginRecord;
 use crate::checksum::hex;
 
@@ -181,6 +182,7 @@ impl PluginRuntime {
         record: &PluginRecord,
         wasm: &[u8],
         data_dir: PathBuf,
+        settings: PluginSettings,
     ) -> Result<LoadedPlugin, LoadError> {
         let expected = record
             .wasm_sha256
@@ -202,6 +204,7 @@ impl PluginRuntime {
             host: self.host.clone(),
             grant: Arc::new(record.grant.clone()),
             data_dir,
+            settings: Arc::new(settings),
             log: PluginLog::new(&record.id),
             pool: self.pool.clone(),
             concurrent: Semaphore::new(CALLS_PER_PLUGIN),
@@ -247,6 +250,7 @@ pub struct LoadedPlugin {
     host: Arc<dyn HostCalls>,
     grant: Arc<Grant>,
     data_dir: PathBuf,
+    settings: Arc<PluginSettings>,
     log: Arc<PluginLog>,
     pool: Arc<Semaphore>,
     concurrent: Semaphore,
@@ -285,6 +289,25 @@ impl LoadedPlugin {
             })
             .await?;
         outcome.map_err(|error| CallError::Guest(describe(error)))
+    }
+
+    /// Runs the plugin's `settings-changed.on-settings-changed` for `key`.
+    pub async fn on_settings_changed(
+        &self,
+        chain: &CallChain,
+        key: &str,
+        timeout: Duration,
+    ) -> Result<(), CallError> {
+        let key = key.to_string();
+        self.guarded(chain, timeout, None, move |store, instance| {
+            Box::pin(async move {
+                instance
+                    .hestia_plugin_settings_changed()
+                    .call_on_settings_changed(store, &key)
+                    .await
+            })
+        })
+        .await
     }
 
     /// Runs the plugin's `commands.run` under `timeout`; `args` is the object
@@ -569,6 +592,7 @@ impl LoadedPlugin {
             table: ResourceTable::new(),
             limits,
             log: self.log.clone(),
+            settings: self.settings.clone(),
             gate: Arc::new(Gate {
                 plugin: self.id.clone(),
                 host: self.host.clone(),

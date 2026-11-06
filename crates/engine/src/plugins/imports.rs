@@ -13,6 +13,7 @@ use wasmtime_wasi_http::{WasiHttpCtx, WasiHttpCtxView, WasiHttpView};
 use super::chain::CallChain;
 use super::http::PluginHttp;
 use super::output::PluginLog;
+use super::settings::PluginSettings;
 use crate::cancel::Cancel;
 
 pub(crate) mod bindings {
@@ -86,6 +87,7 @@ pub(crate) struct PluginState {
     pub(crate) table: ResourceTable,
     pub(crate) limits: StoreLimits,
     pub(crate) log: Arc<PluginLog>,
+    pub(crate) settings: Arc<PluginSettings>,
     pub(crate) gate: Arc<Gate>,
 }
 
@@ -197,6 +199,12 @@ impl bindings::hestia::plugin::progress::Host for PluginState {
         self.run
             .as_ref()
             .is_some_and(|run| run.cancel.is_cancelled())
+    }
+}
+
+impl bindings::hestia::plugin::settings::Host for PluginState {
+    async fn get(&mut self, key: String) -> Option<String> {
+        self.settings.get(&key).map(|value| value.to_string())
     }
 }
 

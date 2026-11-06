@@ -573,6 +573,13 @@ pub enum ErrorInfo {
         plugin: String,
         page: String,
     },
+    /// The value is not one the plugin's setting `key` accepts, or the plugin
+    /// declares no such setting.
+    PluginSettingInvalid {
+        plugin: String,
+        key: String,
+        detail: String,
+    },
     /// A plugin's interceptor refused the operation. `reason` is the plugin's
     /// own words, shown as secondary text.
     PluginVetoed {
@@ -989,6 +996,9 @@ impl fmt::Display for ErrorInfo {
                 f,
                 "plugin '{plugin}' returned a page '{page}' that cannot be drawn"
             ),
+            PluginSettingInvalid { plugin, key, detail } => {
+                write!(f, "plugin '{plugin}' setting '{key}': {detail}")
+            }
             PluginVetoed {
                 plugin,
                 hook,

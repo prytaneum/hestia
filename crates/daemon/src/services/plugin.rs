@@ -9,7 +9,7 @@ use proto::job::{JobStarted, JobSubject};
 use proto::plugin::{
     CommandScope, PageContext, PageContribution, PageSlot, PluginAsset, PluginDisable,
     PluginEnable, PluginGet, PluginInspect, PluginInstall, PluginList, PluginPages, PluginRemove,
-    PluginRun, PluginThemes, PluginUiAction, PluginUiRender,
+    PluginRun, PluginSettingsGet, PluginSettingsSet, PluginThemes, PluginUiAction, PluginUiRender,
 };
 use proto::Empty;
 
@@ -25,6 +25,18 @@ pub(super) fn register(on: &mut Channels<'_>) {
     );
 
     on.handle::<PluginGet, _, _>(|p, ctx| async move { ctx.runtime.plugins().info(&p.id).await });
+
+    on.handle::<PluginSettingsGet, _, _>(|p, ctx| async move {
+        ctx.runtime.plugins().settings(&p.id).await
+    });
+
+    on.handle::<PluginSettingsSet, _, _>(|p, ctx| async move {
+        ctx.runtime
+            .plugins()
+            .set_setting(&p.id, &p.key, p.value, &ctx.chain)
+            .await?;
+        Ok(Empty {})
+    });
 
     on.handle::<PluginEnable, _, _>(
         |p, ctx| async move { ctx.runtime.plugins().enable(&p.id).await },

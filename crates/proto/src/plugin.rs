@@ -400,6 +400,43 @@ pub enum SettingKind {
 pub struct Setting {
     pub key: String,
     pub kind: SettingKind,
+    /// Used while the user has set nothing. A secret has none.
+    #[cfg_attr(feature = "ts", ts(type = "unknown"))]
+    pub default: Option<serde_json::Value>,
+    pub label: String,
+    pub help: String,
+    /// The choices of a `select`.
+    pub options: Vec<String>,
+}
+
+const SETTING_TEXT_LIMIT: usize = 4096;
+
+impl Setting {
+    /// Why `value` cannot be this setting's value, if it cannot.
+    pub fn check(&self, value: &serde_json::Value) -> Result<(), String> {
+        use serde_json::Value;
+        match (self.kind, value) {
+            (SettingKind::String | SettingKind::Secret, Value::String(text)) => {
+                if text.len() > SETTING_TEXT_LIMIT {
+                    return Err(format!("longer than {SETTING_TEXT_LIMIT} bytes"));
+                }
+                Ok(())
+            }
+            (SettingKind::Number, Value::Number(_)) | (SettingKind::Bool, Value::Bool(_)) => Ok(()),
+            (SettingKind::Select, Value::String(choice)) => {
+                if self.options.contains(choice) {
+                    Ok(())
+                } else {
+                    Err(format!("must be one of: {}", self.options.join(", ")))
+                }
+            }
+            (SettingKind::String | SettingKind::Secret | SettingKind::Select, _) => {
+                Err("must be text".into())
+            }
+            (SettingKind::Number, _) => Err("must be a number".into()),
+            (SettingKind::Bool, _) => Err("must be true or false".into()),
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Default, Debug, Clone, PartialEq, Eq)]
@@ -515,6 +552,8 @@ pub enum ManifestError {
     ThemeNeedsUiCss(String),
     #[error("launch property `{0}` is not a valid name, or is one no plugin may set")]
     BadLaunchProperty(String),
+    #[error("setting `{key}`: {detail}")]
+    BadSetting { key: String, detail: String },
     #[error("network host `{0}` must be a domain name or `*.` and a domain, not an address")]
     BadNetworkHost(String),
 }
@@ -564,6 +603,21 @@ impl Manifest {
             .find(|key| !is_launch_property(key))
         {
             return Err(ManifestError::BadLaunchProperty(key.clone()));
+        }
+        for setting in &self.settings {
+            let bad = |detail: &str| ManifestError::BadSetting {
+                key: setting.key.clone(),
+                detail: detail.into(),
+            };
+            if setting.kind == SettingKind::Select && setting.options.is_empty() {
+                return Err(bad("a select needs options"));
+            }
+            if setting.kind == SettingKind::Secret && setting.default.is_some() {
+                return Err(bad("a secret has no default"));
+            }
+            if let Some(Err(detail)) = setting.default.as_ref().map(|value| setting.check(value)) {
+                return Err(bad(&format!("default {detail}")));
+            }
         }
         let contributes = &self.contributes;
         let lists: [Vec<&String>; 7] = [
@@ -858,6 +912,47 @@ impl Contract for PluginList {
 #[serde(default, rename_all = "camelCase")]
 pub struct PluginRef {
     pub id: String,
+}
+
+/// A declared setting as the daemon reports it. A secret never carries its
+/// value: `set` says whether one is stored.
+#[derive(Serialize, Deserialize, Default, Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
+#[serde(default, rename_all = "camelCase")]
+pub struct SettingValue {
+    pub key: String,
+    /// What the user set, else the default.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "ts", ts(type = "unknown"))]
+    pub value: Option<serde_json::Value>,
+    /// The user has stored a value of their own.
+    pub set: bool,
+}
+
+pub struct PluginSettingsGet;
+impl Contract for PluginSettingsGet {
+    const CHANNEL: &'static str = "plugin.settings.get";
+    type Params = PluginRef;
+    type Result = Vec<SettingValue>;
+}
+
+#[derive(Serialize, Deserialize, Default, Debug, Clone)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
+#[serde(default, rename_all = "camelCase")]
+pub struct PluginSettingsSetParams {
+    pub id: String,
+    pub key: String,
+    /// `null` clears the setting back to its default.
+    #[cfg_attr(feature = "ts", ts(type = "unknown"))]
+    pub value: serde_json::Value,
+}
+
+pub struct PluginSettingsSet;
+impl Contract for PluginSettingsSet {
+    const CHANNEL: &'static str = "plugin.settings.set";
+    const CHANGES: Option<Scope> = Some(Scope::Plugins);
+    type Params = PluginSettingsSetParams;
+    type Result = Empty;
 }
 
 pub struct PluginGet;

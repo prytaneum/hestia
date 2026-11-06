@@ -43,6 +43,8 @@ const DENIED: &[&str] = &[
     "update.apply",
     "plugin.list",
     "plugin.info",
+    "plugin.settings.get",
+    "plugin.settings.set",
     "plugin.enable",
     "plugin.disable",
     "plugin.remove",

@@ -44,9 +44,11 @@ world plugin {
     import log;
     import host;
     import progress;
+    import settings;
     export lifecycle;
     export commands;
     export events;
+    export settings-changed;
     export ui;
     export launch-hooks;
     export content-hooks;

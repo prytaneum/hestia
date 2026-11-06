@@ -34,6 +34,11 @@ impl Plugin for Probe {
         let _ = hestia::data::save("events", &seen);
     }
 
+    fn on_settings_changed(key: &str) {
+        let value: Option<Value> = hestia::settings::get(key).ok().flatten();
+        let _ = hestia::data::save("settings-changed", &json!({ "key": key, "value": value }));
+    }
+
     fn render(page: &str, context: PageContext) -> Result<UiNode, Error> {
         match page {
             "overview" => Ok(ui::stack([

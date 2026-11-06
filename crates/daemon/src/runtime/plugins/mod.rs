@@ -15,12 +15,12 @@ use std::time::Duration;
 use anyhow::Context;
 use engine::{
     is_official_signer, CallChain, Cancel, Engine, HostCalls, Listings, LoadedPlugin, PluginRecord,
-    PluginRuntime, PluginStats, Roster,
+    PluginRuntime, PluginStats, Roster, SettingsError, EVENT_TIMEOUT,
 };
 use proto::error::ErrorInfo;
 use proto::plugin::{
     CommandContribution, Manifest, PageContribution, PluginInfo, PluginInspection,
-    PluginInstallPhase, PluginPage, PluginState, PluginStateEvent, PluginTheme,
+    PluginInstallPhase, PluginPage, PluginState, PluginStateEvent, PluginTheme, SettingValue,
 };
 use tokio::task::{spawn_blocking, JoinSet};
 
@@ -239,6 +239,48 @@ impl Plugins {
         let manifest = self.manifest(id).await?;
         let command = engine::find_command(&manifest, name)?.clone();
         Ok((command, self.running(id)?))
+    }
+
+    /// The plugin's declared settings; a secret reports only whether it is set.
+    pub async fn settings(&self, id: &str) -> ServiceResult<Vec<SettingValue>> {
+        self.record(id)?;
+        let engine = self.engine.clone();
+        let plugin = id.to_string();
+        spawn_blocking(move || engine.plugins().settings(&plugin).map(|s| s.list()))
+            .await
+            .map_err(|error| internal(error.into()))?
+            .map_err(internal)
+    }
+
+    /// Stores a setting, then tells the plugin if it is running. A guest that
+    /// fails to take the news does not undo the change.
+    pub async fn set_setting(
+        &self,
+        id: &str,
+        key: &str,
+        value: serde_json::Value,
+        chain: &CallChain,
+    ) -> ServiceResult<()> {
+        self.record(id)?;
+        let engine = self.engine.clone();
+        let (plugin, name) = (id.to_string(), key.to_string());
+        spawn_blocking(move || engine.plugins().set_setting(&plugin, &name, value))
+            .await
+            .map_err(|error| internal(error.into()))?
+            .map_err(|error| match error {
+                SettingsError::Store(error) => internal(error),
+                other => ErrorInfo::PluginSettingInvalid {
+                    plugin: id.to_string(),
+                    key: key.to_string(),
+                    detail: other.to_string(),
+                },
+            })?;
+        if let Ok(loaded) = self.running(id) {
+            if let Err(error) = loaded.on_settings_changed(chain, key, EVENT_TIMEOUT).await {
+                tracing::warn!(plugin = %id, %key, %error, "plugin did not take a settings change");
+            }
+        }
+        Ok(())
     }
 
     /// The page `name` of `id`'s manifest and the plugin that draws it.
@@ -479,7 +521,9 @@ impl Plugins {
             .context("the plugin runtime is not running")?;
         let data_dir = self.engine.plugins().data_dir(&record.id)?;
         let record = record.clone();
-        let loaded = spawn_blocking(move || sandbox.load(&record, &wasm, data_dir)).await??;
+        let settings = self.engine.plugins().settings(&record.id)?;
+        let loaded =
+            spawn_blocking(move || sandbox.load(&record, &wasm, data_dir, settings)).await??;
         loaded.init(&CallChain::default(), INIT_TIMEOUT).await?;
         Ok(Activation::Ready(Some(Arc::new(loaded))))
     }

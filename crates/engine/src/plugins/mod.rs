@@ -20,6 +20,7 @@ mod remote;
 mod repos;
 mod repositories;
 mod runtime;
+mod settings;
 mod store;
 #[cfg(test)]
 mod testkit;
@@ -45,4 +46,5 @@ pub use runtime::{
     CallError, LoadError, LoadedPlugin, PluginRuntime, PluginStats, CANCEL_GRACE, COMMAND_TIMEOUT,
     EVENT_TIMEOUT, HOOK_TIMEOUT, PROVIDER_TIMEOUT, UI_TIMEOUT,
 };
+pub use settings::{PluginSettings, SettingsError};
 pub use store::{PluginPackage, PluginRecord, Plugins};

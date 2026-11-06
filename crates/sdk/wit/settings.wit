@@ -1,0 +1,16 @@
+package hestia:plugin@1.0.0;
+
+interface settings {
+    use types.{json};
+
+    /// The calling plugin's own setting as JSON: what the user set, else the
+    /// manifest's default. A secret arrives in clear. `none` when the key is
+    /// unset without a default, or the plugin declares no such key.
+    get: func(key: string) -> option<json>;
+}
+
+interface settings-changed {
+    /// Runs after the user changed `key` in the plugin's settings (or cleared
+    /// it); read the new value with `settings.get`.
+    on-settings-changed: func(key: string);
+}

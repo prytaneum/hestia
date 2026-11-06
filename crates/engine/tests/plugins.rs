@@ -9,12 +9,12 @@ use std::time::Duration;
 use async_trait::async_trait;
 use engine::{
     command_args, CallChain, CallError, Cancel, CommandRun, HostCalls, HostError, LoadedPlugin,
-    PluginRecord, PluginRuntime,
+    PluginRecord, PluginRuntime, PluginSettings,
 };
 use proto::error::ErrorInfo;
 use proto::plugin::{
     CommandArg, CommandArgKind, CommandContribution, CommandScope, Grant, PageContext, Permission,
-    PluginRunProgress,
+    PluginRunProgress, Setting, SettingKind,
 };
 use proto::ui::{Action, Effect, UiNode};
 use serde_json::{json, Value};
@@ -55,6 +55,14 @@ impl HostCalls for ReadChannels {
     }
 }
 
+fn declared_settings() -> Vec<Setting> {
+    vec![Setting {
+        key: "api-key".into(),
+        kind: SettingKind::Secret,
+        ..Setting::default()
+    }]
+}
+
 struct Probe {
     plugin: LoadedPlugin,
     data: tempfile::TempDir,
@@ -87,7 +95,8 @@ impl Probe {
         };
         let dir = data.path().join("data");
         std::fs::create_dir_all(&dir).unwrap();
-        let plugin = runtime.load(&record, &wasm, dir).unwrap();
+        let settings = PluginSettings::new(data.path().join("settings.json"), declared_settings());
+        let plugin = runtime.load(&record, &wasm, dir, settings).unwrap();
         Probe { plugin, data }
     }
 
@@ -399,4 +408,25 @@ async fn an_event_reaches_the_guest_on_a_fresh_store() {
             { "topic": "server.created", "payload": { "n": 1 } },
         ])
     );
+}
+
+#[tokio::test]
+async fn a_set_setting_reaches_the_guest_and_only_its_own_plugin_reads_it() {
+    let probe = Probe::load(&[]);
+    let path = probe.data.path().join("settings.json");
+    let own = PluginSettings::new(path.clone(), declared_settings());
+    own.set("api-key", json!("hunter2")).unwrap();
+    probe
+        .plugin
+        .on_settings_changed(&CallChain::default(), "api-key", CALL_BUDGET)
+        .await
+        .unwrap();
+
+    let recorded = std::fs::read(probe.data.path().join("data/settings-changed.json")).unwrap();
+    let recorded: Value = serde_json::from_slice(&recorded).unwrap();
+    assert_eq!(recorded, json!({ "key": "api-key", "value": "hunter2" }));
+
+    let other = PluginSettings::new(probe.data.path().join("other.json"), declared_settings());
+    assert_eq!(other.get("api-key"), None);
+    assert!(own.list()[0].value.is_none());
 }

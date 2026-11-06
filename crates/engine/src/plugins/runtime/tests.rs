@@ -62,6 +62,7 @@ fn guest(calls_host: bool, body: &str) -> String {
                     (i32.store (i32.const 152) (i32.const 2))
                     (i32.const 144))
                 (func (export "on-event") (param i32 i32 i32 i32))
+                (func (export "on-settings-changed") (param i32 i32))
                 (func (export "action") (param i32 i32 i32 i32 i32 i32 i32 i32) (result i32)
                     (i32.const 144))
                 (func (export "before-launch") (param i32) (result i32)
@@ -97,6 +98,12 @@ fn guest(calls_host: bool, body: &str) -> String {
                     (realloc (core func $libc "realloc"))))
             (instance $events (export "on-event" (func $on_event)))
             (export "hestia:plugin/events@1.0.0" (instance $events))
+            (func $on_settings_changed (param "key" string)
+                (canon lift (core func $main "on-settings-changed")
+                    (memory (core memory $libc "memory"))
+                    (realloc (core func $libc "realloc"))))
+            (instance $settings_changed (export "on-settings-changed" (func $on_settings_changed)))
+            (export "hestia:plugin/settings-changed@1.0.0" (instance $settings_changed))
             (func $render (param "page" string) (param "context" string)
                 (result (result string (error $err)))
                 (canon lift (core func $main "run")
@@ -217,6 +224,10 @@ fn record(wat: &str, permissions: &[Permission]) -> PluginRecord {
     }
 }
 
+fn no_settings(dir: &tempfile::TempDir) -> crate::plugins::PluginSettings {
+    crate::plugins::PluginSettings::new(dir.path().join("settings.json"), Vec::new())
+}
+
 fn load(
     host: &Arc<TestHost>,
     wat: &str,
@@ -229,6 +240,7 @@ fn load(
             &record(wat, permissions),
             wat.as_bytes(),
             data.path().into(),
+            no_settings(&data),
         )
         .unwrap();
     (Arc::new(plugin), data)
@@ -349,6 +361,7 @@ async fn a_component_that_differs_from_its_recorded_hash_is_not_compiled() {
         &record(&recorded, &[]),
         tampered.as_bytes(),
         data.path().into(),
+        no_settings(&data),
     );
 
     assert!(matches!(outcome, Err(LoadError::HashMismatch { .. })));
