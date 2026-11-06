@@ -61,6 +61,7 @@ fn guest(calls_host: bool, body: &str) -> String {
                     (i32.store (i32.const 148) (i32.const 48))
                     (i32.store (i32.const 152) (i32.const 2))
                     (i32.const 144))
+                (func (export "on-event") (param i32 i32 i32 i32))
                 (func (export "init") (result i32)
                     {body}
                     (i32.store8 (i32.const 128) (i32.const 0))
@@ -78,7 +79,13 @@ fn guest(calls_host: bool, body: &str) -> String {
                     (memory (core memory $libc "memory"))
                     (realloc (core func $libc "realloc"))))
             (instance $commands (export "run" (func $run)))
-            (export "hestia:plugin/commands@1.0.0" (instance $commands)))"#
+            (export "hestia:plugin/commands@1.0.0" (instance $commands))
+            (func $on_event (param "topic" string) (param "payload" string)
+                (canon lift (core func $main "on-event")
+                    (memory (core memory $libc "memory"))
+                    (realloc (core func $libc "realloc"))))
+            (instance $events (export "on-event" (func $on_event)))
+            (export "hestia:plugin/events@1.0.0" (instance $events)))"#
     )
 }
 
