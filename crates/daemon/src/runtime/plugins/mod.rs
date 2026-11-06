@@ -521,9 +521,12 @@ impl Plugins {
             .context("the plugin runtime is not running")?;
         let data_dir = self.engine.plugins().data_dir(&record.id)?;
         let record = record.clone();
-        let settings = self.engine.plugins().settings(&record.id)?;
-        let loaded =
-            spawn_blocking(move || sandbox.load(&record, &wasm, data_dir, settings)).await??;
+        let engine = self.engine.clone();
+        let loaded = spawn_blocking(move || {
+            let settings = engine.plugins().settings(&record.id)?;
+            anyhow::Ok(sandbox.load(&record, &wasm, data_dir, settings)?)
+        })
+        .await??;
         loaded.init(&CallChain::default(), INIT_TIMEOUT).await?;
         Ok(Activation::Ready(Some(Arc::new(loaded))))
     }
