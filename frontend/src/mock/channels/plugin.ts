@@ -40,30 +40,118 @@ const emptyGrant: Grant = {
   uiCss: [],
 };
 
-const installed = (
-  id: string,
-  name: string,
-  state: PluginState,
-  grant: Grant = emptyGrant,
-): PluginInfo => ({
-  manifest: { ...manifest(id, name), permissions: grant.permissions },
+interface Fixture {
+  id: string;
+  name: string;
+  state: PluginState;
+  description?: string;
+  authors?: string[];
+  grant?: Grant;
+  unrestricted?: Grant['permissions'];
+  commands?: number;
+  themes?: number;
+  lastError?: string;
+  stats?: { calls: number; traps: number; timeouts: number };
+}
+
+const installed = ({
+  id,
+  name,
   state,
-  source: 'file',
-  sha256: '',
-  grant,
-  calls: 0,
-  traps: 0,
-  timeouts: 0,
-});
+  description = '',
+  authors = [],
+  grant = emptyGrant,
+  unrestricted = [],
+  commands = 0,
+  themes = 0,
+  lastError,
+  stats = { calls: 0, traps: 0, timeouts: 0 },
+}: Fixture): PluginInfo => {
+  const base = manifest(id, name);
+  return {
+    manifest: {
+      ...base,
+      description,
+      authors,
+      permissions: grant.permissions,
+      network: grant.network,
+      contributes: {
+        ...base.contributes,
+        commands: Array.from({ length: commands }, (_, i) => ({
+          id: `command-${i}`,
+        })),
+        themes: Array.from({ length: themes }, (_, i) => ({
+          id: `theme-${i}`,
+          file: `themes/${i}.css`,
+        })),
+      },
+    },
+    state,
+    source: 'file',
+    sha256: '9f2c4e81a7d05b3c6e1f8a2d4b7c9e0f1a3d5b7c9e2f4a6b8d0c1e3f5a7b9d2c',
+    grant,
+    unrestricted,
+    calls: stats.calls,
+    traps: stats.traps,
+    timeouts: stats.timeouts,
+    ...(lastError ? { lastError } : {}),
+  };
+};
 
 const plugins: PluginInfo[] = [
-  installed('hello', 'Hello', 'enabled', {
-    ...emptyGrant,
-    permissions: ['entry:read'],
+  installed({
+    id: 'hello',
+    name: 'Hello',
+    state: 'enabled',
+    description: 'Greets you in the log every time the daemon starts.',
+    authors: ['Hestia'],
+    grant: { ...emptyGrant, permissions: ['entry:read'] },
+    commands: 1,
+    stats: { calls: 128, traps: 0, timeouts: 0 },
   }),
-  installed('backup-plus', 'Backup Plus', 'disabled', {
-    ...emptyGrant,
-    permissions: ['entry:read', 'entry:write'],
+  installed({
+    id: 'backup-plus',
+    name: 'Backup Plus',
+    state: 'enabled',
+    description:
+      'Uploads server backups to S3-compatible storage after every scheduled backup, and prunes old ones.',
+    authors: ['Ana Ribeiro', 'kodo'],
+    grant: {
+      ...emptyGrant,
+      permissions: ['entry:read', 'entry:write', 'network:connect'],
+      network: ['s3.amazonaws.com', 'r2.cloudflarestorage.com'],
+    },
+    unrestricted: ['entry:write'],
+    commands: 2,
+    stats: { calls: 3041, traps: 1, timeouts: 2 },
+  }),
+  installed({
+    id: 'ember-night',
+    name: 'Ember Night',
+    state: 'disabled',
+    description: 'A warm dark theme.',
+    authors: ['Hestia'],
+    grant: { ...emptyGrant, uiCss: ['themes/0.css'] },
+    themes: 1,
+  }),
+  installed({
+    id: 'discord-status',
+    name: 'Discord Status',
+    state: 'failed',
+    description: 'Shows what you are playing in Discord.',
+    authors: ['someone'],
+    grant: { ...emptyGrant, permissions: ['process:read'] },
+    lastError: 'disabled after repeated traps',
+    stats: { calls: 17, traps: 3, timeouts: 0 },
+  }),
+  installed({
+    id: 'mod-sync',
+    name: 'Mod Sync',
+    state: 'needs_approval',
+    description: 'Keeps the mods of several instances in step.',
+    authors: ['kodo'],
+    grant: { ...emptyGrant, permissions: ['content:read', 'content:write'] },
+    unrestricted: ['content:write'],
   }),
 ];
 
@@ -90,6 +178,11 @@ const setState = (id: string, state: PluginState): PluginInfo => {
 
 export const channels: ChannelHandlers = {
   'plugin.list': () => plugins,
+  'plugin.info': (p) => {
+    const plugin = find(str(p, 'id'));
+    if (!plugin) throw new Error(`no plugin ${p.id}`);
+    return { ...plugin, dataBytes: 3_412_771 };
+  },
   'plugin.enable': (p) => setState(str(p, 'id'), 'enabled'),
   'plugin.disable': (p) => setState(str(p, 'id'), 'disabled'),
   'plugin.remove': (p) => {
@@ -118,12 +211,13 @@ export const channels: ChannelHandlers = {
         { phase: 'installing' },
       ],
       done: () => {
-        const plugin = installed(
-          'new-plugin',
-          'New plugin',
-          'enabled',
-          requested,
-        );
+        const plugin = installed({
+          id: 'new-plugin',
+          name: 'New plugin',
+          state: 'enabled',
+          grant: requested,
+          unrestricted: ['entry:write', 'process:control'],
+        });
         plugins.push(plugin);
         return { plugin };
       },

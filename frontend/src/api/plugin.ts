@@ -12,6 +12,10 @@ export function list(): Promise<PluginInfo[]> {
   return call('plugin.list');
 }
 
+export function info(id: string): Promise<PluginInfo> {
+  return call('plugin.info', { id });
+}
+
 export function enable(id: string): Promise<PluginInfo> {
   return call('plugin.enable', { id });
 }

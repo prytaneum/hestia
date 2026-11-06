@@ -1,7 +1,7 @@
-import type { Permission, PluginInspection } from '@/api/types';
+import type { Grant, Permission, PluginInspection } from '@/api/types';
 import { m } from '@/paraglide/messages.js';
 
-type GrantSectionKind =
+export type GrantSectionKind =
   | 'full_access'
   | 'permissions'
   | 'programs'
@@ -12,9 +12,16 @@ type GrantSectionKind =
   | 'secret_settings'
   | 'themes';
 
-interface GrantSection {
+/** One thing a grant allows: a permission and what it means, or a listed value. */
+export interface GrantItem {
+  label: string;
+  detail?: string;
+}
+
+export interface DescribedSection {
   kind: GrantSectionKind;
-  items: string[];
+  heading: string;
+  items: GrantItem[];
 }
 
 /**
@@ -54,53 +61,55 @@ const HEADING: Record<GrantSectionKind, () => string> = {
   themes: m['settings.plugins.grant.themes'],
 };
 
-export interface DescribedSection {
-  heading: string;
-  lines: string[];
-}
+const permission = (name: Permission): GrantItem => ({
+  label: name,
+  detail: PERMISSION_TEXT[name](),
+});
+
+const values = (list: string[]): GrantItem[] =>
+  list.map((label) => ({ label }));
 
 /**
- * What an approval covers: the whole grant when new, only the widening on an
- * update. Which permissions are full access is the daemon's call
- * (`inspection.unrestricted`), listed first.
+ * What `grant` allows, as non-empty sections in the order a person should weigh
+ * them: the full-access permissions first (which ones those are is the daemon's
+ * call, `unrestricted`), then the sandboxed ones, then the narrower lists.
  */
-function sectionsToApprove(inspection: PluginInspection): GrantSection[] {
-  const grant = inspection.replaces ? inspection.widened : inspection.grant;
-  const full = new Set<Permission>(inspection.unrestricted);
-  const sections: GrantSection[] = [
-    { kind: 'full_access', items: inspection.unrestricted },
-    {
-      kind: 'permissions',
-      items: grant.permissions.filter((permission) => !full.has(permission)),
-    },
-    {
-      kind: 'programs',
-      items: grant.programs.map((program) =>
-        [program.id, [program.command, ...program.args].join(' ')].join(': '),
-      ),
-    },
-    { kind: 'network', items: grant.network },
-    { kind: 'launch_properties', items: grant.launchProperties },
-    { kind: 'hooks', items: grant.hooks },
-    { kind: 'events', items: grant.events },
-    { kind: 'secret_settings', items: grant.secretSettings },
-    { kind: 'themes', items: grant.uiCss },
+export function describeGrant(
+  grant: Grant,
+  unrestricted: Permission[],
+): DescribedSection[] {
+  const full = new Set(unrestricted);
+  const sections: Array<[GrantSectionKind, GrantItem[]]> = [
+    ['full_access', unrestricted.map(permission)],
+    [
+      'permissions',
+      grant.permissions.filter((name) => !full.has(name)).map(permission),
+    ],
+    [
+      'programs',
+      grant.programs.map((program) => ({
+        label: program.id,
+        detail: [program.command, ...program.args].join(' '),
+      })),
+    ],
+    ['network', values(grant.network)],
+    ['launch_properties', values(grant.launchProperties)],
+    ['hooks', values(grant.hooks)],
+    ['events', values(grant.events)],
+    ['secret_settings', values(grant.secretSettings)],
+    ['themes', values(grant.uiCss)],
   ];
-  return sections.filter((section) => section.items.length > 0);
+  return sections
+    .filter(([, items]) => items.length > 0)
+    .map(([kind, items]) => ({ kind, heading: HEADING[kind](), items }));
 }
 
+/** What an approval covers: the whole grant when new, only the widening on an update. */
 export function describeApproval(
   inspection: PluginInspection,
 ): DescribedSection[] {
-  return sectionsToApprove(inspection).map(({ kind, items }) => ({
-    heading: HEADING[kind](),
-    lines:
-      kind === 'full_access' || kind === 'permissions'
-        ? items.map(
-            (item) => `${item} — ${PERMISSION_TEXT[item as Permission]()}`,
-          )
-        : items,
-  }));
+  const grant = inspection.replaces ? inspection.widened : inspection.grant;
+  return describeGrant(grant, inspection.unrestricted);
 }
 
 export interface ApprovalDialog {
@@ -135,7 +144,12 @@ export function approvalDialog(inspection: PluginInspection): ApprovalDialog {
         : m['settings.plugins.approval.none'](),
     );
   for (const section of sections) {
-    lines.push(section.heading, ...section.lines.map((line) => `• ${line}`));
+    lines.push(
+      section.heading,
+      ...section.items.map(({ label, detail }) =>
+        detail ? `• ${label} — ${detail}` : `• ${label}`,
+      ),
+    );
   }
 
   if (lines.length <= MAX_DIALOG_LINES)

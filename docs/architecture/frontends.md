@@ -290,7 +290,11 @@ Rules that keep it from drifting:
   and installs against the inspected `grantDigest`. A message box does not
   scroll, so a grant past `MAX_DIALOG_LINES` gets a summary in the dialog and
   the full list in an in-page review the user continues from. Permission text
-  is the `domain.plugin.permission.*` messages, keyed by a typed table.
+  is the `domain.plugin.permission.*` messages, keyed by a typed table. Which
+  permissions count as full access is the daemon's answer (`unrestricted` on
+  both `PluginInspection` and `PluginInfo`), so an installed row flags full
+  access without a tier table in the frontend; the row's details drawer reads
+  the same grant through `describeGrant`, which the dialog also uses.
 - **A dropped file goes through one pipeline** (`lib/file-drop`), shaped like
   `react-dropzone`: `useDropzone({ accept, onDrop, multiple, disabled, label })`
   returns `getRootProps()` to spread on the element that takes the drop and

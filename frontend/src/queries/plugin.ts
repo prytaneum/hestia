@@ -23,6 +23,12 @@ export const pluginQueries = {
       queryKey: keys.plugins.list(),
       queryFn: () => api.list(),
     }),
+  /** One plugin with the size of its data directory, which `list` skips. */
+  info: (id: string) =>
+    queryOptions({
+      queryKey: keys.plugins.info(id),
+      queryFn: () => api.info(id),
+    }),
 };
 
 export const pluginMutations = {

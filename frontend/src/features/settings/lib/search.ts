@@ -195,7 +195,8 @@ const INDEX: Entry[] = [
     text: text(
       m['settings.tabs.plugins'],
       m['settings.plugins.hint'],
-      m['settings.plugins.choose'],
+      m['settings.plugins.install_file'],
+      m['settings.plugins.install_link'],
     ),
   },
   {

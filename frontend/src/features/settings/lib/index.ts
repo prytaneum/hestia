@@ -3,6 +3,8 @@ export {
   approvalDialog,
   type DescribedSection,
   describeApproval,
+  describeGrant,
+  type GrantSectionKind,
 } from './approval';
 export {
   firstTabWithMatch,
