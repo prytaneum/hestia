@@ -36,6 +36,7 @@ pub mod skins;
 pub mod sync;
 pub mod tasks;
 pub mod transfer;
+pub mod ui;
 pub mod update;
 pub mod warning;
 

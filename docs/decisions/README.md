@@ -140,3 +140,4 @@ the alternative you rejected — that is usually the part nobody can recover lat
 - **0087** — [The data home is fixed for the life of a daemon process](0087-the-data-home-is-fixed-for-a-daemon-process.md)
 - **0089** — [A job outcome is reported once, by the job store](0089-a-job-outcome-is-reported-once.md)
 - **0093** — [The desktop runs under a CSP, and style-src is left to the page](0093-the-desktop-runs-under-a-csp.md)
+- **0096** — [Plugin UI is a declarative tree the host renders](0096-plugin-ui-is-a-declarative-tree.md)

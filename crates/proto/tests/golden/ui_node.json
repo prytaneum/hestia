@@ -1,0 +1,63 @@
+{
+  "type": "stack",
+  "direction": "vertical",
+  "children": [
+    { "type": "heading", "text": "Backups", "level": 1 },
+    { "type": "text", "text": "Last run 2h ago", "tone": "muted" },
+    { "type": "markdown", "source": "**Hello** [docs](https://example.com)" },
+    { "type": "image", "src": "assets/logo.png", "alt": "Logo" },
+    {
+      "type": "table",
+      "columns": ["Name", "Size"],
+      "rows": [
+        { "cells": ["world", "12 MB"], "payload": { "id": "w1" } }
+      ],
+      "rowAction": "open"
+    },
+    {
+      "type": "list",
+      "items": [
+        {
+          "title": "Nightly",
+          "subtitle": "03:00",
+          "icon": "clock",
+          "actions": [
+            {
+              "type": "button",
+              "label": "Run",
+              "action": { "id": "run", "payload": null },
+              "variant": "secondary"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "detail",
+      "pairs": [{ "label": "Retention", "value": "7 days" }]
+    },
+    {
+      "type": "form",
+      "id": "settings",
+      "fields": [
+        { "type": "text", "name": "title", "label": "Title", "value": "a" },
+        { "type": "number", "name": "keep", "label": "Keep", "value": 7.0 },
+        { "type": "toggle", "name": "on", "label": "Enabled", "value": true },
+        {
+          "type": "select",
+          "name": "mode",
+          "label": "Mode",
+          "options": [{ "value": "fast", "label": "Fast" }],
+          "value": "fast"
+        },
+        { "type": "entry", "name": "target", "label": "Server", "kind": "server" }
+      ],
+      "submit": {
+        "label": "Save",
+        "action": { "id": "save", "payload": { "x": 1 } }
+      }
+    },
+    { "type": "notice", "tone": "warning", "text": "Careful" },
+    { "type": "progress", "fraction": 0.5, "label": "Halfway" }
+  ]
+}

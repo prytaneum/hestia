@@ -31,5 +31,6 @@ export type * from "./skins";
 export type * from "./sync";
 export type * from "./tasks";
 export type * from "./transfer";
+export type * from "./ui";
 export type * from "./update";
 export type * from "./warning";

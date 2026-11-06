@@ -26,6 +26,7 @@ use proto::process::{
 };
 use proto::server::{ServerInfo, ServerPingResult};
 use proto::skins::{Cape, Skin};
+use proto::ui::{Effect, UiNode};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use serde_json::Value;
@@ -154,3 +155,5 @@ golden!(
     ProcessMetricsEvent,
     "process_metrics_event.json"
 );
+golden!(ui_node, UiNode, "ui_node.json");
+golden!(ui_effects, Vec<Effect>, "ui_effects.json");

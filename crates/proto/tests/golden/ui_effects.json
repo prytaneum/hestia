@@ -1,0 +1,6 @@
+[
+  { "type": "render", "tree": { "type": "notice", "tone": "info", "text": "Done" } },
+  { "type": "toast", "tone": "success", "text": "Saved" },
+  { "type": "navigate", "page": "overview" },
+  { "type": "refresh" }
+]
