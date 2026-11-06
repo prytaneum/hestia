@@ -33,6 +33,7 @@ the alternative you rejected — that is usually the part nobody can recover lat
 - **0090** — [The daemon keeps the job registry](0090-the-daemon-keeps-the-job-registry.md)
 - **0092** — [A contract names the permission a plugin needs, and an unnamed one is closed](0092-a-contract-names-the-permission-a-plugin-needs.md)
 - **0094** — [A plugin repository has one shape, and it is also the store it declares](0094-a-plugin-repository-has-one-shape.md)
+- **0097** — [Trust follows the repository's key, not its address](0097-trust-follows-the-repository-key.md)
 
 ### [Cross-cutting foundations](../architecture/common.md)
 

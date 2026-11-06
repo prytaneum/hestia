@@ -709,12 +709,15 @@ hestia plugin new <id>           # outside a repository: creates ./<id>/ with th
                                  #   inside one: adds only plugins/<id>/
 hestia plugin pack [id…]         # from anywhere in the repository: build and write dist/<id>-<version>.hplugin
 hestia plugin check [dir]        # validate the repository against the one shape
-hestia plugin index [--previous <https-url|file>] [--add dist/*.hplugin] [--repository <https-url>]
-                                 # write dist/hestia-index.json, the repository's listing
+hestia plugin index [--previous <https-url|file>] [--add dist/*.hplugin] [--repository <https-url>] [--sign <secret key>]
+                                 # write dist/hestia-index.json, the repository's listing (+ .minisig with --sign)
+hestia plugin keygen [--out <dir>] [--unencrypted]
+                                 # write a minisign key pair and declare the public key in Cargo.toml
+hestia plugin pack --sign <secret key>   # also write <package>.minisig
 ```
 
 The shape, the index format and the release flow are in [plugins/repository.md](plugins/repository.md). `check`
-needs `[workspace.metadata.hestia]` (`name`, `label`, `website`, `key`) and a theme-only plugin listed in `exclude`;
+needs `[workspace.metadata.hestia]` (`name`, `label`, `website`, `key`, a valid minisign public key) and a theme-only plugin listed in `exclude`;
 `pack` and `index` run it first. `index` keeps the previous index's builds and revocations, adds each package with its
 sha256, bumps `version`, and takes `commit` from git and `repository` from `--repository` or the `origin` remote.
 

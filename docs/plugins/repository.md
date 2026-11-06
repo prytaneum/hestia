@@ -28,7 +28,7 @@ exclude = ["plugins/dark-themes"]     # theme-only plugins, see below
 name = "Acme plugins"                  # the store's name
 label = "ACME"                         # the store badge, 1 to 4 characters
 website = "https://acme.example"       # https
-key = "RWQ..."                         # minisign public key (a placeholder until `hestia plugin keygen`)
+key = "RWQ..."                         # minisign public key, written by `hestia plugin keygen`
 ```
 
 - The directory name equals the manifest `id`.
@@ -39,8 +39,8 @@ key = "RWQ..."                         # minisign public key (a placeholder unti
 
 CI regenerates `hestia-index.json` from `[workspace.metadata.hestia]` and `plugins/*/plugin.toml` on every push to the
 default branch and publishes it at one fixed https URL. On GitHub that is a rolling release tagged `hestia-index`:
-`<repository>/releases/download/hestia-index/hestia-index.json`. Users add a repository by that URL. The index is not
-signed yet; signing arrives with `hestia plugin keygen`.
+`<repository>/releases/download/hestia-index/hestia-index.json`. Users add a repository by that URL. The index is signed
+(see [Keys and signatures](#keys-and-signatures)).
 
 ```
 { schemaVersion, version, repository, commit, name, label, website, key,
@@ -71,3 +71,32 @@ Writes `dist/hestia-index.json`. `commit` is `git rev-parse HEAD`; `repository` 
 remote (a `git@host:owner/repo` remote becomes https). Each added package's download URL is
 `<repository>/releases/download/<id>-v<version>/<id>-<version>.hplugin`, the GitHub layout. `--previous` carries its
 builds and revocations over.
+
+## Keys and signatures
+
+A repository is the minisign key it declares ([0097](../decisions/0097-trust-follows-the-repository-key.md)).
+
+```bash
+hestia plugin keygen [--out <dir>] [--unencrypted]
+hestia plugin index --sign <secret key> ...
+hestia plugin pack  --sign <secret key>
+```
+
+- `keygen` writes `hestia.key` (secret, encrypted with a password unless `--unencrypted`, for a CI secret) and
+  `hestia.pub` into `--out` (the current directory), and sets `key` in `[workspace.metadata.hestia]`. It never
+  overwrites a key. Keep the secret key out of the repository.
+- `index --sign` writes `hestia-index.json.minisig` beside the index; `pack --sign` writes
+  `<id>-<version>.hplugin.minisig` beside each package. Publish each `.minisig` next to its file. `--sign` refuses a
+  secret key that is not the declared `key`.
+- Keys and signatures are standard minisign text: the key is the `RW...` base64 string, a signature is the `.minisig`
+  file. `check` requires the declared key to parse.
+- The **trusted comment** binds a signature to its subject and is compared exactly:
+
+  | Signs | Trusted comment |
+  |---|---|
+  | a build | `hestia-build id=<id> version=<version> file=<file name>` |
+  | an index | `hestia-index version=<index version>` |
+
+- A client refuses an index signed by another key than the pinned one, declaring another `key`, or with a lower
+  `version` than the one it cached.
+- `revoked` is honoured only for plugins signed by the index's own key.
