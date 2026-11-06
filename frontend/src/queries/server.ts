@@ -12,6 +12,7 @@ import {
   useQuery,
   useQueryClient,
 } from '@tanstack/react-query';
+import { notify } from '@/lib/notify';
 import { serverProcessId } from '@/lib/process-id';
 import { m } from '@/paraglide/messages.js';
 import type {
@@ -19,6 +20,7 @@ import type {
   ServerCreateParams,
   ServerDone,
   ServerInfo,
+  ServerStartResult,
   ServerUpdateParams,
 } from '../api';
 import * as entry from '../api/entry';
@@ -30,6 +32,10 @@ import { entryTarget, keys } from './keys';
 import { type LogsOptions, type LogsResult, useFollowedLogs } from './logs';
 
 const target = (id: string) => entryTarget('server', id);
+
+/** What the `before-server-start` hooks left to say about a start that went ahead. */
+const warnStart = (id: string, done: ServerStartResult) =>
+  notify.warnings(done.warnings, { id: `server-start-${id}` });
 
 export const serverQueries = {
   list: () =>
@@ -127,22 +133,25 @@ export const serverMutations = {
       },
     }),
   start: (id: string) =>
-    mutation<{ processId: string; pid: number }>({
+    mutation<ServerStartResult>({
       mutationKey: [...keys.servers.detail(id), 'start'],
       mutationFn: () => api.start(id),
+      onSuccess: (done) => warnStart(id, done),
       invalidates: () => [keys.servers.list(), keys.servers.detail(id)],
     }),
   restart: (id: string) =>
-    mutation<{ processId: string; pid: number }>({
+    mutation<ServerStartResult>({
       mutationKey: [...keys.servers.detail(id), 'restart'],
       mutationFn: () => api.restart(id),
+      onSuccess: (done) => warnStart(id, done),
       invalidates: () => [keys.servers.list(), keys.servers.detail(id)],
     }),
   /** Id-by-variable variants for list rows, which can't call a per-id hook. */
   startAny: () =>
-    mutation<{ processId: string; pid: number }, string>({
+    mutation<ServerStartResult, string>({
       mutationKey: [...keys.servers.all, 'start'],
       mutationFn: (id) => api.start(id),
+      onSuccess: (done, id) => warnStart(id, done),
       invalidates: (id) => [keys.servers.list(), keys.servers.detail(id)],
     }),
   stopAny: () =>
