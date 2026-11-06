@@ -66,6 +66,9 @@ enum Command {
         #[command(subcommand)]
         cmd: commands::instance::InstanceCmd,
     },
+    /// `hestia <plugin> <command>`: a command an installed plugin contributes
+    #[command(external_subcommand)]
+    External(Vec<String>),
     /// Start a server or launch an instance by name
     Start {
         /// Server or instance name or id
@@ -325,6 +328,7 @@ async fn dispatch(command: Command) -> anyhow::Result<ExitStatus> {
             commands::content::run_browse(client::proto::content::ContentKind::Plugin, cmd).await
         }
         Command::Plugin { cmd } => commands::plugin::run(cmd).await,
+        Command::External(argv) => commands::plugin::run::top(argv).await,
         Command::Search {
             query,
             loader,

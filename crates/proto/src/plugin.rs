@@ -38,8 +38,8 @@ pub const HOOKS: &[(&str, &[Permission])] = &[
     ("before-content-install", &[Permission::ContentRead]),
 ];
 
-/// Ids a plugin may not take: the CLI's top-level verbs, which a contributed
-/// command would otherwise shadow.
+/// Ids a plugin may not take: the CLI's top-level verbs, which `hestia <plugin>`
+/// would otherwise shadow.
 pub const RESERVED_IDS: &[&str] = &[
     "account",
     "auth",
@@ -71,6 +71,42 @@ pub const RESERVED_IDS: &[&str] = &[
     "stop",
     "sync",
     "update",
+];
+
+/// Command ids a server-scoped command may not take: the verbs of
+/// `hestia server <name> <verb>`. A CLI test pins it to the grammar.
+pub const RESERVED_SERVER_VERBS: &[&str] = &[
+    "attach", "backup", "cmd", "command", "config", "console", "datapack", "files", "help", "info",
+    "logs", "modpack", "mod", "monitor", "players", "plugin", "remove", "rename", "restart", "rm",
+    "start", "status", "stop", "task", "update",
+];
+
+/// Command ids an instance-scoped command may not take: the verbs of
+/// `hestia instance <name> <verb>`. A CLI test pins it to the grammar.
+pub const RESERVED_INSTANCE_VERBS: &[&str] = &[
+    "config",
+    "datapack",
+    "export",
+    "help",
+    "info",
+    "launch",
+    "logs",
+    "mod",
+    "modpack",
+    "monitor",
+    "remove",
+    "rename",
+    "resourcepack",
+    "restart",
+    "rm",
+    "server",
+    "servers",
+    "shader",
+    "stop",
+    "sync",
+    "update",
+    "world",
+    "worlds",
 ];
 
 const ID_LENGTH: std::ops::RangeInclusive<usize> = 2..=40;
@@ -224,6 +260,18 @@ pub struct CommandArg {
     pub kind: CommandArgKind,
     pub required: bool,
     pub help: String,
+}
+
+impl CommandScope {
+    /// The built-in verbs a command of this scope may not take; empty for `top`,
+    /// whose commands live under the plugin's own id.
+    pub fn reserved_ids(self) -> &'static [&'static str] {
+        match self {
+            CommandScope::Top => &[],
+            CommandScope::Server => RESERVED_SERVER_VERBS,
+            CommandScope::Instance => RESERVED_INSTANCE_VERBS,
+        }
+    }
 }
 
 /// The argument every scoped command receives; a declared argument may not take it.
@@ -404,6 +452,8 @@ pub enum ManifestError {
     DuplicateId(String),
     #[error("command `{0}` declares the argument `entry`, which a scoped command receives itself")]
     ReservedArg(String),
+    #[error("command `{0}` is a built-in verb for its scope")]
+    ReservedCommand(String),
     #[error("event `{0}` must be a topic like `job` or a prefix glob like `server.*`")]
     BadEventPattern(String),
     #[error("hook `{0}` is not one this host offers")]
@@ -471,6 +521,9 @@ impl Manifest {
             return Err(ManifestError::BadEventPattern(pattern.clone()));
         }
         for command in &contributes.commands {
+            if command.scope.reserved_ids().contains(&command.id.as_str()) {
+                return Err(ManifestError::ReservedCommand(command.id.clone()));
+            }
             let mut seen = BTreeSet::new();
             for arg in &command.args {
                 if !is_slug(&arg.name, CONTRIBUTION_ID_LENGTH) {

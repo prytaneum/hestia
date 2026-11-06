@@ -249,6 +249,24 @@ mod manifest {
     }
 
     #[test]
+    fn a_scoped_command_may_not_take_a_built_in_verb() {
+        for (scope, verb) in [
+            (CommandScope::Server, "backup"),
+            (CommandScope::Instance, "launch"),
+        ] {
+            let mut manifest = command(scope, &[]);
+            manifest.contributes.commands[0].id = verb.into();
+            assert_eq!(
+                manifest.validate(),
+                Err(ManifestError::ReservedCommand(verb.into()))
+            );
+        }
+        let mut manifest = command(CommandScope::Top, &[]);
+        manifest.contributes.commands[0].id = "backup".into();
+        assert_eq!(manifest.validate(), Ok(()));
+    }
+
+    #[test]
     fn api_must_share_the_host_major_and_not_be_newer() {
         for api in ["^2.0.0", "^1.1.0", "^1.0.1"] {
             let mut manifest = valid();

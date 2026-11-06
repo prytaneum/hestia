@@ -23,11 +23,13 @@ use clap::{Parser, Subcommand};
 use client::proto::content::ContentKind;
 use client::proto::error::{EntryKind, EntryTarget};
 use client::proto::instance::QuickPlay;
+use client::proto::plugin::CommandScope;
 use client::Client;
 
 use crate::commands::content::{self, ContentCmd};
 use crate::commands::mc;
 use crate::commands::modpack::EntryModpackCmd;
+use crate::commands::plugin::run as plugin_run;
 
 pub use lifecycle::{launch, Launch};
 
@@ -129,7 +131,7 @@ pub enum InstanceCmd {
 /// name is captured once here so no action has to repeat it.
 #[derive(Parser)]
 #[command(no_binary_name = true, name = "hestia instance")]
-struct InstanceEntry {
+pub(crate) struct InstanceEntry {
     /// Instance name or id
     name: String,
     #[command(subcommand)]
@@ -298,6 +300,9 @@ enum InstanceAction {
     /// Delete the instance (its saves and all)
     #[command(visible_alias = "rm")]
     Remove,
+    /// A command an installed plugin contributes for instances
+    #[command(external_subcommand)]
+    External(Vec<String>),
 }
 
 pub async fn run(cmd: InstanceCmd) -> Result<()> {
@@ -453,6 +458,9 @@ async fn run_action(client: &Client, name: String, action: InstanceAction) -> Re
             let info =
                 entry::pick_instance(client.instance().list().await?, Some(name.to_string()))?;
             crate::commands::sync::instance_action(client, &info.id, cmd).await
+        }
+        InstanceAction::External(argv) => {
+            plugin_run::scoped(client, CommandScope::Instance, &name, argv).await
         }
         InstanceAction::Remove => {
             let target = EntryTarget::new(EntryKind::Instance, name);

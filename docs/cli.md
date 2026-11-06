@@ -727,6 +727,27 @@ bundles `plugin.toml`, the component, `assets/` and `themes/`. A theme-only plug
 cargo and carries no `api`; list its folder under the workspace's `exclude`, since `plugins/*` would otherwise expect a
 crate there. The scaffold pins `hestia-sdk` to the git tag of the running Hestia version (`v<version>`).
 
+### Plugin commands
+
+An installed, enabled plugin can contribute commands. A top-level one reads `hestia <plugin> <command>`; one that acts
+on an entry reads like the built-in verbs, `hestia server <name> <command>` or `hestia instance <name> <command>`, and
+the daemon resolves `<name>` for the plugin.
+
+```bash
+hestia hello                     # list the plugin's commands (title, description)
+hestia hello greet --name world  # run one; --name <value>, --flag for a bool, --count 3 for a number
+hestia hello greet --help        # the declared arguments and their help
+hestia hello greet --json        # print the raw JSON output instead of a table or block
+hestia server smp players add --name steve   # a server-scoped command `players` on server smp
+```
+
+Only declared arguments are accepted (`--name value` or `--name=value`); a missing required one or an unknown one is
+refused, naming what it expected. A progress-reporting command shows its message inline like the built-in jobs. The
+output renders as a key/value block for an object, a table for a list of objects, a line for a string, and indented JSON
+otherwise. If two plugins contribute the same scoped command, you are asked which to run (without a terminal it errors,
+listing them). Built-in verbs always win: a plugin id that is a top-level command, and a scoped command id that is a
+built-in verb of that scope, are refused at install.
+
 ## Updating Hestia
 
 ```bash

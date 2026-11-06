@@ -8,6 +8,7 @@ mod keygen;
 mod new;
 mod pack;
 mod repo;
+pub(crate) mod run;
 mod sign;
 
 use anyhow::{bail, Context, Result};
