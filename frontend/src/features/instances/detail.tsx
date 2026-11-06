@@ -9,6 +9,11 @@ import { Stat, TabCount } from '@/components/page';
 import { Bone } from '@/components/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { StatusDot } from '@/components/ui/status-dot';
+import {
+  PluginTabContents,
+  PluginTabTriggers,
+  type PluginTab,
+} from '@/features/plugins';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   ContentInstallDialog,
@@ -55,7 +60,8 @@ export type InstanceTab =
   | 'worlds'
   | 'servers'
   | 'logs'
-  | 'settings';
+  | 'settings'
+  | PluginTab;
 
 /** The record as the hook serves it — joined with its icon URL. */
 type Instance = NonNullable<ReturnType<typeof useInstance>['data']>;
@@ -218,6 +224,7 @@ function InstanceDetail({
           </TabsTrigger>
           <TabsTrigger value="servers">{m['app.label.servers']()}</TabsTrigger>
           <TabsTrigger value="logs">{m['app.label.logs']()}</TabsTrigger>
+          <PluginTabTriggers kind="instance" />
           <TabsTrigger value="settings">
             {m['app.label.settings']()}
           </TabsTrigger>
@@ -384,6 +391,8 @@ function InstanceDetail({
             onSessionChange={setLogSession}
           />
         </TabsContent>
+
+        <PluginTabContents kind="instance" entry={instance.id} />
 
         <TabsContent value="settings" className="p-5">
           <InstanceSettingsTab

@@ -1,4 +1,4 @@
-import type { Icon } from '@phosphor-icons/react';
+import type { IconWeight } from '@phosphor-icons/react';
 import {
   CubeIcon,
   GearSixIcon,
@@ -10,15 +10,16 @@ import {
 } from '@phosphor-icons/react';
 import { Link } from '@tanstack/react-router';
 import { motion } from 'motion/react';
+import type { ComponentType } from 'react';
 
 import { layoutMorph } from '@/lib/motion';
 import { cn } from '@/lib/utils';
 import { m } from '@/paraglide/messages.js';
 
-interface NavItem {
+export interface NavItem {
   to: string;
   label: () => string;
-  icon: Icon;
+  icon: ComponentType<{ weight?: IconWeight; className?: string }>;
   /** Path prefixes that also light this item (detail routes, etc.). */
   match: string[];
 }

@@ -25,6 +25,11 @@ import {
 } from '@/features/content/install';
 import { anchor, useAutoTour } from '@/features/onboarding';
 import {
+  PluginTabContents,
+  PluginTabTriggers,
+  type PluginTab,
+} from '@/features/plugins';
+import {
   ServerBackupsTab,
   ServerConsoleTab,
   ServerFilesTab,
@@ -58,7 +63,8 @@ export type ServerTab =
   | 'players'
   | 'files'
   | 'backups'
-  | 'settings';
+  | 'settings'
+  | PluginTab;
 
 function isRunning(server: ServerInfo): boolean {
   return server.process?.state === 'running';
@@ -254,6 +260,7 @@ function ServerDetail({
           <TabsTrigger value="backups" {...anchor('server-backups')}>
             {m['app.label.backups']()}
           </TabsTrigger>
+          <PluginTabTriggers kind="server" />
           <TabsTrigger value="settings">
             {m['app.label.settings']()}
           </TabsTrigger>
@@ -370,6 +377,8 @@ function ServerDetail({
         <TabsContent value="backups" className="flex flex-col p-5">
           <ServerBackupsTab id={id} running={running} />
         </TabsContent>
+
+        <PluginTabContents kind="server" entry={id} />
 
         <TabsContent value="settings" className="p-5">
           <ServerSettingsTab

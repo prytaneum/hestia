@@ -42,15 +42,18 @@ const proseClass = cn(
 export function Markdown({
   children,
   className,
+  raw = true,
 }: {
   children: string;
   className?: string;
+  /** Parse embedded HTML into elements. Off, markup is shown as text — for sources that are not content descriptions. */
+  raw?: boolean;
 }) {
   return (
     <div className={cn(proseClass, className)}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
-        rehypePlugins={[rehypeRaw, rehypeSanitize]}
+        rehypePlugins={raw ? [rehypeRaw, rehypeSanitize] : [rehypeSanitize]}
         components={{
           // A table cannot shrink below its columns' min-content width, so a
           // class on the table alone cannot contain a wide one — it needs a

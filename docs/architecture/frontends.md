@@ -309,6 +309,35 @@ Rules that keep it from drifting:
   pipeline hit-tests the pointer by hand. A zone with a `label` gets the shell's
   `FileDropOverlay`.
 
+### Plugin pages
+
+A plugin never ships UI code: it returns a `UiNode` tree and the desktop draws
+it with its own components (`features/plugins/`). Three fixed slots, named by
+the manifest's `PageSlot`, decide where a page appears:
+
+- **`nav`** adds a sidebar item (`usePluginNav`, after the built-in ones) that
+  opens `/plugins/$plugin/$page`.
+- **`entry`** adds a tab to the server or instance detail whose kind the page
+  names (`PluginTabTriggers` / `PluginTabContents`); the tab value is
+  `plugin:<plugin>/<page>`, and the page receives the entry id as its
+  `PageContext`.
+- **`settings`** adds a section at the end of Settings → Plugins
+  (`PluginSettingsSections`), hidden while the settings search narrows the page.
+
+`PluginView` fetches the tree (`pluginQueries.render`, keyed under
+`keys.plugins` so a plugin state change refetches it) and `view/render.tsx`
+maps each node type to a component: layout and text nodes in `layout.tsx`,
+table, list, detail and button in `data.tsx`, forms in `form.tsx` (values are
+local state, submitted with the action). A node type the build does not know
+renders a notice instead of failing. Markdown goes through the shared
+`Markdown` with `raw={false}`, so embedded HTML is text, and images and package
+icons resolve to `hestia-plugin` URLs through `pluginAsset`
+([0098](../decisions/0098-plugin-assets-are-served-by-the-daemon.md)).
+
+A click or submit calls `plugin.ui.action` and applies the returned effects:
+`render` replaces the cached tree, `toast` goes through `notify`, `navigate`
+opens another page of the plugin, and `refresh` refetches.
+
 ## Notifications and saves
 
 Every piece of feedback has one surface, and one owner

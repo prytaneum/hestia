@@ -21,6 +21,7 @@
       "./messages/{locale}/screenshot.json",
       "./messages/{locale}/skin.json",
       "./messages/{locale}/settings.json",
+      "./messages/{locale}/plugins.json",
       "./messages/{locale}/onboarding.json",
       "./messages/{locale}/domain.json",
       "./messages/{locale}/error.json",

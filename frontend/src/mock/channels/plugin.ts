@@ -2,7 +2,14 @@
  * `plugin.*` — a few installed plugins, and an inspection that asks for
  * enough to exercise the approval dialog.
  */
-import type { Grant, Manifest, PluginInfo, PluginState } from '@/api/types';
+import type {
+  Grant,
+  Manifest,
+  PluginInfo,
+  PluginPage,
+  PluginState,
+  UiNode,
+} from '@/api/types';
 
 import { jobIdOf, runPlan } from '../job';
 import { type ChannelHandlers, ok, str } from '../support';
@@ -182,7 +189,44 @@ const setState = (id: string, state: PluginState): PluginInfo => {
   return plugin;
 };
 
+const pages: PluginPage[] = [
+  {
+    plugin: 'hello',
+    page: { id: 'greeter', title: 'Greeter', icon: 'plugin', slot: 'nav' },
+  },
+  {
+    plugin: 'hello',
+    page: {
+      id: 'notes',
+      title: 'Notes',
+      icon: 'server',
+      slot: 'entry',
+      kind: 'server',
+    },
+  },
+];
+
+const greeter = {
+  type: 'stack',
+  direction: 'vertical',
+  children: [
+    { type: 'heading', text: 'Hello', level: 1 },
+    { type: 'markdown', source: 'Say **hi** to the daemon.' },
+    {
+      type: 'form',
+      id: 'greet',
+      fields: [{ type: 'text', name: 'who', label: 'Who', value: 'world' }],
+      submit: { label: 'Greet', action: { id: 'greet', payload: null } },
+    },
+  ],
+} as unknown as UiNode;
+
 export const channels: ChannelHandlers = {
+  'plugin.pages': () => pages,
+  'plugin.ui.render': () => greeter,
+  'plugin.ui.action': () => [
+    { type: 'toast', tone: 'success', text: 'Hello from the mock plugin' },
+  ],
   'plugin.list': () => plugins,
   'plugin.enable': (p) => setState(str(p, 'id'), 'enabled'),
   'plugin.disable': (p) => setState(str(p, 'id'), 'disabled'),

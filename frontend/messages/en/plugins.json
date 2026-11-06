@@ -1,0 +1,8 @@
+{
+  "plugins": {
+    "load_failed": "This plugin page could not be loaded",
+    "missing": "This plugin page is not available",
+    "pick": "Choose one",
+    "unknown_node": "This plugin uses an element this version does not support ({type})."
+  }
+}

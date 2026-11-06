@@ -4,10 +4,11 @@ import {
   InstanceDetailPage,
   type InstanceTab,
 } from '@/features/instances/detail';
+import { isPluginTab, type PluginTab } from '@/features/plugins';
 import { isContentKind } from '@/features/shared/content/lib';
 import { ensureSignedIn } from '@/queries';
 
-const tabs: Record<Exclude<InstanceTab, 'overview'>, true> = {
+const tabs: Record<Exclude<InstanceTab, 'overview' | PluginTab>, true> = {
   content: true,
   worlds: true,
   servers: true,
@@ -24,9 +25,10 @@ export const Route = createFileRoute('/_app/instances/$id')({
   validateSearch: (
     search: Record<string, unknown>,
   ): { tab?: InstanceTab; kind?: ContentKind } => {
-    const tab = Object.hasOwn(tabs, search.tab as string)
-      ? (search.tab as InstanceTab)
-      : undefined;
+    const tab =
+      Object.hasOwn(tabs, search.tab as string) || isPluginTab(search.tab)
+        ? (search.tab as InstanceTab)
+        : undefined;
     return {
       tab,
       kind:

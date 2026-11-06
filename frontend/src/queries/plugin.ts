@@ -2,10 +2,12 @@
 import { queryOptions } from '@tanstack/react-query';
 import { m } from '@/paraglide/messages.js';
 import type {
+  Effect,
   PluginInfo,
   PluginInspection,
   PluginInstallDone,
   PluginInstallProgress,
+  PluginUiActionParams,
   RepositoryAdded,
   RepositoryRefreshed,
 } from '../api';
@@ -37,9 +39,26 @@ export const pluginQueries = {
       queryFn: () => api.catalogue(),
       staleTime: CATALOG_STALE_MS,
     }),
+  pages: () =>
+    queryOptions({
+      queryKey: keys.plugins.pages(),
+      queryFn: () => api.pages(),
+    }),
+  render: (plugin: string, page: string, entry?: string) =>
+    queryOptions({
+      queryKey: keys.plugins.render(plugin, page, entry),
+      queryFn: () =>
+        api.render({ plugin, page, context: entry ? { entry } : {} }),
+      retry: false,
+    }),
 };
 
 export const pluginMutations = {
+  uiAction: () =>
+    mutation<Effect[], PluginUiActionParams>({
+      mutationKey: [...keys.plugins.all, 'ui-action'],
+      mutationFn: (params) => api.action(params),
+    }),
   enable: () =>
     mutation<PluginInfo, string>({
       mutationKey: [...keys.plugins.all, 'enable'],

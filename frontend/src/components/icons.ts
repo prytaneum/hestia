@@ -36,6 +36,22 @@ export function contentIcon(kind: ContentKind): Icon {
   }
 }
 
+const NAMED_ICONS: Record<string, Icon> = {
+  instance: entryIcon('instance'),
+  server: entryIcon('server'),
+  mod: contentIcon('mod'),
+  resource_pack: contentIcon('resource_pack'),
+  shader: contentIcon('shader'),
+  data_pack: contentIcon('data_pack'),
+  modpack: contentIcon('modpack'),
+  plugin: contentIcon('plugin'),
+};
+
+/** A name from the app's icon set, as a plugin page names its icon; unknown names fall back to the plugin glyph. */
+export function namedIcon(name: string | undefined): Icon {
+  return (name && NAMED_ICONS[name]) || PlugIcon;
+}
+
 export const contentKindLabel: Record<ContentKind, () => string> = {
   mod: m['domain.kind.mod'],
   resource_pack: m['domain.kind.resourcepack'],

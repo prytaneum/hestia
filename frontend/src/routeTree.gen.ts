@@ -22,6 +22,7 @@ import { Route as AppSettingsIndexRouteImport } from './routes/_app/settings/ind
 import { Route as AppSkinsIndexRouteImport } from './routes/_app/skins/index'
 import { Route as AppBrowseKindIndexRouteImport } from './routes/_app/browse/$kind/index'
 import { Route as AppBrowseKindIdRouteImport } from './routes/_app/browse/$kind/$id'
+import { Route as AppPluginsPluginPageRouteImport } from './routes/_app/plugins/$plugin/$page'
 
 const AppRouteRoute = AppRouteRouteImport.update({
   id: '/_app',
@@ -87,6 +88,11 @@ const AppBrowseKindIdRoute = AppBrowseKindIdRouteImport.update({
   path: '/browse/$kind/$id',
   getParentRoute: () => AppRouteRoute,
 } as any)
+const AppPluginsPluginPageRoute = AppPluginsPluginPageRouteImport.update({
+  id: '/plugins/$plugin/$page',
+  path: '/plugins/$plugin/$page',
+  getParentRoute: () => AppRouteRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
@@ -100,6 +106,7 @@ export interface FileRoutesByFullPath {
   '/settings/': typeof AppSettingsIndexRoute
   '/skins/': typeof AppSkinsIndexRoute
   '/browse/$kind/$id': typeof AppBrowseKindIdRoute
+  '/plugins/$plugin/$page': typeof AppPluginsPluginPageRoute
   '/browse/$kind/': typeof AppBrowseKindIndexRoute
 }
 export interface FileRoutesByTo {
@@ -114,6 +121,7 @@ export interface FileRoutesByTo {
   '/settings': typeof AppSettingsIndexRoute
   '/skins': typeof AppSkinsIndexRoute
   '/browse/$kind/$id': typeof AppBrowseKindIdRoute
+  '/plugins/$plugin/$page': typeof AppPluginsPluginPageRoute
   '/browse/$kind': typeof AppBrowseKindIndexRoute
 }
 export interface FileRoutesById {
@@ -130,6 +138,7 @@ export interface FileRoutesById {
   '/_app/settings/': typeof AppSettingsIndexRoute
   '/_app/skins/': typeof AppSkinsIndexRoute
   '/_app/browse/$kind/$id': typeof AppBrowseKindIdRoute
+  '/_app/plugins/$plugin/$page': typeof AppPluginsPluginPageRoute
   '/_app/browse/$kind/': typeof AppBrowseKindIndexRoute
 }
 export interface FileRouteTypes {
@@ -146,6 +155,7 @@ export interface FileRouteTypes {
     | '/settings/'
     | '/skins/'
     | '/browse/$kind/$id'
+    | '/plugins/$plugin/$page'
     | '/browse/$kind/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -160,6 +170,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/skins'
     | '/browse/$kind/$id'
+    | '/plugins/$plugin/$page'
     | '/browse/$kind'
   id:
     | '__root__'
@@ -175,6 +186,7 @@ export interface FileRouteTypes {
     | '/_app/settings/'
     | '/_app/skins/'
     | '/_app/browse/$kind/$id'
+    | '/_app/plugins/$plugin/$page'
     | '/_app/browse/$kind/'
   fileRoutesById: FileRoutesById
 }
@@ -275,6 +287,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppBrowseKindIdRouteImport
       parentRoute: typeof AppRouteRoute
     }
+    '/_app/plugins/$plugin/$page': {
+      id: '/_app/plugins/$plugin/$page'
+      path: '/plugins/$plugin/$page'
+      fullPath: '/plugins/$plugin/$page'
+      preLoaderRoute: typeof AppPluginsPluginPageRouteImport
+      parentRoute: typeof AppRouteRoute
+    }
   }
 }
 
@@ -290,6 +309,7 @@ interface AppRouteRouteChildren {
   AppSettingsIndexRoute: typeof AppSettingsIndexRoute
   AppSkinsIndexRoute: typeof AppSkinsIndexRoute
   AppBrowseKindIdRoute: typeof AppBrowseKindIdRoute
+  AppPluginsPluginPageRoute: typeof AppPluginsPluginPageRoute
   AppBrowseKindIndexRoute: typeof AppBrowseKindIndexRoute
 }
 
@@ -305,6 +325,7 @@ const AppRouteRouteChildren: AppRouteRouteChildren = {
   AppSettingsIndexRoute: AppSettingsIndexRoute,
   AppSkinsIndexRoute: AppSkinsIndexRoute,
   AppBrowseKindIdRoute: AppBrowseKindIdRoute,
+  AppPluginsPluginPageRoute: AppPluginsPluginPageRoute,
   AppBrowseKindIndexRoute: AppBrowseKindIndexRoute,
 }
 
