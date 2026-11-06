@@ -699,6 +699,9 @@ hestia plugin add <id>           # from an added repository: its newest build fo
 hestia plugin add <label>/<id>   # the same, from the repository with that label
 hestia plugin add <index-url>    # a repository's link: offers to add it, then to pick plugins from it
 hestia plugin info <id>          # manifest, state, permissions, signer, repository, last error, call counters
+hestia plugin config <id>        # the settings the plugin declares; a secret shows only as set or not set
+hestia plugin config <id> <key>  # one setting; a secret without a value is prompted for, without echo
+hestia plugin config <id> <key> <value>   # set it, checked against the declared kind; --unset restores the default
 hestia plugin enable <id>        # load it
 hestia plugin disable <id>       # unload it; it stays installed
 hestia plugin remove <id>        # confirms first; -y skips the prompt
