@@ -13,6 +13,11 @@ export function set(key: string, value: unknown): Promise<void> {
   return invokeCommand<void>('prefs_set', { key, value });
 }
 
+/** Whether this run was started in safe mode (`--safe-mode`, `HESTIA_SAFE_MODE=1`). */
+export function safeMode(): Promise<boolean> {
+  return invokeCommand<boolean>('safe_mode');
+}
+
 export function remove(key: string): Promise<void> {
   return invokeCommand<void>('prefs_remove', { key });
 }

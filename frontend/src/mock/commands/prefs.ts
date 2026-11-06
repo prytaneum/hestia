@@ -26,6 +26,8 @@ function write(prefs: Record<string, unknown>): void {
 }
 
 export const commands: Handlers = {
+  safe_mode: () => false,
+
   prefs_list: () => read(),
 
   prefs_set: (p) => {

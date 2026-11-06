@@ -36,6 +36,9 @@ import {
   CLOSE_ACTIONS,
   type CloseAction,
 } from '@/queries/sessions';
+import { useTheme } from '@/queries/theme';
+
+const BUILTIN_THEME = 'builtin';
 
 /** Endonyms — a language always names itself, whatever locale is active. */
 const LANGUAGE_NAMES: Record<string, string> = {
@@ -150,6 +153,12 @@ export function GeneralTab() {
         </Setting>
       </SettingsSection>
 
+      <SettingsSection group="appearance" legend={m['settings.appearance']()}>
+        <Setting id="theme">
+          <ThemeField />
+        </Setting>
+      </SettingsSection>
+
       <SettingsSection group="updates" legend={m['settings.update.title']()}>
         <Setting id="update-channel">
           <UpdateChannelField />
@@ -215,6 +224,47 @@ function LanguageField() {
           </SelectGroup>
         </SelectContent>
       </Select>
+    </Field>
+  );
+}
+
+function ThemeField() {
+  const { themes, active, select } = useTheme();
+  const key = (plugin: string, id: string) => `${plugin}/${id}`;
+  return (
+    <Field>
+      <FieldLabel htmlFor="theme">{m['settings.theme.label']()}</FieldLabel>
+      <Select
+        value={active ? key(active.plugin, active.id) : BUILTIN_THEME}
+        onValueChange={(value) =>
+          select(
+            themes.find((theme) => key(theme.plugin, theme.id) === value) ??
+              null,
+          )
+        }
+      >
+        <SelectTrigger id="theme" className="w-full max-w-md">
+          <SelectValue>
+            {() => active?.name ?? m['settings.theme.builtin']()}
+          </SelectValue>
+        </SelectTrigger>
+        <SelectContent align="start">
+          <SelectGroup>
+            <SelectItem value={BUILTIN_THEME}>
+              {m['settings.theme.builtin']()}
+            </SelectItem>
+            {themes.map((theme) => (
+              <SelectItem
+                key={key(theme.plugin, theme.id)}
+                value={key(theme.plugin, theme.id)}
+              >
+                {theme.name}
+              </SelectItem>
+            ))}
+          </SelectGroup>
+        </SelectContent>
+      </Select>
+      <FieldDescription>{m['settings.theme.hint']()}</FieldDescription>
     </Field>
   );
 }

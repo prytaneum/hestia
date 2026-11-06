@@ -253,6 +253,10 @@
       "recent_play": "{kind} · {instance}",
       "started": "Iniciado"
     },
+    "safe_mode": {
+      "notice": "Modo seguro: os temas de plugins não são carregados nesta execução.",
+      "reset": "Redefinir tema"
+    },
     "search": {
       "content": "Pesquisar conteúdo",
       "content_or_link": "Pesquise ou cole o link de um projeto",

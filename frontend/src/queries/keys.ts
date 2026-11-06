@@ -76,6 +76,7 @@ export const keys = {
   prefs: {
     all: ['prefs'] as const,
     list: () => [...keys.prefs.all, 'list'] as const,
+    safeMode: () => [...keys.prefs.all, 'safe-mode'] as const,
   },
   icons: {
     all: ['icons'] as const,
@@ -174,6 +175,7 @@ export const keys = {
     repositories: () => [...keys.plugins.all, 'repositories'] as const,
     catalogue: () => [...keys.plugins.all, 'catalogue'] as const,
     pages: () => [...keys.plugins.all, 'pages'] as const,
+    themes: () => [...keys.plugins.all, 'themes'] as const,
     render: (plugin: string, page: string, entry?: string) =>
       [...keys.plugins.all, 'render', plugin, page, entry ?? null] as const,
   },

@@ -21,6 +21,7 @@ export type SettingsTab = (typeof SETTINGS_TABS)[number];
 
 export type SettingsGroup =
   | 'general'
+  | 'appearance'
   | 'updates'
   | 'java-defaults'
   | 'java-runtimes'
@@ -100,6 +101,16 @@ const INDEX: Entry[] = [
       m['settings.tutorial.label'],
       m['settings.tutorial.hint'],
       m['settings.tutorial.replay'],
+    ),
+  },
+  {
+    id: 'theme',
+    tab: 'general',
+    group: 'appearance',
+    text: text(
+      m['settings.theme.label'],
+      m['settings.theme.hint'],
+      m['settings.theme.builtin'],
     ),
   },
   {

@@ -1,6 +1,7 @@
 {
   "$schema": "https://inlang.com/schema/inlang-message-format",
   "settings": {
+    "appearance": "Appearance",
     "cache": {
       "clear": "Clear cache",
       "clear_description": "Frees the cached downloads. Files are re-fetched from the network the next time they're needed.",
@@ -134,7 +135,8 @@
       "hint": "Plugins extend Hestia. A plugin only gets what you approve when you install it.",
       "install_file": "Install from file",
       "install_link": "From link",
-      "installed": "{name} installed",      "link_hint": "An https link to a .hplugin file. Hestia downloads it once and shows what it asks for before installing anything.",
+      "installed": "{name} installed",
+      "link_hint": "An https link to a .hplugin file. Hestia downloads it once and shows what it asks for before installing anything.",
       "link_title": "Install from a link",
       "needs_approval_hint": "Its package changed since you approved it. Install it again to review what it asks for.",
       "no_permissions": "Asks for no permissions.",
@@ -185,6 +187,12 @@
       "java": "Java",
       "plugins": "Plugins",
       "storage": "Storage"
+    },
+    "theme": {
+      "builtin": "Hestia (built-in)",
+      "failed": "The theme \"{name}\" could not be loaded and was turned off.",
+      "hint": "A theme from an installed plugin restyles the app. Turning the plugin off, or removing it, returns to the built-in look.",
+      "label": "Theme"
     },
     "tutorial": {
       "hint": "Each page walks you through itself again the next time you open it.",

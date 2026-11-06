@@ -253,6 +253,10 @@
       "recent_play": "{kind} · {instance}",
       "started": "Started"
     },
+    "safe_mode": {
+      "notice": "Safe mode: plugin themes are not loaded this run.",
+      "reset": "Reset theme"
+    },
     "search": {
       "content": "Search content",
       "content_or_link": "Search, or paste a project link",

@@ -223,6 +223,7 @@ const greeter = {
 
 export const channels: ChannelHandlers = {
   'plugin.pages': () => pages,
+  'plugin.themes': () => [],
   'plugin.ui.render': () => greeter,
   'plugin.ui.action': () => [
     { type: 'toast', tone: 'success', text: 'Hello from the mock plugin' },

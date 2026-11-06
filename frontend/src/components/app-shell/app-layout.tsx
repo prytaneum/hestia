@@ -7,6 +7,7 @@ import { PlayBar } from '@/components/app-shell/play-bar';
 import { SearchProvider } from '@/components/app-shell/search-context';
 import { Sidebar } from '@/components/app-shell/sidebar';
 import { StatusBar } from '@/components/app-shell/status-bar';
+import { ThemeHost } from '@/components/app-shell/theme-host';
 import { TopNav } from '@/components/app-shell/top-nav';
 import { TourProvider } from '@/features/onboarding';
 import { WelcomeDialog } from '@/features/onboarding/welcome';
@@ -19,6 +20,7 @@ export function AppLayout() {
     <SearchProvider>
       <TourProvider>
         <div className="flex h-screen w-screen flex-col overflow-hidden bg-background text-foreground">
+          <ThemeHost />
           <TopNav />
 
           <div className="flex min-h-0 flex-1">

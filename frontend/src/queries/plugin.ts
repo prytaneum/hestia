@@ -39,6 +39,11 @@ export const pluginQueries = {
       queryFn: () => api.catalogue(),
       staleTime: CATALOG_STALE_MS,
     }),
+  themes: () =>
+    queryOptions({
+      queryKey: keys.plugins.themes(),
+      queryFn: () => api.themes(),
+    }),
   pages: () =>
     queryOptions({
       queryKey: keys.plugins.pages(),

@@ -13,10 +13,15 @@ import type {
   PluginInspection,
   PluginInstallDone,
   PluginPage,
+  PluginTheme,
   PluginUiActionParams,
   PluginUiRenderParams,
 } from './types/plugin';
 import type { Effect, UiNode } from './types/ui';
+
+export function themes(): Promise<PluginTheme[]> {
+  return call('plugin.themes');
+}
 
 export function pages(): Promise<PluginPage[]> {
   return call('plugin.pages');

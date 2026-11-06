@@ -1,6 +1,7 @@
 {
   "$schema": "https://inlang.com/schema/inlang-message-format",
   "settings": {
+    "appearance": "Aparência",
     "cache": {
       "clear": "Limpar cache",
       "clear_description": "Libera os downloads em cache. Os arquivos são baixados novamente da rede na próxima vez que forem necessários.",
@@ -186,6 +187,12 @@
       "java": "Java",
       "plugins": "Plugins",
       "storage": "Armazenamento"
+    },
+    "theme": {
+      "builtin": "Hestia (padrão)",
+      "failed": "Não foi possível carregar o tema \"{name}\", e ele foi desativado.",
+      "hint": "Um tema de um plugin instalado muda o visual do app. Desativar ou remover o plugin volta ao visual padrão.",
+      "label": "Tema"
     },
     "tutorial": {
       "hint": "Cada página apresenta o seu tour de novo na próxima vez que você a abrir.",
