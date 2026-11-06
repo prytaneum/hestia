@@ -113,7 +113,7 @@ function contentJob(
       { phase: 'content', detail: 'downloading' },
       { phase: 'content', detail: 'mirroring' },
     ],
-    done: () => ({ items: done(), failures: [] }),
+    done: () => ({ items: done(), failures: [], warnings: [] }),
   });
 }
 

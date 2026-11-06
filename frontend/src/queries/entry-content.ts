@@ -16,14 +16,15 @@ import { mutation } from './core';
 import { type JobOutcome, jobMutation, subjectName } from './jobs';
 import { entryScope, entryTarget } from './keys';
 
-/** Silent unless an item failed: the rows already show what landed. */
+/** Silent unless an item failed or something went ahead degraded: the rows already show what landed. */
 function failuresOutcome(
   title: string,
-  { items, failures }: ContentDone,
+  { items, failures, warnings }: ContentDone,
 ): JobOutcome | null {
-  if (failures.length === 0) return null;
+  if (failures.length === 0 && warnings.length === 0) return null;
   return {
     title,
+    warnings,
     failures: {
       failed: failures.length,
       total: items.length + failures.length,
