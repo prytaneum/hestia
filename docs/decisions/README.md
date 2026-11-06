@@ -35,6 +35,7 @@ the alternative you rejected — that is usually the part nobody can recover lat
 - **0094** — [A plugin repository has one shape, and it is also the store it declares](0094-a-plugin-repository-has-one-shape.md)
 - **0097** — [Trust follows the repository's key, not its address](0097-trust-follows-the-repository-key.md)
 - **0099** — [Official plugins are the ones signed by Hestia's own key](0099-official-plugins-are-signed.md)
+- **0100** — [A plugin theme is raw CSS behind a permission, a CSP and a safe mode](0100-themes-are-plugin-css.md)
 
 ### [Cross-cutting foundations](../architecture/common.md)
 
@@ -145,3 +146,4 @@ the alternative you rejected — that is usually the part nobody can recover lat
 - **0093** — [The desktop runs under a CSP, and style-src is left to the page](0093-the-desktop-runs-under-a-csp.md)
 - **0096** — [Plugin UI is a declarative tree the host renders](0096-plugin-ui-is-a-declarative-tree.md)
 - **0098** — [Plugin assets are served by the daemon, not read by the webview](0098-plugin-assets-are-served-by-the-daemon.md)
+- **0100** — [A plugin theme is raw CSS behind a permission, a CSP and a safe mode](0100-themes-are-plugin-css.md)

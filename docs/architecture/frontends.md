@@ -338,6 +338,19 @@ A click or submit calls `plugin.ui.action` and applies the returned effects:
 `render` replaces the cached tree, `toast` goes through `notify`, `navigate`
 opens another page of the plugin, and `refresh` refetches.
 
+### Themes
+
+A plugin may contribute `[[contributes.themes]]` (id, name, `file`,
+`appearance`), which needs `ui:css`. `plugin.themes` lists those of the enabled
+plugins. The chosen one is the `theme` pref (`{plugin, id}`), picked in Settings
+→ General → Appearance. `ThemeHost` (`components/app-shell/theme-host.tsx`)
+appends one `<link rel="stylesheet">` after the app CSS pointing at the
+plugin's `hestia-plugin` URL, only once a theme is chosen and safe mode has
+answered no; a theme that is removed, disabled or fails to load falls back to
+the built-in look. `hestia-desktop --safe-mode` or `HESTIA_SAFE_MODE=1` loads no
+plugin CSS for that run and shows a notice with a button that clears the pref
+([0100](../decisions/0100-themes-are-plugin-css.md)).
+
 ## Notifications and saves
 
 Every piece of feedback has one surface, and one owner
