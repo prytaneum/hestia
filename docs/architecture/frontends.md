@@ -144,7 +144,9 @@ the intended end state is a full-screen TUI over the same `Screen`s and `View`s.
 # Desktop — `hestia-desktop`
 
 A Tauri v2 shell hosting the React frontend in the root `frontend/`, wired to the
-daemon through the same one-way boundary as the CLI.
+daemon through the same one-way boundary as the CLI. The webview runs under a
+Content Security Policy that allows no remote host
+([0093](../decisions/0093-the-desktop-runs-under-a-csp.md)).
 
 ## The Rust shell is a pipe
 
@@ -505,3 +507,4 @@ id, or on Linux each would block the other
 - [0068 — The tray speaks the tray protocol, not a library that might be installed](../decisions/0068-the-tray-speaks-the-tray-protocol.md)
 - [0080 — Only the shell runs in the AppImage's environment](../decisions/0080-only-the-shell-runs-in-the-appimage-environment.md)
 - [0089 — A job outcome is reported once, by the job store](../decisions/0089-a-job-outcome-is-reported-once.md)
+- [0093 — The desktop runs under a CSP](../decisions/0093-the-desktop-runs-under-a-csp.md)
