@@ -11,6 +11,10 @@ use futures_util::future::BoxFuture;
 use proto::error::ErrorInfo;
 use proto::warning::WarningInfo;
 
+mod launch;
+
+pub use launch::{BeforeLaunch, LaunchContext};
+
 use super::chain::CallChain;
 use super::runtime::{CallError, LoadedPlugin, HOOK_TIMEOUT};
 

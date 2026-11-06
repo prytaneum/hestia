@@ -64,6 +64,8 @@ fn guest(calls_host: bool, body: &str) -> String {
                 (func (export "on-event") (param i32 i32 i32 i32))
                 (func (export "action") (param i32 i32 i32 i32 i32 i32 i32 i32) (result i32)
                     (i32.const 144))
+                (func (export "before-launch") (param i32) (result i32)
+                    (i32.const 160))
                 (func (export "init") (result i32)
                     {body}
                     (i32.store8 (i32.const 128) (i32.const 0))
@@ -100,7 +102,26 @@ fn guest(calls_host: bool, body: &str) -> String {
                     (memory (core memory $libc "memory"))
                     (realloc (core func $libc "realloc"))))
             (instance $ui (export "render" (func $render)) (export "action" (func $action)))
-            (export "hestia:plugin/ui@1.0.0" (instance $ui)))"#
+            (export "hestia:plugin/ui@1.0.0" (instance $ui))
+            (type $launch_context (record
+                (field "instance-id" string) (field "instance-name" string)
+                (field "game-version" string) (field "flavor" string)
+                (field "loader-version" (option string)) (field "java-path" string)
+                (field "memory" (option string)) (field "quick-play" (option string))
+                (field "profile-name" string) (field "profile-uuid" string)))
+            (type $launch_patch (record
+                (field "extra-jvm-args" (list string))
+                (field "extra-game-args" (list string))))
+            (func $before_launch (param "ctx" $launch_context)
+                (result (result $launch_patch (error string)))
+                (canon lift (core func $main "before-launch")
+                    (memory (core memory $libc "memory"))
+                    (realloc (core func $libc "realloc"))))
+            (instance $launch_hooks
+                (export "launch-context" (type $launch_context))
+                (export "launch-patch" (type $launch_patch))
+                (export "before-launch" (func $before_launch)))
+            (export "hestia:plugin/launch-hooks@1.0.0" (instance $launch_hooks)))"#
     )
 }
 

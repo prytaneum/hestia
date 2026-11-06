@@ -1,0 +1,33 @@
+package hestia:plugin@1.0.0;
+
+interface launch-hooks {
+    /// What a launch is about to run. There is no access token and no raw
+    /// command line: a hook adjusts a launch, it does not see its secrets.
+    record launch-context {
+        instance-id: string,
+        instance-name: string,
+        game-version: string,
+        flavor: string,
+        loader-version: option<string>,
+        java-path: string,
+        /// The configured heap size, e.g. `4G`; absent when left to the JVM.
+        memory: option<string>,
+        /// What the launch joins on start: `world:<folder>`, `server:<address>`
+        /// or `realm:<id>`; absent for the title screen.
+        quick-play: option<string>,
+        profile-name: string,
+        profile-uuid: string,
+    }
+
+    /// Arguments to add. Only an allowlist is kept (tuning `-XX:` flags, `-D`
+    /// keys the manifest declares, `--width`, `--height`, `--fullscreen`); the
+    /// rest is dropped with a warning.
+    record launch-patch {
+        extra-jvm-args: list<string>,
+        extra-game-args: list<string>,
+    }
+
+    /// Runs just before the game is spawned. An error vetoes the launch and its
+    /// text is shown to the user as the reason.
+    before-launch: func(ctx: launch-context) -> result<launch-patch, string>;
+}

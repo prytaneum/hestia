@@ -48,4 +48,5 @@ world plugin {
     export commands;
     export events;
     export ui;
+    export launch-hooks;
 }

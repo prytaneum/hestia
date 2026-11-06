@@ -23,6 +23,7 @@ mod call;
 mod command;
 pub mod data;
 mod error;
+mod hooks;
 pub mod http;
 pub mod log;
 pub mod progress;
@@ -31,6 +32,7 @@ pub mod ui;
 pub use call::{call, run_job};
 pub use command::args;
 pub use error::Error;
+pub use hooks::{LaunchContext, LaunchPatch};
 /// The daemon's wire contracts and domain types, the same ones the CLI uses.
 pub use proto;
 use proto::plugin::PageContext;
@@ -109,6 +111,16 @@ pub trait Plugin {
     ) -> Result<Vec<Effect>, Error> {
         let _ = (action, values, context);
         Err(Error::NotFound(format!("unknown page `{page}`")))
+    }
+
+    /// Runs just before a game launch, for a plugin that declares the
+    /// `before-launch` hook. Answer the arguments to add; the host keeps only
+    /// an allowlist of them. An `Err` vetoes the launch, and its text is the
+    /// reason shown to the user. A call that overruns its two seconds is skipped
+    /// instead.
+    fn before_launch(context: LaunchContext) -> Result<LaunchPatch, String> {
+        let _ = context;
+        Ok(LaunchPatch::default())
     }
 }
 
@@ -194,6 +206,17 @@ macro_rules! plugin {
                     )?;
                     $crate::serde_json::to_string(&effects)
                         .map_err(|error| $crate::Error::Failed(error.to_string()).into())
+                }
+            }
+
+            impl $crate::bindings::exports::hestia::plugin::launch_hooks::Guest for Export {
+                fn before_launch(
+                    ctx: $crate::LaunchContext,
+                ) -> ::core::result::Result<
+                    $crate::bindings::exports::hestia::plugin::launch_hooks::LaunchPatch,
+                    ::std::string::String,
+                > {
+                    <$plugin as $crate::Plugin>::before_launch(ctx).map(::core::convert::Into::into)
                 }
             }
 

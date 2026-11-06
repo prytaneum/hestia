@@ -12,6 +12,7 @@ mod http;
 mod imports;
 mod install;
 mod output;
+mod patch;
 mod remote;
 mod repos;
 mod runtime;
@@ -20,9 +21,12 @@ mod store;
 pub use asset::MAX_ASSET_BYTES;
 pub use chain::{CallChain, ChainError, MAX_CHAIN_DEPTH};
 pub use command::{command_args, find_command};
-pub use hooks::{Hook, HookOutcome, Hooks, Participant, Roster, Verdict};
+pub use hooks::{
+    BeforeLaunch, Hook, HookOutcome, Hooks, LaunchContext, Participant, Roster, Verdict,
+};
 pub use imports::{CommandRun, HostCalls, HostError};
 pub use install::Inspection;
+pub use patch::LaunchPatch;
 pub use remote::{Remote, Staged};
 pub use repos::{key_id_of, revocation, verify_build, verify_index, RepoError};
 pub use runtime::{
