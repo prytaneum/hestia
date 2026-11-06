@@ -96,6 +96,28 @@ each beside the other catalogue caches.
   Removing a repository makes its plugins obsolete until a repository with that key is added again. A plugin installed
   from a file, folder or plain link has no signer and is never obsolete.
 
+### Add from a link
+
+A repository's website can offer one click to add it, with a `hestia://add-repo` link carrying the index URL:
+
+```
+hestia://add-repo?url=https%3A%2F%2Fexample.com%2Fhestia-index.json
+```
+
+The desktop app opens Settings > Plugins and shows the same confirmation as typing the URL does (name, label, website,
+key id, plugin count, and whether it is already configured). Nothing is added until the user agrees. The `url` must be
+https; any other scheme, another host or path under `hestia://`, or a missing `url` is ignored. To paste into a README
+or site:
+
+```markdown
+[![Add to Hestia](https://img.shields.io/badge/Add%20to-Hestia-e8873d?style=flat-square)](hestia://add-repo?url=https%3A%2F%2Fexample.com%2Fhestia-index.json)
+```
+
+Percent-encode the index URL. Only the installers register the scheme (NSIS on Windows, `.deb` and `.rpm` on Linux);
+the AppImage and the portable archives do not, so the link does nothing there and the URL has to be added by hand
+(`hestia plugin repo add <url>`). This lives here rather than in a separate publishing page because this is the page
+for repository authors.
+
 ## Keys and signatures
 
 A repository is the minisign key it declares ([0097](../decisions/0097-trust-follows-the-repository-key.md)).

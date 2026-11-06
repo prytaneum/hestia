@@ -88,6 +88,19 @@ What it adds over stock:
 - **Update-friendly** — running a newer setup over an existing install upgrades in place (no uninstall detour), reusing
   the recorded install directory, install mode, and components; downgrades take the stock uninstall-first path.
 
+## The `hestia://` link
+
+The desktop app handles `hestia://add-repo?url=<https index URL>` (see
+[Add from a link](plugins/repository.md#add-from-a-link)). The scheme is declared once, in `tauri.conf.json` under
+`plugins.deep-link.desktop.schemes`, and the bundler turns it into each installer's registration: the NSIS template
+writes the `URL Protocol` registry keys (`deep_link_protocols`, kept in the forked template), and `deb`/`rpm` add
+`x-scheme-handler/hestia` to the `.desktop` entry's `MimeType`. A second launch carrying a link is forwarded to the
+running window by `tauri-plugin-single-instance` (its `deep-link` feature).
+
+Registration is **installers only**: the app never calls the plugin's `register()` at runtime, so the AppImage and the
+portable archives do not claim the scheme and links do nothing there. Links fire only from an installed build; test one
+with `xdg-open 'hestia://add-repo?url=…'`.
+
 ## Auto-updates
 
 The **daemon** owns self-update — `engine/src/update/`, reached over `update.check`,

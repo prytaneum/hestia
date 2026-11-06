@@ -6,6 +6,7 @@ import { createRoot } from 'react-dom/client';
 
 import { ErrorBoundary } from './components/error-boundary';
 import { watchOpenedArchives } from './features/instances/hooks';
+import { watchRepositoryLinks } from './features/settings/hooks';
 import { LocaleProvider } from './hooks/locale';
 import { installCrashHandlers } from './lib/crash';
 import { initDesktopShell } from './lib/desktop';
@@ -34,6 +35,9 @@ watchOpenedArchives();
 watchFileDrops();
 startSessionTracking();
 const router = getRouter();
+watchRepositoryLinks(() => {
+  void router.navigate({ to: '/settings', search: { tab: 'plugins' } });
+});
 
 const rootElement = document.getElementById('app');
 if (rootElement && !rootElement.innerHTML) {

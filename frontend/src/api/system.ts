@@ -26,6 +26,15 @@ export function pendingArchive(): Promise<string | null> {
   return invokeCommand('pending_archive');
 }
 
+/**
+ * The https repository index URL the app was launched with through a
+ * `hestia://add-repo?url=` link, cleared as it is read. Null on an ordinary
+ * start.
+ */
+export function pendingRepository(): Promise<string | null> {
+  return invokeCommand('pending_repository');
+}
+
 /** Open a URL in the user's default browser (markdown links, project pages). */
 export function openUrl(url: string): Promise<void> {
   return invokeCommand('open_url', { url });

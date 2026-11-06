@@ -1,6 +1,6 @@
 import { ArrowClockwiseIcon, TrashIcon } from '@phosphor-icons/react';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 
 import { errorMessage, type RepositoryAdded, type RepositoryInfo } from '@/api';
 import { ExternalLink } from '@/components/external-link';
@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { Field, FieldDescription } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
+import { useRepositoryLink } from '@/features/settings/hooks';
 import { notify } from '@/lib/notify';
 import { m } from '@/paraglide/messages.js';
 import { pluginMutations, pluginQueries } from '@/queries/plugin';
@@ -26,18 +27,21 @@ export function RepositoryList() {
   const [address, setAddress] = useState('');
   const [found, setFound] = useState<RepositoryAdded | null>(null);
 
-  const lookUp = async () => {
-    try {
-      const result = await add.mutateAsync({
-        url: address.trim(),
-        confirm: false,
-      });
-      if (result.configured) notify.info(m['settings.plugins.repos.already']());
-      else setFound(result);
-    } catch (error) {
-      notify.error(errorMessage(error));
-    }
-  };
+  const { mutateAsync: lookUpRepository } = add;
+  const lookUp = useCallback(
+    async (url: string) => {
+      try {
+        const result = await lookUpRepository({ url, confirm: false });
+        if (result.configured)
+          notify.info(m['settings.plugins.repos.already']());
+        else setFound(result);
+      } catch (error) {
+        notify.error(errorMessage(error));
+      }
+    },
+    [lookUpRepository],
+  );
+  useRepositoryLink(lookUp);
 
   const trust = async () => {
     if (!found) return;
@@ -89,7 +93,7 @@ export function RepositoryList() {
         className="flex gap-2"
         onSubmit={(event) => {
           event.preventDefault();
-          if (address.trim()) void lookUp();
+          if (address.trim()) void lookUp(address.trim());
         }}
       >
         <Input
@@ -115,10 +119,27 @@ export function RepositoryList() {
         title={m['settings.plugins.repos.trust_title']({
           name: found?.repository.name ?? '',
         })}
-        description={m['settings.plugins.repos.trust_description']({
-          key: found?.repository.keyId ?? '',
-          name: found?.repository.name ?? '',
-        })}
+        description={
+          found && (
+            <>
+              {m['settings.plugins.repos.trust_description']({
+                key: found.repository.keyId,
+                name: found.repository.name,
+              })}
+              <span className="mt-2 block font-mono text-[11px]">
+                {[
+                  found.repository.label,
+                  m['settings.plugins.repos.count']({
+                    count: found.repository.plugins,
+                  }),
+                  found.repository.website,
+                ]
+                  .filter(Boolean)
+                  .join(' · ')}
+              </span>
+            </>
+          )
+        }
         confirmLabel={m['settings.plugins.repos.trust']()}
         onConfirm={() => void trust()}
       />

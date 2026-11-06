@@ -64,12 +64,14 @@ pub fn run() {
                 .open_js_links_on_click(false)
                 .build(),
         )
+        .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_process::init())
         .register_asynchronous_uri_scheme_protocol(proxy::SCHEME, proxy::serve)
         .register_asynchronous_uri_scheme_protocol(assets::SCHEME, assets::serve)
         .manage(Bridge::default())
         .manage(commands::open::PendingArchive::default())
+        .manage(commands::link::PendingRepository::default())
         .setup(|app| {
             if is_quit_signal(&std::env::args().collect::<Vec<_>>()) {
                 app.handle().exit(0);
@@ -82,6 +84,7 @@ pub fn run() {
             {
                 app.state::<commands::open::PendingArchive>().set(path);
             }
+            commands::link::listen(app.handle());
             tracing::info!(version = common::app::VERSION_LABEL, "desktop shell ready");
             bridge::start(app.handle().clone());
             bridge::watch(app.handle().clone());
@@ -103,6 +106,7 @@ pub fn run() {
             commands::icons::icon_config,
             commands::screenshots::screenshots_allow,
             commands::open::pending_archive,
+            commands::link::pending_repository,
             commands::opener::open_path,
             commands::opener::open_url,
             commands::splash::ready,
