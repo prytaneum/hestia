@@ -1,5 +1,6 @@
 import type { Tone } from '@/api/types/ui';
 import { Markdown } from '@/components/markdown';
+import { Notice as WarningBox } from '@/components/warning-notice';
 import { Progress } from '@/components/ui/progress';
 import { pluginAsset } from '@/lib/plugin-asset';
 import { cn } from '@/lib/utils';
@@ -30,12 +31,13 @@ export function Text({ text, tone }: { text: string; tone: Tone }) {
 }
 
 export function Notice({ text, tone }: { text: string; tone: Tone }) {
+  if (tone === 'warning' || tone === 'error') {
+    return <WarningBox message={text} />;
+  }
   return (
     <div
       className={cn(
         'border border-border bg-muted/40 px-3 py-2.5 text-xs leading-relaxed',
-        tone === 'warning' && 'border-amber/40 bg-amber/5',
-        tone === 'error' && 'border-destructive/40 bg-destructive/5',
         TONE[tone],
       )}
     >
