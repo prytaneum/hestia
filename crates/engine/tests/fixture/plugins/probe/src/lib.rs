@@ -18,6 +18,15 @@ impl Plugin for Probe {
         }
     }
 
+    fn on_event(topic: &str, payload: Value) {
+        let mut seen = hestia::data::load::<Vec<Value>>("events")
+            .ok()
+            .flatten()
+            .unwrap_or_default();
+        seen.push(json!({ "topic": topic, "payload": payload }));
+        let _ = hestia::data::save("events", &seen);
+    }
+
     fn run(command: &str, args: Value) -> Result<Value, Error> {
         match command {
             "echo" => Ok(args),

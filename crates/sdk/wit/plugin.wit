@@ -46,4 +46,5 @@ world plugin {
     import progress;
     export lifecycle;
     export commands;
+    export events;
 }

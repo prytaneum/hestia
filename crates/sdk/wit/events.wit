@@ -1,0 +1,10 @@
+package hestia:plugin@1.0.0;
+
+interface events {
+    use types.{json};
+
+    /// Delivers one daemon event the manifest subscribes to. Events arrive one at
+    /// a time, in order, each on a fresh instance with a few seconds to finish;
+    /// ones that pile up faster than the plugin takes them are dropped, oldest first.
+    on-event: func(topic: string, payload: json);
+}

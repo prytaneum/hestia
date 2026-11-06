@@ -3,6 +3,7 @@
 //! engine's [`PluginRuntime`]; the channels a plugin may call are lent to it by
 //! [`RouterHost`].
 
+mod events;
 mod host;
 mod package;
 
@@ -24,6 +25,7 @@ use tokio::task::{spawn_blocking, JoinSet};
 
 use super::EventHub;
 use crate::runtime::router::ServiceResult;
+use events::Delivery;
 
 pub use host::RouterHost;
 pub use package::Package;
@@ -35,6 +37,7 @@ struct Slot {
     state: PluginState,
     error: Option<String>,
     loaded: Option<Arc<LoadedPlugin>>,
+    _delivery: Option<Delivery>,
 }
 
 enum Activation {
@@ -47,6 +50,7 @@ pub struct Plugins {
     engine: Arc<Engine>,
     hub: Arc<EventHub>,
     sandbox: OnceLock<Arc<PluginRuntime>>,
+    host: OnceLock<Arc<dyn HostCalls>>,
     slots: Mutex<HashMap<String, Slot>>,
     shutting_down: AtomicBool,
     safe_mode: bool,
@@ -59,6 +63,7 @@ impl Plugins {
             hub,
             safe_mode,
             sandbox: OnceLock::new(),
+            host: OnceLock::new(),
             slots: Mutex::new(HashMap::new()),
             shutting_down: AtomicBool::new(false),
         }
@@ -71,7 +76,10 @@ impl Plugins {
 
     /// Creates the sandbox that plugins run in; `host` is what they may call.
     pub fn attach(&self, host: Arc<dyn HostCalls>) -> anyhow::Result<()> {
-        let sandbox = PluginRuntime::new(host, self.engine.plugin_cache_dir())?;
+        let sandbox = PluginRuntime::new(host.clone(), self.engine.plugin_cache_dir())?;
+        self.host
+            .set(host)
+            .map_err(|_| anyhow::anyhow!("the plugin runtime is already attached"))?;
         self.sandbox
             .set(Arc::new(sandbox))
             .map_err(|_| anyhow::anyhow!("the plugin runtime is already attached"))
@@ -380,6 +388,12 @@ impl Plugins {
         error: Option<String>,
         loaded: Option<Arc<LoadedPlugin>>,
     ) {
+        let delivery = match (state, &loaded, self.host.get()) {
+            (PluginState::Enabled, Some(loaded), Some(host)) => {
+                Delivery::start(self.hub.clone(), host.clone(), loaded.clone())
+            }
+            _ => None,
+        };
         {
             let mut slots = self.slots.lock().unwrap();
             if state != PluginState::Disabled && !self.wanted(id) {
@@ -392,6 +406,7 @@ impl Plugins {
                     state,
                     error: error.clone(),
                     loaded,
+                    _delivery: delivery,
                 },
             );
         }

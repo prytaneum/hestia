@@ -389,6 +389,8 @@ pub enum ManifestError {
     DuplicateId(String),
     #[error("command `{0}` declares the argument `entry`, which a scoped command receives itself")]
     ReservedArg(String),
+    #[error("event `{0}` must be a topic like `job` or a prefix glob like `server.*`")]
+    BadEventPattern(String),
 }
 
 impl Manifest {
@@ -434,6 +436,13 @@ impl Manifest {
             contributes.themes.iter().map(|theme| &theme.id).collect(),
             contributes.hooks.iter().collect(),
         ];
+        if let Some(pattern) = contributes
+            .events
+            .iter()
+            .find(|pattern| !crate::glob::is_topic_glob(pattern))
+        {
+            return Err(ManifestError::BadEventPattern(pattern.clone()));
+        }
         for command in &contributes.commands {
             let mut seen = BTreeSet::new();
             for arg in &command.args {

@@ -304,3 +304,25 @@ async fn memory_past_the_limit_traps_the_call_and_the_next_one_runs_fresh() {
     probe.set_mode("idle");
     probe.init().await.unwrap();
 }
+
+#[tokio::test]
+async fn an_event_reaches_the_guest_on_a_fresh_store() {
+    let probe = Probe::load(&[]);
+    let chain = CallChain::default();
+    for n in 0..2 {
+        probe
+            .plugin
+            .on_event(&chain, "server.created", &json!({ "n": n }), CALL_BUDGET)
+            .await
+            .unwrap();
+    }
+    let path = probe.data.path().join("data/events.json");
+    let recorded: Value = serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap();
+    assert_eq!(
+        recorded,
+        json!([
+            { "topic": "server.created", "payload": { "n": 0 } },
+            { "topic": "server.created", "payload": { "n": 1 } },
+        ])
+    );
+}

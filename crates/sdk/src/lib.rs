@@ -79,6 +79,14 @@ pub trait Plugin {
         let _ = args;
         Err(Error::NotFound(format!("unknown command `{command}`")))
     }
+
+    /// Receives a daemon event matching one of the manifest's `contributes.events`
+    /// that the plugin's permissions allow. Events arrive one at a time and in
+    /// order, each with a few seconds to finish; a plugin that falls behind loses
+    /// the oldest.
+    fn on_event(topic: &str, payload: Value) {
+        let _ = (topic, payload);
+    }
 }
 
 /// Exports a [`Plugin`] implementation as the component's entry points. Use it
@@ -118,6 +126,13 @@ macro_rules! plugin {
                     <$plugin as $crate::Plugin>::run(&command, args)
                         .map(|output| output.to_string())
                         .map_err(::core::convert::Into::into)
+                }
+            }
+
+            impl $crate::bindings::exports::hestia::plugin::events::Guest for Export {
+                fn on_event(topic: ::std::string::String, payload: ::std::string::String) {
+                    let payload = $crate::serde_json::from_str(&payload).unwrap_or_default();
+                    <$plugin as $crate::Plugin>::on_event(&topic, payload)
                 }
             }
 

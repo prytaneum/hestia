@@ -15,6 +15,7 @@ pub mod entry;
 pub mod error;
 pub mod events;
 pub mod files;
+pub mod glob;
 pub mod health;
 pub mod host;
 pub mod image;

@@ -305,6 +305,31 @@ impl LoadedPlugin {
             .map_err(|error| CallError::Guest(format!("the command's result is not JSON: {error}")))
     }
 
+    /// Runs the plugin's `events.on-event` under `timeout`.
+    pub async fn on_event(
+        &self,
+        chain: &CallChain,
+        topic: &str,
+        payload: &Value,
+        timeout: Duration,
+    ) -> Result<(), CallError> {
+        let (topic, payload) = (topic.to_string(), payload.to_string());
+        self.guarded(chain, timeout, None, move |store, instance| {
+            Box::pin(async move {
+                instance
+                    .hestia_plugin_events()
+                    .call_on_event(store, &topic, &payload)
+                    .await
+            })
+        })
+        .await
+    }
+
+    /// What the user approved for this plugin.
+    pub fn grant(&self) -> &Grant {
+        &self.grant
+    }
+
     /// Runs `run` on a fresh store under one wall-clock budget that covers
     /// waiting for a slot, guest compute and awaited host calls. The epoch
     /// deadline only makes a spinning guest yield to the executor; the timeout

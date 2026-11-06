@@ -100,6 +100,20 @@ mod manifest {
     }
 
     #[test]
+    fn event_patterns_are_a_topic_or_a_trailing_glob() {
+        let mut manifest = valid();
+        manifest.contributes.events = vec!["server.*".into(), "job".into()];
+        assert_eq!(manifest.validate(), Ok(()));
+        for bad in ["*", "server*", "a.*.b", ""] {
+            manifest.contributes.events = vec![bad.into()];
+            assert_eq!(
+                manifest.validate(),
+                Err(ManifestError::BadEventPattern(bad.into()))
+            );
+        }
+    }
+
+    #[test]
     fn rejects_a_setting_key_declared_twice() {
         let mut manifest = valid();
         manifest.settings = [SettingKind::String, SettingKind::Secret]

@@ -3,7 +3,7 @@
 //! connection's writer task; a closed connection is pruned on the next publish.
 
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 use ipc::protocol::{encode_event, Event};
 use proto::Topic;
@@ -20,9 +20,14 @@ struct Sub {
     filter: Option<String>,
 }
 
+/// An in-process subscriber. It runs inside `publish`, so it must only filter
+/// and enqueue, never block.
+type Listener = Arc<dyn Fn(&str, &Value) + Send + Sync>;
+
 #[derive(Default)]
 pub struct EventHub {
     subs: Mutex<Vec<Sub>>,
+    listeners: Mutex<Vec<(String, Listener)>>,
     last_subscriber_id: AtomicU64,
 }
 
@@ -43,6 +48,21 @@ impl EventHub {
             out,
             filter,
         });
+    }
+
+    /// Adds an in-process subscriber under `key`, replacing one already there.
+    /// Keys must be unique per subscription, or a replaced one's cleanup removes the new.
+    pub fn listen(&self, key: &str, listener: Listener) {
+        let mut listeners = self.listeners.lock().unwrap();
+        listeners.retain(|(held, _)| held != key);
+        listeners.push((key.to_string(), listener));
+    }
+
+    pub fn unlisten(&self, key: &str) {
+        self.listeners
+            .lock()
+            .unwrap()
+            .retain(|(held, _)| held != key);
     }
 
     /// Whether any live subscriber takes every event (unfiltered) — only these
@@ -79,6 +99,9 @@ impl EventHub {
     pub fn publish(&self, event: &Event) {
         let id = event.payload.get("id").and_then(Value::as_str);
         tracing::trace!(topic = %event.topic, id, "publishing event");
+        for (_, listener) in self.listeners.lock().unwrap().iter() {
+            listener(&event.topic, &event.payload);
+        }
         let frame = encode_event(event);
         let mut subs = self.subs.lock().unwrap();
         subs.retain(|sub| {
