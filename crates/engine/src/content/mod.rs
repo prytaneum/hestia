@@ -25,7 +25,8 @@ use std::sync::Arc;
 use anyhow::{Context, Result};
 use proto::content::{
     ContentFile, ContentInspectResult, ContentKind, ContentMatch, ContentProject, ContentSource,
-    ContentVersion, ResolvedModpack, ResolvedUrl, SearchQuery, SearchResult, VersionQuery,
+    ContentVersion, InstalledContent, ResolvedModpack, ResolvedUrl, SearchQuery, SearchResult,
+    VersionQuery, LOCAL_SOURCE,
 };
 
 use crate::config::ContentSettings;
@@ -170,18 +171,24 @@ impl Content {
     }
 
     /// Remove every source `owner` registered. Content already installed from
-    /// one keeps its record; [`Content::offers`] reports the source gone.
+    /// one keeps its record; [`Content::missing_sources`] names the source gone.
     pub fn unregister(&self, owner: &str) -> usize {
         self.providers.unregister(owner)
     }
 
-    /// Whether `source` can serve right now. A record naming a source that
-    /// answers no is still listed; only a request through it is refused.
-    pub fn offers(&self, source: &str) -> bool {
-        self.providers
-            .snapshot()
+    /// The sources `items` were installed from that no registered provider
+    /// answers to any more, sorted. A local-file import has no source to lose.
+    pub fn missing_sources(&self, items: &[InstalledContent]) -> Vec<String> {
+        let providers = self.providers.snapshot();
+        items
             .iter()
-            .any(|p| p.id() == source && p.available())
+            .map(|item| item.source.as_str())
+            .filter(|source| *source != LOCAL_SOURCE)
+            .filter(|source| !providers.iter().any(|p| p.id() == *source))
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .map(str::to_string)
+            .collect()
     }
 
     /// Hand each source the settings it needs. Called at startup and after

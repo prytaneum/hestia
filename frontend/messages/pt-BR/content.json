@@ -94,6 +94,8 @@
     "remove_count": "Remover ({count})",
     "select_version": "Selecionar versão",
     "selected_count": "{count} selecionado(s)",
+    "source_unavailable": "Fonte indisponível",
+    "source_unavailable_hint": "Nada mais fornece {source}, então isto não pode ser atualizado nem alterado. Ainda é carregado.",
     "stop_to_install": "Pare para instalar",
     "track": {
       "label": "Rastrear de",

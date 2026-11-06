@@ -6,6 +6,7 @@
  */
 import type {
   ContentKind,
+  ContentListResult,
   ContentProject,
   ContentUpdate,
   ContentVersion,
@@ -318,13 +319,11 @@ const pool = (id: string): InstalledContent[] => {
   return fresh;
 };
 
-export function listPool(
-  id: string,
-  kind: ContentKind,
-): { items: InstalledContent[]; untracked: UntrackedFile[] } {
+export function listPool(id: string, kind: ContentKind): ContentListResult {
   return {
     items: pool(id).filter((item) => item.kind === kind),
     untracked: kind === 'mod' ? (untracked.get(id) ?? []) : [],
+    unavailableSources: [],
   };
 }
 

@@ -94,6 +94,8 @@
     "remove_count": "Remove ({count})",
     "select_version": "Select version",
     "selected_count": "{count} selected",
+    "source_unavailable": "Source unavailable",
+    "source_unavailable_hint": "Nothing provides {source} any more, so this can't be updated or changed. It still loads.",
     "stop_to_install": "Stop to install",
     "track": {
       "label": "Track from",

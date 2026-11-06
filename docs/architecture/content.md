@@ -31,8 +31,11 @@ The registry is runtime-mutable: `Content::register(owner, provider)` adds a
 source and `unregister(owner)` removes everything that owner added. The
 built-ins belong to `builtin` and are never removed; any other source's id must
 read `<owner>.<id>`, so it cannot shadow one. Content already installed from a
-source that is gone keeps its record and still lists; `Content::offers` reports
-the source as not serving, and a request through it is refused as unknown.
+source that is gone keeps its record, still lists and still loads;
+`content.list` names it in `unavailableSources` (from
+`Content::missing_sources`), the CLI marks its rows `unavailable`, the desktop
+badges them and drops their project link and version actions, and a request
+through the source is refused as unknown.
 
 Every platform response is mapped into the normalized `proto::content` types at
 this boundary, so a front-end never sees a platform's raw shape

@@ -345,6 +345,10 @@ pub struct UntrackedFile {
 pub struct ContentListResult {
     pub items: Vec<InstalledContent>,
     pub untracked: Vec<UntrackedFile>,
+    /// Sources some of `items` came from that no provider serves any more (a
+    /// plugin that offered one was removed). Those items still load; they
+    /// cannot be updated or re-versioned until the source returns.
+    pub unavailable_sources: Vec<String>,
 }
 
 pub const LOCAL_SOURCE: &str = "file";

@@ -52,11 +52,14 @@ import {
 export function ContentListResult({
   items,
   updatable,
+  unavailable,
   selected,
   onToggleSelect,
 }: {
   items: InstalledContent[];
   updatable: Set<string>;
+  /** Sources no provider serves any more; their items load but cannot change version. */
+  unavailable: Set<string>;
   selected: Set<string> | null;
   onToggleSelect: (key: string) => void;
 }) {
@@ -88,6 +91,7 @@ export function ContentListResult({
             key={rowKey(c)}
             item={c}
             updatable={updatable.has(c.filename)}
+            sourceGone={unavailable.has(c.source)}
             // Only an instance has many worlds to scope; a server has one, so
             // its datapack row stays a plain row.
             worlds={
@@ -146,6 +150,7 @@ function OriginBadge({
 function ContentRow({
   item,
   updatable,
+  sourceGone,
   worlds,
   onChangeVersion,
   checked,
@@ -153,6 +158,7 @@ function ContentRow({
 }: {
   item: InstalledContent;
   updatable: boolean;
+  sourceGone: boolean;
   /** The worlds this row can scope to; empty for everything but a datapack. */
   worlds: string[];
   onChangeVersion: () => void;
@@ -165,7 +171,8 @@ function ContentRow({
   const selecting = checked !== undefined;
   const Icon = contentIcon(item.kind);
   // A local-file import has no project page to open.
-  const platform = item.source !== contentApi.LOCAL_SOURCE && !!item.projectId;
+  const platform =
+    item.source !== contentApi.LOCAL_SOURCE && !!item.projectId && !sourceGone;
   const loadedWorlds = worlds.filter((world) =>
     worldEnabled(item, world),
   ).length;
@@ -180,6 +187,17 @@ function ContentRow({
           {!item.enabled && (
             <Badge variant="outline" className="shrink-0">
               {m['content.disabled']()}
+            </Badge>
+          )}
+          {sourceGone && (
+            <Badge
+              variant="outline"
+              className="shrink-0"
+              title={m['content.source_unavailable_hint']({
+                source: item.source,
+              })}
+            >
+              {m['content.source_unavailable']()}
             </Badge>
           )}
           <OriginBadge origin={item.origin} packName={packName} />

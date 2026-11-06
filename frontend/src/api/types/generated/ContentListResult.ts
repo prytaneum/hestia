@@ -5,4 +5,10 @@ import type { UntrackedFile } from "./UntrackedFile";
 /**
  * The installed items of one kind, plus the untracked files beside them.
  */
-export type ContentListResult = { items: Array<InstalledContent>, untracked: Array<UntrackedFile>, };
+export type ContentListResult = { items: Array<InstalledContent>, untracked: Array<UntrackedFile>, 
+/**
+ * Sources some of `items` came from that no provider serves any more (a
+ * plugin that offered one was removed). Those items still load; they
+ * cannot be updated or re-versioned until the source returns.
+ */
+unavailableSources: Array<string>, };

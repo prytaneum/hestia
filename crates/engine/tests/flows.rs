@@ -162,7 +162,7 @@ async fn a_batch_installs_its_roots_and_their_required_dependencies_once() {
 }
 
 #[tokio::test]
-async fn content_from_a_source_that_is_gone_still_lists_as_unoffered() {
+async fn content_from_a_source_that_is_gone_still_lists_with_its_source_missing() {
     let home = tempfile::tempdir().expect("temp home");
     let files = fixture::Files::serve().await;
     let source = fixture::Source {
@@ -179,13 +179,11 @@ async fn content_from_a_source_that_is_gone_still_lists_as_unoffered() {
         )
         .await
         .expect("install from the source");
-    let installed_from = engine
+    let (installed, _) = engine
         .entry_content(EntryRef::Instance(&id), ContentKind::Mod)
-        .expect("list")
-        .0[0]
-        .source
-        .clone();
-    assert!(engine.content().offers(&installed_from));
+        .expect("list");
+    let installed_from = installed[0].source.clone();
+    assert!(engine.content().missing_sources(&installed).is_empty());
 
     let without_source = fixture::engine(
         home.path(),
@@ -198,7 +196,10 @@ async fn content_from_a_source_that_is_gone_still_lists_as_unoffered() {
         .expect("the entry still lists");
     assert_eq!(items.len(), 1, "the record survives its source");
     assert_eq!(items[0].source, installed_from);
-    assert!(!without_source.content().offers(&installed_from));
+    assert_eq!(
+        without_source.content().missing_sources(&items),
+        vec![installed_from]
+    );
 }
 
 fn local_mod(dir: &std::path::Path, name: &str) -> String {

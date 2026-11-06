@@ -105,12 +105,15 @@ fn register_entry(on: &mut Channels<'_>) {
 
     on.handle::<EntryContentList, _, _>(|p, ctx| async move {
         let entry = entry_for(&ctx, &p.target, Intent::Read)?;
-        let (items, untracked) = ctx
-            .runtime
-            .engine()
+        let engine = ctx.runtime.engine();
+        let (items, untracked) = engine
             .entry_content(entry.entry_ref(), p.kind)
             .map_err(crate::runtime::engine_error)?;
-        Ok(ContentListResult { items, untracked })
+        Ok(ContentListResult {
+            unavailable_sources: engine.content().missing_sources(&items),
+            items,
+            untracked,
+        })
     });
 
     on.handle::<EntryContentRemove, _, _>(|p, ctx| async move {

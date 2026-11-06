@@ -163,6 +163,9 @@ function ContentSectionView({
     ),
   });
   const items = lists.flatMap((q) => q.data?.items ?? []);
+  const unavailable = new Set(
+    lists.flatMap((q) => q.data?.unavailableSources ?? []),
+  );
   const updatable = new Set(
     updates.flatMap((q) =>
       (q.data ?? []).filter((u) => u.updatable).map((u) => u.filename),
@@ -318,6 +321,7 @@ function ContentSectionView({
         <ContentListResult
           items={filtered}
           updatable={updatable}
+          unavailable={unavailable}
           selected={selected}
           onToggleSelect={(key) =>
             setSelected((prev) => {

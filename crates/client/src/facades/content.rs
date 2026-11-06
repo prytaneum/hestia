@@ -1,14 +1,13 @@
 use ipc::errors::IpcError;
 use proto::content::{
     ContentAddSpec, ContentDone, ContentInspect, ContentInspectParams, ContentInspectResult,
-    ContentKind, ContentProject, ContentProjectGet, ContentResolveUrl, ContentSearch,
-    ContentSource, ContentSources, ContentUpdate, ContentVersion, ContentVersions, EntryContentAdd,
-    EntryContentAddParams, EntryContentCheckUpdates, EntryContentCheckUpdatesParams,
-    EntryContentEnable, EntryContentEnableParams, EntryContentList, EntryContentListParams,
-    EntryContentRemove, EntryContentRemoveParams, EntryContentSetVersion,
+    ContentKind, ContentListResult, ContentProject, ContentProjectGet, ContentResolveUrl,
+    ContentSearch, ContentSource, ContentSources, ContentUpdate, ContentVersion, ContentVersions,
+    EntryContentAdd, EntryContentAddParams, EntryContentCheckUpdates,
+    EntryContentCheckUpdatesParams, EntryContentEnable, EntryContentEnableParams, EntryContentList,
+    EntryContentListParams, EntryContentRemove, EntryContentRemoveParams, EntryContentSetVersion,
     EntryContentSetVersionParams, EntryContentUpdate, EntryContentUpdateParams, InstalledContent,
-    ProjectParams, ResolveUrlParams, ResolvedUrl, SearchQuery, SearchResult, UntrackedFile,
-    VersionQuery,
+    ProjectParams, ResolveUrlParams, ResolvedUrl, SearchQuery, SearchResult, VersionQuery,
 };
 use proto::error::EntryTarget;
 use proto::minecraft::ProvisionProgress;
@@ -91,13 +90,12 @@ impl Content<'_> {
         &self,
         target: &EntryTarget,
         kind: ContentKind,
-    ) -> Result<(Vec<InstalledContent>, Vec<UntrackedFile>), IpcError> {
+    ) -> Result<ContentListResult, IpcError> {
         let params = EntryContentListParams {
             target: target.clone(),
             kind,
         };
-        let result = self.session.call::<EntryContentList>(&params).await?;
-        Ok((result.items, result.untracked))
+        self.session.call::<EntryContentList>(&params).await
     }
 
     /// Uninstall the named items and every mirror of them, in one call. A

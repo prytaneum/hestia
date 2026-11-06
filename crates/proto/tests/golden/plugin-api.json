@@ -533,7 +533,7 @@
     "ContentFailure": "type ContentFailure = { item: string, title: string, error: ErrorInfo, };",
     "ContentFile": "type ContentFile = { artifact: Artifact, primary: boolean, };",
     "ContentKind": "type ContentKind = \"mod\" | \"modpack\" | \"resource_pack\" | \"shader\" | \"data_pack\" | \"plugin\";",
-    "ContentListResult": "type ContentListResult = { items: Array<InstalledContent>, untracked: Array<UntrackedFile>, };",
+    "ContentListResult": "type ContentListResult = { items: Array<InstalledContent>, untracked: Array<UntrackedFile>, unavailableSources: Array<string>, };",
     "ContentMatch": "type ContentMatch = { project: ContentProject, versionNumber: string, };",
     "ContentProject": "type ContentProject = { source: string, id: string, slug: string, kind: ContentKind, kinds: Array<ContentKind>, title: string, description: string, body: string, author: string, categories: Array<string>, downloads: bigint, follows: bigint, iconUrl: string, gallery: Array<GalleryImage>, clientSide: SideSupport, serverSide: SideSupport, };",
     "ContentSource": "type ContentSource = { id: string, name: string, kinds: Array<ContentKind>, };",

@@ -4,7 +4,8 @@
 use anyhow::{bail, Context, Result};
 use clap::{Args, Subcommand};
 use client::proto::content::{
-    ContentAddItem, ContentAddSpec, ContentDone, ContentFailure, ContentKind, InstalledContent,
+    ContentAddItem, ContentAddSpec, ContentDone, ContentFailure, ContentKind, ContentListResult,
+    InstalledContent,
 };
 use client::proto::error::{EntryKind, EntryTarget};
 use client::Client;
@@ -229,7 +230,7 @@ async fn add_session(
         Vec::new()
     };
     let target = EntryTarget::new(entry, info.id.clone());
-    let (installed, _) = client.content().list(&target, kind).await?;
+    let installed = client.content().list(&target, kind).await?.items;
     let base = SearchQuery {
         kind,
         source,
@@ -323,10 +324,15 @@ pub(super) async fn install_spec(
 
 async fn list(client: &Client, entry: EntryKind, kind: ContentKind, reference: &str) -> Result<()> {
     let EntryInfo { id, name, .. } = resolve_entry(client, entry, reference).await?;
-    let (items, untracked) = client
+    let ContentListResult {
+        items,
+        untracked,
+        unavailable_sources,
+    } = client
         .content()
         .list(&EntryTarget::new(entry, id), kind)
         .await?;
+    let source = |item: &InstalledContent| source_label(item, &unavailable_sources);
     if items.is_empty() && untracked.is_empty() {
         return ui::show(View::note(format!("no {} installed", kind_plural(kind))));
     }
@@ -339,7 +345,7 @@ async fn list(client: &Client, entry: EntryKind, kind: ContentKind, reference: &
                         i.title.clone(),
                         i.version_number.clone(),
                         world_label(i),
-                        source_label(i),
+                        source(i),
                     ]
                 })
                 .collect();
@@ -351,7 +357,7 @@ async fn list(client: &Client, entry: EntryKind, kind: ContentKind, reference: &
         } else {
             let rows = items
                 .iter()
-                .map(|i| vec![i.title.clone(), i.version_number.clone(), source_label(i)])
+                .map(|i| vec![i.title.clone(), i.version_number.clone(), source(i)])
                 .collect();
             ui::show(View::table(
                 format!("{name} {}", kind_plural(kind)),
@@ -388,7 +394,7 @@ async fn remove(
     let items = match items.is_empty() {
         false => items,
         true => {
-            let (installed, _) = client.content().list(&target, kind).await?;
+            let installed = client.content().list(&target, kind).await?.items;
             vec![pick_installed(installed)?]
         }
     };
@@ -500,7 +506,7 @@ async fn set_enabled(
     let item = match item {
         Some(item) => item,
         None => {
-            let (items, _) = client.content().list(&target, kind).await?;
+            let items = client.content().list(&target, kind).await?.items;
             pick_installed(items)?
         }
     };

@@ -6,11 +6,16 @@ use client::proto::content::{
 
 use crate::ui::components::{Picker, PickerItem};
 
-pub(super) fn source_label(item: &InstalledContent) -> String {
-    if item.project_id.is_empty() {
+pub(super) fn source_label(item: &InstalledContent, unavailable: &[String]) -> String {
+    let label = if item.project_id.is_empty() {
         item.source.clone()
     } else {
         format!("{} ({})", item.source, item.version_number)
+    };
+    if unavailable.contains(&item.source) {
+        format!("{label}, unavailable")
+    } else {
+        label
     }
 }
 
