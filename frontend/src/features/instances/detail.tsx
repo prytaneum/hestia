@@ -9,11 +9,6 @@ import { Stat, TabCount } from '@/components/page';
 import { Bone } from '@/components/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { StatusDot } from '@/components/ui/status-dot';
-import {
-  PluginTabContents,
-  PluginTabTriggers,
-  type PluginTab,
-} from '@/features/plugins';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   ContentInstallDialog,
@@ -29,6 +24,11 @@ import {
   InstanceSettingsTab,
 } from '@/features/instances/tabs';
 import { anchor, useAutoTour } from '@/features/onboarding';
+import {
+  type PluginTab,
+  PluginTabContents,
+  PluginTabTriggers,
+} from '@/features/plugins';
 import {
   busyReason,
   EntryActionsMenu,

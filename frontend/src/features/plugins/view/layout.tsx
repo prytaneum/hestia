@@ -1,7 +1,7 @@
 import type { Tone } from '@/api/types/ui';
 import { Markdown } from '@/components/markdown';
-import { Notice as WarningBox } from '@/components/warning-notice';
 import { Progress } from '@/components/ui/progress';
+import { Notice as WarningBox } from '@/components/warning-notice';
 import { pluginAsset } from '@/lib/plugin-asset';
 import { cn } from '@/lib/utils';
 

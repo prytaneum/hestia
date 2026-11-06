@@ -25,9 +25,9 @@ import {
 } from '@/features/content/install';
 import { anchor, useAutoTour } from '@/features/onboarding';
 import {
+  type PluginTab,
   PluginTabContents,
   PluginTabTriggers,
-  type PluginTab,
 } from '@/features/plugins';
 import {
   ServerBackupsTab,

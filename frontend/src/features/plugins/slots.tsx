@@ -49,10 +49,7 @@ export function usePluginNav(): NavItem[] {
 /** The entry slot's tab triggers, for a server or instance detail's tab list. */
 export function PluginTabTriggers({ kind }: { kind: EntryKind }) {
   return usePluginPages('entry', kind).map((contribution) => (
-    <TabsTrigger
-      key={pluginTab(contribution)}
-      value={pluginTab(contribution)}
-    >
+    <TabsTrigger key={pluginTab(contribution)} value={pluginTab(contribution)}>
       {contribution.page.title}
     </TabsTrigger>
   ));
