@@ -52,4 +52,5 @@ world plugin {
     export ui;
     export launch-hooks;
     export content-hooks;
+    export content-source;
 }

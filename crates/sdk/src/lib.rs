@@ -28,6 +28,8 @@ pub mod http;
 pub mod log;
 pub mod progress;
 pub mod settings;
+#[doc(hidden)]
+pub mod source;
 pub mod ui;
 
 pub use call::{call, run_job};
@@ -36,7 +38,12 @@ pub use error::Error;
 pub use hooks::{InstallContext, LaunchContext, LaunchPatch, ServerContext};
 /// The daemon's wire contracts and domain types, the same ones the CLI uses.
 pub use proto;
+use proto::content::{
+    ContentKind, ContentProject, ContentVersion, SearchQuery, SearchResult, SourceInfo, SourceUrl,
+    VersionQuery,
+};
 use proto::plugin::PageContext;
+use std::collections::HashMap;
 pub use serde_json::{self, json, Value};
 use ui::{Action, Effect, UiNode};
 
@@ -150,6 +157,61 @@ pub trait Plugin {
     fn before_content_install(context: InstallContext) -> Result<(), String> {
         let _ = context;
         Ok(())
+    }
+
+    /// Describes the content source `source` that the manifest contributes under
+    /// `contributes.providers`. One plugin may contribute several; each
+    /// `source_*` method receives the id of the one being asked.
+    fn source_info(source: &str) -> Result<SourceInfo, Error> {
+        Err(Error::NotFound(format!("unknown source `{source}`")))
+    }
+
+    /// Recognises a page URL on the source's site; `None` when it is not one.
+    fn source_parse_url(source: &str, url: &str) -> Result<Option<SourceUrl>, Error> {
+        let _ = (source, url);
+        Ok(None)
+    }
+
+    fn source_search(source: &str, query: SearchQuery) -> Result<SearchResult, Error> {
+        let _ = query;
+        Err(Error::NotFound(format!("unknown source `{source}`")))
+    }
+
+    fn source_project(
+        source: &str,
+        project: &str,
+        kind: Option<ContentKind>,
+    ) -> Result<ContentProject, Error> {
+        let _ = (project, kind);
+        Err(Error::NotFound(format!("unknown source `{source}`")))
+    }
+
+    /// Several projects at once; the default asks for them one by one.
+    fn source_projects(source: &str, ids: Vec<String>) -> Result<Vec<ContentProject>, Error> {
+        ids.iter()
+            .map(|id| Self::source_project(source, id, None))
+            .collect()
+    }
+
+    /// The versions of a project. Each file's URL must be on one of the plugin's
+    /// network hosts: the host downloads the file and drops one that is not.
+    fn source_versions(source: &str, query: VersionQuery) -> Result<Vec<ContentVersion>, Error> {
+        let _ = query;
+        Err(Error::NotFound(format!("unknown source `{source}`")))
+    }
+
+    fn source_versions_by_id(source: &str, ids: Vec<String>) -> Result<Vec<ContentVersion>, Error> {
+        let _ = (source, ids);
+        Ok(Vec::new())
+    }
+
+    /// The version each file is a release of, keyed by the file's sha1.
+    fn source_identify(
+        source: &str,
+        sha1s: Vec<String>,
+    ) -> Result<HashMap<String, ContentVersion>, Error> {
+        let _ = (source, sha1s);
+        Ok(HashMap::new())
     }
 }
 
@@ -270,6 +332,102 @@ macro_rules! plugin {
                     ctx: $crate::InstallContext,
                 ) -> ::core::result::Result<(), ::std::string::String> {
                     <$plugin as $crate::Plugin>::before_content_install(ctx)
+                }
+            }
+
+            impl $crate::bindings::exports::hestia::plugin::content_source::Guest for Export {
+                fn info(
+                    source: ::std::string::String,
+                ) -> ::core::result::Result<
+                    ::std::string::String,
+                    $crate::bindings::hestia::plugin::types::PluginError,
+                > {
+                    $crate::source::answer("null", |(): ()| {<$plugin as $crate::Plugin>::source_info(&source)
+                    })
+                }
+
+                fn parse_url(
+                    source: ::std::string::String,
+                    args: ::std::string::String,
+                ) -> ::core::result::Result<
+                    ::std::string::String,
+                    $crate::bindings::hestia::plugin::types::PluginError,
+                > {
+                    $crate::source::answer(&args, |args: $crate::source::UrlArgs| {
+                        <$plugin as $crate::Plugin>::source_parse_url(&source, &args.url)
+                    })
+                }
+
+                fn search(
+                    source: ::std::string::String,
+                    args: ::std::string::String,
+                ) -> ::core::result::Result<
+                    ::std::string::String,
+                    $crate::bindings::hestia::plugin::types::PluginError,
+                > {
+                    $crate::source::answer(&args, |query| {
+                        <$plugin as $crate::Plugin>::source_search(&source, query)
+                    })
+                }
+
+                fn project(
+                    source: ::std::string::String,
+                    args: ::std::string::String,
+                ) -> ::core::result::Result<
+                    ::std::string::String,
+                    $crate::bindings::hestia::plugin::types::PluginError,
+                > {
+                    $crate::source::answer(&args, |args: $crate::source::ProjectArgs| {
+                        <$plugin as $crate::Plugin>::source_project(&source, &args.project, args.kind)
+                    })
+                }
+
+                fn projects(
+                    source: ::std::string::String,
+                    args: ::std::string::String,
+                ) -> ::core::result::Result<
+                    ::std::string::String,
+                    $crate::bindings::hestia::plugin::types::PluginError,
+                > {
+                    $crate::source::answer(&args, |args: $crate::source::IdsArgs| {
+                        <$plugin as $crate::Plugin>::source_projects(&source, args.ids)
+                    })
+                }
+
+                fn versions(
+                    source: ::std::string::String,
+                    args: ::std::string::String,
+                ) -> ::core::result::Result<
+                    ::std::string::String,
+                    $crate::bindings::hestia::plugin::types::PluginError,
+                > {
+                    $crate::source::answer(&args, |query| {
+                        <$plugin as $crate::Plugin>::source_versions(&source, query)
+                    })
+                }
+
+                fn versions_by_id(
+                    source: ::std::string::String,
+                    args: ::std::string::String,
+                ) -> ::core::result::Result<
+                    ::std::string::String,
+                    $crate::bindings::hestia::plugin::types::PluginError,
+                > {
+                    $crate::source::answer(&args, |args: $crate::source::IdsArgs| {
+                        <$plugin as $crate::Plugin>::source_versions_by_id(&source, args.ids)
+                    })
+                }
+
+                fn identify(
+                    source: ::std::string::String,
+                    args: ::std::string::String,
+                ) -> ::core::result::Result<
+                    ::std::string::String,
+                    $crate::bindings::hestia::plugin::types::PluginError,
+                > {
+                    $crate::source::answer(&args, |args: $crate::source::Sha1Args| {
+                        <$plugin as $crate::Plugin>::source_identify(&source, args.sha1s)
+                    })
                 }
             }
 

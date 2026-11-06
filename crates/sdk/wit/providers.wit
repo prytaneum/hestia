@@ -1,0 +1,34 @@
+package hestia:plugin@1.0.0;
+
+/// Every call names the contributed source it is for, because one plugin may
+/// contribute several. `args` and the results are JSON in the shape of the
+/// matching `proto::content` types. The host downloads the files a version
+/// lists; the guest never writes content itself.
+interface content-source {
+    use types.{json, plugin-error};
+
+    /// `proto::content::SourceInfo`: `{ name, kinds }`.
+    info: func(source: string) -> result<json, plugin-error>;
+
+    /// `args` is `{ url }`. Answers a `SourceUrl`, or `null` for a URL that is not this source's.
+    parse-url: func(source: string, args: json) -> result<json, plugin-error>;
+
+    /// `args` is a `SearchQuery`; answers a `SearchResult`.
+    search: func(source: string, args: json) -> result<json, plugin-error>;
+
+    /// `args` is `{ project, kind }`; answers a `ContentProject`.
+    project: func(source: string, args: json) -> result<json, plugin-error>;
+
+    /// `args` is `{ ids }`; answers a list of `ContentProject`.
+    projects: func(source: string, args: json) -> result<json, plugin-error>;
+
+    /// `args` is a `VersionQuery`; answers a list of `ContentVersion`. A file
+    /// whose URL is not on one of the plugin's network hosts is dropped.
+    versions: func(source: string, args: json) -> result<json, plugin-error>;
+
+    /// `args` is `{ ids }`; answers a list of `ContentVersion`.
+    versions-by-id: func(source: string, args: json) -> result<json, plugin-error>;
+
+    /// `args` is `{ sha1s }`; answers an object of `ContentVersion` keyed by the sha1 that identified it.
+    identify: func(source: string, args: json) -> result<json, plugin-error>;
+}
