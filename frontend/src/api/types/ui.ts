@@ -2,7 +2,7 @@
 export type { Action } from "./generated/Action";
 export type { Direction } from "./generated/Direction";
 export type { Effect } from "./generated/Effect";
-export type { Field } from "./generated/Field";
+export type { FormField } from "./generated/FormField";
 export type { ListItem } from "./generated/ListItem";
 export type { Pair } from "./generated/Pair";
 export type { SelectOption } from "./generated/SelectOption";

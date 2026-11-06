@@ -15,6 +15,10 @@ url?: string,
  */
 signer?: string, 
 /**
+ * Signed by the official-plugins key; derived from `signer` on every read.
+ */
+official: boolean, 
+/**
  * The index URL of the repository it was installed from.
  */
 repository?: string, 
