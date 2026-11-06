@@ -413,6 +413,8 @@ pub enum ManifestError {
         hook: String,
         permission: Permission,
     },
+    #[error("network host `{0}` must be a domain name or `*.` and a domain, not an address")]
+    BadNetworkHost(String),
 }
 
 impl Manifest {
@@ -439,6 +441,9 @@ impl Manifest {
             if !stays_inside(path) {
                 return Err(ManifestError::PathEscapes(path.clone()));
             }
+        }
+        if let Some(host) = self.network.iter().find(|host| !is_network_host(host)) {
+            return Err(ManifestError::BadNetworkHost(host.clone()));
         }
         let contributes = &self.contributes;
         let lists: [Vec<&String>; 7] = [
@@ -544,6 +549,28 @@ fn is_slug(value: &str, length: std::ops::RangeInclusive<usize>) -> bool {
         && value
             .bytes()
             .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'-')
+}
+
+/// A granted host: a domain name, or `*.` and a domain of at least two labels
+/// that matches its subdomains only. An address would skip the resolver check
+/// the network permission relies on.
+pub fn is_network_host(entry: &str) -> bool {
+    let domain = entry.strip_prefix("*.").unwrap_or(entry);
+    let domain = domain.strip_suffix('.').unwrap_or(domain);
+    let labels: Vec<&str> = domain.split('.').collect();
+    let named = labels.iter().all(|label| {
+        !label.is_empty()
+            && label.len() <= 63
+            && !label.starts_with('-')
+            && !label.ends_with('-')
+            && label
+                .bytes()
+                .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-')
+    });
+    let numeric = labels
+        .last()
+        .is_some_and(|label| label.bytes().all(|byte| byte.is_ascii_digit()));
+    named && !numeric && domain.len() <= 253 && (labels.len() >= 2 || domain == entry)
 }
 
 /// `major.minor.patch`, ignoring any pre-release or build suffix.

@@ -166,6 +166,50 @@ mod manifest {
         );
     }
 
+    #[test]
+    fn network_hosts_are_names_never_addresses() {
+        for good in [
+            "example.com",
+            "*.example.com",
+            "localhost",
+            "api.v2-x.io",
+            "Example.COM.",
+        ] {
+            let manifest = Manifest {
+                network: vec![good.into()],
+                ..valid()
+            };
+            assert_eq!(manifest.validate(), Ok(()), "{good}");
+        }
+        for bad in [
+            "",
+            "*",
+            "*.com",
+            "*.",
+            "127.0.0.1",
+            "1.2.3.4",
+            "[::1]",
+            "::1",
+            "a b.com",
+            "a..com",
+            "-a.com",
+            "https://example.com",
+            "example.com/x",
+            "example.com:443",
+            "*.*.com",
+        ] {
+            let manifest = Manifest {
+                network: vec![bad.into()],
+                ..valid()
+            };
+            assert_eq!(
+                manifest.validate(),
+                Err(ManifestError::BadNetworkHost(bad.into())),
+                "{bad}"
+            );
+        }
+    }
+
     fn command(scope: CommandScope, args: &[&str]) -> Manifest {
         let mut manifest = valid();
         manifest.contributes.commands.push(CommandContribution {
