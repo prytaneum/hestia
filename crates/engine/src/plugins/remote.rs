@@ -9,6 +9,7 @@ use std::time::{Duration, Instant};
 
 use anyhow::Result;
 use proto::error::ErrorInfo;
+use proto::warning::WarningInfo;
 use uuid::Uuid;
 
 use crate::download::Downloader;
@@ -24,6 +25,16 @@ struct Held {
     path: PathBuf,
     url: String,
     fetched: Instant,
+    origin: Option<Origin>,
+    warnings: Vec<WarningInfo>,
+}
+
+/// A repository's attestation of a package: its signature verified against the
+/// key of `repository`, whose id is `signer`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Origin {
+    pub signer: String,
+    pub repository: String,
 }
 
 /// A held package: where it is and where it came from.
@@ -31,6 +42,9 @@ struct Held {
 pub struct Staged {
     pub path: PathBuf,
     pub url: String,
+    pub origin: Option<Origin>,
+    /// Degraded outcomes found while fetching, reported once the install is done.
+    pub warnings: Vec<WarningInfo>,
 }
 
 pub struct Remote {
@@ -52,6 +66,24 @@ impl Remote {
         self.download(&url, MAX_PACKAGE_BYTES).await
     }
 
+    /// A small document (an index, a signature) read into memory and not kept.
+    pub async fn fetch_capped(&self, url: &str, max_bytes: u64) -> Result<Vec<u8>> {
+        let url = https_url(url)?;
+        let token = self.download(&url, max_bytes).await?;
+        let path = self.staged(&token)?.path;
+        let bytes = tokio::fs::read(&path).await;
+        self.discard(&token);
+        Ok(bytes?)
+    }
+
+    /// Marks a held package as verified by a repository's signature.
+    pub fn attest(&self, token: &str, origin: Origin, warnings: Vec<WarningInfo>) {
+        if let Some(held) = self.held.lock().unwrap().get_mut(token) {
+            held.origin = Some(origin);
+            held.warnings = warnings;
+        }
+    }
+
     async fn download(&self, url: &str, max_bytes: u64) -> Result<String> {
         self.expire();
         let token = Uuid::new_v4().simple().to_string();
@@ -66,6 +98,8 @@ impl Remote {
                 path,
                 url: url.to_string(),
                 fetched: Instant::now(),
+                origin: None,
+                warnings: Vec::new(),
             },
         );
         Ok(token)
@@ -81,6 +115,8 @@ impl Remote {
             .map(|held| Staged {
                 path: held.path.clone(),
                 url: held.url.clone(),
+                origin: held.origin.clone(),
+                warnings: held.warnings.clone(),
             })
             .ok_or_else(|| {
                 ErrorInfo::PluginInvalid {

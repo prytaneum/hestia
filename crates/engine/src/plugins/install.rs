@@ -154,7 +154,7 @@ impl Plugins {
     ) -> Result<PluginRecord> {
         self.install_from(
             &staged.path,
-            Some(&staged.url),
+            Some(staged),
             approve,
             cancel,
             on_phase,
@@ -165,7 +165,7 @@ impl Plugins {
     fn install_from(
         &self,
         path: &Path,
-        url: Option<&str>,
+        downloaded: Option<&Staged>,
         approve: &str,
         cancel: &Cancel,
         on_phase: &dyn Fn(PluginInstallPhase),
@@ -225,17 +225,20 @@ impl Plugins {
 
         on_phase(PluginInstallPhase::Installing);
         let installed = self.get(&id);
+        let origin = downloaded.and_then(|staged| staged.origin.as_ref());
         self.swap_package(&dir, &staged, &staging.join(RETIRED))?;
         let record = PluginRecord {
             id: id.clone(),
-            source: if url.is_some() {
-                PluginSource::Url
-            } else {
-                source.kind()
+            source: match downloaded {
+                Some(Staged {
+                    origin: Some(_), ..
+                }) => PluginSource::Repo,
+                Some(_) => PluginSource::Url,
+                None => source.kind(),
             },
-            url: url.map(str::to_string),
-            signer: None,
-            repository: None,
+            url: downloaded.map(|staged| staged.url.clone()),
+            signer: origin.map(|origin| origin.signer.clone()),
+            repository: origin.map(|origin| origin.repository.clone()),
             wasm_sha256,
             theme_sha256,
             grant,

@@ -1,0 +1,55 @@
+{
+  "schemaVersion": 1,
+  "version": 3,
+  "repository": "https://github.com/example/hestia-plugins-sample",
+  "commit": "8a7af680026cf5e53185bc295e17574edc8c0198",
+  "name": "hestia-plugins-sample",
+  "label": "SMP",
+  "website": "https://example.com",
+  "key": "TODO: the public key of `hestia plugin keygen`",
+  "plugins": [
+    {
+      "id": "aa",
+      "name": "aa",
+      "description": "",
+      "icon": null,
+      "path": "plugins/aa",
+      "version": "0.2.0",
+      "permissions": [],
+      "commit": "8a7af680026cf5e53185bc295e17574edc8c0198",
+      "builds": [
+        {
+          "version": "0.1.0",
+          "api": "^1.0.0",
+          "url": "https://github.com/example/hestia-plugins-sample/releases/download/aa-v0.1.0/aa-0.1.0.hplugin",
+          "sha256": "b658979fc345707ca7bdb3600f416b3f4f97c9133e06d12448cb01d80cf5c924"
+        },
+        {
+          "version": "0.2.0",
+          "api": "^1.0.0",
+          "url": "https://github.com/example/hestia-plugins-sample/releases/download/aa-v0.2.0/aa-0.2.0.hplugin",
+          "sha256": "6ff14b891de8ddeb14d78315d2a2c5cb9b7662cd79d6ed26fc18936c802a83dc"
+        }
+      ]
+    },
+    {
+      "id": "bb",
+      "name": "bb",
+      "description": "",
+      "icon": null,
+      "path": "plugins/bb",
+      "version": "0.1.0",
+      "permissions": [],
+      "commit": "8a7af680026cf5e53185bc295e17574edc8c0198",
+      "builds": [
+        {
+          "version": "0.1.0",
+          "api": "^1.0.0",
+          "url": "https://github.com/example/hestia-plugins-sample/releases/download/bb-v0.1.0/bb-0.1.0.hplugin",
+          "sha256": "9f72e4feb0934b30c1c688e82aa59da18bc8c899d3712ae479ba6f3c2c2590da"
+        }
+      ]
+    }
+  ],
+  "revoked": []
+}

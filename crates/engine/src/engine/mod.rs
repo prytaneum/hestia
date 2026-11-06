@@ -26,7 +26,7 @@ use crate::instances::Instances;
 use crate::java::Java;
 use crate::minecraft::Minecraft;
 use crate::net::image::ImageProxy;
-use crate::plugins::{Hooks, LoadedPlugin, Plugins, Remote};
+use crate::plugins::{Hooks, LoadedPlugin, Plugins, Remote, Repositories};
 use crate::process::ProcessSupervisor;
 use crate::servers::Servers;
 use crate::skins::Skins;
@@ -77,6 +77,7 @@ pub struct Engine {
     instances: Instances,
     plugins: Plugins,
     plugin_downloads: Remote,
+    plugin_repositories: Repositories,
     hooks: Hooks<LoadedPlugin>,
     skins: Skins,
     sync: Sync,
@@ -105,6 +106,8 @@ impl Engine {
         let instances = Instances::new(data_home.join("instances"));
         let plugins = Plugins::new(data_home.join("plugins"));
         let plugin_downloads = Remote::new(data_home.join("tmp").join("plugins"));
+        let plugin_repositories =
+            Repositories::new(data_home.join("plugins").join("repositories.json"));
         let skins = Skins::new(data_home.join("skins"));
         let sync = Sync::new(data_home.join("shared"));
         crate::net::store::set_root(catalogue_dir(&data_home));
@@ -123,6 +126,7 @@ impl Engine {
             instances,
             plugins,
             plugin_downloads,
+            plugin_repositories,
             hooks: Hooks::default(),
             skins,
             sync,
@@ -253,6 +257,10 @@ impl Engine {
     /// Plugin packages fetched from a URL, held between inspect and install.
     pub fn plugin_downloads(&self) -> &Remote {
         &self.plugin_downloads
+    }
+
+    pub(crate) fn plugin_repositories(&self) -> &Repositories {
+        &self.plugin_repositories
     }
 
     pub fn skins(&self) -> &Skins {

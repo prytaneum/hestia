@@ -2,12 +2,12 @@
 //! or name ([0097](../../../../docs/decisions/0097-trust-follows-the-repository-key.md)).
 //! These checks are pure: the caller fetches the bytes and holds the pinned key.
 
+use proto::error::ErrorInfo;
 use proto::repository::{build_comment, index_comment, RepositoryIndex, Revocation};
 
 use crate::signature::{key_id, verify_trusted};
 
-/// Why repository material was refused. Engine-internal until the repository
-/// service maps these to `ErrorInfo` variants.
+/// Why repository material was refused.
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]
 pub enum RepoError {
     #[error("`{0}` is not a minisign public key")]
@@ -24,6 +24,25 @@ pub enum RepoError {
     Rollback { offered: u64, cached: u64 },
     #[error("the index is not valid: {0}")]
     Malformed(String),
+}
+
+impl From<RepoError> for ErrorInfo {
+    fn from(error: RepoError) -> ErrorInfo {
+        match error {
+            RepoError::KeyChanged { pinned, declared } => {
+                ErrorInfo::RepositoryKeyChanged { pinned, declared }
+            }
+            RepoError::BadKey(_) | RepoError::Malformed(_) => ErrorInfo::RepositoryInvalid {
+                detail: error.to_string(),
+            },
+            RepoError::WrongKey
+            | RepoError::BadSignature
+            | RepoError::WrongSubject { .. }
+            | RepoError::Rollback { .. } => ErrorInfo::RepositoryRefused {
+                detail: error.to_string(),
+            },
+        }
+    }
 }
 
 /// Checks an index against the key pinned when the repository was added, and
@@ -111,37 +130,8 @@ fn expect_comment(found: &str, expected: String) -> Result<(), RepoError> {
 
 #[cfg(test)]
 mod tests {
-    use minisign::KeyPair;
-
     use super::*;
-
-    struct Signer {
-        pair: KeyPair,
-    }
-
-    impl Signer {
-        fn new() -> Signer {
-            Signer {
-                pair: KeyPair::generate_unencrypted_keypair().unwrap(),
-            }
-        }
-
-        fn key(&self) -> String {
-            self.pair.pk.to_base64()
-        }
-
-        fn sign(&self, data: &[u8], comment: &str) -> String {
-            minisign::sign(
-                Some(&self.pair.pk),
-                &self.pair.sk,
-                data,
-                Some(comment),
-                None,
-            )
-            .unwrap()
-            .to_string()
-        }
-    }
+    use crate::plugins::testkit::Signer;
 
     fn index_bytes(key: &str, version: u64) -> Vec<u8> {
         serde_json::to_vec(&RepositoryIndex {

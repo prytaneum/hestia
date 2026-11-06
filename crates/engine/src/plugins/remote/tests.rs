@@ -4,11 +4,12 @@ use std::sync::Arc;
 
 use proto::error::ErrorInfo;
 use proto::plugin::PluginSource;
+use proto::warning::WarningInfo;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
 use zip::write::SimpleFileOptions;
 
-use super::Remote;
+use super::{Origin, Remote};
 use crate::cancel::Cancel;
 use crate::plugins::Plugins;
 
@@ -90,6 +91,64 @@ async fn a_url_install_uses_the_file_inspect_downloaded() {
         remote.staged(&token).is_err(),
         "and its token stops working"
     );
+}
+
+#[tokio::test]
+async fn an_attested_package_installs_as_a_repository_build_with_its_signer() {
+    let home = tempfile::tempdir().unwrap();
+    let remote = Remote::new(home.path().join("tmp"));
+    let plugins = Plugins::new(home.path().join("plugins"));
+    let archive = package();
+    let server = serve(move |_| ok(&archive)).await;
+    let url = format!("{}/tunnel.hplugin", server.base);
+
+    let token = remote.download(&url, 1 << 20).await.expect("download");
+    remote.attest(
+        &token,
+        Origin {
+            signer: "0123456789ABCDEF".to_string(),
+            repository: "https://example.com/hestia-index.json".to_string(),
+        },
+        vec![WarningInfo::PluginPermissionsDisagree {
+            plugin: "tunnel".to_string(),
+        }],
+    );
+    let staged = remote.staged(&token).expect("held");
+    let digest = plugins.inspect(&staged.path).unwrap().grant_digest;
+    let record = plugins
+        .install_downloaded(&staged, &digest, &Cancel::new(), &|_| {}, |_| Ok(()))
+        .expect("install");
+
+    assert_eq!(record.source, PluginSource::Repo);
+    assert_eq!(record.signer.as_deref(), Some("0123456789ABCDEF"));
+    assert_eq!(
+        record.repository.as_deref(),
+        Some("https://example.com/hestia-index.json")
+    );
+    assert_eq!(record.url.as_deref(), Some(url.as_str()));
+    assert_eq!(staged.warnings.len(), 1);
+}
+
+#[tokio::test]
+async fn a_plain_url_install_records_no_signer() {
+    let home = tempfile::tempdir().unwrap();
+    let remote = Remote::new(home.path().join("tmp"));
+    let plugins = Plugins::new(home.path().join("plugins"));
+    let archive = package();
+    let server = serve(move |_| ok(&archive)).await;
+
+    let token = remote
+        .download(&format!("{}/tunnel.hplugin", server.base), 1 << 20)
+        .await
+        .expect("download");
+    let staged = remote.staged(&token).expect("held");
+    let digest = plugins.inspect(&staged.path).unwrap().grant_digest;
+    let record = plugins
+        .install_downloaded(&staged, &digest, &Cancel::new(), &|_| {}, |_| Ok(()))
+        .expect("install");
+
+    assert_eq!(record.signer, None);
+    assert_eq!(record.repository, None);
 }
 
 #[tokio::test]
