@@ -81,7 +81,6 @@
       "continue": "Continue",
       "details": "Details",
       "drop": "Drop to install",
-      "drop_hint": "Drop a .hplugin file on the list to install it.",
       "empty": "No plugins installed.",
       "full_access": "Full access",
       "full_access_hint": "Can change your servers and instances, install content or run programs.",

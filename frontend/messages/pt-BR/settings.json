@@ -81,7 +81,6 @@
       "continue": "Continuar",
       "details": "Detalhes",
       "drop": "Solte para instalar",
-      "drop_hint": "Solte um arquivo .hplugin na lista para instalá-lo.",
       "empty": "Nenhum plugin instalado.",
       "full_access": "Acesso total",
       "full_access_hint": "Pode alterar seus servidores e instâncias, instalar conteúdo ou executar programas.",

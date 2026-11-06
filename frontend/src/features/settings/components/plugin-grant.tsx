@@ -1,4 +1,5 @@
 import type { DescribedSection } from '@/features/settings/lib';
+import { cn } from '@/lib/utils';
 import { m } from '@/paraglide/messages.js';
 
 /** What a plugin is allowed, section by section, full access first. */
@@ -11,18 +12,27 @@ export function GrantList({ sections }: { sections: DescribedSection[] }) {
     );
   }
   return (
-    <div className="space-y-2">
+    <div className="space-y-3">
       {sections.map((section) => (
-        <div key={section.kind}>
-          <div className="text-xs font-medium">{section.heading}</div>
-          <ul className="text-[11px] text-muted-foreground">
+        <div key={section.kind} className="space-y-1">
+          <div
+            className={cn(
+              'text-xs font-medium',
+              section.kind === 'full_access' && 'text-amber',
+            )}
+          >
+            {section.heading}
+          </div>
+          <dl className="grid grid-cols-[10rem_1fr] gap-x-4 gap-y-1 text-[11px]">
             {section.items.map((item) => (
-              <li key={item.label}>
-                <span className="font-mono">{item.label}</span>
-                {item.detail && ` — ${item.detail}`}
-              </li>
+              <div key={item.label} className="contents">
+                <dt className="truncate font-mono text-foreground/80">
+                  {item.label}
+                </dt>
+                <dd className="text-muted-foreground">{item.detail}</dd>
+              </div>
             ))}
-          </ul>
+          </dl>
         </div>
       ))}
     </div>

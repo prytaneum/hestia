@@ -7,11 +7,7 @@ import { m } from '@/paraglide/messages.js';
 
 export function PluginsTab() {
   return (
-    <SettingsSection
-      group="plugins"
-      legend={m['settings.tabs.plugins']()}
-      description={m['settings.plugins.hint']()}
-    >
+    <SettingsSection group="plugins" legend={m['settings.tabs.plugins']()}>
       <Setting id="plugins">
         <PluginList />
       </Setting>

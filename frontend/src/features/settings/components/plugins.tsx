@@ -44,7 +44,7 @@ export function PluginList() {
         <FieldDescription>
           {daemon.status?.safeMode
             ? m['app.daemon.safe_mode_hint']()
-            : m['settings.plugins.drop_hint']()}
+            : m['settings.plugins.hint']()}
         </FieldDescription>
         <div className="flex shrink-0 items-center gap-2">
           <InstallFromLink
