@@ -40,15 +40,19 @@ pub async fn open(client: &Client, plugin: &PluginInfo, page: &str, argv: &[Stri
         .iter()
         .find(|p| p.id == page)
         .ok_or_else(|| anyhow!("'{id}' has no page '{page}'"))?;
-    if contribution.slot == PageSlot::Entry && options.entry.is_none() {
-        bail!("'{page}' is a page of a server or instance; pass --entry <name>");
-    }
+    let entry = match (contribution.slot, contribution.kind, options.entry.as_deref()) {
+        (PageSlot::Entry, Some(kind), Some(given)) => {
+            Some(entry_id(client, kind, given).await?)
+        }
+        (PageSlot::Entry, _, _) => {
+            bail!("'{page}' is a page of a server or instance; pass --entry <name>")
+        }
+        _ => None,
+    };
     let session = Session {
         client,
         plugin: id,
-        context: PageContext {
-            entry: options.entry.clone(),
-        },
+        context: PageContext { entry },
     };
     let mut page = page.to_string();
     let mut tree = session.render(&page).await?;
@@ -231,7 +235,7 @@ async fn scripted_values(
         let key = name(field);
         let raw = given.iter().rev().find(|(k, _)| k == key).map(|(_, v)| v);
         let value = match (raw, field) {
-            (Some(raw), Field::Entry { kind, .. }) => entry_id(client, *kind, raw).await?,
+            (Some(raw), Field::Entry { kind, .. }) => Value::from(entry_id(client, *kind, raw).await?),
             (Some(raw), field) => coerce(field, raw)?,
             (None, field) => {
                 default(field).ok_or_else(|| anyhow!("pass a value with --set {key}=<name>"))?
@@ -288,12 +292,12 @@ async fn entries(client: &Client, kind: EntryKind) -> Result<Vec<(String, String
     })
 }
 
-async fn entry_id(client: &Client, kind: EntryKind, given: &str) -> Result<Value> {
+async fn entry_id(client: &Client, kind: EntryKind, given: &str) -> Result<String> {
     entries(client, kind)
         .await?
         .into_iter()
         .find(|(id, name)| id == given || name == given)
-        .map(|(id, _)| Value::from(id))
+        .map(|(id, _)| id)
         .ok_or_else(|| anyhow!("no {kind} '{given}'"))
 }
 
