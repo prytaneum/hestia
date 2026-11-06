@@ -7,7 +7,8 @@ use tempfile::NamedTempFile;
 use zip::write::SimpleFileOptions;
 
 use super::cargo::{self, Metadata};
-use super::repo::{PluginDir, Repository, MANIFEST, PLUGINS_DIR};
+use super::check;
+use super::repo::{PluginDir, MANIFEST, PLUGINS_DIR};
 use crate::ui::{self, View};
 
 const DIST: &str = "dist";
@@ -16,20 +17,9 @@ const BUNDLED_DIRS: [&str; 2] = ["assets", "themes"];
 /// Packs the named plugins of the repository around the current directory, or
 /// all of them.
 pub fn run(ids: &[String]) -> Result<()> {
-    let cwd = std::env::current_dir()?;
-    let repo = Repository::containing(&cwd).with_context(|| {
-        format!("not inside a plugin repository (a Cargo.toml beside a {PLUGINS_DIR}/ folder)")
-    })?;
-    let all = repo.plugins()?;
-    let theme_only: Vec<String> = all
-        .iter()
-        .filter(|plugin| !plugin.has_crate)
-        .map(|plugin| format!("{PLUGINS_DIR}/{}", plugin.dir_name))
-        .collect();
+    let repo = check::find(None)?;
+    let all = check::check(&repo)?.plugins;
     let plugins = select(all, ids)?;
-    for plugin in &plugins {
-        check_shape(plugin)?;
-    }
 
     let components: Vec<&PluginDir> = plugins
         .iter()
@@ -38,15 +28,7 @@ pub fn run(ids: &[String]) -> Result<()> {
     let metadata = if components.is_empty() {
         None
     } else {
-        let metadata = Metadata::read(repo.root()).with_context(|| {
-            if theme_only.is_empty() {
-                "cannot read the workspace".to_string()
-            } else {
-                format!(
-                    "a plugin without a Cargo.toml is not a workspace member: add exclude = {theme_only:?} to the workspace Cargo.toml"
-                )
-            }
-        })?;
+        let metadata = Metadata::read(repo.root())?;
         let packages = components
             .iter()
             .map(|plugin| metadata.package_name(&plugin.path))
@@ -93,20 +75,6 @@ fn select(all: Vec<PluginDir>, ids: &[String]) -> Result<Vec<PluginDir>> {
         .into_iter()
         .filter(|plugin| ids.contains(&plugin.dir_name))
         .collect())
-}
-
-fn check_shape(plugin: &PluginDir) -> Result<()> {
-    let dir = &plugin.dir_name;
-    if plugin.manifest.id != *dir {
-        bail!(
-            "{PLUGINS_DIR}/{dir} declares id '{}'; the folder name must equal the id",
-            plugin.manifest.id
-        );
-    }
-    if plugin.manifest.wasm.is_some() && !plugin.has_crate {
-        bail!("'{dir}' declares a wasm component but {PLUGINS_DIR}/{dir} has no Cargo.toml");
-    }
-    Ok(())
 }
 
 /// Writes `dist/<id>-<version>.hplugin`. The `api` requirement comes from the

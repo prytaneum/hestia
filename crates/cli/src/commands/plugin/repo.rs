@@ -6,6 +6,7 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{bail, Context, Result};
 use proto::plugin::Manifest;
+use serde::Deserialize;
 
 pub const PLUGINS_DIR: &str = "plugins";
 pub const MANIFEST: &str = "plugin.toml";
@@ -13,6 +14,16 @@ pub const CRATE_MANIFEST: &str = "Cargo.toml";
 
 pub struct Repository {
     root: PathBuf,
+}
+
+/// What `[workspace.metadata.hestia]` declares: the store the repository is.
+#[derive(Deserialize, Default, Debug, Clone)]
+#[serde(default)]
+pub struct StoreMeta {
+    pub name: String,
+    pub label: String,
+    pub website: String,
+    pub key: String,
 }
 
 /// One folder under `plugins/`, as found on disk. Whether it is valid is for
@@ -39,6 +50,15 @@ impl Repository {
 
     pub fn root(&self) -> &Path {
         &self.root
+    }
+
+    /// The workspace `Cargo.toml`.
+    pub fn workspace(&self) -> Result<toml::Table> {
+        let path = self.root.join(CRATE_MANIFEST);
+        std::fs::read_to_string(&path)
+            .with_context(|| format!("cannot read {}", path.display()))?
+            .parse()
+            .with_context(|| format!("invalid {CRATE_MANIFEST}"))
     }
 
     pub fn plugin_path(&self, id: &str) -> PathBuf {
@@ -81,4 +101,27 @@ fn read_plugin(plugins_dir: &Path, dir_name: String) -> Result<PluginDir> {
         path,
         manifest,
     })
+}
+
+/// `[workspace.metadata.hestia]` of a parsed workspace manifest, if present.
+pub fn store_meta(workspace: &toml::Table) -> Option<Result<StoreMeta>> {
+    let table = workspace.get("workspace")?.get("metadata")?.get("hestia")?;
+    Some(
+        table
+            .clone()
+            .try_into()
+            .context("invalid [workspace.metadata.hestia]"),
+    )
+}
+
+/// The workspace's `members` or `exclude` list.
+pub fn workspace_list(workspace: &toml::Table, key: &str) -> Vec<String> {
+    workspace
+        .get("workspace")
+        .and_then(|table| table.get(key))
+        .and_then(toml::Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(|value| value.as_str().map(str::to_string))
+        .collect()
 }

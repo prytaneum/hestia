@@ -2,6 +2,8 @@
 
 mod add;
 mod cargo;
+mod check;
+mod index;
 mod new;
 mod pack;
 mod repo;
@@ -24,6 +26,23 @@ pub enum PluginCmd {
     Pack {
         /// Plugins to pack; all of the repository's by default
         ids: Vec<String>,
+    },
+    /// Check that the repository follows the one shape plugin repositories have
+    Check {
+        /// Inside the repository by default
+        dir: Option<std::path::PathBuf>,
+    },
+    /// Write dist/hestia-index.json, the listing of the repository's plugins
+    Index {
+        /// The previous index (https URL or file): its builds and revocations carry over
+        #[arg(long, value_name = "URL_OR_FILE")]
+        previous: Option<String>,
+        /// Packages to add as builds, e.g. dist/*.hplugin
+        #[arg(long, num_args = 1.., value_name = "HPLUGIN")]
+        add: Vec<std::path::PathBuf>,
+        /// The repository's https URL; the `origin` remote by default
+        #[arg(long)]
+        repository: Option<String>,
     },
     #[command(flatten)]
     Manage(ManageCmd),
@@ -60,6 +79,12 @@ pub async fn run(cmd: PluginCmd) -> Result<()> {
     match cmd {
         PluginCmd::New { id } => new::run(&id),
         PluginCmd::Pack { ids } => pack::run(&ids),
+        PluginCmd::Check { dir } => check::run(dir.as_deref()),
+        PluginCmd::Index {
+            previous,
+            add,
+            repository,
+        } => index::run(previous.as_deref(), &add, repository).await,
         PluginCmd::Manage(cmd) => manage(cmd).await,
     }
 }

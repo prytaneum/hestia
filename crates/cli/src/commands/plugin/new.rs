@@ -28,7 +28,7 @@ pub fn run(id: &str) -> Result<()> {
         bail!("{} already exists", root.display());
     }
     std::fs::create_dir_all(root.join(PLUGINS_DIR))?;
-    write(&root.join(CRATE_MANIFEST), WORKSPACE)?;
+    write(&root.join(CRATE_MANIFEST), &WORKSPACE.replace("{name}", id))?;
     write(&root.join(".gitignore"), GITIGNORE)?;
     write(&root.join("README.md"), README)?;
     let repo = Repository::containing(&root).context("the new repository is not recognisable")?;
