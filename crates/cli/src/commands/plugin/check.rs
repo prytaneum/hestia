@@ -113,6 +113,11 @@ fn check_meta(meta: &StoreMeta, problems: &mut Vec<String>) {
     }
     if meta.key.trim().is_empty() {
         problems.push("[workspace.metadata.hestia] needs the signing `key`".to_string());
+    } else if minisign::PublicKey::from_base64(meta.key.trim()).is_err() {
+        problems.push(
+            "[workspace.metadata.hestia] `key` is not a minisign public key; run `hestia plugin keygen`"
+                .to_string(),
+        );
     }
 }
 
@@ -153,7 +158,7 @@ fn check_plugin(plugin: &PluginDir, excluded: &BTreeSet<String>, problems: &mut 
 pub mod tests {
     use super::*;
 
-    const META: &str = "\n[workspace.metadata.hestia]\nname = \"Sample\"\nlabel = \"SMP\"\nwebsite = \"https://example.com\"\nkey = \"RWQplaceholder\"\n";
+    const META: &str = "\n[workspace.metadata.hestia]\nname = \"Sample\"\nlabel = \"SMP\"\nwebsite = \"https://example.com\"\nkey = \"RWQf6LRCGA9i53mlYecO4IzT51TGPpvWucNSCh1CBM0QTaLn73Y7GFO3\"\n";
 
     pub fn repo_with(workspace_extra: &str, exclude: &[&str]) -> (tempfile::TempDir, Repository) {
         let root = tempfile::tempdir().unwrap();

@@ -10,6 +10,7 @@ use tempfile::NamedTempFile;
 
 use super::check::{self, Checked};
 use super::repo::{MANIFEST, PLUGINS_DIR};
+use super::sign::Signer;
 use crate::ui::{self, View};
 
 const DIST: &str = "dist";
@@ -33,9 +34,13 @@ pub async fn run(
     previous: Option<&str>,
     add: &[PathBuf],
     repository: Option<String>,
+    sign: Option<&Path>,
 ) -> Result<()> {
     let repo = check::find(None)?;
     let checked = check::check(&repo)?;
+    let signer = sign
+        .map(|path| Signer::load(path, &checked.meta.key))
+        .transpose()?;
     let previous = match previous {
         Some(location) => Some(read_previous(location).await?),
         None => None,
@@ -57,6 +62,14 @@ pub async fn run(
     std::fs::create_dir_all(&dist)?;
     let target = dist.join(INDEX_FILE);
     write_index(&dist, &target, &index)?;
+    if let Some(signer) = signer {
+        let bytes = std::fs::read(&target)?;
+        signer.write(
+            &bytes,
+            &proto::repository::index_comment(index.version),
+            &target,
+        )?;
+    }
     tracing::info!(
         version = index.version,
         plugins = index.plugins.len(),

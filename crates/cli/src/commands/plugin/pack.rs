@@ -9,6 +9,7 @@ use zip::write::SimpleFileOptions;
 use super::cargo::{self, Metadata};
 use super::check;
 use super::repo::{PluginDir, MANIFEST, PLUGINS_DIR};
+use super::sign::Signer;
 use crate::ui::{self, View};
 
 const DIST: &str = "dist";
@@ -16,10 +17,13 @@ const BUNDLED_DIRS: [&str; 2] = ["assets", "themes"];
 
 /// Packs the named plugins of the repository around the current directory, or
 /// all of them.
-pub fn run(ids: &[String]) -> Result<()> {
+pub fn run(ids: &[String], sign: Option<&Path>) -> Result<()> {
     let repo = check::find(None)?;
-    let all = check::check(&repo)?.plugins;
-    let plugins = select(all, ids)?;
+    let checked = check::check(&repo)?;
+    let signer = sign
+        .map(|path| Signer::load(path, &checked.meta.key))
+        .transpose()?;
+    let plugins = select(checked.plugins, ids)?;
 
     let components: Vec<&PluginDir> = plugins
         .iter()
@@ -46,6 +50,9 @@ pub fn run(ids: &[String]) -> Result<()> {
         };
         let package = pack_plugin(plugin, component.as_ref(), &dist)
             .with_context(|| format!("cannot pack '{}'", plugin.manifest.id))?;
+        if let Some(signer) = &signer {
+            sign_package(signer, &plugin.manifest, &package)?;
+        }
         ui::show(View::line(format!(
             "packed {}",
             package
@@ -54,6 +61,17 @@ pub fn run(ids: &[String]) -> Result<()> {
                 .display()
         )))?;
     }
+    Ok(())
+}
+
+fn sign_package(signer: &Signer, manifest: &proto::plugin::Manifest, package: &Path) -> Result<()> {
+    let file = package
+        .file_name()
+        .and_then(|name| name.to_str())
+        .context("the package has no file name")?;
+    let bytes = std::fs::read(package)?;
+    let comment = proto::repository::build_comment(&manifest.id, &manifest.version, file);
+    signer.write(&bytes, &comment, package)?;
     Ok(())
 }
 

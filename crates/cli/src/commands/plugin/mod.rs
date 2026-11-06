@@ -4,9 +4,11 @@ mod add;
 mod cargo;
 mod check;
 mod index;
+mod keygen;
 mod new;
 mod pack;
 mod repo;
+mod sign;
 
 use anyhow::{bail, Context, Result};
 use clap::Subcommand;
@@ -26,6 +28,9 @@ pub enum PluginCmd {
     Pack {
         /// Plugins to pack; all of the repository's by default
         ids: Vec<String>,
+        /// Sign each package with this minisign secret key, writing <file>.minisig
+        #[arg(long, value_name = "SECRET_KEY")]
+        sign: Option<std::path::PathBuf>,
     },
     /// Check that the repository follows the one shape plugin repositories have
     Check {
@@ -43,6 +48,18 @@ pub enum PluginCmd {
         /// The repository's https URL; the `origin` remote by default
         #[arg(long)]
         repository: Option<String>,
+        /// Sign the index with this minisign secret key, writing hestia-index.json.minisig
+        #[arg(long, value_name = "SECRET_KEY")]
+        sign: Option<std::path::PathBuf>,
+    },
+    /// Generate the repository's signing key pair and declare its public key
+    Keygen {
+        /// Where the key pair is written; the current directory by default
+        #[arg(long, value_name = "DIR")]
+        out: Option<std::path::PathBuf>,
+        /// Leave the secret key unencrypted, for a CI secret
+        #[arg(long)]
+        unencrypted: bool,
     },
     #[command(flatten)]
     Manage(ManageCmd),
@@ -78,13 +95,15 @@ pub enum ManageCmd {
 pub async fn run(cmd: PluginCmd) -> Result<()> {
     match cmd {
         PluginCmd::New { id } => new::run(&id),
-        PluginCmd::Pack { ids } => pack::run(&ids),
+        PluginCmd::Pack { ids, sign } => pack::run(&ids, sign.as_deref()),
         PluginCmd::Check { dir } => check::run(dir.as_deref()),
         PluginCmd::Index {
             previous,
             add,
             repository,
-        } => index::run(previous.as_deref(), &add, repository).await,
+            sign,
+        } => index::run(previous.as_deref(), &add, repository, sign.as_deref()).await,
+        PluginCmd::Keygen { out, unencrypted } => keygen::run(out.as_deref(), unencrypted),
         PluginCmd::Manage(cmd) => manage(cmd).await,
     }
 }
