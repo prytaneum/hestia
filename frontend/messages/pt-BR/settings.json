@@ -143,7 +143,12 @@
       "remove_description": "Isso remove o plugin e apaga todos os dados que ele guardou. Não dá para desfazer.",
       "remove_title": "Remover {name}?",
       "review_hint": "Esta lista é longa demais para o diálogo de aprovação. Leia aqui e depois continue.",
-      "review_title": "Revisar {name} {version}"
+      "review_title": "Revisar {name} {version}",
+      "settings": {
+        "secret_set": "Definido. Digite para substituir",
+        "secret_unset": "Não definido",
+        "title": "Configurações"
+      }
     },
     "search_empty": "Nenhuma configuração corresponde a “{query}”.",
     "search_placeholder": "Buscar configurações",

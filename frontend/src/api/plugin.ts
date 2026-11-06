@@ -16,6 +16,7 @@ import type {
   PluginTheme,
   PluginUiActionParams,
   PluginUiRenderParams,
+  SettingValue,
 } from './types/plugin';
 import type { Effect, UiNode } from './types/ui';
 
@@ -64,6 +65,20 @@ export function catalogue(): Promise<Catalogue> {
 
 export function list(): Promise<PluginInfo[]> {
   return call('plugin.list');
+}
+
+/** A secret reports only whether it is set, never its value. */
+export function settings(id: string): Promise<SettingValue[]> {
+  return call('plugin.settings.get', { id });
+}
+
+/** `null` clears the setting back to its default; the daemon checks the value against the declared kind. */
+export async function setSetting(
+  id: string,
+  key: string,
+  value: unknown,
+): Promise<void> {
+  await call('plugin.settings.set', { id, key, value });
 }
 
 export function enable(id: string): Promise<PluginInfo> {

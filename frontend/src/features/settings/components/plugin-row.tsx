@@ -22,6 +22,7 @@ import { m } from '@/paraglide/messages.js';
 import { pluginMutations, pluginQueries } from '@/queries/plugin';
 
 import { GrantList } from './plugin-grant';
+import { PluginSettings } from './plugin-settings';
 
 const STATE_LABEL: Record<PluginState, () => string> = {
   enabled: m['domain.plugin.state.enabled'],
@@ -170,6 +171,7 @@ export function PluginRow({ plugin }: { plugin: PluginInfo }) {
           {description && (
             <p className="text-xs text-muted-foreground">{description}</p>
           )}
+          <PluginSettings plugin={plugin} />
           <GrantList
             sections={describeGrant(plugin.grant, plugin.unrestricted)}
           />

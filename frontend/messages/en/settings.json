@@ -143,7 +143,12 @@
       "remove_description": "This removes the plugin and deletes all the data it stored. It can't be undone.",
       "remove_title": "Remove {name}?",
       "review_hint": "This list is too long for the approval dialog. Read it here, then continue.",
-      "review_title": "Review {name} {version}"
+      "review_title": "Review {name} {version}",
+      "settings": {
+        "secret_set": "Set. Type to replace",
+        "secret_unset": "Not set",
+        "title": "Settings"
+      }
     },
     "search_empty": "No setting matches “{query}”.",
     "search_placeholder": "Search settings",

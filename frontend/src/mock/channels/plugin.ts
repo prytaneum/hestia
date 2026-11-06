@@ -8,6 +8,7 @@ import type {
   PluginInfo,
   PluginPage,
   PluginState,
+  Setting,
   UiNode,
 } from '@/api/types';
 
@@ -57,6 +58,7 @@ interface Fixture {
   unrestricted?: Grant['permissions'];
   commands?: number;
   themes?: number;
+  settings?: Setting[];
   lastError?: string;
   stats?: { calls: number; traps: number; timeouts: number };
 }
@@ -71,6 +73,7 @@ const installed = ({
   unrestricted = [],
   commands = 0,
   themes = 0,
+  settings = [],
   lastError,
   stats = { calls: 0, traps: 0, timeouts: 0 },
 }: Fixture): PluginInfo => {
@@ -82,6 +85,7 @@ const installed = ({
       authors,
       permissions: grant.permissions,
       network: grant.network,
+      settings,
       contributes: {
         ...base.contributes,
         commands: Array.from({ length: commands }, (_, i) => ({
@@ -126,6 +130,38 @@ const plugins: PluginInfo[] = [
     id: 'backup-plus',
     name: 'Backup Plus',
     state: 'enabled',
+    settings: [
+      {
+        key: 'access-key',
+        kind: 'secret',
+        label: 'Access key',
+        help: 'Used to sign uploads.',
+        options: [],
+      },
+      {
+        key: 'keep',
+        kind: 'number',
+        default: 10,
+        label: 'Backups to keep',
+        help: '',
+        options: [],
+      },
+      {
+        key: 'verbose',
+        kind: 'bool',
+        label: 'Log every upload',
+        help: '',
+        options: [],
+      },
+      {
+        key: 'region',
+        kind: 'select',
+        default: 'eu',
+        label: 'Region',
+        help: '',
+        options: ['eu', 'us'],
+      },
+    ],
     description:
       'Uploads server backups to S3-compatible storage after every scheduled backup, and prunes old ones.',
     authors: ['Ana Ribeiro', 'kodo'],
@@ -179,6 +215,8 @@ const requested: Grant = {
   network: ['api.example.com'],
 };
 
+const stored = new Map<string, unknown>();
+
 const find = (id: string) =>
   plugins.find((plugin) => plugin.manifest.id === id);
 
@@ -229,6 +267,19 @@ export const channels: ChannelHandlers = {
     { type: 'toast', tone: 'success', text: 'Hello from the mock plugin' },
   ],
   'plugin.list': () => plugins,
+  'plugin.settings.get': (p) =>
+    find(str(p, 'id'))?.manifest.settings.map((setting) => ({
+      key: setting.key,
+      set: stored.has(setting.key),
+      ...(setting.kind === 'secret'
+        ? {}
+        : { value: stored.get(setting.key) ?? setting.default }),
+    })) ?? [],
+  'plugin.settings.set': (p) => {
+    if (p.value === null) stored.delete(str(p, 'key'));
+    else stored.set(str(p, 'key'), p.value);
+    return ok();
+  },
   'plugin.enable': (p) => setState(str(p, 'id'), 'enabled'),
   'plugin.disable': (p) => setState(str(p, 'id'), 'disabled'),
   'plugin.remove': (p) => {

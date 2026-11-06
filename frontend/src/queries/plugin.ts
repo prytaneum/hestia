@@ -49,6 +49,11 @@ export const pluginQueries = {
       queryKey: keys.plugins.pages(),
       queryFn: () => api.pages(),
     }),
+  settings: (id: string) =>
+    queryOptions({
+      queryKey: keys.plugins.settings(id),
+      queryFn: () => api.settings(id),
+    }),
   render: (plugin: string, page: string, entry?: string) =>
     queryOptions({
       queryKey: keys.plugins.render(plugin, page, entry),
@@ -63,6 +68,12 @@ export const pluginMutations = {
     mutation<Effect[], PluginUiActionParams>({
       mutationKey: [...keys.plugins.all, 'ui-action'],
       mutationFn: (params) => api.action(params),
+    }),
+  setSetting: (id: string) =>
+    mutation<void, { key: string; value: unknown }>({
+      mutationKey: [...keys.plugins.settings(id), 'set'],
+      mutationFn: ({ key, value }) => api.setSetting(id, key, value),
+      invalidates: () => [keys.plugins.settings(id)],
     }),
   enable: () =>
     mutation<PluginInfo, string>({

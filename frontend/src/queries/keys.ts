@@ -176,6 +176,7 @@ export const keys = {
     catalogue: () => [...keys.plugins.all, 'catalogue'] as const,
     pages: () => [...keys.plugins.all, 'pages'] as const,
     themes: () => [...keys.plugins.all, 'themes'] as const,
+    settings: (id: string) => [...keys.plugins.all, 'settings', id] as const,
     render: (plugin: string, page: string, entry?: string) =>
       [...keys.plugins.all, 'render', plugin, page, entry ?? null] as const,
   },
