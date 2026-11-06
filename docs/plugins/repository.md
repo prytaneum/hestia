@@ -39,8 +39,8 @@ key = "RWQ..."                         # minisign public key (a placeholder unti
 
 CI regenerates `hestia-index.json` from `[workspace.metadata.hestia]` and `plugins/*/plugin.toml` on every push to the
 default branch and publishes it at one fixed https URL. On GitHub that is a rolling release tagged `hestia-index`:
-`<repository>/releases/download/hestia-index/hestia-index.json`. Users add a repository by that URL. Signing the index
-comes with `hestia plugin keygen` (task 8.06); until then it is unsigned.
+`<repository>/releases/download/hestia-index/hestia-index.json`. Users add a repository by that URL. The index is not
+signed yet; signing arrives with `hestia plugin keygen`.
 
 ```
 { schemaVersion, version, repository, commit, name, label, website, key,

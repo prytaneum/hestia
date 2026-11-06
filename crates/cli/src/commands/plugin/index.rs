@@ -190,7 +190,7 @@ async fn read_previous(location: &str) -> Result<RepositoryIndex> {
         if !location.starts_with("https://") {
             bail!("--previous must be an https URL or a file");
         }
-        let response = reqwest::Client::builder()
+        let mut response = reqwest::Client::builder()
             .https_only(true)
             .build()?
             .get(location)
@@ -199,9 +199,12 @@ async fn read_previous(location: &str) -> Result<RepositoryIndex> {
             .with_context(|| format!("cannot fetch {location}"))?
             .error_for_status()
             .with_context(|| format!("cannot fetch {location}"))?;
-        let bytes = response.bytes().await?.to_vec();
-        if bytes.len() > MAX_PREVIOUS_BYTES {
-            bail!("the previous index is larger than {MAX_PREVIOUS_BYTES} bytes");
+        let mut bytes = Vec::new();
+        while let Some(chunk) = response.chunk().await? {
+            if bytes.len() + chunk.len() > MAX_PREVIOUS_BYTES {
+                bail!("the previous index is larger than {MAX_PREVIOUS_BYTES} bytes");
+            }
+            bytes.extend_from_slice(&chunk);
         }
         bytes
     } else {

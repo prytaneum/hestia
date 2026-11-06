@@ -126,6 +126,7 @@ fn check_plugin(plugin: &PluginDir, excluded: &BTreeSet<String>, problems: &mut 
         ));
     }
     let mut manifest = plugin.manifest.clone();
+    // A source manifest never carries `api`: `pack` writes it from the resolved SDK.
     if manifest.wasm.is_some() && manifest.api.is_none() {
         manifest.api = Some(format!("^{}", proto::plugin::API_VERSION));
     }
