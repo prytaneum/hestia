@@ -14,8 +14,8 @@ use std::time::Duration;
 
 use anyhow::Context;
 use engine::{
-    is_official_signer, CallChain, Cancel, Engine, HostCalls, Listings, LoadedPlugin, PluginRecord, PluginRuntime,
-    PluginStats, Roster,
+    is_official_signer, CallChain, Cancel, Engine, HostCalls, Listings, LoadedPlugin, PluginRecord,
+    PluginRuntime, PluginStats, Roster,
 };
 use proto::error::ErrorInfo;
 use proto::plugin::{

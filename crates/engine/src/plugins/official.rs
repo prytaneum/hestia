@@ -96,8 +96,15 @@ mod tests {
             RepoError::BadSignature
         );
         assert_eq!(
-            verify_build(b"packagf", &package_signature, &official.key(), "aa", "0.1.0", "f")
-                .unwrap_err(),
+            verify_build(
+                b"packagf",
+                &package_signature,
+                &official.key(),
+                "aa",
+                "0.1.0",
+                "f"
+            )
+            .unwrap_err(),
             RepoError::BadSignature
         );
     }
@@ -108,16 +115,11 @@ mod tests {
         let data = b"artifact";
         let wrapped_app = base64::engine::general_purpose::STANDARD
             .encode(format!("untrusted comment: key\n{}\n", app.key()));
-        let wrapped_signature = base64::engine::general_purpose::STANDARD
-            .encode(app.sign(data, "trusted"));
+        let wrapped_signature =
+            base64::engine::general_purpose::STANDARD.encode(app.sign(data, "trusted"));
         let plugin_key: &'static str = Box::leak(plugins.key().into_boxed_str());
 
-        assert!(verify_bytes(
-            data,
-            &wrapped_signature,
-            std::iter::once(plugin_key)
-        )
-        .is_err());
+        assert!(verify_bytes(data, &wrapped_signature, std::iter::once(plugin_key)).is_err());
         let app_signature = app.sign(data, "trusted");
         assert!(crate::signature::verify_trusted(data, &app_signature, &wrapped_app).is_err());
         assert!(!common::app::update_pubkeys().any(|key| key == plugin_key));

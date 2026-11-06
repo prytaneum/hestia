@@ -56,7 +56,12 @@ fn push_views(node: &UiNode, out: &mut Vec<View>) {
             ["ITEM", "DETAILS"],
             items
                 .iter()
-                .map(|item| vec![item.title.clone(), item.subtitle.clone().unwrap_or_default()])
+                .map(|item| {
+                    vec![
+                        item.title.clone(),
+                        item.subtitle.clone().unwrap_or_default(),
+                    ]
+                })
                 .collect(),
         )),
         UiNode::Detail { pairs } => out.push(View::detail(
@@ -197,8 +202,10 @@ mod tests {
             }],
             row_action: Some("pick".into()),
         };
-        assert!(matches!(&views(&table)[0], View::Table { headers, rows, .. }
-            if headers == &["A"] && rows == &[vec!["1".to_string()]]));
+        assert!(
+            matches!(&views(&table)[0], View::Table { headers, rows, .. }
+            if headers == &["A"] && rows == &[vec!["1".to_string()]])
+        );
         let list = UiNode::List {
             items: vec![ListItem {
                 title: "t".into(),

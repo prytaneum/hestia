@@ -236,7 +236,12 @@ async fn with_local_mod(
         ..ContentAddSpec::default()
     };
     engine
-        .add_entry_content(EntryRef::Instance(&id), &spec, &NO_CHAIN, &job(&cancel, &report))
+        .add_entry_content(
+            EntryRef::Instance(&id),
+            &spec,
+            &NO_CHAIN,
+            &job(&cancel, &report),
+        )
         .await
         .expect("import the local build");
     (engine, id)
@@ -374,7 +379,12 @@ async fn a_local_file_a_source_recognises_installs_tracked_and_alone() {
     };
 
     let (installed, failures) = engine
-        .add_entry_content(EntryRef::Instance(&id), &spec, &NO_CHAIN, &job(&cancel, &report))
+        .add_entry_content(
+            EntryRef::Instance(&id),
+            &spec,
+            &NO_CHAIN,
+            &job(&cancel, &report),
+        )
         .await
         .expect("the batch runs");
 
@@ -417,7 +427,12 @@ async fn a_file_kept_local_can_later_move_to_a_source_that_recognises_it() {
     };
 
     let (installed, failures) = engine
-        .add_entry_content(EntryRef::Instance(&id), &spec, &NO_CHAIN, &job(&cancel, &report))
+        .add_entry_content(
+            EntryRef::Instance(&id),
+            &spec,
+            &NO_CHAIN,
+            &job(&cancel, &report),
+        )
         .await
         .expect("the batch runs");
 
@@ -1117,7 +1132,12 @@ async fn a_shared_pack_that_does_not_fit_stays_offered_and_never_warns() {
         ..add(&["cozy"])
     };
     engine
-        .add_entry_content(EntryRef::Instance(&alpha), &cozy, &NO_CHAIN, &job(&cancel, &report))
+        .add_entry_content(
+            EntryRef::Instance(&alpha),
+            &cozy,
+            &NO_CHAIN,
+            &job(&cancel, &report),
+        )
         .await
         .expect("install the pack where it fits");
     engine
@@ -1157,7 +1177,12 @@ async fn updatable(home: &std::path::Path, icon: &str) -> (engine::Engine, Strin
     let mut spec = add(&["sodium"]);
     spec.items[0].version = older.id.clone();
     engine
-        .add_entry_content(EntryRef::Instance(&id), &spec, &NO_CHAIN, &job(&cancel, &report))
+        .add_entry_content(
+            EntryRef::Instance(&id),
+            &spec,
+            &NO_CHAIN,
+            &job(&cancel, &report),
+        )
         .await
         .expect("install the older version");
     (engine, id, files)
@@ -1267,7 +1292,12 @@ async fn an_item_that_cannot_update_leaves_the_rest_of_the_batch_recorded() {
         item.version = format!("{}-1", item.project);
     }
     engine
-        .add_entry_content(EntryRef::Instance(&id), &spec, &NO_CHAIN, &job(&cancel, &report))
+        .add_entry_content(
+            EntryRef::Instance(&id),
+            &spec,
+            &NO_CHAIN,
+            &job(&cancel, &report),
+        )
         .await
         .expect("install the older versions");
 

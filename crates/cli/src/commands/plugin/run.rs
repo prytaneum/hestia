@@ -46,7 +46,10 @@ pub async fn top(argv: Vec<String>) -> Result<()> {
             return super::page::open(&client, plugin, name, args).await;
         }
         let ids: Vec<&str> = commands.iter().map(|c| c.id.as_str()).collect();
-        bail!("'{id}' has no command or page '{name}'; commands: {}", joined(&ids));
+        bail!(
+            "'{id}' has no command or page '{name}'; commands: {}",
+            joined(&ids)
+        );
     };
     execute(&client, id, command, CommandScope::Top, None, args).await
 }

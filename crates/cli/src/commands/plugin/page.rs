@@ -5,7 +5,9 @@
 
 use anyhow::{anyhow, bail, Result};
 use client::proto::error::EntryKind;
-use client::proto::plugin::{PageContext, PageSlot, PluginInfo, PluginUiActionParams, PluginUiRenderParams};
+use client::proto::plugin::{
+    PageContext, PageSlot, PluginInfo, PluginUiActionParams, PluginUiRenderParams,
+};
 use client::proto::ui::{Effect, FormField, Tone, UiNode};
 use client::Client;
 use serde_json::{Map, Number, Value};
@@ -40,10 +42,12 @@ pub async fn open(client: &Client, plugin: &PluginInfo, page: &str, argv: &[Stri
         .iter()
         .find(|p| p.id == page)
         .ok_or_else(|| anyhow!("'{id}' has no page '{page}'"))?;
-    let entry = match (contribution.slot, contribution.kind, options.entry.as_deref()) {
-        (PageSlot::Entry, Some(kind), Some(given)) => {
-            Some(entry_id(client, kind, given).await?)
-        }
+    let entry = match (
+        contribution.slot,
+        contribution.kind,
+        options.entry.as_deref(),
+    ) {
+        (PageSlot::Entry, Some(kind), Some(given)) => Some(entry_id(client, kind, given).await?),
         (PageSlot::Entry, _, _) => {
             bail!("'{page}' is a page of a server or instance; pass --entry <name>")
         }
@@ -68,7 +72,10 @@ pub async fn open(client: &Client, plugin: &PluginInfo, page: &str, argv: &[Stri
                 .cloned()
                 .ok_or_else(|| {
                     let ids: Vec<&str> = available.iter().map(|c| c.action.id.as_str()).collect();
-                    anyhow!("no action '{action}' on this page; it offers: {}", ids.join(", "))
+                    anyhow!(
+                        "no action '{action}' on this page; it offers: {}",
+                        ids.join(", ")
+                    )
                 })?,
             None if available.is_empty() || !ui::is_interactive() => return Ok(()),
             None => {
@@ -202,7 +209,9 @@ fn name(field: &FormField) -> &str {
 
 fn default(field: &FormField) -> Option<Value> {
     match field {
-        FormField::Text { value, .. } | FormField::Select { value, .. } => Some(Value::from(value.clone())),
+        FormField::Text { value, .. } | FormField::Select { value, .. } => {
+            Some(Value::from(value.clone()))
+        }
         FormField::Number { value, .. } => Number::from_f64(*value).map(Value::Number),
         FormField::Toggle { value, .. } => Some(Value::Bool(*value)),
         FormField::Entry { .. } => None,
@@ -235,7 +244,9 @@ async fn scripted_values(
         let key = name(field);
         let raw = given.iter().rev().find(|(k, _)| k == key).map(|(_, v)| v);
         let value = match (raw, field) {
-            (Some(raw), FormField::Entry { kind, .. }) => Value::from(entry_id(client, *kind, raw).await?),
+            (Some(raw), FormField::Entry { kind, .. }) => {
+                Value::from(entry_id(client, *kind, raw).await?)
+            }
             (Some(raw), field) => coerce(field, raw)?,
             (None, field) => {
                 default(field).ok_or_else(|| anyhow!("pass a value with --set {key}=<name>"))?
@@ -312,7 +323,12 @@ mod tests {
     #[test]
     fn flags_collect_the_entry_action_and_every_set() {
         let options = parse(&argv(&[
-            "--entry", "smp", "--action=save", "--set", "a=1", "--set=b=x=y",
+            "--entry",
+            "smp",
+            "--action=save",
+            "--set",
+            "a=1",
+            "--set=b=x=y",
         ]))
         .unwrap();
         assert_eq!(options.entry.as_deref(), Some("smp"));

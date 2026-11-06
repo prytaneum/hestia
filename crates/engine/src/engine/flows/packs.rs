@@ -7,8 +7,8 @@ use proto::warning::WarningInfo;
 
 use crate::cancel::{Cancel, Job};
 use crate::engine::Engine;
-use crate::plugins::CallChain;
 use crate::instances::InstanceRecord;
+use crate::plugins::CallChain;
 use crate::sync::packs::{self, Action, Pack};
 
 use super::content::EntryRef;
@@ -134,7 +134,10 @@ impl Engine {
                 let cancel = Cancel::new();
                 let quiet = |_: &proto::minecraft::ProvisionProgress| {};
                 let job = Job::new(&quiet, &cancel);
-                let reason = match self.add_entry_content(entry, &spec, &CallChain::default(), &job).await {
+                let reason = match self
+                    .add_entry_content(entry, &spec, &CallChain::default(), &job)
+                    .await
+                {
                     Ok((_, failed)) => failed.first().map(|failure| failure.error.to_string()),
                     Err(e) => Some(format!("{e:#}")),
                 };

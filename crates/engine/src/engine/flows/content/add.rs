@@ -390,7 +390,11 @@ impl Engine {
                 .unwrap_or_default(),
             kind,
         };
-        match self.hooks().run::<BeforeContentInstall>(&context, chain).await {
+        match self
+            .hooks()
+            .run::<BeforeContentInstall>(&context, chain)
+            .await
+        {
             Ok(_) => Ok(()),
             Err(ErrorInfo::PluginVetoed {
                 plugin,
