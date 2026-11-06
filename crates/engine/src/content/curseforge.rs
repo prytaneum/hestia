@@ -139,7 +139,7 @@ impl ContentProvider for CurseForge {
 
     /// `curseforge.com/minecraft/<type>/<slug>` names a project;
     /// `…/<slug>/files/<id>` (or `…/download/<id>`) pins one of its files.
-    fn parse_url(&self, url: &str) -> Option<UrlRef> {
+    async fn parse_url(&self, url: &str) -> Option<UrlRef> {
         let rest = url
             .strip_prefix("https://")
             .or_else(|| url.strip_prefix("http://"))?;
@@ -852,8 +852,8 @@ fn is_numeric(value: &str) -> bool {
 mod tests {
     use super::*;
 
-    #[test]
-    fn site_urls_parse_to_project_refs() {
+    #[tokio::test]
+    async fn site_urls_parse_to_project_refs() {
         let cf = CurseForge::default();
         for url in [
             "https://www.curseforge.com/minecraft/mc-mods/jei",
@@ -862,7 +862,7 @@ mod tests {
             "https://www.curseforge.com/minecraft/mc-mods/jei?utm=1#files",
         ] {
             let parsed = cf
-                .parse_url(url)
+                .parse_url(url).await
                 .unwrap_or_else(|| panic!("should parse {url}"));
             assert_eq!(parsed.project, "jei");
             assert_eq!(parsed.version, None, "{url}");
@@ -870,32 +870,32 @@ mod tests {
         }
 
         assert_eq!(
-            cf.parse_url("https://www.curseforge.com/minecraft/mc-mods/jei/files/5101466")
+            cf.parse_url("https://www.curseforge.com/minecraft/mc-mods/jei/files/5101466").await
                 .unwrap()
                 .version
                 .as_deref(),
             Some("5101466")
         );
         assert_eq!(
-            cf.parse_url("https://www.curseforge.com/minecraft/modpacks/atm10/download/123")
+            cf.parse_url("https://www.curseforge.com/minecraft/modpacks/atm10/download/123").await
                 .unwrap()
                 .version
                 .as_deref(),
             Some("123")
         );
         assert_eq!(
-            cf.parse_url("https://www.curseforge.com/minecraft/texture-packs/faithful")
+            cf.parse_url("https://www.curseforge.com/minecraft/texture-packs/faithful").await
                 .unwrap()
                 .kind,
             Some(ContentKind::ResourcePack)
         );
 
-        assert!(cf.parse_url("https://modrinth.com/mod/sodium").is_none());
+        assert!(cf.parse_url("https://modrinth.com/mod/sodium").await.is_none());
         assert!(cf
-            .parse_url("https://www.curseforge.com/wow/addons/deadly-boss-mods")
+            .parse_url("https://www.curseforge.com/wow/addons/deadly-boss-mods").await
             .is_none());
         assert!(cf
-            .parse_url("https://www.curseforge.com/minecraft/mc-mods")
+            .parse_url("https://www.curseforge.com/minecraft/mc-mods").await
             .is_none());
     }
 

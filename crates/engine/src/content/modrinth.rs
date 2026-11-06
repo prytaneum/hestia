@@ -104,7 +104,7 @@ impl ContentProvider for Modrinth {
 
     /// `modrinth.com/<type>/<slug>` names a project;
     /// `…/<slug>/version/<number-or-id>` pins one of its versions.
-    fn parse_url(&self, url: &str) -> Option<UrlRef> {
+    async fn parse_url(&self, url: &str) -> Option<UrlRef> {
         let rest = url
             .strip_prefix("https://")
             .or_else(|| url.strip_prefix("http://"))?;
@@ -595,8 +595,8 @@ mod tests {
         assert_eq!(build_facets(&bare), r#"[["project_type:modpack"]]"#);
     }
 
-    #[test]
-    fn site_urls_parse_to_project_refs() {
+    #[tokio::test]
+    async fn site_urls_parse_to_project_refs() {
         let m = Modrinth;
         for url in [
             "https://modrinth.com/mod/sodium",
@@ -606,22 +606,22 @@ mod tests {
             "https://modrinth.com/mod/sodium/versions",
         ] {
             let parsed = m
-                .parse_url(url)
+                .parse_url(url).await
                 .unwrap_or_else(|| panic!("should parse {url}"));
             assert_eq!(parsed.project, "sodium");
             assert_eq!(parsed.version, None, "{url}");
         }
         let pinned = m
-            .parse_url("https://modrinth.com/mod/sodium/version/mc1.21.1-0.8.12-fabric")
+            .parse_url("https://modrinth.com/mod/sodium/version/mc1.21.1-0.8.12-fabric").await
             .unwrap();
         assert_eq!(pinned.version.as_deref(), Some("mc1.21.1-0.8.12-fabric"));
 
-        assert!(m.parse_url("https://example.com/mod/sodium").is_none());
+        assert!(m.parse_url("https://example.com/mod/sodium").await.is_none());
         assert!(m
-            .parse_url("https://modrinth.com/user/jellysquid3")
+            .parse_url("https://modrinth.com/user/jellysquid3").await
             .is_none());
-        assert!(m.parse_url("modrinth.com/mod/sodium").is_none());
-        assert!(m.parse_url("https://modrinth.com/mod").is_none());
+        assert!(m.parse_url("modrinth.com/mod/sodium").await.is_none());
+        assert!(m.parse_url("https://modrinth.com/mod").await.is_none());
     }
 
     #[test]

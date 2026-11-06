@@ -26,6 +26,7 @@ use super::imports::bindings::{self, hestia::plugin::types::PluginError};
 use super::imports::{CommandRun, Gate, HostCalls, PluginState};
 use super::output::{Captured, PluginLog};
 use super::settings::PluginSettings;
+use super::providers::SourceOp;
 use super::store::PluginRecord;
 use crate::checksum::hex;
 
@@ -475,6 +476,38 @@ impl LoadedPlugin {
             })
         })
         .await
+    }
+
+    /// Runs one call of the plugin's `content-source` export for the contributed
+    /// source `source` under `timeout`; `args` and the reply are JSON.
+    pub(super) async fn content_source(
+        &self,
+        chain: &CallChain,
+        op: SourceOp,
+        source: &str,
+        args: &str,
+        timeout: Duration,
+    ) -> Result<String, CallError> {
+        let (source, args) = (source.to_string(), args.to_string());
+        self.guarded(chain, timeout, None, move |store, instance| {
+            Box::pin(async move {
+                let guest = instance.hestia_plugin_content_source();
+                match op {
+                    SourceOp::Info => guest.call_info(store, &source).await,
+                    SourceOp::ParseUrl => guest.call_parse_url(store, &source, &args).await,
+                    SourceOp::Search => guest.call_search(store, &source, &args).await,
+                    SourceOp::Project => guest.call_project(store, &source, &args).await,
+                    SourceOp::Projects => guest.call_projects(store, &source, &args).await,
+                    SourceOp::Versions => guest.call_versions(store, &source, &args).await,
+                    SourceOp::VersionsById => {
+                        guest.call_versions_by_id(store, &source, &args).await
+                    }
+                    SourceOp::Identify => guest.call_identify(store, &source, &args).await,
+                }
+            })
+        })
+        .await?
+        .map_err(|error| CallError::Guest(describe(error)))
     }
 
     /// What the user approved for this plugin.

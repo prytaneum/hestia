@@ -322,7 +322,7 @@ impl Content {
     /// Resolve a source page URL to the project it names (and the version it
     /// pins, for a version page).
     pub async fn resolve_url(&self, url: &str) -> Result<ResolvedUrl> {
-        let (source, reference) = self.parse_url(url).ok_or_else(|| {
+        let (source, reference) = self.parse_url(url).await.ok_or_else(|| {
             anyhow::Error::from(proto::error::ErrorInfo::UnsupportedContentUrl {
                 url: url.to_string(),
             })
@@ -373,11 +373,13 @@ impl Content {
 
     /// Recognise a project/version page URL on any registered platform's site,
     /// returning the owning source id and the reference it names.
-    pub(crate) fn parse_url(&self, url: &str) -> Option<(String, UrlRef)> {
-        self.providers
-            .snapshot()
-            .iter()
-            .find_map(|p| p.parse_url(url).map(|r| (p.id().to_string(), r)))
+    pub(crate) async fn parse_url(&self, url: &str) -> Option<(String, UrlRef)> {
+        for provider in self.providers.snapshot() {
+            if let Some(reference) = provider.parse_url(url).await {
+                return Some((provider.id().to_string(), reference));
+            }
+        }
+        None
     }
 
     /// The provider for `id`; an empty id selects the default — the first

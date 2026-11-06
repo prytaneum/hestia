@@ -2,6 +2,7 @@
 //! real seams; these are the second adapter behind them, so a flow can be
 //! driven without reaching Mojang, Modrinth or a JDK mirror.
 
+pub mod index;
 pub mod probe;
 
 use std::collections::HashMap;
@@ -187,7 +188,7 @@ impl ContentProvider for Source {
             })
             .collect())
     }
-    fn parse_url(&self, _url: &str) -> Option<UrlRef> {
+    async fn parse_url(&self, _url: &str) -> Option<UrlRef> {
         None
     }
     async fn versions_by_id(&self, ids: &[String]) -> Result<Vec<ContentVersion>> {

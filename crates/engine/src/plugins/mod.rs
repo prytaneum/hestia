@@ -17,6 +17,7 @@ mod install;
 mod official;
 mod output;
 mod patch;
+mod providers;
 mod remote;
 mod repos;
 mod repositories;
@@ -48,4 +49,5 @@ pub use runtime::{
     EVENT_TIMEOUT, HOOK_TIMEOUT, PROVIDER_TIMEOUT, UI_TIMEOUT,
 };
 pub use settings::{PluginSettings, SettingsError};
+pub use providers::{connect_sources, register_sources, PluginContentProvider};
 pub use store::{PluginPackage, PluginRecord, Plugins};

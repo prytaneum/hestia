@@ -2,6 +2,8 @@
 //! is ordering: which step runs before which, and what is left on disk when one
 //! of them fails.
 
+#[path = "flows/content_source.rs"]
+mod content_source;
 mod fixture;
 
 use engine::{CallChain, Cancel, EntryRef, Job, LaunchRequest, ServerCreateSpec};
@@ -1704,7 +1706,7 @@ mod launch_hooks {
 
     use super::*;
 
-    struct NoHost;
+    pub(super) struct NoHost;
 
     #[async_trait]
     impl HostCalls for NoHost {

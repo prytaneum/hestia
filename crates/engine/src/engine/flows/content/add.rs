@@ -78,7 +78,7 @@ impl Engine {
                 continue;
             }
             if !item.url.is_empty() {
-                match self.content.parse_url(&item.url) {
+                match self.content.parse_url(&item.url).await {
                     Some((source, parsed)) => roots.push(PlatformRoot {
                         given: item.url.clone(),
                         source,

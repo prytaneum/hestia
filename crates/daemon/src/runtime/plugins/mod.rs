@@ -15,8 +15,9 @@ use std::time::Duration;
 
 use anyhow::Context;
 use engine::{
-    is_official_signer, CallChain, Cancel, Engine, HostCalls, Listings, LoadedPlugin, PluginRecord,
-    PluginRuntime, PluginStats, Roster, SettingsError, EVENT_TIMEOUT,
+    connect_sources, is_official_signer, register_sources, CallChain, Cancel, Engine, HostCalls,
+    Listings, LoadedPlugin, PluginContentProvider, PluginRecord, PluginRuntime, PluginStats,
+    Roster, SettingsError, EVENT_TIMEOUT,
 };
 use proto::error::ErrorInfo;
 use proto::plugin::{
@@ -44,7 +45,7 @@ struct Slot {
 
 enum Activation {
     /// `None` for a package with no component, such as a theme-only one.
-    Ready(Option<Arc<LoadedPlugin>>),
+    Ready(Option<Arc<LoadedPlugin>>, Vec<PluginContentProvider>),
     NeedsApproval,
 }
 
@@ -158,7 +159,7 @@ impl Plugins {
             .set_enabled(id, false)
             .map_err(internal)?;
         record.enabled = false;
-        self.settle(id, PluginState::Disabled, None, None);
+        self.settle(id, PluginState::Disabled, None, None, Vec::new());
         Ok(self.info_of(record).await)
     }
 
@@ -386,6 +387,7 @@ impl Plugins {
         self.record(id)?;
         self.engine.plugins().remove(id).map_err(internal)?;
         self.slots.lock().unwrap().remove(id);
+        self.engine.content().unregister(id);
         Ok(())
     }
 
@@ -489,19 +491,22 @@ impl Plugins {
                 PluginState::Disabled,
                 Some(SAFE_MODE_NOTE.into()),
                 None,
+                Vec::new(),
             );
             return;
         }
         match self.try_activate(&record).await {
-            Ok(Activation::Ready(loaded)) => self.settle(&id, PluginState::Enabled, None, loaded),
+            Ok(Activation::Ready(loaded, sources)) => {
+                self.settle(&id, PluginState::Enabled, None, loaded, sources)
+            }
             Ok(Activation::NeedsApproval) => {
                 tracing::warn!(plugin = %id, "plugin asks for more than was approved");
-                self.settle(&id, PluginState::NeedsApproval, None, None)
+                self.settle(&id, PluginState::NeedsApproval, None, None, Vec::new())
             }
             Err(error) => {
                 let message = format!("{error:#}");
                 tracing::warn!(plugin = %id, error = %message, "plugin failed to load");
-                self.settle(&id, PluginState::Failed, Some(message), None)
+                self.settle(&id, PluginState::Failed, Some(message), None, Vec::new())
             }
         }
     }
@@ -514,7 +519,7 @@ impl Plugins {
             return Ok(Activation::NeedsApproval);
         }
         let Some(wasm) = package.wasm else {
-            return Ok(Activation::Ready(None));
+            return Ok(Activation::Ready(None, Vec::new()));
         };
         let sandbox = self
             .sandbox
@@ -530,7 +535,9 @@ impl Plugins {
         })
         .await??;
         loaded.init(&CallChain::default(), INIT_TIMEOUT).await?;
-        Ok(Activation::Ready(Some(Arc::new(loaded))))
+        let loaded = Arc::new(loaded);
+        let sources = connect_sources(&loaded, &package.manifest).await;
+        Ok(Activation::Ready(Some(loaded), sources))
     }
 
     /// Loading takes seconds, so a plugin can be disabled, removed or the
@@ -542,6 +549,7 @@ impl Plugins {
         state: PluginState,
         error: Option<String>,
         loaded: Option<Arc<LoadedPlugin>>,
+        sources: Vec<PluginContentProvider>,
     ) {
         let delivery = match (state, &loaded, self.host.get()) {
             (PluginState::Enabled, Some(loaded), Some(host)) => {
@@ -554,6 +562,15 @@ impl Plugins {
             if state != PluginState::Disabled && !self.wanted(id) {
                 tracing::info!(plugin = %id, "plugin was disabled or removed while loading");
                 return;
+            }
+            self.engine.content().unregister(id);
+            if state == PluginState::Enabled {
+                let official = self
+                    .engine
+                    .plugins()
+                    .get(id)
+                    .is_some_and(|record| is_official_signer(record.signer.as_deref()));
+                register_sources(self.engine.content(), id, official, sources);
             }
             slots.insert(
                 id.to_string(),
@@ -626,7 +643,7 @@ mod tests {
         install(&engine, true);
         plugins.disable("demo").await.unwrap();
 
-        plugins.settle("demo", PluginState::Enabled, None, None);
+        plugins.settle("demo", PluginState::Enabled, None, None, Vec::new());
 
         assert_eq!(
             plugins.slots.lock().unwrap()["demo"].state,
@@ -641,10 +658,10 @@ mod tests {
         install(&engine, true);
         assert!(!plugins.is_live("demo"));
 
-        plugins.settle("demo", PluginState::NeedsApproval, None, None);
+        plugins.settle("demo", PluginState::NeedsApproval, None, None, Vec::new());
         assert!(!plugins.is_live("demo"));
 
-        plugins.settle("demo", PluginState::Enabled, None, None);
+        plugins.settle("demo", PluginState::Enabled, None, None, Vec::new());
         assert!(plugins.is_live("demo"));
     }
 
@@ -655,7 +672,7 @@ mod tests {
         install(&engine, true);
         plugins.shutdown();
 
-        plugins.settle("demo", PluginState::Failed, Some("late".into()), None);
+        plugins.settle("demo", PluginState::Failed, Some("late".into()), None, Vec::new());
 
         assert!(plugins.slots.lock().unwrap().is_empty());
     }

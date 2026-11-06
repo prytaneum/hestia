@@ -62,7 +62,7 @@ pub trait ContentProvider: Send + Sync {
     /// the running daemon.
     fn configure(&self, _settings: &ContentSettings) {}
     /// Recognise a project/version page URL on this platform's site.
-    fn parse_url(&self, url: &str) -> Option<UrlRef>;
+    async fn parse_url(&self, url: &str) -> Option<UrlRef>;
     async fn search(&self, query: &SearchQuery) -> Result<proto::content::SearchResult>;
     /// A project's detail, stamped with the caller's `kind` when it publishes it.
     async fn project(&self, project: &str, kind: Option<ContentKind>) -> Result<ContentProject>;
