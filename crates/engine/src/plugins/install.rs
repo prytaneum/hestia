@@ -234,6 +234,8 @@ impl Plugins {
                 source.kind()
             },
             url: url.map(str::to_string),
+            signer: None,
+            repository: None,
             wasm_sha256,
             theme_sha256,
             grant,

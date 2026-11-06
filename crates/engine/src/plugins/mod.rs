@@ -12,6 +12,7 @@ mod imports;
 mod install;
 mod output;
 mod remote;
+mod repos;
 mod runtime;
 mod store;
 
@@ -21,6 +22,7 @@ pub use hooks::{Hook, HookOutcome, Hooks, Participant, Roster, Verdict};
 pub use imports::{CommandRun, HostCalls, HostError};
 pub use install::Inspection;
 pub use remote::{Remote, Staged};
+pub use repos::{key_id_of, revocation, verify_build, verify_index, RepoError};
 pub use runtime::{
     CallError, LoadError, LoadedPlugin, PluginRuntime, PluginStats, CANCEL_GRACE, COMMAND_TIMEOUT,
     EVENT_TIMEOUT, HOOK_TIMEOUT, PROVIDER_TIMEOUT, UI_TIMEOUT,

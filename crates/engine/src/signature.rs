@@ -49,6 +49,33 @@ pub fn verify_file(
     verify_bytes(&data, signature, keys)
 }
 
+/// Verify `data` against one standard-format minisign key (`RW…`) and
+/// signature file text, returning the signature's trusted comment. The
+/// comment is covered by the signature but means nothing until the caller
+/// compares it with what it expected. Legacy (non-prehashed) signatures are
+/// refused; the `minisign` tool signs prehashed by default.
+pub fn verify_trusted(
+    data: &[u8],
+    signature: &str,
+    public_key: &str,
+) -> Result<String, minisign_verify::Error> {
+    let signature = minisign_verify::Signature::decode(signature)?;
+    minisign_verify::PublicKey::from_base64(public_key.trim())?.verify(data, &signature, false)?;
+    Ok(signature.trusted_comment().to_string())
+}
+
+/// The key id minisign shows for a standard-format public key.
+pub fn key_id(public_key: &str) -> Result<String, minisign_verify::Error> {
+    minisign_verify::PublicKey::from_base64(public_key.trim())?;
+    let bytes = base64::engine::general_purpose::STANDARD
+        .decode(public_key.trim())
+        .map_err(|_| minisign_verify::Error::InvalidEncoding)?;
+    let id: [u8; 8] = bytes[2..10]
+        .try_into()
+        .map_err(|_| minisign_verify::Error::InvalidEncoding)?;
+    Ok(format!("{:016X}", u64::from_le_bytes(id)))
+}
+
 fn base64_text(value: &str) -> Result<String> {
     let bytes = base64::engine::general_purpose::STANDARD.decode(value.trim())?;
     Ok(String::from_utf8(bytes)?)

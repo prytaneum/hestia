@@ -63,3 +63,16 @@ pub struct Revocation {
     pub versions: Vec<String>,
     pub reason: String,
 }
+
+/// The trusted comment a build's signature must carry. Signer and verifier
+/// both compare it as a whole string, so a signature binds to one plugin,
+/// version and file name.
+pub fn build_comment(id: &str, version: &str, file: &str) -> String {
+    format!("hestia-build id={id} version={version} file={file}")
+}
+
+/// The trusted comment an index's signature must carry; the version is what
+/// makes an older signed index detectable as a rollback.
+pub fn index_comment(version: u64) -> String {
+    format!("hestia-index version={version}")
+}

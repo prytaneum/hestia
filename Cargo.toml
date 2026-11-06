@@ -25,6 +25,7 @@ async-trait = "0.1.92"
 tokio = { version = "1.52.3", features = ["rt-multi-thread", "net", "io-util", "sync", "macros", "time", "fs", "signal", "process"] }
 futures-util = "0.3.32"
 base64 = "0.23.1"
+minisign = "0.9"
 tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 flexi_logger = { version = "0.31.9", default-features = false, features = ["compress"] }

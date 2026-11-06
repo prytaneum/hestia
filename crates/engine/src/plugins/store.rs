@@ -31,6 +31,10 @@ pub struct PluginRecord {
     pub source: PluginSource,
     /// Where a [`PluginSource::Url`] install came from.
     pub url: Option<String>,
+    /// Key id of the repository key that signed the package; `None` when unsigned.
+    pub signer: Option<String>,
+    /// Index URL the package was installed from.
+    pub repository: Option<String>,
     pub wasm_sha256: Option<String>,
     /// Package-relative theme file to its hex sha256.
     pub theme_sha256: BTreeMap<String, String>,
