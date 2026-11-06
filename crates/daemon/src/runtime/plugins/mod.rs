@@ -15,6 +15,7 @@ use std::time::Duration;
 use anyhow::Context;
 use engine::{
     CallChain, Cancel, Engine, HostCalls, LoadedPlugin, PluginRecord, PluginRuntime, PluginStats,
+    Roster,
 };
 use proto::error::ErrorInfo;
 use proto::plugin::{
@@ -415,6 +416,18 @@ impl Plugins {
             state,
             error,
         });
+    }
+}
+
+impl Roster<LoadedPlugin> for Plugins {
+    fn loaded(&self) -> Vec<Arc<LoadedPlugin>> {
+        self.slots
+            .lock()
+            .unwrap()
+            .values()
+            .filter(|slot| slot.state == PluginState::Enabled)
+            .filter_map(|slot| slot.loaded.clone())
+            .collect()
     }
 }
 

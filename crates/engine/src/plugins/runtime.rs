@@ -334,7 +334,7 @@ impl LoadedPlugin {
     /// waiting for a slot, guest compute and awaited host calls. The epoch
     /// deadline only makes a spinning guest yield to the executor; the timeout
     /// is what cuts it off.
-    async fn guarded<T, F>(
+    pub(super) async fn guarded<T, F>(
         &self,
         chain: &CallChain,
         timeout: Duration,

@@ -194,6 +194,7 @@ impl Runtime {
             cancellations.clone(),
         );
         let plugins = Arc::new(Plugins::new(engine.clone(), hub.clone(), safe_mode));
+        engine.hooks().attach(Arc::downgrade(&plugins));
         Runtime {
             engine,
             hub,

@@ -6,6 +6,7 @@
 mod cache;
 mod chain;
 mod command;
+mod hooks;
 mod imports;
 mod install;
 mod output;
@@ -15,6 +16,7 @@ mod store;
 
 pub use chain::{CallChain, ChainError, MAX_CHAIN_DEPTH};
 pub use command::{command_args, find_command};
+pub use hooks::{Hook, HookOutcome, Hooks, Participant, Roster, Verdict};
 pub use imports::{CommandRun, HostCalls, HostError};
 pub use install::Inspection;
 pub use remote::{Remote, Staged};

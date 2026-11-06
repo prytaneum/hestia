@@ -26,7 +26,7 @@ use crate::instances::Instances;
 use crate::java::Java;
 use crate::minecraft::Minecraft;
 use crate::net::image::ImageProxy;
-use crate::plugins::{Plugins, Remote};
+use crate::plugins::{Hooks, LoadedPlugin, Plugins, Remote};
 use crate::process::ProcessSupervisor;
 use crate::servers::Servers;
 use crate::skins::Skins;
@@ -77,6 +77,7 @@ pub struct Engine {
     instances: Instances,
     plugins: Plugins,
     plugin_downloads: Remote,
+    hooks: Hooks<LoadedPlugin>,
     skins: Skins,
     sync: Sync,
     update: Update,
@@ -122,6 +123,7 @@ impl Engine {
             instances,
             plugins,
             plugin_downloads,
+            hooks: Hooks::default(),
             skins,
             sync,
             update,
@@ -241,6 +243,11 @@ impl Engine {
 
     pub fn plugins(&self) -> &Plugins {
         &self.plugins
+    }
+
+    /// The interceptors of the loaded plugins; the daemon attaches the roster.
+    pub fn hooks(&self) -> &Hooks<LoadedPlugin> {
+        &self.hooks
     }
 
     /// Plugin packages fetched from a URL, held between inspect and install.
