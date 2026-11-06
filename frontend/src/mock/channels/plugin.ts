@@ -79,6 +79,10 @@ const installed = ({
         ...base.contributes,
         commands: Array.from({ length: commands }, (_, i) => ({
           id: `command-${i}`,
+          title: `Command ${i}`,
+          description: '',
+          scope: 'top' as const,
+          args: [],
         })),
         themes: Array.from({ length: themes }, (_, i) => ({
           id: `theme-${i}`,

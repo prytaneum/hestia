@@ -172,7 +172,47 @@ impl fmt::Display for Permission {
 #[serde(default, rename_all = "camelCase")]
 pub struct CommandContribution {
     pub id: String,
+    pub title: String,
+    pub description: String,
+    pub scope: CommandScope,
+    pub args: Vec<CommandArg>,
 }
+
+/// What a command acts on. A scoped command receives the entry the caller named,
+/// resolved to its id, as its `entry` argument.
+#[derive(Serialize, Deserialize, Default, Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
+#[serde(rename_all = "snake_case")]
+pub enum CommandScope {
+    #[default]
+    Top,
+    Server,
+    Instance,
+}
+
+#[derive(Serialize, Deserialize, Default, Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
+#[serde(rename_all = "snake_case")]
+pub enum CommandArgKind {
+    #[default]
+    String,
+    Number,
+    Bool,
+    Entry,
+}
+
+#[derive(Serialize, Deserialize, Default, Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
+#[serde(default, rename_all = "camelCase")]
+pub struct CommandArg {
+    pub name: String,
+    pub kind: CommandArgKind,
+    pub required: bool,
+    pub help: String,
+}
+
+/// The argument every scoped command receives; a declared argument may not take it.
+pub const ENTRY_ARG: &str = "entry";
 
 #[derive(Serialize, Deserialize, Default, Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
@@ -347,6 +387,8 @@ pub enum ManifestError {
     BadContributionId(String),
     #[error("id `{0}` is declared twice in the same list")]
     DuplicateId(String),
+    #[error("command `{0}` declares the argument `entry`, which a scoped command receives itself")]
+    ReservedArg(String),
 }
 
 impl Manifest {
@@ -392,6 +434,20 @@ impl Manifest {
             contributes.themes.iter().map(|theme| &theme.id).collect(),
             contributes.hooks.iter().collect(),
         ];
+        for command in &contributes.commands {
+            let mut seen = BTreeSet::new();
+            for arg in &command.args {
+                if !is_slug(&arg.name, CONTRIBUTION_ID_LENGTH) {
+                    return Err(ManifestError::BadContributionId(arg.name.clone()));
+                }
+                if arg.name == ENTRY_ARG && command.scope != CommandScope::Top {
+                    return Err(ManifestError::ReservedArg(command.id.clone()));
+                }
+                if !seen.insert(&arg.name) {
+                    return Err(ManifestError::DuplicateId(arg.name.clone()));
+                }
+            }
+        }
         for ids in lists {
             let mut seen = BTreeSet::new();
             for id in ids {
@@ -696,4 +752,60 @@ pub struct PluginInstallDone {
 impl Job for PluginInstall {
     type Progress = PluginInstallProgress;
     type Done = PluginInstallDone;
+}
+
+#[derive(Serialize, Deserialize, Default, Debug, Clone)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
+#[serde(default, rename_all = "camelCase")]
+pub struct PluginRunParams {
+    pub id: String,
+    pub plugin: String,
+    pub command: String,
+    /// The entry a scoped command acts on; refused for a `top` command.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub entry: Option<String>,
+    /// An object of the command's declared arguments.
+    #[cfg_attr(feature = "ts", ts(type = "unknown"))]
+    pub args: serde_json::Value,
+}
+
+/// The same shape a plugin reports through `progress.report`.
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
+#[serde(rename_all = "camelCase")]
+pub struct PluginRunProgress {
+    /// Completion in `0.0..=1.0`; absent when the plugin cannot tell.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fraction: Option<f32>,
+    pub message: String,
+}
+
+impl PluginRunProgress {
+    pub fn ratio(&self) -> f64 {
+        f64::from(self.fraction.unwrap_or(0.0))
+    }
+}
+
+/// A job running a plugin's command, bounded by the runtime's command deadline.
+/// A cancel only asks: the plugin's `progress.cancelled` starts answering true,
+/// and the call is dropped if it has not returned shortly after. What the command
+/// already did to the entry or its data stays.
+pub struct PluginRun;
+impl Contract for PluginRun {
+    const CHANNEL: &'static str = "plugin.run";
+    type Params = PluginRunParams;
+    type Result = JobStarted;
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
+#[serde(rename_all = "camelCase")]
+pub struct PluginRunDone {
+    #[cfg_attr(feature = "ts", ts(type = "unknown"))]
+    pub output: serde_json::Value,
+}
+
+impl Job for PluginRun {
+    type Progress = PluginRunProgress;
+    type Done = PluginRunDone;
 }

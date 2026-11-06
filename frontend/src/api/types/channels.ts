@@ -118,6 +118,9 @@ import type { PluginInstallParams } from "./generated/PluginInstallParams";
 import type { PluginInstallProgress } from "./generated/PluginInstallProgress";
 import type { PluginPackageRef } from "./generated/PluginPackageRef";
 import type { PluginRef } from "./generated/PluginRef";
+import type { PluginRunDone } from "./generated/PluginRunDone";
+import type { PluginRunParams } from "./generated/PluginRunParams";
+import type { PluginRunProgress } from "./generated/PluginRunProgress";
 import type { PluginStateEvent } from "./generated/PluginStateEvent";
 import type { ProcessExitEvent } from "./generated/ProcessExitEvent";
 import type { ProcessInfo } from "./generated/ProcessInfo";
@@ -280,6 +283,7 @@ export interface Channels {
   "plugin.install": { params: Partial<PluginInstallParams>; result: JobStarted };
   "plugin.list": { params: Empty; result: Array<PluginInfo> };
   "plugin.remove": { params: Partial<PluginRef>; result: Empty };
+  "plugin.run": { params: Partial<PluginRunParams>; result: JobStarted };
   "process.list": { params: Empty; result: Array<ProcessInfo> };
   "process.logs": { params: Partial<ProcessLogsParams>; result: Array<ProcessLogLine> };
   "process.start": { params: Partial<ProcessSpec>; result: ProcessStartResult };
@@ -353,6 +357,7 @@ export interface Jobs {
   "java.install": { progress: JavaInstallProgress; done: JavaInstallDone };
   "modpack.update": { progress: ProvisionProgress; done: ModpackDone };
   "plugin.install": { progress: PluginInstallProgress; done: PluginInstallDone };
+  "plugin.run": { progress: PluginRunProgress; done: PluginRunDone };
   "server.backup.create": { progress: ProvisionProgress; done: BackupDone };
   "server.backup.restore": { progress: ProvisionProgress; done: BackupDone };
   "server.create": { progress: ProvisionProgress; done: ServerDone };

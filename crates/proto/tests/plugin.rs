@@ -17,8 +17,8 @@ fn api_version_matches_the_wit_package() {
 
 mod manifest {
     use proto::plugin::{
-        Manifest, ManifestError, Permission, Program, ProviderContribution, Setting, SettingKind,
-        ThemeContribution,
+        CommandArg, CommandContribution, CommandScope, Manifest, ManifestError, Permission,
+        Program, ProviderContribution, Setting, SettingKind, ThemeContribution,
     };
 
     fn valid() -> Manifest {
@@ -111,6 +111,44 @@ mod manifest {
         assert_eq!(
             manifest.validate(),
             Err(ManifestError::DuplicateId("token".into()))
+        );
+    }
+
+    fn command(scope: CommandScope, args: &[&str]) -> Manifest {
+        let mut manifest = valid();
+        manifest.contributes.commands.push(CommandContribution {
+            id: "open".into(),
+            scope,
+            args: args
+                .iter()
+                .map(|name| CommandArg {
+                    name: (*name).into(),
+                    ..CommandArg::default()
+                })
+                .collect(),
+            ..CommandContribution::default()
+        });
+        manifest
+    }
+
+    #[test]
+    fn command_arguments_are_slugs_declared_once_and_never_the_entry_of_a_scoped_command() {
+        assert_eq!(
+            command(CommandScope::Top, &["name", "port"]).validate(),
+            Ok(())
+        );
+        assert_eq!(command(CommandScope::Top, &["entry"]).validate(), Ok(()));
+        assert!(matches!(
+            command(CommandScope::Top, &["Bad Name"]).validate(),
+            Err(ManifestError::BadContributionId(_))
+        ));
+        assert_eq!(
+            command(CommandScope::Top, &["name", "name"]).validate(),
+            Err(ManifestError::DuplicateId("name".into()))
+        );
+        assert_eq!(
+            command(CommandScope::Server, &["entry"]).validate(),
+            Err(ManifestError::ReservedArg("open".into()))
         );
     }
 

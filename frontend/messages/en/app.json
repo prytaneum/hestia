@@ -89,7 +89,8 @@
           "update": "Updating the modpack of {name}"
         },
         "plugin": {
-          "install": "Installing a plugin"
+          "install": "Installing a plugin",
+          "run": "Running a plugin command"
         },
         "server": {
           "backup": {
@@ -137,7 +138,8 @@
           "update": "Updating the modpack"
         },
         "plugin": {
-          "install": "Installing a plugin"
+          "install": "Installing a plugin",
+          "run": "Running a plugin command"
         },
         "server": {
           "backup": {

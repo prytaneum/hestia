@@ -518,6 +518,22 @@ pub enum ErrorInfo {
     PluginInvalid {
         detail: String,
     },
+    /// The command is unknown, or its arguments or entry do not match what the
+    /// plugin's manifest declares.
+    PluginCommandInvalid {
+        plugin: String,
+        command: String,
+        detail: String,
+    },
+    /// The plugin is installed but not running: disabled, failed or without a component.
+    PluginUnavailable {
+        id: String,
+    },
+    /// The plugin's command failed, trapped or timed out.
+    PluginCallFailed {
+        id: String,
+        detail: String,
+    },
     /// No file or directory at `path` in the entry's tree.
     FileNotFound {
         path: String,
@@ -806,6 +822,7 @@ impl ErrorInfo {
             | Upstream { .. }
             | DownloadFailed { .. }
             | StopTimedOut { .. }
+            | PluginCallFailed { .. }
             | Internal { .. } => "handler_error",
             _ => code::BAD_REQUEST,
         }
@@ -894,6 +911,13 @@ impl fmt::Display for ErrorInfo {
                 "the package's permissions changed since you reviewed them"
             ),
             PluginInvalid { detail } => write!(f, "not a valid plugin package: {detail}"),
+            PluginCommandInvalid {
+                plugin,
+                command,
+                detail,
+            } => write!(f, "plugin '{plugin}' command '{command}': {detail}"),
+            PluginUnavailable { id } => write!(f, "plugin '{id}' is not running"),
+            PluginCallFailed { id, detail } => write!(f, "plugin '{id}' failed: {detail}"),
             FileNotFound { path } => write!(f, "no file or directory at '{path}'"),
             FileRejected { path, reason } => write!(f, "'{path}' was refused: {reason}"),
             ConfigKeyUnknown { key } => write!(f, "unknown config key '{key}'"),
