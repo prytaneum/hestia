@@ -5,7 +5,7 @@ use engine::{CallChain, HostCalls, HostError};
 use ipc::protocol::{decode_event, Request};
 use proto::error::{code, ErrorInfo};
 use proto::job::{JobEvent, JobStarted, JobState};
-use proto::plugin::Permission;
+use proto::plugin::{Permission, PluginLogEvent};
 use serde_json::Value;
 use tokio::sync::mpsc::unbounded_channel;
 
@@ -67,6 +67,16 @@ impl RouterHost {
 
 #[async_trait]
 impl HostCalls for RouterHost {
+    fn dev_log(&self, plugin: &str, level: &str, text: &str) {
+        if let Ok(runtime) = self.runtime() {
+            runtime.hub().publish_topic(&PluginLogEvent {
+                id: plugin.to_string(),
+                level: level.to_string(),
+                text: text.to_string(),
+            });
+        }
+    }
+
     fn permission(&self, channel: &str) -> Option<Permission> {
         self.router
             .plugin_access(channel)

@@ -12,6 +12,8 @@ use crate::runtime::router::ServiceResult;
 
 pub enum Package {
     Local(PathBuf),
+    /// A folder run in place, never copied.
+    Dev(PathBuf),
     Downloaded { token: String, staged: Staged },
 }
 
@@ -41,6 +43,14 @@ impl Package {
     }
 
     pub fn held(engine: &Engine, request: &PluginInstallParams) -> ServiceResult<Package> {
+        if request.dev {
+            if !request.staged.is_empty() {
+                return Err(ErrorInfo::PluginInvalid {
+                    detail: "a dev install runs a folder, not a download".to_string(),
+                });
+            }
+            return Ok(Package::Dev(PathBuf::from(&request.path)));
+        }
         if request.staged.is_empty() {
             return Ok(Package::Local(PathBuf::from(&request.path)));
         }
@@ -59,21 +69,21 @@ impl Package {
 
     pub fn path(&self) -> &Path {
         match self {
-            Package::Local(path) => path,
+            Package::Local(path) | Package::Dev(path) => path,
             Package::Downloaded { staged, .. } => &staged.path,
         }
     }
 
     pub fn warnings(&self) -> Vec<WarningInfo> {
         match self {
-            Package::Local(_) => Vec::new(),
+            Package::Local(_) | Package::Dev(_) => Vec::new(),
             Package::Downloaded { staged, .. } => staged.warnings.clone(),
         }
     }
 
     pub fn token(&self) -> Option<&str> {
         match self {
-            Package::Local(_) => None,
+            Package::Local(_) | Package::Dev(_) => None,
             Package::Downloaded { token, .. } => Some(token),
         }
     }

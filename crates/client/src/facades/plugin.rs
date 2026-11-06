@@ -6,11 +6,21 @@ use proto::catalogue::{
 use proto::plugin::{
     PluginAssetParams, PluginAssetResult, PluginInfo, PluginInspection, PluginInstallDone,
     PluginInstallParams, PluginInstallProgress, PluginPackageRef, PluginPage, PluginRef,
-    PluginRunDone, PluginRunParams, PluginRunProgress, PluginSettingsSetParams, SettingValue, PluginUiActionParams, PluginUiRenderParams,
+    PluginLogEvent, PluginRunDone, PluginRunParams, PluginRunProgress, PluginSettingsSetParams,
+    PluginStateEvent, PluginUiActionParams, PluginUiRenderParams, SettingValue,
 };
 use proto::ui::{Effect, UiNode};
+use proto::Topic;
+use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver};
 
 use crate::session::{job_id, Session};
+
+/// What happens to a followed dev plugin.
+#[derive(Debug, Clone)]
+pub enum DevEvent {
+    Log(PluginLogEvent),
+    State(PluginStateEvent),
+}
 
 pub struct Plugin<'a> {
     pub(crate) session: &'a Session,
@@ -178,6 +188,55 @@ impl Plugin<'_> {
             ..PluginInstallParams::default()
         };
         self.run_install(params, on_progress).await
+    }
+
+    /// Runs the folder at `path` in place and reloads it when it changes;
+    /// `approve` is the grant digest from [`Self::inspect`].
+    pub async fn install_dev(
+        &self,
+        path: &str,
+        approve: &str,
+    ) -> Result<PluginInstallDone, IpcError> {
+        let params = PluginInstallParams {
+            path: path.to_string(),
+            approve: approve.to_string(),
+            dev: true,
+            ..PluginInstallParams::default()
+        };
+        self.run_install(params, |_| {}).await
+    }
+
+    /// Streams the log lines and state changes of plugin `id` until the
+    /// receiver drops or the connection closes.
+    pub async fn follow(&self, id: &str) -> Result<UnboundedReceiver<DevEvent>, IpcError> {
+        let mut listener = self.session.listen_subscribed(Some(id)).await?;
+        let (tx, rx) = unbounded_channel();
+        let id = id.to_string();
+        tokio::spawn(async move {
+            loop {
+                tokio::select! {
+                    () = tx.closed() => break,
+                    event = listener.recv() => {
+                        let Some(event) = event else { break };
+                        let forwarded = match event.topic.as_str() {
+                            PluginLogEvent::TOPIC => serde_json::from_value(event.payload)
+                                .ok()
+                                .filter(|e: &PluginLogEvent| e.id == id)
+                                .map(DevEvent::Log),
+                            PluginStateEvent::TOPIC => serde_json::from_value(event.payload)
+                                .ok()
+                                .filter(|e: &PluginStateEvent| e.id == id)
+                                .map(DevEvent::State),
+                            _ => None,
+                        };
+                        if let Some(forwarded) = forwarded {
+                            let _ = tx.send(forwarded);
+                        }
+                    }
+                }
+            }
+        });
+        Ok(rx)
     }
 
     /// Installs the file the daemon downloaded for an [`Self::inspect_url`].

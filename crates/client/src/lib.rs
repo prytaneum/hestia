@@ -6,7 +6,7 @@ mod session;
 mod spawn;
 
 pub use facades::{
-    Accounts, App, Cache, Config, Content, Daemon, Entry, Files, Host, Instance, Java, Jobs,
+    Accounts, App, Cache, Config, Content, Daemon, DevEvent, Entry, Files, Host, Instance, Java, Jobs,
     LaunchOptions, Modpack, Net, Players, Plugin, Process, ProcessEvent, Screenshot, Server, Skins,
     Sync, Tasks, Transfer, Update,
 };

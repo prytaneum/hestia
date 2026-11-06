@@ -43,7 +43,7 @@ pub use job::Jobs;
 pub use modpack::Modpack;
 pub use net::Net;
 pub use players::Players;
-pub use plugin::Plugin;
+pub use plugin::{DevEvent, Plugin};
 pub use process::{Process, ProcessEvent};
 pub use screenshot::Screenshot;
 pub use server::Server;
