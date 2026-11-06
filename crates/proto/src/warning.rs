@@ -101,6 +101,9 @@ pub enum WarningInfo {
         pack_game_version: String,
         target: String,
     },
+    /// A plugin's interceptor timed out, trapped or could not run, so the
+    /// operation went ahead without it.
+    PluginHookFailed { plugin: String, hook: String },
 }
 
 impl WarningInfo {
@@ -158,6 +161,9 @@ impl WarningInfo {
                 "its mods may not load; move the pack yourself when a build for this version is published"
                     .to_string()
             }
+            PluginHookFailed { plugin, .. } => format!(
+                "the plugin was skipped; disable or update `{plugin}` if this keeps happening"
+            ),
             DocumentQuarantined { path, .. } => format!(
                 "nothing was deleted — the file is at `{path}`; update hestia if it came from a \
                  newer version, or delete it once you have what you need from it"
@@ -233,6 +239,10 @@ impl fmt::Display for WarningInfo {
                 f,
                 "the modpack '{pack}' {version_number} is built for Minecraft {pack_game_version} \
                  and has no version for {target}"
+            ),
+            PluginHookFailed { plugin, hook } => write!(
+                f,
+                "plugin '{plugin}' did not finish its {hook} hook, so it was skipped"
             ),
             DocumentQuarantined {
                 document, detail, ..

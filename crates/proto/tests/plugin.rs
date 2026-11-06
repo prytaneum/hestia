@@ -41,6 +41,44 @@ mod manifest {
         assert_eq!(theme.validate(), Err(ManifestError::MissingApi));
     }
 
+    fn hooked(hook: &str, permissions: &[Permission]) -> Manifest {
+        let mut manifest = valid();
+        manifest.contributes.hooks.push(hook.into());
+        manifest.permissions = permissions.to_vec();
+        manifest
+    }
+
+    #[test]
+    fn a_hook_needs_its_permissions_and_must_be_known() {
+        assert_eq!(
+            hooked("before-launch", &[Permission::LaunchPatch]).validate(),
+            Err(ManifestError::HookPermissionMissing {
+                hook: "before-launch".into(),
+                permission: Permission::AccountRead,
+            })
+        );
+        assert_eq!(
+            hooked("before-content-install", &[]).validate(),
+            Err(ManifestError::HookPermissionMissing {
+                hook: "before-content-install".into(),
+                permission: Permission::ContentRead,
+            })
+        );
+        assert_eq!(
+            hooked("on-tuesday", &[]).validate(),
+            Err(ManifestError::UnknownHook("on-tuesday".into()))
+        );
+    }
+
+    #[test]
+    fn every_hook_validates_and_stays_sandboxed() {
+        for (name, needs) in proto::plugin::HOOKS {
+            let manifest = hooked(name, needs);
+            assert_eq!(manifest.validate(), Ok(()), "{name}");
+            assert!(manifest.grant().unrestricted().is_empty(), "{name}");
+        }
+    }
+
     #[test]
     fn rejects_paths_that_leave_the_package() {
         for path in [
@@ -219,7 +257,7 @@ mod manifest {
             },
         ];
         let mut hooked = base.clone();
-        hooked.contributes.hooks.push("launch".into());
+        hooked.contributes.hooks.push("before-launch".into());
         let digests: Vec<String> = widened
             .iter()
             .chain([&hooked])

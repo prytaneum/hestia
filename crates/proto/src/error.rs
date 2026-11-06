@@ -534,6 +534,13 @@ pub enum ErrorInfo {
         id: String,
         detail: String,
     },
+    /// A plugin's interceptor refused the operation. `reason` is the plugin's
+    /// own words, shown as secondary text.
+    PluginVetoed {
+        plugin: String,
+        hook: String,
+        reason: String,
+    },
     /// No file or directory at `path` in the entry's tree.
     FileNotFound {
         path: String,
@@ -918,6 +925,11 @@ impl fmt::Display for ErrorInfo {
             } => write!(f, "plugin '{plugin}' command '{command}': {detail}"),
             PluginUnavailable { id } => write!(f, "plugin '{id}' is not running"),
             PluginCallFailed { id, detail } => write!(f, "plugin '{id}' failed: {detail}"),
+            PluginVetoed {
+                plugin,
+                hook,
+                reason,
+            } => write!(f, "plugin '{plugin}' refused at {hook}: {reason}"),
             FileNotFound { path } => write!(f, "no file or directory at '{path}'"),
             FileRejected { path, reason } => write!(f, "'{path}' was refused: {reason}"),
             ConfigKeyUnknown { key } => write!(f, "unknown config key '{key}'"),

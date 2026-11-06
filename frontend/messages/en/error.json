@@ -75,6 +75,7 @@
       "plugin_invalid": "Not a valid plugin package: {detail}",
       "plugin_not_found": "No plugin '{id}' is installed.",
       "plugin_unavailable": "Plugin '{id}' is not running.",
+      "plugin_vetoed": "Plugin '{plugin}' refused at {hook}: {reason}",
       "port_unavailable": "Port {port} is unavailable.",
       "process_not_found": "No process '{id}'.",
       "provisioning": "{name} is still being set up.",

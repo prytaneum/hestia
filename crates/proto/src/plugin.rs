@@ -23,6 +23,21 @@ pub const API_VERSION: &str = "1.0.0";
 /// SDK reads and writes under it.
 pub const DATA_MOUNT: &str = "/data";
 
+/// The interceptors a plugin may declare in `contributes.hooks`, with the
+/// permissions each needs. A hook is customisation that fails open, never a
+/// control ([0095](../../../docs/decisions/0095-interceptors-are-bounded-and-fail-open.md)).
+pub const HOOKS: &[(&str, &[Permission])] = &[
+    (
+        "before-launch",
+        &[Permission::LaunchPatch, Permission::AccountRead],
+    ),
+    (
+        "before-server-start",
+        &[Permission::LaunchPatch, Permission::AccountRead],
+    ),
+    ("before-content-install", &[Permission::ContentRead]),
+];
+
 /// Ids a plugin may not take: the CLI's top-level verbs, which a contributed
 /// command would otherwise shadow.
 pub const RESERVED_IDS: &[&str] = &[
@@ -391,6 +406,13 @@ pub enum ManifestError {
     ReservedArg(String),
     #[error("event `{0}` must be a topic like `job` or a prefix glob like `server.*`")]
     BadEventPattern(String),
+    #[error("hook `{0}` is not one this host offers")]
+    UnknownHook(String),
+    #[error("hook `{hook}` needs the permission `{permission}`")]
+    HookPermissionMissing {
+        hook: String,
+        permission: Permission,
+    },
 }
 
 impl Manifest {
@@ -455,6 +477,21 @@ impl Manifest {
                 if !seen.insert(&arg.name) {
                     return Err(ManifestError::DuplicateId(arg.name.clone()));
                 }
+            }
+        }
+        for hook in &contributes.hooks {
+            let (_, needs) = HOOKS
+                .iter()
+                .find(|(name, _)| name == hook)
+                .ok_or_else(|| ManifestError::UnknownHook(hook.clone()))?;
+            if let Some(missing) = needs
+                .iter()
+                .find(|permission| !self.permissions.contains(permission))
+            {
+                return Err(ManifestError::HookPermissionMissing {
+                    hook: hook.clone(),
+                    permission: *missing,
+                });
             }
         }
         for ids in lists {
