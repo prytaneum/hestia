@@ -255,6 +255,16 @@ impl Plugins {
         Ok((command, loaded))
     }
 
+    /// Whether `id` is live, so its package may be served: a package changed on
+    /// disk settles as needs-approval, and its files must not reach the webview.
+    pub fn is_live(&self, id: &str) -> bool {
+        self.slots
+            .lock()
+            .unwrap()
+            .get(id)
+            .is_some_and(|slot| slot.state == PluginState::Enabled)
+    }
+
     pub fn remove(&self, id: &str) -> ServiceResult<()> {
         self.record(id)?;
         self.engine.plugins().remove(id).map_err(internal)?;
@@ -478,6 +488,20 @@ mod tests {
             plugins.slots.lock().unwrap()["demo"].state,
             PluginState::Disabled
         );
+    }
+
+    #[tokio::test]
+    async fn only_an_enabled_slot_is_live() {
+        let home = tempfile::tempdir().unwrap();
+        let (plugins, engine) = plugins_over(home.path());
+        install(&engine, true);
+        assert!(!plugins.is_live("demo"));
+
+        plugins.settle("demo", PluginState::NeedsApproval, None, None);
+        assert!(!plugins.is_live("demo"));
+
+        plugins.settle("demo", PluginState::Enabled, None, None);
+        assert!(plugins.is_live("demo"));
     }
 
     #[tokio::test]

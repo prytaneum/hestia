@@ -62,6 +62,9 @@ pub(super) fn register(on: &mut Channels<'_>) {
     });
 
     on.handle::<PluginAsset, _, _>(|p, ctx| async move {
+        if !ctx.runtime.plugins().is_live(&p.plugin) {
+            return Err(ErrorInfo::PluginUnavailable { id: p.plugin });
+        }
         let runtime = ctx.runtime.clone();
         tokio::task::spawn_blocking(move || runtime.engine().plugins().asset(&p.plugin, &p.path))
             .await
