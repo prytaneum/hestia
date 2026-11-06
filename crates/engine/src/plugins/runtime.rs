@@ -5,7 +5,9 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use futures_util::future::BoxFuture;
-use proto::plugin::{Grant, DATA_MOUNT};
+use proto::plugin::{Grant, PageContext, DATA_MOUNT};
+use proto::ui::{Action, Effect, UiNode};
+use serde::de::DeserializeOwned;
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 use tokio::sync::{Semaphore, SemaphorePermit};
@@ -74,6 +76,8 @@ pub enum CallError {
     Setup(String),
     #[error("{0}")]
     Guest(String),
+    #[error("the page `{0}` returned a document outside the UI vocabulary")]
+    InvalidUi(String),
 }
 
 /// Counters kept for diagnosis.
@@ -309,6 +313,66 @@ impl LoadedPlugin {
             .map_err(|error| CallError::Guest(format!("the command's result is not JSON: {error}")))
     }
 
+    /// Runs the plugin's `ui.render` under [`UI_TIMEOUT`] and checks the tree
+    /// against the UI vocabulary.
+    pub async fn render_page(
+        &self,
+        chain: &CallChain,
+        page: &str,
+        context: &PageContext,
+    ) -> Result<UiNode, CallError> {
+        let (name, context) = (page.to_string(), context_json(context));
+        let reply = self
+            .guarded(chain, UI_TIMEOUT, None, move |store, instance| {
+                Box::pin(async move {
+                    instance
+                        .hestia_plugin_ui()
+                        .call_render(store, &name, &context)
+                        .await
+                })
+            })
+            .await?
+            .map_err(|error| CallError::Guest(describe(error)))?;
+        self.decode_ui(page, &reply)
+    }
+
+    /// Runs the plugin's `ui.action` under [`UI_TIMEOUT`] and checks the effects
+    /// against the UI vocabulary.
+    pub async fn page_action(
+        &self,
+        chain: &CallChain,
+        page: &str,
+        action: &Action,
+        values: &Value,
+        context: &PageContext,
+    ) -> Result<Vec<Effect>, CallError> {
+        let (name, action, values, context) = (
+            page.to_string(),
+            serde_json::to_string(action).expect("an action is plain data"),
+            values.to_string(),
+            context_json(context),
+        );
+        let reply = self
+            .guarded(chain, UI_TIMEOUT, None, move |store, instance| {
+                Box::pin(async move {
+                    instance
+                        .hestia_plugin_ui()
+                        .call_action(store, &name, &action, &values, &context)
+                        .await
+                })
+            })
+            .await?
+            .map_err(|error| CallError::Guest(describe(error)))?;
+        self.decode_ui(page, &reply)
+    }
+
+    fn decode_ui<T: DeserializeOwned>(&self, page: &str, reply: &str) -> Result<T, CallError> {
+        serde_json::from_str(reply).map_err(|error| {
+            tracing::warn!(plugin = %self.id, %page, %error, "plugin returned an invalid UI document");
+            CallError::InvalidUi(page.to_string())
+        })
+    }
+
     /// Runs the plugin's `events.on-event` under `timeout`.
     pub async fn on_event(
         &self,
@@ -487,6 +551,10 @@ async fn acquire(
         Ok(Ok(permit)) => Ok(permit),
         _ => Err(CallError::Busy),
     }
+}
+
+fn context_json(context: &PageContext) -> String {
+    serde_json::to_string(context).expect("a page context is plain data")
 }
 
 fn describe(error: PluginError) -> String {

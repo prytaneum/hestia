@@ -47,4 +47,5 @@ world plugin {
     export lifecycle;
     export commands;
     export events;
+    export ui;
 }

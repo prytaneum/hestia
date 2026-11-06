@@ -1,0 +1,15 @@
+package hestia:plugin@1.0.0;
+
+interface ui {
+    use types.{json, plugin-error};
+
+    /// Draws one of the pages the manifest contributes. `context` is an object:
+    /// `entry` holds the id of the server or instance an entry page sits on.
+    /// Returns a `ui-node` tree.
+    render: func(page: string, context: json) -> result<json, plugin-error>;
+
+    /// Handles a click or a submit on a page. `action` is the `action` the node
+    /// declared, `values` the submitted form's fields by name (an empty object
+    /// for a button). Returns a list of `effect`s.
+    action: func(page: string, action: json, values: json, context: json) -> result<json, plugin-error>;
+}

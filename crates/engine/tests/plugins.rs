@@ -15,9 +15,10 @@ use engine::{
 };
 use proto::error::ErrorInfo;
 use proto::plugin::{
-    CommandArg, CommandArgKind, CommandContribution, CommandScope, Grant, Permission,
+    CommandArg, CommandArgKind, CommandContribution, CommandScope, Grant, PageContext, Permission,
     PluginRunProgress,
 };
+use proto::ui::{Action, Effect, UiNode};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 use tokio::sync::watch;
@@ -150,6 +151,57 @@ impl Probe {
 }
 
 const GRACE: Duration = Duration::from_millis(300);
+
+#[tokio::test]
+async fn a_page_renders_a_tree_that_decodes_and_carries_its_context() {
+    let probe = Probe::load(&[]);
+    let context = PageContext {
+        entry: Some("srv-1".into()),
+    };
+
+    let tree = probe
+        .plugin
+        .render_page(&CallChain::default(), "overview", &context)
+        .await
+        .unwrap();
+
+    let UiNode::Stack { children, .. } = tree else {
+        panic!("{tree:?}");
+    };
+    assert_eq!(children.len(), 3);
+    assert!(matches!(&children[1], UiNode::Text { text, .. } if text == "srv-1"));
+
+    let unknown = probe
+        .plugin
+        .render_page(&CallChain::default(), "nope", &PageContext::default())
+        .await;
+    assert!(matches!(unknown, Err(CallError::Guest(_))), "{unknown:?}");
+}
+
+#[tokio::test]
+async fn a_page_action_answers_effects() {
+    let probe = Probe::load(&[]);
+    let action = Action {
+        id: "go".into(),
+        payload: Value::Null,
+    };
+
+    let effects = probe
+        .plugin
+        .page_action(
+            &CallChain::default(),
+            "overview",
+            &action,
+            &json!({ "name": "smp" }),
+            &PageContext::default(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(effects.len(), 2);
+    assert!(matches!(&effects[0], Effect::Toast { text, .. } if text == r#"go {"name":"smp"}"#));
+    assert!(matches!(effects[1], Effect::Refresh));
+}
 
 #[tokio::test]
 async fn a_command_runs_and_answers_its_output() {

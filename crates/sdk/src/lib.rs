@@ -26,13 +26,16 @@ mod error;
 pub mod http;
 pub mod log;
 pub mod progress;
+pub mod ui;
 
 pub use call::{call, run_job};
 pub use command::args;
 pub use error::Error;
 /// The daemon's wire contracts and domain types, the same ones the CLI uses.
 pub use proto;
+use proto::plugin::PageContext;
 pub use serde_json::{self, json, Value};
+use ui::{Action, Effect, UiNode};
 
 #[doc(hidden)]
 pub mod bindings {
@@ -88,6 +91,25 @@ pub trait Plugin {
     fn on_event(topic: &str, payload: Value) {
         let _ = (topic, payload);
     }
+
+    /// Draws a page the manifest contributes; build the tree with [`ui`]. An
+    /// `entry` page finds the id of its server or instance in `context.entry`.
+    fn render(page: &str, context: PageContext) -> Result<UiNode, Error> {
+        let _ = context;
+        Err(Error::NotFound(format!("unknown page `{page}`")))
+    }
+
+    /// Handles a click or a submit on a page. `values` holds a submitted form's
+    /// fields by name. The effects it returns are applied in order.
+    fn action(
+        page: &str,
+        action: Action,
+        values: Value,
+        context: PageContext,
+    ) -> Result<Vec<Effect>, Error> {
+        let _ = (action, values, context);
+        Err(Error::NotFound(format!("unknown page `{page}`")))
+    }
 }
 
 /// Exports a [`Plugin`] implementation as the component's entry points. Use it
@@ -134,6 +156,44 @@ macro_rules! plugin {
                 fn on_event(topic: ::std::string::String, payload: ::std::string::String) {
                     let payload = $crate::serde_json::from_str(&payload).unwrap_or_default();
                     <$plugin as $crate::Plugin>::on_event(&topic, payload)
+                }
+            }
+
+            impl $crate::bindings::exports::hestia::plugin::ui::Guest for Export {
+                fn render(
+                    page: ::std::string::String,
+                    context: ::std::string::String,
+                ) -> ::core::result::Result<
+                    ::std::string::String,
+                    $crate::bindings::hestia::plugin::types::PluginError,
+                > {
+                    let context = $crate::serde_json::from_str(&context)
+                        .map_err(|error| $crate::Error::Invalid(error.to_string()))?;
+                    let tree = <$plugin as $crate::Plugin>::render(&page, context)?;
+                    $crate::serde_json::to_string(&tree)
+                        .map_err(|error| $crate::Error::Failed(error.to_string()).into())
+                }
+
+                fn action(
+                    page: ::std::string::String,
+                    action: ::std::string::String,
+                    values: ::std::string::String,
+                    context: ::std::string::String,
+                ) -> ::core::result::Result<
+                    ::std::string::String,
+                    $crate::bindings::hestia::plugin::types::PluginError,
+                > {
+                    let invalid = |error: $crate::serde_json::Error| {
+                        $crate::Error::Invalid(error.to_string())
+                    };
+                    let effects = <$plugin as $crate::Plugin>::action(
+                        &page,
+                        $crate::serde_json::from_str(&action).map_err(invalid)?,
+                        $crate::serde_json::from_str(&values).map_err(invalid)?,
+                        $crate::serde_json::from_str(&context).map_err(invalid)?,
+                    )?;
+                    $crate::serde_json::to_string(&effects)
+                        .map_err(|error| $crate::Error::Failed(error.to_string()).into())
                 }
             }
 

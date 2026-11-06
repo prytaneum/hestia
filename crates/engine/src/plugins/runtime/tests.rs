@@ -62,6 +62,8 @@ fn guest(calls_host: bool, body: &str) -> String {
                     (i32.store (i32.const 152) (i32.const 2))
                     (i32.const 144))
                 (func (export "on-event") (param i32 i32 i32 i32))
+                (func (export "action") (param i32 i32 i32 i32 i32 i32 i32 i32) (result i32)
+                    (i32.const 144))
                 (func (export "init") (result i32)
                     {body}
                     (i32.store8 (i32.const 128) (i32.const 0))
@@ -85,7 +87,20 @@ fn guest(calls_host: bool, body: &str) -> String {
                     (memory (core memory $libc "memory"))
                     (realloc (core func $libc "realloc"))))
             (instance $events (export "on-event" (func $on_event)))
-            (export "hestia:plugin/events@1.0.0" (instance $events)))"#
+            (export "hestia:plugin/events@1.0.0" (instance $events))
+            (func $render (param "page" string) (param "context" string)
+                (result (result string (error $err)))
+                (canon lift (core func $main "run")
+                    (memory (core memory $libc "memory"))
+                    (realloc (core func $libc "realloc"))))
+            (func $action (param "page" string) (param "action" string)
+                (param "values" string) (param "context" string)
+                (result (result string (error $err)))
+                (canon lift (core func $main "action")
+                    (memory (core memory $libc "memory"))
+                    (realloc (core func $libc "realloc"))))
+            (instance $ui (export "render" (func $render)) (export "action" (func $action)))
+            (export "hestia:plugin/ui@1.0.0" (instance $ui)))"#
     )
 }
 
@@ -285,4 +300,31 @@ async fn a_component_that_differs_from_its_recorded_hash_is_not_compiled() {
     );
 
     assert!(matches!(outcome, Err(LoadError::HashMismatch { .. })));
+}
+
+#[tokio::test]
+async fn a_page_answer_outside_the_ui_vocabulary_is_a_typed_error_naming_the_page() {
+    let host = Arc::new(TestHost::default());
+    let (plugin, _data) = load(&host, &guest(false, ""), &[]);
+    let chain = CallChain::default();
+
+    let rendered = plugin
+        .render_page(&chain, "overview", &PageContext::default())
+        .await;
+    assert!(
+        matches!(&rendered, Err(CallError::InvalidUi(page)) if page == "overview"),
+        "{rendered:?}"
+    );
+    assert!(!rendered.unwrap_err().to_string().contains("expected"));
+
+    let acted = plugin
+        .page_action(
+            &chain,
+            "overview",
+            &Action::default(),
+            &json!({}),
+            &PageContext::default(),
+        )
+        .await;
+    assert!(matches!(acted, Err(CallError::InvalidUi(_))), "{acted:?}");
 }
