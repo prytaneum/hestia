@@ -6,6 +6,7 @@ use std::path::{Path, PathBuf};
 use engine::{Engine, Staged};
 use proto::error::ErrorInfo;
 use proto::plugin::{PluginInstallParams, PluginPackageRef};
+use proto::warning::WarningInfo;
 
 use crate::runtime::router::ServiceResult;
 
@@ -17,17 +18,22 @@ pub enum Package {
 impl Package {
     /// Downloads the link of an inspect request; nothing else touches the network.
     pub async fn fetch(engine: &Engine, request: &PluginPackageRef) -> ServiceResult<Package> {
-        if request.url.is_empty() {
+        let from_repo = !request.repo.is_empty();
+        if request.url.is_empty() && !from_repo {
             return Ok(Package::Local(PathBuf::from(&request.path)));
         }
-        if !request.path.is_empty() {
+        if !request.path.is_empty() || (from_repo && !request.url.is_empty()) {
             return Err(both());
         }
         let downloads = engine.plugin_downloads();
-        let token = downloads
-            .fetch(&request.url)
-            .await
-            .map_err(crate::runtime::engine_error)?;
+        let token = if from_repo {
+            engine
+                .stage_repository_build(&request.repo, &request.plugin)
+                .await
+        } else {
+            downloads.fetch(&request.url).await
+        }
+        .map_err(crate::runtime::engine_error)?;
         let staged = downloads
             .staged(&token)
             .map_err(crate::runtime::engine_error)?;
@@ -55,6 +61,13 @@ impl Package {
         match self {
             Package::Local(path) => path,
             Package::Downloaded { staged, .. } => &staged.path,
+        }
+    }
+
+    pub fn warnings(&self) -> Vec<WarningInfo> {
+        match self {
+            Package::Local(_) => Vec::new(),
+            Package::Downloaded { staged, .. } => staged.warnings.clone(),
         }
     }
 

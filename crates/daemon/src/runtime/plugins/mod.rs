@@ -14,8 +14,8 @@ use std::time::Duration;
 
 use anyhow::Context;
 use engine::{
-    CallChain, Cancel, Engine, HostCalls, LoadedPlugin, PluginRecord, PluginRuntime, PluginStats,
-    Roster,
+    CallChain, Cancel, Engine, HostCalls, Listings, LoadedPlugin, PluginRecord, PluginRuntime,
+    PluginStats, Roster,
 };
 use proto::error::ErrorInfo;
 use proto::plugin::{
@@ -115,9 +115,10 @@ impl Plugins {
     }
 
     pub async fn list(&self) -> Vec<PluginInfo> {
+        let listings = self.listings().await;
         let mut infos = Vec::new();
         for record in self.engine.plugins().list() {
-            infos.push(self.info_of(record).await);
+            infos.push(self.info_with(record, &listings).await);
         }
         infos
     }
@@ -337,7 +338,25 @@ impl Plugins {
                 .is_some_and(|record| record.enabled)
     }
 
+    /// Blocking reads of the cached indexes, off the async threads.
+    async fn listings(&self) -> Listings {
+        let engine = self.engine.clone();
+        spawn_blocking(move || engine.listings())
+            .await
+            .unwrap_or_default()
+    }
+
     async fn info_of(&self, record: PluginRecord) -> PluginInfo {
+        let listings = if record.signer.is_some() {
+            self.listings().await
+        } else {
+            Listings::default()
+        };
+        self.info_with(record, &listings).await
+    }
+
+    async fn info_with(&self, record: PluginRecord, listings: &Listings) -> PluginInfo {
+        let obsolete = listings.obsolete(&record);
         let engine = self.engine.clone();
         let id = record.id.clone();
         let manifest = spawn_blocking(move || engine.plugins().read_manifest(&id))
@@ -379,6 +398,9 @@ impl Plugins {
             state,
             source: record.source,
             url: record.url,
+            signer: record.signer,
+            repository: record.repository,
+            obsolete,
             sha256: record.wasm_sha256.unwrap_or_default(),
             unrestricted: record.grant.unrestricted(),
             grant: record.grant,

@@ -1,4 +1,8 @@
 use ipc::errors::IpcError;
+use proto::catalogue::{
+    Catalogue, CatalogueParams, RepositoryAddParams, RepositoryAdded, RepositoryInfo,
+    RepositoryRef, RepositoryRefreshParams, RepositoryRefreshed,
+};
 use proto::plugin::{
     PluginAssetParams, PluginAssetResult, PluginInfo, PluginInspection, PluginInstallDone,
     PluginInstallParams, PluginInstallProgress, PluginPackageRef, PluginPage, PluginRef,
@@ -73,6 +77,68 @@ impl Plugin<'_> {
         };
         self.session
             .call::<proto::plugin::PluginInspect>(&params)
+            .await
+    }
+
+    /// The daemon downloads the newest compatible build of `plugin` from the
+    /// repository at `repo` and verifies it against the repository's pinned
+    /// key; install the result with [`Self::install_staged`].
+    pub async fn inspect_repo(
+        &self,
+        repo: &str,
+        plugin: &str,
+    ) -> Result<PluginInspection, IpcError> {
+        let params = PluginPackageRef {
+            repo: repo.to_string(),
+            plugin: plugin.to_string(),
+            ..PluginPackageRef::default()
+        };
+        self.session
+            .call::<proto::plugin::PluginInspect>(&params)
+            .await
+    }
+
+    /// Fetches the index, verifies it and shows what would be trusted. With
+    /// `confirm` it also saves the repository.
+    pub async fn repo_add(&self, url: &str, confirm: bool) -> Result<RepositoryAdded, IpcError> {
+        let params = RepositoryAddParams {
+            url: url.to_string(),
+            confirm,
+        };
+        self.session
+            .call::<proto::catalogue::PluginRepoAdd>(&params)
+            .await
+    }
+
+    pub async fn repo_list(&self) -> Result<Vec<RepositoryInfo>, IpcError> {
+        self.session
+            .call::<proto::catalogue::PluginRepoList>(&proto::Empty {})
+            .await
+    }
+
+    pub async fn repo_remove(&self, url: &str) -> Result<(), IpcError> {
+        let params = RepositoryRef {
+            url: url.to_string(),
+        };
+        self.session
+            .call::<proto::catalogue::PluginRepoRemove>(&params)
+            .await?;
+        Ok(())
+    }
+
+    /// One repository, or every configured one for `None`.
+    pub async fn repo_refresh(&self, url: Option<&str>) -> Result<RepositoryRefreshed, IpcError> {
+        let params = RepositoryRefreshParams {
+            url: url.map(str::to_string),
+        };
+        self.session
+            .call::<proto::catalogue::PluginRepoRefresh>(&params)
+            .await
+    }
+
+    pub async fn catalogue(&self, params: CatalogueParams) -> Result<Catalogue, IpcError> {
+        self.session
+            .call::<proto::catalogue::PluginCatalogue>(&params)
             .await
     }
 

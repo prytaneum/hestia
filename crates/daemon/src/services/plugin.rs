@@ -1,6 +1,9 @@
 //! Installed plugins: what is loaded and in which state.
 
 use engine::CallError;
+use proto::catalogue::{
+    PluginCatalogue, PluginRepoAdd, PluginRepoList, PluginRepoRefresh, PluginRepoRemove,
+};
 use proto::error::{EntryKind, ErrorInfo};
 use proto::job::{JobStarted, JobSubject};
 use proto::plugin::{
@@ -34,6 +37,42 @@ pub(super) fn register(on: &mut Channels<'_>) {
     on.handle::<PluginRemove, _, _>(|p, ctx| async move {
         ctx.runtime.plugins().remove(&p.id)?;
         Ok(Empty {})
+    });
+
+    on.handle::<PluginRepoAdd, _, _>(|p, ctx| async move {
+        ctx.runtime
+            .engine()
+            .add_repository(&p.url, p.confirm)
+            .await
+            .map_err(crate::runtime::engine_error)
+    });
+
+    on.handle::<PluginRepoList, _, _>(|_: Empty, ctx| async move {
+        Ok(ctx.runtime.engine().repositories())
+    });
+
+    on.handle::<PluginRepoRemove, _, _>(|p, ctx| async move {
+        ctx.runtime
+            .engine()
+            .remove_repository(&p.url)
+            .map_err(crate::runtime::engine_error)?;
+        Ok(Empty {})
+    });
+
+    on.handle::<PluginRepoRefresh, _, _>(|p, ctx| async move {
+        ctx.runtime
+            .engine()
+            .refresh_repositories(p.url.as_deref())
+            .await
+            .map_err(crate::runtime::engine_error)
+    });
+
+    on.handle::<PluginCatalogue, _, _>(|p, ctx| async move {
+        ctx.runtime
+            .engine()
+            .catalogue(&p)
+            .await
+            .map_err(crate::runtime::engine_error)
     });
 
     on.handle::<PluginInspect, _, _>(|p, ctx| async move {

@@ -39,11 +39,13 @@ impl Jobs {
         Some(self.run::<PluginInstall, _>(spec, move |_, reporter| {
             Box::pin(async move {
                 let report = reporter.checked();
+                let warnings = package.warnings();
                 let record = plugins.install(&package, &approve, reporter.cancel(), &|phase| {
                     let _ = report(&PluginInstallProgress { phase });
                 })?;
                 Ok(PluginInstallDone {
                     plugin: plugins.installed(record).await,
+                    warnings,
                 })
             })
         }))
