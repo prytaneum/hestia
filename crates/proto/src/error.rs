@@ -517,6 +517,30 @@ pub enum ErrorInfo {
     },
     /// The package's grant is not the one the caller approved; inspect it again.
     PluginApprovalStale,
+    /// No configured repository matches `reference`.
+    RepositoryNotFound {
+        reference: String,
+    },
+    /// The address is not a Hestia plugin repository, or its index is malformed.
+    RepositoryInvalid {
+        detail: String,
+    },
+    /// The index names another key than the one trusted when the repository
+    /// was added. Both are key ids.
+    RepositoryKeyChanged {
+        pinned: String,
+        declared: String,
+    },
+    /// An index or build failed its signature, was signed for something else,
+    /// is older than the one kept, or does not match its checksum.
+    RepositoryRefused {
+        detail: String,
+    },
+    /// The repository has no build of the plugin this Hestia can install.
+    PluginBuildUnavailable {
+        id: String,
+        detail: String,
+    },
     /// The package cannot be installed: unreadable, malformed or not a component.
     PluginInvalid {
         detail: String,
@@ -831,6 +855,7 @@ impl ErrorInfo {
             | FileNotFound { .. }
             | TaskNotFound { .. }
             | PluginNotFound { .. }
+            | RepositoryNotFound { .. }
             | ConfigKeyUnknown { .. }
             | ConfigKeyUnset { .. } => code::NOT_FOUND,
             SignInRequired | SessionExpired { .. } | LoginDeclined | LoginTimedOut => {
@@ -933,6 +958,20 @@ impl fmt::Display for ErrorInfo {
                 f,
                 "the package's permissions changed since you reviewed them"
             ),
+            RepositoryNotFound { reference } => {
+                write!(f, "no plugin repository matches '{reference}'")
+            }
+            RepositoryInvalid { detail } => {
+                write!(f, "not a Hestia plugin repository: {detail}")
+            }
+            RepositoryKeyChanged { pinned, declared } => write!(
+                f,
+                "the repository now declares key {declared}, but key {pinned} was trusted"
+            ),
+            RepositoryRefused { detail } => write!(f, "the repository was refused: {detail}"),
+            PluginBuildUnavailable { id, detail } => {
+                write!(f, "no installable build of '{id}': {detail}")
+            }
             PluginInvalid { detail } => write!(f, "not a valid plugin package: {detail}"),
             PluginCommandInvalid {
                 plugin,

@@ -107,6 +107,12 @@ pub enum WarningInfo {
     /// A launch hook asked for an argument outside what a plugin may set, so it
     /// was left out of the launch.
     LaunchArgDropped { plugin: String, arg: String },
+    /// A repository could not be refreshed, so its last good listing is shown.
+    /// `detail` is operational English, shown as secondary text.
+    RepositoryStale { repository: String, detail: String },
+    /// The index listed other permissions for the plugin than its package asks
+    /// for. The install used the package's own, which the user approved.
+    PluginPermissionsDisagree { plugin: String },
 }
 
 impl WarningInfo {
@@ -169,6 +175,15 @@ impl WarningInfo {
             ),
             LaunchArgDropped { plugin, .. } => {
                 format!("the game runs without it; update or remove `{plugin}` if it matters")
+            }
+            RepositoryStale { .. } => {
+                "the listing may be out of date; try again when the repository is reachable"
+                    .to_string()
+            }
+            PluginPermissionsDisagree { .. } => {
+                "check the permissions shown at install; the repository's listing was wrong or \
+                 changed"
+                    .to_string()
             }
             DocumentQuarantined { path, .. } => format!(
                 "nothing was deleted — the file is at `{path}`; update hestia if it came from a \
@@ -253,6 +268,13 @@ impl fmt::Display for WarningInfo {
             LaunchArgDropped { plugin, arg } => write!(
                 f,
                 "plugin '{plugin}' asked for the launch argument '{arg}', which a plugin may not set, so it was dropped"
+            ),
+            RepositoryStale { repository, detail } => {
+                write!(f, "'{repository}' could not be refreshed: {detail}")
+            }
+            PluginPermissionsDisagree { plugin } => write!(
+                f,
+                "the repository listed other permissions for '{plugin}' than its package asks for"
             ),
             DocumentQuarantined {
                 document, detail, ..

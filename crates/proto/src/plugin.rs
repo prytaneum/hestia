@@ -18,6 +18,7 @@ use crate::contract::{Contract, Empty, Topic};
 use crate::error::EntryKind;
 use crate::job::{Job, JobStarted};
 use crate::ui::{Action, Effect, UiNode};
+use crate::warning::WarningInfo;
 
 pub const API_VERSION: &str = "1.0.0";
 
@@ -711,6 +712,16 @@ fn semver_core(version: &str) -> Option<(u64, u64, u64)> {
     parts.next().is_none().then_some(triple)
 }
 
+/// Whether a build written against caret requirement `api` runs on this host.
+pub fn api_supported(api: &str) -> bool {
+    check_api(api).is_ok()
+}
+
+/// Orders versions by `major.minor.patch`; one that does not parse sorts first.
+pub fn compare_versions(a: &str, b: &str) -> std::cmp::Ordering {
+    semver_core(a).cmp(&semver_core(b))
+}
+
 /// Caret semantics: a guest built against `^N.M.P` runs on a host `N.m.p` at
 /// or above `N.M.P`. A newer guest may import something the host lacks.
 fn check_api(api: &str) -> Result<(), ManifestError> {
@@ -757,6 +768,8 @@ pub enum PluginSource {
     File,
     Folder,
     Url,
+    /// From a configured repository's index; `signer` and `repository` say which.
+    Repo,
     Dev,
 }
 
@@ -767,9 +780,18 @@ pub struct PluginInfo {
     pub manifest: Manifest,
     pub state: PluginState,
     pub source: PluginSource,
-    /// Where a `url` install came from.
+    /// Where a `url` or `repo` install downloaded from.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub url: Option<String>,
+    /// Key id of the repository key that signed the package.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub signer: Option<String>,
+    /// The index URL of the repository it was installed from.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub repository: Option<String>,
+    /// Signed, but no configured repository with that key lists it any more:
+    /// it keeps running and gets no updates.
+    pub obsolete: bool,
     /// Of the installed package.
     pub sha256: String,
     /// What the user approved, not what the manifest now asks for.
@@ -884,6 +906,11 @@ pub struct PluginPackageRef {
     /// An https link to a `.hplugin` file, instead of `path`. The daemon
     /// downloads it once and answers with [`PluginInspection::staged`].
     pub url: String,
+    /// The index URL of a configured repository, with `plugin`, instead of
+    /// `path` and `url`: the daemon downloads and verifies the newest
+    /// compatible build.
+    pub repo: String,
+    pub plugin: String,
 }
 
 /// What installing a package would grant, read without running any of it.
@@ -978,6 +1005,10 @@ impl Contract for PluginInstall {
 #[serde(rename_all = "camelCase")]
 pub struct PluginInstallDone {
     pub plugin: PluginInfo,
+    /// The index listed other permissions than the package asks for; approval
+    /// always used the package's own.
+    #[serde(default)]
+    pub warnings: Vec<WarningInfo>,
 }
 
 impl Job for PluginInstall {

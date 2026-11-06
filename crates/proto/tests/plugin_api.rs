@@ -149,6 +149,8 @@ fn api() -> Api {
         backup::ServerBackupCreate, backup::ServerBackupList, backup::ServerBackupRemove,
         backup::ServerBackupRestore,
         cache::CacheClear, cache::CacheInfo, cache::CacheList,
+        catalogue::PluginCatalogue, catalogue::PluginRepoAdd, catalogue::PluginRepoList,
+        catalogue::PluginRepoRefresh, catalogue::PluginRepoRemove,
         config::ConfigGet, config::ConfigList, config::ConfigSet,
         content::ContentInspect, content::ContentProjectGet, content::ContentResolveUrl,
         content::ContentSearch, content::ContentSources, content::ContentVersions,
