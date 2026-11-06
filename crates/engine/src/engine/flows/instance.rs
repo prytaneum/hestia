@@ -20,6 +20,7 @@ use crate::minecraft::materialize::{self, OnProgress};
 use crate::minecraft::plan::{self, PlanInput, Tally};
 use crate::minecraft::profile::Library;
 use crate::minecraft::{ping, quickplay, world, Side};
+use crate::plugins::{BeforeLaunch, CallChain, LaunchContext};
 
 /// Per-session files under the instance root, not `data/`, so a backup and an
 /// export leave them behind.
@@ -180,6 +181,7 @@ impl Engine {
             reconcile,
             quick_play,
             offline,
+            chain,
         } = request;
         let record = self.instances.require(reference)?;
         let entry_dir = self.instances.instance_dir(&record);
@@ -330,7 +332,7 @@ impl Engine {
         let jvm = record
             .jvm
             .or_defaults(&self.config.settings().java_defaults());
-        let plan = launch::instance_plan(
+        let mut plan = launch::instance_plan(
             &record.profile,
             &java,
             &InstancePaths {
@@ -346,6 +348,32 @@ impl Engine {
             &account,
             &jvm,
             quick_play.as_ref(),
+        );
+        let hooked = self
+            .hooks()
+            .run::<BeforeLaunch>(
+                &LaunchContext {
+                    instance_id: record.id.clone(),
+                    instance_name: record.name.clone(),
+                    game_version: record.profile.game_version.clone(),
+                    flavor: record.profile.flavor.clone(),
+                    loader_version: record.profile.loader_version.clone(),
+                    java_path: java.to_string_lossy().into_owned(),
+                    memory: jvm.memory.clone(),
+                    quick_play: quick_play.as_ref().map(quick_play_label),
+                    profile_name: account.name.clone(),
+                    profile_uuid: account.uuid.clone(),
+                },
+                chain,
+            )
+            .await
+            .map_err(|error| anyhow::anyhow!(error))?;
+        warnings.extend(hooked.warnings);
+        warnings.extend(hooked.patch.dropped);
+        plan.extend(
+            &record.profile.main_class,
+            hooked.patch.jvm_args,
+            hooked.patch.game_args,
         );
         Ok(PreparedLaunch {
             record,
@@ -420,6 +448,16 @@ pub struct LaunchRequest<'a> {
     pub quick_play: Option<QuickPlay>,
     /// Run without contacting Microsoft, on an unusable token.
     pub offline: bool,
+    /// The plugins already on this call path; hooks refuse to re-enter them.
+    pub chain: &'a CallChain,
+}
+
+fn quick_play_label(target: &QuickPlay) -> String {
+    match target {
+        QuickPlay::World(folder) => format!("world:{folder}"),
+        QuickPlay::Server(address) => format!("server:{address}"),
+        QuickPlay::Realm(id) => format!("realm:{id}"),
+    }
 }
 
 /// Refuse a quick-play target the launch could not honour: a client too old for

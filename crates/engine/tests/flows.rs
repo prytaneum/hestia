@@ -4,7 +4,7 @@
 
 mod fixture;
 
-use engine::{Cancel, EntryRef, Job, LaunchRequest, ServerCreateSpec};
+use engine::{CallChain, Cancel, EntryRef, Job, LaunchRequest, ServerCreateSpec};
 use proto::content::{ContentAddItem, ContentAddSpec, ContentKind};
 use proto::error::ErrorInfo;
 use proto::instance::QuickPlay;
@@ -1319,6 +1319,8 @@ async fn launchable(home: &std::path::Path) -> (engine::Engine, String) {
     (engine, record.id)
 }
 
+static NO_CHAIN: std::sync::LazyLock<CallChain> = std::sync::LazyLock::new(CallChain::default);
+
 fn launch<'a>(instance: &'a str, quick_play: Option<QuickPlay>) -> LaunchRequest<'a> {
     LaunchRequest {
         instance,
@@ -1327,6 +1329,7 @@ fn launch<'a>(instance: &'a str, quick_play: Option<QuickPlay>) -> LaunchRequest
         reconcile: true,
         quick_play,
         offline: false,
+        chain: &NO_CHAIN,
     }
 }
 
@@ -1591,4 +1594,189 @@ fn a_package_the_runtime_refuses_leaves_nothing_behind() {
         0,
         "no package and no staging directory is left"
     );
+}
+
+mod launch_hooks {
+    use std::sync::Arc;
+
+    use async_trait::async_trait;
+    use engine::{HostCalls, HostError, LoadedPlugin, PluginRecord, PluginRuntime, Roster};
+    use proto::plugin::{Grant, Permission};
+    use proto::warning::WarningInfo;
+    use serde_json::{json, Value};
+    use sha2::{Digest, Sha256};
+
+    use super::*;
+
+    struct NoHost;
+
+    #[async_trait]
+    impl HostCalls for NoHost {
+        fn permission(&self, _channel: &str) -> Option<Permission> {
+            None
+        }
+
+        async fn call(
+            &self,
+            _plugin: &str,
+            _chain: &CallChain,
+            _channel: &str,
+            _payload: Value,
+        ) -> Result<Value, HostError> {
+            Err(HostError::NotFound("no host in this test".into()))
+        }
+
+        async fn run_job(
+            &self,
+            plugin: &str,
+            chain: &CallChain,
+            channel: &str,
+            payload: Value,
+        ) -> Result<Value, HostError> {
+            self.call(plugin, chain, channel, payload).await
+        }
+    }
+
+    struct Loaded(Vec<Arc<LoadedPlugin>>);
+
+    impl Roster<LoadedPlugin> for Loaded {
+        fn loaded(&self) -> Vec<Arc<LoadedPlugin>> {
+            self.0.clone()
+        }
+    }
+
+    struct Rig {
+        engine: engine::Engine,
+        instance: String,
+        data: std::path::PathBuf,
+        _roster: Arc<Loaded>,
+        _home: tempfile::TempDir,
+    }
+
+    async fn rig(answer: Value) -> Rig {
+        let home = tempfile::tempdir().expect("temp home");
+        let (engine, instance) = launchable(home.path()).await;
+
+        let wasm = std::fs::read(fixture::probe::component()).expect("probe component");
+        let runtime = PluginRuntime::new(Arc::new(NoHost), home.path().join("plugin-cache"))
+            .expect("runtime");
+        let record = PluginRecord {
+            id: "probe".into(),
+            wasm_sha256: Some(
+                Sha256::digest(&wasm)
+                    .iter()
+                    .map(|byte| format!("{byte:02x}"))
+                    .collect(),
+            ),
+            grant: Grant {
+                permissions: [Permission::LaunchPatch, Permission::AccountRead].into(),
+                hooks: ["before-launch".to_string()].into(),
+                launch_properties: ["my.mod.flag".to_string()].into(),
+                ..Grant::default()
+            },
+            ..PluginRecord::default()
+        };
+        let data = home.path().join("probe-data");
+        std::fs::create_dir_all(&data).expect("data dir");
+        std::fs::write(data.join("launch.json"), answer.to_string()).expect("answer");
+        let plugin = runtime.load(&record, &wasm, data.clone()).expect("load");
+        let roster = Arc::new(Loaded(vec![Arc::new(plugin)]));
+        engine.hooks().attach(&roster);
+        Rig {
+            engine,
+            instance,
+            data,
+            _roster: roster,
+            _home: home,
+        }
+    }
+
+    #[tokio::test]
+    async fn only_what_the_allowlist_names_reaches_the_plan() {
+        let rig = rig(json!({
+            "jvm": ["-XX:+UseZGC", "-Dmy.mod.flag=1", "-javaagent:x.jar", "-Dundeclared=1"],
+            "game": ["--fullscreen", "--accessToken", "stolen"],
+        }))
+        .await;
+        let (cancel, report) = (Cancel::new(), |_: &ProvisionProgress| {});
+
+        let prepared = rig
+            .engine
+            .prepare_instance(launch(&rig.instance, None), &job(&cancel, &report))
+            .await
+            .expect("prepare");
+
+        let args = &prepared.plan.args;
+        let has = |wanted: &str| args.iter().any(|arg| arg == wanted);
+        assert!(has("-XX:+UseZGC") && has("-Dmy.mod.flag=1") && has("--fullscreen"));
+        for refused in [
+            "-javaagent:x.jar",
+            "-Dundeclared=1",
+            "--accessToken",
+            "stolen",
+        ] {
+            assert!(!has(refused), "{refused} in {args:?}");
+        }
+        let main_at = args
+            .iter()
+            .position(|arg| arg == "net.minecraft.client.main.Main")
+            .expect("main class");
+        let zgc_at = args.iter().position(|arg| arg == "-XX:+UseZGC").unwrap();
+        assert!(zgc_at < main_at, "JVM options precede the main class");
+
+        let mut named: Vec<&str> = prepared
+            .warnings
+            .iter()
+            .filter_map(|warning| match warning {
+                WarningInfo::LaunchArgDropped { plugin, arg } => {
+                    assert_eq!(plugin, "probe");
+                    Some(arg.as_str())
+                }
+                _ => None,
+            })
+            .collect();
+        named.sort_unstable();
+        assert_eq!(
+            named,
+            [
+                "--accessToken",
+                "-Dundeclared=1",
+                "-javaagent:x.jar",
+                "stolen"
+            ]
+        );
+
+        let seen = std::fs::read_to_string(rig.data.join("context.json")).expect("context");
+        assert!(seen.contains("player"), "{seen}");
+        assert!(
+            !seen.contains("fixture-access"),
+            "the token never reaches the guest"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_veto_fails_the_launch_with_the_reason() {
+        let rig = rig(json!({ "veto": "not today" })).await;
+        let (cancel, report) = (Cancel::new(), |_: &ProvisionProgress| {});
+
+        let refused = rig
+            .engine
+            .prepare_instance(launch(&rig.instance, None), &job(&cancel, &report))
+            .await
+            .map(|_| ())
+            .expect_err("vetoed");
+
+        let ErrorInfo::PluginVetoed {
+            plugin,
+            hook,
+            reason,
+        } = engine::error_info(refused)
+        else {
+            panic!("not a veto");
+        };
+        assert_eq!(
+            (plugin.as_str(), hook.as_str(), reason.as_str()),
+            ("probe", "before-launch", "not today")
+        );
+    }
 }

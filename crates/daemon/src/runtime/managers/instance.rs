@@ -69,6 +69,7 @@ impl Jobs {
             id,
         } = order;
         let (session_id, seq) = self.reserve_session(&instance_id);
+        let hook_chain = chain.clone();
 
         let spec = Spec {
             id,
@@ -100,6 +101,7 @@ impl Jobs {
                         reconcile,
                         quick_play,
                         offline,
+                        chain: &hook_chain,
                     },
                     &reporter.job(),
                 )

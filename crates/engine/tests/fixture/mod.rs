@@ -2,6 +2,8 @@
 //! real seams; these are the second adapter behind them, so a flow can be
 //! driven without reaching Mojang, Modrinth or a JDK mirror.
 
+pub mod probe;
+
 use std::collections::HashMap;
 
 use anyhow::{bail, Result};

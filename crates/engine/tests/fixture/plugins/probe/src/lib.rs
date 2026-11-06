@@ -3,7 +3,7 @@ use std::time::Duration;
 use hestia::proto::plugin::PageContext;
 use hestia::proto::{server::ServerList, Empty};
 use hestia::ui::{self, Action, Effect, Tone, UiNode};
-use hestia::{json, Error, Plugin, Value};
+use hestia::{json, Error, LaunchContext, LaunchPatch, Plugin, Value};
 
 struct Probe;
 
@@ -59,6 +59,29 @@ impl Plugin for Probe {
             ]),
             _ => Err(Error::NotFound(format!("unknown page `{page}`"))),
         }
+    }
+
+    fn before_launch(context: LaunchContext) -> Result<LaunchPatch, String> {
+        let _ = hestia::data::save("context", &format!("{context:?}"));
+        let plan: Value = hestia::data::load("launch")
+            .ok()
+            .flatten()
+            .unwrap_or_default();
+        if let Some(reason) = plan["veto"].as_str() {
+            return Err(reason.to_string());
+        }
+        let list = |key: &str| -> Vec<String> {
+            plan[key]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .filter_map(|arg| arg.as_str().map(str::to_string))
+                .collect()
+        };
+        Ok(LaunchPatch {
+            extra_jvm_args: list("jvm"),
+            extra_game_args: list("game"),
+        })
     }
 
     fn run(command: &str, args: Value) -> Result<Value, Error> {

@@ -22,6 +22,22 @@ pub struct LaunchPlan {
     pub cwd: PathBuf,
 }
 
+impl LaunchPlan {
+    /// Adds `jvm` just before `main_class`, after every other JVM option, and
+    /// `game` at the end. Does nothing to the JVM section when the main class is
+    /// not in the plan, since an option after it would reach the game instead.
+    pub fn extend(&mut self, main_class: &str, jvm: Vec<String>, game: Vec<String>) {
+        match self.args.iter().position(|arg| arg == main_class) {
+            Some(at) => {
+                self.args.splice(at..at, jvm);
+            }
+            None if jvm.is_empty() => {}
+            None => tracing::warn!("the main class is not in the plan; JVM options not added"),
+        }
+        self.args.extend(game);
+    }
+}
+
 /// The signed-in identity substituted into the client's auth placeholders.
 pub struct LaunchAccount {
     pub name: String,
