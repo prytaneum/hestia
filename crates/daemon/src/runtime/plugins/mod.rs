@@ -252,9 +252,9 @@ impl Plugins {
             .pages
             .iter()
             .find(|page| page.id == name)
-            .ok_or_else(|| ErrorInfo::PluginCommandInvalid {
+            .ok_or_else(|| ErrorInfo::PluginPageInvalid {
                 plugin: id.to_string(),
-                command: name.to_string(),
+                page: name.to_string(),
                 detail: "no such page".into(),
             })?
             .clone();

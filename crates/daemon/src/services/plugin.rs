@@ -144,13 +144,11 @@ fn page_context(
     if page.slot != PageSlot::Entry {
         return Ok(PageContext::default());
     }
-    let reference = context
-        .entry
-        .ok_or_else(|| ErrorInfo::PluginCommandInvalid {
-            plugin: plugin.to_string(),
-            command: page.id.clone(),
-            detail: "an entry page needs the entry it sits on".into(),
-        })?;
+    let reference = context.entry.ok_or_else(|| ErrorInfo::PluginPageInvalid {
+        plugin: plugin.to_string(),
+        page: page.id.clone(),
+        detail: "an entry page needs the entry it sits on".into(),
+    })?;
     let id = match page.kind.unwrap_or_default() {
         EntryKind::Server => server_for(ctx, &reference, Intent::Read)?.id,
         EntryKind::Instance => instance_for(ctx, &reference, Intent::Read)?.id,

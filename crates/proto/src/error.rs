@@ -528,6 +528,12 @@ pub enum ErrorInfo {
         command: String,
         detail: String,
     },
+    /// The page is unknown, or the entry it needs is missing.
+    PluginPageInvalid {
+        plugin: String,
+        page: String,
+        detail: String,
+    },
     /// The plugin is installed but not running: disabled, failed or without a component.
     PluginUnavailable {
         id: String,
@@ -933,6 +939,11 @@ impl fmt::Display for ErrorInfo {
                 command,
                 detail,
             } => write!(f, "plugin '{plugin}' command '{command}': {detail}"),
+            PluginPageInvalid {
+                plugin,
+                page,
+                detail,
+            } => write!(f, "plugin '{plugin}' page '{page}': {detail}"),
             PluginUnavailable { id } => write!(f, "plugin '{id}' is not running"),
             PluginCallFailed { id, detail } => write!(f, "plugin '{id}' failed: {detail}"),
             PluginUiInvalid { plugin, page } => write!(

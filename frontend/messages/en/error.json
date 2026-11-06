@@ -71,6 +71,7 @@
       "plugin_approval_stale": "The plugin's permissions changed since you reviewed them.",
       "plugin_call_failed": "Plugin '{id}' failed: {detail}",
       "plugin_command_invalid": "Plugin '{plugin}' command '{command}': {detail}",
+      "plugin_page_invalid": "Plugin '{plugin}' page '{page}': {detail}",
       "plugin_install_in_progress": "'{id}' is already being installed.",
       "plugin_invalid": "Not a valid plugin package: {detail}",
       "plugin_not_found": "No plugin '{id}' is installed.",
