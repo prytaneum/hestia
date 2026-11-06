@@ -10,10 +10,12 @@ use client::proto::plugin::{
     CommandArg, CommandArgKind, CommandContribution, CommandScope, PluginInfo, PluginRunParams,
     PluginRunProgress, PluginState,
 };
+use client::proto::ui::UiNode;
 use client::Client;
 use serde_json::{Map, Number, Value};
 
 use crate::commands::connect;
+use crate::ui::plugin::views;
 use crate::ui::{self, Spinner, View};
 
 pub async fn top(argv: Vec<String>) -> Result<()> {
@@ -40,8 +42,11 @@ pub async fn top(argv: Vec<String>) -> Result<()> {
         return list_commands(id, &commands);
     };
     let Some(command) = commands.iter().find(|c| c.id == *name) else {
+        if super::page::is_page(plugin, name) {
+            return super::page::open(&client, plugin, name, args).await;
+        }
         let ids: Vec<&str> = commands.iter().map(|c| c.id.as_str()).collect();
-        bail!("'{id}' has no command '{name}'; it has: {}", joined(&ids));
+        bail!("'{id}' has no command or page '{name}'; commands: {}", joined(&ids));
     };
     execute(&client, id, command, CommandScope::Top, None, args).await
 }
@@ -156,6 +161,9 @@ async fn execute(
     let output = done?.output;
     if json {
         return ui::show(View::line(format!("{output:#}")));
+    }
+    if let Ok(tree) = serde_json::from_value::<UiNode>(output.clone()) {
+        return views(&tree).into_iter().try_for_each(ui::show);
     }
     ui::show(render(&output))
 }

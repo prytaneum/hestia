@@ -12,6 +12,7 @@
 
 pub(crate) mod components;
 pub(crate) mod markdown;
+pub(crate) mod plugin;
 mod progress;
 mod render;
 pub(crate) mod session;

@@ -7,6 +7,7 @@ mod check;
 mod index;
 mod keygen;
 mod new;
+mod page;
 mod pack;
 mod repo;
 pub(crate) mod run;

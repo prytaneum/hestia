@@ -772,6 +772,31 @@ otherwise. If two plugins contribute the same scoped command, you are asked whic
 listing them). Built-in verbs always win: a plugin id that is a top-level command, and a scoped command id that is a
 built-in verb of that scope, are refused at install.
 
+A command whose output is a plugin UI tree (rather than plain JSON) renders like a page, minus the actions.
+
+### Plugin pages
+
+`hestia <plugin> <page>` draws a page the plugin contributes, when `<page>` is one of its page ids and no command has
+that name. Headings and text print as lines, tables and lists as tables, details as a key/value block, notices as notes
+(warnings for the warning and error tones), markdown as text, an image as its alt text and progress as a bar.
+
+```bash
+hestia dashboard overview                          # a terminal: draw the page, then pick an action; it loops
+hestia dashboard overview | cat                    # no terminal: draw once and stop
+hestia dashboard overview --action refresh         # run one action by its id, print the result
+hestia dashboard settings --action save --set theme=dark --set size=3
+hestia notes list --entry smp                      # a page that sits on a server or instance needs --entry
+```
+
+On a terminal, buttons, list-item buttons, table rows (when the table has a row action) and form submits form one
+action menu. A form asks field by field: a line for text and number, a menu for select, toggle and entry (which lists
+servers or instances by kind). The plugin's answer applies in turn: a new tree redraws, a toast prints as a note, and
+a navigation opens that page when it is the same plugin's, otherwise prints where it points and stops.
+
+`--action <id>` is one-shot and needs no terminal: it picks the first action of that id on the page. For a form, give
+each field with `--set name=value` (repeatable); a field left out takes its default, except an entry field, which needs
+the server or instance name or id. A row action sends the first matching row's payload.
+
 ## Updating Hestia
 
 ```bash
