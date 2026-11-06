@@ -1,16 +1,19 @@
 //! Installed plugins: what is loaded and in which state.
 
+use engine::CallError;
 use proto::error::{EntryKind, ErrorInfo};
 use proto::job::{JobStarted, JobSubject};
 use proto::plugin::{
-    CommandScope, PluginAsset, PluginDisable, PluginEnable, PluginGet, PluginInspect,
-    PluginInstall, PluginList, PluginRemove, PluginRun,
+    CommandScope, PageContext, PageContribution, PageSlot, PluginAsset, PluginDisable,
+    PluginEnable, PluginGet, PluginInspect, PluginInstall, PluginList, PluginPages, PluginRemove,
+    PluginRun, PluginUiAction, PluginUiRender,
 };
 use proto::Empty;
 
 use super::guards::{instance_for, server_for, Intent};
 
 use crate::runtime::Channels;
+use crate::runtime::HandlerContext;
 use crate::runtime::Package;
 
 pub(super) fn register(on: &mut Channels<'_>) {
@@ -72,6 +75,28 @@ pub(super) fn register(on: &mut Channels<'_>) {
             .map_err(crate::runtime::engine_error)
     });
 
+    on.handle::<PluginPages, _, _>(|_: Empty, ctx| async move {
+        Ok(ctx.runtime.plugins().pages().await)
+    });
+
+    on.handle::<PluginUiRender, _, _>(|p, ctx| async move {
+        let (page, loaded) = ctx.runtime.plugins().page(&p.plugin, &p.page).await?;
+        let context = page_context(&ctx, &p.plugin, &page, p.context)?;
+        loaded
+            .render_page(&ctx.chain, &p.page, &context)
+            .await
+            .map_err(|error| ui_error(&p.plugin, error))
+    });
+
+    on.handle::<PluginUiAction, _, _>(|p, ctx| async move {
+        let (page, loaded) = ctx.runtime.plugins().page(&p.plugin, &p.page).await?;
+        let context = page_context(&ctx, &p.plugin, &page, p.context)?;
+        loaded
+            .page_action(&ctx.chain, &p.page, &p.action, &p.values, &context)
+            .await
+            .map_err(|error| ui_error(&p.plugin, error))
+    });
+
     on.handle::<PluginRun, _, _>(|p, ctx| async move {
         let plugins = ctx.runtime.plugins();
         let (command, loaded) = plugins.command(&p.plugin, &p.command).await?;
@@ -106,4 +131,42 @@ pub(super) fn register(on: &mut Channels<'_>) {
         );
         Ok(JobStarted { id })
     });
+}
+
+/// An `entry` page receives the id of the entry it sits on, resolved here so a
+/// plugin never sees a name that could mean another entry; any other page gets none.
+fn page_context(
+    ctx: &HandlerContext,
+    plugin: &str,
+    page: &PageContribution,
+    context: PageContext,
+) -> Result<PageContext, ErrorInfo> {
+    if page.slot != PageSlot::Entry {
+        return Ok(PageContext::default());
+    }
+    let reference = context
+        .entry
+        .ok_or_else(|| ErrorInfo::PluginCommandInvalid {
+            plugin: plugin.to_string(),
+            command: page.id.clone(),
+            detail: "an entry page needs the entry it sits on".into(),
+        })?;
+    let id = match page.kind.unwrap_or_default() {
+        EntryKind::Server => server_for(ctx, &reference, Intent::Read)?.id,
+        EntryKind::Instance => instance_for(ctx, &reference, Intent::Read)?.id,
+    };
+    Ok(PageContext { entry: Some(id) })
+}
+
+fn ui_error(plugin: &str, error: CallError) -> ErrorInfo {
+    match error {
+        CallError::InvalidUi(page) => ErrorInfo::PluginUiInvalid {
+            plugin: plugin.to_string(),
+            page,
+        },
+        other => ErrorInfo::PluginCallFailed {
+            id: plugin.to_string(),
+            detail: other.to_string(),
+        },
+    }
 }

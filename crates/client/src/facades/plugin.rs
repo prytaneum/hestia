@@ -1,9 +1,10 @@
 use ipc::errors::IpcError;
 use proto::plugin::{
     PluginAssetParams, PluginAssetResult, PluginInfo, PluginInspection, PluginInstallDone,
-    PluginInstallParams, PluginInstallProgress, PluginPackageRef, PluginRef, PluginRunDone,
-    PluginRunParams, PluginRunProgress,
+    PluginInstallParams, PluginInstallProgress, PluginPackageRef, PluginPage, PluginRef,
+    PluginRunDone, PluginRunParams, PluginRunProgress, PluginUiActionParams, PluginUiRenderParams,
 };
+use proto::ui::{Effect, UiNode};
 
 use crate::session::{job_id, Session};
 
@@ -115,6 +116,24 @@ impl Plugin<'_> {
         params.id = job_id("plugin-run");
         self.session
             .run_job::<proto::plugin::PluginRun>(&params.id.clone(), &params, on_progress)
+            .await
+    }
+
+    pub async fn pages(&self) -> Result<Vec<PluginPage>, IpcError> {
+        self.session
+            .call::<proto::plugin::PluginPages>(&proto::Empty {})
+            .await
+    }
+
+    pub async fn render(&self, params: &PluginUiRenderParams) -> Result<UiNode, IpcError> {
+        self.session
+            .call::<proto::plugin::PluginUiRender>(params)
+            .await
+    }
+
+    pub async fn action(&self, params: &PluginUiActionParams) -> Result<Vec<Effect>, IpcError> {
+        self.session
+            .call::<proto::plugin::PluginUiAction>(params)
             .await
     }
 

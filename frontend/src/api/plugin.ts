@@ -6,7 +6,23 @@ import type {
   PluginInfo,
   PluginInspection,
   PluginInstallDone,
+  PluginPage,
+  PluginUiActionParams,
+  PluginUiRenderParams,
 } from './types/plugin';
+import type { Effect, UiNode } from './types/ui';
+
+export function pages(): Promise<PluginPage[]> {
+  return call('plugin.pages');
+}
+
+export function render(params: PluginUiRenderParams): Promise<UiNode> {
+  return call('plugin.ui.render', params);
+}
+
+export function action(params: PluginUiActionParams): Promise<Effect[]> {
+  return call('plugin.ui.action', params);
+}
 
 export function list(): Promise<PluginInfo[]> {
   return call('plugin.list');

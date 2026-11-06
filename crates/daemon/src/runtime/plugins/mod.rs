@@ -19,8 +19,8 @@ use engine::{
 };
 use proto::error::ErrorInfo;
 use proto::plugin::{
-    CommandContribution, Manifest, PluginInfo, PluginInspection, PluginInstallPhase, PluginState,
-    PluginStateEvent,
+    CommandContribution, Manifest, PageContribution, PluginInfo, PluginInspection,
+    PluginInstallPhase, PluginPage, PluginState, PluginStateEvent,
 };
 use tokio::task::{spawn_blocking, JoinSet};
 
@@ -235,24 +235,73 @@ impl Plugins {
         id: &str,
         name: &str,
     ) -> ServiceResult<(CommandContribution, Arc<LoadedPlugin>)> {
+        let manifest = self.manifest(id).await?;
+        let command = engine::find_command(&manifest, name)?.clone();
+        Ok((command, self.running(id)?))
+    }
+
+    /// The page `name` of `id`'s manifest and the plugin that draws it.
+    pub async fn page(
+        &self,
+        id: &str,
+        name: &str,
+    ) -> ServiceResult<(PageContribution, Arc<LoadedPlugin>)> {
+        let manifest = self.manifest(id).await?;
+        let page = manifest
+            .contributes
+            .pages
+            .iter()
+            .find(|page| page.id == name)
+            .ok_or_else(|| ErrorInfo::PluginCommandInvalid {
+                plugin: id.to_string(),
+                command: name.to_string(),
+                detail: "no such page".into(),
+            })?
+            .clone();
+        Ok((page, self.running(id)?))
+    }
+
+    /// Every page of the plugins that are running.
+    pub async fn pages(&self) -> Vec<PluginPage> {
+        let mut pages = Vec::new();
+        for info in self.list().await {
+            if info.state != PluginState::Enabled || info.manifest.wasm.is_none() {
+                continue;
+            }
+            let plugin = info.manifest.id;
+            pages.extend(
+                info.manifest
+                    .contributes
+                    .pages
+                    .into_iter()
+                    .map(|page| PluginPage {
+                        plugin: plugin.clone(),
+                        page,
+                    }),
+            );
+        }
+        pages
+    }
+
+    async fn manifest(&self, id: &str) -> ServiceResult<Manifest> {
         self.record(id)?;
         let engine = self.engine.clone();
         let plugin = id.to_string();
-        let manifest = spawn_blocking(move || engine.plugins().read_manifest(&plugin))
+        spawn_blocking(move || engine.plugins().read_manifest(&plugin))
             .await
             .map_err(|error| internal(error.into()))?
-            .map_err(internal)?;
-        let command = engine::find_command(&manifest, name)?.clone();
-        let loaded = self
-            .slots
+            .map_err(internal)
+    }
+
+    fn running(&self, id: &str) -> ServiceResult<Arc<LoadedPlugin>> {
+        self.slots
             .lock()
             .unwrap()
             .get(id)
             .filter(|slot| slot.state == PluginState::Enabled)
             .and_then(|slot| slot.loaded.clone())
             .filter(|loaded| !loaded.is_disabled())
-            .ok_or_else(|| ErrorInfo::PluginUnavailable { id: id.to_string() })?;
-        Ok((command, loaded))
+            .ok_or_else(|| ErrorInfo::PluginUnavailable { id: id.to_string() })
     }
 
     /// Whether `id` is live, so its package may be served: a package changed on
