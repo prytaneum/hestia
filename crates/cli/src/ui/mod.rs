@@ -151,6 +151,46 @@ pub fn prompt(text: &str) -> Result<String> {
     Ok(line.trim().to_string())
 }
 
+/// [`prompt`] without echoing the answer, for a secret. Errors without an
+/// interactive terminal.
+pub fn prompt_secret(text: &str) -> Result<String> {
+    use ratatui::crossterm::event::{self, Event, KeyCode, KeyEventKind, KeyModifiers};
+    use ratatui::crossterm::terminal;
+
+    if !is_interactive() {
+        bail!("no interactive terminal");
+    }
+    eprint!("{text}: ");
+    std::io::stderr().flush()?;
+    terminal::enable_raw_mode()?;
+    let read = || -> Result<String> {
+        let mut secret = String::new();
+        loop {
+            let Event::Key(key) = event::read()? else {
+                continue;
+            };
+            if key.kind == KeyEventKind::Release {
+                continue;
+            }
+            match key.code {
+                KeyCode::Enter => return Ok(secret),
+                KeyCode::Backspace => {
+                    secret.pop();
+                }
+                KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                    bail!("cancelled")
+                }
+                KeyCode::Char(c) => secret.push(c),
+                _ => {}
+            }
+        }
+    };
+    let secret = read();
+    terminal::disable_raw_mode()?;
+    eprintln!();
+    Ok(secret?.trim().to_string())
+}
+
 /// Ask a yes/no question inline: `[y/N]` appended to the prompt, defaulting
 /// to no. Errors without an interactive terminal.
 pub fn prompt_confirm(text: &str) -> Result<bool> {

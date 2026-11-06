@@ -6,7 +6,7 @@ use proto::catalogue::{
 use proto::plugin::{
     PluginAssetParams, PluginAssetResult, PluginInfo, PluginInspection, PluginInstallDone,
     PluginInstallParams, PluginInstallProgress, PluginPackageRef, PluginPage, PluginRef,
-    PluginRunDone, PluginRunParams, PluginRunProgress, PluginUiActionParams, PluginUiRenderParams,
+    PluginRunDone, PluginRunParams, PluginRunProgress, PluginSettingsSetParams, SettingValue, PluginUiActionParams, PluginUiRenderParams,
 };
 use proto::ui::{Effect, UiNode};
 
@@ -27,6 +27,29 @@ impl Plugin<'_> {
         self.session
             .call::<proto::plugin::PluginGet>(&reference(id))
             .await
+    }
+
+    pub async fn settings(&self, id: &str) -> Result<Vec<SettingValue>, IpcError> {
+        self.session
+            .call::<proto::plugin::PluginSettingsGet>(&reference(id))
+            .await
+    }
+
+    /// `null` clears the setting back to its default.
+    pub async fn set_setting(
+        &self,
+        id: &str,
+        key: &str,
+        value: serde_json::Value,
+    ) -> Result<(), IpcError> {
+        self.session
+            .call::<proto::plugin::PluginSettingsSet>(&PluginSettingsSetParams {
+                id: id.to_string(),
+                key: key.to_string(),
+                value,
+            })
+            .await?;
+        Ok(())
     }
 
     pub async fn asset(&self, plugin: &str, path: &str) -> Result<PluginAssetResult, IpcError> {

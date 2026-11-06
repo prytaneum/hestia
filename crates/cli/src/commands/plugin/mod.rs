@@ -4,6 +4,7 @@ mod add;
 mod browse;
 mod cargo;
 mod check;
+mod config;
 mod index;
 mod keygen;
 mod new;
@@ -98,6 +99,16 @@ pub enum ManageCmd {
     },
     /// One plugin's manifest, grant and health
     Info { id: String },
+    /// A plugin's settings: list them, show one, or set one
+    Config {
+        id: String,
+        key: Option<String>,
+        /// Prompted for, without echo, when a secret's value is left out
+        value: Option<String>,
+        /// Clear the setting back to its default
+        #[arg(long, requires = "key", conflicts_with = "value")]
+        unset: bool,
+    },
     /// Load a plugin
     Enable { id: String },
     /// Unload a plugin; it stays installed
@@ -136,6 +147,12 @@ async fn manage(cmd: ManageCmd) -> Result<()> {
         ManageCmd::Browse { query, repo } => browse::run(plugins, query, repo.as_deref()).await,
         ManageCmd::Repo { cmd } => store::run(cmd, plugins).await,
         ManageCmd::Info { id } => info(&plugins.info(&id).await?),
+        ManageCmd::Config {
+            id,
+            key,
+            value,
+            unset,
+        } => config::run(plugins, &id, key.as_deref(), value.as_deref(), unset).await,
         ManageCmd::Enable { id } => {
             let plugin = plugins.enable(&id).await?;
             let reason = plugin.last_error.unwrap_or_default();
