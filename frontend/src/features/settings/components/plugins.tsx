@@ -5,18 +5,41 @@ import { dialog } from '@/api';
 import { Bone } from '@/components/skeleton';
 import { Button } from '@/components/ui/button';
 import { Field, FieldDescription } from '@/components/ui/field';
+import { Tabs, TabsChip, TabsContent, TabsList } from '@/components/ui/tabs';
 import { useDropzone } from '@/hooks/use-dropzone';
 import { cn } from '@/lib/utils';
 import { m } from '@/paraglide/messages.js';
 import { useDaemon } from '@/queries/daemon';
 import { pluginQueries } from '@/queries/plugin';
-
+import { PluginBrowse } from './plugin-browse';
 import {
   InstallFromLink,
   InstallReview,
   usePluginInstall,
 } from './plugin-install';
 import { PluginRow } from './plugin-row';
+
+/** Installed and Browse, one level below the Plugins tab. */
+export function PluginsPanel() {
+  return (
+    <Tabs defaultValue="installed" className="gap-3">
+      <TabsList variant="line" className="h-auto justify-start gap-1.5">
+        <TabsChip value="installed">
+          {m['settings.plugins.tabs.installed']()}
+        </TabsChip>
+        <TabsChip value="browse">
+          {m['settings.plugins.tabs.browse']()}
+        </TabsChip>
+      </TabsList>
+      <TabsContent value="installed">
+        <PluginList />
+      </TabsContent>
+      <TabsContent value="browse">
+        <PluginBrowse />
+      </TabsContent>
+    </Tabs>
+  );
+}
 
 /** Installed plugins, one row each; the list also takes a dropped `.hplugin`. */
 export function PluginList() {

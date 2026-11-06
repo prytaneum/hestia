@@ -29,6 +29,7 @@ export type SettingsGroup =
   | 'instance-behaviour'
   | 'sync'
   | 'plugins'
+  | 'plugin-repositories'
   | 'storage'
   | 'daemon';
 
@@ -197,6 +198,17 @@ const INDEX: Entry[] = [
       m['settings.plugins.hint'],
       m['settings.plugins.install_file'],
       m['settings.plugins.install_link'],
+      m['settings.plugins.tabs.browse'],
+    ),
+  },
+  {
+    id: 'plugin-repositories',
+    tab: 'plugins',
+    group: 'plugin-repositories',
+    text: text(
+      m['settings.plugins.repos.title'],
+      m['settings.plugins.repos.hint'],
+      m['settings.plugins.repos.add'],
     ),
   },
   {

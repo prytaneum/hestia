@@ -78,9 +78,43 @@
         "install_title": "Instalar {name} {version}?",
         "update_title": "Atualizar {name} de {from} para {to}?"
       },
+      "browse": {
+        "empty": "Nenhum plugin corresponde.",
+        "none": "Adicione um repositório para ver os plugins que ele oferece.",
+        "repository": "Repositório",
+        "search": "Buscar plugins"
+      },
       "continue": "Continuar",
       "details": "Detalhes",
       "drop": "Solte para instalar",
+      "incompatible_hint": "Precisa da API de plugins {requires}.",
+      "installable_hint": "A versão {version} pode ser instalada no lugar.",
+      "installed_version": "Instalado {version}",
+      "key_id": "Chave {key}",
+      "obsolete": "Obsoleto",
+      "obsolete_hint": "Nenhum repositório que você adicionou lista mais este plugin. Ele continua funcionando, mas não recebe atualizações.",
+      "repos": {
+        "add": "Adicionar",
+        "add_placeholder": "dono/repo ou https://…/hestia-index.json",
+        "added": "{name} adicionado",
+        "already": "Já adicionado.",
+        "count": "Plugins: {count}",
+        "empty": "Nenhum repositório ainda.",
+        "hint": "Um repositório é confiável pela chave com que assina. Só plugins assinados com essa chave são instalados dele ou atualizados por ele.",
+        "refresh": "Atualizar",
+        "remove_description": "Os plugins instalados dele continuam funcionando, mas não recebem atualizações.",
+        "remove_title": "Remover {name}?",
+        "title": "Repositórios",
+        "trust": "Confiar e adicionar",
+        "trust_description": "Plugins assinados com a chave {key} poderão ser instalados de {name}. Confira se a chave é a que o autor publica.",
+        "trust_title": "Confiar em {name}?"
+      },
+      "tabs": {
+        "browse": "Explorar",
+        "installed": "Instalados"
+      },
+      "unreleased_hint": "A versão {version} ainda não tem build.",
+      "update": "Atualizar",
       "empty": "Nenhum plugin instalado.",
       "full_access": "Acesso total",
       "full_access_hint": "Pode alterar seus servidores e instâncias, instalar conteúdo ou executar programas.",

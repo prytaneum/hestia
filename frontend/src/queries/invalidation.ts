@@ -134,6 +134,7 @@ const UPSTREAM_KEYS: QueryKey[] = [
   keys.java.all,
   keys.update.all,
   keys.skins.all,
+  keys.plugins.catalogue(),
   [...keys.servers.all, 'versions'],
   [...keys.instances.all, 'versions'],
 ];

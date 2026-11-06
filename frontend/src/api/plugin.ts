@@ -3,6 +3,12 @@
 import { call } from './core/ipc';
 import { type JobRun, runJob } from './core/jobs';
 import type {
+  Catalogue,
+  RepositoryAdded,
+  RepositoryInfo,
+  RepositoryRefreshed,
+} from './types/catalogue';
+import type {
   PluginInfo,
   PluginInspection,
   PluginInstallDone,
@@ -24,6 +30,33 @@ export function action(params: PluginUiActionParams): Promise<Effect[]> {
   return call('plugin.ui.action', params);
 }
 
+/** Fetches and verifies the index; saves the repository only with `confirm`. */
+export function repoAdd(
+  url: string,
+  confirm: boolean,
+): Promise<RepositoryAdded> {
+  return call('plugin.repo.add', { url, confirm });
+}
+
+export function repoList(): Promise<RepositoryInfo[]> {
+  return call('plugin.repo.list');
+}
+
+/** Plugins installed from it keep running, as obsolete. */
+export async function repoRemove(url: string): Promise<void> {
+  await call('plugin.repo.remove', { url });
+}
+
+/** One repository by its index URL, or every configured one. */
+export function repoRefresh(url?: string): Promise<RepositoryRefreshed> {
+  return call('plugin.repo.refresh', { url });
+}
+
+/** Every plugin the configured repositories offer; unreachable ones answer from their cached index. */
+export function catalogue(): Promise<Catalogue> {
+  return call('plugin.catalogue');
+}
+
 export function list(): Promise<PluginInfo[]> {
   return call('plugin.list');
 }
@@ -41,8 +74,15 @@ export async function remove(id: string): Promise<void> {
   await call('plugin.remove', { id });
 }
 
-/** A local file or folder, or an https link the daemon downloads once. */
-export type PluginPackage = { path: string } | { url: string };
+/**
+ * A local file or folder, an https link the daemon downloads once, or a plugin
+ * of a configured repository (`repo` is its index URL): the daemon downloads
+ * the newest compatible build and checks it against the repository's key.
+ */
+export type PluginPackage =
+  | { path: string }
+  | { url: string }
+  | { repo: string; plugin: string };
 
 /** A local package by its path, or a downloaded one by its inspection's `staged` token. */
 export type PluginInstallTarget = { path: string } | { staged: string };

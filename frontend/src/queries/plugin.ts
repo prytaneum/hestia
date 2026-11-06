@@ -6,9 +6,11 @@ import type {
   PluginInspection,
   PluginInstallDone,
   PluginInstallProgress,
+  RepositoryAdded,
+  RepositoryRefreshed,
 } from '../api';
 import * as api from '../api/plugin';
-import { mutation } from './core';
+import { CATALOG_STALE_MS, mutation } from './core';
 import { jobMutation } from './jobs';
 import { keys } from './keys';
 
@@ -22,6 +24,18 @@ export const pluginQueries = {
     queryOptions({
       queryKey: keys.plugins.list(),
       queryFn: () => api.list(),
+    }),
+  repositories: () =>
+    queryOptions({
+      queryKey: keys.plugins.repositories(),
+      queryFn: () => api.repoList(),
+    }),
+  /** Reaches every repository, so it is cached like the other upstream catalogues; filtering is the caller's. */
+  catalogue: () =>
+    queryOptions({
+      queryKey: keys.plugins.catalogue(),
+      queryFn: () => api.catalogue(),
+      staleTime: CATALOG_STALE_MS,
     }),
 };
 
@@ -44,6 +58,24 @@ export const pluginMutations = {
       mutationFn: (id) => api.remove(id),
       invalidates: () => [keys.plugins.all],
     }),
+  addRepository: () =>
+    mutation<RepositoryAdded, { url: string; confirm: boolean }>({
+      mutationKey: [...keys.plugins.all, 'repo-add'],
+      mutationFn: ({ url, confirm }) => api.repoAdd(url, confirm),
+      invalidates: ({ confirm }) => (confirm ? [keys.plugins.all] : []),
+    }),
+  removeRepository: () =>
+    mutation<void, string>({
+      mutationKey: [...keys.plugins.all, 'repo-remove'],
+      mutationFn: (url) => api.repoRemove(url),
+      invalidates: () => [keys.plugins.all],
+    }),
+  refreshRepositories: () =>
+    mutation<RepositoryRefreshed, string | undefined>({
+      mutationKey: [...keys.plugins.all, 'repo-refresh'],
+      mutationFn: (url) => api.repoRefresh(url),
+      invalidates: () => [keys.plugins.all],
+    }),
   inspect: () =>
     mutation<PluginInspection, api.PluginPackage>({
       mutationKey: [...keys.plugins.all, 'inspect'],
@@ -64,6 +96,7 @@ export const pluginMutations = {
           title: m['settings.plugins.installed']({
             name: done.plugin.manifest.name || done.plugin.manifest.id,
           }),
+          warnings: done.warnings,
         }),
       },
     }),

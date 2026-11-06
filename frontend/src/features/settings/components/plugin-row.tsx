@@ -3,7 +3,7 @@ import {
   ShieldWarningIcon,
   TrashIcon,
 } from '@phosphor-icons/react';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 
 import type { PluginInfo, PluginSource, PluginState } from '@/api';
@@ -19,7 +19,7 @@ import { Switch } from '@/components/ui/switch';
 import { describeGrant } from '@/features/settings/lib';
 import { cn } from '@/lib/utils';
 import { m } from '@/paraglide/messages.js';
-import { pluginMutations } from '@/queries/plugin';
+import { pluginMutations, pluginQueries } from '@/queries/plugin';
 
 import { GrantList } from './plugin-grant';
 
@@ -34,6 +34,7 @@ const SOURCE_LABEL: Record<PluginSource, () => string> = {
   file: m['domain.plugin.source.file'],
   folder: m['domain.plugin.source.folder'],
   url: m['domain.plugin.source.url'],
+  repo: m['domain.plugin.source.repo'],
   dev: m['domain.plugin.source.dev'],
 };
 
@@ -47,6 +48,10 @@ export function PluginRow({ plugin }: { plugin: PluginInfo }) {
   const disable = useMutation(pluginMutations.disable());
   const remove = useMutation(pluginMutations.remove());
   const [open, setOpen] = useState(false);
+  const repositories = useQuery(pluginQueries.repositories());
+  const store = repositories.data?.find(
+    (repository) => repository.url === plugin.repository,
+  );
   const { id, name, version, description, authors } = plugin.manifest;
   const label = name || id;
   const on = plugin.state === 'enabled';
@@ -90,6 +95,19 @@ export function PluginRow({ plugin }: { plugin: PluginInfo }) {
                   >
                     <ShieldWarningIcon weight="fill" />
                     {m['settings.plugins.full_access']()}
+                  </Badge>
+                )}
+                {store && (
+                  <Badge variant="outline" title={store.name}>
+                    {store.label}
+                  </Badge>
+                )}
+                {plugin.obsolete && (
+                  <Badge
+                    variant="secondary"
+                    title={m['settings.plugins.obsolete_hint']()}
+                  >
+                    {m['settings.plugins.obsolete']()}
                   </Badge>
                 )}
                 {!on && (

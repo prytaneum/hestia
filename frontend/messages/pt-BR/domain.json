@@ -82,6 +82,11 @@
       "writing_pack_files": "Gravando arquivos do pacote"
     },
     "plugin": {
+      "availability": {
+        "incompatible": "Incompatível",
+        "prebuilt": "Disponível",
+        "unreleased": "Não lançado"
+      },
       "permission": {
         "account_read": "Ver os nomes das contas conectadas, nunca os tokens",
         "config_read": "Ler as configurações do launcher",
@@ -103,6 +108,7 @@
         "dev": "Desenvolvimento",
         "file": "Arquivo",
         "folder": "Pasta",
+        "repo": "Repositório",
         "url": "URL"
       },
       "state": {

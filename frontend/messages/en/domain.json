@@ -82,6 +82,11 @@
       "writing_pack_files": "Writing pack files"
     },
     "plugin": {
+      "availability": {
+        "incompatible": "Incompatible",
+        "prebuilt": "Available",
+        "unreleased": "Unreleased"
+      },
       "permission": {
         "account_read": "See the names of signed-in accounts, never their tokens",
         "config_read": "Read launcher settings",
@@ -103,6 +108,7 @@
         "dev": "Development",
         "file": "File",
         "folder": "Folder",
+        "repo": "Repository",
         "url": "URL"
       },
       "state": {
