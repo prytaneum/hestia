@@ -3,8 +3,8 @@
 use proto::error::{EntryKind, ErrorInfo};
 use proto::job::{JobStarted, JobSubject};
 use proto::plugin::{
-    CommandScope, PluginDisable, PluginEnable, PluginGet, PluginInspect, PluginInstall, PluginList,
-    PluginRemove, PluginRun,
+    CommandScope, PluginAsset, PluginDisable, PluginEnable, PluginGet, PluginInspect,
+    PluginInstall, PluginList, PluginRemove, PluginRun,
 };
 use proto::Empty;
 
@@ -59,6 +59,14 @@ pub(super) fn register(on: &mut Channels<'_>) {
             Some(id) => Ok(JobStarted { id }),
             None => Err(ErrorInfo::PluginInstallInProgress { id: plugin }),
         }
+    });
+
+    on.handle::<PluginAsset, _, _>(|p, ctx| async move {
+        let runtime = ctx.runtime.clone();
+        tokio::task::spawn_blocking(move || runtime.engine().plugins().asset(&p.plugin, &p.path))
+            .await
+            .map_err(|e| crate::runtime::engine_error(anyhow::anyhow!("{e}")))?
+            .map_err(crate::runtime::engine_error)
     });
 
     on.handle::<PluginRun, _, _>(|p, ctx| async move {

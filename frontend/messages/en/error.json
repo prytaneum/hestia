@@ -197,6 +197,7 @@
       "too_large": "it is too large to edit",
       "unlink": "unlink",
       "unsafe_path": "it holds a file path that escapes its folder",
+      "unsupported_type": "it is not a file type a plugin can serve",
       "upstream": "the server",
       "url": "download URL",
       "version": "version",

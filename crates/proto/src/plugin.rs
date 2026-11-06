@@ -762,6 +762,34 @@ impl Contract for PluginDisable {
     type Result = PluginInfo;
 }
 
+#[derive(Serialize, Deserialize, Default, Debug, Clone)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
+#[serde(default, rename_all = "camelCase")]
+pub struct PluginAssetParams {
+    pub plugin: String,
+    /// Relative to the package and under `assets/` or `themes/`.
+    pub path: String,
+}
+
+#[derive(Serialize, Deserialize, Default, Debug, Clone)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
+#[serde(default, rename_all = "camelCase")]
+pub struct PluginAssetResult {
+    pub mime: String,
+    /// The file, base64-encoded; at most 8 MiB before encoding.
+    pub bytes: String,
+}
+
+/// A file of an enabled plugin's `assets/` or `themes/`, for the desktop's
+/// `hestia-plugin` scheme. Refuses a path that leaves those directories (links
+/// included), an extension outside the served set, and a file over 8 MiB.
+pub struct PluginAsset;
+impl Contract for PluginAsset {
+    const CHANNEL: &'static str = "plugin.asset";
+    type Params = PluginAssetParams;
+    type Result = PluginAssetResult;
+}
+
 pub struct PluginRemove;
 impl Contract for PluginRemove {
     const CHANNEL: &'static str = "plugin.remove";

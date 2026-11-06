@@ -49,6 +49,7 @@ const DENIED: &[&str] = &[
     "plugin.inspect",
     "plugin.install",
     "plugin.run",
+    "plugin.asset",
     "plugin.state",
     // Other clients' subscriptions and jobs
     "events.subscribe",
@@ -182,6 +183,7 @@ fn secret_bearing_and_privileged_channels_stay_closed() {
         (PluginEnable::CHANNEL, PluginEnable::PLUGIN),
         (PluginDisable::CHANNEL, PluginDisable::PLUGIN),
         (PluginRemove::CHANNEL, PluginRemove::PLUGIN),
+        (PluginAsset::CHANNEL, PluginAsset::PLUGIN),
         (
             <ProcessOutputEvent as Topic>::TOPIC,
             <ProcessOutputEvent as Topic>::PLUGIN,

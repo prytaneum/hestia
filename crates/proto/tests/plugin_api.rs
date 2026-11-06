@@ -178,7 +178,7 @@ fn api() -> Api {
         modpack::InstanceModpackInstall, modpack::ServerModpackInstall,
         net::NetStatus,
         players::ServerPlayerKick, players::ServerPlayers, players::ServerPlayerSet,
-        plugin::PluginDisable, plugin::PluginEnable, plugin::PluginGet, plugin::PluginInspect,
+        plugin::PluginAsset, plugin::PluginDisable, plugin::PluginEnable, plugin::PluginGet, plugin::PluginInspect,
         plugin::PluginInstall, plugin::PluginList, plugin::PluginRemove, plugin::PluginRun,
         process::ProcessList, process::ProcessLogs, process::ProcessStart, process::ProcessStatus,
         process::ProcessStop,

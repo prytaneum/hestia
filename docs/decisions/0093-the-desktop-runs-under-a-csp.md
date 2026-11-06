@@ -24,6 +24,9 @@ frame-src hestia-plugin: http://hestia-plugin.localhost
 `http://<scheme>.localhost`; WebKitGTK and WKWebView use `<scheme>:`. The app
 does not set `useHttpsScheme`, so the `http://` form is the Windows one.
 
+**`hestia-plugin` is the origin of plugin files**; the daemon serves them
+([0098](0098-plugin-assets-are-served-by-the-daemon.md)).
+
 **Images never come from a host.** There is no `https:` in `img-src` or
 `style-src`. A remote image is fetched by the daemon and served over
 `hestia-image` ([Remote images](../architecture/engine.md#remote-images)), so a

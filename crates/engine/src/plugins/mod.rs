@@ -3,6 +3,7 @@
 //! record. The directory scan is the registry. The [`PluginRuntime`] runs an enabled
 //! plugin's component sandboxed ([0091](../../../../docs/decisions/0091-plugins-are-wasm-components.md)).
 
+mod asset;
 mod cache;
 mod chain;
 mod command;
@@ -16,6 +17,7 @@ mod repos;
 mod runtime;
 mod store;
 
+pub use asset::MAX_ASSET_BYTES;
 pub use chain::{CallChain, ChainError, MAX_CHAIN_DEPTH};
 pub use command::{command_args, find_command};
 pub use hooks::{Hook, HookOutcome, Hooks, Participant, Roster, Verdict};

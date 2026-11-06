@@ -15,9 +15,9 @@ use crate::bridge::{self, Bridge, CallError};
 
 pub const SCHEME: &str = "hestia-image";
 
-const SVG: &str = "image/svg+xml";
+pub(crate) const SVG: &str = "image/svg+xml";
 /// An SVG opened directly (not through `<img>`) must not run script.
-const SVG_CSP: &str = "script-src 'none'";
+pub(crate) const SVG_CSP: &str = "script-src 'none'";
 const MAX_AGE: &str = "private, max-age=86400";
 
 pub fn serve(
@@ -81,7 +81,7 @@ fn image(mime: &str, bytes: Vec<u8>) -> Response<Vec<u8>> {
         .unwrap_or_else(|_| status(StatusCode::INTERNAL_SERVER_ERROR))
 }
 
-fn status(code: StatusCode) -> Response<Vec<u8>> {
+pub(crate) fn status(code: StatusCode) -> Response<Vec<u8>> {
     let mut response = Response::new(Vec::new());
     *response.status_mut() = code;
     response

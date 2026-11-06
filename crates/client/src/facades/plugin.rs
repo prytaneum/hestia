@@ -1,7 +1,8 @@
 use ipc::errors::IpcError;
 use proto::plugin::{
-    PluginInfo, PluginInspection, PluginInstallDone, PluginInstallParams, PluginInstallProgress,
-    PluginPackageRef, PluginRef, PluginRunDone, PluginRunParams, PluginRunProgress,
+    PluginAssetParams, PluginAssetResult, PluginInfo, PluginInspection, PluginInstallDone,
+    PluginInstallParams, PluginInstallProgress, PluginPackageRef, PluginRef, PluginRunDone,
+    PluginRunParams, PluginRunProgress,
 };
 
 use crate::session::{job_id, Session};
@@ -20,6 +21,15 @@ impl Plugin<'_> {
     pub async fn info(&self, id: &str) -> Result<PluginInfo, IpcError> {
         self.session
             .call::<proto::plugin::PluginGet>(&reference(id))
+            .await
+    }
+
+    pub async fn asset(&self, plugin: &str, path: &str) -> Result<PluginAssetResult, IpcError> {
+        self.session
+            .call::<proto::plugin::PluginAsset>(&PluginAssetParams {
+                plugin: plugin.to_string(),
+                path: path.to_string(),
+            })
             .await
     }
 

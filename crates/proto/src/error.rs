@@ -284,6 +284,8 @@ pub enum FileFault {
     ArchiveFormat,
     /// A directory moved or copied to somewhere beneath itself.
     IntoItself,
+    /// A plugin asset whose extension is not one the scheme serves.
+    UnsupportedType,
 }
 
 impl fmt::Display for FileFault {
@@ -297,6 +299,7 @@ impl fmt::Display for FileFault {
             FileFault::NotText => "it is not a text file",
             FileFault::ArchiveFormat => "it is not a .zip or .tar.gz archive",
             FileFault::IntoItself => "a directory cannot be placed inside itself",
+            FileFault::UnsupportedType => "it is not a file type a plugin can serve",
         })
     }
 }
