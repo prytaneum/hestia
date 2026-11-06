@@ -3,7 +3,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use proto::plugin::{Grant, Permission, PluginRunProgress};
 use serde_json::Value;
-use tokio::sync::mpsc::UnboundedSender;
+use tokio::sync::watch;
 use tracing::Level;
 use wasmtime::component::ResourceTable;
 use wasmtime::StoreLimits;
@@ -65,10 +65,11 @@ pub trait HostCalls: Send + Sync {
 const PROGRESS_MESSAGE_CHARS: usize = 512;
 
 /// What a command run lends the guest: whether it was asked to stop, and where
-/// its progress goes.
+/// its progress goes. Progress keeps only the latest report, so a guest
+/// reporting in a tight loop cannot queue memory in the daemon.
 pub struct CommandRun {
     pub cancel: Cancel,
-    pub progress: UnboundedSender<PluginRunProgress>,
+    pub progress: watch::Sender<Option<PluginRunProgress>>,
     /// How long the guest may keep running after the cancel before its call is
     /// dropped.
     pub grace: std::time::Duration,
@@ -169,12 +170,12 @@ impl bindings::hestia::plugin::host::Host for PluginState {
 impl bindings::hestia::plugin::progress::Host for PluginState {
     async fn report(&mut self, fraction: Option<f32>, message: String) {
         if let Some(run) = &self.run {
-            let _ = run.progress.send(PluginRunProgress {
+            run.progress.send_replace(Some(PluginRunProgress {
                 fraction: fraction
                     .filter(|fraction| fraction.is_finite())
                     .map(|fraction| fraction.clamp(0.0, 1.0)),
                 message: message.chars().take(PROGRESS_MESSAGE_CHARS).collect(),
-            });
+            }));
         }
     }
 

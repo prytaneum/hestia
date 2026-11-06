@@ -7,7 +7,7 @@ use proto::plugin::{
     PluginInstall, PluginInstallDone, PluginInstallProgress, PluginRun, PluginRunDone,
 };
 use serde_json::Value;
-use tokio::sync::mpsc::unbounded_channel;
+use tokio::sync::watch;
 
 use super::job::{Jobs, Spec};
 use crate::runtime::Package;
@@ -73,7 +73,7 @@ impl Jobs {
             Box::pin(async move {
                 let cancel = reporter.cancel().clone();
                 let report = reporter.checked();
-                let (progress, mut reports) = unbounded_channel();
+                let (progress, mut reports) = watch::channel(None);
                 let control = CommandRun {
                     cancel: cancel.clone(),
                     progress,
@@ -84,8 +84,11 @@ impl Jobs {
                 let outcome = loop {
                     tokio::select! {
                         outcome = &mut call => break outcome,
-                        Some(progress) = reports.recv() => {
-                            let _ = report(&progress);
+                        Ok(()) = reports.changed() => {
+                            let latest = reports.borrow_and_update().clone();
+                            if let Some(progress) = latest {
+                                let _ = report(&progress);
+                            }
                         }
                     }
                 };

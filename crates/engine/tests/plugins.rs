@@ -20,7 +20,7 @@ use proto::plugin::{
 };
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
-use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver};
+use tokio::sync::watch;
 
 const CALL_BUDGET: Duration = Duration::from_secs(30);
 
@@ -128,9 +128,9 @@ impl Probe {
         grace: Duration,
     ) -> (
         Result<Value, CallError>,
-        UnboundedReceiver<PluginRunProgress>,
+        watch::Receiver<Option<PluginRunProgress>>,
     ) {
-        let (progress, reports) = unbounded_channel();
+        let (progress, reports) = watch::channel(None);
         let control = CommandRun {
             cancel: cancel.clone(),
             progress,
@@ -166,18 +166,16 @@ async fn a_command_runs_and_answers_its_output() {
 async fn a_command_reports_progress_to_whoever_started_it() {
     let probe = Probe::load(&[]);
 
-    let (outcome, mut reports) = probe
+    let (outcome, reports) = probe
         .run("progress", json!({}), &Cancel::new(), GRACE)
         .await;
     assert_eq!(outcome.unwrap(), json!({ "cancelled": false }));
 
-    let halfway = reports.recv().await.unwrap();
+    let latest = reports.borrow().clone().unwrap();
     assert_eq!(
-        (halfway.fraction, halfway.message.as_str()),
-        (Some(0.5), "halfway")
+        (latest.fraction, latest.message.as_str()),
+        (None, "finishing")
     );
-    let finishing = reports.recv().await.unwrap();
-    assert_eq!(finishing.fraction, None);
 }
 
 #[tokio::test]
