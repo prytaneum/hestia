@@ -43,6 +43,16 @@ is for one-time setup in the plugin's `data/` directory, not for state held in
 memory. There is no key/value interface: a plugin persists to its preopened
 `data/` directory.
 
+**A plugin's own commands are one export, not channels.** The manifest declares
+`[[contributes.commands]]` (id, title, scope `top`/`server`/`instance`, typed
+`args`) and the guest exports `commands.run(command, args)`; the daemon checks
+the arguments against that declaration before calling it, so the manifest is the
+schema. `plugin.run` is the one job that reaches them, with `progress.report` /
+`progress.cancelled` imported by the guest. It carries no `PLUGIN` permission, so
+a plugin cannot start another plugin's command through `host.call`. A run gets a
+one-hour deadline, and a cancel is asked, not forced: `cancelled()` turns true
+and the call is dropped 10 s later.
+
 ## Threat model
 
 | Asset | Defended by |
