@@ -171,7 +171,6 @@ export const keys = {
   plugins: {
     all: ['plugins'] as const,
     list: () => [...keys.plugins.all, 'list'] as const,
-    info: (id: string) => [...keys.plugins.all, 'info', id] as const,
   },
   update: {
     all: ['update'] as const,

@@ -178,11 +178,6 @@ const setState = (id: string, state: PluginState): PluginInfo => {
 
 export const channels: ChannelHandlers = {
   'plugin.list': () => plugins,
-  'plugin.info': (p) => {
-    const plugin = find(str(p, 'id'));
-    if (!plugin) throw new Error(`no plugin ${p.id}`);
-    return { ...plugin, dataBytes: 3_412_771 };
-  },
   'plugin.enable': (p) => setState(str(p, 'id'), 'enabled'),
   'plugin.disable': (p) => setState(str(p, 'id'), 'disabled'),
   'plugin.remove': (p) => {

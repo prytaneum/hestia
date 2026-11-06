@@ -150,17 +150,17 @@ export function InstallReview({
   const { manifest } = inspection;
 
   return (
-    <div className="space-y-4 border border-amber/40 bg-amber/5 p-4">
-      <div className="space-y-1">
-        <h3 className="text-sm font-medium">
+    <div className="space-y-3 border border-border p-3">
+      <div>
+        <div className="text-sm">
           {m['settings.plugins.review_title']({
             name: manifest.name || manifest.id,
             version: manifest.version,
           })}
-        </h3>
-        <p className="text-xs text-muted-foreground">
+        </div>
+        <div className="text-[11px] text-muted-foreground">
           {m['settings.plugins.review_hint']()}
-        </p>
+        </div>
       </div>
       <GrantList sections={describeApproval(inspection)} />
       <div className="flex justify-end gap-2">

@@ -1,7 +1,7 @@
 import type { Grant, Permission, PluginInspection } from '@/api/types';
 import { m } from '@/paraglide/messages.js';
 
-export type GrantSectionKind =
+type GrantSectionKind =
   | 'full_access'
   | 'permissions'
   | 'programs'

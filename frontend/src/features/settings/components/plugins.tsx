@@ -1,13 +1,14 @@
-import { FileArrowUpIcon, PuzzlePieceIcon } from '@phosphor-icons/react';
+import { FileArrowUpIcon } from '@phosphor-icons/react';
 import { useQuery } from '@tanstack/react-query';
 
 import { dialog } from '@/api';
-import { Empty } from '@/components/empty';
 import { Bone } from '@/components/skeleton';
 import { Button } from '@/components/ui/button';
+import { Field, FieldDescription } from '@/components/ui/field';
 import { useDropzone } from '@/hooks/use-dropzone';
 import { cn } from '@/lib/utils';
 import { m } from '@/paraglide/messages.js';
+import { useDaemon } from '@/queries/daemon';
 import { pluginQueries } from '@/queries/plugin';
 
 import {
@@ -17,13 +18,10 @@ import {
 } from './plugin-install';
 import { PluginRow } from './plugin-row';
 
-/**
- * Installed plugins under one toolbar: a count and the two ways in, a file or a
- * link. The whole list takes a dropped `.hplugin`, so the install surface costs
- * no space once there is something to manage.
- */
+/** Installed plugins, one row each; the list also takes a dropped `.hplugin`. */
 export function PluginList() {
   const plugins = useQuery(pluginQueries.list());
+  const daemon = useDaemon();
   const install = usePluginInstall();
   const { getRootProps, isDragActive } = useDropzone<HTMLDivElement>({
     accept: dialog.PLUGIN_EXTENSIONS,
@@ -31,27 +29,30 @@ export function PluginList() {
     label: m['settings.plugins.drop'](),
     onDrop: ([path]) => void install.start({ path }),
   });
-  const installed = plugins.data ?? [];
 
   const pickFile = async () => {
     const [path] = await dialog.pickPluginPackage();
     if (path) await install.start({ path });
   };
 
+  if (plugins.isPending) return <Bone className="h-32" />;
+  const installed = plugins.data ?? [];
+
   return (
-    <div className="space-y-3">
+    <Field>
       <div className="flex items-center justify-between gap-3">
-        <span className="text-xs text-muted-foreground">
-          {plugins.isPending
-            ? ' '
-            : m['settings.plugins.count']({ count: installed.length })}
-        </span>
-        <div className="flex items-center gap-2">
+        <FieldDescription>
+          {daemon.status?.safeMode
+            ? m['app.daemon.safe_mode_hint']()
+            : m['settings.plugins.drop_hint']()}
+        </FieldDescription>
+        <div className="flex shrink-0 items-center gap-2">
           <InstallFromLink
             busy={install.busy}
             onSubmit={(url) => void install.start({ url })}
           />
           <Button
+            variant="outline"
             size="sm"
             disabled={install.busy}
             onClick={() => void pickFile()}
@@ -75,30 +76,20 @@ export function PluginList() {
       <div
         {...getRootProps()}
         className={cn(
-          'border border-border transition-colors',
-          isDragActive && 'border-dashed border-primary bg-primary/5',
+          'divide-y divide-border border border-border',
+          isDragActive && 'border-dashed border-primary',
         )}
       >
-        {plugins.isPending ? (
-          <div className="space-y-px p-3">
-            <Bone className="h-12" />
-            <Bone className="h-12" />
-          </div>
-        ) : installed.length > 0 ? (
-          <div className="divide-y divide-border">
-            {installed.map((plugin) => (
-              <PluginRow key={plugin.manifest.id} plugin={plugin} />
-            ))}
-          </div>
-        ) : (
-          <Empty
-            icon={PuzzlePieceIcon}
-            description={m['settings.plugins.empty_hint']()}
-          >
+        {installed.length === 0 ? (
+          <p className="px-3 py-2 text-xs text-muted-foreground">
             {m['settings.plugins.empty']()}
-          </Empty>
+          </p>
+        ) : (
+          installed.map((plugin) => (
+            <PluginRow key={plugin.manifest.id} plugin={plugin} />
+          ))
         )}
       </div>
-    </div>
+    </Field>
   );
 }

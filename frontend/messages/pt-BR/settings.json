@@ -78,23 +78,11 @@
         "install_title": "Instalar {name} {version}?",
         "update_title": "Atualizar {name} de {from} para {to}?"
       },
-      "by": "por {authors}",
       "continue": "Continuar",
-      "count": "{count} instalado(s)",
       "details": "Detalhes",
       "drop": "Solte para instalar",
-      "empty": "Nenhum plugin ainda",
-      "empty_hint": "Instale um a partir de um arquivo .hplugin ou de um link — ou solte um arquivo aqui.",
-      "facts": {
-        "calls": "Chamadas",
-        "commands": "Comandos",
-        "data": "Dados",
-        "sha256": "SHA-256",
-        "source": "Origem",
-        "themes": "Temas",
-        "timeouts": "Tempo esgotado",
-        "traps": "Falhas"
-      },
+      "drop_hint": "Solte um arquivo .hplugin na lista para instalá-lo.",
+      "empty": "Nenhum plugin instalado.",
       "full_access": "Acesso total",
       "full_access_hint": "Pode alterar seus servidores e instâncias, instalar conteúdo ou executar programas.",
       "grant": {

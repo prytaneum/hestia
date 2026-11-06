@@ -78,23 +78,11 @@
         "install_title": "Install {name} {version}?",
         "update_title": "Update {name} from {from} to {to}?"
       },
-      "by": "by {authors}",
       "continue": "Continue",
-      "count": "{count} installed",
       "details": "Details",
       "drop": "Drop to install",
-      "empty": "No plugins yet",
-      "empty_hint": "Install one from a .hplugin file or a link — or drop a file right here.",
-      "facts": {
-        "calls": "Calls",
-        "commands": "Commands",
-        "data": "Data",
-        "sha256": "SHA-256",
-        "source": "Source",
-        "themes": "Themes",
-        "timeouts": "Timed out",
-        "traps": "Crashed"
-      },
+      "drop_hint": "Drop a .hplugin file on the list to install it.",
+      "empty": "No plugins installed.",
       "full_access": "Full access",
       "full_access_hint": "Can change your servers and instances, install content or run programs.",
       "grant": {
