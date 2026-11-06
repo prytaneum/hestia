@@ -137,8 +137,7 @@ mod tests {
     fn refusal(plugins: &Plugins, id: &str, path: &str) -> ErrorInfo {
         plugins
             .asset(id, path)
-            .err()
-            .expect("refused")
+            .expect_err("refused")
             .downcast::<ErrorInfo>()
             .expect("typed")
     }
