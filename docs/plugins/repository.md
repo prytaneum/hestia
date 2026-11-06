@@ -72,6 +72,30 @@ remote (a `git@host:owner/repo` remote becomes https). Each added package's down
 `<repository>/releases/download/<id>-v<version>/<id>-<version>.hplugin`, the GitHub layout. `--previous` carries its
 builds and revocations over.
 
+## Adding a repository
+
+Users add a repository by `owner/repo` or `github.com/owner/repo` (read at the release asset above) or by any https URL
+of a `hestia-index.json`, which is how a repository on GitLab, Forgejo or a static host is added. Hestia fetches the
+index and its `<url>.minisig` (https only, every redirect https, 8 MiB at most), verifies the signature against the key
+the index declares and shows the repository's name, label, website, **key id** and plugin count. Nothing is saved until
+the user agrees; saving pins that key. The list lives in `<data home>/plugins/repositories.json`, the last good index of
+each beside the other catalogue caches.
+
+- A refresh checks the pinned key, never the one the index now declares. A changed key, a bad signature or a lower
+  `version` than the cached one is refused and the cached index stays; an unreachable repository (404, offline) keeps its
+  cached index and warns. Only adding treats a missing index as "not a Hestia repository".
+- The catalogue merges every repository by plugin id and key: repositories pinning the same key are mirrors and show as
+  one entry naming each of them, the same id under another key is another entry. Each entry is `available` (a build of
+  the latest version matches this Hestia's API), `unreleased` (the latest version has no build yet) or `incompatible`
+  (its builds need another API); an older compatible build is named when there is one.
+- Installing picks the newest compatible, unrevoked build, downloads it from the URL the index gives (any host: the
+  signature, not the host, proves the origin), checks its sha256 and its `.minisig` against the repository's key, then
+  runs the usual review and approval. The approval uses the permissions of the package itself; an index that lists
+  others is reported as a warning. The install records the signer's key id and the repository.
+- A plugin whose signer's key no configured repository lists is **obsolete**: it keeps running and gets no updates.
+  Removing a repository makes its plugins obsolete until a repository with that key is added again. A plugin installed
+  from a file, folder or plain link has no signer and is never obsolete.
+
 ## Keys and signatures
 
 A repository is the minisign key it declares ([0097](../decisions/0097-trust-follows-the-repository-key.md)).

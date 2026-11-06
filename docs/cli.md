@@ -692,14 +692,38 @@ immediately. The tray's **Quit** and the desktop's stop button always mean
 `hestia server <name> plugin`.
 
 ```bash
-hestia plugin list               # id, name, version, state, source
+hestia plugin list               # id, name, version, state, source (obsolete ones say so)
 hestia plugin add <path>         # a .hplugin or a folder; shows the permissions, confirms; -y approves them
-hestia plugin add <https-url>    # downloads a .hplugin (https only, 64 MiB max), then the same prompt
-hestia plugin info <id>          # manifest, state, permissions, last error, call counters
+hestia plugin add <https-url>    # a link to a .hplugin (https only, 64 MiB max), then the same prompt
+hestia plugin add <id>           # from an added repository: its newest build for this Hestia
+hestia plugin add <label>/<id>   # the same, from the repository with that label
+hestia plugin add <index-url>    # a repository's link: offers to add it, then to pick plugins from it
+hestia plugin info <id>          # manifest, state, permissions, signer, repository, last error, call counters
 hestia plugin enable <id>        # load it
 hestia plugin disable <id>       # unload it; it stays installed
 hestia plugin remove <id>        # confirms first; -y skips the prompt
 ```
+
+Any other https link is read as a repository index; only one ending in `.hplugin` is a package. An id offered under
+more than one key asks which (`<label>/<id>` names it); without a terminal the error lists the choices.
+
+### Plugin repositories
+
+A repository is trusted by the minisign key it declares, not by its address
+([0097](decisions/0097-trust-follows-the-repository-key.md)). Adding one shows what it is, with the key id, and asks
+before trusting it.
+
+```bash
+hestia plugin repo add <owner/repo|github.com/owner/repo|https-index-url>   # shows name, label, website, key id, plugin count; asks; -y trusts the key shown
+hestia plugin repo list          # label, name, key id, plugin count, website
+hestia plugin repo refresh [ref] # fetch again; an unreachable one keeps its cached index and warns
+hestia plugin repo remove <ref>  # label, name or index URL; its plugins keep running, as obsolete
+hestia plugin browse [query] [--repo <ref>]   # every plugin of every repository, with store label, key id and status
+```
+
+A refresh refuses an index signed by another key, declaring another key, or older than the one kept; for a named
+repository that is an error, for all of them a warning, and the cached index stays. `browse` works offline from the
+last good copies.
 
 Writing one needs no daemon. A plugin lives in a repository: a cargo workspace (`members = ["plugins/*"]`) with one
 `plugins/<id>/` folder per plugin, holding `plugin.toml`, `Cargo.toml`, `src/` and optionally `assets/` and `themes/`.
