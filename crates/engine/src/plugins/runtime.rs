@@ -6,6 +6,7 @@ use std::time::Duration;
 
 use futures_util::future::BoxFuture;
 use proto::plugin::{Grant, DATA_MOUNT};
+use serde_json::Value;
 use sha2::{Digest, Sha256};
 use tokio::sync::{Semaphore, SemaphorePermit};
 use tokio::time::{timeout_at, Instant};
@@ -17,7 +18,7 @@ use wasmtime_wasi::{FsPerms, WasiCtxBuilder};
 use super::cache::ComponentCache;
 use super::chain::{CallChain, ChainError};
 use super::imports::bindings::{self, hestia::plugin::types::PluginError};
-use super::imports::{Gate, HostCalls, PluginState};
+use super::imports::{CommandRun, Gate, HostCalls, PluginState};
 use super::output::{Captured, PluginLog};
 use super::store::PluginRecord;
 use crate::checksum::hex;
@@ -26,7 +27,13 @@ pub const EVENT_TIMEOUT: Duration = Duration::from_secs(5);
 pub const HOOK_TIMEOUT: Duration = Duration::from_secs(2);
 pub const UI_TIMEOUT: Duration = Duration::from_secs(10);
 pub const PROVIDER_TIMEOUT: Duration = Duration::from_secs(30);
+/// The deadline of a `plugin.run` command: it is a job the user can cancel, so
+/// it may outlast an ordinary call by far.
+pub const COMMAND_TIMEOUT: Duration = Duration::from_secs(60 * 60);
+/// How long a cancelled command may keep running before its call is dropped.
+pub const CANCEL_GRACE: Duration = Duration::from_secs(10);
 
+const CANCEL_POLL: Duration = Duration::from_millis(50);
 const EPOCH_TICK: Duration = Duration::from_millis(10);
 const POOL_SLOTS: u32 = 16;
 const MEMORY_LIMIT: usize = 256 * 1024 * 1024;
@@ -57,6 +64,8 @@ pub enum CallError {
     Busy,
     #[error("the plugin did not answer within {0:?}")]
     Timeout(Duration),
+    #[error("the command was cancelled and did not stop in time")]
+    Cancelled,
     #[error("the plugin trapped: {0}")]
     Trap(String),
     #[error("cannot prepare the plugin's sandbox: {0}")]
@@ -262,11 +271,38 @@ impl LoadedPlugin {
     /// Runs the plugin's `lifecycle.init`.
     pub async fn init(&self, chain: &CallChain, timeout: Duration) -> Result<(), CallError> {
         let outcome = self
-            .guarded(chain, timeout, |store, instance| {
+            .guarded(chain, timeout, None, |store, instance| {
                 Box::pin(instance.hestia_plugin_lifecycle().call_init(store))
             })
             .await?;
         outcome.map_err(|error| CallError::Guest(describe(error)))
+    }
+
+    /// Runs the plugin's `commands.run` under `timeout`; `args` is the object
+    /// the command declares. A cancel in `control` is only asked of the guest:
+    /// after `control.grace` the call is dropped with [`CallError::Cancelled`].
+    pub async fn run_command(
+        &self,
+        chain: &CallChain,
+        command: &str,
+        args: &Value,
+        control: CommandRun,
+        timeout: Duration,
+    ) -> Result<Value, CallError> {
+        let (command, args) = (command.to_string(), args.to_string());
+        let reply = self
+            .guarded(chain, timeout, Some(control), move |store, instance| {
+                Box::pin(async move {
+                    instance
+                        .hestia_plugin_commands()
+                        .call_run(store, &command, &args)
+                        .await
+                })
+            })
+            .await?
+            .map_err(|error| CallError::Guest(describe(error)))?;
+        serde_json::from_str(&reply)
+            .map_err(|error| CallError::Guest(format!("the command's result is not JSON: {error}")))
     }
 
     /// Runs `run` on a fresh store under one wall-clock budget that covers
@@ -277,6 +313,7 @@ impl LoadedPlugin {
         &self,
         chain: &CallChain,
         timeout: Duration,
+        control: Option<CommandRun>,
         run: F,
     ) -> Result<T, CallError>
     where
@@ -295,26 +332,48 @@ impl LoadedPlugin {
         let _pool_slot = acquire(&self.pool, deadline).await?;
         self.calls.fetch_add(1, Ordering::Relaxed);
 
+        let control = control.map(Arc::new);
         let mut store = self
-            .new_store(chain)
+            .new_store(chain, control.clone())
             .map_err(|error| CallError::Setup(format!("{error:#}")))?;
         let attempt = async {
             let instance = self.pre.instantiate_async(&mut store).await?;
             run(&mut store, &instance).await
         };
-        let outcome = match timeout_at(deadline, attempt).await {
-            Err(_) => {
+        let stopped = async {
+            match &control {
+                Some(control) => {
+                    while !control.cancel.is_cancelled() {
+                        tokio::time::sleep(CANCEL_POLL).await;
+                    }
+                    tokio::time::sleep(control.grace).await;
+                }
+                None => std::future::pending().await,
+            }
+        };
+        let attempt = async {
+            tokio::select! {
+                result = timeout_at(deadline, attempt) => Some(result),
+                () = stopped => None,
+            }
+        };
+        let outcome = match attempt.await {
+            None => {
+                tracing::info!(plugin = %self.id, "plugin command dropped after its cancel");
+                Err(CallError::Cancelled)
+            }
+            Some(Err(_)) => {
                 self.timeouts.fetch_add(1, Ordering::Relaxed);
                 tracing::warn!(plugin = %self.id, ?timeout, "plugin call timed out");
                 Err(CallError::Timeout(timeout))
             }
-            Ok(Err(error)) => {
+            Some(Ok(Err(error))) => {
                 let message = format!("{error:#}");
                 tracing::warn!(plugin = %self.id, error = %message, "plugin trapped");
                 self.record_trap();
                 Err(CallError::Trap(message))
             }
-            Ok(Ok(value)) => {
+            Some(Ok(Ok(value))) => {
                 tracing::debug!(
                     plugin = %self.id,
                     elapsed_ms = started.elapsed().as_millis() as u64,
@@ -327,7 +386,11 @@ impl LoadedPlugin {
         outcome
     }
 
-    fn new_store(&self, chain: CallChain) -> wasmtime::Result<Store<PluginState>> {
+    fn new_store(
+        &self,
+        chain: CallChain,
+        run: Option<Arc<CommandRun>>,
+    ) -> wasmtime::Result<Store<PluginState>> {
         let mut wasi = WasiCtxBuilder::new();
         wasi.stdout(Captured::stdout(self.log.clone()))
             .stderr(Captured::stderr(self.log.clone()))
@@ -344,6 +407,7 @@ impl LoadedPlugin {
             .trap_on_grow_failure(true)
             .build();
         let state = PluginState {
+            run,
             wasi: wasi.build(),
             table: ResourceTable::new(),
             limits,

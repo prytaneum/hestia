@@ -43,7 +43,7 @@ mod version;
 
 pub use accounts::{Accounts, LoginChallenge, ReauthRequired};
 pub use cache::{Cache, CacheEntry, CacheUsage};
-pub use cancel::{is_cancelled, Cancel, Job};
+pub use cancel::{is_cancelled, Cancel, Cancelled, Job};
 pub use config::{Config, ConfigError, Settings};
 pub use content::provider::{ContentProvider, LocalFile, UrlRef};
 pub use content::Content;
@@ -66,9 +66,10 @@ pub use minecraft::{
 };
 pub use net::Network;
 pub use plugins::{
-    CallChain, CallError, ChainError, HostCalls, HostError, Inspection, LoadError, LoadedPlugin,
-    PluginPackage, PluginRecord, PluginRuntime, PluginStats, Plugins, Remote, Staged,
-    EVENT_TIMEOUT, HOOK_TIMEOUT, MAX_CHAIN_DEPTH, PROVIDER_TIMEOUT, UI_TIMEOUT,
+    command_args, find_command, CallChain, CallError, ChainError, CommandRun, HostCalls, HostError,
+    Inspection, LoadError, LoadedPlugin, PluginPackage, PluginRecord, PluginRuntime, PluginStats,
+    Plugins, Remote, Staged, CANCEL_GRACE, COMMAND_TIMEOUT, EVENT_TIMEOUT, HOOK_TIMEOUT,
+    MAX_CHAIN_DEPTH, PROVIDER_TIMEOUT, UI_TIMEOUT,
 };
 pub use process::{ExitObserver, ProcessEvents, ProcessSupervisor, StartError};
 pub use roster::RegisterError;

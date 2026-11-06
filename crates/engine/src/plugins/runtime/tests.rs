@@ -55,6 +55,12 @@ fn guest(calls_host: bool, body: &str) -> String {
             (core module $main
                 (import "libc" "memory" (memory 1))
                 {core_import}
+                (data (i32.const 48) "{{}}")
+                (func (export "run") (param i32 i32 i32 i32) (result i32)
+                    (i32.store8 (i32.const 144) (i32.const 0))
+                    (i32.store (i32.const 148) (i32.const 48))
+                    (i32.store (i32.const 152) (i32.const 2))
+                    (i32.const 144))
                 (func (export "init") (result i32)
                     {body}
                     (i32.store8 (i32.const 128) (i32.const 0))
@@ -65,7 +71,14 @@ fn guest(calls_host: bool, body: &str) -> String {
                     (memory (core memory $libc "memory"))
                     (realloc (core func $libc "realloc"))))
             (instance $lifecycle (export "init" (func $init)))
-            (export "hestia:plugin/lifecycle@1.0.0" (instance $lifecycle)))"#
+            (export "hestia:plugin/lifecycle@1.0.0" (instance $lifecycle))
+            (func $run (param "command" string) (param "args" string)
+                (result (result string (error $err)))
+                (canon lift (core func $main "run")
+                    (memory (core memory $libc "memory"))
+                    (realloc (core func $libc "realloc"))))
+            (instance $commands (export "run" (func $run)))
+            (export "hestia:plugin/commands@1.0.0" (instance $commands)))"#
     )
 }
 

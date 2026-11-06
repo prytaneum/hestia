@@ -20,14 +20,18 @@
 //! ```
 
 mod call;
+mod command;
 pub mod data;
 mod error;
 pub mod log;
+pub mod progress;
 
 pub use call::{call, run_job};
+pub use command::args;
 pub use error::Error;
 /// The daemon's wire contracts and domain types, the same ones the CLI uses.
 pub use proto;
+pub use serde_json::{self, json, Value};
 
 #[doc(hidden)]
 pub mod bindings {
@@ -66,6 +70,15 @@ pub trait Plugin {
     fn init() -> Result<(), Error> {
         Ok(())
     }
+
+    /// Runs a command the manifest contributes; `args` is an object of its
+    /// declared arguments, plus `entry` for a scoped command. Read them with
+    /// [`args`]. Report through [`progress`] and return soon after
+    /// [`progress::cancelled`] turns true.
+    fn run(command: &str, args: Value) -> Result<Value, Error> {
+        let _ = args;
+        Err(Error::NotFound(format!("unknown command `{command}`")))
+    }
 }
 
 /// Exports a [`Plugin`] implementation as the component's entry points. Use it
@@ -89,6 +102,22 @@ macro_rules! plugin {
                 ) -> ::core::result::Result<(), $crate::bindings::hestia::plugin::types::PluginError>
                 {
                     <$plugin as $crate::Plugin>::init().map_err(::core::convert::Into::into)
+                }
+            }
+
+            impl $crate::bindings::exports::hestia::plugin::commands::Guest for Export {
+                fn run(
+                    command: ::std::string::String,
+                    args: ::std::string::String,
+                ) -> ::core::result::Result<
+                    ::std::string::String,
+                    $crate::bindings::hestia::plugin::types::PluginError,
+                > {
+                    let args = $crate::serde_json::from_str(&args)
+                        .map_err(|error| $crate::Error::Invalid(error.to_string()))?;
+                    <$plugin as $crate::Plugin>::run(&command, args)
+                        .map(|output| output.to_string())
+                        .map_err(::core::convert::Into::into)
                 }
             }
 

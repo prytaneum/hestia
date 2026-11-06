@@ -1,0 +1,20 @@
+package hestia:plugin@1.0.0;
+
+interface commands {
+    use types.{json, plugin-error};
+
+    /// Runs one of the commands the manifest contributes. `args` is an object of
+    /// the declared arguments, plus `entry` (the resolved id) for a scoped command.
+    /// Returns the command's output as JSON.
+    run: func(command: string, args: json) -> result<json, plugin-error>;
+}
+
+interface progress {
+    /// Tells whoever started the command how far it is. `fraction` is in
+    /// `0.0..=1.0`, or absent when the plugin cannot tell.
+    report: func(fraction: option<f32>, message: string);
+
+    /// True once the command was cancelled. Cancelling only asks: return soon
+    /// after, because the call is dropped a few seconds later.
+    cancelled: func() -> bool;
+}

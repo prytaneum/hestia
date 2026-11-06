@@ -1,8 +1,9 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use proto::plugin::{Grant, Permission};
+use proto::plugin::{Grant, Permission, PluginRunProgress};
 use serde_json::Value;
+use tokio::sync::mpsc::UnboundedSender;
 use tracing::Level;
 use wasmtime::component::ResourceTable;
 use wasmtime::StoreLimits;
@@ -10,6 +11,7 @@ use wasmtime_wasi::{WasiCtx, WasiCtxView, WasiView};
 
 use super::chain::CallChain;
 use super::output::PluginLog;
+use crate::cancel::Cancel;
 
 pub(crate) mod bindings {
     wasmtime::component::bindgen!({
@@ -60,8 +62,21 @@ pub trait HostCalls: Send + Sync {
     ) -> Result<Value, HostError>;
 }
 
+const PROGRESS_MESSAGE_CHARS: usize = 512;
+
+/// What a command run lends the guest: whether it was asked to stop, and where
+/// its progress goes.
+pub struct CommandRun {
+    pub cancel: Cancel,
+    pub progress: UnboundedSender<PluginRunProgress>,
+    /// How long the guest may keep running after the cancel before its call is
+    /// dropped.
+    pub grace: std::time::Duration,
+}
+
 /// Per-call store data; dropped with the call.
 pub(crate) struct PluginState {
+    pub(crate) run: Option<Arc<CommandRun>>,
     pub(crate) wasi: WasiCtx,
     pub(crate) table: ResourceTable,
     pub(crate) limits: StoreLimits,
@@ -148,6 +163,25 @@ impl bindings::hestia::plugin::host::Host for PluginState {
     async fn run_job(&mut self, channel: String, payload: String) -> Result<String, PluginError> {
         let gate = self.gate.clone();
         gate.dispatch(Dispatch::RunJob, &channel, &payload).await
+    }
+}
+
+impl bindings::hestia::plugin::progress::Host for PluginState {
+    async fn report(&mut self, fraction: Option<f32>, message: String) {
+        if let Some(run) = &self.run {
+            let _ = run.progress.send(PluginRunProgress {
+                fraction: fraction
+                    .filter(|fraction| fraction.is_finite())
+                    .map(|fraction| fraction.clamp(0.0, 1.0)),
+                message: message.chars().take(PROGRESS_MESSAGE_CHARS).collect(),
+            });
+        }
+    }
+
+    async fn cancelled(&mut self) -> bool {
+        self.run
+            .as_ref()
+            .is_some_and(|run| run.cancel.is_cancelled())
     }
 }
 

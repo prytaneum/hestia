@@ -43,5 +43,7 @@ interface lifecycle {
 world plugin {
     import log;
     import host;
+    import progress;
     export lifecycle;
+    export commands;
 }

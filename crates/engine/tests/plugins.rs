@@ -10,11 +10,17 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use engine::{
-    CallChain, CallError, HostCalls, HostError, LoadedPlugin, PluginRecord, PluginRuntime,
+    command_args, CallChain, CallError, Cancel, CommandRun, HostCalls, HostError, LoadedPlugin,
+    PluginRecord, PluginRuntime,
 };
-use proto::plugin::{Grant, Permission};
+use proto::error::ErrorInfo;
+use proto::plugin::{
+    CommandArg, CommandArgKind, CommandContribution, CommandScope, Grant, Permission,
+    PluginRunProgress,
+};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
+use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver};
 
 const CALL_BUDGET: Duration = Duration::from_secs(30);
 
@@ -113,6 +119,157 @@ impl Probe {
     async fn init(&self) -> Result<(), CallError> {
         self.plugin.init(&CallChain::default(), CALL_BUDGET).await
     }
+
+    async fn run(
+        &self,
+        command: &str,
+        args: Value,
+        cancel: &Cancel,
+        grace: Duration,
+    ) -> (
+        Result<Value, CallError>,
+        UnboundedReceiver<PluginRunProgress>,
+    ) {
+        let (progress, reports) = unbounded_channel();
+        let control = CommandRun {
+            cancel: cancel.clone(),
+            progress,
+            grace,
+        };
+        let outcome = self
+            .plugin
+            .run_command(&CallChain::default(), command, &args, control, CALL_BUDGET)
+            .await;
+        (outcome, reports)
+    }
+}
+
+const GRACE: Duration = Duration::from_millis(300);
+
+#[tokio::test]
+async fn a_command_runs_and_answers_its_output() {
+    let probe = Probe::load(&[]);
+
+    let (outcome, _) = probe
+        .run("echo", json!({ "name": "smp" }), &Cancel::new(), GRACE)
+        .await;
+    assert_eq!(outcome.unwrap(), json!({ "name": "smp" }));
+
+    let (unknown, _) = probe.run("nope", json!({}), &Cancel::new(), GRACE).await;
+    let Err(CallError::Guest(message)) = unknown else {
+        panic!("{unknown:?}");
+    };
+    assert!(message.contains("unknown command"), "{message}");
+}
+
+#[tokio::test]
+async fn a_command_reports_progress_to_whoever_started_it() {
+    let probe = Probe::load(&[]);
+
+    let (outcome, mut reports) = probe
+        .run("progress", json!({}), &Cancel::new(), GRACE)
+        .await;
+    assert_eq!(outcome.unwrap(), json!({ "cancelled": false }));
+
+    let halfway = reports.recv().await.unwrap();
+    assert_eq!(
+        (halfway.fraction, halfway.message.as_str()),
+        (Some(0.5), "halfway")
+    );
+    let finishing = reports.recv().await.unwrap();
+    assert_eq!(finishing.fraction, None);
+}
+
+#[tokio::test]
+async fn a_cancelled_command_sees_it_and_stops_on_its_own() {
+    let probe = Probe::load(&[]);
+    let cancel = Cancel::new();
+    let asker = cancel.clone();
+    tokio::spawn(async move {
+        tokio::time::sleep(Duration::from_millis(200)).await;
+        asker.cancel();
+    });
+
+    let (outcome, _) = probe.run("wait", json!({}), &cancel, CALL_BUDGET).await;
+
+    let Err(CallError::Guest(message)) = outcome else {
+        panic!("{outcome:?}");
+    };
+    assert_eq!(message, "stopped");
+}
+
+#[tokio::test]
+async fn a_command_that_ignores_its_cancel_is_dropped_after_the_grace() {
+    let probe = Probe::load(&[]);
+    let cancel = Cancel::new();
+    cancel.cancel();
+
+    let started = std::time::Instant::now();
+    let (outcome, _) = probe.run("stubborn", json!({}), &cancel, GRACE).await;
+
+    assert!(matches!(outcome, Err(CallError::Cancelled)), "{outcome:?}");
+    assert!(started.elapsed() < Duration::from_secs(10));
+    probe.init().await.unwrap();
+    assert_eq!(probe.plugin.stats().traps, 0);
+}
+
+fn declared(scope: CommandScope) -> CommandContribution {
+    let arg = |name: &str, kind, required| CommandArg {
+        name: name.into(),
+        kind,
+        required,
+        help: String::new(),
+    };
+    CommandContribution {
+        id: "go".into(),
+        scope,
+        args: vec![
+            arg("name", CommandArgKind::String, true),
+            arg("count", CommandArgKind::Number, false),
+            arg("loud", CommandArgKind::Bool, false),
+        ],
+        ..CommandContribution::default()
+    }
+}
+
+fn refused(result: Result<Value, ErrorInfo>) -> String {
+    match result {
+        Err(ErrorInfo::PluginCommandInvalid { detail, .. }) => detail,
+        other => panic!("{other:?}"),
+    }
+}
+
+#[test]
+fn arguments_are_checked_against_the_declaration_before_the_guest_runs() {
+    let top = declared(CommandScope::Top);
+    let check = |args| command_args("demo", &top, None, &args);
+
+    assert_eq!(
+        check(json!({ "name": "a", "count": 2, "loud": true })).unwrap(),
+        json!({ "name": "a", "count": 2, "loud": true })
+    );
+    assert_eq!(
+        check(json!({ "name": "a", "count": null })).unwrap(),
+        json!({ "name": "a" })
+    );
+    assert!(refused(check(json!({}))).contains("`name` is required"));
+    assert!(refused(check(json!({ "name": 1 }))).contains("`name` must be a string"));
+    assert!(refused(check(json!({ "name": "a", "extra": 1 }))).contains("unknown argument `extra`"));
+    assert!(refused(check(json!(["a"]))).contains("must be an object"));
+}
+
+#[test]
+fn a_scoped_command_needs_its_entry_and_a_top_one_refuses_it() {
+    let args = json!({ "name": "a" });
+    let server = declared(CommandScope::Server);
+    let top = declared(CommandScope::Top);
+
+    assert!(refused(command_args("demo", &server, None, &args)).contains("needs an entry"));
+    assert!(refused(command_args("demo", &top, Some("srv-1"), &args)).contains("no entry"));
+    assert_eq!(
+        command_args("demo", &server, Some("srv-1"), &args).unwrap(),
+        json!({ "name": "a", "entry": "srv-1" })
+    );
 }
 
 #[tokio::test]
