@@ -101,7 +101,7 @@ impl Jobs {
                     allow_downgrade: params.allow_downgrade,
                 };
                 let outcome = engine
-                    .update_server_with_pack(update, params.pack, &reporter.job())
+                    .update_server_with_pack(update, params.pack, &chain, &reporter.job())
                     .await;
                 let restarted = match stopped {
                     true => Some(start_server(engine, &processes, &record.id, &chain).await),

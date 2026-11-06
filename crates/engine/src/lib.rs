@@ -49,8 +49,8 @@ pub use content::provider::{ContentProvider, LocalFile, UrlRef};
 pub use content::Content;
 pub use download::Downloader;
 pub use engine::{
-    Engine, EntryRef, ExportOutcome, ImportOutcome, LaunchRequest, ModpackOutcome,
-    ServerCreateSpec, ServerListWrite, ServerUpdateSpec, VersionChange,
+    Engine, EntryRef, ExportOutcome, ImportOutcome, InstanceUpdateSpec, LaunchRequest,
+    ModpackOutcome, Repin, ServerCreateSpec, ServerListWrite, ServerUpdateSpec, VersionChange,
 };
 pub use error::error_info;
 pub use files::FileTree;

@@ -12,7 +12,7 @@ use proto::content::{
 };
 use proto::download::HashAlgorithm;
 use proto::error::ErrorInfo;
-use proto::minecraft::ProvisionPhase;
+use proto::minecraft::{Artifact, ProvisionPhase};
 use proto::warning::WarningInfo;
 
 use super::super::download::Download;
@@ -59,6 +59,7 @@ impl Engine {
         let worlds = datapack_worlds(ctx, spec)?;
 
         let mut failures = Vec::new();
+        let mut warnings = Vec::new();
         let mut roots = Vec::new();
         let mut files = Vec::new();
         for item in &spec.items {
@@ -141,7 +142,22 @@ impl Engine {
                     "the chosen source does not recognise this file; importing it untracked"
                 );
             }
-            match add_file_content(ctx, spec.kind, item, &worlds, known, matches) {
+            let filename = local_filename(item, known);
+            let context = local_context(
+                ctx,
+                spec.kind,
+                known,
+                &filename,
+                file.as_ref().map(|f| f.sha1.as_str()),
+            );
+            match self.vet_install(&context, chain).await {
+                Ok(mut skipped) => warnings.append(&mut skipped),
+                Err(refused) => {
+                    failures.push(failure(&item.path, "", refused));
+                    continue;
+                }
+            }
+            match add_file_content(ctx, spec.kind, item, &filename, &worlds, known, matches) {
                 Ok(installed) => items.push(installed),
                 Err(e) => failures.push(failure(&item.path, "", crate::error_info(e))),
             }
@@ -151,6 +167,7 @@ impl Engine {
             .await;
         items.append(&mut platform.items);
         failures.append(&mut platform.failures);
+        warnings.append(&mut platform.warnings);
 
         let mut pool = Pool::open(&ctx.entry_dir, &ctx.data_dir, ctx.worlds());
         let mut recorded = Vec::new();
@@ -183,7 +200,7 @@ impl Engine {
         Ok(ContentDone {
             items,
             failures,
-            warnings: platform.warnings,
+            warnings,
         })
     }
 
@@ -327,11 +344,13 @@ impl Engine {
 
         let mut downloads = Vec::new();
         for (node, version) in planned {
-            match self.vet_release(ctx, kind, &node, &version, chain).await {
-                Ok(mut skipped) => warnings.append(&mut skipped),
-                Err(refused) => {
-                    failures.push(failure(&node.given, &node.project.title, refused));
-                    continue;
+            if let Some(context) = release_context(ctx, kind, &node.project.id, &version) {
+                match self.vet_install(&context, chain).await {
+                    Ok(mut skipped) => warnings.append(&mut skipped),
+                    Err(refused) => {
+                        failures.push(failure(&node.given, &node.project.title, refused));
+                        continue;
+                    }
                 }
             }
             match plan_release(ctx, kind, &node.project.title, &version) {
@@ -373,39 +392,17 @@ impl Engine {
         }
     }
 
-    /// Asks the `before-content-install` plugins about one resolved file. A veto
-    /// names the file in its reason, so a refused dependency is recognisable.
-    /// A file the version does not have is left for `plan_release` to report.
-    async fn vet_release(
+    /// Asks the `before-content-install` plugins about one file before it
+    /// lands. A veto names the file in its reason, so a refused dependency is
+    /// recognisable; the warnings are the plugins that could not answer.
+    pub(in crate::engine::flows) async fn vet_install(
         &self,
-        ctx: &EntryContent,
-        kind: ContentKind,
-        node: &Node,
-        version: &ContentVersion,
+        context: &InstallContext,
         chain: &CallChain,
     ) -> Result<Vec<WarningInfo>, ErrorInfo> {
-        let Ok(file) = install::primary_file(version) else {
-            return Ok(Vec::new());
-        };
-        let artifact = &file.artifact;
-        let context = InstallContext {
-            entry_id: ctx.id.clone(),
-            entry_type: ctx.side.into(),
-            source: version.source.clone(),
-            project_id: node.project.id.clone(),
-            version_id: version.id.clone(),
-            file_name: artifact.filename.clone(),
-            sha1: artifact
-                .checksum
-                .as_ref()
-                .filter(|checksum| checksum.algorithm == HashAlgorithm::Sha1)
-                .map(|checksum| checksum.hex.clone())
-                .unwrap_or_default(),
-            kind,
-        };
         match self
             .hooks()
-            .run::<BeforeContentInstall>(&context, chain)
+            .run::<BeforeContentInstall>(context, chain)
             .await
         {
             Ok(outcome) => Ok(outcome.warnings),
@@ -416,7 +413,7 @@ impl Engine {
             }) => Err(ErrorInfo::PluginVetoed {
                 plugin,
                 hook,
-                reason: format!("{}: {reason}", artifact.filename),
+                reason: format!("{}: {reason}", context.file_name),
             }),
             Err(other) => Err(other),
         }
@@ -438,6 +435,70 @@ impl Engine {
             .download(&download, ProvisionPhase::Content, on_progress)
             .await?;
         release_of(version, sha1)
+    }
+}
+
+/// What a `before-content-install` hook is told about a platform version's
+/// file; `None` when the version has no file, which `plan_release` reports.
+pub(in crate::engine::flows) fn release_context(
+    ctx: &EntryContent,
+    kind: ContentKind,
+    project_id: &str,
+    version: &ContentVersion,
+) -> Option<InstallContext> {
+    let artifact = &install::primary_file(version).ok()?.artifact;
+    Some(artifact_context(
+        ctx,
+        kind,
+        (&version.source, project_id, &version.id),
+        artifact,
+    ))
+}
+
+/// What a `before-content-install` hook is told about a file about to be
+/// downloaded; `ids` are its source, project id and version id, any of them
+/// empty when unknown.
+pub(in crate::engine::flows) fn artifact_context(
+    ctx: &EntryContent,
+    kind: ContentKind,
+    (source, project_id, version_id): (&str, &str, &str),
+    artifact: &Artifact,
+) -> InstallContext {
+    InstallContext {
+        entry_id: ctx.id.clone(),
+        entry_type: ctx.side.into(),
+        source: source.to_string(),
+        project_id: project_id.to_string(),
+        version_id: version_id.to_string(),
+        file_name: artifact.filename.clone(),
+        sha1: artifact
+            .checksum
+            .as_ref()
+            .filter(|checksum| checksum.algorithm == HashAlgorithm::Sha1)
+            .map(|checksum| checksum.hex.clone())
+            .unwrap_or_default(),
+        kind,
+    }
+}
+
+/// What a `before-content-install` hook is told about a local file: the
+/// platform ids of the project a source knows it as, when one does.
+pub(in crate::engine::flows) fn local_context(
+    ctx: &EntryContent,
+    kind: ContentKind,
+    known: Option<&Identified>,
+    filename: &str,
+    sha1: Option<&str>,
+) -> InstallContext {
+    InstallContext {
+        entry_id: ctx.id.clone(),
+        entry_type: ctx.side.into(),
+        source: known.map_or(LOCAL_SOURCE.to_string(), |k| k.version.source.clone()),
+        project_id: known.map(|k| k.project.id.clone()).unwrap_or_default(),
+        version_id: known.map(|k| k.version.id.clone()).unwrap_or_default(),
+        file_name: filename.to_string(),
+        sha1: sha1.unwrap_or_default().to_string(),
+        kind,
     }
 }
 
@@ -475,19 +536,13 @@ fn add_file_content(
     ctx: &EntryContent,
     kind: ContentKind,
     item: &ContentAddItem,
+    filename: &str,
     worlds: &[String],
     known: Option<&Identified>,
     recognised: &[Identified],
 ) -> Result<InstalledContent> {
-    let source = Path::new(&item.path);
-    let filename = if !item.filename.is_empty() {
-        item.filename.clone()
-    } else if let Some(known) = known {
-        known.file.artifact.filename.clone()
-    } else {
-        file_name(source)
-    };
-    let (managed, sha1) = import_file(ctx, kind, source, &filename)?;
+    let filename = filename.to_string();
+    let (managed, sha1) = import_file(ctx, kind, Path::new(&item.path), &filename)?;
     let (project, release) = match known {
         Some(known) => known.recorded(kind, filename, sha1),
         None => {
@@ -503,6 +558,18 @@ fn add_file_content(
         release,
         record::Holding::fresh(worlds),
     ))
+}
+
+/// The name a local import is filed under: the one asked for, else the one its
+/// source publishes, else the file's own.
+fn local_filename(item: &ContentAddItem, known: Option<&Identified>) -> String {
+    if !item.filename.is_empty() {
+        item.filename.clone()
+    } else if let Some(known) = known {
+        known.file.artifact.filename.clone()
+    } else {
+        file_name(Path::new(&item.path))
+    }
 }
 
 /// Copy a local file into the managed directory as `filename`, returning the

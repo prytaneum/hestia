@@ -26,6 +26,7 @@ use crate::cancel::Job;
 use crate::content::pack;
 use crate::engine::Engine;
 use crate::instances::InstanceRecord;
+use crate::plugins::CallChain;
 use crate::registry;
 use crate::schema;
 use crate::transfer::archive::{self, Reader};
@@ -162,6 +163,7 @@ impl Engine {
         &self,
         path: &str,
         name: &str,
+        chain: &CallChain,
         job: &Job<'_>,
     ) -> Result<ImportOutcome> {
         let path = daemon_local_path(path)?;
@@ -174,7 +176,9 @@ impl Engine {
             Kind::Instance(instance) => instance,
             Kind::Pack(pack_format) => {
                 let archive = pack::Archive::new(reader, pack_format, detected.prefix);
-                return self.import_pack(archive, &path, name, format, job).await;
+                return self
+                    .import_pack(archive, &path, name, format, chain, job)
+                    .await;
             }
         };
         let Blueprint { descriptor, recipe } = instance.read(&mut reader, &detected.prefix)?;
@@ -292,6 +296,7 @@ impl Engine {
         path: &Path,
         name: &str,
         format: ImportFormat,
+        chain: &CallChain,
         job: &Job<'_>,
     ) -> Result<ImportOutcome> {
         let fetched = self.read_pack(archive, path).await?;
@@ -301,6 +306,7 @@ impl Engine {
                 &ModpackTarget::Create {
                     name: name.trim().to_string(),
                 },
+                chain,
                 job,
             )
             .await?;

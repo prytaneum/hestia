@@ -58,6 +58,24 @@ pub struct ServerUpdateSpec {
     pub allow_downgrade: bool,
 }
 
+/// The instance twin of [`ServerUpdateSpec`].
+#[derive(Debug, Clone, Default)]
+pub struct InstanceUpdateSpec {
+    pub instance: String,
+    pub version: String,
+    pub loader_version: Option<String>,
+    pub allow_downgrade: bool,
+}
+
+/// One installed item and the published version (id or number) it moves to;
+/// an empty `source` keeps the item's own.
+#[derive(Debug, Clone, Copy)]
+pub struct Repin<'a> {
+    pub item: &'a str,
+    pub version: &'a str,
+    pub source: &'a str,
+}
+
 /// Where the catalogue cache lives — under `meta/`, with the rest of the files
 /// a reclaim is free to delete.
 fn catalogue_dir(home: &Path) -> PathBuf {

@@ -5,19 +5,20 @@ use std::path::Path;
 
 use anyhow::{bail, Context, Result};
 use proto::content::{
-    ContentFailure, ContentKind, ContentVersion, InstalledContent, UntrackedFile, VersionQuery,
+    ContentDone, ContentKind, ContentVersion, InstalledContent, UntrackedFile, VersionQuery,
     LOCAL_SOURCE,
 };
 use proto::minecraft::ProvisionPhase;
 
 use super::super::batch::gather_ordered;
-use super::add::{failure, file_name, import_file, plan_release, release_of};
+use super::add::{failure, file_name, import_file, plan_release, release_context, release_of};
 use super::entry::{content_loader, EntryContent};
 use super::phase_progress;
 use crate::content::pool::Pool;
 use crate::content::{install, record, Identified, LocalFile};
-use crate::engine::Engine;
+use crate::engine::{Engine, Repin};
 use crate::minecraft::materialize::OnProgress;
+use crate::plugins::CallChain;
 
 impl Engine {
     /// Move matched platform items to a newer version — the newest compatible
@@ -32,8 +33,9 @@ impl Engine {
         kind: ContentKind,
         references: &[String],
         pin: &str,
+        chain: &CallChain,
         on_progress: OnProgress<'_>,
-    ) -> Result<(Vec<InstalledContent>, Vec<ContentFailure>)> {
+    ) -> Result<ContentDone> {
         let index = install::load(&ctx.entry_dir);
         let targets = update_targets(&index, kind, references)?;
         if targets.is_empty() {
@@ -58,8 +60,18 @@ impl Engine {
             }
         }
 
+        let mut warnings = Vec::new();
         let mut downloads = Vec::new();
         for (item, version) in planned {
+            if let Some(context) = release_context(ctx, item.kind, &item.project_id, &version) {
+                match self.vet_install(&context, chain).await {
+                    Ok(mut skipped) => warnings.append(&mut skipped),
+                    Err(refused) => {
+                        failures.push(failure(&item.filename, &item.title, refused));
+                        continue;
+                    }
+                }
+            }
             match plan_release(ctx, item.kind, &item.title, &version) {
                 Ok(download) => downloads.push(((item, version), download)),
                 Err(e) => failures.push(failure(&item.filename, &item.title, crate::error_info(e))),
@@ -94,7 +106,11 @@ impl Engine {
         }
         pool.commit()?;
         on_progress.check()?;
-        Ok((updated, failures))
+        Ok(ContentDone {
+            items: updated,
+            failures,
+            warnings,
+        })
     }
 
     /// One named item to one exact version. Asked of a single item, its
@@ -105,14 +121,15 @@ impl Engine {
         kind: ContentKind,
         reference: &str,
         pin: &str,
+        chain: &CallChain,
         on_progress: OnProgress<'_>,
-    ) -> Result<Vec<InstalledContent>> {
-        let (updated, failures) = self
-            .update_content(ctx, kind, &[reference.to_string()], pin, on_progress)
+    ) -> Result<ContentDone> {
+        let mut done = self
+            .update_content(ctx, kind, &[reference.to_string()], pin, chain, on_progress)
             .await?;
-        match failures.into_iter().next() {
+        match done.failures.pop() {
             Some(failure) => Err(failure.error.into()),
-            None => Ok(updated),
+            None => Ok(done),
         }
     }
 
@@ -244,15 +261,19 @@ impl Engine {
         &self,
         ctx: &EntryContent,
         kind: ContentKind,
-        reference: &str,
-        source: &str,
-        pin: &str,
+        repin: Repin<'_>,
+        chain: &CallChain,
         on_progress: OnProgress<'_>,
-    ) -> Result<Vec<InstalledContent>> {
+    ) -> Result<ContentDone> {
+        let Repin {
+            item: reference,
+            version: pin,
+            source,
+        } = repin;
         let item = installed_item(&install::load(&ctx.entry_dir), kind, reference)?;
         if item.source == source {
             return self
-                .repin_content(ctx, kind, reference, pin, on_progress)
+                .repin_content(ctx, kind, reference, pin, chain, on_progress)
                 .await;
         }
         on_progress.report(&phase_progress(ProvisionPhase::Resolving));
@@ -266,6 +287,10 @@ impl Engine {
             .target_version(ctx, kind, source, &known.project.id, "", pin)
             .await
             .with_context(|| format!("cannot move '{}' to {source}", item.title))?;
+        let warnings = match release_context(ctx, item.kind, &known.project.id, &version) {
+            Some(context) => self.vet_install(&context, chain).await?,
+            None => Vec::new(),
+        };
         let release = self
             .fetch_release(ctx, item.kind, &known.project.title, &version, on_progress)
             .await?;
@@ -284,7 +309,11 @@ impl Engine {
             version = %moved.version_number,
             "content source changed"
         );
-        Ok(vec![moved])
+        Ok(ContentDone {
+            items: vec![moved],
+            failures: Vec::new(),
+            warnings,
+        })
     }
 
     pub(super) async fn content_updates(

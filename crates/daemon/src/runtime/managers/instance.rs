@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use engine::{CallChain, Engine, LaunchRequest};
+use engine::{CallChain, Engine, InstanceUpdateSpec, LaunchRequest};
 use proto::error::{EntryKind, ErrorInfo};
 use proto::instance::{
     InstanceLaunch, InstanceLaunchDone, InstanceUpdate, InstanceUpdateDone, InstanceUpdateParams,
@@ -29,18 +29,21 @@ impl Jobs {
             prefix: "instance-update",
             claim: Some(claim),
             subject: Spec::subject(EntryKind::Instance, &instance_id),
-            chain,
+            chain: chain.clone(),
         };
 
         self.run::<InstanceUpdate, _>(spec, move |engine, reporter| {
             Box::pin(async move {
                 let changed = engine
                     .update_instance_with_pack(
-                        &instance_id,
-                        &params.version,
-                        params.loader_version,
-                        params.allow_downgrade,
+                        InstanceUpdateSpec {
+                            instance: instance_id,
+                            version: params.version,
+                            loader_version: params.loader_version,
+                            allow_downgrade: params.allow_downgrade,
+                        },
                         params.pack,
+                        &chain,
                         &reporter.job(),
                     )
                     .await?;

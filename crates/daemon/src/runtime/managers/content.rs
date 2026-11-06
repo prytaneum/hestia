@@ -1,7 +1,7 @@
 use std::path::Path;
 
-use engine::{CallChain, Engine};
-use proto::content::{ContentAddSpec, ContentDone, ContentFailure, ContentKind, InstalledContent};
+use engine::{CallChain, Engine, Repin};
+use proto::content::{ContentAddSpec, ContentDone, ContentKind};
 use proto::error::EntryKind;
 use proto::job::{Job, JobSubject};
 use proto::minecraft::ProvisionProgress;
@@ -75,14 +75,6 @@ impl Entry {
     }
 }
 
-fn installed(items: Vec<InstalledContent>, failures: Vec<ContentFailure>) -> ContentDone {
-    ContentDone {
-        items,
-        failures,
-        warnings: Vec::new(),
-    }
-}
-
 impl ContentJob {
     fn entry(&self) -> &Entry {
         match self {
@@ -127,13 +119,22 @@ impl ContentJob {
                 items,
                 path,
             } => match items.first() {
-                Some(item) if !path.is_empty() => engine
-                    .update_entry_content_from_file(entry.entry_ref(), kind, item, Path::new(&path))
-                    .map(|item| installed(vec![item], Vec::new())),
-                _ => engine
-                    .update_entry_content(entry.entry_ref(), kind, &items, on_progress)
-                    .await
-                    .map(|(items, failures)| installed(items, failures)),
+                Some(item) if !path.is_empty() => {
+                    engine
+                        .update_entry_content_from_file(
+                            entry.entry_ref(),
+                            kind,
+                            item,
+                            Path::new(&path),
+                            chain,
+                        )
+                        .await
+                }
+                _ => {
+                    engine
+                        .update_entry_content(entry.entry_ref(), kind, &items, chain, on_progress)
+                        .await
+                }
             },
             ContentJob::SetVersion {
                 entry,
@@ -141,17 +142,21 @@ impl ContentJob {
                 item,
                 version,
                 source,
-            } => engine
-                .set_entry_content_version(
-                    entry.entry_ref(),
-                    kind,
-                    &item,
-                    &version,
-                    &source,
-                    on_progress,
-                )
-                .await
-                .map(|items| installed(items, Vec::new())),
+            } => {
+                engine
+                    .set_entry_content_version(
+                        entry.entry_ref(),
+                        kind,
+                        Repin {
+                            item: &item,
+                            version: &version,
+                            source: &source,
+                        },
+                        chain,
+                        on_progress,
+                    )
+                    .await
+            }
         }
     }
 }

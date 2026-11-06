@@ -65,13 +65,13 @@ impl Jobs {
             prefix: "instance-import",
             claim: None,
             subject: None,
-            chain,
+            chain: chain.clone(),
         };
 
         self.run::<InstanceImport, _>(spec, move |engine, reporter| {
             Box::pin(async move {
                 let import = engine
-                    .import_instance(&path, &name, &reporter.job())
+                    .import_instance(&path, &name, &chain, &reporter.job())
                     .await?;
                 let accepts = engine.instance_accepts(&import.record.profile.flavor);
                 // The view an import answers with is the same one

@@ -274,7 +274,9 @@ async fn a_new_build_updates_a_local_item_and_keeps_it_disabled() {
             ContentKind::Mod,
             "homemade-1.0.jar",
             std::path::Path::new(&newer),
+            &NO_CHAIN,
         )
+        .await
         .expect("update from the file");
 
     let (listed, _) = engine
@@ -309,7 +311,9 @@ async fn a_build_under_the_same_name_is_what_the_game_then_loads() {
             ContentKind::Mod,
             "homemade.jar",
             std::path::Path::new(&newer),
+            &NO_CHAIN,
         )
+        .await
         .expect("update from the file");
 
     let loaded = home
@@ -338,7 +342,9 @@ async fn a_tracked_item_is_not_updated_from_a_file() {
             ContentKind::Mod,
             "sodium",
             std::path::Path::new(&build),
+            &NO_CHAIN,
         )
+        .await
         .expect_err("a tracked item keeps its source");
 
     assert!(matches!(
@@ -463,15 +469,18 @@ async fn a_file_kept_local_can_later_move_to_a_source_that_recognises_it() {
         .set_entry_content_version(
             EntryRef::Instance(&id),
             ContentKind::Mod,
-            "sodium.jar",
-            "1.0.0",
-            "fixture",
+            engine::Repin {
+                item: "sodium.jar",
+                version: "1.0.0",
+                source: "fixture",
+            },
+            &NO_CHAIN,
             &job(&cancel, &report),
         )
         .await
         .expect("the item moves to the source that recognises it");
-    assert_eq!(moved[0].source, "fixture");
-    assert_eq!(moved[0].project_id, "sodium");
+    assert_eq!(moved.items[0].source, "fixture");
+    assert_eq!(moved.items[0].project_id, "sodium");
     let (listed, _) = engine
         .entry_content(EntryRef::Instance(&id), ContentKind::Mod)
         .expect("list");
@@ -560,6 +569,7 @@ async fn a_pack_read_off_disk_tracks_whatever_a_source_recognises() {
             &ModpackTarget::Create {
                 name: String::new(),
             },
+            &NO_CHAIN,
             &job(&cancel, &report),
         )
         .await
@@ -653,6 +663,7 @@ async fn a_pack_removed_keeping_its_content_hands_it_to_the_user() {
             &ModpackTarget::Create {
                 name: String::new(),
             },
+            &NO_CHAIN,
             &job(&cancel, &report),
         )
         .await
@@ -729,6 +740,7 @@ async fn a_pack_no_source_published_updates_from_a_newer_file() {
             &ModpackTarget::Create {
                 name: String::new(),
             },
+            &NO_CHAIN,
             &job(&cancel, &report),
         )
         .await
@@ -756,6 +768,7 @@ async fn a_pack_no_source_published_updates_from_a_newer_file() {
                 path: other,
                 ..ModpackMove::default()
             },
+            &NO_CHAIN,
             &job(&cancel, &report),
         )
         .await;
@@ -775,6 +788,7 @@ async fn a_pack_no_source_published_updates_from_a_newer_file() {
                 path: newer,
                 ..ModpackMove::default()
             },
+            &NO_CHAIN,
             &job(&cancel, &report),
         )
         .await
@@ -828,7 +842,12 @@ async fn another_launchers_jars_are_tracked_where_a_source_publishes_them() {
     let (cancel, report) = (Cancel::new(), |_: &ProvisionProgress| {});
 
     let outcome = engine
-        .import_instance(&path.to_string_lossy(), "", &job(&cancel, &report))
+        .import_instance(
+            &path.to_string_lossy(),
+            "",
+            &NO_CHAIN,
+            &job(&cancel, &report),
+        )
         .await
         .expect("the instance imports");
 
@@ -903,6 +922,7 @@ async fn an_imported_profile_is_resolved_for_the_host_not_carried_from_the_expor
         .import_instance(
             &exported.path.to_string_lossy(),
             "copy",
+            &NO_CHAIN,
             &job(&cancel, &report),
         )
         .await
@@ -1021,7 +1041,12 @@ async fn a_referenceable_item_missing_from_the_archive_is_downloaded_on_import()
     let (cancel, report) = (Cancel::new(), |_: &ProvisionProgress| {});
 
     let outcome = engine
-        .import_instance(&archive.to_string_lossy(), "copy", &job(&cancel, &report))
+        .import_instance(
+            &archive.to_string_lossy(),
+            "copy",
+            &NO_CHAIN,
+            &job(&cancel, &report),
+        )
         .await
         .expect("the archive imports");
 
@@ -1048,7 +1073,12 @@ async fn a_download_that_does_not_match_its_hash_fails_the_import_and_leaves_no_
     let (cancel, report) = (Cancel::new(), |_: &ProvisionProgress| {});
 
     let refused = engine
-        .import_instance(&tampered.to_string_lossy(), "copy", &job(&cancel, &report))
+        .import_instance(
+            &tampered.to_string_lossy(),
+            "copy",
+            &NO_CHAIN,
+            &job(&cancel, &report),
+        )
         .await;
 
     let error = refused
@@ -1078,7 +1108,12 @@ async fn an_item_with_neither_bytes_nor_a_download_is_dropped_and_reported() {
     let (cancel, report) = (Cancel::new(), |_: &ProvisionProgress| {});
 
     let outcome = engine
-        .import_instance(&archive.to_string_lossy(), "copy", &job(&cancel, &report))
+        .import_instance(
+            &archive.to_string_lossy(),
+            "copy",
+            &NO_CHAIN,
+            &job(&cancel, &report),
+        )
         .await
         .expect("the archive imports");
 
@@ -1211,11 +1246,16 @@ async fn an_update_moves_the_version_and_leaves_the_project_alone() {
     let (engine, id, _files) = updatable(home.path(), icon).await;
     let (cancel, report) = (Cancel::new(), |_: &ProvisionProgress| {});
 
-    let (updated, failures) = engine
+    let ContentDone {
+        items: updated,
+        failures,
+        ..
+    } = engine
         .update_entry_content(
             EntryRef::Instance(&id),
             ContentKind::Mod,
             &["sodium".to_string()],
+            &NO_CHAIN,
             &job(&cancel, &report),
         )
         .await
@@ -1256,6 +1296,7 @@ async fn updating_a_disabled_item_leaves_it_out_of_the_load_dir() {
             EntryRef::Instance(&id),
             ContentKind::Mod,
             &["sodium".to_string()],
+            &NO_CHAIN,
             &job(&cancel, &report),
         )
         .await
@@ -1317,11 +1358,16 @@ async fn an_item_that_cannot_update_leaves_the_rest_of_the_batch_recorded() {
         .await
         .expect("install the older versions");
 
-    let (updated, failures) = engine
+    let ContentDone {
+        items: updated,
+        failures,
+        ..
+    } = engine
         .update_entry_content(
             EntryRef::Instance(&id),
             ContentKind::Mod,
             &[],
+            &NO_CHAIN,
             &job(&cancel, &report),
         )
         .await
@@ -1960,5 +2006,153 @@ mod launch_hooks {
         assert_eq!(hook, "before-content-install");
         assert!(reason.starts_with("fabric-api.jar: "), "{reason}");
         assert!(data.join("content.json").is_file());
+    }
+
+    #[tokio::test]
+    async fn a_refused_update_leaves_the_item_where_it_was() {
+        let home = tempfile::tempdir().expect("temp home");
+        let (engine, id, _files) = updatable(home.path(), "").await;
+        let refused = json!(["sodium.jar"]);
+        let (_roster, _data) = attach_probe(
+            &engine,
+            home.path(),
+            &[("content", &refused)],
+            [Permission::ContentRead],
+            ["before-content-install"],
+        );
+        let (cancel, report) = (Cancel::new(), |_: &ProvisionProgress| {});
+
+        let done = engine
+            .update_entry_content(
+                EntryRef::Instance(&id),
+                ContentKind::Mod,
+                &["sodium".to_string()],
+                &NO_CHAIN,
+                &job(&cancel, &report),
+            )
+            .await
+            .expect("the batch runs");
+
+        assert!(done.items.is_empty(), "nothing moved: {:?}", done.items);
+        assert!(
+            matches!(&done.failures[..], [f] if matches!(f.error, ErrorInfo::PluginVetoed { .. })),
+            "{:?}",
+            done.failures
+        );
+        let (listed, _) = engine
+            .entry_content(EntryRef::Instance(&id), ContentKind::Mod)
+            .expect("list");
+        assert_ne!(listed[0].version_id, "sodium-2");
+    }
+
+    #[tokio::test]
+    async fn a_pack_installs_without_the_files_a_plugin_refuses() {
+        let home = tempfile::tempdir().expect("temp home");
+        let drops = tempfile::tempdir().expect("temp drops");
+        let files = fixture::Files::serve().await;
+        let engine = fixture::engine(
+            home.path(),
+            vec![fixture::Flavor::resolving("fabric")],
+            vec![fixture::Source::default()],
+        );
+        let downloads: Vec<Value> = ["refused.jar", "kept.jar"]
+            .iter()
+            .map(|jar| json!({ "path": format!("mods/{jar}"), "downloads": [files.url(jar)] }))
+            .collect();
+        let index = json!({
+            "formatVersion": 1,
+            "name": "Cozy",
+            "versionId": "1.0.0",
+            "dependencies": { "minecraft": "1.21", "fabric-loader": "0.16.0" },
+            "files": downloads,
+        });
+        let path = local_pack(drops.path(), "cozy.mrpack", index, &["bundled.jar"]);
+        let refused = json!(["refused.jar", "bundled.jar"]);
+        let (_roster, _data) = attach_probe(
+            &engine,
+            home.path(),
+            &[("content", &refused)],
+            [Permission::ContentRead],
+            ["before-content-install"],
+        );
+        let (cancel, report) = (Cancel::new(), |_: &ProvisionProgress| {});
+
+        let outcome = engine
+            .install_instance_modpack(
+                &ModpackRef {
+                    path,
+                    ..ModpackRef::default()
+                },
+                &ModpackTarget::Create {
+                    name: String::new(),
+                },
+                &NO_CHAIN,
+                &job(&cancel, &report),
+            )
+            .await
+            .expect("the pack installs");
+
+        let vetoed: Vec<&str> = outcome
+            .failures
+            .iter()
+            .filter(|f| matches!(f.error, ErrorInfo::PluginVetoed { .. }))
+            .map(|f| f.title.as_str())
+            .collect();
+        assert_eq!(vetoed.len(), 2, "{:?}", outcome.failures);
+        let mods = engine
+            .instances()
+            .instance_dir(&engine.instances().require(&outcome.entry).expect("entry"))
+            .join("mods");
+        assert!(mods.join("kept.jar").is_file());
+        assert!(!mods.join("refused.jar").exists());
+        assert!(!mods.join("bundled.jar").exists());
+    }
+
+    #[tokio::test]
+    async fn a_refused_local_file_is_never_imported() {
+        let home = tempfile::tempdir().expect("temp home");
+        let drops = tempfile::tempdir().expect("temp drops");
+        let (engine, id) = instance(home.path(), fixture::Source::default()).await;
+        let refused = json!(["homemade.jar"]);
+        let (_roster, _data) = attach_probe(
+            &engine,
+            home.path(),
+            &[("content", &refused)],
+            [Permission::ContentRead],
+            ["before-content-install"],
+        );
+        let (cancel, report) = (Cancel::new(), |_: &ProvisionProgress| {});
+        let spec = ContentAddSpec {
+            kind: ContentKind::Mod,
+            items: vec![ContentAddItem {
+                path: local_mod(drops.path(), "homemade.jar"),
+                ..ContentAddItem::default()
+            }],
+            ..ContentAddSpec::default()
+        };
+
+        let done = engine
+            .add_entry_content(
+                EntryRef::Instance(&id),
+                &spec,
+                &NO_CHAIN,
+                &job(&cancel, &report),
+            )
+            .await
+            .expect("the batch runs");
+
+        assert!(done.items.is_empty(), "{:?}", done.items);
+        let [failure] = done.failures.as_slice() else {
+            panic!("one refusal expected: {:?}", done.failures);
+        };
+        assert!(
+            matches!(&failure.error, ErrorInfo::PluginVetoed { reason, .. } if reason.starts_with("homemade.jar: ")),
+            "{:?}",
+            failure.error
+        );
+        assert!(!home
+            .path()
+            .join("instances/modded/mods/homemade.jar")
+            .exists());
     }
 }

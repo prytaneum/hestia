@@ -16,16 +16,17 @@ use std::path::Path;
 
 use anyhow::{bail, Result};
 use proto::content::{
-    ContentAddSpec, ContentDone, ContentFailure, ContentKind, ContentMatch, InstalledContent,
-    UntrackedFile,
+    ContentAddSpec, ContentDone, ContentKind, ContentMatch, InstalledContent, UntrackedFile,
 };
 
+pub(in crate::engine::flows) use self::add::artifact_context;
+use self::add::{file_name, local_context};
 use self::entry::EntryContent;
 pub(in crate::engine) use self::entry::EntryRef;
 use self::manage::{list_content, remove_content, set_enabled, update_from_file};
 use super::phase_progress;
 use crate::content::install;
-use crate::engine::Engine;
+use crate::engine::{Engine, Repin};
 use crate::minecraft::materialize::OnProgress;
 use crate::minecraft::Side;
 use crate::plugins::CallChain;
@@ -83,15 +84,23 @@ impl Engine {
 
     /// Update one local item from the file at `path`, keeping its enabled
     /// state, world targeting and disables. A tracked item is refused.
-    pub fn update_entry_content_from_file(
+    pub async fn update_entry_content_from_file(
         &self,
         entry: EntryRef<'_>,
         kind: ContentKind,
         item: &str,
         path: &Path,
-    ) -> Result<InstalledContent> {
+        chain: &CallChain,
+    ) -> Result<ContentDone> {
         let ctx = self.content_ctx(entry)?;
-        update_from_file(&ctx, kind, item, path)
+        let sha1 = install::sha1_file(path).ok();
+        let context = local_context(&ctx, kind, None, &file_name(path), sha1.as_deref());
+        let warnings = self.vet_install(&context, chain).await?;
+        Ok(ContentDone {
+            items: vec![update_from_file(&ctx, kind, item, path)?],
+            failures: Vec::new(),
+            warnings,
+        })
     }
 
     /// Move platform-sourced items to their newest compatible version — the
@@ -103,24 +112,29 @@ impl Engine {
         entry: EntryRef<'_>,
         kind: ContentKind,
         items: &[String],
+        chain: &CallChain,
         on_progress: OnProgress<'_>,
-    ) -> Result<(Vec<InstalledContent>, Vec<ContentFailure>)> {
+    ) -> Result<ContentDone> {
         let ctx = self.content_ctx(entry)?;
-        self.update_content(&ctx, kind, items, "", on_progress)
+        self.update_content(&ctx, kind, items, "", chain, on_progress)
             .await
     }
 
-    /// Re-pin one named platform item to a specific published `version` (id or
-    /// number), re-installing that version like an update.
+    /// Re-pin one named platform item to a specific published version,
+    /// re-installing that version like an update.
     pub async fn set_entry_content_version(
         &self,
         entry: EntryRef<'_>,
         kind: ContentKind,
-        item: &str,
-        version: &str,
-        source: &str,
+        repin: Repin<'_>,
+        chain: &CallChain,
         on_progress: OnProgress<'_>,
-    ) -> Result<Vec<InstalledContent>> {
+    ) -> Result<ContentDone> {
+        let Repin {
+            item,
+            version,
+            source,
+        } = repin;
         if item.is_empty() || version.is_empty() {
             bail!(proto::error::ErrorInfo::FieldsRequired {
                 fields: vec![proto::error::Field::Item, proto::error::Field::Version]
@@ -129,11 +143,11 @@ impl Engine {
         let ctx = self.content_ctx(entry)?;
         match source.is_empty() {
             true => {
-                self.repin_content(&ctx, kind, item, version, on_progress)
+                self.repin_content(&ctx, kind, item, version, chain, on_progress)
                     .await
             }
             false => {
-                self.move_content_source(&ctx, kind, item, source, version, on_progress)
+                self.move_content_source(&ctx, kind, repin, chain, on_progress)
                     .await
             }
         }
