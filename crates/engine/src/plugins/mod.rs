@@ -30,7 +30,8 @@ pub(crate) use catalogue::{build as build_catalogue, pick, Installed, Pick, Sour
 pub use chain::{CallChain, ChainError, MAX_CHAIN_DEPTH};
 pub use command::{command_args, find_command};
 pub use hooks::{
-    BeforeLaunch, Hook, HookOutcome, Hooks, LaunchContext, Participant, Roster, Verdict,
+    BeforeLaunch, BeforeServerStart, Hook, HookOutcome, Hooks, LaunchContext, Participant, Roster,
+    ServerContext, Verdict,
 };
 pub use imports::{CommandRun, HostCalls, HostError};
 pub(crate) use index::{declared_key, expand, open};

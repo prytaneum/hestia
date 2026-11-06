@@ -62,18 +62,11 @@ impl LaunchPatch {
         game_args: Vec<String>,
     ) -> LaunchPatch {
         let mut patch = LaunchPatch::default();
-        let drop_arg = |patch: &mut LaunchPatch, arg: &str| {
-            tracing::warn!(plugin, arg = %shown(arg), "launch argument dropped");
-            patch.dropped.push(WarningInfo::LaunchArgDropped {
-                plugin: plugin.to_string(),
-                arg: shown(arg),
-            });
-        };
         for arg in jvm_args {
             if jvm_allowed(&arg, properties) {
                 patch.jvm_args.push(arg);
             } else {
-                drop_arg(&mut patch, &arg);
+                patch.drop_arg(plugin, &arg);
             }
         }
         let mut rest = game_args.into_iter().peekable();
@@ -84,10 +77,33 @@ impl LaunchPatch {
                     patch.game_args.push(arg);
                     patch.game_args.extend(rest.next());
                 }
-                _ => drop_arg(&mut patch, &arg),
+                _ => patch.drop_arg(plugin, &arg),
             }
         }
         patch
+    }
+
+    /// [`vetted`](Self::vetted) for a server start: the window arguments mean
+    /// nothing to a server, so every game argument is dropped with a warning.
+    pub fn vetted_for_server(
+        plugin: &str,
+        properties: &BTreeSet<String>,
+        jvm_args: Vec<String>,
+        game_args: Vec<String>,
+    ) -> LaunchPatch {
+        let mut patch = Self::vetted(plugin, properties, jvm_args, Vec::new());
+        for arg in game_args {
+            patch.drop_arg(plugin, &arg);
+        }
+        patch
+    }
+
+    fn drop_arg(&mut self, plugin: &str, arg: &str) {
+        tracing::warn!(plugin, arg = %shown(arg), "launch argument dropped");
+        self.dropped.push(WarningInfo::LaunchArgDropped {
+            plugin: plugin.to_string(),
+            arg: shown(arg),
+        });
     }
 
     /// Appends `next` after `self`, so plugins fold in the order they ran.

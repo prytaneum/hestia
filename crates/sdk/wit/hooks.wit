@@ -27,7 +27,23 @@ interface launch-hooks {
         extra-game-args: list<string>,
     }
 
+    /// What a server start is about to run.
+    record server-context {
+        id: string,
+        name: string,
+        version: string,
+        flavor: string,
+        port: u16,
+        /// The configured heap size, e.g. `4G`; absent when left to the JVM.
+        memory: option<string>,
+    }
+
     /// Runs just before the game is spawned. An error vetoes the launch and its
     /// text is shown to the user as the reason.
     before-launch: func(ctx: launch-context) -> result<launch-patch, string>;
+
+    /// Runs just before a server is spawned. The patch is held to the same
+    /// allowlist as a launch's, except that `extra-game-args` never applies: a
+    /// server has no window. An error vetoes the start.
+    before-server-start: func(ctx: server-context) -> result<launch-patch, string>;
 }

@@ -204,6 +204,7 @@ pub struct ServerRef {
 pub struct ServerStartResult {
     pub process_id: String,
     pub pid: u32,
+    pub warnings: Vec<WarningInfo>,
 }
 
 pub struct ServerStart;

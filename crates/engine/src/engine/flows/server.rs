@@ -17,6 +17,7 @@ use crate::minecraft::launch::LaunchPlan;
 use crate::minecraft::materialize::{self, OnProgress};
 use crate::minecraft::profile::{ServerJar, ServerProfile};
 use crate::minecraft::{ping, Side};
+use crate::plugins::{BeforeServerStart, CallChain, ServerContext};
 use crate::servers::ServerRecord;
 use crate::usage;
 
@@ -183,8 +184,14 @@ impl Engine {
     }
 
     /// The ready-to-spawn invocation for a provisioned server, with its ports
-    /// reconciled into `server.properties`.
-    pub fn server_launch_plan(&self, reference: &str) -> Result<(ServerRecord, LaunchPlan)> {
+    /// reconciled into `server.properties` and the plugins' `before-server-start`
+    /// patches folded in. A veto fails it; the warnings are what the hooks and
+    /// the allowlist left to say.
+    pub async fn server_launch_plan(
+        &self,
+        reference: &str,
+        chain: &CallChain,
+    ) -> Result<(ServerRecord, LaunchPlan, Vec<WarningInfo>)> {
         let record = self.ready_server(reference)?;
         let record = self.servers.ensure_start_config(&record.id)?;
         let data_dir = self.servers.data_dir(&record);
@@ -198,8 +205,26 @@ impl Engine {
             .jvm
             .or_defaults(&self.config.settings().java_defaults())
             .or_defaults(&flavor_defaults(&record.profile));
-        let plan = self.servers.launch_plan(&record, &java, &jvm);
-        Ok((record, plan))
+        let mut plan = self.servers.launch_plan(&record, &java, &jvm);
+        let hooked = self
+            .hooks()
+            .run::<BeforeServerStart>(
+                &ServerContext {
+                    id: record.id.clone(),
+                    name: record.name.clone(),
+                    version: record.profile.game_version.clone(),
+                    flavor: record.profile.flavor.clone(),
+                    port: record.game_port,
+                    memory: jvm.memory.clone(),
+                },
+                chain,
+            )
+            .await
+            .map_err(|error| anyhow::anyhow!(error))?;
+        plan.args.splice(0..0, hooked.patch.jvm_args);
+        let mut warnings = hooked.warnings;
+        warnings.extend(hooked.patch.dropped);
+        Ok((record, plan, warnings))
     }
 
     pub async fn server_ping(&self, reference: &str) -> Result<ServerPingResult> {

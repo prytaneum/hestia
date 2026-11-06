@@ -85,7 +85,7 @@ function startServer(reference: string) {
     ['-Xmx4G', '-jar', 'server.jar', 'nogui'],
     banner(server),
   );
-  return { processId: process.id, pid: process.pid };
+  return { processId: process.id, pid: process.pid, warnings: [] };
 }
 
 export const channels: ChannelHandlers = {

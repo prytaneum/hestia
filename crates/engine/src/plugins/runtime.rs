@@ -413,6 +413,25 @@ impl LoadedPlugin {
         .await
     }
 
+    /// Runs the plugin's `launch-hooks.before-server-start` under `timeout`; the
+    /// inner error is the plugin's veto reason.
+    pub(super) async fn before_server_start(
+        &self,
+        chain: &CallChain,
+        context: launch_hooks::ServerContext,
+        timeout: Duration,
+    ) -> Result<Result<launch_hooks::LaunchPatch, String>, CallError> {
+        self.guarded(chain, timeout, None, move |store, instance| {
+            Box::pin(async move {
+                instance
+                    .hestia_plugin_launch_hooks()
+                    .call_before_server_start(store, &context)
+                    .await
+            })
+        })
+        .await
+    }
+
     /// What the user approved for this plugin.
     pub fn grant(&self) -> &Grant {
         &self.grant

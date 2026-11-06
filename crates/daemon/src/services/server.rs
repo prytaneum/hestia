@@ -85,12 +85,17 @@ pub(super) fn register(on: &mut Channels<'_>) {
     on.handle::<ServerStart, _, _>(|p, ctx| async move {
         let (record, _claim) = server_held(&ctx, &p.server, Hold::stopped(JobKind::Launch))?;
         tracing::info!(server = %record.id, name = %record.name, "starting server");
-        let info =
-            crate::runtime::start_server(ctx.runtime.engine(), ctx.runtime.processes(), &record.id)
-                .await?;
+        let (info, warnings) = crate::runtime::start_server(
+            ctx.runtime.engine(),
+            ctx.runtime.processes(),
+            &record.id,
+            &ctx.chain,
+        )
+        .await?;
         Ok(ServerStartResult {
             process_id: info.id,
             pid: info.pid,
+            warnings,
         })
     });
 
@@ -98,10 +103,11 @@ pub(super) fn register(on: &mut Channels<'_>) {
         let (record, _claim) = server_held(&ctx, &p.server, Hold::live(JobKind::Launch))?;
         require_running(&ctx, &record)?;
         tracing::info!(server = %record.id, name = %record.name, "restarting server");
-        let info = ctx.runtime.restart_server(&record).await?;
+        let (info, warnings) = ctx.runtime.restart_server(&record, &ctx.chain).await?;
         Ok(ServerStartResult {
             process_id: info.id,
             pid: info.pid,
+            warnings,
         })
     });
 

@@ -80,7 +80,7 @@ impl Jobs {
             prefix: "server-update",
             claim: Some(claim),
             subject: Spec::subject(EntryKind::Server, &record.id),
-            chain,
+            chain: chain.clone(),
         };
         let processes = self.processes.clone();
 
@@ -104,7 +104,7 @@ impl Jobs {
                     .update_server_with_pack(update, params.pack, &reporter.job())
                     .await;
                 let restarted = match stopped {
-                    true => Some(start_server(engine, &processes, &record.id).await),
+                    true => Some(start_server(engine, &processes, &record.id, &chain).await),
                     false => None,
                 };
                 if let Some(Err(error)) = &restarted {
@@ -114,11 +114,13 @@ impl Jobs {
                 let mut done = provisioned(engine, (changed.record, changed.warnings));
                 done.failures = changed.failures;
                 done.server.process = processes.status(&process_id);
-                if let Some(Err(error)) = restarted {
-                    done.warnings.push(WarningInfo::ServerNotRestarted {
+                match restarted {
+                    Some(Ok((_, warnings))) => done.warnings.extend(warnings),
+                    Some(Err(error)) => done.warnings.push(WarningInfo::ServerNotRestarted {
                         server: record.name,
                         detail: error.to_string(),
-                    });
+                    }),
+                    None => {}
                 }
                 Ok(done)
             })

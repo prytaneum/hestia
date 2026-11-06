@@ -23,6 +23,7 @@ use proto::error::ErrorInfo;
 use proto::instance::InstanceInfo;
 use proto::process::{LogSource, ProcessInfo, ProcessSpec};
 use proto::server::ServerInfo;
+use proto::warning::WarningInfo;
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::sync::Notify;
 
@@ -49,13 +50,17 @@ pub use proto::naming::{
 
 /// Spawn a server's process from its launch plan — the one way a server is
 /// started, whether a client asked, a scheduled restart did, or an update put
-/// back a server it had stopped.
+/// back a server it had stopped. The warnings are what its plugin hooks said.
 pub async fn start_server(
     engine: &Engine,
     processes: &ProcessSupervisor,
     id: &str,
-) -> Result<ProcessInfo, ErrorInfo> {
-    let (_, plan) = engine.server_launch_plan(id).map_err(engine_error)?;
+    chain: &CallChain,
+) -> Result<(ProcessInfo, Vec<WarningInfo>), ErrorInfo> {
+    let (_, plan, warnings) = engine
+        .server_launch_plan(id, chain)
+        .await
+        .map_err(engine_error)?;
     let spec = ProcessSpec {
         id: server_process_id(id),
         program: plan.program.to_string_lossy().into_owned(),
@@ -65,7 +70,7 @@ pub async fn start_server(
         env: Default::default(),
     };
     match processes.start(spec).await {
-        Ok(info) => Ok(info),
+        Ok(info) => Ok((info, warnings)),
         Err(e) => Err(start_error("server", e)),
     }
 }
@@ -219,9 +224,13 @@ impl Runtime {
 
     /// Stop a running server, wait for its process to exit, and start it
     /// again — shared by the `server.restart` channel and a scheduled restart.
-    pub async fn restart_server(&self, record: &ServerRecord) -> Result<ProcessInfo, ErrorInfo> {
+    pub async fn restart_server(
+        &self,
+        record: &ServerRecord,
+        chain: &CallChain,
+    ) -> Result<(ProcessInfo, Vec<WarningInfo>), ErrorInfo> {
         stop_server(&self.processes, record).await?;
-        start_server(&self.engine, &self.processes, &record.id).await
+        start_server(&self.engine, &self.processes, &record.id, chain).await
     }
 
     pub fn instance_view(&self, record: InstanceRecord) -> InstanceInfo {

@@ -27,6 +27,7 @@ pub(crate) async fn start_quiet(client: &Client, server: &str) -> Result<u32> {
         let _spinner = Spinner::start(format!("starting '{server}'"));
         client.server().start(server).await?
     };
+    ui::show_warnings(&started.warnings)?;
     Ok(started.pid)
 }
 
@@ -51,6 +52,7 @@ pub(crate) async fn restart_quiet(client: &Client, server: &str) -> Result<u32> 
         let _spinner = Spinner::start(format!("restarting '{server}'"));
         client.server().restart(server).await?
     };
+    ui::show_warnings(&restarted.warnings)?;
     Ok(restarted.pid)
 }
 

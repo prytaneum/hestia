@@ -66,6 +66,8 @@ fn guest(calls_host: bool, body: &str) -> String {
                     (i32.const 144))
                 (func (export "before-launch") (param i32) (result i32)
                     (i32.const 160))
+                (func (export "before-server-start") (param i32) (result i32)
+                    (i32.const 160))
                 (func (export "init") (result i32)
                     {body}
                     (i32.store8 (i32.const 128) (i32.const 0))
@@ -117,10 +119,20 @@ fn guest(calls_host: bool, body: &str) -> String {
                 (canon lift (core func $main "before-launch")
                     (memory (core memory $libc "memory"))
                     (realloc (core func $libc "realloc"))))
+            (type $server_context (record
+                (field "id" string) (field "name" string) (field "version" string)
+                (field "flavor" string) (field "port" u16) (field "memory" (option string))))
+            (func $before_server_start (param "ctx" $server_context)
+                (result (result $launch_patch (error string)))
+                (canon lift (core func $main "before-server-start")
+                    (memory (core memory $libc "memory"))
+                    (realloc (core func $libc "realloc"))))
             (instance $launch_hooks
                 (export "launch-context" (type $launch_context))
                 (export "launch-patch" (type $launch_patch))
-                (export "before-launch" (func $before_launch)))
+                (export "server-context" (type $server_context))
+                (export "before-launch" (func $before_launch))
+                (export "before-server-start" (func $before_server_start)))
             (export "hestia:plugin/launch-hooks@1.0.0" (instance $launch_hooks)))"#
     )
 }

@@ -67,7 +67,7 @@ async fn run_due_tasks(runtime: &Runtime) {
                     .map(|_| ())
                     .map_err(|e| format!("{e:#}")),
                 TaskAction::Restart => runtime
-                    .restart_server(&record)
+                    .restart_server(&record, &CallChain::default())
                     .await
                     .map(|_| ())
                     .map_err(|e| e.to_string()),

@@ -1,8 +1,9 @@
-//! What a launch hook receives and may answer. See [`Plugin::before_launch`](crate::Plugin::before_launch).
+//! What a launch hook receives and may answer. See [`Plugin::before_launch`](crate::Plugin::before_launch)
+//! and [`Plugin::before_server_start`](crate::Plugin::before_server_start), which answer the same patch.
 
 use crate::bindings::exports::hestia::plugin::launch_hooks as wit;
 
-pub use wit::LaunchContext;
+pub use wit::{LaunchContext, ServerContext};
 
 /// Arguments a launch hook asks to add. The host keeps only an allowlist and
 /// drops the rest with a warning.
@@ -11,7 +12,7 @@ pub struct LaunchPatch {
     /// `-XX:` tuning flags, and `-D<key>=<value>` for keys the manifest declares
     /// under `[launch] properties`.
     pub extra_jvm_args: Vec<String>,
-    /// `--width <n>`, `--height <n>` and `--fullscreen`.
+    /// `--width <n>`, `--height <n>` and `--fullscreen`; ignored for a server start.
     pub extra_game_args: Vec<String>,
 }
 

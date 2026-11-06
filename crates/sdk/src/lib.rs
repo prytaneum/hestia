@@ -32,7 +32,7 @@ pub mod ui;
 pub use call::{call, run_job};
 pub use command::args;
 pub use error::Error;
-pub use hooks::{LaunchContext, LaunchPatch};
+pub use hooks::{LaunchContext, LaunchPatch, ServerContext};
 /// The daemon's wire contracts and domain types, the same ones the CLI uses.
 pub use proto;
 use proto::plugin::PageContext;
@@ -119,6 +119,17 @@ pub trait Plugin {
     /// reason shown to the user. A call that overruns its two seconds is skipped
     /// instead.
     fn before_launch(context: LaunchContext) -> Result<LaunchPatch, String> {
+        let _ = context;
+        Ok(LaunchPatch::default())
+    }
+
+    /// Runs just before a server is spawned, for a plugin that declares the
+    /// `before-server-start` hook. The same allowlist applies as for
+    /// [`before_launch`](Plugin::before_launch), except that
+    /// `extra_game_args` is ignored. An `Err` vetoes the start, and its text is
+    /// the reason shown to the user. A call that overruns its two seconds is
+    /// skipped instead.
+    fn before_server_start(context: ServerContext) -> Result<LaunchPatch, String> {
         let _ = context;
         Ok(LaunchPatch::default())
     }
@@ -217,6 +228,16 @@ macro_rules! plugin {
                     ::std::string::String,
                 > {
                     <$plugin as $crate::Plugin>::before_launch(ctx).map(::core::convert::Into::into)
+                }
+
+                fn before_server_start(
+                    ctx: $crate::ServerContext,
+                ) -> ::core::result::Result<
+                    $crate::bindings::exports::hestia::plugin::launch_hooks::LaunchPatch,
+                    ::std::string::String,
+                > {
+                    <$plugin as $crate::Plugin>::before_server_start(ctx)
+                        .map(::core::convert::Into::into)
                 }
             }
 

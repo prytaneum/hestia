@@ -135,3 +135,19 @@ fn patches_fold_in_the_order_they_ran() {
     assert_eq!(folded.game_args, ["--fullscreen"]);
     assert_eq!(dropped(&folded), ["-javaagent:x.jar"]);
 }
+
+#[test]
+fn a_server_keeps_the_jvm_allowlist_and_drops_every_game_argument() {
+    let patch = LaunchPatch::vetted_for_server(
+        "demo",
+        &BTreeSet::new(),
+        vec!["-XX:+UseZGC".into(), "-javaagent:x.jar".into()],
+        vec!["--fullscreen".into(), "--width".into(), "1280".into()],
+    );
+    assert_eq!(patch.jvm_args, ["-XX:+UseZGC"]);
+    assert!(patch.game_args.is_empty());
+    assert_eq!(
+        dropped(&patch),
+        ["-javaagent:x.jar", "--fullscreen", "--width", "1280"]
+    );
+}

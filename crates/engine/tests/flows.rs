@@ -1648,6 +1648,7 @@ mod launch_hooks {
     struct Rig {
         engine: engine::Engine,
         instance: String,
+        server: String,
         data: std::path::PathBuf,
         _roster: Arc<Loaded>,
         _home: tempfile::TempDir,
@@ -1656,6 +1657,13 @@ mod launch_hooks {
     async fn rig(answer: Value) -> Rig {
         let home = tempfile::tempdir().expect("temp home");
         let (engine, instance) = launchable(home.path()).await;
+        let (cancel, report) = (Cancel::new(), |_: &ProvisionProgress| {});
+        let server = engine
+            .provision_server(spec("fabric"), &job(&cancel, &report))
+            .await
+            .expect("provision the server")
+            .0
+            .id;
 
         let wasm = std::fs::read(fixture::probe::component()).expect("probe component");
         let runtime = PluginRuntime::new(Arc::new(NoHost), home.path().join("plugin-cache"))
@@ -1670,7 +1678,9 @@ mod launch_hooks {
             ),
             grant: Grant {
                 permissions: [Permission::LaunchPatch, Permission::AccountRead].into(),
-                hooks: ["before-launch".to_string()].into(),
+                hooks: ["before-launch", "before-server-start"]
+                    .map(String::from)
+                    .into(),
                 launch_properties: ["my.mod.flag".to_string()].into(),
                 ..Grant::default()
             },
@@ -1678,13 +1688,16 @@ mod launch_hooks {
         };
         let data = home.path().join("probe-data");
         std::fs::create_dir_all(&data).expect("data dir");
-        std::fs::write(data.join("launch.json"), answer.to_string()).expect("answer");
+        for file in ["launch.json", "server.json"] {
+            std::fs::write(data.join(file), answer.to_string()).expect("answer");
+        }
         let plugin = runtime.load(&record, &wasm, data.clone()).expect("load");
         let roster = Arc::new(Loaded(vec![Arc::new(plugin)]));
         engine.hooks().attach(&roster);
         Rig {
             engine,
             instance,
+            server,
             data,
             _roster: roster,
             _home: home,
@@ -1777,6 +1790,57 @@ mod launch_hooks {
         assert_eq!(
             (plugin.as_str(), hook.as_str(), reason.as_str()),
             ("probe", "before-launch", "not today")
+        );
+    }
+
+    #[tokio::test]
+    async fn a_server_gets_the_jvm_flags_and_none_of_the_window_arguments() {
+        let rig = rig(json!({
+            "jvm": ["-XX:+UseZGC", "-javaagent:x.jar"],
+            "game": ["--fullscreen"],
+        }))
+        .await;
+
+        let (_, plan, warnings) = rig
+            .engine
+            .server_launch_plan(&rig.server, &NO_CHAIN)
+            .await
+            .expect("plan");
+
+        assert_eq!(plan.args.first().map(String::as_str), Some("-XX:+UseZGC"));
+        for refused in ["-javaagent:x.jar", "--fullscreen"] {
+            assert!(!plan.args.iter().any(|arg| arg == refused), "{refused}");
+        }
+        let mut named: Vec<&str> = warnings
+            .iter()
+            .filter_map(|warning| match warning {
+                WarningInfo::LaunchArgDropped { arg, .. } => Some(arg.as_str()),
+                _ => None,
+            })
+            .collect();
+        named.sort_unstable();
+        assert_eq!(named, ["--fullscreen", "-javaagent:x.jar"]);
+        let seen = std::fs::read_to_string(rig.data.join("context.json")).expect("context");
+        assert!(seen.contains("ServerContext"), "{seen}");
+    }
+
+    #[tokio::test]
+    async fn a_veto_fails_the_server_start_with_the_reason() {
+        let rig = rig(json!({ "veto": "maintenance" })).await;
+
+        let refused = rig
+            .engine
+            .server_launch_plan(&rig.server, &NO_CHAIN)
+            .await
+            .map(|_| ())
+            .expect_err("vetoed");
+
+        let ErrorInfo::PluginVetoed { hook, reason, .. } = engine::error_info(refused) else {
+            panic!("not a veto");
+        };
+        assert_eq!(
+            (hook.as_str(), reason.as_str()),
+            ("before-server-start", "maintenance")
         );
     }
 }
