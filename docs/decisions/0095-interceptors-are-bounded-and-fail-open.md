@@ -35,9 +35,10 @@ sandboxed tier, so a hook plugin is not presented as full access to the computer
 |---|---|---|
 | `before-launch` | once per instance launch, after the plan is assembled | an allowlisted patch, or a veto |
 | `before-server-start` | once per server start, before spawn | the same patch with its game arguments ignored (a server has no window), or a veto |
-| `before-content-install` | once per resolved file, a required dependency being its own call | a veto of that file only, never a write |
+| `before-content-install` | once per file about to land in an entry — a platform install and each required dependency, a local import, an update or version change, and each managed file of a modpack (one bundled in its overrides is checked as it is unpacked and removed if refused) | a veto of that file only, never a write |
 
-A refused file fails its own item and the rest of the batch installs; the veto's reason is prefixed with the file name
+A refused file fails its own item and the rest of the batch installs, and a plugin that is skipped leaves a warning on
+the result; the veto's reason is prefixed with the file name
 (`fabric-api.jar: …`) so the user can tell which dependency was refused. The hook receives names, ids and the sha1, not
 the file's bytes. It is a convenience check and **not a security scanner**: it fails open like every hook.
 

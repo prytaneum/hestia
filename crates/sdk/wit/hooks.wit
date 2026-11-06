@@ -49,13 +49,16 @@ interface launch-hooks {
 }
 
 interface content-hooks {
-    /// One resolved file about to be installed; a required dependency is its own
-    /// call. There are no file bytes: this is a convenience check by name and
-    /// hash, not a security scanner, and a plugin that fails is skipped.
+    /// One file about to land in an entry: an install, each required dependency,
+    /// a local import, an update or version change, or a modpack's file. There
+    /// are no file bytes: this is a convenience check by name and hash, not a
+    /// security scanner, and a plugin that fails is skipped.
     record install-context {
         entry-id: string,
         /// `server` or `instance`.
         entry-type: string,
+        /// `local` for an imported file no source recognises; `project-id` and
+        /// `version-id` are then empty.
         source: string,
         project-id: string,
         version-id: string,
@@ -65,7 +68,7 @@ interface content-hooks {
         kind: string,
     }
 
-    /// Runs before the file is downloaded into the entry. An error vetoes this
+    /// Runs before the file is written into the entry. An error vetoes this
     /// file only; its text is shown to the user with the file name.
     before-content-install: func(ctx: install-context) -> result<_, string>;
 }

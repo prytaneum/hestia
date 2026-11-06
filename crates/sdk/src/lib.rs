@@ -134,9 +134,9 @@ pub trait Plugin {
         Ok(LaunchPatch::default())
     }
 
-    /// Runs for each file about to be installed into a server or instance, for a
-    /// plugin that declares the `before-content-install` hook; a required
-    /// dependency is its own call. An `Err` refuses that file, and its text is
+    /// Runs for each file about to land in a server or instance (an install and
+    /// each required dependency, a local import, an update, or a modpack's
+    /// file), for a plugin that declares the `before-content-install` hook. An `Err` refuses that file, and its text is
     /// shown to the user with the file name. The context holds names and a
     /// sha1, never the file's bytes, and a plugin that fails or overruns its two
     /// seconds is skipped: this is a convenience check, not a security scanner.
