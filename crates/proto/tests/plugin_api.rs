@@ -1,7 +1,8 @@
 //! The plugin API is every contract and topic that names a `PLUGIN` permission,
 //! plus the WIT package. `golden/plugin-api.json` snapshots its shape, as the
-//! ts-rs declarations of every type it reaches, so a change cannot ship under an
-//! unchanged `API_VERSION`.
+//! ts-rs declarations of every type it reaches, so a change to it is a reviewed
+//! diff rather than an accident. While the plugin API is unreleased a change does
+//! not bump `API_VERSION`; the snapshot is regenerated in place.
 //!
 //! Needs the `ts` feature: `cargo test -p proto --features ts --test plugin_api`.
 //! It is a target of its own because enabling `ts` for a whole `cargo test` run
@@ -284,15 +285,6 @@ fn plugin_api_matches_its_snapshot() {
     if golden.as_ref() == Some(&current) {
         return;
     }
-    let same_version = golden
-        .as_ref()
-        .is_some_and(|golden| golden["apiVersion"] == current["apiVersion"]);
-    assert!(
-        !same_version,
-        "the plugin API changed under an unchanged version: bump the WIT package and \
-         `proto::plugin::API_VERSION` (minor for an addition, major for a removal or a \
-         changed shape), then {REGENERATE}"
-    );
     if std::env::var_os("HESTIA_UPDATE_GOLDEN").is_some() {
         fs::write(
             &path,
