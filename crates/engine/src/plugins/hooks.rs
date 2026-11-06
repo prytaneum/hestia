@@ -88,7 +88,9 @@ impl<P> Default for Hooks<P> {
 
 impl<P: Participant> Hooks<P> {
     /// Held weakly: the roster's owner already holds the engine that holds this.
-    pub fn attach(&self, roster: Weak<dyn Roster<P>>) {
+    pub fn attach<R: Roster<P> + 'static>(&self, roster: &Arc<R>) {
+        let roster: Weak<R> = Arc::downgrade(roster);
+        let roster: Weak<dyn Roster<P>> = roster;
         if self.roster.set(roster).is_err() {
             tracing::warn!("the hook roster is already attached");
         }

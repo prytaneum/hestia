@@ -112,7 +112,7 @@ impl Rig {
     async fn run(&self) -> Result<HookOutcome<Vec<&'static str>>, ErrorInfo> {
         let roster = Arc::new(Plugins(self.plugins.clone()));
         let hooks = Hooks::default();
-        hooks.attach(Arc::downgrade(&roster));
+        hooks.attach(&roster);
         hooks.run::<Stub>(&(), &CallChain::default()).await
     }
 
