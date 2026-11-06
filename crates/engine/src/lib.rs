@@ -69,9 +69,8 @@ pub use plugins::{
     command_args, find_command, key_id_of, revocation, verify_build, verify_index, CallChain,
     CallError, ChainError, CommandRun, Hook, HookOutcome, Hooks, HostCalls, HostError, Inspection,
     LoadError, LoadedPlugin, Participant, PluginPackage, PluginRecord, PluginRuntime, PluginStats,
-    Plugins, Remote, RepoError, Roster, Staged, Verdict,
-    CANCEL_GRACE, COMMAND_TIMEOUT, EVENT_TIMEOUT, HOOK_TIMEOUT, MAX_CHAIN_DEPTH, PROVIDER_TIMEOUT,
-    UI_TIMEOUT,
+    Plugins, Remote, RepoError, Roster, Staged, Verdict, CANCEL_GRACE, COMMAND_TIMEOUT,
+    EVENT_TIMEOUT, HOOK_TIMEOUT, MAX_CHAIN_DEPTH, PROVIDER_TIMEOUT, UI_TIMEOUT,
 };
 pub use process::{ExitObserver, ProcessEvents, ProcessSupervisor, StartError};
 pub use roster::RegisterError;
