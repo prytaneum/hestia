@@ -10,7 +10,13 @@ const TICK: Duration = Duration::from_secs(2);
 
 pub fn spawn_metrics_sampler(runtime: Arc<Runtime>) {
     tokio::spawn(async move {
-        let mut system = System::new();
+        let mut system = match System::new() {
+            Ok(system) => system,
+            Err(error) => {
+                tracing::warn!(%error, "cannot read process metrics; sampling is off");
+                return;
+            }
+        };
         // `cpu_usage()` sums across cores, so a multi-threaded JVM reports well
         // over 100%; normalize by the logical core count to a 0-100% share of
         // total machine capacity.

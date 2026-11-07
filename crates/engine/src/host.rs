@@ -9,7 +9,13 @@ use sysinfo::{MemoryRefreshKind, System};
 pub fn total_memory() -> Option<u64> {
     static TOTAL: OnceLock<Option<u64>> = OnceLock::new();
     *TOTAL.get_or_init(|| {
-        let mut system = System::new();
+        let mut system = match System::new() {
+            Ok(system) => system,
+            Err(error) => {
+                tracing::warn!(%error, "cannot read installed memory; memory is left uncapped");
+                return None;
+            }
+        };
         system.refresh_memory_specifics(MemoryRefreshKind::nothing().with_ram());
         let total = system.total_memory();
         if total == 0 {
