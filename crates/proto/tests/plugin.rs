@@ -281,6 +281,26 @@ mod manifest {
     }
 
     #[test]
+    fn a_format_needs_format_provide_and_no_hosts() {
+        let mut manifest = valid();
+        manifest.contributes.providers.push(ProviderContribution {
+            kind: "format".into(),
+            id: "prism".into(),
+        });
+        manifest.permissions = vec![Permission::ContentRead];
+        assert_eq!(
+            manifest.validate(),
+            Err(ManifestError::ProviderPermissionMissing {
+                provider: "prism".into(),
+                permission: Permission::FormatProvide
+            })
+        );
+        manifest.permissions = vec![Permission::FormatProvide];
+        assert_eq!(manifest.validate(), Ok(()));
+        assert_eq!(Permission::FormatProvide.tier(), Tier::Unrestricted);
+    }
+
+    #[test]
     fn event_patterns_are_a_topic_or_a_trailing_glob() {
         let mut manifest = valid();
         manifest.contributes.events = vec!["server.*".into(), "job".into()];

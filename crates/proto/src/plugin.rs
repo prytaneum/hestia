@@ -159,6 +159,10 @@ pub enum Permission {
     /// arguments the game runs with and so bypasses the launch-arg allowlist.
     #[serde(rename = "flavor:provide")]
     FlavorProvide,
+    /// Contribute an archive format, whose blueprint chooses the game version,
+    /// loader and JVM settings of the instance the user will run.
+    #[serde(rename = "format:provide")]
+    FormatProvide,
 }
 
 /// How far a permission reaches. An unrestricted one can run native code, so
@@ -177,7 +181,8 @@ impl Permission {
             | Permission::ConfigWrite
             | Permission::ProcessControl
             | Permission::ProcessSpawn
-            | Permission::FlavorProvide => Tier::Unrestricted,
+            | Permission::FlavorProvide
+            | Permission::FormatProvide => Tier::Unrestricted,
             Permission::EntryRead
             | Permission::ProcessRead
             | Permission::ContentRead
@@ -219,6 +224,9 @@ impl Permission {
             Permission::PresenceSet => "Set your Discord status card",
             Permission::FlavorProvide => {
                 "Add game distributions that choose what code the game runs, including its main class and arguments"
+            }
+            Permission::FormatProvide => {
+                "Add archive formats that choose the game version, loader and JVM settings of instances you import"
             }
         }
     }
@@ -296,11 +304,16 @@ pub const CONTENT_PROVIDER: &str = "content";
 /// The `kind` of a [`ProviderContribution`] that adds a Minecraft flavor.
 pub const FLAVOR_PROVIDER: &str = "flavor";
 
-/// What a provider of `kind` needs: to serve its subject and to reach its hosts.
-fn provider_permissions(kind: &str) -> Option<[Permission; 2]> {
+/// The `kind` of a [`ProviderContribution`] that adds an archive format.
+pub const FORMAT_PROVIDER: &str = "format";
+
+/// What a provider of `kind` needs: to serve its subject and, when it fetches,
+/// to reach its hosts. A format never fetches: the host owns every archive.
+fn provider_permissions(kind: &str) -> Option<&'static [Permission]> {
     match kind {
-        CONTENT_PROVIDER => Some([Permission::ContentRead, Permission::NetworkConnect]),
-        FLAVOR_PROVIDER => Some([Permission::FlavorProvide, Permission::NetworkConnect]),
+        CONTENT_PROVIDER => Some(&[Permission::ContentRead, Permission::NetworkConnect]),
+        FLAVOR_PROVIDER => Some(&[Permission::FlavorProvide, Permission::NetworkConnect]),
+        FORMAT_PROVIDER => Some(&[Permission::FormatProvide]),
         _ => None,
     }
 }
@@ -870,7 +883,7 @@ impl Manifest {
                     permission: *missing,
                 });
             }
-            if self.network.is_empty() {
+            if needs.contains(&Permission::NetworkConnect) && self.network.is_empty() {
                 return Err(ManifestError::ProviderNeedsHosts(provider.id.clone()));
             }
         }

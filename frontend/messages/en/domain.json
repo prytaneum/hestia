@@ -71,6 +71,7 @@
         "content_write": "Install, update and remove mods, packs and other content",
         "entry_read": "See your servers and instances and their settings",
         "entry_write": "Create, change and delete servers and instances, including their files",
+        "format_provide": "Add archive formats that choose the game version, loader and JVM settings of instances you import",
         "flavor_provide": "Add game distributions that choose what code the game runs, including its main class and arguments",
         "java_manage": "Install and remove Java runtimes",
         "java_read": "See installed and available Java runtimes",

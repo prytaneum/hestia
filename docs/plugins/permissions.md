@@ -29,6 +29,7 @@ access to the computer.
 | `launch:patch` | sandboxed | Adjust launch settings from an allowlist when a game or server starts |
 | `presence:set` | sandboxed | Set your Discord status card ([0106](../decisions/0106-presence-is-a-host-service.md)) |
 | `flavor:provide` | unrestricted | Add game distributions that choose what code the game runs, including its main class and arguments |
+| `format:provide` | unrestricted | Add archive formats that choose the game version, loader and JVM settings of instances you import |
 
 ## Programs
 

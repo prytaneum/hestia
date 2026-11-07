@@ -233,6 +233,7 @@ fn api() -> Api {
         content::SourceInfo, content::SourceUrl, content::SourceFileRef, content::SearchQuery, content::SearchResult,
         content::ContentProject, content::VersionQuery, content::ContentVersion,
         minecraft::GameVersion,
+        format::FormatInfo, format::FormatBlueprint, format::FormatCopy, format::FormatWritten,
         profile::FlavorDescription, profile::ServerProfile, profile::InstanceProfile,
     );
     api

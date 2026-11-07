@@ -13,6 +13,7 @@ export type * from "./entry";
 export type * from "./error";
 export type * from "./events";
 export type * from "./files";
+export type * from "./format";
 export type * from "./health";
 export type * from "./host";
 export type * from "./image";

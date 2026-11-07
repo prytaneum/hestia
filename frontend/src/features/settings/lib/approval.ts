@@ -49,6 +49,7 @@ const PERMISSION_TEXT: Record<Permission, () => string> = {
   'launch:patch': m['domain.plugin.permission.launch_patch'],
   'presence:set': m['domain.plugin.permission.presence_set'],
   'flavor:provide': m['domain.plugin.permission.flavor_provide'],
+  'format:provide': m['domain.plugin.permission.format_provide'],
 };
 
 const HEADING: Record<GrantSectionKind, () => string> = {
