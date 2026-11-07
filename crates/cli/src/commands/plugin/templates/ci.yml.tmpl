@@ -16,7 +16,7 @@ jobs:
           targets: wasm32-wasip2
       - uses: Swatinem/rust-cache@v2
       - name: Install the hestia CLI
-        run: cargo install --locked --git https://github.com/prytaneum/hestia --rev refs/heads/feature/plugins cli
+        run: cargo install --locked --git https://github.com/prytaneum/hestia --rev {hestia_rev} cli
       - name: check
         run: |
           if grep -q '^key = "TODO' Cargo.toml; then

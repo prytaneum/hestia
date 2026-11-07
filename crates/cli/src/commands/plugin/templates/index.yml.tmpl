@@ -8,8 +8,8 @@ jobs:
   index:
     permissions:
       contents: write
-    uses: prytaneum/hestia/.github/workflows/plugin-index.yml@feature/plugins
+    uses: prytaneum/hestia/.github/workflows/plugin-index.yml@{workflow_ref}
     with:
-      hestia-ref: refs/heads/feature/plugins
+      hestia-ref: {hestia_rev}
     secrets:
       HESTIA_SIGNING_KEY: ${{ secrets.HESTIA_SIGNING_KEY }}

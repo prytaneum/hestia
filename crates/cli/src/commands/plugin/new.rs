@@ -12,6 +12,11 @@ const README: &str = include_str!("templates/README.md.tmpl");
 const PLUGIN_MANIFEST: &str = include_str!("templates/plugin.toml.tmpl");
 const CRATE: &str = include_str!("templates/crate.toml.tmpl");
 const LIB: &str = include_str!("templates/lib.rs.tmpl");
+/// The Hestia a new repository builds against: its SDK, its CLI and the shared
+/// workflows. `cargo` reads the full ref, `uses:` the bare one; both move to the
+/// release tag when the plugin system ships.
+const HESTIA_REV: &str = "refs/heads/feature/plugins";
+const WORKFLOW_REF: &str = "feature/plugins";
 const WORKFLOWS: [(&str, &str); 3] = [
     ("ci.yml", include_str!("templates/ci.yml.tmpl")),
     ("index.yml", include_str!("templates/index.yml.tmpl")),
@@ -44,9 +49,9 @@ fn scaffold_repository(root: &Path, id: &str) -> Result<()> {
     std::fs::create_dir_all(&workflows)?;
     write(&root.join(CRATE_MANIFEST), &WORKSPACE.replace("{name}", id))?;
     write(&root.join(".gitignore"), GITIGNORE)?;
-    write(&root.join("README.md"), README)?;
+    write(&root.join("README.md"), &render(README, id))?;
     for (name, content) in WORKFLOWS {
-        write(&workflows.join(name), content)?;
+        write(&workflows.join(name), &render(content, id))?;
     }
     let repo = Repository::containing(root).context("the new repository is not recognisable")?;
     scaffold_plugin(&repo, id)
@@ -79,7 +84,10 @@ fn scaffold_plugin(repo: &Repository, id: &str) -> Result<()> {
 }
 
 fn render(template: &str, id: &str) -> String {
-    template.replace("{id}", id)
+    template
+        .replace("{id}", id)
+        .replace("{hestia_rev}", HESTIA_REV)
+        .replace("{workflow_ref}", WORKFLOW_REF)
 }
 
 fn write(path: &Path, content: &str) -> Result<()> {
@@ -108,7 +116,11 @@ mod tests {
             "plugins/hello/Cargo.toml",
             "plugins/hello/src/lib.rs",
         ] {
-            assert!(root.join(file).is_file(), "{file} is missing");
+            let text = std::fs::read_to_string(root.join(file))
+                .unwrap_or_else(|_| panic!("{file} is missing"));
+            for placeholder in ["{id}", "{name}", "{hestia_rev}", "{workflow_ref}"] {
+                assert!(!text.contains(placeholder), "{file} keeps {placeholder}");
+            }
         }
     }
 }
