@@ -2,6 +2,7 @@
 //! real seams; these are the second adapter behind them, so a flow can be
 //! driven without reaching Mojang, Modrinth or a JDK mirror.
 
+pub mod format;
 pub mod index;
 pub mod probe;
 pub mod replay;

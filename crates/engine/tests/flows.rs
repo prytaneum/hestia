@@ -4,6 +4,7 @@
 
 mod content_source;
 mod flavor;
+mod format;
 
 use crate::fixture;
 

@@ -180,6 +180,17 @@ directory also holds what mods write beside a pack (Iris's `<pack>.zip.txt`
 options, a Respackopts `<pack>.zip.rpo`, a patcher's log); those stay in `data/`
 unindexed, as a folder pack does.
 
+## Formats from plugins
+
+A plugin contributes an instance format with `kind = "format"` and the `format:provide` permission. Its
+`archive-format` export answers `info` (name and marker), `read` (manifest bytes and member names to a blueprint) and
+`land` (a list of `{ archivePath, entryPath }` copies, `entryPath` relative to the instance's `data/`), plus `write` for export. `PluginFormat`
+(`plugins/providers/format.rs`) registers as `<plugin>.<id>` on the engine, and `detect` ranks it beside the core
+formats by marker depth, core first on a tie. The host does every zip read and copy: manifest bytes are capped at
+8 MiB, each path is checked for escape, each `archivePath` must be a listed member, and one refused path refuses the
+whole answer and removes the half-made instance. Only instance formats are accepted for now, and `write` is not yet
+reachable from `instance.export`. See [0104](../decisions/0104-an-archive-format-plugin-maps-files-the-host-copies.md).
+
 ## An import is a create
 
 It registers a new instance and then fills it, so it owns the discipline every
@@ -208,6 +219,7 @@ already up — and opens the import dialog on it.
 ## Related decisions
 
 - [0057 — An archive format is a module, not a branch](../decisions/0057-an-archive-format-is-a-module.md)
+- [0104 — An archive-format plugin maps files; the host copies them](../decisions/0104-an-archive-format-plugin-maps-files-the-host-copies.md)
 - [0081 — The archive carries the instance's identity and references](../decisions/0081-the-archive-carries-identity-and-references.md)
 - [0013 — The managed dir is the record](../decisions/0013-managed-dir-of-record.md)
 - [0011 — A modpack decomposes into existing parts](../decisions/0011-modpack-decomposes-into-existing-parts.md)

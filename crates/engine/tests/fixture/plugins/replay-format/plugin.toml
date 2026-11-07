@@ -1,0 +1,9 @@
+id = "replay-format"
+version = "0.1.0"
+api = "^1.0.0"
+wasm = "plugin.wasm"
+permissions = ["format:provide"]
+
+[[contributes.providers]]
+kind = "format"
+id = "replay"
