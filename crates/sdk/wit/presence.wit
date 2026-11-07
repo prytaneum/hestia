@@ -1,0 +1,19 @@
+package hestia:plugin@1.0.0;
+
+/// Sets the plugin's Discord status card. The host owns the connection and
+/// Discord's rate limit, so a call returns once the card is recorded and the
+/// card is published on the host's next tick. Every function answers
+/// `permission-denied` unless the plugin holds `presence:set`.
+interface presence {
+    use types.{json, plugin-error};
+
+    /// Replaces the plugin's card with a `proto::presence::Activity`. A text
+    /// outside 2 to 128 characters, more than 2 buttons, a label over 32
+    /// characters or a button url that is not https or exceeds 512 characters
+    /// answers `invalid`; nothing is truncated. While set, the newest plugin
+    /// card is shown instead of the launcher's own.
+    set: func(activity: json) -> result<_, plugin-error>;
+
+    /// Removes the plugin's own card, restoring the launcher's.
+    clear: func() -> result<_, plugin-error>;
+}

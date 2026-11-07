@@ -46,6 +46,7 @@ world plugin {
     import process;
     import progress;
     import settings;
+    import presence;
     export lifecycle;
     export commands;
     export events;

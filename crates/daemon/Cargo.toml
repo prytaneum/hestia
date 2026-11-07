@@ -28,7 +28,6 @@ clap = { workspace = true }
 anyhow = { workspace = true }
 async-trait = { workspace = true }
 sysinfo = { workspace = true }
-discord-rich-presence = { workspace = true }
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"

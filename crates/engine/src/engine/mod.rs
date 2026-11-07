@@ -27,6 +27,7 @@ use crate::java::Java;
 use crate::minecraft::Minecraft;
 use crate::net::image::ImageProxy;
 use crate::plugins::{Hooks, LoadedPlugin, Plugins, Remote, Repositories};
+use crate::presence::Presence;
 use crate::process::ProcessSupervisor;
 use crate::servers::Servers;
 use crate::skins::Skins;
@@ -102,6 +103,7 @@ pub struct Engine {
     update: Update,
     processes: Arc<ProcessSupervisor>,
     consoles: Consoles,
+    presence: Arc<Presence>,
 }
 
 impl Engine {
@@ -151,6 +153,7 @@ impl Engine {
             update,
             processes,
             consoles: Consoles::default(),
+            presence: Arc::new(Presence::over_discord()),
         };
         engine.apply_settings();
         engine
@@ -287,6 +290,10 @@ impl Engine {
 
     pub fn sync(&self) -> &Sync {
         &self.sync
+    }
+
+    pub fn presence(&self) -> &Arc<Presence> {
+        &self.presence
     }
 
     pub fn processes(&self) -> &Arc<ProcessSupervisor> {

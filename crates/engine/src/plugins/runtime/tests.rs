@@ -312,8 +312,13 @@ fn load(
     permissions: &[Permission],
 ) -> (Arc<LoadedPlugin>, tempfile::TempDir) {
     let data = tempfile::tempdir().unwrap();
-    let runtime =
-        PluginRuntime::new(host.clone(), data.path().join("cache"), supervisor(&data)).unwrap();
+    let runtime = PluginRuntime::new(
+        host.clone(),
+        data.path().join("cache"),
+        supervisor(&data),
+        Arc::new(crate::presence::Presence::over_discord()),
+    )
+    .unwrap();
     let plugin = runtime
         .load(
             &record(wasm, permissions),
@@ -432,7 +437,13 @@ async fn three_traps_take_the_plugin_out_of_service() {
 async fn a_component_that_differs_from_its_recorded_hash_is_not_compiled() {
     let host = Arc::new(TestHost::default());
     let data = tempfile::tempdir().unwrap();
-    let runtime = PluginRuntime::new(host, data.path().join("cache"), supervisor(&data)).unwrap();
+    let runtime = PluginRuntime::new(
+        host,
+        data.path().join("cache"),
+        supervisor(&data),
+        Arc::new(crate::presence::Presence::over_discord()),
+    )
+    .unwrap();
     let recorded = guest(false, "");
     let tampered = guest(false, "unreachable");
 

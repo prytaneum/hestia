@@ -37,6 +37,7 @@ sysinfo = { workspace = true }
 tokio = { workspace = true }
 futures-util = { workspace = true }
 anyhow = { workspace = true }
+discord-rich-presence = { workspace = true }
 async-trait = { workspace = true }
 wasmtime = { workspace = true }
 wasmtime-wasi = { workspace = true }

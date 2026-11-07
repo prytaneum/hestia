@@ -91,6 +91,7 @@ impl Plugins {
             host.clone(),
             self.engine.plugin_cache_dir(),
             self.engine.processes().clone(),
+            self.engine.presence().clone(),
         )?;
         self.host
             .set(host)

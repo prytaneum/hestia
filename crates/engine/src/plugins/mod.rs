@@ -17,6 +17,7 @@ mod install;
 mod official;
 mod output;
 mod patch;
+mod presence;
 mod process;
 mod program;
 mod providers;

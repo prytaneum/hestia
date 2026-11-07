@@ -93,6 +93,7 @@ impl Probe {
             Arc::new(ReadChannels),
             data.path().join("cache"),
             supervisor.clone(),
+            Arc::new(engine::Presence::over_discord()),
         )
         .unwrap();
         let record = PluginRecord {

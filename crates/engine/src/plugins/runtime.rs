@@ -25,11 +25,13 @@ use super::imports::bindings::exports::hestia::plugin::{content_hooks, launch_ho
 use super::imports::bindings::{self, hestia::plugin::types::PluginError};
 use super::imports::{CommandRun, Gate, HostCalls, PluginState};
 use super::output::{Captured, PluginLog};
+use super::presence::PluginCard;
 use super::process::Programs;
 use super::providers::{FlavorOp, SourceOp};
 use super::settings::PluginSettings;
 use super::store::PluginRecord;
 use crate::checksum::hex;
+use crate::presence::Presence;
 use crate::process::ProcessSupervisor;
 
 pub const EVENT_TIMEOUT: Duration = Duration::from_secs(5);
@@ -130,6 +132,7 @@ pub struct PluginRuntime {
     pool: Arc<Semaphore>,
     host: Arc<dyn HostCalls>,
     processes: Arc<ProcessSupervisor>,
+    presence: Arc<Presence>,
     ticker: Arc<Ticker>,
     cache: ComponentCache,
 }
@@ -141,6 +144,7 @@ impl PluginRuntime {
         host: Arc<dyn HostCalls>,
         cache_dir: PathBuf,
         processes: Arc<ProcessSupervisor>,
+        presence: Arc<Presence>,
     ) -> anyhow::Result<Self> {
         let mut pooling = PoolingAllocationConfig::new();
         pooling
@@ -181,6 +185,7 @@ impl PluginRuntime {
             pool: Arc::new(Semaphore::new(POOL_SLOTS as usize)),
             host,
             processes,
+            presence,
             ticker,
         })
     }
@@ -217,6 +222,11 @@ impl PluginRuntime {
             data_dir: data_dir.clone(),
             supervisor: self.processes.clone(),
         });
+        let card = Arc::new(PluginCard::new(
+            id.clone(),
+            grant.clone(),
+            self.presence.clone(),
+        ));
         Ok(LoadedPlugin {
             id,
             engine: self.engine.clone(),
@@ -224,6 +234,7 @@ impl PluginRuntime {
             host: self.host.clone(),
             grant,
             programs,
+            card,
             data_dir,
             settings: Arc::new(settings),
             log: PluginLog::new(
@@ -274,6 +285,7 @@ pub struct LoadedPlugin {
     host: Arc<dyn HostCalls>,
     grant: Arc<Grant>,
     programs: Arc<Programs>,
+    card: Arc<PluginCard>,
     data_dir: PathBuf,
     settings: Arc<PluginSettings>,
     log: Arc<PluginLog>,
@@ -684,6 +696,7 @@ impl LoadedPlugin {
             log: self.log.clone(),
             settings: self.settings.clone(),
             programs: self.programs.clone(),
+            card: self.card.clone(),
             gate: Arc::new(Gate {
                 plugin: self.id.clone(),
                 host: self.host.clone(),
@@ -712,6 +725,7 @@ impl LoadedPlugin {
         }
         if recent.len() >= TRAP_LIMIT && !self.disabled.swap(true, Ordering::Relaxed) {
             tracing::error!(plugin = %self.id, "plugin disabled after repeated traps");
+            let _ = self.card.clear();
         }
     }
 }

@@ -21,6 +21,7 @@ fn load(home: &std::path::Path, files: &fixture::Files, hosts: &[&str]) -> Arc<L
         Arc::new(NoHost),
         home.join("plugin-cache"),
         Arc::new(engine::ProcessSupervisor::new(home.join("processes"))),
+        Arc::new(engine::Presence::over_discord()),
     )
     .expect("runtime");
     let mut grant = manifest.grant();

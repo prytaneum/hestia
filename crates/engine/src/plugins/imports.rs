@@ -13,6 +13,7 @@ use wasmtime_wasi_http::{WasiHttpCtx, WasiHttpCtxView, WasiHttpView};
 use super::chain::CallChain;
 use super::http::PluginHttp;
 use super::output::PluginLog;
+use super::presence::{CardError, PluginCard};
 use super::process::{ProgramError, Programs};
 use super::settings::PluginSettings;
 use crate::cancel::Cancel;
@@ -94,6 +95,7 @@ pub(crate) struct PluginState {
     pub(crate) settings: Arc<PluginSettings>,
     pub(crate) gate: Arc<Gate>,
     pub(crate) programs: Arc<Programs>,
+    pub(crate) card: Arc<PluginCard>,
 }
 
 /// What a `host.call` is checked against. Apart from [`PluginState`] so an
@@ -301,5 +303,24 @@ impl bindings::hestia::plugin::process::Host for PluginState {
 
     async fn list(&mut self) -> Result<Vec<String>, PluginError> {
         Ok(self.programs.list()?)
+    }
+}
+
+impl From<CardError> for PluginError {
+    fn from(error: CardError) -> Self {
+        match error {
+            CardError::Denied => PluginError::PermissionDenied(error.to_string()),
+            CardError::Invalid(message) => PluginError::Invalid(message),
+        }
+    }
+}
+
+impl bindings::hestia::plugin::presence::Host for PluginState {
+    async fn set(&mut self, activity: String) -> Result<(), PluginError> {
+        Ok(self.card.set(&activity)?)
+    }
+
+    async fn clear(&mut self) -> Result<(), PluginError> {
+        Ok(self.card.clear()?)
     }
 }

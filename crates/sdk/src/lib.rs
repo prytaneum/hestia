@@ -28,6 +28,7 @@ pub mod flavor;
 mod hooks;
 pub mod http;
 pub mod log;
+pub mod presence;
 pub mod process;
 pub mod progress;
 pub mod settings;
