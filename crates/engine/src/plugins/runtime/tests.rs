@@ -265,7 +265,19 @@ fn guest(calls_host: bool, body: &str) -> Vec<u8> {
                     (memory (core memory $libc "memory"))
                     (realloc (core func $libc "realloc"))))
             (instance $archive_format (export "info" (func $format_info)) (export "read" (func $format_read)) (export "land" (func $format_land)) (export "write" (func $format_write)))
-            (export "hestia:plugin/archive-format@1.0.0" (instance $archive_format)))"#
+            (export "hestia:plugin/archive-format@1.0.0" (instance $archive_format))
+            (func $java_majors (param "provider" string)
+                (result (result string (error $err)))
+                (canon lift (core func $main "info")
+                    (memory (core memory $libc "memory"))
+                    (realloc (core func $libc "realloc"))))
+            (func $java_resolve (param "provider" string) (param "args" string)
+                (result (result string (error $err)))
+                (canon lift (core func $main "run")
+                    (memory (core memory $libc "memory"))
+                    (realloc (core func $libc "realloc"))))
+            (instance $java_provider (export "majors" (func $java_majors)) (export "resolve" (func $java_resolve)))
+            (export "hestia:plugin/java-provider@1.0.0" (instance $java_provider)))"#
     );
     wat::parse_str(text).expect("guest WAT")
 }

@@ -31,6 +31,9 @@ impl Java<'_> {
     /// forwarding each progress event to `on_progress`. Returns the registered
     /// runtime and whether it was already installed.
     ///
+    /// `provider` names the Java provider to resolve from; `None` follows the
+    /// `java.provider` setting.
+    ///
     /// `id` is the caller's job id — pass one to be able to cancel this install
     /// (`Jobs::cancel`); empty generates one, which is fine for a caller
     /// that will never cancel.
@@ -38,6 +41,7 @@ impl Java<'_> {
         &self,
         major: i32,
         force: bool,
+        provider: Option<&str>,
         id: &str,
         on_progress: impl Fn(&proto::java::JavaInstallProgress) + Send + Sync + 'static,
     ) -> Result<(proto::java::JavaRuntime, bool), IpcError> {
@@ -51,6 +55,7 @@ impl Java<'_> {
             major,
             id: id.clone(),
             force,
+            provider: provider.map(str::to_string),
         };
         let done = self
             .session

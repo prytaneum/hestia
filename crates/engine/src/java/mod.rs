@@ -4,8 +4,10 @@
 
 mod adoptium;
 mod platform;
+mod provider;
 
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use anyhow::{bail, Context, Result};
 use proto::java::{JavaInstallPhase, JavaInstallProgress, JavaRelease, JavaRuntime};
@@ -13,6 +15,11 @@ use serde::{Deserialize, Serialize};
 
 use crate::download::Downloader;
 use crate::minecraft::materialize;
+use crate::roster::{RegisterError, Roster};
+
+pub use adoptium::ID as DEFAULT_PROVIDER;
+pub use platform::JavaTarget;
+pub use provider::{JavaPackage, JavaProvider};
 
 const RUNTIME_RECORD: &str = "runtime.json";
 /// An install extracts here and is renamed into place, so a runtime is only ever
@@ -28,11 +35,42 @@ pub struct JavaInstallOutcome {
 
 pub struct Java {
     dir: PathBuf,
+    providers: Roster<dyn JavaProvider>,
 }
 
 impl Java {
     pub fn new(dir: PathBuf) -> Self {
-        Java { dir }
+        let adoptium: Arc<dyn JavaProvider> = Arc::new(adoptium::Adoptium);
+        Java {
+            dir,
+            providers: Roster::builtin([(adoptium.id().to_string(), adoptium)]),
+        }
+    }
+
+    /// Add `owner`'s provider under `provider.id()`, which must read `<owner>.<id>`.
+    pub fn register(
+        &self,
+        owner: &str,
+        official: bool,
+        provider: Arc<dyn JavaProvider>,
+    ) -> Result<(), RegisterError> {
+        let id = provider.id().to_string();
+        self.providers.register(owner, official, &id, provider)
+    }
+
+    pub fn unregister(&self, owner: &str) -> usize {
+        self.providers.unregister(owner)
+    }
+
+    /// The provider registered as `id`; a typed error naming it when none is.
+    pub fn provider(&self, id: &str) -> Result<Arc<dyn JavaProvider>> {
+        self.providers
+            .snapshot()
+            .into_iter()
+            .find(|p| p.id() == id)
+            .ok_or_else(|| {
+                proto::error::ErrorInfo::JavaProviderUnknown { id: id.to_string() }.into()
+            })
     }
 
     pub fn dir(&self) -> &Path {
@@ -50,8 +88,8 @@ impl Java {
         freed
     }
 
-    pub async fn releases(&self) -> Result<Vec<JavaRelease>> {
-        adoptium::releases().await
+    pub async fn releases(&self, provider: &str) -> Result<Vec<JavaRelease>> {
+        self.provider(provider)?.releases().await
     }
 
     /// Scan the install directory; the disk is the registry.
@@ -93,11 +131,13 @@ impl Java {
 
     /// Bytes an install of `major` would download: `0` when it is already
     /// installed, so a launch can plan its total before fetching anything.
-    pub async fn download_size(&self, major: i32) -> Result<u64> {
+    pub async fn download_size(&self, provider: &str, major: i32) -> Result<u64> {
         if self.installed().iter().any(|r| r.major == major) {
             return Ok(0);
         }
-        Ok(adoptium::resolve(major, &platform::host_target()?)
+        let provider = self.provider(provider)?;
+        Ok(provider
+            .resolve(major, &platform::host_target()?)
             .await?
             .size)
     }
@@ -106,6 +146,7 @@ impl Java {
     /// nothing behind. An already-installed line is returned as-is unless `force`.
     pub async fn install(
         &self,
+        provider: &str,
         major: i32,
         force: bool,
         cancel: &crate::cancel::Cancel,
@@ -117,7 +158,7 @@ impl Java {
                 reason: proto::error::Reason::JavaMajor
             });
         }
-        tracing::info!(major, force, "java install requested");
+        tracing::info!(provider, major, force, "java install requested");
         if !force {
             if let Some(runtime) = self.installed().into_iter().find(|r| r.major == major) {
                 tracing::info!(major, release = %runtime.release_name, "java already installed");
@@ -134,7 +175,8 @@ impl Java {
         };
 
         on_progress(&phase(JavaInstallPhase::Resolving));
-        let package = adoptium::resolve(major, &platform::host_target()?).await?;
+        let provider = self.provider(provider)?;
+        let package = provider.resolve(major, &platform::host_target()?).await?;
         materialize::validate_filename(&package.archive_name)?;
         tracing::info!(
             major,
@@ -183,7 +225,7 @@ impl Java {
 
     async fn run_install(
         &self,
-        package: &adoptium::JavaPackage,
+        package: &JavaPackage,
         paths: &InstallPaths,
         cancel: &crate::cancel::Cancel,
         on_progress: &(impl Fn(&JavaInstallProgress) + Send + Sync),
@@ -254,7 +296,7 @@ struct InstallPaths {
 }
 
 impl InstallPaths {
-    fn for_package(base: &Path, package: &adoptium::JavaPackage) -> Self {
+    fn for_package(base: &Path, package: &JavaPackage) -> Self {
         let install_dir = base.join(format!("{}-{}", package.vendor, package.major));
         InstallPaths {
             archive: base.join(SCRATCH).join(&package.archive_name),
@@ -282,7 +324,7 @@ struct RuntimeRecord {
 
 fn write_runtime_record(
     install_dir: &Path,
-    package: &adoptium::JavaPackage,
+    package: &JavaPackage,
     relative_exe: &Path,
 ) -> Result<()> {
     let record = RuntimeRecord {
@@ -325,4 +367,62 @@ fn to_forward_slashes(path: &Path) -> String {
         .filter_map(|c| c.as_os_str().to_str())
         .collect::<Vec<_>>()
         .join("/")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use async_trait::async_trait;
+
+    struct Stub;
+
+    #[async_trait]
+    impl JavaProvider for Stub {
+        fn id(&self) -> &str {
+            "acme.zulu"
+        }
+
+        async fn releases(&self) -> Result<Vec<JavaRelease>> {
+            Ok(vec![JavaRelease {
+                major: 21,
+                lts: false,
+            }])
+        }
+
+        async fn resolve(&self, _: i32, _: &JavaTarget) -> Result<JavaPackage> {
+            bail!("stub")
+        }
+    }
+
+    #[test]
+    fn the_default_provider_is_adoptium() {
+        let java = Java::new(PathBuf::from("java"));
+        assert_eq!(
+            crate::config::Settings::default().java.provider,
+            DEFAULT_PROVIDER
+        );
+        assert_eq!(
+            java.provider(DEFAULT_PROVIDER).expect("built in").id(),
+            "adoptium"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_registered_provider_is_selected_by_id_and_unknown_ids_are_named() {
+        let java = Java::new(PathBuf::from("java"));
+        java.register("acme", false, Arc::new(Stub))
+            .expect("namespaced");
+
+        let releases = java.releases("acme.zulu").await.expect("stub releases");
+        assert_eq!(releases[0].major, 21);
+
+        let error = java.releases("nope").await.expect_err("unknown");
+        assert!(matches!(
+            error.downcast_ref::<proto::error::ErrorInfo>(),
+            Some(proto::error::ErrorInfo::JavaProviderUnknown { id }) if id == "nope"
+        ));
+
+        assert_eq!(java.unregister("acme"), 1);
+        assert!(java.provider("acme.zulu").is_err());
+    }
 }

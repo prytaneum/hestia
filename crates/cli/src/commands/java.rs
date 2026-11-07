@@ -18,6 +18,8 @@ pub enum JavaCmd {
         major: i32,
         #[arg(long, help = "Reinstall even if the line is already present")]
         force: bool,
+        #[arg(long, help = "Java provider to install from (default: java.provider)")]
+        provider: Option<String>,
     },
     /// Installed runtimes
     #[command(visible_alias = "ls")]
@@ -67,17 +69,25 @@ pub async fn run(cmd: JavaCmd) -> Result<()> {
                 rows,
             ))?;
         }
-        JavaCmd::Install { major, force } => {
+        JavaCmd::Install {
+            major,
+            force,
+            provider,
+        } => {
             let reporter = Arc::new(ByteReporter::new("resolving…"));
             let progress = reporter.clone();
             // Our own job id, so Ctrl-C can cancel this install rather than
             // just walking away from it.
             let id = format!("java-install-{major}-{}", std::process::id());
             let java = client.java();
-            let install = java.install(major, force, &id, move |p| match p.phase {
-                JavaInstallPhase::Resolving => progress.phase("resolving…"),
-                JavaInstallPhase::Downloading => progress.bytes("downloading", p.current, p.total),
-                JavaInstallPhase::Extracting => progress.phase("extracting…"),
+            let install = java.install(major, force, provider.as_deref(), &id, move |p| {
+                match p.phase {
+                    JavaInstallPhase::Resolving => progress.phase("resolving…"),
+                    JavaInstallPhase::Downloading => {
+                        progress.bytes("downloading", p.current, p.total)
+                    }
+                    JavaInstallPhase::Extracting => progress.phase("extracting…"),
+                }
             });
             let result = super::cancellable(&client, &id, install).await;
             reporter.finish();

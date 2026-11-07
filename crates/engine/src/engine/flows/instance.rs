@@ -238,7 +238,10 @@ impl Engine {
         )?;
         let java_bytes = self
             .java
-            .download_size(record.profile.java_major)
+            .download_size(
+                &self.config.settings().java.provider,
+                record.profile.java_major,
+            )
             .await
             .unwrap_or_else(|e| {
                 tracing::warn!(error = %e, "cannot size the java download; launching without it in the total");

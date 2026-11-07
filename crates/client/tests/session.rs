@@ -137,16 +137,16 @@ async fn a_job_settles_on_its_done_event() {
 
     let seen = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
     let observed = seen.clone();
-    let (installed, already) = settles(client.java().install(
-        21,
-        false,
-        "j1",
-        move |p: &JavaInstallProgress| {
-            observed.lock().unwrap().push(p.phase);
-        },
-    ))
-    .await
-    .expect("install");
+    let (installed, already) =
+        settles(
+            client
+                .java()
+                .install(21, false, None, "j1", move |p: &JavaInstallProgress| {
+                    observed.lock().unwrap().push(p.phase);
+                }),
+        )
+        .await
+        .expect("install");
 
     assert_eq!(installed.major, 21);
     // The done event is camelCase on the wire, like every other payload.
@@ -177,7 +177,7 @@ async fn a_job_settles_on_its_error_event() {
         )
         .serve();
 
-    let error = settles(client.java().install(21, false, "j2", |_| {}))
+    let error = settles(client.java().install(21, false, None, "j2", |_| {}))
         .await
         .expect_err("failed");
     assert!(matches!(error_info(&error), ErrorInfo::InvalidValue { .. }));
@@ -198,7 +198,7 @@ async fn a_cancelled_job_is_not_reported_as_a_failure() {
         )
         .serve();
 
-    let error = settles(client.java().install(21, false, "j3", |_| {}))
+    let error = settles(client.java().install(21, false, None, "j3", |_| {}))
         .await
         .expect_err("cancelled");
     assert!(
@@ -234,7 +234,7 @@ async fn a_job_ignores_events_belonging_to_another_job() {
         )
         .serve();
 
-    let (_, already) = settles(client.java().install(21, false, "mine", |_| {}))
+    let (_, already) = settles(client.java().install(21, false, None, "mine", |_| {}))
         .await
         .expect("install");
     assert!(!already);
@@ -258,7 +258,7 @@ async fn a_job_subscribes_before_it_starts() {
     let seen = script.seen();
     let client = script.serve();
 
-    settles(client.java().install(21, false, "j4", |_| {}))
+    settles(client.java().install(21, false, None, "j4", |_| {}))
         .await
         .expect("install");
 

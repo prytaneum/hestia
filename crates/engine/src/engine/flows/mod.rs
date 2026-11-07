@@ -50,10 +50,11 @@ impl Engine {
         on_progress: OnProgress<'_>,
     ) -> Result<PathBuf> {
         let detail = format!("java {major}");
+        let provider = self.config.settings().java.provider;
         let meter = Meter::new(tally);
         let outcome = self
             .java
-            .install(major, false, on_progress.cancel(), |jp| {
+            .install(&provider, major, false, on_progress.cancel(), |jp| {
                 meter.reach(jp.current);
                 on_progress.report(&ProvisionProgress {
                     phase: ProvisionPhase::Java,

@@ -27,6 +27,7 @@ mod error;
 pub mod flavor;
 mod hooks;
 pub mod http;
+pub mod java;
 pub mod log;
 pub mod presence;
 pub mod process;
@@ -40,6 +41,7 @@ pub use call::{call, run_job};
 pub use command::args;
 pub use error::Error;
 pub use hooks::{InstallContext, LaunchContext, LaunchPatch, ServerContext};
+pub use java::JavaBuild;
 /// The daemon's wire contracts and domain types, the same ones the CLI uses.
 pub use proto;
 use proto::content::{
@@ -309,6 +311,31 @@ pub trait Plugin {
     ) -> Result<FormatWritten, Error> {
         let _ = (blueprint, files);
         Err(Error::NotFound(format!("unknown format `{format}`")))
+    }
+
+    /// The feature versions the Java provider `provider` offers. One plugin may
+    /// contribute several; each `java_*` method receives the id of the one
+    /// being asked.
+    fn java_majors(provider: &str) -> Result<Vec<i32>, Error> {
+        Err(Error::NotFound(format!(
+            "unknown java provider `{provider}`"
+        )))
+    }
+
+    /// The build of `major` for `os` (`linux`, `windows`, `mac`) and `arch`
+    /// (`x64`, `aarch64`), or `None` when there is none. The host downloads
+    /// and extracts it, and refuses one whose `url` is not https on one of
+    /// the plugin's network hosts or whose `sha256` is malformed.
+    fn java_resolve(
+        provider: &str,
+        major: i32,
+        os: &str,
+        arch: &str,
+    ) -> Result<Option<JavaBuild>, Error> {
+        let _ = (major, os, arch);
+        Err(Error::NotFound(format!(
+            "unknown java provider `{provider}`"
+        )))
     }
 }
 
@@ -656,6 +683,36 @@ macro_rules! plugin {
                 > {
                     $crate::source::answer(&blueprint, |blueprint| {
                         <$plugin as $crate::Plugin>::format_write(&format, blueprint, &files)
+                    })
+                }
+            }
+
+            impl $crate::bindings::exports::hestia::plugin::java_provider::Guest for Export {
+                fn majors(
+                    provider: ::std::string::String,
+                ) -> ::core::result::Result<
+                    ::std::string::String,
+                    $crate::bindings::hestia::plugin::types::PluginError,
+                > {
+                    $crate::source::answer("null", |(): ()| {
+                        <$plugin as $crate::Plugin>::java_majors(&provider)
+                    })
+                }
+
+                fn resolve(
+                    provider: ::std::string::String,
+                    args: ::std::string::String,
+                ) -> ::core::result::Result<
+                    ::std::string::String,
+                    $crate::bindings::hestia::plugin::types::PluginError,
+                > {
+                    $crate::source::answer(&args, |args: $crate::java::ResolveArgs| {
+                        <$plugin as $crate::Plugin>::java_resolve(
+                            &provider,
+                            args.major,
+                            &args.os,
+                            &args.arch,
+                        )
                     })
                 }
             }

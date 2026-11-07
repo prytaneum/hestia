@@ -9,11 +9,11 @@ use crate::runtime::Channels;
 
 pub(super) fn register(on: &mut Channels<'_>) {
     on.handle::<JavaReleases, _, _>(|_: Empty, ctx| async move {
-        let releases = ctx
-            .runtime
-            .engine()
+        let engine = ctx.runtime.engine();
+        let provider = engine.config().settings().java.provider;
+        let releases = engine
             .java()
-            .releases()
+            .releases(&provider)
             .await
             .map_err(crate::runtime::engine_error)?;
         // The launcher only ever launches Minecraft, so offering every
@@ -59,11 +59,21 @@ pub(super) fn register(on: &mut Channels<'_>) {
                 reason: Reason::JavaMajor,
             });
         }
-        match ctx
-            .runtime
-            .jobs()
-            .start_java_install(p.major, p.id, p.force, ctx.chain.clone())
-        {
+        let engine = ctx.runtime.engine();
+        let provider = p
+            .provider
+            .unwrap_or_else(|| engine.config().settings().java.provider);
+        engine
+            .java()
+            .provider(&provider)
+            .map_err(crate::runtime::engine_error)?;
+        match ctx.runtime.jobs().start_java_install(
+            p.major,
+            p.id,
+            p.force,
+            provider,
+            ctx.chain.clone(),
+        ) {
             Some(id) => Ok(JobStarted { id }),
             None => Err(ErrorInfo::JavaInstallInProgress { major: p.major }),
         }

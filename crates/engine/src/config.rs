@@ -37,6 +37,25 @@ pub struct Settings {
     pub update: UpdateSettings,
     /// Whether the launcher may reach the network at all.
     pub network: NetworkSettings,
+    pub java: JavaProviderSettings,
+}
+
+/// The Java distribution runtimes are installed from, keyed `java.provider`:
+/// the id of a registered Java provider, `adoptium` unless changed. It is not
+/// checked when set, because a plugin's provider is registered only while that
+/// plugin is enabled; an install naming an unregistered id fails by name.
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(default, rename_all = "camelCase")]
+pub struct JavaProviderSettings {
+    pub provider: String,
+}
+
+impl Default for JavaProviderSettings {
+    fn default() -> Self {
+        JavaProviderSettings {
+            provider: crate::java::DEFAULT_PROVIDER.to_string(),
+        }
+    }
 }
 
 /// Outbound network policy, keyed `network.offline`. Pinned offline, nothing is
@@ -155,6 +174,10 @@ impl Settings {
             .map_err(invalid("defaults.jvm-args"))?
             .join(" ");
         self.content.curseforge_key = self.content.curseforge_key.trim().to_string();
+        self.java.provider = self.java.provider.trim().to_string();
+        if self.java.provider.is_empty() {
+            self.java.provider = crate::java::DEFAULT_PROVIDER.to_string();
+        }
         Ok(())
     }
 

@@ -2,6 +2,7 @@
 //! only; downloading, extraction, and registration live in `Java`.
 
 use anyhow::{bail, Context, Result};
+use async_trait::async_trait;
 use proto::download::{Checksum, HashAlgorithm};
 use proto::error::Service;
 use proto::java::JavaRelease;
@@ -9,17 +10,27 @@ use serde::de::DeserializeOwned;
 use serde::Deserialize;
 
 use super::platform::JavaTarget;
+use super::provider::{JavaPackage, JavaProvider};
 
 const API_BASE: &str = "https://api.adoptium.net";
 
-pub struct JavaPackage {
-    pub vendor: String,
-    pub major: i32,
-    pub release_name: String,
-    pub url: String,
-    pub archive_name: String,
-    pub checksum: Checksum,
-    pub size: u64,
+pub const ID: &str = "adoptium";
+
+pub struct Adoptium;
+
+#[async_trait]
+impl JavaProvider for Adoptium {
+    fn id(&self) -> &str {
+        ID
+    }
+
+    async fn releases(&self) -> Result<Vec<JavaRelease>> {
+        releases().await
+    }
+
+    async fn resolve(&self, major: i32, target: &JavaTarget) -> Result<JavaPackage> {
+        resolve(major, target).await
+    }
 }
 
 #[derive(Deserialize, Default)]
@@ -68,12 +79,12 @@ async fn fetch_json<T: DeserializeOwned>(url: &str, query: &[(&str, &str)]) -> R
         .context("adoptium returned malformed JSON")
 }
 
-pub async fn releases() -> Result<Vec<JavaRelease>> {
+async fn releases() -> Result<Vec<JavaRelease>> {
     let j = fetch_json(&format!("{API_BASE}/v3/info/available_releases"), &[]).await?;
     releases_from_json(j)
 }
 
-pub async fn resolve(major: i32, target: &JavaTarget) -> Result<JavaPackage> {
+async fn resolve(major: i32, target: &JavaTarget) -> Result<JavaPackage> {
     let url = format!("{API_BASE}/v3/assets/latest/{major}/hotspot");
     let assets = fetch_json(
         &url,

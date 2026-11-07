@@ -62,3 +62,20 @@ interface flavor {
     /// `args` is `{ version, loaderVersion }`; answers a `proto::profile::InstanceProfile`.
     resolve-client: func(flavor: string, args: json) -> result<json, plugin-error>;
 }
+
+/// Every call names the contributed Java provider it is for, because one
+/// plugin may contribute several. A provider only resolves: the host downloads
+/// the archive, verifies its sha256 and extracts it, and refuses a build whose
+/// URL is not https on one of the plugin's network hosts.
+interface java-provider {
+    use types.{json, plugin-error};
+
+    /// Answers a list of feature versions (integers) the distribution offers.
+    majors: func(provider: string) -> result<json, plugin-error>;
+
+    /// `args` is `{ major, os, arch }`, with `os` one of `linux`, `windows`,
+    /// `mac` and `arch` one of `x64`, `aarch64`. Answers
+    /// `{ vendor, version, url, sha256, archive }` with `archive` either
+    /// `tar.gz` or `zip`, or `null` when there is no build for that platform.
+    resolve: func(provider: string, args: json) -> result<json, plugin-error>;
+}

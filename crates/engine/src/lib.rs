@@ -56,7 +56,7 @@ pub use engine::{
 pub use error::error_info;
 pub use files::FileTree;
 pub use instances::{InstanceRecord, Instances};
-pub use java::{Java, JavaInstallOutcome};
+pub use java::{Java, JavaInstallOutcome, JavaPackage, JavaProvider, JavaTarget};
 pub use jvm::JavaSettings;
 pub use minecraft::launch::LaunchPlan;
 pub use minecraft::profile::{
@@ -67,15 +67,16 @@ pub use minecraft::{
 };
 pub use net::Network;
 pub use plugins::{
-    command_args, connect_flavors, connect_formats, connect_sources, find_command,
+    command_args, connect_flavors, connect_formats, connect_java, connect_sources, find_command,
     is_official_signer, key_id_of, owner_of, refuse_official_key, register_flavors,
-    register_formats, register_sources, resolve_on_path, revocation, target_triple, verify_build,
-    verify_index, BeforeLaunch, CallChain, CallError, ChainError, CommandRun, Hook, HookOutcome,
-    Hooks, HostCalls, HostError, Inspection, LaunchContext, LaunchPatch, Listings, LoadError,
-    LoadedPlugin, Origin, Participant, PluginContentProvider, PluginFlavorProvider, PluginFormat,
-    PluginPackage, PluginRecord, PluginRuntime, PluginSettings, PluginStats, Plugins, Remote,
-    RepoError, Roster, SettingsError, Staged, Verdict, CANCEL_GRACE, COMMAND_TIMEOUT,
-    EVENT_TIMEOUT, HOOK_TIMEOUT, MAX_ASSET_BYTES, MAX_CHAIN_DEPTH, PROVIDER_TIMEOUT, UI_TIMEOUT,
+    register_formats, register_java, register_sources, resolve_on_path, revocation, target_triple,
+    verify_build, verify_index, BeforeLaunch, CallChain, CallError, ChainError, CommandRun, Hook,
+    HookOutcome, Hooks, HostCalls, HostError, Inspection, LaunchContext, LaunchPatch, Listings,
+    LoadError, LoadedPlugin, Origin, Participant, PluginContentProvider, PluginFlavorProvider,
+    PluginFormat, PluginJavaProvider, PluginPackage, PluginRecord, PluginRuntime, PluginSettings,
+    PluginStats, Plugins, Remote, RepoError, Roster, SettingsError, Staged, Verdict, CANCEL_GRACE,
+    COMMAND_TIMEOUT, EVENT_TIMEOUT, HOOK_TIMEOUT, MAX_ASSET_BYTES, MAX_CHAIN_DEPTH,
+    PROVIDER_TIMEOUT, UI_TIMEOUT,
 };
 pub use presence::Presence;
 pub use process::{ExitObserver, ProcessEvents, ProcessSupervisor, StartError};

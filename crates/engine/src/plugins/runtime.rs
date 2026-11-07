@@ -27,7 +27,7 @@ use super::imports::{CommandRun, Gate, HostCalls, PluginState};
 use super::output::{Captured, PluginLog};
 use super::presence::PluginCard;
 use super::process::Programs;
-use super::providers::{FlavorOp, FormatCall, SourceOp};
+use super::providers::{FlavorOp, FormatCall, JavaOp, SourceOp};
 use super::settings::PluginSettings;
 use super::store::PluginRecord;
 use crate::checksum::hex;
@@ -603,6 +603,30 @@ impl LoadedPlugin {
                     FormatCall::Write { blueprint, files } => {
                         guest.call_write(store, &format, &blueprint, &files).await
                     }
+                }
+            })
+        })
+        .await?
+        .map_err(|error| CallError::Guest(describe(error)))
+    }
+
+    /// Runs one call of the plugin's `java-provider` export for the contributed
+    /// provider `provider` under `timeout`; `args` and the reply are JSON.
+    pub(super) async fn java_provider(
+        &self,
+        chain: &CallChain,
+        op: JavaOp,
+        provider: &str,
+        args: &str,
+        timeout: Duration,
+    ) -> Result<String, CallError> {
+        let (provider, args) = (provider.to_string(), args.to_string());
+        self.guarded(chain, timeout, None, move |store, instance| {
+            Box::pin(async move {
+                let guest = instance.hestia_plugin_java_provider();
+                match op {
+                    JavaOp::Majors => guest.call_majors(store, &provider).await,
+                    JavaOp::Resolve => guest.call_resolve(store, &provider, &args).await,
                 }
             })
         })

@@ -12,6 +12,7 @@ impl Jobs {
         major: i32,
         id: String,
         force: bool,
+        provider: String,
         chain: CallChain,
     ) -> Option<String> {
         let claim = self
@@ -32,7 +33,7 @@ impl Jobs {
                 let report = reporter.checked();
                 let outcome = engine
                     .java()
-                    .install(major, force, cancel, move |p| {
+                    .install(&provider, major, force, cancel, move |p| {
                         let _ = report(p);
                     })
                     .await?;

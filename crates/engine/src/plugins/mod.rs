@@ -47,8 +47,9 @@ pub use patch::LaunchPatch;
 pub use process::owner_of;
 pub use program::{resolve_on_path, target_triple};
 pub use providers::{
-    connect_flavors, connect_formats, connect_sources, register_flavors, register_formats,
-    register_sources, PluginContentProvider, PluginFlavorProvider, PluginFormat,
+    connect_flavors, connect_formats, connect_java, connect_sources, register_flavors,
+    register_formats, register_java, register_sources, PluginContentProvider, PluginFlavorProvider,
+    PluginFormat, PluginJavaProvider,
 };
 pub use remote::{Origin, Remote, Staged};
 pub use repos::{key_id_of, revocation, verify_build, verify_index, RepoError};
