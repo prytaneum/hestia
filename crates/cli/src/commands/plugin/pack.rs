@@ -95,13 +95,16 @@ fn select(all: Vec<PluginDir>, ids: &[String]) -> Result<Vec<PluginDir>> {
         .collect())
 }
 
+/// A package's files by package-relative name.
+type Files = Vec<(String, Vec<u8>)>;
+
 /// The package's manifest and files by package-relative name. The `api`
 /// requirement comes from the SDK the component was built against; the author
 /// never writes it.
 pub(super) fn package_files(
     plugin: &PluginDir,
     component: Option<&cargo::Component>,
-) -> Result<(proto::plugin::Manifest, Vec<(String, Vec<u8>)>)> {
+) -> Result<(proto::plugin::Manifest, Files)> {
     let mut manifest = plugin.manifest.clone();
     let mut manifest_text = std::fs::read_to_string(plugin.path.join(MANIFEST))?;
     if let Some(component) = component {
