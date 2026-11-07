@@ -230,7 +230,7 @@ fn api() -> Api {
         process::ProcessStartedEvent,
     );
     each!(api.guest:
-        content::SourceInfo, content::SourceUrl, content::SearchQuery, content::SearchResult,
+        content::SourceInfo, content::SourceUrl, content::SourceFileRef, content::SearchQuery, content::SearchResult,
         content::ContentProject, content::VersionQuery, content::ContentVersion,
         minecraft::GameVersion,
         profile::FlavorDescription, profile::ServerProfile, profile::InstanceProfile,

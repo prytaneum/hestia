@@ -528,6 +528,9 @@ impl LoadedPlugin {
                 match op {
                     SourceOp::Info => guest.call_info(store, &source).await,
                     SourceOp::ParseUrl => guest.call_parse_url(store, &source, &args).await,
+                    SourceOp::RecogniseFileUrl => {
+                        guest.call_recognise_file_url(store, &source, &args).await
+                    }
                     SourceOp::Search => guest.call_search(store, &source, &args).await,
                     SourceOp::Project => guest.call_project(store, &source, &args).await,
                     SourceOp::Projects => guest.call_projects(store, &source, &args).await,

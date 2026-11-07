@@ -10,8 +10,8 @@ use std::sync::Arc;
 use anyhow::Result;
 use async_trait::async_trait;
 use proto::content::{
-    ContentKind, ContentProject, ContentVersion, SearchQuery, SearchResult, SourceInfo, SourceUrl,
-    VersionQuery,
+    ContentKind, ContentProject, ContentVersion, SearchQuery, SearchResult, SourceFileRef,
+    SourceInfo, SourceUrl, VersionQuery,
 };
 use proto::plugin::{Manifest, CONTENT_PROVIDER};
 use serde::de::DeserializeOwned;
@@ -29,6 +29,7 @@ use crate::plugins::runtime::{LoadedPlugin, PROVIDER_TIMEOUT};
 pub(in crate::plugins) enum SourceOp {
     Info,
     ParseUrl,
+    RecogniseFileUrl,
     Search,
     Project,
     Projects,
@@ -42,6 +43,7 @@ impl SourceOp {
         match self {
             SourceOp::Info => "info",
             SourceOp::ParseUrl => "parse-url",
+            SourceOp::RecogniseFileUrl => "recognise-file-url",
             SourceOp::Search => "search",
             SourceOp::Project => "project",
             SourceOp::Projects => "projects",
@@ -159,6 +161,22 @@ impl ContentProvider for PluginContentProvider {
             version: found.version,
             kind: found.kind,
         })
+    }
+
+    async fn recognise_file_url(&self, url: &str) -> Option<SourceFileRef> {
+        if !download_allowed(self.plugin.grant(), url) {
+            return None;
+        }
+        self.ask(SourceOp::RecogniseFileUrl, json!({ "url": url }))
+            .await
+            .inspect_err(|error| {
+                tracing::warn!(source = %self.id, error = %format!("{error:#}"), "content source could not recognise a file URL");
+            })
+            .ok()?
+    }
+
+    fn datapacks_as_mods(&self) -> bool {
+        self.info.datapacks_as_mods
     }
 
     async fn search(&self, query: &SearchQuery) -> Result<SearchResult> {

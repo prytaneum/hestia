@@ -7,11 +7,16 @@ package hestia:plugin@1.0.0;
 interface content-source {
     use types.{json, plugin-error};
 
-    /// `proto::content::SourceInfo`: `{ name, kinds }`.
+    /// `proto::content::SourceInfo`: `{ name, kinds, datapacksAsMods }`.
     info: func(source: string) -> result<json, plugin-error>;
 
     /// `args` is `{ url }`. Answers a `SourceUrl`, or `null` for a URL that is not this source's.
     parse-url: func(source: string, args: json) -> result<json, plugin-error>;
+
+    /// `args` is `{ url }`, the URL of a file. Answers a `SourceFileRef`, or `null`
+    /// for a file that is not this source's. A URL outside the plugin's network
+    /// hosts is never asked about.
+    recognise-file-url: func(source: string, args: json) -> result<json, plugin-error>;
 
     /// `args` is a `SearchQuery`; answers a `SearchResult`.
     search: func(source: string, args: json) -> result<json, plugin-error>;

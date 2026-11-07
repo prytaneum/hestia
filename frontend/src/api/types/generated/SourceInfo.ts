@@ -5,4 +5,9 @@ import type { ContentKind } from "./ContentKind";
  * What a plugin's content source says of itself: the `info` of the
  * `content-source` export, which the host turns into a [`ContentSource`].
  */
-export type SourceInfo = { name: string, kinds: Array<ContentKind>, };
+export type SourceInfo = { name: string, kinds: Array<ContentKind>, 
+/**
+ * Whether the source has no datapack project type, so a datapack is a
+ * `Mod` project whose versions carry the `datapack` loader.
+ */
+datapacksAsMods: boolean, };

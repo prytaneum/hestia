@@ -90,6 +90,9 @@ pub struct ContentSource {
 pub struct SourceInfo {
     pub name: String,
     pub kinds: Vec<ContentKind>,
+    /// Whether the source has no datapack project type, so a datapack is a
+    /// `Mod` project whose versions carry the `datapack` loader.
+    pub datapacks_as_mods: bool,
 }
 
 /// A project (and optionally a version) a plugin's source recognised in a page
@@ -103,6 +106,16 @@ pub struct SourceUrl {
     pub version: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub kind: Option<ContentKind>,
+}
+
+/// The project and version a source recognised in the URL of a file it
+/// serves: the answer of the `content-source` export's `recognise-file-url`.
+#[derive(Serialize, Deserialize, Default, Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
+#[serde(default, rename_all = "camelCase")]
+pub struct SourceFileRef {
+    pub project: String,
+    pub version: String,
 }
 
 /// A gallery image on a project. Search hits carry only `url`; the detail call

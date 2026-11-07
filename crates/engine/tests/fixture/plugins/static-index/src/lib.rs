@@ -45,6 +45,7 @@ impl Plugin for StaticIndex {
         Ok(SourceInfo {
             name: "Static index".into(),
             kinds: vec![ContentKind::Mod],
+            ..SourceInfo::default()
         })
     }
 

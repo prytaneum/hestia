@@ -43,8 +43,8 @@ pub use hooks::{InstallContext, LaunchContext, LaunchPatch, ServerContext};
 /// The daemon's wire contracts and domain types, the same ones the CLI uses.
 pub use proto;
 use proto::content::{
-    ContentKind, ContentProject, ContentVersion, SearchQuery, SearchResult, SourceInfo, SourceUrl,
-    VersionQuery,
+    ContentKind, ContentProject, ContentVersion, SearchQuery, SearchResult, SourceFileRef,
+    SourceInfo, SourceUrl, VersionQuery,
 };
 use proto::minecraft::GameVersion;
 use proto::plugin::PageContext;
@@ -174,6 +174,13 @@ pub trait Plugin {
 
     /// Recognises a page URL on the source's site; `None` when it is not one.
     fn source_parse_url(source: &str, url: &str) -> Result<Option<SourceUrl>, Error> {
+        let _ = (source, url);
+        Ok(None)
+    }
+
+    /// Recognises the project and version behind the URL of a file, such as a
+    /// `.mrpack` download; `None` when the file is not this source's.
+    fn source_recognise_file_url(source: &str, url: &str) -> Result<Option<SourceFileRef>, Error> {
         let _ = (source, url);
         Ok(None)
     }
@@ -402,6 +409,18 @@ macro_rules! plugin {
                 > {
                     $crate::source::answer(&args, |args: $crate::source::UrlArgs| {
                         <$plugin as $crate::Plugin>::source_parse_url(&source, &args.url)
+                    })
+                }
+
+                fn recognise_file_url(
+                    source: ::std::string::String,
+                    args: ::std::string::String,
+                ) -> ::core::result::Result<
+                    ::std::string::String,
+                    $crate::bindings::hestia::plugin::types::PluginError,
+                > {
+                    $crate::source::answer(&args, |args: $crate::source::UrlArgs| {
+                        <$plugin as $crate::Plugin>::source_recognise_file_url(&source, &args.url)
                     })
                 }
 
