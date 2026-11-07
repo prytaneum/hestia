@@ -56,4 +56,4 @@ libc = "0.2"
 [dev-dependencies]
 tempfile.workspace = true
 minisign = { workspace = true }
-wasmtime = { workspace = true, features = ["wat"] }
+wat = "1.262.0"

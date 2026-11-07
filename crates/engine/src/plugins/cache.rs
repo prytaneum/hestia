@@ -110,7 +110,9 @@ fn discard(artifact: &Path, digest: &Path) {
 mod tests {
     use super::*;
 
-    const WASM: &str = "(component)";
+    fn wasm() -> Vec<u8> {
+        wat::parse_str("(component)").unwrap()
+    }
 
     fn artifacts(dir: &Path) -> Vec<PathBuf> {
         let mut found: Vec<_> = std::fs::read_dir(dir)
@@ -127,12 +129,12 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let engine = Engine::default();
         let cache = ComponentCache::stamped(dir.path().into(), 0);
-        cache.component(&engine, "abc", WASM.as_bytes()).unwrap();
+        cache.component(&engine, "abc", &wasm()).unwrap();
         let artifact = artifacts(dir.path()).remove(0);
         let whole = std::fs::read(&artifact).unwrap();
         std::fs::write(&artifact, &whole[..whole.len() / 2]).unwrap();
 
-        cache.component(&engine, "abc", WASM.as_bytes()).unwrap();
+        cache.component(&engine, "abc", &wasm()).unwrap();
 
         assert_eq!(std::fs::read(&artifact).unwrap(), whole);
     }
@@ -142,10 +144,10 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let engine = Engine::default();
         ComponentCache::stamped(dir.path().into(), 1)
-            .component(&engine, "abc", WASM.as_bytes())
+            .component(&engine, "abc", &wasm())
             .unwrap();
         ComponentCache::stamped(dir.path().into(), 2)
-            .component(&engine, "abc", WASM.as_bytes())
+            .component(&engine, "abc", &wasm())
             .unwrap();
 
         assert_eq!(artifacts(dir.path()).len(), 2);

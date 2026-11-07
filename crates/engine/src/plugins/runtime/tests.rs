@@ -22,7 +22,7 @@ const PLUGIN_ERROR: &str = r#"(variant (case "permission-denied" string) (case "
 
 /// A component exporting `lifecycle.init`; `body` runs first. With
 /// `calls_host` it can call `host.call` and traps when that answers an error.
-fn guest(calls_host: bool, body: &str) -> String {
+fn guest(calls_host: bool, body: &str) -> Vec<u8> {
     let (import, core_import, with) = if calls_host {
         (
             format!(
@@ -42,7 +42,7 @@ fn guest(calls_host: bool, body: &str) -> String {
     } else {
         (String::new(), "", "")
     };
-    format!(
+    let text = format!(
         r#"(component
             (import "hestia:plugin/types@1.0.0" (instance $types
                 (type $e {PLUGIN_ERROR})
@@ -210,7 +210,8 @@ fn guest(calls_host: bool, body: &str) -> String {
                     (realloc (core func $libc "realloc"))))
             (instance $content_source (export "info" (func $info)) (export "parse-url" (func $parse_url)) (export "search" (func $search)) (export "project" (func $project)) (export "projects" (func $projects)) (export "versions" (func $versions)) (export "versions-by-id" (func $versions_by_id)) (export "identify" (func $identify)))
             (export "hestia:plugin/content-source@1.0.0" (instance $content_source)))"#
-    )
+    );
+    wat::parse_str(text).expect("guest WAT")
 }
 
 const CALL_HOST_OR_TRAP: &str = r#"
@@ -262,10 +263,10 @@ impl HostCalls for TestHost {
     }
 }
 
-fn record(wat: &str, permissions: &[Permission]) -> PluginRecord {
+fn record(wasm: &[u8], permissions: &[Permission]) -> PluginRecord {
     PluginRecord {
         id: "probe".into(),
-        wasm_sha256: Some(hex(&Sha256::digest(wat.as_bytes()))),
+        wasm_sha256: Some(hex(&Sha256::digest(wasm))),
         grant: Grant {
             permissions: permissions.iter().copied().collect::<BTreeSet<_>>(),
             ..Grant::default()
@@ -280,7 +281,7 @@ fn no_settings(dir: &tempfile::TempDir) -> crate::plugins::PluginSettings {
 
 fn load(
     host: &Arc<TestHost>,
-    wat: &str,
+    wasm: &[u8],
     permissions: &[Permission],
 ) -> (Arc<LoadedPlugin>, tempfile::TempDir) {
     let data = tempfile::tempdir().unwrap();
@@ -288,8 +289,8 @@ fn load(
         PluginRuntime::new(host.clone(), data.path().join("cache"), supervisor(&data)).unwrap();
     let plugin = runtime
         .load(
-            &record(wat, permissions),
-            wat.as_bytes(),
+            &record(wasm, permissions),
+            wasm,
             data.path().into(),
             no_settings(&data),
         )
@@ -410,7 +411,7 @@ async fn a_component_that_differs_from_its_recorded_hash_is_not_compiled() {
 
     let outcome = runtime.load(
         &record(&recorded, &[]),
-        tampered.as_bytes(),
+        &tampered,
         data.path().into(),
         no_settings(&data),
     );
