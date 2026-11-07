@@ -62,3 +62,13 @@ lto = "thin"
 codegen-units = 1
 strip = true
 panic = "abort"
+# Debug info stays in per-object `.dwo` files instead of being copied into
+# every linked binary. Cargo drops it where rustc lacks support (Windows MSVC
+# already writes a separate `.pdb`).
+[profile.dev]
+split-debuginfo = "unpacked"
+
+# Dependencies keep file:line for backtraces; workspace crates keep full info.
+[profile.dev.package."*"]
+debug = "line-tables-only"
+
