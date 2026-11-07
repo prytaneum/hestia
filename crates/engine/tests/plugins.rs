@@ -23,8 +23,7 @@ use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 use tokio::sync::watch;
 
-#[path = "fixture/probe.rs"]
-mod probe;
+use crate::fixture::probe;
 
 const CALL_BUDGET: Duration = Duration::from_secs(30);
 

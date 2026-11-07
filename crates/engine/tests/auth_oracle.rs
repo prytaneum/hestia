@@ -2,7 +2,7 @@
 //! Microsoft's live device-code endpoint and needs network; run it deliberately
 //! to validate the sign-in flow against production:
 //!
-//!   cargo test -p engine --test auth_oracle -- --ignored --nocapture
+//!   cargo test -p engine --test integration auth_oracle -- --ignored --nocapture
 //!
 //! It exercises only the pre-consent leg (requesting a device code), so it
 //! completes without a human approving anything — the part that can regress

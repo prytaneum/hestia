@@ -1,5 +1,4 @@
-//! Builds the `probe` plugin once per test binary. Shared by path between
-//! `plugins.rs` and, through `fixture`, `flows.rs`.
+//! Builds the `probe` plugin once per test run, for `plugins` and `flows`.
 
 use std::path::{Path, PathBuf};
 use std::process::Command;

@@ -2,9 +2,9 @@
 //! is ordering: which step runs before which, and what is left on disk when one
 //! of them fails.
 
-#[path = "flows/content_source.rs"]
 mod content_source;
-mod fixture;
+
+use crate::fixture;
 
 use engine::{CallChain, Cancel, EntryRef, Job, LaunchRequest, ServerCreateSpec};
 use proto::content::{ContentAddItem, ContentAddSpec, ContentDone, ContentKind};
