@@ -6,4 +6,4 @@ import type { Program } from "./Program";
  * Everything a user approves, canonical and sorted. Approval, widening and
  * re-approval compare grants, never bare permission lists.
  */
-export type Grant = { permissions: Array<Permission>, network: Array<string>, programs: Array<Program>, launchProperties: Array<string>, hooks: Array<string>, events: Array<string>, secretSettings: Array<string>, uiCss: Array<string>, };
+export type Grant = { permissions: Array<Permission>, network: Array<string>, ipc: Array<string>, programs: Array<Program>, launchProperties: Array<string>, hooks: Array<string>, events: Array<string>, secretSettings: Array<string>, uiCss: Array<string>, };

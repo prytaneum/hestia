@@ -103,7 +103,8 @@ mod manifest {
 
     #[test]
     fn every_hook_validates_and_stays_sandboxed() {
-        for (name, needs) in proto::plugin::HOOKS {
+        for point in proto::hook::POINTS {
+            let (name, needs) = (point.name, point.permissions);
             let manifest = hooked(name, needs);
             assert_eq!(manifest.validate(), Ok(()), "{name}");
             assert!(manifest.grant().unrestricted().is_empty(), "{name}");

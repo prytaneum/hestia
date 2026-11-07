@@ -41,7 +41,15 @@ pub trait Contract {
 pub trait Topic {
     const TOPIC: &'static str;
     /// The permission a plugin needs to receive this event; `None` withholds it.
+    /// A topic must be classified or explicitly denied, like a contract.
     const PLUGIN: Option<Permission> = None;
+
+    /// The permission one event needs, read from its payload. Only a topic whose
+    /// events differ in what they reveal overrides it.
+    fn permission(payload: &serde_json::Value) -> Option<Permission> {
+        let _ = payload;
+        Self::PLUGIN
+    }
 }
 
 /// An empty payload: serializes to `{}` and decodes from it, matching the C++

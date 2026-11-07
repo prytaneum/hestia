@@ -344,7 +344,7 @@ cannot trigger an update.
 | `cancel.rs` | `Cancel`, the cooperative cancellation flag, and `Job`, which carries it beside the progress reporter — a step that reports progress is exactly a step that can stop between reports |
 | `registry.rs` | id allocation (`allocate_id`) and directory naming (`dir_name`) shared by the entry stores ([0020](../decisions/0020-id-is-a-uuid-directory-is-a-slug.md)) |
 | `usage.rs` | directory footprint, treating a symlink as a boundary so a linked sync folder is not counted into the instance that points at it |
-| `presence/` | the one Discord connection behind a `Discord` trait, the core and per-plugin cards, the diff against what is shown and the update rate limit ([0106](../decisions/0106-presence-is-a-host-service.md)) |
+| `presence/` | the launcher's Discord connection behind a `Discord` trait, the diff against what is shown and the update rate limit ([0059](../decisions/0059-discord-presence-is-a-daemon-loop.md)); it moves out once a plugin over `ipc:connect` replaces it ([0106](../decisions/0106-the-plugin-api-is-mechanisms-not-features.md)) |
 | `signature.rs` | minisign verification for the updater |
 | `error.rs` | the engine's `thiserror` enums, mapped to `ipc::errors` codes at the daemon's service boundary |
 
@@ -355,5 +355,5 @@ cannot trigger an update.
 - [0034 — Workloads outlive the daemon by design](../decisions/0034-workloads-outlive-the-daemon.md)
 - [0035 — A finished process is labelled, not merely unrecorded](../decisions/0035-a-finished-process-is-tombstoned.md)
 - [0037 — Following logs is scoped to the entry, not to one run of it](../decisions/0037-following-logs-is-entry-scoped.md)
-- [0106 — Presence is a host service](../decisions/0106-presence-is-a-host-service.md)
+- [0106 — The plugin API is mechanisms, not features](../decisions/0106-the-plugin-api-is-mechanisms-not-features.md)
 - [0067 — Reachability is observed from real traffic, and offline is a state the whole system reads](../decisions/0067-reachability-is-observed-not-asked.md)

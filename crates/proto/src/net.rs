@@ -5,6 +5,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::contract::{Contract, Empty, Topic};
+use crate::plugin::Permission;
 
 /// Whether outbound requests are reaching upstream.
 #[derive(Serialize, Deserialize, Default, Debug, Clone, Copy, PartialEq, Eq)]
@@ -51,4 +52,5 @@ impl Contract for NetStatus {
 /// pushed and polled shapes cannot drift.
 impl Topic for NetworkStatus {
     const TOPIC: &'static str = "net.state";
+    const PLUGIN: Option<Permission> = Some(Permission::NetworkConnect);
 }

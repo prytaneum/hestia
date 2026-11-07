@@ -1,7 +1,7 @@
 //! The decision loop of Discord Rich Presence: what is being played, handed to
 //! the engine's presence service, which owns the connection
 //! ([0059](../../../../docs/decisions/0059-discord-presence-is-a-daemon-loop.md),
-//! [0106](../../../../docs/decisions/0106-presence-is-a-host-service.md)).
+//! [0106](../../../../docs/decisions/0106-the-plugin-api-is-mechanisms-not-features.md)).
 //!
 //! It runs on its own thread rather than a tokio task: the tick publishes
 //! through a blocking socket write whose peer is a process hestia does not

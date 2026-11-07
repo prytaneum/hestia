@@ -18,7 +18,7 @@ fn supervisor(data: &tempfile::TempDir) -> Arc<crate::process::ProcessSupervisor
     ))
 }
 
-const PLUGIN_ERROR: &str = r#"(variant (case "permission-denied" string) (case "not-found" string) (case "invalid" string) (case "failed" string))"#;
+const PLUGIN_ERROR: &str = r#"(variant (case "permission-denied" string) (case "not-found" string) (case "invalid" string) (case "failed" string) (case "unsupported" string))"#;
 
 /// A component exporting `lifecycle.init`; `body` runs first. With
 /// `calls_host` it can call `host.call` and traps when that answers an error.
@@ -71,19 +71,6 @@ fn guest(calls_host: bool, body: &str) -> Vec<u8> {
                 (func (export "on-settings-changed") (param i32 i32))
                 (func (export "action") (param i32 i32 i32 i32 i32 i32 i32 i32) (result i32)
                     (i32.const 144))
-                (func (export "before-launch") (param i32) (result i32)
-                    (i32.const 160))
-                (func (export "before-server-start")
-                    (param i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32) (result i32)
-                    (i32.const 160))
-                (func (export "before-content-install")
-                    (param i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32 i32)
-                    (result i32)
-                    (i32.const 160))
-                (func (export "info") (param i32 i32) (result i32)
-                    (i32.const 144))
-                (func (export "three") (param i32 i32 i32 i32 i32 i32) (result i32)
-                    (i32.const 144))
                 (func (export "init") (result i32)
                     {body}
                     (i32.store8 (i32.const 128) (i32.const 0))
@@ -127,157 +114,21 @@ fn guest(calls_host: bool, body: &str) -> Vec<u8> {
                     (realloc (core func $libc "realloc"))))
             (instance $ui (export "render" (func $render)) (export "action" (func $action)))
             (export "hestia:plugin/ui@1.0.0" (instance $ui))
-            (type $launch_context (record
-                (field "instance-id" string) (field "instance-name" string)
-                (field "game-version" string) (field "flavor" string)
-                (field "loader-version" (option string)) (field "java-path" string)
-                (field "memory" (option string)) (field "quick-play" (option string))
-                (field "profile-name" string) (field "profile-uuid" string)))
-            (type $launch_patch (record
-                (field "extra-jvm-args" (list string))
-                (field "extra-game-args" (list string))))
-            (func $before_launch (param "ctx" $launch_context)
-                (result (result $launch_patch (error string)))
-                (canon lift (core func $main "before-launch")
-                    (memory (core memory $libc "memory"))
-                    (realloc (core func $libc "realloc"))))
-            (type $server_context (record
-                (field "id" string) (field "name" string) (field "version" string)
-                (field "flavor" string) (field "port" u16) (field "memory" (option string))))
-            (func $before_server_start (param "ctx" $server_context)
-                (result (result $launch_patch (error string)))
-                (canon lift (core func $main "before-server-start")
-                    (memory (core memory $libc "memory"))
-                    (realloc (core func $libc "realloc"))))
-            (instance $launch_hooks
-                (export "launch-context" (type $launch_context))
-                (export "launch-patch" (type $launch_patch))
-                (export "server-context" (type $server_context))
-                (export "before-launch" (func $before_launch))
-                (export "before-server-start" (func $before_server_start)))
-            (export "hestia:plugin/launch-hooks@1.0.0" (instance $launch_hooks))
-            (type $install_context (record
-                (field "entry-id" string) (field "entry-type" string)
-                (field "source" string) (field "project-id" string)
-                (field "version-id" string) (field "file-name" string)
-                (field "sha1" string) (field "kind" string)))
-            (func $before_content_install (param "ctx" $install_context)
-                (result (result (error string)))
-                (canon lift (core func $main "before-content-install")
-                    (memory (core memory $libc "memory"))
-                    (realloc (core func $libc "realloc"))))
-            (instance $content_hooks
-                (export "install-context" (type $install_context))
-                (export "before-content-install" (func $before_content_install)))
-            (export "hestia:plugin/content-hooks@1.0.0" (instance $content_hooks))
-            (func $info (param "source" string)
-                (result (result string (error $err)))
-                (canon lift (core func $main "info")
-                    (memory (core memory $libc "memory"))
-                    (realloc (core func $libc "realloc"))))
-            (func $parse_url (param "source" string) (param "args" string)
-                (result (result string (error $err)))
+            (func $intercept (param "point" string) (param "context" string)
+                (result (result string (error string)))
                 (canon lift (core func $main "run")
                     (memory (core memory $libc "memory"))
                     (realloc (core func $libc "realloc"))))
-            (func $recognise_file_url (param "source" string) (param "args" string)
+            (instance $hooks (export "intercept" (func $intercept)))
+            (export "hestia:plugin/hooks@1.0.0" (instance $hooks))
+            (func $invoke (param "kind" string) (param "id" string) (param "op" string)
+                (param "args" string)
                 (result (result string (error $err)))
-                (canon lift (core func $main "run")
+                (canon lift (core func $main "action")
                     (memory (core memory $libc "memory"))
                     (realloc (core func $libc "realloc"))))
-            (func $search (param "source" string) (param "args" string)
-                (result (result string (error $err)))
-                (canon lift (core func $main "run")
-                    (memory (core memory $libc "memory"))
-                    (realloc (core func $libc "realloc"))))
-            (func $project (param "source" string) (param "args" string)
-                (result (result string (error $err)))
-                (canon lift (core func $main "run")
-                    (memory (core memory $libc "memory"))
-                    (realloc (core func $libc "realloc"))))
-            (func $projects (param "source" string) (param "args" string)
-                (result (result string (error $err)))
-                (canon lift (core func $main "run")
-                    (memory (core memory $libc "memory"))
-                    (realloc (core func $libc "realloc"))))
-            (func $versions (param "source" string) (param "args" string)
-                (result (result string (error $err)))
-                (canon lift (core func $main "run")
-                    (memory (core memory $libc "memory"))
-                    (realloc (core func $libc "realloc"))))
-            (func $versions_by_id (param "source" string) (param "args" string)
-                (result (result string (error $err)))
-                (canon lift (core func $main "run")
-                    (memory (core memory $libc "memory"))
-                    (realloc (core func $libc "realloc"))))
-            (func $identify (param "source" string) (param "args" string)
-                (result (result string (error $err)))
-                (canon lift (core func $main "run")
-                    (memory (core memory $libc "memory"))
-                    (realloc (core func $libc "realloc"))))
-            (instance $content_source (export "info" (func $info)) (export "parse-url" (func $parse_url)) (export "recognise-file-url" (func $recognise_file_url)) (export "search" (func $search)) (export "project" (func $project)) (export "projects" (func $projects)) (export "versions" (func $versions)) (export "versions-by-id" (func $versions_by_id)) (export "identify" (func $identify)))
-            (export "hestia:plugin/content-source@1.0.0" (instance $content_source))
-            (func $flavor_info (param "flavor" string)
-                (result (result string (error $err)))
-                (canon lift (core func $main "info")
-                    (memory (core memory $libc "memory"))
-                    (realloc (core func $libc "realloc"))))
-            (func $flavor_versions (param "flavor" string)
-                (result (result string (error $err)))
-                (canon lift (core func $main "info")
-                    (memory (core memory $libc "memory"))
-                    (realloc (core func $libc "realloc"))))
-            (func $loader_versions (param "flavor" string) (param "args" string)
-                (result (result string (error $err)))
-                (canon lift (core func $main "run")
-                    (memory (core memory $libc "memory"))
-                    (realloc (core func $libc "realloc"))))
-            (func $resolve_server (param "flavor" string) (param "args" string)
-                (result (result string (error $err)))
-                (canon lift (core func $main "run")
-                    (memory (core memory $libc "memory"))
-                    (realloc (core func $libc "realloc"))))
-            (func $resolve_client (param "flavor" string) (param "args" string)
-                (result (result string (error $err)))
-                (canon lift (core func $main "run")
-                    (memory (core memory $libc "memory"))
-                    (realloc (core func $libc "realloc"))))
-            (instance $flavor (export "info" (func $flavor_info)) (export "versions" (func $flavor_versions)) (export "loader-versions" (func $loader_versions)) (export "resolve-server" (func $resolve_server)) (export "resolve-client" (func $resolve_client)))
-            (export "hestia:plugin/flavor@1.0.0" (instance $flavor))
-            (func $format_info (param "format" string)
-                (result (result string (error $err)))
-                (canon lift (core func $main "info")
-                    (memory (core memory $libc "memory"))
-                    (realloc (core func $libc "realloc"))))
-            (func $format_read (param "format" string) (param "manifest" (list u8)) (param "files" (list string))
-                (result (result string (error $err)))
-                (canon lift (core func $main "three")
-                    (memory (core memory $libc "memory"))
-                    (realloc (core func $libc "realloc"))))
-            (func $format_land (param "format" string) (param "blueprint" string) (param "files" (list string))
-                (result (result string (error $err)))
-                (canon lift (core func $main "three")
-                    (memory (core memory $libc "memory"))
-                    (realloc (core func $libc "realloc"))))
-            (func $format_write (param "format" string) (param "blueprint" string) (param "files" (list string))
-                (result (result string (error $err)))
-                (canon lift (core func $main "three")
-                    (memory (core memory $libc "memory"))
-                    (realloc (core func $libc "realloc"))))
-            (instance $archive_format (export "info" (func $format_info)) (export "read" (func $format_read)) (export "land" (func $format_land)) (export "write" (func $format_write)))
-            (export "hestia:plugin/archive-format@1.0.0" (instance $archive_format))
-            (func $java_majors (param "provider" string)
-                (result (result string (error $err)))
-                (canon lift (core func $main "info")
-                    (memory (core memory $libc "memory"))
-                    (realloc (core func $libc "realloc"))))
-            (func $java_resolve (param "provider" string) (param "args" string)
-                (result (result string (error $err)))
-                (canon lift (core func $main "run")
-                    (memory (core memory $libc "memory"))
-                    (realloc (core func $libc "realloc"))))
-            (instance $java_provider (export "majors" (func $java_majors)) (export "resolve" (func $java_resolve)))
-            (export "hestia:plugin/java-provider@1.0.0" (instance $java_provider)))"#
+            (instance $provider (export "invoke" (func $invoke)))
+            (export "hestia:plugin/provider@1.0.0" (instance $provider)))"#
     );
     wat::parse_str(text).expect("guest WAT")
 }
@@ -353,13 +204,8 @@ fn load(
     permissions: &[Permission],
 ) -> (Arc<LoadedPlugin>, tempfile::TempDir) {
     let data = tempfile::tempdir().unwrap();
-    let runtime = PluginRuntime::new(
-        host.clone(),
-        data.path().join("cache"),
-        supervisor(&data),
-        Arc::new(crate::presence::Presence::over_discord()),
-    )
-    .unwrap();
+    let runtime =
+        PluginRuntime::new(host.clone(), data.path().join("cache"), supervisor(&data)).unwrap();
     let plugin = runtime
         .load(
             &record(wasm, permissions),
@@ -478,13 +324,7 @@ async fn three_traps_take_the_plugin_out_of_service() {
 async fn a_component_that_differs_from_its_recorded_hash_is_not_compiled() {
     let host = Arc::new(TestHost::default());
     let data = tempfile::tempdir().unwrap();
-    let runtime = PluginRuntime::new(
-        host,
-        data.path().join("cache"),
-        supervisor(&data),
-        Arc::new(crate::presence::Presence::over_discord()),
-    )
-    .unwrap();
+    let runtime = PluginRuntime::new(host, data.path().join("cache"), supervisor(&data)).unwrap();
     let recorded = guest(false, "");
     let tampered = guest(false, "unreachable");
 

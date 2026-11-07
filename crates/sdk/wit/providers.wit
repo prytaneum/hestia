@@ -1,81 +1,14 @@
 package hestia:plugin@1.0.0;
 
-/// Every call names the contributed source it is for, because one plugin may
-/// contribute several. `args` and the results are JSON in the shape of the
-/// matching `proto::content` types. The host downloads the files a version
-/// lists; the guest never writes content itself.
-interface content-source {
+/// Every operation of every provider kind, through one call. The kinds, their
+/// operations and each operation's arguments and reply are `proto::provider`:
+/// a kind is data, so adding one never changes this interface.
+interface provider {
     use types.{json, plugin-error};
 
-    /// `proto::content::SourceInfo`: `{ name, kinds, datapacksAsMods }`.
-    info: func(source: string) -> result<json, plugin-error>;
-
-    /// `args` is `{ url }`. Answers a `SourceUrl`, or `null` for a URL that is not this source's.
-    parse-url: func(source: string, args: json) -> result<json, plugin-error>;
-
-    /// `args` is `{ url }`, the URL of a file. Answers a `SourceFileRef`, or `null`
-    /// for a file that is not this source's. A URL outside the plugin's network
-    /// hosts is never asked about.
-    recognise-file-url: func(source: string, args: json) -> result<json, plugin-error>;
-
-    /// `args` is a `SearchQuery`; answers a `SearchResult`.
-    search: func(source: string, args: json) -> result<json, plugin-error>;
-
-    /// `args` is `{ project, kind }`; answers a `ContentProject`.
-    project: func(source: string, args: json) -> result<json, plugin-error>;
-
-    /// `args` is `{ ids }`; answers a list of `ContentProject`.
-    projects: func(source: string, args: json) -> result<json, plugin-error>;
-
-    /// `args` is a `VersionQuery`; answers a list of `ContentVersion`. A file
-    /// whose URL is not on one of the plugin's network hosts is dropped.
-    versions: func(source: string, args: json) -> result<json, plugin-error>;
-
-    /// `args` is `{ ids }`; answers a list of `ContentVersion`.
-    versions-by-id: func(source: string, args: json) -> result<json, plugin-error>;
-
-    /// `args` is `{ sha1s }`; answers an object of `ContentVersion` keyed by the sha1 that identified it.
-    identify: func(source: string, args: json) -> result<json, plugin-error>;
-}
-
-/// Every call names the contributed flavor it is for, because one plugin may
-/// contribute several. `args` and the results are JSON in the shape of the
-/// matching `proto` types. A flavor decides what code the game runs; the host
-/// downloads the artifacts a profile lists, only from the plugin's network
-/// hosts and only with a sha1, and refuses the whole profile otherwise.
-interface flavor {
-    use types.{json, plugin-error};
-
-    /// `proto::profile::FlavorDescription`: `{ name, summary, loads, server, client }`.
-    info: func(flavor: string) -> result<json, plugin-error>;
-
-    /// Answers a list of `proto::minecraft::GameVersion`, newest first.
-    versions: func(flavor: string) -> result<json, plugin-error>;
-
-    /// `args` is `{ game }`; answers a list of loader version strings, newest first.
-    loader-versions: func(flavor: string, args: json) -> result<json, plugin-error>;
-
-    /// `args` is `{ version, loaderVersion }`; answers a `proto::profile::ServerProfile`.
-    /// Its jar must be a download and its launch `jar`: a plugin cannot build.
-    resolve-server: func(flavor: string, args: json) -> result<json, plugin-error>;
-
-    /// `args` is `{ version, loaderVersion }`; answers a `proto::profile::InstanceProfile`.
-    resolve-client: func(flavor: string, args: json) -> result<json, plugin-error>;
-}
-
-/// Every call names the contributed Java provider it is for, because one
-/// plugin may contribute several. A provider only resolves: the host downloads
-/// the archive, verifies its sha256 and extracts it, and refuses a build whose
-/// URL is not https on one of the plugin's network hosts.
-interface java-provider {
-    use types.{json, plugin-error};
-
-    /// Answers a list of feature versions (integers) the distribution offers.
-    majors: func(provider: string) -> result<json, plugin-error>;
-
-    /// `args` is `{ major, os, arch }`, with `os` one of `linux`, `windows`,
-    /// `mac` and `arch` one of `x64`, `aarch64`. Answers
-    /// `{ vendor, version, url, sha256, archive }` with `archive` either
-    /// `tar.gz` or `zip`, or `null` when there is no build for that platform.
-    resolve: func(provider: string, args: json) -> result<json, plugin-error>;
+    /// Answers the operation `op` of the provider `id` of kind `kind`, which the
+    /// manifest contributes under `contributes.providers`. `args` is the
+    /// operation's `Args` as JSON; answer its `Reply` as JSON, or `unsupported`
+    /// for an operation the plugin does not implement.
+    invoke: func(kind: string, id: string, op: string, args: json) -> result<json, plugin-error>;
 }

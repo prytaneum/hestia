@@ -123,11 +123,37 @@ impl Api {
         }
     }
 
-    /// A type a guest export takes or returns as JSON. No contract reaches it,
-    /// so it is rooted here.
-    fn guest<T: TS + 'static>(&mut self) {
-        let name = self.types.root::<T>();
-        self.guest.insert(name);
+    /// An operation the host asks of a provider: its kind, name and payloads.
+    fn provider_op<O: proto::provider::ProviderOp>(&mut self)
+    where
+        O::Args: TS + 'static,
+        O::Reply: TS + 'static,
+    {
+        use proto::provider::ProviderKind;
+        self.list::<O>("ProviderOp");
+        let kind = <O::Kind as ProviderKind>::KIND;
+        let entry = json!({
+            "args": self.types.root::<O::Args>(),
+            "reply": self.types.root::<O::Reply>(),
+        });
+        self.guest
+            .insert(format!("provider {kind}.{} {entry}", O::OP));
+    }
+
+    /// A hook point: its name, permissions and payloads.
+    fn hook_point<P: proto::hook::HookPoint>(&mut self)
+    where
+        P::Context: TS + 'static,
+        P::Patch: TS + 'static,
+    {
+        self.list::<P>("HookPoint");
+        let permissions: Vec<String> = P::PERMISSIONS.iter().map(|p| p.to_string()).collect();
+        let entry = json!({
+            "permissions": permissions,
+            "context": self.types.root::<P::Context>(),
+            "patch": self.types.root::<P::Patch>(),
+        });
+        self.guest.insert(format!("hook {} {entry}", P::NAME));
     }
 
     fn topic<T: Topic + TS + 'static>(&mut self) {
@@ -229,12 +255,18 @@ fn api() -> Api {
         process::ProcessExitEvent, process::ProcessMetricsEvent, process::ProcessOutputEvent,
         process::ProcessStartedEvent,
     );
-    each!(api.guest:
-        content::SourceInfo, content::SourceUrl, content::SourceFileRef, content::SearchQuery, content::SearchResult,
-        content::ContentProject, content::VersionQuery, content::ContentVersion,
-        minecraft::GameVersion,
-        format::FormatInfo, format::FormatBlueprint, format::FormatCopy, format::FormatWritten,
-        profile::FlavorDescription, profile::ServerProfile, profile::InstanceProfile,
+    each!(api.provider_op:
+        provider::content::Info, provider::content::ParseUrl, provider::content::RecogniseFileUrl,
+        provider::content::Search, provider::content::Project, provider::content::Projects,
+        provider::content::Versions, provider::content::VersionsById, provider::content::Identify,
+        provider::flavor::Info, provider::flavor::Versions, provider::flavor::LoaderVersions,
+        provider::flavor::ResolveServer, provider::flavor::ResolveClient,
+        provider::format::Info, provider::format::Read, provider::format::Land,
+        provider::format::Write,
+        provider::java::Majors, provider::java::Resolve,
+    );
+    each!(api.hook_point:
+        hook::BeforeLaunch, hook::BeforeServerStart, hook::BeforeContentInstall,
     );
     api
 }
@@ -242,8 +274,14 @@ fn api() -> Api {
 /// The type names behind every `impl <kind> for` in `src/`.
 fn implemented(kind: &str) -> BTreeSet<String> {
     let mut names = BTreeSet::new();
-    for entry in fs::read_dir(crate_dir().join("src")).unwrap() {
-        let text = fs::read_to_string(entry.unwrap().path()).unwrap();
+    let src = crate_dir().join("src");
+    let files = fs::read_dir(&src)
+        .unwrap()
+        .chain(fs::read_dir(src.join("provider")).unwrap())
+        .map(|entry| entry.unwrap().path())
+        .filter(|path| path.extension().is_some_and(|extension| extension == "rs"));
+    for path in files {
+        let text = fs::read_to_string(path).unwrap();
         for line in text.lines() {
             let Some((trait_path, target)) = line
                 .strip_prefix("impl ")
@@ -285,7 +323,7 @@ fn wit() -> BTreeMap<String, String> {
 #[test]
 fn plugin_api_matches_its_snapshot() {
     let api = api();
-    for kind in ["Contract", "Job", "Topic"] {
+    for kind in ["Contract", "Job", "Topic", "ProviderOp", "HookPoint"] {
         assert_eq!(
             api.listed[kind],
             implemented(kind),

@@ -14,10 +14,10 @@ mod http;
 mod imports;
 mod index;
 mod install;
+mod ipc;
 mod official;
 mod output;
 mod patch;
-mod presence;
 mod process;
 mod program;
 mod providers;
@@ -36,8 +36,8 @@ pub(crate) use catalogue::{build as build_catalogue, pick, Installed, Pick, Sour
 pub use chain::{CallChain, ChainError, MAX_CHAIN_DEPTH};
 pub use command::{command_args, find_command};
 pub use hooks::{
-    BeforeContentInstall, BeforeLaunch, BeforeServerStart, Hook, HookOutcome, Hooks,
-    InstallContext, LaunchContext, Participant, Roster, ServerContext, Verdict,
+    BeforeContentInstall, BeforeLaunch, BeforeServerStart, Hook, HookOutcome, Hooks, Participant,
+    Roster,
 };
 pub use imports::{CommandRun, HostCalls, HostError};
 pub(crate) use index::{declared_key, expand, open};
@@ -47,8 +47,7 @@ pub use patch::LaunchPatch;
 pub use process::owner_of;
 pub use program::{resolve_on_path, target_triple};
 pub use providers::{
-    connect_flavors, connect_formats, connect_java, connect_sources, register_flavors,
-    register_formats, register_java, register_sources, PluginContentProvider, PluginFlavorProvider,
+    unregister as unregister_providers, Contributions, PluginContentProvider, PluginFlavorProvider,
     PluginFormat, PluginJavaProvider,
 };
 pub use remote::{Origin, Remote, Staged};

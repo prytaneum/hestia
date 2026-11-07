@@ -54,7 +54,8 @@ Adding a flavor is one impl plus one registry line. The content flows never
 change, because what an entry accepts is composed from the provider's `loads`
 plus what the side reads for itself.
 
-A plugin adds one through its `flavor` export, wrapped in a
+A plugin adds one as a `flavor` provider (`proto::provider::flavor`, asked through
+`provider.invoke`), wrapped in a
 `PluginFlavorProvider` (`engine/src/plugins/providers/flavor.rs`) and registered
 as `<plugin>.<id>` when the plugin is enabled. A flavor decides the code the game
 runs, so it needs the unrestricted `flavor:provide` permission, and the guest

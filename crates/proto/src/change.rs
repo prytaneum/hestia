@@ -10,6 +10,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::contract::Topic;
+use crate::plugin::Permission;
 
 /// A body of state a front-end renders and another client can change. Coarse on
 /// purpose: a reader refetches the scope, so the event names no entry.
@@ -38,4 +39,25 @@ pub struct ChangedEvent {
 }
 impl Topic for ChangedEvent {
     const TOPIC: &'static str = "changed";
+    /// The permission of the commonest scope; [`Topic::permission`] decides per event.
+    const PLUGIN: Option<Permission> = Some(Permission::EntryRead);
+
+    fn permission(payload: &serde_json::Value) -> Option<Permission> {
+        let scope: Scope = serde_json::from_value(payload.get("scope")?.clone()).ok()?;
+        scope.permission()
+    }
+}
+
+impl Scope {
+    /// What a plugin needs to be told that this scope changed. The event names
+    /// only the scope, never what changed in it.
+    pub fn permission(self) -> Option<Permission> {
+        match self {
+            Scope::Entries | Scope::Sync | Scope::Screenshots => Some(Permission::EntryRead),
+            Scope::Accounts => Some(Permission::AccountRead),
+            Scope::Config => Some(Permission::ConfigRead),
+            Scope::Java => Some(Permission::JavaRead),
+            Scope::Skins | Scope::Cache | Scope::Plugins => None,
+        }
+    }
 }

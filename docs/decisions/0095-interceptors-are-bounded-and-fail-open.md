@@ -2,8 +2,10 @@
 
 *Applies to: [The engine](../architecture/engine.md)*
 
-A plugin may intercept an operation just before it happens: `before-launch`, `before-server-start` and
-`before-content-install` ([0091](0091-plugins-are-wasm-components.md)). The operation belongs to the user, so a
+A plugin may intercept an operation just before it happens at a hook point: `before-launch`, `before-server-start` and
+`before-content-install` ([0091](0091-plugins-are-wasm-components.md)). A point is data in `proto::hook`, asked through
+the one `hooks.intercept` export, so a new point changes neither the ABI nor these rules
+([0106](0106-the-plugin-api-is-mechanisms-not-features.md)). The operation belongs to the user, so a
 misbehaving plugin must not be able to break it, and a plugin must not be mistaken for a guard on it.
 
 **A hook fails open.** `Hooks::run` calls each plugin under a 2 s deadline, on a fresh store with the same wall-clock

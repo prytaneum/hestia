@@ -1,5 +1,5 @@
-//! The status card Discord shows, as a plugin sets it
-//! ([0106](../../../docs/decisions/0106-presence-is-a-host-service.md)).
+//! The status card the launcher shows on Discord
+//! ([0059](../../../docs/decisions/0059-discord-presence-is-a-daemon-loop.md)).
 
 use serde::{Deserialize, Serialize};
 

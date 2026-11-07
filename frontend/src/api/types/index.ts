@@ -15,6 +15,7 @@ export type * from "./events";
 export type * from "./files";
 export type * from "./format";
 export type * from "./health";
+export type * from "./hook";
 export type * from "./host";
 export type * from "./image";
 export type * from "./instance";

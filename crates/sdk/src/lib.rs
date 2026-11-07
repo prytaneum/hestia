@@ -23,37 +23,25 @@ mod call;
 mod command;
 pub mod data;
 mod error;
-#[doc(hidden)]
-pub mod flavor;
-mod hooks;
+pub mod hooks;
 pub mod http;
-pub mod java;
+pub mod ipc;
 pub mod log;
-pub mod presence;
 pub mod process;
 pub mod progress;
+pub mod provider;
 pub mod settings;
-#[doc(hidden)]
-pub mod source;
 pub mod ui;
 
 pub use call::{call, run_job};
 pub use command::args;
 pub use error::Error;
-pub use hooks::{InstallContext, LaunchContext, LaunchPatch, ServerContext};
-pub use java::JavaBuild;
+pub use hooks::{Intercept, Intercepted};
 /// The daemon's wire contracts and domain types, the same ones the CLI uses.
 pub use proto;
-use proto::content::{
-    ContentKind, ContentProject, ContentVersion, SearchQuery, SearchResult, SourceFileRef,
-    SourceInfo, SourceUrl, VersionQuery,
-};
-use proto::format::{FormatBlueprint, FormatCopy, FormatInfo, FormatWritten};
-use proto::minecraft::GameVersion;
 use proto::plugin::PageContext;
-use proto::profile::{FlavorDescription, InstanceProfile, ServerProfile};
+pub use provider::{Provide, Provided};
 pub use serde_json::{self, json, Value};
-use std::collections::HashMap;
 use ui::{Action, Effect, UiNode};
 
 #[doc(hidden)]
@@ -136,206 +124,20 @@ pub trait Plugin {
         Err(Error::NotFound(format!("unknown page `{page}`")))
     }
 
-    /// Runs just before a game launch, for a plugin that declares the
-    /// `before-launch` hook. Answer the arguments to add; the host keeps only
-    /// an allowlist of them. An `Err` vetoes the launch, and its text is the
-    /// reason shown to the user. A call that overruns its two seconds is skipped
-    /// instead.
-    fn before_launch(context: LaunchContext) -> Result<LaunchPatch, String> {
-        let _ = context;
-        Ok(LaunchPatch::default())
+    /// Answers a hook point the manifest declares under `contributes.hooks`.
+    /// Route each point to a handler with [`Intercept::on`]; see [`hooks`]. A
+    /// point no handler takes adds nothing. A call that traps or overruns its two
+    /// seconds is skipped: hooks are customisation and fail open.
+    fn intercept(call: Intercept) -> Intercepted {
+        call.finish()
     }
 
-    /// Runs just before a server is spawned, for a plugin that declares the
-    /// `before-server-start` hook. The same allowlist applies as for
-    /// [`before_launch`](Plugin::before_launch), except that
-    /// `extra_game_args` is ignored. An `Err` vetoes the start, and its text is
-    /// the reason shown to the user. A call that overruns its two seconds is
-    /// skipped instead.
-    fn before_server_start(context: ServerContext) -> Result<LaunchPatch, String> {
-        let _ = context;
-        Ok(LaunchPatch::default())
-    }
-
-    /// Runs for each file about to land in a server or instance (an install and
-    /// each required dependency, a local import, an update, or a modpack's
-    /// file), for a plugin that declares the `before-content-install` hook. An `Err` refuses that file, and its text is
-    /// shown to the user with the file name. The context holds names and a
-    /// sha1, never the file's bytes, and a plugin that fails or overruns its two
-    /// seconds is skipped: this is a convenience check, not a security scanner.
-    fn before_content_install(context: InstallContext) -> Result<(), String> {
-        let _ = context;
-        Ok(())
-    }
-
-    /// Describes the content source `source` that the manifest contributes under
-    /// `contributes.providers`. One plugin may contribute several; each
-    /// `source_*` method receives the id of the one being asked.
-    fn source_info(source: &str) -> Result<SourceInfo, Error> {
-        Err(Error::NotFound(format!("unknown source `{source}`")))
-    }
-
-    /// Recognises a page URL on the source's site; `None` when it is not one.
-    fn source_parse_url(source: &str, url: &str) -> Result<Option<SourceUrl>, Error> {
-        let _ = (source, url);
-        Ok(None)
-    }
-
-    /// Recognises the project and version behind the URL of a file, such as a
-    /// `.mrpack` download; `None` when the file is not this source's.
-    fn source_recognise_file_url(source: &str, url: &str) -> Result<Option<SourceFileRef>, Error> {
-        let _ = (source, url);
-        Ok(None)
-    }
-
-    fn source_search(source: &str, query: SearchQuery) -> Result<SearchResult, Error> {
-        let _ = query;
-        Err(Error::NotFound(format!("unknown source `{source}`")))
-    }
-
-    fn source_project(
-        source: &str,
-        project: &str,
-        kind: Option<ContentKind>,
-    ) -> Result<ContentProject, Error> {
-        let _ = (project, kind);
-        Err(Error::NotFound(format!("unknown source `{source}`")))
-    }
-
-    /// Several projects at once; the default asks for them one by one.
-    fn source_projects(source: &str, ids: Vec<String>) -> Result<Vec<ContentProject>, Error> {
-        ids.iter()
-            .map(|id| Self::source_project(source, id, None))
-            .collect()
-    }
-
-    /// The versions of a project. Each file's URL must be on one of the plugin's
-    /// network hosts: the host downloads the file and drops one that is not.
-    fn source_versions(source: &str, query: VersionQuery) -> Result<Vec<ContentVersion>, Error> {
-        let _ = query;
-        Err(Error::NotFound(format!("unknown source `{source}`")))
-    }
-
-    fn source_versions_by_id(source: &str, ids: Vec<String>) -> Result<Vec<ContentVersion>, Error> {
-        let _ = (source, ids);
-        Ok(Vec::new())
-    }
-
-    /// The version each file is a release of, keyed by the file's sha1.
-    fn source_identify(
-        source: &str,
-        sha1s: Vec<String>,
-    ) -> Result<HashMap<String, ContentVersion>, Error> {
-        let _ = (source, sha1s);
-        Ok(HashMap::new())
-    }
-
-    /// Describes the flavor `flavor` that the manifest contributes under
-    /// `contributes.providers`. One plugin may contribute several; each
-    /// `flavor_*` method receives the id of the one being asked.
-    fn flavor_info(flavor: &str) -> Result<FlavorDescription, Error> {
-        Err(Error::NotFound(format!("unknown flavor `{flavor}`")))
-    }
-
-    /// The game versions the flavor supports, newest first.
-    fn flavor_versions(flavor: &str) -> Result<Vec<GameVersion>, Error> {
-        Err(Error::NotFound(format!("unknown flavor `{flavor}`")))
-    }
-
-    /// The loader builds for a game version, newest first; none by default.
-    fn flavor_loader_versions(flavor: &str, game: &str) -> Result<Vec<String>, Error> {
-        let _ = (flavor, game);
-        Ok(Vec::new())
-    }
-
-    /// The launch profile of a server. Every artifact must carry a sha1 and sit
-    /// on one of the plugin's network hosts, or the host refuses the profile.
-    /// The jar must be a download: a plugin cannot build one.
-    fn flavor_resolve_server(
-        flavor: &str,
-        version: &str,
-        loader_version: Option<&str>,
-    ) -> Result<ServerProfile, Error> {
-        let _ = (version, loader_version);
-        Err(Error::NotFound(format!("unknown flavor `{flavor}`")))
-    }
-
-    /// The launch profile of a client, under the same rules as
-    /// [`flavor_resolve_server`](Plugin::flavor_resolve_server).
-    fn flavor_resolve_client(
-        flavor: &str,
-        version: &str,
-        loader_version: Option<&str>,
-    ) -> Result<InstanceProfile, Error> {
-        let _ = (version, loader_version);
-        Err(Error::NotFound(format!("unknown flavor `{flavor}`")))
-    }
-
-    /// Describes the archive format `format` that the manifest contributes under
-    /// `contributes.providers`, with `kind = "format"`. Every `format_*` method
-    /// receives the id of the one being asked. The host owns the archive; the
-    /// guest only sees the manifest and the member names.
-    fn format_info(format: &str) -> Result<FormatInfo, Error> {
-        Err(Error::NotFound(format!("unknown format `{format}`")))
-    }
-
-    /// Reads the archive's manifest, the member named by the format's marker,
-    /// into the instance it describes. `files` are the archive's member names.
-    fn format_read(
-        format: &str,
-        manifest: &[u8],
-        files: &[String],
-    ) -> Result<FormatBlueprint, Error> {
-        let _ = (manifest, files);
-        Err(Error::NotFound(format!("unknown format `{format}`")))
-    }
-
-    /// Names the archive members the host copies into the new instance's game
-    /// directory, and where. The host refuses the whole answer if a path escapes or names a
-    /// member not in `files`.
-    fn format_land(
-        format: &str,
-        blueprint: FormatBlueprint,
-        files: &[String],
-    ) -> Result<Vec<FormatCopy>, Error> {
-        let _ = (blueprint, files);
-        Err(Error::NotFound(format!("unknown format `{format}`")))
-    }
-
-    /// Writes the manifest of an export and names the instance files the host
-    /// copies into the archive. `files` are paths relative to the instance.
-    fn format_write(
-        format: &str,
-        blueprint: FormatBlueprint,
-        files: &[String],
-    ) -> Result<FormatWritten, Error> {
-        let _ = (blueprint, files);
-        Err(Error::NotFound(format!("unknown format `{format}`")))
-    }
-
-    /// The feature versions the Java provider `provider` offers. One plugin may
-    /// contribute several; each `java_*` method receives the id of the one
-    /// being asked.
-    fn java_majors(provider: &str) -> Result<Vec<i32>, Error> {
-        Err(Error::NotFound(format!(
-            "unknown java provider `{provider}`"
-        )))
-    }
-
-    /// The build of `major` for `os` (`linux`, `windows`, `mac`) and `arch`
-    /// (`x64`, `aarch64`), or `None` when there is none. The host downloads
-    /// and extracts it, and refuses one whose `url` is not https on one of
-    /// the plugin's network hosts or whose `sha256` is malformed.
-    fn java_resolve(
-        provider: &str,
-        major: i32,
-        os: &str,
-        arch: &str,
-    ) -> Result<Option<JavaBuild>, Error> {
-        let _ = (major, os, arch);
-        Err(Error::NotFound(format!(
-            "unknown java provider `{provider}`"
-        )))
+    /// Answers an operation of a provider the manifest contributes under
+    /// `contributes.providers`. Route each operation to a handler with
+    /// [`Provide::on`]; see [`provider`]. An operation no handler takes
+    /// answers `unsupported`.
+    fn provide(call: Provide) -> Provided {
+        call.finish()
     }
 }
 
@@ -430,290 +232,28 @@ macro_rules! plugin {
                 }
             }
 
-            impl $crate::bindings::exports::hestia::plugin::launch_hooks::Guest for Export {
-                fn before_launch(
-                    ctx: $crate::LaunchContext,
-                ) -> ::core::result::Result<
-                    $crate::bindings::exports::hestia::plugin::launch_hooks::LaunchPatch,
-                    ::std::string::String,
-                > {
-                    <$plugin as $crate::Plugin>::before_launch(ctx).map(::core::convert::Into::into)
-                }
-
-                fn before_server_start(
-                    ctx: $crate::ServerContext,
-                ) -> ::core::result::Result<
-                    $crate::bindings::exports::hestia::plugin::launch_hooks::LaunchPatch,
-                    ::std::string::String,
-                > {
-                    <$plugin as $crate::Plugin>::before_server_start(ctx)
-                        .map(::core::convert::Into::into)
+            impl $crate::bindings::exports::hestia::plugin::hooks::Guest for Export {
+                fn intercept(
+                    point: ::std::string::String,
+                    context: ::std::string::String,
+                ) -> ::core::result::Result<::std::string::String, ::std::string::String> {
+                    <$plugin as $crate::Plugin>::intercept($crate::Intercept::new(point, context))
+                        .into_answer()
                 }
             }
 
-            impl $crate::bindings::exports::hestia::plugin::content_hooks::Guest for Export {
-                fn before_content_install(
-                    ctx: $crate::InstallContext,
-                ) -> ::core::result::Result<(), ::std::string::String> {
-                    <$plugin as $crate::Plugin>::before_content_install(ctx)
-                }
-            }
-
-            impl $crate::bindings::exports::hestia::plugin::content_source::Guest for Export {
-                fn info(
-                    source: ::std::string::String,
-                ) -> ::core::result::Result<
-                    ::std::string::String,
-                    $crate::bindings::hestia::plugin::types::PluginError,
-                > {
-                    $crate::source::answer("null", |(): ()| {<$plugin as $crate::Plugin>::source_info(&source)
-                    })
-                }
-
-                fn parse_url(
-                    source: ::std::string::String,
+            impl $crate::bindings::exports::hestia::plugin::provider::Guest for Export {
+                fn invoke(
+                    kind: ::std::string::String,
+                    id: ::std::string::String,
+                    op: ::std::string::String,
                     args: ::std::string::String,
                 ) -> ::core::result::Result<
                     ::std::string::String,
                     $crate::bindings::hestia::plugin::types::PluginError,
                 > {
-                    $crate::source::answer(&args, |args: $crate::source::UrlArgs| {
-                        <$plugin as $crate::Plugin>::source_parse_url(&source, &args.url)
-                    })
-                }
-
-                fn recognise_file_url(
-                    source: ::std::string::String,
-                    args: ::std::string::String,
-                ) -> ::core::result::Result<
-                    ::std::string::String,
-                    $crate::bindings::hestia::plugin::types::PluginError,
-                > {
-                    $crate::source::answer(&args, |args: $crate::source::UrlArgs| {
-                        <$plugin as $crate::Plugin>::source_recognise_file_url(&source, &args.url)
-                    })
-                }
-
-                fn search(
-                    source: ::std::string::String,
-                    args: ::std::string::String,
-                ) -> ::core::result::Result<
-                    ::std::string::String,
-                    $crate::bindings::hestia::plugin::types::PluginError,
-                > {
-                    $crate::source::answer(&args, |query| {
-                        <$plugin as $crate::Plugin>::source_search(&source, query)
-                    })
-                }
-
-                fn project(
-                    source: ::std::string::String,
-                    args: ::std::string::String,
-                ) -> ::core::result::Result<
-                    ::std::string::String,
-                    $crate::bindings::hestia::plugin::types::PluginError,
-                > {
-                    $crate::source::answer(&args, |args: $crate::source::ProjectArgs| {
-                        <$plugin as $crate::Plugin>::source_project(&source, &args.project, args.kind)
-                    })
-                }
-
-                fn projects(
-                    source: ::std::string::String,
-                    args: ::std::string::String,
-                ) -> ::core::result::Result<
-                    ::std::string::String,
-                    $crate::bindings::hestia::plugin::types::PluginError,
-                > {
-                    $crate::source::answer(&args, |args: $crate::source::IdsArgs| {
-                        <$plugin as $crate::Plugin>::source_projects(&source, args.ids)
-                    })
-                }
-
-                fn versions(
-                    source: ::std::string::String,
-                    args: ::std::string::String,
-                ) -> ::core::result::Result<
-                    ::std::string::String,
-                    $crate::bindings::hestia::plugin::types::PluginError,
-                > {
-                    $crate::source::answer(&args, |query| {
-                        <$plugin as $crate::Plugin>::source_versions(&source, query)
-                    })
-                }
-
-                fn versions_by_id(
-                    source: ::std::string::String,
-                    args: ::std::string::String,
-                ) -> ::core::result::Result<
-                    ::std::string::String,
-                    $crate::bindings::hestia::plugin::types::PluginError,
-                > {
-                    $crate::source::answer(&args, |args: $crate::source::IdsArgs| {
-                        <$plugin as $crate::Plugin>::source_versions_by_id(&source, args.ids)
-                    })
-                }
-
-                fn identify(
-                    source: ::std::string::String,
-                    args: ::std::string::String,
-                ) -> ::core::result::Result<
-                    ::std::string::String,
-                    $crate::bindings::hestia::plugin::types::PluginError,
-                > {
-                    $crate::source::answer(&args, |args: $crate::source::Sha1Args| {
-                        <$plugin as $crate::Plugin>::source_identify(&source, args.sha1s)
-                    })
-                }
-            }
-
-            impl $crate::bindings::exports::hestia::plugin::flavor::Guest for Export {
-                fn info(
-                    flavor: ::std::string::String,
-                ) -> ::core::result::Result<
-                    ::std::string::String,
-                    $crate::bindings::hestia::plugin::types::PluginError,
-                > {
-                    $crate::source::answer("null", |(): ()| {
-                        <$plugin as $crate::Plugin>::flavor_info(&flavor)
-                    })
-                }
-
-                fn versions(
-                    flavor: ::std::string::String,
-                ) -> ::core::result::Result<
-                    ::std::string::String,
-                    $crate::bindings::hestia::plugin::types::PluginError,
-                > {
-                    $crate::source::answer("null", |(): ()| {
-                        <$plugin as $crate::Plugin>::flavor_versions(&flavor)
-                    })
-                }
-
-                fn loader_versions(
-                    flavor: ::std::string::String,
-                    args: ::std::string::String,
-                ) -> ::core::result::Result<
-                    ::std::string::String,
-                    $crate::bindings::hestia::plugin::types::PluginError,
-                > {
-                    $crate::source::answer(&args, |args: $crate::flavor::GameArgs| {
-                        <$plugin as $crate::Plugin>::flavor_loader_versions(&flavor, &args.game)
-                    })
-                }
-
-                fn resolve_server(
-                    flavor: ::std::string::String,
-                    args: ::std::string::String,
-                ) -> ::core::result::Result<
-                    ::std::string::String,
-                    $crate::bindings::hestia::plugin::types::PluginError,
-                > {
-                    $crate::source::answer(&args, |args: $crate::flavor::ResolveArgs| {
-                        <$plugin as $crate::Plugin>::flavor_resolve_server(
-                            &flavor,
-                            &args.version,
-                            args.loader_version.as_deref(),
-                        )
-                    })
-                }
-
-                fn resolve_client(
-                    flavor: ::std::string::String,
-                    args: ::std::string::String,
-                ) -> ::core::result::Result<
-                    ::std::string::String,
-                    $crate::bindings::hestia::plugin::types::PluginError,
-                > {
-                    $crate::source::answer(&args, |args: $crate::flavor::ResolveArgs| {
-                        <$plugin as $crate::Plugin>::flavor_resolve_client(
-                            &flavor,
-                            &args.version,
-                            args.loader_version.as_deref(),
-                        )
-                    })
-                }
-            }
-
-            impl $crate::bindings::exports::hestia::plugin::archive_format::Guest for Export {
-                fn info(
-                    format: ::std::string::String,
-                ) -> ::core::result::Result<
-                    ::std::string::String,
-                    $crate::bindings::hestia::plugin::types::PluginError,
-                > {
-                    $crate::source::answer("null", |(): ()| {
-                        <$plugin as $crate::Plugin>::format_info(&format)
-                    })
-                }
-
-                fn read(
-                    format: ::std::string::String,
-                    manifest: ::std::vec::Vec<u8>,
-                    files: ::std::vec::Vec<::std::string::String>,
-                ) -> ::core::result::Result<
-                    ::std::string::String,
-                    $crate::bindings::hestia::plugin::types::PluginError,
-                > {
-                    $crate::source::answer("null", |(): ()| {
-                        <$plugin as $crate::Plugin>::format_read(&format, &manifest, &files)
-                    })
-                }
-
-                fn land(
-                    format: ::std::string::String,
-                    blueprint: ::std::string::String,
-                    files: ::std::vec::Vec<::std::string::String>,
-                ) -> ::core::result::Result<
-                    ::std::string::String,
-                    $crate::bindings::hestia::plugin::types::PluginError,
-                > {
-                    $crate::source::answer(&blueprint, |blueprint| {
-                        <$plugin as $crate::Plugin>::format_land(&format, blueprint, &files)
-                    })
-                }
-
-                fn write(
-                    format: ::std::string::String,
-                    blueprint: ::std::string::String,
-                    files: ::std::vec::Vec<::std::string::String>,
-                ) -> ::core::result::Result<
-                    ::std::string::String,
-                    $crate::bindings::hestia::plugin::types::PluginError,
-                > {
-                    $crate::source::answer(&blueprint, |blueprint| {
-                        <$plugin as $crate::Plugin>::format_write(&format, blueprint, &files)
-                    })
-                }
-            }
-
-            impl $crate::bindings::exports::hestia::plugin::java_provider::Guest for Export {
-                fn majors(
-                    provider: ::std::string::String,
-                ) -> ::core::result::Result<
-                    ::std::string::String,
-                    $crate::bindings::hestia::plugin::types::PluginError,
-                > {
-                    $crate::source::answer("null", |(): ()| {
-                        <$plugin as $crate::Plugin>::java_majors(&provider)
-                    })
-                }
-
-                fn resolve(
-                    provider: ::std::string::String,
-                    args: ::std::string::String,
-                ) -> ::core::result::Result<
-                    ::std::string::String,
-                    $crate::bindings::hestia::plugin::types::PluginError,
-                > {
-                    $crate::source::answer(&args, |args: $crate::java::ResolveArgs| {
-                        <$plugin as $crate::Plugin>::java_resolve(
-                            &provider,
-                            args.major,
-                            &args.os,
-                            &args.arch,
-                        )
-                    })
+                    <$plugin as $crate::Plugin>::provide($crate::Provide::new(kind, id, op, args))
+                        .into_answer()
                 }
             }
 

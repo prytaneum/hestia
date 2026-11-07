@@ -1,17 +1,26 @@
 # Plugins
 
-A plugin is a **WASM component the daemon runs in a sandbox**. It can add
-commands, pages, themes, content sources and Minecraft flavors, and it can watch
-events and adjust a launch, but only through what the user granted at install.
-The runtime lives in the engine ([`crates/engine/src/plugins/`](engine.md)); the
-daemon owns which plugins are loaded and lends them its channels.
+A plugin is a **WASM component the daemon runs in a sandbox**. It can call the
+daemon's channels, hear its events, adjust or refuse an operation at a hook
+point, fill an open registry (content sources, flavors, archive formats, Java
+distributions), add commands, pages, settings and themes, and reach the network,
+declared programs and local endpoints, but only through what the user granted
+at install. The runtime lives in the engine ([`crates/engine/src/plugins/`](engine.md));
+the daemon owns which plugins are loaded and lends them its channels.
+
+**The API is mechanisms, not features**
+([0106](../decisions/0106-the-plugin-api-is-mechanisms-not-features.md)). The
+WIT is a fixed set of general mechanisms; hook points, provider kinds and their
+operations, contracts and topics are data in `proto`. A new one changes neither
+the ABI nor the daemon, and a port of a core feature to a plugin may use only
+what a third party could use.
 
 - Writing one? [plugins/publishing.md](../plugins/publishing.md),
   [plugins/repository.md](../plugins/repository.md) and
   [plugins/permissions.md](../plugins/permissions.md) are the author guides.
 - Why it is built this way: decisions
   [0091](../decisions/0091-plugins-are-wasm-components.md) to
-  [0103](../decisions/0103-example-plugins-live-in-their-own-repository.md),
+  [0106](../decisions/0106-the-plugin-api-is-mechanisms-not-features.md),
   listed [below](#decisions).
 
 ## Where the pieces are
@@ -19,6 +28,7 @@ daemon owns which plugins are loaded and lends them its channels.
 | Piece | Where | Role |
 |---|---|---|
 | Manifest, grant, permissions, contracts | `crates/proto/src/plugin.rs`, `repository.rs` | the wire and the `plugin.toml` schema; `MIT OR Apache-2.0` |
+| Hook points, provider kinds and operations, topic registry | `crates/proto/src/hook.rs`, `provider.rs` + `provider/`, `events.rs` | what varies, as data |
 | The ABI | `crates/sdk/wit/` (`hestia:plugin@1.0.0`) | one WIT package; its version is `proto::plugin::API_VERSION` |
 | Guest SDK | `crates/sdk/` (`hestia-sdk`) | bindings and proto types for a Rust plugin; `MIT OR Apache-2.0` |
 | Sandbox, store, install, trust | `crates/engine/src/plugins/` | `PluginRuntime`, `Plugins`, hooks, providers, repositories |
@@ -98,11 +108,11 @@ again. The tiers and the full table are in
   fails a contract that is neither classified nor on its denied list
   ([0092](../decisions/0092-a-contract-names-the-permission-a-plugin-needs.md)).
 - **`domain:action` names**: `entry`, `process`, `content`, `account`, `config`,
-  `java`, `network`, `ui`, `launch`, `flavor`. The domain is the channel prefix it
-  opens.
+  `java`, `network`, `ipc`, `ui`, `launch`, `flavor`, `format`. The domain is the
+  channel prefix it opens.
 - **Two tiers.** `Sandboxed`, and `Unrestricted` for the permissions that reach
   native code (`entry:write`, `config:write`, `content:write`, `process:control`,
-  `process:spawn`, `flavor:provide`). The install prompt states the latter as full
+  `process:spawn`, `ipc:connect`, `flavor:provide`, `format:provide`, `java:provide`). The install prompt states the latter as full
   access to the computer, and the daemon reports the tier so no front-end keeps a
   table of its own.
 - **Always closed:** every secret-bearing channel (logs, `server.properties`, the
@@ -167,8 +177,12 @@ as `hestia <plugin> <command>`. Plugin ids may not take a CLI verb
 receives, once per event, before anything is queued (`events::admit`):
 
 - the topic must match a glob in the grant;
-- it must name a permission the grant holds (`Topic::PLUGIN`); process output is
-  never delivered;
+- it must name a permission the grant holds. Every topic is listed in
+  `proto::events::TOPICS` (a test fails one that is not), and `Topic::permission`
+  reads it from the payload where events differ: `changed` needs the permission
+  of its scope (`entries` → `entry:read`, `java` → `java:read`, …) and names
+  only the scope; `net.state` needs `network:connect`. A topic that names none,
+  such as process output, is never delivered;
 - a `job` event goes only to a plugin granted the permission of the channel that
   started the job;
 - `plugin.state` needs no permission but is cut to its id and state.
@@ -180,11 +194,15 @@ disabled, removed or reloaded.
 
 ## Hooks
 
-Three interceptors run just before an operation: `before-launch`,
-`before-server-start` and `before-content-install`. They are **customisation, not
-a control**: each plugin runs under a 2 s deadline, and a timeout, trap or refused
-re-entry skips it with a `PluginHookFailed` warning on the result while the
-operation goes ahead. Only an explicit veto stops it (`PluginVetoed`). Plugins run
+A hook point is data in `proto::hook`: a `HookPoint` names itself, the
+permissions a plugin needs to declare it, the `Context` the plugin is shown and
+the `Patch` it may answer. Every point crosses the ABI through one export,
+`hooks.intercept(point, context)`, as JSON; the engine's `Hook` impl for a point
+says what the host keeps of a patch (`vet`) and how patches combine (`fold`).
+The points today are `before-launch`, `before-server-start` and
+`before-content-install`. Hooks are **customisation, not a control**: each plugin runs under a 2 s deadline, and a timeout, trap, refused re-entry or
+an answer that is not the point's patch skips it with a `PluginHookFailed`
+warning on the result while the operation goes ahead. Only an explicit veto stops it (`PluginVetoed`). Plugins run
 in id order and their patches fold in that order. A launch or server-start patch
 is filtered through an allowlist (`patch.rs`: a fixed set of GC and heap flags, `-D`
 keys the manifest declared, no code-loading options); anything else is dropped with
@@ -194,16 +212,32 @@ a warning. Details, including which claim a hook holds, are in
 ## Provider surfaces
 
 A plugin adds to an engine registry with `contributes.providers = [{ kind, id }]`.
-The adapter that registers it stamps its own id on everything returned, calls the
-guest with the 30 s provider timeout, and maps a guest failure to
-`PluginCallFailed` naming the plugin. Disabling, removing or replacing the plugin
-unregisters what it added. Ids read `<plugin>.<id>`; only a plugin signed by the
-official key may take a bare id.
+A kind is data in `proto::provider`: a `ProviderKind` names itself and the
+permissions it needs, and each `ProviderOp` pairs an operation name with typed
+`Args` and `Reply`, a contract in the other direction. Every operation of every
+kind crosses the ABI through one export, `provider.invoke(kind, id, op, args)`.
+
+The engine wraps each contribution in the registry's own trait over a `Guest`
+(`plugins/providers/`), which stamps the plugin's id on everything returned,
+calls the guest with the 30 s provider timeout, and maps a guest failure to
+`PluginCallFailed` naming the plugin. A guest answers `unsupported` for an
+operation it does not implement; an optional operation then takes its
+documented fallback in the host (`projects` asks `project` for each,
+`versions-by-id`, `identify` and `loader-versions` find nothing), a required one
+fails the call. `Contributions` connects, registers and unregisters every kind
+in one place, so the daemon never names a kind. Ids read `<plugin>.<id>`; only a
+plugin signed by the official key may take a bare id.
 
 | Kind | Needs | Registers into | Page |
 |---|---|---|---|
-| `content` | `content:read`, `network:connect` and a host | the content source registry (`PluginContentProvider`) | [Content & modpacks](content.md#sources) |
-| `flavor` | `flavor:provide`, `network:connect` and a host | the flavor registry (`PluginFlavorProvider`) | [Minecraft providers](minecraft.md) |
+| `content` | `content:read`, `network:connect` and a host | the content source registry | [Content & modpacks](content.md#sources) |
+| `flavor` | `flavor:provide`, `network:connect` and a host | the flavor registry | [Minecraft providers](minecraft.md) |
+| `format` | `format:provide` | the archive formats import detection ranks | [Import & export](transfer.md) |
+| `java` | `java:provide`, `network:connect` and a host | the Java provider roster | [The engine](engine.md) |
+
+Adding a kind is its vocabulary in `proto::provider`, an adapter module beside
+the others, and a line in each of `Contributions::connect`, `register` and
+`unregister`.
 
 ## Declarative UI and themes
 
@@ -251,6 +285,19 @@ online. Dialling goes through the shared guard client, whose resolver refuses
 addresses that point inside the machine, so a granted name cannot reach the local
 network. A request has a 30 s timeout and a 32 MiB body cap. A content source's
 files are checked against the same host list before the engine downloads them.
+
+## Local endpoints
+
+`ipc:connect` plus an `ipc` list reaches local programs over a Unix socket under
+the user's runtime and temp directories, or a Windows named pipe
+(`plugins/ipc.rs`, the dialing behind `cfg`). An entry is a relative name whose
+last segment may end in `*`; a bare `*` is refused, so a grant always names what
+it allows. The host keeps each connection open across calls, since every call
+runs on a fresh instance, and the plugin names it again by id; at most 8 are
+open, a message is at most 1 MiB, and all close when the plugin is disabled,
+removed, reloaded or taken out of service after repeated traps. This is how a
+plugin talks to a running Discord, or any other local program, speaking its
+protocol itself.
 
 ## Spawning programs
 
@@ -352,15 +399,18 @@ are reclaimed at startup.
 
 `crates/sdk/wit/` is the ABI: one package, `hestia:plugin`, whose version is the
 API version (`proto::plugin::API_VERSION`, `crates/sdk/tests/version.rs` fails on
-drift). Interfaces: `host` (`call`, `run-job`), `log`, `process`, `progress`,
-`settings` and the `http-client` world over `wasi:http`; exports: `lifecycle`,
-`commands`, `events`, `settings-changed`, `ui`, `launch-hooks`, `content-hooks`,
-`content-source`, `flavor`. `hestia-sdk` wraps them in a `Plugin` trait with
-default methods, plus the proto types a guest needs.
+drift). Imports: `host` (`call`, `run-job`), `log`, `process`, `progress`,
+`settings`, `ipc` and the `http-client` world over `wasi:http`; exports:
+`lifecycle`, `commands`, `events`, `settings-changed`, `ui`, `hooks`
+(`intercept`) and `provider` (`invoke`). That list is closed: a new hook point or
+provider kind is data in `proto`, not a new interface. `hestia-sdk` wraps the
+exports in a `Plugin` trait with default methods, and `intercept`/`provide`
+route a request to typed handlers with `.on::<Point>(…)` and `.on::<Op>(…)`.
 
 The API changes by caret semver: additive bumps the minor, breaking the major, and
 the host never serves two versions. `crates/proto/tests/plugin_api.rs` snapshots
-every plugin-reachable contract and topic with the WIT files, so a change under an
+every plugin-reachable contract and topic, every hook point and provider
+operation, and the WIT files, so a change under an
 unchanged version fails
 ([0091](../decisions/0091-plugins-are-wasm-components.md)). `proto` and `sdk` are
 `MIT OR Apache-2.0` so a plugin may use any license; everything else stays
@@ -386,3 +436,6 @@ plugins the tests build are fixtures
 | [0101](../decisions/0101-plugins-spawn-only-declared-programs.md) | plugins spawn only declared programs |
 | [0102](../decisions/0102-one-feature-resolution-for-dev-builds.md) | one feature resolution for dev builds (wasmtime's build cost) |
 | [0103](../decisions/0103-example-plugins-live-in-their-own-repository.md) | examples live in their own repository; test plugins are fixtures |
+| [0104](../decisions/0104-an-archive-format-plugin-maps-files-the-host-copies.md) | an archive format maps files; the host copies them |
+| [0105](../decisions/0105-a-java-provider-only-resolves.md) | a Java provider only resolves; the host downloads and extracts |
+| [0106](../decisions/0106-the-plugin-api-is-mechanisms-not-features.md) | the plugin API is mechanisms, not features |

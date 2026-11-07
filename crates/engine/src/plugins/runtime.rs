@@ -21,17 +21,14 @@ use wasmtime_wasi_http::WasiHttpCtx;
 use super::cache::ComponentCache;
 use super::chain::{CallChain, ChainError};
 use super::http::PluginHttp;
-use super::imports::bindings::exports::hestia::plugin::{content_hooks, launch_hooks};
 use super::imports::bindings::{self, hestia::plugin::types::PluginError};
 use super::imports::{CommandRun, Gate, HostCalls, PluginState};
+use super::ipc::Connections;
 use super::output::{Captured, PluginLog};
-use super::presence::PluginCard;
 use super::process::Programs;
-use super::providers::{FlavorOp, FormatCall, JavaOp, SourceOp};
 use super::settings::PluginSettings;
 use super::store::PluginRecord;
 use crate::checksum::hex;
-use crate::presence::Presence;
 use crate::process::ProcessSupervisor;
 
 pub const EVENT_TIMEOUT: Duration = Duration::from_secs(5);
@@ -83,6 +80,8 @@ pub enum CallError {
     Setup(String),
     #[error("{0}")]
     Guest(String),
+    #[error("the plugin does not implement `{0}`")]
+    Unsupported(String),
     #[error("the page `{0}` returned a document outside the UI vocabulary")]
     InvalidUi(String),
 }
@@ -132,7 +131,6 @@ pub struct PluginRuntime {
     pool: Arc<Semaphore>,
     host: Arc<dyn HostCalls>,
     processes: Arc<ProcessSupervisor>,
-    presence: Arc<Presence>,
     ticker: Arc<Ticker>,
     cache: ComponentCache,
 }
@@ -144,7 +142,6 @@ impl PluginRuntime {
         host: Arc<dyn HostCalls>,
         cache_dir: PathBuf,
         processes: Arc<ProcessSupervisor>,
-        presence: Arc<Presence>,
     ) -> anyhow::Result<Self> {
         let mut pooling = PoolingAllocationConfig::new();
         pooling
@@ -185,7 +182,6 @@ impl PluginRuntime {
             pool: Arc::new(Semaphore::new(POOL_SLOTS as usize)),
             host,
             processes,
-            presence,
             ticker,
         })
     }
@@ -222,19 +218,15 @@ impl PluginRuntime {
             data_dir: data_dir.clone(),
             supervisor: self.processes.clone(),
         });
-        let card = Arc::new(PluginCard::new(
-            id.clone(),
-            grant.clone(),
-            self.presence.clone(),
-        ));
+        let ipc = Arc::new(Connections::new(id.clone(), grant.clone()));
         Ok(LoadedPlugin {
+            ipc,
             id,
             engine: self.engine.clone(),
             pre,
             host: self.host.clone(),
             grant,
             programs,
-            card,
             data_dir,
             settings: Arc::new(settings),
             log: PluginLog::new(
@@ -285,7 +277,7 @@ pub struct LoadedPlugin {
     host: Arc<dyn HostCalls>,
     grant: Arc<Grant>,
     programs: Arc<Programs>,
-    card: Arc<PluginCard>,
+    ipc: Arc<Connections>,
     data_dir: PathBuf,
     settings: Arc<PluginSettings>,
     log: Arc<PluginLog>,
@@ -325,7 +317,7 @@ impl LoadedPlugin {
                 Box::pin(instance.hestia_plugin_lifecycle().call_init(store))
             })
             .await?;
-        outcome.map_err(|error| CallError::Guest(describe(error)))
+        outcome.map_err(guest_error)
     }
 
     /// Runs the plugin's `settings-changed.on-settings-changed` for `key`.
@@ -369,7 +361,7 @@ impl LoadedPlugin {
                 })
             })
             .await?
-            .map_err(|error| CallError::Guest(describe(error)))?;
+            .map_err(guest_error)?;
         serde_json::from_str(&reply)
             .map_err(|error| CallError::Guest(format!("the command's result is not JSON: {error}")))
     }
@@ -393,7 +385,7 @@ impl LoadedPlugin {
                 })
             })
             .await?
-            .map_err(|error| CallError::Guest(describe(error)))?;
+            .map_err(guest_error)?;
         self.decode_ui(page, &reply)
     }
 
@@ -423,7 +415,7 @@ impl LoadedPlugin {
                 })
             })
             .await?
-            .map_err(|error| CallError::Guest(describe(error)))?;
+            .map_err(guest_error)?;
         self.decode_ui(page, &reply)
     }
 
@@ -454,184 +446,56 @@ impl LoadedPlugin {
         .await
     }
 
-    /// Runs the plugin's `launch-hooks.before-launch` under `timeout`; the inner
-    /// error is the plugin's veto reason.
-    pub(super) async fn before_launch(
+    /// Runs the hook point `point` under `timeout` with its context as JSON. The
+    /// inner error is the plugin's veto reason; the answer is the point's patch
+    /// as JSON.
+    pub(super) async fn intercept(
         &self,
         chain: &CallChain,
-        context: launch_hooks::LaunchContext,
+        point: &str,
+        context: &str,
         timeout: Duration,
-    ) -> Result<Result<launch_hooks::LaunchPatch, String>, CallError> {
+    ) -> Result<Result<String, String>, CallError> {
+        let (point, context) = (point.to_string(), context.to_string());
         self.guarded(chain, timeout, None, move |store, instance| {
             Box::pin(async move {
                 instance
-                    .hestia_plugin_launch_hooks()
-                    .call_before_launch(store, &context)
+                    .hestia_plugin_hooks()
+                    .call_intercept(store, &point, &context)
                     .await
             })
         })
         .await
     }
 
-    /// Runs the plugin's `launch-hooks.before-server-start` under `timeout`; the
-    /// inner error is the plugin's veto reason.
-    pub(super) async fn before_server_start(
+    /// Asks the operation `op` of the contributed provider `id` of `kind` under
+    /// `timeout`; `args` and the reply are JSON. An operation the guest does not
+    /// implement is [`CallError::Unsupported`].
+    pub(super) async fn provide(
         &self,
         chain: &CallChain,
-        context: launch_hooks::ServerContext,
+        kind: &str,
+        id: &str,
+        op: &str,
+        args: &str,
         timeout: Duration,
-    ) -> Result<Result<launch_hooks::LaunchPatch, String>, CallError> {
+    ) -> Result<String, CallError> {
+        let (kind, id, op, args) = (
+            kind.to_string(),
+            id.to_string(),
+            op.to_string(),
+            args.to_string(),
+        );
         self.guarded(chain, timeout, None, move |store, instance| {
             Box::pin(async move {
                 instance
-                    .hestia_plugin_launch_hooks()
-                    .call_before_server_start(store, &context)
+                    .hestia_plugin_provider()
+                    .call_invoke(store, &kind, &id, &op, &args)
                     .await
             })
         })
-        .await
-    }
-
-    /// Runs the plugin's `content-hooks.before-content-install` under `timeout`;
-    /// the inner error is the plugin's veto reason.
-    pub(super) async fn before_content_install(
-        &self,
-        chain: &CallChain,
-        context: content_hooks::InstallContext,
-        timeout: Duration,
-    ) -> Result<Result<(), String>, CallError> {
-        self.guarded(chain, timeout, None, move |store, instance| {
-            Box::pin(async move {
-                instance
-                    .hestia_plugin_content_hooks()
-                    .call_before_content_install(store, &context)
-                    .await
-            })
-        })
-        .await
-    }
-
-    /// Runs one call of the plugin's `content-source` export for the contributed
-    /// source `source` under `timeout`; `args` and the reply are JSON.
-    pub(super) async fn content_source(
-        &self,
-        chain: &CallChain,
-        op: SourceOp,
-        source: &str,
-        args: &str,
-        timeout: Duration,
-    ) -> Result<String, CallError> {
-        let (source, args) = (source.to_string(), args.to_string());
-        self.guarded(chain, timeout, None, move |store, instance| {
-            Box::pin(async move {
-                let guest = instance.hestia_plugin_content_source();
-                match op {
-                    SourceOp::Info => guest.call_info(store, &source).await,
-                    SourceOp::ParseUrl => guest.call_parse_url(store, &source, &args).await,
-                    SourceOp::RecogniseFileUrl => {
-                        guest.call_recognise_file_url(store, &source, &args).await
-                    }
-                    SourceOp::Search => guest.call_search(store, &source, &args).await,
-                    SourceOp::Project => guest.call_project(store, &source, &args).await,
-                    SourceOp::Projects => guest.call_projects(store, &source, &args).await,
-                    SourceOp::Versions => guest.call_versions(store, &source, &args).await,
-                    SourceOp::VersionsById => {
-                        guest.call_versions_by_id(store, &source, &args).await
-                    }
-                    SourceOp::Identify => guest.call_identify(store, &source, &args).await,
-                }
-            })
-        })
         .await?
-        .map_err(|error| CallError::Guest(describe(error)))
-    }
-
-    /// Runs one call of the plugin's `flavor` export for the contributed
-    /// flavor `flavor` under `timeout`; `args` and the reply are JSON.
-    pub(super) async fn flavor(
-        &self,
-        chain: &CallChain,
-        op: FlavorOp,
-        flavor: &str,
-        args: &str,
-        timeout: Duration,
-    ) -> Result<String, CallError> {
-        let (flavor, args) = (flavor.to_string(), args.to_string());
-        self.guarded(chain, timeout, None, move |store, instance| {
-            Box::pin(async move {
-                let guest = instance.hestia_plugin_flavor();
-                match op {
-                    FlavorOp::Info => guest.call_info(store, &flavor).await,
-                    FlavorOp::Versions => guest.call_versions(store, &flavor).await,
-                    FlavorOp::LoaderVersions => {
-                        guest.call_loader_versions(store, &flavor, &args).await
-                    }
-                    FlavorOp::ResolveServer => {
-                        guest.call_resolve_server(store, &flavor, &args).await
-                    }
-                    FlavorOp::ResolveClient => {
-                        guest.call_resolve_client(store, &flavor, &args).await
-                    }
-                }
-            })
-        })
-        .await?
-        .map_err(|error| CallError::Guest(describe(error)))
-    }
-
-    /// Runs one call of the plugin's `archive-format` export for the contributed
-    /// format `format` under `timeout`; the reply is JSON.
-    pub(super) async fn archive_format(
-        &self,
-        chain: &CallChain,
-        format: &str,
-        call: FormatCall,
-        timeout: Duration,
-    ) -> Result<String, CallError> {
-        let format = format.to_string();
-        self.guarded(chain, timeout, None, move |store, instance| {
-            Box::pin(async move {
-                let guest = instance.hestia_plugin_archive_format();
-                match call {
-                    FormatCall::Info => guest.call_info(store, &format).await,
-                    FormatCall::Read { manifest, files } => {
-                        guest.call_read(store, &format, &manifest, &files).await
-                    }
-                    FormatCall::Land { blueprint, files } => {
-                        guest.call_land(store, &format, &blueprint, &files).await
-                    }
-                    FormatCall::Write { blueprint, files } => {
-                        guest.call_write(store, &format, &blueprint, &files).await
-                    }
-                }
-            })
-        })
-        .await?
-        .map_err(|error| CallError::Guest(describe(error)))
-    }
-
-    /// Runs one call of the plugin's `java-provider` export for the contributed
-    /// provider `provider` under `timeout`; `args` and the reply are JSON.
-    pub(super) async fn java_provider(
-        &self,
-        chain: &CallChain,
-        op: JavaOp,
-        provider: &str,
-        args: &str,
-        timeout: Duration,
-    ) -> Result<String, CallError> {
-        let (provider, args) = (provider.to_string(), args.to_string());
-        self.guarded(chain, timeout, None, move |store, instance| {
-            Box::pin(async move {
-                let guest = instance.hestia_plugin_java_provider();
-                match op {
-                    JavaOp::Majors => guest.call_majors(store, &provider).await,
-                    JavaOp::Resolve => guest.call_resolve(store, &provider, &args).await,
-                }
-            })
-        })
-        .await?
-        .map_err(|error| CallError::Guest(describe(error)))
+        .map_err(guest_error)
     }
 
     /// What the user approved for this plugin.
@@ -754,7 +618,7 @@ impl LoadedPlugin {
             log: self.log.clone(),
             settings: self.settings.clone(),
             programs: self.programs.clone(),
-            card: self.card.clone(),
+            ipc: self.ipc.clone(),
             gate: Arc::new(Gate {
                 plugin: self.id.clone(),
                 host: self.host.clone(),
@@ -783,7 +647,7 @@ impl LoadedPlugin {
         }
         if recent.len() >= TRAP_LIMIT && !self.disabled.swap(true, Ordering::Relaxed) {
             tracing::error!(plugin = %self.id, "plugin disabled after repeated traps");
-            let _ = self.card.clear();
+            self.ipc.close_all();
         }
     }
 }
@@ -802,12 +666,13 @@ fn context_json(context: &PageContext) -> String {
     serde_json::to_string(context).expect("a page context is plain data")
 }
 
-fn describe(error: PluginError) -> String {
+fn guest_error(error: PluginError) -> CallError {
     match error {
+        PluginError::Unsupported(message) => CallError::Unsupported(message),
         PluginError::PermissionDenied(message)
         | PluginError::NotFound(message)
         | PluginError::Invalid(message)
-        | PluginError::Failed(message) => message,
+        | PluginError::Failed(message) => CallError::Guest(message),
     }
 }
 

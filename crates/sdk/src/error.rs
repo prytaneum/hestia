@@ -17,6 +17,10 @@ pub enum Error {
     Invalid(String),
     #[error("{0}")]
     Failed(String),
+    /// The plugin does not implement what it was asked. The host falls back
+    /// where the operation is optional, and fails the call where it is not.
+    #[error("{0}")]
+    Unsupported(String),
     /// A payload did not encode, or a reply did not decode as its contract says.
     #[error("payload: {0}")]
     Json(#[from] serde_json::Error),
@@ -32,6 +36,7 @@ impl From<PluginError> for Error {
             PluginError::NotFound(message) => Error::NotFound(message),
             PluginError::Invalid(message) => Error::Invalid(message),
             PluginError::Failed(message) => Error::Failed(message),
+            PluginError::Unsupported(message) => Error::Unsupported(message),
         }
     }
 }
@@ -43,6 +48,7 @@ impl From<Error> for PluginError {
             Error::NotFound(message) => PluginError::NotFound(message),
             Error::Invalid(message) => PluginError::Invalid(message),
             Error::Failed(message) => PluginError::Failed(message),
+            Error::Unsupported(message) => PluginError::Unsupported(message),
             other => PluginError::Failed(other.to_string()),
         }
     }

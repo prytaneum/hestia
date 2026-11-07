@@ -291,6 +291,7 @@ fn grant_rows(
     }));
     let lists = [
         ("Network", &grant.network),
+        ("Local endpoints", &grant.ipc),
         ("Launch properties", &grant.launch_properties),
         ("Hooks", &grant.hooks),
         ("Events", &grant.events),

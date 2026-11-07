@@ -8,11 +8,9 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use engine::{CallChain, CallError, HostCalls, LoadedPlugin, EVENT_TIMEOUT};
+use proto::events::topic_permission;
 use proto::glob::topic_matches;
-use proto::plugin::{Grant, Permission, PluginStateEvent};
-use proto::process::{
-    ProcessExitEvent, ProcessMetricsEvent, ProcessOutputEvent, ProcessStartedEvent,
-};
+use proto::plugin::{Grant, PluginStateEvent};
 use proto::Topic;
 use serde_json::{json, Value};
 use tokio::sync::Notify;
@@ -24,26 +22,16 @@ const QUEUE_CAPACITY: usize = 256;
 const WARN_EVERY: Duration = Duration::from_secs(60);
 const TIMEOUTS_IN_A_ROW: u32 = 3;
 
-/// Topics no manifest or grant can reach. A client prints its own session id to
-/// stdout, so process output is secret-bearing.
-const NEVER: &[&str] = &[ProcessOutputEvent::TOPIC];
-
-/// The topics that name a permission; every other topic is withheld.
-const TOPIC_PERMISSIONS: [(&str, Option<Permission>); 3] = [
-    (ProcessStartedEvent::TOPIC, ProcessStartedEvent::PLUGIN),
-    (ProcessExitEvent::TOPIC, ProcessExitEvent::PLUGIN),
-    (ProcessMetricsEvent::TOPIC, ProcessMetricsEvent::PLUGIN),
-];
-
 /// The payload `plugin` may receive for this event, or `None` to withhold it.
-/// A `job` event goes only to a plugin granted the permission of the channel
-/// that started the job; `plugin.state` needs none but is cut to its id and state.
+/// Every topic is classified in `proto::events::TOPICS`; a topic none classifies,
+/// such as process output, never reaches a plugin. A `job` event goes only to a
+/// plugin granted the permission of the channel that started the job;
+/// `plugin.state` needs none but is cut to its id and state.
 pub fn admit(grant: &Grant, host: &dyn HostCalls, topic: &str, payload: &Value) -> Option<Value> {
-    if NEVER.contains(&topic)
-        || !grant
-            .events
-            .iter()
-            .any(|pattern| topic_matches(pattern, topic))
+    if !grant
+        .events
+        .iter()
+        .any(|pattern| topic_matches(pattern, topic))
     {
         return None;
     }
@@ -53,10 +41,7 @@ pub fn admit(grant: &Grant, host: &dyn HostCalls, topic: &str, payload: &Value) 
     let needed = if topic == proto::job::TOPIC {
         host.permission(payload.get("channel")?.as_str()?)
     } else {
-        TOPIC_PERMISSIONS
-            .iter()
-            .find(|(known, _)| *known == topic)
-            .and_then(|(_, permission)| *permission)
+        topic_permission(topic, payload)
     };
     needed
         .is_some_and(|permission| grant.permissions.contains(&permission))
@@ -203,6 +188,7 @@ async fn drain(inbox: Arc<Inbox>, plugin: Arc<LoadedPlugin>, hub: Arc<EventHub>,
 mod tests {
     use async_trait::async_trait;
     use engine::HostError;
+    use proto::plugin::Permission;
 
     use super::*;
 
@@ -266,13 +252,21 @@ mod tests {
 
     #[test]
     fn unclassified_topics_are_withheld_even_when_subscribed() {
-        let everything = grant(
-            &["net.*", "changed", "process.*"],
-            &[Permission::ProcessRead],
-        );
-        assert!(admitted(&everything, "net.state", json!({})).is_none());
-        assert!(admitted(&everything, "changed", json!({})).is_none());
+        let everything = grant(&["net.*", "process.*"], &[Permission::ProcessRead]);
         assert!(admitted(&everything, "process.unknown", json!({})).is_none());
+        assert!(admitted(&everything, "net.state", json!({})).is_none());
+        let online = grant(&["net.*"], &[Permission::NetworkConnect]);
+        assert!(admitted(&online, "net.state", json!({})).is_some());
+    }
+
+    #[test]
+    fn a_change_is_admitted_by_the_permission_of_its_scope() {
+        let changed = |scope: &str| json!({ "scope": scope });
+        let entries = grant(&["changed"], &[Permission::EntryRead]);
+        assert!(admitted(&entries, "changed", changed("entries")).is_some());
+        assert!(admitted(&entries, "changed", changed("accounts")).is_none());
+        assert!(admitted(&entries, "changed", changed("plugins")).is_none());
+        assert!(admitted(&entries, "changed", json!({})).is_none());
     }
 
     #[test]

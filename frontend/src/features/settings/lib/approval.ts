@@ -6,6 +6,7 @@ type GrantSectionKind =
   | 'permissions'
   | 'programs'
   | 'network'
+  | 'ipc'
   | 'launch_properties'
   | 'hooks'
   | 'events'
@@ -47,7 +48,7 @@ const PERMISSION_TEXT: Record<Permission, () => string> = {
   'network:connect': m['domain.plugin.permission.network_connect'],
   'ui:css': m['domain.plugin.permission.ui_css'],
   'launch:patch': m['domain.plugin.permission.launch_patch'],
-  'presence:set': m['domain.plugin.permission.presence_set'],
+  'ipc:connect': m['domain.plugin.permission.ipc_connect'],
   'flavor:provide': m['domain.plugin.permission.flavor_provide'],
   'format:provide': m['domain.plugin.permission.format_provide'],
   'java:provide': m['domain.plugin.permission.java_provide'],
@@ -58,6 +59,7 @@ const HEADING: Record<GrantSectionKind, () => string> = {
   permissions: m['settings.plugins.grant.permissions'],
   programs: m['settings.plugins.grant.programs'],
   network: m['settings.plugins.grant.network'],
+  ipc: m['settings.plugins.grant.ipc'],
   launch_properties: m['settings.plugins.grant.launch_properties'],
   hooks: m['settings.plugins.grant.hooks'],
   events: m['settings.plugins.grant.events'],
@@ -110,6 +112,7 @@ export function describeGrant(
       })),
     ],
     ['network', values(grant.network)],
+    ['ipc', values(grant.ipc)],
     ['launch_properties', values(grant.launchProperties)],
     ['hooks', values(grant.hooks)],
     ['events', values(grant.events)],

@@ -81,49 +81,12 @@ fn the_core_card_is_published_once_while_unchanged() {
 }
 
 #[test]
-fn a_plugin_card_wins_and_clearing_it_restores_the_core_card() {
+fn disabled_shows_nothing() {
     let (presence, script) = presence();
     presence.set_core(Some(card("core")));
-    presence.tick(true);
-    presence.set_plugin("a", card("from a"));
-    presence.tick(true);
-    presence.clear_plugin("a");
-    presence.tick(true);
-    assert_eq!(shown(&script), [set("core"), set("from a"), set("core")]);
-}
-
-#[test]
-fn the_last_plugin_to_set_wins_and_a_clear_only_removes_its_own_card() {
-    let (presence, script) = presence();
-    presence.set_core(Some(card("core")));
-    presence.set_plugin("a", card("from a"));
-    presence.set_plugin("b", card("from b"));
-    presence.tick(true);
-    presence.clear_plugin("a");
-    presence.tick(true);
-    assert_eq!(shown(&script), [set("from b")]);
-    presence.clear_plugin("b");
-    presence.tick(true);
-    assert_eq!(shown(&script), [set("from b"), set("core")]);
-}
-
-#[test]
-fn clearing_a_card_nobody_set_leaves_the_winner_alone() {
-    let (presence, script) = presence();
-    presence.set_plugin("a", card("from a"));
-    presence.clear_plugin("b");
-    presence.tick(true);
-    presence.tick(true);
-    assert_eq!(shown(&script), [set("from a")]);
-}
-
-#[test]
-fn disabled_shows_nothing_whoever_asks() {
-    let (presence, script) = presence();
-    presence.set_plugin("a", card("from a"));
     presence.tick(true);
     presence.tick(false);
-    assert_eq!(shown(&script), [set("from a"), Op::Clear]);
+    assert_eq!(shown(&script), [set("core"), Op::Clear]);
 }
 
 #[test]

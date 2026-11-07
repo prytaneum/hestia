@@ -1,8 +1,7 @@
-//! Content sources contributed by plugins. A plugin's `content-source` export
-//! is wrapped in a [`PluginContentProvider`], which the content aggregate
-//! treats like any built-in source. The guest only describes what exists; the
-//! engine downloads the files it lists, and only from hosts the plugin was
-//! granted.
+//! Content sources contributed by plugins, wrapped in a
+//! [`PluginContentProvider`] that the content aggregate treats like any
+//! built-in source. The guest only describes what exists; the engine downloads
+//! the files it lists, and only from hosts the plugin was granted.
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -11,109 +10,47 @@ use anyhow::Result;
 use async_trait::async_trait;
 use proto::content::{
     ContentKind, ContentProject, ContentVersion, SearchQuery, SearchResult, SourceFileRef,
-    SourceInfo, SourceUrl, VersionQuery,
+    SourceInfo, VersionQuery,
 };
-use proto::plugin::{Manifest, CONTENT_PROVIDER};
-use serde::de::DeserializeOwned;
-use serde_json::{json, Value};
+use proto::plugin::Manifest;
+use proto::provider::content::{self as op, IdQuery, ProjectQuery, Sha1Query, Source, UrlQuery};
+use proto::Empty;
 
-use super::call_failed;
+use super::{connect_each, registered, Guest};
 use crate::content::provider::{ContentProvider, LocalFile, UrlRef};
-use crate::content::Content;
-use crate::plugins::chain::CallChain;
+use crate::engine::Engine;
 use crate::plugins::http::download_allowed;
-use crate::plugins::runtime::{LoadedPlugin, PROVIDER_TIMEOUT};
-
-/// One function of the `content-source` export.
-#[derive(Debug, Clone, Copy)]
-pub(in crate::plugins) enum SourceOp {
-    Info,
-    ParseUrl,
-    RecogniseFileUrl,
-    Search,
-    Project,
-    Projects,
-    Versions,
-    VersionsById,
-    Identify,
-}
-
-impl SourceOp {
-    fn name(self) -> &'static str {
-        match self {
-            SourceOp::Info => "info",
-            SourceOp::ParseUrl => "parse-url",
-            SourceOp::RecogniseFileUrl => "recognise-file-url",
-            SourceOp::Search => "search",
-            SourceOp::Project => "project",
-            SourceOp::Projects => "projects",
-            SourceOp::Versions => "versions",
-            SourceOp::VersionsById => "versions-by-id",
-            SourceOp::Identify => "identify",
-        }
-    }
-}
+use crate::plugins::runtime::LoadedPlugin;
 
 /// A source a plugin contributes, registered as `<plugin>.<id>`.
 pub struct PluginContentProvider {
-    id: String,
-    local: String,
-    plugin: Arc<LoadedPlugin>,
+    guest: Guest,
     info: SourceInfo,
 }
 
 impl PluginContentProvider {
-    /// Asks the guest to describe the source `local` of its manifest.
-    pub async fn connect(plugin: Arc<LoadedPlugin>, local: &str) -> Result<Self> {
-        let mut provider = PluginContentProvider {
-            id: format!("{}.{local}", plugin.id()),
-            local: local.to_string(),
-            plugin,
-            info: SourceInfo::default(),
-        };
-        provider.info = provider.ask(SourceOp::Info, Value::Null).await?;
-        Ok(provider)
-    }
-
-    async fn ask<T: DeserializeOwned>(&self, op: SourceOp, args: Value) -> Result<T> {
-        let reply = self
-            .plugin
-            .content_source(
-                &CallChain::default(),
-                op,
-                &self.local,
-                &args.to_string(),
-                PROVIDER_TIMEOUT,
-            )
-            .await
-            .map_err(|error| self.failed(format!("{}: {error}", op.name())))?;
-        serde_json::from_str(&reply).map_err(|error| {
-            tracing::warn!(plugin = self.plugin.id(), source = %self.local, op = op.name(), %error, "malformed content source reply");
-            self.failed(format!("{} returned an unreadable reply", op.name()))
-        })
-    }
-
-    fn failed(&self, detail: String) -> anyhow::Error {
-        call_failed(self.plugin.id(), detail)
+    /// Asks the guest to describe its source.
+    async fn connect(guest: Guest) -> Result<Self> {
+        let info = guest.ask::<op::Info>(&Empty {}).await?;
+        Ok(PluginContentProvider { guest, info })
     }
 
     fn project_of(&self, mut project: ContentProject) -> ContentProject {
-        project.source = self.id.clone();
+        project.source = self.guest.id().to_string();
         project
     }
 
     /// Stamps the version as this source's and keeps only the files the engine
     /// may download for the plugin; a version left with none is dropped.
     fn version_of(&self, mut version: ContentVersion) -> Option<ContentVersion> {
-        version.source = self.id.clone();
+        version.source = self.guest.id().to_string();
         let listed = version.files.len();
         version
             .files
-            .retain(|file| download_allowed(self.plugin.grant(), &file.artifact.url));
+            .retain(|file| download_allowed(self.guest.plugin().grant(), &file.artifact.url));
         if version.files.len() < listed {
             tracing::warn!(
-                plugin = self.plugin.id(),
-                source = %self.local,
+                source = %self.guest.id(),
                 version = %version.id,
                 dropped = listed - version.files.len(),
                 "files outside the plugin's network hosts were dropped"
@@ -133,7 +70,7 @@ impl PluginContentProvider {
 #[async_trait]
 impl ContentProvider for PluginContentProvider {
     fn id(&self) -> &str {
-        &self.id
+        self.guest.id()
     }
 
     fn name(&self) -> &str {
@@ -145,18 +82,19 @@ impl ContentProvider for PluginContentProvider {
     }
 
     fn available(&self) -> bool {
-        !self.plugin.is_disabled()
+        !self.guest.plugin().is_disabled()
     }
 
     async fn parse_url(&self, url: &str) -> Option<UrlRef> {
-        let found: Option<SourceUrl> = self
-            .ask(SourceOp::ParseUrl, json!({ "url": url }))
+        let found = self
+            .guest
+            .try_ask::<op::ParseUrl>(&UrlQuery { url: url.into() })
             .await
             .inspect_err(|error| {
-                tracing::warn!(source = %self.id, error = %format!("{error:#}"), "content source could not parse a URL");
+                tracing::warn!(source = %self.guest.id(), error = %format!("{error:#}"), "content source could not parse a URL");
             })
-            .ok()?;
-        found.map(|found| UrlRef {
+            .ok()???;
+        Some(UrlRef {
             project: found.project,
             version: found.version,
             kind: found.kind,
@@ -164,15 +102,17 @@ impl ContentProvider for PluginContentProvider {
     }
 
     async fn recognise_file_url(&self, url: &str) -> Option<SourceFileRef> {
-        if !download_allowed(self.plugin.grant(), url) {
+        if !download_allowed(self.guest.plugin().grant(), url) {
             return None;
         }
-        self.ask(SourceOp::RecogniseFileUrl, json!({ "url": url }))
+        self.guest
+            .try_ask::<op::RecogniseFileUrl>(&UrlQuery { url: url.into() })
             .await
             .inspect_err(|error| {
-                tracing::warn!(source = %self.id, error = %format!("{error:#}"), "content source could not recognise a file URL");
+                tracing::warn!(source = %self.guest.id(), error = %format!("{error:#}"), "content source could not recognise a file URL");
             })
             .ok()?
+            .flatten()
     }
 
     fn datapacks_as_mods(&self) -> bool {
@@ -180,7 +120,7 @@ impl ContentProvider for PluginContentProvider {
     }
 
     async fn search(&self, query: &SearchQuery) -> Result<SearchResult> {
-        let mut result: SearchResult = self.ask(SourceOp::Search, json!(query)).await?;
+        let mut result = self.guest.ask::<op::Search>(query).await?;
         result.hits = result
             .hits
             .into_iter()
@@ -190,18 +130,27 @@ impl ContentProvider for PluginContentProvider {
     }
 
     async fn project(&self, project: &str, kind: Option<ContentKind>) -> Result<ContentProject> {
-        let found = self
-            .ask(
-                SourceOp::Project,
-                json!({ "project": project, "kind": kind }),
-            )
-            .await?;
+        let query = ProjectQuery {
+            project: project.into(),
+            kind,
+        };
+        let found = self.guest.ask::<op::Project>(&query).await?;
         Ok(self.project_of(found))
     }
 
+    /// A guest without `projects` is asked for each project in turn.
     async fn projects(&self, ids: &[String]) -> Result<Vec<ContentProject>> {
-        let found: Vec<ContentProject> =
-            self.ask(SourceOp::Projects, json!({ "ids": ids })).await?;
+        let query = IdQuery { ids: ids.to_vec() };
+        let found = match self.guest.try_ask::<op::Projects>(&query).await? {
+            Some(found) => found,
+            None => {
+                let mut found = Vec::with_capacity(ids.len());
+                for id in ids {
+                    found.push(self.project(id, None).await?);
+                }
+                return Ok(found);
+            }
+        };
         Ok(found
             .into_iter()
             .map(|project| self.project_of(project))
@@ -209,22 +158,29 @@ impl ContentProvider for PluginContentProvider {
     }
 
     async fn versions(&self, query: &VersionQuery) -> Result<Vec<ContentVersion>> {
-        let found = self.ask(SourceOp::Versions, json!(query)).await?;
+        let found = self.guest.ask::<op::Versions>(query).await?;
         Ok(self.versions_of(found))
     }
 
     async fn versions_by_id(&self, ids: &[String]) -> Result<Vec<ContentVersion>> {
+        let query = IdQuery { ids: ids.to_vec() };
         let found = self
-            .ask(SourceOp::VersionsById, json!({ "ids": ids }))
-            .await?;
+            .guest
+            .try_ask::<op::VersionsById>(&query)
+            .await?
+            .unwrap_or_default();
         Ok(self.versions_of(found))
     }
 
     async fn identify(&self, files: &[LocalFile]) -> Result<HashMap<String, ContentVersion>> {
-        let sha1s: Vec<&str> = files.iter().map(|file| file.sha1.as_str()).collect();
-        let found: HashMap<String, ContentVersion> = self
-            .ask(SourceOp::Identify, json!({ "sha1s": sha1s }))
-            .await?;
+        let query = Sha1Query {
+            sha1s: files.iter().map(|file| file.sha1.clone()).collect(),
+        };
+        let found = self
+            .guest
+            .try_ask::<op::Identify>(&query)
+            .await?
+            .unwrap_or_default();
         Ok(found
             .into_iter()
             .filter_map(|(sha1, version)| Some((sha1, self.version_of(version)?)))
@@ -232,45 +188,22 @@ impl ContentProvider for PluginContentProvider {
     }
 }
 
-/// Connects every content source the manifest contributes. One that fails to
-/// describe itself is logged and left out; the plugin stays enabled.
-pub async fn connect_sources(
+pub(super) async fn connect(
     plugin: &Arc<LoadedPlugin>,
     manifest: &Manifest,
 ) -> Vec<PluginContentProvider> {
-    let mut sources = Vec::new();
-    for contribution in &manifest.contributes.providers {
-        if contribution.kind != CONTENT_PROVIDER {
-            continue;
-        }
-        match PluginContentProvider::connect(plugin.clone(), &contribution.id).await {
-            Ok(source) => sources.push(source),
-            Err(error) => tracing::warn!(
-                plugin = plugin.id(),
-                source = %contribution.id,
-                error = %format!("{error:#}"),
-                "content source not registered"
-            ),
-        }
-    }
-    sources
+    connect_each::<Source, _, _, _>(plugin, manifest, PluginContentProvider::connect).await
 }
 
-/// Adds `sources` to `content` under `owner`. `official` is whether the
-/// plugin's key is the official one; see [`Roster::register`](crate::roster).
-pub fn register_sources(
-    content: &Content,
+pub(super) fn register(
+    engine: &Engine,
     owner: &str,
     official: bool,
     sources: Vec<PluginContentProvider>,
 ) {
     for source in sources {
-        let id = source.id.clone();
-        match content.register(owner, official, Arc::new(source)) {
-            Ok(()) => tracing::info!(plugin = owner, source = %id, "content source registered"),
-            Err(error) => {
-                tracing::warn!(plugin = owner, source = %id, %error, "content source refused")
-            }
-        }
+        let id = source.guest.id().to_string();
+        let outcome = engine.content().register(owner, official, Arc::new(source));
+        registered(owner, "content", &id, outcome);
     }
 }

@@ -18,4 +18,8 @@ wasm?: string, permissions: Array<Permission>,
 /**
  * Hosts the `network` permission reaches.
  */
-network: Array<string>, programs: Array<Program>, launch: Launch, settings: Array<Setting>, contributes: Contributions, };
+network: Array<string>, 
+/**
+ * Local endpoints `ipc:connect` reaches, as names like `discord-ipc-*`.
+ */
+ipc: Array<string>, programs: Array<Program>, launch: Launch, settings: Array<Setting>, contributes: Contributions, };

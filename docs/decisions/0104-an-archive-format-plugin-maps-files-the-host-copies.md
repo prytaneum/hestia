@@ -6,10 +6,11 @@ Prism/MultiMC, `.mrpack` and CurseForge archives are modules behind `transfer::F
 A plugin needs the same seam, but a format reads a zip the user chose and writes into an instance they will run, so the
 guest must not hold either.
 
-**The host owns every archive.** The `archive-format` export has four calls, each naming the contributed format:
-`info` (`{ name, kind, marker }`), `read` (the manifest bytes and the member names, answering a blueprint), `land` (the
-blueprint and the member names, answering `{ archivePath, entryPath }` copies) and `write` (a blueprint and the
-instance's paths, answering manifest bytes and a mapping). The guest never opens the zip or the instance directory and
+**The host owns every archive.** The `format` provider kind has four operations (`proto::provider::format`, asked
+through `provider.invoke`, [0106](0106-the-plugin-api-is-mechanisms-not-features.md)): `info` (`{ name, kind, marker }`),
+`read` (the manifest as UTF-8 text and the member names, answering a blueprint), `land` (the blueprint and the member
+names, answering `{ archivePath, entryPath }` copies) and `write` (a blueprint and the instance's paths, answering
+manifest bytes and a mapping). A manifest that is not text is refused before the guest is asked. The guest never opens the zip or the instance directory and
 never sees a member other than its manifest.
 
 **The blueprint is the core one.** `FormatBlueprint` carries what `Descriptor` and the recipe's JVM settings carry, so

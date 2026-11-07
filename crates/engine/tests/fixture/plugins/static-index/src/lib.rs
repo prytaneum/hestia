@@ -6,8 +6,11 @@ use hestia::proto::content::{
     ContentKind, ContentProject, ContentVersion, SearchQuery, SearchResult, SourceInfo,
     VersionQuery,
 };
+use hestia::proto::provider::content::{
+    IdQuery, Info, Project, ProjectQuery, Search, Versions, VersionsById,
+};
 use hestia::serde_json::{self, Value};
-use hestia::{Error, Plugin};
+use hestia::{Error, Plugin, Provide, Provided};
 
 const INDEX: &str = include_str!("../index.json");
 const SOURCE: &str = "index";
@@ -39,56 +42,61 @@ fn versions() -> Result<Vec<ContentVersion>, Error> {
     Ok(versions)
 }
 
+fn info(source: &str) -> Result<SourceInfo, Error> {
+    check(source)?;
+    Ok(SourceInfo {
+        name: "Static index".into(),
+        kinds: vec![ContentKind::Mod],
+        ..SourceInfo::default()
+    })
+}
+
+fn search(source: &str, query: SearchQuery) -> Result<SearchResult, Error> {
+    check(source)?;
+    let needle = query.query.to_lowercase();
+    let hits: Vec<ContentProject> = projects()?
+        .into_iter()
+        .filter(|project| project.title.to_lowercase().contains(&needle))
+        .collect();
+    Ok(SearchResult {
+        total: hits.len() as u32,
+        hits,
+        ..SearchResult::default()
+    })
+}
+
+fn project(source: &str, query: ProjectQuery) -> Result<ContentProject, Error> {
+    check(source)?;
+    projects()?
+        .into_iter()
+        .find(|found| found.id == query.project || found.slug == query.project)
+        .ok_or_else(|| Error::NotFound(format!("no project `{}`", query.project)))
+}
+
+fn project_versions(source: &str, query: VersionQuery) -> Result<Vec<ContentVersion>, Error> {
+    check(source)?;
+    Ok(versions()?
+        .into_iter()
+        .filter(|version| version.project_id == query.project)
+        .collect())
+}
+
+fn versions_by_id(source: &str, query: IdQuery) -> Result<Vec<ContentVersion>, Error> {
+    check(source)?;
+    Ok(versions()?
+        .into_iter()
+        .filter(|version| query.ids.contains(&version.id))
+        .collect())
+}
+
 impl Plugin for StaticIndex {
-    fn source_info(source: &str) -> Result<SourceInfo, Error> {
-        check(source)?;
-        Ok(SourceInfo {
-            name: "Static index".into(),
-            kinds: vec![ContentKind::Mod],
-            ..SourceInfo::default()
-        })
-    }
-
-    fn source_search(source: &str, query: SearchQuery) -> Result<SearchResult, Error> {
-        check(source)?;
-        let needle = query.query.to_lowercase();
-        let hits: Vec<ContentProject> = projects()?
-            .into_iter()
-            .filter(|project| project.title.to_lowercase().contains(&needle))
-            .collect();
-        Ok(SearchResult {
-            total: hits.len() as u32,
-            hits,
-            ..SearchResult::default()
-        })
-    }
-
-    fn source_project(
-        source: &str,
-        project: &str,
-        _kind: Option<ContentKind>,
-    ) -> Result<ContentProject, Error> {
-        check(source)?;
-        projects()?
-            .into_iter()
-            .find(|found| found.id == project || found.slug == project)
-            .ok_or_else(|| Error::NotFound(format!("no project `{project}`")))
-    }
-
-    fn source_versions(source: &str, query: VersionQuery) -> Result<Vec<ContentVersion>, Error> {
-        check(source)?;
-        Ok(versions()?
-            .into_iter()
-            .filter(|version| version.project_id == query.project)
-            .collect())
-    }
-
-    fn source_versions_by_id(source: &str, ids: Vec<String>) -> Result<Vec<ContentVersion>, Error> {
-        check(source)?;
-        Ok(versions()?
-            .into_iter()
-            .filter(|version| ids.contains(&version.id))
-            .collect())
+    fn provide(call: Provide) -> Provided {
+        call.on::<Info>(|source, _| info(source))
+            .on::<Search>(search)
+            .on::<Project>(project)
+            .on::<Versions>(project_versions)
+            .on::<VersionsById>(versions_by_id)
+            .finish()
     }
 }
 

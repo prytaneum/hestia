@@ -24,6 +24,7 @@ const manifest = (id: string, name: string): Manifest => ({
   authors: [],
   permissions: [],
   network: [],
+  ipc: [],
   programs: [],
   launch: { properties: [] },
   settings: [],
@@ -40,6 +41,7 @@ const manifest = (id: string, name: string): Manifest => ({
 const emptyGrant: Grant = {
   permissions: [],
   network: [],
+  ipc: [],
   programs: [],
   launchProperties: [],
   hooks: [],

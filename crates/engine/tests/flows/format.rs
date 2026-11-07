@@ -14,7 +14,7 @@ use sha2::{Digest, Sha256};
 use super::launch_hooks::NoHost;
 use super::*;
 
-async fn load(home: &std::path::Path) -> (engine::Engine, Manifest, Vec<engine::PluginFormat>) {
+async fn load(home: &std::path::Path) -> (engine::Engine, Manifest, engine::Contributions) {
     let engine = fixture::engine(home, vec![fixture::Flavor::resolving("vanilla")], vec![]);
     let manifest: Manifest = toml::from_str(fixture::format::MANIFEST).expect("manifest");
     manifest.validate().expect("a valid manifest");
@@ -23,7 +23,6 @@ async fn load(home: &std::path::Path) -> (engine::Engine, Manifest, Vec<engine::
         Arc::new(NoHost),
         home.join("plugin-cache"),
         Arc::new(engine::ProcessSupervisor::new(home.join("processes"))),
-        Arc::new(engine::Presence::over_discord()),
     )
     .expect("runtime");
     let record = PluginRecord {
@@ -42,14 +41,13 @@ async fn load(home: &std::path::Path) -> (engine::Engine, Manifest, Vec<engine::
     let settings =
         engine::PluginSettings::new(home.join("replay-format-settings.json"), Vec::new());
     let plugin = Arc::new(runtime.load(&record, &wasm, data, settings).expect("load"));
-    let formats = engine::connect_formats(&plugin, &manifest).await;
-    assert_eq!(formats.len(), 1);
-    (engine, manifest, formats)
+    let contributions = engine::Contributions::connect(&plugin, &manifest).await;
+    (engine, manifest, contributions)
 }
 
 async fn rig(home: &std::path::Path) -> engine::Engine {
-    let (engine, manifest, formats) = load(home).await;
-    engine::register_formats(&engine, &manifest.id, false, formats);
+    let (engine, manifest, contributions) = load(home).await;
+    contributions.register(&engine, &manifest.id, false);
     engine
 }
 
@@ -137,7 +135,9 @@ async fn an_answer_with_an_escaping_or_unlisted_path_is_refused_whole() {
 #[tokio::test]
 async fn a_write_answer_is_vetted_like_a_land_answer() {
     let home = tempfile::tempdir().unwrap();
-    let (_engine, _, mut formats) = load(home.path()).await;
+    let (_engine, _, contributions) = load(home.path()).await;
+    let mut formats = contributions.into_formats();
+    assert_eq!(formats.len(), 1);
     let format = formats.pop().expect("connected");
     let files = vec!["options.txt".to_string()];
     let named = |name: &str| FormatBlueprint {

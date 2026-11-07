@@ -47,8 +47,9 @@ Consequences worth writing down:
   the tray. Discord's handshake answers one connecting client at a time, so a
   test run standing several throwaway daemons up at once leaves the rest of them
   blocked in that read — with nothing worth publishing either way.
-- **The connection has since moved into the engine** as a host service plugins may also write to; the daemon keeps
-  only this decision loop ([0106](0106-presence-is-a-host-service.md)).
+- **The connection has since moved into the engine**; the daemon keeps only this decision loop. The whole feature is
+  meant to become a plugin speaking Discord's protocol over `ipc:connect`, at which point this loop is deleted
+  ([0106](0106-the-plugin-api-is-mechanisms-not-features.md)).
 - **No Discord client is the ordinary case**, not a fault. Its absence is polled
   for at a sixth of the tick rate, and the crate's per-attempt warning is held
   below the foreign-log threshold, or a daemon on a machine that never runs

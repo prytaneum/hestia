@@ -20,7 +20,8 @@ use crate::minecraft::materialize::{self, OnProgress};
 use crate::minecraft::plan::{self, PlanInput, Tally};
 use crate::minecraft::profile::Library;
 use crate::minecraft::{ping, quickplay, world, Side};
-use crate::plugins::{BeforeLaunch, CallChain, LaunchContext};
+use crate::plugins::{BeforeLaunch, CallChain};
+use proto::hook::LaunchContext;
 
 /// Per-session files under the instance root, not `data/`, so a backup and an
 /// export leave them behind.

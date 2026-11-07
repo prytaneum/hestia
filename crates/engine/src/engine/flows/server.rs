@@ -17,9 +17,10 @@ use crate::minecraft::launch::LaunchPlan;
 use crate::minecraft::materialize::{self, OnProgress};
 use crate::minecraft::profile::{ServerJar, ServerProfile};
 use crate::minecraft::{ping, Side};
-use crate::plugins::{BeforeServerStart, CallChain, ServerContext};
+use crate::plugins::{BeforeServerStart, CallChain};
 use crate::servers::ServerRecord;
 use crate::usage;
+use proto::hook::ServerContext;
 
 impl Engine {
     /// Create a fully provisioned server: resolve the profile, register the

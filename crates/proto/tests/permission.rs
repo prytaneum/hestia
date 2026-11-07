@@ -68,7 +68,6 @@ const DENIED: &[&str] = &[
     "job.list",
     "job.cancel",
     "job",
-    "changed",
     // Reach outside the plugin's grants: any path, any address, the whole cache
     "content.inspect",
     "instance.import.inspect",
@@ -82,7 +81,6 @@ const DENIED: &[&str] = &[
     "host.info",
     "health.ping",
     "net.status",
-    "net.state",
 ];
 
 /// Every literal channel or topic in `src`, with whether its impl names a permission.
@@ -215,4 +213,46 @@ fn secret_bearing_and_privileged_channels_stay_closed() {
         opened.is_empty(),
         "secret-bearing channels reclassified: {opened:?}"
     );
+}
+
+#[test]
+fn every_topic_is_in_the_registry_plugins_are_admitted_by() {
+    let registered: BTreeSet<&str> = proto::events::TOPICS
+        .iter()
+        .map(|access| access.topic)
+        .collect();
+    let declared: BTreeSet<String> = declared()
+        .into_iter()
+        .map(|(name, _)| name)
+        .filter(|name| {
+            fs::read_dir(Path::new(env!("CARGO_MANIFEST_DIR")).join("src"))
+                .unwrap()
+                .any(|entry| {
+                    fs::read_to_string(entry.unwrap().path())
+                        .unwrap_or_default()
+                        .contains(&format!("const TOPIC: &'static str = \"{name}\";"))
+                })
+                || name == proto::job::TOPIC
+        })
+        .collect();
+    let missing: Vec<&String> = declared
+        .iter()
+        .filter(|topic| !registered.contains(topic.as_str()))
+        .collect();
+    assert!(
+        missing.is_empty(),
+        "add these topics to proto::events::TOPICS: {missing:?}"
+    );
+}
+
+#[test]
+fn a_topic_without_a_permission_reaches_no_plugin() {
+    use serde_json::json;
+    for topic in ["process.output", "plugin.log", "no.such.topic"] {
+        assert_eq!(
+            proto::events::topic_permission(topic, &json!({})),
+            None,
+            "{topic}"
+        );
+    }
 }

@@ -27,10 +27,13 @@ access to the computer.
 | `network:connect` | sandboxed | Connect to the hosts it lists in `network` |
 | `ui:css` | sandboxed | Restyle the app with its own stylesheet ([0100](../decisions/0100-themes-are-plugin-css.md)) |
 | `launch:patch` | sandboxed | Adjust launch settings from an allowlist when a game or server starts |
-| `presence:set` | sandboxed | Set your Discord status card ([0106](../decisions/0106-presence-is-a-host-service.md)) |
+| `ipc:connect` | unrestricted | Talk to the programs running on this computer that it lists in `ipc` (below) |
 | `flavor:provide` | unrestricted | Add game distributions that choose what code the game runs, including its main class and arguments |
 | `format:provide` | unrestricted | Add archive formats that choose the game version, loader and JVM settings of instances you import |
 | `java:provide` | unrestricted | Add Java distributions that choose the runtime binary Hestia executes |
+
+Hook points and provider kinds name the permissions they need in `proto::hook` and `proto::provider`; a manifest that
+declares one without them is refused at `pack` and at install.
 
 ## Programs
 
@@ -67,3 +70,24 @@ x86_64-pc-windows-msvc = "…"
 
 The [`tunnel-demo`](https://github.com/prytaneum/plugin-examples/tree/main/plugins/tunnel-demo) example plugin starts a stand-in agent when a server starts and stops it when the server
 exits.
+
+## Local endpoints
+
+`ipc:connect` reaches only the local endpoints the manifest lists
+([0106](../decisions/0106-the-plugin-api-is-mechanisms-not-features.md)):
+
+```toml
+permissions = ["ipc:connect"]
+ipc = ["discord-ipc-*", "app/com.discordapp.Discord/discord-ipc-*"]
+```
+
+- An entry is a relative name of letters, digits, `.`, `_` and `-`, with `/` between segments. A trailing `*` matches
+  any of those characters (`discord-ipc-*` matches `discord-ipc-0`); a bare `*` is refused.
+- On Linux and macOS the host looks for a Unix socket by that name under `$XDG_RUNTIME_DIR`, `$TMPDIR`, `$TMP`, `$TEMP`
+  and `/tmp`, in that order. On Windows the name is a named pipe, `\\.\pipe\<name>`, and a name with `/` never matches.
+- The SDK's `hestia::ipc` opens a connection and sends and receives bytes; the plugin speaks the peer's protocol
+  itself. The host keeps a connection open across calls (each call runs on a fresh instance), so the plugin names it
+  again by its id. At most 8 are open at once, a message is at most 1 MiB, and every connection closes when the plugin
+  is disabled, removed or reloaded.
+- A local service can do whatever it was built to do (a rootless Docker socket lives in the runtime directory), which
+  is why the permission is unrestricted and the install shows every endpoint.

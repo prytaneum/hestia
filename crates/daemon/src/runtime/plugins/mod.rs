@@ -15,10 +15,8 @@ use std::time::Duration;
 
 use anyhow::Context;
 use engine::{
-    connect_flavors, connect_formats, connect_java, connect_sources, is_official_signer,
-    register_flavors, register_formats, register_java, register_sources, CallChain, Cancel, Engine,
-    HostCalls, Listings, LoadedPlugin, PluginContentProvider, PluginFlavorProvider, PluginFormat,
-    PluginJavaProvider, PluginRecord, PluginRuntime, PluginStats, Roster, SettingsError,
+    is_official_signer, unregister_providers, CallChain, Cancel, Contributions, Engine, HostCalls,
+    Listings, LoadedPlugin, PluginRecord, PluginRuntime, PluginStats, Roster, SettingsError,
     EVENT_TIMEOUT,
 };
 use proto::error::ErrorInfo;
@@ -43,15 +41,6 @@ struct Slot {
     error: Option<String>,
     loaded: Option<Arc<LoadedPlugin>>,
     _delivery: Option<Delivery>,
-}
-
-/// What an enabled plugin adds to the engine's registries.
-#[derive(Default)]
-struct Contributions {
-    sources: Vec<PluginContentProvider>,
-    flavors: Vec<PluginFlavorProvider>,
-    formats: Vec<PluginFormat>,
-    java: Vec<PluginJavaProvider>,
 }
 
 enum Activation {
@@ -94,7 +83,6 @@ impl Plugins {
             host.clone(),
             self.engine.plugin_cache_dir(),
             self.engine.processes().clone(),
-            self.engine.presence().clone(),
         )?;
         self.host
             .set(host)
@@ -421,8 +409,7 @@ impl Plugins {
             .await;
         self.engine.plugins().remove(id).map_err(internal)?;
         self.slots.lock().unwrap().remove(id);
-        self.engine.content().unregister(id);
-        self.engine.minecraft().unregister(id);
+        unregister_providers(&self.engine, id);
         Ok(())
     }
 
@@ -583,12 +570,7 @@ impl Plugins {
         .await??;
         loaded.init(&CallChain::default(), INIT_TIMEOUT).await?;
         let loaded = Arc::new(loaded);
-        let contributions = Contributions {
-            sources: connect_sources(&loaded, &package.manifest).await,
-            flavors: connect_flavors(&loaded, &package.manifest).await,
-            formats: connect_formats(&loaded, &package.manifest).await,
-            java: connect_java(&loaded, &package.manifest),
-        };
+        let contributions = Contributions::connect(&loaded, &package.manifest).await;
         Ok(Activation::Ready(Some(loaded), contributions))
     }
 
@@ -615,20 +597,14 @@ impl Plugins {
                 tracing::info!(plugin = %id, "plugin was disabled or removed while loading");
                 return;
             }
-            self.engine.content().unregister(id);
-            self.engine.minecraft().unregister(id);
-            self.engine.unregister_formats(id);
-            self.engine.java().unregister(id);
+            unregister_providers(&self.engine, id);
             if state == PluginState::Enabled {
                 let official = self
                     .engine
                     .plugins()
                     .get(id)
                     .is_some_and(|record| is_official_signer(record.signer.as_deref()));
-                register_sources(self.engine.content(), id, official, contributions.sources);
-                register_flavors(self.engine.minecraft(), id, official, contributions.flavors);
-                register_formats(&self.engine, id, official, contributions.formats);
-                register_java(self.engine.java(), id, official, contributions.java);
+                contributions.register(&self.engine, id, official);
             }
             slots.insert(
                 id.to_string(),

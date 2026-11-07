@@ -10,6 +10,8 @@ interface types {
         not-found(string),
         invalid(string),
         failed(string),
+        /// The plugin does not implement the operation it was asked.
+        unsupported(string),
     }
 }
 
@@ -46,16 +48,12 @@ world plugin {
     import process;
     import progress;
     import settings;
-    import presence;
+    import ipc;
     export lifecycle;
     export commands;
     export events;
     export settings-changed;
     export ui;
-    export launch-hooks;
-    export content-hooks;
-    export content-source;
-    export flavor;
-    export archive-format;
-    export java-provider;
+    export hooks;
+    export provider;
 }

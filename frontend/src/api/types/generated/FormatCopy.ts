@@ -2,7 +2,7 @@
 
 /**
  * One file the host copies. On import `archive_path` is a member of the
- * archive and `entry_path` is relative to the instance's directory; on export
+ * archive and `entry_path` is relative to the instance's game directory; on export
  * the direction is reversed.
  */
 export type FormatCopy = { archivePath: string, entryPath: string, };

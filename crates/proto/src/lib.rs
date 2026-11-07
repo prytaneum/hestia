@@ -19,6 +19,7 @@ pub mod files;
 pub mod format;
 pub mod glob;
 pub mod health;
+pub mod hook;
 pub mod host;
 pub mod image;
 pub mod instance;

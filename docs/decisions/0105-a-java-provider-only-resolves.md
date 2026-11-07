@@ -17,7 +17,8 @@ or `zip`, and the vendor, which names the install directory, must be a plain nam
 refused whole.
 
 **Built-in and plugin providers share one trait and one roster.** `engine::java::JavaProvider` is implemented by
-Adoptium (id `adoptium`) and by the wrapper around a plugin's `java-provider` export (id `<plugin>.<id>`), registered
+Adoptium (id `adoptium`) and by the wrapper around a plugin's `java` provider (`proto::provider::java`: `majors` and
+`resolve`, asked through `provider.invoke`; id `<plugin>.<id>`), registered
 through the same roster as content sources and flavors. The `java.provider` setting names the default; `hestia java
 install --provider <id>` overrides it for one install. An id nobody registered fails as `JavaProviderUnknown`, naming it.
 The setting is not checked when set, since a plugin's provider exists only while the plugin is enabled.

@@ -1,5 +1,7 @@
-//! The one Discord Rich Presence connection and who may write to it
-//! ([0106](../../../../docs/decisions/0106-presence-is-a-host-service.md)).
+//! The launcher's own Discord Rich Presence connection
+//! ([0059](../../../../docs/decisions/0059-discord-presence-is-a-daemon-loop.md)).
+//! It moves out of the core once a plugin built on `ipc:connect` replaces it
+//! ([0106](../../../../docs/decisions/0106-the-plugin-api-is-mechanisms-not-features.md)).
 //!
 //! Callers only state what they want shown; the daemon's presence thread calls
 //! [`Presence::tick`], which diffs that against what was last published. Every
@@ -49,21 +51,6 @@ impl Discord for Offline {
     }
 
     fn close(&mut self) {}
-}
-
-#[derive(Default)]
-struct Wanted {
-    core: Option<Activity>,
-    plugins: Vec<(String, Activity)>,
-}
-
-impl Wanted {
-    fn shown(&self) -> Option<&Activity> {
-        self.plugins
-            .last()
-            .map(|(_, card)| card)
-            .or(self.core.as_ref())
-    }
 }
 
 struct Link {
@@ -152,7 +139,7 @@ impl Link {
 /// a plugin sets its own. While any plugin card is set the newest wins, and
 /// clearing it restores whatever is under it.
 pub struct Presence {
-    wanted: Mutex<Wanted>,
+    wanted: Mutex<Option<Activity>>,
     link: Mutex<Link>,
     stopped: AtomicBool,
 }
@@ -183,24 +170,7 @@ impl Presence {
     }
 
     pub fn set_core(&self, card: Option<Activity>) {
-        self.wanted.lock().unwrap().core = card;
-    }
-
-    /// Records `plugin`'s card as the newest, replacing its previous one. It
-    /// reaches Discord on the next [`tick`](Presence::tick).
-    pub fn set_plugin(&self, plugin: &str, card: Activity) {
-        let mut wanted = self.wanted.lock().unwrap();
-        wanted.plugins.retain(|(id, _)| id != plugin);
-        wanted.plugins.push((plugin.to_string(), card));
-    }
-
-    /// Drops `plugin`'s own card and no other.
-    pub fn clear_plugin(&self, plugin: &str) {
-        self.wanted
-            .lock()
-            .unwrap()
-            .plugins
-            .retain(|(id, _)| id != plugin);
+        *self.wanted.lock().unwrap() = card;
     }
 
     /// Publishes what is wanted if it differs from what is shown. `enabled`
@@ -212,14 +182,9 @@ impl Presence {
     fn tick_at(&self, enabled: bool, now: Instant) {
         let card = {
             let wanted = self.wanted.lock().unwrap();
-            enabled.then(|| wanted.shown().cloned()).flatten()
+            enabled.then(|| wanted.clone()).flatten()
         };
         self.link.lock().unwrap().sync(card.as_ref(), now);
-    }
-
-    #[cfg(test)]
-    pub(crate) fn plugin_cards(&self) -> usize {
-        self.wanted.lock().unwrap().plugins.len()
     }
 
     pub fn stopped(&self) -> bool {

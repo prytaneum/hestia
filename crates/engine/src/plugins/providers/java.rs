@@ -10,42 +10,15 @@ use anyhow::Result;
 use async_trait::async_trait;
 use proto::download::{Checksum, HashAlgorithm};
 use proto::java::JavaRelease;
-use proto::plugin::{Grant, Manifest, JAVA_PROVIDER};
-use serde::de::DeserializeOwned;
-use serde::Deserialize;
-use serde_json::{json, Value};
+use proto::plugin::{Grant, Manifest};
+use proto::provider::java::{self as op, Distribution, JavaBuild, TargetQuery};
+use proto::Empty;
 
-use super::call_failed;
-use crate::java::{Java, JavaPackage, JavaProvider, JavaTarget};
-use crate::plugins::chain::CallChain;
+use super::{contributed, registered, Guest};
+use crate::engine::Engine;
+use crate::java::{JavaPackage, JavaProvider, JavaTarget};
 use crate::plugins::http::download_allowed;
-use crate::plugins::runtime::{LoadedPlugin, PROVIDER_TIMEOUT};
-
-/// One function of the `java-provider` export.
-#[derive(Debug, Clone, Copy)]
-pub(in crate::plugins) enum JavaOp {
-    Majors,
-    Resolve,
-}
-
-impl JavaOp {
-    fn name(self) -> &'static str {
-        match self {
-            JavaOp::Majors => "majors",
-            JavaOp::Resolve => "resolve",
-        }
-    }
-}
-
-/// What a guest answers to `resolve`.
-#[derive(Deserialize)]
-struct Build {
-    vendor: String,
-    version: String,
-    url: String,
-    sha256: String,
-    archive: String,
-}
+use crate::plugins::runtime::LoadedPlugin;
 
 /// Why a guest's build was refused.
 #[derive(Debug, PartialEq, Eq, thiserror::Error)]
@@ -62,7 +35,7 @@ enum Refusal {
     Version,
 }
 
-fn vet(grant: &Grant, major: i32, build: Build) -> Result<JavaPackage, Refusal> {
+fn vet(grant: &Grant, major: i32, build: JavaBuild) -> Result<JavaPackage, Refusal> {
     let plain = !build.vendor.is_empty()
         && build
             .vendor
@@ -100,51 +73,17 @@ fn vet(grant: &Grant, major: i32, build: Build) -> Result<JavaPackage, Refusal> 
 
 /// A Java provider a plugin contributes, registered as `<plugin>.<id>`.
 pub struct PluginJavaProvider {
-    id: String,
-    local: String,
-    plugin: Arc<LoadedPlugin>,
-}
-
-impl PluginJavaProvider {
-    pub fn new(plugin: Arc<LoadedPlugin>, local: &str) -> Self {
-        PluginJavaProvider {
-            id: format!("{}.{local}", plugin.id()),
-            local: local.to_string(),
-            plugin,
-        }
-    }
-
-    async fn ask<T: DeserializeOwned>(&self, op: JavaOp, args: Value) -> Result<T> {
-        let reply = self
-            .plugin
-            .java_provider(
-                &CallChain::default(),
-                op,
-                &self.local,
-                &args.to_string(),
-                PROVIDER_TIMEOUT,
-            )
-            .await
-            .map_err(|error| self.failed(format!("{}: {error}", op.name())))?;
-        serde_json::from_str(&reply).map_err(|error| {
-            tracing::warn!(plugin = self.plugin.id(), provider = %self.local, op = op.name(), %error, "malformed java provider reply");
-            self.failed(format!("{} returned an unreadable reply", op.name()))
-        })
-    }
-
-    fn failed(&self, detail: String) -> anyhow::Error {
-        call_failed(self.plugin.id(), detail)
-    }
+    guest: Guest,
 }
 
 #[async_trait]
 impl JavaProvider for PluginJavaProvider {
     fn id(&self) -> &str {
-        &self.id
+        self.guest.id()
     }
 
     async fn releases(&self) -> Result<Vec<JavaRelease>> {
-        let mut majors: Vec<i32> = self.ask(JavaOp::Majors, Value::Null).await?;
+        let mut majors = self.guest.ask::<op::Majors>(&Empty {}).await?;
         majors.sort_unstable();
         majors.dedup();
         Ok(majors
@@ -154,44 +93,45 @@ impl JavaProvider for PluginJavaProvider {
     }
 
     async fn resolve(&self, major: i32, target: &JavaTarget) -> Result<JavaPackage> {
-        let args = json!({ "major": major, "os": target.os, "arch": target.arch });
-        let build: Option<Build> = self.ask(JavaOp::Resolve, args).await?;
-        let Some(build) = build else {
-            return Err(self.failed(format!(
+        let query = TargetQuery {
+            major,
+            os: target.os.to_string(),
+            arch: target.arch.to_string(),
+        };
+        let Some(build) = self.guest.ask::<op::Resolve>(&query).await? else {
+            return Err(self.guest.failed(format!(
                 "no java {major} build for {}/{}",
                 target.os, target.arch
             )));
         };
-        vet(self.plugin.grant(), major, build).map_err(|refusal| {
-            tracing::warn!(plugin = self.plugin.id(), provider = %self.local, %refusal, "java build refused");
-            self.failed(format!("resolve returned a refused build: {refusal}"))
+        vet(self.guest.plugin().grant(), major, build).map_err(|refusal| {
+            tracing::warn!(provider = %self.guest.id(), %refusal, "java build refused");
+            self.guest
+                .failed(format!("resolve returned a refused build: {refusal}"))
         })
     }
 }
 
-/// The Java providers the manifest contributes. Nothing is asked of the guest
-/// until a build is resolved, so none can fail to connect.
-pub fn connect_java(plugin: &Arc<LoadedPlugin>, manifest: &Manifest) -> Vec<PluginJavaProvider> {
-    manifest
-        .contributes
-        .providers
-        .iter()
-        .filter(|contribution| contribution.kind == JAVA_PROVIDER)
-        .map(|contribution| PluginJavaProvider::new(plugin.clone(), &contribution.id))
+/// Nothing is asked of the guest until a build is resolved, so none can fail
+/// to connect.
+pub(super) fn connect(plugin: &Arc<LoadedPlugin>, manifest: &Manifest) -> Vec<PluginJavaProvider> {
+    contributed::<Distribution>(manifest)
+        .map(|local| PluginJavaProvider {
+            guest: Guest::new::<Distribution>(plugin.clone(), local),
+        })
         .collect()
 }
 
-/// Adds `providers` to `java` under `owner`. `official` is whether the
-/// plugin's key is the official one; see [`Roster::register`](crate::roster).
-pub fn register_java(java: &Java, owner: &str, official: bool, providers: Vec<PluginJavaProvider>) {
+pub(super) fn register(
+    engine: &Engine,
+    owner: &str,
+    official: bool,
+    providers: Vec<PluginJavaProvider>,
+) {
     for provider in providers {
-        let id = provider.id.clone();
-        match java.register(owner, official, Arc::new(provider)) {
-            Ok(()) => tracing::info!(plugin = owner, provider = %id, "java provider registered"),
-            Err(error) => {
-                tracing::warn!(plugin = owner, provider = %id, %error, "java provider refused")
-            }
-        }
+        let id = provider.guest.id().to_string();
+        let outcome = engine.java().register(owner, official, Arc::new(provider));
+        registered(owner, "java", &id, outcome);
     }
 }
 
@@ -208,8 +148,8 @@ mod tests {
         }
     }
 
-    fn build() -> Build {
-        Build {
+    fn build() -> JavaBuild {
+        JavaBuild {
             vendor: "zulu".into(),
             version: "21.0.2".into(),
             url: "https://api.azul.com/zulu.tar.gz".into(),
@@ -228,7 +168,7 @@ mod tests {
 
     #[test]
     fn an_off_host_url_is_refused() {
-        let off = Build {
+        let off = JavaBuild {
             url: "https://evil.example.com/zulu.tar.gz".into(),
             ..build()
         };
@@ -237,7 +177,7 @@ mod tests {
 
     #[test]
     fn plain_http_is_refused() {
-        let http = Build {
+        let http = JavaBuild {
             url: "http://api.azul.com/zulu.tar.gz".into(),
             ..build()
         };
@@ -247,7 +187,7 @@ mod tests {
     #[test]
     fn a_bad_sha256_is_refused() {
         for sha in ["", "abc", &"g".repeat(64)] {
-            let bad = Build {
+            let bad = JavaBuild {
                 sha256: sha.into(),
                 ..build()
             };
@@ -257,12 +197,12 @@ mod tests {
 
     #[test]
     fn an_unknown_archive_kind_or_unsafe_vendor_is_refused() {
-        let rar = Build {
+        let rar = JavaBuild {
             archive: "rar".into(),
             ..build()
         };
         assert!(matches!(vet(&grant(), 21, rar), Err(Refusal::Archive(_))));
-        let traversal = Build {
+        let traversal = JavaBuild {
             vendor: "../x".into(),
             ..build()
         };

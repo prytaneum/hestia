@@ -22,7 +22,8 @@ use crate::content::pool::Pool;
 use crate::content::{inspect, install, record, Identified, LocalFile};
 use crate::engine::Engine;
 use crate::minecraft::materialize::{self, OnProgress};
-use crate::plugins::{BeforeContentInstall, CallChain, InstallContext};
+use crate::plugins::{BeforeContentInstall, CallChain};
+use proto::hook::InstallContext;
 
 /// One platform selector of a batch, resolved from its item: where it came
 /// from (`given`, for failure reporting), which source serves it, and the

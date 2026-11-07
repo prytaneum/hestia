@@ -26,21 +26,6 @@ pub const API_VERSION: &str = "1.0.0";
 /// SDK reads and writes under it.
 pub const DATA_MOUNT: &str = "/data";
 
-/// The interceptors a plugin may declare in `contributes.hooks`, with the
-/// permissions each needs. A hook is customisation that fails open, never a
-/// control ([0095](../../../docs/decisions/0095-interceptors-are-bounded-and-fail-open.md)).
-pub const HOOKS: &[(&str, &[Permission])] = &[
-    (
-        "before-launch",
-        &[Permission::LaunchPatch, Permission::AccountRead],
-    ),
-    (
-        "before-server-start",
-        &[Permission::LaunchPatch, Permission::AccountRead],
-    ),
-    ("before-content-install", &[Permission::ContentRead]),
-];
-
 /// Ids a plugin may not take: the CLI's top-level verbs, which `hestia <plugin>`
 /// would otherwise shadow.
 pub const RESERVED_IDS: &[&str] = &[
@@ -152,9 +137,10 @@ pub enum Permission {
     /// Return an allowlisted patch from a launch or server-start hook.
     #[serde(rename = "launch:patch")]
     LaunchPatch,
-    /// Set the Discord status card the launcher publishes.
-    #[serde(rename = "presence:set")]
-    PresenceSet,
+    /// Connect to the local endpoints in [`Manifest::ipc`]: Unix sockets in
+    /// the user's runtime and temp directories, or Windows named pipes.
+    #[serde(rename = "ipc:connect")]
+    IpcConnect,
     /// Contribute a Minecraft flavor, which decides the main class, libraries and
     /// arguments the game runs with and so bypasses the launch-arg allowlist.
     #[serde(rename = "flavor:provide")]
@@ -185,6 +171,7 @@ impl Permission {
             | Permission::ConfigWrite
             | Permission::ProcessControl
             | Permission::ProcessSpawn
+            | Permission::IpcConnect
             | Permission::FlavorProvide
             | Permission::FormatProvide
             | Permission::JavaProvide => Tier::Unrestricted,
@@ -197,8 +184,7 @@ impl Permission {
             | Permission::JavaManage
             | Permission::NetworkConnect
             | Permission::UiCss
-            | Permission::LaunchPatch
-            | Permission::PresenceSet => Tier::Sandboxed,
+            | Permission::LaunchPatch => Tier::Sandboxed,
         }
     }
 
@@ -226,7 +212,9 @@ impl Permission {
             Permission::LaunchPatch => {
                 "Adjust launch settings from an allowlist when a game or server starts"
             }
-            Permission::PresenceSet => "Set your Discord status card",
+            Permission::IpcConnect => {
+                "Talk to the programs running on this computer that it lists, such as a chat client"
+            }
             Permission::FlavorProvide => {
                 "Add game distributions that choose what code the game runs, including its main class and arguments"
             }
@@ -303,30 +291,6 @@ impl CommandScope {
             CommandScope::Server => RESERVED_SERVER_VERBS,
             CommandScope::Instance => RESERVED_INSTANCE_VERBS,
         }
-    }
-}
-
-/// The `kind` of a [`ProviderContribution`] that adds a content source.
-pub const CONTENT_PROVIDER: &str = "content";
-
-/// The `kind` of a [`ProviderContribution`] that adds a Minecraft flavor.
-pub const FLAVOR_PROVIDER: &str = "flavor";
-
-/// The `kind` of a [`ProviderContribution`] that adds an archive format.
-pub const FORMAT_PROVIDER: &str = "format";
-
-/// The `kind` of a [`ProviderContribution`] that adds a Java distribution.
-pub const JAVA_PROVIDER: &str = "java";
-
-/// What a provider of `kind` needs: to serve its subject and, when it fetches,
-/// to reach its hosts. A format never fetches: the host owns every archive.
-fn provider_permissions(kind: &str) -> Option<&'static [Permission]> {
-    match kind {
-        CONTENT_PROVIDER => Some(&[Permission::ContentRead, Permission::NetworkConnect]),
-        FLAVOR_PROVIDER => Some(&[Permission::FlavorProvide, Permission::NetworkConnect]),
-        FORMAT_PROVIDER => Some(&[Permission::FormatProvide]),
-        JAVA_PROVIDER => Some(&[Permission::JavaProvide, Permission::NetworkConnect]),
-        _ => None,
     }
 }
 
@@ -625,6 +589,8 @@ pub struct Manifest {
     pub permissions: Vec<Permission>,
     /// Hosts the `network` permission reaches.
     pub network: Vec<String>,
+    /// Local endpoints `ipc:connect` reaches, as names like `discord-ipc-*`.
+    pub ipc: Vec<String>,
     pub programs: Vec<Program>,
     pub launch: Launch,
     pub settings: Vec<Setting>,
@@ -639,6 +605,7 @@ pub struct Manifest {
 pub struct Grant {
     pub permissions: BTreeSet<Permission>,
     pub network: BTreeSet<String>,
+    pub ipc: BTreeSet<String>,
     pub programs: BTreeSet<Program>,
     pub launch_properties: BTreeSet<String>,
     pub hooks: BTreeSet<String>,
@@ -671,6 +638,7 @@ impl Grant {
         Grant {
             permissions: &self.permissions - &installed.permissions,
             network: &self.network - &installed.network,
+            ipc: &self.ipc - &installed.ipc,
             programs: &self.programs - &installed.programs,
             launch_properties: &self.launch_properties - &installed.launch_properties,
             hooks: &self.hooks - &installed.hooks,
@@ -741,6 +709,10 @@ pub enum ManifestError {
     BadProgramEnv(String),
     #[error("programs need the permission `process:spawn`")]
     ProgramPermissionMissing,
+    #[error("ipc endpoint `{0}` must be a relative name of letters, digits, `.`, `_` or `-`, optionally ending in `*`")]
+    BadIpcEndpoint(String),
+    #[error("ipc endpoints need the permission `ipc:connect`")]
+    IpcPermissionMissing,
 }
 
 impl Manifest {
@@ -804,6 +776,12 @@ impl Manifest {
                 return Err(bad(&format!("default {detail}")));
             }
         }
+        if let Some(endpoint) = self.ipc.iter().find(|endpoint| !is_ipc_pattern(endpoint)) {
+            return Err(ManifestError::BadIpcEndpoint(endpoint.clone()));
+        }
+        if !self.ipc.is_empty() && !self.permissions.contains(&Permission::IpcConnect) {
+            return Err(ManifestError::IpcPermissionMissing);
+        }
         if !self.programs.is_empty() && !self.permissions.contains(&Permission::ProcessSpawn) {
             return Err(ManifestError::ProgramPermissionMissing);
         }
@@ -858,11 +836,10 @@ impl Manifest {
             }
         }
         for hook in &contributes.hooks {
-            let (_, needs) = HOOKS
-                .iter()
-                .find(|(name, _)| name == hook)
-                .ok_or_else(|| ManifestError::UnknownHook(hook.clone()))?;
-            if let Some(missing) = needs
+            let point =
+                crate::hook::point(hook).ok_or_else(|| ManifestError::UnknownHook(hook.clone()))?;
+            if let Some(missing) = point
+                .permissions
                 .iter()
                 .find(|permission| !self.permissions.contains(permission))
             {
@@ -884,8 +861,9 @@ impl Manifest {
             }
         }
         for provider in &contributes.providers {
-            let needs = provider_permissions(&provider.kind)
-                .ok_or_else(|| ManifestError::UnknownProviderKind(provider.kind.clone()))?;
+            let needs = crate::provider::kind(&provider.kind)
+                .ok_or_else(|| ManifestError::UnknownProviderKind(provider.kind.clone()))?
+                .permissions;
             if let Some(missing) = needs
                 .iter()
                 .find(|permission| !self.permissions.contains(permission))
@@ -906,6 +884,7 @@ impl Manifest {
         Grant {
             permissions: self.permissions.iter().copied().collect(),
             network: self.network.iter().cloned().collect(),
+            ipc: self.ipc.iter().cloned().collect(),
             programs: self.programs.iter().cloned().collect(),
             launch_properties: self.launch.properties.iter().cloned().collect(),
             hooks: self.contributes.hooks.iter().cloned().collect(),
@@ -962,6 +941,42 @@ pub fn is_launch_property(key: &str) -> bool {
             .iter()
             .any(|prefix| lower.starts_with(prefix))
         && !REFUSED_PARTS.iter().any(|part| lower.contains(part))
+}
+
+const IPC_WILDCARD: char = '*';
+
+fn is_ipc_segment(segment: &str) -> bool {
+    !segment.is_empty()
+        && segment != "."
+        && segment != ".."
+        && segment
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b'-'))
+}
+
+/// A declarable local endpoint: a relative name of plain segments, resolved
+/// under the user's runtime and temp directories (a named pipe on Windows,
+/// where a name with `/` never matches). The last segment may end in `*`,
+/// which matches any plain characters, such as the digit of `discord-ipc-0`;
+/// a bare `*` is refused, since it would grant every endpoint in a directory.
+pub fn is_ipc_pattern(pattern: &str) -> bool {
+    let body = pattern.strip_suffix(IPC_WILDCARD).unwrap_or(pattern);
+    (1..=128).contains(&pattern.len())
+        && !body.contains(IPC_WILDCARD)
+        && body.split('/').all(is_ipc_segment)
+}
+
+/// Whether the concrete endpoint `name` is one `pattern` grants.
+pub fn ipc_matches(pattern: &str, name: &str) -> bool {
+    if !is_ipc_pattern(name) || name.contains(IPC_WILDCARD) {
+        return false;
+    }
+    match pattern.strip_suffix(IPC_WILDCARD) {
+        Some(prefix) => name
+            .strip_prefix(prefix)
+            .is_some_and(|rest| !rest.is_empty() && is_ipc_segment(rest)),
+        None => pattern == name,
+    }
 }
 
 /// A granted host: a domain name, or `*.` and a domain of at least two labels

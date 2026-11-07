@@ -21,7 +21,6 @@ fn load(home: &std::path::Path, files: &fixture::Files, hosts: &[&str]) -> Arc<L
         Arc::new(NoHost),
         home.join("plugin-cache"),
         Arc::new(engine::ProcessSupervisor::new(home.join("processes"))),
-        Arc::new(engine::Presence::over_discord()),
     )
     .expect("runtime");
     let mut grant = manifest.grant();
@@ -56,8 +55,9 @@ async fn rig(hosts: &[&str]) -> (engine::Engine, tempfile::TempDir) {
     fixture::java_runtime(home.path(), 21);
     let manifest: Manifest = toml::from_str(fixture::replay::MANIFEST).expect("manifest");
     let plugin = load(home.path(), &files, hosts);
-    let flavors = engine::connect_flavors(&plugin, &manifest).await;
-    engine::register_flavors(engine.minecraft(), &manifest.id, false, flavors);
+    engine::Contributions::connect(&plugin, &manifest)
+        .await
+        .register(&engine, &manifest.id, false);
     (engine, home)
 }
 

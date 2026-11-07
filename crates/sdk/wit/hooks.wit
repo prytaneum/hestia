@@ -1,74 +1,15 @@
 package hestia:plugin@1.0.0;
 
-interface launch-hooks {
-    /// What a launch is about to run. There is no access token and no raw
-    /// command line: a hook adjusts a launch, it does not see its secrets.
-    record launch-context {
-        instance-id: string,
-        instance-name: string,
-        game-version: string,
-        flavor: string,
-        loader-version: option<string>,
-        java-path: string,
-        /// The configured heap size, e.g. `4G`; absent when left to the JVM.
-        memory: option<string>,
-        /// What the launch joins on start: `world:<folder>`, `server:<address>`
-        /// or `realm:<id>`; absent for the title screen.
-        quick-play: option<string>,
-        profile-name: string,
-        profile-uuid: string,
-    }
+/// Every hook point, through one call. The points, what each shows the plugin
+/// and what it may answer are `proto::hook`: a point is data, so adding one
+/// never changes this interface.
+interface hooks {
+    use types.{json};
 
-    /// Arguments to add. Only an allowlist is kept (tuning `-XX:` flags, `-D`
-    /// keys the manifest declares, `--width`, `--height`, `--fullscreen`); the
-    /// rest is dropped with a warning.
-    record launch-patch {
-        extra-jvm-args: list<string>,
-        extra-game-args: list<string>,
-    }
-
-    /// What a server start is about to run.
-    record server-context {
-        id: string,
-        name: string,
-        version: string,
-        flavor: string,
-        port: u16,
-        /// The configured heap size, e.g. `4G`; absent when left to the JVM.
-        memory: option<string>,
-    }
-
-    /// Runs just before the game is spawned. An error vetoes the launch and its
-    /// text is shown to the user as the reason.
-    before-launch: func(ctx: launch-context) -> result<launch-patch, string>;
-
-    /// Runs just before a server is spawned. The patch is held to the same
-    /// allowlist as a launch's, except that `extra-game-args` never applies: a
-    /// server has no window. An error vetoes the start.
-    before-server-start: func(ctx: server-context) -> result<launch-patch, string>;
-}
-
-interface content-hooks {
-    /// One file about to land in an entry: an install, each required dependency,
-    /// a local import, an update or version change, or a modpack's file. There
-    /// are no file bytes: this is a convenience check by name and hash, not a
-    /// security scanner, and a plugin that fails is skipped.
-    record install-context {
-        entry-id: string,
-        /// `server` or `instance`.
-        entry-type: string,
-        /// `local` for an imported file no source recognises; `project-id` and
-        /// `version-id` are then empty.
-        source: string,
-        project-id: string,
-        version-id: string,
-        file-name: string,
-        /// Empty when the source publishes no sha1 for the file.
-        sha1: string,
-        kind: string,
-    }
-
-    /// Runs before the file is written into the entry. An error vetoes this
-    /// file only; its text is shown to the user with the file name.
-    before-content-install: func(ctx: install-context) -> result<_, string>;
+    /// Runs the hook point `point`, which the manifest declares under
+    /// `contributes.hooks`. `context` is the point's `Context` as JSON. Answer
+    /// the point's `Patch` as JSON (`null` for nothing to add), or an error to
+    /// veto the operation, whose text is shown to the user as the reason. A call
+    /// that traps or overruns its two seconds is skipped instead: hooks fail open.
+    intercept: func(point: string, context: json) -> result<json, string>;
 }

@@ -12,8 +12,8 @@ use wasmtime_wasi_http::{WasiHttpCtx, WasiHttpCtxView, WasiHttpView};
 
 use super::chain::CallChain;
 use super::http::PluginHttp;
+use super::ipc::{Connections, IpcError};
 use super::output::PluginLog;
-use super::presence::{CardError, PluginCard};
 use super::process::{ProgramError, Programs};
 use super::settings::PluginSettings;
 use crate::cancel::Cancel;
@@ -95,7 +95,7 @@ pub(crate) struct PluginState {
     pub(crate) settings: Arc<PluginSettings>,
     pub(crate) gate: Arc<Gate>,
     pub(crate) programs: Arc<Programs>,
-    pub(crate) card: Arc<PluginCard>,
+    pub(crate) ipc: Arc<Connections>,
 }
 
 /// What a `host.call` is checked against. Apart from [`PluginState`] so an
@@ -306,21 +306,44 @@ impl bindings::hestia::plugin::process::Host for PluginState {
     }
 }
 
-impl From<CardError> for PluginError {
-    fn from(error: CardError) -> Self {
+impl From<IpcError> for PluginError {
+    fn from(error: IpcError) -> Self {
         match error {
-            CardError::Denied => PluginError::PermissionDenied(error.to_string()),
-            CardError::Invalid(message) => PluginError::Invalid(message),
+            IpcError::Denied(message) => PluginError::PermissionDenied(message),
+            IpcError::NotFound(message) => PluginError::NotFound(message),
+            IpcError::Invalid(message) => PluginError::Invalid(message),
+            IpcError::Failed(message) => PluginError::Failed(message),
         }
     }
 }
 
-impl bindings::hestia::plugin::presence::Host for PluginState {
-    async fn set(&mut self, activity: String) -> Result<(), PluginError> {
-        Ok(self.card.set(&activity)?)
+impl bindings::hestia::plugin::ipc::Host for PluginState {
+    async fn open(&mut self, endpoint: String) -> Result<String, PluginError> {
+        let ipc = self.ipc.clone();
+        Ok(ipc.open(&endpoint).await?)
     }
 
-    async fn clear(&mut self) -> Result<(), PluginError> {
-        Ok(self.card.clear()?)
+    async fn send(&mut self, connection: String, bytes: Vec<u8>) -> Result<(), PluginError> {
+        let ipc = self.ipc.clone();
+        Ok(ipc.send(&connection, &bytes).await?)
+    }
+
+    async fn receive(
+        &mut self,
+        connection: String,
+        max: u32,
+        timeout_ms: u32,
+    ) -> Result<Vec<u8>, PluginError> {
+        let ipc = self.ipc.clone();
+        let wait = std::time::Duration::from_millis(timeout_ms.into());
+        Ok(ipc.receive(&connection, max, wait).await?)
+    }
+
+    async fn close(&mut self, connection: String) -> Result<(), PluginError> {
+        Ok(self.ipc.close(&connection)?)
+    }
+
+    async fn list(&mut self) -> Result<Vec<String>, PluginError> {
+        Ok(self.ipc.list()?)
     }
 }

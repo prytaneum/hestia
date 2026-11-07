@@ -5,6 +5,7 @@ use super::*;
 #[derive(Clone, Copy)]
 enum Answer {
     Patch(&'static str),
+    Malformed,
     Veto,
     Timeout,
     Trap,
@@ -31,39 +32,53 @@ impl Participant for Fake {
     fn is_disabled(&self) -> bool {
         self.disabled
     }
+
+    fn intercept<'a>(
+        &'a self,
+        _: &'a str,
+        _: &'a str,
+        _: &'a CallChain,
+        timeout: Duration,
+    ) -> BoxFuture<'a, Result<Result<String, String>, CallError>> {
+        self.calls.lock().unwrap().push(self.id);
+        Box::pin(async move {
+            match self.answer {
+                Answer::Patch(arg) => Ok(Ok(serde_json::json!([arg]).to_string())),
+                Answer::Malformed => Ok(Ok("{\"not\":\"a list\"}".into())),
+                Answer::Veto => Ok(Err("nope".into())),
+                Answer::Timeout => Err(CallError::Timeout(timeout)),
+                Answer::Trap => Err(CallError::Trap("boom".into())),
+                Answer::Reentry => Err(CallError::Chain(crate::plugins::ChainError::Reentry(
+                    self.id.into(),
+                ))),
+            }
+        })
+    }
+}
+
+struct StubPoint;
+
+impl proto::hook::HookPoint for StubPoint {
+    const NAME: &'static str = "before-launch";
+    const PERMISSIONS: &'static [proto::plugin::Permission] = &[];
+    type Context = ();
+    type Patch = Vec<String>;
 }
 
 struct Stub;
 
 impl Hook for Stub {
-    const NAME: &'static str = "before-launch";
+    type Point = StubPoint;
     type Plugin = Fake;
-    type Context = ();
-    type Patch = Vec<&'static str>;
+    type Patch = Vec<String>;
+
+    fn vet(_: &Fake, patch: Vec<String>) -> Vec<String> {
+        patch
+    }
 
     fn fold(mut folded: Self::Patch, next: Self::Patch) -> Self::Patch {
         folded.extend(next);
         folded
-    }
-
-    fn invoke<'a>(
-        plugin: &'a Fake,
-        _: &'a (),
-        _: &'a CallChain,
-        timeout: Duration,
-    ) -> BoxFuture<'a, Result<Verdict<Self::Patch>, CallError>> {
-        plugin.calls.lock().unwrap().push(plugin.id);
-        Box::pin(async move {
-            match plugin.answer {
-                Answer::Patch(arg) => Ok(Verdict::Patch(vec![arg])),
-                Answer::Veto => Ok(Verdict::Veto("nope".into())),
-                Answer::Timeout => Err(CallError::Timeout(timeout)),
-                Answer::Trap => Err(CallError::Trap("boom".into())),
-                Answer::Reentry => Err(CallError::Chain(crate::plugins::ChainError::Reentry(
-                    plugin.id.into(),
-                ))),
-            }
-        })
     }
 }
 
@@ -109,7 +124,7 @@ impl Rig {
         self
     }
 
-    async fn run(&self) -> Result<HookOutcome<Vec<&'static str>>, ErrorInfo> {
+    async fn run(&self) -> Result<HookOutcome<Vec<String>>, ErrorInfo> {
         let roster = Arc::new(Plugins(self.plugins.clone()));
         let hooks = Hooks::default();
         hooks.attach(&roster);
@@ -146,6 +161,18 @@ async fn plugins_run_by_id_and_patches_fold_in_that_order() {
 async fn a_timeout_warns_and_the_rest_still_run() {
     let rig = Rig::new()
         .with("alpha", Answer::Timeout)
+        .with("bravo", Answer::Patch("b"));
+
+    let outcome = rig.run().await.unwrap();
+
+    assert_eq!(outcome.patch, ["b"]);
+    assert_eq!(outcome.warnings, [failed("alpha")]);
+}
+
+#[tokio::test]
+async fn an_answer_that_is_not_the_patch_warns() {
+    let rig = Rig::new()
+        .with("alpha", Answer::Malformed)
         .with("bravo", Answer::Patch("b"));
 
     let outcome = rig.run().await.unwrap();

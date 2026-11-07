@@ -9,7 +9,8 @@ use hestia::proto::minecraft::{Artifact, GameVersion};
 use hestia::proto::profile::{
     AssetIndex, FlavorDescription, InstanceProfile, ServerJar, ServerProfile,
 };
-use hestia::{Error, Plugin};
+use hestia::proto::provider::flavor::{Info, ResolveClient, ResolveQuery, ResolveServer, Versions};
+use hestia::{Error, Plugin, Provide, Provided};
 
 const FLAVOR: &str = "replay";
 const JAR_SHA1: &str = "32a22d349740b9065493b697ae61279f4f85aea2";
@@ -42,61 +43,63 @@ fn artifact(version: &str, name: &str, sha1: &str) -> Result<Artifact, Error> {
     })
 }
 
+fn info(flavor: &str) -> Result<FlavorDescription, Error> {
+    check(flavor)?;
+    Ok(FlavorDescription {
+        name: "Replay".into(),
+        summary: "Vanilla, re-served by a plugin.".into(),
+        loads: None,
+        server: true,
+        client: true,
+    })
+}
+
+fn versions(flavor: &str) -> Result<Vec<GameVersion>, Error> {
+    check(flavor)?;
+    Ok(["1.21", "foreign", "unsigned"]
+        .into_iter()
+        .map(|id| GameVersion {
+            id: id.into(),
+            ..GameVersion::default()
+        })
+        .collect())
+}
+
+fn resolve_server(flavor: &str, query: ResolveQuery) -> Result<ServerProfile, Error> {
+    check(flavor)?;
+    let version = query.version.as_str();
+    Ok(ServerProfile {
+        game_version: version.into(),
+        jar: ServerJar::Download(artifact(version, "server.jar", JAR_SHA1)?),
+        java_major: 21,
+        ..ServerProfile::default()
+    })
+}
+
+fn resolve_client(flavor: &str, query: ResolveQuery) -> Result<InstanceProfile, Error> {
+    check(flavor)?;
+    let version = query.version.as_str();
+    Ok(InstanceProfile {
+        game_version: version.into(),
+        client: artifact(version, "client.jar", JAR_SHA1)?,
+        asset_index: AssetIndex {
+            id: version.into(),
+            artifact: artifact(version, "assets.json", ASSET_INDEX_SHA1)?,
+            total_size: 0,
+        },
+        java_major: 21,
+        main_class: "net.minecraft.client.main.Main".into(),
+        ..InstanceProfile::default()
+    })
+}
+
 impl Plugin for Replay {
-    fn flavor_info(flavor: &str) -> Result<FlavorDescription, Error> {
-        check(flavor)?;
-        Ok(FlavorDescription {
-            name: "Replay".into(),
-            summary: "Vanilla, re-served by a plugin.".into(),
-            loads: None,
-            server: true,
-            client: true,
-        })
-    }
-
-    fn flavor_versions(flavor: &str) -> Result<Vec<GameVersion>, Error> {
-        check(flavor)?;
-        Ok(["1.21", "foreign", "unsigned"]
-            .into_iter()
-            .map(|id| GameVersion {
-                id: id.into(),
-                ..GameVersion::default()
-            })
-            .collect())
-    }
-
-    fn flavor_resolve_server(
-        flavor: &str,
-        version: &str,
-        _loader_version: Option<&str>,
-    ) -> Result<ServerProfile, Error> {
-        check(flavor)?;
-        Ok(ServerProfile {
-            game_version: version.into(),
-            jar: ServerJar::Download(artifact(version, "server.jar", JAR_SHA1)?),
-            java_major: 21,
-            ..ServerProfile::default()
-        })
-    }
-
-    fn flavor_resolve_client(
-        flavor: &str,
-        version: &str,
-        _loader_version: Option<&str>,
-    ) -> Result<InstanceProfile, Error> {
-        check(flavor)?;
-        Ok(InstanceProfile {
-            game_version: version.into(),
-            client: artifact(version, "client.jar", JAR_SHA1)?,
-            asset_index: AssetIndex {
-                id: version.into(),
-                artifact: artifact(version, "assets.json", ASSET_INDEX_SHA1)?,
-                total_size: 0,
-            },
-            java_major: 21,
-            main_class: "net.minecraft.client.main.Main".into(),
-            ..InstanceProfile::default()
-        })
+    fn provide(call: Provide) -> Provided {
+        call.on::<Info>(|flavor, _| info(flavor))
+            .on::<Versions>(|flavor, _| versions(flavor))
+            .on::<ResolveServer>(resolve_server)
+            .on::<ResolveClient>(resolve_client)
+            .finish()
     }
 }
 

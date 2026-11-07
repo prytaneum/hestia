@@ -182,8 +182,8 @@ unindexed, as a folder pack does.
 
 ## Formats from plugins
 
-A plugin contributes an instance format with `kind = "format"` and the `format:provide` permission. Its
-`archive-format` export answers `info` (name and marker), `read` (manifest bytes and member names to a blueprint) and
+A plugin contributes an instance format with `kind = "format"` and the `format:provide` permission. It answers the
+`proto::provider::format` operations `info` (name and marker), `read` (manifest text and member names to a blueprint) and
 `land` (a list of `{ archivePath, entryPath }` copies, `entryPath` relative to the instance's `data/`), plus `write` for export. `PluginFormat`
 (`plugins/providers/format.rs`) registers as `<plugin>.<id>` on the engine, and `detect` ranks it beside the core
 formats by marker depth, core first on a tie. The host does every zip read and copy: manifest bytes are capped at

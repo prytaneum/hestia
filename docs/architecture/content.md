@@ -34,8 +34,8 @@ read `<owner>.<id>` (only a plugin signed by the official key may take a bare
 id), so it cannot shadow one.
 
 A plugin adds a source with `contributes.providers = [{ kind = "content", id }]`
-and the `content-source` export (`sdk/wit/providers.wit`; the SDK's
-`Plugin::source_*` methods). The manifest must also hold `content:read`,
+and answers the operations of `proto::provider::content` through `provider.invoke`
+(the SDK's `Plugin::provide`, routing each with `.on::<Op>(…)`). The manifest must also hold `content:read`,
 `network:connect` and at least one network host, or it does not validate. When
 the daemon enables the plugin it asks each contributed source to describe itself
 and registers a `PluginContentProvider` as `<plugin>.<id>`; disabling, removing

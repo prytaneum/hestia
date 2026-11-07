@@ -30,7 +30,6 @@ fn load(
         Arc::new(NoHost),
         home.join("plugin-cache"),
         Arc::new(engine::ProcessSupervisor::new(home.join("processes"))),
-        Arc::new(engine::Presence::over_discord()),
     )
     .expect("runtime");
     let mut grant = manifest.grant();
@@ -72,8 +71,9 @@ async fn rig(hosts: &[&str]) -> (engine::Engine, String, tempfile::TempDir) {
         .expect("create the instance")
         .id;
     let (plugin, manifest) = load(home.path(), &files, hosts);
-    let sources = engine::connect_sources(&plugin, &manifest).await;
-    engine::register_sources(engine.content(), &manifest.id, false, sources);
+    engine::Contributions::connect(&plugin, &manifest)
+        .await
+        .register(&engine, &manifest.id, false);
     (engine, id, home)
 }
 

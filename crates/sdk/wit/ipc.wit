@@ -1,0 +1,31 @@
+package hestia:plugin@1.0.0;
+
+/// Connections to local endpoints: Unix sockets under the user's runtime and
+/// temp directories, or Windows named pipes. Every function answers
+/// `permission-denied` unless the plugin holds `ipc:connect`, and `open`
+/// refuses an endpoint the manifest's `ipc` list does not grant.
+///
+/// The host keeps a connection open across calls, since each call runs on a
+/// fresh instance: name it again by the id `open` returned. Every connection
+/// closes when the plugin is disabled, removed or reloaded.
+interface ipc {
+    use types.{plugin-error};
+
+    /// Connects to `endpoint`, a concrete name such as `discord-ipc-0`, and
+    /// returns the connection's id. `not-found` when nothing listens there.
+    open: func(endpoint: string) -> result<string, plugin-error>;
+
+    /// Writes all of `bytes`, at most 1 MiB.
+    send: func(connection: string, bytes: list<u8>) -> result<_, plugin-error>;
+
+    /// Reads what has arrived, at most `max` bytes (capped at 1 MiB), waiting
+    /// up to `timeout-ms` for the first byte; empty when nothing arrived in
+    /// time. `not-found` once the peer closed the connection.
+    receive: func(connection: string, max: u32, timeout-ms: u32) -> result<list<u8>, plugin-error>;
+
+    /// Closes one of the plugin's connections.
+    close: func(connection: string) -> result<_, plugin-error>;
+
+    /// The ids of the plugin's open connections.
+    %list: func() -> result<list<string>, plugin-error>;
+}
