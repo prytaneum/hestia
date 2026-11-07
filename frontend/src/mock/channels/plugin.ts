@@ -97,6 +97,8 @@ const installed = ({
         })),
         themes: Array.from({ length: themes }, (_, i) => ({
           id: `theme-${i}`,
+          name: `Theme ${i}`,
+          appearance: 'dark' as const,
           file: `themes/${i}.css`,
         })),
       },
@@ -134,6 +136,7 @@ const plugins: PluginInfo[] = [
       {
         key: 'access-key',
         kind: 'secret',
+        default: null,
         label: 'Access key',
         help: 'Used to sign uploads.',
         options: [],
@@ -149,6 +152,7 @@ const plugins: PluginInfo[] = [
       {
         key: 'verbose',
         kind: 'bool',
+        default: null,
         label: 'Log every upload',
         help: '',
         options: [],
@@ -271,9 +275,10 @@ export const channels: ChannelHandlers = {
     find(str(p, 'id'))?.manifest.settings.map((setting) => ({
       key: setting.key,
       set: stored.has(setting.key),
-      ...(setting.kind === 'secret'
-        ? {}
-        : { value: stored.get(setting.key) ?? setting.default }),
+      value:
+        setting.kind === 'secret'
+          ? undefined
+          : (stored.get(setting.key) ?? setting.default),
     })) ?? [],
   'plugin.settings.set': (p) => {
     if (p.value === null) stored.delete(str(p, 'key'));
@@ -297,6 +302,7 @@ export const channels: ChannelHandlers = {
     grantDigest: 'mock-digest',
     widened: requested,
     unrestricted: ['entry:write', 'process:control'],
+    programPaths: {},
   }),
   'plugin.install': (p) =>
     runPlan({
