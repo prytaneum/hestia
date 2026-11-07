@@ -41,6 +41,20 @@ jobs:
         run: cargo test --workspace --exclude desktop
       - name: plugin API snapshot
         run: cargo test -p proto --features ts --test plugin_api
+      - name: Generate the plugin template
+        if: matrix.os == 'ubuntu-latest'
+        working-directory: ${{ runner.temp }}
+        run: cargo run --manifest-path "$GITHUB_WORKSPACE/Cargo.toml" -p cli -- plugin new hello
+      - name: Check out prytaneum/plugin-template
+        if: matrix.os == 'ubuntu-latest'
+        uses: actions/checkout@v7
+        with:
+          repository: prytaneum/plugin-template
+          path: plugin-template
+      # Cargo.lock is the template's own: `plugin new` does not write one.
+      - name: Diff the plugin template against `hestia plugin new`
+        if: matrix.os == 'ubuntu-latest'
+        run: diff -r -x .git -x Cargo.lock "$RUNNER_TEMP/hello" plugin-template
 
   frontend:
     runs-on: ubuntu-latest
