@@ -35,5 +35,7 @@ export type { SearchQuery } from "./generated/SearchQuery";
 export type { SearchResult } from "./generated/SearchResult";
 export type { SearchSort } from "./generated/SearchSort";
 export type { SideSupport } from "./generated/SideSupport";
+export type { SourceInfo } from "./generated/SourceInfo";
+export type { SourceUrl } from "./generated/SourceUrl";
 export type { UntrackedFile } from "./generated/UntrackedFile";
 export type { VersionQuery } from "./generated/VersionQuery";

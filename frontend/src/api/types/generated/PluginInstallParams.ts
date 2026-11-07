@@ -13,4 +13,9 @@ staged: string,
  * The grant digest the user approved; the install refuses a package whose
  * own grant digests differently.
  */
-approve: string, };
+approve: string, 
+/**
+ * Run the folder at `path` in place instead of copying it, and reload it
+ * when its component or themes change.
+ */
+dev: boolean, };

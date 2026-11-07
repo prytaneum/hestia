@@ -8,4 +8,12 @@ export type ProcessSpec = {
 /**
  * Client-supplied id; empty asks the daemon to allocate one.
  */
-id: string, program: string, args: Array<string>, cwd?: string, env: { [key in string]: string }, log: LogSource, };
+id: string, program: string, args: Array<string>, cwd?: string, env: { [key in string]: string }, 
+/**
+ * Start from an empty environment instead of the daemon's.
+ */
+clearEnv: boolean, 
+/**
+ * Who the process belongs to, such as `plugin:<id>`; only its owner may stop it.
+ */
+owner?: string, log: LogSource, };

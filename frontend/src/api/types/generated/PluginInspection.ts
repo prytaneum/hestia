@@ -28,6 +28,11 @@ widened: Grant,
  */
 unrestricted: Array<Permission>, 
 /**
+ * Program id to the absolute path its `PATH` name resolves to on this
+ * computer, the one an install pins; a program not found is absent.
+ */
+programPaths: { [key in string]: string }, 
+/**
  * For a `url` inspection: names the downloaded file. Hand it back as
  * [`PluginInstallParams::staged`] so the install uses that file and does
  * not download again.

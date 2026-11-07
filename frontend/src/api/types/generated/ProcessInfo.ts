@@ -4,4 +4,4 @@ import type { ProcessState } from "./ProcessState";
 /**
  * A snapshot of one tracked process.
  */
-export type ProcessInfo = { id: string, pid: number, program: string, args: Array<string>, state: ProcessState, exitCode?: number, startedUnix: number, };
+export type ProcessInfo = { id: string, pid: number, program: string, args: Array<string>, state: ProcessState, exitCode?: number, startedUnix: number, owner?: string, };
