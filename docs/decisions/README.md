@@ -36,6 +36,7 @@ the alternative you rejected — that is usually the part nobody can recover lat
 - **0097** — [Trust follows the repository's key, not its address](0097-trust-follows-the-repository-key.md)
 - **0099** — [Official plugins are the ones signed by Hestia's own key](0099-official-plugins-are-signed.md)
 - **0100** — [A plugin theme is raw CSS behind a permission, a CSP and a safe mode](0100-themes-are-plugin-css.md)
+- **0101** — [Plugins spawn only the programs they declare](0101-plugins-spawn-only-declared-programs.md)
 
 ### [Cross-cutting foundations](../architecture/common.md)
 
@@ -57,6 +58,7 @@ the alternative you rejected — that is usually the part nobody can recover lat
 - **0068** — [The tray speaks the tray protocol, not a library that might be installed](0068-the-tray-speaks-the-tray-protocol.md)
 - **0091** — [Plugins are WASM components on wasmtime, with WIT as the one ABI](0091-plugins-are-wasm-components.md)
 - **0095** — [Interceptors are bounded and fail open, so a hook is customisation and never a control](0095-interceptors-are-bounded-and-fail-open.md)
+- **0101** — [Plugins spawn only the programs they declare](0101-plugins-spawn-only-declared-programs.md)
 
 ### [The daemon](../architecture/daemon.md)
 
