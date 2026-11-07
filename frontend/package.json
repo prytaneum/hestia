@@ -56,7 +56,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "2.6.6",
-    "@inlang/paraglide-js": "^2.29.3",
+    "@inlang/paraglide-js": "^3.2.1",
     "@tailwindcss/vite": "^4.3.5",
     "@tanstack/devtools-vite": "^0.8.6",
     "@tanstack/react-devtools": "^0.10.14",
