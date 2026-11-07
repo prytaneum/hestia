@@ -247,7 +247,11 @@ impl Engine {
                     continue;
                 }
             };
-            if !kind_matches(kind, project.kind) {
+            if !kind_matches(
+                kind,
+                project.kind,
+                self.content.datapacks_as_mods(&root.source),
+            ) {
                 failures.push(failure(
                     &root.given,
                     &project.title,
@@ -639,11 +643,9 @@ fn chosen_match<'a>(matches: &'a [Identified], source: &str) -> Option<&'a Ident
     }
 }
 
-/// Whether a fetched project satisfies the requested kind. Datapacks accept
-/// `Mod` projects: Modrinth has no datapack project type — a datapack is a
-/// mod-typed project whose versions carry the `datapack` loader.
-fn kind_matches(requested: ContentKind, project: ContentKind) -> bool {
-    requested == project || (requested == ContentKind::DataPack && project == ContentKind::Mod)
+fn kind_matches(requested: ContentKind, project: ContentKind, datapacks_as_mods: bool) -> bool {
+    requested == project
+        || (datapacks_as_mods && requested == ContentKind::DataPack && project == ContentKind::Mod)
 }
 
 pub(super) fn failure(
@@ -665,4 +667,20 @@ fn item_label(item: &ContentAddItem) -> String {
         .find(|s| !s.is_empty())
         .map(|s| s.to_string())
         .unwrap_or_else(|| "(empty item)".to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn only_a_source_flagged_for_it_lets_a_datapack_be_a_mod_project() {
+        assert!(kind_matches(ContentKind::DataPack, ContentKind::Mod, true));
+        assert!(!kind_matches(
+            ContentKind::DataPack,
+            ContentKind::Mod,
+            false
+        ));
+        assert!(kind_matches(ContentKind::Mod, ContentKind::Mod, false));
+    }
 }

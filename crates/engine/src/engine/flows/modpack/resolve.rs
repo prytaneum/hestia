@@ -205,10 +205,14 @@ impl Engine {
     async fn pack_manifest(&self, archive: &mut pack::Archive) -> Result<ResolvedModpack> {
         Ok(match archive.platform_manifest()? {
             Some((source, manifest)) => self.content.resolve_manifest(source, &manifest).await?,
-            None => ResolvedModpack {
-                source: LOCAL_SOURCE.to_string(),
-                ..archive.index()?
-            },
+            None => {
+                let mut pack = ResolvedModpack {
+                    source: LOCAL_SOURCE.to_string(),
+                    ..archive.index()?
+                };
+                self.content.recognise_files(&mut pack.files).await;
+                pack
+            }
         })
     }
 

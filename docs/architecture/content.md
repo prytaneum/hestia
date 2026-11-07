@@ -59,7 +59,8 @@ this boundary, so a front-end never sees a platform's raw shape
 
 A provider also recognises its own site's project and version page URLs, so a
 pasted `modrinth.com/mod/…` or `curseforge.com/minecraft/…` link installs exactly
-like a slug.
+like a slug. A source that has no datapack project type (Modrinth) says so with
+`datapacks_as_mods`, and a datapack request then accepts its `Mod` projects.
 
 > **A second source pays for the trait — and it is only offered when it can
 > serve.** CurseForge is the impl the `ContentProvider` seam was written for, and
@@ -374,7 +375,8 @@ out ([0078](../decisions/0078-a-pack-updates-from-a-file.md)).
 file by project and file id, and resolving it already fetches the file and
 project records, so every `ModpackFile` leaves the resolve with its source, ids,
 version number and project. A `.mrpack` index names files by URL and hash alone;
-a Modrinth CDN URL carries both ids, which the index parse reads. `hydrate` then
+each file URL is put to every source (`ContentProvider::recognise_file_url`; a
+Modrinth CDN URL carries both ids), and the source that answers is recorded. `hydrate` then
 asks only for what is still missing (a Modrinth file's version number and
 project), in one bulk call per source. Best-effort: a pack still installs when
 the catalogue is unreachable, it just reads less well.

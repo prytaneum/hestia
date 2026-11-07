@@ -22,7 +22,6 @@ use proto::transfer::ImportFormat;
 use serde_json::{Map, Value};
 
 use super::json::{parse_side, str_field};
-use super::modrinth;
 use crate::cancel::Job;
 use crate::transfer::archive::{Extracted, Reader};
 
@@ -155,8 +154,7 @@ impl Archive {
         }
     }
 
-    /// The `.mrpack` manifest. Ids are left empty — only the platform that
-    /// served the archive knows them, and a pack read off disk has none.
+    /// The `.mrpack` manifest. Ids are left empty; see `Content::recognise_files`.
     pub(crate) fn index(&mut self) -> Result<ResolvedModpack> {
         let text = self
             .reader
@@ -227,7 +225,7 @@ pub(crate) fn shallowest(names: &[String], marker: &str) -> Option<String> {
 }
 
 /// Parse a `modrinth.index.json` into a resolved pack. Pure — the source and the
-/// project/version ids come from whoever served the archive, not the index.
+/// project/version ids come from whoever recognises the file URLs, not the index.
 /// Rejects an unsupported format version, a file with an unsafe (absolute or
 /// parent-escaping) path, and a manifest that pins no Minecraft version.
 pub fn parse_index(index: &Value) -> Result<ResolvedModpack> {
@@ -274,10 +272,6 @@ pub fn parse_index(index: &Value) -> Result<ResolvedModpack> {
                 .and_then(Value::as_str)
                 .map(parse_side)
                 .unwrap_or(SideSupport::Required);
-            let (source, project_id, version_id) = match modrinth::cdn_file(&url) {
-                Some(file) => (modrinth::ID.to_string(), file.project_id, file.version_id),
-                None => Default::default(),
-            };
             files.push(ModpackFile {
                 path: path.to_string(),
                 artifact: Artifact {
@@ -291,9 +285,6 @@ pub fn parse_index(index: &Value) -> Result<ResolvedModpack> {
                 },
                 client,
                 server,
-                source,
-                project_id,
-                version_id,
                 ..ModpackFile::default()
             });
         }

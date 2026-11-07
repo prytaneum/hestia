@@ -25,8 +25,8 @@ use std::sync::Arc;
 use anyhow::{Context, Result};
 use proto::content::{
     ContentFile, ContentInspectResult, ContentKind, ContentMatch, ContentProject, ContentSource,
-    ContentVersion, InstalledContent, ResolvedModpack, ResolvedUrl, SearchQuery, SearchResult,
-    VersionQuery, LOCAL_SOURCE,
+    ContentVersion, InstalledContent, ModpackFile, ResolvedModpack, ResolvedUrl, SearchQuery,
+    SearchResult, VersionQuery, LOCAL_SOURCE,
 };
 
 use crate::config::ContentSettings;
@@ -382,6 +382,24 @@ impl Content {
         None
     }
 
+    pub(crate) async fn recognise_files(&self, files: &mut [ModpackFile]) {
+        let providers = self.providers.snapshot();
+        for file in files {
+            for provider in &providers {
+                if let Some(found) = provider.recognise_file_url(&file.artifact.url).await {
+                    file.source = provider.id().to_string();
+                    file.project_id = found.project;
+                    file.version_id = found.version;
+                    break;
+                }
+            }
+        }
+    }
+
+    pub(crate) fn datapacks_as_mods(&self, id: &str) -> bool {
+        self.provider(id).is_ok_and(|p| p.datapacks_as_mods())
+    }
+
     /// The provider for `id`; an empty id selects the default — the first
     /// source that can serve. A source that is registered but unconfigured is
     /// refused by name rather than reported unknown, since the difference is
@@ -405,5 +423,91 @@ impl Content {
             .into());
         }
         Ok(provider)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use proto::content::SourceFileRef;
+
+    struct Recogniser {
+        id: &'static str,
+        prefix: &'static str,
+    }
+
+    #[async_trait::async_trait]
+    impl ContentProvider for Recogniser {
+        fn id(&self) -> &str {
+            self.id
+        }
+        fn name(&self) -> &str {
+            self.id
+        }
+        fn kinds(&self) -> Vec<ContentKind> {
+            Vec::new()
+        }
+        fn datapacks_as_mods(&self) -> bool {
+            self.id == "mods"
+        }
+        async fn recognise_file_url(&self, url: &str) -> Option<SourceFileRef> {
+            url.strip_prefix(self.prefix).map(|rest| SourceFileRef {
+                project: rest.to_string(),
+                version: "v1".to_string(),
+            })
+        }
+        async fn parse_url(&self, _url: &str) -> Option<provider::UrlRef> {
+            None
+        }
+        async fn search(&self, _query: &SearchQuery) -> Result<SearchResult> {
+            unreachable!()
+        }
+        async fn project(&self, _: &str, _: Option<ContentKind>) -> Result<ContentProject> {
+            unreachable!()
+        }
+        async fn versions(&self, _query: &VersionQuery) -> Result<Vec<ContentVersion>> {
+            unreachable!()
+        }
+    }
+
+    fn file(url: &str) -> ModpackFile {
+        let mut file = ModpackFile::default();
+        file.artifact.url = url.to_string();
+        file
+    }
+
+    fn recognisers() -> Content {
+        Content::with_providers(vec![
+            Box::new(Recogniser {
+                id: "mods",
+                prefix: "https://mods.invalid/",
+            }),
+            Box::new(Recogniser {
+                id: "other",
+                prefix: "https://other.invalid/",
+            }),
+        ])
+    }
+
+    #[tokio::test]
+    async fn a_file_is_tracked_to_the_source_that_recognises_its_url() {
+        let mut files = vec![
+            file("https://other.invalid/sodium"),
+            file("https://elsewhere.invalid/x"),
+        ];
+        recognisers().recognise_files(&mut files).await;
+
+        assert_eq!(files[0].source, "other");
+        assert_eq!(files[0].project_id, "sodium");
+        assert_eq!(files[0].version_id, "v1");
+        assert!(files[1].source.is_empty() && files[1].project_id.is_empty());
+    }
+
+    #[test]
+    fn the_datapack_quirk_is_read_from_the_source() {
+        let content = recognisers();
+        assert!(content.datapacks_as_mods("mods"));
+        assert!(!content.datapacks_as_mods("other"));
+        assert!(!content.datapacks_as_mods("missing"));
     }
 }

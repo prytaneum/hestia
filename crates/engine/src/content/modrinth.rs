@@ -9,7 +9,8 @@ use anyhow::{Context, Result};
 use async_trait::async_trait;
 use proto::content::{
     ContentDependency, ContentFile, ContentKind, ContentProject, ContentVersion, DependencyKind,
-    GalleryImage, ReleaseChannel, SearchQuery, SearchResult, SearchSort, VersionQuery,
+    GalleryImage, ReleaseChannel, SearchQuery, SearchResult, SearchSort, SourceFileRef,
+    VersionQuery,
 };
 use proto::download::{Checksum, HashAlgorithm};
 use proto::error::Service;
@@ -18,7 +19,7 @@ use proto::provider::Provider;
 use serde_json::Value;
 
 use super::json::{non_empty, parse_side, str_field, u64_field};
-use super::provider::{ContentProvider, FileRef, LocalFile, UrlRef};
+use super::provider::{ContentProvider, LocalFile, UrlRef};
 
 const API: &str = "https://api.modrinth.com/v2";
 /// Only for an organization's name: v2 has no organization route.
@@ -78,7 +79,7 @@ pub struct Modrinth;
 
 /// `cdn.modrinth.com/data/<project>/versions/<version>/<filename>`. Any other
 /// host is somebody else's file and stays an untracked direct download.
-pub(crate) fn cdn_file(url: &str) -> Option<FileRef> {
+pub(crate) fn cdn_file(url: &str) -> Option<SourceFileRef> {
     let rest = url.strip_prefix("https://")?;
     let path = rest.strip_prefix(CDN)?.strip_prefix("/data/")?;
     let mut segments = path.split('/');
@@ -87,9 +88,9 @@ pub(crate) fn cdn_file(url: &str) -> Option<FileRef> {
         return None;
     }
     let version_id = segments.next().filter(|s| !s.is_empty())?.to_string();
-    Some(FileRef {
-        project_id,
-        version_id,
+    Some(SourceFileRef {
+        project: project_id,
+        version: version_id,
     })
 }
 
@@ -105,6 +106,14 @@ impl ContentProvider for Modrinth {
 
     fn kinds(&self) -> Vec<ContentKind> {
         SITE_TYPES.iter().filter_map(|(_, kind)| *kind).collect()
+    }
+
+    async fn recognise_file_url(&self, url: &str) -> Option<SourceFileRef> {
+        cdn_file(url)
+    }
+
+    fn datapacks_as_mods(&self) -> bool {
+        true
     }
 
     /// `modrinth.com/<type>/<slug>` names a project;
@@ -558,8 +567,8 @@ mod tests {
             "https://cdn.modrinth.com/data/AANobbMI/versions/HFxNoSNH/sodium-fabric-0.6.0.jar",
         )
         .unwrap();
-        assert_eq!(parsed.project_id, "AANobbMI");
-        assert_eq!(parsed.version_id, "HFxNoSNH");
+        assert_eq!(parsed.project, "AANobbMI");
+        assert_eq!(parsed.version, "HFxNoSNH");
     }
 
     #[test]

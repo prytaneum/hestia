@@ -9,7 +9,8 @@ use std::path::{Path, PathBuf};
 use anyhow::{bail, Result};
 use async_trait::async_trait;
 use proto::content::{
-    ContentKind, ContentProject, ContentVersion, ResolvedModpack, SearchQuery, VersionQuery,
+    ContentKind, ContentProject, ContentVersion, ResolvedModpack, SearchQuery, SourceFileRef,
+    VersionQuery,
 };
 
 use serde_json::Value;
@@ -24,13 +25,6 @@ pub struct UrlRef {
     pub project: String,
     pub version: Option<String>,
     pub kind: Option<ContentKind>,
-}
-
-/// The ids a Modrinth CDN URL carries for the file behind it.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct FileRef {
-    pub project_id: String,
-    pub version_id: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -63,6 +57,15 @@ pub trait ContentProvider: Send + Sync {
     fn configure(&self, _settings: &ContentSettings) {}
     /// Recognise a project/version page URL on this platform's site.
     async fn parse_url(&self, url: &str) -> Option<UrlRef>;
+    /// Recognise the project and version behind the URL of a file this
+    /// platform serves, so a pack's file is tracked to its source.
+    async fn recognise_file_url(&self, _url: &str) -> Option<SourceFileRef> {
+        None
+    }
+    /// Whether a datapack is catalogued as a `Mod` project here.
+    fn datapacks_as_mods(&self) -> bool {
+        false
+    }
     async fn search(&self, query: &SearchQuery) -> Result<proto::content::SearchResult>;
     /// A project's detail, stamped with the caller's `kind` when it publishes it.
     async fn project(&self, project: &str, kind: Option<ContentKind>) -> Result<ContentProject>;
