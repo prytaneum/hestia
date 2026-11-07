@@ -48,7 +48,10 @@ fn load(
         serde_json::to_string(&files.url("files")).unwrap(),
     )
     .expect("base url");
-    let plugin = runtime.load(&record, &wasm, data).expect("load");
+    let settings = engine::PluginSettings::new(home.join("static-index-settings.json"), Vec::new());
+    let plugin = runtime
+        .load(&record, &wasm, data, settings)
+        .expect("load");
     (Arc::new(plugin), manifest)
 }
 
