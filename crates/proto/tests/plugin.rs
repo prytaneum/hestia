@@ -20,7 +20,7 @@ mod manifest {
     use proto::plugin::{
         CommandArg, CommandContribution, CommandScope, Manifest, ManifestError, PageContribution,
         PageSlot, Permission, Program, ProviderContribution, Setting, SettingKind,
-        ThemeContribution,
+        ThemeContribution, Tier,
     };
 
     fn valid() -> Manifest {
@@ -253,6 +253,31 @@ mod manifest {
             manifest.validate(),
             Err(ManifestError::UnknownProviderKind("mystery".into()))
         );
+    }
+
+    #[test]
+    fn a_flavor_needs_flavor_provide_and_network_hosts() {
+        let mut manifest = valid();
+        manifest.contributes.providers.push(ProviderContribution {
+            kind: "flavor".into(),
+            id: "quilt".into(),
+        });
+        manifest.permissions = vec![Permission::ContentRead, Permission::NetworkConnect];
+        assert_eq!(
+            manifest.validate(),
+            Err(ManifestError::ProviderPermissionMissing {
+                provider: "quilt".into(),
+                permission: Permission::FlavorProvide
+            })
+        );
+        manifest.permissions = vec![Permission::FlavorProvide, Permission::NetworkConnect];
+        assert_eq!(
+            manifest.validate(),
+            Err(ManifestError::ProviderNeedsHosts("quilt".into()))
+        );
+        manifest.network = vec!["meta.quiltmc.org".into()];
+        assert_eq!(manifest.validate(), Ok(()));
+        assert_eq!(Permission::FlavorProvide.tier(), Tier::Unrestricted);
     }
 
     #[test]

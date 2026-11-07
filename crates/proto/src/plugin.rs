@@ -152,6 +152,10 @@ pub enum Permission {
     /// Return an allowlisted patch from a launch or server-start hook.
     #[serde(rename = "launch:patch")]
     LaunchPatch,
+    /// Contribute a Minecraft flavor, which decides the main class, libraries and
+    /// arguments the game runs with and so bypasses the launch-arg allowlist.
+    #[serde(rename = "flavor:provide")]
+    FlavorProvide,
 }
 
 /// How far a permission reaches. An unrestricted one can run native code, so
@@ -169,7 +173,8 @@ impl Permission {
             | Permission::ContentWrite
             | Permission::ConfigWrite
             | Permission::ProcessControl
-            | Permission::ProcessSpawn => Tier::Unrestricted,
+            | Permission::ProcessSpawn
+            | Permission::FlavorProvide => Tier::Unrestricted,
             Permission::EntryRead
             | Permission::ProcessRead
             | Permission::ContentRead
@@ -206,6 +211,9 @@ impl Permission {
             Permission::UiCss => "Restyle the app with its own stylesheet",
             Permission::LaunchPatch => {
                 "Adjust launch settings from an allowlist when a game or server starts"
+            }
+            Permission::FlavorProvide => {
+                "Add game distributions that choose what code the game runs, including its main class and arguments"
             }
         }
     }
@@ -280,8 +288,17 @@ impl CommandScope {
 /// The `kind` of a [`ProviderContribution`] that adds a content source.
 pub const CONTENT_PROVIDER: &str = "content";
 
-/// What any provider needs: to read what it serves and to reach its hosts.
-const PROVIDER_PERMISSIONS: [Permission; 2] = [Permission::ContentRead, Permission::NetworkConnect];
+/// The `kind` of a [`ProviderContribution`] that adds a Minecraft flavor.
+pub const FLAVOR_PROVIDER: &str = "flavor";
+
+/// What a provider of `kind` needs: to serve its subject and to reach its hosts.
+fn provider_permissions(kind: &str) -> Option<[Permission; 2]> {
+    match kind {
+        CONTENT_PROVIDER => Some([Permission::ContentRead, Permission::NetworkConnect]),
+        FLAVOR_PROVIDER => Some([Permission::FlavorProvide, Permission::NetworkConnect]),
+        _ => None,
+    }
+}
 
 /// The argument every scoped command receives; a declared argument may not take it.
 pub const ENTRY_ARG: &str = "entry";
@@ -837,10 +854,9 @@ impl Manifest {
             }
         }
         for provider in &contributes.providers {
-            if provider.kind != CONTENT_PROVIDER {
-                return Err(ManifestError::UnknownProviderKind(provider.kind.clone()));
-            }
-            if let Some(missing) = PROVIDER_PERMISSIONS
+            let needs = provider_permissions(&provider.kind)
+                .ok_or_else(|| ManifestError::UnknownProviderKind(provider.kind.clone()))?;
+            if let Some(missing) = needs
                 .iter()
                 .find(|permission| !self.permissions.contains(permission))
             {

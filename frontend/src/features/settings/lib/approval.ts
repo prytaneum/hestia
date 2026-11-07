@@ -47,6 +47,7 @@ const PERMISSION_TEXT: Record<Permission, () => string> = {
   'network:connect': m['domain.plugin.permission.network_connect'],
   'ui:css': m['domain.plugin.permission.ui_css'],
   'launch:patch': m['domain.plugin.permission.launch_patch'],
+  'flavor:provide': m['domain.plugin.permission.flavor_provide'],
 };
 
 const HEADING: Record<GrantSectionKind, () => string> = {

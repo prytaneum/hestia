@@ -95,6 +95,7 @@
         "content_write": "Instalar, atualizar e remover mods, pacotes e outros conteúdos",
         "entry_read": "Ver seus servidores e instâncias e as configurações deles",
         "entry_write": "Criar, alterar e excluir servidores e instâncias, incluindo seus arquivos",
+        "flavor_provide": "Adicionar distribuições do jogo que escolhem o código que o jogo executa, incluindo a classe principal e os argumentos",
         "java_manage": "Instalar e remover runtimes do Java",
         "java_read": "Ver os runtimes do Java instalados e disponíveis",
         "launch_patch": "Ajustar configurações de inicialização, a partir de uma lista permitida, quando um jogo ou servidor inicia",
