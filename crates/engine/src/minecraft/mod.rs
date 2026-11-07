@@ -33,6 +33,7 @@ use profile::{InstanceProfile, ServerProfile};
 
 pub use provider::{accepted_kinds, unmet, InstallRequest, Prerequisite, Side};
 pub use provider::{FlavorInfo, FlavorProvider, Loads, ResolveRequest};
+pub use provider::{BOTH_SIDES, CLIENT_ONLY, SERVER_ONLY};
 
 /// The Java majors Minecraft launch profiles ever require: 8 (pre-1.17),
 /// 16 (1.17), 17 (1.18–1.20.4), 21 (1.20.5+). Catalogue surfaces (the

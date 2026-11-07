@@ -32,3 +32,28 @@ interface content-source {
     /// `args` is `{ sha1s }`; answers an object of `ContentVersion` keyed by the sha1 that identified it.
     identify: func(source: string, args: json) -> result<json, plugin-error>;
 }
+
+/// Every call names the contributed flavor it is for, because one plugin may
+/// contribute several. `args` and the results are JSON in the shape of the
+/// matching `proto` types. A flavor decides what code the game runs; the host
+/// downloads the artifacts a profile lists, only from the plugin's network
+/// hosts and only with a sha1, and refuses the whole profile otherwise.
+interface flavor {
+    use types.{json, plugin-error};
+
+    /// `proto::profile::FlavorDescription`: `{ name, summary, loads, server, client }`.
+    info: func(flavor: string) -> result<json, plugin-error>;
+
+    /// Answers a list of `proto::minecraft::GameVersion`, newest first.
+    versions: func(flavor: string) -> result<json, plugin-error>;
+
+    /// `args` is `{ game }`; answers a list of loader version strings, newest first.
+    loader-versions: func(flavor: string, args: json) -> result<json, plugin-error>;
+
+    /// `args` is `{ version, loaderVersion }`; answers a `proto::profile::ServerProfile`.
+    /// Its jar must be a download and its launch `jar`: a plugin cannot build.
+    resolve-server: func(flavor: string, args: json) -> result<json, plugin-error>;
+
+    /// `args` is `{ version, loaderVersion }`; answers a `proto::profile::InstanceProfile`.
+    resolve-client: func(flavor: string, args: json) -> result<json, plugin-error>;
+}

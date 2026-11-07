@@ -4,6 +4,7 @@
 
 pub mod index;
 pub mod probe;
+pub mod replay;
 
 use std::collections::HashMap;
 

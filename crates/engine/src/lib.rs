@@ -66,14 +66,15 @@ pub use minecraft::{
 };
 pub use net::Network;
 pub use plugins::{
-    command_args, connect_sources, find_command, is_official_signer, key_id_of, owner_of,
-    refuse_official_key, register_sources, resolve_on_path, revocation, target_triple,
-    verify_build, verify_index, BeforeLaunch, CallChain, CallError, ChainError, CommandRun, Hook,
-    HookOutcome, Hooks, HostCalls, HostError, Inspection, LaunchContext, LaunchPatch, Listings,
-    LoadError, LoadedPlugin, Origin, Participant, PluginContentProvider, PluginPackage,
-    PluginRecord, PluginRuntime, PluginSettings, PluginStats, Plugins, Remote, RepoError, Roster,
-    SettingsError, Staged, Verdict, CANCEL_GRACE, COMMAND_TIMEOUT, EVENT_TIMEOUT, HOOK_TIMEOUT,
-    MAX_ASSET_BYTES, MAX_CHAIN_DEPTH, PROVIDER_TIMEOUT, UI_TIMEOUT,
+    command_args, connect_flavors, connect_sources, find_command, is_official_signer, key_id_of,
+    owner_of, refuse_official_key, register_flavors, register_sources, resolve_on_path, revocation,
+    target_triple, verify_build, verify_index, BeforeLaunch, CallChain, CallError, ChainError,
+    CommandRun, Hook, HookOutcome, Hooks, HostCalls, HostError, Inspection, LaunchContext,
+    LaunchPatch, Listings, LoadError, LoadedPlugin, Origin, Participant, PluginContentProvider,
+    PluginFlavorProvider, PluginPackage, PluginRecord, PluginRuntime, PluginSettings, PluginStats,
+    Plugins, Remote, RepoError, Roster, SettingsError, Staged, Verdict, CANCEL_GRACE,
+    COMMAND_TIMEOUT, EVENT_TIMEOUT, HOOK_TIMEOUT, MAX_ASSET_BYTES, MAX_CHAIN_DEPTH,
+    PROVIDER_TIMEOUT, UI_TIMEOUT,
 };
 pub use process::{ExitObserver, ProcessEvents, ProcessSupervisor, StartError};
 pub use roster::RegisterError;

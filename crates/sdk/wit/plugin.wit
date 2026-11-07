@@ -54,4 +54,5 @@ world plugin {
     export launch-hooks;
     export content-hooks;
     export content-source;
+    export flavor;
 }

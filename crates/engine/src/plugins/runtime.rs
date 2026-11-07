@@ -26,7 +26,7 @@ use super::imports::bindings::{self, hestia::plugin::types::PluginError};
 use super::imports::{CommandRun, Gate, HostCalls, PluginState};
 use super::output::{Captured, PluginLog};
 use super::process::Programs;
-use super::providers::SourceOp;
+use super::providers::{FlavorOp, SourceOp};
 use super::settings::PluginSettings;
 use super::store::PluginRecord;
 use crate::checksum::hex;
@@ -524,6 +524,39 @@ impl LoadedPlugin {
                         guest.call_versions_by_id(store, &source, &args).await
                     }
                     SourceOp::Identify => guest.call_identify(store, &source, &args).await,
+                }
+            })
+        })
+        .await?
+        .map_err(|error| CallError::Guest(describe(error)))
+    }
+
+    /// Runs one call of the plugin's `flavor` export for the contributed
+    /// flavor `flavor` under `timeout`; `args` and the reply are JSON.
+    pub(super) async fn flavor(
+        &self,
+        chain: &CallChain,
+        op: FlavorOp,
+        flavor: &str,
+        args: &str,
+        timeout: Duration,
+    ) -> Result<String, CallError> {
+        let (flavor, args) = (flavor.to_string(), args.to_string());
+        self.guarded(chain, timeout, None, move |store, instance| {
+            Box::pin(async move {
+                let guest = instance.hestia_plugin_flavor();
+                match op {
+                    FlavorOp::Info => guest.call_info(store, &flavor).await,
+                    FlavorOp::Versions => guest.call_versions(store, &flavor).await,
+                    FlavorOp::LoaderVersions => {
+                        guest.call_loader_versions(store, &flavor, &args).await
+                    }
+                    FlavorOp::ResolveServer => {
+                        guest.call_resolve_server(store, &flavor, &args).await
+                    }
+                    FlavorOp::ResolveClient => {
+                        guest.call_resolve_client(store, &flavor, &args).await
+                    }
                 }
             })
         })

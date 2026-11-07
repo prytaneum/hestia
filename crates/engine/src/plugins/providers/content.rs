@@ -13,20 +13,20 @@ use proto::content::{
     ContentKind, ContentProject, ContentVersion, SearchQuery, SearchResult, SourceInfo, SourceUrl,
     VersionQuery,
 };
-use proto::error::ErrorInfo;
 use proto::plugin::{Manifest, CONTENT_PROVIDER};
 use serde::de::DeserializeOwned;
 use serde_json::{json, Value};
 
-use super::chain::CallChain;
-use super::http::download_allowed;
-use super::runtime::{LoadedPlugin, PROVIDER_TIMEOUT};
+use super::call_failed;
 use crate::content::provider::{ContentProvider, LocalFile, UrlRef};
 use crate::content::Content;
+use crate::plugins::chain::CallChain;
+use crate::plugins::http::download_allowed;
+use crate::plugins::runtime::{LoadedPlugin, PROVIDER_TIMEOUT};
 
 /// One function of the `content-source` export.
 #[derive(Debug, Clone, Copy)]
-pub(super) enum SourceOp {
+pub(in crate::plugins) enum SourceOp {
     Info,
     ParseUrl,
     Search,
@@ -92,11 +92,7 @@ impl PluginContentProvider {
     }
 
     fn failed(&self, detail: String) -> anyhow::Error {
-        ErrorInfo::PluginCallFailed {
-            id: self.plugin.id().to_string(),
-            detail,
-        }
-        .into()
+        call_failed(self.plugin.id(), detail)
     }
 
     fn project_of(&self, mut project: ContentProject) -> ContentProject {

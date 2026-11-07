@@ -73,7 +73,13 @@ impl Plugins {
             Ok(Err(error)) => {
                 let message = format!("{error:#}");
                 tracing::warn!(plugin = %id, error = %message, "dev plugin cannot be reloaded");
-                self.settle(&id, PluginState::Failed, Some(message), None, Vec::new());
+                self.settle(
+                    &id,
+                    PluginState::Failed,
+                    Some(message),
+                    None,
+                    Default::default(),
+                );
             }
             Err(error) => tracing::error!(plugin = %id, %error, "dev reload task failed"),
         }

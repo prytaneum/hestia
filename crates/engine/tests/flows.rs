@@ -3,6 +3,7 @@
 //! of them fails.
 
 mod content_source;
+mod flavor;
 
 use crate::fixture;
 

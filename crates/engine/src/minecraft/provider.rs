@@ -147,6 +147,7 @@ pub struct FlavorInfo {
 
 pub const BOTH_SIDES: &[Side] = &[Side::Server, Side::Client];
 pub const SERVER_ONLY: &[Side] = &[Side::Server];
+pub const CLIENT_ONLY: &[Side] = &[Side::Client];
 
 #[async_trait]
 pub trait FlavorProvider: Send + Sync {

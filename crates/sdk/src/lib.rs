@@ -23,6 +23,8 @@ mod call;
 mod command;
 pub mod data;
 mod error;
+#[doc(hidden)]
+pub mod flavor;
 mod hooks;
 pub mod http;
 pub mod log;
@@ -43,7 +45,9 @@ use proto::content::{
     ContentKind, ContentProject, ContentVersion, SearchQuery, SearchResult, SourceInfo, SourceUrl,
     VersionQuery,
 };
+use proto::minecraft::GameVersion;
 use proto::plugin::PageContext;
+use proto::profile::{FlavorDescription, InstanceProfile, ServerProfile};
 pub use serde_json::{self, json, Value};
 use std::collections::HashMap;
 use ui::{Action, Effect, UiNode};
@@ -213,6 +217,47 @@ pub trait Plugin {
     ) -> Result<HashMap<String, ContentVersion>, Error> {
         let _ = (source, sha1s);
         Ok(HashMap::new())
+    }
+
+    /// Describes the flavor `flavor` that the manifest contributes under
+    /// `contributes.providers`. One plugin may contribute several; each
+    /// `flavor_*` method receives the id of the one being asked.
+    fn flavor_info(flavor: &str) -> Result<FlavorDescription, Error> {
+        Err(Error::NotFound(format!("unknown flavor `{flavor}`")))
+    }
+
+    /// The game versions the flavor supports, newest first.
+    fn flavor_versions(flavor: &str) -> Result<Vec<GameVersion>, Error> {
+        Err(Error::NotFound(format!("unknown flavor `{flavor}`")))
+    }
+
+    /// The loader builds for a game version, newest first; none by default.
+    fn flavor_loader_versions(flavor: &str, game: &str) -> Result<Vec<String>, Error> {
+        let _ = (flavor, game);
+        Ok(Vec::new())
+    }
+
+    /// The launch profile of a server. Every artifact must carry a sha1 and sit
+    /// on one of the plugin's network hosts, or the host refuses the profile.
+    /// The jar must be a download: a plugin cannot build one.
+    fn flavor_resolve_server(
+        flavor: &str,
+        version: &str,
+        loader_version: Option<&str>,
+    ) -> Result<ServerProfile, Error> {
+        let _ = (version, loader_version);
+        Err(Error::NotFound(format!("unknown flavor `{flavor}`")))
+    }
+
+    /// The launch profile of a client, under the same rules as
+    /// [`flavor_resolve_server`](Plugin::flavor_resolve_server).
+    fn flavor_resolve_client(
+        flavor: &str,
+        version: &str,
+        loader_version: Option<&str>,
+    ) -> Result<InstanceProfile, Error> {
+        let _ = (version, loader_version);
+        Err(Error::NotFound(format!("unknown flavor `{flavor}`")))
     }
 }
 
@@ -428,6 +473,74 @@ macro_rules! plugin {
                 > {
                     $crate::source::answer(&args, |args: $crate::source::Sha1Args| {
                         <$plugin as $crate::Plugin>::source_identify(&source, args.sha1s)
+                    })
+                }
+            }
+
+            impl $crate::bindings::exports::hestia::plugin::flavor::Guest for Export {
+                fn info(
+                    flavor: ::std::string::String,
+                ) -> ::core::result::Result<
+                    ::std::string::String,
+                    $crate::bindings::hestia::plugin::types::PluginError,
+                > {
+                    $crate::source::answer("null", |(): ()| {
+                        <$plugin as $crate::Plugin>::flavor_info(&flavor)
+                    })
+                }
+
+                fn versions(
+                    flavor: ::std::string::String,
+                ) -> ::core::result::Result<
+                    ::std::string::String,
+                    $crate::bindings::hestia::plugin::types::PluginError,
+                > {
+                    $crate::source::answer("null", |(): ()| {
+                        <$plugin as $crate::Plugin>::flavor_versions(&flavor)
+                    })
+                }
+
+                fn loader_versions(
+                    flavor: ::std::string::String,
+                    args: ::std::string::String,
+                ) -> ::core::result::Result<
+                    ::std::string::String,
+                    $crate::bindings::hestia::plugin::types::PluginError,
+                > {
+                    $crate::source::answer(&args, |args: $crate::flavor::GameArgs| {
+                        <$plugin as $crate::Plugin>::flavor_loader_versions(&flavor, &args.game)
+                    })
+                }
+
+                fn resolve_server(
+                    flavor: ::std::string::String,
+                    args: ::std::string::String,
+                ) -> ::core::result::Result<
+                    ::std::string::String,
+                    $crate::bindings::hestia::plugin::types::PluginError,
+                > {
+                    $crate::source::answer(&args, |args: $crate::flavor::ResolveArgs| {
+                        <$plugin as $crate::Plugin>::flavor_resolve_server(
+                            &flavor,
+                            &args.version,
+                            args.loader_version.as_deref(),
+                        )
+                    })
+                }
+
+                fn resolve_client(
+                    flavor: ::std::string::String,
+                    args: ::std::string::String,
+                ) -> ::core::result::Result<
+                    ::std::string::String,
+                    $crate::bindings::hestia::plugin::types::PluginError,
+                > {
+                    $crate::source::answer(&args, |args: $crate::flavor::ResolveArgs| {
+                        <$plugin as $crate::Plugin>::flavor_resolve_client(
+                            &flavor,
+                            &args.version,
+                            args.loader_version.as_deref(),
+                        )
                     })
                 }
             }

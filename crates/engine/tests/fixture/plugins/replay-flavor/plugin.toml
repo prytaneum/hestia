@@ -1,0 +1,10 @@
+id = "replay-flavor"
+version = "0.1.0"
+api = "^1.0.0"
+wasm = "plugin.wasm"
+permissions = ["flavor:provide", "network:connect"]
+network = ["files.example.com"]
+
+[[contributes.providers]]
+kind = "flavor"
+id = "replay"
