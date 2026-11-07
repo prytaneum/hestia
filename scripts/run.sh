@@ -20,9 +20,9 @@ target="${1:-cli}"
 shift || true
 
 case "$target" in
-  cli)     cargo run $profile -p cli -- "$@" ;;
-  daemon)  cargo build $profile -p tray
-           cargo run $profile -p daemon -- "$@" ;;
+  cli)     cargo run $profile --bin hestia -- "$@" ;;
+  daemon)  cargo build $profile
+           cargo run $profile --bin hestiad -- "$@" ;;
   desktop)
     if [ -n "$profile" ]; then
       scripts/sidecars.sh --ensure

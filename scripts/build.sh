@@ -35,11 +35,11 @@ done
 # Compiling the desktop crate requires the Tauri externalBin sidecars to be
 # staged, or its build script fails on the missing resource paths.
 case "$target" in
-  cli)     cargo build -p cli "$@" ;;
-  daemon)  cargo build -p daemon -p tray "$@" ;;
+  cli|daemon) cargo build "$@" ;;
   desktop) scripts/sidecars.sh --ensure "$sidecar_profile"
            (cd crates/desktop && cargo tauri build "$@") ;;
   all)     scripts/sidecars.sh --ensure "$sidecar_profile"
-           cargo build --workspace "$@" ;;
+           cargo build "$@"
+           cargo build -p desktop "$@" ;;
   *) echo "usage: $0 [cli|daemon|desktop|all] [cargo flags]" >&2; exit 1 ;;
 esac

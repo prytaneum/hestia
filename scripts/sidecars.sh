@@ -48,7 +48,7 @@ esac
 dest="crates/desktop/binaries"
 
 log "building $profile sidecars for $triple"
-cargo build "${build_args[@]}" "${target_args[@]}" -p cli -p daemon -p tray
+cargo build "${build_args[@]}" "${target_args[@]}"
 
 mkdir -p "$dest"
 for bin in hestia hestiad hestia-tray; do

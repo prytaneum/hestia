@@ -484,10 +484,14 @@ components, so `cargo test` needs the `wasm32-wasip2` target:
 
 ```bash
 rustup target add wasm32-wasip2
-cargo build -p cli -p daemon
-cargo clippy --workspace --all-targets -- -D warnings
-cargo test --workspace
+cargo build
+cargo clippy --all-targets -- -D warnings
+cargo test
 ```
+
+Run these at the root without `-p`: every member but `desktop` is a default member, and a `-p` selection resolves its
+own features and compiles a second wasmtime and Cranelift into `target/`. Narrow a test run by name instead
+(`cargo test plugins::`) ([0102](decisions/0102-one-feature-resolution-for-dev-builds.md)).
 
 Iterate interactively with `scripts/dev.sh` — it opens a subshell with `hestia`
 and `hestiad` on `PATH` (debug builds keep data in `target/<profile>/data`), or

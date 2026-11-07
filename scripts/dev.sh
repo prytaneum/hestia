@@ -43,7 +43,7 @@ while [ "$#" -gt 0 ]; do
 done
 
 log "Building daemon + tray + CLI ($mode)"
-cargo build "${flags[@]}" -p daemon -p tray -p cli
+cargo build "${flags[@]}"
 bindir="$PWD/target/$mode"
 
 # Nothing below `exec`s: bash does not run an EXIT trap across exec, so the dev
