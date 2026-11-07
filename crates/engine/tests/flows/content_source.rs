@@ -108,7 +108,7 @@ async fn a_mod_installs_from_a_source_a_plugin_contributes() {
 
 #[tokio::test]
 async fn the_source_is_offered_while_the_plugin_is_enabled_and_gone_after() {
-    let (engine, ..) = rig(&["127.0.0.1"]).await;
+    let (engine, _id, _home) = rig(&["127.0.0.1"]).await;
     let offered = |engine: &engine::Engine| {
         engine
             .content()
@@ -127,7 +127,7 @@ async fn the_source_is_offered_while_the_plugin_is_enabled_and_gone_after() {
 
 #[tokio::test]
 async fn a_file_outside_the_plugins_hosts_is_never_offered_for_download() {
-    let (engine, ..) = rig(&["index.example.com"]).await;
+    let (engine, _id, _home) = rig(&["index.example.com"]).await;
 
     let versions = engine
         .content()
@@ -144,7 +144,7 @@ async fn a_file_outside_the_plugins_hosts_is_never_offered_for_download() {
 
 #[tokio::test]
 async fn a_guest_failure_names_the_plugin() {
-    let (engine, ..) = rig(&["127.0.0.1"]).await;
+    let (engine, _id, _home) = rig(&["127.0.0.1"]).await;
 
     let error = engine
         .content()
