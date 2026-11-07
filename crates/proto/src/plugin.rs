@@ -152,6 +152,9 @@ pub enum Permission {
     /// Return an allowlisted patch from a launch or server-start hook.
     #[serde(rename = "launch:patch")]
     LaunchPatch,
+    /// Set the Discord status card the launcher publishes.
+    #[serde(rename = "presence:set")]
+    PresenceSet,
     /// Contribute a Minecraft flavor, which decides the main class, libraries and
     /// arguments the game runs with and so bypasses the launch-arg allowlist.
     #[serde(rename = "flavor:provide")]
@@ -184,7 +187,8 @@ impl Permission {
             | Permission::JavaManage
             | Permission::NetworkConnect
             | Permission::UiCss
-            | Permission::LaunchPatch => Tier::Sandboxed,
+            | Permission::LaunchPatch
+            | Permission::PresenceSet => Tier::Sandboxed,
         }
     }
 
@@ -212,6 +216,7 @@ impl Permission {
             Permission::LaunchPatch => {
                 "Adjust launch settings from an allowlist when a game or server starts"
             }
+            Permission::PresenceSet => "Set your Discord status card",
             Permission::FlavorProvide => {
                 "Add game distributions that choose what code the game runs, including its main class and arguments"
             }

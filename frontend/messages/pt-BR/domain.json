@@ -76,6 +76,7 @@
         "java_read": "Ver os runtimes do Java instalados e disponíveis",
         "launch_patch": "Ajustar configurações de inicialização, a partir de uma lista permitida, quando um jogo ou servidor inicia",
         "network_connect": "Conectar-se aos hosts que ele lista",
+        "presence_set": "Definir o seu cartão de status do Discord",
         "process_control": "Iniciar e parar servidores e jogos, e executar comandos do console",
         "process_read": "Ver quais servidores e jogos estão em execução",
         "process_spawn": "Executar os programas que ele lista",
