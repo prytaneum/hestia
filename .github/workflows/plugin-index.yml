@@ -11,8 +11,8 @@ on:
         required: true
     secrets:
       HESTIA_SIGNING_KEY:
-        description: The unencrypted minisign secret key written by `hestia plugin keygen --unencrypted`
-        required: true
+        description: The unencrypted minisign secret key written by `hestia plugin keygen --unencrypted`; while unset, nothing is published
+        required: false
 
 env:
   CARGO_TERM_COLOR: always
