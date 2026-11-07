@@ -54,6 +54,17 @@ Adding a flavor is one impl plus one registry line. The content flows never
 change, because what an entry accepts is composed from the provider's `loads`
 plus what the side reads for itself.
 
+A plugin adds one through its `flavor` export, wrapped in a
+`PluginFlavorProvider` (`engine/src/plugins/providers/flavor.rs`) and registered
+as `<plugin>.<id>` when the plugin is enabled. A flavor decides the code the game
+runs, so it needs the unrestricted `flavor:provide` permission, and the guest
+only describes: every profile it returns is vetted before the engine acts on it.
+Each artifact must carry a sha1 and sit on one of the plugin's network hosts,
+every path must stay relative, the Java major must be one the launcher knows,
+and the jar must be a download. One refusal fails the whole resolve. A plugin
+flavor has no install step yet, so it cannot build its own jar. The profile
+types live in `proto::profile` so the SDK can build them.
+
 ## Profiles — what a launch needs
 
 `resolve()` turns *(flavor, version, optional loader version)* into a
