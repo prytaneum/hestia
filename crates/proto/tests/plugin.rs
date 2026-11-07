@@ -276,6 +276,7 @@ mod manifest {
             .map(|kind| Setting {
                 key: "token".into(),
                 kind,
+                ..Setting::default()
             })
             .into();
         assert_eq!(
@@ -432,6 +433,7 @@ mod manifest {
                 settings: vec![Setting {
                     key: "key".into(),
                     kind: SettingKind::Secret,
+                    ..Setting::default()
                 }],
                 ..base.clone()
             },
