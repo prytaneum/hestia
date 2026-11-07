@@ -735,13 +735,12 @@ fn fingerprint(bytes: &[u8]) -> u32 {
         .filter(|b| !matches!(b, 9 | 10 | 13 | 32))
         .collect();
     let mut hash = 1 ^ data.len() as u32;
-    let mut words = data.chunks_exact(4);
-    for word in &mut words {
-        let mut k = u32::from_le_bytes([word[0], word[1], word[2], word[3]]).wrapping_mul(M);
+    let (words, tail) = data.as_chunks::<4>();
+    for word in words {
+        let mut k = u32::from_le_bytes(*word).wrapping_mul(M);
         k ^= k >> 24;
         hash = hash.wrapping_mul(M) ^ k.wrapping_mul(M);
     }
-    let tail = words.remainder();
     if !tail.is_empty() {
         for (i, byte) in tail.iter().enumerate() {
             hash ^= u32::from(*byte) << (8 * i);

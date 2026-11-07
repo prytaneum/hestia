@@ -170,7 +170,7 @@ impl ksni::Tray for Indicator {
 /// decoded RGBA rows are re-ordered per pixel rather than re-encoded.
 fn pixmap(raster: icon::Raster) -> Vec<Icon> {
     let mut data = raster.rgba;
-    for pixel in data.chunks_exact_mut(4) {
+    for pixel in data.as_chunks_mut::<4>().0 {
         pixel.rotate_right(1);
     }
     vec![Icon {

@@ -21,7 +21,7 @@ default-members = [
 version = "1.0.0-beta.3"
 edition = "2021"
 license = "GPL-3.0-only"
-rust-version = "1.85"
+rust-version = "1.99"
 publish = false
 
 [workspace.dependencies]
