@@ -44,7 +44,8 @@ deadline (`PROVIDER_TIMEOUT`), stamps its own id on everything returned, and map
 a guest failure to `PluginCallFailed` naming the plugin, never a raw message. The
 guest only describes files; the engine downloads them, and the adapter drops any
 version file whose URL is not https on one of the plugin's granted hosts, using
-the same host matching as `wasi:http`. `examples/plugins/static-index` is a
+the same host matching as `wasi:http`. The `static-index` example in
+[prytaneum/plugin-examples](https://github.com/prytaneum/plugin-examples/tree/main/plugins/static-index) is a
 source that serves an index compiled into the component. Content already installed from a
 source that is gone keeps its record, still lists and still loads;
 `content.list` names it in `unavailableSources` (from

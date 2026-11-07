@@ -37,7 +37,7 @@ plus what contains it.
 
 **The stable surface.** The shadcn colour variables in `frontend/src/styles.css`
 (`--background`, `--primary`, …) are what a theme should override. Component
-class names are not a contract. `examples/plugins/theme-ember-night` models it:
+class names are not a contract. [`theme-ember-night`](https://github.com/prytaneum/plugin-examples/tree/main/plugins/theme-ember-night) models it:
 variables only, under `.dark`, no `!important` (so a user's own snippet can
 still win, as Obsidian recommends).
 

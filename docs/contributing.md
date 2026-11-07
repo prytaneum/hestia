@@ -479,8 +479,9 @@ must be listed in that test's `DYNAMIC_PREFIXES` — otherwise the whole table r
 
 ## Build & run
 
-The core loop needs no webview or frontend deps. The tests build the example plugins under `examples/plugins/` into
-components, so `cargo test` needs the `wasm32-wasip2` target:
+The core loop needs no webview or frontend deps. The tests build the fixture plugins under `crates/*/tests/fixture/plugins/` into
+components, so `cargo test` needs the `wasm32-wasip2` target. Example plugins for authors live in
+[prytaneum/plugin-examples](https://github.com/prytaneum/plugin-examples) ([0103](decisions/0103-example-plugins-live-in-their-own-repository.md)):
 
 ```bash
 rustup target add wasm32-wasip2

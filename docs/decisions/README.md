@@ -44,6 +44,7 @@ the alternative you rejected — that is usually the part nobody can recover lat
 - **0003** — [A crash must survive the process that had no console](0003-crash-reports-survive-the-process.md)
 - **0054** — [Materialised game files live under one `meta/` root](0054-meta-root-for-materialised-files.md)
 - **0102** — [A dev build resolves features once, and keeps debug info out of the binaries](0102-one-feature-resolution-for-dev-builds.md)
+- **0103** — [Example plugins live in their own repository; test plugins are fixtures](0103-example-plugins-live-in-their-own-repository.md)
 
 ### [The engine](../architecture/engine.md)
 

@@ -9,6 +9,6 @@ publish = false
 crate-type = ["cdylib"]
 
 [dependencies]
-hestia-sdk = { path = "../../../crates/sdk" }
+hestia-sdk = { path = "../../../../../sdk" }
 
 [workspace]

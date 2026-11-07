@@ -3,10 +3,9 @@ updates:
   - package-ecosystem: cargo
     directories:
       - "/"
-      - "/examples/plugins/hello"
-      - "/examples/plugins/static-index"
-      - "/examples/plugins/tunnel-demo"
       - "/crates/engine/tests/fixture/plugins/probe"
+      - "/crates/engine/tests/fixture/plugins/static-index"
+      - "/crates/daemon/tests/fixture/plugins/hello"
     schedule:
       interval: weekly
     commit-message:

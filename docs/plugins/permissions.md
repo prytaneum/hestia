@@ -61,5 +61,5 @@ x86_64-pc-windows-msvc = "…"
   after a restart, and disabling or removing the plugin stops it.
 - `env` may not name `LD_*`, `DYLD_*`, `PATH` or a `*JAVA*OPTIONS` variable, and a shell cannot be declared as a program.
 
-The `examples/plugins/tunnel-demo` plugin starts a stand-in agent when a server starts and stops it when the server
+The [`tunnel-demo`](https://github.com/prytaneum/plugin-examples/tree/main/plugins/tunnel-demo) example plugin starts a stand-in agent when a server starts and stops it when the server
 exits.

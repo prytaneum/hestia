@@ -449,14 +449,6 @@ async fn a_set_setting_reaches_the_guest_and_only_its_own_plugin_reads_it() {
     assert!(own.list()[0].value.is_none());
 }
 
-#[test]
-fn the_tunnel_demo_declares_a_valid_program() {
-    let text = include_str!("../../../examples/plugins/tunnel-demo/plugin.toml");
-    let manifest: proto::plugin::Manifest = toml::from_str(text).expect("plugin.toml parses");
-    manifest.validate().expect("the manifest is valid");
-    assert_eq!(manifest.programs.len(), 1);
-}
-
 #[cfg(unix)]
 mod programs {
     use super::*;

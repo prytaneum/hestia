@@ -1,16 +1,16 @@
-//! Builds the `static-index` example plugin once per test binary.
+//! Builds the `static-index` fixture plugin once per test binary.
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::OnceLock;
 
-pub const MANIFEST: &str = include_str!("../../../../examples/plugins/static-index/plugin.toml");
+pub const MANIFEST: &str = include_str!("plugins/static-index/plugin.toml");
 
 pub fn component() -> &'static Path {
     static COMPONENT: OnceLock<PathBuf> = OnceLock::new();
     COMPONENT.get_or_init(|| {
         let manifest = Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../../examples/plugins/static-index/Cargo.toml");
+            .join("tests/fixture/plugins/static-index/Cargo.toml");
         let target_dir = Path::new(env!("CARGO_TARGET_TMPDIR")).join("plugins");
         let output = Command::new(env!("CARGO"))
             .args(["build", "--release", "--target", "wasm32-wasip2"])

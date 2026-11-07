@@ -514,12 +514,12 @@ async fn an_instance_target_is_gated_on_an_account_but_a_server_target_is_not() 
     ));
 }
 
-/// The `hello` example built into a component, once per test run.
+/// The `hello` fixture built into a component, once per test run.
 fn hello_component() -> &'static Path {
     static COMPONENT: OnceLock<PathBuf> = OnceLock::new();
     COMPONENT.get_or_init(|| {
         let manifest =
-            Path::new(env!("CARGO_MANIFEST_DIR")).join("../../examples/plugins/hello/Cargo.toml");
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixture/plugins/hello/Cargo.toml");
         let target_dir = Path::new(env!("CARGO_TARGET_TMPDIR")).join("plugins");
         let output = Command::new(env!("CARGO"))
             .args(["build", "--release", "--target", "wasm32-wasip2"])
