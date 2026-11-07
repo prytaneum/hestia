@@ -10,5 +10,6 @@
   "env": {
     "JAVATOOLOPTIONS": "-Xmx4G"
   },
+  "clearEnv": false,
   "log": "capture"
 }
