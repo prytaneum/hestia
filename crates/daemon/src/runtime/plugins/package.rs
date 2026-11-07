@@ -14,7 +14,10 @@ pub enum Package {
     Local(PathBuf),
     /// A folder run in place, never copied.
     Dev(PathBuf),
-    Downloaded { token: String, staged: Staged },
+    Downloaded {
+        token: String,
+        staged: Staged,
+    },
 }
 
 impl Package {

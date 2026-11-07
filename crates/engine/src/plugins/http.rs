@@ -120,11 +120,7 @@ pub fn download_allowed(grant: &Grant, url: &str) -> bool {
     let host = host.trim_end_matches('.').to_ascii_lowercase();
     let loopback = matches!(host.as_str(), "localhost" | "127.0.0.1" | "[::1]");
     let secure = url.scheme() == "https" || (url.scheme() == "http" && loopback);
-    secure
-        && grant
-            .network
-            .iter()
-            .any(|entry| host_matches(entry, &host))
+    secure && grant.network.iter().any(|entry| host_matches(entry, &host))
 }
 
 /// The `wasi:http` hooks of one plugin call.
@@ -312,7 +308,10 @@ mod tests {
 
     #[test]
     fn a_download_needs_a_granted_host_over_https() {
-        let grant = grant(&["files.example.com", "*.cdn.example.org", "127.0.0.1"], true);
+        let grant = grant(
+            &["files.example.com", "*.cdn.example.org", "127.0.0.1"],
+            true,
+        );
         for allowed in [
             "https://files.example.com/a.jar",
             "https://x.cdn.example.org/a.jar",

@@ -862,7 +862,8 @@ mod tests {
             "https://www.curseforge.com/minecraft/mc-mods/jei?utm=1#files",
         ] {
             let parsed = cf
-                .parse_url(url).await
+                .parse_url(url)
+                .await
                 .unwrap_or_else(|| panic!("should parse {url}"));
             assert_eq!(parsed.project, "jei");
             assert_eq!(parsed.version, None, "{url}");
@@ -870,32 +871,40 @@ mod tests {
         }
 
         assert_eq!(
-            cf.parse_url("https://www.curseforge.com/minecraft/mc-mods/jei/files/5101466").await
+            cf.parse_url("https://www.curseforge.com/minecraft/mc-mods/jei/files/5101466")
+                .await
                 .unwrap()
                 .version
                 .as_deref(),
             Some("5101466")
         );
         assert_eq!(
-            cf.parse_url("https://www.curseforge.com/minecraft/modpacks/atm10/download/123").await
+            cf.parse_url("https://www.curseforge.com/minecraft/modpacks/atm10/download/123")
+                .await
                 .unwrap()
                 .version
                 .as_deref(),
             Some("123")
         );
         assert_eq!(
-            cf.parse_url("https://www.curseforge.com/minecraft/texture-packs/faithful").await
+            cf.parse_url("https://www.curseforge.com/minecraft/texture-packs/faithful")
+                .await
                 .unwrap()
                 .kind,
             Some(ContentKind::ResourcePack)
         );
 
-        assert!(cf.parse_url("https://modrinth.com/mod/sodium").await.is_none());
         assert!(cf
-            .parse_url("https://www.curseforge.com/wow/addons/deadly-boss-mods").await
+            .parse_url("https://modrinth.com/mod/sodium")
+            .await
             .is_none());
         assert!(cf
-            .parse_url("https://www.curseforge.com/minecraft/mc-mods").await
+            .parse_url("https://www.curseforge.com/wow/addons/deadly-boss-mods")
+            .await
+            .is_none());
+        assert!(cf
+            .parse_url("https://www.curseforge.com/minecraft/mc-mods")
+            .await
             .is_none());
     }
 

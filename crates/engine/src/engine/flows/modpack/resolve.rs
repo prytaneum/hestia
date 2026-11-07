@@ -123,13 +123,13 @@ impl Engine {
 
         let (source, project_ref, pin) = match reference.url.is_empty() {
             false => {
-                let (source, parsed) = self
-                    .content
-                    .parse_url(&reference.url)
-                    .await
-                    .ok_or_else(|| ErrorInfo::UnsupportedContentUrl {
-                        url: reference.url.clone(),
-                    })?;
+                let (source, parsed) =
+                    self.content
+                        .parse_url(&reference.url)
+                        .await
+                        .ok_or_else(|| ErrorInfo::UnsupportedContentUrl {
+                            url: reference.url.clone(),
+                        })?;
                 let pin = parsed.version.unwrap_or_else(|| reference.version.clone());
                 (source, parsed.project, pin)
             }

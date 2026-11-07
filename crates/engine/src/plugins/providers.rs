@@ -186,9 +186,8 @@ impl ContentProvider for PluginContentProvider {
     }
 
     async fn projects(&self, ids: &[String]) -> Result<Vec<ContentProject>> {
-        let found: Vec<ContentProject> = self
-            .ask(SourceOp::Projects, json!({ "ids": ids }))
-            .await?;
+        let found: Vec<ContentProject> =
+            self.ask(SourceOp::Projects, json!({ "ids": ids })).await?;
         Ok(found
             .into_iter()
             .map(|project| self.project_of(project))

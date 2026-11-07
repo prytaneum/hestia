@@ -39,9 +39,7 @@ pub async fn run(
             return ui::show(View::line(show(setting, current)));
         }
     };
-    plugins
-        .set_setting(id, key, parse(setting, &raw)?)
-        .await?;
+    plugins.set_setting(id, key, parse(setting, &raw)?).await?;
     ui::show(View::line(format!("{key} saved")))
 }
 

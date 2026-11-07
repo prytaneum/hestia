@@ -606,19 +606,25 @@ mod tests {
             "https://modrinth.com/mod/sodium/versions",
         ] {
             let parsed = m
-                .parse_url(url).await
+                .parse_url(url)
+                .await
                 .unwrap_or_else(|| panic!("should parse {url}"));
             assert_eq!(parsed.project, "sodium");
             assert_eq!(parsed.version, None, "{url}");
         }
         let pinned = m
-            .parse_url("https://modrinth.com/mod/sodium/version/mc1.21.1-0.8.12-fabric").await
+            .parse_url("https://modrinth.com/mod/sodium/version/mc1.21.1-0.8.12-fabric")
+            .await
             .unwrap();
         assert_eq!(pinned.version.as_deref(), Some("mc1.21.1-0.8.12-fabric"));
 
-        assert!(m.parse_url("https://example.com/mod/sodium").await.is_none());
         assert!(m
-            .parse_url("https://modrinth.com/user/jellysquid3").await
+            .parse_url("https://example.com/mod/sodium")
+            .await
+            .is_none());
+        assert!(m
+            .parse_url("https://modrinth.com/user/jellysquid3")
+            .await
             .is_none());
         assert!(m.parse_url("modrinth.com/mod/sodium").await.is_none());
         assert!(m.parse_url("https://modrinth.com/mod").await.is_none());

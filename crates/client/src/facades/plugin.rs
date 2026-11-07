@@ -5,8 +5,8 @@ use proto::catalogue::{
 };
 use proto::plugin::{
     PluginAssetParams, PluginAssetResult, PluginInfo, PluginInspection, PluginInstallDone,
-    PluginInstallParams, PluginInstallProgress, PluginPackageRef, PluginPage, PluginRef,
-    PluginLogEvent, PluginRunDone, PluginRunParams, PluginRunProgress, PluginSettingsSetParams,
+    PluginInstallParams, PluginInstallProgress, PluginLogEvent, PluginPackageRef, PluginPage,
+    PluginRef, PluginRunDone, PluginRunParams, PluginRunProgress, PluginSettingsSetParams,
     PluginStateEvent, PluginUiActionParams, PluginUiRenderParams, SettingValue,
 };
 use proto::ui::{Effect, UiNode};
