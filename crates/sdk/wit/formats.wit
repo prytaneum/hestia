@@ -1,0 +1,26 @@
+package hestia:plugin@1.0.0;
+
+/// Every call names the contributed format it is for, because one plugin may
+/// contribute several. The host owns every archive: the guest is handed the
+/// manifest bytes and the member names, never the archive's contents, and it
+/// never touches a file. It answers with which members go where, and the host
+/// does the copying after checking every path.
+interface archive-format {
+    use types.{json, plugin-error};
+
+    /// `proto::format::FormatInfo`: `{ name, kind, marker }`.
+    info: func(format: string) -> result<json, plugin-error>;
+
+    /// `manifest` is the member named by the format's marker, at most 8 MiB;
+    /// `files` are the archive's member names. Answers a `proto::format::FormatBlueprint`.
+    read: func(format: string, manifest: list<u8>, files: list<string>) -> result<json, plugin-error>;
+
+    /// `blueprint` is what `read` answered. Answers a list of `proto::format::FormatCopy`
+    /// the host copies from the archive into the instance's game directory; every `archivePath`
+    /// must be one of `files`, and the whole answer is refused if any path escapes.
+    land: func(format: string, blueprint: json, files: list<string>) -> result<json, plugin-error>;
+
+    /// `blueprint` describes the instance; `files` are its paths relative to
+    /// the instance's game directory. Answers a `proto::format::FormatWritten`.
+    write: func(format: string, blueprint: json, files: list<string>) -> result<json, plugin-error>;
+}

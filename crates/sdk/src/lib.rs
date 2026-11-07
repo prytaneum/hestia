@@ -46,6 +46,7 @@ use proto::content::{
     ContentKind, ContentProject, ContentVersion, SearchQuery, SearchResult, SourceFileRef,
     SourceInfo, SourceUrl, VersionQuery,
 };
+use proto::format::{FormatBlueprint, FormatCopy, FormatInfo, FormatWritten};
 use proto::minecraft::GameVersion;
 use proto::plugin::PageContext;
 use proto::profile::{FlavorDescription, InstanceProfile, ServerProfile};
@@ -266,6 +267,48 @@ pub trait Plugin {
     ) -> Result<InstanceProfile, Error> {
         let _ = (version, loader_version);
         Err(Error::NotFound(format!("unknown flavor `{flavor}`")))
+    }
+
+    /// Describes the archive format `format` that the manifest contributes under
+    /// `contributes.providers`, with `kind = "format"`. Every `format_*` method
+    /// receives the id of the one being asked. The host owns the archive; the
+    /// guest only sees the manifest and the member names.
+    fn format_info(format: &str) -> Result<FormatInfo, Error> {
+        Err(Error::NotFound(format!("unknown format `{format}`")))
+    }
+
+    /// Reads the archive's manifest, the member named by the format's marker,
+    /// into the instance it describes. `files` are the archive's member names.
+    fn format_read(
+        format: &str,
+        manifest: &[u8],
+        files: &[String],
+    ) -> Result<FormatBlueprint, Error> {
+        let _ = (manifest, files);
+        Err(Error::NotFound(format!("unknown format `{format}`")))
+    }
+
+    /// Names the archive members the host copies into the new instance's game
+    /// directory, and where. The host refuses the whole answer if a path escapes or names a
+    /// member not in `files`.
+    fn format_land(
+        format: &str,
+        blueprint: FormatBlueprint,
+        files: &[String],
+    ) -> Result<Vec<FormatCopy>, Error> {
+        let _ = (blueprint, files);
+        Err(Error::NotFound(format!("unknown format `{format}`")))
+    }
+
+    /// Writes the manifest of an export and names the instance files the host
+    /// copies into the archive. `files` are paths relative to the instance.
+    fn format_write(
+        format: &str,
+        blueprint: FormatBlueprint,
+        files: &[String],
+    ) -> Result<FormatWritten, Error> {
+        let _ = (blueprint, files);
+        Err(Error::NotFound(format!("unknown format `{format}`")))
     }
 }
 
@@ -561,6 +604,58 @@ macro_rules! plugin {
                             &args.version,
                             args.loader_version.as_deref(),
                         )
+                    })
+                }
+            }
+
+            impl $crate::bindings::exports::hestia::plugin::archive_format::Guest for Export {
+                fn info(
+                    format: ::std::string::String,
+                ) -> ::core::result::Result<
+                    ::std::string::String,
+                    $crate::bindings::hestia::plugin::types::PluginError,
+                > {
+                    $crate::source::answer("null", |(): ()| {
+                        <$plugin as $crate::Plugin>::format_info(&format)
+                    })
+                }
+
+                fn read(
+                    format: ::std::string::String,
+                    manifest: ::std::vec::Vec<u8>,
+                    files: ::std::vec::Vec<::std::string::String>,
+                ) -> ::core::result::Result<
+                    ::std::string::String,
+                    $crate::bindings::hestia::plugin::types::PluginError,
+                > {
+                    $crate::source::answer("null", |(): ()| {
+                        <$plugin as $crate::Plugin>::format_read(&format, &manifest, &files)
+                    })
+                }
+
+                fn land(
+                    format: ::std::string::String,
+                    blueprint: ::std::string::String,
+                    files: ::std::vec::Vec<::std::string::String>,
+                ) -> ::core::result::Result<
+                    ::std::string::String,
+                    $crate::bindings::hestia::plugin::types::PluginError,
+                > {
+                    $crate::source::answer(&blueprint, |blueprint| {
+                        <$plugin as $crate::Plugin>::format_land(&format, blueprint, &files)
+                    })
+                }
+
+                fn write(
+                    format: ::std::string::String,
+                    blueprint: ::std::string::String,
+                    files: ::std::vec::Vec<::std::string::String>,
+                ) -> ::core::result::Result<
+                    ::std::string::String,
+                    $crate::bindings::hestia::plugin::types::PluginError,
+                > {
+                    $crate::source::answer(&blueprint, |blueprint| {
+                        <$plugin as $crate::Plugin>::format_write(&format, blueprint, &files)
                     })
                 }
             }

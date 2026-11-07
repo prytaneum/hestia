@@ -56,4 +56,5 @@ world plugin {
     export content-hooks;
     export content-source;
     export flavor;
+    export archive-format;
 }
