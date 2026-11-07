@@ -1,7 +1,8 @@
 //! The plugin API is every contract and topic that names a `PLUGIN` permission,
-//! plus the WIT package. `golden/plugin-api.json` snapshots its shape, as the
-//! ts-rs declarations of every type it reaches, so a change to it is a reviewed
-//! diff rather than an accident. While the plugin API is unreleased a change does
+//! the JSON payloads of the guest exports, and the WIT package.
+//! `golden/plugin-api.json` snapshots its shape, as the ts-rs declarations of
+//! every type it reaches, so a change to it is a reviewed diff rather than an
+//! accident. While the plugin API is unreleased a change does
 //! not bump `API_VERSION`; the snapshot is regenerated in place.
 //!
 //! Needs the `ts` feature: `cargo test -p proto --features ts --test plugin_api`.
@@ -75,6 +76,7 @@ fn without_comments(decl: &str) -> String {
 struct Api {
     types: Types,
     channels: BTreeMap<String, Value>,
+    guest: BTreeSet<String>,
     listed: BTreeMap<&'static str, BTreeSet<String>>,
 }
 
@@ -119,6 +121,13 @@ impl Api {
             entry["progress"] = json!(progress);
             entry["done"] = json!(done);
         }
+    }
+
+    /// A type a guest export takes or returns as JSON. No contract reaches it,
+    /// so it is rooted here.
+    fn guest<T: TS + 'static>(&mut self) {
+        let name = self.types.root::<T>();
+        self.guest.insert(name);
     }
 
     fn topic<T: Topic + TS + 'static>(&mut self) {
@@ -220,6 +229,12 @@ fn api() -> Api {
         process::ProcessExitEvent, process::ProcessMetricsEvent, process::ProcessOutputEvent,
         process::ProcessStartedEvent,
     );
+    each!(api.guest:
+        content::SourceInfo, content::SourceUrl, content::SearchQuery, content::SearchResult,
+        content::ContentProject, content::VersionQuery, content::ContentVersion,
+        minecraft::GameVersion,
+        profile::FlavorDescription, profile::ServerProfile, profile::InstanceProfile,
+    );
     api
 }
 
@@ -280,6 +295,7 @@ fn plugin_api_matches_its_snapshot() {
         "apiVersion": API_VERSION,
         "wit": wit(),
         "channels": api.channels,
+        "guest": api.guest,
         "types": api.types.decls,
     });
     let path = crate_dir().join("tests/golden/plugin-api.json");

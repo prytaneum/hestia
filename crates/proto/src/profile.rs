@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 
 /// A classpath dependency, resolved to its download and its path under the
 /// libraries root (Maven layout).
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
 #[serde(default, rename_all = "camelCase")]
 pub struct Library {
@@ -15,6 +16,7 @@ pub struct Library {
 /// A library the game loads through `java.library.path` rather than the
 /// classpath: a pre-1.19 manifest ships one classifier jar per OS
 /// (`downloads.classifiers["natives-linux"]`) for the launcher to unpack.
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
 #[serde(default, rename_all = "camelCase")]
 pub struct Native {
@@ -24,6 +26,7 @@ pub struct Native {
 }
 
 /// The asset index a client version pins (`assetIndex` in a vanilla profile).
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
 #[serde(default, rename_all = "camelCase")]
 pub struct AssetIndex {
@@ -32,6 +35,7 @@ pub struct AssetIndex {
     pub total_size: u64,
 }
 
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub enum ServerJar {
@@ -57,6 +61,7 @@ impl Default for ServerJar {
     }
 }
 
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub enum ServerLaunch {
@@ -67,6 +72,7 @@ pub enum ServerLaunch {
 }
 
 /// The resolved launch profile for a Minecraft *server*.
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
 #[serde(default, rename_all = "camelCase")]
 pub struct ServerProfile {
@@ -83,6 +89,7 @@ pub struct ServerProfile {
 }
 
 /// The resolved launch profile for a Minecraft *client* (instance).
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
 #[serde(default, rename_all = "camelCase")]
 pub struct InstanceProfile {
@@ -103,6 +110,7 @@ pub struct InstanceProfile {
 
 /// What a plugin's flavor says of itself: the `info` of the `flavor` export.
 /// The host registers it as `<plugin>.<id>`.
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
 #[derive(Serialize, Deserialize, Default, Debug, Clone, PartialEq, Eq)]
 #[serde(default, rename_all = "camelCase")]
 pub struct FlavorDescription {
