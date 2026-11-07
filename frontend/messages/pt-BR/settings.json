@@ -131,6 +131,8 @@
         "network": "Hosts de rede",
         "permissions": "Permissões",
         "programs": "Programas que ele pode executar",
+        "program_env": "pode receber {names}",
+        "program_path": "executa {path}",
         "secret_settings": "Configurações secretas",
         "themes": "Temas"
       },

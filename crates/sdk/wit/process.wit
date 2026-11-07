@@ -1,0 +1,49 @@
+package hestia:plugin@1.0.0;
+
+/// Runs the programs the manifest declares, and only those. Every function
+/// answers `permission-denied` unless the plugin holds `process:spawn`, and a
+/// program or argument list the manifest did not declare is refused the same
+/// way. There is no shell: arguments are passed as given, the working
+/// directory is the plugin's `data/`, and the environment starts empty plus
+/// the variables the program declares.
+interface process {
+    use types.{plugin-error};
+
+    record exec-output {
+        /// `none` when the program was ended by a signal.
+        status: option<s32>,
+        /// Each stream is cut at 1 MiB.
+        stdout: list<u8>,
+        stderr: list<u8>,
+    }
+
+    enum state {
+        running,
+        exited,
+        killed,
+    }
+
+    record process-status {
+        state: state,
+        exit-code: option<s32>,
+    }
+
+    /// Runs a short-lived program to completion; one that outlasts `timeout-ms` is killed.
+    exec: func(program: string, args: list<string>, timeout-ms: u32) -> result<exec-output, plugin-error>;
+
+    /// Starts a long-lived program under the daemon's supervisor and returns its
+    /// process id. The id is persistent: it names the process after the daemon
+    /// restarts, and `list` finds it again.
+    spawn: func(program: string, args: list<string>, env: list<tuple<string, string>>) -> result<string, plugin-error>;
+
+    /// Asks one of the plugin's own processes to stop.
+    stop: func(id: string) -> result<_, plugin-error>;
+
+    status: func(id: string) -> result<process-status, plugin-error>;
+
+    /// The last `tail` captured output lines of one of the plugin's own processes.
+    logs: func(id: string, tail: u32) -> result<list<string>, plugin-error>;
+
+    /// The ids of the plugin's own running processes.
+    %list: func() -> result<list<string>, plugin-error>;
+}

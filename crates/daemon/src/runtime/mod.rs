@@ -68,6 +68,7 @@ pub async fn start_server(
         log: LogSource::File(plan.cwd.join("logs").join("latest.log")),
         cwd: Some(plan.cwd),
         env: Default::default(),
+        ..ProcessSpec::default()
     };
     match processes.start(spec).await {
         Ok(info) => Ok((info, warnings)),

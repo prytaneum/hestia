@@ -9,6 +9,7 @@ use proto::error::ErrorInfo;
 use proto::plugin::PluginSource;
 
 use super::install::{digest_package, invalid, Source};
+use super::program::pin_programs;
 use super::store::{PluginRecord, Plugins, MANIFEST, PACKAGE};
 
 impl Plugins {
@@ -44,6 +45,7 @@ impl Plugins {
         }
         let (wasm_sha256, theme_sha256) = digest_package(&manifest, &root, validate)?;
 
+        let program_paths = pin_programs(&manifest.id, &manifest);
         let id = manifest.id;
         let installed = self.get(&id);
         let copied = self.plugin_dir(&id)?.join(PACKAGE);
@@ -59,6 +61,7 @@ impl Plugins {
             dev_path: Some(root),
             wasm_sha256,
             theme_sha256,
+            program_paths,
             grant,
             grant_digest,
             enabled: installed.is_none_or(|record| record.enabled),

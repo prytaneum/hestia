@@ -106,9 +106,55 @@ impl Plugin for Probe {
             "stubborn" => loop {
                 std::thread::sleep(Duration::from_millis(10));
             },
+            "exec" => {
+                let (program, argv) = program_call(&args);
+                let output = hestia::process::exec(&program, &refs(&argv), Duration::from_secs(10))?;
+                Ok(json!({
+                    "status": output.status,
+                    "stdout": String::from_utf8_lossy(&output.stdout),
+                }))
+            }
+            "spawn" => {
+                let (program, argv) = program_call(&args);
+                let env: Vec<(String, String)> = args["env"]
+                    .as_object()
+                    .into_iter()
+                    .flatten()
+                    .map(|(name, value)| (name.clone(), value.as_str().unwrap_or_default().into()))
+                    .collect();
+                let env: Vec<(&str, &str)> = env
+                    .iter()
+                    .map(|(name, value)| (name.as_str(), value.as_str()))
+                    .collect();
+                Ok(json!(hestia::process::spawn(&program, &refs(&argv), &env)?))
+            }
+            "stop" => {
+                hestia::process::stop(args["id"].as_str().unwrap_or_default())?;
+                Ok(json!(null))
+            }
+            "running" => Ok(json!(hestia::process::list()?)),
+            "state" => {
+                let status = hestia::process::status(args["id"].as_str().unwrap_or_default())?;
+                Ok(json!(format!("{:?}", status.state)))
+            }
             _ => Err(Error::NotFound(format!("unknown command `{command}`"))),
         }
     }
+}
+
+fn program_call(args: &Value) -> (String, Vec<String>) {
+    let program = args["program"].as_str().unwrap_or_default().to_string();
+    let argv = args["args"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|arg| arg.as_str().map(str::to_string))
+        .collect();
+    (program, argv)
+}
+
+fn refs(argv: &[String]) -> Vec<&str> {
+    argv.iter().map(String::as_str).collect()
 }
 
 fn answer(key: &str) -> Result<LaunchPatch, String> {

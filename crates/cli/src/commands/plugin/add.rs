@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 use anyhow::{bail, Context, Result};
 use client::proto::catalogue::{Availability, CatalogueParams, CataloguePlugin};
 use client::proto::plugin::{Grant, Permission, PluginInspection, Tier};
@@ -237,7 +239,7 @@ pub(super) fn show_grant(inspection: &PluginInspection) -> Result<()> {
         ),
     };
     ui::show(View::line(heading))?;
-    let rows = grant_rows(grant);
+    let rows = grant_rows(grant, &inspection.program_paths);
     if rows.is_empty() {
         return ui::show(View::note(match inspection.replaces {
             Some(_) => "asks for nothing new",
@@ -254,7 +256,10 @@ pub(super) fn show_grant(inspection: &PluginInspection) -> Result<()> {
     ui::show(View::detail(rows))
 }
 
-fn grant_rows(grant: &Grant) -> Vec<(&'static str, String)> {
+fn grant_rows(
+    grant: &Grant,
+    program_paths: &BTreeMap<String, String>,
+) -> Vec<(&'static str, String)> {
     let (unrestricted, sandboxed): (Vec<&Permission>, Vec<&Permission>) = grant
         .permissions
         .iter()
@@ -278,6 +283,9 @@ fn grant_rows(grant: &Grant) -> Vec<(&'static str, String)> {
         if !program.env.is_empty() {
             let env: Vec<&str> = program.env.iter().map(String::as_str).collect();
             line = format!("{line} (env: {})", env.join(", "));
+        }
+        if let Some(path) = program_paths.get(&program.id) {
+            line = format!("{line} → {path}");
         }
         ("Program", format!("{}: {line}", program.id))
     }));

@@ -331,6 +331,26 @@ impl ProcessSupervisor {
         }
     }
 
+    /// Asks every running process owned by `owner` to stop and returns their
+    /// ids, for a caller that then waits on them.
+    pub fn stop_owned(&self, owner: &str) -> Vec<String> {
+        let owned: Vec<(String, Arc<Entry>)> = self
+            .table
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|(_, entry)| {
+                entry.is_running() && entry.snapshot().owner.as_deref() == Some(owner)
+            })
+            .map(|(id, entry)| (id.clone(), entry.clone()))
+            .collect();
+        for (id, entry) in &owned {
+            tracing::info!(id, owner, "stopping a process of its owner");
+            entry.request_stop();
+        }
+        owned.into_iter().map(|(id, _)| id).collect()
+    }
+
     /// Stop the named processes and wait for each to exit. False when one is
     /// still running after [`STOP_WAIT`] — a caller about to reuse the tree
     /// abandons the work rather than start over a process that may hold it.
@@ -542,6 +562,9 @@ fn build_command(spec: &ProcessSpec, out: Stdio, err: Stdio) -> Command {
     );
     if let Some(cwd) = &spec.cwd {
         cmd.current_dir(cwd);
+    }
+    if spec.clear_env {
+        cmd.env_clear();
     }
     for (key, value) in &spec.env {
         cmd.env(key, value);

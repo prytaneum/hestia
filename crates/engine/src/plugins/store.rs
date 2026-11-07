@@ -43,6 +43,9 @@ pub struct PluginRecord {
     /// What the user approved.
     pub grant: Grant,
     pub grant_digest: String,
+    /// Program id to the absolute path its `PATH` name resolved to when the
+    /// grant was approved; the only path that program ever runs from.
+    pub program_paths: BTreeMap<String, PathBuf>,
     pub enabled: bool,
     pub installed_unix: i64,
 }

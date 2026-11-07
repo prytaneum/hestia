@@ -47,7 +47,7 @@ pub(super) fn register(on: &mut Channels<'_>) {
     );
 
     on.handle::<PluginRemove, _, _>(|p, ctx| async move {
-        ctx.runtime.plugins().remove(&p.id)?;
+        ctx.runtime.plugins().remove(&p.id).await?;
         Ok(Empty {})
     });
 

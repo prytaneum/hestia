@@ -159,6 +159,7 @@ async fn launch(
         log: LogSource::File(prepared.log_file),
         cwd: Some(prepared.plan.cwd),
         env: BTreeMap::new(),
+        ..ProcessSpec::default()
     };
     match processes.start(spec).await {
         Ok(info) => {

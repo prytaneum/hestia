@@ -13,6 +13,7 @@ use wasmtime_wasi_http::{WasiHttpCtx, WasiHttpCtxView, WasiHttpView};
 use super::chain::CallChain;
 use super::http::PluginHttp;
 use super::output::PluginLog;
+use super::process::{ProgramError, Programs};
 use super::settings::PluginSettings;
 use crate::cancel::Cancel;
 
@@ -92,6 +93,7 @@ pub(crate) struct PluginState {
     pub(crate) log: Arc<PluginLog>,
     pub(crate) settings: Arc<PluginSettings>,
     pub(crate) gate: Arc<Gate>,
+    pub(crate) programs: Arc<Programs>,
 }
 
 /// What a `host.call` is checked against. Apart from [`PluginState`] so an
@@ -234,3 +236,70 @@ impl bindings::hestia::plugin::log::Host for PluginState {
 }
 
 impl bindings::hestia::plugin::types::Host for PluginState {}
+
+impl From<ProgramError> for PluginError {
+    fn from(error: ProgramError) -> Self {
+        match error {
+            ProgramError::Denied(message) => PluginError::PermissionDenied(message),
+            ProgramError::NotFound(message) => PluginError::NotFound(message),
+            ProgramError::Invalid(message) => PluginError::Invalid(message),
+            ProgramError::Failed(message) => PluginError::Failed(message),
+        }
+    }
+}
+
+impl bindings::hestia::plugin::process::Host for PluginState {
+    async fn exec(
+        &mut self,
+        program: String,
+        args: Vec<String>,
+        timeout_ms: u32,
+    ) -> Result<bindings::hestia::plugin::process::ExecOutput, PluginError> {
+        let programs = self.programs.clone();
+        let output = programs.exec(&program, args, timeout_ms).await?;
+        Ok(bindings::hestia::plugin::process::ExecOutput {
+            status: output.status,
+            stdout: output.stdout,
+            stderr: output.stderr,
+        })
+    }
+
+    async fn spawn(
+        &mut self,
+        program: String,
+        args: Vec<String>,
+        env: Vec<(String, String)>,
+    ) -> Result<String, PluginError> {
+        let programs = self.programs.clone();
+        Ok(programs.spawn(&program, args, env).await?)
+    }
+
+    async fn stop(&mut self, id: String) -> Result<(), PluginError> {
+        Ok(self.programs.stop(&id)?)
+    }
+
+    async fn status(
+        &mut self,
+        id: String,
+    ) -> Result<bindings::hestia::plugin::process::ProcessStatus, PluginError> {
+        use bindings::hestia::plugin::process::{ProcessStatus, State};
+        use proto::process::ProcessState;
+        let info = self.programs.status(&id)?;
+        Ok(ProcessStatus {
+            state: match info.state {
+                ProcessState::Running => State::Running,
+                ProcessState::Exited => State::Exited,
+                ProcessState::Killed => State::Killed,
+            },
+            exit_code: info.exit_code,
+        })
+    }
+
+    async fn logs(&mut self, id: String, tail: u32) -> Result<Vec<String>, PluginError> {
+        Ok(self.programs.logs(&id, tail)?)
+    }
+
+    async fn list(&mut self) -> Result<Vec<String>, PluginError> {
+        Ok(self.programs.list()?)
+    }
+}

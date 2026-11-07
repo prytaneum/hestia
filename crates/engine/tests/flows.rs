@@ -1751,8 +1751,12 @@ mod launch_hooks {
         hooks: [&str; H],
     ) -> (Arc<Loaded>, std::path::PathBuf) {
         let wasm = std::fs::read(fixture::probe::component()).expect("probe component");
-        let runtime =
-            PluginRuntime::new(Arc::new(NoHost), home.join("plugin-cache")).expect("runtime");
+        let runtime = PluginRuntime::new(
+            Arc::new(NoHost),
+            home.join("plugin-cache"),
+            Arc::new(engine::ProcessSupervisor::new(home.join("processes"))),
+        )
+        .expect("runtime");
         let record = PluginRecord {
             id: "probe".into(),
             wasm_sha256: Some(

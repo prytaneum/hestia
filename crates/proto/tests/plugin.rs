@@ -329,6 +329,131 @@ mod manifest {
         }
     }
 
+    fn spawning(program: Program) -> Manifest {
+        Manifest {
+            permissions: vec![Permission::ProcessSpawn],
+            programs: vec![Program {
+                id: "agent".into(),
+                ..program
+            }],
+            ..valid()
+        }
+    }
+
+    fn path_program(command: &str, args: &[&str]) -> Program {
+        Program {
+            command: command.into(),
+            args: args.iter().map(|arg| arg.to_string()).collect(),
+            ..Program::default()
+        }
+    }
+
+    #[test]
+    fn a_program_needs_the_spawn_permission() {
+        let manifest = Manifest {
+            permissions: vec![],
+            ..spawning(path_program("tailscale", &[]))
+        };
+        assert_eq!(
+            manifest.validate(),
+            Err(ManifestError::ProgramPermissionMissing)
+        );
+        assert_eq!(spawning(path_program("tailscale", &[])).validate(), Ok(()));
+    }
+
+    #[test]
+    fn a_program_declaring_a_loader_variable_is_rejected() {
+        for name in [
+            "LD_PRELOAD",
+            "ld_library_path",
+            "DYLD_INSERT_LIBRARIES",
+            "PATH",
+            "Path",
+            "JAVA_TOOL_OPTIONS",
+            "_JAVA_OPTIONS",
+            "JDK_JAVA_OPTIONS",
+            "1BAD",
+            "A=B",
+            "",
+        ] {
+            let manifest = spawning(Program {
+                env: [name.to_string()].into(),
+                ..path_program("tailscale", &[])
+            });
+            assert_eq!(
+                manifest.validate(),
+                Err(ManifestError::BadProgramEnv(name.into())),
+                "{name}"
+            );
+        }
+        let allowed = spawning(Program {
+            env: ["TS_AUTHKEY".to_string(), "JAVA_HOME".to_string()].into(),
+            ..path_program("tailscale", &[])
+        });
+        assert_eq!(allowed.validate(), Ok(()));
+    }
+
+    #[test]
+    fn a_program_is_a_plain_name_or_a_hashed_file_inside_data() {
+        let hash = "0".repeat(64);
+        let hashed = |command: &str, hash: &str| Program {
+            sha256: [("x86_64-unknown-linux-gnu".to_string(), hash.to_string())].into(),
+            ..path_program(command, &[])
+        };
+        for bad in [
+            "sh", "bash", "cmd.exe", "bin/sh", "../x", "/bin/ls", "-x", "a b",
+        ] {
+            let program = if bad.contains('/') {
+                hashed(bad, &hash)
+            } else {
+                path_program(bad, &[])
+            };
+            assert!(
+                matches!(
+                    spawning(program).validate(),
+                    Err(ManifestError::BadProgram(_))
+                ),
+                "{bad}"
+            );
+        }
+        assert_eq!(
+            spawning(path_program("bin/playit", &[])).validate(),
+            Err(ManifestError::ProgramNeedsHash("agent".into()))
+        );
+        assert!(matches!(
+            spawning(hashed("bin/playit", "ABC")).validate(),
+            Err(ManifestError::BadProgram(_))
+        ));
+        assert_eq!(spawning(hashed("bin/playit", &hash)).validate(), Ok(()));
+    }
+
+    #[test]
+    fn program_arguments_match_literals_one_token_and_a_trailing_rest() {
+        let args =
+            |tokens: &[&str]| -> Vec<String> { tokens.iter().map(|t| t.to_string()).collect() };
+        let status = path_program("tailscale", &["status", "--json"]);
+        assert!(status.permits(&args(&["status", "--json"])));
+        assert!(!status.permits(&args(&["status"])));
+        assert!(!status.permits(&args(&["status", "--json", "x"])));
+        assert!(!status.permits(&args(&["up", "--json"])));
+
+        let up = path_program("tailscale", &["up", "--authkey", "*"]);
+        assert!(up.permits(&args(&["up", "--authkey", "k"])));
+        assert!(!up.permits(&args(&["up", "--authkey"])));
+
+        let install = path_program("gem", &["install", "**"]);
+        assert!(install.permits(&args(&["install"])));
+        assert!(install.permits(&args(&["install", "a", "b"])));
+        assert!(!install.permits(&args(&["uninstall", "a"])));
+
+        assert!(path_program("x", &[]).permits(&[]));
+        assert!(!path_program("x", &[]).permits(&args(&["a"])));
+        assert_eq!(
+            spawning(path_program("x", &["**", "a"])).validate(),
+            Err(ManifestError::BadProgram("agent".into()))
+        );
+    }
+
     fn command(scope: CommandScope, args: &[&str]) -> Manifest {
         let mut manifest = valid();
         manifest.contributes.commands.push(CommandContribution {

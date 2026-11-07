@@ -12,6 +12,12 @@ use super::*;
 use crate::checksum::hex;
 use crate::plugins::{HostCalls, HostError};
 
+fn supervisor(data: &tempfile::TempDir) -> Arc<crate::process::ProcessSupervisor> {
+    Arc::new(crate::process::ProcessSupervisor::new(
+        data.path().join("processes"),
+    ))
+}
+
 const PLUGIN_ERROR: &str = r#"(variant (case "permission-denied" string) (case "not-found" string) (case "invalid" string) (case "failed" string))"#;
 
 /// A component exporting `lifecycle.init`; `body` runs first. With
@@ -278,7 +284,8 @@ fn load(
     permissions: &[Permission],
 ) -> (Arc<LoadedPlugin>, tempfile::TempDir) {
     let data = tempfile::tempdir().unwrap();
-    let runtime = PluginRuntime::new(host.clone(), data.path().join("cache")).unwrap();
+    let runtime =
+        PluginRuntime::new(host.clone(), data.path().join("cache"), supervisor(&data)).unwrap();
     let plugin = runtime
         .load(
             &record(wat, permissions),
@@ -397,7 +404,7 @@ async fn three_traps_take_the_plugin_out_of_service() {
 async fn a_component_that_differs_from_its_recorded_hash_is_not_compiled() {
     let host = Arc::new(TestHost::default());
     let data = tempfile::tempdir().unwrap();
-    let runtime = PluginRuntime::new(host, data.path().join("cache")).unwrap();
+    let runtime = PluginRuntime::new(host, data.path().join("cache"), supervisor(&data)).unwrap();
     let recorded = guest(false, "");
     let tampered = guest(false, "unreachable");
 

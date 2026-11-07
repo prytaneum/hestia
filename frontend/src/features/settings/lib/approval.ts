@@ -77,6 +77,7 @@ const values = (list: string[]): GrantItem[] =>
 export function describeGrant(
   grant: Grant,
   unrestricted: Permission[],
+  programPaths: Record<string, string> = {},
 ): DescribedSection[] {
   const full = new Set(unrestricted);
   const sections: Array<[GrantSectionKind, GrantItem[]]> = [
@@ -89,7 +90,19 @@ export function describeGrant(
       'programs',
       grant.programs.map((program) => ({
         label: program.id,
-        detail: [program.command, ...program.args].join(' '),
+        detail: [
+          [program.command, ...program.args].join(' '),
+          program.env.length > 0 &&
+            m['settings.plugins.grant.program_env']({
+              names: program.env.join(', '),
+            }),
+          programPaths[program.id] &&
+            m['settings.plugins.grant.program_path']({
+              path: programPaths[program.id],
+            }),
+        ]
+          .filter(Boolean)
+          .join(' · '),
       })),
     ],
     ['network', values(grant.network)],
@@ -109,7 +122,11 @@ export function describeApproval(
   inspection: PluginInspection,
 ): DescribedSection[] {
   const grant = inspection.replaces ? inspection.widened : inspection.grant;
-  return describeGrant(grant, inspection.unrestricted);
+  return describeGrant(
+    grant,
+    inspection.unrestricted,
+    inspection.programPaths,
+  );
 }
 
 export interface ApprovalDialog {

@@ -51,6 +51,7 @@ async fn stopping_a_process_stops_its_children() {
             cwd: Some(dir.path().to_path_buf()),
             env: BTreeMap::new(),
             log: LogSource::Capture,
+            ..ProcessSpec::default()
         })
         .await
         .expect("the process starts");

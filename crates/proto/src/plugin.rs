@@ -380,6 +380,121 @@ pub struct Program {
     pub sha256: BTreeMap<String, String>,
 }
 
+const SHELLS: [&str; 12] = [
+    "sh",
+    "bash",
+    "zsh",
+    "dash",
+    "fish",
+    "ksh",
+    "csh",
+    "tcsh",
+    "cmd",
+    "powershell",
+    "pwsh",
+    "wscript",
+];
+const ANY_REST: &str = "**";
+const ANY_ONE: &str = "*";
+
+impl Program {
+    /// A command with a slash is a path inside the plugin's data directory;
+    /// one without is a name resolved on `PATH` when the grant is approved.
+    pub fn in_data_dir(&self) -> bool {
+        self.command.contains('/')
+    }
+
+    /// Whether `args` match the declared patterns: a literal token matches
+    /// itself, `*` any one token, and a trailing `**` any rest, including none.
+    pub fn permits(&self, args: &[String]) -> bool {
+        let (fixed, rest) = match self.args.split_last() {
+            Some((last, fixed)) if last == ANY_REST => (fixed, true),
+            _ => (&self.args[..], false),
+        };
+        let length = if rest {
+            args.len() >= fixed.len()
+        } else {
+            args.len() == fixed.len()
+        };
+        length
+            && fixed
+                .iter()
+                .zip(args)
+                .all(|(pattern, arg)| pattern == ANY_ONE || pattern == arg)
+    }
+
+    fn validate(&self) -> Result<(), ManifestError> {
+        let bad = || ManifestError::BadProgram(self.id.clone());
+        let name = self.command.rsplit('/').next().unwrap_or_default();
+        let stem = name
+            .strip_suffix(".exe")
+            .unwrap_or(name)
+            .to_ascii_lowercase();
+        if SHELLS.contains(&stem.as_str()) || self.command.contains('\0') {
+            return Err(bad());
+        }
+        if self.in_data_dir() {
+            if !stays_inside(&self.command) {
+                return Err(bad());
+            }
+            if self.sha256.is_empty() {
+                return Err(ManifestError::ProgramNeedsHash(self.id.clone()));
+            }
+            let hashes_ok = self.sha256.iter().all(|(triple, hash)| {
+                !triple.is_empty()
+                    && triple
+                        .bytes()
+                        .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-'))
+                    && hash.len() == 64
+                    && hash
+                        .bytes()
+                        .all(|byte| matches!(byte, b'0'..=b'9' | b'a'..=b'f'))
+            });
+            if !hashes_ok {
+                return Err(bad());
+            }
+        } else if !(1..=64).contains(&name.len())
+            || name.starts_with(['.', '-'])
+            || !name.bytes().all(|byte| {
+                byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b'-' | b'+')
+            })
+        {
+            return Err(bad());
+        }
+        let last = self.args.len().saturating_sub(1);
+        if self
+            .args
+            .iter()
+            .enumerate()
+            .any(|(at, arg)| arg.contains('\0') || (arg == ANY_REST && at != last))
+        {
+            return Err(bad());
+        }
+        match self.env.iter().find(|name| !is_program_env(name)) {
+            Some(name) => Err(ManifestError::BadProgramEnv(name.clone())),
+            None => Ok(()),
+        }
+    }
+}
+
+/// Whether `name` may be declared in a program's `env`: a plain variable name
+/// that is not one that loads code or redirects the program's own lookups.
+/// No declaration unlocks a refused one.
+pub fn is_program_env(name: &str) -> bool {
+    let upper = name.to_ascii_uppercase();
+    (1..=128).contains(&name.len())
+        && !name.starts_with(|first: char| first.is_ascii_digit())
+        && name
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || byte == b'_')
+        && !upper.starts_with("LD_")
+        && !upper.starts_with("DYLD_")
+        && upper != "PATH"
+        && !upper
+            .find("JAVA")
+            .is_some_and(|at| upper[at..].contains("OPTIONS"))
+}
+
 #[derive(Serialize, Deserialize, Default, Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
 #[serde(default, rename_all = "camelCase")]
@@ -571,6 +686,14 @@ pub enum ManifestError {
     },
     #[error("provider `{0}` needs at least one network host to fetch from")]
     ProviderNeedsHosts(String),
+    #[error("program `{0}` needs a plain command name or a path inside data/, no shell, and well-formed arguments and hashes")]
+    BadProgram(String),
+    #[error("program `{0}` runs from data/ and must declare a sha256 per target triple")]
+    ProgramNeedsHash(String),
+    #[error("program environment variable `{0}` is not a valid name, or is one no plugin may set")]
+    BadProgramEnv(String),
+    #[error("programs need the permission `process:spawn`")]
+    ProgramPermissionMissing,
 }
 
 impl Manifest {
@@ -633,6 +756,12 @@ impl Manifest {
             if let Some(Err(detail)) = setting.default.as_ref().map(|value| setting.check(value)) {
                 return Err(bad(&format!("default {detail}")));
             }
+        }
+        if !self.programs.is_empty() && !self.permissions.contains(&Permission::ProcessSpawn) {
+            return Err(ManifestError::ProgramPermissionMissing);
+        }
+        for program in &self.programs {
+            program.validate()?;
         }
         let contributes = &self.contributes;
         let lists: [Vec<&String>; 7] = [
@@ -1097,6 +1226,9 @@ pub struct PluginInspection {
     /// approve (`widened`; the whole grant when new), so a front-end states
     /// full access without a tier table of its own.
     pub unrestricted: Vec<Permission>,
+    /// Program id to the absolute path its `PATH` name resolves to on this
+    /// computer, the one an install pins; a program not found is absent.
+    pub program_paths: BTreeMap<String, String>,
     /// For a `url` inspection: names the downloaded file. Hand it back as
     /// [`PluginInstallParams::staged`] so the install uses that file and does
     /// not download again.

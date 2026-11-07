@@ -11,6 +11,7 @@ use proto::error::ErrorInfo;
 use proto::plugin::{Grant, Manifest, PluginInstallPhase, PluginSource};
 use sha2::{Digest, Sha256};
 
+use super::program::pin_programs;
 use super::remote::Staged;
 use super::store::{PluginRecord, Plugins, MANIFEST, PACKAGE, STAGING_SUFFIX};
 use crate::cancel::Cancel;
@@ -31,6 +32,8 @@ pub struct Inspection {
     pub grant: Grant,
     pub grant_digest: String,
     pub installed: Option<PluginRecord>,
+    /// Where each `PATH` program resolves now; see [`pin_programs`].
+    pub program_paths: BTreeMap<String, PathBuf>,
 }
 
 pub(super) enum Source {
@@ -151,6 +154,7 @@ impl Plugins {
         Ok(Inspection {
             grant_digest: grant.digest(),
             installed: self.get(&manifest.id),
+            program_paths: pin_programs(&manifest.id, &manifest),
             manifest,
             grant,
         })
@@ -232,6 +236,7 @@ impl Plugins {
             bail!(ErrorInfo::PluginApprovalStale);
         }
         let (wasm_sha256, theme_sha256) = digest_package(&manifest, &staged, validate)?;
+        let program_paths = pin_programs(&id, &manifest);
         cancel.check()?;
 
         on_phase(PluginInstallPhase::Installing);
@@ -255,6 +260,7 @@ impl Plugins {
             theme_sha256,
             grant,
             grant_digest,
+            program_paths,
             enabled: installed.as_ref().is_none_or(|record| record.enabled),
             installed_unix: common::now_unix(),
         };

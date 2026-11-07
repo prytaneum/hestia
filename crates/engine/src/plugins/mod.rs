@@ -17,6 +17,8 @@ mod install;
 mod official;
 mod output;
 mod patch;
+mod process;
+mod program;
 mod providers;
 mod remote;
 mod repos;
@@ -41,6 +43,9 @@ pub(crate) use index::{declared_key, expand, open};
 pub use install::Inspection;
 pub use official::{is_official_signer, refuse_official_key};
 pub use patch::LaunchPatch;
+pub use process::owner_of;
+pub use program::{resolve_on_path, target_triple};
+pub use providers::{connect_sources, register_sources, PluginContentProvider};
 pub use remote::{Origin, Remote, Staged};
 pub use repos::{key_id_of, revocation, verify_build, verify_index, RepoError};
 pub(crate) use repositories::{cache_index, cached_index, Repositories, RepositoryEntry};
@@ -49,5 +54,4 @@ pub use runtime::{
     EVENT_TIMEOUT, HOOK_TIMEOUT, PROVIDER_TIMEOUT, UI_TIMEOUT,
 };
 pub use settings::{PluginSettings, SettingsError};
-pub use providers::{connect_sources, register_sources, PluginContentProvider};
 pub use store::{PluginPackage, PluginRecord, Plugins};

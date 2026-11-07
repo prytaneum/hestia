@@ -38,14 +38,21 @@ pub struct Ended {
 
 impl ProcessRecord {
     /// The spec is stored with its credentials masked; the real one only lives
-    /// in memory long enough to spawn.
+    /// in memory long enough to spawn. An owned process (a plugin's) keeps no
+    /// arguments at all: they are its owner's secrets, and `process.list`
+    /// shows this record to every client.
     pub fn for_spawn(spec: &ProcessSpec, pid: u32, started_unix: i64) -> Self {
+        let args = if spec.owner.is_some() {
+            Vec::new()
+        } else {
+            secrets::redact(&spec.args)
+        };
         ProcessRecord {
             id: spec.id.clone(),
             pid,
             pid_started: identity::identify(pid).unwrap_or(0),
             spec: ProcessSpec {
-                args: secrets::redact(&spec.args),
+                args,
                 ..spec.clone()
             },
             started_unix,
@@ -77,6 +84,7 @@ impl ProcessRecord {
             state,
             exit_code,
             started_unix: self.started_unix,
+            owner: self.spec.owner.clone(),
         }
     }
 }

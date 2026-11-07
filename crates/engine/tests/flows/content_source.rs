@@ -26,8 +26,12 @@ fn load(
 ) -> (Arc<LoadedPlugin>, Manifest) {
     let manifest = manifest();
     let wasm = std::fs::read(fixture::index::component()).expect("static-index component");
-    let runtime =
-        PluginRuntime::new(Arc::new(NoHost), home.join("plugin-cache")).expect("runtime");
+    let runtime = PluginRuntime::new(
+        Arc::new(NoHost),
+        home.join("plugin-cache"),
+        Arc::new(engine::ProcessSupervisor::new(home.join("processes"))),
+    )
+    .expect("runtime");
     let mut grant = manifest.grant();
     grant.network = hosts.iter().map(|host| host.to_string()).collect();
     let record = PluginRecord {
@@ -49,9 +53,7 @@ fn load(
     )
     .expect("base url");
     let settings = engine::PluginSettings::new(home.join("static-index-settings.json"), Vec::new());
-    let plugin = runtime
-        .load(&record, &wasm, data, settings)
-        .expect("load");
+    let plugin = runtime.load(&record, &wasm, data, settings).expect("load");
     (Arc::new(plugin), manifest)
 }
 

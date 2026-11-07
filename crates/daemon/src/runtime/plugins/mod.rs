@@ -79,7 +79,11 @@ impl Plugins {
 
     /// Creates the sandbox that plugins run in; `host` is what they may call.
     pub fn attach(&self, host: Arc<dyn HostCalls>) -> anyhow::Result<()> {
-        let sandbox = PluginRuntime::new(host.clone(), self.engine.plugin_cache_dir())?;
+        let sandbox = PluginRuntime::new(
+            host.clone(),
+            self.engine.plugin_cache_dir(),
+            self.engine.processes().clone(),
+        )?;
         self.host
             .set(host)
             .map_err(|_| anyhow::anyhow!("the plugin runtime is already attached"))?;
@@ -160,6 +164,7 @@ impl Plugins {
             .map_err(internal)?;
         record.enabled = false;
         self.settle(id, PluginState::Disabled, None, None, Vec::new());
+        self.engine.processes().stop_owned(&engine::owner_of(id));
         Ok(self.info_of(record).await)
     }
 
@@ -187,6 +192,11 @@ impl Plugins {
             grant: inspection.grant,
             grant_digest: inspection.grant_digest,
             replaces,
+            program_paths: inspection
+                .program_paths
+                .into_iter()
+                .map(|(id, path)| (id, path.display().to_string()))
+                .collect(),
             staged: package.token().map(str::to_string),
         })
     }
@@ -383,8 +393,14 @@ impl Plugins {
             .is_some_and(|slot| slot.state == PluginState::Enabled)
     }
 
-    pub fn remove(&self, id: &str) -> ServiceResult<()> {
+    /// The programs the plugin started are stopped first: a running agent would
+    /// outlive the plugin that owns it, and on Windows hold its files open.
+    pub async fn remove(&self, id: &str) -> ServiceResult<()> {
         self.record(id)?;
+        let processes = self.engine.processes();
+        processes
+            .stop_and_wait(&processes.stop_owned(&engine::owner_of(id)))
+            .await;
         self.engine.plugins().remove(id).map_err(internal)?;
         self.slots.lock().unwrap().remove(id);
         self.engine.content().unregister(id);
@@ -672,7 +688,13 @@ mod tests {
         install(&engine, true);
         plugins.shutdown();
 
-        plugins.settle("demo", PluginState::Failed, Some("late".into()), None, Vec::new());
+        plugins.settle(
+            "demo",
+            PluginState::Failed,
+            Some("late".into()),
+            None,
+            Vec::new(),
+        );
 
         assert!(plugins.slots.lock().unwrap().is_empty());
     }

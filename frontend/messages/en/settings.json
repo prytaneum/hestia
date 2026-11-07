@@ -131,6 +131,8 @@
         "network": "Network hosts",
         "permissions": "Permissions",
         "programs": "Programs it can run",
+        "program_env": "may be given {names}",
+        "program_path": "runs {path}",
         "secret_settings": "Secret settings",
         "themes": "Themes"
       },

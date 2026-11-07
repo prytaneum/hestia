@@ -31,6 +31,11 @@ pub struct ProcessSpec {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cwd: Option<PathBuf>,
     pub env: BTreeMap<String, String>,
+    /// Start from an empty environment instead of the daemon's.
+    pub clear_env: bool,
+    /// Who the process belongs to, such as `plugin:<id>`; only its owner may stop it.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub owner: Option<String>,
     pub log: LogSource,
 }
 
@@ -70,6 +75,8 @@ pub struct ProcessInfo {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub exit_code: Option<i32>,
     pub started_unix: i64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub owner: Option<String>,
 }
 
 /// Which stream a captured log line came from.

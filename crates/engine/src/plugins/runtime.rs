@@ -25,10 +25,12 @@ use super::imports::bindings::exports::hestia::plugin::{content_hooks, launch_ho
 use super::imports::bindings::{self, hestia::plugin::types::PluginError};
 use super::imports::{CommandRun, Gate, HostCalls, PluginState};
 use super::output::{Captured, PluginLog};
-use super::settings::PluginSettings;
+use super::process::Programs;
 use super::providers::SourceOp;
+use super::settings::PluginSettings;
 use super::store::PluginRecord;
 use crate::checksum::hex;
+use crate::process::ProcessSupervisor;
 
 pub const EVENT_TIMEOUT: Duration = Duration::from_secs(5);
 pub const HOOK_TIMEOUT: Duration = Duration::from_secs(2);
@@ -127,13 +129,19 @@ pub struct PluginRuntime {
     linker: Arc<Linker<PluginState>>,
     pool: Arc<Semaphore>,
     host: Arc<dyn HostCalls>,
+    processes: Arc<ProcessSupervisor>,
     ticker: Arc<Ticker>,
     cache: ComponentCache,
 }
 
 impl PluginRuntime {
-    /// `cache_dir` holds the compiled components (`meta/plugins/`).
-    pub fn new(host: Arc<dyn HostCalls>, cache_dir: PathBuf) -> anyhow::Result<Self> {
+    /// `cache_dir` holds the compiled components (`meta/plugins/`); `processes`
+    /// supervises what plugins spawn.
+    pub fn new(
+        host: Arc<dyn HostCalls>,
+        cache_dir: PathBuf,
+        processes: Arc<ProcessSupervisor>,
+    ) -> anyhow::Result<Self> {
         let mut pooling = PoolingAllocationConfig::new();
         pooling
             .total_component_instances(POOL_SLOTS)
@@ -172,6 +180,7 @@ impl PluginRuntime {
             linker: Arc::new(linker),
             pool: Arc::new(Semaphore::new(POOL_SLOTS as usize)),
             host,
+            processes,
             ticker,
         })
     }
@@ -198,12 +207,23 @@ impl PluginRuntime {
         }
         let pre = self.link(expected, wasm)?;
         tracing::info!(plugin = %record.id, "plugin loaded");
+        let id: Arc<str> = Arc::from(record.id.as_str());
+        let grant = Arc::new(record.grant.clone());
+        let programs = Arc::new(Programs {
+            plugin: id.clone(),
+            grant: grant.clone(),
+            resolved: record.program_paths.clone(),
+            bin_dir: data_dir.with_file_name("bin"),
+            data_dir: data_dir.clone(),
+            supervisor: self.processes.clone(),
+        });
         Ok(LoadedPlugin {
-            id: Arc::from(record.id.as_str()),
+            id,
             engine: self.engine.clone(),
             pre,
             host: self.host.clone(),
-            grant: Arc::new(record.grant.clone()),
+            grant,
+            programs,
             data_dir,
             settings: Arc::new(settings),
             log: PluginLog::new(
@@ -253,6 +273,7 @@ pub struct LoadedPlugin {
     pre: bindings::PluginPre<PluginState>,
     host: Arc<dyn HostCalls>,
     grant: Arc<Grant>,
+    programs: Arc<Programs>,
     data_dir: PathBuf,
     settings: Arc<PluginSettings>,
     log: Arc<PluginLog>,
@@ -629,6 +650,7 @@ impl LoadedPlugin {
             limits,
             log: self.log.clone(),
             settings: self.settings.clone(),
+            programs: self.programs.clone(),
             gate: Arc::new(Gate {
                 plugin: self.id.clone(),
                 host: self.host.clone(),

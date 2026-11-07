@@ -3,13 +3,15 @@
 //! file says. The WAT-based unit tests in `runtime/tests.rs` cover the epoch
 //! deadline, the timeout and the host-side permission check.
 
+use std::collections::BTreeMap;
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
 use async_trait::async_trait;
 use engine::{
     command_args, CallChain, CallError, Cancel, CommandRun, HostCalls, HostError, LoadedPlugin,
-    PluginRecord, PluginRuntime, PluginSettings,
+    PluginRecord, PluginRuntime, PluginSettings, ProcessSupervisor,
 };
 use proto::error::ErrorInfo;
 use proto::plugin::{
@@ -66,6 +68,8 @@ fn declared_settings() -> Vec<Setting> {
 struct Probe {
     plugin: LoadedPlugin,
     data: tempfile::TempDir,
+    #[cfg_attr(not(unix), allow(dead_code))]
+    supervisor: Arc<ProcessSupervisor>,
 }
 
 impl Probe {
@@ -74,10 +78,24 @@ impl Probe {
     }
 
     fn load_with_network(permissions: &[Permission], network: &[&str]) -> Probe {
+        let grant = Grant {
+            permissions: permissions.iter().copied().collect(),
+            network: network.iter().map(|host| host.to_string()).collect(),
+            ..Grant::default()
+        };
+        Probe::load_with(grant, BTreeMap::new())
+    }
+
+    fn load_with(grant: Grant, program_paths: BTreeMap<String, PathBuf>) -> Probe {
         let wasm = std::fs::read(probe::component()).unwrap();
         let data = tempfile::tempdir().unwrap();
-        let runtime =
-            PluginRuntime::new(Arc::new(ReadChannels), data.path().join("cache")).unwrap();
+        let supervisor = Arc::new(ProcessSupervisor::new(data.path().join("processes")));
+        let runtime = PluginRuntime::new(
+            Arc::new(ReadChannels),
+            data.path().join("cache"),
+            supervisor.clone(),
+        )
+        .unwrap();
         let record = PluginRecord {
             id: "probe".into(),
             wasm_sha256: Some(
@@ -86,18 +104,19 @@ impl Probe {
                     .map(|byte| format!("{byte:02x}"))
                     .collect(),
             ),
-            grant: Grant {
-                permissions: permissions.iter().copied().collect(),
-                network: network.iter().map(|host| host.to_string()).collect(),
-                ..Grant::default()
-            },
+            grant,
+            program_paths,
             ..PluginRecord::default()
         };
         let dir = data.path().join("data");
         std::fs::create_dir_all(&dir).unwrap();
         let settings = PluginSettings::new(data.path().join("settings.json"), declared_settings());
         let plugin = runtime.load(&record, &wasm, dir, settings).unwrap();
-        Probe { plugin, data }
+        Probe {
+            plugin,
+            data,
+            supervisor,
+        }
     }
 
     fn set_mode(&self, mode: &str) {
@@ -429,4 +448,217 @@ async fn a_set_setting_reaches_the_guest_and_only_its_own_plugin_reads_it() {
     let other = PluginSettings::new(probe.data.path().join("other.json"), declared_settings());
     assert_eq!(other.get("api-key"), None);
     assert!(own.list()[0].value.is_none());
+}
+
+#[test]
+fn the_tunnel_demo_declares_a_valid_program() {
+    let text = include_str!("../../../examples/plugins/tunnel-demo/plugin.toml");
+    let manifest: proto::plugin::Manifest = toml::from_str(text).expect("plugin.toml parses");
+    manifest.validate().expect("the manifest is valid");
+    assert_eq!(manifest.programs.len(), 1);
+}
+
+#[cfg(unix)]
+mod programs {
+    use super::*;
+    use engine::{owner_of, resolve_on_path, target_triple};
+    use proto::plugin::Program;
+
+    fn spawning(programs: Vec<Program>) -> Grant {
+        Grant {
+            permissions: [Permission::ProcessSpawn].into(),
+            programs: programs.into_iter().collect(),
+            ..Grant::default()
+        }
+    }
+
+    fn on_path(id: &str, command: &str, args: &[&str], env: &[&str]) -> Program {
+        Program {
+            id: id.into(),
+            command: command.into(),
+            args: args.iter().map(|arg| arg.to_string()).collect(),
+            env: env.iter().map(|name| name.to_string()).collect(),
+            ..Program::default()
+        }
+    }
+
+    fn pinned(programs: &[&Program]) -> BTreeMap<String, PathBuf> {
+        programs
+            .iter()
+            .map(|program| {
+                let path = resolve_on_path(&program.command).expect("on PATH");
+                (program.id.clone(), path)
+            })
+            .collect()
+    }
+
+    async fn call(probe: &Probe, command: &str, args: Value) -> Result<Value, CallError> {
+        probe.run(command, args, &Cancel::new(), GRACE).await.0
+    }
+
+    fn refused(outcome: Result<Value, CallError>) -> String {
+        match outcome {
+            Err(CallError::Guest(message)) => message,
+            other => panic!("expected a refusal: {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn a_declared_program_runs_and_anything_else_is_refused() {
+        let echo = on_path("echo", "echo", &["hello", "*"], &[]);
+        let probe = Probe::load_with(spawning(vec![echo.clone()]), pinned(&[&echo]));
+
+        let ran = call(
+            &probe,
+            "exec",
+            json!({ "program": "echo", "args": ["hello", "world"] }),
+        )
+        .await
+        .unwrap();
+        assert_eq!(ran["status"], json!(0));
+        assert_eq!(ran["stdout"], json!("hello world\n"));
+
+        let undeclared = call(&probe, "exec", json!({ "program": "ls", "args": [] })).await;
+        assert!(refused(undeclared).contains("not a program"));
+        let outside = call(
+            &probe,
+            "exec",
+            json!({ "program": "echo", "args": ["bye"] }),
+        )
+        .await;
+        assert!(refused(outside).contains("outside"));
+    }
+
+    #[tokio::test]
+    async fn without_the_permission_nothing_runs() {
+        let echo = on_path("echo", "echo", &["**"], &[]);
+        let grant = Grant {
+            programs: [echo.clone()].into(),
+            ..Grant::default()
+        };
+        let probe = Probe::load_with(grant, pinned(&[&echo]));
+
+        let denied = call(&probe, "exec", json!({ "program": "echo", "args": [] })).await;
+        assert!(refused(denied).contains("process:spawn"));
+    }
+
+    #[tokio::test]
+    async fn an_undeclared_environment_name_is_refused() {
+        let sleep = on_path("sleeper", "sleep", &["*"], &["ALLOWED"]);
+        let probe = Probe::load_with(spawning(vec![sleep.clone()]), pinned(&[&sleep]));
+
+        let outcome = call(
+            &probe,
+            "spawn",
+            json!({ "program": "sleeper", "args": ["30"], "env": { "SECRET": "x" } }),
+        )
+        .await;
+        assert!(refused(outcome).contains("SECRET"));
+        assert!(probe.supervisor.list().is_empty());
+    }
+
+    fn data_program(sha256: &str) -> Program {
+        Program {
+            id: "agent".into(),
+            command: "bin/agent".into(),
+            args: vec!["**".into()],
+            sha256: [(target_triple(), sha256.to_string())].into(),
+            ..Program::default()
+        }
+    }
+
+    fn sha256_of(command: &str) -> String {
+        let bytes = std::fs::read(resolve_on_path(command).unwrap()).unwrap();
+        Sha256::digest(&bytes)
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect()
+    }
+
+    /// Puts a copy of the `PATH` program `command` at the plugin's `data/bin/agent`.
+    fn plant(probe: &Probe, command: &str) -> PathBuf {
+        let planted = probe.data.path().join("data/bin/agent");
+        std::fs::create_dir_all(planted.parent().unwrap()).unwrap();
+        std::fs::copy(resolve_on_path(command).unwrap(), &planted).unwrap();
+        planted
+    }
+
+    #[tokio::test]
+    async fn a_data_program_whose_hash_differs_is_refused() {
+        let probe = Probe::load_with(
+            spawning(vec![data_program(&"0".repeat(64))]),
+            BTreeMap::new(),
+        );
+        plant(&probe, "echo");
+
+        let outcome = call(
+            &probe,
+            "exec",
+            json!({ "program": "agent", "args": ["hi"] }),
+        )
+        .await;
+        assert!(refused(outcome).contains("sha256"));
+    }
+
+    #[tokio::test]
+    async fn rewriting_the_data_program_after_it_ran_changes_nothing() {
+        let probe = Probe::load_with(
+            spawning(vec![data_program(&sha256_of("echo"))]),
+            BTreeMap::new(),
+        );
+        let planted = plant(&probe, "echo");
+
+        let first = call(
+            &probe,
+            "exec",
+            json!({ "program": "agent", "args": ["hi"] }),
+        )
+        .await
+        .unwrap();
+        assert_eq!(first["stdout"], json!("hi\n"));
+
+        std::fs::copy(resolve_on_path("true").unwrap(), &planted).unwrap();
+        let second = call(
+            &probe,
+            "exec",
+            json!({ "program": "agent", "args": ["hi"] }),
+        )
+        .await
+        .unwrap();
+        assert_eq!(
+            second["stdout"],
+            json!("hi\n"),
+            "the host's verified copy runs"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_spawned_agent_is_supervised_found_again_and_stopped_with_its_owner() {
+        let sleep = on_path("sleeper", "sleep", &["*"], &[]);
+        let probe = Probe::load_with(spawning(vec![sleep.clone()]), pinned(&[&sleep]));
+
+        let id = call(
+            &probe,
+            "spawn",
+            json!({ "program": "sleeper", "args": ["30"] }),
+        )
+        .await
+        .unwrap();
+        let id = id.as_str().unwrap().to_string();
+        let listed = probe.supervisor.status(&id).expect("supervised");
+        assert_eq!(listed.owner.as_deref(), Some(owner_of("probe").as_str()));
+        assert!(
+            listed.args.is_empty(),
+            "a plugin's arguments are never recorded"
+        );
+
+        let running = call(&probe, "running", json!({})).await.unwrap();
+        assert_eq!(running, json!([id.clone()]), "a fresh call finds it");
+
+        let stopped = probe.supervisor.stop_owned(&owner_of("probe"));
+        assert_eq!(stopped, std::slice::from_ref(&id));
+        assert!(probe.supervisor.stop_and_wait(&stopped).await);
+        let running = call(&probe, "running", json!({})).await.unwrap();
+        assert_eq!(running, json!([]));
+    }
 }
