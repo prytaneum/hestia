@@ -114,19 +114,17 @@ fn describe(archive: &ArchiveInfo) -> String {
     };
     format!(
         "{} archive: '{}' — {} {}",
-        source_of(archive.format),
+        source_of(&archive.format),
         archive.name,
         loader,
         archive.game_version
     )
 }
 
-fn source_of(format: ImportFormat) -> &'static str {
+fn source_of(format: &ImportFormat) -> &str {
     match format {
-        ImportFormat::Hestia => "a hestia",
-        ImportFormat::Mrpack => "a Modrinth pack",
-        ImportFormat::Prism => "a Prism/MultiMC",
-        ImportFormat::CurseForge => "a CurseForge pack",
+        ImportFormat::Hestia => "hestia",
+        ImportFormat::Provider(provider) => &provider.name,
     }
 }
 

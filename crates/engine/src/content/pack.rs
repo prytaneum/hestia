@@ -17,6 +17,7 @@ use proto::content::{ModpackFile, ResolvedModpack, SideSupport};
 use proto::download::{Checksum, HashAlgorithm};
 use proto::error::{ArchiveFault, ErrorInfo};
 use proto::minecraft::{Artifact, ProvisionPhase};
+use proto::provider::Provider;
 use proto::transfer::ImportFormat;
 use serde_json::{Map, Value};
 
@@ -83,10 +84,11 @@ impl Format {
     }
 
     pub(crate) fn id(self) -> ImportFormat {
-        match self {
-            Format::Mrpack => ImportFormat::Mrpack,
-            Format::CurseForge => ImportFormat::CurseForge,
-        }
+        let (id, name) = match self {
+            Format::Mrpack => ("mrpack", "Modrinth pack"),
+            Format::CurseForge => ("curseforge", "CurseForge pack"),
+        };
+        ImportFormat::Provider(Provider::new(id, name))
     }
 }
 

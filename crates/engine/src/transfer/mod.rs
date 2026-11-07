@@ -245,6 +245,13 @@ pub(crate) fn loader_of(profile: &InstanceProfile) -> String {
 mod tests {
     use super::*;
 
+    fn provider_id(format: ImportFormat) -> String {
+        match format {
+            ImportFormat::Provider(provider) => provider.id,
+            ImportFormat::Hestia => "hestia".to_string(),
+        }
+    }
+
     fn names(list: &[&str]) -> Vec<String> {
         list.iter().map(|n| n.to_string()).collect()
     }
@@ -266,10 +273,10 @@ mod tests {
             |_| true,
         )
         .unwrap();
-        assert_eq!(mrpack.kind.id(), ImportFormat::Mrpack);
+        assert_eq!(provider_id(mrpack.kind.id()), "mrpack");
 
         let prism = detect(&names(&["instance.cfg", "mmc-pack.json"]), "a", |_| true).unwrap();
-        assert_eq!(prism.kind.id(), ImportFormat::Prism);
+        assert_eq!(provider_id(prism.kind.id()), "prism");
     }
 
     #[test]
@@ -284,7 +291,7 @@ mod tests {
             |_| true,
         )
         .unwrap();
-        assert_eq!(detected.kind.id(), ImportFormat::Prism);
+        assert_eq!(provider_id(detected.kind.id()), "prism");
         assert_eq!(detected.prefix, "My Pack/");
     }
 
@@ -311,7 +318,7 @@ mod tests {
             |_| true,
         )
         .unwrap();
-        assert_eq!(detected.kind.id(), ImportFormat::Prism);
+        assert_eq!(provider_id(detected.kind.id()), "prism");
         assert_eq!(detected.prefix, "");
     }
 
@@ -320,16 +327,16 @@ mod tests {
         let archive = names(&["manifest.json", "pack/instance.cfg"]);
 
         let claimed = detect(&archive, "a", |_| true).unwrap();
-        assert_eq!(claimed.kind.id(), ImportFormat::CurseForge);
+        assert_eq!(provider_id(claimed.kind.id()), "curseforge");
 
         let disowned = detect(&archive, "a", |_| false).unwrap();
-        assert_eq!(disowned.kind.id(), ImportFormat::Prism);
+        assert_eq!(provider_id(disowned.kind.id()), "prism");
     }
 
     #[test]
     fn the_shallowest_pack_marker_wins_whichever_format_it_is() {
         let archive = names(&["manifest.json", "overrides/config/modrinth.index.json"]);
         let detected = detect(&archive, "a", |_| true).unwrap();
-        assert_eq!(detected.kind.id(), ImportFormat::CurseForge);
+        assert_eq!(provider_id(detected.kind.id()), "curseforge");
     }
 }

@@ -14,6 +14,7 @@ use proto::content::{
 use proto::download::{Checksum, HashAlgorithm};
 use proto::error::Service;
 use proto::minecraft::Artifact;
+use proto::provider::Provider;
 use serde_json::Value;
 
 use super::json::{non_empty, parse_side, str_field, u64_field};
@@ -68,6 +69,10 @@ const LOADER_KINDS: [(&str, ContentKind); 18] = [
 ];
 
 pub(crate) const ID: &str = "modrinth";
+
+fn service() -> Service {
+    Service::Provider(Provider::new(ID, "Modrinth"))
+}
 
 pub struct Modrinth;
 
@@ -522,12 +527,9 @@ fn json_array(value: &str) -> String {
 
 async fn get_json(url: &str, query: &[(&str, String)]) -> Result<Value> {
     tracing::debug!(url, "modrinth GET");
-    let response = crate::net::send(
-        Some(Service::Modrinth),
-        crate::net::client().get(url).query(query),
-    )
-    .await?;
-    let response = crate::net::require_success(Service::Modrinth, response)?;
+    let response =
+        crate::net::send(Some(service()), crate::net::client().get(url).query(query)).await?;
+    let response = crate::net::require_success(service(), response)?;
     response
         .json()
         .await
@@ -536,12 +538,9 @@ async fn get_json(url: &str, query: &[(&str, String)]) -> Result<Value> {
 
 async fn post_json(url: &str, body: &Value) -> Result<Value> {
     tracing::debug!(url, "modrinth POST");
-    let response = crate::net::send(
-        Some(Service::Modrinth),
-        crate::net::client().post(url).json(body),
-    )
-    .await?;
-    let response = crate::net::require_success(Service::Modrinth, response)?;
+    let response =
+        crate::net::send(Some(service()), crate::net::client().post(url).json(body)).await?;
+    let response = crate::net::require_success(service(), response)?;
     response
         .json()
         .await

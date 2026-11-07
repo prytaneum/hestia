@@ -32,6 +32,7 @@ pub mod players;
 pub mod plugin;
 pub mod process;
 pub mod profile;
+pub mod provider;
 pub mod repository;
 pub mod screenshot;
 pub mod server;

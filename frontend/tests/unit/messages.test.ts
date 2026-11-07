@@ -28,9 +28,7 @@ const DYNAMIC_PREFIXES = [
   'domain.entry_type.',
   'domain.gamemode.',
   'domain.difficulty.',
-  'domain.flavor.',
   'domain.export_format.',
-  'domain.import_format.',
 ];
 
 function flatten(value: unknown, prefix = ''): Record<string, string> {

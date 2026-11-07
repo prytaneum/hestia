@@ -21,28 +21,7 @@
       "mrpack": "pacote Modrinth (.mrpack)"
     },
     "flavor": {
-      "bukkit": {
-        "summary": "O servidor de plugins em que o Spigot se baseia, sem as melhorias dele. Escolha o Spigot a menos que precise exatamente deste."
-      },
-      "fabric": {
-        "summary": "Um loader de mods leve e ágil. Costuma ser o primeiro a suportar uma nova versão do Minecraft."
-      },
-      "folia": {
-        "summary": "Paper distribuído entre os núcleos da CPU, para mundos muito grandes. Só funcionam plugins feitos para o Folia."
-      },
-      "neoforge": {
-        "summary": "Loader de mods para modpacks grandes e cheios de conteúdo. A primeira execução prepara os arquivos do jogo, então leva alguns minutos."
-      },
-      "paper": {
-        "summary": "Um servidor mais rápido que roda plugins do Bukkit, ajustado pela equipe do Paper para cada versão."
-      },
-      "requires": "Precisa do {name} instalado neste computador:",
-      "spigot": {
-        "summary": "O servidor de plugins clássico, com a maior biblioteca de plugins. Ninguém pode distribuí-lo pronto, então o Hestia o compila aqui na primeira vez — reserve alguns minutos."
-      },
-      "vanilla": {
-        "summary": "O jogo da Mojang, sem alterações. Aceita apenas datapacks — nada de mods ou plugins."
-      }
+      "requires": "Precisa do {name} instalado neste computador:"
     },
     "gamemode": {
       "adventure": "Aventura",
@@ -51,10 +30,7 @@
       "survival": "Sobrevivência"
     },
     "import_format": {
-      "curseforge": "pacote CurseForge",
-      "hestia": "arquivo hestia",
-      "mrpack": "pacote Modrinth",
-      "prism": "Prism / MultiMC"
+      "hestia": "arquivo hestia"
     },
     "kind": {
       "datapack": "Datapack",

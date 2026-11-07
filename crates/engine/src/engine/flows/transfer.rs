@@ -170,7 +170,7 @@ impl Engine {
         let mut reader = Reader::open(&path)?;
         let detected = detect(&mut reader, &path)?;
         let format = detected.kind.id();
-        tracing::info!(path = %path.display(), format = format.as_str(), "importing an instance");
+        tracing::info!(path = %path.display(), format = ?format, "importing an instance");
 
         let instance = match detected.kind {
             Kind::Instance(instance) => instance,

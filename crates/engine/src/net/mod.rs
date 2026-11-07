@@ -135,18 +135,22 @@ pub fn require_success(service: Service, response: Response) -> Result<Response>
 }
 
 pub async fn get_json<T: DeserializeOwned>(service: Service, url: &str) -> Result<T> {
-    let response = get(service, url).await?;
+    let response = get(service.clone(), url).await?;
     read_body(service, response.json::<T>().await)
 }
 
 pub async fn get_text(service: Service, url: &str) -> Result<String> {
-    let response = get(service, url).await?;
+    let response = get(service.clone(), url).await?;
     read_body(service, response.text().await)
 }
 
 pub async fn get(service: Service, url: &str) -> Result<Response> {
     tracing::debug!(url, %service, "GET");
-    let response = send(Some(service), client().get(url).timeout(META_TIMEOUT)).await?;
+    let response = send(
+        Some(service.clone()),
+        client().get(url).timeout(META_TIMEOUT),
+    )
+    .await?;
     require_success(service, response)
 }
 

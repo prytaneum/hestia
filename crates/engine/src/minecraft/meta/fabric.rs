@@ -8,16 +8,21 @@ use proto::minecraft::Artifact;
 use serde_json::Value;
 
 use proto::error::Service;
+use proto::provider::Provider;
 
 use super::{fetch_json, filename_of, maven_path};
 use crate::minecraft::profile::Library;
+
+fn service() -> Service {
+    Service::Provider(Provider::new("fabric", "Fabric"))
+}
 
 const META: &str = "https://meta.fabricmc.net/v2";
 const DEFAULT_MAVEN: &str = "https://maven.fabricmc.net/";
 
 /// The game versions Fabric supports, paired with their stability flag.
 pub async fn game_versions() -> Result<Vec<(String, bool)>> {
-    let j = fetch_json(Service::Fabric, &format!("{META}/versions/game")).await?;
+    let j = fetch_json(service(), &format!("{META}/versions/game")).await?;
     let arr = j
         .as_array()
         .context("fabric game-versions response is not an array")?;
@@ -32,7 +37,7 @@ pub async fn game_versions() -> Result<Vec<(String, bool)>> {
 }
 
 async fn loader_entries(game: &str) -> Result<Vec<Value>> {
-    match fetch_json(Service::Fabric, &format!("{META}/versions/loader/{game}")).await? {
+    match fetch_json(service(), &format!("{META}/versions/loader/{game}")).await? {
         Value::Array(entries) => Ok(entries),
         _ => anyhow::bail!("fabric loader response is not an array"),
     }
@@ -71,7 +76,7 @@ pub async fn latest_loader(game: &str) -> Result<String> {
 /// The newest installer: the first stable build, else the newest. The server
 /// launcher endpoint is keyed by it.
 pub async fn latest_installer() -> Result<String> {
-    let j = fetch_json(Service::Fabric, &format!("{META}/versions/installer")).await?;
+    let j = fetch_json(service(), &format!("{META}/versions/installer")).await?;
     let arr = j
         .as_array()
         .context("fabric installer response is not an array")?;
@@ -86,7 +91,7 @@ pub async fn latest_installer() -> Result<String> {
 
 pub async fn profile_json(game: &str, loader: &str) -> Result<Value> {
     fetch_json(
-        Service::Fabric,
+        service(),
         &format!("{META}/versions/loader/{game}/{loader}/profile/json"),
     )
     .await

@@ -10,8 +10,13 @@ use anyhow::Result;
 use serde_json::Value;
 
 use proto::error::Service;
+use proto::provider::Provider;
 
 use super::{fetch_json, fetch_text};
+
+fn service() -> Service {
+    Service::Provider(Provider::new("spigot", "SpigotMC"))
+}
 
 const HUB: &str = "https://hub.spigotmc.org";
 
@@ -33,7 +38,7 @@ const CLASS_FILE_OFFSET: i64 = 44;
 /// manifest, which is what leaves the game versions behind.
 pub async fn versions() -> Result<Vec<String>> {
     Ok(names(
-        &fetch_text(Service::Spigot, &format!("{HUB}/versions/")).await?,
+        &fetch_text(service(), &format!("{HUB}/versions/")).await?,
     ))
 }
 
@@ -52,7 +57,7 @@ fn names(index: &str) -> Vec<String> {
 /// for a version predating the field (the 1.8 line and older), which the caller
 /// reads as "whatever the era used".
 pub async fn java_versions(version: &str) -> Result<Vec<i32>> {
-    let body = fetch_json(Service::Spigot, &format!("{HUB}/versions/{version}.json")).await?;
+    let body = fetch_json(service(), &format!("{HUB}/versions/{version}.json")).await?;
     let mut majors: Vec<i32> = body
         .get("javaVersions")
         .and_then(Value::as_array)

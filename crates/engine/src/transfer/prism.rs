@@ -14,6 +14,7 @@
 
 use anyhow::Result;
 use proto::error::{ArchiveFault, ArchiveFormat, ErrorInfo};
+use proto::provider::Provider;
 use proto::transfer::ImportFormat;
 use serde_json::Value;
 
@@ -55,9 +56,13 @@ pub(crate) struct Instance {
 
 pub(crate) struct Prism;
 
+pub(crate) fn provider() -> Provider {
+    Provider::new("prism", "Prism / MultiMC")
+}
+
 impl Format for Prism {
     fn id(&self) -> ImportFormat {
-        ImportFormat::Prism
+        ImportFormat::Provider(provider())
     }
 
     fn marker(&self) -> &'static str {
@@ -115,7 +120,7 @@ fn describe(reader: &mut Reader, prefix: &str) -> Result<Instance> {
 
 fn invalid(reason: ArchiveFault) -> ErrorInfo {
     ErrorInfo::ArchiveInvalid {
-        format: ArchiveFormat::Prism,
+        format: ArchiveFormat::Provider(provider()),
         reason,
     }
 }

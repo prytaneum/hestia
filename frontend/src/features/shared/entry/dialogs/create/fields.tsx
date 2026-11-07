@@ -110,7 +110,7 @@ export function FlavorOption({
   selected: boolean;
   onSelect: () => void;
 }) {
-  const summary = flavorSummary(flavor);
+  const summary = flavor.summary;
   return (
     <button
       type="button"
@@ -184,17 +184,5 @@ export function VersionRow({
         </Badge>
       )}
     </button>
-  );
-}
-
-/**
- * A flavor's blurb: the localised message for a known id, else the daemon's own
- * summary. So a flavor the daemon ships renders immediately with nothing added
- * here, and a locale that has translated it keeps its translation.
- */
-function flavorSummary(flavor: Flavor): string {
-  const messages = m as unknown as Record<string, (() => string) | undefined>;
-  return (
-    messages[`domain.flavor.${flavor.id}.summary`]?.() ?? flavor.summary ?? ''
   );
 }

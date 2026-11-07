@@ -20,6 +20,7 @@ use proto::content::{
 use proto::download::{Checksum, HashAlgorithm};
 use proto::error::{ArchiveFault, ErrorInfo, Service};
 use proto::minecraft::Artifact;
+use proto::provider::Provider;
 use serde_json::{json, Value};
 
 use crate::config::ContentSettings;
@@ -31,6 +32,10 @@ use super::provider::{ContentProvider, LocalFile, UrlRef};
 const API: &str = "https://api.curseforge.com/v1";
 const SITE: &str = "curseforge.com";
 pub(crate) const ID: &str = "curseforge";
+
+fn service() -> Service {
+    Service::Provider(Provider::new(ID, "CurseForge"))
+}
 const PACK_MANIFEST: &str = "minecraftModpack";
 const NAME: &str = "CurseForge";
 
@@ -352,7 +357,7 @@ impl CurseForge {
         let url = format!("{API}{path}");
         tracing::debug!(url, "curseforge GET");
         let response = crate::net::send(
-            Some(Service::CurseForge),
+            Some(service()),
             crate::net::client()
                 .get(&url)
                 .query(query)
@@ -372,7 +377,7 @@ impl CurseForge {
         let url = format!("{API}{path}");
         tracing::debug!(url, "curseforge POST");
         let response = crate::net::send(
-            Some(Service::CurseForge),
+            Some(service()),
             crate::net::client()
                 .post(&url)
                 .header("x-api-key", key)
@@ -832,7 +837,7 @@ async fn json(path: &str, response: reqwest::Response) -> Result<Value> {
 
 fn upstream(detail: String) -> anyhow::Error {
     ErrorInfo::Upstream {
-        service: Service::CurseForge,
+        service: service(),
         detail,
     }
     .into()

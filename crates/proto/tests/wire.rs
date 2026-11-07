@@ -20,3 +20,16 @@ fn checksum_validation() {
     };
     assert!(!bad_char.is_valid());
 }
+
+#[test]
+fn a_provider_owned_name_is_externally_tagged() {
+    use proto::error::Service;
+    use proto::provider::Provider;
+
+    let open = serde_json::to_value(Service::Provider(Provider::new("fabric", "Fabric"))).unwrap();
+    assert_eq!(
+        open,
+        serde_json::json!({"provider": {"id": "fabric", "name": "Fabric"}})
+    );
+    assert_eq!(serde_json::to_value(Service::Mojang).unwrap(), "mojang");
+}

@@ -62,10 +62,12 @@ const TREE: ArchiveEntry[] = [
 ];
 
 const formatOf = (path: string): ImportFormat => {
-  if (path.endsWith('.mrpack')) return 'mrpack';
   if (path.endsWith('.hestia')) return 'hestia';
-  if (path.includes('curseforge')) return 'curseforge';
-  return 'prism';
+  if (path.endsWith('.mrpack'))
+    return { provider: { id: 'mrpack', name: 'Modrinth pack' } };
+  if (path.includes('curseforge'))
+    return { provider: { id: 'curseforge', name: 'CurseForge pack' } };
+  return { provider: { id: 'prism', name: 'Prism / MultiMC' } };
 };
 
 export const channels: ChannelHandlers = {

@@ -21,6 +21,7 @@ use crate::instance::InstanceInfo;
 use crate::job::{Job, JobStarted};
 use crate::minecraft::ProvisionProgress;
 use crate::plugin::Permission;
+use crate::provider::Provider;
 use crate::warning::WarningInfo;
 
 /// What an export writes. `Hestia` is hestia's own archive — the instance's
@@ -64,32 +65,16 @@ impl ExportFormat {
 /// What an archive turned out to be, recognised from a marker file inside it
 /// rather than from its extension — the extension is whatever the person who
 /// sent it happened to save it as.
-#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Default)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
 #[serde(rename_all = "snake_case")]
 pub enum ImportFormat {
     /// hestia's own export (`hestia.instance.json`).
     #[default]
     Hestia,
-    /// A Modrinth pack (`modrinth.index.json`) — installed through the ordinary
-    /// modpack path, so its mods join the pool as updatable content.
-    Mrpack,
-    /// A Prism Launcher / MultiMC / PolyMC instance (`instance.cfg`).
-    Prism,
-    /// A CurseForge pack (`manifest.json`), installed like a Modrinth one.
-    #[serde(rename = "curseforge")]
-    CurseForge,
-}
-
-impl ImportFormat {
-    pub fn as_str(self) -> &'static str {
-        match self {
-            ImportFormat::Hestia => "hestia",
-            ImportFormat::Mrpack => "mrpack",
-            ImportFormat::Prism => "prism",
-            ImportFormat::CurseForge => "curseforge",
-        }
-    }
+    /// A format a provider reads: a Modrinth or CurseForge pack, another
+    /// launcher's instance.
+    Provider(Provider),
 }
 
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]

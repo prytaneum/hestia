@@ -13,8 +13,13 @@ use proto::minecraft::Artifact;
 use serde_json::Value;
 
 use proto::error::Service;
+use proto::provider::Provider;
 
 use super::fetch_json;
+
+fn service() -> Service {
+    Service::Provider(Provider::new("paper", "PaperMC"))
+}
 
 const META: &str = "https://fill.papermc.io/v3";
 
@@ -55,7 +60,7 @@ pub struct Build {
 /// The caller orders the set against Mojang's manifest, which is authoritative
 /// newest-first and is the ground truth `downgrade_between` reads.
 pub async fn game_versions(project: &str) -> Result<Vec<String>> {
-    let body = fetch_json(Service::Paper, &format!("{META}/projects/{project}")).await?;
+    let body = fetch_json(service(), &format!("{META}/projects/{project}")).await?;
     let groups = body
         .get("versions")
         .and_then(Value::as_object)
@@ -72,7 +77,7 @@ pub async fn game_versions(project: &str) -> Result<Vec<String>> {
 /// Every build published for a game version, newest first.
 pub async fn builds(project: &str, version: &str) -> Result<Vec<Build>> {
     let body = fetch_json(
-        Service::Paper,
+        service(),
         &format!("{META}/projects/{project}/versions/{version}/builds"),
     )
     .await?;
@@ -99,7 +104,7 @@ pub async fn newest_build(project: &str, version: &str) -> Result<Build> {
 /// The build a pinned `loader_version` names.
 pub async fn build(project: &str, version: &str, number: &str) -> Result<Build> {
     let body = fetch_json(
-        Service::Paper,
+        service(),
         &format!("{META}/projects/{project}/versions/{version}/builds/{number}"),
     )
     .await?;
@@ -116,7 +121,7 @@ pub struct Java {
 
 pub async fn java(project: &str, version: &str) -> Result<Java> {
     let body = fetch_json(
-        Service::Paper,
+        service(),
         &format!("{META}/projects/{project}/versions/{version}"),
     )
     .await?;

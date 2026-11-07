@@ -21,28 +21,7 @@
       "mrpack": "Modrinth pack (.mrpack)"
     },
     "flavor": {
-      "bukkit": {
-        "summary": "The plugin server Spigot is built on, without its speed-ups. Pick Spigot unless you need this exactly."
-      },
-      "fabric": {
-        "summary": "A light, fast-moving mod loader. Usually the first to support a new Minecraft version."
-      },
-      "folia": {
-        "summary": "Paper spread across CPU cores, for very large worlds. Only plugins made for Folia will work."
-      },
-      "neoforge": {
-        "summary": "Mod loader for big, content-heavy modpacks. The first launch prepares the game files, so it takes a few minutes."
-      },
-      "paper": {
-        "summary": "A faster server that runs Bukkit plugins, tuned by the Paper team for each version."
-      },
-      "requires": "Needs {name} installed on this computer:",
-      "spigot": {
-        "summary": "The classic plugin server, with the largest plugin library. Nobody may hand it out ready-made, so Hestia builds it here the first time — allow a few minutes."
-      },
-      "vanilla": {
-        "summary": "Mojang's game, unchanged. Takes datapacks only — no mods or plugins."
-      }
+      "requires": "Needs {name} installed on this computer:"
     },
     "gamemode": {
       "adventure": "Adventure",
@@ -51,10 +30,7 @@
       "survival": "Survival"
     },
     "import_format": {
-      "curseforge": "CurseForge pack",
-      "hestia": "hestia archive",
-      "mrpack": "Modrinth pack",
-      "prism": "Prism / MultiMC"
+      "hestia": "hestia archive"
     },
     "kind": {
       "datapack": "Datapack",

@@ -24,6 +24,11 @@ import { transferMutations, transferQueries } from '@/queries/transfer';
  * `initialPath` prefills the file, for the paths that already have one: a drop
  * onto the library, or a file the shell opened with.
  */
+const importFormatName = (format: ImportFormat) =>
+  typeof format === 'string'
+    ? m['domain.import_format.hestia']()
+    : format.provider.name;
+
 export function ImportInstanceDialog({
   open,
   onOpenChange,
@@ -101,9 +106,7 @@ export function ImportInstanceDialog({
           <>
             <div className="flex flex-wrap items-center gap-2 rounded-md border bg-muted/30 p-3 text-sm">
               <Badge variant="secondary">
-                {m[
-                  `domain.import_format.${archive.data.format as ImportFormat}`
-                ]()}
+                {importFormatName(archive.data.format)}
               </Badge>
               <span className="text-muted-foreground">
                 {archive.data.loader

@@ -15,6 +15,7 @@ use std::fmt;
 use serde::{Deserialize, Serialize};
 
 use crate::content::ContentKind;
+use crate::provider::Provider;
 
 /// A launcher entry that resolves by reference.
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -206,17 +207,14 @@ impl fmt::Display for Unsupported {
 }
 
 /// What an archive claims to be, so a refusal can name it.
-#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
 #[serde(rename_all = "snake_case")]
 pub enum ArchiveFormat {
     Zip,
     Hestia,
-    Mrpack,
-    Prism,
-    #[serde(rename = "curseforge")]
-    CurseForge,
     Backup,
+    Provider(Provider),
 }
 
 impl fmt::Display for ArchiveFormat {
@@ -224,10 +222,8 @@ impl fmt::Display for ArchiveFormat {
         f.write_str(match self {
             ArchiveFormat::Zip => "zip",
             ArchiveFormat::Hestia => "hestia",
-            ArchiveFormat::Mrpack => "mrpack",
-            ArchiveFormat::Prism => "prism",
-            ArchiveFormat::CurseForge => "curseforge",
             ArchiveFormat::Backup => "backup",
+            ArchiveFormat::Provider(provider) => &provider.name,
         })
     }
 }
@@ -331,22 +327,18 @@ impl fmt::Display for ValueKind {
 }
 
 /// An upstream service the daemon depends on.
-#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
 #[serde(rename_all = "snake_case")]
 pub enum Service {
     Adoptium,
     Mojang,
-    Fabric,
-    NeoForge,
-    Paper,
-    Spigot,
-    Modrinth,
-    CurseForge,
     Microsoft,
     Xbox,
     /// The release feed self-update follows.
     Release,
+    /// A service a provider owns: a loader's metadata host, a content platform.
+    Provider(Provider),
 }
 
 impl fmt::Display for Service {
@@ -354,15 +346,10 @@ impl fmt::Display for Service {
         f.write_str(match self {
             Service::Adoptium => "Adoptium",
             Service::Mojang => "Mojang",
-            Service::Fabric => "Fabric",
-            Service::NeoForge => "NeoForge",
-            Service::Paper => "PaperMC",
-            Service::Spigot => "SpigotMC",
-            Service::Modrinth => "Modrinth",
-            Service::CurseForge => "CurseForge",
             Service::Microsoft => "Microsoft",
             Service::Xbox => "Xbox",
             Service::Release => "the release feed",
+            Service::Provider(provider) => &provider.name,
         })
     }
 }

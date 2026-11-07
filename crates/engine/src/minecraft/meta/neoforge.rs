@@ -21,8 +21,13 @@ use anyhow::{bail, Context, Result};
 use serde_json::Value;
 
 use proto::error::Service;
+use proto::provider::Provider;
 
 use super::fetch_text;
+
+fn service() -> Service {
+    Service::Provider(Provider::new("neoforge", "NeoForge"))
+}
 
 const MAVEN: &str = "https://maven.neoforged.net/releases";
 const GROUP_PATH: &str = "net/neoforged/neoforge";
@@ -73,11 +78,7 @@ pub async fn versions() -> Result<Vec<String>> {
 /// and was rejected — it is a detail of the server software NeoForged happens to
 /// run, where `maven-metadata.xml` is guaranteed by the format itself.
 async fn artifact_versions(group: &str) -> Result<Vec<String>> {
-    let body = fetch_text(
-        Service::NeoForge,
-        &format!("{MAVEN}/{group}/maven-metadata.xml"),
-    )
-    .await?;
+    let body = fetch_text(service(), &format!("{MAVEN}/{group}/maven-metadata.xml")).await?;
     Ok(body
         .split("<version>")
         .skip(1)
