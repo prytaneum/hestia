@@ -78,9 +78,11 @@ flowchart TD
     cli["<b>cli</b> → hestia"]
     daemon["<b>daemon</b> → hestiad"]
     desktop["<b>desktop</b> → hestia-desktop"]
+    sdk["<b>sdk</b><br/>plugin SDK + WIT"]
     tray["<b>tray</b> → hestia-tray"]
 
     client --> proto & ipc & common
+    sdk --> proto
     ipc --> common
     engine --> proto & common
     cli --> client & common & proto
@@ -156,9 +158,11 @@ real directory.
 ├── skins/               the skin library
 ├── shared/              the shared settings store (sync)
 ├── java/                installed Java runtimes
+├── plugins/<id>/        one directory per plugin: package/, data/, plugin.json
 ├── meta/                materialised game files — regenerable
 │   ├── versions/ libraries/ assets/ natives/
-│   └── spigot/          the shared BuildTools work tree
+│   ├── spigot/          the shared BuildTools work tree
+│   └── plugins/         compiled plugin components
 ├── cache/               content-addressed download cache
 ├── processes/           supervisor records + captured logs
 ├── tmp/                 modpack archives and plugin packages mid-download; emptied at start
@@ -181,6 +185,7 @@ obvious unit to reclaim ([0054](decisions/0054-meta-root-for-materialised-files.
 | [Content & modpacks](architecture/content.md) | content sources, the managed-dir install model, datapacks, modpacks |
 | [Import & export](architecture/transfer.md) | archive formats, detection, what an archive carries, importing another launcher's instance |
 | [Accounts & skins](architecture/accounts.md) | Microsoft sign-in, token rotation, the skin library |
+| [Plugins](architecture/plugins.md) | the WASM sandbox, permissions and host calls, events and hooks, providers, install and trust, the SDK |
 | [Front-ends](architecture/frontends.md) | CLI grammar and presentation, the desktop bridge and query layer, the tray |
 
 ## Project status
@@ -201,6 +206,7 @@ version updates both ways · server backups, on demand and
 scheduled · content install and management from Modrinth, CurseForge, a URL or a
 local file · modpacks into a new or existing entry · instance import and export
 (hestia, `.mrpack`, Prism/MultiMC) · shared instance settings (`sync`) ·
+plugins (sandboxed WASM components with permissions, hooks, content and flavor providers, pages, themes, signed repositories) ·
 self-update and
 the announcement feed · network reachability as a first-class state, with
 offline launch and cached version catalogues · the legacy client era, both its
@@ -256,6 +262,7 @@ their unpacked natives and their pre-hash asset layout.
 | Game data | [fastnbt](https://github.com/owengage/fastnbt) — reading a world's `level.dat` |
 | CLI | [clap](https://github.com/clap-rs/clap) + [ratatui](https://ratatui.rs/) |
 | Desktop | [Tauri v2](https://tauri.app/) + [React](https://react.dev/)/[Vite](https://vitejs.dev/), built with [Bun](https://bun.sh/); [three.js](https://threejs.org/) for skin previews |
+| Plugins | [wasmtime](https://wasmtime.dev/) — the component model, WASI 0.2 and `wasi:http`, with a pooling allocator; minisign verification |
 | Tray | [tray-icon](https://github.com/tauri-apps/tray-icon) + [tao](https://github.com/tauri-apps/tao) |
 
 ## Testing
@@ -265,6 +272,11 @@ their unpacked natives and their pre-hash asset layout.
 | `crates/proto/tests/` | `wire` and `golden` — the envelope and contract encodings, so a wire change is caught |
 | `crates/engine/tests/` | one `integration` binary: `store` (config/cache/java/server/instance persistence), `auth_oracle` (the sign-in state machine), `process` (tree termination), `flows` (provisioning and content install against fixture providers, over `Engine::over`) |
 | `crates/engine/src/**` | unit tests beside the code: archive detection and round trips, the Prism component mapping, the export ignore rules, launch-plan assembly (including the quick-play target and its version gate), document schema stamping and quarantine, the `servers.dat` round trip, server-address parsing, the Log4Shell-safe session config, sync reconciliation and its per-key merge, Modrinth and CurseForge mapping, pack-format detection and `.mrpack`/URL parsing, version picking, per-flavor accepted kinds, JVM-args precedence, PaperMC and SpigotMC catalogue parsing |
+| `crates/engine/tests/plugins.rs`, `flows/content_source.rs`, `flows/flavor.rs` | plugin load, install and sandbox limits against component fixtures; a plugin-provided content source and flavor through the real flows |
+| `crates/engine/src/plugins/**` | unit tests beside the code: the runtime's limits and traps, hooks and the launch-patch allowlist, host matching for `wasi:http`, asset path rules, index and build signatures, the catalogue, held downloads |
+| `crates/proto/tests/{permission,plugin_api,plugin}.rs` | every contract's `PLUGIN` classification and the denied list, the snapshotted plugin API against the WIT files, and manifest validation |
+| `crates/sdk/tests/` | the SDK version equals the WIT package version |
+| `crates/*/tests/fixture/plugins/` | the plugins the tests build into components (`probe`, `static-index`, `replay-flavor`, `hello`) |
 | `crates/client/tests/` | the SDK against a scripted daemon over an in-memory duplex: contract marshalling, typed failures, timeouts, a version mismatch, and every way a job settles |
 | `crates/daemon/tests/e2e.rs` | a client-to-daemon round trip over a real socket |
 | `frontend/tests/` | the message catalogue (locale coverage, placeholder parity, no dead or missing keys), the export dialog's tree/exclusion conversions, and the quick-play version gate |
