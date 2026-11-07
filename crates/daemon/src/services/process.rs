@@ -2,7 +2,8 @@
 
 use proto::error::ErrorInfo;
 use proto::process::{
-    ProcessList, ProcessLogs, ProcessStart, ProcessStartResult, ProcessStatus, ProcessStop,
+    ProcessList, ProcessLogs, ProcessSpec, ProcessStart, ProcessStartResult, ProcessStatus,
+    ProcessStop,
 };
 use proto::Empty;
 
@@ -10,6 +11,10 @@ use crate::runtime::{Channels, StartError};
 
 pub(super) fn register(on: &mut Channels<'_>) {
     on.handle::<ProcessStart, _, _>(|spec, ctx| async move {
+        let spec = ProcessSpec {
+            owner: None,
+            ..spec
+        };
         match ctx.runtime.processes().start(spec).await {
             Ok(info) => Ok(ProcessStartResult {
                 id: info.id,
