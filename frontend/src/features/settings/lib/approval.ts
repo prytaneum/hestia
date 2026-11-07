@@ -122,11 +122,7 @@ export function describeApproval(
   inspection: PluginInspection,
 ): DescribedSection[] {
   const grant = inspection.replaces ? inspection.widened : inspection.grant;
-  return describeGrant(
-    grant,
-    inspection.unrestricted,
-    inspection.programPaths,
-  );
+  return describeGrant(grant, inspection.unrestricted, inspection.programPaths);
 }
 
 export interface ApprovalDialog {
