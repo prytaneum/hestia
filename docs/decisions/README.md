@@ -37,6 +37,7 @@ the alternative you rejected — that is usually the part nobody can recover lat
 - **0099** — [Official plugins are the ones signed by Hestia's own key](0099-official-plugins-are-signed.md)
 - **0100** — [A plugin theme is raw CSS behind a permission, a CSP and a safe mode](0100-themes-are-plugin-css.md)
 - **0101** — [Plugins spawn only the programs they declare](0101-plugins-spawn-only-declared-programs.md)
+- **0106** — [Presence is a host service: plugins state a card, the host owns the connection](0106-presence-is-a-host-service.md)
 
 ### [Cross-cutting foundations](../architecture/common.md)
 
@@ -70,6 +71,7 @@ the alternative you rejected — that is usually the part nobody can recover lat
 - **0036** — [Stopping the daemon has three meanings; the front-end picks one, the wire carries two](0036-stopping-the-daemon-has-three-meanings.md)
 - **0061** — [A job declares what differs; the runner owns the rest](0061-a-job-declares-what-differs.md)
 - **0059** — [Discord presence belongs to the daemon, and is a loop rather than a hook](0059-discord-presence-is-a-daemon-loop.md)
+- **0106** — [Presence is a host service: plugins state a card, the host owns the connection](0106-presence-is-a-host-service.md)
 
 ### [Minecraft providers](../architecture/minecraft.md)
 
