@@ -43,10 +43,12 @@ pub(crate) mod pool;
 pub(crate) mod prism;
 
 use std::path::Path;
+use std::sync::Arc;
 
 use anyhow::Result;
 use proto::content::ResolvedModpack;
 use proto::error::ErrorInfo;
+use proto::provider::Provider;
 use proto::sync::SyncOverrides;
 use proto::transfer::{ExportFormat, ImportFormat};
 use proto::warning::WarningInfo;
@@ -57,6 +59,7 @@ use crate::content::pack::shallowest;
 use crate::instances::InstanceRecord;
 use crate::jvm::JavaSettings;
 use crate::minecraft::profile::InstanceProfile;
+use crate::plugins::PluginFormat;
 use archive::{Reader, Written};
 
 /// What an archive says it is, before anything is written. Shown to whoever is
@@ -136,17 +139,21 @@ pub(crate) trait Format: Send + Sync {
     ) -> Result<Landed>;
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub(crate) enum Kind {
     Instance(&'static dyn Format),
     Pack(pack::Format),
+    Plugin(Arc<PluginFormat>),
 }
 
 impl Kind {
-    pub(crate) fn id(self) -> ImportFormat {
+    pub(crate) fn id(&self) -> ImportFormat {
         match self {
             Kind::Instance(format) => format.id(),
             Kind::Pack(format) => format.id(),
+            Kind::Plugin(format) => {
+                ImportFormat::Provider(Provider::new(format.id(), &format.info().name))
+            }
         }
     }
 }
@@ -170,10 +177,12 @@ pub(crate) struct Detected {
 /// inside its `config/` is a file that instance uses, not what the archive is.
 ///
 /// `claims_manifest` is the pack module's question about a generic
-/// `manifest.json`, answered by whoever holds the archive open.
+/// `manifest.json`, answered by whoever holds the archive open. Plugin formats
+/// rank after the core ones at equal depth, and none can claim hestia's marker.
 pub(crate) fn detect(
     names: &[String],
     filename: &str,
+    plugins: &[Arc<PluginFormat>],
     claims_manifest: impl FnMut(&str) -> bool,
 ) -> Result<Detected> {
     let instance = |format: &'static dyn Format| {
@@ -190,6 +199,12 @@ pub(crate) fn detect(
         .into_iter()
         .flatten()
         .collect();
+    candidates.extend(plugins.iter().filter_map(|format| {
+        shallowest(names, &format.info().marker).map(|prefix| Detected {
+            kind: Kind::Plugin(format.clone()),
+            prefix,
+        })
+    }));
     candidates.sort_by_key(|candidate| candidate.prefix.matches('/').count());
     candidates.into_iter().next().ok_or_else(|| {
         ErrorInfo::ArchiveUnrecognised {
@@ -261,6 +276,7 @@ mod tests {
         let hestia = detect(
             &names(&["hestia.instance.json", "data/options.txt"]),
             "a",
+            &[],
             |_| true,
         )
         .unwrap();
@@ -270,12 +286,16 @@ mod tests {
         let mrpack = detect(
             &names(&["modrinth.index.json", "overrides/config/x"]),
             "a",
+            &[],
             |_| true,
         )
         .unwrap();
         assert_eq!(provider_id(mrpack.kind.id()), "mrpack");
 
-        let prism = detect(&names(&["instance.cfg", "mmc-pack.json"]), "a", |_| true).unwrap();
+        let prism = detect(&names(&["instance.cfg", "mmc-pack.json"]), "a", &[], |_| {
+            true
+        })
+        .unwrap();
         assert_eq!(provider_id(prism.kind.id()), "prism");
     }
 
@@ -288,6 +308,7 @@ mod tests {
                 "My Pack/.minecraft/options.txt",
             ]),
             "a",
+            &[],
             |_| true,
         )
         .unwrap();
@@ -300,6 +321,7 @@ mod tests {
         let detected = detect(
             &names(&["instance.cfg", "nested/deeper/instance.cfg"]),
             "a",
+            &[],
             |_| true,
         )
         .unwrap();
@@ -315,6 +337,7 @@ mod tests {
                 "config/modrinth.index.json",
             ]),
             "a",
+            &[],
             |_| true,
         )
         .unwrap();
@@ -326,17 +349,17 @@ mod tests {
     fn a_manifest_that_is_not_a_pack_falls_through_to_the_next_candidate() {
         let archive = names(&["manifest.json", "pack/instance.cfg"]);
 
-        let claimed = detect(&archive, "a", |_| true).unwrap();
+        let claimed = detect(&archive, "a", &[], |_| true).unwrap();
         assert_eq!(provider_id(claimed.kind.id()), "curseforge");
 
-        let disowned = detect(&archive, "a", |_| false).unwrap();
+        let disowned = detect(&archive, "a", &[], |_| false).unwrap();
         assert_eq!(provider_id(disowned.kind.id()), "prism");
     }
 
     #[test]
     fn the_shallowest_pack_marker_wins_whichever_format_it_is() {
         let archive = names(&["manifest.json", "overrides/config/modrinth.index.json"]);
-        let detected = detect(&archive, "a", |_| true).unwrap();
+        let detected = detect(&archive, "a", &[], |_| true).unwrap();
         assert_eq!(provider_id(detected.kind.id()), "curseforge");
     }
 }

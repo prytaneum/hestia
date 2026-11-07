@@ -248,6 +248,30 @@ impl Reader {
         Ok(bytes)
     }
 
+    /// Reads a member, refusing one that decompresses past `max` bytes.
+    pub(crate) fn read_capped(&mut self, name: &str, max: usize) -> Result<Vec<u8>> {
+        let entry = self
+            .zip
+            .by_name(name)
+            .with_context(|| format!("'{name}' is missing from the archive"))?;
+        let mut bytes = Vec::new();
+        entry
+            .take(max as u64 + 1)
+            .read_to_end(&mut bytes)
+            .with_context(|| format!("cannot read '{name}' from the archive"))?;
+        anyhow::ensure!(bytes.len() <= max, "'{name}' is over {max} bytes");
+        Ok(bytes)
+    }
+
+    /// Writes one member to `target`; the caller has vetted both names.
+    pub(crate) fn copy_member(&mut self, name: &str, target: &Path) -> Result<()> {
+        let index = self
+            .zip
+            .index_for_name(name)
+            .with_context(|| format!("'{name}' is missing from the archive"))?;
+        self.write_entry(index, target, false).map(|_| ())
+    }
+
     pub(crate) fn read_text(&mut self, name: &str) -> Result<String> {
         let bytes = self.read_bytes(name)?;
         String::from_utf8(bytes).with_context(|| format!("'{name}' is not valid UTF-8"))

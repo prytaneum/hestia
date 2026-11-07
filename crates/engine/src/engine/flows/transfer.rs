@@ -13,6 +13,7 @@
 //! modpack flow.
 
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use proto::content::{ContentFailure, LOCAL_SOURCE};
@@ -26,7 +27,7 @@ use crate::cancel::Job;
 use crate::content::pack;
 use crate::engine::Engine;
 use crate::instances::InstanceRecord;
-use crate::plugins::CallChain;
+use crate::plugins::{CallChain, PluginFormat};
 use crate::registry;
 use crate::schema;
 use crate::transfer::archive::{self, Reader};
@@ -34,13 +35,22 @@ use crate::transfer::{
     self, contents, hestia, Blueprint, Carried, Descriptor, Detected, Kind, Recipe, Source, Target,
 };
 
+/// Who lands an instance archive's files once the instance exists.
+enum Landing {
+    Core(&'static dyn transfer::Format),
+    Plugin(Arc<PluginFormat>, proto::format::FormatBlueprint),
+}
+
 /// Where an export with no destination lands, under the data home.
 const EXPORTS: &str = "exports";
 
-fn detect(reader: &mut Reader, path: &Path) -> Result<Detected> {
-    transfer::detect(&reader.names(), &archive::filename_of(path), |root| {
-        pack::is_curseforge_pack(reader, root)
-    })
+fn detect(reader: &mut Reader, path: &Path, plugins: &[Arc<PluginFormat>]) -> Result<Detected> {
+    transfer::detect(
+        &reader.names(),
+        &archive::filename_of(path),
+        plugins,
+        |root| pack::is_curseforge_pack(reader, root),
+    )
 }
 
 /// Documents set aside since `mark` that belong to this entry — scoped by path
@@ -74,6 +84,11 @@ pub struct ImportOutcome {
 }
 
 impl Engine {
+    /// Drops every archive format `owner` registered.
+    pub fn unregister_formats(&self, owner: &str) -> usize {
+        self.formats.unregister(owner)
+    }
+
     /// Write an instance out as an archive. `destination` may name a file, name
     /// a directory to write a generated filename into, or be empty for the data
     /// home's own `exports/`.
@@ -130,12 +145,15 @@ impl Engine {
 
     /// What an archive is, without importing it — so a front-end can name the
     /// instance it is about to create, and say what the file actually is.
-    pub fn inspect_archive(&self, path: &str) -> Result<ArchiveInfo> {
+    pub async fn inspect_archive(&self, path: &str) -> Result<ArchiveInfo> {
         let path = daemon_local_path(path)?;
         let mut reader = Reader::open(&path)?;
-        let detected = detect(&mut reader, &path)?;
+        let detected = detect(&mut reader, &path, &self.formats.snapshot())?;
         let format = detected.kind.id();
         let descriptor = match detected.kind {
+            Kind::Plugin(plugin) => {
+                Blueprint::from(&plugin.read(&mut reader, &detected.prefix).await?).descriptor
+            }
             Kind::Instance(instance) => instance.read(&mut reader, &detected.prefix)?.descriptor,
             Kind::Pack(pack_format) => pack::Archive::new(reader, pack_format, detected.prefix)
                 .summary()?
@@ -168,12 +186,19 @@ impl Engine {
     ) -> Result<ImportOutcome> {
         let path = daemon_local_path(path)?;
         let mut reader = Reader::open(&path)?;
-        let detected = detect(&mut reader, &path)?;
+        let detected = detect(&mut reader, &path, &self.formats.snapshot())?;
         let format = detected.kind.id();
         tracing::info!(path = %path.display(), format = ?format, "importing an instance");
 
-        let instance = match detected.kind {
-            Kind::Instance(instance) => instance,
+        let (blueprint, landing) = match detected.kind {
+            Kind::Instance(instance) => (
+                instance.read(&mut reader, &detected.prefix)?,
+                Landing::Core(instance),
+            ),
+            Kind::Plugin(plugin) => {
+                let wire = plugin.read(&mut reader, &detected.prefix).await?;
+                (Blueprint::from(&wire), Landing::Plugin(plugin, wire))
+            }
             Kind::Pack(pack_format) => {
                 let archive = pack::Archive::new(reader, pack_format, detected.prefix);
                 return self
@@ -181,7 +206,7 @@ impl Engine {
                     .await;
             }
         };
-        let Blueprint { descriptor, recipe } = instance.read(&mut reader, &detected.prefix)?;
+        let Blueprint { descriptor, recipe } = blueprint;
         let name = pick_name(name, &descriptor.name);
 
         let record = self.record_for(recipe, &name, &descriptor).await?;
@@ -191,15 +216,18 @@ impl Engine {
             .with_context(|| format!("cannot create {}", data_dir.display()));
         self.unwind_on_failure(&record, created)?;
 
-        let landed = instance.land(
-            &mut reader,
-            &detected.prefix,
-            &Target {
-                entry_dir: &entry_dir,
-                data_dir: &data_dir,
-            },
-            job,
-        );
+        let target = Target {
+            entry_dir: &entry_dir,
+            data_dir: &data_dir,
+        };
+        let landed = match &landing {
+            Landing::Core(format) => format.land(&mut reader, &detected.prefix, &target, job),
+            Landing::Plugin(format, wire) => {
+                format
+                    .land(&mut reader, &detected.prefix, wire, &target, job)
+                    .await
+            }
+        };
         let landed = self.unwind_on_failure(&record, landed)?;
         tracing::info!(
             id = %record.id,

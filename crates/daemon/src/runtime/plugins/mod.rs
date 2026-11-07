@@ -15,10 +15,10 @@ use std::time::Duration;
 
 use anyhow::Context;
 use engine::{
-    connect_flavors, connect_sources, is_official_signer, register_flavors, register_sources,
-    CallChain, Cancel, Engine, HostCalls, Listings, LoadedPlugin, PluginContentProvider,
-    PluginFlavorProvider, PluginRecord, PluginRuntime, PluginStats, Roster, SettingsError,
-    EVENT_TIMEOUT,
+    connect_flavors, connect_formats, connect_sources, is_official_signer, register_flavors,
+    register_formats, register_sources, CallChain, Cancel, Engine, HostCalls, Listings,
+    LoadedPlugin, PluginContentProvider, PluginFlavorProvider, PluginFormat, PluginRecord,
+    PluginRuntime, PluginStats, Roster, SettingsError, EVENT_TIMEOUT,
 };
 use proto::error::ErrorInfo;
 use proto::plugin::{
@@ -49,6 +49,7 @@ struct Slot {
 struct Contributions {
     sources: Vec<PluginContentProvider>,
     flavors: Vec<PluginFlavorProvider>,
+    formats: Vec<PluginFormat>,
 }
 
 enum Activation {
@@ -583,6 +584,7 @@ impl Plugins {
         let contributions = Contributions {
             sources: connect_sources(&loaded, &package.manifest).await,
             flavors: connect_flavors(&loaded, &package.manifest).await,
+            formats: connect_formats(&loaded, &package.manifest).await,
         };
         Ok(Activation::Ready(Some(loaded), contributions))
     }
@@ -612,6 +614,7 @@ impl Plugins {
             }
             self.engine.content().unregister(id);
             self.engine.minecraft().unregister(id);
+            self.engine.unregister_formats(id);
             if state == PluginState::Enabled {
                 let official = self
                     .engine
@@ -620,6 +623,7 @@ impl Plugins {
                     .is_some_and(|record| is_official_signer(record.signer.as_deref()));
                 register_sources(self.engine.content(), id, official, contributions.sources);
                 register_flavors(self.engine.minecraft(), id, official, contributions.flavors);
+                register_formats(&self.engine, id, official, contributions.formats);
             }
             slots.insert(
                 id.to_string(),

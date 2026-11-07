@@ -27,7 +27,7 @@ use super::imports::{CommandRun, Gate, HostCalls, PluginState};
 use super::output::{Captured, PluginLog};
 use super::presence::PluginCard;
 use super::process::Programs;
-use super::providers::{FlavorOp, SourceOp};
+use super::providers::{FlavorOp, FormatCall, SourceOp};
 use super::settings::PluginSettings;
 use super::store::PluginRecord;
 use crate::checksum::hex;
@@ -571,6 +571,37 @@ impl LoadedPlugin {
                     }
                     FlavorOp::ResolveClient => {
                         guest.call_resolve_client(store, &flavor, &args).await
+                    }
+                }
+            })
+        })
+        .await?
+        .map_err(|error| CallError::Guest(describe(error)))
+    }
+
+    /// Runs one call of the plugin's `archive-format` export for the contributed
+    /// format `format` under `timeout`; the reply is JSON.
+    pub(super) async fn archive_format(
+        &self,
+        chain: &CallChain,
+        format: &str,
+        call: FormatCall,
+        timeout: Duration,
+    ) -> Result<String, CallError> {
+        let format = format.to_string();
+        self.guarded(chain, timeout, None, move |store, instance| {
+            Box::pin(async move {
+                let guest = instance.hestia_plugin_archive_format();
+                match call {
+                    FormatCall::Info => guest.call_info(store, &format).await,
+                    FormatCall::Read { manifest, files } => {
+                        guest.call_read(store, &format, &manifest, &files).await
+                    }
+                    FormatCall::Land { blueprint, files } => {
+                        guest.call_land(store, &format, &blueprint, &files).await
+                    }
+                    FormatCall::Write { blueprint, files } => {
+                        guest.call_write(store, &format, &blueprint, &files).await
                     }
                 }
             })

@@ -26,9 +26,11 @@ use crate::instances::Instances;
 use crate::java::Java;
 use crate::minecraft::Minecraft;
 use crate::net::image::ImageProxy;
+use crate::plugins::PluginFormat;
 use crate::plugins::{Hooks, LoadedPlugin, Plugins, Remote, Repositories};
 use crate::presence::Presence;
 use crate::process::ProcessSupervisor;
+use crate::roster::Roster;
 use crate::servers::Servers;
 use crate::skins::Skins;
 use crate::sync::Sync;
@@ -92,6 +94,7 @@ pub struct Engine {
     accounts: Accounts,
     minecraft: Minecraft,
     content: Content,
+    formats: Roster<PluginFormat>,
     servers: Servers,
     instances: Instances,
     plugins: Plugins,
@@ -142,6 +145,7 @@ impl Engine {
             accounts,
             minecraft,
             content,
+            formats: Roster::builtin([]),
             servers,
             instances,
             plugins,
@@ -252,6 +256,10 @@ impl Engine {
 
     pub fn minecraft(&self) -> &Minecraft {
         &self.minecraft
+    }
+
+    pub(crate) fn formats(&self) -> &Roster<PluginFormat> {
+        &self.formats
     }
 
     pub fn content(&self) -> &Content {

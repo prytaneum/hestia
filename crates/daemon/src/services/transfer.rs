@@ -55,6 +55,7 @@ pub(super) fn register(on: &mut Channels<'_>) {
         ctx.runtime
             .engine()
             .inspect_archive(&p.path)
+            .await
             .map_err(crate::runtime::engine_error)
     });
 }
