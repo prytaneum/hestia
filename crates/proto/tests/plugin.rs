@@ -301,6 +301,27 @@ mod manifest {
     }
 
     #[test]
+    fn a_java_provider_needs_java_provide_and_network_hosts() {
+        let mut manifest = valid();
+        manifest.contributes.providers.push(ProviderContribution {
+            kind: "java".into(),
+            id: "zulu".into(),
+        });
+        manifest.permissions = vec![Permission::FlavorProvide, Permission::NetworkConnect];
+        assert_eq!(
+            manifest.validate(),
+            Err(ManifestError::ProviderPermissionMissing {
+                provider: "zulu".into(),
+                permission: Permission::JavaProvide
+            })
+        );
+        manifest.permissions = vec![Permission::JavaProvide, Permission::NetworkConnect];
+        manifest.network = vec!["api.azul.com".into()];
+        assert_eq!(manifest.validate(), Ok(()));
+        assert_eq!(Permission::JavaProvide.tier(), Tier::Unrestricted);
+    }
+
+    #[test]
     fn event_patterns_are_a_topic_or_a_trailing_glob() {
         let mut manifest = valid();
         manifest.contributes.events = vec!["server.*".into(), "job".into()];

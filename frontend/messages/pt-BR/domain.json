@@ -74,6 +74,7 @@
         "format_provide": "Adicionar formatos de arquivo que escolhem a versão do jogo, o carregador e as configurações da JVM das instâncias importadas",
         "flavor_provide": "Adicionar distribuições do jogo que escolhem o código que o jogo executa, incluindo a classe principal e os argumentos",
         "java_manage": "Instalar e remover runtimes do Java",
+        "java_provide": "Adicionar distribuições do Java que escolhem o binário de runtime que o Hestia executa",
         "java_read": "Ver os runtimes do Java instalados e disponíveis",
         "launch_patch": "Ajustar configurações de inicialização, a partir de uma lista permitida, quando um jogo ou servidor inicia",
         "network_connect": "Conectar-se aos hosts que ele lista",

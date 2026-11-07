@@ -163,6 +163,10 @@ pub enum Permission {
     /// loader and JVM settings of the instance the user will run.
     #[serde(rename = "format:provide")]
     FormatProvide,
+    /// Contribute a Java distribution, which picks the runtime binary Hestia
+    /// executes for every server and game.
+    #[serde(rename = "java:provide")]
+    JavaProvide,
 }
 
 /// How far a permission reaches. An unrestricted one can run native code, so
@@ -182,7 +186,8 @@ impl Permission {
             | Permission::ProcessControl
             | Permission::ProcessSpawn
             | Permission::FlavorProvide
-            | Permission::FormatProvide => Tier::Unrestricted,
+            | Permission::FormatProvide
+            | Permission::JavaProvide => Tier::Unrestricted,
             Permission::EntryRead
             | Permission::ProcessRead
             | Permission::ContentRead
@@ -227,6 +232,9 @@ impl Permission {
             }
             Permission::FormatProvide => {
                 "Add archive formats that choose the game version, loader and JVM settings of instances you import"
+            }
+            Permission::JavaProvide => {
+                "Add Java distributions that choose the runtime binary Hestia executes"
             }
         }
     }
@@ -307,6 +315,9 @@ pub const FLAVOR_PROVIDER: &str = "flavor";
 /// The `kind` of a [`ProviderContribution`] that adds an archive format.
 pub const FORMAT_PROVIDER: &str = "format";
 
+/// The `kind` of a [`ProviderContribution`] that adds a Java distribution.
+pub const JAVA_PROVIDER: &str = "java";
+
 /// What a provider of `kind` needs: to serve its subject and, when it fetches,
 /// to reach its hosts. A format never fetches: the host owns every archive.
 fn provider_permissions(kind: &str) -> Option<&'static [Permission]> {
@@ -314,6 +325,7 @@ fn provider_permissions(kind: &str) -> Option<&'static [Permission]> {
         CONTENT_PROVIDER => Some(&[Permission::ContentRead, Permission::NetworkConnect]),
         FLAVOR_PROVIDER => Some(&[Permission::FlavorProvide, Permission::NetworkConnect]),
         FORMAT_PROVIDER => Some(&[Permission::FormatProvide]),
+        JAVA_PROVIDER => Some(&[Permission::JavaProvide, Permission::NetworkConnect]),
         _ => None,
     }
 }

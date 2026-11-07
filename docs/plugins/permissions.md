@@ -30,6 +30,7 @@ access to the computer.
 | `presence:set` | sandboxed | Set your Discord status card ([0106](../decisions/0106-presence-is-a-host-service.md)) |
 | `flavor:provide` | unrestricted | Add game distributions that choose what code the game runs, including its main class and arguments |
 | `format:provide` | unrestricted | Add archive formats that choose the game version, loader and JVM settings of instances you import |
+| `java:provide` | unrestricted | Add Java distributions that choose the runtime binary Hestia executes |
 
 ## Programs
 

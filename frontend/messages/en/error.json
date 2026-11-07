@@ -52,6 +52,7 @@
       "invalid_value": "{reason}.",
       "io": "A file operation failed ({operation}): {detail}",
       "java_install_in_progress": "Java {major} is already being installed.",
+      "java_provider_unknown": "No Java provider named {id} is registered.",
       "login_declined": "The sign-in was declined.",
       "login_timed_out": "The sign-in timed out — try again.",
       "malformed_request": "Malformed request: {detail}",

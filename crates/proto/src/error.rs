@@ -661,6 +661,10 @@ pub enum ErrorInfo {
     JavaInstallInProgress {
         major: i32,
     },
+    /// No Java provider is registered under `id`.
+    JavaProviderUnknown {
+        id: String,
+    },
     PluginInstallInProgress {
         id: String,
     },
@@ -1029,6 +1033,7 @@ impl fmt::Display for ErrorInfo {
             JavaInstallInProgress { major } => {
                 write!(f, "java {major} is already being installed")
             }
+            JavaProviderUnknown { id } => write!(f, "no java provider '{id}' is registered"),
             PluginInstallInProgress { id } => write!(f, "'{id}' is already being installed"),
             SignInRequired => write!(f, "sign in with a Microsoft account first"),
             SessionExpired { reference } => {

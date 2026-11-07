@@ -84,6 +84,9 @@ pub struct JavaInstallParams {
     pub major: i32,
     pub id: String,
     pub force: bool,
+    /// The Java provider to resolve the build from; the `java.provider` setting when omitted.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub provider: Option<String>,
 }
 
 /// A job. A cancel registers nothing: the install stages into `.staging` and

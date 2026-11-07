@@ -52,6 +52,7 @@
       "invalid_value": "{reason}.",
       "io": "Uma operação de arquivo falhou ({operation}): {detail}",
       "java_install_in_progress": "O Java {major} já está sendo instalado.",
+      "java_provider_unknown": "Nenhum provedor de Java chamado {id} está registrado.",
       "login_declined": "O login foi recusado.",
       "login_timed_out": "O login expirou — tente novamente.",
       "malformed_request": "Requisição malformada: {detail}",
