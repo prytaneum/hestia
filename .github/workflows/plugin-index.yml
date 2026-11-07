@@ -1,0 +1,80 @@
+name: plugin-index
+
+# Reusable: regenerates and publishes a plugin repository's signed index. No
+# builds. The caller job must grant `contents: write`.
+on:
+  workflow_call:
+    inputs:
+      hestia-ref:
+        description: The Hestia ref the hestia CLI is installed from, as cargo reads a --rev (refs/heads/<branch>, refs/tags/<tag> or a commit)
+        type: string
+        required: true
+    secrets:
+      HESTIA_SIGNING_KEY:
+        description: The unencrypted minisign secret key written by `hestia plugin keygen --unencrypted`
+        required: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    outputs:
+      signed: ${{ steps.key.outputs.signed }}
+    steps:
+      - id: key
+        env:
+          HESTIA_SIGNING_KEY: ${{ secrets.HESTIA_SIGNING_KEY }}
+        run: |
+          if [ -n "$HESTIA_SIGNING_KEY" ]; then
+            echo "signed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::HESTIA_SIGNING_KEY is not set, so no index was published"
+          fi
+
+  index:
+    needs: gate
+    if: needs.gate.outputs.signed == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    concurrency:
+      group: hestia-index
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Install the hestia CLI
+        env:
+          HESTIA_REF: ${{ inputs.hestia-ref }}
+        run: cargo install --locked --git https://github.com/prytaneum/hestia --rev "$HESTIA_REF" cli
+      - name: Write the signing key
+        env:
+          HESTIA_SIGNING_KEY: ${{ secrets.HESTIA_SIGNING_KEY }}
+        run: |
+          install -m 600 /dev/null "$RUNNER_TEMP/hestia.key"
+          printf '%s\n' "$HESTIA_SIGNING_KEY" > "$RUNNER_TEMP/hestia.key"
+      - run: hestia plugin check
+      - name: Fetch the current index
+        run: |
+          code=$(curl -sSL -o "$RUNNER_TEMP/previous.json" -w '%{http_code}' \
+            "https://github.com/$GH_REPO/releases/download/hestia-index/hestia-index.json")
+          case "$code" in
+            200) echo "PREVIOUS=--previous $RUNNER_TEMP/previous.json" >> "$GITHUB_ENV" ;;
+            404) echo "no previous index; this is the first run" ;;
+            *) echo "::error::fetching the current index answered $code"; exit 1 ;;
+          esac
+      - name: Index
+        run: hestia plugin index $PREVIOUS --repository "https://github.com/$GH_REPO" --sign "$RUNNER_TEMP/hestia.key"
+      - name: Publish
+        run: |
+          gh release view hestia-index >/dev/null 2>&1 \
+            || gh release create hestia-index --title "Hestia index" --notes "Regenerated on every push; do not edit." --latest=false
+          gh release upload hestia-index dist/hestia-index.json dist/hestia-index.json.minisig --clobber
+      - name: Remove the signing key
+        if: always()
+        run: rm -f "$RUNNER_TEMP/hestia.key"
