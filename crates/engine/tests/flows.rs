@@ -1772,7 +1772,10 @@ mod launch_hooks {
         for (name, answer) in answers {
             std::fs::write(data.join(format!("{name}.json")), answer.to_string()).expect("answer");
         }
-        let plugin = runtime.load(&record, &wasm, data.clone()).expect("load");
+        let settings = engine::PluginSettings::new(home.join("probe-settings.json"), Vec::new());
+        let plugin = runtime
+            .load(&record, &wasm, data.clone(), settings)
+            .expect("load");
         let roster = Arc::new(Loaded(vec![Arc::new(plugin)]));
         engine.hooks().attach(&roster);
         (roster, data)
