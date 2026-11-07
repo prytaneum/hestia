@@ -38,11 +38,13 @@ hestia account logout <name|uuid>
 
 ## Java runtimes
 
-Eclipse Temurin via the Adoptium API.
+Eclipse Temurin via the Adoptium API unless the `java.provider` setting (or `--provider`) names another provider, which
+a plugin contributes under `java:provide`.
 
 ```bash
 hestia java releases             # release lines the provider ships
 hestia java install 21           # resolve, download, verify, extract, register
+hestia java install 21 --provider acme.zulu   # resolve from another provider
 hestia java list                 # installed runtimes
 hestia java uninstall 21
 ```

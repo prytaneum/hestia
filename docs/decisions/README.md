@@ -37,6 +37,7 @@ the alternative you rejected — that is usually the part nobody can recover lat
 - **0099** — [Official plugins are the ones signed by Hestia's own key](0099-official-plugins-are-signed.md)
 - **0100** — [A plugin theme is raw CSS behind a permission, a CSP and a safe mode](0100-themes-are-plugin-css.md)
 - **0101** — [Plugins spawn only the programs they declare](0101-plugins-spawn-only-declared-programs.md)
+- **0105** — [A Java provider only resolves; the host downloads, verifies and extracts](0105-a-java-provider-only-resolves.md)
 - **0106** — [Presence is a host service: plugins state a card, the host owns the connection](0106-presence-is-a-host-service.md)
 
 ### [Cross-cutting foundations](../architecture/common.md)

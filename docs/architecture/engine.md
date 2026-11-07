@@ -227,11 +227,16 @@ request; a missing or damaged blob behind an entry is a miss and refetches.
 beside a `runtime.json` record. Listing scans the directory — the disk is the
 registry.
 
-`java::adoptium` (Eclipse Temurin) is the one catalogue and is called directly. `install()` runs a blocking pipeline:
+A `JavaProvider` resolves a build: `java::adoptium` (Eclipse Temurin, id `adoptium`) is built in, and a plugin may
+contribute more under `java:provide` (`<plugin>.<id>`), registered in the same roster as content sources and flavors.
+The `java.provider` setting names the default and `install` takes a provider id; an unregistered id is
+`JavaProviderUnknown`. A provider only resolves: the host validates the build (https on the plugin's hosts, a sha256, a
+`tar.gz` or `zip` archive) and does everything after ([0105](../decisions/0105-a-java-provider-only-resolves.md)).
+`install()` runs a blocking pipeline:
 
 ```mermaid
 flowchart LR
-    R["resolve<br/><i>Adoptium API</i>"] --> D["download<br/><i>SHA-256 verified</i>"] --> X["extract<br/><i>tar+flate2 / zip</i>"] --> REG["register"]
+    R["resolve<br/><i>selected provider</i>"] --> D["download<br/><i>SHA-256 verified</i>"] --> X["extract<br/><i>tar+flate2 / zip</i>"] --> REG["register"]
     X -.->|"staged in .staging,<br/>renamed on success"| REG
 ```
 
