@@ -1,0 +1,28 @@
+name: ci
+
+on:
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  plugins:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-wasip2
+      - uses: Swatinem/rust-cache@v2
+      - name: Install the hestia CLI
+        run: cargo install --locked --git https://github.com/prytaneum/hestia --rev refs/heads/feature/plugins cli
+      - name: check
+        run: |
+          if grep -q '^key = "TODO' Cargo.toml; then
+            echo "::warning::no signing key yet; run 'hestia plugin keygen --unencrypted' to enable 'hestia plugin check'"
+          else
+            hestia plugin check
+          fi
+      - run: cargo build --workspace --target wasm32-wasip2
+      - run: cargo test --workspace

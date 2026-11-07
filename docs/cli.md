@@ -753,7 +753,8 @@ sha256, bumps `version`, and takes `commit` from git and `repository` from `--re
 requirement into the packaged `plugin.toml` from the `hestia-sdk` version cargo resolved (never type it yourself), and
 bundles `plugin.toml`, the component, `assets/` and `themes/`. A theme-only plugin (no `Cargo.toml`, no `wasm`) skips
 cargo and carries no `api`; list its folder under the workspace's `exclude`, since `plugins/*` would otherwise expect a
-crate there. The scaffold pins `hestia-sdk` to the git tag of the running Hestia version (`v<version>`).
+crate there. The scaffold depends on `hestia-sdk` from the `feature/plugins` branch of the Hestia repository until the SDK is
+released.
 
 `dev` skips the pack-reinstall loop. From a plugin folder (or with `dir`) it builds the component, stages
 `dist/dev/<id>/` (the same files `pack` would zip), installs that folder in dev mode and shows the permissions to

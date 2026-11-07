@@ -12,6 +12,11 @@ const README: &str = include_str!("templates/README.md.tmpl");
 const PLUGIN_MANIFEST: &str = include_str!("templates/plugin.toml.tmpl");
 const CRATE: &str = include_str!("templates/crate.toml.tmpl");
 const LIB: &str = include_str!("templates/lib.rs.tmpl");
+const WORKFLOWS: [(&str, &str); 3] = [
+    ("ci.yml", include_str!("templates/ci.yml.tmpl")),
+    ("index.yml", include_str!("templates/index.yml.tmpl")),
+    ("release.yml", include_str!("templates/release.yml.tmpl")),
+];
 
 /// Adds `plugins/<id>/` to the repository around the current directory, or
 /// creates a new repository in `./<id>/` when there is none.
@@ -27,15 +32,24 @@ pub fn run(id: &str) -> Result<()> {
     if root.exists() {
         bail!("{} already exists", root.display());
     }
-    std::fs::create_dir_all(root.join(PLUGINS_DIR))?;
-    write(&root.join(CRATE_MANIFEST), &WORKSPACE.replace("{name}", id))?;
-    write(&root.join(".gitignore"), GITIGNORE)?;
-    write(&root.join("README.md"), README)?;
-    let repo = Repository::containing(&root).context("the new repository is not recognisable")?;
-    scaffold_plugin(&repo, id)?;
+    scaffold_repository(&root, id)?;
     ui::show(View::line(format!(
         "created {id}/ with plugin '{id}'; cd {id} && hestia plugin pack"
     )))
+}
+
+fn scaffold_repository(root: &Path, id: &str) -> Result<()> {
+    let workflows = root.join(".github").join("workflows");
+    std::fs::create_dir_all(root.join(PLUGINS_DIR))?;
+    std::fs::create_dir_all(&workflows)?;
+    write(&root.join(CRATE_MANIFEST), &WORKSPACE.replace("{name}", id))?;
+    write(&root.join(".gitignore"), GITIGNORE)?;
+    write(&root.join("README.md"), README)?;
+    for (name, content) in WORKFLOWS {
+        write(&workflows.join(name), content)?;
+    }
+    let repo = Repository::containing(root).context("the new repository is not recognisable")?;
+    scaffold_plugin(&repo, id)
 }
 
 fn validate_id(id: &str) -> Result<()> {
@@ -65,11 +79,36 @@ fn scaffold_plugin(repo: &Repository, id: &str) -> Result<()> {
 }
 
 fn render(template: &str, id: &str) -> String {
-    template
-        .replace("{id}", id)
-        .replace("{sdk_tag}", &format!("v{}", common::app::VERSION))
+    template.replace("{id}", id)
 }
 
 fn write(path: &Path, content: &str) -> Result<()> {
     std::fs::write(path, content).with_context(|| format!("cannot write {}", path.display()))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_new_repository_carries_the_template_files() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().join("hello");
+
+        scaffold_repository(&root, "hello").unwrap();
+
+        for file in [
+            "Cargo.toml",
+            ".gitignore",
+            "README.md",
+            ".github/workflows/ci.yml",
+            ".github/workflows/index.yml",
+            ".github/workflows/release.yml",
+            "plugins/hello/plugin.toml",
+            "plugins/hello/Cargo.toml",
+            "plugins/hello/src/lib.rs",
+        ] {
+            assert!(root.join(file).is_file(), "{file} is missing");
+        }
+    }
 }

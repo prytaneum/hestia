@@ -1,0 +1,15 @@
+name: index
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  index:
+    permissions:
+      contents: write
+    uses: prytaneum/hestia/.github/workflows/plugin-index.yml@feature/plugins
+    with:
+      hestia-ref: refs/heads/feature/plugins
+    secrets:
+      HESTIA_SIGNING_KEY: ${{ secrets.HESTIA_SIGNING_KEY }}
