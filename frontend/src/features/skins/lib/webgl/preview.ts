@@ -71,7 +71,7 @@ export class SkinPreview {
   private readonly centered = new THREE.Group();
   private readonly spotlight: THREE.Mesh;
   private readonly transparent = createTransparentTexture();
-  private readonly clock = new THREE.Clock();
+  private readonly timer = new THREE.Timer();
   private readonly resize: ResizeObserver;
   private readonly container: HTMLElement;
 
@@ -222,6 +222,7 @@ export class SkinPreview {
     this.spotlight.geometry.dispose();
     (this.spotlight.material as THREE.Material).dispose();
     this.renderer.dispose();
+    this.timer.dispose();
   }
 
   private clearModel(): void {
@@ -398,11 +399,12 @@ export class SkinPreview {
     this.spotlight.scale.set(radius, radius, radius);
   }
 
-  private tick = (): void => {
+  private tick = (timestamp: number): void => {
     if (this.disposed) return;
     this.frame = requestAnimationFrame(this.tick);
 
-    const delta = this.clock.getDelta();
+    this.timer.update(timestamp);
+    const delta = this.timer.getDelta();
     this.mixer?.update(delta);
     this.stepImpulse(delta);
     this.rotated.rotation.y = this.rotation;
