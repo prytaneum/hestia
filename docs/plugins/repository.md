@@ -61,6 +61,8 @@ A build happens on its author's demand: push the tag `<id>-v<version>`, even in 
 that plugin, attaches `<id>-<version>.hplugin` to the tag's release, then refreshes the index. A released version is
 never rebuilt: re-adding the same id and version with another sha256 is refused.
 
+The workflows that do this, and the same steps for another host, are in [publishing.md](publishing.md).
+
 ## `hestia plugin index`
 
 ```bash
