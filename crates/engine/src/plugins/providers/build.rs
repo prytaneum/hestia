@@ -101,7 +101,7 @@ fn source_file(build_dir: &Path, root: &Path, guest: &str) -> Result<PathBuf, Fa
 ///
 /// shortcut: length, not a hash, decides "already placed"; hash it when a built
 /// file can change without changing size under one name.
-fn copy_into(source: &Path, destination: &Path) -> std::io::Result<()> {
+pub(super) fn copy_into(source: &Path, destination: &Path) -> std::io::Result<()> {
     let length = std::fs::metadata(source)?.len();
     if std::fs::metadata(destination).is_ok_and(|placed| placed.is_file() && placed.len() == length)
     {

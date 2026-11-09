@@ -112,7 +112,7 @@ During that call, and only that call, the guest has two more mounts beside `/dat
 | Mount | Access | What |
 |---|---|---|
 | `/build` | read-write | the flavor's own area, `meta/flavors/<flavor-id>/`, shared by every entry of the flavor |
-| `/vanilla` | read-only | the directory of the side's vanilla jar; `vanillaJar` is that jar's guest path, absent when the side has none |
+| `/vanilla` | read-only | a copy of the side's vanilla jar, alone; `vanillaJar` is that jar's guest path, absent when the side has none |
 
 Run tools with `hestia::process::exec_in(program, args, timeout, "/build")`, declare them in `[[programs]]` (a Java tool
 as `java = 21`, run on a Hestia-managed runtime), and answer with the files to keep: `path` is a file under `/build`,

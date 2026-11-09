@@ -155,6 +155,24 @@ impl PluginFlavorProvider {
         })
     }
 
+    /// A copy of the vanilla jar in a host-owned directory of its own, so the
+    /// read-only mount shows that jar and nothing beside it: a server's jar
+    /// sits in its data directory, next to `server.properties` and its RCON
+    /// password.
+    fn stage_vanilla(&self, meta: &Path, jar: &Path) -> Result<std::path::PathBuf> {
+        let name = jar
+            .file_name()
+            .context("the vanilla jar has no file name")?;
+        let staged = meta
+            .join("flavors")
+            .join(".vanilla")
+            .join(self.guest.id())
+            .join(name);
+        build::copy_into(jar, &staged)
+            .with_context(|| format!("cannot stage {}", jar.display()))?;
+        Ok(staged)
+    }
+
     /// Runs the guest's `build` in its area and returns what it produced; none
     /// when the guest has nothing to build.
     async fn build(
@@ -171,18 +189,26 @@ impl PluginFlavorProvider {
             guest: BUILD_MOUNT,
             writable: true,
         }];
-        let vanilla_jar = request
-            .minecraft_jar
-            .filter(|jar| jar.is_file())
-            .and_then(|jar| {
-                let name = jar.file_name()?.to_str()?;
+        let vanilla_jar = match request.minecraft_jar.filter(|jar| jar.is_file()) {
+            Some(jar) => {
+                let staged = self.stage_vanilla(request.meta, jar)?;
+                let name = staged
+                    .file_name()
+                    .and_then(|name| name.to_str())
+                    .context("the vanilla jar has no file name")?
+                    .to_string();
                 mounts.push(Mount {
-                    host: jar.parent()?.to_path_buf(),
+                    host: staged
+                        .parent()
+                        .context("the staged jar has no parent")?
+                        .to_path_buf(),
                     guest: VANILLA_MOUNT,
                     writable: false,
                 });
                 Some(format!("{VANILLA_MOUNT}/{name}"))
-            });
+            }
+            None => None,
+        };
         let query = BuildQuery {
             side: match side {
                 Side::Server => flavor::BuildSide::Server,

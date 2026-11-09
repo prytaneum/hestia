@@ -17,8 +17,8 @@ answers cheaply when they exist.
 
 **The build area is the flavor's own, mounted for that call only.** `/build` is read-write and is
 `meta/flavors/<flavor-id>/`, created by the host, shared by every entry of the flavor and regenerable like the rest of
-`meta/` ([0054](0054-meta-root-for-materialised-files.md)). `/vanilla` is read-only and is the directory of the side's
-vanilla jar, which `vanillaJar` names; a server whose own jar is built has none. No other call is given either mount, and
+`meta/` ([0054](0054-meta-root-for-materialised-files.md)). `/vanilla` is read-only and holds a host-owned copy of the side's
+vanilla jar and nothing else (a server's jar sits beside `server.properties` and its RCON password, so its directory is never mounted), which `vanillaJar` names; a server whose own jar is built has none. No other call is given either mount, and
 no entry directory, `meta/libraries`, `meta/versions` or `meta/assets` is ever writable to a guest. The mounts ride on a
 per-call context beside the progress sink, so the store builder has one place that knows about extras.
 

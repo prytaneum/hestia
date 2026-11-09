@@ -261,7 +261,7 @@ A flavor whose profile names something it cannot download implements the optiona
 `build` operation ([0110](../decisions/0110-a-flavor-builds-in-its-own-area.md)).
 The adapter calls it from the flavor's `install` step with a per-call context: two
 extra preopens beside `/data`, `/build` (read-write, `meta/flavors/<flavor-id>/`)
-and `/vanilla` (read-only, the directory of the side's vanilla jar), and a
+and `/vanilla` (read-only, a host-owned copy of the side's vanilla jar and nothing else), and a
 progress and cancel sink that maps onto `ProvisionProgress` and the provision's
 cancel, under the one-hour command timeout. The guest writes only under `/build`;
 `providers/build.rs` copies each named output to the place the profile gave it (a
