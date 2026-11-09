@@ -16,6 +16,7 @@ pub(crate) mod lifecycle;
 mod players;
 mod tasks;
 mod update;
+mod world;
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
@@ -155,6 +156,22 @@ enum ServerAction {
         #[command(subcommand)]
         cmd: ContentCmd,
     },
+    /// Install, list, remove, or update the server's resource packs (Bedrock)
+    Resourcepack {
+        #[command(subcommand)]
+        cmd: ContentCmd,
+    },
+    /// Install, list, remove, or update the server's behavior packs (Bedrock)
+    #[command(visible_alias = "bp")]
+    Behaviorpack {
+        #[command(subcommand)]
+        cmd: ContentCmd,
+    },
+    /// List the server's worlds, or import a .mcworld (Bedrock)
+    World {
+        #[command(subcommand)]
+        cmd: world::WorldCmd,
+    },
     /// The modpack this server runs: status, update, remove
     Modpack {
         #[command(subcommand)]
@@ -282,6 +299,27 @@ async fn run_unit_action(client: Client, name: String, action: ServerAction) -> 
             )
             .await
         }
+        ServerAction::Resourcepack { cmd } => {
+            content::run_entry(
+                &client,
+                EntryKind::Server,
+                ContentKind::ResourcePack,
+                &name,
+                cmd,
+            )
+            .await
+        }
+        ServerAction::Behaviorpack { cmd } => {
+            content::run_entry(
+                &client,
+                EntryKind::Server,
+                ContentKind::BehaviorPack,
+                &name,
+                cmd,
+            )
+            .await
+        }
+        ServerAction::World { cmd } => world::run(&client, &name, cmd).await,
         ServerAction::Modpack { cmd } => {
             crate::commands::modpack::run_entry(EntryKind::Server, name, cmd).await
         }

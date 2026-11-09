@@ -150,6 +150,12 @@ hestia server smp mod add <slug> # a modloader server (fabric) takes mods
 hestia server smp plugin add <slug>     # a paper/folia/spigot/bukkit server takes plugins
 hestia server smp datapack add <slug>   # datapacks install into the server's world
 hestia server smp datapack add --file ./pack.zip   # any kind imports a local file
+hestia server bds world list     # a server's worlds (the one it runs is marked *)
+hestia server bds world import ./w.mcworld --use   # Bedrock, stopped; --use
+                                 #   makes it the world the server runs
+hestia server bds behaviorpack add ./x.mcpack   # alias: bp; a .mcpack/.mcaddon
+                                 #   path or an https link to one
+hestia server bds resourcepack add ./x.mcpack
 ```
 
 What a server takes depends on its flavor: mods on `fabric`/`neoforge`, plugins on `paper`/`folia`/`spigot`/`bukkit`,
@@ -157,6 +163,17 @@ datapacks on any of them, and nothing else on `vanilla` — `server flavors` pri
 you to remember it. A `neoforge` create builds its game jar locally, so it takes a few minutes and cannot derive a
 property schema (`server config set` accepts any key on one). Asking for the wrong kind is refused naming what that
 server does take.
+
+`bedrock` is Mojang's Bedrock Dedicated Server, for phones, consoles and Windows players. `server flavors` and
+`server list` carry an EDITION column, and the create picker lists Java flavors first, then Bedrock. A Bedrock server
+runs natively, so its wizard has no memory field and `status` shows its IPv4 and IPv6 ports and no `java` row. It takes
+`behaviorpacks` and `resourcepacks` from a local `.mcpack`/`.mcaddon` file or a direct https link (Modrinth and
+CurseForge serve Java only, so adding from them fails per item). What it refuses, and why:
+
+- `config set memory|jvm-args` — there is no JVM to size.
+- `players ban|pardon` — Bedrock has no ban list; `players list` shows `allowlist` and `operators` only.
+- `players op` — only for a player who is online.
+- `world import` — the server must be stopped, and the file a `.mcworld`.
 
 `spigot` and `bukkit` are compiled on this machine at create — nobody may redistribute either jar, so SpigotMC's
 BuildTools builds it here. Budget several minutes and a few hundred megabytes for the first one, and have `git`

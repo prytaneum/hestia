@@ -177,6 +177,7 @@ async fn add(
         version: version.unwrap_or_default(),
         ..ContentAddItem::default()
     };
+    let file = file.or_else(|| item.clone().filter(|i| is_local_pack(i)));
     if let Some(path) = file {
         add_item.path = std::fs::canonicalize(&path)
             .with_context(|| format!("cannot read {path}"))?
@@ -641,4 +642,23 @@ async fn resolve_entry(client: &Client, entry: EntryKind, reference: &str) -> Re
 
 fn is_url(reference: &str) -> bool {
     reference.starts_with("http://") || reference.starts_with("https://")
+}
+
+/// A Bedrock pack archive named on the command line is a file, not a project slug.
+fn is_local_pack(reference: &str) -> bool {
+    let lower = reference.to_ascii_lowercase();
+    !is_url(reference) && (lower.ends_with(".mcpack") || lower.ends_with(".mcaddon"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_pack_path_is_a_file_and_a_pack_url_is_not() {
+        assert!(is_local_pack("./x.mcpack"));
+        assert!(is_local_pack("/tmp/Addon.MCADDON"));
+        assert!(!is_local_pack("https://example.com/x.mcpack"));
+        assert!(!is_local_pack("sodium"));
+    }
 }
