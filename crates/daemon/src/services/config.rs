@@ -13,7 +13,7 @@ use proto::Empty;
 use serde_json::{json, Value};
 
 use crate::autostart;
-use crate::runtime::Channels;
+use crate::runtime::{Caller, Channels};
 
 fn config_err(e: ConfigError) -> ErrorInfo {
     match e {
@@ -56,6 +56,12 @@ pub(super) fn register(on: &mut Channels<'_>) {
     });
 
     on.handle::<ConfigSet, _, _>(|p, ctx| async move {
+        // Developer mode unlocks dev installs; only the user may turn it on.
+        if p.key == DEVELOPER_KEY && matches!(ctx.caller, Caller::Plugin(_)) {
+            return Err(ErrorInfo::ConfigRejected {
+                key: DEVELOPER_KEY.into(),
+            });
+        }
         if p.key == HOME_KEY {
             let Value::String(dir) = p.value else {
                 return Err(ErrorInfo::ConfigTypeMismatch {

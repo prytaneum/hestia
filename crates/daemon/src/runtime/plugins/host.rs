@@ -388,4 +388,24 @@ mod tests {
             .expect_err("no account is signed in");
         assert!(matches!(&error, HostError::Failed(message) if message.contains("sign in")));
     }
+
+    #[tokio::test]
+    async fn a_plugin_cannot_turn_developer_mode_on() {
+        let harness = harness(crate::services::make_router());
+        let error = harness
+            .host
+            .call(
+                "demo",
+                &CallChain::default(),
+                "config.set",
+                json!({ "key": proto::config::DEVELOPER_KEY, "value": true }),
+            )
+            .await
+            .expect_err("only the user may enable developer mode");
+        assert!(
+            matches!(&error, HostError::Invalid(message) if message.contains("developer")),
+            "{error:?}"
+        );
+        assert!(!harness._runtime.plugins().developer());
+    }
 }
