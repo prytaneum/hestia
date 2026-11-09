@@ -348,6 +348,8 @@ pub enum Service {
     Xbox,
     /// The release feed self-update follows.
     Release,
+    /// The community feed listing every Bedrock Dedicated Server build.
+    BedrockVersions,
 }
 
 impl fmt::Display for Service {
@@ -364,6 +366,7 @@ impl fmt::Display for Service {
             Service::Microsoft => "Microsoft",
             Service::Xbox => "Xbox",
             Service::Release => "the release feed",
+            Service::BedrockVersions => "the Bedrock version feed",
         })
     }
 }

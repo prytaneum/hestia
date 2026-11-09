@@ -101,6 +101,7 @@
       "back_up": "back up",
       "backup": "backup",
       "bedrock_host": "Bedrock Dedicated Server is published for x86_64 Linux and Windows only",
+      "bedrock_versions": "the Bedrock version feed",
       "boolean": "true or false",
       "command": "command",
       "commands": "the command history",

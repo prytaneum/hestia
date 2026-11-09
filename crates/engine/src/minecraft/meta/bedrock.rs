@@ -90,14 +90,16 @@ pub async fn download_url(version: &str) -> Result<String> {
     let build = builds
         .iter()
         .find(|build| build.id == version)
-        .with_context(|| format!("Bedrock Dedicated Server {version} is not published"))?;
+        .ok_or_else(|| ErrorInfo::VersionNotFound {
+            reference: version.to_string(),
+        })?;
     resolve_url(host, build, cdn_root.as_deref())
 }
 
 async fn catalogue(host: Host) -> Result<(Vec<Build>, Option<String>)> {
     let (links, feed) = tokio::join!(
         fetch_json(Service::Mojang, LINKS),
-        fetch_json(Service::Mojang, FEED)
+        fetch_json(Service::BedrockVersions, FEED)
     );
     let links = links
         .and_then(|body| parse_links(&body, host))
@@ -202,9 +204,16 @@ fn merge(feed: Option<Feed>, links: Vec<Build>) -> Vec<Build> {
         }
     }
     let mut seen = HashSet::new();
-    builds.retain(|build| seen.insert(build.id.clone()));
+    builds.retain(|build| is_version_id(&build.id) && seen.insert(build.id.clone()));
     builds.sort_by_cached_key(|build| std::cmp::Reverse(version_key(&build.id)));
     builds
+}
+
+fn is_version_id(id: &str) -> bool {
+    !id.is_empty()
+        && id
+            .split('.')
+            .all(|part| !part.is_empty() && part.bytes().all(|b| b.is_ascii_digit()))
 }
 
 fn version_key(id: &str) -> Vec<u64> {
@@ -285,6 +294,25 @@ mod tests {
         let feed = parse_feed(&feed(), WINDOWS).unwrap();
         assert_eq!(feed.stable, ["1.9.0.15", "1.9.0.15"]);
         assert!(feed.preview.is_empty());
+    }
+
+    #[test]
+    fn a_feed_id_that_is_not_a_version_is_dropped() {
+        let feed = Feed {
+            cdn_root: ROOT.into(),
+            stable: vec![
+                "1.26.0.1".into(),
+                "../evil".into(),
+                "1.x".into(),
+                String::new(),
+            ],
+            preview: Vec::new(),
+        };
+        let ids: Vec<String> = merge(Some(feed), Vec::new())
+            .into_iter()
+            .map(|build| build.id)
+            .collect();
+        assert_eq!(ids, vec!["1.26.0.1"]);
     }
 
     #[test]
