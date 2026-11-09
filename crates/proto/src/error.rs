@@ -700,6 +700,16 @@ pub enum ErrorInfo {
         actual: ContentKind,
         expected: ContentKind,
     },
+    /// A Bedrock pack whose manifest declares a module a server cannot load
+    /// (a skin pack, a world template, client data).
+    ContentPackUnsupported {
+        name: String,
+        module: String,
+    },
+    /// A Marketplace pack: its contents are encrypted and cannot be read.
+    ContentPackEncrypted {
+        name: String,
+    },
     /// A registered source that cannot serve requests as configured — today,
     /// a platform whose API key is unset.
     ContentSourceUnavailable {
@@ -1003,6 +1013,13 @@ impl fmt::Display for ErrorInfo {
                 actual,
                 expected,
             } => write!(f, "'{title}' is {actual} content, not {expected}"),
+            ContentPackUnsupported { name, module } => write!(
+                f,
+                "'{name}' is a {module} pack, which a server cannot load"
+            ),
+            ContentPackEncrypted { name } => {
+                write!(f, "'{name}' is encrypted and cannot be installed")
+            }
             ContentSourceUnavailable { source } => {
                 write!(f, "the {source} content source is not configured")
             }
