@@ -7,7 +7,7 @@ use std::collections::HashMap;
 use anyhow::Result;
 use async_trait::async_trait;
 use proto::content::ContentKind;
-use proto::minecraft::{Artifact, GameVersion, VersionKind};
+use proto::minecraft::{Artifact, Edition, GameVersion, VersionKind};
 
 use super::meta::{fabric, mojang};
 use super::profile::{InstanceProfile, Library, ServerJar, ServerLaunch, ServerProfile};
@@ -20,6 +20,7 @@ const INFO: FlavorInfo = FlavorInfo {
     name: "Fabric",
     summary:
         "A light, fast-moving mod loader. Usually the first to support a new Minecraft version.",
+    edition: Edition::Java,
     loads: Some(ContentKind::Mod),
     requires: &[],
     sides: BOTH_SIDES,

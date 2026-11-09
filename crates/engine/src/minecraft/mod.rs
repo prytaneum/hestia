@@ -24,7 +24,7 @@ pub(crate) mod world;
 use std::path::Path;
 
 use anyhow::{Context, Result};
-use proto::minecraft::{Flavor, GameVersion};
+use proto::minecraft::{Edition, Flavor, GameVersion};
 
 use crate::cache::Cache;
 use profile::{InstanceProfile, ServerProfile};
@@ -77,7 +77,8 @@ impl Minecraft {
                 id: info.id.to_string(),
                 name: info.name.to_string(),
                 summary: info.summary.to_string(),
-                accepts: accepted_kinds(side, info.loads),
+                edition: info.edition,
+                accepts: accepted_kinds(side, info.edition, info.loads),
                 requires: Vec::new(),
             })
             .collect()
@@ -99,6 +100,12 @@ impl Minecraft {
         self.provider(side, flavor)
             .ok()
             .and_then(|p| p.info().loads)
+    }
+
+    pub fn edition(&self, side: Side, flavor: &str) -> Edition {
+        self.provider(side, flavor)
+            .ok()
+            .map_or(Edition::Java, |p| p.info().edition)
     }
 
     pub async fn versions(&self, side: Side, flavor: &str) -> Result<Vec<GameVersion>> {

@@ -40,6 +40,7 @@ pub fn kind_plural(kind: ContentKind) -> &'static str {
         ContentKind::Shader => "shaders",
         ContentKind::DataPack => "datapacks",
         ContentKind::Plugin => "plugins",
+        ContentKind::BehaviorPack => "behaviorpacks",
     }
 }
 

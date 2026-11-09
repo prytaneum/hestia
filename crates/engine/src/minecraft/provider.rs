@@ -8,7 +8,7 @@ use std::path::Path;
 use anyhow::{bail, Result};
 use async_trait::async_trait;
 use proto::content::ContentKind;
-use proto::minecraft::{GameVersion, Requirement};
+use proto::minecraft::{Edition, GameVersion, Requirement};
 
 use crate::cache::Cache;
 use crate::minecraft::materialize::OnProgress;
@@ -73,8 +73,13 @@ impl Side {
 /// It lives beside `Loads` because it is the same vocabulary: adding a flavor
 /// is one impl plus one registry line, with no table to update here or in any
 /// front-end.
-pub fn accepted_kinds(side: Side, loads: Loads) -> Vec<ContentKind> {
+pub fn accepted_kinds(side: Side, edition: Edition, loads: Loads) -> Vec<ContentKind> {
     let mut kinds: Vec<ContentKind> = loads.into_iter().collect();
+    if edition == Edition::Bedrock {
+        kinds.push(ContentKind::BehaviorPack);
+        kinds.push(ContentKind::ResourcePack);
+        return kinds;
+    }
     if side == Side::Client {
         kinds.push(ContentKind::ResourcePack);
         kinds.push(ContentKind::Shader);
@@ -137,6 +142,7 @@ pub struct FlavorInfo {
     /// running it a user should know before choosing it. Rendered by every
     /// front-end, so a new flavor needs no front-end change to explain itself.
     pub summary: &'static str,
+    pub edition: Edition,
     pub loads: Loads,
     /// Tools this flavor needs on the machine; none for all but a flavor that
     /// builds its own artifacts.
@@ -183,27 +189,32 @@ mod tests {
     #[test]
     fn a_flavor_contributes_its_loader_kind_and_the_side_the_rest() {
         assert_eq!(
-            accepted_kinds(Side::Server, Some(ContentKind::Plugin)),
+            accepted_kinds(Side::Server, Edition::Java, Some(ContentKind::Plugin)),
             vec![ContentKind::Plugin, ContentKind::DataPack],
             "a paper or spigot server takes plugins, never mods"
         );
         assert_eq!(
-            accepted_kinds(Side::Server, Some(ContentKind::Mod)),
+            accepted_kinds(Side::Server, Edition::Java, Some(ContentKind::Mod)),
             vec![ContentKind::Mod, ContentKind::DataPack]
         );
         assert_eq!(
-            accepted_kinds(Side::Server, None),
+            accepted_kinds(Side::Server, Edition::Java, None),
             vec![ContentKind::DataPack],
             "vanilla loads nothing of its own, but a world still takes datapacks"
         );
         assert_eq!(
-            accepted_kinds(Side::Client, None),
+            accepted_kinds(Side::Client, Edition::Java, None),
             vec![
                 ContentKind::ResourcePack,
                 ContentKind::Shader,
                 ContentKind::DataPack
             ],
             "a client reads packs whatever its flavor loads"
+        );
+        assert_eq!(
+            accepted_kinds(Side::Server, Edition::Bedrock, None),
+            vec![ContentKind::BehaviorPack, ContentKind::ResourcePack],
+            "a bedrock server takes packs, never datapacks"
         );
     }
 }

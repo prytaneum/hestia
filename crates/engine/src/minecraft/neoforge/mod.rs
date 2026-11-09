@@ -18,7 +18,7 @@ use std::path::Path;
 use anyhow::{Context, Result};
 use async_trait::async_trait;
 use proto::content::ContentKind;
-use proto::minecraft::GameVersion;
+use proto::minecraft::{Edition, GameVersion};
 
 use super::materialize::{self, OnProgress};
 use super::meta::{mojang, neoforge};
@@ -36,6 +36,7 @@ const INFO: FlavorInfo = FlavorInfo {
     id: ID,
     name: "NeoForge",
     summary: "Mod loader for big, content-heavy modpacks. The first launch prepares the game files, so it takes a few minutes.",
+    edition: Edition::Java,
     loads: Some(ContentKind::Mod),
     requires: &[],
     sides: BOTH_SIDES,

@@ -14,7 +14,7 @@ use proto::content::{
     ContentKind, ContentProject, ContentVersion, SearchQuery, SearchResult, VersionQuery,
 };
 
-use proto::minecraft::{Artifact, GameVersion};
+use proto::minecraft::{Artifact, Edition, GameVersion};
 
 /// A flavor that resolves to a profile naming `artifact`, or fails when it is
 /// `None` — the two halves of what a provider can do to a create.
@@ -29,6 +29,7 @@ fn info(id: &'static str) -> FlavorInfo {
         id,
         name: "Fixture",
         summary: "a flavor that exists only in tests",
+        edition: Edition::Java,
         loads: Some(ContentKind::Mod),
         requires: &[],
         sides: &[Side::Server, Side::Client],

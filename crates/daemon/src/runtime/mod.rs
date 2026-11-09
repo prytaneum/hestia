@@ -19,6 +19,8 @@ use std::time::Instant;
 use engine::{Engine, InstanceRecord, ServerRecord};
 use proto::error::ErrorInfo;
 use proto::instance::InstanceInfo;
+use proto::minecraft::Edition;
+use proto::players::PlayerList;
 use proto::process::{LogSource, ProcessInfo, ProcessSpec};
 use proto::server::ServerInfo;
 use tokio::sync::mpsc::UnboundedSender;
@@ -100,18 +102,26 @@ pub fn server_info(
     record: ServerRecord,
     process: Option<proto::process::ProcessInfo>,
     accepts: Vec<proto::content::ContentKind>,
+    edition: Edition,
 ) -> ServerInfo {
     let ready = record.ready();
+    let player_lists = match edition {
+        Edition::Java => vec![PlayerList::Whitelist, PlayerList::Ops, PlayerList::Banned],
+        Edition::Bedrock => vec![PlayerList::Whitelist, PlayerList::Ops],
+    };
     ServerInfo {
         id: record.id,
         name: record.name,
         flavor: record.profile.flavor,
         game_version: record.profile.game_version,
         loader_version: record.profile.loader_version,
-        java_major: record.profile.java_major,
+        edition,
+        java_major: Some(record.profile.java_major),
         created_unix: record.created_unix,
         ready,
         game_port: record.game_port,
+        ports: vec![record.game_port],
+        player_lists,
         console: record.rcon.is_some(),
         accepts,
         process,
@@ -201,7 +211,8 @@ impl Runtime {
     pub fn server_view(&self, record: ServerRecord) -> ServerInfo {
         let process = self.processes.status(&server_process_id(&record.id));
         let accepts = self.engine.server_accepts(&record.profile.flavor);
-        server_info(record, process, accepts)
+        let edition = self.engine.server_edition(&record.profile.flavor);
+        server_info(record, process, accepts, edition)
     }
 
     /// Stop a running server, wait for its process to exit, and start it

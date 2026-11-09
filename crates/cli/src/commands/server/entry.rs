@@ -68,7 +68,6 @@ pub(super) fn show_status(info: &ServerInfo, ping: Option<&ServerPingResult>) ->
             "loader",
             info.loader_version.clone().unwrap_or_else(|| "-".into()),
         ),
-        ("java", info.java_major.to_string()),
         ("address", address_label(info)),
         (
             "console",
@@ -76,6 +75,9 @@ pub(super) fn show_status(info: &ServerInfo, ping: Option<&ServerPingResult>) ->
         ),
         ("state", state_label(info)),
     ];
+    if let Some(java) = info.java_major {
+        rows.insert(5, ("java", java.to_string()));
+    }
     if let Some(ping) = ping {
         rows.push((
             "players",

@@ -8,7 +8,7 @@ mod buildtools;
 use anyhow::Result;
 use async_trait::async_trait;
 use proto::content::ContentKind;
-use proto::minecraft::GameVersion;
+use proto::minecraft::{Edition, GameVersion};
 
 use self::buildtools::Product;
 use super::materialize::OnProgress;
@@ -78,6 +78,7 @@ impl BuildTools {
                 id: "bukkit",
                 name: "CraftBukkit",
                 summary: "The plugin server Spigot is built on, without its speed-ups. Pick Spigot unless you need this exactly.",
+                edition: Edition::Java,
                 loads: Some(ContentKind::Plugin),
                 requires: PREREQUISITES,
                 sides: SERVER_ONLY,
@@ -92,6 +93,7 @@ impl BuildTools {
                 id: "spigot",
                 name: "Spigot",
                 summary: "The classic plugin server, with the largest plugin library. Nobody may hand it out ready-made, so Hestia builds it here the first time — allow a few minutes.",
+                edition: Edition::Java,
                 loads: Some(ContentKind::Plugin),
                 requires: PREREQUISITES,
                 sides: SERVER_ONLY,

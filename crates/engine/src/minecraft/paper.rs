@@ -15,7 +15,7 @@
 use anyhow::Result;
 use async_trait::async_trait;
 use proto::content::ContentKind;
-use proto::minecraft::{GameVersion, VersionKind};
+use proto::minecraft::{Edition, GameVersion, VersionKind};
 
 use super::meta::{mojang, paper};
 use super::profile::{ServerJar, ServerLaunch, ServerProfile};
@@ -82,6 +82,7 @@ impl PaperProject {
                 id: "paper",
                 name: "Paper",
                 summary: "A faster server that runs Bukkit plugins, tuned by the Paper team for each version.",
+                edition: Edition::Java,
                 loads: Some(ContentKind::Plugin),
                 requires: &[],
                 sides: SERVER_ONLY,
@@ -98,6 +99,7 @@ impl PaperProject {
                 id: "folia",
                 name: "Folia",
                 summary: "Paper spread across CPU cores, for very large worlds. Only plugins made for Folia will work.",
+                edition: Edition::Java,
                 loads: Some(ContentKind::Plugin),
                 requires: &[],
                 sides: SERVER_ONLY,

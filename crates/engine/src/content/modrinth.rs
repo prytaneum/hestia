@@ -429,7 +429,7 @@ fn build_facets(query: &SearchQuery) -> String {
 
 fn project_type(kind: ContentKind) -> &'static str {
     match kind {
-        ContentKind::Mod => "mod",
+        ContentKind::Mod | ContentKind::BehaviorPack => "mod",
         ContentKind::Modpack => "modpack",
         ContentKind::ResourcePack => "resourcepack",
         ContentKind::Shader => "shader",

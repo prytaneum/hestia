@@ -16,8 +16,9 @@ use crate::runtime::{
 fn provisioned(engine: &Engine, outcome: (engine::ServerRecord, Vec<WarningInfo>)) -> ServerDone {
     let (record, warnings) = outcome;
     let accepts = engine.server_accepts(&record.profile.flavor);
+    let edition = engine.server_edition(&record.profile.flavor);
     ServerDone {
-        server: server_info(record, None, accepts),
+        server: server_info(record, None, accepts, edition),
         warnings,
         failures: Vec::new(),
     }

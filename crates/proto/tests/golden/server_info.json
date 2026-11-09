@@ -4,10 +4,19 @@
   "flavor": "fabric",
   "gameVersion": "1.21.1",
   "loaderVersion": "0.16.5",
+  "edition": "java",
   "javaMajor": 21,
   "createdUnix": 1751000000,
   "ready": true,
   "gamePort": 25565,
+  "ports": [
+    25565
+  ],
+  "playerLists": [
+    "whitelist",
+    "ops",
+    "banned"
+  ],
   "console": true,
   "accepts": [],
   "process": {

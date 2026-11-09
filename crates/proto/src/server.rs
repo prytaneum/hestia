@@ -11,8 +11,9 @@ use serde::{Deserialize, Serialize};
 use crate::content::{ContentFailure, ContentKind};
 use crate::contract::{Contract, Empty};
 use crate::job::{Job, JobStarted};
-use crate::minecraft::{ConfigEntry, ProvisionProgress};
+use crate::minecraft::{ConfigEntry, Edition, ProvisionProgress};
 use crate::modpack::PackPolicy;
+use crate::players::PlayerList;
 use crate::process::ProcessInfo;
 use crate::warning::WarningInfo;
 
@@ -28,12 +29,18 @@ pub struct ServerInfo {
     pub game_version: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub loader_version: Option<String>,
-    pub java_major: i32,
+    pub edition: Edition,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub java_major: Option<i32>,
     pub created_unix: i64,
     /// False while the create job is still provisioning files.
     pub ready: bool,
     /// Allocated at create and stable thereafter — players connect to it.
     pub game_port: u16,
+    /// Every port the server binds, the game port first.
+    pub ports: Vec<u16>,
+    /// The player lists this server keeps.
+    pub player_lists: Vec<PlayerList>,
     /// True once RCON is configured, which happens at the first start.
     pub console: bool,
     /// The content kinds this server can take, composed from its flavor's own

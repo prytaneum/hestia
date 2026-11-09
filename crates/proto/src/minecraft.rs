@@ -27,6 +27,7 @@ pub struct Flavor {
     /// authored beside the provider. English; a front-end with its own
     /// translation for a known id may prefer it.
     pub summary: String,
+    pub edition: Edition,
     pub accepts: Vec<ContentKind>,
     /// What this flavor needs installed that is **not** on this machine; empty
     /// when it is ready to use. Resolved as the catalogue is built, so a
@@ -53,6 +54,15 @@ pub struct Requirement {
 pub struct ConfigEntry {
     pub key: String,
     pub value: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
+#[serde(rename_all = "snake_case")]
+pub enum Edition {
+    #[default]
+    Java,
+    Bedrock,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Default)]

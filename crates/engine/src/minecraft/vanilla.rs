@@ -3,7 +3,7 @@
 
 use anyhow::Result;
 use async_trait::async_trait;
-use proto::minecraft::GameVersion;
+use proto::minecraft::{Edition, GameVersion};
 
 use super::meta::mojang;
 use super::profile::{InstanceProfile, ServerJar, ServerLaunch, ServerProfile};
@@ -15,6 +15,7 @@ const INFO: FlavorInfo = FlavorInfo {
     id: ID,
     name: "Vanilla",
     summary: "Mojang's game, unchanged. Takes datapacks only — no mods or plugins.",
+    edition: Edition::Java,
     loads: None,
     requires: &[],
     sides: BOTH_SIDES,
