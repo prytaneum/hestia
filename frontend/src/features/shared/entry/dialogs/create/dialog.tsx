@@ -343,7 +343,7 @@ export function CreateEntryDialog({
                 form={form}
                 kind={kind}
                 rules={rules}
-                hasName={catalogue?.nameKey !== undefined}
+                nameKey={catalogue?.nameKey}
               />
             </StepForm>
           )}
@@ -364,7 +364,7 @@ function serverParams(
   const d = value.details;
   const config: ConfigEntry[] = [
     ...memoryEntries,
-    ...(nameKey ? [{ key: nameKey, value: d.motd }] : []),
+    ...(nameKey && d.motd ? [{ key: nameKey, value: d.motd }] : []),
     { key: 'gamemode', value: d.gamemode },
     { key: 'difficulty', value: d.difficulty },
     { key: 'max-players', value: d.maxPlayers },

@@ -32,6 +32,7 @@
         "port_hint": "Blank picks the lowest free.",
         "seed": "World seed",
         "seed_random": "random",
+        "server_name": "Server name",
         "title": "Server properties"
       },
       "provisioning_instance": "Provisioning your instance…",

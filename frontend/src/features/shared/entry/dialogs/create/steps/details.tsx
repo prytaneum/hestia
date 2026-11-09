@@ -21,12 +21,12 @@ export function DetailsStep({
   form,
   kind,
   rules,
-  hasName,
+  nameKey,
 }: {
   form: WizardForm;
   kind: Kind;
   rules: KeyRule[];
-  hasName: boolean;
+  nameKey: string | undefined;
 }) {
   const memoryRange = useMemoryRange();
   const allowed = (items: typeof GAMEMODES, key: string) => {
@@ -73,10 +73,10 @@ export function DetailsStep({
         <>
           <SectionHeader>{m['entry.create.properties.title']()}</SectionHeader>
 
-          {hasName && (
+          {nameKey && (
             <form.AppField name="details.motd">
               {(field: WizardForm) => (
-                <field.TextField label={m['entry.create.properties.motd']()} />
+                <field.TextField label={nameLabel(nameKey)} />
               )}
             </form.AppField>
           )}
@@ -218,4 +218,13 @@ export function DetailsStep({
       )}
     </div>
   );
+}
+
+/** The listed-name property's label, by the key the edition names. */
+function nameLabel(key: string): string {
+  const labels: Record<string, () => string> = {
+    motd: m['entry.create.properties.motd'],
+    'server-name': m['entry.create.properties.server_name'],
+  };
+  return labels[key]?.() ?? key;
 }

@@ -32,6 +32,7 @@
         "port_hint": "Em branco escolhe a menor porta livre.",
         "seed": "Semente do mundo",
         "seed_random": "aleatória",
+        "server_name": "Nome do servidor",
         "title": "Propriedades do servidor"
       },
       "provisioning_instance": "Provisionando sua instância…",

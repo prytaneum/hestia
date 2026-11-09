@@ -92,7 +92,7 @@ export function createWizardDefaults(
     details: {
       name: '',
       memory: defaultMemoryGb,
-      motd: 'A Minecraft Server',
+      motd: '',
       seed: '',
       gamemode: 'survival',
       difficulty: 'normal',
