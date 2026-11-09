@@ -1,13 +1,14 @@
 //! hestia — the Hestia command-line interface. A thin client over the daemon.
 
 mod commands;
+mod developer;
 mod exit;
 mod ui;
 
 use std::path::Path;
 use std::process::ExitCode;
 
-use clap::{Parser, Subcommand};
+use clap::{CommandFactory, FromArgMatches, Parser, Subcommand};
 use common::LogLevel;
 
 use crate::exit::ExitStatus;
@@ -223,7 +224,18 @@ enum Command {
 }
 
 fn main() -> ExitCode {
-    let cli = Cli::parse();
+    let args: Vec<String> = std::env::args().collect();
+    let developer = developer::resolve(&args);
+    let mut command = Cli::command();
+    if !developer {
+        command = developer::hide_authoring(command);
+    }
+    let matches = command.clone().get_matches_from(&args);
+    if !developer && developer::is_authoring(&matches) {
+        eprintln!("{}", developer::OFF_MESSAGE);
+        return ExitCode::FAILURE;
+    }
+    let cli = Cli::from_arg_matches(&matches).unwrap_or_else(|error| error.exit());
 
     // Diagnostics go to an appended logs/hestia.log so they never garble command
     // output; the console only sees warnings and errors unless -v/-vv raise it.
@@ -252,7 +264,7 @@ fn main() -> ExitCode {
 
     let Some(command) = cli.command else {
         // No subcommand given: show usage.
-        let _ = <Cli as clap::CommandFactory>::command().print_help();
+        let _ = command.print_help();
         let _ = std::io::Write::write_all(&mut std::io::stdout(), b"\n");
         return ExitCode::SUCCESS;
     };

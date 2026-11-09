@@ -286,6 +286,13 @@ fn info(plugin: &PluginInfo) -> Result<()> {
     if let Some(bytes) = plugin.data_bytes {
         rows.push(("Data", ui::human_bytes(bytes)));
     }
+    if let Some(developer) = &plugin.developer {
+        rows.push(("Grant digest", developer.grant_digest.clone()));
+        rows.push(("Component cache", developer.cache_dir.clone()));
+        if developer.error_chain.len() > 1 {
+            rows.push(("Error chain", developer.error_chain.join("\n  caused by: ")));
+        }
+    }
     rows.push((
         "Calls",
         format!(
