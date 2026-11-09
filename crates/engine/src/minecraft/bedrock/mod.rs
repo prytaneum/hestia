@@ -14,6 +14,9 @@ use super::provider::{
     FlavorInfo, FlavorProvider, InstallRequest, ResolveRequest, Side, SERVER_ONLY,
 };
 
+pub(crate) mod nbt;
+pub(crate) mod world;
+
 const ID: &str = "bedrock";
 
 #[cfg(windows)]

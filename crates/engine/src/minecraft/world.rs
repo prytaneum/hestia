@@ -115,7 +115,7 @@ fn gunzip(bytes: &[u8]) -> Option<Vec<u8>> {
         .map(|_| out)
 }
 
-fn read_icon(path: &Path) -> String {
+pub(crate) fn read_icon(path: &Path) -> String {
     use base64::Engine;
     match std::fs::read(path) {
         Ok(bytes) => base64::engine::general_purpose::STANDARD.encode(bytes),
