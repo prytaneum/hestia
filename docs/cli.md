@@ -53,25 +53,32 @@ Fully provisioned at create; run under the daemon; each server claims its own po
 Catalogue verbs take no entry:
 
 ```bash
-hestia server create             # the fullscreen wizard — flavor →
-                                 #   version (type to filter; Tab pulls
-                                 #   snapshots in) → name → settings
-                                 #   (skippable) → confirm (EULA); Esc steps
-                                 #   back. Arguments prefill it, so `server
-                                 #   create fabric` opens at the version step;
-                                 #   it opens whenever flavor, version, name or
+hestia server create             # the fullscreen wizard — edition (java or
+                                 #   bedrock) → provider (flavor) → version
+                                 #   (type to filter; Tab pulls snapshots in)
+                                 #   → name → settings (skippable) → confirm
+                                 #   (EULA); Esc steps back. Arguments prefill
+                                 #   it, so `server create --edition bedrock`
+                                 #   opens at the provider step and `server
+                                 #   create fabric` at the edition step; it
+                                 #   opens whenever flavor, version, name or
                                  #   the EULA is missing and stdin and stderr
-                                 #   are terminals
-hestia server create vanilla 1.21.1 --eula -n smp   # fully specified, so no
+                                 #   are terminals. Settings follow the chosen
+                                 #   edition's rules
+hestia server create [--edition java|bedrock] vanilla 1.21.1 --eula -n smp
+                                 #   --edition defaults to java; fully
+                                 #   specified, so no
                                  #   wizard and scriptable (-l pins a
                                  #   loader, -p pins the game port, --memory 4G
                                  #   sets -Xms/-Xmx; --motd, --max-players,
                                  #   --difficulty, --gamemode, --seed cover the
                                  #   common properties, --prop KEY=VALUE the rest)
 hestia server list               # managed servers, their address and state
-hestia server versions [flavor]  # game versions a flavor offers
-hestia server flavors            # the available flavors, what each takes, and
-                                 #   a line on what it is — all from the daemon
+hestia server versions [--edition bedrock] [flavor]  # game versions a flavor offers
+hestia server loaders [--edition bedrock] [flavor] [version]
+hestia server flavors            # the available flavors per edition, what each
+                                 #   takes, and a line on what it is — all from
+                                 #   the daemon
 ```
 
 Everything that acts on one server is entry-first — `hestia server <name> <action>`:
@@ -164,8 +171,9 @@ you to remember it. A `neoforge` create builds its game jar locally, so it takes
 property schema (`server config set` accepts any key on one). Asking for the wrong kind is refused naming what that
 server does take.
 
-`bedrock` is Mojang's Bedrock Dedicated Server, for phones, consoles and Windows players. `server flavors` and
-`server list` carry an EDITION column, and the create picker lists Java flavors first, then Bedrock. A Bedrock server
+`bedrock` is Mojang's Bedrock Dedicated Server, for phones, consoles and Windows players. Create one with
+`hestia server create --edition bedrock vanilla <version>`; its flavor id is `vanilla`, the same as Java's, told apart by the edition. `server flavors` and
+`server list` carry an EDITION column, and the wizard asks for the edition before the provider. A Bedrock server
 runs natively, so its wizard has no memory field and `status` shows its IPv4 and IPv6 ports and no `java` row. It takes
 `behaviorpacks` and `resourcepacks` from a local `.mcpack`/`.mcaddon` file or a direct https link (Modrinth and
 CurseForge serve Java only, so adding from them fails per item). What it refuses, and why:

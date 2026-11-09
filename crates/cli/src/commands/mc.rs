@@ -9,7 +9,8 @@ use client::proto::backup::BackupInfo;
 use client::proto::error::{EntryKind, EntryTarget};
 use client::proto::instance::WorldInfo;
 use client::proto::minecraft::{
-    ConfigEntry, Edition, Flavor, GameVersion, ProvisionPhase, ProvisionProgress, VersionKind,
+    ConfigEntry, Edition, EditionCatalogue, Flavor, GameVersion, ProvisionPhase, ProvisionProgress,
+    VersionKind,
 };
 use client::proto::process::{ProcessInfo, ProcessState};
 use client::Client;
@@ -259,14 +260,44 @@ pub fn playtime_label(seconds: i64) -> String {
     }
 }
 
-pub async fn fetch_flavors(client: &Client, kind: EntryKind) -> Result<Vec<Flavor>> {
+/// The `--edition` flag; java unless asked otherwise.
+#[derive(clap::ValueEnum, Clone, Copy, Debug, PartialEq, Eq)]
+pub enum EditionArg {
+    Java,
+    Bedrock,
+}
+
+impl From<EditionArg> for Edition {
+    fn from(arg: EditionArg) -> Edition {
+        match arg {
+            EditionArg::Java => Edition::Java,
+            EditionArg::Bedrock => Edition::Bedrock,
+        }
+    }
+}
+
+pub async fn fetch_catalogues(client: &Client, kind: EntryKind) -> Result<Vec<EditionCatalogue>> {
     let _spinner = Spinner::start("fetching flavors");
-    let editions = client.entry().flavors(kind).await?;
-    Ok(editions
+    Ok(client.entry().flavors(kind).await?)
+}
+
+pub fn catalogue_for(
+    catalogues: Vec<EditionCatalogue>,
+    edition: Edition,
+) -> Result<EditionCatalogue> {
+    catalogues
         .into_iter()
-        .find(|catalogue| catalogue.edition == Edition::Java)
-        .map(|catalogue| catalogue.flavors)
-        .unwrap_or_default())
+        .find(|catalogue| catalogue.edition == edition)
+        .with_context(|| format!("no {} flavors are available", edition_label(edition)))
+}
+
+pub async fn fetch_flavors(
+    client: &Client,
+    kind: EntryKind,
+    edition: Edition,
+) -> Result<Vec<Flavor>> {
+    let catalogue = catalogue_for(fetch_catalogues(client, kind).await?, edition)?;
+    Ok(catalogue.flavors)
 }
 
 pub fn edition_label(edition: Edition) -> &'static str {
@@ -276,13 +307,22 @@ pub fn edition_label(edition: Edition) -> &'static str {
     }
 }
 
+/// The `server.properties` key holding the server-list message.
+pub fn motd_key(edition: Edition) -> &'static str {
+    match edition {
+        Edition::Java => "motd",
+        Edition::Bedrock => "server-name",
+    }
+}
+
 pub async fn fetch_versions(
     client: &Client,
     kind: EntryKind,
+    edition: Edition,
     flavor: &str,
 ) -> Result<Vec<GameVersion>> {
     let _spinner = Spinner::start("fetching versions");
-    Ok(client.entry().versions(kind, Edition::Java, flavor).await?)
+    Ok(client.entry().versions(kind, edition, flavor).await?)
 }
 
 pub fn ensure_flavor(flavors: &[Flavor], id: &str) -> Result<()> {
@@ -379,29 +419,42 @@ pub fn confirm_downgrade(kind: EntryKind, name: &str, from: &str, to: &str) -> R
     Ok(())
 }
 
-/// The non-interactive form of the selector: the available flavors as a table.
+/// The non-interactive form of the selector: the available flavors as a table,
+/// with an EDITION column when the daemon offers more than one edition.
 /// Every column comes off the wire, so a flavor the daemon ships needs nothing
 /// here to describe itself.
-fn show_flavors(flavors: &[Flavor]) -> Result<()> {
-    if flavors.is_empty() {
+fn show_flavors(catalogues: &[EditionCatalogue]) -> Result<()> {
+    let (headers, rows) = flavor_table(catalogues);
+    if rows.is_empty() {
         return ui::show(View::note("no flavors are available"));
     }
-    let rows: Vec<Vec<String>> = flavors
+    ui::show(View::table("flavors", headers, rows))
+}
+
+fn flavor_table(catalogues: &[EditionCatalogue]) -> (Vec<&'static str>, Vec<Vec<String>>) {
+    let grouped = catalogues.len() > 1;
+    let mut headers = vec!["ID", "NAME", "TAKES", "SUMMARY"];
+    if grouped {
+        headers.insert(0, "EDITION");
+    }
+    let rows = catalogues
         .iter()
-        .map(|f| {
-            vec![
-                f.id.clone(),
-                f.name.clone(),
-                accepts_label(f),
-                flavor_detail(f),
-            ]
+        .flat_map(|catalogue| {
+            catalogue.flavors.iter().map(move |f| {
+                let mut row = vec![
+                    f.id.clone(),
+                    f.name.clone(),
+                    accepts_label(f),
+                    flavor_detail(f),
+                ];
+                if grouped {
+                    row.insert(0, edition_label(catalogue.edition).to_string());
+                }
+                row
+            })
         })
         .collect();
-    ui::show(View::table(
-        "flavors",
-        ["ID", "NAME", "TAKES", "SUMMARY"],
-        rows,
-    ))
+    (headers, rows)
 }
 
 /// One selector line: the name and what it takes; the daemon's summary is the
@@ -437,17 +490,18 @@ fn accepts_label(flavor: &Flavor) -> String {
 pub async fn list_versions(
     client: &Client,
     kind: EntryKind,
+    edition: Edition,
     flavor: Option<String>,
     all: bool,
 ) -> Result<()> {
-    let flavors = fetch_flavors(client, kind).await?;
+    let flavors = fetch_flavors(client, kind, edition).await?;
     let flavor = pick_flavor(flavors, flavor)?;
-    let versions = fetch_versions(client, kind, &flavor).await?;
+    let versions = fetch_versions(client, kind, edition, &flavor).await?;
     show_versions(&flavor, versions, all)
 }
 
 pub async fn list_flavors(client: &Client, kind: EntryKind) -> Result<()> {
-    show_flavors(&fetch_flavors(client, kind).await?)
+    show_flavors(&fetch_catalogues(client, kind).await?)
 }
 
 /// Show a version table, releases only unless `all` includes snapshots and old
@@ -492,4 +546,63 @@ pub fn world_mode_label(world: &WorldInfo) -> String {
         label.push_str(" +cheats");
     }
     label
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn catalogue(edition: Edition, ids: &[&str]) -> EditionCatalogue {
+        EditionCatalogue {
+            edition,
+            rules: Vec::new(),
+            flavors: ids
+                .iter()
+                .map(|id| Flavor {
+                    id: id.to_string(),
+                    ..Default::default()
+                })
+                .collect(),
+        }
+    }
+
+    #[test]
+    fn edition_flag_maps_to_the_wire_edition() {
+        assert_eq!(Edition::from(EditionArg::Java), Edition::Java);
+        assert_eq!(Edition::from(EditionArg::Bedrock), Edition::Bedrock);
+    }
+
+    #[test]
+    fn a_single_catalogue_keeps_the_plain_table() {
+        let (headers, rows) = flavor_table(&[catalogue(Edition::Java, &["vanilla"])]);
+        assert_eq!(headers[0], "ID");
+        assert_eq!(rows[0][0], "vanilla");
+    }
+
+    #[test]
+    fn several_catalogues_group_by_edition() {
+        let (headers, rows) = flavor_table(&[
+            catalogue(Edition::Java, &["vanilla", "fabric"]),
+            catalogue(Edition::Bedrock, &["vanilla"]),
+        ]);
+        assert_eq!(headers[0], "EDITION");
+        let lead: Vec<_> = rows
+            .iter()
+            .map(|r| (r[0].as_str(), r[1].as_str()))
+            .collect();
+        assert_eq!(
+            lead,
+            [
+                ("java", "vanilla"),
+                ("java", "fabric"),
+                ("bedrock", "vanilla")
+            ]
+        );
+    }
+
+    #[test]
+    fn a_missing_edition_is_a_clear_error() {
+        let err = catalogue_for(vec![catalogue(Edition::Java, &[])], Edition::Bedrock).unwrap_err();
+        assert_eq!(err.to_string(), "no bedrock flavors are available");
+    }
 }

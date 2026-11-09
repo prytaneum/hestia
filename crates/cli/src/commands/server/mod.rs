@@ -49,15 +49,19 @@ pub enum ServerCmd {
     List,
     /// Game versions a flavor offers (prompts for the flavor when omitted)
     Versions {
+        #[arg(long, value_enum, default_value = "java")]
+        edition: mc::EditionArg,
         /// Flavor id (e.g. vanilla, fabric)
         flavor: Option<String>,
         #[arg(long, help = "Include snapshots and old versions")]
         all: bool,
     },
-    /// The available flavors
+    /// The available flavors, per edition
     Flavors,
     /// Loader builds a flavor offers for a version (modloaders only)
     Loaders {
+        #[arg(long, value_enum, default_value = "java")]
+        edition: mc::EditionArg,
         /// Flavor id (e.g. fabric); prompts when omitted
         flavor: Option<String>,
         /// Game version the loaders must support; prompts when omitted
@@ -229,11 +233,19 @@ pub async fn run(cmd: ServerCmd) -> Result<ExitStatus> {
             match catalogue {
                 ServerCmd::Create(args) => create::run(&client, *args).await,
                 ServerCmd::List => entry::list(&client).await,
-                ServerCmd::Versions { flavor, all } => {
-                    mc::list_versions(&client, EntryKind::Server, flavor, all).await
+                ServerCmd::Versions {
+                    edition,
+                    flavor,
+                    all,
+                } => {
+                    mc::list_versions(&client, EntryKind::Server, edition.into(), flavor, all).await
                 }
                 ServerCmd::Flavors => mc::list_flavors(&client, EntryKind::Server).await,
-                ServerCmd::Loaders { flavor, version } => loaders(&client, flavor, version).await,
+                ServerCmd::Loaders {
+                    edition,
+                    flavor,
+                    version,
+                } => loaders(&client, edition.into(), flavor, version).await,
                 ServerCmd::Entry(_) => unreachable!("handled above"),
             }
             .map(|()| ExitStatus::Active)
@@ -347,16 +359,21 @@ async fn run_unit_action(client: Client, name: String, action: ServerAction) -> 
     }
 }
 
-async fn loaders(client: &Client, flavor: Option<String>, version: Option<String>) -> Result<()> {
-    let flavors = mc::fetch_flavors(client, EntryKind::Server).await?;
+async fn loaders(
+    client: &Client,
+    edition: Edition,
+    flavor: Option<String>,
+    version: Option<String>,
+) -> Result<()> {
+    let flavors = mc::fetch_flavors(client, EntryKind::Server, edition).await?;
     let flavor = mc::pick_flavor(flavors, flavor)?;
-    let versions = mc::fetch_versions(client, EntryKind::Server, &flavor).await?;
+    let versions = mc::fetch_versions(client, EntryKind::Server, edition, &flavor).await?;
     let version = mc::pick_version(versions, version)?;
     let loaders = {
         let _spinner = Spinner::start("fetching loaders");
         client
             .entry()
-            .loaders(EntryKind::Server, Edition::Java, &flavor, &version)
+            .loaders(EntryKind::Server, edition, &flavor, &version)
             .await?
     };
     if loaders.is_empty() {

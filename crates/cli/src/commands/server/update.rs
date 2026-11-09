@@ -26,7 +26,8 @@ pub(super) async fn run(
     if was_running && !restart {
         confirm_update_restart(&info.name)?;
     }
-    let versions = mc::fetch_versions(client, EntryKind::Server, &info.flavor).await?;
+    let versions =
+        mc::fetch_versions(client, EntryKind::Server, info.edition, &info.flavor).await?;
     let version = mc::pick_version(versions.clone(), version)?;
     let is_downgrade =
         client::proto::minecraft::downgrade_between(&versions, &info.game_version, &version)

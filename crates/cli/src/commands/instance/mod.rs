@@ -23,6 +23,7 @@ use clap::{Parser, Subcommand};
 use client::proto::content::ContentKind;
 use client::proto::error::{EntryKind, EntryTarget};
 use client::proto::instance::QuickPlay;
+use client::proto::minecraft::Edition;
 use client::Client;
 
 use crate::commands::content::{self, ContentCmd};
@@ -340,7 +341,8 @@ pub async fn run(cmd: InstanceCmd) -> Result<()> {
                 InstanceCmd::List => entry::list(&client).await,
                 InstanceCmd::Recent => recent::list(&client).await,
                 InstanceCmd::Versions { flavor, all } => {
-                    mc::list_versions(&client, EntryKind::Instance, flavor, all).await
+                    mc::list_versions(&client, EntryKind::Instance, Edition::Java, flavor, all)
+                        .await
                 }
                 InstanceCmd::Flavors => mc::list_flavors(&client, EntryKind::Instance).await,
                 InstanceCmd::Entry(_) => unreachable!("handled above"),

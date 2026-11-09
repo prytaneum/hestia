@@ -3,8 +3,7 @@
 
 use anyhow::{bail, Context, Result};
 use client::proto::error::EntryKind;
-use client::proto::minecraft::ConfigEntry;
-use client::proto::minecraft::Edition;
+use client::proto::minecraft::{ConfigEntry, Edition};
 use client::proto::server::ServerCreateParams;
 use client::Client;
 
@@ -19,6 +18,12 @@ const EULA_URL: &str = "https://aka.ms/MinecraftEULA";
 /// create-time settings list.
 #[derive(clap::Args)]
 pub struct CreateArgs {
+    #[arg(
+        long,
+        value_enum,
+        help = "Game edition (default: java; prompts when omitted in the wizard)"
+    )]
+    edition: Option<mc::EditionArg>,
     /// Flavor id (e.g. vanilla, fabric)
     flavor: Option<String>,
     /// Game version (e.g. 1.21.1)
@@ -93,15 +98,16 @@ pub(super) async fn run(client: &Client, args: CreateArgs) -> Result<()> {
     if !args.eula {
         bail!("pass --eula to accept the Minecraft EULA ({EULA_URL})");
     }
-    let flavors = mc::fetch_flavors(client, EntryKind::Server).await?;
+    let edition = args.edition.map_or(Edition::Java, Edition::from);
+    let flavors = mc::fetch_flavors(client, EntryKind::Server, edition).await?;
     let flavor = mc::pick_flavor(flavors, args.flavor)?;
-    let versions = mc::fetch_versions(client, EntryKind::Server, &flavor).await?;
+    let versions = mc::fetch_versions(client, EntryKind::Server, edition, &flavor).await?;
     let version = mc::pick_version(versions, args.version)?;
     let name = args.name.unwrap_or_else(|| format!("{flavor}-{version}"));
     let config = build_config(
         args.memory,
         [
-            ("motd", args.motd),
+            (mc::motd_key(edition), args.motd),
             ("max-players", args.max_players.map(|n| n.to_string())),
             ("difficulty", args.difficulty),
             ("gamemode", args.gamemode),
@@ -112,7 +118,7 @@ pub(super) async fn run(client: &Client, args: CreateArgs) -> Result<()> {
 
     let params = ServerCreateParams {
         name,
-        edition: Edition::Java,
+        edition,
         flavor,
         version,
         loader_version: args.loader,
@@ -133,14 +139,17 @@ pub(super) async fn run(client: &Client, args: CreateArgs) -> Result<()> {
 /// The interactive path: the fullscreen step wizard, prefilled from whatever
 /// flags were given.
 async fn run_wizard(client: &Client, args: CreateArgs) -> Result<()> {
-    let flavors = mc::fetch_flavors(client, EntryKind::Server).await?;
-    if let Some(flavor) = &args.flavor {
-        mc::ensure_flavor(&flavors, flavor)?;
+    let edition = args.edition.map(Edition::from);
+    let catalogues = mc::fetch_catalogues(client, EntryKind::Server).await?;
+    if let (Some(edition), Some(flavor)) = (edition, &args.flavor) {
+        let catalogue = mc::catalogue_for(catalogues.clone(), edition)?;
+        mc::ensure_flavor(&catalogue.flavors, flavor)?;
     }
     let extra = build_config(None, [], args.prop)?;
     let seed = WizardSeed {
         kind: EntryKind::Server,
-        flavors,
+        catalogues,
+        edition,
         flavor: args.flavor,
         version: args.version,
         name: args.name,

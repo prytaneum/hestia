@@ -10,8 +10,9 @@ use std::collections::HashMap;
 use anyhow::Result;
 use client::proto::error::EntryKind;
 use client::proto::instance::InstanceInfo;
+use client::proto::keys::KeyKind;
 use client::proto::minecraft::{
-    ConfigEntry, Edition, Flavor, GameVersion, ProvisionProgress, VersionKind,
+    ConfigEntry, Edition, EditionCatalogue, GameVersion, ProvisionProgress, VersionKind,
 };
 use client::proto::server::{ServerCreateParams, ServerDone};
 use client::Client;
@@ -23,7 +24,7 @@ use ratatui::widgets::{List, ListItem, ListState, Paragraph};
 use ratatui::Frame;
 use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
 
-use crate::commands::mc::{flavor_detail, flavor_label, kind_label};
+use crate::commands::mc::{edition_label, flavor_detail, flavor_label, kind_label, motd_key};
 use crate::ui::components::working::draw_working;
 use crate::ui::components::{Picker, PickerItem, SelectList, TextInput};
 use crate::ui::session::{self, Flow, Screen};
@@ -35,7 +36,7 @@ const EULA_URL: &str = "https://aka.ms/MinecraftEULA";
 pub enum FieldKind {
     Text,
     Number,
-    Choice(&'static [&'static str]),
+    Choice(Vec<String>),
 }
 
 /// One settings row, prefilled from the command's flags. An empty value is
@@ -87,24 +88,27 @@ impl Field {
         key: &'static str,
         label: &'static str,
         hint: &'static str,
-        options: &'static [&'static str],
+        options: &[&str],
         value: Option<String>,
     ) -> Field {
         Field {
             key,
             label,
             hint,
-            kind: FieldKind::Choice(options),
+            kind: FieldKind::Choice(options.iter().map(|o| o.to_string()).collect()),
             value: value.unwrap_or_default(),
         }
     }
 }
 
-/// Everything the wizard starts from: the catalogue, the argument prefills,
-/// and the settings schema for this entry kind.
+/// Everything the wizard starts from: the per-edition catalogues, the argument
+/// prefills, and the settings schema for this entry kind. `edition` is
+/// prefilled when the command named one; with several catalogues and none
+/// named, the wizard asks.
 pub struct WizardSeed {
     pub kind: EntryKind,
-    pub flavors: Vec<Flavor>,
+    pub catalogues: Vec<EditionCatalogue>,
+    pub edition: Option<Edition>,
     pub flavor: Option<String>,
     pub version: Option<String>,
     pub name: Option<String>,
@@ -123,7 +127,7 @@ pub enum WizardOutcome {
 }
 
 enum Request {
-    Versions { flavor: String },
+    Versions { edition: Edition, flavor: String },
     CreateServer(Box<ServerCreateParams>),
     CreateInstance(Box<InstanceCreate>),
 }
@@ -138,6 +142,7 @@ struct InstanceCreate {
 
 enum AppEvent {
     Versions {
+        edition: Edition,
         flavor: String,
         versions: Vec<GameVersion>,
     },
@@ -168,9 +173,13 @@ async fn drive(
 ) {
     while let Some(request) = requests.recv().await {
         let event = match request {
-            Request::Versions { flavor } => {
-                match client.entry().versions(kind, Edition::Java, &flavor).await {
-                    Ok(versions) => AppEvent::Versions { flavor, versions },
+            Request::Versions { edition, flavor } => {
+                match client.entry().versions(kind, edition, &flavor).await {
+                    Ok(versions) => AppEvent::Versions {
+                        edition,
+                        flavor,
+                        versions,
+                    },
                     Err(e) => AppEvent::Failed {
                         message: e.to_string(),
                     },
@@ -216,8 +225,9 @@ async fn drive(
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 enum Step {
+    Edition,
     Flavor,
     Version,
     Name,
@@ -226,7 +236,8 @@ enum Step {
     Working,
 }
 
-const STEPS: [Step; 5] = [
+const STEPS: [Step; 6] = [
+    Step::Edition,
     Step::Flavor,
     Step::Version,
     Step::Name,
@@ -236,6 +247,7 @@ const STEPS: [Step; 5] = [
 
 fn step_label(step: Step) -> &'static str {
     match step {
+        Step::Edition => "edition",
         Step::Flavor => "flavor",
         Step::Version => "version",
         Step::Name => "name",
@@ -251,9 +263,11 @@ struct WizardScreen {
 
     step: usize,
     first_step: usize,
+    edition: Edition,
+    edition_list: SelectList,
     flavor_list: SelectList,
     flavor: String,
-    versions: HashMap<String, Vec<GameVersion>>,
+    versions: HashMap<(&'static str, String), Vec<GameVersion>>,
     picker: Option<Picker>,
     version: String,
     name: TextInput,
@@ -267,10 +281,19 @@ struct WizardScreen {
 
 impl WizardScreen {
     fn new(seed: WizardSeed, requests: UnboundedSender<Request>) -> Self {
-        let flavor_labels: Vec<String> = seed.flavors.iter().map(flavor_label).collect();
-        let flavor_summaries: Vec<String> = seed.flavors.iter().map(flavor_detail).collect();
+        let edition = seed
+            .edition
+            .or_else(|| seed.catalogues.first().map(|c| c.edition))
+            .unwrap_or_default();
+        let edition_labels = seed
+            .catalogues
+            .iter()
+            .map(|c| edition_label(c.edition).to_string())
+            .collect();
         let mut screen = WizardScreen {
-            flavor_list: SelectList::new(flavor_labels).with_details(flavor_summaries),
+            edition,
+            edition_list: SelectList::new(edition_labels),
+            flavor_list: SelectList::new(Vec::new()),
             flavor: seed.flavor.clone().unwrap_or_default(),
             version: seed.version.clone().unwrap_or_default(),
             name: TextInput::with_text(seed.name.as_deref().unwrap_or("")),
@@ -287,11 +310,15 @@ impl WizardScreen {
             status: None,
             progress: None,
         };
+        screen.flavor_list = screen.flavor_select();
         let mut first = 0;
-        if !screen.flavor.is_empty() {
+        if screen.seed.edition.is_some() || !screen.asks_edition() {
             first = 1;
-            if !screen.version.is_empty() {
+            if !screen.flavor.is_empty() {
                 first = 2;
+                if !screen.version.is_empty() {
+                    first = 3;
+                }
             }
         }
         screen.fields = screen.applicable_fields();
@@ -308,8 +335,53 @@ impl WizardScreen {
         }
     }
 
+    fn asks_edition(&self) -> bool {
+        self.seed.catalogues.len() > 1
+    }
+
+    fn catalogue(&self) -> Option<&EditionCatalogue> {
+        self.seed
+            .catalogues
+            .iter()
+            .find(|c| c.edition == self.edition)
+    }
+
+    fn flavor_select(&self) -> SelectList {
+        let flavors = self
+            .catalogue()
+            .map(|c| c.flavors.as_slice())
+            .unwrap_or(&[]);
+        SelectList::new(flavors.iter().map(flavor_label).collect())
+            .with_details(flavors.iter().map(flavor_detail).collect())
+    }
+
+    fn version_key(&self) -> (&'static str, String) {
+        (edition_label(self.edition), self.flavor.clone())
+    }
+
+    /// The seed's fields held to the chosen edition's rules: a key the edition
+    /// has no rule for is dropped when it is a JVM setting, and a choice takes
+    /// the edition's own values.
     fn applicable_fields(&self) -> Vec<Field> {
-        self.seed.fields.clone()
+        let rules = self.catalogue().map(|c| c.rules.as_slice()).unwrap_or(&[]);
+        let rule = |key: &str| rules.iter().find(|r| r.key == key);
+        self.seed
+            .fields
+            .iter()
+            .filter(|f| f.key != "memory" || rule("memory").is_some())
+            .map(|f| {
+                let mut field = f.clone();
+                if field.key == "motd" {
+                    field.key = motd_key(self.edition);
+                }
+                if let (FieldKind::Choice(options), Some(KeyKind::Choice { values })) =
+                    (&mut field.kind, rule(field.key).map(|r| &r.kind))
+                {
+                    *options = values.clone();
+                }
+                field
+            })
+            .collect()
     }
 
     fn default_name(&self) -> String {
@@ -320,11 +392,12 @@ impl WizardScreen {
     fn entered_step(&mut self) {
         self.status = None;
         if self.current() == Step::Version {
-            match self.versions.get(&self.flavor) {
+            match self.versions.get(&self.version_key()) {
                 Some(versions) => self.picker = Some(version_picker(versions)),
                 None => {
                     self.picker = None;
                     let _ = self.requests.send(Request::Versions {
+                        edition: self.edition,
                         flavor: self.flavor.clone(),
                     });
                 }
@@ -359,14 +432,14 @@ impl WizardScreen {
             if field.value.is_empty() {
                 continue;
             }
-            match field.kind {
+            match &field.kind {
                 FieldKind::Number => {
                     if field.value.parse::<u32>().is_err() {
                         return Err(format!("{} must be a number", field.label));
                     }
                 }
                 FieldKind::Choice(options) => {
-                    if !options.contains(&field.value.as_str()) {
+                    if !options.contains(&field.value) {
                         return Err(format!(
                             "{} must be one of {}",
                             field.label,
@@ -414,7 +487,7 @@ impl WizardScreen {
                 let port = self.field_value("port").parse::<u16>().ok();
                 let params = ServerCreateParams {
                     name,
-                    edition: Edition::Java,
+                    edition: self.edition,
                     flavor: self.flavor.clone(),
                     version: self.version.clone(),
                     loader_version: self.seed.loader.clone(),
@@ -466,12 +539,12 @@ impl WizardScreen {
                     return;
                 }
                 let field = &mut self.fields[self.settings_cursor];
-                match field.kind {
+                match &field.kind {
                     FieldKind::Choice(options) => {
                         let next = match options.iter().position(|o| *o == field.value) {
-                            Some(i) if i + 1 < options.len() => options[i + 1].to_string(),
+                            Some(i) if i + 1 < options.len() => options[i + 1].clone(),
                             Some(_) => String::new(),
-                            None => options[0].to_string(),
+                            None => options[0].clone(),
                         };
                         field.value = next;
                     }
@@ -493,11 +566,16 @@ impl Screen for WizardScreen {
 
     fn on_event(&mut self, event: AppEvent) -> Flow<Self::Outcome> {
         match event {
-            AppEvent::Versions { flavor, versions } => {
-                self.versions.insert(flavor.clone(), versions);
-                if self.current() == Step::Version && flavor == self.flavor {
-                    self.picker = Some(version_picker(&self.versions[&flavor]));
+            AppEvent::Versions {
+                edition,
+                flavor,
+                versions,
+            } => {
+                let key = (edition_label(edition), flavor);
+                if self.current() == Step::Version && key == self.version_key() {
+                    self.picker = Some(version_picker(&versions));
                 }
+                self.versions.insert(key, versions);
             }
             AppEvent::Progress(progress) => {
                 if self.current() == Step::Working {
@@ -529,12 +607,34 @@ impl Screen for WizardScreen {
             };
         }
         match self.current() {
+            Step::Edition => match key.code {
+                KeyCode::Esc => return self.back(),
+                KeyCode::Enter => {
+                    if let Some(catalogue) = self.seed.catalogues.get(self.edition_list.selected())
+                    {
+                        self.edition = catalogue.edition;
+                        if !catalogue.flavors.iter().any(|f| f.id == self.flavor) {
+                            self.flavor.clear();
+                            self.version.clear();
+                        }
+                        self.flavor_list = self.flavor_select();
+                        self.fields = self.applicable_fields();
+                        self.advance();
+                    }
+                }
+                _ => {
+                    self.edition_list.on_key(&key);
+                }
+            },
             Step::Flavor => match key.code {
                 KeyCode::Esc => return self.back(),
                 KeyCode::Enter => {
-                    if !self.seed.flavors.is_empty() {
-                        self.flavor = self.seed.flavors[self.flavor_list.selected()].id.clone();
-                        self.fields = self.applicable_fields();
+                    let flavors = self
+                        .catalogue()
+                        .map(|c| c.flavors.as_slice())
+                        .unwrap_or(&[]);
+                    if let Some(flavor) = flavors.get(self.flavor_list.selected()) {
+                        self.flavor = flavor.id.clone();
                         self.advance();
                     }
                 }
@@ -547,7 +647,7 @@ impl Screen for WizardScreen {
                 KeyCode::Enter => {
                     if let Some(picker) = &self.picker {
                         if let Some(index) = picker.selected() {
-                            self.version = self.versions[&self.flavor][index].id.clone();
+                            self.version = self.versions[&self.version_key()][index].id.clone();
                             self.advance();
                         }
                     }
@@ -599,6 +699,10 @@ impl Screen for WizardScreen {
         self.draw_breadcrumb(frame, header);
 
         match self.current() {
+            Step::Edition => {
+                self.edition_list.render(frame, body);
+                hint(frame, footer, "↑/↓ move · enter next · esc cancel");
+            }
             Step::Flavor => {
                 self.flavor_list.render(frame, body);
                 hint(frame, footer, "↑/↓ move · enter next · esc cancel");
@@ -679,7 +783,10 @@ impl WizardScreen {
             Span::styled(" · ", Style::default().fg(Color::DarkGray)),
         ];
         for (i, step) in STEPS.iter().enumerate() {
-            if i > 0 {
+            if *step == Step::Edition && !self.asks_edition() {
+                continue;
+            }
+            if spans.len() > 2 {
                 spans.push(Span::styled(" ▸ ", Style::default().fg(Color::DarkGray)));
             }
             let style = match i.cmp(&self.step.min(STEPS.len() - 1)) {
@@ -741,7 +848,11 @@ impl WizardScreen {
     }
 
     fn confirm_rows(&self) -> Vec<(String, String)> {
-        let mut rows = vec![
+        let mut rows = Vec::new();
+        if self.asks_edition() {
+            rows.push(("edition".to_string(), edition_label(self.edition).into()));
+        }
+        rows.extend([
             ("flavor".to_string(), self.flavor.clone()),
             ("version".to_string(), self.version.clone()),
             (
@@ -752,7 +863,7 @@ impl WizardScreen {
                     self.name.text().trim().to_string()
                 },
             ),
-        ];
+        ]);
         if let Some(loader) = &self.seed.loader {
             rows.push(("loader".to_string(), loader.clone()));
         }
@@ -813,4 +924,88 @@ fn version_picker(versions: &[GameVersion]) -> Picker {
             })
             .collect(),
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use client::proto::keys::KeyRule;
+    use client::proto::minecraft::Flavor;
+
+    fn catalogue(edition: Edition, rules: Vec<KeyRule>) -> EditionCatalogue {
+        EditionCatalogue {
+            edition,
+            rules,
+            flavors: vec![Flavor {
+                id: "vanilla".into(),
+                ..Default::default()
+            }],
+        }
+    }
+
+    fn bedrock_rules() -> Vec<KeyRule> {
+        vec![KeyRule {
+            key: "gamemode".into(),
+            kind: KeyKind::Choice {
+                values: vec!["survival".into(), "creative".into()],
+            },
+        }]
+    }
+
+    fn screen(catalogues: Vec<EditionCatalogue>, edition: Option<Edition>) -> WizardScreen {
+        let (tx, _rx) = unbounded_channel();
+        let seed = WizardSeed {
+            kind: EntryKind::Server,
+            catalogues,
+            edition,
+            flavor: None,
+            version: None,
+            name: None,
+            loader: None,
+            eula: false,
+            fields: vec![
+                Field::text("memory", "memory", "", None),
+                Field::text("motd", "motd", "", None),
+                Field::choice("gamemode", "gamemode", "", &["survival", "spectator"], None),
+            ],
+            extra: Vec::new(),
+        };
+        WizardScreen::new(seed, tx)
+    }
+
+    fn both() -> Vec<EditionCatalogue> {
+        vec![
+            catalogue(Edition::Java, vec![]),
+            catalogue(Edition::Bedrock, bedrock_rules()),
+        ]
+    }
+
+    #[test]
+    fn several_editions_start_on_the_edition_step() {
+        assert_eq!(screen(both(), None).current(), Step::Edition);
+    }
+
+    #[test]
+    fn one_edition_or_a_named_one_skips_the_edition_step() {
+        let one = screen(vec![catalogue(Edition::Java, vec![])], None);
+        assert_eq!(one.current(), Step::Flavor);
+        let named = screen(both(), Some(Edition::Bedrock));
+        assert_eq!(named.current(), Step::Flavor);
+        assert_eq!(named.edition, Edition::Bedrock);
+    }
+
+    #[test]
+    fn fields_follow_the_chosen_editions_rules() {
+        let s = screen(
+            vec![catalogue(Edition::Bedrock, bedrock_rules())],
+            Some(Edition::Bedrock),
+        );
+        let fields = s.applicable_fields();
+        let keys: Vec<_> = fields.iter().map(|f| f.key).collect();
+        assert_eq!(keys, ["server-name", "gamemode"]);
+        match &fields[1].kind {
+            FieldKind::Choice(options) => assert_eq!(options, &["survival", "creative"]),
+            _ => panic!("gamemode stays a choice"),
+        }
+    }
 }
