@@ -8,7 +8,7 @@ use engine::{Cancel, EntryRef, Job, LaunchRequest, ServerCreateSpec};
 use proto::content::{ContentAddItem, ContentAddSpec, ContentKind};
 use proto::error::ErrorInfo;
 use proto::instance::QuickPlay;
-use proto::minecraft::ProvisionProgress;
+use proto::minecraft::{Edition, ProvisionProgress};
 use proto::modpack::{ModpackMove, ModpackRef, ModpackTarget};
 use proto::sync::SyncUnit;
 
@@ -49,7 +49,9 @@ async fn the_registry_the_engine_was_built_over_is_the_one_it_answers_from() {
         vec![],
     );
 
-    let flavors = engine.minecraft().flavors(engine::Side::Server);
+    let flavors = engine
+        .minecraft()
+        .flavors(engine::Side::Server, Edition::Java);
     assert_eq!(flavors.len(), 1, "only the injected flavor is offered");
     assert_eq!(flavors[0].id, "fixture");
     assert!(
@@ -59,7 +61,7 @@ async fn the_registry_the_engine_was_built_over_is_the_one_it_answers_from() {
 
     let versions = engine
         .minecraft()
-        .versions(engine::Side::Server, "fixture")
+        .versions(engine::Side::Server, Edition::Java, "fixture")
         .await
         .expect("the fixture catalogue");
     assert_eq!(versions.len(), 2);
@@ -1559,4 +1561,41 @@ async fn a_cancelled_launch_stops_at_a_checkpoint() {
         engine::is_cancelled(&stopped),
         "a cancellation is not a failure"
     );
+}
+
+#[tokio::test]
+async fn a_flavor_is_looked_up_within_its_edition() {
+    let home = tempfile::tempdir().expect("temp home");
+    let engine = fixture::engine(
+        home.path(),
+        vec![fixture::Flavor::resolving("fixture")],
+        vec![],
+    );
+    let (cancel, report) = (Cancel::new(), |_: &ProvisionProgress| {});
+    let bedrock = ServerCreateSpec {
+        edition: Edition::Bedrock,
+        ..spec("fixture")
+    };
+
+    engine
+        .provision_server(bedrock, &job(&cancel, &report))
+        .await
+        .expect_err("the fixture is a Java flavor");
+    assert!(engine.servers().list().is_empty());
+
+    let shipped = engine::Minecraft::new();
+    let ids = |edition| -> Vec<String> {
+        shipped
+            .flavors(engine::Side::Server, edition)
+            .into_iter()
+            .map(|f| f.id)
+            .collect()
+    };
+    assert_eq!(ids(Edition::Bedrock), ["vanilla"]);
+    assert!(ids(Edition::Java).contains(&"vanilla".to_string()));
+    assert!(!ids(Edition::Java).contains(&"bedrock".to_string()));
+    assert!(shipped
+        .versions(engine::Side::Client, Edition::Bedrock, "vanilla")
+        .await
+        .is_err());
 }

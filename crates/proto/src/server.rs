@@ -137,6 +137,7 @@ impl Contract for ServerDetail {
 pub struct ServerCreateParams {
     /// Display name; defaults to `<flavor>-<version>` when empty.
     pub name: String,
+    pub edition: Edition,
     pub flavor: String,
     pub version: String,
     #[serde(skip_serializing_if = "Option::is_none")]

@@ -22,6 +22,7 @@ use anyhow::Result;
 use clap::{Parser, Subcommand};
 use client::proto::content::ContentKind;
 use client::proto::error::{EntryKind, EntryTarget};
+use client::proto::minecraft::Edition;
 use client::Client;
 
 use crate::commands::content::{self, ContentCmd};
@@ -355,7 +356,7 @@ async fn loaders(client: &Client, flavor: Option<String>, version: Option<String
         let _spinner = Spinner::start("fetching loaders");
         client
             .entry()
-            .loaders(EntryKind::Server, &flavor, &version)
+            .loaders(EntryKind::Server, Edition::Java, &flavor, &version)
             .await?
     };
     if loaders.is_empty() {

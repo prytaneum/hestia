@@ -261,12 +261,12 @@ pub fn playtime_label(seconds: i64) -> String {
 
 pub async fn fetch_flavors(client: &Client, kind: EntryKind) -> Result<Vec<Flavor>> {
     let _spinner = Spinner::start("fetching flavors");
-    Ok(java_first(client.entry().flavors(kind).await?))
-}
-
-fn java_first(mut flavors: Vec<Flavor>) -> Vec<Flavor> {
-    flavors.sort_by_key(|f| f.edition == Edition::Bedrock);
-    flavors
+    let editions = client.entry().flavors(kind).await?;
+    Ok(editions
+        .into_iter()
+        .find(|catalogue| catalogue.edition == Edition::Java)
+        .map(|catalogue| catalogue.flavors)
+        .unwrap_or_default())
 }
 
 pub fn edition_label(edition: Edition) -> &'static str {
@@ -282,7 +282,7 @@ pub async fn fetch_versions(
     flavor: &str,
 ) -> Result<Vec<GameVersion>> {
     let _spinner = Spinner::start("fetching versions");
-    Ok(client.entry().versions(kind, flavor).await?)
+    Ok(client.entry().versions(kind, Edition::Java, flavor).await?)
 }
 
 pub fn ensure_flavor(flavors: &[Flavor], id: &str) -> Result<()> {
@@ -392,7 +392,6 @@ fn show_flavors(flavors: &[Flavor]) -> Result<()> {
             vec![
                 f.id.clone(),
                 f.name.clone(),
-                edition_label(f.edition).into(),
                 accepts_label(f),
                 flavor_detail(f),
             ]
@@ -400,7 +399,7 @@ fn show_flavors(flavors: &[Flavor]) -> Result<()> {
         .collect();
     ui::show(View::table(
         "flavors",
-        ["ID", "NAME", "EDITION", "TAKES", "SUMMARY"],
+        ["ID", "NAME", "TAKES", "SUMMARY"],
         rows,
     ))
 }
@@ -408,11 +407,7 @@ fn show_flavors(flavors: &[Flavor]) -> Result<()> {
 /// One selector line: the name and what it takes; the daemon's summary is the
 /// row's second line.
 pub fn flavor_label(flavor: &Flavor) -> String {
-    let edition = match flavor.edition {
-        Edition::Java => "",
-        Edition::Bedrock => "Bedrock · ",
-    };
-    format!("{edition}{} ({})", flavor.name, accepts_label(flavor))
+    format!("{} ({})", flavor.name, accepts_label(flavor))
 }
 
 /// The summary, prefixed with anything this machine is missing — a flavor that
@@ -497,28 +492,4 @@ pub fn world_mode_label(world: &WorldInfo) -> String {
         label.push_str(" +cheats");
     }
     label
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn flavor(id: &str, edition: Edition) -> Flavor {
-        Flavor {
-            id: id.into(),
-            edition,
-            ..Flavor::default()
-        }
-    }
-
-    #[test]
-    fn java_leads_and_order_is_kept_within_an_edition() {
-        let sorted = java_first(vec![
-            flavor("bedrock", Edition::Bedrock),
-            flavor("vanilla", Edition::Java),
-            flavor("paper", Edition::Java),
-        ]);
-        let ids: Vec<_> = sorted.iter().map(|f| f.id.as_str()).collect();
-        assert_eq!(ids, ["vanilla", "paper", "bedrock"]);
-    }
 }

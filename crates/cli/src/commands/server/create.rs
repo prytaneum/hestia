@@ -4,6 +4,7 @@
 use anyhow::{bail, Context, Result};
 use client::proto::error::EntryKind;
 use client::proto::minecraft::ConfigEntry;
+use client::proto::minecraft::Edition;
 use client::proto::server::ServerCreateParams;
 use client::Client;
 
@@ -111,6 +112,7 @@ pub(super) async fn run(client: &Client, args: CreateArgs) -> Result<()> {
 
     let params = ServerCreateParams {
         name,
+        edition: Edition::Java,
         flavor,
         version,
         loader_version: args.loader,

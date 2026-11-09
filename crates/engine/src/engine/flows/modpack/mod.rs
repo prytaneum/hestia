@@ -30,6 +30,7 @@ use proto::content::{
     ContentFailure, ContentKind, ContentProject, InstalledContent, ModpackFile, ResolvedModpack,
 };
 use proto::error::{EntryKind, ErrorInfo};
+use proto::minecraft::Edition;
 use proto::modpack::{
     InstalledModpack, ModpackFilePreview, ModpackFit, ModpackMove, ModpackRef, ModpackRemoveResult,
     ModpackTarget, ModpackUpdate, PackPolicy,
@@ -186,6 +187,7 @@ impl Engine {
                 self.provision_server(
                     ServerCreateSpec {
                         name: pack_entry_name(name, &resolved, taken),
+                        edition: Edition::Java,
                         flavor,
                         version: resolved.game_version.clone(),
                         loader_version: resolved.loader_version.clone(),
@@ -388,7 +390,10 @@ impl Engine {
         let ctx = self.content_ctx(target)?;
         let current = require_pack(&ctx, entry_kind(target), &ctx.name)?;
         let fetched = self.read_pack_file(path).await?;
-        let versions = self.minecraft.versions(ctx.side, &ctx.flavor).await?;
+        let versions = self
+            .minecraft
+            .versions(ctx.side, ctx.edition, &ctx.flavor)
+            .await?;
         let (resolved, project, _) = &fetched;
         Ok(ModpackFilePreview {
             name: pack_display_name(resolved, project.as_ref()),

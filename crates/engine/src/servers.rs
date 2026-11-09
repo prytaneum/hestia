@@ -11,14 +11,13 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{bail, Context, Result};
 use proto::error::EntryKind;
-use proto::keys::KeyRule;
 use proto::minecraft::{Edition, ProvisionPhase, ProvisionProgress};
-use proto::server::{PortProtocol, ServerPort, ServerProperty};
+use proto::server::{ServerPort, ServerProperty};
 use proto::tasks::ServerTask;
 use serde::{Deserialize, Serialize};
 
+use crate::edition;
 use crate::jvm::JavaSettings;
-use crate::keys::invalid;
 use crate::minecraft::launch::{self, LaunchPlan};
 use crate::minecraft::materialize::{self, OnProgress};
 use crate::minecraft::profile::{ServerProfile, ServerRuntime};
@@ -33,10 +32,6 @@ use crate::schema::Document;
 const SCHEMA: &str = "schema.properties";
 const SCHEMA_RUN: &str = ".schema";
 const DATA: &str = "data";
-const GAME_PORT_BASE: u16 = 25565;
-const RCON_PORT_BASE: u16 = 25575;
-const BEDROCK_PORT_BASE: u16 = 19132;
-const BEDROCK_SECOND_PORT_BASE: u16 = 19133;
 const PORT_SPAN: u16 = 100;
 
 // Pre-EULA servers (before 1.7.10) have no gate and would boot for real; the
@@ -75,12 +70,15 @@ pub struct ServerRecord {
     pub id: String,
     pub name: String,
     pub created_unix: i64,
+    /// Fixed at create; every edition-specific behaviour follows from it.
+    #[serde(default)]
+    pub edition: Edition,
     #[serde(default)]
     pub phase: ServerPhase,
     /// Claimed at create and never moved — players connect to it.
     pub game_port: u16,
-    /// A Bedrock server's second UDP port (IPv6 under RakNet, the client
-    /// transport under NetherNet); claimed at first start.
+    /// A Bedrock server's second UDP port (its NetherNet client port); claimed
+    /// at first start.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub second_port: Option<u16>,
     /// Claimed at first start; internal, so it may be reallocated freely.
@@ -171,21 +169,9 @@ impl Servers {
         self.store.require(reference)
     }
 
-    /// Every port the server binds under its current settings, the game port
-    /// first — what a user forwards.
+    /// Every port the server binds, the game port first — what a user forwards.
     pub fn ports(&self, record: &ServerRecord) -> Vec<ServerPort> {
-        if Transport::of(&record.profile) == Transport::Tcp {
-            return vec![ServerPort {
-                port: record.game_port,
-                protocol: PortProtocol::Tcp,
-            }];
-        }
-        self.bedrock_transport(record)
-            .ports(record.game_port, record.second_port)
-    }
-
-    pub fn bedrock_transport(&self, record: &ServerRecord) -> BedrockTransport {
-        BedrockTransport::read(&self.data_dir(record).join(properties::PROPERTIES))
+        edition::ports(record)
     }
 
     /// Register a new server: allocate its id from the name, claim its game
@@ -193,17 +179,18 @@ impl Servers {
     pub fn create(
         &self,
         name: &str,
+        edition: Edition,
         profile: ServerProfile,
         port: Option<u16>,
     ) -> Result<ServerRecord> {
-        let transport = Transport::of(&profile);
         let record = self.store.register(name, |id| {
             Ok(ServerRecord {
                 id,
                 name: name.to_string(),
                 created_unix: common::now_unix(),
+                edition,
                 phase: ServerPhase::Provisioning,
-                game_port: self.claim_game_port(port, transport)?,
+                game_port: self.claim_game_port(port, edition)?,
                 second_port: None,
                 rcon: None,
                 jvm: JavaSettings::default(),
@@ -215,14 +202,15 @@ impl Servers {
         Ok(record)
     }
 
-    fn claim_game_port(&self, requested: Option<u16>, transport: Transport) -> Result<u16> {
+    fn claim_game_port(&self, requested: Option<u16>, edition: Edition) -> Result<u16> {
         let claimed = self.claimed_ports(None);
+        let (base, transport) = edition::game_port_base(edition);
         match requested {
             Some(port) if unavailable(&claimed, port, transport) => {
                 bail!(proto::error::ErrorInfo::PortUnavailable { port })
             }
             Some(port) => Ok(port),
-            None => allocate_port(transport.game_base(), &claimed, transport),
+            None => allocate_port(base, &claimed, transport),
         }
     }
 
@@ -244,51 +232,12 @@ impl Servers {
     }
 
     /// Reconcile `server.properties` with the record's claimed ports before a
-    /// spawn. The game port never moves (players depend on it) — an outside
-    /// squatter is an error. The rcon port is internal and reallocates freely;
-    /// a first start gains its rcon here.
+    /// spawn.
     pub fn ensure_start_config(&self, id: &str) -> Result<ServerRecord> {
         self.store.mutate(id, |record| {
             let claimed = self.claimed_ports(Some(&record.id));
-
-            let transport = Transport::of(&record.profile);
-            let game_port = record.game_port;
-            if unavailable(&claimed, game_port, transport) {
-                bail!(proto::error::ErrorInfo::PortUnavailable { port: game_port });
-            }
-
             let file = self.data_dir(record).join(properties::PROPERTIES);
-            if transport == Transport::TcpAndUdp {
-                let mut taken = claimed;
-                taken.insert(game_port);
-                let second = match record.second_port {
-                    Some(port) if !unavailable(&taken, port, Transport::Udp) => port,
-                    _ => allocate_port(BEDROCK_SECOND_PORT_BASE, &taken, Transport::Udp)?,
-                };
-                let netcode = BedrockTransport::read(&file);
-                properties::merge_properties(&file, &netcode.property_entries(game_port, second))?;
-                record.second_port = Some(second);
-                return Ok(record.clone());
-            }
-
-            let rcon = match record.rcon.take() {
-                Some(cfg) if !unavailable(&claimed, cfg.port, transport) => cfg,
-                prior => RconConfig {
-                    port: allocate_port(RCON_PORT_BASE, &claimed, transport)?,
-                    password: prior.map(|c| c.password).unwrap_or_else(generate_password),
-                },
-            };
-
-            properties::merge_properties(
-                &file,
-                &[
-                    ("server-port", game_port.to_string()),
-                    ("enable-rcon", "true".to_string()),
-                    ("rcon.port", rcon.port.to_string()),
-                    ("rcon.password", rcon.password.clone()),
-                ],
-            )?;
-            record.rcon = Some(rcon);
+            edition::configure_start(record, &file, claimed)?;
             Ok(record.clone())
         })
     }
@@ -300,10 +249,7 @@ impl Servers {
         std::fs::create_dir_all(&data)
             .with_context(|| format!("cannot create {}", data.display()))?;
         materialize::validate_filename(record.profile.runtime.filename())?;
-        if Transport::of(&record.profile) == Transport::Tcp {
-            std::fs::write(data.join("eula.txt"), "eula=true\n")
-                .context("cannot write eula.txt")?;
-        }
+        edition::provision(record.edition, &data)?;
         tracing::info!(id = %record.id, "server provisioned");
         Ok(())
     }
@@ -628,7 +574,7 @@ impl Servers {
             if record.jvm.set(key, value)? {
                 return Ok(());
             }
-            if properties::MANAGED.contains(&key) {
+            if edition::managed_keys(record.edition).contains(&key) {
                 bail!(
                     "'{key}' is managed by hestia (the game port is fixed at create with -p; \
                      rcon is configured automatically)"
@@ -649,25 +595,9 @@ impl Servers {
                     "no properties schema to validate against; accepting the key"
                 );
             }
-            properties::validate(record.profile.runtime.edition(), key, value)
-                .map_err(invalid(key))?;
-            if record.profile.runtime.edition() == Edition::Java
-                && properties::HARDCORE_KEYS.contains(&key)
-            {
-                properties::check_hardcore_invariant(&file, key, value)?;
-            }
+            edition::check_setting(record.edition, &file, key, value)?;
             properties::merge_properties(&file, &[(key, value.to_string())])
         })
-    }
-
-    /// Every rule a server's settings are checked against.
-    pub fn config_rules(edition: Edition) -> Vec<KeyRule> {
-        let mut rules = match edition {
-            Edition::Java => JavaSettings::rules(),
-            Edition::Bedrock => Vec::new(),
-        };
-        rules.extend(properties::rules(edition).iter().cloned());
-        rules
     }
 
     /// The reserved JVM settings (always shown) followed by every current
@@ -692,80 +622,17 @@ impl Servers {
         Ok(properties::describe_properties(
             &properties::read_properties(&self.data_dir(&record).join(properties::PROPERTIES)),
             &properties::read_properties(&self.schema_path(&record)),
+            edition::managed_keys(record.edition),
         ))
     }
 }
 
-/// What a server's listeners speak: a Java server one TCP port, a Bedrock
-/// server's game port both (TCP under NetherNet, UDP under RakNet).
+/// What must be free on a port: TCP, UDP, or both.
 #[derive(Clone, Copy, PartialEq, Eq)]
-enum Transport {
+pub(crate) enum Transport {
     Tcp,
     Udp,
     TcpAndUdp,
-}
-
-impl Transport {
-    fn of(profile: &ServerProfile) -> Self {
-        match profile.runtime {
-            ServerRuntime::Java { .. } => Transport::Tcp,
-            ServerRuntime::Native { .. } => Transport::TcpAndUdp,
-        }
-    }
-
-    fn game_base(self) -> u16 {
-        match self {
-            Transport::Tcp => GAME_PORT_BASE,
-            Transport::Udp | Transport::TcpAndUdp => BEDROCK_PORT_BASE,
-        }
-    }
-}
-
-/// The `transport` a Bedrock server's `server.properties` selects. It decides
-/// which ports the game binds, so it is re-read at every start.
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum BedrockTransport {
-    Nethernet,
-    Raknet,
-}
-
-impl BedrockTransport {
-    pub fn read(properties_file: &Path) -> Self {
-        match properties::read_property(properties_file, "transport").as_deref() {
-            Some("raknet") => Self::Raknet,
-            _ => Self::Nethernet,
-        }
-    }
-
-    /// NetherNet's dual-stack socket listens on TCP `server-port` and takes its
-    /// client UDP port from `server-udp-ports`; `server-portv6` is ignored
-    /// there but kept coherent. RakNet binds UDP `server-port` and `-portv6`.
-    fn property_entries(self, game: u16, second: u16) -> Vec<(&'static str, String)> {
-        let mut entries = vec![
-            ("server-port", game.to_string()),
-            ("server-portv6", second.to_string()),
-        ];
-        if self == Self::Nethernet {
-            entries.push(("server-udp-ports", second.to_string()));
-        }
-        entries
-    }
-
-    fn ports(self, game: u16, second: Option<u16>) -> Vec<ServerPort> {
-        let game_protocol = match self {
-            Self::Nethernet => PortProtocol::Tcp,
-            Self::Raknet => PortProtocol::Udp,
-        };
-        let game = ServerPort {
-            port: game,
-            protocol: game_protocol,
-        };
-        let second = second.map(|port| ServerPort {
-            port,
-            protocol: PortProtocol::Udp,
-        });
-        std::iter::once(game).chain(second).collect()
-    }
 }
 
 // Listeners bind all interfaces, so probe the same way.
@@ -777,64 +644,23 @@ fn can_bind(port: u16, transport: Transport) -> bool {
     }
 }
 
-fn unavailable(claimed: &HashSet<u16>, port: u16, transport: Transport) -> bool {
+pub(crate) fn unavailable(claimed: &HashSet<u16>, port: u16, transport: Transport) -> bool {
     claimed.contains(&port) || !can_bind(port, transport)
 }
 
-fn allocate_port(base: u16, claimed: &HashSet<u16>, transport: Transport) -> Result<u16> {
+pub(crate) fn allocate_port(
+    base: u16,
+    claimed: &HashSet<u16>,
+    transport: Transport,
+) -> Result<u16> {
     (base..base.saturating_add(PORT_SPAN))
         .find(|port| !unavailable(claimed, *port, transport))
         .with_context(|| format!("no free port in {base}..{}", base.saturating_add(PORT_SPAN)))
 }
 
-// Vanilla has no rcon bind-address setting — the listener is reachable from
-// the network, so the password is the only barrier. Never log it.
-fn generate_password() -> String {
-    const CHARSET: &[u8] = b"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-    let mut bytes = [0u8; 24];
-    getrandom::fill(&mut bytes).expect("system RNG must be available for the rcon password");
-    bytes
-        .iter()
-        .map(|b| CHARSET[(*b as usize) % CHARSET.len()] as char)
-        .collect()
-}
-
 #[cfg(test)]
 mod transport_tests {
     use super::*;
-
-    #[test]
-    fn nethernet_maps_the_second_port_to_udp_ports() {
-        let entries = BedrockTransport::Nethernet.property_entries(19132, 19133);
-        assert_eq!(
-            entries,
-            vec![
-                ("server-port", "19132".to_string()),
-                ("server-portv6", "19133".to_string()),
-                ("server-udp-ports", "19133".to_string()),
-            ]
-        );
-    }
-
-    #[test]
-    fn raknet_binds_two_udp_ports() {
-        let entries = BedrockTransport::Raknet.property_entries(19132, 19133);
-        assert_eq!(entries.len(), 2);
-        let ports = BedrockTransport::Raknet.ports(19132, Some(19133));
-        assert!(ports.iter().all(|p| p.protocol == PortProtocol::Udp));
-        let ports = BedrockTransport::Nethernet.ports(19132, Some(19133));
-        assert_eq!(ports[0].protocol, PortProtocol::Tcp);
-        assert_eq!(ports[1].protocol, PortProtocol::Udp);
-    }
-
-    #[test]
-    fn transport_defaults_to_nethernet() {
-        let dir = tempfile::tempdir().unwrap();
-        let file = dir.path().join("server.properties");
-        assert_eq!(BedrockTransport::read(&file), BedrockTransport::Nethernet);
-        std::fs::write(&file, "transport=raknet\n").unwrap();
-        assert_eq!(BedrockTransport::read(&file), BedrockTransport::Raknet);
-    }
 
     #[test]
     fn a_bedrock_game_port_needs_tcp_and_udp_free() {

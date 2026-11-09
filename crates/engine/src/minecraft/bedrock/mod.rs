@@ -17,7 +17,7 @@ use super::provider::{
 pub(crate) mod nbt;
 pub(crate) mod world;
 
-const ID: &str = "bedrock";
+const ID: &str = "vanilla";
 
 #[cfg(windows)]
 pub const EXECUTABLE: &str = "bedrock_server.exe";

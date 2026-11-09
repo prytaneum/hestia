@@ -168,12 +168,14 @@ async fn drive(
 ) {
     while let Some(request) = requests.recv().await {
         let event = match request {
-            Request::Versions { flavor } => match client.entry().versions(kind, &flavor).await {
-                Ok(versions) => AppEvent::Versions { flavor, versions },
-                Err(e) => AppEvent::Failed {
-                    message: e.to_string(),
-                },
-            },
+            Request::Versions { flavor } => {
+                match client.entry().versions(kind, Edition::Java, &flavor).await {
+                    Ok(versions) => AppEvent::Versions { flavor, versions },
+                    Err(e) => AppEvent::Failed {
+                        message: e.to_string(),
+                    },
+                }
+            }
             Request::CreateServer(params) => {
                 let progress = events.clone();
                 match client
@@ -306,19 +308,8 @@ impl WizardScreen {
         }
     }
 
-    /// A Bedrock server is not a JVM process, so it has no memory to size.
     fn applicable_fields(&self) -> Vec<Field> {
-        let bedrock = self
-            .seed
-            .flavors
-            .iter()
-            .any(|f| f.id == self.flavor && f.edition == Edition::Bedrock);
-        self.seed
-            .fields
-            .iter()
-            .filter(|f| !(bedrock && f.key == "memory"))
-            .cloned()
-            .collect()
+        self.seed.fields.clone()
     }
 
     fn default_name(&self) -> String {
@@ -423,6 +414,7 @@ impl WizardScreen {
                 let port = self.field_value("port").parse::<u16>().ok();
                 let params = ServerCreateParams {
                     name,
+                    edition: Edition::Java,
                     flavor: self.flavor.clone(),
                     version: self.version.clone(),
                     loader_version: self.seed.loader.clone(),

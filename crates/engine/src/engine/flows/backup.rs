@@ -5,15 +5,16 @@
 
 use std::future::Future;
 use std::path::{Path, PathBuf};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use anyhow::{Context, Result};
 use proto::backup::{BackupInfo, BackupKind};
 use proto::minecraft::{Edition, ProvisionPhase, ProvisionProgress};
 
 use crate::backup;
+use crate::edition;
 use crate::engine::Engine;
-use crate::hold::{self, HoldError, Truncation};
+use crate::hold::Truncation;
 use crate::minecraft::bedrock;
 use crate::minecraft::materialize::OnProgress;
 use crate::minecraft::profile::ServerRuntime;
@@ -33,7 +34,7 @@ impl Engine {
         on_progress: OnProgress<'_>,
     ) -> Result<BackupInfo> {
         let record = self.ready_server(reference)?;
-        let edition = record.profile.runtime.edition();
+        let edition = record.edition;
         let archive = |truncate| {
             run_backup(
                 self.servers.server_dir(&record),
@@ -103,48 +104,16 @@ impl Engine {
         )
     }
 
-    /// Pause world writes before archiving a live server. Java: `save-off`
-    /// stops autosaves and `save-all flush` forces everything pending onto disk.
-    /// Bedrock: `save hold`, then `save query` until the server lists the files
-    /// to copy and the length of each. Returns those lengths (empty for Java).
+    /// Pause world writes before archiving a live server; the lengths to copy
+    /// each file to, empty when the edition needs none.
     async fn pause_world_saves(&self, server: &str, edition: Edition) -> Result<Truncation> {
-        if edition == Edition::Java {
-            self.server_command(server, "save-off").await?;
-            self.server_command(server, "save-all flush").await?;
-            return Ok(Truncation::new());
-        }
-        tracing::info!(server, "holding world saves");
-        self.server_command(server, "save hold").await?;
-        let started = Instant::now();
-        let mut polls = 0u32;
-        loop {
-            polls += 1;
-            let reply = self.server_command(server, "save query").await?;
-            if let Some(files) = hold::parse_query(&reply)? {
-                tracing::debug!(
-                    server,
-                    polls,
-                    truncated = files.len(),
-                    "world files are ready"
-                );
-                return Ok(files);
-            }
-            if started.elapsed() >= HOLD_LIMIT {
-                tracing::debug!(server, polls, "world files never became ready");
-                return Err(HoldError::NotReady(HOLD_LIMIT.as_secs()).into());
-            }
-            tokio::time::sleep(HOLD_POLL).await;
-        }
+        edition::pause_saves(self, edition, server).await
     }
 
     /// Resuming must reach the server even when archiving failed, or the world
     /// stops persisting — retry like docker-mc-backup's exit trap does.
     async fn resume_world_saves(&self, server: &str, edition: Edition) -> Result<()> {
-        let command = if edition == Edition::Java {
-            "save-on"
-        } else {
-            "save resume"
-        };
+        let command = edition::resume_command(edition);
         let mut last = anyhow::anyhow!("the console is unreachable");
         for attempt in 0..5 {
             if attempt > 0 {
@@ -161,9 +130,6 @@ impl Engine {
         Err(last.context("cannot re-enable world saving"))
     }
 }
-
-const HOLD_POLL: Duration = Duration::from_millis(500);
-const HOLD_LIMIT: Duration = Duration::from_secs(30);
 
 /// Run `work` between a pause and its resume. The resume runs whatever
 /// happened — a failed pause may have half-applied — and its failure is
@@ -312,7 +278,7 @@ mod tests {
     async fn a_failing_pause_resumes_without_archiving() {
         let resumed = Cell::new(false);
         let result: Result<()> = with_saves_paused(
-            async { Err(HoldError::NotReady(30).into()) },
+            async { Err(crate::hold::HoldError::NotReady(30).into()) },
             async {
                 resumed.set(true);
                 Ok(())

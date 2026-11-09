@@ -8,14 +8,15 @@ use proto::content::{
     ContentFailure, ContentKind, ContentVersion, InstalledContent, UntrackedFile, VersionQuery,
     LOCAL_SOURCE,
 };
-use proto::minecraft::{Edition, ProvisionPhase};
+use proto::minecraft::ProvisionPhase;
 
 use super::super::batch::gather_ordered;
 use super::add::{failure, file_name, import_file, plan_release, release_of};
 use super::entry::{content_loader, EntryContent};
 use super::phase_progress;
 use crate::content::pool::Pool;
-use crate::content::{bedrock, install, record, Identified, LocalFile};
+use crate::content::{install, record, Identified, LocalFile};
+use crate::edition;
 use crate::engine::Engine;
 use crate::minecraft::materialize::OnProgress;
 
@@ -377,10 +378,7 @@ pub(super) fn list_content(
         .into_iter()
         .filter(|i| i.kind == kind)
         .collect();
-    let untracked = match ctx.edition {
-        Edition::Bedrock => bedrock::untracked(&ctx.data_dir, kind),
-        Edition::Java => install::untracked(&ctx.data_dir, kind, &items, &ctx.worlds()),
-    };
+    let untracked = edition::untracked(ctx.edition, &ctx.data_dir, kind, &items, &ctx.worlds());
     (items, untracked)
 }
 

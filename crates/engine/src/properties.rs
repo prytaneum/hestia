@@ -1,198 +1,8 @@
 use std::collections::{BTreeSet, HashSet};
 use std::path::Path;
-use std::sync::LazyLock;
 
 use anyhow::{bail, Context, Result};
-use proto::error::Reason;
-use proto::keys::{KeyKind, KeyRule};
-use proto::minecraft::Edition;
 use proto::server::ServerProperty;
-
-use crate::keys::{self, rule};
-
-const BOOLEANS: &[&str] = &[
-    "accepts-transfers",
-    "allow-flight",
-    "allow-nether",
-    "broadcast-console-to-ops",
-    "broadcast-rcon-to-ops",
-    "enable-command-block",
-    "enable-jmx-monitoring",
-    "enable-query",
-    "enable-status",
-    "enforce-secure-profile",
-    "enforce-whitelist",
-    "force-gamemode",
-    "generate-structures",
-    "hardcore",
-    "hide-online-players",
-    "log-ips",
-    "online-mode",
-    "prevent-proxy-connections",
-    "pvp",
-    "require-resource-pack",
-    "spawn-animals",
-    "spawn-monsters",
-    "spawn-npcs",
-    "sync-chunk-writes",
-    "use-native-transport",
-    "white-list",
-];
-
-const INT_MAX: i64 = i32::MAX as i64;
-
-const INTEGERS: &[(&str, i64, i64)] = &[
-    ("entity-broadcast-range-percentage", 10, 1000),
-    ("function-permission-level", 1, 4),
-    ("max-players", 1, INT_MAX),
-    ("max-world-size", 1, 29_999_984),
-    ("network-compression-threshold", -1, INT_MAX),
-    ("op-permission-level", 0, 4),
-    ("pause-when-empty-seconds", -1, INT_MAX),
-    ("player-idle-timeout", 0, INT_MAX),
-    ("query.port", 1, 65535),
-    ("rate-limit", 0, INT_MAX),
-    ("server-port", 1, 65535),
-    ("simulation-distance", 3, 32),
-    ("spawn-protection", 0, INT_MAX),
-    ("view-distance", 3, 32),
-];
-
-// Before 1.13 the game wrote difficulty and gamemode as numeric ids.
-const CHOICES: &[(&str, &[&str])] = &[
-    (
-        "difficulty",
-        &["peaceful", "easy", "normal", "hard", "0", "1", "2", "3"],
-    ),
-    (
-        "gamemode",
-        &[
-            "survival",
-            "creative",
-            "adventure",
-            "spectator",
-            "0",
-            "1",
-            "2",
-            "3",
-        ],
-    ),
-    ("region-file-compression", &["deflate", "lz4", "none"]),
-];
-
-const BEDROCK_BOOLEANS: &[&str] = &[
-    "allow-cheats",
-    "allow-inbound-script-debugging",
-    "allow-list",
-    "allow-outbound-script-debugging",
-    "block-network-ids-are-hashes",
-    "client-side-chunk-generation-enabled",
-    "content-log-console-output-enabled",
-    "content-log-file-enabled",
-    "disable-custom-skins",
-    "disable-persona",
-    "disable-player-interaction",
-    "enable-lan-visibility",
-    "force-gamemode",
-    "online-mode",
-    "server-authoritative-dismount-strict",
-    "server-authoritative-entity-interactions-strict",
-    "server-authoritative-movement-strict",
-    "texturepack-required",
-];
-
-const BEDROCK_INTEGERS: &[(&str, i64, i64)] = &[
-    ("compression-threshold", 0, 65535),
-    ("max-players", 1, INT_MAX),
-    ("max-threads", 0, INT_MAX),
-    ("player-idle-timeout", 0, INT_MAX),
-    ("server-port", 1, 65535),
-    ("server-portv6", 1, 65535),
-    ("tick-distance", 4, 12),
-    ("view-distance", 5, INT_MAX),
-];
-
-const ENFORCEMENT: &[&str] = &["disabled", "observe", "enforce"];
-
-const BEDROCK_CHOICES: &[(&str, &[&str])] = &[
-    ("chat-restriction", &["None", "Dropped", "Disabled"]),
-    ("compression-algorithm", &["zlib", "snappy"]),
-    (
-        "content-log-level",
-        &["error", "warning", "info", "verbose"],
-    ),
-    (
-        "default-player-permission-level",
-        &["visitor", "member", "operator"],
-    ),
-    ("difficulty", &["peaceful", "easy", "normal", "hard"]),
-    ("gamemode", &["survival", "creative", "adventure"]),
-    (
-        "script-debugger-auto-attach",
-        &["disabled", "connect", "listen"],
-    ),
-    (
-        "server-authoritative-entity-attack-range-validation",
-        ENFORCEMENT,
-    ),
-    (
-        "server-authoritative-entity-attack-request-validation",
-        ENFORCEMENT,
-    ),
-    ("transport", &["raknet", "nethernet"]),
-];
-
-fn table(
-    booleans: &[&str],
-    integers: &[(&str, i64, i64)],
-    choices: &[(&str, &[&str])],
-) -> Vec<KeyRule> {
-    let booleans = booleans.iter().map(|key| rule(key, KeyKind::Boolean));
-    let integers = integers
-        .iter()
-        .map(|&(key, min, max)| rule(key, KeyKind::Integer { min, max }));
-    let choices = choices.iter().map(|&(key, values)| {
-        let values = values.iter().map(|v| v.to_string()).collect();
-        rule(key, KeyKind::Choice { values })
-    });
-    booleans.chain(integers).chain(choices).collect()
-}
-
-static JAVA_TABLE: LazyLock<Vec<KeyRule>> = LazyLock::new(|| table(BOOLEANS, INTEGERS, CHOICES));
-
-static BEDROCK_TABLE: LazyLock<Vec<KeyRule>> =
-    LazyLock::new(|| table(BEDROCK_BOOLEANS, BEDROCK_INTEGERS, BEDROCK_CHOICES));
-
-pub(crate) fn rules(edition: Edition) -> &'static [KeyRule] {
-    match edition {
-        Edition::Java => &JAVA_TABLE,
-        Edition::Bedrock => &BEDROCK_TABLE,
-    }
-}
-
-pub(crate) fn validate(edition: Edition, key: &str, value: &str) -> Result<(), Reason> {
-    match rules(edition).iter().find(|rule| rule.key == key) {
-        Some(rule) => keys::validate(&rule.kind, value),
-        None => {
-            tracing::debug!(
-                key,
-                "no value rule for this property; accepting it as a string"
-            );
-            Ok(())
-        }
-    }
-}
-
-/// `server.properties` keys hestia owns; a `config set` to any of them is
-/// rejected (the game port is fixed at create, rcon is configured at start).
-pub(crate) const MANAGED: &[&str] = &[
-    "server-port",
-    "server-portv6",
-    "server-udp-ports",
-    "enable-rcon",
-    "rcon.port",
-    "rcon.password",
-];
 
 /// Never sent to a front-end: nothing there needs the console's credential.
 pub(crate) const SECRET: &[&str] = &["rcon.password"];
@@ -221,6 +31,7 @@ pub(crate) fn read_properties(path: &Path) -> Vec<(String, String)> {
 pub(crate) fn describe_properties(
     live: &[(String, String)],
     schema: &[(String, String)],
+    managed: &[&str],
 ) -> Vec<ServerProperty> {
     let value_of = |pairs: &[(String, String)], key: &str| {
         pairs.iter().find(|(k, _)| k == key).map(|(_, v)| v.clone())
@@ -241,7 +52,7 @@ pub(crate) fn describe_properties(
                         .unwrap_or_default(),
                 },
                 default: default.filter(|_| !secret),
-                managed: MANAGED.contains(&key.as_str()),
+                managed: managed.contains(&key.as_str()),
                 secret,
                 locked: hardcore && HARDCORE_PINNED.contains(&key.as_str()),
             }
@@ -376,55 +187,6 @@ pub(crate) fn merge_properties(path: &Path, entries: &[(&str, String)]) -> Resul
 mod tests {
     use super::*;
 
-    #[test]
-    fn a_known_property_is_held_to_its_rule_and_an_unknown_one_is_not() {
-        assert_eq!(validate(Edition::Java, "view-distance", "12"), Ok(()));
-        assert_eq!(
-            validate(Edition::Java, "view-distance", "900"),
-            Err(Reason::OutOfRange { min: 3, max: 32 })
-        );
-        assert_eq!(
-            validate(Edition::Java, "max-players", "abc"),
-            Err(Reason::NotWholeNumber)
-        );
-        assert_eq!(
-            validate(Edition::Java, "pvp", "maybe"),
-            Err(Reason::NotBoolean)
-        );
-        assert_eq!(
-            validate(Edition::Java, "a-future-property", "anything"),
-            Ok(())
-        );
-    }
-
-    #[test]
-    fn bedrock_rules_hold_its_own_keys_to_its_own_values() {
-        let check = |key, value| validate(Edition::Bedrock, key, value);
-        assert_eq!(check("gamemode", "creative"), Ok(()));
-        assert!(matches!(
-            check("gamemode", "spectator"),
-            Err(Reason::NotOneOf { .. })
-        ));
-        assert_eq!(
-            check("tick-distance", "3"),
-            Err(Reason::OutOfRange { min: 4, max: 12 })
-        );
-        assert_eq!(
-            check("view-distance", "4"),
-            Err(Reason::OutOfRange {
-                min: 5,
-                max: INT_MAX
-            })
-        );
-        assert_eq!(check("allow-cheats", "maybe"), Err(Reason::NotBoolean));
-        assert_eq!(check("server-name", "any; thing"), Ok(()));
-        assert_eq!(
-            validate(Edition::Java, "tick-distance", "3"),
-            Ok(()),
-            "a Java server has no such rule"
-        );
-    }
-
     fn schema(pairs: &[(&str, &str)]) -> Vec<(String, String)> {
         pairs
             .iter()
@@ -437,6 +199,7 @@ mod tests {
         let described = describe_properties(
             &schema(&[("motd", "mine"), ("retired", "leftover")]),
             &schema(&[("motd", "A Minecraft Server"), ("pvp", "true")]),
+            &[],
         );
         let row = |key: &str| described.iter().find(|p| p.key == key).unwrap();
 
@@ -453,7 +216,7 @@ mod tests {
     #[test]
     fn a_managed_key_is_flagged_and_the_credential_is_withheld() {
         let pairs = schema(&[("server-port", "25565"), ("rcon.password", "hunter2")]);
-        let described = describe_properties(&pairs, &pairs);
+        let described = describe_properties(&pairs, &pairs, &["server-port"]);
         let row = |key: &str| described.iter().find(|p| p.key == key).unwrap();
 
         assert!(row("server-port").managed);
@@ -466,14 +229,14 @@ mod tests {
     #[test]
     fn hardcore_locks_what_it_pins_only_while_it_is_on() {
         let on = schema(&[("hardcore", "true"), ("difficulty", "hard"), ("motd", "")]);
-        let described = describe_properties(&on, &[]);
+        let described = describe_properties(&on, &[], &[]);
         let locked =
             |list: &[ServerProperty], key: &str| list.iter().find(|p| p.key == key).unwrap().locked;
         assert!(locked(&described, "difficulty"));
         assert!(!locked(&described, "motd"));
 
         let off = schema(&[("hardcore", "false"), ("difficulty", "easy")]);
-        assert!(!locked(&describe_properties(&off, &[]), "difficulty"));
+        assert!(!locked(&describe_properties(&off, &[], &[]), "difficulty"));
     }
 
     #[test]

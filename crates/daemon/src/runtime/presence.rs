@@ -205,7 +205,7 @@ fn describe(runtime: &Runtime, profile: &InstanceProfile) -> String {
     let flavor = runtime
         .engine()
         .minecraft()
-        .flavors(Side::Client)
+        .flavors(Side::Client, proto::minecraft::Edition::Java)
         .into_iter()
         .find(|f| f.id == profile.flavor)
         .map(|f| f.name)

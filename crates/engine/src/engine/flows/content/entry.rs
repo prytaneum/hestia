@@ -9,8 +9,9 @@ use proto::content::{ContentAddSpec, ContentKind, ContentProject, SideSupport};
 use proto::error::EntryKind;
 
 use crate::content::{install, pack};
+use crate::edition::accepted_kinds;
 use crate::engine::Engine;
-use crate::minecraft::{accepted_kinds, Side};
+use crate::minecraft::Side;
 use proto::minecraft::Edition;
 
 /// Which entry a content or pack flow is about. The side is a value the flow
@@ -83,36 +84,29 @@ impl Engine {
     }
 
     pub(in crate::engine::flows) fn accepted_kinds(&self, ctx: &EntryContent) -> Vec<ContentKind> {
-        let minecraft = self.minecraft();
         accepted_kinds(
             ctx.side,
-            minecraft.edition(ctx.side, &ctx.flavor),
-            minecraft.loads(ctx.side, &ctx.flavor),
+            ctx.edition,
+            self.minecraft().loads(ctx.side, ctx.edition, &ctx.flavor),
         )
     }
 
     /// What a server of this flavor can take. Published on the entry views so a
     /// front-end renders the daemon's answer instead of keeping its own copy of
     /// the flavor table — the same no-drift rule the wire contracts follow.
-    pub fn server_accepts(&self, flavor: &str) -> Vec<ContentKind> {
-        let minecraft = self.minecraft();
+    pub fn server_accepts(&self, edition: Edition, flavor: &str) -> Vec<ContentKind> {
         accepted_kinds(
             Side::Server,
-            minecraft.edition(Side::Server, flavor),
-            minecraft.loads(Side::Server, flavor),
+            edition,
+            self.minecraft().loads(Side::Server, edition, flavor),
         )
     }
 
-    pub fn server_edition(&self, flavor: &str) -> Edition {
-        self.minecraft().edition(Side::Server, flavor)
-    }
-
     pub fn instance_accepts(&self, flavor: &str) -> Vec<ContentKind> {
-        let minecraft = self.minecraft();
         accepted_kinds(
             Side::Client,
-            minecraft.edition(Side::Client, flavor),
-            minecraft.loads(Side::Client, flavor),
+            Edition::Java,
+            self.minecraft().loads(Side::Client, Edition::Java, flavor),
         )
     }
 }

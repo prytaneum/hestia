@@ -6,7 +6,7 @@ use proto::entry::{
     EntryVersions, EntryVersionsParams,
 };
 use proto::error::{EntryKind, EntryTarget};
-use proto::minecraft::{ConfigEntry, Flavor, GameVersion};
+use proto::minecraft::{ConfigEntry, Edition, EditionCatalogue, GameVersion};
 use proto::process::ProcessLogLine;
 
 use crate::session::Session;
@@ -16,18 +16,20 @@ pub struct Entry<'a> {
 }
 
 impl Entry<'_> {
-    pub async fn flavors(&self, kind: EntryKind) -> Result<Vec<Flavor>, IpcError> {
+    pub async fn flavors(&self, kind: EntryKind) -> Result<Vec<EditionCatalogue>, IpcError> {
         let params = EntryFlavorsParams { kind };
-        Ok(self.session.call::<EntryFlavors>(&params).await?.flavors)
+        Ok(self.session.call::<EntryFlavors>(&params).await?.editions)
     }
 
     pub async fn versions(
         &self,
         kind: EntryKind,
+        edition: Edition,
         flavor: &str,
     ) -> Result<Vec<GameVersion>, IpcError> {
         let params = EntryVersionsParams {
             kind,
+            edition,
             flavor: flavor.to_string(),
         };
         self.session.call::<EntryVersions>(&params).await
@@ -36,11 +38,13 @@ impl Entry<'_> {
     pub async fn loaders(
         &self,
         kind: EntryKind,
+        edition: Edition,
         flavor: &str,
         version: &str,
     ) -> Result<Vec<String>, IpcError> {
         let params = EntryLoadersParams {
             kind,
+            edition,
             flavor: flavor.to_string(),
             version: version.to_string(),
         };

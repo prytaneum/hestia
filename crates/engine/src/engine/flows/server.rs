@@ -4,21 +4,20 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
 use proto::backup::BackupKind;
-use proto::minecraft::{Edition, ProvisionPhase};
+use proto::minecraft::ProvisionPhase;
 
 use proto::server::{JvmArgsSource, ServerDetails, ServerPingResult};
 use proto::warning::WarningInfo;
 
-use super::players::parse_player_count;
 use super::{guard_downgrade, meta_dir, phase_progress, pick_name};
-use crate::content::install;
+use crate::edition;
 use crate::engine::{Engine, ServerCreateSpec, ServerUpdateSpec};
 use crate::jvm::JavaSettings;
 use crate::minecraft::launch::LaunchPlan;
 use crate::minecraft::materialize::{self, OnProgress};
 use crate::minecraft::profile::{ServerJar, ServerProfile, ServerRuntime};
-use crate::minecraft::{ping, JavaInstall, Side};
-use crate::servers::{BedrockTransport, ServerRecord};
+use crate::minecraft::{JavaInstall, Side};
+use crate::servers::ServerRecord;
 use crate::usage;
 
 impl Engine {
@@ -39,6 +38,7 @@ impl Engine {
         let profile = self
             .minecraft
             .resolve_server(
+                spec.edition,
                 &spec.flavor,
                 &spec.version,
                 spec.loader_version,
@@ -50,7 +50,9 @@ impl Engine {
         // Before the record exists: a cancel up to here leaves nothing at all,
         // not even a port claim.
         on_progress.check()?;
-        let record = self.servers.create(&name, profile, spec.port)?;
+        let record = self
+            .servers
+            .create(&name, spec.edition, profile, spec.port)?;
 
         // Config entries apply after provisioning so property keys validate
         // against the schema the server itself generated.
@@ -100,7 +102,7 @@ impl Engine {
         let record = self.servers.require(&spec.server)?;
         let versions = self
             .minecraft
-            .versions(Side::Server, &record.profile.flavor)
+            .versions(Side::Server, record.edition, &record.profile.flavor)
             .await?;
         guard_downgrade(
             "world",
@@ -114,6 +116,7 @@ impl Engine {
         let profile = self
             .minecraft
             .resolve_server(
+                record.edition,
                 &record.profile.flavor,
                 &spec.version,
                 spec.loader_version,
@@ -192,6 +195,7 @@ impl Engine {
         self.minecraft
             .install(
                 Side::Server,
+                record.edition,
                 &record.profile.flavor,
                 &crate::minecraft::InstallRequest {
                     game_version: &record.profile.game_version,
@@ -225,10 +229,7 @@ impl Engine {
         let data_dir = self.servers.data_dir(&record);
         let entry_dir = self.servers.server_dir(&record);
         let level = crate::properties::level_name(&data_dir);
-        install::sync(&entry_dir, &data_dir, std::slice::from_ref(&level))?;
-        if self.server_edition(&record.profile.flavor) == Edition::Bedrock {
-            crate::content::bedrock::sync(&entry_dir, &data_dir, &level)?;
-        }
+        edition::sync_content(record.edition, &entry_dir, &data_dir, &level)?;
         let java = record
             .profile
             .runtime
@@ -245,35 +246,7 @@ impl Engine {
 
     pub async fn server_ping(&self, reference: &str) -> Result<ServerPingResult> {
         let record = self.servers.require(reference)?;
-        let edition = self.server_edition(&record.profile.flavor);
-        if edition == Edition::Bedrock
-            && self.servers.bedrock_transport(&record) == BedrockTransport::Nethernet
-        {
-            return self.nethernet_status(&record).await;
-        }
-        ping::ping(edition, record.game_port).await
-    }
-
-    /// NetherNet answers no RakNet ping, so a running server's status is read
-    /// from its console and the version and name from what is on disk.
-    async fn nethernet_status(&self, record: &ServerRecord) -> Result<ServerPingResult> {
-        let reply = self
-            .server_command(&record.id, "list")
-            .await
-            .context("cannot reach the server's console")?;
-        let (players_online, players_max) = parse_player_count(&reply)
-            .with_context(|| format!("unexpected list reply from {}", record.id))?;
-        let properties = self
-            .servers
-            .data_dir(record)
-            .join(crate::properties::PROPERTIES);
-        Ok(ServerPingResult {
-            players_online,
-            players_max,
-            motd: crate::properties::read_property(&properties, "server-name").unwrap_or_default(),
-            version: record.profile.game_version.clone(),
-            ..Default::default()
-        })
+        edition::status(self, &record).await
     }
 
     /// The server's static, informational view: descriptor, locations, and the

@@ -30,7 +30,7 @@ use proto::minecraft::{Edition, Flavor, GameVersion};
 use crate::cache::Cache;
 use profile::{InstanceProfile, ServerProfile};
 
-pub use provider::{accepted_kinds, unmet, InstallRequest, JavaInstall, Prerequisite, Side};
+pub use provider::{unmet, InstallRequest, JavaInstall, Prerequisite, Side};
 pub use provider::{FlavorInfo, FlavorProvider, Loads, ResolveRequest};
 
 /// The Java majors Minecraft launch profiles ever require: 8 (pre-1.17),
@@ -70,17 +70,16 @@ impl Minecraft {
         Minecraft { flavors }
     }
 
-    pub fn flavors(&self, side: Side) -> Vec<Flavor> {
+    pub fn flavors(&self, side: Side, edition: Edition) -> Vec<Flavor> {
         self.flavors
             .iter()
             .map(|p| p.info())
-            .filter(|info| info.sides.contains(&side))
+            .filter(|info| info.edition == edition && info.sides.contains(&side))
             .map(|info| Flavor {
                 id: info.id.to_string(),
                 name: info.name.to_string(),
                 summary: info.summary.to_string(),
-                edition: info.edition,
-                accepts: accepted_kinds(side, info.edition, info.loads),
+                accepts: crate::edition::accepted_kinds(side, edition, info.loads),
                 requires: Vec::new(),
             })
             .collect()
@@ -89,8 +88,8 @@ impl Minecraft {
     /// What a flavor needs on the machine. Whether it is *there* is a question
     /// about this computer, not about the catalogue — `Engine::flavors`
     /// answers that.
-    pub fn requires(&self, side: Side, flavor: &str) -> &'static [Prerequisite] {
-        self.provider(side, flavor)
+    pub fn requires(&self, side: Side, edition: Edition, flavor: &str) -> &'static [Prerequisite] {
+        self.provider(side, edition, flavor)
             .map(|p| p.info().requires)
             .unwrap_or(&[])
     }
@@ -98,33 +97,36 @@ impl Minecraft {
     /// The content kind a flavor's own loader consumes. An unregistered
     /// flavor — a record written by a build that had one we no longer ship —
     /// loads nothing rather than failing the read.
-    pub fn loads(&self, side: Side, flavor: &str) -> Loads {
-        self.provider(side, flavor)
+    pub fn loads(&self, side: Side, edition: Edition, flavor: &str) -> Loads {
+        self.provider(side, edition, flavor)
             .ok()
             .and_then(|p| p.info().loads)
     }
 
-    pub fn edition(&self, side: Side, flavor: &str) -> Edition {
-        self.provider(side, flavor)
-            .ok()
-            .map_or(Edition::Java, |p| p.info().edition)
-    }
-
-    pub async fn versions(&self, side: Side, flavor: &str) -> Result<Vec<GameVersion>> {
-        self.provider(side, flavor)?.versions().await
+    pub async fn versions(
+        &self,
+        side: Side,
+        edition: Edition,
+        flavor: &str,
+    ) -> Result<Vec<GameVersion>> {
+        self.provider(side, edition, flavor)?.versions().await
     }
 
     pub async fn loader_versions(
         &self,
         side: Side,
+        edition: Edition,
         flavor: &str,
         game: &str,
     ) -> Result<Vec<String>> {
-        self.provider(side, flavor)?.loader_versions(game).await
+        self.provider(side, edition, flavor)?
+            .loader_versions(game)
+            .await
     }
 
     pub async fn resolve_server(
         &self,
+        edition: Edition,
         flavor: &str,
         version: &str,
         loader_version: Option<String>,
@@ -132,7 +134,7 @@ impl Minecraft {
         cache: Option<&Cache>,
     ) -> Result<ServerProfile> {
         tracing::info!(flavor, version, ?loader_version, "resolving server profile");
-        self.provider(Side::Server, flavor)?
+        self.provider(Side::Server, edition, flavor)?
             .resolve_server(&ResolveRequest {
                 version: version.to_string(),
                 loader_version,
@@ -156,7 +158,7 @@ impl Minecraft {
             ?loader_version,
             "resolving instance profile"
         );
-        self.provider(Side::Client, flavor)?
+        self.provider(Side::Client, Edition::Java, flavor)?
             .resolve_client(&ResolveRequest {
                 version: version.to_string(),
                 loader_version,
@@ -172,20 +174,24 @@ impl Minecraft {
     pub async fn install(
         &self,
         side: Side,
+        edition: Edition,
         flavor: &str,
         request: &provider::InstallRequest<'_>,
         on_progress: materialize::OnProgress<'_>,
     ) -> Result<()> {
-        self.provider(side, flavor)?
+        self.provider(side, edition, flavor)?
             .install(side, request, on_progress)
             .await
     }
 
-    fn provider(&self, side: Side, flavor: &str) -> Result<&dyn FlavorProvider> {
+    fn provider(&self, side: Side, edition: Edition, flavor: &str) -> Result<&dyn FlavorProvider> {
         self.flavors
             .iter()
             .map(AsRef::as_ref)
-            .find(|p| p.info().id == flavor && p.info().sides.contains(&side))
+            .find(|p| {
+                let info = p.info();
+                info.id == flavor && info.edition == edition && info.sides.contains(&side)
+            })
             .with_context(|| format!("unknown {} flavor: {flavor}", side.noun()))
     }
 }

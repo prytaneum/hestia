@@ -27,7 +27,6 @@ pub struct Flavor {
     /// authored beside the provider. English; a front-end with its own
     /// translation for a known id may prefer it.
     pub summary: String,
-    pub edition: Edition,
     pub accepts: Vec<ContentKind>,
     /// What this flavor needs installed that is **not** on this machine; empty
     /// when it is ready to use. Resolved as the catalogue is built, so a
@@ -111,18 +110,19 @@ pub fn downgrade_between(versions: &[GameVersion], from: &str, to: &str) -> Opti
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
 #[serde(default, rename_all = "camelCase")]
 pub struct FlavorsResult {
-    pub flavors: Vec<Flavor>,
-    pub rules: Vec<EditionRules>,
+    pub editions: Vec<EditionCatalogue>,
 }
 
-/// The property rules one edition's entries are validated against; a flavor
-/// is checked with the entry of its own `edition`.
+/// One edition's slice of the catalogue: the providers it offers and the
+/// property rules its entries are validated against. A flavor id is unique
+/// only within its edition.
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
 #[serde(default, rename_all = "camelCase")]
-pub struct EditionRules {
+pub struct EditionCatalogue {
     pub edition: Edition,
     pub rules: Vec<KeyRule>,
+    pub flavors: Vec<Flavor>,
 }
 
 /// Where a provisioning job (server create, instance launch preparation) is.

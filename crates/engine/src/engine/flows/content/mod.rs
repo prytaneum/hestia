@@ -27,6 +27,7 @@ use crate::content::install;
 use crate::engine::Engine;
 use crate::minecraft::materialize::OnProgress;
 use crate::minecraft::Side;
+use proto::minecraft::Edition;
 
 impl Engine {
     /// Install a batch of content into an entry — each item a platform project,
@@ -194,9 +195,7 @@ impl Engine {
                     id: record.id,
                     name: record.name,
                     game_version: record.profile.game_version,
-                    edition: self
-                        .minecraft()
-                        .edition(Side::Server, &record.profile.flavor),
+                    edition: record.edition,
                     flavor: record.profile.flavor,
                     side: Side::Server,
                 })
@@ -209,9 +208,7 @@ impl Engine {
                     id: record.id,
                     name: record.name,
                     game_version: record.profile.game_version,
-                    edition: self
-                        .minecraft()
-                        .edition(Side::Client, &record.profile.flavor),
+                    edition: Edition::Java,
                     flavor: record.profile.flavor,
                     side: Side::Client,
                 })

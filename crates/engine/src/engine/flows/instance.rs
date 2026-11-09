@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 use anyhow::{bail, Context, Result};
 use proto::error::{ErrorInfo, Field, Reason};
 use proto::instance::{InstanceDetails, QuickPlay, WorldInfo};
-use proto::minecraft::{ConfigEntry, ProvisionPhase, ProvisionProgress};
+use proto::minecraft::{ConfigEntry, Edition, ProvisionPhase, ProvisionProgress};
 use proto::warning::WarningInfo;
 
 use super::{guard_downgrade, meta_dir, pick_name};
@@ -96,7 +96,7 @@ impl Engine {
         let record = self.instances.require(reference)?;
         let versions = self
             .minecraft
-            .versions(Side::Client, &record.profile.flavor)
+            .versions(Side::Client, Edition::Java, &record.profile.flavor)
             .await?;
         guard_downgrade(
             "saves",
@@ -275,6 +275,7 @@ impl Engine {
         self.minecraft
             .install(
                 Side::Client,
+                Edition::Java,
                 &record.profile.flavor,
                 &crate::minecraft::InstallRequest {
                     game_version: &record.profile.game_version,

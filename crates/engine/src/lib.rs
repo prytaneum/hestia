@@ -12,6 +12,7 @@ mod config;
 mod console;
 mod content;
 mod download;
+mod edition;
 mod engine;
 mod error;
 mod extract;
@@ -47,8 +48,9 @@ pub use config::{Config, ConfigError, Settings};
 pub use content::provider::{ContentProvider, LocalFile, UrlRef};
 pub use content::Content;
 pub use download::Downloader;
+pub use edition::{config_rules, has_console, player_lists, process_io, ProcessIo};
 pub use engine::{
-    player_lists, Engine, EntryRef, ExportOutcome, ImportOutcome, LaunchRequest, ModpackOutcome,
+    Engine, EntryRef, ExportOutcome, ImportOutcome, LaunchRequest, ModpackOutcome,
     ServerCreateSpec, ServerListWrite, ServerUpdateSpec, VersionChange,
 };
 pub use error::error_info;
@@ -69,7 +71,7 @@ pub use net::Network;
 pub use process::run_relay;
 pub use process::{ExitObserver, ProcessEvents, ProcessSupervisor, StartError, StdinError};
 pub use schema::notices as quarantined;
-pub use servers::{BedrockTransport, RconConfig, ServerPhase, ServerRecord, Servers};
+pub use servers::{RconConfig, ServerPhase, ServerRecord, Servers};
 pub use skins::Skins;
 pub use sync::Sync;
 pub use tasks::Schedule;

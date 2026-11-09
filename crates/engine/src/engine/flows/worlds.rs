@@ -1,14 +1,12 @@
 //! A server's worlds: what it has, and bringing a Bedrock `.mcworld` in.
 
 use anyhow::Result;
-use proto::error::{ErrorInfo, Unsupported};
 use proto::instance::WorldInfo;
-use proto::minecraft::Edition;
 
 use super::transfer::daemon_local_path;
 use crate::cancel::Job;
+use crate::edition;
 use crate::engine::Engine;
-use crate::minecraft::{bedrock, world};
 use crate::properties;
 
 const LEVEL_NAME: &str = "level-name";
@@ -20,15 +18,7 @@ impl Engine {
         let record = self.servers.require(reference)?;
         let data_dir = self.servers.data_dir(&record);
         let active = properties::level_name(&data_dir);
-        Ok(match self.server_edition(&record.profile.flavor) {
-            Edition::Java => data_dir
-                .join(&active)
-                .is_dir()
-                .then(|| world::describe(&data_dir, &active))
-                .into_iter()
-                .collect(),
-            Edition::Bedrock => bedrock::world::list(&data_dir.join("worlds"), &active),
-        })
+        Ok(edition::worlds(record.edition, &data_dir, &active))
     }
 
     /// Unpack a `.mcworld` into the server's `worlds/`; with `activate`, make it
@@ -41,15 +31,9 @@ impl Engine {
         job: &Job<'_>,
     ) -> Result<WorldInfo> {
         let record = self.servers.require(reference)?;
-        if self.server_edition(&record.profile.flavor) != Edition::Bedrock {
-            return Err(ErrorInfo::UnsupportedOperation {
-                reason: Unsupported::WorldImportBedrockOnly,
-            }
-            .into());
-        }
         let archive = daemon_local_path(path)?;
         let data_dir = self.servers.data_dir(&record);
-        let world = bedrock::world::import(&data_dir, &archive, job)?;
+        let world = edition::import_world(record.edition, &data_dir, &archive, job)?;
         if activate {
             if let Err(error) = self
                 .servers

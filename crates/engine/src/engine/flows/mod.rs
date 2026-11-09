@@ -21,7 +21,7 @@ pub use multiplayer::ServerListWrite;
 mod packs;
 mod players;
 
-pub use players::player_lists;
+pub(crate) use players::parse_player_count;
 mod recent;
 mod restore;
 mod screenshots;

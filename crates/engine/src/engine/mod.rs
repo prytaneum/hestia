@@ -7,15 +7,16 @@
 
 mod flows;
 
+pub(crate) use flows::parse_player_count;
 pub use flows::{
-    player_lists, EntryRef, ExportOutcome, ImportOutcome, LaunchRequest, ModpackOutcome,
-    ServerListWrite, VersionChange,
+    EntryRef, ExportOutcome, ImportOutcome, LaunchRequest, ModpackOutcome, ServerListWrite,
+    VersionChange,
 };
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use proto::minecraft::ConfigEntry;
+use proto::minecraft::{ConfigEntry, Edition};
 
 use crate::accounts::Accounts;
 use crate::cache::Cache;
@@ -36,6 +37,7 @@ use crate::update::Update;
 #[derive(Debug, Clone, Default)]
 pub struct ServerCreateSpec {
     pub name: String,
+    pub edition: Edition,
     pub flavor: String,
     pub version: String,
     pub loader_version: Option<String>,

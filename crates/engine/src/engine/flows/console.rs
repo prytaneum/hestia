@@ -1,12 +1,11 @@
 //! A running server's console: one command over its kept RCON connection, and
 //! what a half-typed line could continue with.
 
-use std::sync::Arc;
-
-use anyhow::{Context, Result};
+use anyhow::Result;
 use proto::server::ServerCommandCompleteResult;
 
 use crate::console::{self, Transport, Typed};
+use crate::edition;
 use crate::engine::Engine;
 
 const PLAYER_ARGUMENTS: [&str; 4] = ["<target>", "<targets>", "<player>", "<players>"];
@@ -71,13 +70,7 @@ impl Engine {
 
     fn server_transport(&self, reference: &str) -> Result<(String, Transport)> {
         let record = self.servers.require(reference)?;
-        if record.profile.runtime.is_native() {
-            let pipe = Transport::Pipe(Arc::clone(&self.processes));
-            return Ok((record.id, pipe));
-        }
-        let rcon = record
-            .rcon
-            .context("this server has no console yet (restart it to enable one)")?;
-        Ok((record.id, Transport::Rcon(rcon)))
+        let transport = edition::console_transport(&record, &self.processes)?;
+        Ok((record.id, transport))
     }
 }

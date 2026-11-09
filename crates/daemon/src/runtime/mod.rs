@@ -16,11 +16,10 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Instant;
 
-use engine::{Engine, InstanceRecord, ServerRecord, ServerRuntime};
+use engine::{Engine, InstanceRecord, ProcessIo, ServerRecord};
 use proto::error::ErrorInfo;
 use proto::instance::InstanceInfo;
-use proto::minecraft::Edition;
-use proto::process::{LogSource, ProcessInfo, ProcessSpec, StopMethod};
+use proto::process::{ProcessInfo, ProcessSpec};
 use proto::server::ServerInfo;
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::sync::Notify;
@@ -54,14 +53,7 @@ pub async fn start_server(
     id: &str,
 ) -> Result<ProcessInfo, ErrorInfo> {
     let (record, plan) = engine.server_launch_plan(id).map_err(engine_error)?;
-    let (log, stdin, stop) = match record.profile.runtime {
-        ServerRuntime::Java { .. } => (
-            LogSource::File(plan.cwd.join("logs").join("latest.log")),
-            false,
-            StopMethod::Signal,
-        ),
-        ServerRuntime::Native { .. } => (LogSource::Capture, true, StopMethod::Line("stop".into())),
-    };
+    let ProcessIo { log, stdin, stop } = engine::process_io(record.edition, &plan.cwd);
     let spec = ProcessSpec {
         id: server_process_id(id),
         program: plan.program.to_string_lossy().into_owned(),
@@ -111,24 +103,24 @@ pub fn server_info(
     record: ServerRecord,
     process: Option<proto::process::ProcessInfo>,
     accepts: Vec<proto::content::ContentKind>,
-    edition: Edition,
     ports: Vec<proto::server::ServerPort>,
 ) -> ServerInfo {
     let ready = record.ready();
+    let console = engine::has_console(&record);
     ServerInfo {
         id: record.id,
         name: record.name,
         flavor: record.profile.flavor,
         game_version: record.profile.game_version,
         loader_version: record.profile.loader_version,
-        edition,
+        edition: record.edition,
         java_major: record.profile.runtime.java_major(),
         created_unix: record.created_unix,
         ready,
         game_port: record.game_port,
         ports,
-        player_lists: engine::player_lists(edition),
-        console: record.rcon.is_some() || record.profile.runtime.is_native(),
+        player_lists: engine::player_lists(record.edition),
+        console,
         accepts,
         process,
     }
@@ -220,10 +212,11 @@ impl Runtime {
     /// A server's record merged with its live process state (when started).
     pub fn server_view(&self, record: ServerRecord) -> ServerInfo {
         let process = self.processes.status(&server_process_id(&record.id));
-        let accepts = self.engine.server_accepts(&record.profile.flavor);
-        let edition = self.engine.server_edition(&record.profile.flavor);
+        let accepts = self
+            .engine
+            .server_accepts(record.edition, &record.profile.flavor);
         let ports = self.engine.servers().ports(&record);
-        server_info(record, process, accepts, edition, ports)
+        server_info(record, process, accepts, ports)
     }
 
     /// Stop a running server, wait for its process to exit, and start it

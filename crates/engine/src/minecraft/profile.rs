@@ -1,4 +1,4 @@
-use proto::minecraft::{Artifact, Edition};
+use proto::minecraft::Artifact;
 use serde::{Deserialize, Serialize};
 
 /// A classpath dependency, resolved to its download and its path under the
@@ -114,17 +114,6 @@ impl Default for ServerRuntime {
 }
 
 impl ServerRuntime {
-    pub fn edition(&self) -> Edition {
-        match self {
-            ServerRuntime::Java { .. } => Edition::Java,
-            ServerRuntime::Native { .. } => Edition::Bedrock,
-        }
-    }
-
-    pub fn is_native(&self) -> bool {
-        matches!(self, ServerRuntime::Native { .. })
-    }
-
     pub fn java_major(&self) -> Option<i32> {
         match self {
             ServerRuntime::Java { java_major, .. } => Some(*java_major),

@@ -16,11 +16,10 @@ use crate::runtime::{
 /// whatever the provision degraded on. Assembled where the engine is in reach.
 fn provisioned(engine: &Engine, outcome: (engine::ServerRecord, Vec<WarningInfo>)) -> ServerDone {
     let (record, warnings) = outcome;
-    let accepts = engine.server_accepts(&record.profile.flavor);
-    let edition = engine.server_edition(&record.profile.flavor);
+    let accepts = engine.server_accepts(record.edition, &record.profile.flavor);
     let ports = engine.servers().ports(&record);
     ServerDone {
-        server: server_info(record, None, accepts, edition, ports),
+        server: server_info(record, None, accepts, ports),
         warnings,
         failures: Vec::new(),
     }
@@ -49,6 +48,7 @@ impl Jobs {
             Box::pin(async move {
                 let create = ServerCreateSpec {
                     name: params.name,
+                    edition: params.edition,
                     flavor: params.flavor,
                     version: params.version,
                     loader_version: params.loader_version,

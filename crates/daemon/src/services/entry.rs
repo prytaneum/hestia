@@ -1,14 +1,13 @@
 //! The verbs a server and an instance share, one handler each over the side the
 //! payload names.
 
-use engine::Side;
 use proto::entry::{
     EntryConfigGet, EntryConfigList, EntryConfigListResult, EntryConfigSet, EntryConfigValue,
     EntryFlavors, EntryLoaders, EntryLogs, EntryRemove, EntryRename, EntryRenamed, EntryStop,
     EntryVersions,
 };
 use proto::error::{EntryKind, ErrorInfo, Field};
-use proto::minecraft::{ConfigEntry, Edition, EditionRules, FlavorsResult};
+use proto::minecraft::{ConfigEntry, FlavorsResult};
 use proto::process::ProcessState;
 use proto::Empty;
 
@@ -19,20 +18,7 @@ pub(super) fn register(on: &mut Channels<'_>) {
     on.handle::<EntryFlavors, _, _>(|p, ctx| async move {
         let side = side_for(&ctx, p.kind)?;
         Ok(FlavorsResult {
-            flavors: ctx.runtime.engine().flavors(side).await,
-            rules: match side {
-                Side::Server => [Edition::Java, Edition::Bedrock]
-                    .into_iter()
-                    .map(|edition| EditionRules {
-                        edition,
-                        rules: engine::Servers::config_rules(edition),
-                    })
-                    .collect(),
-                Side::Client => vec![EditionRules {
-                    edition: Edition::Java,
-                    rules: engine::Instances::config_rules(),
-                }],
-            },
+            editions: ctx.runtime.engine().catalogue(side).await,
         })
     });
 
@@ -41,7 +27,7 @@ pub(super) fn register(on: &mut Channels<'_>) {
         ctx.runtime
             .engine()
             .minecraft()
-            .versions(side, &p.flavor)
+            .versions(side, p.edition, &p.flavor)
             .await
             .map_err(engine_error)
     });
@@ -51,7 +37,7 @@ pub(super) fn register(on: &mut Channels<'_>) {
         ctx.runtime
             .engine()
             .minecraft()
-            .loader_versions(side, &p.flavor, &p.version)
+            .loader_versions(side, p.edition, &p.flavor, &p.version)
             .await
             .map_err(engine_error)
     });
@@ -196,12 +182,10 @@ pub(super) fn register(on: &mut Channels<'_>) {
                     .servers()
                     .require(&entry.id)
                     .map_err(engine_error)?
-                    .profile
-                    .runtime
-                    .edition();
+                    .edition;
                 (
                     engine.servers().config_list(&entry.id),
-                    engine::Servers::config_rules(edition),
+                    engine::config_rules(edition),
                 )
             }
             EntryKind::Instance => (

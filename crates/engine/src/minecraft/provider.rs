@@ -63,7 +63,7 @@ impl<'a> InstallRequest<'a> {
 /// The third-party content a flavor's own loader consumes: mods for a
 /// modloader, plugins for a server platform, nothing for vanilla. Datapacks
 /// (and, client-side, resourcepacks and shaders) belong to the game rather than
-/// the flavor, so they are not named here — [`accepted_kinds`] adds them.
+/// the flavor, so they are not named here — `edition::accepted_kinds` adds them.
 pub type Loads = Option<ContentKind>;
 
 /// Which half of the game an entry is, for the rules that differ between them.
@@ -80,29 +80,6 @@ impl Side {
             Side::Client => "instance",
         }
     }
-}
-
-/// Everything an entry of this flavor and side accepts, composed from two
-/// independent facts: whatever the flavor's own loader takes, plus what the
-/// side reads for itself — a client its resourcepacks and shaders, either side
-/// the datapacks that are world data rather than loader content.
-///
-/// It lives beside `Loads` because it is the same vocabulary: adding a flavor
-/// is one impl plus one registry line, with no table to update here or in any
-/// front-end.
-pub fn accepted_kinds(side: Side, edition: Edition, loads: Loads) -> Vec<ContentKind> {
-    let mut kinds: Vec<ContentKind> = loads.into_iter().collect();
-    if edition == Edition::Bedrock {
-        kinds.push(ContentKind::BehaviorPack);
-        kinds.push(ContentKind::ResourcePack);
-        return kinds;
-    }
-    if side == Side::Client {
-        kinds.push(ContentKind::ResourcePack);
-        kinds.push(ContentKind::Shader);
-    }
-    kinds.push(ContentKind::DataPack);
-    kinds
 }
 
 /// A tool a flavor needs on the machine that Hestia cannot install itself.
@@ -196,42 +173,5 @@ pub trait FlavorProvider: Send + Sync {
         _on: OnProgress<'_>,
     ) -> Result<()> {
         Ok(())
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn a_flavor_contributes_its_loader_kind_and_the_side_the_rest() {
-        assert_eq!(
-            accepted_kinds(Side::Server, Edition::Java, Some(ContentKind::Plugin)),
-            vec![ContentKind::Plugin, ContentKind::DataPack],
-            "a paper or spigot server takes plugins, never mods"
-        );
-        assert_eq!(
-            accepted_kinds(Side::Server, Edition::Java, Some(ContentKind::Mod)),
-            vec![ContentKind::Mod, ContentKind::DataPack]
-        );
-        assert_eq!(
-            accepted_kinds(Side::Server, Edition::Java, None),
-            vec![ContentKind::DataPack],
-            "vanilla loads nothing of its own, but a world still takes datapacks"
-        );
-        assert_eq!(
-            accepted_kinds(Side::Client, Edition::Java, None),
-            vec![
-                ContentKind::ResourcePack,
-                ContentKind::Shader,
-                ContentKind::DataPack
-            ],
-            "a client reads packs whatever its flavor loads"
-        );
-        assert_eq!(
-            accepted_kinds(Side::Server, Edition::Bedrock, None),
-            vec![ContentKind::BehaviorPack, ContentKind::ResourcePack],
-            "a bedrock server takes packs, never datapacks"
-        );
     }
 }

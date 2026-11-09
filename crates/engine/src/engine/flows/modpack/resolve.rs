@@ -9,7 +9,7 @@ use proto::content::{
     ContentKind, ContentProject, ContentVersion, ResolvedModpack, VersionQuery, LOCAL_SOURCE,
 };
 use proto::error::ErrorInfo;
-use proto::minecraft::{Artifact, ProvisionPhase};
+use proto::minecraft::{Artifact, Edition, ProvisionPhase};
 use proto::modpack::{InstalledModpack, ModpackMove, ModpackRef};
 use uuid::Uuid;
 
@@ -82,7 +82,7 @@ impl Engine {
             false => loader,
         };
         self.minecraft
-            .flavors(side)
+            .flavors(side, Edition::Java)
             .iter()
             .any(|f| f.id == wanted)
             .then(|| wanted.to_string())
