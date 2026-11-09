@@ -90,6 +90,7 @@ to your account.
 | **Content**   | Modrinth · CurseForge · a page URL · a local file                  |
 | **Import**    | Hestia archives · `.mrpack` · Prism / MultiMC instances            |
 | **Export**    | Hestia archives · `.mrpack`                                        |
+| **Plugins**   | WASM components: commands · pages · themes · hooks · providers     |
 
 NeoForge builds its game jar locally from the installer, and Spigot/CraftBukkit compile on your machine with SpigotMC's
 BuildTools (needs `git`) — so a first create on those takes a few minutes. CurseForge needs an API key
@@ -98,6 +99,10 @@ BuildTools (needs `git`) — so a first create on those takes a few minutes. Cur
 A few more things it does: several concurrent sessions of one instance, starting straight into a world or onto a server,
 in-place version changes both ways (downgrades warn, and a server is backed up first), game settings and multiplayer
 lists shared across instances, a system tray, and self-update.
+
+Plugins extend the launcher itself: sandboxed WASM components that add commands, pages and themes, adjust a launch,
+and supply content sources, flavors, archive formats and Java distributions, with only the permissions you approve at
+install. Writing one is covered in [docs/plugins/](docs/plugins/README.md).
 
 Old versions are covered too: a pre-1.19 client's LWJGL natives are unpacked from their classifier jars, and an asset
 index that predates the hashed store is mirrored to the named tree those clients read.
@@ -169,6 +174,7 @@ Your data lives in `~/.hestia` (`%APPDATA%\Hestia` on Windows), overridable with
 | Page                                         | What's in it                                                                       |
 |----------------------------------------------|------------------------------------------------------------------------------------|
 | [docs/cli.md](docs/cli.md)                   | every `hestia` command                                                             |
+| [docs/plugins/](docs/plugins/README.md)      | writing, packaging and publishing a plugin                                         |
 | [docs/architecture.md](docs/architecture.md) | how it's put together — the daemon boundary, the crate graph, a page per subsystem |
 | [docs/decisions/](docs/decisions/README.md)  | why it's put together that way                                                     |
 | [docs/contributing.md](docs/contributing.md) | conventions and copy-and-adapt recipes                                             |

@@ -691,11 +691,11 @@ immediately. The tray's **Quit** and the desktop's stop button always mean
 ## Launcher plugins
 
 `hestia plugin` manages plugins that extend Hestia itself; server plugins are `hestia server-plugin` and
-`hestia server <name> plugin`.
+`hestia server <name> plugin`. Writing one is covered in [plugins/](plugins/README.md).
 
 ```bash
-hestia plugin list               # id, name, version, state, source (obsolete ones say so; official ones are marked)
-hestia plugin add <path>         # a .hplugin or a folder; shows the permissions, confirms; -y approves them
+hestia plugin list               # alias ls; id, name, version, state, source (obsolete ones say so; official ones are marked)
+hestia plugin add <path>         # a .hplugin or a folder; shows the permissions, confirms; -y approves exactly those
 hestia plugin add <https-url>    # a link to a .hplugin (https only, 64 MiB max), then the same prompt
 hestia plugin add <id>           # from an added repository: its newest build for this Hestia
 hestia plugin add <label>/<id>   # the same, from the repository with that label
@@ -706,7 +706,7 @@ hestia plugin config <id> <key>  # one setting; a secret without a value is prom
 hestia plugin config <id> <key> <value>   # set it, checked against the declared kind; --unset restores the default
 hestia plugin enable <id>        # load it
 hestia plugin disable <id>       # unload it; it stays installed
-hestia plugin remove <id>        # confirms first; -y skips the prompt
+hestia plugin remove <id>        # alias rm; deletes its data, so it confirms first; -y skips the prompt
 ```
 
 Any other https link is read as a repository index; only one ending in `.hplugin` is a package. An id offered under
@@ -720,9 +720,9 @@ before trusting it.
 
 ```bash
 hestia plugin repo add <owner/repo|github.com/owner/repo|https-index-url>   # shows name, label, website, key id, plugin count; asks; -y trusts the key shown
-hestia plugin repo list          # label, name, key id, plugin count, website
+hestia plugin repo list          # alias ls; label, name, key id, plugin count, website
 hestia plugin repo refresh [ref] # fetch again; an unreachable one keeps its cached index and warns
-hestia plugin repo remove <ref>  # label, name or index URL; its plugins keep running, as obsolete
+hestia plugin repo remove <ref>  # alias rm; label, name or index URL; confirms, -y skips; its plugins keep running, as obsolete
 hestia plugin browse [query] [--repo <ref>]   # every plugin of every repository, with store label, key id and status
 ```
 
@@ -741,12 +741,14 @@ hestia plugin check [dir]        # validate the repository against the one shape
 hestia plugin index [--previous <https-url|file>] [--add dist/*.hplugin] [--repository <https-url>] [--sign <secret key>]
                                  # write dist/hestia-index.json, the repository's listing (+ .minisig with --sign)
 hestia plugin keygen [--out <dir>] [--unencrypted]
-                                 # write a minisign key pair and declare the public key in Cargo.toml
-hestia plugin pack --sign <secret key>   # also write <package>.minisig
+                                 # write hestia.key and hestia.pub (to --out, default the current directory) and set
+                                 #   `key` in [workspace.metadata.hestia]; never overwrites a key; --unencrypted for a CI secret
+hestia plugin pack --sign <secret key>   # also write <package>.minisig (the key must match the repository's declared one)
 hestia plugin dev [dir] [-y]     # run plugins/<id>/ in place, reload on every rebuild, stream its log
 ```
 
-The shape, the index format and the release flow are in [plugins/repository.md](plugins/repository.md). `check`
+The shape, the index format and the release flow are in [plugins/repository.md](plugins/repository.md) and
+[plugins/publishing.md](plugins/publishing.md). `check`
 needs `[workspace.metadata.hestia]` (`name`, `label`, `website`, `key`, a valid minisign public key) and a theme-only plugin listed in `exclude`;
 `pack` and `index` run it first. `index` keeps the previous index's builds and revocations, adds each package with its
 sha256, bumps `version`, and takes `commit` from git and `repository` from `--repository` or the `origin` remote.
