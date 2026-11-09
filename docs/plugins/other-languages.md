@@ -70,7 +70,7 @@ is not a cargo crate cannot be packed that way. What does work, from the code:
 - Put `plugin.toml` and the component in a folder (with `assets/` and `themes/` if you have them) and run
   `hestia plugin add <folder>`. A folder is installed as an unpacked package, and the permissions it asks for are shown
   for approval like any other.
-- A hand-made `.hplugin` is a zip of the same files. Publishing through `hestia plugin index` and the workflows in
+- A hand-made `.hplugin` is a zip of the same files. Publishing through `hestia plugin publish` and the workflow in
   [publishing.md](publishing.md) reads cargo metadata, so a non-Rust plugin has no tested route into a repository.
 
 Whatever the language, the result must be a component, not a core module, whose imports the world above and WASI 0.2

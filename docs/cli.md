@@ -719,15 +719,17 @@ A repository is trusted by the minisign key it declares, not by its address
 before trusting it.
 
 ```bash
-hestia plugin repo add <owner/repo|github.com/owner/repo|https-index-url>   # shows name, label, website, key id, plugin count; asks; -y trusts the key shown
+hestia plugin repo add <owner/repo|github.com/owner/repo|https-plugins-json-url>   # owner/repo reads its `repo` branch; shows name, label, website, key id, plugin count; asks; -y trusts the key shown
 hestia plugin repo list          # alias ls; label, name, key id, plugin count, website
 hestia plugin repo refresh [ref] # fetch again; an unreachable one keeps its cached index and warns
 hestia plugin repo remove <ref>  # alias rm; label, name or index URL; confirms, -y skips; its plugins keep running, as obsolete
 hestia plugin browse [query] [--repo <ref>]   # every plugin of every repository, with store label, key id and status
 ```
 
-A refresh refuses an index signed by another key, declaring another key, or older than the one kept; for a named
-repository that is an error, for all of them a warning, and the cached index stays. `browse` works offline from the
+A refresh refuses an index signed by another key, declaring another key, older than the one kept or past its expiry;
+for a named repository that is an error, for all of them a warning, and the cached index stays. An expired index also
+stops new installs from it until a fresh one is fetched. An installed plugin the index revokes is disabled, with the
+reason as its error. `browse` works offline from the
 last good copies.
 
 Writing one needs no daemon. A plugin lives in a repository: a cargo workspace (`members = ["plugins/*"]`) with one
@@ -739,7 +741,7 @@ hestia plugin new <id>           # outside a repository: creates ./<id>/ with th
 hestia plugin pack [id…]         # from anywhere in the repository: build and write dist/<id>-<version>.hplugin
 hestia plugin check [dir]        # validate the repository against the one shape
 hestia plugin index [--previous <https-url|file>] [--add dist/*.hplugin] [--repository <https-url>] [--sign <secret key>]
-                                 # write dist/hestia-index.json, the repository's listing (+ .minisig with --sign)
+                                 # write dist/plugins.json, the repository's listing (+ .minisig with --sign)
 hestia plugin keygen [--out <dir>] [--unencrypted]
                                  # write hestia.key and hestia.pub (to --out, default the current directory) and set
                                  #   `key` in [workspace.metadata.hestia]; never overwrites a key; --unencrypted for a CI secret

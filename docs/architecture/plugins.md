@@ -34,7 +34,7 @@ what a third party could use.
 | Sandbox, store, install, trust | `crates/engine/src/plugins/` | `PluginRuntime`, `Plugins`, hooks, providers, repositories |
 | Loaded state, events, host calls | `crates/daemon/src/runtime/plugins/` | `RouterHost` (the `HostCalls` impl), event delivery, enable/disable |
 | Channels | `crates/daemon/src/services/plugin.rs` | the `plugin.*` registrar |
-| Authoring tools | `crates/cli/src/commands/plugin/` | `new`, `pack`, `check`, `index`, `keygen`, `dev`, and the management verbs |
+| Authoring tools | `crates/cli/src/commands/plugin/` | `new`, `pack`, `check`, `index` (to become `publish`), `keygen`, `dev`, and the management verbs |
 
 The engine never links `ipc` or `client`; what it needs from the daemon is the
 `HostCalls` trait (`permission`, `call`, `run_job`), which `RouterHost`
@@ -391,31 +391,35 @@ flowchart TD
 
 ### Repositories and trust
 
-A repository is a signed index (`hestia-index.json`) with one minisign public key,
-added by its index URL. It has one shape
+A repository is a signed index (`plugins.json`, on its own orphan `repo` branch) with one
+minisign public key and an optional spare, added by its index URL. It has one shape
 ([0094](../decisions/0094-a-plugin-repository-has-one-shape.md),
-[plugins/repository.md](../plugins/repository.md)).
+[plugins/repository.md](../plugins/repository.md)) and publishes to its own branch
+([0111](../decisions/0111-a-repository-publishes-to-its-own-branch.md)).
 
-- **Trust follows the key.** `plugin.repo.add` pins the key the index declares.
-  Every later refresh, and every build, must verify against that key, and the
-  signed trusted comment binds the signature to its subject
-  (`hestia-build id=… version=… file=…`, `hestia-index version=…`), so it cannot be
-  replayed onto another plugin or an older index. A different key, a failed
-  signature or a lower index version is refused and the cached index kept. Nothing
-  is parsed before the signature verifies
+- **Trust follows the key.** `plugin.repo.add` pins the key the index declares, and
+  its spare `next`. Every later refresh, and every build, must verify against them,
+  and the signed trusted comment binds the signature to its subject
+  (`hestia-build id=… version=… file=…`, `hestia-index version=… expires=…`), so it
+  cannot be replayed onto another plugin or an older index
   ([0097](../decisions/0097-trust-follows-the-repository-key.md)).
+- **Check, then cache.** The signature is verified before anything is parsed, then
+  the declared key, the version against the cached one (the version is the signing
+  time) and the expiry (30 days); only then is the index cached. A failed check never
+  replaces the cache. An expired index is stale: no new installs or updates until a
+  fresh one, and installed plugins keep running.
 - **Updates and revocation** come only from a repository pinning the key that
   signed the installed plugin, and an index revokes only what its own key signed.
-  Removing a repository leaves its plugins enabled and without updates.
+  Revocation is enforced on every refresh: a revoked installed version is disabled
+  with the reason as its error. Removing a repository leaves its plugins enabled
+  and without updates.
 - **Signing is CLI-only.** The engine links `minisign-verify`; `hestia plugin
-  keygen`, `pack --sign` and `index --sign` use the signing crate in `cli`.
+  keygen`, `pack --sign` and the index signing use the signing crate in `cli`.
 - **Official.** A plugin is official when its recorded signer is one of
-  `common::app::official_plugin_pubkeys()`; the flag is derived on every read, and
+  `common::app::official_plugin_pubkeys()` (a current key and an offline spare); the flag is derived on every read, and
   only a plugin so signed may take a bare provider id. A repository whose index
   names an official key is refused at `repo.add`
-  ([0099](../decisions/0099-official-plugins-are-signed.md)). The compiled-in key
-  set is **empty** on this branch, so no plugin is official yet and the code that
-  adds an official store does not exist; a debug build reads
+  ([0099](../decisions/0099-official-plugins-are-signed.md)). A debug build reads
   `HESTIA_OFFICIAL_PLUGIN_PUBKEY` for local runs.
 
 ## On disk
@@ -486,3 +490,4 @@ plugins the tests build are fixtures
 | [0106](../decisions/0106-the-plugin-api-is-mechanisms-not-features.md) | the plugin API is mechanisms, not features |
 | [0108](../decisions/0108-a-schedule-is-an-event-to-its-own-plugin.md) | a schedule is an event delivered to its own plugin |
 | [0110](../decisions/0110-a-flavor-builds-in-its-own-area.md) | a flavor builds in an area of its own; the host places the outputs |
+| [0111](../decisions/0111-a-repository-publishes-to-its-own-branch.md) | a repository publishes to its own orphan branch |

@@ -10,6 +10,8 @@ same, so nothing branches on the count. The workspace `[workspace.metadata.hesti
 its users: `name`, a 1 to 4 character `label` for the store badge, `website` and the minisign `key`. No second manifest
 file exists at the root. `hestia plugin check` enforces the shape, and `pack` and `index` run it first.
 
+> Superseded in part by [0111](0111-a-repository-publishes-to-its-own-branch.md): the listing below is published to an orphan `repo` branch as `plugins.json`, not to a rolling release, and a build needs no tag.
+
 **The listing is built from source.** CI regenerates `hestia-index.json` on every push to the default branch and
 publishes it at one stable URL; a build is attached to a release only when its author tags `<id>-v<version>`.
 Source fields come from the default branch and `builds` accumulates, so an untagged version is listed as

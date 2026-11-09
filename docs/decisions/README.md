@@ -42,6 +42,7 @@ the alternative you rejected — that is usually the part nobody can recover lat
 - **0108** — [A schedule is an event delivered to its own plugin](0108-a-schedule-is-an-event-to-its-own-plugin.md)
 - **0109** — [A plugin webview is an opaque-origin iframe with a mediated message bridge](0109-plugin-webviews-are-opaque-iframes.md)
 - **0110** — [A flavor builds in an area of its own, and the host places what it builds](0110-a-flavor-builds-in-its-own-area.md)
+- **0111** — [A plugin repository publishes to its own orphan branch](0111-a-repository-publishes-to-its-own-branch.md)
 
 ### [Cross-cutting foundations](../architecture/common.md)
 

@@ -15,7 +15,7 @@ file=<file>` for a build and `hestia-index version=<n>` for an index, compared a
 verifier expects. A valid signature therefore cannot be replayed onto another plugin, version, file name or an older
 index. `proto::repository` holds both formats, so signer and verifier cannot drift.
 
-**Pinning and rollback.** A refresh is refused when the index is signed by another key, declares another `key`, fails
+**Pinning and rollback.** (Freshness and the spare key are added by [0111](0111-a-repository-publishes-to-its-own-branch.md).) A refresh is refused when the index is signed by another key, declares another `key`, fails
 verification, or has a `version` lower than the cached one; the cached index is kept. Nothing is parsed before the
 signature verifies. A key rotation is remove + re-add, shown to the user as a new key id.
 

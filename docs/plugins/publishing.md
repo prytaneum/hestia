@@ -1,64 +1,50 @@
 # Publishing a plugin repository
 
-A repository is published by three commands: `check`, `pack` and `index`. On GitHub, two reusable workflows run them; on
-GitLab, Forgejo or any static host, run the same commands from your CI and serve the files over https. The shape the
-commands expect is in [repository.md](repository.md).
+A repository is published by one command, `hestia plugin publish`, run by one workflow on every push to the default
+branch and weekly. It commits the signed packages and the index to an orphan `repo` branch of the repository itself, and
+users add the repository by its URL ([0111](../decisions/0111-a-repository-publishes-to-its-own-branch.md)). The shape
+the command expects is in [repository.md](repository.md).
 
 ## On GitHub
 
 Start from [prytaneum/plugin-template](https://github.com/prytaneum/plugin-template) (the output of
-`hestia plugin new`): one example plugin, a pull request check, and two workflows that call Hestia's reusable ones.
+`hestia plugin new`): one example plugin, a pull request check, and one workflow that calls Hestia's reusable one.
 
 ```yaml
-# .github/workflows/index.yml: on push to the default branch
+# .github/workflows/publish.yml: on push to the default branch, and weekly
 jobs:
-  index:
+  publish:
     permissions: { contents: write }
-    uses: prytaneum/hestia/.github/workflows/plugin-index.yml@<tag>
+    uses: prytaneum/hestia/.github/workflows/plugin-publish.yml@<tag>
     with: { hestia-ref: refs/tags/<tag> }
     secrets: { HESTIA_SIGNING_KEY: "${{ secrets.HESTIA_SIGNING_KEY }}" }
 ```
 
-`plugin-release.yml` is called the same way on a `<id>-v<version>` tag push.
-
 - `<tag>` is the Hestia release the workflow and the `hestia` CLI come from. `uses:` cannot hold an expression, so the
-  ref is written twice. `hestia-ref` is read by `cargo install --rev`, which takes a commit or a full ref
-  (`refs/heads/<branch>`, `refs/tags/<tag>`), never a bare branch name.
+  ref is written twice. `hestia-ref` is read by `cargo install --rev`, which takes a commit or a full ref.
 - The secret is passed by name: `secrets: inherit` only reaches workflows of the same organisation.
 - The caller job grants `contents: write`; a called workflow can only narrow its caller's permissions.
 - `HESTIA_SIGNING_KEY` holds the file `hestia plugin keygen --unencrypted` wrote (`gh secret set HESTIA_SIGNING_KEY <
-  hestia.key`). `plugin-index.yml` skips publishing, with a warning, while the secret is unset; `plugin-release.yml`
-  fails.
+  hestia.key`). With the secret unset the workflow warns and publishes nothing.
+- There is no tag to push: bump `version` in `plugins/<id>/plugin.toml` on the default branch to release it.
 
-**Index** (every push to the default branch). No builds:
+**Publish** (push to the default branch, and weekly):
 
-1. `hestia plugin check`
-2. `hestia plugin index --previous <current index> --sign <key>`; the first run has no previous index (the download
-   answers 404), so `--previous` is left out.
-3. Replace `hestia-index.json` and `hestia-index.json.minisig` on the `hestia-index` release, creating it if missing.
+1. Check out the default branch and the `repo` branch (created orphan on the first run).
+2. `hestia plugin publish --out <repo checkout> --sign <key>`: runs `check`, packs and signs every plugin whose version
+   has no package in `packages/` yet, refuses a version already there with another sha256, then regenerates
+   `plugins.json` from `packages/`, the sources and `revoked.toml`, with `expires` set 30 days out, and signs it.
+3. Commit the result to the `repo` branch as a bot and push.
 
-**Release** (a `<id>-v<version>` tag):
-
-1. Refuse a tag whose version differs from `plugins/<id>/plugin.toml`.
-2. `cargo test -p <id>` (a theme-only plugin has no crate and skips it), then `hestia plugin pack <id> --sign <key>`.
-3. Attach `<id>-<version>.hplugin` and its `.minisig` to the tag's release.
-4. Run step 2 and 3 of the index with `--add dist/<id>-<version>.hplugin`, from the default branch's sources.
+The weekly run changes nothing but the signature and `expires`. GitHub disables a public repository's scheduled
+workflows after 60 days without activity, so a repository nobody touches goes stale: its index expires and new installs
+stop until the workflow runs again.
 
 ## On any other host
 
-Do the same from your CI, with the `hestia` CLI and the Rust `wasm32-wasip2` target installed:
-
-```bash
-hestia plugin check
-hestia plugin pack <id> --sign hestia.key                 # on a release; writes dist/<id>-<version>.hplugin(.minisig)
-hestia plugin index --previous <current index url> --repository <https url of the source> \
-  --add dist/<id>-<version>.hplugin --sign hestia.key     # --add only on a release
-```
-
-Then upload `dist/hestia-index.json` and `dist/hestia-index.json.minisig` to one fixed https URL, and every
-`.hplugin` with its `.minisig` where the index says they are. `index` derives each package's download URL in the GitHub
-layout, `<repository>/releases/download/<id>-v<version>/<id>-<version>.hplugin`; a host with another layout serves
-packages at those paths. Users add the repository by the URL of `hestia-index.json`
-(`hestia plugin repo add <url>`); Hestia fetches `<url>.minisig` beside it.
+Do the same from your CI, with the `hestia` CLI and the Rust `wasm32-wasip2` target installed: run `hestia plugin
+publish --out <dir> --sign hestia.key` over a checkout of the branch, then serve `<dir>` over https so that
+`plugins.json` and `plugins.json.minisig` sit side by side and each package is at its `file` path under them. Users add
+the repository by the URL of `plugins.json` (`hestia plugin repo add <url>`); Hestia fetches `<url>.minisig` beside it.
 
 Keep the secret key out of the repository and write it to a file only for the job.
