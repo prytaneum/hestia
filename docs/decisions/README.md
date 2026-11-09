@@ -40,6 +40,7 @@ the alternative you rejected — that is usually the part nobody can recover lat
 - **0105** — [A Java provider only resolves; the host downloads, verifies and extracts](0105-a-java-provider-only-resolves.md)
 - **0106** — [The plugin API is mechanisms, not features](0106-the-plugin-api-is-mechanisms-not-features.md)
 - **0108** — [A schedule is an event delivered to its own plugin](0108-a-schedule-is-an-event-to-its-own-plugin.md)
+- **0109** — [A plugin webview is an opaque-origin iframe with a mediated message bridge](0109-plugin-webviews-are-opaque-iframes.md)
 
 ### [Cross-cutting foundations](../architecture/common.md)
 
@@ -158,3 +159,4 @@ the alternative you rejected — that is usually the part nobody can recover lat
 - **0096** — [Plugin UI is a declarative tree the host renders](0096-plugin-ui-is-a-declarative-tree.md)
 - **0098** — [Plugin assets are served by the daemon, not read by the webview](0098-plugin-assets-are-served-by-the-daemon.md)
 - **0100** — [A plugin theme is raw CSS behind a permission, a CSP and a safe mode](0100-themes-are-plugin-css.md)
+- **0109** — [A plugin webview is an opaque-origin iframe with a mediated message bridge](0109-plugin-webviews-are-opaque-iframes.md)

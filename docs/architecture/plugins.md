@@ -268,6 +268,12 @@ of three slots (`nav`, `entry`, `settings`); `plugin.ui.render` and
 `toast`, `navigate`, `refresh`). The desktop side is described under
 [plugin pages](frontends.md#plugin-pages).
 
+The one exception is the `webview` node: an HTML page from the plugin's `assets/`
+in an opaque-origin, scripts-only iframe, served under its own CSP, that reaches
+the host only through a `postMessage` bridge limited to that plugin's `plugin.run`
+and `plugin.ui.action` ([0109](../decisions/0109-plugin-webviews-are-opaque-iframes.md),
+[author's guide](../plugins/webview.md)).
+
 A theme is a stylesheet in `themes/`, declared in `contributes.themes` and gated by
 `ui:css`. It is untrusted CSS, contained by the desktop's CSP
 ([0093](../decisions/0093-the-desktop-runs-under-a-csp.md)), by native approval
@@ -453,6 +459,7 @@ plugins the tests build are fixtures
 | [0100](../decisions/0100-themes-are-plugin-css.md) | themes are plugin CSS |
 | [0101](../decisions/0101-plugins-spawn-only-declared-programs.md) | plugins spawn only declared programs |
 | [0102](../decisions/0102-one-feature-resolution-for-dev-builds.md) | one feature resolution for dev builds (wasmtime's build cost) |
+| [0109](../decisions/0109-plugin-webviews-are-opaque-iframes.md) | a webview is an opaque-origin iframe with a message bridge |
 | [0103](../decisions/0103-example-plugins-live-in-their-own-repository.md) | examples live in their own repository; test plugins are fixtures |
 | [0104](../decisions/0104-an-archive-format-plugin-maps-files-the-host-copies.md) | an archive format maps files; the host copies them |
 | [0105](../decisions/0105-a-java-provider-only-resolves.md) | a Java provider only resolves; the host downloads and extracts |

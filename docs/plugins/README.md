@@ -47,6 +47,7 @@ command reference is in [cli.md](../cli.md#launcher-plugins).
 | [providers.md](providers.md) | adding content sources, flavors, archive formats and Java distributions |
 | [processes.md](processes.md) | running declared programs: `exec` against `spawn`, agents that are downloaded and hashed |
 | [ui.md](ui.md) | pages built from `UiNode` trees, with an example of every node |
+| [webview.md](webview.md) | the sandboxed `webview` node and its `postMessage` bridge, with a helper to copy |
 | [themes.md](themes.md) | restyling the app with a stylesheet |
 | [repository.md](repository.md) | the one shape of a plugin repository, its index and its keys |
 | [publishing.md](publishing.md) | `check`, `pack` and `index` from CI, on GitHub or any host |

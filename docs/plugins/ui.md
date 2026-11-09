@@ -194,11 +194,19 @@ An inline message with a tone.
 { "type": "progress", "fraction": 0.5, "label": "Halfway" }
 ```
 
+### webview
+
+An HTML page from your `assets/` in a sandboxed frame, for what the nodes above cannot draw. See [webview.md](webview.md).
+
+```json
+{ "type": "webview", "src": "assets/chart.html", "height": 320 }
+```
+
 ## Building trees in Rust
 
 `hestia::ui` has builders for the common nodes and re-exports the types, so anything a builder does not cover is the
 enum written out. Builders exist for `stack`, `row_of` (a horizontal stack), `heading`, `text`, `markdown`, `notice`,
-`image`, `table` with `row`, `detail`, `button`, `form` and `progress`. `list`, a table's `row_action`, a progress
+`image`, `table` with `row`, `detail`, `button`, `form`, `progress` and `webview`. `list`, a table's `row_action`, a progress
 `label`, a button `variant` and a text `tone` have none; build `UiNode::List { .. }` and the others directly.
 
 From the SDK's doctest, `crates/sdk/src/ui.rs`:
@@ -295,6 +303,7 @@ fn notes(entry: &str) -> Result<UiNode, Error> {
 | `form`, `button` | inputs and buttons | an action menu entry; a form prompts field by field |
 | `notice` | an inline notice | a note; `warning` and `error` as warnings |
 | `progress` | a bar | a text bar |
+| `webview` | a sandboxed frame ([0109](../decisions/0109-plugin-webviews-are-opaque-iframes.md)) | a note |
 
 The desktop renders a node type it does not know as a notice instead of failing.
 
