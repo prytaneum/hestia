@@ -132,7 +132,7 @@ hestia server smp task disable|enable|remove <id>  # tasks only run while the
 hestia server smp players list   # who is online, and the whitelist, operator
                                  #   and ban lists (the lists read from a
                                  #   stopped server too)
-hestia server smp players allow|disallow <name>…  # the whitelist
+hestia server smp players allow|disallow <name>…  # the whitelist (allowlist on Bedrock)
 hestia server smp players op|deop <name>…
 hestia server smp players ban|pardon|kick <name>…  # every change goes through
                                  #   the console, so the server must be running
@@ -174,7 +174,7 @@ server does take.
 `bedrock` is Mojang's Bedrock Dedicated Server, for phones, consoles and Windows players. Create one with
 `hestia server create --edition bedrock vanilla <version>`; its flavor id is `vanilla`, the same as Java's, told apart by the edition. `server flavors` and
 `server list` carry an EDITION column, and the wizard asks for the edition before the provider. A Bedrock server
-runs natively, so its wizard has no memory field and `status` shows its IPv4 and IPv6 ports and no `java` row. It takes
+runs natively, so its wizard has no memory field and `status` shows a `ports` row (game port over TCP, a second over UDP) and no `java` row. It takes
 `behaviorpacks` and `resourcepacks` from a local `.mcpack`/`.mcaddon` file or a direct https link (Modrinth and
 CurseForge serve Java only, so adding from them fails per item). What it refuses, and why:
 

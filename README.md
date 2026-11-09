@@ -86,9 +86,9 @@ to your account.
 | Area          | What works                                                         |
 |:--------------|:-------------------------------------------------------------------|
 | **Instances** | Vanilla · Fabric · NeoForge                                        |
-| **Servers**   | Vanilla · Fabric · NeoForge · Paper · Folia · Spigot · CraftBukkit |
-| **Content**   | Modrinth · CurseForge · a page URL · a local file                  |
-| **Import**    | Hestia archives · `.mrpack` · Prism / MultiMC instances            |
+| **Servers**   | Vanilla · Fabric · NeoForge · Paper · Folia · Spigot · CraftBukkit · Bedrock (Vanilla BDS) |
+| **Content**   | Modrinth · CurseForge · a page URL · a local file · Bedrock behaviour and resource packs from a file or link |
+| **Import**    | Hestia archives · `.mrpack` · Prism / MultiMC instances · `.mcworld` (Bedrock servers) |
 | **Export**    | Hestia archives · `.mrpack`                                        |
 
 NeoForge builds its game jar locally from the installer, and Spigot/CraftBukkit compile on your machine with SpigotMC's
