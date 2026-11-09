@@ -100,6 +100,7 @@
       "array": "uma lista",
       "back_up": "fazer backup",
       "backup": "backup",
+      "bedrock_host": "o Bedrock Dedicated Server só é publicado para Linux e Windows x86_64",
       "boolean": "verdadeiro ou falso",
       "command": "comando",
       "commands": "o histórico de comandos",

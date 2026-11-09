@@ -184,6 +184,7 @@ pub enum Unsupported {
     ModpackNotUpdatable,
     FileUpdatesOneItem,
     FileUpdatesLocalOnly,
+    BedrockHost,
 }
 
 impl fmt::Display for Unsupported {
@@ -200,6 +201,9 @@ impl fmt::Display for Unsupported {
             Unsupported::FileUpdatesOneItem => "a file updates exactly one item",
             Unsupported::FileUpdatesLocalOnly => {
                 "only a local file can be updated from a file; change a tracked item's version instead"
+            }
+            Unsupported::BedrockHost => {
+                "Bedrock Dedicated Server is published for x86_64 Linux and Windows only"
             }
         })
     }
