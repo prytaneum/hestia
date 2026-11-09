@@ -72,10 +72,13 @@
         "kick": "Kick",
         "op": "Make operator",
         "pardon": "Unban",
+        "unallowlist": "Remove from allowlist",
         "unwhitelist": "Remove from whitelist"
       },
       "actions_for": "Actions for {name}",
       "add": "Add",
+      "allowlist": "Allowlist",
+      "allowlist_hint": "Who may join while the allowlist is switched on.",
       "banned": "Banned",
       "banned_hint": "Cannot join at all.",
       "name_placeholder": "Player name",

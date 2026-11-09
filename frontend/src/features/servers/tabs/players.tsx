@@ -35,18 +35,33 @@ import { playersMutations, playersQueries } from '@/queries/players';
 
 type View = 'online' | PlayerList;
 
-const viewInfo: Record<View, { label: () => string; hint?: () => string }> = {
-  online: { label: m['server.players.online'] },
-  whitelist: {
+const ACCESS_LIST: Record<
+  Edition,
+  { label: () => string; hint: () => string; remove: () => string }
+> = {
+  java: {
     label: m['server.players.whitelist'],
     hint: m['server.players.whitelist_hint'],
+    remove: m['server.players.action.unwhitelist'],
   },
+  bedrock: {
+    label: m['server.players.allowlist'],
+    hint: m['server.players.allowlist_hint'],
+    remove: m['server.players.action.unallowlist'],
+  },
+};
+
+const viewInfo = (
+  edition: Edition,
+): Record<View, { label: () => string; hint?: () => string }> => ({
+  online: { label: m['server.players.online'] },
+  whitelist: ACCESS_LIST[edition],
   ops: { label: m['server.players.ops'], hint: m['server.players.ops_hint'] },
   banned: {
     label: m['server.players.banned'],
     hint: m['server.players.banned_hint'],
   },
-};
+});
 
 function PlayerRow({
   player,
@@ -172,6 +187,7 @@ export function ServerPlayersTab({
   const set = useMutation(playersMutations.set(id));
   const kick = useMutation(playersMutations.kick(id));
   const [chosen, setChosen] = useState<View>('online');
+  const info = viewInfo(edition);
   const [search, setSearch] = useState('');
 
   if (players.isPending) return <Bone className="h-64" />;
@@ -239,7 +255,7 @@ export function ServerPlayersTab({
           onClick={() => change('whitelist', false)(name)}
         >
           <TrashIcon />
-          {m['server.players.action.unwhitelist']()}
+          {ACCESS_LIST[edition].remove()}
         </DropdownMenuItem>
       </>
     ),
@@ -276,7 +292,7 @@ export function ServerPlayersTab({
             className={chipClass(view === v)}
             onClick={() => setChosen(v)}
           >
-            {viewInfo[v].label()}
+            {info[v].label()}
             <span className="ml-1.5 font-mono text-[10px] opacity-60">
               {lists[v].length}
             </span>
@@ -284,7 +300,7 @@ export function ServerPlayersTab({
         ))}
         {running && (
           <span className="ml-auto truncate text-xs text-muted-foreground">
-            {viewInfo[view].hint?.()}
+            {info[view].hint?.()}
           </span>
         )}
       </div>

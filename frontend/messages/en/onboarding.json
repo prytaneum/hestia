@@ -62,7 +62,7 @@
           "title": "Backups"
         },
         "console": {
-          "body": "A live console over RCON — send commands and watch the output without leaving the app.",
+          "body": "A live console — send commands and watch the output without leaving the app.",
           "title": "Talk to it"
         },
         "start": {

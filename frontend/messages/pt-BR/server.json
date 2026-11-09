@@ -72,10 +72,13 @@
         "kick": "Expulsar",
         "op": "Tornar operador",
         "pardon": "Desbanir",
+        "unallowlist": "Remover da lista de permissões",
         "unwhitelist": "Remover da lista de permissões"
       },
       "actions_for": "Ações para {name}",
       "add": "Adicionar",
+      "allowlist": "Lista de permissões",
+      "allowlist_hint": "Quem pode entrar enquanto a lista de permissões está ativada.",
       "banned": "Banidos",
       "banned_hint": "Não podem entrar de forma alguma.",
       "name_placeholder": "Nome do jogador",
