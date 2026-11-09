@@ -59,6 +59,7 @@ use crate::content::pack::shallowest;
 use crate::instances::InstanceRecord;
 use crate::jvm::JavaSettings;
 use crate::minecraft::profile::InstanceProfile;
+use crate::minecraft::Loaders;
 use crate::plugins::PluginFormat;
 use archive::{Reader, Written};
 
@@ -127,7 +128,7 @@ pub(crate) trait Format: Send + Sync {
     fn marker(&self) -> &'static str;
 
     /// Parse the archive's manifest. Reads only — nothing exists on disk yet.
-    fn read(&self, reader: &mut Reader, prefix: &str) -> Result<Blueprint>;
+    fn read(&self, reader: &mut Reader, prefix: &str, loaders: &Loaders) -> Result<Blueprint>;
 
     /// Put the archive's files into the instance that now exists.
     fn land(
@@ -239,11 +240,12 @@ pub(crate) fn export(
     source: &Source<'_>,
     format: ExportFormat,
     destination: &Path,
+    loaders: &Loaders,
     job: &Job<'_>,
 ) -> Result<(Written, Vec<WarningInfo>)> {
     match format {
         ExportFormat::Hestia => hestia::export(source, destination, job).map(|w| (w, Vec::new())),
-        ExportFormat::Mrpack => mrpack::export(source, destination, job),
+        ExportFormat::Mrpack => mrpack::export(source, destination, loaders, job),
     }
 }
 

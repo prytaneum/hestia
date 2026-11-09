@@ -11,6 +11,10 @@ pub struct Library {
     pub name: String,
     pub path: String,
     pub artifact: Artifact,
+    /// Produced locally by the flavor's build rather than downloaded: the
+    /// artifact names nothing to fetch, and the file must exist once the build
+    /// has run.
+    pub built: bool,
 }
 
 /// A library the game loads through `java.library.path` rather than the
@@ -40,7 +44,7 @@ pub struct AssetIndex {
 #[serde(rename_all = "camelCase")]
 pub enum ServerJar {
     Download(Artifact),
-    /// Named but not downloadable: the flavor's install hook builds this file.
+    /// Named but not downloadable: the flavor's `build` produces this file.
     Built {
         filename: String,
     },
@@ -88,6 +92,16 @@ pub struct ServerProfile {
     pub jvm_args: Vec<String>,
 }
 
+impl ServerProfile {
+    /// The files the profile names as built: the jar's filename when it is.
+    pub fn built(&self) -> Vec<&str> {
+        match &self.jar {
+            ServerJar::Built { filename } => vec![filename],
+            ServerJar::Download(_) => Vec::new(),
+        }
+    }
+}
+
 /// The resolved launch profile for a Minecraft *client* (instance).
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
@@ -108,9 +122,21 @@ pub struct InstanceProfile {
     pub game_args: Vec<String>,
 }
 
+impl InstanceProfile {
+    /// The paths of the libraries the profile names as built.
+    pub fn built(&self) -> Vec<&str> {
+        self.libraries
+            .iter()
+            .chain(self.natives.iter().map(|native| &native.library))
+            .filter(|library| library.built)
+            .map(|library| library.path.as_str())
+            .collect()
+    }
+}
+
 /// What a plugin's flavor says of itself: the `info` of the `flavor` export.
 /// The host registers it as `<plugin>.<id>`.
-#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
 #[derive(Serialize, Deserialize, Default, Debug, Clone, PartialEq, Eq)]
 #[serde(default, rename_all = "camelCase")]
 pub struct FlavorDescription {
@@ -120,4 +146,12 @@ pub struct FlavorDescription {
     pub loads: Option<ContentKind>,
     pub server: bool,
     pub client: bool,
+    /// The key under which a Modrinth pack (`.mrpack`) names this flavor's
+    /// loader in its `dependencies`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mrpack_key: Option<String>,
+    /// The component uid under which a Prism or MultiMC instance names this
+    /// flavor's loader.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub prism_uid: Option<String>,
 }

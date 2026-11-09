@@ -208,7 +208,7 @@ impl Engine {
             None => {
                 let mut pack = ResolvedModpack {
                     source: LOCAL_SOURCE.to_string(),
-                    ..archive.index()?
+                    ..archive.index(&self.minecraft.loaders())?
                 };
                 self.content.recognise_files(&mut pack.files).await;
                 pack

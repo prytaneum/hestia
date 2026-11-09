@@ -275,7 +275,7 @@ fn grant_rows(
         )
         .collect();
     rows.extend(grant.programs.iter().map(|program| {
-        let mut line = std::iter::once(&program.command)
+        let mut line = std::iter::once(&program.command_label())
             .chain(&program.args)
             .cloned()
             .collect::<Vec<_>>()

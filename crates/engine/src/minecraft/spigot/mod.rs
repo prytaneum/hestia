@@ -83,6 +83,8 @@ impl BuildTools {
                 loads: Some(ContentKind::Plugin),
                 requires: PREREQUISITES,
                 sides: SERVER_ONLY,
+                mrpack_key: None,
+                prism_uid: None,
             },
             product: Product::Bukkit,
         }
@@ -97,6 +99,8 @@ impl BuildTools {
                 loads: Some(ContentKind::Plugin),
                 requires: PREREQUISITES,
                 sides: SERVER_ONLY,
+                mrpack_key: None,
+                prism_uid: None,
             },
             product: Product::Spigot,
         }

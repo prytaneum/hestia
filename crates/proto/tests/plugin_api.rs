@@ -262,7 +262,7 @@ fn api() -> Api {
         provider::content::Search, provider::content::Project, provider::content::Projects,
         provider::content::Versions, provider::content::VersionsById, provider::content::Identify,
         provider::flavor::Info, provider::flavor::Versions, provider::flavor::LoaderVersions,
-        provider::flavor::ResolveServer, provider::flavor::ResolveClient,
+        provider::flavor::ResolveServer, provider::flavor::ResolveClient, provider::flavor::Build,
         provider::format::Info, provider::format::Read, provider::format::Land,
         provider::format::Write,
         provider::java::Majors, provider::java::Resolve,

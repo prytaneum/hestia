@@ -40,6 +40,8 @@ const INFO: FlavorInfo = FlavorInfo {
     loads: Some(ContentKind::Mod),
     requires: &[],
     sides: BOTH_SIDES,
+    mrpack_key: Some(Cow::Borrowed("neoforge")),
+    prism_uid: Some(Cow::Borrowed("net.neoforged")),
 };
 
 /// The game versions NeoForge builds exist for, newest first and typed by
@@ -167,7 +169,9 @@ async fn run_install(
         &processors::Install {
             root: request.root,
             installer: &installer_jar,
-            minecraft_jar: request.minecraft_jar,
+            minecraft_jar: request
+                .minecraft_jar
+                .context("a neoforge install needs the vanilla jar")?,
             side,
             java: request.java,
             processes: request.processes,

@@ -7,12 +7,14 @@
 //! and one line in each of [`Contributions::connect`], [`Contributions::register`]
 //! and [`unregister`]. The ABI and the daemon do not change.
 
+mod build;
 mod content;
 mod flavor;
 mod format;
 mod java;
 
 use std::sync::Arc;
+use std::time::Duration;
 
 use anyhow::Result;
 use proto::error::ErrorInfo;
@@ -26,7 +28,8 @@ pub use java::PluginJavaProvider;
 
 use crate::engine::Engine;
 use crate::plugins::chain::CallChain;
-use crate::plugins::runtime::{CallError, LoadedPlugin, PROVIDER_TIMEOUT};
+use crate::plugins::context::CallContext;
+use crate::plugins::runtime::{CallError, LoadedPlugin, ProviderCall, PROVIDER_TIMEOUT};
 
 /// The guest end of one contributed provider: the plugin and the id its
 /// manifest gives the provider. Registered as `<plugin>.<id>`.
@@ -58,19 +61,29 @@ impl Guest {
 
     /// Asks `O`; `None` when the guest does not implement it.
     async fn try_ask<O: ProviderOp>(&self, args: &O::Args) -> Result<Option<O::Reply>> {
+        self.try_ask_within::<O>(args, PROVIDER_TIMEOUT, CallContext::default())
+            .await
+    }
+
+    /// [`Self::try_ask`] under `timeout`, with what `context` lends the call.
+    async fn try_ask_within<O: ProviderOp>(
+        &self,
+        args: &O::Args,
+        timeout: Duration,
+        context: CallContext,
+    ) -> Result<Option<O::Reply>> {
         debug_assert_eq!(<O::Kind as ProviderKind>::KIND, self.kind);
         let kind = self.kind;
         let args = serde_json::to_string(args).expect("provider arguments are plain data");
+        let call = ProviderCall {
+            kind,
+            id: &self.local,
+            op: O::OP,
+            args: &args,
+        };
         let reply = match self
             .plugin
-            .provide(
-                &CallChain::default(),
-                kind,
-                &self.local,
-                O::OP,
-                &args,
-                PROVIDER_TIMEOUT,
-            )
+            .provide(&CallChain::default(), call, timeout, context)
             .await
         {
             Ok(reply) => reply,

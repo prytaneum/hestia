@@ -278,6 +278,12 @@ impl Engine {
         let natives_dir = meta.join("natives").join(&record.profile.game_version);
         materialize::ensure_natives(&record.profile.natives, &libraries_root, &natives_dir, &job)?;
 
+        let built: Vec<String> = record
+            .profile
+            .built()
+            .into_iter()
+            .map(str::to_string)
+            .collect();
         self.minecraft
             .install(
                 Side::Client,
@@ -287,7 +293,8 @@ impl Engine {
                     loader_version: record.profile.loader_version.as_deref(),
                     root: &meta,
                     meta: &meta,
-                    minecraft_jar: &client_jar,
+                    minecraft_jar: Some(&client_jar),
+                    built: &built,
                     java: &java,
                     cache: None,
                     processes: self.processes(),

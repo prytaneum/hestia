@@ -4,8 +4,8 @@ package hestia:plugin@1.0.0;
 /// answers `permission-denied` unless the plugin holds `process:spawn`, and a
 /// program or argument list the manifest did not declare is refused the same
 /// way. There is no shell: arguments are passed as given, the working
-/// directory is the plugin's `data/`, and the environment starts empty plus
-/// the variables the program declares.
+/// directory is the plugin's `data/` unless `exec` names another, and the
+/// environment starts empty plus the variables the program declares.
 interface process {
     use types.{plugin-error};
 
@@ -29,7 +29,10 @@ interface process {
     }
 
     /// Runs a short-lived program to completion; one that outlasts `timeout-ms` is killed.
-    exec: func(program: string, args: list<string>, timeout-ms: u32) -> result<exec-output, plugin-error>;
+    /// `cwd` is a guest path under a writable mount of this call (`/data`, or
+    /// `/build` during a flavor's `build`); `none` runs in `data/`. Any other
+    /// directory is `permission-denied`.
+    exec: func(program: string, args: list<string>, timeout-ms: u32, cwd: option<string>) -> result<exec-output, plugin-error>;
 
     /// Starts a long-lived program under the daemon's supervisor and returns its
     /// process id. The id is persistent: it names the process after the daemon

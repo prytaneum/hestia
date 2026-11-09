@@ -323,6 +323,7 @@ mod tests {
             name: path.to_string(),
             path: path.to_string(),
             artifact: Artifact::default(),
+            ..Library::default()
         }
     }
 

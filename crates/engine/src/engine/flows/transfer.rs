@@ -118,7 +118,13 @@ impl Engine {
             data_dir: &data_dir,
             exclude,
         };
-        let (written, warnings) = transfer::export(&source, format, &destination, job)?;
+        let (written, warnings) = transfer::export(
+            &source,
+            format,
+            &destination,
+            &self.minecraft.loaders(),
+            job,
+        )?;
         tracing::info!(
             path = %written.path.display(),
             files = written.files,
@@ -154,9 +160,13 @@ impl Engine {
             Kind::Plugin(plugin) => {
                 Blueprint::from(&plugin.read(&mut reader, &detected.prefix).await?).descriptor
             }
-            Kind::Instance(instance) => instance.read(&mut reader, &detected.prefix)?.descriptor,
+            Kind::Instance(instance) => {
+                instance
+                    .read(&mut reader, &detected.prefix, &self.minecraft.loaders())?
+                    .descriptor
+            }
             Kind::Pack(pack_format) => pack::Archive::new(reader, pack_format, detected.prefix)
-                .summary()?
+                .summary(&self.minecraft.loaders())?
                 .into(),
         };
         let Descriptor {
@@ -192,7 +202,7 @@ impl Engine {
 
         let (blueprint, landing) = match detected.kind {
             Kind::Instance(instance) => (
-                instance.read(&mut reader, &detected.prefix)?,
+                instance.read(&mut reader, &detected.prefix, &self.minecraft.loaders())?,
                 Landing::Core(instance),
             ),
             Kind::Plugin(plugin) => {

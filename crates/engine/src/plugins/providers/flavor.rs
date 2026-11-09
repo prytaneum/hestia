@@ -3,31 +3,45 @@
 //! like any built-in flavor. A flavor decides the code the game runs, so every
 //! profile the guest returns is vetted here before the engine acts on it: a
 //! profile with one refused artifact is unusable and is refused whole.
+//!
+//! What a profile names as built is produced by the guest's optional `build`,
+//! which works in an area of its own; [`super::build`] places the outputs.
 
 use std::borrow::Cow;
 use std::path::Path;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use async_trait::async_trait;
 use proto::download::HashAlgorithm;
-use proto::minecraft::{Artifact, GameVersion};
-use proto::plugin::{Grant, Manifest};
+use proto::minecraft::{Artifact, GameVersion, ProvisionPhase, ProvisionProgress};
+use proto::plugin::{Grant, Manifest, PluginRunProgress, BUILD_MOUNT, VANILLA_MOUNT};
 use proto::profile::ServerProfile;
 use proto::profile::{InstanceProfile, Library, ServerJar, ServerLaunch};
-use proto::provider::flavor::{self as op, Flavor, GameQuery, ResolveQuery};
+use proto::provider::flavor;
+use proto::provider::flavor::{
+    self as op, BuildOutput, BuildQuery, Flavor, GameQuery, ResolveQuery,
+};
 use proto::provider::ProviderOp;
 use proto::Empty;
+use tokio::sync::watch;
 
+use super::build::{self, Expected};
 use super::{connect_each, registered, Guest};
+use crate::cancel::Cancelled;
 use crate::engine::Engine;
-use crate::minecraft::materialize::{safe_join, validate_filename};
+use crate::minecraft::materialize::{safe_join, validate_filename, OnProgress};
 use crate::minecraft::{
-    FlavorInfo, FlavorProvider, ResolveRequest, BOTH_SIDES, CLIENT_ONLY, REQUIRED_JAVA_MAJORS,
-    SERVER_ONLY,
+    FlavorInfo, FlavorProvider, InstallRequest, ResolveRequest, Side, BOTH_SIDES, CLIENT_ONLY,
+    REQUIRED_JAVA_MAJORS, SERVER_ONLY,
 };
+use crate::plugins::context::{CallContext, Mount};
 use crate::plugins::http::download_allowed;
-use crate::plugins::runtime::LoadedPlugin;
+use crate::plugins::imports::CommandRun;
+use crate::plugins::runtime::{LoadedPlugin, CANCEL_GRACE, COMMAND_TIMEOUT};
+
+const PROGRESS_STEPS: u64 = 1000;
 
 /// Why a guest's profile was refused.
 #[derive(Debug, thiserror::Error)]
@@ -38,8 +52,6 @@ enum Refusal {
     Checksum(String),
     #[error("{0}")]
     Path(String),
-    #[error("the plugin cannot build a server; it must name a downloadable jar")]
-    Built,
     #[error("the plugin cannot launch from an args file")]
     ArgsFile,
     #[error("Java {0} is not a major this launcher knows")]
@@ -63,6 +75,9 @@ fn artifact(grant: &Grant, artifact: &Artifact) -> Result<(), Refusal> {
 
 fn library(grant: &Grant, library: &Library) -> Result<(), Refusal> {
     safe_join(Path::new(""), &library.path).map_err(|e| Refusal::Path(e.to_string()))?;
+    if library.built {
+        return Ok(());
+    }
     artifact(grant, &library.artifact)
 }
 
@@ -76,7 +91,9 @@ fn java(major: i32) -> Result<(), Refusal> {
 fn vet_server(grant: &Grant, profile: &ServerProfile) -> Result<(), Refusal> {
     match &profile.jar {
         ServerJar::Download(jar) => artifact(grant, jar)?,
-        ServerJar::Built { .. } => return Err(Refusal::Built),
+        ServerJar::Built { filename } => {
+            validate_filename(filename).map_err(|e| Refusal::Path(e.to_string()))?
+        }
     }
     if !matches!(profile.launch, ServerLaunch::Jar) {
         return Err(Refusal::ArgsFile);
@@ -104,6 +121,9 @@ fn vet_client(grant: &Grant, profile: &InstanceProfile) -> Result<(), Refusal> {
 pub struct PluginFlavorProvider {
     guest: Guest,
     info: FlavorInfo,
+    /// Cleared once the guest answers `build` with unsupported, so a flavor with
+    /// nothing to build costs no guest call per launch.
+    builds: AtomicBool,
 }
 
 impl PluginFlavorProvider {
@@ -125,8 +145,130 @@ impl PluginFlavorProvider {
             loads: described.loads,
             requires: &[],
             sides,
+            mrpack_key: described.mrpack_key.map(Cow::Owned),
+            prism_uid: described.prism_uid.map(Cow::Owned),
         };
-        Ok(PluginFlavorProvider { guest, info })
+        Ok(PluginFlavorProvider {
+            guest,
+            info,
+            builds: AtomicBool::new(true),
+        })
+    }
+
+    /// Runs the guest's `build` in its area and returns what it produced; none
+    /// when the guest has nothing to build.
+    async fn build(
+        &self,
+        side: Side,
+        request: &InstallRequest<'_>,
+        on: OnProgress<'_>,
+    ) -> Result<Vec<BuildOutput>> {
+        let area = request.meta.join("flavors").join(self.guest.id());
+        std::fs::create_dir_all(&area)
+            .with_context(|| format!("cannot create {}", area.display()))?;
+        let mut mounts = vec![Mount {
+            host: area,
+            guest: BUILD_MOUNT,
+            writable: true,
+        }];
+        let vanilla_jar = request
+            .minecraft_jar
+            .filter(|jar| jar.is_file())
+            .and_then(|jar| {
+                let name = jar.file_name()?.to_str()?;
+                mounts.push(Mount {
+                    host: jar.parent()?.to_path_buf(),
+                    guest: VANILLA_MOUNT,
+                    writable: false,
+                });
+                Some(format!("{VANILLA_MOUNT}/{name}"))
+            });
+        let query = BuildQuery {
+            side: match side {
+                Side::Server => flavor::BuildSide::Server,
+                Side::Client => flavor::BuildSide::Client,
+            },
+            version: request.game_version.to_string(),
+            loader_version: request.loader_version.map(str::to_string),
+            vanilla_jar,
+        };
+        tracing::info!(
+            flavor = %self.guest.id(),
+            side = side.noun(),
+            version = request.game_version,
+            "building"
+        );
+        let (progress, mut reports) = watch::channel(None);
+        let context = CallContext {
+            run: Some(CommandRun {
+                cancel: on.cancel().clone(),
+                progress,
+                grace: CANCEL_GRACE,
+            }),
+            mounts,
+        };
+        let call = self
+            .guest
+            .try_ask_within::<op::Build>(&query, COMMAND_TIMEOUT, context);
+        tokio::pin!(call);
+        let reply = loop {
+            tokio::select! {
+                reply = &mut call => break reply,
+                Ok(()) = reports.changed() => {
+                    let latest = reports.borrow_and_update().clone();
+                    if let Some(latest) = latest {
+                        on.report(&provision_progress(side, &latest));
+                    }
+                }
+            }
+        };
+        match reply {
+            Ok(Some(done)) => Ok(done.outputs),
+            Ok(None) => {
+                self.builds.store(false, Ordering::Relaxed);
+                Ok(Vec::new())
+            }
+            Err(_) if on.is_cancelled() => Err(Cancelled.into()),
+            Err(error) => Err(error),
+        }
+    }
+
+    /// Copies the outputs to where the profile named them and fails unless every
+    /// built file exists afterwards.
+    async fn place(
+        &self,
+        side: Side,
+        request: &InstallRequest<'_>,
+        outputs: Vec<BuildOutput>,
+    ) -> Result<()> {
+        if request.built.is_empty() && outputs.is_empty() {
+            return Ok(());
+        }
+        let libraries = request.meta.join("libraries");
+        let expected = request
+            .built
+            .iter()
+            .map(|target| {
+                let destination = match side {
+                    Side::Server => {
+                        validate_filename(target)?;
+                        safe_join(request.root, target)?
+                    }
+                    Side::Client => safe_join(&libraries, target)?,
+                };
+                Ok(Expected {
+                    target: target.clone(),
+                    destination,
+                })
+            })
+            .collect::<Result<Vec<_>>>()?;
+        let area = request.meta.join("flavors").join(self.guest.id());
+        tokio::task::spawn_blocking(move || build::place(&area, &outputs, &expected))
+            .await?
+            .map_err(|fault| {
+                tracing::warn!(flavor = %self.guest.id(), %fault, "build outputs refused");
+                self.guest.failed(format!("build: {fault}"))
+            })
     }
 
     fn refused(&self, op: &str, refusal: Refusal) -> anyhow::Error {
@@ -185,6 +327,34 @@ impl FlavorProvider for PluginFlavorProvider {
         profile.flavor = self.info.id.to_string();
         profile.game_version = request.version.clone();
         Ok(profile)
+    }
+
+    async fn install(
+        &self,
+        side: Side,
+        request: &InstallRequest<'_>,
+        on: OnProgress<'_>,
+    ) -> Result<()> {
+        let outputs = match self.builds.load(Ordering::Relaxed) {
+            true => self.build(side, request, on).await?,
+            false => Vec::new(),
+        };
+        self.place(side, request, outputs).await
+    }
+}
+
+fn provision_progress(side: Side, reported: &PluginRunProgress) -> ProvisionProgress {
+    ProvisionProgress {
+        phase: match side {
+            Side::Client => ProvisionPhase::Libraries,
+            Side::Server => ProvisionPhase::Server,
+        },
+        current: reported
+            .fraction
+            .map_or(0, |fraction| (fraction * PROGRESS_STEPS as f32) as u64),
+        total: reported.fraction.map_or(0, |_| PROGRESS_STEPS),
+        detail: reported.message.clone(),
+        ..ProvisionProgress::default()
     }
 }
 

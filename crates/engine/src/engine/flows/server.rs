@@ -161,6 +161,13 @@ impl Engine {
             )
             .await?;
         }
+        let vanilla = matches!(jar, ServerJar::Download(_)).then(|| data.join(jar.filename()));
+        let built: Vec<String> = record
+            .profile
+            .built()
+            .into_iter()
+            .map(str::to_string)
+            .collect();
         self.minecraft
             .install(
                 Side::Server,
@@ -170,7 +177,8 @@ impl Engine {
                     loader_version: record.profile.loader_version.as_deref(),
                     root: &data,
                     meta: &meta_dir(self.data_home()),
-                    minecraft_jar: &data.join(jar.filename()),
+                    minecraft_jar: vanilla.as_deref(),
+                    built: &built,
                     java,
                     cache: Some(&self.cache),
                     processes: self.processes(),

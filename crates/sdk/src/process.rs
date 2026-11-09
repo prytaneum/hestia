@@ -2,11 +2,13 @@
 //!
 //! The plugin needs the `process:spawn` permission and lists every program in
 //! `[[programs]]` with an `id`, a `command` (a name on `PATH`, or a path inside
-//! `data/`, which also needs a `sha256` per target), the `args` patterns it may
+//! `data/`, which also needs a `sha256` per target; or `java = <major>` instead
+//! of a command, for the runtime Hestia manages), the `args` patterns it may
 //! be called with (a literal, `*` for one token, a trailing `**` for the rest)
 //! and the `env` names it may be given. A program, argument list or variable
 //! the manifest did not declare is [`Error::PermissionDenied`]. There is no
-//! shell: the working directory is `data/` and the environment starts empty.
+//! shell: the working directory is `data/` unless [`exec_in`] names another, and
+//! the environment starts empty.
 //!
 //! ```no_run
 //! use std::time::Duration;
@@ -46,8 +48,29 @@ pub struct Status {
 
 /// Runs a short-lived program to completion; one that outlasts `timeout` is killed.
 pub fn exec(program: &str, args: &[&str], timeout: Duration) -> Result<Output, Error> {
+    run(program, args, timeout, None)
+}
+
+/// [`exec`] in `cwd`, a guest path under a writable mount of this call: `/data`,
+/// or `/build` while a flavor's `build` runs. Any other directory is
+/// [`Error::PermissionDenied`].
+pub fn exec_in(
+    program: &str,
+    args: &[&str],
+    timeout: Duration,
+    cwd: &str,
+) -> Result<Output, Error> {
+    run(program, args, timeout, Some(cwd))
+}
+
+fn run(
+    program: &str,
+    args: &[&str],
+    timeout: Duration,
+    cwd: Option<&str>,
+) -> Result<Output, Error> {
     let timeout_ms = u32::try_from(timeout.as_millis()).unwrap_or(u32::MAX);
-    let output = host::exec(program, &strings(args), timeout_ms)?;
+    let output = host::exec(program, &strings(args), timeout_ms, cwd)?;
     Ok(Output {
         status: output.status,
         stdout: output.stdout,

@@ -16,7 +16,7 @@ use proto::process::{ProcessInfo, ProcessSpec, ProcessState};
 use tokio::io::{AsyncRead, AsyncReadExt};
 use tokio::process::Command;
 
-use super::program::{self, StageError};
+use super::program::{self, ManagedJava, StageError};
 use crate::process::ProcessSupervisor;
 
 const OUTPUT_CAP: usize = 1024 * 1024;
@@ -54,6 +54,7 @@ pub(crate) struct Programs {
     pub(crate) data_dir: PathBuf,
     pub(crate) bin_dir: PathBuf,
     pub(crate) supervisor: Arc<ProcessSupervisor>,
+    pub(crate) java: Arc<dyn ManagedJava>,
 }
 
 /// The `owner` the supervisor records for processes `plugin` started.
@@ -67,6 +68,7 @@ impl Programs {
         program: &str,
         args: Vec<String>,
         timeout_ms: u32,
+        cwd: Option<PathBuf>,
     ) -> Result<Output, ProgramError> {
         let program = self.authorize(program, &args)?;
         let executable = self.executable(&program).await?;
@@ -78,7 +80,7 @@ impl Programs {
             .args(&args)
             .env_clear()
             .envs(base_env())
-            .current_dir(&self.data_dir)
+            .current_dir(cwd.as_ref().unwrap_or(&self.data_dir))
             .stdin(Stdio::null())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
@@ -251,6 +253,15 @@ impl Programs {
     }
 
     async fn executable(&self, program: &Program) -> Result<PathBuf, ProgramError> {
+        if let Some(major) = program.java {
+            return self.java.executable(major).await.map_err(|error| {
+                tracing::warn!(plugin = %self.plugin, program = %program.id, major, error = %format!("{error:#}"), "managed java unavailable");
+                ProgramError::Failed(format!(
+                    "Hestia-managed Java {major} is not available for `{}`: {error:#}",
+                    program.id
+                ))
+            });
+        }
         if !program.in_data_dir() {
             return self.pinned(&program.id).ok_or_else(|| {
                 ProgramError::Failed(format!(

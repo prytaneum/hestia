@@ -28,6 +28,7 @@ use crate::cancel::Job;
 use crate::content::install;
 use crate::instances::InstanceRecord;
 use crate::minecraft::profile::InstanceProfile;
+use crate::minecraft::Loaders;
 use crate::registry;
 use crate::schema::{self, Document};
 
@@ -68,7 +69,7 @@ impl Format for Hestia {
         MANIFEST
     }
 
-    fn read(&self, reader: &mut Reader, prefix: &str) -> Result<Blueprint> {
+    fn read(&self, reader: &mut Reader, prefix: &str, _loaders: &Loaders) -> Result<Blueprint> {
         let record = manifest(reader, prefix)?.record()?;
         if record.profile.game_version.is_empty() {
             return Err(invalid(ArchiveFault::NoGameVersion).into());
@@ -275,7 +276,7 @@ mod tests {
         .unwrap();
 
         let mut reader = Reader::open(&archive_path).unwrap();
-        let blueprint = Hestia.read(&mut reader, "").unwrap();
+        let blueprint = Hestia.read(&mut reader, "", &Loaders::default()).unwrap();
         assert_eq!(blueprint.descriptor.name, "Cozy");
         assert_eq!(blueprint.descriptor.game_version, "1.21.1");
         assert_eq!(blueprint.descriptor.loader, "fabric");
@@ -477,7 +478,7 @@ mod tests {
     }
 
     fn read_error(path: &Path) -> ErrorInfo {
-        match Hestia.read(&mut Reader::open(path).unwrap(), "") {
+        match Hestia.read(&mut Reader::open(path).unwrap(), "", &Loaders::default()) {
             Ok(_) => panic!("the archive was accepted"),
             Err(e) => e.downcast::<ErrorInfo>().expect("a typed archive error"),
         }
@@ -527,7 +528,9 @@ mod tests {
             &serde_json::json!({ "instance": serde_json::to_value(record()).unwrap() }),
         );
 
-        let blueprint = Hestia.read(&mut Reader::open(&path).unwrap(), "").unwrap();
+        let blueprint = Hestia
+            .read(&mut Reader::open(&path).unwrap(), "", &Loaders::default())
+            .unwrap();
 
         assert_eq!(blueprint.descriptor.name, "Cozy");
         assert_eq!(blueprint.descriptor.game_version, "1.21.1");

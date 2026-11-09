@@ -89,6 +89,27 @@ impl Engine {
     }
 }
 
+/// What a plugin's `java = <major>` program runs on: the same managed
+/// runtimes a launch uses, installed on demand.
+#[async_trait::async_trait]
+impl crate::plugins::ManagedJava for Engine {
+    async fn executable(&self, major: u32) -> Result<PathBuf> {
+        let major = i32::try_from(major).context("a Java major is out of range")?;
+        let provider = self.config.settings().java.provider;
+        let outcome = self
+            .java
+            .install(
+                &provider,
+                major,
+                false,
+                &crate::cancel::Cancel::new(),
+                |_| {},
+            )
+            .await?;
+        Ok(outcome.runtime.executable)
+    }
+}
+
 /// Reject an unconfirmed downgrade. The direction comes from the flavor's own
 /// newest-first catalogue; a version the catalogue no longer lists is
 /// undecidable and passes (the front-end still confirms what it can detect).

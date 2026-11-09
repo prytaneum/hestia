@@ -55,7 +55,8 @@ pub fn missing_libraries(
     let mut seen = HashSet::new();
     let mut missing = Vec::new();
     for library in libraries {
-        if seen.insert(library.path.as_str())
+        if !library.built
+            && seen.insert(library.path.as_str())
             && !is_present(&safe_join(root, &library.path)?, library.artifact.size)
         {
             missing.push(library.clone());
@@ -150,6 +151,7 @@ mod tests {
                 size,
                 ..Artifact::default()
             },
+            ..Library::default()
         }
     }
 

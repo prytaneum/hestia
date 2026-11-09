@@ -37,6 +37,8 @@ fn info(id: &'static str) -> FlavorInfo {
         loads: Some(ContentKind::Mod),
         requires: &[],
         sides: &[Side::Server, Side::Client],
+        mrpack_key: (id == "fabric").then(|| "fabric-loader".into()),
+        prism_uid: (id == "fabric").then(|| "net.fabricmc.fabric-loader".into()),
     }
 }
 

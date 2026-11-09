@@ -25,6 +25,8 @@ const INFO: FlavorInfo = FlavorInfo {
     loads: Some(ContentKind::Mod),
     requires: &[],
     sides: BOTH_SIDES,
+    mrpack_key: Some(Cow::Borrowed("fabric-loader")),
+    prism_uid: Some(Cow::Borrowed("net.fabricmc.fabric-loader")),
 };
 
 async fn game_versions() -> Result<Vec<GameVersion>> {
@@ -163,6 +165,7 @@ mod tests {
             name: name.to_string(),
             path: name.to_string(),
             artifact: Artifact::default(),
+            ..Library::default()
         }
     }
 

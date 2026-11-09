@@ -26,6 +26,13 @@ pub const API_VERSION: &str = "1.0.0";
 /// SDK reads and writes under it.
 pub const DATA_MOUNT: &str = "/data";
 
+/// Where a flavor's `build` sees its read-write build area, for that call only.
+pub const BUILD_MOUNT: &str = "/build";
+
+/// Where a flavor's `build` sees the directory of the side's vanilla jar,
+/// read-only and for that call only.
+pub const VANILLA_MOUNT: &str = "/vanilla";
+
 /// Ids a plugin may not take: the CLI's top-level verbs, which `hestia <plugin>`
 /// would otherwise shadow.
 pub const RESERVED_IDS: &[&str] = &[
@@ -394,13 +401,18 @@ pub const MAX_SCHEDULE_SECS: u64 = 30 * 24 * 60 * 60;
 pub const MAX_SCHEDULES: usize = 8;
 
 /// A program the plugin may run. `command` is a name resolved on `PATH` or a
-/// path inside the plugin's data directory; `args` are argument patterns.
+/// path inside the plugin's data directory; `java` instead names a Java major,
+/// run from the runtime Hestia manages. Exactly one of the two is set. `args`
+/// are argument patterns.
 #[derive(Serialize, Deserialize, Default, Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
 #[serde(default, rename_all = "camelCase")]
 pub struct Program {
     pub id: String,
     pub command: String,
+    /// The Java major of a Hestia-managed runtime, resolved at call time.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub java: Option<u32>,
     pub args: Vec<String>,
     pub env: BTreeSet<String>,
     /// Per target triple; required for a program inside the data directory.
@@ -421,6 +433,7 @@ const SHELLS: [&str; 12] = [
     "pwsh",
     "wscript",
 ];
+const MAX_JAVA_MAJOR: u32 = 99;
 const ANY_REST: &str = "**";
 const ANY_ONE: &str = "*";
 
@@ -429,6 +442,15 @@ impl Program {
     /// one without is a name resolved on `PATH` when the grant is approved.
     pub fn in_data_dir(&self) -> bool {
         self.command.contains('/')
+    }
+
+    /// The program's command as the grant shows it: the command itself, or the
+    /// managed runtime it names.
+    pub fn command_label(&self) -> String {
+        match self.java {
+            Some(major) => format!("Hestia-managed Java {major}"),
+            None => self.command.clone(),
+        }
     }
 
     /// Whether `args` match the declared patterns: a literal token matches
@@ -452,6 +474,18 @@ impl Program {
 
     fn validate(&self) -> Result<(), ManifestError> {
         let bad = || ManifestError::BadProgram(self.id.clone());
+        if let Some(major) = self.java {
+            if !self.command.is_empty() || !(1..=MAX_JAVA_MAJOR).contains(&major) {
+                return Err(ManifestError::ProgramCommandOrJava(self.id.clone()));
+            }
+            if !self.sha256.is_empty() {
+                return Err(bad());
+            }
+            return self.validate_arguments();
+        }
+        if self.command.is_empty() {
+            return Err(ManifestError::ProgramCommandOrJava(self.id.clone()));
+        }
         let name = self.command.rsplit('/').next().unwrap_or_default();
         let stem = name
             .strip_suffix(".exe")
@@ -488,6 +522,10 @@ impl Program {
         {
             return Err(bad());
         }
+        self.validate_arguments()
+    }
+
+    fn validate_arguments(&self) -> Result<(), ManifestError> {
         let last = self.args.len().saturating_sub(1);
         if self
             .args
@@ -495,7 +533,7 @@ impl Program {
             .enumerate()
             .any(|(at, arg)| arg.contains('\0') || (arg == ANY_REST && at != last))
         {
-            return Err(bad());
+            return Err(ManifestError::BadProgram(self.id.clone()));
         }
         match self.env.iter().find(|name| !is_program_env(name)) {
             Some(name) => Err(ManifestError::BadProgramEnv(name.clone())),
@@ -725,6 +763,8 @@ pub enum ManifestError {
     ProviderNeedsHosts(String),
     #[error("program `{0}` needs a plain command name or a path inside data/, no shell, and well-formed arguments and hashes")]
     BadProgram(String),
+    #[error("program `{0}` names exactly one of `command` and `java` (a major from 1 to 99), and a `java` program has no hash")]
+    ProgramCommandOrJava(String),
     #[error("program `{0}` runs from data/ and must declare a sha256 per target triple")]
     ProgramNeedsHash(String),
     #[error("program environment variable `{0}` is not a valid name, or is one no plugin may set")]

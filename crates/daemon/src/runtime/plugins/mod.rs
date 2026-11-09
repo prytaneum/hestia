@@ -83,7 +83,8 @@ impl Plugins {
             host.clone(),
             self.engine.plugin_cache_dir(),
             self.engine.processes().clone(),
-        )?;
+        )?
+        .with_java(self.engine.clone());
         self.host
             .set(host)
             .map_err(|_| anyhow::anyhow!("the plugin runtime is already attached"))?;

@@ -20,12 +20,14 @@ use wasmtime_wasi_http::WasiHttpCtx;
 
 use super::cache::ComponentCache;
 use super::chain::{CallChain, ChainError};
+use super::context::{CallContext, Mount};
 use super::http::PluginHttp;
 use super::imports::bindings::{self, hestia::plugin::types::PluginError};
 use super::imports::{CommandRun, Gate, HostCalls, PluginState};
 use super::ipc::Connections;
 use super::output::{Captured, PluginLog};
 use super::process::Programs;
+use super::program::{ManagedJava, NoManagedJava};
 use super::settings::PluginSettings;
 use super::store::PluginRecord;
 use crate::checksum::hex;
@@ -131,6 +133,7 @@ pub struct PluginRuntime {
     pool: Arc<Semaphore>,
     host: Arc<dyn HostCalls>,
     processes: Arc<ProcessSupervisor>,
+    java: Arc<dyn ManagedJava>,
     ticker: Arc<Ticker>,
     cache: ComponentCache,
 }
@@ -182,8 +185,16 @@ impl PluginRuntime {
             pool: Arc::new(Semaphore::new(POOL_SLOTS as usize)),
             host,
             processes,
+            java: Arc::new(NoManagedJava),
             ticker,
         })
+    }
+
+    /// Lends the runtimes Hestia manages to plugins' `java` programs; without
+    /// it such a program fails when called.
+    pub fn with_java(mut self, java: Arc<dyn ManagedJava>) -> Self {
+        self.java = java;
+        self
     }
 
     /// Verifies `wasm` against the record's hash, compiles it and links it
@@ -217,6 +228,7 @@ impl PluginRuntime {
             bin_dir: data_dir.with_file_name("bin"),
             data_dir: data_dir.clone(),
             supervisor: self.processes.clone(),
+            java: self.java.clone(),
         });
         let ipc = Arc::new(Connections::new(id.clone(), grant.clone()));
         Ok(LoadedPlugin {
@@ -267,6 +279,14 @@ impl PluginRuntime {
     }
 }
 
+/// One operation asked of a contributed provider; `args` is JSON.
+pub(super) struct ProviderCall<'a> {
+    pub kind: &'a str,
+    pub id: &'a str,
+    pub op: &'a str,
+    pub args: &'a str,
+}
+
 /// An enabled plugin. Every call runs on a fresh store that is dropped
 /// afterwards, so a trap, timeout or cancel loses only that call and no guest
 /// memory is shared between calls.
@@ -313,7 +333,7 @@ impl LoadedPlugin {
     /// Runs the plugin's `lifecycle.init`.
     pub async fn init(&self, chain: &CallChain, timeout: Duration) -> Result<(), CallError> {
         let outcome = self
-            .guarded(chain, timeout, None, |store, instance| {
+            .guarded(chain, timeout, CallContext::default(), |store, instance| {
                 Box::pin(instance.hestia_plugin_lifecycle().call_init(store))
             })
             .await?;
@@ -328,14 +348,19 @@ impl LoadedPlugin {
         timeout: Duration,
     ) -> Result<(), CallError> {
         let key = key.to_string();
-        self.guarded(chain, timeout, None, move |store, instance| {
-            Box::pin(async move {
-                instance
-                    .hestia_plugin_settings_changed()
-                    .call_on_settings_changed(store, &key)
-                    .await
-            })
-        })
+        self.guarded(
+            chain,
+            timeout,
+            CallContext::default(),
+            move |store, instance| {
+                Box::pin(async move {
+                    instance
+                        .hestia_plugin_settings_changed()
+                        .call_on_settings_changed(store, &key)
+                        .await
+                })
+            },
+        )
         .await
     }
 
@@ -352,14 +377,19 @@ impl LoadedPlugin {
     ) -> Result<Value, CallError> {
         let (command, args) = (command.to_string(), args.to_string());
         let reply = self
-            .guarded(chain, timeout, Some(control), move |store, instance| {
-                Box::pin(async move {
-                    instance
-                        .hestia_plugin_commands()
-                        .call_run(store, &command, &args)
-                        .await
-                })
-            })
+            .guarded(
+                chain,
+                timeout,
+                CallContext::running(control),
+                move |store, instance| {
+                    Box::pin(async move {
+                        instance
+                            .hestia_plugin_commands()
+                            .call_run(store, &command, &args)
+                            .await
+                    })
+                },
+            )
             .await?
             .map_err(guest_error)?;
         serde_json::from_str(&reply)
@@ -376,14 +406,19 @@ impl LoadedPlugin {
     ) -> Result<UiNode, CallError> {
         let (name, context) = (page.to_string(), context_json(context));
         let reply = self
-            .guarded(chain, UI_TIMEOUT, None, move |store, instance| {
-                Box::pin(async move {
-                    instance
-                        .hestia_plugin_ui()
-                        .call_render(store, &name, &context)
-                        .await
-                })
-            })
+            .guarded(
+                chain,
+                UI_TIMEOUT,
+                CallContext::default(),
+                move |store, instance| {
+                    Box::pin(async move {
+                        instance
+                            .hestia_plugin_ui()
+                            .call_render(store, &name, &context)
+                            .await
+                    })
+                },
+            )
             .await?
             .map_err(guest_error)?;
         self.decode_ui(page, &reply, UiNode::validate)
@@ -406,14 +441,19 @@ impl LoadedPlugin {
             context_json(context),
         );
         let reply = self
-            .guarded(chain, UI_TIMEOUT, None, move |store, instance| {
-                Box::pin(async move {
-                    instance
-                        .hestia_plugin_ui()
-                        .call_action(store, &name, &action, &values, &context)
-                        .await
-                })
-            })
+            .guarded(
+                chain,
+                UI_TIMEOUT,
+                CallContext::default(),
+                move |store, instance| {
+                    Box::pin(async move {
+                        instance
+                            .hestia_plugin_ui()
+                            .call_action(store, &name, &action, &values, &context)
+                            .await
+                    })
+                },
+            )
             .await?
             .map_err(guest_error)?;
         self.decode_ui(page, &reply, |effects: &Vec<Effect>| {
@@ -445,14 +485,19 @@ impl LoadedPlugin {
         timeout: Duration,
     ) -> Result<(), CallError> {
         let (topic, payload) = (topic.to_string(), payload.to_string());
-        self.guarded(chain, timeout, None, move |store, instance| {
-            Box::pin(async move {
-                instance
-                    .hestia_plugin_events()
-                    .call_on_event(store, &topic, &payload)
-                    .await
-            })
-        })
+        self.guarded(
+            chain,
+            timeout,
+            CallContext::default(),
+            move |store, instance| {
+                Box::pin(async move {
+                    instance
+                        .hestia_plugin_events()
+                        .call_on_event(store, &topic, &payload)
+                        .await
+                })
+            },
+        )
         .await
     }
 
@@ -467,14 +512,19 @@ impl LoadedPlugin {
         timeout: Duration,
     ) -> Result<Result<String, String>, CallError> {
         let (point, context) = (point.to_string(), context.to_string());
-        self.guarded(chain, timeout, None, move |store, instance| {
-            Box::pin(async move {
-                instance
-                    .hestia_plugin_hooks()
-                    .call_intercept(store, &point, &context)
-                    .await
-            })
-        })
+        self.guarded(
+            chain,
+            timeout,
+            CallContext::default(),
+            move |store, instance| {
+                Box::pin(async move {
+                    instance
+                        .hestia_plugin_hooks()
+                        .call_intercept(store, &point, &context)
+                        .await
+                })
+            },
+        )
         .await
     }
 
@@ -484,19 +534,17 @@ impl LoadedPlugin {
     pub(super) async fn provide(
         &self,
         chain: &CallChain,
-        kind: &str,
-        id: &str,
-        op: &str,
-        args: &str,
+        call: ProviderCall<'_>,
         timeout: Duration,
+        context: CallContext,
     ) -> Result<String, CallError> {
         let (kind, id, op, args) = (
-            kind.to_string(),
-            id.to_string(),
-            op.to_string(),
-            args.to_string(),
+            call.kind.to_string(),
+            call.id.to_string(),
+            call.op.to_string(),
+            call.args.to_string(),
         );
-        self.guarded(chain, timeout, None, move |store, instance| {
+        self.guarded(chain, timeout, context, move |store, instance| {
             Box::pin(async move {
                 instance
                     .hestia_plugin_provider()
@@ -527,7 +575,7 @@ impl LoadedPlugin {
         &self,
         chain: &CallChain,
         timeout: Duration,
-        control: Option<CommandRun>,
+        context: CallContext,
         run: F,
     ) -> Result<T, CallError>
     where
@@ -546,9 +594,9 @@ impl LoadedPlugin {
         let _pool_slot = acquire(&self.pool, deadline).await?;
         self.calls.fetch_add(1, Ordering::Relaxed);
 
-        let control = control.map(Arc::new);
+        let control = context.run.map(Arc::new);
         let mut store = self
-            .new_store(chain, control.clone())
+            .new_store(chain, control.clone(), context.mounts)
             .map_err(|error| CallError::Setup(format!("{error:#}")))?;
         let attempt = async {
             let instance = self.pre.instantiate_async(&mut store).await?;
@@ -604,14 +652,28 @@ impl LoadedPlugin {
         &self,
         chain: CallChain,
         run: Option<Arc<CommandRun>>,
+        extra: Vec<Mount>,
     ) -> wasmtime::Result<Store<PluginState>> {
+        let mut mounts = vec![Mount {
+            host: self.data_dir.clone(),
+            guest: DATA_MOUNT,
+            writable: true,
+        }];
+        mounts.extend(extra);
         let mut wasi = WasiCtxBuilder::new();
         wasi.stdout(Captured::stdout(self.log.clone()))
             .stderr(Captured::stderr(self.log.clone()))
             .allow_tcp(false)
             .allow_udp(false)
-            .allow_ip_name_lookup(false)
-            .preopened_dir(&self.data_dir, DATA_MOUNT, FsPerms::ReadWrite)?;
+            .allow_ip_name_lookup(false);
+        for mount in &mounts {
+            let perms = if mount.writable {
+                FsPerms::ReadWrite
+            } else {
+                FsPerms::ReadOnly
+            };
+            wasi.preopened_dir(&mount.host, mount.guest, perms)?;
+        }
         let limits: StoreLimits = StoreLimitsBuilder::new()
             .memory_size(MEMORY_LIMIT)
             .memories(1)
@@ -622,6 +684,7 @@ impl LoadedPlugin {
             .build();
         let state = PluginState {
             run,
+            mounts,
             wasi: wasi.build(),
             http: WasiHttpCtx::new(),
             http_hooks: PluginHttp {

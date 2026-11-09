@@ -151,6 +151,7 @@ pub fn libraries(profile: &Value) -> Vec<Library> {
                 }),
             },
             path,
+            built: false,
         });
     }
     out

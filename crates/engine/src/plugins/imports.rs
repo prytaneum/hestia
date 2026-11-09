@@ -11,6 +11,7 @@ use wasmtime_wasi::{WasiCtx, WasiCtxView, WasiView};
 use wasmtime_wasi_http::{WasiHttpCtx, WasiHttpCtxView, WasiHttpView};
 
 use super::chain::CallChain;
+use super::context::{writable_dir, Mount};
 use super::http::PluginHttp;
 use super::ipc::{Connections, IpcError};
 use super::output::PluginLog;
@@ -72,8 +73,8 @@ pub trait HostCalls: Send + Sync {
 
 const PROGRESS_MESSAGE_CHARS: usize = 512;
 
-/// What a command run lends the guest: whether it was asked to stop, and where
-/// its progress goes. Progress keeps only the latest report, so a guest
+/// What a call with a sink lends the guest, a command run or a flavor build:
+/// whether it was asked to stop, and where its progress goes. Progress keeps only the latest report, so a guest
 /// reporting in a tight loop cannot queue memory in the daemon.
 pub struct CommandRun {
     pub cancel: Cancel,
@@ -86,6 +87,7 @@ pub struct CommandRun {
 /// Per-call store data; dropped with the call.
 pub(crate) struct PluginState {
     pub(crate) run: Option<Arc<CommandRun>>,
+    pub(crate) mounts: Vec<Mount>,
     pub(crate) wasi: WasiCtx,
     pub(crate) http: WasiHttpCtx,
     pub(crate) http_hooks: PluginHttp,
@@ -256,9 +258,13 @@ impl bindings::hestia::plugin::process::Host for PluginState {
         program: String,
         args: Vec<String>,
         timeout_ms: u32,
+        cwd: Option<String>,
     ) -> Result<bindings::hestia::plugin::process::ExecOutput, PluginError> {
         let programs = self.programs.clone();
-        let output = programs.exec(&program, args, timeout_ms).await?;
+        let cwd = cwd
+            .map(|guest| writable_dir(&self.mounts, &guest).map_err(PluginError::PermissionDenied))
+            .transpose()?;
+        let output = programs.exec(&program, args, timeout_ms, cwd).await?;
         Ok(bindings::hestia::plugin::process::ExecOutput {
             status: output.status,
             stdout: output.stdout,

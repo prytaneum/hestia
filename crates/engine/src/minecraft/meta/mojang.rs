@@ -124,6 +124,7 @@ pub fn libraries(version: &Value) -> Vec<Library> {
             name: str_field(lib, "name"),
             path: str_field(artifact_obj, "path"),
             artifact,
+            built: false,
         });
     }
     out
@@ -158,6 +159,7 @@ pub fn natives(version: &Value) -> Vec<Native> {
                 name: format!("{}:{classifier}", str_field(lib, "name")),
                 path: str_field(download, "path"),
                 artifact,
+                built: false,
             },
             exclude: lib
                 .get("extract")

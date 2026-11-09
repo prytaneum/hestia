@@ -17,6 +17,26 @@ const EXE_SUFFIX: &str = ".exe";
 #[cfg(not(windows))]
 const EXE_SUFFIX: &str = "";
 
+/// The Java runtimes Hestia manages, as a plugin's `java = <major>` programs
+/// see them. Handed to the plugin runtime at load, so the plugin code holds no
+/// engine.
+#[async_trait::async_trait]
+pub trait ManagedJava: Send + Sync {
+    /// The executable of the managed runtime of `major`, installing it first
+    /// when it is missing.
+    async fn executable(&self, major: u32) -> anyhow::Result<PathBuf>;
+}
+
+/// Stands in until a host lends real runtimes: every lookup fails.
+pub(crate) struct NoManagedJava;
+
+#[async_trait::async_trait]
+impl ManagedJava for NoManagedJava {
+    async fn executable(&self, major: u32) -> anyhow::Result<PathBuf> {
+        anyhow::bail!("this host manages no Java runtimes (asked for Java {major})")
+    }
+}
+
 /// One copy at a time, so two calls staging the same program cannot interleave.
 static STAGING: Mutex<()> = Mutex::new(());
 
@@ -60,7 +80,11 @@ pub fn resolve_on_path(name: &str) -> Option<PathBuf> {
 /// left out, so it cannot run until the plugin is approved again.
 pub fn pin_programs(plugin: &str, manifest: &Manifest) -> BTreeMap<String, PathBuf> {
     let mut pinned = BTreeMap::new();
-    for program in manifest.programs.iter().filter(|p| !p.in_data_dir()) {
+    for program in manifest
+        .programs
+        .iter()
+        .filter(|p| !p.in_data_dir() && p.java.is_none())
+    {
         match resolve_on_path(&program.command) {
             Some(path) => {
                 tracing::info!(plugin, program = %program.id, path = %path.display(), "program pinned");

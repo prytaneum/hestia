@@ -87,6 +87,8 @@ impl PaperProject {
                 loads: Some(ContentKind::Plugin),
                 requires: &[],
                 sides: SERVER_ONLY,
+                mrpack_key: None,
+                prism_uid: None,
             },
         }
     }
@@ -103,6 +105,8 @@ impl PaperProject {
                 loads: Some(ContentKind::Plugin),
                 requires: &[],
                 sides: SERVER_ONLY,
+                mrpack_key: None,
+                prism_uid: None,
             },
         }
     }

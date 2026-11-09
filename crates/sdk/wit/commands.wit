@@ -10,11 +10,12 @@ interface commands {
 }
 
 interface progress {
-    /// Tells whoever started the command how far it is. `fraction` is in
+    /// Tells whoever started the call how far it is: a command run, or a
+    /// flavor's `build`. `fraction` is in
     /// `0.0..=1.0`, or absent when the plugin cannot tell.
     report: func(fraction: option<f32>, message: string);
 
-    /// True once the command was cancelled. Cancelling only asks: return soon
+    /// True once the call was cancelled. Cancelling only asks: return soon
     /// after, because the call is dropped a few seconds later.
     cancelled: func() -> bool;
 }

@@ -23,8 +23,9 @@ use super::Source;
 use crate::cancel::Job;
 use crate::checksum;
 use crate::content::install;
-use crate::content::pack::{self, INDEX};
+use crate::content::pack::INDEX;
 use crate::minecraft::profile::InstanceProfile;
+use crate::minecraft::Loaders;
 use crate::registry;
 
 /// The load directories whose files a pack can name. `overrides/` members under
@@ -37,6 +38,7 @@ const LOAD_DIRS: &[&str] = &["mods/", "resourcepacks/", "shaderpacks/", "plugins
 pub(crate) fn export(
     source: &Source<'_>,
     destination: &Path,
+    loaders: &Loaders,
     job: &Job<'_>,
 ) -> Result<(Written, Vec<WarningInfo>)> {
     let rules = Rules::new(source.entry_dir, source.data_dir, source.exclude);
@@ -53,7 +55,7 @@ pub(crate) fn export(
         "versionId": registry::utc_stamp(common::now_unix()),
         "name": source.record.name,
         "files": files,
-        "dependencies": dependencies(&source.record.profile),
+        "dependencies": dependencies(&source.record.profile, loaders),
     }))
     .context("the pack index serializes")?;
 
@@ -133,12 +135,10 @@ fn index_entry(
 
 /// The pack index's `dependencies`: the game version, plus the loader under the
 /// key the format names it by. Vanilla pins only Minecraft.
-fn dependencies(profile: &InstanceProfile) -> serde_json::Value {
+fn dependencies(profile: &InstanceProfile, loaders: &Loaders) -> serde_json::Value {
     let mut deps = serde_json::Map::new();
     deps.insert("minecraft".to_string(), json!(profile.game_version));
-    let key = pack::MRPACK_LOADERS
-        .iter()
-        .find_map(|(key, flavor)| (*flavor == profile.flavor).then_some(*key));
+    let key = loaders.mrpack_key(&profile.flavor);
     if let (Some(key), Some(version)) = (key, profile.loader_version.as_ref()) {
         deps.insert(key.to_string(), json!(version));
     }
@@ -175,6 +175,10 @@ fn sha512_file(path: &Path) -> Result<String> {
 mod tests {
     use super::*;
 
+    fn loaders() -> Loaders {
+        crate::minecraft::Minecraft::default().loaders()
+    }
+
     fn managed_file(dir: &Path, name: &str) -> std::path::PathBuf {
         let path = dir.join(name);
         std::fs::write(&path, "bytes").unwrap();
@@ -188,7 +192,10 @@ mod tests {
             game_version: "1.21.1".to_string(),
             ..Default::default()
         };
-        assert_eq!(dependencies(&vanilla), json!({ "minecraft": "1.21.1" }));
+        assert_eq!(
+            dependencies(&vanilla, &loaders()),
+            json!({ "minecraft": "1.21.1" })
+        );
 
         let fabric = InstanceProfile {
             flavor: "fabric".to_string(),
@@ -197,7 +204,7 @@ mod tests {
             ..Default::default()
         };
         assert_eq!(
-            dependencies(&fabric),
+            dependencies(&fabric, &loaders()),
             json!({ "minecraft": "1.21.1", "fabric-loader": "0.16.9" })
         );
 
@@ -208,7 +215,7 @@ mod tests {
             ..Default::default()
         };
         assert_eq!(
-            dependencies(&neoforge),
+            dependencies(&neoforge, &loaders()),
             json!({ "minecraft": "1.21.1", "neoforge": "21.1.66" })
         );
     }

@@ -23,19 +23,13 @@ use serde_json::{Map, Value};
 
 use super::json::{parse_side, str_field};
 use crate::cancel::Job;
+use crate::minecraft::Loaders;
 use crate::transfer::archive::{Extracted, Reader};
 
 pub(crate) const INDEX: &str = "modrinth.index.json";
+const MINECRAFT_DEPENDENCY: &str = "minecraft";
 const MANIFEST: &str = "manifest.json";
 const DEFAULT_OVERRIDES: &str = "overrides";
-
-/// `.mrpack` dependency key to flavor, in the order an index is read.
-pub(crate) const MRPACK_LOADERS: [(&str, &str); 4] = [
-    ("fabric-loader", "fabric"),
-    ("quilt-loader", "quilt"),
-    ("neoforge", "neoforge"),
-    ("forge", "forge"),
-];
 
 /// Which side an install is for — which of the two side-specific override trees
 /// applies, and which `env` field decides whether a file is wanted.
@@ -155,7 +149,7 @@ impl Archive {
     }
 
     /// The `.mrpack` manifest. Ids are left empty; see `Content::recognise_files`.
-    pub(crate) fn index(&mut self) -> Result<ResolvedModpack> {
+    pub(crate) fn index(&mut self, loaders: &Loaders) -> Result<ResolvedModpack> {
         let text = self
             .reader
             .read_text(&format!("{}{INDEX}", self.root))
@@ -164,13 +158,13 @@ impl Archive {
             tracing::warn!(error = %e, "{INDEX} is malformed");
             invalid(ArchiveFault::ManifestMalformed)
         })?;
-        parse_index(&index)
+        parse_index(loaders, &index)
     }
 
-    pub(crate) fn summary(&mut self) -> Result<ResolvedModpack> {
+    pub(crate) fn summary(&mut self, loaders: &Loaders) -> Result<ResolvedModpack> {
         match self.platform_manifest()? {
             Some((_, manifest)) => super::curseforge::parse_manifest(&manifest),
-            None => self.index(),
+            None => self.index(loaders),
         }
     }
 
@@ -228,7 +222,7 @@ pub(crate) fn shallowest(names: &[String], marker: &str) -> Option<String> {
 /// project/version ids come from whoever recognises the file URLs, not the index.
 /// Rejects an unsupported format version, a file with an unsafe (absolute or
 /// parent-escaping) path, and a manifest that pins no Minecraft version.
-pub fn parse_index(index: &Value) -> Result<ResolvedModpack> {
+pub fn parse_index(loaders: &Loaders, index: &Value) -> Result<ResolvedModpack> {
     let format = index
         .get("formatVersion")
         .and_then(Value::as_u64)
@@ -297,7 +291,7 @@ pub fn parse_index(index: &Value) -> Result<ResolvedModpack> {
         .ok_or_else(|| invalid(ArchiveFault::NoGameVersion))?
         .to_string();
     let (loader, loader_version) = deps
-        .and_then(find_loader)
+        .and_then(|deps| find_loader(deps, loaders))
         .map(|(l, v)| (Some(l), Some(v)))
         .unwrap_or((None, None));
 
@@ -315,11 +309,19 @@ pub fn parse_index(index: &Value) -> Result<ResolvedModpack> {
     })
 }
 
-fn find_loader(deps: &Map<String, Value>) -> Option<(String, String)> {
-    MRPACK_LOADERS.iter().find_map(|(key, flavor)| {
-        let version = deps.get(*key).and_then(Value::as_str)?;
-        Some((flavor.to_string(), version.to_string()))
-    })
+/// The loader a pack's `dependencies` pin. The index lists nothing but
+/// `minecraft` and the loader, so a key no registered flavor claims is a loader
+/// this build has no flavor for: it is named as the pack names it, and
+/// whatever creates the entry reports it unsupported.
+fn find_loader(deps: &Map<String, Value>, loaders: &Loaders) -> Option<(String, String)> {
+    deps.iter()
+        .filter(|(key, _)| key.as_str() != MINECRAFT_DEPENDENCY)
+        .find_map(|(key, version)| {
+            let flavor = loaders
+                .flavor_of_mrpack_key(key)
+                .unwrap_or_else(|| key.strip_suffix("-loader").unwrap_or(key));
+            Some((flavor.to_string(), version.as_str()?.to_string()))
+        })
 }
 
 pub(crate) fn invalid(reason: ArchiveFault) -> anyhow::Error {
@@ -349,21 +351,28 @@ mod tests {
     use super::*;
     use serde_json::json;
 
+    fn loaders() -> Loaders {
+        crate::minecraft::Minecraft::default().loaders()
+    }
+
     #[test]
     fn index_maps_files_loader_and_game_version() {
-        let pack = parse_index(&json!({
-            "formatVersion": 1,
-            "name": "Cozy Pack",
-            "versionId": "1.4.0",
-            "summary": "warm",
-            "files": [{
-                "path": "mods/sodium.jar",
-                "downloads": ["https://cdn.modrinth.com/data/AAA/versions/BBB/sodium.jar"],
-                "fileSize": 12,
-                "hashes": {"sha1": "abc"},
-            }],
-            "dependencies": {"minecraft": "1.21.1", "fabric-loader": "0.16.9"},
-        }))
+        let pack = parse_index(
+            &loaders(),
+            &json!({
+                "formatVersion": 1,
+                "name": "Cozy Pack",
+                "versionId": "1.4.0",
+                "summary": "warm",
+                "files": [{
+                    "path": "mods/sodium.jar",
+                    "downloads": ["https://cdn.modrinth.com/data/AAA/versions/BBB/sodium.jar"],
+                    "fileSize": 12,
+                    "hashes": {"sha1": "abc"},
+                }],
+                "dependencies": {"minecraft": "1.21.1", "fabric-loader": "0.16.9"},
+            }),
+        )
         .unwrap();
 
         assert_eq!(pack.name, "Cozy Pack");
@@ -377,15 +386,18 @@ mod tests {
 
     #[test]
     fn a_missing_env_means_both_sides_want_the_file() {
-        let pack = parse_index(&json!({
-            "formatVersion": 1,
-            "files": [
-                {"path": "mods/shared.jar", "downloads": ["https://x/y.jar"]},
-                {"path": "mods/client.jar", "downloads": ["https://x/z.jar"],
-                 "env": {"client": "required", "server": "unsupported"}},
-            ],
-            "dependencies": {"minecraft": "1.21.1"},
-        }))
+        let pack = parse_index(
+            &loaders(),
+            &json!({
+                "formatVersion": 1,
+                "files": [
+                    {"path": "mods/shared.jar", "downloads": ["https://x/y.jar"]},
+                    {"path": "mods/client.jar", "downloads": ["https://x/z.jar"],
+                     "env": {"client": "required", "server": "unsupported"}},
+                ],
+                "dependencies": {"minecraft": "1.21.1"},
+            }),
+        )
         .unwrap();
 
         assert!(Side::Server.wants(&pack.files[0]));
@@ -399,14 +411,17 @@ mod tests {
 
     #[test]
     fn unsupported_format_and_unsafe_paths_are_rejected() {
-        assert!(parse_index(&json!({"formatVersion": 2})).is_err());
-        assert!(parse_index(&json!({
-            "formatVersion": 1,
-            "files": [{"path": "../escape.jar", "downloads": ["https://x/y"]}],
-            "dependencies": {"minecraft": "1.21.1"},
-        }))
+        assert!(parse_index(&loaders(), &json!({"formatVersion": 2})).is_err());
+        assert!(parse_index(
+            &loaders(),
+            &json!({
+                "formatVersion": 1,
+                "files": [{"path": "../escape.jar", "downloads": ["https://x/y"]}],
+                "dependencies": {"minecraft": "1.21.1"},
+            })
+        )
         .is_err());
-        assert!(parse_index(&json!({"formatVersion": 1, "dependencies": {}})).is_err());
+        assert!(parse_index(&loaders(), &json!({"formatVersion": 1, "dependencies": {}})).is_err());
     }
 
     fn archive(entries: &[(&str, &str)]) -> Archive {
@@ -549,7 +564,7 @@ mod tests {
             r#"{"manifestType":"minecraftModpack","manifestVersion":1}"#,
         )]);
         // Its files are project/file ids, so the archive alone resolves nothing.
-        assert!(pack.index().is_err());
+        assert!(pack.index(&loaders()).is_err());
         let (source, manifest) = pack.platform_manifest().unwrap().expect("a manifest");
         assert_eq!(source, "curseforge");
         assert_eq!(manifest["manifestVersion"], 1);
@@ -565,7 +580,7 @@ mod tests {
             ("Cozy/overrides/config/a.toml", "a"),
         ]);
         let dest_dir = temp("nested");
-        assert_eq!(mrpack.index().unwrap().name, "Cozy");
+        assert_eq!(mrpack.index(&loaders()).unwrap().name, "Cozy");
         let written = extract(&mut mrpack, Side::Client, dest_dir.path());
         assert_eq!(written.len(), 1);
         assert_eq!(written[0].path, "config/a.toml");
@@ -590,7 +605,7 @@ mod tests {
                 r#"{"manifestType":"minecraftModpack","manifestVersion":1}"#,
             ),
         ]);
-        assert_eq!(pack.index().unwrap().name, "Cozy");
+        assert_eq!(pack.index(&loaders()).unwrap().name, "Cozy");
     }
 
     #[test]

@@ -8,6 +8,7 @@ mod cache;
 mod catalogue;
 mod chain;
 mod command;
+mod context;
 mod dev;
 mod hooks;
 mod http;
@@ -35,6 +36,7 @@ pub use catalogue::Listings;
 pub(crate) use catalogue::{build as build_catalogue, pick, Installed, Pick, Source};
 pub use chain::{CallChain, ChainError, MAX_CHAIN_DEPTH};
 pub use command::{command_args, find_command};
+pub use context::{CallContext, Mount};
 pub use hooks::{
     BeforeContentInstall, BeforeLaunch, BeforeServerStart, Hook, HookOutcome, Hooks, Participant,
     Roster,
@@ -45,7 +47,7 @@ pub use install::Inspection;
 pub use official::{is_official_signer, refuse_official_key};
 pub use patch::LaunchPatch;
 pub use process::owner_of;
-pub use program::{resolve_on_path, target_triple};
+pub use program::{resolve_on_path, target_triple, ManagedJava};
 pub use providers::{
     unregister as unregister_providers, Contributions, PluginContentProvider, PluginFlavorProvider,
     PluginFormat, PluginJavaProvider,

@@ -37,8 +37,12 @@ pub struct InstallRequest<'a> {
     pub root: &'a Path,
     /// The shared `meta/` root, for work no single entry owns.
     pub meta: &'a Path,
-    /// The vanilla jar for this side, already materialized.
-    pub minecraft_jar: &'a Path,
+    /// The vanilla jar for this side, already materialized; none for a server
+    /// whose own jar is built.
+    pub minecraft_jar: Option<&'a Path>,
+    /// What the profile names as built, which the flavor's build must produce:
+    /// the server jar's filename, or the path of each built client library.
+    pub built: &'a [String],
     pub java: &'a Path,
     pub cache: Option<&'a Cache>,
     pub processes: &'a ProcessSupervisor,
@@ -143,6 +147,11 @@ pub struct FlavorInfo {
     /// builds its own artifacts.
     pub requires: &'static [Prerequisite],
     pub sides: &'static [Side],
+    /// The key a Modrinth pack (`.mrpack`) names this flavor's loader by in its
+    /// `dependencies`; none for a flavor with no loader of its own.
+    pub mrpack_key: Option<Cow<'static, str>>,
+    /// The component uid a Prism or MultiMC instance names this flavor's loader by.
+    pub prism_uid: Option<Cow<'static, str>>,
 }
 
 pub const BOTH_SIDES: &[Side] = &[Side::Server, Side::Client];

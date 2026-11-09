@@ -25,21 +25,10 @@ use super::{pool, Blueprint, Descriptor, Format, Landed, Recipe, Target};
 use crate::cancel::Job;
 use crate::icon;
 use crate::jvm::{JavaSettings, JVM_ARGS_KEY, MEMORY_KEY};
+use crate::minecraft::Loaders;
 
 pub(crate) const CONFIG: &str = "instance.cfg";
 pub(crate) const PACK: &str = "mmc-pack.json";
-
-/// The component uids that name a mod loader, and the loader name each one is.
-/// Everything else a pack lists — the intermediary mappings, LWJGL, the Java
-/// agent components — is scaffolding those launchers need and hestia resolves
-/// for itself.
-const LOADERS: &[(&str, &str)] = &[
-    ("net.fabricmc.fabric-loader", "fabric"),
-    ("org.quiltmc.quilt-loader", "quilt"),
-    ("net.neoforged", "neoforge"),
-    ("net.minecraftforge", "forge"),
-    ("com.mumfrey.liteloader", "liteloader"),
-];
 
 const MINECRAFT: &str = "net.minecraft";
 
@@ -77,8 +66,8 @@ impl Format for Prism {
         CONFIG
     }
 
-    fn read(&self, reader: &mut Reader, prefix: &str) -> Result<Blueprint> {
-        let instance = describe(reader, prefix)?;
+    fn read(&self, reader: &mut Reader, prefix: &str, loaders: &Loaders) -> Result<Blueprint> {
+        let instance = describe(reader, prefix, loaders)?;
         let jvm = jvm_settings(&instance);
         let (loader, loader_version) = instance.loader.unzip();
         let loader = loader.unwrap_or_default();
@@ -155,7 +144,7 @@ fn icon_member(names: &[String], prefix: &str, icon_key: &str) -> Option<String>
         .map(|(file, _)| format!("{prefix}{file}"))
 }
 
-fn describe(reader: &mut Reader, prefix: &str) -> Result<Instance> {
+fn describe(reader: &mut Reader, prefix: &str, loaders: &Loaders) -> Result<Instance> {
     let config = reader
         .read_text(&format!("{prefix}{CONFIG}"))
         .map_err(|e| {
@@ -166,7 +155,7 @@ fn describe(reader: &mut Reader, prefix: &str) -> Result<Instance> {
         tracing::warn!(error = %e, "cannot read {PACK}");
         invalid(ArchiveFault::ManifestMissing)
     })?;
-    read(&config, &pack)
+    read(&config, &pack, loaders)
 }
 
 fn invalid(reason: ArchiveFault) -> ErrorInfo {
@@ -219,7 +208,11 @@ fn overridden(config: &[(String, String)], key: &str) -> bool {
     setting(config, key).is_some_and(|v| v.eq_ignore_ascii_case("true"))
 }
 
-pub(crate) fn read(config_text: &str, pack_text: &str) -> Result<Instance> {
+/// Reads the two files. A component is a loader only when a registered flavor
+/// claims its uid; everything else a pack lists — the intermediary mappings,
+/// LWJGL, the Java agent components — is scaffolding those launchers need and
+/// hestia resolves for itself.
+pub(crate) fn read(config_text: &str, pack_text: &str, loaders: &Loaders) -> Result<Instance> {
     let config = parse_config(config_text);
     let pack: Value = serde_json::from_str(pack_text).map_err(|e| {
         tracing::warn!(error = %e, "{PACK} is malformed");
@@ -251,8 +244,8 @@ pub(crate) fn read(config_text: &str, pack_text: &str) -> Result<Instance> {
             .to_string();
         if uid == MINECRAFT {
             game_version = version;
-        } else if let Some((_, name)) = LOADERS.iter().find(|(id, _)| *id == uid) {
-            loader = Some((name.to_string(), version));
+        } else if let Some(flavor) = loaders.flavor_of_prism_uid(uid) {
+            loader = Some((flavor.to_string(), version));
         }
     }
 
@@ -293,6 +286,10 @@ pub(crate) fn game_dir(names: &[String], prefix: &str) -> &'static str {
 mod tests {
     use super::*;
 
+    fn loaders() -> Loaders {
+        crate::minecraft::Minecraft::default().loaders()
+    }
+
     const PACK_FABRIC: &str = r#"{
         "formatVersion": 1,
         "components": [
@@ -305,7 +302,7 @@ mod tests {
 
     #[test]
     fn components_name_the_game_version_and_the_loader() {
-        let instance = read("name=Cozy\n", PACK_FABRIC).unwrap();
+        let instance = read("name=Cozy\n", PACK_FABRIC, &loaders()).unwrap();
         assert_eq!(instance.name, "Cozy");
         assert_eq!(instance.game_version, "1.21.1");
         assert_eq!(
@@ -318,12 +315,12 @@ mod tests {
     fn settings_are_carried_only_when_the_instance_overrode_them() {
         let overriding = "name=Cozy\nOverrideMemory=true\nMaxMemAlloc=6144\n\
                           OverrideJavaArgs=true\nJvmArgs=-XX:+UseG1GC\n";
-        let instance = read(overriding, PACK_FABRIC).unwrap();
+        let instance = read(overriding, PACK_FABRIC, &loaders()).unwrap();
         assert_eq!(instance.memory_mb, Some(6144));
         assert_eq!(instance.jvm_args.as_deref(), Some("-XX:+UseG1GC"));
 
         let inheriting = "name=Cozy\nMaxMemAlloc=6144\nJvmArgs=-XX:+UseG1GC\n";
-        let instance = read(inheriting, PACK_FABRIC).unwrap();
+        let instance = read(inheriting, PACK_FABRIC, &loaders()).unwrap();
         assert_eq!(
             instance.memory_mb, None,
             "without the override flag those are the launcher's defaults, not the instance's"
@@ -342,8 +339,8 @@ mod tests {
     #[test]
     fn a_pack_with_no_minecraft_component_is_refused() {
         let pack = r#"{"components":[{"uid":"net.fabricmc.fabric-loader","version":"0.16.9"}]}"#;
-        assert!(read("name=x\n", pack).is_err());
-        assert!(read("name=x\n", "not json").is_err());
+        assert!(read("name=x\n", pack, &loaders()).is_err());
+        assert!(read("name=x\n", "not json", &loaders()).is_err());
     }
 
     #[test]

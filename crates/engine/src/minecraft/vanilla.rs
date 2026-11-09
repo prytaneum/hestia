@@ -20,6 +20,8 @@ const INFO: FlavorInfo = FlavorInfo {
     loads: None,
     requires: &[],
     sides: BOTH_SIDES,
+    mrpack_key: None,
+    prism_uid: None,
 };
 
 pub struct Vanilla;

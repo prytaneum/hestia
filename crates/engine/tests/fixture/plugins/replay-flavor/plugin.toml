@@ -2,8 +2,13 @@ id = "replay-flavor"
 version = "0.1.0"
 api = "^1.0.0"
 wasm = "plugin.wasm"
-permissions = ["flavor:provide", "network:connect"]
+permissions = ["flavor:provide", "network:connect", "process:spawn"]
 network = ["files.example.com"]
+
+[[programs]]
+id = "builder"
+java = 21
+args = ["*"]
 
 [[contributes.providers]]
 kind = "flavor"

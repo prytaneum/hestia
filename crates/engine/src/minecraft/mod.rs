@@ -5,6 +5,7 @@
 
 mod fabric;
 pub(crate) mod launch;
+mod loaders;
 pub(crate) mod log4j;
 pub(crate) mod materialize;
 mod meta;
@@ -31,6 +32,7 @@ use crate::cache::Cache;
 use crate::roster::{RegisterError, Roster};
 use profile::{InstanceProfile, ServerProfile};
 
+pub use loaders::Loaders;
 pub use provider::{accepted_kinds, unmet, InstallRequest, Prerequisite, Side};
 pub use provider::{FlavorInfo, FlavorProvider, Loads, ResolveRequest};
 pub use provider::{BOTH_SIDES, CLIENT_ONLY, SERVER_ONLY};
@@ -90,6 +92,11 @@ impl Minecraft {
     /// one keeps its record and loads nothing, as for any unregistered flavor.
     pub fn unregister(&self, owner: &str) -> usize {
         self.flavors.unregister(owner)
+    }
+
+    /// How the interchange formats name the registered flavors' loaders.
+    pub fn loaders(&self) -> Loaders {
+        Loaders::of(&self.flavors.snapshot())
     }
 
     pub fn flavors(&self, side: Side) -> Vec<Flavor> {

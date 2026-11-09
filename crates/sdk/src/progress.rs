@@ -1,4 +1,4 @@
-//! Progress of the running command, and whether it was cancelled.
+//! Progress of the running command or flavor build, and whether it was cancelled.
 //!
 //! ```no_run
 //! for step in 0..10 {

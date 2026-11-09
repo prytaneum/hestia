@@ -546,6 +546,45 @@ mod manifest {
     }
 
     #[test]
+    fn a_program_names_exactly_one_of_a_command_and_a_managed_java() {
+        let java = |major: u32| Program {
+            java: Some(major),
+            args: vec!["-jar".into(), "*".into()],
+            ..Program::default()
+        };
+        assert_eq!(spawning(java(21)).validate(), Ok(()));
+        assert_eq!(java(21).command_label(), "Hestia-managed Java 21");
+
+        let both = Program {
+            command: "java".into(),
+            ..java(21)
+        };
+        let neither = Program::default();
+        let hashed = Program {
+            sha256: [("x86_64-unknown-linux-gnu".to_string(), "0".repeat(64))].into(),
+            ..java(21)
+        };
+        for program in [both, neither, java(0), java(100)] {
+            assert_eq!(
+                spawning(program).validate(),
+                Err(ManifestError::ProgramCommandOrJava("agent".into()))
+            );
+        }
+        assert_eq!(
+            spawning(hashed).validate(),
+            Err(ManifestError::BadProgram("agent".into()))
+        );
+        let shell_arg = Program {
+            args: vec!["**".into(), "a".into()],
+            ..java(21)
+        };
+        assert_eq!(
+            spawning(shell_arg).validate(),
+            Err(ManifestError::BadProgram("agent".into()))
+        );
+    }
+
+    #[test]
     fn program_arguments_match_literals_one_token_and_a_trailing_rest() {
         let args =
             |tokens: &[&str]| -> Vec<String> { tokens.iter().map(|t| t.to_string()).collect() };
