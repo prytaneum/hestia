@@ -208,10 +208,11 @@ fn overridden(config: &[(String, String)], key: &str) -> bool {
     setting(config, key).is_some_and(|v| v.eq_ignore_ascii_case("true"))
 }
 
-/// Reads the two files. A component is a loader only when a registered flavor
-/// claims its uid; everything else a pack lists — the intermediary mappings,
-/// LWJGL, the Java agent components — is scaffolding those launchers need and
-/// hestia resolves for itself.
+/// Reads the two files. A component a registered flavor claims is the loader;
+/// dependency-only components are scaffolding hestia resolves for itself. With
+/// no claimed loader, a component the user chose that no flavor claims is
+/// carried as the loader by its uid, so creating the entry refuses it rather
+/// than importing a modded instance as vanilla.
 pub(crate) fn read(config_text: &str, pack_text: &str, loaders: &Loaders) -> Result<Instance> {
     let config = parse_config(config_text);
     let pack: Value = serde_json::from_str(pack_text).map_err(|e| {
@@ -226,6 +227,7 @@ pub(crate) fn read(config_text: &str, pack_text: &str, loaders: &Loaders) -> Res
 
     let mut game_version = String::new();
     let mut loader = None;
+    let mut unclaimed = None;
     for component in components {
         // A dependency-only component is one the launcher pulled in to satisfy
         // another, not something the user chose.
@@ -246,8 +248,11 @@ pub(crate) fn read(config_text: &str, pack_text: &str, loaders: &Loaders) -> Res
             game_version = version;
         } else if let Some(flavor) = loaders.flavor_of_prism_uid(uid) {
             loader = Some((flavor.to_string(), version));
+        } else if loader.is_none() {
+            unclaimed = Some((uid.to_string(), version));
         }
     }
+    let loader = loader.or(unclaimed);
 
     if game_version.is_empty() {
         return Err(invalid(ArchiveFault::NoGameVersion).into());
@@ -334,6 +339,21 @@ mod tests {
         let config = parse_config(text);
         assert_eq!(setting(&config, "name"), Some("Cozy"));
         assert_eq!(setting(&config, "InstanceType"), Some("OneSix"));
+    }
+
+    #[test]
+    fn a_loader_no_flavor_claims_is_carried_by_its_uid() {
+        let pack = r#"{"components":[
+            {"uid":"org.lwjgl3","version":"3.3.3","dependencyOnly":true},
+            {"uid":"net.minecraft","version":"1.20.1"},
+            {"uid":"net.minecraftforge","version":"47.2.0"}
+        ]}"#;
+        let instance = read("name=Old\n", pack, &loaders()).unwrap();
+        assert_eq!(
+            instance.loader,
+            Some(("net.minecraftforge".to_string(), "47.2.0".to_string())),
+            "an unknown loader must reach entry creation and be refused, not import as vanilla"
+        );
     }
 
     #[test]
