@@ -38,7 +38,7 @@ const USER_OWNED: &[&str] = &[
 
 const INFO: FlavorInfo = FlavorInfo {
     id: ID,
-    name: "Bedrock",
+    name: "Vanilla",
     summary: "Mojang's Bedrock Dedicated Server, for players on phones, consoles and Windows. Runs without Java.",
     edition: Edition::Bedrock,
     loads: None,
