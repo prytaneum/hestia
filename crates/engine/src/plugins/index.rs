@@ -11,10 +11,11 @@ use super::repos::{verify_index, RepoError};
 
 const LABEL_LENGTH: std::ops::RangeInclusive<usize> = 1..=4;
 const SHA256_HEX: usize = 64;
+const INDEX_BRANCH: &str = "repo";
 
 /// The index URL for what a user typed: `owner/repo`, `github.com/owner/repo`
-/// or an https URL. A GitHub repository page maps to the fixed release asset
-/// the repository shape guarantees; any other https URL is the index itself.
+/// or an https URL. A GitHub repository page maps to the `plugins.json` on its
+/// orphan `repo` branch; any other https URL is the index itself.
 pub fn expand(input: &str) -> Result<String, RepoError> {
     let input = input.trim().trim_end_matches('/');
     if input.is_empty() {
@@ -48,7 +49,7 @@ fn github_index(path: &str) -> Option<String> {
     let (owner, repo) = (parts.next()?, parts.next()?);
     let repo = repo.strip_suffix(".git").unwrap_or(repo);
     (parts.next().is_none() && is_repo_segment(owner) && is_repo_segment(repo)).then(|| {
-        format!("https://github.com/{owner}/{repo}/releases/download/hestia-index/{INDEX_FILE}")
+        format!("https://raw.githubusercontent.com/{owner}/{repo}/{INDEX_BRANCH}/{INDEX_FILE}")
     })
 }
 
@@ -60,29 +61,70 @@ fn is_repo_segment(segment: &str) -> bool {
             .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.'))
 }
 
-/// The key an index declares, read before anything is verified. It only tells
-/// the caller which key to verify against and show to the user: trusting it is
-/// the user's decision at add time, and a refresh uses the pinned key instead.
-pub fn declared_key(bytes: &[u8]) -> Result<String, RepoError> {
-    #[derive(Deserialize)]
-    struct Declared {
-        key: String,
-    }
-    serde_json::from_slice::<Declared>(bytes)
-        .map(|declared| declared.key)
-        .map_err(|_| malformed("it is not a Hestia index"))
+/// The keys an index declares (`key`, and its spare `next` when it has one),
+/// read before anything is verified. They only tell the caller which key to
+/// verify against and show to the user: trusting them is the user's decision at
+/// add time, and a refresh uses the pinned keys instead.
+pub fn declared_keys(bytes: &[u8]) -> Result<DeclaredKeys, RepoError> {
+    serde_json::from_slice(bytes).map_err(|_| malformed("it is not a Hestia index"))
 }
 
-/// Verifies the index against `pinned_key`, then checks its contents.
+#[derive(Deserialize)]
+pub struct DeclaredKeys {
+    pub key: String,
+    #[serde(default)]
+    pub next: String,
+}
+
+impl DeclaredKeys {
+    /// The keys in the order they are tried: the current one, then the spare.
+    pub fn all(&self) -> Vec<String> {
+        pinned_keys(&self.key, &self.next)
+    }
+}
+
+/// `key` and, when set, its spare.
+pub fn pinned_keys(key: &str, next: &str) -> Vec<String> {
+    std::iter::once(key)
+        .chain((!next.trim().is_empty()).then_some(next))
+        .map(str::to_string)
+        .collect()
+}
+
+/// Verifies the index against the pinned `keys` (signature, key, version,
+/// expiry, in that order), then checks its contents.
 pub fn open(
     bytes: &[u8],
     signature: &str,
-    pinned_key: &str,
+    keys: &[String],
+    repository: &str,
     cached_version: Option<u64>,
+    now_unix: i64,
 ) -> Result<RepositoryIndex, RepoError> {
-    let index = verify_index(bytes, signature, pinned_key, cached_version)?;
+    let index = verify_index(bytes, signature, keys, repository, cached_version, now_unix)?;
     validate(&index)?;
     Ok(index)
+}
+
+/// Where a build is downloaded from: its `file` resolved against the index URL.
+pub fn build_url(index_url: &str, file: &str) -> Result<String, RepoError> {
+    let base =
+        reqwest::Url::parse(index_url).map_err(|_| malformed("the index URL is not valid"))?;
+    let url = base
+        .join(file)
+        .map_err(|_| malformed(format!("`{file}` is not a package path")))?;
+    if !is_https(&url) {
+        return Err(malformed(format!("`{file}` is not an https package path")));
+    }
+    Ok(url.into())
+}
+
+fn is_relative_file(file: &str) -> bool {
+    !file.is_empty()
+        && !file.contains(['\\', ':', '?', '#'])
+        && file
+            .split('/')
+            .all(|segment| !matches!(segment, "" | "." | ".."))
 }
 
 fn validate(index: &RepositoryIndex) -> Result<(), RepoError> {
@@ -114,9 +156,9 @@ fn validate_plugin(plugin: &IndexedPlugin) -> Result<(), RepoError> {
         return Err(malformed(format!("`{}` is not a plugin id", plugin.id)));
     }
     for build in &plugin.builds {
-        if !reqwest::Url::parse(&build.url).is_ok_and(|url| is_https(&url)) {
+        if !is_relative_file(&build.file) {
             return Err(malformed(format!(
-                "`{}` {} has a build that is not an https address",
+                "`{}` {} has a build whose file is not a path inside the repository",
                 plugin.id, build.version
             )));
         }
@@ -168,31 +210,28 @@ fn malformed(detail: impl std::fmt::Display) -> RepoError {
 
 #[cfg(test)]
 mod tests {
-    use proto::repository::index_comment;
-
     use super::*;
-    use crate::plugins::testkit::{sample_index, Signer};
+    use crate::plugins::testkit::{sample_index, sign_index, Signer, SAMPLE_NOW};
 
-    const RELEASE: &str =
-        "https://github.com/acme/tools/releases/download/hestia-index/hestia-index.json";
+    const BRANCH: &str = "https://raw.githubusercontent.com/acme/tools/repo/plugins.json";
 
     #[test]
-    fn a_repository_name_expands_to_the_fixed_release_asset() {
+    fn a_repository_name_expands_to_the_plugins_json_on_its_repo_branch() {
         for input in [
             "acme/tools",
             "github.com/acme/tools",
             "https://github.com/acme/tools",
             "https://github.com/acme/tools/",
             "acme/tools.git",
-            RELEASE,
+            BRANCH,
         ] {
-            assert_eq!(expand(input).unwrap(), RELEASE, "{input}");
+            assert_eq!(expand(input).unwrap(), BRANCH, "{input}");
         }
     }
 
     #[test]
     fn any_other_https_index_url_is_kept_as_it_is() {
-        let url = "https://example.com/hestia/hestia-index.json";
+        let url = "https://example.com/hestia/plugins.json";
 
         assert_eq!(expand(url).unwrap(), url);
     }
@@ -201,14 +240,14 @@ mod tests {
     fn an_address_that_is_not_https_or_a_repository_name_is_refused() {
         for input in [
             "",
-            "http://example.com/hestia-index.json",
+            "http://example.com/plugins.json",
             "ftp://example.com/x",
-            "https://user:secret@example.com/hestia-index.json",
+            "https://user:secret@example.com/plugins.json",
             "acme",
             "acme/tools/extra",
             "../tools",
             "acme/..",
-            "file:///tmp/hestia-index.json",
+            "file:///tmp/plugins.json",
         ] {
             assert!(
                 matches!(expand(input), Err(RepoError::Malformed(_))),
@@ -217,34 +256,85 @@ mod tests {
         }
     }
 
+    fn open_sample(
+        signer: &Signer,
+        mutate: impl FnOnce(&mut RepositoryIndex),
+    ) -> Result<RepositoryIndex, RepoError> {
+        let bytes = sample_index(&signer.key(), mutate);
+        let signature = sign_index(signer, &bytes);
+        open(
+            &bytes,
+            &signature,
+            &[signer.key()],
+            "https://r.example/plugins.json",
+            None,
+            SAMPLE_NOW,
+        )
+    }
+
     #[test]
     fn a_real_index_opens_with_its_own_key() {
         let signer = Signer::new();
         let bytes = sample_index(&signer.key(), |_| {});
-        let signature = signer.sign(&bytes, &index_comment(3));
 
-        assert_eq!(declared_key(&bytes).unwrap(), signer.key());
-        let index = open(&bytes, &signature, &signer.key(), None).unwrap();
+        let declared = declared_keys(&bytes).unwrap();
+        assert_eq!(declared.all(), [signer.key()]);
+        let index = open_sample(&signer, |_| {}).unwrap();
 
         assert_eq!(index.label, "SMP");
         assert_eq!(index.plugins.len(), 2);
         assert_eq!(index.plugins[0].builds.len(), 2);
     }
 
-    fn refused(mutate: impl FnOnce(&mut RepositoryIndex)) -> RepoError {
-        let signer = Signer::new();
-        let bytes = sample_index(&signer.key(), mutate);
-        let signature = signer.sign(&bytes, &index_comment(3));
-        open(&bytes, &signature, &signer.key(), None).unwrap_err()
+    #[test]
+    fn the_spare_is_declared_and_pinned_with_the_key() {
+        let (signer, spare) = (Signer::new(), Signer::new());
+        let bytes = sample_index(&signer.key(), |index| index.next = spare.key());
+
+        assert_eq!(
+            declared_keys(&bytes).unwrap().all(),
+            [signer.key(), spare.key()]
+        );
     }
 
     #[test]
-    fn a_build_that_is_not_https_refuses_the_index() {
-        let error = refused(|index| {
-            index.plugins[0].builds[0].url = "http://example.com/aa.hplugin".to_string();
-        });
+    fn a_build_resolves_against_the_index_url() {
+        assert_eq!(
+            build_url(BRANCH, "packages/aa-0.1.0.hplugin").unwrap(),
+            "https://raw.githubusercontent.com/acme/tools/repo/packages/aa-0.1.0.hplugin"
+        );
+        assert_eq!(
+            build_url(
+                "https://example.com/m/plugins.json",
+                "packages/aa-0.1.0.hplugin"
+            )
+            .unwrap(),
+            "https://example.com/m/packages/aa-0.1.0.hplugin"
+        );
+    }
 
-        assert!(matches!(error, RepoError::Malformed(_)), "{error:?}");
+    fn refused(mutate: impl FnOnce(&mut RepositoryIndex)) -> RepoError {
+        open_sample(&Signer::new(), mutate).unwrap_err()
+    }
+
+    #[test]
+    fn a_build_file_that_leaves_the_repository_refuses_the_index() {
+        for file in [
+            "http://example.com/aa.hplugin",
+            "https://example.com/aa.hplugin",
+            "/aa.hplugin",
+            "../aa.hplugin",
+            "packages/../../aa.hplugin",
+            "packages\\aa.hplugin",
+            "",
+        ] {
+            let error = refused(|index| index.plugins[0].builds[0].file = file.to_string());
+
+            assert!(
+                matches!(error, RepoError::Malformed(_)),
+                "{file}: {error:?}"
+            );
+        }
     }
 
     #[test]
@@ -271,7 +361,7 @@ mod tests {
     #[test]
     fn something_that_is_not_an_index_has_no_declared_key() {
         assert!(matches!(
-            declared_key(b"<html>404</html>"),
+            declared_keys(b"<html>404</html>"),
             Err(RepoError::Malformed(_))
         ));
     }

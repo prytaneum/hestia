@@ -242,7 +242,7 @@ mod tests {
         Build {
             version: version.to_string(),
             api: api.map(str::to_string),
-            url: format!("https://example.com/{version}.hplugin"),
+            file: format!("packages/{version}.hplugin"),
             sha256: "0".repeat(64),
         }
     }

@@ -4,7 +4,9 @@ use std::process::Command;
 
 use anyhow::{bail, Context, Result};
 use proto::plugin::Manifest;
-use proto::repository::{Build, IndexedPlugin, RepositoryIndex, INDEX_FILE, INDEX_SCHEMA_VERSION};
+use proto::repository::{
+    Build, IndexedPlugin, RepositoryIndex, INDEX_FILE, INDEX_LIFETIME_SECONDS, INDEX_SCHEMA_VERSION,
+};
 use sha2::{Digest, Sha256};
 use tempfile::NamedTempFile;
 
@@ -22,13 +24,15 @@ struct Package {
     sha256: String,
 }
 
-/// Where the source lives and which commit the listing was built from.
+/// Where the source lives, which commit the listing was built from, and when
+/// it is signed.
 struct Source {
     repository: String,
     commit: String,
+    signed_unix: u64,
 }
 
-/// Regenerates `dist/hestia-index.json` from the working tree, keeping the
+/// Regenerates `dist/plugins.json` from the working tree, keeping the
 /// previous index's builds and revocations and adding the given packages.
 pub async fn run(
     previous: Option<&str>,
@@ -55,6 +59,7 @@ pub async fn run(
             None => normalize_repository(&git(repo.root(), &["remote", "get-url", "origin"])?)?,
         },
         commit: git(repo.root(), &["rev-parse", "HEAD"])?,
+        signed_unix: common::now_unix().max(0) as u64,
     };
     let index = build_index(&checked, &source, previous, packages)?;
 
@@ -66,7 +71,7 @@ pub async fn run(
         let bytes = std::fs::read(&target)?;
         signer.write(
             &bytes,
-            &proto::repository::index_comment(index.version),
+            &proto::repository::index_comment(index.version, index.expires),
             &target,
         )?;
     }
@@ -93,6 +98,7 @@ fn build_index(
     packages: Vec<Package>,
 ) -> Result<RepositoryIndex> {
     let previous = previous.unwrap_or_default();
+    let version = source.signed_unix.max(previous.version + 1);
     if previous.schema_version > INDEX_SCHEMA_VERSION {
         bail!(
             "the previous index has schema {}, newer than this build understands ({INDEX_SCHEMA_VERSION})",
@@ -138,9 +144,8 @@ fn build_index(
         let build = Build {
             version: manifest.version.clone(),
             api: manifest.api.clone(),
-            url: format!(
-                "{}/releases/download/{id}-v{version}/{id}-{version}.hplugin",
-                source.repository,
+            file: format!(
+                "packages/{id}-{version}.hplugin",
                 id = manifest.id,
                 version = manifest.version
             ),
@@ -163,13 +168,15 @@ fn build_index(
 
     Ok(RepositoryIndex {
         schema_version: INDEX_SCHEMA_VERSION,
-        version: previous.version + 1,
+        version,
+        expires: version as i64 + INDEX_LIFETIME_SECONDS,
         repository: source.repository.clone(),
         commit: source.commit.clone(),
         name: checked.meta.name.clone(),
         label: checked.meta.label.clone(),
         website: checked.meta.website.clone(),
         key: checked.meta.key.clone(),
+        next: checked.meta.next.clone(),
         plugins,
         revoked: previous.revoked,
     })
@@ -274,6 +281,7 @@ mod tests {
         Source {
             repository: "https://github.com/o/r".to_string(),
             commit: "abc".to_string(),
+            signed_unix: 1_700_000_000,
         }
     }
 
@@ -298,7 +306,7 @@ mod tests {
     }
 
     #[test]
-    fn builds_and_revocations_carry_over_and_the_version_bumps() {
+    fn builds_and_revocations_carry_over_and_the_version_is_the_signing_time() {
         let (_root, checked) = checked();
         let first = build_index(
             &checked,
@@ -307,12 +315,13 @@ mod tests {
             vec![package("aa", "0.1.0", "aa")],
         )
         .unwrap();
-        assert_eq!(first.version, 1);
-        let build = &first.plugins[0].builds[0];
+        assert_eq!(first.version, 1_700_000_000);
         assert_eq!(
-            build.url,
-            "https://github.com/o/r/releases/download/aa-v0.1.0/aa-0.1.0.hplugin"
+            first.expires,
+            1_700_000_000 + proto::repository::INDEX_LIFETIME_SECONDS
         );
+        let build = &first.plugins[0].builds[0];
+        assert_eq!(build.file, "packages/aa-0.1.0.hplugin");
 
         let mut previous = first;
         previous.revoked.push(proto::repository::Revocation {
@@ -328,7 +337,10 @@ mod tests {
         )
         .unwrap();
 
-        assert_eq!(second.version, 2);
+        assert_eq!(
+            second.version, 1_700_000_001,
+            "never below the previous version"
+        );
         assert_eq!(second.plugins[0].builds.len(), 1);
         assert_eq!(second.plugins[1].builds[0].sha256, "bb");
         assert_eq!(second.revoked.len(), 1);

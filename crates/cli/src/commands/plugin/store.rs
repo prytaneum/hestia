@@ -10,7 +10,7 @@ use crate::ui::{self, Spinner, View};
 pub enum StoreCmd {
     /// Trust a repository by its signing key and list what it offers
     Add {
-        /// `owner/repo`, `github.com/owner/repo` or an https URL of its hestia-index.json
+        /// `owner/repo`, `github.com/owner/repo` or an https URL of its plugins.json
         url: String,
         #[arg(short = 'y', long, help = "Trust the key shown without asking")]
         yes: bool,

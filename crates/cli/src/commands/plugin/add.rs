@@ -326,9 +326,7 @@ mod tests {
             Target::Package
         );
         assert_eq!(
-            classify(
-                "https://github.com/acme/tools/releases/download/hestia-index/hestia-index.json"
-            ),
+            classify("https://raw.githubusercontent.com/acme/tools/repo/plugins.json"),
             Target::Index
         );
         assert_eq!(classify("github.com/acme/tools"), Target::Index);

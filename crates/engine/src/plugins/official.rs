@@ -1,8 +1,8 @@
-//! What makes a plugin official: it was signed by the official-plugins key,
+//! What makes a plugin official: it was signed by an official-plugins key,
 //! and nothing else — not its id, its URL or the name of the store that lists
 //! it ([0099](../../../../docs/decisions/0099-official-plugins-are-signed.md)).
-//! The key set is `common::app::official_plugin_pubkeys`, empty until the
-//! real key exists, so nothing is official by default.
+//! The key set is `common::app::official_plugin_pubkeys`: the current key and
+//! an offline spare.
 
 use super::repos::{key_id_of, RepoError};
 
@@ -40,19 +40,21 @@ pub fn refuse_official_key(declared: &str) -> Result<(), RepoError> {
 mod tests {
     use super::*;
     use crate::plugins::repos::{verify_build, verify_index};
-    use crate::plugins::testkit::{sample_index, Signer};
+    use crate::plugins::testkit::{sample_index, sign_index, Signer, SAMPLE_NOW};
     use crate::signature::verify_bytes;
     use base64::Engine as _;
-    use proto::repository::{build_comment, index_comment};
+    use proto::repository::build_comment;
 
     #[test]
-    fn a_plugin_signed_by_the_official_key_is_official() {
-        let (official, other) = (Signer::new(), Signer::new());
-        let keys = [official.key()];
+    fn a_plugin_signed_by_either_official_key_is_official() {
+        let (official, spare, other) = (Signer::new(), Signer::new(), Signer::new());
+        let keys = [official.key(), spare.key()];
         let keys: Vec<&str> = keys.iter().map(String::as_str).collect();
 
-        let signer = key_id_of(&official.key()).unwrap();
-        assert!(is_official_signer_in(Some(&signer), &keys));
+        for signer in [&official, &spare] {
+            let id = key_id_of(&signer.key()).unwrap();
+            assert!(is_official_signer_in(Some(&id), &keys));
+        }
         assert!(!is_official_signer_in(
             Some(&key_id_of(&other.key()).unwrap()),
             &keys
@@ -86,20 +88,28 @@ mod tests {
     fn a_tampered_official_package_or_index_fails_verification() {
         let official = Signer::new();
         let index = sample_index(&official.key(), |_| {});
-        let signature = official.sign(&index, &index_comment(3));
+        let signature = sign_index(&official, &index);
         let package_signature = official.sign(b"package", &build_comment("aa", "0.1.0", "f"));
 
         let mut tampered = index.clone();
         tampered.push(b' ');
         assert_eq!(
-            verify_index(&tampered, &signature, &official.key(), None).unwrap_err(),
+            verify_index(
+                &tampered,
+                &signature,
+                &[official.key()],
+                "https://o.example/plugins.json",
+                None,
+                SAMPLE_NOW
+            )
+            .unwrap_err(),
             RepoError::BadSignature
         );
         assert_eq!(
             verify_build(
                 b"packagf",
                 &package_signature,
-                &official.key(),
+                &[official.key()],
                 "aa",
                 "0.1.0",
                 "f"

@@ -50,7 +50,7 @@ pub enum PluginCmd {
         /// Inside the repository by default
         dir: Option<std::path::PathBuf>,
     },
-    /// Write dist/hestia-index.json, the listing of the repository's plugins
+    /// Write dist/plugins.json, the listing of the repository's plugins
     Index {
         /// The previous index (https URL or file): its builds and revocations carry over
         #[arg(long, value_name = "URL_OR_FILE")]
@@ -61,7 +61,7 @@ pub enum PluginCmd {
         /// The repository's https URL; the `origin` remote by default
         #[arg(long)]
         repository: Option<String>,
-        /// Sign the index with this minisign secret key, writing hestia-index.json.minisig
+        /// Sign the index with this minisign secret key, writing plugins.json.minisig
         #[arg(long, value_name = "SECRET_KEY")]
         sign: Option<std::path::PathBuf>,
     },

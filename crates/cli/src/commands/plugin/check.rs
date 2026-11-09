@@ -119,6 +119,10 @@ fn check_meta(meta: &StoreMeta, problems: &mut Vec<String>) {
                 .to_string(),
         );
     }
+    if !meta.next.trim().is_empty() && minisign::PublicKey::from_base64(meta.next.trim()).is_err() {
+        problems
+            .push("[workspace.metadata.hestia] `next` is not a minisign public key".to_string());
+    }
 }
 
 fn check_plugin(plugin: &PluginDir, excluded: &BTreeSet<String>, problems: &mut Vec<String>) {

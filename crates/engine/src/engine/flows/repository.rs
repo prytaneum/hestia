@@ -10,7 +10,7 @@ use proto::catalogue::{
     Catalogue, CatalogueParams, RepositoryAdded, RepositoryInfo, RepositoryRefreshed,
 };
 use proto::error::ErrorInfo;
-use proto::repository::{Build, IndexedPlugin};
+use proto::repository::{Build, IndexedPlugin, RepositoryIndex};
 use proto::warning::WarningInfo;
 use sha2::{Digest, Sha256};
 
@@ -18,8 +18,9 @@ use super::Engine;
 use crate::checksum::hex;
 use crate::net;
 use crate::plugins::{
-    build_catalogue, cache_index, cached_index, declared_key, expand, key_id_of, open, pick,
-    refuse_official_key, verify_build, Installed, Listings, Origin, Pick, RepositoryEntry, Source,
+    build_catalogue, build_url, cache_index, cached_index, declared_keys, ensure_fresh, expand,
+    key_id_of, open, pick, pinned_keys, refuse_official_key, revocation, verify_build, Installed,
+    Listings, Origin, Pick, RepoError, RepositoryEntry, Source,
 };
 
 const INDEX_CAP: u64 = 8 * 1024 * 1024;
@@ -69,11 +70,13 @@ impl Engine {
         let url = expand(input).map_err(ErrorInfo::from)?;
         let existing = self.plugin_repositories().get(&url);
         let (bytes, signature) = self.fetch_signed(&url).await.map_err(not_an_index)?;
-        let key = match &existing {
-            Some(entry) => entry.key.clone(),
+        let keys = match &existing {
+            Some(entry) => pinned_keys(&entry.key, &entry.next),
             None => {
-                let declared = declared_key(&bytes).map_err(ErrorInfo::from)?;
-                refuse_official_key(&declared).map_err(ErrorInfo::from)?;
+                let declared = declared_keys(&bytes).map_err(ErrorInfo::from)?.all();
+                for key in &declared {
+                    refuse_official_key(key).map_err(ErrorInfo::from)?;
+                }
                 declared
             }
         };
@@ -81,14 +84,15 @@ impl Engine {
             .as_ref()
             .and_then(|_| cached_index(&url))
             .map(|index| index.version);
-        let index = open(&bytes, &signature, &key, cached).map_err(ErrorInfo::from)?;
-        let source = Source::new(url.clone(), &key, index);
+        let index = open(&bytes, &signature, &keys, &url, cached, common::now_unix())
+            .map_err(ErrorInfo::from)?;
+        let source = Source::new(url.clone(), &index.key.clone(), index);
         if confirm {
             let added_unix = existing
                 .as_ref()
                 .map_or_else(common::now_unix, |entry| entry.added_unix);
             self.plugin_repositories()
-                .save(entry_of(&source, &key, added_unix))?;
+                .save(entry_of(&source, added_unix))?;
             cache_index(&url, &bytes);
             tracing::info!(url, key = %source.key_id, "plugin repository added");
         }
@@ -181,6 +185,7 @@ impl Engine {
         let index = cached_index(&entry.url).ok_or_else(|| ErrorInfo::RepositoryInvalid {
             detail: "its index has not been fetched yet; refresh the repository".to_string(),
         })?;
+        ensure_fresh(&index, &entry.url, common::now_unix()).map_err(ErrorInfo::from)?;
         let source = Source::new(entry.url.clone(), &entry.key, index);
         let unavailable = |detail: String| ErrorInfo::PluginBuildUnavailable {
             id: id.to_string(),
@@ -196,15 +201,15 @@ impl Engine {
         let build = choice
             .build()
             .ok_or_else(|| unavailable(describe(&choice, plugin)))?;
-        let file = file_name(&build.url)?;
+        let url = build_url(&entry.url, &build.file).map_err(ErrorInfo::from)?;
 
         let downloads = self.plugin_downloads();
-        let token = downloads.fetch(&build.url).await?;
-        let warnings = match self
-            .verify_staged(&token, &entry, &source, plugin, build, &file)
+        let token = downloads.fetch(&url).await?;
+        let (warnings, signer) = match self
+            .verify_staged(&token, &entry, plugin, build, &url)
             .await
         {
-            Ok(warnings) => warnings,
+            Ok(verified) => verified,
             Err(error) => {
                 downloads.discard(&token);
                 tracing::warn!(plugin = id, repository = repo, "repository build refused");
@@ -214,7 +219,7 @@ impl Engine {
         downloads.attest(
             &token,
             Origin {
-                signer: source.key_id.clone(),
+                signer,
                 repository: entry.url.clone(),
             },
             warnings,
@@ -226,11 +231,11 @@ impl Engine {
         &self,
         token: &str,
         entry: &RepositoryEntry,
-        source: &Source,
         plugin: &IndexedPlugin,
         build: &Build,
-        file: &str,
-    ) -> Result<Vec<WarningInfo>> {
+        url: &str,
+    ) -> Result<(Vec<WarningInfo>, String)> {
+        let file = file_name(url)?;
         let downloads = self.plugin_downloads();
         let staged = downloads.staged(token)?;
         let bytes = tokio::fs::read(&staged.path).await?;
@@ -241,7 +246,7 @@ impl Engine {
             .into());
         }
         let signature = downloads
-            .fetch_capped(&format!("{}.minisig", build.url), SIGNATURE_CAP)
+            .fetch_capped(&format!("{url}.minisig"), SIGNATURE_CAP)
             .await
             .map_err(|error| ErrorInfo::RepositoryRefused {
                 detail: format!("the build has no signature: {error:#}"),
@@ -249,13 +254,13 @@ impl Engine {
         let signature = String::from_utf8(signature).map_err(|_| ErrorInfo::RepositoryRefused {
             detail: "the signature is not text".to_string(),
         })?;
-        verify_build(
+        let signer = verify_build(
             &bytes,
             &signature,
-            &entry.key,
+            &pinned_keys(&entry.key, &entry.next),
             &plugin.id,
             &build.version,
-            file,
+            &file,
         )
         .map_err(ErrorInfo::from)?;
 
@@ -273,14 +278,15 @@ impl Engine {
         let asked: BTreeSet<_> = manifest.permissions.iter().collect();
         let disagree = build.version == plugin.version && listed != asked;
         if disagree {
-            tracing::warn!(plugin = %plugin.id, repository = %source.url, "index permissions differ from the package");
+            tracing::warn!(plugin = %plugin.id, repository = %entry.url, "index permissions differ from the package");
         }
-        Ok(disagree
+        let warnings = disagree
             .then(|| WarningInfo::PluginPermissionsDisagree {
                 plugin: plugin.id.clone(),
             })
             .into_iter()
-            .collect())
+            .collect();
+        Ok((warnings, signer))
     }
 
     async fn fetch_signed(&self, url: &str) -> Result<(Vec<u8>, String)> {
@@ -326,20 +332,21 @@ impl Engine {
         let cached = cached_index(&entry.url);
         let fetched = async {
             let (bytes, signature) = self.fetch_signed(&entry.url).await?;
-            let index = open(
+            let index = accept_index(
+                &entry,
                 &bytes,
                 &signature,
-                &entry.key,
                 cached.as_ref().map(|index| index.version),
+                common::now_unix(),
             )
             .map_err(ErrorInfo::from)?;
-            Ok::<_, anyhow::Error>((bytes, index))
+            Ok::<_, anyhow::Error>(index)
         }
         .await;
         match fetched {
-            Ok((bytes, index)) => {
-                cache_index(&entry.url, &bytes);
-                let source = Source::new(entry.url.clone(), &entry.key, index);
+            Ok(index) => {
+                let key = index.key.clone();
+                let source = Source::new(entry.url.clone(), &key, index);
                 let entry = self.remember(entry, &source);
                 Synced {
                     entry,
@@ -360,13 +367,30 @@ impl Engine {
     }
 
     fn remember(&self, entry: RepositoryEntry, source: &Source) -> RepositoryEntry {
-        let latest = entry_of(source, &entry.key, entry.added_unix);
+        let latest = entry_of(source, entry.added_unix);
         if latest != entry {
             if let Err(error) = self.plugin_repositories().save(latest.clone()) {
                 tracing::warn!(url = %entry.url, %error, "plugin repository snapshot not saved");
             }
         }
         latest
+    }
+
+    /// Installed plugins whose own repository's cached index revokes the
+    /// installed version, as (id, reason). Blocking; no network.
+    pub fn revoked_installs(&self) -> Vec<(String, String)> {
+        let plugins = self.plugins();
+        plugins
+            .list()
+            .into_iter()
+            .filter_map(|record| {
+                let (signer, url) = (record.signer.as_deref()?, record.repository.as_deref()?);
+                let index = cached_index(url)?;
+                let version = plugins.read_manifest(&record.id).ok()?.version;
+                let revoked = revocation(&index, signer, &record.id, &version)?;
+                Some((record.id.clone(), revoked.reason.clone()))
+            })
+            .collect()
     }
 
     fn installed_plugins(&self) -> Vec<Installed> {
@@ -386,10 +410,35 @@ impl Engine {
     }
 }
 
-fn entry_of(source: &Source, key: &str, added_unix: i64) -> RepositoryEntry {
+/// Verifies a fetched index against the repository's pinned keys and caches it
+/// only when every check passed: a refused index never replaces the cache.
+fn accept_index(
+    entry: &RepositoryEntry,
+    bytes: &[u8],
+    signature: &str,
+    cached_version: Option<u64>,
+    now_unix: i64,
+) -> Result<RepositoryIndex, RepoError> {
+    let keys = pinned_keys(&entry.key, &entry.next);
+    let index = open(
+        bytes,
+        signature,
+        &keys,
+        &entry.url,
+        cached_version,
+        now_unix,
+    )?;
+    cache_index(&entry.url, bytes);
+    Ok(index)
+}
+
+/// The entry a verified index pins: the key that signed it and its spare, so an
+/// index signed by the spare moves the pins on.
+fn entry_of(source: &Source, added_unix: i64) -> RepositoryEntry {
     RepositoryEntry {
         url: source.url.clone(),
-        key: key.to_string(),
+        key: source.index.key.clone(),
+        next: source.index.next.clone(),
         name: source.index.name.clone(),
         label: source.index.label.clone(),
         website: source.index.website.clone(),
@@ -403,6 +452,7 @@ fn is_refusal(error: &ErrorInfo) -> bool {
         ErrorInfo::RepositoryInvalid { .. }
             | ErrorInfo::RepositoryKeyChanged { .. }
             | ErrorInfo::RepositoryRefused { .. }
+            | ErrorInfo::RepositoryExpired { .. }
     )
 }
 
@@ -451,7 +501,10 @@ fn file_name(url: &str) -> Result<String> {
 
 #[cfg(test)]
 mod tests {
+    use proto::repository::INDEX_LIFETIME_SECONDS;
+
     use super::*;
+    use crate::plugins::testkit::{sample_index, sign_index, Signer, SAMPLE_NOW, SAMPLE_VERSION};
 
     #[test]
     fn a_build_file_name_is_the_last_path_segment() {
@@ -502,7 +555,7 @@ mod tests {
         let engine = Engine::new(Some(home.path()));
 
         let error = engine
-            .add_repository("http://127.0.0.1:1/hestia-index.json", false)
+            .add_repository("http://127.0.0.1:1/plugins.json", false)
             .await
             .unwrap_err();
 
@@ -526,5 +579,168 @@ mod tests {
             crate::error_info(error),
             ErrorInfo::RepositoryNotFound { .. }
         ));
+    }
+
+    fn entry_for(url: &str, signer: &Signer, spare: Option<&Signer>) -> RepositoryEntry {
+        RepositoryEntry {
+            url: url.to_string(),
+            key: signer.key(),
+            next: spare.map(Signer::key).unwrap_or_default(),
+            ..RepositoryEntry::default()
+        }
+    }
+
+    fn cache_home() {
+        let dir = tempfile::tempdir().unwrap().keep();
+        crate::net::store::set_root(dir);
+    }
+
+    #[test]
+    fn a_refused_index_never_replaces_the_cache() {
+        cache_home();
+        let url = "https://refused.example/plugins.json";
+        let (signer, other) = (Signer::new(), Signer::new());
+        let entry = entry_for(url, &signer, None);
+        let good = sample_index(&signer.key(), |_| {});
+        let signature = sign_index(&signer, &good);
+        accept_index(&entry, &good, &signature, None, SAMPLE_NOW).unwrap();
+        assert_eq!(cached_index(url).unwrap().name, "hestia-plugins-sample");
+
+        let renamed = |index: &mut RepositoryIndex| index.name = "replaced".to_string();
+        let newer = sample_index(&signer.key(), |index| {
+            renamed(index);
+            index.version += 10;
+            index.expires += 10;
+        });
+        let older = sample_index(&signer.key(), |index| {
+            renamed(index);
+            index.version -= 10;
+            index.expires -= 10;
+        });
+        let bad_signature = sign_index(&other, &newer);
+        let expired_at = SAMPLE_NOW + INDEX_LIFETIME_SECONDS;
+        let refusals = [
+            (
+                accept_index(
+                    &entry,
+                    &newer,
+                    &bad_signature,
+                    Some(SAMPLE_VERSION),
+                    SAMPLE_NOW,
+                ),
+                "a bad signature",
+            ),
+            (
+                accept_index(
+                    &entry,
+                    &older,
+                    &sign_index(&signer, &older),
+                    Some(SAMPLE_VERSION),
+                    SAMPLE_NOW,
+                ),
+                "a lower version",
+            ),
+            (
+                accept_index(
+                    &entry,
+                    &newer,
+                    &sign_index(&signer, &newer),
+                    Some(SAMPLE_VERSION),
+                    expired_at + 10,
+                ),
+                "an expired index",
+            ),
+        ];
+
+        for (result, what) in refusals {
+            assert!(result.is_err(), "{what} is refused");
+            assert_eq!(
+                cached_index(url).unwrap().name,
+                "hestia-plugins-sample",
+                "{what} leaves the cache alone"
+            );
+        }
+    }
+
+    #[test]
+    fn an_index_signed_by_the_pinned_spare_verifies_and_moves_the_pins() {
+        cache_home();
+        let url = "https://rotating.example/plugins.json";
+        let (current, spare, next_spare) = (Signer::new(), Signer::new(), Signer::new());
+        let entry = entry_for(url, &current, Some(&spare));
+        let bytes = sample_index(&spare.key(), |index| index.next = next_spare.key());
+
+        let index = accept_index(
+            &entry,
+            &bytes,
+            &sign_index(&spare, &bytes),
+            None,
+            SAMPLE_NOW,
+        )
+        .unwrap();
+
+        let source = Source::new(url.to_string(), &index.key.clone(), index);
+        let moved = entry_of(&source, 0);
+        assert_eq!(moved.key, spare.key());
+        assert_eq!(moved.next, next_spare.key());
+        assert!(accept_index(
+            &entry_for(url, &current, None),
+            &bytes,
+            &sign_index(&spare, &bytes),
+            None,
+            SAMPLE_NOW
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn an_installed_version_the_index_revokes_is_reported_with_its_reason() {
+        cache_home();
+        let url = "https://revoking.example/plugins.json";
+        let home = tempfile::tempdir().unwrap();
+        let engine = Engine::new(Some(home.path()));
+        let signer = Signer::new();
+        let signer_id = crate::plugins::key_id_of(&signer.key()).unwrap();
+        let entry = entry_for(url, &signer, None);
+        let bytes = sample_index(&signer.key(), |index| {
+            index.revoked = vec![proto::repository::Revocation {
+                id: "aa".to_string(),
+                versions: vec!["0.1.0".to_string()],
+                reason: "leaks tokens".to_string(),
+            }];
+        });
+        accept_index(
+            &entry,
+            &bytes,
+            &sign_index(&signer, &bytes),
+            None,
+            SAMPLE_NOW,
+        )
+        .unwrap();
+        let install = |id: &str, version: &str, signer: Option<&str>| {
+            let record = crate::plugins::PluginRecord {
+                id: id.to_string(),
+                signer: signer.map(str::to_string),
+                repository: Some(url.to_string()),
+                enabled: true,
+                ..crate::plugins::PluginRecord::default()
+            };
+            engine.plugins().save(&record).unwrap();
+            let package = engine.plugins().package_dir(id).unwrap();
+            std::fs::create_dir_all(&package).unwrap();
+            std::fs::write(
+                package.join("plugin.toml"),
+                format!("id = \"{id}\"\nversion = \"{version}\"\n"),
+            )
+            .unwrap();
+        };
+        install("aa", "0.1.0", Some(&signer_id));
+        install("bb", "0.1.0", Some(&signer_id));
+        install("cc", "0.1.0", None);
+
+        assert_eq!(
+            engine.revoked_installs(),
+            [("aa".to_string(), "leaks tokens".to_string())]
+        );
     }
 }

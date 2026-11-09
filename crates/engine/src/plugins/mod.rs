@@ -29,7 +29,7 @@ mod runtime;
 mod settings;
 mod store;
 #[cfg(test)]
-mod testkit;
+pub(crate) mod testkit;
 
 pub use asset::MAX_ASSET_BYTES;
 pub use catalogue::Listings;
@@ -42,7 +42,7 @@ pub use hooks::{
     Roster,
 };
 pub use imports::{CommandRun, HostCalls, HostError};
-pub(crate) use index::{declared_key, expand, open};
+pub(crate) use index::{build_url, declared_keys, expand, open, pinned_keys};
 pub use install::Inspection;
 pub use official::{is_official_signer, refuse_official_key};
 pub use patch::LaunchPatch;
@@ -53,7 +53,7 @@ pub use providers::{
     PluginFormat, PluginJavaProvider,
 };
 pub use remote::{Origin, Remote, Staged};
-pub use repos::{key_id_of, revocation, verify_build, verify_index, RepoError};
+pub use repos::{ensure_fresh, key_id_of, revocation, verify_build, verify_index, RepoError};
 pub(crate) use repositories::{cache_index, cached_index, Repositories, RepositoryEntry};
 pub use runtime::{
     CallError, LoadError, LoadedPlugin, PluginRuntime, PluginStats, CANCEL_GRACE, COMMAND_TIMEOUT,

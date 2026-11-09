@@ -73,19 +73,25 @@ pub(super) fn register(on: &mut Channels<'_>) {
     });
 
     on.handle::<PluginRepoRefresh, _, _>(|p, ctx| async move {
-        ctx.runtime
+        let refreshed = ctx
+            .runtime
             .engine()
             .refresh_repositories(p.url.as_deref())
             .await
-            .map_err(crate::runtime::engine_error)
+            .map_err(crate::runtime::engine_error)?;
+        ctx.runtime.plugins().enforce_revocations().await;
+        Ok(refreshed)
     });
 
     on.handle::<PluginCatalogue, _, _>(|p, ctx| async move {
-        ctx.runtime
+        let catalogue = ctx
+            .runtime
             .engine()
             .catalogue(&p)
             .await
-            .map_err(crate::runtime::engine_error)
+            .map_err(crate::runtime::engine_error)?;
+        ctx.runtime.plugins().enforce_revocations().await;
+        Ok(catalogue)
     });
 
     on.handle::<PluginInspect, _, _>(|p, ctx| async move {

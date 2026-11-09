@@ -107,7 +107,7 @@ async fn an_attested_package_installs_as_a_repository_build_with_its_signer() {
         &token,
         Origin {
             signer: "0123456789ABCDEF".to_string(),
-            repository: "https://example.com/hestia-index.json".to_string(),
+            repository: "https://example.com/plugins.json".to_string(),
         },
         vec![WarningInfo::PluginPermissionsDisagree {
             plugin: "tunnel".to_string(),
@@ -123,7 +123,7 @@ async fn an_attested_package_installs_as_a_repository_build_with_its_signer() {
     assert_eq!(record.signer.as_deref(), Some("0123456789ABCDEF"));
     assert_eq!(
         record.repository.as_deref(),
-        Some("https://example.com/hestia-index.json")
+        Some("https://example.com/plugins.json")
     );
     assert_eq!(record.url.as_deref(), Some(url.as_str()));
     assert_eq!(staged.warnings.len(), 1);

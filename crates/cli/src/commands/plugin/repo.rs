@@ -24,6 +24,8 @@ pub struct StoreMeta {
     pub label: String,
     pub website: String,
     pub key: String,
+    /// The optional spare key, pinned with `key` by whoever adds the repository.
+    pub next: String,
 }
 
 /// One folder under `plugins/`, as found on disk. Whether it is valid is for

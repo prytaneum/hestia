@@ -86,6 +86,7 @@
       "port_unavailable": "A porta {port} está indisponível.",
       "process_not_found": "Nenhum processo '{id}'.",
       "provisioning": "{name} ainda está sendo configurado.",
+      "repository_expired": "O índice de '{repository}' expirou, então nada novo é instalado a partir dele. Os plugins já instalados continuam funcionando. Atualize o repositório quando ele estiver acessível.",
       "repository_invalid": "Não é um repositório de plugins do Hestia: {detail}",
       "repository_key_changed": "Este repositório agora assina com a chave {declared}, mas você confiou na chave {pinned}. Nada foi alterado. Se a mudança for esperada, remova o repositório e adicione-o de novo.",
       "repository_not_found": "Nenhum repositório de plugins corresponde a '{reference}'.",

@@ -6,14 +6,21 @@ use serde::{Deserialize, Serialize};
 use crate::plugin::Permission;
 
 pub const INDEX_SCHEMA_VERSION: u32 = 1;
-pub const INDEX_FILE: &str = "hestia-index.json";
+pub const INDEX_FILE: &str = "plugins.json";
+
+/// How long an index stays fresh after it is signed.
+pub const INDEX_LIFETIME_SECONDS: i64 = 30 * 24 * 60 * 60;
 
 #[derive(Serialize, Deserialize, Default, Debug, Clone, PartialEq, Eq)]
 #[serde(default, rename_all = "camelCase")]
 pub struct RepositoryIndex {
     pub schema_version: u32,
-    /// Grows by one with every regeneration, so a client can refuse a rollback.
+    /// The signing time in unix seconds: monotonic without stored state, so a
+    /// client can refuse a rollback.
     pub version: u64,
+    /// Unix seconds after which the index is stale: `version` plus
+    /// [`INDEX_LIFETIME_SECONDS`]. The signed trusted comment repeats it.
+    pub expires: i64,
     /// Where the source lives; with `commit`, it traces a listing to its source.
     pub repository: String,
     pub commit: String,
@@ -23,6 +30,9 @@ pub struct RepositoryIndex {
     pub website: String,
     /// The minisign public key the repository signs its index and packages with.
     pub key: String,
+    /// An optional spare key, pinned with `key`; an index signed by it verifies,
+    /// which is how a repository rotates without users re-adding it.
+    pub next: String,
     pub plugins: Vec<IndexedPlugin>,
     pub revoked: Vec<Revocation>,
 }
@@ -51,7 +61,9 @@ pub struct Build {
     pub version: String,
     /// The caret requirement `pack` wrote; a theme-only package has none.
     pub api: Option<String>,
-    pub url: String,
+    /// The package's path relative to the index URL, so a mirror or another
+    /// host serves the same tree.
+    pub file: String,
     /// Hex sha256 of the package.
     pub sha256: String,
 }
@@ -71,8 +83,9 @@ pub fn build_comment(id: &str, version: &str, file: &str) -> String {
     format!("hestia-build id={id} version={version} file={file}")
 }
 
-/// The trusted comment an index's signature must carry; the version is what
-/// makes an older signed index detectable as a rollback.
-pub fn index_comment(version: u64) -> String {
-    format!("hestia-index version={version}")
+/// The trusted comment an index's signature must carry; the version makes an
+/// older signed index detectable as a rollback and `expires` makes a frozen one
+/// detectable as stale.
+pub fn index_comment(version: u64, expires: i64) -> String {
+    format!("hestia-index version={version} expires={expires}")
 }

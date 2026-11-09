@@ -19,6 +19,8 @@ pub struct RepositoryEntry {
     pub url: String,
     /// The minisign public key pinned when the repository was added.
     pub key: String,
+    /// Its spare key, pinned with it; empty when the repository has none.
+    pub next: String,
     pub name: String,
     pub label: String,
     pub website: String,

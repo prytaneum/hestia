@@ -100,7 +100,7 @@
       "official_hint": "Signed by the official Hestia plugins key.",
       "repos": {
         "add": "Add",
-        "add_placeholder": "owner/repo or https://…/hestia-index.json",
+        "add_placeholder": "owner/repo or https://…/plugins.json",
         "added": "{name} added",
         "already": "Already added.",
         "count": "Plugins: {count}",

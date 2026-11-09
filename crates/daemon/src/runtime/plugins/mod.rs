@@ -112,6 +112,39 @@ impl Plugins {
                 tracing::error!(%error, "plugin load task failed");
             }
         }
+        self.enforce_revocations().await;
+    }
+
+    /// Disables every installed plugin whose own repository has revoked its
+    /// version, with the reason as its error. Reads the cached indexes, so it
+    /// holds after a restart as well as after a refresh.
+    pub async fn enforce_revocations(&self) {
+        let engine = self.engine.clone();
+        let revoked = spawn_blocking(move || engine.revoked_installs())
+            .await
+            .unwrap_or_default();
+        for (id, reason) in revoked {
+            let note = format!("revoked by its repository: {reason}");
+            let already = self.slots.lock().unwrap().get(&id).is_some_and(|slot| {
+                slot.state == PluginState::Disabled && slot.error.as_ref() == Some(&note)
+            });
+            if already {
+                continue;
+            }
+            if let Err(error) = self.engine.plugins().set_enabled(&id, false) {
+                tracing::warn!(plugin = %id, %error, "a revoked plugin could not be disabled");
+                continue;
+            }
+            tracing::warn!(plugin = %id, %reason, "plugin disabled: its version was revoked");
+            self.settle(
+                &id,
+                PluginState::Disabled,
+                Some(note),
+                None,
+                Contributions::default(),
+            );
+            self.engine.processes().stop_owned(&engine::owner_of(&id));
+        }
     }
 
     /// Stops serving plugins: nothing can start a call on them afterwards, and

@@ -528,6 +528,11 @@ pub enum ErrorInfo {
     RepositoryRefused {
         detail: String,
     },
+    /// The repository's index is past its expiry, so nothing new is installed
+    /// from it until a fresh one is fetched. Installed plugins keep running.
+    RepositoryExpired {
+        repository: String,
+    },
     /// The repository has no build of the plugin this Hestia can install.
     PluginBuildUnavailable {
         id: String,
@@ -974,6 +979,10 @@ impl fmt::Display for ErrorInfo {
                 "the repository now declares key {declared}, but key {pinned} was trusted"
             ),
             RepositoryRefused { detail } => write!(f, "the repository was refused: {detail}"),
+            RepositoryExpired { repository } => write!(
+                f,
+                "the index of '{repository}' has expired; refresh it before installing from it"
+            ),
             PluginBuildUnavailable { id, detail } => {
                 write!(f, "no installable build of '{id}': {detail}")
             }
