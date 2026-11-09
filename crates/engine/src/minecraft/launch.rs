@@ -23,6 +23,15 @@ pub struct LaunchPlan {
 }
 
 impl LaunchPlan {
+    /// Runs the command through `wrappers`, the first outermost: each takes
+    /// the command it wraps as its arguments.
+    pub fn wrap(&mut self, wrappers: Vec<PathBuf>) {
+        for wrapper in wrappers.into_iter().rev() {
+            let inner = std::mem::replace(&mut self.program, wrapper);
+            self.args.insert(0, inner.to_string_lossy().into_owned());
+        }
+    }
+
     /// Adds `jvm` ahead of every other JVM option, and `game` at the end. The
     /// JVM honours the last occurrence of an option, so the user's flags and
     /// the launcher's own always win over these. Does nothing to the JVM
@@ -315,6 +324,21 @@ mod tests {
             path: path.to_string(),
             artifact: Artifact::default(),
         }
+    }
+
+    #[test]
+    fn wrappers_nest_with_the_first_outermost() {
+        let mut plan = LaunchPlan {
+            program: PathBuf::from("java"),
+            args: vec!["-jar".into()],
+            cwd: PathBuf::new(),
+        };
+        plan.wrap(vec![
+            PathBuf::from("gamemoderun"),
+            PathBuf::from("mangohud"),
+        ]);
+        assert_eq!(plan.program, PathBuf::from("gamemoderun"));
+        assert_eq!(plan.args, ["mangohud", "java", "-jar"]);
     }
 
     #[test]

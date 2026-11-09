@@ -223,6 +223,7 @@ impl Engine {
             .await
             .map_err(|error| anyhow::anyhow!(error))?;
         plan.args.splice(0..0, hooked.patch.jvm_args);
+        plan.wrap(hooked.patch.wrappers);
         let mut warnings = hooked.warnings;
         warnings.extend(hooked.patch.dropped);
         Ok((record, plan, warnings))

@@ -206,7 +206,12 @@ warning on the result while the operation goes ahead. Only an explicit veto stop
 in id order and their patches fold in that order. A launch or server-start patch
 is filtered through an allowlist (`patch.rs`: a fixed set of GC and heap flags, `-D`
 keys the manifest declared, no code-loading options); anything else is dropped with
-a warning. Details, including which claim a hook holds, are in
+a warning. A patch may also name a `wrapper`: one of the plugin's own `PATH`
+`[[programs]]` (`gamemoderun`, `mangohud`), run in front of the game or server
+command by its path pinned at approval ([0101](../decisions/0101-plugins-spawn-only-declared-programs.md)).
+It needs `process:spawn`; an unknown or data-directory program, a missing
+permission or a vanished file drops it with the same `LaunchArgDropped` warning.
+Wrappers nest, so the first plugin in id order is outermost. Details, including which claim a hook holds, are in
 [0095](../decisions/0095-interceptors-are-bounded-and-fail-open.md).
 
 ## Provider surfaces

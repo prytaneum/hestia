@@ -173,6 +173,7 @@ fn answer(key: &str) -> Result<LaunchPatch, String> {
     Ok(LaunchPatch {
         extra_jvm_args: list("jvm"),
         extra_game_args: list("game"),
+        wrapper: None,
     })
 }
 

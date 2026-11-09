@@ -379,6 +379,7 @@ impl Engine {
             hooked.patch.jvm_args,
             hooked.patch.game_args,
         );
+        plan.wrap(hooked.patch.wrappers);
         Ok(PreparedLaunch {
             record,
             plan,

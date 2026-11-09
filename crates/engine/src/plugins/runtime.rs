@@ -498,6 +498,12 @@ impl LoadedPlugin {
         .map_err(guest_error)
     }
 
+    /// The path a `PATH` program was pinned to at approval, when this plugin
+    /// holds `process:spawn` and the file is still there.
+    pub fn pinned_program(&self, id: &str) -> Option<PathBuf> {
+        self.programs.wrapper(id)
+    }
+
     /// What the user approved for this plugin.
     pub fn grant(&self) -> &Grant {
         &self.grant

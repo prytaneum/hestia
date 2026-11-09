@@ -192,6 +192,22 @@ impl Programs {
         Ok(self.running().into_iter().map(|info| info.id).collect())
     }
 
+    /// The path the `PATH` program `id` was pinned to at approval, while it is
+    /// still executable there.
+    fn pinned(&self, id: &str) -> Option<PathBuf> {
+        self.resolved
+            .get(id)
+            .filter(|path| program::is_executable(path))
+            .cloned()
+    }
+
+    /// The pinned program `id` a launch may run through, when this plugin holds
+    /// `process:spawn`.
+    pub(crate) fn wrapper(&self, id: &str) -> Option<PathBuf> {
+        self.require_spawn().ok()?;
+        self.pinned(id)
+    }
+
     fn require_spawn(&self) -> Result<(), ProgramError> {
         if self.grant.permissions.contains(&Permission::ProcessSpawn) {
             return Ok(());
@@ -236,18 +252,13 @@ impl Programs {
 
     async fn executable(&self, program: &Program) -> Result<PathBuf, ProgramError> {
         if !program.in_data_dir() {
-            return self
-                .resolved
-                .get(&program.id)
-                .filter(|path| program::is_executable(path))
-                .cloned()
-                .ok_or_else(|| {
-                    ProgramError::Failed(format!(
-                        "`{}` was not found at the path pinned when the plugin was approved; \
+            return self.pinned(&program.id).ok_or_else(|| {
+                ProgramError::Failed(format!(
+                    "`{}` was not found at the path pinned when the plugin was approved; \
                          install the plugin again to approve it afresh",
-                        program.id
-                    ))
-                });
+                    program.id
+                ))
+            });
         }
         let (data_dir, bin_dir, program) =
             (self.data_dir.clone(), self.bin_dir.clone(), program.clone());

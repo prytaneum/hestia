@@ -115,14 +115,19 @@ pub struct InstallContext {
 
 /// Arguments a launch or server-start hook asks to add. The host keeps only an
 /// allowlist (tuning `-XX:` flags, `-D` keys the manifest declares, `--width`,
-/// `--height`, `--fullscreen`) and drops the rest with a warning.
+/// `--height`, `--fullscreen`) and drops the rest with a warning. `wrapper`
+/// names one of the plugin's own `[[programs]]`, which needs `process:spawn`; the
+/// host runs the game through its pinned path, or drops the request with a
+/// warning when the name is unknown or the permission missing.
 #[derive(Serialize, Deserialize, Default, Debug, Clone, PartialEq, Eq)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
 #[serde(default, rename_all = "camelCase")]
 pub struct LaunchPatch {
     pub extra_jvm_args: Vec<String>,
     /// Ignored for a server start: a server has no window.
     pub extra_game_args: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub wrapper: Option<String>,
 }
 
 /// Runs just before the game is spawned.

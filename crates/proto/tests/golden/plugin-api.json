@@ -661,7 +661,7 @@
     "KeyKind": "type KeyKind = { \"type\": \"boolean\" } | { \"type\": \"integer\", min: bigint, max: bigint, } | { \"type\": \"choice\", values: Array<string>, } | { \"type\": \"memory\" } | { \"type\": \"jvm_args\" };",
     "KeyRule": "type KeyRule = { key: string, kind: KeyKind, };",
     "LaunchContext": "type LaunchContext = { instanceId: string, instanceName: string, gameVersion: string, flavor: string, loaderVersion?: string, javaPath: string, memory?: string, quickPlay?: string, profileName: string, profileUuid: string, };",
-    "LaunchPatch": "type LaunchPatch = { extraJvmArgs: Array<string>, extraGameArgs: Array<string>, };",
+    "LaunchPatch": "type LaunchPatch = { extraJvmArgs: Array<string>, extraGameArgs: Array<string>, wrapper?: string, };",
     "Library": "type Library = { name: string, path: string, artifact: Artifact, };",
     "ManifestQuery": "type ManifestQuery = { manifest: string, files: Array<string>, };",
     "ModpackDone": "type ModpackDone = { entry: string, entryName: string, pack: InstalledModpack, failures: Array<ContentFailure>, warnings: Array<WarningInfo>, };",

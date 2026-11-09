@@ -151,3 +151,29 @@ fn a_server_keeps_the_jvm_allowlist_and_drops_every_game_argument() {
         ["-javaagent:x.jar", "--fullscreen", "--width", "1280"]
     );
 }
+
+#[test]
+fn a_wrapper_is_kept_only_when_it_resolves_and_nests_first_outermost() {
+    let path = PathBuf::from("/usr/bin/gamemoderun");
+    let kept = vet(&[], &[], &[]).with_wrapper("demo", Some("gamemode".into()), |name| {
+        (name == "gamemode").then(|| path.clone())
+    });
+    assert_eq!(kept.wrappers, std::slice::from_ref(&path));
+    assert!(kept.dropped.is_empty());
+
+    let unknown = vet(&[], &[], &[]).with_wrapper("demo", Some("nope".into()), |_| None);
+    assert!(unknown.wrappers.is_empty());
+    assert_eq!(dropped(&unknown), ["nope"]);
+
+    let none = vet(&[], &[], &[]).with_wrapper("demo", None, |_| unreachable!());
+    assert!(none.wrappers.is_empty() && none.dropped.is_empty());
+
+    let other = LaunchPatch {
+        wrappers: vec![PathBuf::from("/usr/bin/mangohud")],
+        ..Default::default()
+    };
+    assert_eq!(
+        kept.then(other).wrappers,
+        [path, PathBuf::from("/usr/bin/mangohud")]
+    );
+}

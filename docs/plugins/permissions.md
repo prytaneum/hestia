@@ -26,7 +26,7 @@ access to the computer.
 | `java:manage` | sandboxed | Install and remove Java runtimes |
 | `network:connect` | sandboxed | Connect to the hosts it lists in `network` |
 | `ui:css` | sandboxed | Restyle the app with its own stylesheet ([0100](../decisions/0100-themes-are-plugin-css.md)) |
-| `launch:patch` | sandboxed | Adjust launch settings from an allowlist when a game or server starts |
+| `launch:patch` | sandboxed | Adjust launch settings from an allowlist when a game or server starts; a wrapper program also needs `process:spawn` |
 | `ipc:connect` | unrestricted | Talk to the programs running on this computer that it lists in `ipc` (below) |
 | `flavor:provide` | unrestricted | Add game distributions that choose what code the game runs, including its main class and arguments |
 | `format:provide` | unrestricted | Add archive formats that choose the game version, loader and JVM settings of instances you import |

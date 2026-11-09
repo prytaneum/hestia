@@ -20,6 +20,9 @@ impl Hook for BeforeLaunch {
             patch.extra_jvm_args,
             patch.extra_game_args,
         )
+        .with_wrapper(plugin.id(), patch.wrapper, |name| {
+            plugin.pinned_program(name)
+        })
     }
 
     fn fold(folded: LaunchPatch, next: LaunchPatch) -> LaunchPatch {
@@ -43,6 +46,9 @@ impl Hook for BeforeServerStart {
             patch.extra_jvm_args,
             patch.extra_game_args,
         )
+        .with_wrapper(plugin.id(), patch.wrapper, |name| {
+            plugin.pinned_program(name)
+        })
     }
 
     fn fold(folded: LaunchPatch, next: LaunchPatch) -> LaunchPatch {
