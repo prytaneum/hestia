@@ -25,6 +25,7 @@ import {
 } from '@/features/content/install';
 import { anchor, useAutoTour } from '@/features/onboarding';
 import { ServerWorlds } from '@/features/servers/components';
+import { formatPorts } from '@/features/servers/lib';
 import {
   ServerBackupsTab,
   ServerConsoleTab,
@@ -329,7 +330,7 @@ function ServerDetail({
                     {server.ports.length > 1 && (
                       <Stat
                         label={m['app.label.ports']()}
-                        value={server.ports.join(', ')}
+                        value={formatPorts(server.ports)}
                       />
                     )}
                     <Stat
