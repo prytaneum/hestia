@@ -552,6 +552,12 @@ A hook stricter than CI would block pushes CI would pass; looser is fine.
 Either hook takes `--no-verify` when you need to bypass it
 (`git commit --no-verify`, `git push --no-verify`).
 
+## Plugins
+
+Plugin authors write against the SDK, not the engine; the author's guide is [plugins/](plugins/README.md). The wire-in
+points for the plugin API (a contract's `PLUGIN` permission, a hook point, a provider kind) are described in
+[architecture/plugins.md](architecture/plugins.md).
+
 ## Recording a decision
 
 When a non-trivial architectural choice is made, write it down in
