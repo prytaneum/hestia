@@ -18,3 +18,6 @@ files the process writes itself, tailed into `process.output` events.
 One caveat is inherited from vanilla: rcon has no bind-address setting, so the
 listener is network-reachable, and the per-server random password is the only
 barrier. It never appears in logs.
+
+See also [0114](0114-a-bedrock-console-is-a-reattachable-stdin-endpoint.md): a Bedrock server has no RCON, and
+its console is a stdin endpoint the supervisor keeps across daemon restarts.

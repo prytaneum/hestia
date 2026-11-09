@@ -50,6 +50,7 @@ the alternative you rejected — that is usually the part nobody can recover lat
 - **0066** — [A channel picks the feed, not an entry inside one](0066-a-channel-picks-the-feed-not-the-entry.md)
 - **0067** — [Reachability is observed from real traffic, and offline is a state the whole system reads](0067-reachability-is-observed-not-asked.md)
 - **0068** — [The tray speaks the tray protocol, not a library that might be installed](0068-the-tray-speaks-the-tray-protocol.md)
+- **0114** — [A Bedrock console is a reattachable stdin endpoint](0114-a-bedrock-console-is-a-reattachable-stdin-endpoint.md)
 
 ### [The daemon](../architecture/daemon.md)
 
@@ -68,6 +69,9 @@ the alternative you rejected — that is usually the part nobody can recover lat
 - **0007** — [Spigot and CraftBukkit are compiled here, because no one may ship them](0007-spigot-is-compiled-locally.md)
 - **0008** — [What an entry takes is a property of its flavor, and the flavor says so](0008-flavor-declares-accepted-content.md)
 - **0009** — [A flavor may recommend JVM flags; the user still outranks it](0009-flavor-recommends-jvm-flags.md)
+- **0112** — [The edition is the first axis, and one module owns what each edition does](0112-the-edition-is-the-first-axis.md)
+- **0113** — [A server runtime is Java or native, and a native one never meets Java](0113-a-server-runtime-is-java-or-native.md)
+- **0115** — [The BDS catalogue merges Mojang's links with the Bedrock-OSS feed](0115-the-bds-catalogue-merges-mojang-and-the-community-feed.md)
 
 ### [Servers & instances](../architecture/entries.md)
 
@@ -92,6 +96,8 @@ the alternative you rejected — that is usually the part nobody can recover lat
 - **0058** — [Joining directly is a launch parameter, not a second launch path](0058-joining-directly-is-a-launch-parameter.md)
 - **0074** — [The game reports what was played; the launcher only keeps the history](0074-the-game-reports-what-was-played.md)
 - **0088** — [The daemon sequences a version change, its restart and its modpack](0088-the-daemon-sequences-a-version-change.md)
+- **0116** — [Bedrock pins NetherNet, and status comes from the console](0116-bedrock-pins-nethernet.md)
+- **0117** — [Bedrock hot backups follow `save hold`, and copy what the server reports](0117-bedrock-hot-backups-follow-save-hold.md)
 
 ### [Content & modpacks](../architecture/content.md)
 
@@ -108,6 +114,7 @@ the alternative you rejected — that is usually the part nobody can recover lat
 - **0078** — [A pack updates from a file, and leaves an entry two ways](0078-a-pack-updates-from-a-file.md)
 - **0079** — [A local item updates from a file](0079-a-local-item-updates-from-a-file.md)
 - **0077** — [The console keeps its RCON connection, and completes from the server's own `help`](0077-the-console-keeps-its-connection.md)
+- **0118** — [A Bedrock pack is a file of record, extracted at sync](0118-a-bedrock-pack-is-a-file-extracted-at-sync.md)
 
 ### [Accounts & skins](../architecture/accounts.md)
 
