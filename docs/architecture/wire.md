@@ -59,7 +59,17 @@ One module per domain; `crates/proto/src/lib.rs` lists them.
 Three are shared vocabularies rather than domains of their own:
 
 - **`minecraft`** — what the `server` and `instance` domains have in common:
-  `Flavor`, `GameVersion`, `Artifact`, `ProvisionProgress`.
+  `Edition`, `Flavor`, `GameVersion`, `Artifact`, `ProvisionProgress`, and the
+  per-edition catalogue below.
+  `entry.flavors` answers `FlavorsResult { editions: [EditionCatalogue { edition,
+  rules, flavors, nameKey }] }`, one catalogue per edition the kind offers, and
+  `entry.versions`, `entry.loaders` and `server.create` carry an `edition` beside
+  the flavor id (default `java`). `ServerInfo` carries `edition`, `ports` (each a
+  `ServerPort { port, protocol }`, game port first), `playerLists`, and an
+  optional `javaMajor`. `server.worlds` and `server.worlds.import` (a job whose
+  `Done` is a `WorldInfo`) are the Bedrock world seam, and `ContentSource`
+  carries the `editions` it serves
+  ([0112](../decisions/0112-the-edition-is-the-first-axis.md)).
 - **`content`** — the normalized third-party content vocabulary
   (`ContentProject` with its images, `ContentVersion`, the paginated
   `SearchQuery`/`SearchResult`, `ResolvedModpack`). A front-end never sees a

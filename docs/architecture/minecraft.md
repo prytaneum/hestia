@@ -16,19 +16,23 @@ the cache for that.
 
 ## Flavors
 
-A *flavor* is a distribution of Minecraft. There is one registry; a flavor
-declares which sides it serves, and a lookup for the other side fails as an
-unknown flavor.
+A *flavor* is a distribution of Minecraft, and an **edition** (`java` or
+`bedrock`) comes before it: there is one registry, keyed by `(side, edition,
+id)`, so a flavor id is unique only within its edition and Bedrock's `vanilla`
+is not Java's. A flavor declares which sides it serves, and a lookup for the
+other side fails as an unknown flavor. Instances are Java only
+([0112](../decisions/0112-the-edition-is-the-first-axis.md)).
 
-| Flavor | Server | Client | Loads | Notes |
-|---|:--:|:--:|---|---|
-| `vanilla` | ✓ | ✓ | — | Mojang's own |
-| `fabric` | ✓ | ✓ | mods | loader version pinnable |
-| `neoforge` | ✓ | ✓ | mods | game jar built locally from the installer |
-| `paper` | ✓ | | plugins | ships tuned JVM flags per version |
-| `folia` | ✓ | | plugins | regionised; plugins filtered strictly as `folia` |
-| `spigot` | ✓ | | plugins | compiled on your machine with BuildTools |
-| `bukkit` | ✓ | | plugins | likewise (CraftBukkit) |
+| Edition | Flavor | Server | Client | Loads | Notes |
+|---|---|:--:|:--:|---|---|
+| java | `vanilla` | ✓ | ✓ | — | Mojang's own |
+| java | `fabric` | ✓ | ✓ | mods | loader version pinnable |
+| java | `neoforge` | ✓ | ✓ | mods | game jar built locally from the installer |
+| java | `paper` | ✓ | | plugins | ships tuned JVM flags per version |
+| java | `folia` | ✓ | | plugins | regionised; plugins filtered strictly as `folia` |
+| java | `spigot` | ✓ | | plugins | compiled on your machine with BuildTools |
+| java | `bukkit` | ✓ | | plugins | likewise (CraftBukkit) |
+| bedrock | `vanilla` | ✓ | | — | Mojang's Bedrock Dedicated Server; a native executable, no Java |
 
 A provider names itself in one `FlavorInfo` (`id`, `name`, `summary`, the
 content its loader consumes as `loads`, the prerequisites it needs on this
@@ -46,6 +50,14 @@ change alone:
   time, each with a name you would recognise and where to get it
   ([0006](../decisions/0006-flavor-states-its-requirements.md)).
 
+`entry.flavors` answers one `EditionCatalogue { edition, rules, flavors, nameKey }`
+per edition the side offers (a server two, an instance one). The edition's
+property `rules` and the `server.properties` key a server is listed under
+(`nameKey`) ride on it, so a picker is built from the answer alone. What differs
+*between* editions is not in the providers: it is in the engine's `edition/`
+module, a closed `match` that each flow asks
+([0112](../decisions/0112-the-edition-is-the-first-axis.md)).
+
 Adding a flavor is one impl plus one registry line. The content flows never
 change, because what an entry accepts is composed from the provider's `loads`
 plus what the side reads for itself.
@@ -56,7 +68,12 @@ plus what the side reads for itself.
 **`ServerProfile`** or **`InstanceProfile`**. A server profile names its jar
 (`Download(artifact)`, or `Built { filename }` when the install hook produces it),
 how it launches (`Jar`, or `ArgsFile` for a flavor whose install generates one),
-the required Java major and the flavor's recommended JVM args. An instance
+the required Java major and the flavor's recommended JVM args. That is a
+`ServerRuntime::Java`; a Bedrock profile is `ServerRuntime::Native { archive,
+executable, env }` — a zip, an executable and the environment it needs
+(`LD_LIBRARY_PATH=.` on Linux) — with no Java major and no JVM args, so nothing
+can apply Java settings to it
+([0113](../decisions/0113-a-server-runtime-is-java-or-native.md)). An instance
 profile carries the client jar, libraries, asset index and arguments. The
 profiles are engine types, stored on the entry records; no channel hands one to a
 client.
@@ -64,7 +81,7 @@ client.
 ```mermaid
 flowchart LR
     REQ["flavor + version<br/>+ loader version?"] --> RES["resolve()"]
-    META["minecraft/meta/<br/>mojang · fabric · paper · spigot · neoforge"] --> RES
+    META["minecraft/meta/<br/>mojang · fabric · paper · spigot · neoforge · bedrock"] --> RES
     RES --> PROF["ServerProfile / InstanceProfile"]
     PROF --> INST["install hook<br/><i>only if the jar must be built</i>"]
     PROF --> MAT["materialize<br/><i>ensure files on disk</i>"]
@@ -121,7 +138,9 @@ where a stdin pipe is not
 ([0055](../decisions/0055-the-console-is-rcon-not-a-pipe.md)). The engine's
 `console` module keeps one connection per server and reads command completions
 out of the server's `help`
-([0077](../decisions/0077-the-console-keeps-its-connection.md)).
+([0077](../decisions/0077-the-console-keeps-its-connection.md)). A Bedrock server
+has no RCON; its console is the supervisor's stdin endpoint
+([0114](../decisions/0114-a-bedrock-console-is-a-reattachable-stdin-endpoint.md)).
 
 **`world.rs`** reads a save's own `level.dat` (gzipped NBT, via `fastnbt`) so a
 world can describe itself rather than being reduced to a folder name
@@ -131,11 +150,26 @@ world can describe itself rather than being reduced to a folder name
 under — Log4Shell-safe by construction
 ([0039](../decisions/0039-per-session-log4j-config.md)).
 
-**`ping.rs`** speaks Server List Ping to a managed server on loopback or to a
+**`ping.rs`** speaks Server List Ping to a managed Java server on loopback or to a
 host from an instance's multiplayer list. **`servers.rs`** reads and edits that
 list (`servers.dat`, uncompressed NBT the running game rewrites on exit, keeping
 tags Hestia does not know). **`quickplay.rs`** reads the Quick Play log a 1.20+
 client writes, which names the world, server or Realm a session last joined.
+
+## Bedrock Dedicated Server
+
+`minecraft/bedrock/` is the one Bedrock provider. Installing unpacks Mojang's zip
+over the entry's `data/`, keeping the files a user owns, and copies the zip's own
+`server.properties` aside as the properties schema. The version list is Mojang's
+download links merged with the Bedrock-OSS feed, with preview builds as
+snapshots, and downloads are pinned to `www.minecraft.net`
+([0115](../decisions/0115-the-bds-catalogue-merges-mojang-and-the-community-feed.md)).
+
+BDS 1.26 serves only NetherNet, so Hestia writes `transport=nethernet` before
+every start and there is no RakNet status ping; a server's status comes from its
+console ([0116](../decisions/0116-bedrock-pins-nethernet.md)). Its worlds are
+LevelDB with a little-endian `level.dat`, read by a small native NBT reader in
+`bedrock/nbt.rs` rather than `fastnbt`, which is big-endian Java only.
 
 ## Flavors that build their own jar
 
@@ -196,3 +230,7 @@ which layer supplied the flags a process is actually running with
 - [0007 — Spigot and CraftBukkit are compiled here](../decisions/0007-spigot-is-compiled-locally.md)
 - [0008 — What an entry takes is a property of its flavor](../decisions/0008-flavor-declares-accepted-content.md)
 - [0009 — A flavor may recommend JVM flags; the user still outranks it](../decisions/0009-flavor-recommends-jvm-flags.md)
+- [0112 — The edition is the first axis, and one module owns what each edition does](../decisions/0112-the-edition-is-the-first-axis.md)
+- [0113 — A server runtime is Java or native, and a native one never meets Java](../decisions/0113-a-server-runtime-is-java-or-native.md)
+- [0115 — The BDS catalogue merges Mojang's links with the Bedrock-OSS feed](../decisions/0115-the-bds-catalogue-merges-mojang-and-the-community-feed.md)
+- [0116 — Bedrock pins NetherNet, and status comes from the console](../decisions/0116-bedrock-pins-nethernet.md)
