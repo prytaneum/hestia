@@ -67,6 +67,16 @@ Two cross-cutting shortcuts sit on top, earned by how often they are used:
 Everything scriptable still has an explicit noun-first form
 ([0040](../decisions/0040-entry-first-cli-grammar.md)).
 
+**Edition first.** `hestia server create` takes `--edition java|bedrock`
+(default `java`), and the wizard asks for the edition before the provider, skipping
+the step when only one is offered; `server flavors` is grouped by edition, `server
+list` shows an edition column, and `status` shows a server's ports with their protocol.
+A server's `world` verbs and the `behaviorpack`/`resourcepack` kinds appear for a
+Bedrock one. The CLI labels the list `allowlist` or `whitelist` from the server's
+edition and takes the listed-name property from the catalogue's `nameKey`, never
+from a flavor table
+([0112](../decisions/0112-the-edition-is-the-first-axis.md)).
+
 Anything a `create` needs but wasn't given is asked for interactively — on a
 terminal the picker *is* the browser; piped invocations error naming the flag to
 pass, so scripts stay explicit.
@@ -294,6 +304,18 @@ Rules that keep it from drifting:
   pipeline hit-tests the pointer by hand. A zone with a `label` gets the shell's
   `FileDropOverlay`.
 
+## Editions in the desktop
+
+The create wizard consumes `editions[]` directly: an edition switch chooses a
+catalogue, and the provider list, the property rules and the name field come from
+it; versions, loaders and create all send the edition. An entry's pages then
+render what the daemon says rather than testing for Bedrock: ports formatted from
+`ServerInfo.ports`, player lists from `playerLists` (labelled Allowlist or
+Whitelist by edition), content tabs and browse sources from `accepts` and
+`ContentSource.editions`, a worlds section from `server.worlds` with `.mcworld`
+import, and a Java row only when `javaMajor` is present. The flavor's display name
+is looked up scoped by edition, since an id is unique only within one.
+
 ## Notifications and saves
 
 Every piece of feedback has one surface, and one owner
@@ -482,6 +504,7 @@ id, or on Linux each would block the other
 - [0042 — `-vv` buys wire visibility, not more volume](../decisions/0042-vv-buys-wire-visibility.md)
 - [0043 — A state query answers through its exit code](../decisions/0043-state-queries-answer-through-exit-codes.md)
 - [0044 — Interaction is fullscreen; bare progress is one line](../decisions/0044-fullscreen-interaction-inline-progress.md)
+- [0112 — The edition is the first axis, and one module owns what each edition does](../decisions/0112-the-edition-is-the-first-axis.md)
 - [0046 — The desktop bridge is one generic command](../decisions/0046-desktop-bridge-is-one-generic-command.md)
 - [0047 — Messages are organised by render surface](../decisions/0047-messages-organised-by-render-surface.md)
 - [0048 — Sign-in is the one bespoke shell command](../decisions/0048-sisu-sign-in-is-a-shell-command.md)

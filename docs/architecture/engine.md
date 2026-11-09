@@ -260,7 +260,19 @@ run starts again from zero.
 
 **Stops are polite and reach the tree.** SIGTERM first (the JVM saves and exits),
 a hard kill only after a grace period — both addressed at the whole process tree,
-never a single pid.
+never a single pid. A spec can instead name `StopMethod::Line("stop")`, which
+writes that line to the process's stdin first; a Bedrock server needs it because
+BDS saves on `stop`, and the signal and kill path still follows it.
+
+**A process can keep a stdin endpoint.** `ProcessSpec.stdin` asks the supervisor
+for one that lives as long as the process and is recorded in `record.json`, so an
+adopted process reattaches after a daemon restart like its log does
+(`process/stdin/`). On unix it is a FIFO in the process directory that the child
+holds open read-write; on Windows it is a named pipe served by a relay, `hestiad
+stdin-relay`, which parents the program
+([0114](../decisions/0114-a-bedrock-console-is-a-reattachable-stdin-endpoint.md)).
+The `console` module's pipe transport writes a line there and reads the reply
+from the captured log.
 
 **A finished process is labelled, not merely unrecorded.** On exit the same
 `record.json` gains an `ended` section (state, exit code, when it ended) and keeps
@@ -272,6 +284,17 @@ retention prunes the oldest finished ones
 `task.rs` is the provisioning half: `run(Task, Job)` drives a program to
 completion, relays what it narrates as progress, and is cancelled through the
 supervisor.
+
+## Editions
+
+`edition/` is where the engine keeps what differs between a Java and a Bedrock
+server: `mod.rs` holds the shared vocabulary and a closed `match` on the record's
+`Edition`, `java.rs` and `bedrock.rs` hold each side. It answers property rules
+and managed keys, port layout and start config, process I/O (log source, stdin,
+stop line), console transport, status, backup pause and resume, worlds and
+import, content sync, and the player lists and commands. A flow calls
+`edition::…` and never branches on an edition
+([0112](../decisions/0112-the-edition-is-the-first-axis.md)).
 
 ## Self-update
 
@@ -315,4 +338,6 @@ cannot trigger an update.
 - [0034 — Workloads outlive the daemon by design](../decisions/0034-workloads-outlive-the-daemon.md)
 - [0035 — A finished process is labelled, not merely unrecorded](../decisions/0035-a-finished-process-is-tombstoned.md)
 - [0037 — Following logs is scoped to the entry, not to one run of it](../decisions/0037-following-logs-is-entry-scoped.md)
+- [0112 — The edition is the first axis, and one module owns what each edition does](../decisions/0112-the-edition-is-the-first-axis.md)
+- [0114 — A Bedrock console is a reattachable stdin endpoint](../decisions/0114-a-bedrock-console-is-a-reattachable-stdin-endpoint.md)
 - [0067 — Reachability is observed from real traffic, and offline is a state the whole system reads](../decisions/0067-reachability-is-observed-not-asked.md)

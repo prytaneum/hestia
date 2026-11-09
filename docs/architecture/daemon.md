@@ -182,7 +182,7 @@ is purely a compile-time one that keeps `make_router()` from becoming a
 | `skins` | `skin.list\|add\|update\|equip\|reset\|remove`, `cape.equip\|clear` |
 | `process` | `process.start\|stop\|list\|status\|logs` |
 | `entry` | `entry.flavors\|versions\|loaders` (aimed by a kind), `entry.rename\|remove\|stop\|logs`, `entry.config.get\|set\|list` (aimed by an `EntryTarget`) — what a server and an instance share |
-| `server` | `server.create\|update\|list\|status\|info\|start\|restart\|command\|ping`, `server.properties` |
+| `server` | `server.create\|update\|list\|status\|info\|start\|restart\|command\|ping`, `server.properties`, `server.worlds`, `server.worlds.import` (a job) |
 | `files` | `server.files.list\|read\|write\|mkdir\|move\|copy\|remove\|import\|compress\|extract` |
 | `tasks` | `server.task.list\|save\|remove` — stored on the server record; the scheduler loop runs them |
 | `players` | `server.players`, `server.players.set\|kick` — the lists are read from the server's own files; a change is a console command, so it needs the server running |
@@ -209,6 +209,15 @@ Two conventions worth knowing when reading them:
 only way to put a workload under a real out-of-process daemon without Java or the
 network. The end-to-end tests drive adoption, log following and `daemon stop
 --all` through it ([0041](../decisions/0041-every-capability-gets-a-verb.md)).
+
+## `hestiad stdin-relay`
+
+Besides serving, the binary has one hidden subcommand: `hestiad stdin-relay --pipe
+<name> -- <program> <args…>`. On Windows the supervisor starts a Bedrock server
+through it, so the relay parents the server, owns its stdin and serves the named
+pipe a later daemon reconnects to; the runtime hands the supervisor the daemon's
+own executable path for this. On unix the supervisor uses a FIFO and never runs it
+([0114](../decisions/0114-a-bedrock-console-is-a-reattachable-stdin-endpoint.md)).
 
 ## Autostart
 
@@ -240,5 +249,6 @@ supervised processes simply carry on without it.
 - [0029 — One registrar function per domain, not a Service class per prefix](../decisions/0029-one-registrar-per-domain.md)
 - [0030 — Instances are gated on a signed-in account, in the router](../decisions/0030-instance-surface-gated-on-an-account.md)
 - [0031 — An aggregation point is a directory, not a file](../decisions/0031-an-aggregation-point-is-a-directory.md)
+- [0114 — A Bedrock console is a reattachable stdin endpoint](../decisions/0114-a-bedrock-console-is-a-reattachable-stdin-endpoint.md)
 - [0036 — Stopping the daemon has three meanings](../decisions/0036-stopping-the-daemon-has-three-meanings.md)
 - [0080 — Only the shell runs in the AppImage's environment](../decisions/0080-only-the-shell-runs-in-the-appimage-environment.md)

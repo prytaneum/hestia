@@ -194,7 +194,9 @@ and path resolution · the wire protocol and typed SDK · config, cache and
 downloads · Java runtime management · Microsoft sign-in with token rotation ·
 skin and cape management · the process supervisor · the provider layer (vanilla,
 fabric, neoforge on both sides; paper, folia, spigot, bukkit for servers) ·
-server management with an RCON console · instance management with concurrent
+server management with an RCON console · Bedrock Dedicated Server as a second
+edition of a server (vanilla BDS with a stdin console, players, backups, worlds
+and `.mcworld` import, and behaviour and resource packs) · instance management with concurrent
 sessions · joining a world, a listed server or a Realm straight from a launch,
 and going back to whichever was played lately · in-place
 version updates both ways · server backups, on demand and
