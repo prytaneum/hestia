@@ -16,7 +16,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Instant;
 
-use engine::{Engine, InstanceRecord, ServerRecord};
+use engine::{Engine, InstanceRecord, ServerRecord, ServerRuntime};
 use proto::error::ErrorInfo;
 use proto::instance::InstanceInfo;
 use proto::minecraft::Edition;
@@ -54,12 +54,16 @@ pub async fn start_server(
     processes: &ProcessSupervisor,
     id: &str,
 ) -> Result<ProcessInfo, ErrorInfo> {
-    let (_, plan) = engine.server_launch_plan(id).map_err(engine_error)?;
+    let (record, plan) = engine.server_launch_plan(id).map_err(engine_error)?;
+    let log = match record.profile.runtime {
+        ServerRuntime::Java { .. } => LogSource::File(plan.cwd.join("logs").join("latest.log")),
+        ServerRuntime::Native { .. } => LogSource::Capture,
+    };
     let spec = ProcessSpec {
         id: server_process_id(id),
         program: plan.program.to_string_lossy().into_owned(),
         args: plan.args,
-        log: LogSource::File(plan.cwd.join("logs").join("latest.log")),
+        log,
         cwd: Some(plan.cwd),
         env: plan.env.into_iter().collect(),
     };

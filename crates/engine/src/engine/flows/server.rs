@@ -80,7 +80,7 @@ impl Engine {
     /// The degraded state a server carries right now — what a create's warnings
     /// said, still true long after that output scrolled past.
     pub(crate) fn server_warnings(&self, record: &ServerRecord) -> Vec<WarningInfo> {
-        if self.servers.has_schema(record) {
+        if self.servers.has_schema(record) || record.profile.runtime.java_major().is_none() {
             return Vec::new();
         }
         vec![WarningInfo::PropertiesSchemaMissing {
