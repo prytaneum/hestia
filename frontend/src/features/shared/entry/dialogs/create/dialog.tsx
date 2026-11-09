@@ -23,8 +23,6 @@ import {
   editionLabel,
   flavorStepSchema,
   hasRule,
-  rulesFor,
-  serverNameKey,
   versionStepSchema,
   type WizardValues,
 } from '@/features/shared/entry/lib';
@@ -77,12 +75,9 @@ export function CreateEntryDialog({
     () => flavorsQuery.data?.editions ?? [],
     [flavorsQuery.data],
   );
-  const [editionTab, setEditionTab] = useState<Edition>('java');
-  const shownEdition = groups.some((g) => g.edition === editionTab)
-    ? editionTab
-    : (groups[0]?.edition ?? editionTab);
-  const shownFlavors =
-    groups.find((g) => g.edition === shownEdition)?.flavors ?? [];
+  const [editionTab, setEditionTab] = useState<Edition>();
+  const catalogue = groups.find((g) => g.edition === editionTab) ?? groups[0];
+  const shownFlavors = catalogue?.flavors ?? [];
 
   const config = useQuery(configQueries.list());
   const defaultMemory = launcherDefaults(config.data).memory ?? '';
@@ -110,8 +105,8 @@ export function CreateEntryDialog({
       .catch(() => undefined);
   };
 
-  const edition = shownEdition;
-  const rules = useMemo(() => rulesFor(groups, edition), [groups, edition]);
+  const edition = catalogue?.edition;
+  const rules = useMemo(() => catalogue?.rules ?? [], [catalogue]);
 
   const form = useAppForm({
     defaultValues: createWizardDefaults('', defaultMemoryGb),
@@ -129,7 +124,13 @@ export function CreateEntryDialog({
       try {
         if (kind === 'server') {
           const created = await createServer.mutateAsync(
-            serverParams(value, memoryEntries, rules, edition),
+            serverParams(
+              value,
+              memoryEntries,
+              rules,
+              edition,
+              catalogue?.nameKey,
+            ),
           );
           applyRandomIcon(created.server.id);
         } else {
@@ -150,7 +151,7 @@ export function CreateEntryDialog({
   useEffect(() => {
     if (!open) return;
     setStep('flavor');
-    setEditionTab('java');
+    setEditionTab(undefined);
     setSearch('');
     setShowSnapshots(false);
     form.reset(createWizardDefaults('', defaultMemoryRef.current));
@@ -239,7 +240,7 @@ export function CreateEntryDialog({
                     {groups.length > 1 && (
                       <ToggleGroup
                         variant="outline"
-                        value={[shownEdition]}
+                        value={edition ? [edition] : []}
                         onValueChange={(values: string[]) => {
                           const next = groups.find(
                             (g) => g.edition === values[values.length - 1],
@@ -248,8 +249,15 @@ export function CreateEntryDialog({
                           setEditionTab(next.edition);
                           const first = next.flavors[0];
                           field.handleChange(first.id);
-                          form.setFieldValue('version.version', '');
-                          form.setFieldValue('version.loaderVersion', '');
+                          form.setFieldValue(
+                            'version',
+                            createWizardDefaults('', 0).version,
+                          );
+                          form.setFieldValue(
+                            'details',
+                            createWizardDefaults('', defaultMemoryRef.current)
+                              .details,
+                          );
                         }}
                       >
                         {groups.map((g) => (
@@ -331,7 +339,12 @@ export function CreateEntryDialog({
         >
           {(group) => (
             <StepForm onSubmit={group.handleSubmit} footer={nav}>
-              <DetailsStep form={form} kind={kind} rules={rules} />
+              <DetailsStep
+                form={form}
+                kind={kind}
+                rules={rules}
+                hasName={catalogue?.nameKey !== undefined}
+              />
             </StepForm>
           )}
         </form.FormGroup>
@@ -346,11 +359,12 @@ function serverParams(
   memoryEntries: ConfigEntry[],
   rules: KeyRule[],
   edition: Edition | undefined,
+  nameKey: string | undefined,
 ) {
   const d = value.details;
   const config: ConfigEntry[] = [
     ...memoryEntries,
-    { key: serverNameKey(edition), value: d.motd },
+    ...(nameKey ? [{ key: nameKey, value: d.motd }] : []),
     { key: 'gamemode', value: d.gamemode },
     { key: 'difficulty', value: d.difficulty },
     { key: 'max-players', value: d.maxPlayers },

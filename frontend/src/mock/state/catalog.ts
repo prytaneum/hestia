@@ -150,11 +150,13 @@ export const serverCatalogue: EditionCatalogue[] = [
   {
     edition: 'java',
     rules: rulesOf(serverRules, 'java'),
+    nameKey: 'motd',
     flavors: serverFlavors,
   },
   {
     edition: 'bedrock',
     rules: rulesOf(serverRules, 'bedrock'),
+    nameKey: 'server-name',
     flavors: [bedrockVanilla],
   },
 ];

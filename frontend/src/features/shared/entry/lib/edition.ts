@@ -15,10 +15,6 @@ export const rulesFor = (
 export const hasRule = (rules: KeyRule[], key: string): boolean =>
   rules.some((rule) => rule.key === key);
 
-/** The property that carries a server's listed name; the rules hold no string keys to read it from. */
-export const serverNameKey = (edition: Edition | undefined) =>
-  edition === 'bedrock' ? 'server-name' : 'motd';
-
 /** The values a `choice` rule allows, or null when the key has no such rule. */
 export function choiceValues(rules: KeyRule[], key: string): string[] | null {
   const kind = rules.find((rule) => rule.key === key)?.kind;

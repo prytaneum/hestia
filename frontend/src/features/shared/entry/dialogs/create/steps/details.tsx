@@ -21,10 +21,12 @@ export function DetailsStep({
   form,
   kind,
   rules,
+  hasName,
 }: {
   form: WizardForm;
   kind: Kind;
   rules: KeyRule[];
+  hasName: boolean;
 }) {
   const memoryRange = useMemoryRange();
   const allowed = (items: typeof GAMEMODES, key: string) => {
@@ -71,11 +73,13 @@ export function DetailsStep({
         <>
           <SectionHeader>{m['entry.create.properties.title']()}</SectionHeader>
 
-          <form.AppField name="details.motd">
-            {(field: WizardForm) => (
-              <field.TextField label={m['entry.create.properties.motd']()} />
-            )}
-          </form.AppField>
+          {hasName && (
+            <form.AppField name="details.motd">
+              {(field: WizardForm) => (
+                <field.TextField label={m['entry.create.properties.motd']()} />
+              )}
+            </form.AppField>
+          )}
 
           <form.AppField name="details.seed">
             {(field: WizardForm) => (

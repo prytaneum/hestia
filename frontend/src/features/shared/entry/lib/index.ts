@@ -21,7 +21,6 @@ export {
   editionLabel,
   hasRule,
   rulesFor,
-  serverNameKey,
 } from './edition';
 export {
   createWizardDefaults,
