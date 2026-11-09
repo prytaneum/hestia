@@ -26,6 +26,7 @@
       "config_key_unknown": "Chave de configuração desconhecida '{key}'.",
       "config_invalid": "Valor inválido para '{key}': {reason}.",
       "config_key_unset": "'{key}' não está definido.",
+      "config_key_not_applicable": "'{key}' só se aplica a servidores que rodam em Java.",
       "config_rejected": "'{key}' não aceita esse valor.",
       "config_type_mismatch": "'{key}' espera {expected}.",
       "content_download_blocked": "'{title}' não pode ser baixado pela API do {source}. Baixe o arquivo na página do projeto e importe-o.",

@@ -26,6 +26,7 @@
       "config_key_unknown": "Unknown config key '{key}'.",
       "config_invalid": "Invalid value for '{key}': {reason}.",
       "config_key_unset": "'{key}' is not set.",
+      "config_key_not_applicable": "'{key}' only applies to servers that run on Java.",
       "config_rejected": "'{key}' does not accept that value.",
       "config_type_mismatch": "'{key}' expects {expected}.",
       "content_download_blocked": "'{title}' cannot be downloaded through the {source} API. Download the file from its project page and import it.",

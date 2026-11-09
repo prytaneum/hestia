@@ -530,6 +530,10 @@ pub enum ErrorInfo {
     ConfigKeyUnset {
         key: String,
     },
+    /// A Java-only setting asked of a server that does not run on Java.
+    ConfigKeyNotApplicable {
+        key: String,
+    },
     ConfigTypeMismatch {
         key: String,
         expected: ValueKind,
@@ -885,6 +889,9 @@ impl fmt::Display for ErrorInfo {
             FileRejected { path, reason } => write!(f, "'{path}' was refused: {reason}"),
             ConfigKeyUnknown { key } => write!(f, "unknown config key '{key}'"),
             ConfigKeyUnset { key } => write!(f, "'{key}' is not set"),
+            ConfigKeyNotApplicable { key } => {
+                write!(f, "'{key}' only applies to servers that run on Java")
+            }
             ConfigTypeMismatch { key, expected } => write!(f, "{key} expects a {expected}"),
             ConfigRejected { key } => write!(f, "invalid value for {key}"),
             ConfigInvalid { key, reason } => write!(f, "invalid value for {key}: {reason}"),
