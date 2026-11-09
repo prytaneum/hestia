@@ -8,7 +8,7 @@ use proto::entry::{
     EntryVersions,
 };
 use proto::error::{EntryKind, ErrorInfo, Field};
-use proto::minecraft::{ConfigEntry, Edition, FlavorsResult};
+use proto::minecraft::{ConfigEntry, Edition, EditionRules, FlavorsResult};
 use proto::process::ProcessState;
 use proto::Empty;
 
@@ -21,8 +21,17 @@ pub(super) fn register(on: &mut Channels<'_>) {
         Ok(FlavorsResult {
             flavors: ctx.runtime.engine().flavors(side).await,
             rules: match side {
-                Side::Server => engine::Servers::config_rules(Edition::Java),
-                Side::Client => engine::Instances::config_rules(),
+                Side::Server => [Edition::Java, Edition::Bedrock]
+                    .into_iter()
+                    .map(|edition| EditionRules {
+                        edition,
+                        rules: engine::Servers::config_rules(edition),
+                    })
+                    .collect(),
+                Side::Client => vec![EditionRules {
+                    edition: Edition::Java,
+                    rules: engine::Instances::config_rules(),
+                }],
             },
         })
     });

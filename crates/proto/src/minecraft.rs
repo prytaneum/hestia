@@ -112,6 +112,16 @@ pub fn downgrade_between(versions: &[GameVersion], from: &str, to: &str) -> Opti
 #[serde(default, rename_all = "camelCase")]
 pub struct FlavorsResult {
     pub flavors: Vec<Flavor>,
+    pub rules: Vec<EditionRules>,
+}
+
+/// The property rules one edition's entries are validated against; a flavor
+/// is checked with the entry of its own `edition`.
+#[derive(Serialize, Deserialize, Default, Debug, Clone)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
+#[serde(default, rename_all = "camelCase")]
+pub struct EditionRules {
+    pub edition: Edition,
     pub rules: Vec<KeyRule>,
 }
 
