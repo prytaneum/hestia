@@ -36,6 +36,7 @@
       "content_not_found": "No installed content matches '{reference}'.",
       "content_pack_encrypted": "'{name}' is encrypted (Marketplace content) and cannot be installed.",
       "content_pack_unsupported": "'{name}' is a {module} pack, which a server cannot load.",
+      "content_source_edition": "{source} has no content for this edition of Minecraft.",
       "content_source_unavailable": "{source} needs an API key before it can be used — add one in Settings.",
       "create_in_progress": "That server is already being created.",
       "download_failed": "Download failed: {detail}",

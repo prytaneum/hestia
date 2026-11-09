@@ -14,12 +14,14 @@ const MODRINTH: ContentSource = {
   id: 'modrinth',
   name: 'Modrinth',
   kinds: ['mod', 'modpack', 'resource_pack', 'shader', 'data_pack', 'plugin'],
+  editions: ['java'],
 };
 
 const CURSEFORGE: ContentSource = {
   id: 'curseforge',
   name: 'CurseForge',
   kinds: ['mod', 'modpack', 'resource_pack', 'shader', 'data_pack'],
+  editions: ['java'],
 };
 
 const ARCHIVE = /\.(jar|zip)$/i;

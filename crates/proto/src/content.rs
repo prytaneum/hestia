@@ -14,7 +14,7 @@ use crate::change::Scope;
 use crate::contract::{Contract, Empty};
 use crate::error::{EntryTarget, ErrorInfo};
 use crate::job::{Job, JobStarted};
-use crate::minecraft::{Artifact, ProvisionProgress};
+use crate::minecraft::{Artifact, Edition, ProvisionProgress};
 
 /// What a project is — the second selector level after the source.
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -80,6 +80,8 @@ pub struct ContentSource {
     pub id: String,
     pub name: String,
     pub kinds: Vec<ContentKind>,
+    /// The game editions its catalogue is for; a front-end offers it to entries of those alone.
+    pub editions: Vec<Edition>,
 }
 
 /// A gallery image on a project. Search hits carry only `url`; the detail call

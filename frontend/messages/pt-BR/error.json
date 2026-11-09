@@ -36,6 +36,7 @@
       "content_not_found": "Nenhum conteúdo instalado corresponde a '{reference}'.",
       "content_pack_encrypted": "'{name}' está criptografado (conteúdo do Marketplace) e não pode ser instalado.",
       "content_pack_unsupported": "'{name}' é um pacote do tipo {module}, que um servidor não consegue carregar.",
+      "content_source_edition": "{source} não tem conteúdo para esta edição do Minecraft.",
       "content_source_unavailable": "{source} precisa de uma chave de API para ser usada — adicione uma nas Configurações.",
       "create_in_progress": "Esse servidor já está sendo criado.",
       "download_failed": "O download falhou: {detail}",

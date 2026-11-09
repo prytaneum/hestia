@@ -54,6 +54,9 @@ pub trait ContentProvider: Send + Sync {
     fn name(&self) -> &'static str;
     /// What this platform catalogues; a front-end offers it for those alone.
     fn kinds(&self) -> Vec<ContentKind>;
+    fn editions(&self) -> &'static [proto::minecraft::Edition] {
+        &[proto::minecraft::Edition::Java]
+    }
     /// Whether it can serve as configured — an unset API key, today.
     fn available(&self) -> bool {
         true

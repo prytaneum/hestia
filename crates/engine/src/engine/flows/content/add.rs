@@ -302,6 +302,10 @@ impl Engine {
         let mut queued = HashSet::new();
         let mut queue = Vec::new();
         for root in roots {
+            if let Err(e) = self.content.ensure_serves(&root.source, ctx.edition) {
+                failures.push(failure(&root.given, "", crate::error_info(e)));
+                continue;
+            }
             let project = match self
                 .content
                 .project(&root.source, &root.project, Some(kind))

@@ -715,6 +715,10 @@ pub enum ErrorInfo {
     ContentSourceUnavailable {
         source: String,
     },
+    /// The source catalogues content for another edition of the game.
+    ContentSourceEdition {
+        source: String,
+    },
     /// The source lists the file but publishes no download for it: CurseForge
     /// lets an author opt out of third-party distribution. Nothing to retry —
     /// the file has to come from the project page by hand.
@@ -1022,6 +1026,9 @@ impl fmt::Display for ErrorInfo {
             }
             ContentSourceUnavailable { source } => {
                 write!(f, "the {source} content source is not configured")
+            }
+            ContentSourceEdition { source } => {
+                write!(f, "{source} has no content for this edition of the game")
             }
             ContentDownloadBlocked { title, source } => write!(
                 f,

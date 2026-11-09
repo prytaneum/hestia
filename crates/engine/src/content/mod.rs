@@ -247,8 +247,19 @@ impl Content {
                 id: p.id().to_string(),
                 name: p.name().to_string(),
                 kinds: p.kinds(),
+                editions: p.editions().to_vec(),
             })
             .collect()
+    }
+
+    pub fn ensure_serves(&self, source: &str, edition: proto::minecraft::Edition) -> Result<()> {
+        let provider = self.provider(source)?;
+        if provider.editions().contains(&edition) {
+            return Ok(());
+        }
+        anyhow::bail!(proto::error::ErrorInfo::ContentSourceEdition {
+            source: provider.name().to_string(),
+        })
     }
 
     pub async fn search(&self, query: &SearchQuery) -> Result<SearchResult> {
@@ -366,5 +377,26 @@ impl Content {
             .into());
         }
         Ok(provider)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use proto::error::ErrorInfo;
+    use proto::minecraft::Edition;
+
+    use super::Content;
+
+    #[test]
+    fn a_java_source_refuses_a_bedrock_entry() {
+        let content = Content::new();
+        assert!(content.ensure_serves("modrinth", Edition::Java).is_ok());
+        let refused = content
+            .ensure_serves("modrinth", Edition::Bedrock)
+            .unwrap_err();
+        assert!(matches!(
+            refused.downcast_ref::<ErrorInfo>(),
+            Some(ErrorInfo::ContentSourceEdition { .. })
+        ));
     }
 }
