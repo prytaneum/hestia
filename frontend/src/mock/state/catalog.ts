@@ -19,6 +19,7 @@ const vanilla: Flavor = {
   name: 'Vanilla',
   summary: "Mojang's game, unmodified. Takes datapacks and nothing else.",
   accepts: ['data_pack'],
+  edition: 'java',
   requires: [],
 };
 
@@ -27,6 +28,7 @@ const fabric = (accepts: ContentKind[]): Flavor => ({
   name: 'Fabric',
   summary: 'Lightweight mod loader, quick to support each new game version.',
   accepts,
+  edition: 'java',
   requires: [],
 });
 
@@ -35,6 +37,7 @@ const neoforge = (accepts: ContentKind[]): Flavor => ({
   name: 'NeoForge',
   summary: 'The Forge successor. Its game jar is built locally at create.',
   accepts,
+  edition: 'java',
   requires: [],
 });
 
@@ -58,6 +61,7 @@ export const serverFlavors: Flavor[] = [
     name: 'Paper',
     summary: 'Optimised Bukkit server with a plugin ecosystem.',
     accepts: PLUGIN_KINDS,
+    edition: 'java',
     requires: [],
   },
   {
@@ -65,6 +69,7 @@ export const serverFlavors: Flavor[] = [
     name: 'Folia',
     summary: 'Regionised multithreading, for servers with spread-out players.',
     accepts: PLUGIN_KINDS,
+    edition: 'java',
     requires: [],
   },
   {
@@ -73,6 +78,7 @@ export const serverFlavors: Flavor[] = [
     summary:
       'Compiled on your machine with BuildTools — a create takes a few minutes.',
     accepts: PLUGIN_KINDS,
+    edition: 'java',
     requires: [{ name: 'git', url: 'https://git-scm.com/downloads' }],
   },
 ];

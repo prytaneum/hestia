@@ -312,10 +312,12 @@ function ServerDetail({
                       label={m['app.label.version']()}
                       value={server.gameVersion}
                     />
-                    <Stat
-                      label={m['app.label.java']()}
-                      value={server.javaMajor}
-                    />
+                    {server.javaMajor != null && (
+                      <Stat
+                        label={m['app.label.java']()}
+                        value={server.javaMajor}
+                      />
+                    )}
                     <Stat
                       label={m['app.label.created']()}
                       value={agoLabel(server.createdUnix)}

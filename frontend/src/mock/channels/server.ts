@@ -97,6 +97,7 @@ export const channels: ChannelHandlers = {
     const server = entries.findServer(str(p, 'server'));
     return {
       ...server,
+      javaMajor: server.javaMajor ?? 0,
       ...entries.directories(server.id, 'servers'),
       diskBytes: 1_024 * 1024 * 1024,
       jvmArgs: ['-XX:+UseG1GC'],

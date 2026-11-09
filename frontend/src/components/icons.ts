@@ -33,6 +33,8 @@ export function contentIcon(kind: ContentKind): Icon {
       return PackageIcon;
     case 'plugin':
       return PlugIcon;
+    case 'behavior_pack':
+      return PackageIcon;
   }
 }
 
@@ -43,4 +45,5 @@ export const contentKindLabel: Record<ContentKind, () => string> = {
   data_pack: m['domain.kind.datapack'],
   modpack: m['domain.kind.modpack'],
   plugin: m['domain.kind.plugin'],
+  behavior_pack: m['domain.kind.behaviorpack'],
 };

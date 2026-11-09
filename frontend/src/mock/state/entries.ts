@@ -11,6 +11,7 @@ import type {
   ConfigEntry,
   InstalledModpack,
   InstanceInfo,
+  PlayerList,
   ServerInfo,
 } from '@/api/types';
 
@@ -60,16 +61,21 @@ const instances: InstanceInfo[] = [
   },
 ];
 
+const JAVA_PLAYER_LISTS: PlayerList[] = ['whitelist', 'ops', 'banned'];
+
 const servers: ServerInfo[] = [
   {
     id: 'smp',
     name: 'SMP',
     flavor: 'vanilla',
+    edition: 'java',
     gameVersion: '1.21.4',
     javaMajor: 21,
     createdUnix: ago(86_400 * 30),
     ready: true,
     gamePort: 25_565,
+    ports: [25_565],
+    playerLists: JAVA_PLAYER_LISTS,
     console: true,
     accepts: accepts('vanilla', true),
   },
@@ -77,12 +83,15 @@ const servers: ServerInfo[] = [
     id: 'creative',
     name: 'Creative',
     flavor: 'paper',
+    edition: 'java',
     gameVersion: '1.21.1',
     loaderVersion: '196',
     javaMajor: 21,
     createdUnix: ago(86_400 * 8),
     ready: true,
     gamePort: 25_566,
+    ports: [25_566],
+    playerLists: JAVA_PLAYER_LISTS,
     console: true,
     accepts: accepts('paper', true),
   },
@@ -183,16 +192,20 @@ export function addServer(params: {
   port?: number;
 }): ServerInfo {
   const name = params.name || 'New Server';
+  const gamePort = params.port ?? 25_565 + servers.length;
   const server: ServerInfo = {
     id: mintId(name, servers),
     name,
     flavor: params.flavor || 'vanilla',
+    edition: 'java',
     gameVersion: params.version || '1.21.4',
     loaderVersion: params.loaderVersion,
     javaMajor: javaFor(params.version),
     createdUnix: now(),
     ready: true,
-    gamePort: params.port ?? 25_565 + servers.length,
+    gamePort: gamePort,
+    ports: [gamePort],
+    playerLists: JAVA_PLAYER_LISTS,
     console: true,
     accepts: accepts(params.flavor || 'vanilla', true),
   };

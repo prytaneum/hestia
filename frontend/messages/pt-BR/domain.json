@@ -57,6 +57,8 @@
       "prism": "Prism / MultiMC"
     },
     "kind": {
+      "behaviorpack": "Pacote de comportamento",
+      "behaviorpacks": "Pacotes de comportamento",
       "datapack": "Datapack",
       "datapacks": "Datapacks",
       "mod": "Mod",
