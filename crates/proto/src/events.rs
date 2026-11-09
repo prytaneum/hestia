@@ -46,13 +46,15 @@ const fn access<T: Topic>() -> TopicAccess {
 /// Every topic the daemon publishes; `tests/permission.rs` fails one that is
 /// missing. The `job` and `plugin.state` topics name no permission here: the
 /// daemon admits a job event by the permission of the channel that started it,
-/// and cuts a plugin state event to its id and state.
+/// and cuts a plugin state event to its id and state. `plugin.schedule` names none
+/// and is never published to the hub, so only the plugin that declared it hears it.
 pub const TOPICS: &[TopicAccess] = &[
     access::<crate::change::ChangedEvent>(),
     access::<crate::job::JobEvent<(), ()>>(),
     access::<crate::net::NetworkStatus>(),
     access::<crate::plugin::PluginLogEvent>(),
     access::<crate::plugin::PluginStateEvent>(),
+    access::<crate::plugin::ScheduleEvent>(),
     access::<crate::process::ProcessExitEvent>(),
     access::<crate::process::ProcessMetricsEvent>(),
     access::<crate::process::ProcessOutputEvent>(),

@@ -375,7 +375,23 @@ pub struct Contributions {
     pub providers: Vec<ProviderContribution>,
     pub pages: Vec<PageContribution>,
     pub themes: Vec<ThemeContribution>,
+    pub schedules: Vec<ScheduleContribution>,
 }
+
+/// A timer the host delivers to this plugin alone as a `plugin.schedule` event
+/// ([`ScheduleEvent`]).
+#[derive(Serialize, Deserialize, Default, Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
+#[serde(default, rename_all = "camelCase")]
+pub struct ScheduleContribution {
+    pub id: String,
+    /// Seconds between ticks, from [`MIN_SCHEDULE_SECS`] to [`MAX_SCHEDULE_SECS`].
+    pub every: u64,
+}
+
+pub const MIN_SCHEDULE_SECS: u64 = 30;
+pub const MAX_SCHEDULE_SECS: u64 = 30 * 24 * 60 * 60;
+pub const MAX_SCHEDULES: usize = 8;
 
 /// A program the plugin may run. `command` is a name resolved on `PATH` or a
 /// path inside the plugin's data directory; `args` are argument patterns.
@@ -610,6 +626,7 @@ pub struct Grant {
     pub launch_properties: BTreeSet<String>,
     pub hooks: BTreeSet<String>,
     pub events: BTreeSet<String>,
+    pub schedules: BTreeSet<ScheduleContribution>,
     pub secret_settings: BTreeSet<String>,
     pub ui_css: BTreeSet<String>,
 }
@@ -643,6 +660,7 @@ impl Grant {
             launch_properties: &self.launch_properties - &installed.launch_properties,
             hooks: &self.hooks - &installed.hooks,
             events: &self.events - &installed.events,
+            schedules: &self.schedules - &installed.schedules,
             secret_settings: &self.secret_settings - &installed.secret_settings,
             ui_css: &self.ui_css - &installed.ui_css,
         }
@@ -675,6 +693,10 @@ pub enum ManifestError {
     ReservedCommand(String),
     #[error("event `{0}` must be a topic like `job` or a prefix glob like `server.*`")]
     BadEventPattern(String),
+    #[error("schedule `{id}` must tick every {MIN_SCHEDULE_SECS} to {MAX_SCHEDULE_SECS} seconds")]
+    BadScheduleInterval { id: String },
+    #[error("a plugin declares at most {MAX_SCHEDULES} schedules")]
+    TooManySchedules,
     #[error("hook `{0}` is not one this host offers")]
     UnknownHook(String),
     #[error("hook `{hook}` needs the permission `{permission}`")]
@@ -789,7 +811,19 @@ impl Manifest {
             program.validate()?;
         }
         let contributes = &self.contributes;
-        let lists: [Vec<&String>; 7] = [
+        if contributes.schedules.len() > MAX_SCHEDULES {
+            return Err(ManifestError::TooManySchedules);
+        }
+        if let Some(schedule) = contributes
+            .schedules
+            .iter()
+            .find(|schedule| !(MIN_SCHEDULE_SECS..=MAX_SCHEDULE_SECS).contains(&schedule.every))
+        {
+            return Err(ManifestError::BadScheduleInterval {
+                id: schedule.id.clone(),
+            });
+        }
+        let lists: [Vec<&String>; 8] = [
             self.settings.iter().map(|setting| &setting.key).collect(),
             self.programs.iter().map(|program| &program.id).collect(),
             contributes
@@ -805,6 +839,11 @@ impl Manifest {
             contributes.pages.iter().map(|page| &page.id).collect(),
             contributes.themes.iter().map(|theme| &theme.id).collect(),
             contributes.hooks.iter().collect(),
+            contributes
+                .schedules
+                .iter()
+                .map(|schedule| &schedule.id)
+                .collect(),
         ];
         if let Some(pattern) = contributes
             .events
@@ -889,6 +928,7 @@ impl Manifest {
             launch_properties: self.launch.properties.iter().cloned().collect(),
             hooks: self.contributes.hooks.iter().cloned().collect(),
             events: self.contributes.events.iter().cloned().collect(),
+            schedules: self.contributes.schedules.iter().cloned().collect(),
             secret_settings: self
                 .settings
                 .iter()
@@ -1120,6 +1160,19 @@ pub struct PluginStateEvent {
 }
 impl Topic for PluginStateEvent {
     const TOPIC: &'static str = "plugin.state";
+}
+
+/// A tick of one of the plugin's own `contributes.schedules`. The daemon puts it
+/// in that plugin's inbox and nowhere else: it is never published to the hub, so
+/// no other plugin or client receives it.
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
+#[serde(rename_all = "camelCase")]
+pub struct ScheduleEvent {
+    pub id: String,
+}
+impl Topic for ScheduleEvent {
+    const TOPIC: &'static str = "plugin.schedule";
 }
 
 /// One line a dev plugin logged, for `hestia plugin dev`. Published only for a

@@ -289,6 +289,12 @@ fn grant_rows(
         }
         ("Program", format!("{}: {line}", program.id))
     }));
+    rows.extend(grant.schedules.iter().map(|schedule| {
+        (
+            "Schedule",
+            format!("{}: every {} s", schedule.id, schedule.every),
+        )
+    }));
     let lists = [
         ("Network", &grant.network),
         ("Local endpoints", &grant.ipc),

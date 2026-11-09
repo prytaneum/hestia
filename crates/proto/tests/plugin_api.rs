@@ -253,6 +253,7 @@ fn api() -> Api {
         change::ChangedEvent,
         net::NetworkStatus,
         plugin::PluginLogEvent, plugin::PluginStateEvent,
+        plugin::ScheduleEvent,
         process::ProcessExitEvent, process::ProcessMetricsEvent, process::ProcessOutputEvent,
         process::ProcessStartedEvent,
     );

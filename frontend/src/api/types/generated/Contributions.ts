@@ -2,10 +2,11 @@
 import type { CommandContribution } from "./CommandContribution";
 import type { PageContribution } from "./PageContribution";
 import type { ProviderContribution } from "./ProviderContribution";
+import type { ScheduleContribution } from "./ScheduleContribution";
 import type { ThemeContribution } from "./ThemeContribution";
 
 export type Contributions = { commands: Array<CommandContribution>, 
 /**
  * Topic globs such as `server.*`.
  */
-events: Array<string>, hooks: Array<string>, providers: Array<ProviderContribution>, pages: Array<PageContribution>, themes: Array<ThemeContribution>, };
+events: Array<string>, hooks: Array<string>, providers: Array<ProviderContribution>, pages: Array<PageContribution>, themes: Array<ThemeContribution>, schedules: Array<ScheduleContribution>, };

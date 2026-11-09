@@ -159,6 +159,7 @@ import type { RepositoryRefreshParams } from "./generated/RepositoryRefreshParam
 import type { RepositoryRefreshed } from "./generated/RepositoryRefreshed";
 import type { ResolveUrlParams } from "./generated/ResolveUrlParams";
 import type { ResolvedUrl } from "./generated/ResolvedUrl";
+import type { ScheduleEvent } from "./generated/ScheduleEvent";
 import type { ScreenshotDeleteParams } from "./generated/ScreenshotDeleteParams";
 import type { ScreenshotListParams } from "./generated/ScreenshotListParams";
 import type { ScreenshotListResult } from "./generated/ScreenshotListResult";
@@ -413,6 +414,7 @@ export interface Topics {
   "job": JobEvents;
   "net.state": NetworkStatus;
   "plugin.log": PluginLogEvent;
+  "plugin.schedule": ScheduleEvent;
   "plugin.state": PluginStateEvent;
   "process.exit": ProcessExitEvent;
   "process.metrics": ProcessMetricsEvent;

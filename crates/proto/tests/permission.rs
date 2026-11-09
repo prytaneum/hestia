@@ -63,6 +63,7 @@ const DENIED: &[&str] = &[
     "plugin.ui.render",
     "plugin.ui.action",
     "plugin.state",
+    "plugin.schedule",
     "plugin.log",
     // Other clients' subscriptions and jobs
     "events.subscribe",
@@ -250,7 +251,12 @@ fn every_topic_is_in_the_registry_plugins_are_admitted_by() {
 #[test]
 fn a_topic_without_a_permission_reaches_no_plugin() {
     use serde_json::json;
-    for topic in ["process.output", "plugin.log", "no.such.topic"] {
+    for topic in [
+        "process.output",
+        "plugin.log",
+        "plugin.schedule",
+        "no.such.topic",
+    ] {
         assert_eq!(
             proto::events::topic_permission(topic, &json!({})),
             None,

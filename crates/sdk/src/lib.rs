@@ -30,6 +30,7 @@ pub mod log;
 pub mod process;
 pub mod progress;
 pub mod provider;
+pub mod schedule;
 pub mod settings;
 pub mod ui;
 
@@ -94,7 +95,8 @@ pub trait Plugin {
     /// Receives a daemon event matching one of the manifest's `contributes.events`
     /// that the plugin's permissions allow. Events arrive one at a time and in
     /// order, each with a few seconds to finish; a plugin that falls behind loses
-    /// the oldest.
+    /// the oldest. A tick of one of the manifest's `contributes.schedules` arrives
+    /// here too, as `plugin.schedule`; read it with [`schedule::tick`].
     fn on_event(topic: &str, payload: Value) {
         let _ = (topic, payload);
     }

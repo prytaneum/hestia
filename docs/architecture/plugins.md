@@ -192,6 +192,19 @@ dropped and a warning is logged at most once a minute, so a slow plugin loses
 history rather than growing the daemon. Delivery stops when the plugin is
 disabled, removed or reloaded.
 
+### Schedules
+
+`contributes.schedules` declares timers: `[[contributes.schedules]]` with an `id`
+and `every`, in seconds (30 s to 30 days, at most 8 per plugin, ids unique). Each
+tick is a `plugin.schedule` event `{ id }` pushed straight into that plugin's own
+inbox. It is never published to the hub, so no other plugin or client hears it,
+and it needs no permission; the schedules are part of the grant and listed when
+the user approves. The timers live in the plugin's `Delivery`, so they start
+and stop with its events. A tick missed while the machine slept is skipped, and a
+tick is dropped while one of the same schedule still waits. In the SDK a tick
+arrives in `Plugin::on_event`; `schedule::tick(topic, &payload)` returns its id
+([0108](../decisions/0108-a-schedule-is-an-event-to-its-own-plugin.md)).
+
 ## Hooks
 
 A hook point is data in `proto::hook`: a `HookPoint` names itself, the
@@ -444,3 +457,4 @@ plugins the tests build are fixtures
 | [0104](../decisions/0104-an-archive-format-plugin-maps-files-the-host-copies.md) | an archive format maps files; the host copies them |
 | [0105](../decisions/0105-a-java-provider-only-resolves.md) | a Java provider only resolves; the host downloads and extracts |
 | [0106](../decisions/0106-the-plugin-api-is-mechanisms-not-features.md) | the plugin API is mechanisms, not features |
+| [0108](../decisions/0108-a-schedule-is-an-event-to-its-own-plugin.md) | a schedule is an event delivered to its own plugin |

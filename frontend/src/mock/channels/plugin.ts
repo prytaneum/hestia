@@ -35,6 +35,7 @@ const manifest = (id: string, name: string): Manifest => ({
     providers: [],
     pages: [],
     themes: [],
+    schedules: [],
   },
 });
 
@@ -46,6 +47,7 @@ const emptyGrant: Grant = {
   launchProperties: [],
   hooks: [],
   events: [],
+  schedules: [],
   secretSettings: [],
   uiCss: [],
 };

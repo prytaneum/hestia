@@ -39,6 +39,7 @@ the alternative you rejected — that is usually the part nobody can recover lat
 - **0101** — [Plugins spawn only the programs they declare](0101-plugins-spawn-only-declared-programs.md)
 - **0105** — [A Java provider only resolves; the host downloads, verifies and extracts](0105-a-java-provider-only-resolves.md)
 - **0106** — [The plugin API is mechanisms, not features](0106-the-plugin-api-is-mechanisms-not-features.md)
+- **0108** — [A schedule is an event delivered to its own plugin](0108-a-schedule-is-an-event-to-its-own-plugin.md)
 
 ### [Cross-cutting foundations](../architecture/common.md)
 
@@ -73,6 +74,7 @@ the alternative you rejected — that is usually the part nobody can recover lat
 - **0061** — [A job declares what differs; the runner owns the rest](0061-a-job-declares-what-differs.md)
 - **0059** — [Discord presence belongs to the daemon, and is a loop rather than a hook](0059-discord-presence-is-a-daemon-loop.md)
 - **0106** — [The plugin API is mechanisms, not features](0106-the-plugin-api-is-mechanisms-not-features.md)
+- **0108** — [A schedule is an event delivered to its own plugin](0108-a-schedule-is-an-event-to-its-own-plugin.md)
 
 ### [Minecraft providers](../architecture/minecraft.md)
 

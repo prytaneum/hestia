@@ -10,6 +10,7 @@ type GrantSectionKind =
   | 'launch_properties'
   | 'hooks'
   | 'events'
+  | 'schedules'
   | 'secret_settings'
   | 'themes';
 
@@ -63,6 +64,7 @@ const HEADING: Record<GrantSectionKind, () => string> = {
   launch_properties: m['settings.plugins.grant.launch_properties'],
   hooks: m['settings.plugins.grant.hooks'],
   events: m['settings.plugins.grant.events'],
+  schedules: m['settings.plugins.grant.schedules'],
   secret_settings: m['settings.plugins.grant.secret_settings'],
   themes: m['settings.plugins.grant.themes'],
 };
@@ -116,6 +118,15 @@ export function describeGrant(
     ['launch_properties', values(grant.launchProperties)],
     ['hooks', values(grant.hooks)],
     ['events', values(grant.events)],
+    [
+      'schedules',
+      grant.schedules.map((schedule) => ({
+        label: schedule.id,
+        detail: m['settings.plugins.grant.schedule_every']({
+          seconds: String(schedule.every),
+        }),
+      })),
+    ],
     ['secret_settings', values(grant.secretSettings)],
     ['themes', values(grant.uiCss)],
   ];

@@ -134,6 +134,8 @@
         "program_env": "may be given {names}",
         "program_path": "runs {path}",
         "programs": "Programs it can run",
+        "schedule_every": "every {seconds} s",
+        "schedules": "Schedules it runs on",
         "secret_settings": "Secret settings",
         "themes": "Themes"
       },

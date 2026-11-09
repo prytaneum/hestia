@@ -19,8 +19,8 @@ mod manifest {
     use proto::error::EntryKind;
     use proto::plugin::{
         CommandArg, CommandContribution, CommandScope, Manifest, ManifestError, PageContribution,
-        PageSlot, Permission, Program, ProviderContribution, Setting, SettingKind,
-        ThemeContribution, Tier,
+        PageSlot, Permission, Program, ProviderContribution, ScheduleContribution, Setting,
+        SettingKind, ThemeContribution, Tier, MAX_SCHEDULES, MAX_SCHEDULE_SECS,
     };
 
     fn valid() -> Manifest {
@@ -157,6 +157,57 @@ mod manifest {
         );
         manifest.permissions.push(Permission::UiCss);
         assert_eq!(manifest.validate(), Ok(()));
+    }
+
+    fn scheduled(schedules: &[(&str, u64)]) -> Manifest {
+        let mut manifest = valid();
+        manifest.contributes.schedules = schedules
+            .iter()
+            .map(|(id, every)| ScheduleContribution {
+                id: id.to_string(),
+                every: *every,
+            })
+            .collect();
+        manifest
+    }
+
+    #[test]
+    fn a_schedule_ticks_no_more_often_than_every_thirty_seconds() {
+        assert_eq!(scheduled(&[("poll", 30)]).validate(), Ok(()));
+        for every in [0, 29, MAX_SCHEDULE_SECS + 1] {
+            assert_eq!(
+                scheduled(&[("poll", every)]).validate(),
+                Err(ManifestError::BadScheduleInterval { id: "poll".into() })
+            );
+        }
+    }
+
+    #[test]
+    fn schedule_ids_are_slugs_and_unique() {
+        assert!(matches!(
+            scheduled(&[("poll", 60), ("poll", 90)]).validate(),
+            Err(ManifestError::DuplicateId(_))
+        ));
+        assert!(matches!(
+            scheduled(&[("", 60)]).validate(),
+            Err(ManifestError::BadContributionId(_))
+        ));
+        assert!(matches!(
+            scheduled(&[("Poll", 60)]).validate(),
+            Err(ManifestError::BadContributionId(_))
+        ));
+    }
+
+    #[test]
+    fn a_plugin_declares_a_few_schedules_at_most() {
+        let ids: Vec<String> = (0..=MAX_SCHEDULES).map(|n| format!("s{n}")).collect();
+        let at = |count: usize| {
+            let schedules: Vec<(&str, u64)> =
+                ids[..count].iter().map(|id| (id.as_str(), 60)).collect();
+            scheduled(&schedules).validate()
+        };
+        assert_eq!(at(MAX_SCHEDULES), Ok(()));
+        assert_eq!(at(MAX_SCHEDULES + 1), Err(ManifestError::TooManySchedules));
     }
 
     fn paged(slot: PageSlot, kind: Option<EntryKind>, icon: Option<&str>) -> Manifest {

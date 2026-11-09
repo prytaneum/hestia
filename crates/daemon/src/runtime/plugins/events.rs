@@ -10,11 +10,12 @@ use std::time::{Duration, Instant};
 use engine::{CallChain, CallError, HostCalls, LoadedPlugin, EVENT_TIMEOUT};
 use proto::events::topic_permission;
 use proto::glob::topic_matches;
-use proto::plugin::{Grant, PluginStateEvent};
+use proto::plugin::{Grant, PluginStateEvent, ScheduleEvent};
 use proto::Topic;
 use serde_json::{json, Value};
 use tokio::sync::Notify;
 use tokio::task::JoinHandle;
+use tokio::time::{interval_at, MissedTickBehavior};
 
 use crate::runtime::EventHub;
 
@@ -86,6 +87,23 @@ impl Inbox {
         self.ready.notify_one();
     }
 
+    /// Skipped while a tick of `id` still waits, so a plugin slower than its
+    /// schedule holds at most one pending tick per schedule.
+    fn push_tick(&self, id: &str) {
+        let payload = json!({ "id": id });
+        let waiting = self
+            .queue
+            .lock()
+            .unwrap()
+            .iter()
+            .any(|(topic, queued)| topic == ScheduleEvent::TOPIC && *queued == payload);
+        if waiting {
+            tracing::debug!(plugin = %self.plugin, schedule = id, "schedule tick skipped: the last is still waiting");
+        } else {
+            self.push(ScheduleEvent::TOPIC, payload);
+        }
+    }
+
     fn warn_dropped(&self) {
         let mut last = self.last_warned.lock().unwrap();
         if last.is_none_or(|warned| warned.elapsed() >= WARN_EVERY) {
@@ -112,22 +130,23 @@ impl Inbox {
     }
 }
 
-/// A plugin's subscription to the hub and the task serving it. Dropping it ends
-/// both, which is how disabling, removing or reloading a plugin stops delivery.
+/// A plugin's subscription to the hub, its schedules, and the tasks serving
+/// them. Dropping it ends them all, which is how disabling, removing or
+/// reloading a plugin stops delivery.
 pub struct Delivery {
     key: String,
     hub: Arc<EventHub>,
-    task: JoinHandle<()>,
+    tasks: Vec<JoinHandle<()>>,
 }
 
 impl Delivery {
-    /// `None` when the plugin subscribes to nothing.
+    /// `None` when the plugin subscribes to nothing and schedules nothing.
     pub fn start(
         hub: Arc<EventHub>,
         host: Arc<dyn HostCalls>,
         loaded: Arc<LoadedPlugin>,
     ) -> Option<Delivery> {
-        if loaded.grant().events.is_empty() {
+        if loaded.grant().events.is_empty() && loaded.grant().schedules.is_empty() {
             return None;
         }
         let key = format!("plugin:{}:{}", loaded.id(), hub.next_subscriber_id());
@@ -136,21 +155,52 @@ impl Delivery {
         let queue = inbox.clone();
         hub.listen(
             &key,
-            Arc::new(move |topic, payload| {
-                if let Some(payload) = admit(&grant, host.as_ref(), topic, payload) {
-                    queue.push(topic, payload);
+            Arc::new({
+                let grant = grant.clone();
+                move |topic, payload| {
+                    if let Some(payload) = admit(&grant, host.as_ref(), topic, payload) {
+                        queue.push(topic, payload);
+                    }
                 }
             }),
         );
-        let task = tokio::spawn(drain(inbox, loaded, hub.clone(), key.clone()));
-        Some(Delivery { key, hub, task })
+        let mut tasks: Vec<_> = grant
+            .schedules
+            .iter()
+            .map(|schedule| {
+                tokio::spawn(tick(
+                    inbox.clone(),
+                    schedule.id.clone(),
+                    Duration::from_secs(schedule.every),
+                ))
+            })
+            .collect();
+        let ticks: Vec<_> = tasks.iter().map(JoinHandle::abort_handle).collect();
+        let hub_for_drain = hub.clone();
+        let key_for_drain = key.clone();
+        tasks.push(tokio::spawn(async move {
+            drain(inbox, loaded, hub_for_drain, key_for_drain).await;
+            ticks.iter().for_each(|tick| tick.abort());
+        }));
+        Some(Delivery { key, hub, tasks })
     }
 }
 
 impl Drop for Delivery {
     fn drop(&mut self) {
         self.hub.unlisten(&self.key);
-        self.task.abort();
+        self.tasks.iter().for_each(JoinHandle::abort);
+    }
+}
+
+/// The first tick is one full period away; a tick missed while the machine slept
+/// is skipped, never replayed.
+async fn tick(inbox: Arc<Inbox>, id: String, every: Duration) {
+    let mut timer = interval_at(tokio::time::Instant::now() + every, every);
+    timer.set_missed_tick_behavior(MissedTickBehavior::Skip);
+    loop {
+        timer.tick().await;
+        inbox.push_tick(&id);
     }
 }
 
@@ -295,6 +345,36 @@ mod tests {
         let delivered = admitted(&grant(&["plugin.*"], &[]), "plugin.state", event.clone());
         assert_eq!(delivered, Some(json!({ "id": "demo", "state": "failed" })));
         assert!(admitted(&grant(&["server.*"], &[]), "plugin.state", event).is_none());
+    }
+
+    #[test]
+    fn a_waiting_tick_is_not_queued_again() {
+        let inbox = Inbox::new("demo");
+        inbox.push_tick("poll");
+        inbox.push_tick("poll");
+        inbox.push_tick("sync");
+        assert_eq!(inbox.queue.lock().unwrap().len(), 2);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn a_schedule_ticks_each_period_and_skips_what_it_missed() {
+        let inbox = Arc::new(Inbox::new("demo"));
+        let every = Duration::from_secs(30);
+        let task = tokio::spawn(tick(inbox.clone(), "poll".into(), every));
+        tokio::time::sleep(Duration::from_secs(29)).await;
+        assert!(inbox.queue.lock().unwrap().is_empty());
+        tokio::time::sleep(Duration::from_secs(2)).await;
+        assert_eq!(inbox.pop().await.0, "plugin.schedule");
+        tokio::time::sleep(every * 10).await;
+        assert!(inbox.queue.lock().unwrap().len() <= 1);
+        task.abort();
+    }
+
+    #[test]
+    fn a_schedule_tick_is_never_admitted_from_the_hub() {
+        let payload = json!({ "id": "poll" });
+        let listening = grant(&["plugin.*", "plugin.schedule"], &[]);
+        assert!(admitted(&listening, "plugin.schedule", payload).is_none());
     }
 
     #[test]

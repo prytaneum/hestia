@@ -37,6 +37,8 @@ export type { PluginUiActionParams } from "./generated/PluginUiActionParams";
 export type { PluginUiRenderParams } from "./generated/PluginUiRenderParams";
 export type { Program } from "./generated/Program";
 export type { ProviderContribution } from "./generated/ProviderContribution";
+export type { ScheduleContribution } from "./generated/ScheduleContribution";
+export type { ScheduleEvent } from "./generated/ScheduleEvent";
 export type { Setting } from "./generated/Setting";
 export type { SettingKind } from "./generated/SettingKind";
 export type { SettingValue } from "./generated/SettingValue";
