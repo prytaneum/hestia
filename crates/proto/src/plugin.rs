@@ -1186,6 +1186,23 @@ pub struct PluginInfo {
     /// walking every plugin's tree on each `plugin.list` costs too much.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub data_bytes: Option<u64>,
+    /// Filled only while developer mode is on.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub developer: Option<PluginDeveloperInfo>,
+}
+
+/// What `plugin.info` and `plugin.list` add for a developer.
+#[derive(Serialize, Deserialize, Default, Debug, Clone)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
+#[serde(default, rename_all = "camelCase")]
+pub struct PluginDeveloperInfo {
+    /// Digest of the grant the user approved.
+    pub grant_digest: String,
+    /// Where compiled components are cached; the plugin's own artifact is named
+    /// after its `sha256`.
+    pub cache_dir: String,
+    /// The last error and the causes beneath it, outermost first.
+    pub error_chain: Vec<String>,
 }
 
 /// Published on every state transition of a plugin.

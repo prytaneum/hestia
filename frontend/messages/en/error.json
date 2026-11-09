@@ -35,6 +35,7 @@
       "content_not_found": "No installed content matches '{reference}'.",
       "content_source_unavailable": "{source} needs an API key before it can be used — add one in Settings.",
       "create_in_progress": "That server is already being created.",
+      "developer_mode_off": "Developer mode is off. Turn it on in Settings > General > Advanced.",
       "download_failed": "Download failed: {detail}",
       "elevation_required": "Installing this update needs administrator rights — run: {command}",
       "entry_not_found": "No {entry} matches '{reference}'.",

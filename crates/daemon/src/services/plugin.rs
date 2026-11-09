@@ -100,6 +100,9 @@ pub(super) fn register(on: &mut Channels<'_>) {
     });
 
     on.handle::<PluginInstall, _, _>(|p, ctx| async move {
+        if p.dev {
+            ctx.runtime.plugins().require_developer()?;
+        }
         let package = Package::held(ctx.runtime.engine(), &p)?;
         let plugin = ctx
             .runtime

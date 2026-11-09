@@ -36,6 +36,10 @@ impl Plugins {
     }
 
     async fn reload_changed(&self, stamps: &mut HashMap<String, SystemTime>) {
+        if !self.developer() {
+            stamps.clear();
+            return;
+        }
         let engine = self.engine.clone();
         let Ok(current) = spawn_blocking(move || {
             engine

@@ -9,6 +9,8 @@ use crate::plugin::Permission;
 /// store: the data-directory pointer and the login registration.
 pub const HOME_KEY: &str = "home";
 pub const AUTOSTART_KEY: &str = "autostart";
+/// The setting that unlocks the plugin authoring tools.
+pub const DEVELOPER_KEY: &str = "developer";
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]

@@ -38,6 +38,9 @@ pub struct Settings {
     /// Whether the launcher may reach the network at all.
     pub network: NetworkSettings,
     pub java: JavaProviderSettings,
+    /// Shows and allows the plugin authoring tools: dev installs, their log
+    /// stream and the extra diagnostics. Off, the daemon refuses them.
+    pub developer: bool,
 }
 
 /// The Java distribution runtimes are installed from, keyed `java.provider`:

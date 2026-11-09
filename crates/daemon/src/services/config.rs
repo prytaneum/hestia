@@ -5,7 +5,8 @@ use std::path::Path;
 
 use engine::ConfigError;
 use proto::config::{
-    ConfigGet, ConfigGetResult, ConfigList, ConfigListResult, ConfigSet, AUTOSTART_KEY, HOME_KEY,
+    ConfigGet, ConfigGetResult, ConfigList, ConfigListResult, ConfigSet, AUTOSTART_KEY,
+    DEVELOPER_KEY, HOME_KEY,
 };
 use proto::error::{ErrorInfo, ValueKind};
 use proto::Empty;
@@ -93,11 +94,15 @@ pub(super) fn register(on: &mut Channels<'_>) {
             autostart::set(enabled).map_err(crate::runtime::engine_error)?;
             return Ok(Empty {});
         }
+        let key = p.key;
         ctx.runtime
             .engine()
-            .set_config(&p.key, p.value)
+            .set_config(&key, p.value)
             .map_err(config_err)?;
-        tracing::info!(key = %p.key, "config updated");
+        tracing::info!(key = %key, "config updated");
+        if key == DEVELOPER_KEY && !ctx.runtime.plugins().developer() {
+            ctx.runtime.plugins().disable_dev_plugins().await;
+        }
         Ok(Empty {})
     });
 

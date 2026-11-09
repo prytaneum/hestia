@@ -509,6 +509,8 @@ pub enum ErrorInfo {
     },
     /// The package's grant is not the one the caller approved; inspect it again.
     PluginApprovalStale,
+    /// A developer-only call while `developer` is off.
+    DeveloperModeOff,
     /// No configured repository matches `reference`.
     RepositoryNotFound {
         reference: String,
@@ -964,6 +966,10 @@ impl fmt::Display for ErrorInfo {
             VersionNotFound { reference } => write!(f, "no version matches '{reference}'"),
             TaskNotFound { id } => write!(f, "no scheduled task '{id}'"),
             PluginNotFound { id } => write!(f, "no plugin '{id}' is installed"),
+            DeveloperModeOff => write!(
+                f,
+                "developer mode is off; enable it with: hestia config set developer true"
+            ),
             PluginApprovalStale => write!(
                 f,
                 "the package's permissions changed since you reviewed them"

@@ -35,6 +35,7 @@
       "content_not_found": "Nenhum conteúdo instalado corresponde a '{reference}'.",
       "content_source_unavailable": "{source} precisa de uma chave de API para ser usada — adicione uma nas Configurações.",
       "create_in_progress": "Esse servidor já está sendo criado.",
+      "developer_mode_off": "O modo desenvolvedor está desativado. Ative em Configurações > Geral > Avançado.",
       "download_failed": "O download falhou: {detail}",
       "elevation_required": "Instalar esta atualização requer permissões de administrador — execute: {command}",
       "entry_not_found": "Nenhum {entry} corresponde a '{reference}'.",

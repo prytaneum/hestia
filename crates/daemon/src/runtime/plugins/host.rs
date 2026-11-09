@@ -68,7 +68,11 @@ impl RouterHost {
 #[async_trait]
 impl HostCalls for RouterHost {
     fn dev_log(&self, plugin: &str, level: &str, text: &str) {
-        if let Ok(runtime) = self.runtime() {
+        if let Some(runtime) = self
+            .runtime()
+            .ok()
+            .filter(|runtime| runtime.plugins().developer())
+        {
             runtime.hub().publish_topic(&PluginLogEvent {
                 id: plugin.to_string(),
                 level: level.to_string(),

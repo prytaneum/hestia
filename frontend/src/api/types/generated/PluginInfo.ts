@@ -2,6 +2,7 @@
 import type { Grant } from "./Grant";
 import type { Manifest } from "./Manifest";
 import type { Permission } from "./Permission";
+import type { PluginDeveloperInfo } from "./PluginDeveloperInfo";
 import type { PluginSource } from "./PluginSource";
 import type { PluginState } from "./PluginState";
 
@@ -44,4 +45,8 @@ unrestricted: Array<Permission>, lastError?: string, calls: number, traps: numbe
  * Size of the plugin's `data/` directory, measured only by `plugin.info`:
  * walking every plugin's tree on each `plugin.list` costs too much.
  */
-dataBytes?: number, };
+dataBytes?: number, 
+/**
+ * Filled only while developer mode is on.
+ */
+developer?: PluginDeveloperInfo, };

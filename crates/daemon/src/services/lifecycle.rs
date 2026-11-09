@@ -57,6 +57,9 @@ pub(super) fn register(on: &mut Channels<'_>) {
 
     on.handle::<EventsSubscribe, _, _>(|p, ctx| async move {
         let filter = if p.id.is_empty() { None } else { Some(p.id) };
+        if let Some(id) = &filter {
+            ctx.runtime.plugins().require_developer_to_follow(id)?;
+        }
         ctx.runtime
             .hub()
             .subscribe(ctx.conn_id, ctx.out.clone(), filter);

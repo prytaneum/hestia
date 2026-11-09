@@ -21,8 +21,9 @@ use engine::{
 };
 use proto::error::ErrorInfo;
 use proto::plugin::{
-    CommandContribution, Manifest, PageContribution, PluginCommand, PluginInfo, PluginInspection,
-    PluginInstallPhase, PluginPage, PluginState, PluginStateEvent, PluginTheme, SettingValue,
+    CommandContribution, Manifest, PageContribution, PluginCommand, PluginDeveloperInfo,
+    PluginInfo, PluginInspection, PluginInstallPhase, PluginPage, PluginSource, PluginState,
+    PluginStateEvent, PluginTheme, SettingValue,
 };
 use tokio::task::{spawn_blocking, JoinSet};
 
@@ -35,6 +36,7 @@ pub use package::Package;
 
 const INIT_TIMEOUT: Duration = Duration::from_secs(10);
 const SAFE_MODE_NOTE: &str = "not loaded: the daemon is in safe mode";
+const DEVELOPER_OFF_NOTE: &str = "disabled: developer mode was turned off";
 
 struct Slot {
     state: PluginState,
@@ -154,6 +156,66 @@ impl Plugins {
         self.slots.lock().unwrap().clear();
     }
 
+    /// Whether the `developer` setting is on.
+    pub fn developer(&self) -> bool {
+        self.engine.config().settings().developer
+    }
+
+    /// The refusal every developer-only call answers while the mode is off.
+    pub fn require_developer(&self) -> ServiceResult<()> {
+        if self.developer() {
+            Ok(())
+        } else {
+            Err(ErrorInfo::DeveloperModeOff)
+        }
+    }
+
+    /// Refuses a subscription filtered to a dev plugin, the only source of
+    /// `plugin.log`, while the mode is off.
+    pub fn require_developer_to_follow(&self, filter: &str) -> ServiceResult<()> {
+        let dev = self
+            .engine
+            .plugins()
+            .get(filter)
+            .is_some_and(|record| record.source == PluginSource::Dev);
+        if dev {
+            self.require_developer()?;
+        }
+        Ok(())
+    }
+
+    /// Disables every dev-installed plugin, which also ends its reload watch,
+    /// and records why. Called when `developer` is turned off.
+    pub async fn disable_dev_plugins(&self) {
+        let engine = self.engine.clone();
+        let dev_ids = spawn_blocking(move || {
+            engine
+                .plugins()
+                .list()
+                .into_iter()
+                .filter(|record| record.enabled && record.source == PluginSource::Dev)
+                .map(|record| record.id)
+                .collect::<Vec<_>>()
+        })
+        .await
+        .unwrap_or_default();
+        for id in dev_ids {
+            if let Err(error) = self.engine.plugins().set_enabled(&id, false) {
+                tracing::warn!(plugin = %id, error = %format!("{error:#}"), "cannot disable a dev plugin");
+                continue;
+            }
+            tracing::info!(plugin = %id, "dev plugin disabled: developer mode is off");
+            self.settle(
+                &id,
+                PluginState::Disabled,
+                Some(DEVELOPER_OFF_NOTE.into()),
+                None,
+                Contributions::default(),
+            );
+            self.engine.processes().stop_owned(&engine::owner_of(&id));
+        }
+    }
+
     pub async fn list(&self) -> Vec<PluginInfo> {
         let listings = self.listings().await;
         let mut infos = Vec::new();
@@ -185,6 +247,14 @@ impl Plugins {
             .set_enabled(id, true)
             .map_err(internal)?;
         record.enabled = true;
+        if record.source == PluginSource::Dev {
+            let engine = self.engine.clone();
+            let target = id.to_string();
+            record = spawn_blocking(move || engine.plugins().refresh_dev(&target))
+                .await
+                .map_err(|error| internal(error.into()))?
+                .map_err(internal)?;
+        }
         self.activate(record.clone()).await;
         Ok(self.info_of(record).await)
     }
@@ -534,7 +604,17 @@ impl Plugins {
                 Some(format!("{error:#}")),
             ),
         };
+        let developer = self.developer().then(|| PluginDeveloperInfo {
+            grant_digest: record.grant_digest.clone(),
+            cache_dir: self.engine.plugin_cache_dir().display().to_string(),
+            error_chain: last_error
+                .iter()
+                .flat_map(|error| error.split(": "))
+                .map(str::to_string)
+                .collect(),
+        });
         PluginInfo {
+            developer,
             manifest,
             state,
             source: record.source,
@@ -783,6 +863,73 @@ mod tests {
         );
 
         assert!(plugins.slots.lock().unwrap().is_empty());
+    }
+
+    fn install_dev(engine: &Engine) {
+        engine
+            .plugins()
+            .save(&PluginRecord {
+                id: "demo".into(),
+                source: PluginSource::Dev,
+                enabled: true,
+                ..PluginRecord::default()
+            })
+            .expect("save record");
+    }
+
+    #[tokio::test]
+    async fn developer_calls_are_refused_until_the_mode_is_on() {
+        let home = tempfile::tempdir().unwrap();
+        let (plugins, engine) = plugins_over(home.path());
+        install_dev(&engine);
+        assert_eq!(
+            plugins.require_developer(),
+            Err(ErrorInfo::DeveloperModeOff)
+        );
+        assert_eq!(
+            plugins.require_developer_to_follow("demo"),
+            Err(ErrorInfo::DeveloperModeOff)
+        );
+        assert_eq!(plugins.require_developer_to_follow("elsewhere"), Ok(()));
+
+        engine
+            .set_config("developer", serde_json::json!(true))
+            .unwrap();
+        assert_eq!(plugins.require_developer(), Ok(()));
+        assert_eq!(plugins.require_developer_to_follow("demo"), Ok(()));
+    }
+
+    #[tokio::test]
+    async fn turning_the_mode_off_disables_dev_plugins_and_says_why() {
+        let home = tempfile::tempdir().unwrap();
+        let (plugins, engine) = plugins_over(home.path());
+        install_dev(&engine);
+        engine
+            .set_config("developer", serde_json::json!(true))
+            .unwrap();
+        engine
+            .set_config("developer", serde_json::json!(false))
+            .unwrap();
+
+        plugins.disable_dev_plugins().await;
+
+        assert!(!engine.plugins().get("demo").unwrap().enabled);
+        let slots = plugins.slots.lock().unwrap();
+        assert_eq!(slots["demo"].state, PluginState::Disabled);
+        assert_eq!(slots["demo"].error.as_deref(), Some(DEVELOPER_OFF_NOTE));
+    }
+
+    #[tokio::test]
+    async fn developer_details_appear_only_while_the_mode_is_on() {
+        let home = tempfile::tempdir().unwrap();
+        let (plugins, engine) = plugins_over(home.path());
+        install(&engine, false);
+        assert!(plugins.info("demo").await.unwrap().developer.is_none());
+
+        engine
+            .set_config("developer", serde_json::json!(true))
+            .unwrap();
+        assert!(plugins.info("demo").await.unwrap().developer.is_some());
     }
 
     #[tokio::test]
