@@ -199,6 +199,8 @@
       "url": "URL de download",
       "version": "versão",
       "world": "mundo",
+      "world_import_bedrock_only": "apenas um servidor Bedrock importa um .mcworld",
+      "world_missing": "não contém um mundo (sem level.dat)",
       "worlds_for_datapacks_only": "mundos se aplicam apenas a datapacks",
       "write": "escrever",
       "xbox": "Xbox",

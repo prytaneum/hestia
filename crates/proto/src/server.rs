@@ -10,6 +10,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::content::{ContentFailure, ContentKind};
 use crate::contract::{Contract, Empty};
+use crate::instance::WorldInfo;
 use crate::job::{Job, JobStarted};
 use crate::minecraft::{ConfigEntry, Edition, ProvisionProgress};
 use crate::modpack::PackPolicy;
@@ -249,6 +250,45 @@ pub struct ServerPingResult {
     /// [`crate::instance::ServerEntry::icon`]. Empty when the server sends
     /// none, or sends one this build will not inline.
     pub favicon: String,
+}
+
+/// A Java server's one world, or every world a Bedrock server holds with the
+/// active one first and then the most recently played. `folder` is the name
+/// `level-name` takes.
+pub struct ServerWorlds;
+impl Contract for ServerWorlds {
+    const CHANNEL: &'static str = "server.worlds";
+    type Params = ServerRef;
+    type Result = Vec<WorldInfo>;
+}
+
+#[derive(Serialize, Deserialize, Default, Debug, Clone)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
+#[serde(default, rename_all = "camelCase")]
+pub struct ServerWorldImportParams {
+    /// Server name or id.
+    pub server: String,
+    /// A `.mcworld` on the daemon's machine; absolute.
+    pub path: String,
+    /// Make the imported world the server's `level-name`.
+    #[serde(rename = "use")]
+    pub activate: bool,
+    /// Client-supplied job id; empty asks the daemon to allocate one.
+    pub id: String,
+}
+
+/// A job, Bedrock servers only, refused while the server runs. A cancel or a
+/// failure leaves no partial world folder.
+pub struct ServerWorldImport;
+impl Contract for ServerWorldImport {
+    const CHANNEL: &'static str = "server.worlds.import";
+    type Params = ServerWorldImportParams;
+    type Result = JobStarted;
+}
+
+impl Job for ServerWorldImport {
+    type Progress = ProvisionProgress;
+    type Done = WorldInfo;
 }
 
 pub struct ServerPing;

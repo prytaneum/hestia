@@ -13,3 +13,4 @@ export type { ServerProperty } from "./generated/ServerProperty";
 export type { ServerRef } from "./generated/ServerRef";
 export type { ServerStartResult } from "./generated/ServerStartResult";
 export type { ServerUpdateParams } from "./generated/ServerUpdateParams";
+export type { ServerWorldImportParams } from "./generated/ServerWorldImportParams";

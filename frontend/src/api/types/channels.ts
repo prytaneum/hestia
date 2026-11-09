@@ -159,6 +159,7 @@ import type { ServerTask } from "./generated/ServerTask";
 import type { ServerTaskRemoveParams } from "./generated/ServerTaskRemoveParams";
 import type { ServerTaskSaveParams } from "./generated/ServerTaskSaveParams";
 import type { ServerUpdateParams } from "./generated/ServerUpdateParams";
+import type { ServerWorldImportParams } from "./generated/ServerWorldImportParams";
 import type { Skin } from "./generated/Skin";
 import type { SkinAddParams } from "./generated/SkinAddParams";
 import type { SkinEquipParams } from "./generated/SkinEquipParams";
@@ -301,6 +302,8 @@ export interface Channels {
   "server.task.remove": { params: Partial<ServerTaskRemoveParams>; result: Empty };
   "server.task.save": { params: Omit<Partial<ServerTaskSaveParams>, "task"> & { "task"?: Partial<ServerTask> }; result: ServerTask };
   "server.update": { params: Partial<ServerUpdateParams>; result: JobStarted };
+  "server.worlds": { params: Partial<ServerRef>; result: Array<WorldInfo> };
+  "server.worlds.import": { params: Partial<ServerWorldImportParams>; result: JobStarted };
   "skin.add": { params: Partial<SkinAddParams>; result: Skin };
   "skin.equip": { params: Partial<SkinEquipParams>; result: Empty };
   "skin.list": { params: Partial<SkinListParams>; result: SkinListResult };
@@ -339,6 +342,7 @@ export interface Jobs {
   "server.create": { progress: ProvisionProgress; done: ServerDone };
   "server.modpack.install": { progress: ProvisionProgress; done: ModpackDone };
   "server.update": { progress: ProvisionProgress; done: ServerDone };
+  "server.worlds.import": { progress: ProvisionProgress; done: WorldInfo };
   "update.download": { progress: DownloadProgress; done: UpdateDone };
 }
 

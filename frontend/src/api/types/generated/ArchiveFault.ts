@@ -3,4 +3,4 @@
 /**
  * Why an archive or a pack could not be read.
  */
-export type ArchiveFault = "not_an_archive" | "manifest_missing" | "manifest_malformed" | "unsafe_path" | "format_version" | "manifest_type" | "no_game_version" | "no_components" | "file_unpublished";
+export type ArchiveFault = "not_an_archive" | "manifest_missing" | "manifest_malformed" | "unsafe_path" | "format_version" | "manifest_type" | "no_game_version" | "no_components" | "file_unpublished" | "world_missing";

@@ -191,6 +191,7 @@ pub enum Unsupported {
     FileUpdatesLocalOnly,
     BedrockHost,
     BedrockBans,
+    WorldImportBedrockOnly,
 }
 
 impl fmt::Display for Unsupported {
@@ -212,6 +213,7 @@ impl fmt::Display for Unsupported {
             Unsupported::BedrockHost => {
                 "Bedrock Dedicated Server is published for x86_64 Linux and Windows only"
             }
+            Unsupported::WorldImportBedrockOnly => "only a Bedrock server imports a .mcworld",
         })
     }
 }
@@ -260,6 +262,8 @@ pub enum ArchiveFault {
     NoComponents,
     /// The pack lists a file its source no longer publishes.
     FileUnpublished,
+    /// A world archive with no `level.dat` at its root or in its one top folder.
+    WorldMissing,
 }
 
 impl fmt::Display for ArchiveFault {
@@ -274,6 +278,7 @@ impl fmt::Display for ArchiveFault {
             ArchiveFault::NoGameVersion => "it pins no Minecraft version",
             ArchiveFault::NoComponents => "it lists no components",
             ArchiveFault::FileUnpublished => "it lists a file that is not published any more",
+            ArchiveFault::WorldMissing => "it holds no world (no level.dat)",
         })
     }
 }

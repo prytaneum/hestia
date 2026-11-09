@@ -95,7 +95,10 @@
           "modpack": {
             "install": "Instalando um modpack"
           },
-          "update": "Atualizando {name}"
+          "update": "Atualizando {name}",
+          "worlds": {
+            "import": "Importando um mundo em {name}"
+          }
         },
         "update": {
           "download": "Baixando a atualização"
@@ -140,7 +143,10 @@
           "modpack": {
             "install": "Instalando um modpack"
           },
-          "update": "Atualizando"
+          "update": "Atualizando",
+          "worlds": {
+            "import": "Importando um mundo"
+          }
         },
         "update": {
           "download": "Baixando a atualização"
