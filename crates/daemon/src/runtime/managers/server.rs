@@ -3,6 +3,7 @@ use proto::error::EntryKind;
 use proto::process::ProcessState;
 use proto::server::{
     ServerCreate, ServerCreateParams, ServerDone, ServerUpdate, ServerUpdateParams,
+    ServerWorldImport, ServerWorldImportParams,
 };
 use proto::warning::WarningInfo;
 
@@ -115,6 +116,35 @@ impl Jobs {
                     });
                 }
                 Ok(done)
+            })
+        })
+    }
+}
+
+impl Jobs {
+    /// Start a `.mcworld` import off-thread; `claim` is the server's.
+    pub fn start_world_import(
+        &self,
+        record: ServerRecord,
+        params: ServerWorldImportParams,
+        claim: Claim,
+    ) -> String {
+        let spec = Spec {
+            id: params.id.clone(),
+            prefix: "server-world-import",
+            claim: Some(claim),
+            subject: Spec::subject(EntryKind::Server, &record.id),
+        };
+
+        self.run::<ServerWorldImport, _>(spec, move |engine, reporter| {
+            Box::pin(async move {
+                let world = engine.import_server_world(
+                    &record.id,
+                    &params.path,
+                    params.activate,
+                    &reporter.job(),
+                )?;
+                Ok(world)
             })
         })
     }

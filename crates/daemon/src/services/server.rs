@@ -7,7 +7,7 @@ use proto::job::JobStarted;
 use proto::server::{
     ServerCommand, ServerCommandComplete, ServerCommandResult, ServerCreate, ServerDetail,
     ServerList, ServerPing, ServerProperties, ServerRestart, ServerStart, ServerStartResult,
-    ServerStatus, ServerUpdate,
+    ServerStatus, ServerUpdate, ServerWorldImport, ServerWorlds,
 };
 use proto::Empty;
 
@@ -43,6 +43,23 @@ pub(super) fn register(on: &mut Channels<'_>) {
         let (record, claim) = server_held(&ctx, &p.server, hold)?;
         let id = ctx.runtime.jobs().start_server_update(record, p, claim);
         Ok(JobStarted { id })
+    });
+
+    on.handle::<ServerWorldImport, _, _>(|p, ctx| async move {
+        if p.path.trim().is_empty() {
+            return Err(ErrorInfo::FieldRequired { field: Field::Path });
+        }
+        let (record, claim) = server_held(&ctx, &p.server, Hold::stopped(JobKind::Content))?;
+        let id = ctx.runtime.jobs().start_world_import(record, p, claim);
+        Ok(JobStarted { id })
+    });
+
+    on.handle::<ServerWorlds, _, _>(|p, ctx| async move {
+        let record = server_for(&ctx, &p.server, Intent::Read)?;
+        ctx.runtime
+            .engine()
+            .server_worlds(&record.id)
+            .map_err(crate::runtime::engine_error)
     });
 
     on.handle::<ServerList, _, _>(|_: Empty, ctx| async move {
