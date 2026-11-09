@@ -6,6 +6,7 @@
  */
 import type {
   ConfigEntry,
+  Edition,
   ServerDetails,
   ServerInfo,
   ServerProperty,
@@ -131,6 +132,7 @@ export const channels: ChannelHandlers = {
         server: withProcess(
           entries.addServer({
             name: str(p, 'name'),
+            edition: str(p, 'edition', 'java') as Edition,
             flavor: str(p, 'flavor', 'vanilla'),
             version: str(p, 'version'),
             loaderVersion: str(p, 'loaderVersion') || undefined,

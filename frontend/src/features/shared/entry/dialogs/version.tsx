@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 
-import type { EntryKind, PackPolicy } from '@/api';
+import type { Edition, EntryKind, PackPolicy } from '@/api';
 import { AppDialog, DialogBody, DialogFooter } from '@/components/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -30,6 +30,7 @@ export interface UpdateHandle {
 export function ChangeVersionDialog({
   kind,
   id,
+  edition = 'java',
   flavor,
   gameVersion,
   update,
@@ -38,13 +39,14 @@ export function ChangeVersionDialog({
 }: {
   kind: EntryKind;
   id: string;
+  edition?: Edition;
   flavor: string;
   gameVersion: string;
   update: UpdateHandle;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
-  const versions = useQuery(catalogueQueries.versions(kind, flavor));
+  const versions = useQuery(catalogueQueries.versions(kind, edition, flavor));
   const [version, setVersion] = useState('');
   const [downgrade, setDowngrade] = useState(false);
   const [movePack, setMovePack] = useState(true);

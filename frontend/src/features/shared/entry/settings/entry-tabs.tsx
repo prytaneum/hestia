@@ -1,5 +1,5 @@
 import { useMutation, useQuery } from '@tanstack/react-query';
-import type { ConfigEntry, EntryKind } from '@/api';
+import type { ConfigEntry, Edition, EntryKind } from '@/api';
 import { m } from '@/paraglide/messages.js';
 import { configQueries, launcherDefaults } from '@/queries/config';
 import { entryMutations } from '@/queries/entry';
@@ -21,6 +21,7 @@ export function useEntrySettingsTabs({
   entry: {
     id: string;
     name: string;
+    edition?: Edition;
     flavor: string;
     gameVersion: string;
     javaMajor?: number;

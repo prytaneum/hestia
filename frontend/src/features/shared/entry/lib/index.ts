@@ -19,7 +19,6 @@ export {
 export {
   choiceValues,
   editionLabel,
-  groupByEdition,
   hasRule,
   rulesFor,
   serverNameKey,

@@ -5,7 +5,8 @@
  */
 import type {
   ContentKind,
-  EditionRules,
+  Edition,
+  EditionCatalogue,
   Flavor,
   GameVersion,
   KeyRule,
@@ -26,7 +27,6 @@ const vanilla: Flavor = {
   name: 'Vanilla',
   summary: "Mojang's game, unmodified. Takes datapacks and nothing else.",
   accepts: ['data_pack'],
-  edition: 'java',
   requires: [],
 };
 
@@ -35,7 +35,6 @@ const fabric = (accepts: ContentKind[]): Flavor => ({
   name: 'Fabric',
   summary: 'Lightweight mod loader, quick to support each new game version.',
   accepts,
-  edition: 'java',
   requires: [],
 });
 
@@ -44,7 +43,6 @@ const neoforge = (accepts: ContentKind[]): Flavor => ({
   name: 'NeoForge',
   summary: 'The Forge successor. Its game jar is built locally at create.',
   accepts,
-  edition: 'java',
   requires: [],
 });
 
@@ -59,7 +57,9 @@ const SHARED_RULES: KeyRule[] = [
   { key: 'online-mode', kind: { type: 'boolean' } },
 ];
 
-export const serverRules: EditionRules[] = [
+type Rules = Pick<EditionCatalogue, 'edition' | 'rules'>;
+
+const serverRules: Rules[] = [
   {
     edition: 'java',
     rules: [
@@ -101,10 +101,6 @@ export const serverRules: EditionRules[] = [
   },
 ];
 
-export const instanceRules: EditionRules[] = [
-  { edition: 'java', rules: JAVA_SETTINGS },
-];
-
 export const instanceFlavors: Flavor[] = [
   vanilla,
   fabric(CLIENT_KINDS),
@@ -120,7 +116,6 @@ export const serverFlavors: Flavor[] = [
     name: 'Paper',
     summary: 'Optimised Bukkit server with a plugin ecosystem.',
     accepts: PLUGIN_KINDS,
-    edition: 'java',
     requires: [],
   },
   {
@@ -128,7 +123,6 @@ export const serverFlavors: Flavor[] = [
     name: 'Folia',
     summary: 'Regionised multithreading, for servers with spread-out players.',
     accepts: PLUGIN_KINDS,
-    edition: 'java',
     requires: [],
   },
   {
@@ -137,18 +131,36 @@ export const serverFlavors: Flavor[] = [
     summary:
       'Compiled on your machine with BuildTools — a create takes a few minutes.',
     accepts: PLUGIN_KINDS,
-    edition: 'java',
     requires: [{ name: 'git', url: 'https://git-scm.com/downloads' }],
   },
+];
+
+const bedrockVanilla: Flavor = {
+  id: 'vanilla',
+  name: 'Vanilla',
+  summary: "Mojang's Bedrock Dedicated Server, for console and mobile players.",
+  accepts: BEDROCK_KINDS,
+  requires: [],
+};
+
+const rulesOf = (rules: Rules[], edition: Edition): KeyRule[] =>
+  rules.find((r) => r.edition === edition)?.rules ?? [];
+
+export const serverCatalogue: EditionCatalogue[] = [
   {
-    id: 'bedrock',
-    name: 'Vanilla',
-    summary:
-      "Mojang's Bedrock Dedicated Server, for console and mobile players.",
-    accepts: BEDROCK_KINDS,
-    edition: 'bedrock',
-    requires: [],
+    edition: 'java',
+    rules: rulesOf(serverRules, 'java'),
+    flavors: serverFlavors,
   },
+  {
+    edition: 'bedrock',
+    rules: rulesOf(serverRules, 'bedrock'),
+    flavors: [bedrockVanilla],
+  },
+];
+
+export const instanceCatalogue: EditionCatalogue[] = [
+  { edition: 'java', rules: JAVA_SETTINGS, flavors: instanceFlavors },
 ];
 
 export const versions: GameVersion[] = [
@@ -179,8 +191,16 @@ export function versionsFor(_flavor: string): GameVersion[] {
 }
 
 /** What a flavor accepts, for an entry record's `accepts`. */
-export function accepts(flavor: string, server: boolean): ContentKind[] {
-  const table = server ? serverFlavors : instanceFlavors;
+export function accepts(
+  flavor: string,
+  server: boolean,
+  edition: Edition = 'java',
+): ContentKind[] {
+  const table = !server
+    ? instanceFlavors
+    : edition === 'bedrock'
+      ? [bedrockVanilla]
+      : serverFlavors;
   return table.find((f) => f.id === flavor)?.accepts ?? ['data_pack'];
 }
 

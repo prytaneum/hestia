@@ -1,32 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { dialog, type Flavor } from '@/api';
+import { dialog } from '@/api';
 import {
   choiceValues,
-  groupByEdition,
   hasRule,
   rulesFor,
 } from '@/features/shared/entry/lib';
-
-const flavor = (id: string, edition: Flavor['edition']): Flavor => ({
-  id,
-  name: id,
-  summary: '',
-  edition,
-  accepts: [],
-  requires: [],
-});
-
-describe('flavors by edition', () => {
-  it('groups in the order the daemon lists each edition', () => {
-    const groups = groupByEdition([
-      flavor('vanilla', 'java'),
-      flavor('bedrock', 'bedrock'),
-      flavor('paper', 'java'),
-    ]);
-    expect(groups.map((g) => g.edition)).toEqual(['java', 'bedrock']);
-    expect(groups[0].flavors.map((f) => f.id)).toEqual(['vanilla', 'paper']);
-  });
-});
 
 describe('edition rules', () => {
   const all = [
@@ -41,7 +19,7 @@ describe('edition rules', () => {
       ],
     },
     { edition: 'bedrock' as const, rules: [] },
-  ];
+  ].map((catalogue) => ({ ...catalogue, flavors: [] }));
 
   it('reads the rules of the named edition only', () => {
     expect(hasRule(rulesFor(all, 'java'), 'hardcore')).toBe(true);

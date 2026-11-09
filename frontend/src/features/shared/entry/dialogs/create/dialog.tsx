@@ -2,7 +2,7 @@ import { CaretLeftIcon, CaretRightIcon } from '@phosphor-icons/react';
 import { revalidateLogic } from '@tanstack/react-form';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { ConfigEntry, Edition, Flavor, KeyRule } from '@/api';
+import type { ConfigEntry, Edition, KeyRule } from '@/api';
 import { dialog } from '@/api';
 import { AppDialog, DialogFooter } from '@/components/dialog';
 import { FileDropButton } from '@/components/file-drop-button';
@@ -22,7 +22,6 @@ import {
   detailsStepSchema,
   editionLabel,
   flavorStepSchema,
-  groupByEdition,
   hasRule,
   rulesFor,
   serverNameKey,
@@ -74,18 +73,16 @@ export function CreateEntryDialog({
   const [showSnapshots, setShowSnapshots] = useState(false);
 
   const flavorsQuery = useQuery(catalogueQueries.flavors(kind));
-  const flavors: Flavor[] = useMemo(
-    () => flavorsQuery.data?.flavors ?? [],
+  const groups = useMemo(
+    () => flavorsQuery.data?.editions ?? [],
     [flavorsQuery.data],
   );
-  const groups = useMemo(() => groupByEdition(flavors), [flavors]);
   const [editionTab, setEditionTab] = useState<Edition>('java');
   const shownEdition = groups.some((g) => g.edition === editionTab)
     ? editionTab
     : (groups[0]?.edition ?? editionTab);
   const shownFlavors =
     groups.find((g) => g.edition === shownEdition)?.flavors ?? [];
-  const editionRules = flavorsQuery.data?.rules;
 
   const config = useQuery(configQueries.list());
   const defaultMemory = launcherDefaults(config.data).memory ?? '';
@@ -113,12 +110,8 @@ export function CreateEntryDialog({
       .catch(() => undefined);
   };
 
-  const [flavorId, setFlavorId] = useState('vanilla');
-  const edition = flavors.find((f) => f.id === flavorId)?.edition;
-  const rules = useMemo(
-    () => rulesFor(editionRules ?? [], edition),
-    [editionRules, edition],
-  );
+  const edition = shownEdition;
+  const rules = useMemo(() => rulesFor(groups, edition), [groups, edition]);
 
   const form = useAppForm({
     defaultValues: createWizardDefaults('', defaultMemoryGb),
@@ -157,7 +150,6 @@ export function CreateEntryDialog({
   useEffect(() => {
     if (!open) return;
     setStep('flavor');
-    setFlavorId('vanilla');
     setEditionTab('java');
     setSearch('');
     setShowSnapshots(false);
@@ -256,7 +248,6 @@ export function CreateEntryDialog({
                           setEditionTab(next.edition);
                           const first = next.flavors[0];
                           field.handleChange(first.id);
-                          setFlavorId(first.id);
                           form.setFieldValue('version.version', '');
                           form.setFieldValue('version.loaderVersion', '');
                         }}
@@ -275,7 +266,6 @@ export function CreateEntryDialog({
                         selected={field.state.value === f.id}
                         onSelect={() => {
                           field.handleChange(f.id);
-                          setFlavorId(f.id);
                           form.setFieldValue('version.version', '');
                           form.setFieldValue('version.loaderVersion', '');
                         }}
@@ -293,7 +283,7 @@ export function CreateEntryDialog({
                         }}
                       />
                     )}
-                    {flavors.length === 0 && (
+                    {shownFlavors.length === 0 && (
                       <p className="px-1 py-6 text-center text-xs text-muted-foreground">
                         {flavorsQuery.isPending
                           ? m['app.status.loading']()
@@ -319,6 +309,7 @@ export function CreateEntryDialog({
                   <VersionStep
                     form={form}
                     kind={kind}
+                    edition={edition}
                     flavor={flavor}
                     search={search}
                     onSearch={setSearch}
@@ -374,6 +365,7 @@ function serverParams(
   if (seed) config.push({ key: 'level-seed', value: seed });
   return {
     ...instanceParams(value, memoryEntries),
+    edition,
     eula: true,
     port: d.port ? Number(d.port) : undefined,
     config,

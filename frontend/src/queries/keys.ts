@@ -8,6 +8,7 @@
 import type { QueryKey } from '@tanstack/react-query';
 import type {
   ContentKind,
+  Edition,
   EntryKind,
   EntryTarget,
   SearchQuery,
@@ -34,9 +35,10 @@ function entryKeys<R extends 'servers' | 'instances'>(
     all,
     list: () => [...all, 'list'] as const,
     flavors: () => [...all, 'flavors'] as const,
-    versions: (flavor: string) => [...all, 'versions', flavor] as const,
-    loaders: (flavor: string, version: string) =>
-      [...all, 'loaders', flavor, version] as const,
+    versions: (edition: Edition, flavor: string) =>
+      [...all, 'versions', edition, flavor] as const,
+    loaders: (edition: Edition, flavor: string, version: string) =>
+      [...all, 'loaders', edition, flavor, version] as const,
     detail,
     info: (id: string) => [FOOTPRINT, kind, id] as const,
     config: (id: string) => [...detail(id), 'config'] as const,

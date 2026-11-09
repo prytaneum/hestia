@@ -1,4 +1,4 @@
-import type { Edition, EditionRules, Flavor, KeyRule } from '@/api';
+import type { Edition, EditionCatalogue, KeyRule } from '@/api';
 import { m } from '@/paraglide/messages.js';
 
 export const editionLabel: Record<Edition, () => string> = {
@@ -6,20 +6,9 @@ export const editionLabel: Record<Edition, () => string> = {
   bedrock: m['domain.edition.bedrock'],
 };
 
-/** Flavors grouped by edition, in the order the daemon first lists each edition. */
-export function groupByEdition(
-  flavors: Flavor[],
-): Array<{ edition: Edition; flavors: Flavor[] }> {
-  const groups = new Map<Edition, Flavor[]>();
-  for (const flavor of flavors) {
-    groups.set(flavor.edition, [...(groups.get(flavor.edition) ?? []), flavor]);
-  }
-  return [...groups].map(([edition, list]) => ({ edition, flavors: list }));
-}
-
 /** The property rules the daemon sent for one edition. */
 export const rulesFor = (
-  all: EditionRules[],
+  all: EditionCatalogue[],
   edition: Edition | undefined,
 ): KeyRule[] => all.find((r) => r.edition === edition)?.rules ?? [];
 

@@ -9,6 +9,7 @@
  */
 import type {
   ConfigEntry,
+  Edition,
   InstalledModpack,
   InstanceInfo,
   PlayerList,
@@ -99,7 +100,7 @@ const servers: ServerInfo[] = [
   {
     id: 'bedrock-realm',
     name: 'Bedrock Realm',
-    flavor: 'bedrock',
+    flavor: 'vanilla',
     edition: 'bedrock',
     gameVersion: '1.21.50',
     createdUnix: ago(86_400 * 3),
@@ -111,7 +112,7 @@ const servers: ServerInfo[] = [
     ],
     playerLists: ['whitelist', 'ops'],
     console: true,
-    accepts: accepts('bedrock', true),
+    accepts: accepts('vanilla', true, 'bedrock'),
   },
 ];
 
@@ -214,13 +215,14 @@ export function addInstance(params: {
 
 export function addServer(params: {
   name: string;
+  edition?: Edition;
   flavor: string;
   version: string;
   loaderVersion?: string;
   port?: number;
 }): ServerInfo {
   const name = params.name || 'New Server';
-  const bedrock = params.flavor === 'bedrock';
+  const bedrock = params.edition === 'bedrock';
   const gamePort = params.port ?? (bedrock ? 19_132 : 25_565) + servers.length;
   const server: ServerInfo = {
     id: mintId(name, servers),
@@ -241,7 +243,11 @@ export function addServer(params: {
       : [{ port: gamePort, protocol: 'tcp' }],
     playerLists: bedrock ? ['whitelist', 'ops'] : JAVA_PLAYER_LISTS,
     console: true,
-    accepts: accepts(params.flavor || 'vanilla', true),
+    accepts: accepts(
+      params.flavor || 'vanilla',
+      true,
+      bedrock ? 'bedrock' : 'java',
+    ),
   };
   servers.unshift(server);
   return server;

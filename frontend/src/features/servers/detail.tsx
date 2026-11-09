@@ -136,7 +136,7 @@ function ServerDetail({
   const stop = useMutation(entryMutations.stop('server', id));
   const restart = useMutation(serverMutations.restart(id));
   const job = useBusyJob('server', id);
-  const flavorName = useFlavorName('server', server.flavor);
+  const flavorName = useFlavorName('server', server.edition, server.flavor);
 
   const running = isRunning(server);
   const runsOnJava = server.javaMajor != null;

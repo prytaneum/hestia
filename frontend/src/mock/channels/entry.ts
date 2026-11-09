@@ -54,8 +54,8 @@ export function entryChannels(): ChannelHandlers {
   return {
     'entry.flavors': (p) =>
       p.kind === 'server'
-        ? { flavors: catalog.serverFlavors, rules: catalog.serverRules }
-        : { flavors: catalog.instanceFlavors, rules: catalog.instanceRules },
+        ? { editions: catalog.serverCatalogue }
+        : { editions: catalog.instanceCatalogue },
     'entry.versions': (p) => catalog.versionsFor(str(p, 'flavor')),
     'entry.loaders': (p) => catalog.loaders(str(p, 'flavor')),
 

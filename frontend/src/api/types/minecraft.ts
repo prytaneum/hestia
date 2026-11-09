@@ -2,7 +2,7 @@
 export type { Artifact } from "./generated/Artifact";
 export type { ConfigEntry } from "./generated/ConfigEntry";
 export type { Edition } from "./generated/Edition";
-export type { EditionRules } from "./generated/EditionRules";
+export type { EditionCatalogue } from "./generated/EditionCatalogue";
 export type { Flavor } from "./generated/Flavor";
 export type { FlavorsResult } from "./generated/FlavorsResult";
 export type { GameVersion } from "./generated/GameVersion";
