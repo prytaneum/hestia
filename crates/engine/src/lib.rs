@@ -47,7 +47,7 @@ pub use content::provider::{ContentProvider, LocalFile, UrlRef};
 pub use content::Content;
 pub use download::Downloader;
 pub use engine::{
-    Engine, EntryRef, ExportOutcome, ImportOutcome, LaunchRequest, ModpackOutcome,
+    player_lists, Engine, EntryRef, ExportOutcome, ImportOutcome, LaunchRequest, ModpackOutcome,
     ServerCreateSpec, ServerListWrite, ServerUpdateSpec, VersionChange,
 };
 pub use error::error_info;

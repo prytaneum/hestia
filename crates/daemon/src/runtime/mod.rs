@@ -20,7 +20,6 @@ use engine::{Engine, InstanceRecord, ServerRecord, ServerRuntime};
 use proto::error::ErrorInfo;
 use proto::instance::InstanceInfo;
 use proto::minecraft::Edition;
-use proto::players::PlayerList;
 use proto::process::{LogSource, ProcessInfo, ProcessSpec, StopMethod};
 use proto::server::ServerInfo;
 use tokio::sync::mpsc::UnboundedSender;
@@ -115,10 +114,6 @@ pub fn server_info(
     edition: Edition,
 ) -> ServerInfo {
     let ready = record.ready();
-    let player_lists = match edition {
-        Edition::Java => vec![PlayerList::Whitelist, PlayerList::Ops, PlayerList::Banned],
-        Edition::Bedrock => vec![PlayerList::Whitelist, PlayerList::Ops],
-    };
     ServerInfo {
         id: record.id,
         name: record.name,
@@ -134,7 +129,7 @@ pub fn server_info(
             .into_iter()
             .flatten()
             .collect(),
-        player_lists,
+        player_lists: engine::player_lists(edition),
         console: record.rcon.is_some() || record.profile.runtime.is_native(),
         accepts,
         process,

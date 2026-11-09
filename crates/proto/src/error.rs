@@ -164,9 +164,10 @@ impl fmt::Display for Reason {
             Reason::ProcessIdCharset => {
                 f.write_str("a process id may only contain letters, digits, '-', '_' and '.'")
             }
-            Reason::PlayerName => {
-                f.write_str("a player name is up to 32 letters, digits, '_' or '.', with no spaces")
-            }
+            Reason::PlayerName => f.write_str(
+                "a player name is up to 32 characters and cannot contain quotes, backslashes or \
+                     control characters; Java names allow only letters, digits, '_' and '.'",
+            ),
             Reason::ScheduleFormat => f.write_str(
                 "a schedule is an interval of at least 5m (30m, 6h, 1d) or a daily time (04:30)",
             ),
@@ -189,6 +190,7 @@ pub enum Unsupported {
     FileUpdatesOneItem,
     FileUpdatesLocalOnly,
     BedrockHost,
+    BedrockBans,
 }
 
 impl fmt::Display for Unsupported {
@@ -206,6 +208,7 @@ impl fmt::Display for Unsupported {
             Unsupported::FileUpdatesLocalOnly => {
                 "only a local file can be updated from a file; change a tracked item's version instead"
             }
+            Unsupported::BedrockBans => "Bedrock servers have no ban list",
             Unsupported::BedrockHost => {
                 "Bedrock Dedicated Server is published for x86_64 Linux and Windows only"
             }
@@ -584,6 +587,10 @@ pub enum ErrorInfo {
         entry: EntryKind,
         name: String,
     },
+    /// Bedrock grants operator only to a player who is connected.
+    PlayerNotOnline {
+        name: String,
+    },
     /// A restart's stop outlasted the daemon's patience; the entry may still
     /// be running, and nothing was started.
     StopTimedOut {
@@ -917,6 +924,7 @@ impl fmt::Display for ErrorInfo {
                  with 'config set instance.multi-session true'"
             ),
             NotRunning { name, .. } => write!(f, "{name} is not running"),
+            PlayerNotOnline { name } => write!(f, "{name} is not online"),
             StopTimedOut { name } => write!(f, "{name} did not stop in time"),
             Provisioning { name } => write!(f, "{name} is still being set up"),
             UpdateInProgress { name } => write!(f, "{name} is being updated"),
