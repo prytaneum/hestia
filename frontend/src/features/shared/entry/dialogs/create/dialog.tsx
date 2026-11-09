@@ -1,7 +1,7 @@
 import { CaretLeftIcon, CaretRightIcon } from '@phosphor-icons/react';
 import { revalidateLogic } from '@tanstack/react-form';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ConfigEntry, Edition, Flavor, KeyRule } from '@/api';
 import { dialog } from '@/api';
 import { AppDialog, DialogFooter } from '@/components/dialog';
@@ -10,6 +10,7 @@ import { useAppForm } from '@/components/form';
 import { entryIcon } from '@/components/icons';
 import { StepDots } from '@/components/step-dots';
 import { Button } from '@/components/ui/button';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { ProvisionProgressView } from '@/features/shared/entry/components';
 import {
   bakeIcon,
@@ -42,7 +43,6 @@ import { serverMutations } from '@/queries/server';
 import {
   FlavorOption,
   type Kind,
-  SectionHeader,
   STEP_HINTS,
   STEPS,
   type Step,
@@ -79,6 +79,12 @@ export function CreateEntryDialog({
     [flavorsQuery.data],
   );
   const groups = useMemo(() => groupByEdition(flavors), [flavors]);
+  const [editionTab, setEditionTab] = useState<Edition>('java');
+  const shownEdition = groups.some((g) => g.edition === editionTab)
+    ? editionTab
+    : (groups[0]?.edition ?? editionTab);
+  const shownFlavors =
+    groups.find((g) => g.edition === shownEdition)?.flavors ?? [];
   const editionRules = flavorsQuery.data?.rules;
 
   const config = useQuery(configQueries.list());
@@ -152,6 +158,7 @@ export function CreateEntryDialog({
     if (!open) return;
     setStep('flavor');
     setFlavorId('vanilla');
+    setEditionTab('java');
     setSearch('');
     setShowSnapshots(false);
     form.reset(createWizardDefaults('', defaultMemoryRef.current));
@@ -237,27 +244,42 @@ export function CreateEntryDialog({
               <form.AppField name="flavor.flavor">
                 {(field) => (
                   <div className="grid gap-2">
-                    {groups.map((group) => (
-                      <Fragment key={group.edition}>
-                        {groups.length > 1 && (
-                          <SectionHeader>
-                            {editionLabel[group.edition]()}
-                          </SectionHeader>
-                        )}
-                        {group.flavors.map((f) => (
-                          <FlavorOption
-                            key={f.id}
-                            flavor={f}
-                            selected={field.state.value === f.id}
-                            onSelect={() => {
-                              field.handleChange(f.id);
-                              setFlavorId(f.id);
-                              form.setFieldValue('version.version', '');
-                              form.setFieldValue('version.loaderVersion', '');
-                            }}
-                          />
+                    {groups.length > 1 && (
+                      <ToggleGroup
+                        variant="outline"
+                        value={[shownEdition]}
+                        onValueChange={(values: string[]) => {
+                          const next = groups.find(
+                            (g) => g.edition === values[values.length - 1],
+                          );
+                          if (!next) return;
+                          setEditionTab(next.edition);
+                          const first = next.flavors[0];
+                          field.handleChange(first.id);
+                          setFlavorId(first.id);
+                          form.setFieldValue('version.version', '');
+                          form.setFieldValue('version.loaderVersion', '');
+                        }}
+                      >
+                        {groups.map((g) => (
+                          <ToggleGroupItem key={g.edition} value={g.edition}>
+                            {editionLabel[g.edition]()}
+                          </ToggleGroupItem>
                         ))}
-                      </Fragment>
+                      </ToggleGroup>
+                    )}
+                    {shownFlavors.map((f) => (
+                      <FlavorOption
+                        key={f.id}
+                        flavor={f}
+                        selected={field.state.value === f.id}
+                        onSelect={() => {
+                          field.handleChange(f.id);
+                          setFlavorId(f.id);
+                          form.setFieldValue('version.version', '');
+                          form.setFieldValue('version.loaderVersion', '');
+                        }}
+                      />
                     ))}
                     {kind === 'instance' && onImport && (
                       <FileDropButton

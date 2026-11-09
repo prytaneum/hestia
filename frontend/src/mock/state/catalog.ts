@@ -142,7 +142,7 @@ export const serverFlavors: Flavor[] = [
   },
   {
     id: 'bedrock',
-    name: 'Bedrock',
+    name: 'Vanilla',
     summary:
       "Mojang's Bedrock Dedicated Server, for console and mobile players.",
     accepts: BEDROCK_KINDS,
