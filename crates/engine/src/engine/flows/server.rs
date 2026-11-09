@@ -238,7 +238,8 @@ impl Engine {
 
     pub async fn server_ping(&self, reference: &str) -> Result<ServerPingResult> {
         let record = self.servers.require(reference)?;
-        ping::ping(record.game_port).await
+        let edition = self.server_edition(&record.profile.flavor);
+        ping::ping(edition, record.game_port).await
     }
 
     /// The server's static, informational view: descriptor, locations, and the

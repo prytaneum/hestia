@@ -21,7 +21,7 @@ use serde_json::Value;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 
-const IO_TIMEOUT: Duration = Duration::from_secs(5);
+pub(super) const IO_TIMEOUT: Duration = Duration::from_secs(5);
 const MAX_PAYLOAD: usize = 256 * 1024;
 const STATUS_INTENT: i32 = 1;
 const ANY_PROTOCOL: i32 = -1;
