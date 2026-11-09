@@ -35,6 +35,8 @@ const SCHEMA_RUN: &str = ".schema";
 const DATA: &str = "data";
 const GAME_PORT_BASE: u16 = 25565;
 const RCON_PORT_BASE: u16 = 25575;
+const BEDROCK_PORT_BASE: u16 = 19132;
+const BEDROCK_PORT_V6_BASE: u16 = 19133;
 const PORT_SPAN: u16 = 100;
 
 // Pre-EULA servers (before 1.7.10) have no gate and would boot for real; the
@@ -77,6 +79,9 @@ pub struct ServerRecord {
     pub phase: ServerPhase,
     /// Claimed at create and never moved — players connect to it.
     pub game_port: u16,
+    /// A Bedrock server's second UDP port, for IPv6; claimed at first start.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ipv6_port: Option<u16>,
     /// Claimed at first start; internal, so it may be reallocated freely.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub rcon: Option<RconConfig>,
@@ -173,13 +178,15 @@ impl Servers {
         profile: ServerProfile,
         port: Option<u16>,
     ) -> Result<ServerRecord> {
+        let transport = Transport::of(&profile);
         let record = self.store.register(name, |id| {
             Ok(ServerRecord {
                 id,
                 name: name.to_string(),
                 created_unix: common::now_unix(),
                 phase: ServerPhase::Provisioning,
-                game_port: self.claim_game_port(port)?,
+                game_port: self.claim_game_port(port, transport)?,
+                ipv6_port: None,
                 rcon: None,
                 jvm: JavaSettings::default(),
                 tasks: Vec::new(),
@@ -190,24 +197,30 @@ impl Servers {
         Ok(record)
     }
 
-    fn claim_game_port(&self, requested: Option<u16>) -> Result<u16> {
+    fn claim_game_port(&self, requested: Option<u16>, transport: Transport) -> Result<u16> {
         let claimed = self.claimed_ports(None);
         match requested {
-            Some(port) if unavailable(&claimed, port) => {
+            Some(port) if unavailable(&claimed, port, transport) => {
                 bail!(proto::error::ErrorInfo::PortUnavailable { port })
             }
             Some(port) => Ok(port),
-            None => allocate_port(GAME_PORT_BASE, &claimed),
+            None => allocate_port(transport.game_base(), &claimed, transport),
         }
     }
 
-    /// Every port any server's record claims (game and rcon), except
+    /// Every port any server's record claims (game, IPv6 and rcon), except
     /// `exclude`'s own.
     fn claimed_ports(&self, exclude: Option<&str>) -> HashSet<u16> {
         self.list()
             .iter()
             .filter(|r| Some(r.id.as_str()) != exclude)
-            .flat_map(|r| [Some(r.game_port), r.rcon.as_ref().map(|c| c.port)])
+            .flat_map(|r| {
+                [
+                    Some(r.game_port),
+                    r.ipv6_port,
+                    r.rcon.as_ref().map(|c| c.port),
+                ]
+            })
             .flatten()
             .collect()
     }
@@ -220,21 +233,41 @@ impl Servers {
         self.store.mutate(id, |record| {
             let claimed = self.claimed_ports(Some(&record.id));
 
+            let transport = Transport::of(&record.profile);
             let game_port = record.game_port;
-            if unavailable(&claimed, game_port) {
+            if unavailable(&claimed, game_port, transport) {
                 bail!(proto::error::ErrorInfo::PortUnavailable { port: game_port });
             }
 
+            let file = self.data_dir(record).join(properties::PROPERTIES);
+            if transport == Transport::Udp {
+                let mut taken = claimed;
+                taken.insert(game_port);
+                let ipv6 = match record.ipv6_port {
+                    Some(port) if !unavailable(&taken, port, transport) => port,
+                    _ => allocate_port(BEDROCK_PORT_V6_BASE, &taken, transport)?,
+                };
+                properties::merge_properties(
+                    &file,
+                    &[
+                        ("server-port", game_port.to_string()),
+                        ("server-portv6", ipv6.to_string()),
+                    ],
+                )?;
+                record.ipv6_port = Some(ipv6);
+                return Ok(record.clone());
+            }
+
             let rcon = match record.rcon.take() {
-                Some(cfg) if !unavailable(&claimed, cfg.port) => cfg,
+                Some(cfg) if !unavailable(&claimed, cfg.port, transport) => cfg,
                 prior => RconConfig {
-                    port: allocate_port(RCON_PORT_BASE, &claimed)?,
+                    port: allocate_port(RCON_PORT_BASE, &claimed, transport)?,
                     password: prior.map(|c| c.password).unwrap_or_else(generate_password),
                 },
             };
 
             properties::merge_properties(
-                &self.data_dir(record).join(properties::PROPERTIES),
+                &file,
                 &[
                     ("server-port", game_port.to_string()),
                     ("enable-rcon", "true".to_string()),
@@ -254,7 +287,10 @@ impl Servers {
         std::fs::create_dir_all(&data)
             .with_context(|| format!("cannot create {}", data.display()))?;
         materialize::validate_filename(record.profile.runtime.filename())?;
-        std::fs::write(data.join("eula.txt"), "eula=true\n").context("cannot write eula.txt")?;
+        if Transport::of(&record.profile) == Transport::Tcp {
+            std::fs::write(data.join("eula.txt"), "eula=true\n")
+                .context("cannot write eula.txt")?;
+        }
         tracing::info!(id = %record.id, "server provisioned");
         Ok(())
     }
@@ -632,18 +668,45 @@ impl Servers {
     }
 }
 
-// Both the game and rcon listeners bind all interfaces, so probe the same way.
-fn can_bind(port: u16) -> bool {
-    std::net::TcpListener::bind(("0.0.0.0", port)).is_ok()
+/// What a server's listeners speak: a Java server one TCP port, a Bedrock
+/// server UDP.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Transport {
+    Tcp,
+    Udp,
 }
 
-fn unavailable(claimed: &HashSet<u16>, port: u16) -> bool {
-    claimed.contains(&port) || !can_bind(port)
+impl Transport {
+    fn of(profile: &ServerProfile) -> Self {
+        match profile.runtime {
+            ServerRuntime::Java { .. } => Transport::Tcp,
+            ServerRuntime::Native { .. } => Transport::Udp,
+        }
+    }
+
+    fn game_base(self) -> u16 {
+        match self {
+            Transport::Tcp => GAME_PORT_BASE,
+            Transport::Udp => BEDROCK_PORT_BASE,
+        }
+    }
 }
 
-fn allocate_port(base: u16, claimed: &HashSet<u16>) -> Result<u16> {
+// Listeners bind all interfaces, so probe the same way.
+fn can_bind(port: u16, transport: Transport) -> bool {
+    match transport {
+        Transport::Tcp => std::net::TcpListener::bind(("0.0.0.0", port)).is_ok(),
+        Transport::Udp => std::net::UdpSocket::bind(("0.0.0.0", port)).is_ok(),
+    }
+}
+
+fn unavailable(claimed: &HashSet<u16>, port: u16, transport: Transport) -> bool {
+    claimed.contains(&port) || !can_bind(port, transport)
+}
+
+fn allocate_port(base: u16, claimed: &HashSet<u16>, transport: Transport) -> Result<u16> {
     (base..base.saturating_add(PORT_SPAN))
-        .find(|port| !unavailable(claimed, *port))
+        .find(|port| !unavailable(claimed, *port, transport))
         .with_context(|| format!("no free port in {base}..{}", base.saturating_add(PORT_SPAN)))
 }
 

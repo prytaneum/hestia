@@ -120,7 +120,10 @@ pub fn server_info(
         created_unix: record.created_unix,
         ready,
         game_port: record.game_port,
-        ports: vec![record.game_port],
+        ports: [Some(record.game_port), record.ipv6_port]
+            .into_iter()
+            .flatten()
+            .collect(),
         player_lists,
         console: record.rcon.is_some(),
         accepts,

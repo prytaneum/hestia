@@ -51,6 +51,49 @@ fn a_native_server_refuses_the_java_only_keys() {
         .all(|(key, _)| key != "memory"));
 }
 
+fn native_profile() -> ServerProfile {
+    ServerProfile {
+        flavor: "bedrock".into(),
+        runtime: ServerRuntime::Native {
+            archive: proto::minecraft::Artifact {
+                filename: "bedrock.zip".into(),
+                ..Default::default()
+            },
+            executable: "bedrock_server".into(),
+            env: Vec::new(),
+        },
+        ..Default::default()
+    }
+}
+
+#[test]
+fn bedrock_servers_claim_two_distinct_udp_ports_each() {
+    let dir = temp_dir("bedrock-ports");
+    let servers = Servers::new(dir.path().join("servers"));
+    let mut seen = std::collections::HashSet::new();
+    for name in ["one", "two"] {
+        let record = servers.create(name, native_profile(), None).unwrap();
+        std::fs::create_dir_all(servers.data_dir(&record)).unwrap();
+        let started = servers.ensure_start_config(&record.id).unwrap();
+        let v6 = started
+            .ipv6_port
+            .expect("a bedrock server gains an IPv6 port");
+        assert!(started.game_port >= 19132 && v6 >= 19133);
+        assert!(started.rcon.is_none(), "bedrock has no rcon");
+        assert!(
+            seen.insert(started.game_port) && seen.insert(v6),
+            "no port is shared"
+        );
+        let file =
+            std::fs::read_to_string(servers.data_dir(&started).join("server.properties")).unwrap();
+        assert!(file.contains(&format!("server-port={}", started.game_port)));
+        assert!(file.contains(&format!("server-portv6={v6}")));
+    }
+    assert!(servers
+        .config_set(&servers.list()[0].id, "server-portv6", "1")
+        .is_err());
+}
+
 /// A directory that removes itself when the test ends, named after the test so
 /// a leftover under a debugger says which one left it.
 fn temp_dir(tag: &str) -> tempfile::TempDir {

@@ -110,7 +110,13 @@ pub(crate) fn validate(key: &str, value: &str) -> Result<(), Reason> {
 
 /// `server.properties` keys hestia owns; a `config set` to any of them is
 /// rejected (the game port is fixed at create, rcon is configured at start).
-pub(crate) const MANAGED: &[&str] = &["server-port", "enable-rcon", "rcon.port", "rcon.password"];
+pub(crate) const MANAGED: &[&str] = &[
+    "server-port",
+    "server-portv6",
+    "enable-rcon",
+    "rcon.port",
+    "rcon.password",
+];
 
 /// Never sent to a front-end: nothing there needs the console's credential.
 pub(crate) const SECRET: &[&str] = &["rcon.password"];
