@@ -91,10 +91,20 @@ wry 0.57.1 (the versions in `Cargo.lock`):
   `args.Source()`). Tauri then treats any registered custom scheme as **local**
   (`webview/mod.rs`, `is_local_url`, the `.localhost` branch), so a message from
   `http://hestia-plugin.localhost/...` would resolve the main window's
-  capability rather than be refused as remote. Whether WebView2 delivers an
-  iframe's `chrome.webview.postMessage` to the top-level handler could not be
-  established from the sources. If it does, a plugin page could call every
-  command the main window may.
+  capability rather than be refused as remote. WebView2 documents that a child
+  frame's `chrome.webview.postMessage` raises `CoreWebView2Frame.WebMessageReceived`,
+  not the top-level `CoreWebView2.WebMessageReceived`
+  ([reference](https://learn.microsoft.com/en-us/dotnet/api/microsoft.web.webview2.core.corewebview2frame.webmessagereceived)),
+  and wry 0.57.1 subscribes only to the top-level event and never to
+  `FrameCreated` (`webview2/mod.rs:971`). So the fallback should reach no
+  handler, and the page's CSP blocks the fetch path: both barriers hold on
+  paper. If a later wry subscribes to frame messages, a plugin page could call
+  every command the main window may, so the manual check below stays required
+  and is repeated on each wry upgrade.
+- A page's CSP allows the whole `hestia-plugin` scheme, so a page can read
+  another plugin's served assets (icons, themes). They are already public to the
+  app; scoping sources per plugin path was left out because custom-scheme path
+  matching in CSP is unverified on both engines.
 - `crates/desktop/capabilities/default.json` is for `windows: ["main"]` and has no
   `remote` entry, so a genuinely remote origin is granted nothing; the point
   above is that `hestia-plugin` is not remote to Tauri.
