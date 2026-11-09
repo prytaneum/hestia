@@ -1,8 +1,8 @@
 import { CaretLeftIcon, CaretRightIcon } from '@phosphor-icons/react';
 import { revalidateLogic } from '@tanstack/react-form';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { useEffect, useMemo, useRef, useState } from 'react';
-import type { ConfigEntry, Flavor } from '@/api';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
+import type { ConfigEntry, Edition, Flavor, KeyRule } from '@/api';
 import { dialog } from '@/api';
 import { AppDialog, DialogFooter } from '@/components/dialog';
 import { FileDropButton } from '@/components/file-drop-button';
@@ -19,7 +19,12 @@ import {
   createWizardDefaults,
   createWizardSchema,
   detailsStepSchema,
+  editionLabel,
   flavorStepSchema,
+  groupByEdition,
+  hasRule,
+  rulesFor,
+  serverNameKey,
   versionStepSchema,
   type WizardValues,
 } from '@/features/shared/entry/lib';
@@ -37,6 +42,7 @@ import { serverMutations } from '@/queries/server';
 import {
   FlavorOption,
   type Kind,
+  SectionHeader,
   STEP_HINTS,
   STEPS,
   type Step,
@@ -72,10 +78,8 @@ export function CreateEntryDialog({
     () => flavorsQuery.data?.flavors ?? [],
     [flavorsQuery.data],
   );
-  const rules = useMemo(
-    () => flavorsQuery.data?.rules ?? [],
-    [flavorsQuery.data],
-  );
+  const groups = useMemo(() => groupByEdition(flavors), [flavors]);
+  const editionRules = flavorsQuery.data?.rules;
 
   const config = useQuery(configQueries.list());
   const defaultMemory = launcherDefaults(config.data).memory ?? '';
@@ -103,6 +107,13 @@ export function CreateEntryDialog({
       .catch(() => undefined);
   };
 
+  const [flavorId, setFlavorId] = useState('vanilla');
+  const edition = flavors.find((f) => f.id === flavorId)?.edition;
+  const rules = useMemo(
+    () => rulesFor(editionRules ?? [], edition),
+    [editionRules, edition],
+  );
+
   const form = useAppForm({
     defaultValues: createWizardDefaults('', defaultMemoryGb),
     validationLogic: revalidateLogic(),
@@ -111,14 +122,15 @@ export function CreateEntryDialog({
       // Inherit the launcher default when the slider is left on it: store no
       // per-entry override, so a later change to the global default cascades.
       const memoryEntries: ConfigEntry[] =
-        defaultMemory !== '' &&
-        value.details.memory === defaultMemoryRef.current
+        !hasRule(rules, 'memory') ||
+        (defaultMemory !== '' &&
+          value.details.memory === defaultMemoryRef.current)
           ? []
           : [{ key: 'memory', value: `${value.details.memory}G` }];
       try {
         if (kind === 'server') {
           const created = await createServer.mutateAsync(
-            serverParams(value, memoryEntries),
+            serverParams(value, memoryEntries, rules, edition),
           );
           applyRandomIcon(created.server.id);
         } else {
@@ -139,6 +151,7 @@ export function CreateEntryDialog({
   useEffect(() => {
     if (!open) return;
     setStep('flavor');
+    setFlavorId('vanilla');
     setSearch('');
     setShowSnapshots(false);
     form.reset(createWizardDefaults('', defaultMemoryRef.current));
@@ -224,17 +237,27 @@ export function CreateEntryDialog({
               <form.AppField name="flavor.flavor">
                 {(field) => (
                   <div className="grid gap-2">
-                    {flavors.map((f) => (
-                      <FlavorOption
-                        key={f.id}
-                        flavor={f}
-                        selected={field.state.value === f.id}
-                        onSelect={() => {
-                          field.handleChange(f.id);
-                          form.setFieldValue('version.version', '');
-                          form.setFieldValue('version.loaderVersion', '');
-                        }}
-                      />
+                    {groups.map((group) => (
+                      <Fragment key={group.edition}>
+                        {groups.length > 1 && (
+                          <SectionHeader>
+                            {editionLabel[group.edition]()}
+                          </SectionHeader>
+                        )}
+                        {group.flavors.map((f) => (
+                          <FlavorOption
+                            key={f.id}
+                            flavor={f}
+                            selected={field.state.value === f.id}
+                            onSelect={() => {
+                              field.handleChange(f.id);
+                              setFlavorId(f.id);
+                              form.setFieldValue('version.version', '');
+                              form.setFieldValue('version.loaderVersion', '');
+                            }}
+                          />
+                        ))}
+                      </Fragment>
                     ))}
                     {kind === 'instance' && onImport && (
                       <FileDropButton
@@ -295,7 +318,7 @@ export function CreateEntryDialog({
         >
           {(group) => (
             <StepForm onSubmit={group.handleSubmit} footer={nav}>
-              <DetailsStep form={form} kind={kind} />
+              <DetailsStep form={form} kind={kind} rules={rules} />
             </StepForm>
           )}
         </form.FormGroup>
@@ -305,16 +328,25 @@ export function CreateEntryDialog({
 }
 
 /** Build the server create params from the wizard's collected values. */
-function serverParams(value: WizardValues, memoryEntries: ConfigEntry[]) {
+function serverParams(
+  value: WizardValues,
+  memoryEntries: ConfigEntry[],
+  rules: KeyRule[],
+  edition: Edition | undefined,
+) {
   const d = value.details;
   const config: ConfigEntry[] = [
     ...memoryEntries,
-    { key: 'motd', value: d.motd },
+    { key: serverNameKey(edition), value: d.motd },
     { key: 'gamemode', value: d.gamemode },
     { key: 'difficulty', value: d.difficulty },
     { key: 'max-players', value: d.maxPlayers },
-    { key: 'hardcore', value: String(d.hardcore) },
-    { key: 'online-mode', value: String(d.onlineMode) },
+    ...(['hardcore', 'online-mode'] as const)
+      .filter((key) => hasRule(rules, key))
+      .map((key) => ({
+        key,
+        value: String(key === 'hardcore' ? d.hardcore : d.onlineMode),
+      })),
   ];
   const seed = d.seed.trim();
   if (seed) config.push({ key: 'level-seed', value: seed });

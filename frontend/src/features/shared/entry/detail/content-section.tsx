@@ -104,7 +104,7 @@ export function ContentSection({
     onUpdate: (item) =>
       update.mutate({ kind: item.kind, items: [installedRef(item)] }),
     onUpdateFromFile: async (item) => {
-      const path = await dialog.pickContentFile();
+      const path = await dialog.pickContentFile(kinds);
       if (path)
         update.mutate({ kind: item.kind, items: [installedRef(item)], path });
     },

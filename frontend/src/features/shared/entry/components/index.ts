@@ -10,6 +10,7 @@ export {
   type View,
   ViewToggle,
 } from './collection';
+export { EditionBadge } from './edition-badge';
 export { type EntryCardModel, EntryTile } from './entry-card';
 export { EntryContextMenu } from './entry-menu';
 export { EntryIconMenu } from './icon-menu';

@@ -3,7 +3,13 @@
  * each one takes, the game versions they publish, and their loader builds.
  * Read-only — nothing in the fixture daemon rewrites a catalogue.
  */
-import type { ContentKind, Flavor, GameVersion, KeyRule } from '@/api/types';
+import type {
+  ContentKind,
+  EditionRules,
+  Flavor,
+  GameVersion,
+  KeyRule,
+} from '@/api/types';
 
 const CLIENT_KINDS: ContentKind[] = [
   'mod',
@@ -13,6 +19,7 @@ const CLIENT_KINDS: ContentKind[] = [
 ];
 const SERVER_KINDS: ContentKind[] = ['mod', 'data_pack'];
 const PLUGIN_KINDS: ContentKind[] = ['plugin', 'data_pack'];
+const BEDROCK_KINDS: ContentKind[] = ['behavior_pack', 'resource_pack'];
 
 const vanilla: Flavor = {
   id: 'vanilla',
@@ -41,9 +48,61 @@ const neoforge = (accepts: ContentKind[]): Flavor => ({
   requires: [],
 });
 
-export const serverRules: KeyRule[] = [
+const JAVA_SETTINGS: KeyRule[] = [
+  { key: 'memory', kind: { type: 'memory' } },
+  { key: 'jvm-args', kind: { type: 'jvm_args' } },
+];
+
+const SHARED_RULES: KeyRule[] = [
   { key: 'max-players', kind: { type: 'integer', min: 1, max: 2147483647 } },
   { key: 'server-port', kind: { type: 'integer', min: 1, max: 65535 } },
+  { key: 'online-mode', kind: { type: 'boolean' } },
+];
+
+export const serverRules: EditionRules[] = [
+  {
+    edition: 'java',
+    rules: [
+      ...JAVA_SETTINGS,
+      ...SHARED_RULES,
+      { key: 'hardcore', kind: { type: 'boolean' } },
+      {
+        key: 'gamemode',
+        kind: {
+          type: 'choice',
+          values: ['survival', 'creative', 'adventure', 'spectator'],
+        },
+      },
+      {
+        key: 'difficulty',
+        kind: {
+          type: 'choice',
+          values: ['peaceful', 'easy', 'normal', 'hard'],
+        },
+      },
+    ],
+  },
+  {
+    edition: 'bedrock',
+    rules: [
+      ...SHARED_RULES,
+      {
+        key: 'gamemode',
+        kind: { type: 'choice', values: ['survival', 'creative', 'adventure'] },
+      },
+      {
+        key: 'difficulty',
+        kind: {
+          type: 'choice',
+          values: ['peaceful', 'easy', 'normal', 'hard'],
+        },
+      },
+    ],
+  },
+];
+
+export const instanceRules: EditionRules[] = [
+  { edition: 'java', rules: JAVA_SETTINGS },
 ];
 
 export const instanceFlavors: Flavor[] = [
@@ -80,6 +139,15 @@ export const serverFlavors: Flavor[] = [
     accepts: PLUGIN_KINDS,
     edition: 'java',
     requires: [{ name: 'git', url: 'https://git-scm.com/downloads' }],
+  },
+  {
+    id: 'bedrock',
+    name: 'Bedrock',
+    summary:
+      "Mojang's Bedrock Dedicated Server, for console and mobile players.",
+    accepts: BEDROCK_KINDS,
+    edition: 'bedrock',
+    requires: [],
   },
 ];
 

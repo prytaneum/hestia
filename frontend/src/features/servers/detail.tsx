@@ -24,6 +24,7 @@ import {
   useEntryInstall,
 } from '@/features/content/install';
 import { anchor, useAutoTour } from '@/features/onboarding';
+import { ServerWorlds } from '@/features/servers/components';
 import {
   ServerBackupsTab,
   ServerConsoleTab,
@@ -33,6 +34,7 @@ import {
 } from '@/features/servers/tabs';
 import {
   busyReason,
+  EditionBadge,
   EntryActionsMenu,
   EntryIconMenu,
   EntryJobProgress,
@@ -45,7 +47,9 @@ import {
   StatCard,
   useLiveResources,
 } from '@/features/shared/entry/detail';
+import { configValue } from '@/features/shared/entry/settings';
 import { agoLabel, bytes } from '@/lib/format';
+import { cn } from '@/lib/utils';
 import { m } from '@/paraglide/messages.js';
 import { entryMutations, entryQueries } from '@/queries/entry';
 import { useBusyJob } from '@/queries/jobs';
@@ -125,13 +129,14 @@ function ServerDetail({
   const info = useQuery(serverQueries.info(id));
   useAutoTour('server', Boolean(info.data));
   const config = useQuery(entryQueries.config('server', id));
-  const install = useEntryInstall(server.name);
+  const install = useEntryInstall(server.name, server.accepts ?? []);
   const start = useMutation(serverMutations.start(id));
   const stop = useMutation(entryMutations.stop('server', id));
   const restart = useMutation(serverMutations.restart(id));
   const job = useBusyJob('server', id);
 
   const running = isRunning(server);
+  const runsOnJava = server.javaMajor != null;
   const ping = useQuery({ ...serverQueries.ping(id), enabled: running });
   const { live, memoryLimitGb } = useLiveResources({
     running,
@@ -162,6 +167,7 @@ function ServerDetail({
             <Badge variant="secondary" className="uppercase">
               {server.flavor}
             </Badge>
+            <EditionBadge edition={server.edition} />
             <Badge variant="outline" className="font-mono">
               {server.gameVersion}
             </Badge>
@@ -271,7 +277,12 @@ function ServerDetail({
                   {ping.data.motd}
                 </p>
               )}
-              <div className="grid grid-cols-3 gap-3">
+              <div
+                className={cn(
+                  'grid gap-3',
+                  runsOnJava ? 'grid-cols-3' : 'grid-cols-2',
+                )}
+              >
                 <StatCard
                   value={
                     ping.data
@@ -280,10 +291,12 @@ function ServerDetail({
                   }
                   label={m['app.label.players']()}
                 />
-                <StatCard
-                  value={memoryLimitGb ? `${memoryLimitGb}G` : '—'}
-                  label={m['app.label.memory']()}
-                />
+                {runsOnJava && (
+                  <StatCard
+                    value={memoryLimitGb ? `${memoryLimitGb}G` : '—'}
+                    label={m['app.label.memory']()}
+                  />
+                )}
                 <StatCard
                   value={
                     info.data?.diskBytes != null
@@ -294,6 +307,15 @@ function ServerDetail({
                 />
               </div>
               <ResourceCards live={live} />
+              {server.edition === 'bedrock' && (
+                <ServerWorlds
+                  id={id}
+                  running={running}
+                  activeWorld={
+                    configValue(config.data, 'level-name') || undefined
+                  }
+                />
+              )}
             </div>
 
             <div className="space-y-4">
@@ -304,6 +326,12 @@ function ServerDetail({
                       label={m['app.label.address']()}
                       value={`localhost:${server.gamePort}`}
                     />
+                    {server.ports.length > 1 && (
+                      <Stat
+                        label={m['app.label.ports']()}
+                        value={server.ports.join(', ')}
+                      />
+                    )}
                     <Stat
                       label={m['app.label.loader']()}
                       value={server.flavor}
@@ -359,6 +387,7 @@ function ServerDetail({
             id={id}
             running={running}
             lists={server.playerLists}
+            edition={server.edition}
           />
         </TabsContent>
 

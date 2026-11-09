@@ -124,6 +124,15 @@
       },
       "title": "Scheduled tasks",
       "when": "When"
+    },
+    "worlds": {
+      "active": "Active",
+      "import": "Import world",
+      "imported": "Imported {name}",
+      "none": "No worlds yet.",
+      "stop_first": "Stop the server to import a world.",
+      "title": "Worlds",
+      "use": "Use this world"
     }
   }
 }

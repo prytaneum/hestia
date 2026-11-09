@@ -1,6 +1,6 @@
 import { useState } from 'react';
 
-import { dialog } from '@/api';
+import { type ContentKind, dialog } from '@/api';
 import { useDropzone } from '@/hooks/use-dropzone';
 import { m } from '@/paraglide/messages.js';
 
@@ -9,12 +9,12 @@ import { m } from '@/paraglide/messages.js';
  * add button, or on the files dropped onto the element `getRootProps` is
  * spread on — the entry's content tab.
  */
-export function useEntryInstall(name: string) {
+export function useEntryInstall(name: string, accepts: ContentKind[]) {
   const [open, setOpen] = useState(false);
   const [files, setFiles] = useState<string[]>([]);
 
   const { getRootProps } = useDropzone<HTMLDivElement>({
-    accept: dialog.CONTENT_EXTENSIONS,
+    accept: dialog.contentExtensions(accepts),
     label: m['content.drop']({ name }),
     onDrop: (paths) => {
       setFiles(paths);

@@ -10,7 +10,8 @@
       "nothing_matches": "Nothing matches your search.",
       "project_missing": "That project could not be found.",
       "source": "Source",
-      "subtitle": "Discover mods, packs and shaders"
+      "subtitle": "Discover mods, packs and shaders",
+      "no_sources": "No online source has content for this server's edition. Modrinth and CurseForge cover Java only. Import a pack file instead."
     },
     "drop": "Drop to add to {name}",
     "change_version": {

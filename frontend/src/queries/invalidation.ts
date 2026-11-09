@@ -61,6 +61,7 @@ const JOB_DONE: JobKeys = {
   'java.install': () => [keys.java.runtimes()],
   'server.backup.create': sweepServers,
   'server.backup.restore': sweepServers,
+  'server.worlds.import': sweepServers,
   'content.add': sweepEntries,
   'content.update': sweepEntries,
   'content.set_version': sweepEntries,

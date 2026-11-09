@@ -20,6 +20,7 @@ import type {
   ServerDone,
   ServerInfo,
   ServerUpdateParams,
+  WorldInfo,
 } from '../api';
 import * as entry from '../api/entry';
 import * as api from '../api/server';
@@ -85,6 +86,11 @@ export const serverQueries = {
     queryOptions({
       queryKey: keys.servers.backups(id),
       queryFn: () => api.backup.list(id),
+    }),
+  worlds: (id: string) =>
+    queryOptions({
+      queryKey: keys.servers.worlds(id),
+      queryFn: () => api.worlds(id),
     }),
 };
 
@@ -156,6 +162,21 @@ export const serverMutations = {
     mutation<string, string>({
       mutationKey: [...keys.servers.detail(id), 'command'],
       mutationFn: (line) => api.command(id, line),
+    }),
+  importWorld: (id: string) =>
+    jobMutation<WorldInfo, { path: string; use: boolean }>({
+      mutationKey: [...keys.servers.worlds(id), 'import'],
+      meta: () => ({
+        channel: 'server.worlds.import',
+        subject: { kind: 'server', id },
+      }),
+      run: ({ path, use }, job) => api.importWorld(id, path, use, job),
+      invalidates: () => [keys.servers.worlds(id), keys.servers.config(id)],
+      notify: {
+        done: (world) => ({
+          title: m['server.worlds.imported']({ name: world.name }),
+        }),
+      },
     }),
   backup: {
     /** Archives a running server live (world saving pauses over RCON). */

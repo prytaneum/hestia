@@ -3,6 +3,7 @@ import { useMemo } from 'react';
 import type {
   ContentKind,
   ContentMatch,
+  Edition,
   InstanceInfo,
   ServerInfo,
 } from '@/api';
@@ -20,6 +21,7 @@ export interface Target {
   name: string;
   type: 'server' | 'instance';
   flavor: string;
+  edition: Edition;
   gameVersion: string;
   running: boolean;
   /** What this entry takes, as the daemon computed it from its flavor. */
@@ -31,6 +33,7 @@ export const serverTarget = (s: ServerInfo): Target => ({
   name: s.name,
   type: 'server',
   flavor: s.flavor,
+  edition: s.edition,
   gameVersion: s.gameVersion,
   running: s.process?.state === 'running',
   accepts: s.accepts ?? [],
@@ -41,6 +44,7 @@ export const instanceTarget = (i: InstanceInfo): Target => ({
   name: i.name,
   type: 'instance',
   flavor: i.flavor,
+  edition: 'java',
   gameVersion: i.gameVersion,
   running: (i.sessions ?? []).some((s) => s.state === 'running'),
   accepts: i.accepts ?? [],

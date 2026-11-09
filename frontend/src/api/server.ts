@@ -8,6 +8,7 @@
 import { call } from './core/ipc';
 import { type JobRun, runJob } from './core/jobs';
 import type { BackupInfo } from './types/backup';
+import type { WorldInfo } from './types/instance';
 import type {
   ServerCommandCompleteResult,
   ServerCreateParams,
@@ -118,3 +119,18 @@ export const backup = {
     await call('server.backup.remove', { server, backup: backupId });
   },
 };
+
+/** The worlds a server holds, the active one first. */
+export function worlds(server: string): Promise<WorldInfo[]> {
+  return call('server.worlds', { server });
+}
+
+/** Import a `.mcworld` from the daemon's machine; refused while the server runs. */
+export function importWorld(
+  server: string,
+  path: string,
+  use: boolean,
+  job: JobRun,
+): Promise<WorldInfo> {
+  return runJob('server.worlds.import', { server, path, use }, job);
+}

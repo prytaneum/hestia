@@ -69,7 +69,7 @@ export function ContentStep({
   const activeKind = kind ?? kinds[0];
   const pickedKeys = new Set(picked.map(selectionKey));
   const installedRefs = useInstalledRefs(target, activeKind);
-  const sources = useSourceOptions(activeKind, source);
+  const sources = useSourceOptions(activeKind, source, target.edition);
 
   const url = isContentUrl(search) ? search.trim() : '';
   const link = useQuery(contentQueries.url(url));
@@ -83,7 +83,7 @@ export function ContentStep({
       gameVersion: target.gameVersion || undefined,
       limit: 30,
     }),
-    enabled: !url,
+    enabled: !url && sources.list.length > 0,
   });
   const hits = results.data?.hits ?? [];
   const offline = useOffline();
@@ -115,7 +115,7 @@ export function ContentStep({
             />
           )}
 
-          <FileImportButton onFiles={onAddFiles} />
+          <FileImportButton accepts={kinds} onFiles={onAddFiles} />
         </>
       }
     >
@@ -133,6 +133,10 @@ export function ContentStep({
           picked={pickedKeys}
           onToggle={onToggle}
         />
+      ) : sources.list.length === 0 ? (
+        <p className="px-1 py-8 text-center text-xs text-muted-foreground">
+          {m['content.browse.no_sources']()}
+        </p>
       ) : results.isPending ? (
         <PickRowSkeleton count={5} />
       ) : hits.length === 0 ? (
@@ -216,8 +220,10 @@ function LinkResult({
 }
 
 function FileImportButton({
+  accepts,
   onFiles,
 }: {
+  accepts: ContentKind[];
   onFiles: (files: PickedFile[]) => void;
 }) {
   return (
@@ -225,9 +231,9 @@ function FileImportButton({
       icon={UploadSimpleIcon}
       title={m['content.import_file']()}
       hint={m['content.import_file_hint']()}
-      accept={dialog.CONTENT_EXTENSIONS}
+      accept={dialog.contentExtensions(accepts)}
       multiple
-      pick={dialog.pickContentFiles}
+      pick={() => dialog.pickContentFiles(accepts)}
       onFiles={async (paths) => onFiles(await inspectFiles(paths))}
       className="mb-2"
     />

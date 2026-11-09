@@ -12,6 +12,10 @@
       "normal": "Normal",
       "peaceful": "Peaceful"
     },
+    "edition": {
+      "bedrock": "Bedrock",
+      "java": "Java"
+    },
     "entry_type": {
       "instance": "instance",
       "server": "server"

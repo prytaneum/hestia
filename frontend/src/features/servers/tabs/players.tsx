@@ -12,7 +12,7 @@ import {
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { type ReactNode, useState } from 'react';
 
-import type { PlayerEntry, PlayerList } from '@/api';
+import type { Edition, PlayerEntry, PlayerList } from '@/api';
 import { AccountAvatar } from '@/components/app-shell/account-avatar';
 import { chipClass } from '@/components/chip';
 import { Empty } from '@/components/empty';
@@ -53,18 +53,24 @@ function PlayerRow({
   online,
   op,
   disabled,
+  skinFace,
   children,
 }: {
   player: PlayerEntry;
   online: boolean;
   op: boolean;
   disabled: boolean;
+  skinFace: boolean;
   children: ReactNode;
 }) {
   const detail = [player.uuid, player.reason].filter(Boolean).join(' · ');
   return (
     <div className="flex items-center gap-3 px-3 py-2.5">
-      <AccountAvatar uuid={player.uuid} name={player.name} size={32} />
+      <AccountAvatar
+        uuid={skinFace ? player.uuid : ''}
+        name={player.name}
+        size={32}
+      />
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
           {online && <StatusDot tone="on" />}
@@ -155,10 +161,12 @@ export function ServerPlayersTab({
   id,
   running,
   lists: kept,
+  edition,
 }: {
   id: string;
   running: boolean;
   lists: PlayerList[];
+  edition: Edition;
 }) {
   const players = useQuery(playersQueries.list(id, running));
   const set = useMutation(playersMutations.set(id));
@@ -296,6 +304,7 @@ export function ServerPlayersTab({
               online={onlineNames.has(entry.name)}
               op={view !== 'ops' && opNames.has(entry.name)}
               disabled={!running || set.isPending}
+              skinFace={edition === 'java'}
             >
               {actions[view](entry.name)}
             </PlayerRow>

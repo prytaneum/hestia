@@ -6,8 +6,17 @@
  */
 import { open, save } from '@tauri-apps/plugin-dialog';
 
+import type { ContentKind } from './types';
+
 /** Single-file content is a jar or zip; a `.mrpack` is a modpack, not offered here. */
-export const CONTENT_EXTENSIONS = ['jar', 'zip'];
+const CONTENT_EXTENSIONS = ['jar', 'zip'];
+const PACK_EXTENSIONS = ['mcpack', 'mcaddon'];
+
+/** Local-file extensions an entry takes; a Bedrock pack ships as `.mcpack`/`.mcaddon`. */
+export const contentExtensions = (accepts: ContentKind[]) =>
+  accepts.includes('behavior_pack')
+    ? [...CONTENT_EXTENSIONS, ...PACK_EXTENSIONS]
+    : CONTENT_EXTENSIONS;
 
 const named = (name: string, extensions?: string[]) =>
   extensions && [{ name, extensions }];
@@ -38,10 +47,14 @@ async function pickMany(
 }
 
 /** Pick content files and return their absolute paths (empty if dismissed). */
-export const pickContentFiles = () => pickMany('Content', CONTENT_EXTENSIONS);
+export const pickContentFiles = (accepts: ContentKind[]) =>
+  pickMany('Content', contentExtensions(accepts));
 
 /** Pick one content file to update a local item from, or null when dismissed. */
-export const pickContentFile = () => pickOne('Content', CONTENT_EXTENSIONS);
+export const pickContentFile = (accepts: ContentKind[]) =>
+  pickOne('Content', contentExtensions(accepts));
+
+export const pickWorldFile = () => pickOne('World', ['mcworld']);
 
 /** Pick any files to copy into a server's directory; empty when dismissed. */
 export const pickFiles = () => pickMany('Files');

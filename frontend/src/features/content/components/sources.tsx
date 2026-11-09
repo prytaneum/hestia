@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import type { ContentKind, ContentSource } from '@/api';
+import type { ContentKind, ContentSource, Edition } from '@/api';
 import type { FilterGroup } from '@/components/filter-menu';
 import { Badge } from '@/components/ui/badge';
 import { m } from '@/paraglide/messages.js';
@@ -10,10 +10,16 @@ import { contentQueries } from '@/queries/content';
  * that can serve — a platform whose API key is unset is never among them — so
  * this never offers one that would come back empty.
  */
-export function useSourceOptions(kind: ContentKind | undefined, value: string) {
+export function useSourceOptions(
+  kind: ContentKind | undefined,
+  value: string,
+  edition?: Edition,
+) {
   const sources = useQuery(contentQueries.sources());
   const list = (sources.data ?? []).filter(
-    (s) => !kind || s.kinds.includes(kind),
+    (s) =>
+      (!kind || s.kinds.includes(kind)) &&
+      (!edition || s.editions.includes(edition)),
   );
   // A source carried over from another kind may not catalogue this one; fall
   // back to the default rather than searching a source with nothing to answer.

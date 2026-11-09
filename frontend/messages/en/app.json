@@ -63,8 +63,18 @@
       "version_uptime": "v{version} · up {uptime}"
     },
     "jobs": {
+      "announce": {
+        "cancelled": "{title} cancelled",
+        "done": "{title} finished",
+        "interrupted": "{title} interrupted",
+        "stage": "{title}: {stage}",
+        "started": "{title} started"
+      },
       "busy": "Busy: {verb}",
+      "cancel": "Cancel {title}",
       "failed_title": "{title} failed",
+      "interrupted": "{title} interrupted",
+      "interrupted_detail": "The daemon restarted before it finished",
       "kind": {
         "content": {
           "add": "Adding content to {name}",
@@ -104,16 +114,6 @@
           "download": "Downloading the update"
         }
       },
-      "announce": {
-        "cancelled": "{title} cancelled",
-        "done": "{title} finished",
-        "interrupted": "{title} interrupted",
-        "stage": "{title}: {stage}",
-        "started": "{title} started"
-      },
-      "cancel": "Cancel {title}",
-      "interrupted": "{title} interrupted",
-      "interrupted_detail": "The daemon restarted before it finished",
       "verb": {
         "content": {
           "add": "Adding content",
@@ -181,6 +181,7 @@
       "pinned": "Pinned",
       "players": "Players",
       "playtime": "Time played",
+      "ports": "Ports",
       "servers": "Servers",
       "sessions": "Sessions",
       "settings": "Settings",

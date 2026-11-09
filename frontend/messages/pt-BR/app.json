@@ -63,8 +63,18 @@
       "version_uptime": "v{version} · ativo há {uptime}"
     },
     "jobs": {
+      "announce": {
+        "cancelled": "{title} cancelado",
+        "done": "{title} concluído",
+        "interrupted": "{title} interrompido",
+        "stage": "{title}: {stage}",
+        "started": "{title} iniciado"
+      },
       "busy": "Ocupado: {verb}",
+      "cancel": "Cancelar: {title}",
       "failed_title": "Falha: {title}",
+      "interrupted": "{title} interrompido",
+      "interrupted_detail": "O daemon reiniciou antes de terminar",
       "kind": {
         "content": {
           "add": "Adicionando conteúdo a {name}",
@@ -104,16 +114,6 @@
           "download": "Baixando a atualização"
         }
       },
-      "announce": {
-        "cancelled": "{title} cancelado",
-        "done": "{title} concluído",
-        "interrupted": "{title} interrompido",
-        "stage": "{title}: {stage}",
-        "started": "{title} iniciado"
-      },
-      "cancel": "Cancelar: {title}",
-      "interrupted": "{title} interrompido",
-      "interrupted_detail": "O daemon reiniciou antes de terminar",
       "verb": {
         "content": {
           "add": "Adicionando conteúdo",
@@ -181,6 +181,7 @@
       "pinned": "Fixados",
       "players": "Jogadores",
       "playtime": "Tempo jogado",
+      "ports": "Portas",
       "servers": "Servidores",
       "sessions": "Sessões",
       "settings": "Configurações",

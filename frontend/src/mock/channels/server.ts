@@ -156,7 +156,8 @@ export const channels: ChannelHandlers = {
       done: () => {
         server.gameVersion = str(p, 'version', server.gameVersion);
         server.loaderVersion = str(p, 'loaderVersion') || server.loaderVersion;
-        server.javaMajor = catalog.javaFor(server.gameVersion);
+        if (server.javaMajor != null)
+          server.javaMajor = catalog.javaFor(server.gameVersion);
         return { server: withProcess(server), warnings: [], failures: [] };
       },
     });
@@ -192,6 +193,27 @@ export const channels: ChannelHandlers = {
         : [],
       arguments: !first && typed === 'say' ? ['<message>'] : [],
     };
+  },
+
+  'server.worlds': (p) => entries.worldsOf(serverId(p)),
+
+  'server.worlds.import': (p) => {
+    const server = entries.findServer(str(p, 'server'));
+    return startJob({
+      id: jobIdOf(p, 'server-world-import'),
+      channel: 'server.worlds.import',
+      subject: subjectOf('server', server.id),
+      steps: [
+        { phase: 'resolving', detail: 'reading the world' },
+        { phase: 'server', detail: 'copying it in' },
+      ],
+      done: () =>
+        entries.importWorld(
+          server.id,
+          str(p, 'path'),
+          Boolean((p as { use?: boolean }).use),
+        ),
+    });
   },
 
   'server.properties': (p) => properties(entries.entrySettings(serverId(p))),

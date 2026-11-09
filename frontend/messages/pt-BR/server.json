@@ -124,6 +124,15 @@
       },
       "title": "Tarefas agendadas",
       "when": "Quando"
+    },
+    "worlds": {
+      "active": "Ativo",
+      "import": "Importar mundo",
+      "imported": "{name} importado",
+      "none": "Nenhum mundo ainda.",
+      "stop_first": "Pare o servidor para importar um mundo.",
+      "title": "Mundos",
+      "use": "Usar este mundo"
     }
   }
 }

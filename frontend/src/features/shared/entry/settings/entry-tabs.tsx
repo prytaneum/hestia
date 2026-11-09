@@ -9,7 +9,7 @@ import { GeneralSettings } from './general';
 import { JavaSettings } from './java';
 import type { SettingsTabDef } from './tabs';
 
-/** The general and java tabs both kinds share; each feature composes its own order. */
+/** The general tab, and the java tab when the entry runs on Java; each feature composes its own order. */
 export function useEntrySettingsTabs({
   kind,
   entry,
@@ -18,11 +18,17 @@ export function useEntrySettingsTabs({
   update,
 }: {
   kind: EntryKind;
-  entry: { id: string; name: string; flavor: string; gameVersion: string };
+  entry: {
+    id: string;
+    name: string;
+    flavor: string;
+    gameVersion: string;
+    javaMajor?: number;
+  };
   config?: ConfigEntry[];
   running: boolean;
   update: UpdateHandle;
-}): { general: SettingsTabDef; java: SettingsTabDef } {
+}): { general: SettingsTabDef; java: SettingsTabDef[] } {
   const globalConfig = useQuery(configQueries.list());
   const rename = useMutation(entryMutations.rename(kind, entry.id));
   const setConfig = useMutation(entryMutations.setConfig(kind, entry.id));
@@ -50,16 +56,21 @@ export function useEntrySettingsTabs({
         </>
       ),
     },
-    java: {
-      id: 'java',
-      label: m['app.label.java'](),
-      content: (
-        <JavaSettings
-          config={config}
-          defaults={launcherDefaults(globalConfig.data)}
-          setConfig={setConfig}
-        />
-      ),
-    },
+    java:
+      entry.javaMajor == null
+        ? []
+        : [
+            {
+              id: 'java',
+              label: m['app.label.java'](),
+              content: (
+                <JavaSettings
+                  config={config}
+                  defaults={launcherDefaults(globalConfig.data)}
+                  setConfig={setConfig}
+                />
+              ),
+            },
+          ],
   };
 }

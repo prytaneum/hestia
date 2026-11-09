@@ -45,6 +45,7 @@ export function serverToCard(
     name: server.name,
     kind: 'server',
     flavor: server.flavor,
+    edition: server.edition,
     version: server.gameVersion,
     iconUrl: server.iconUrl,
     running,

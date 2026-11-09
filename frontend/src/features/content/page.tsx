@@ -40,6 +40,11 @@ export function BrowsePage({
   const offline = useOffline();
   useAutoTour('browse');
   const sources = useSourceOptions(kind, source);
+  const catalogued = useSourceOptions(undefined, '').list;
+  const browsable =
+    catalogued.length === 0
+      ? contentKinds
+      : contentKinds.filter((k) => catalogued.some((s) => s.kinds.includes(k)));
   // The default source is the absence of the param, not an empty one.
   const sourceParam = source ? { source } : {};
 
@@ -60,7 +65,7 @@ export function BrowsePage({
 
   // A specific kind is one search; "All" fans out over every kind and merges,
   // since a source's search is scoped to a single project type.
-  const kinds = kind ? [kind] : contentKinds;
+  const kinds = kind ? [kind] : browsable;
   const search = useInfiniteQuery({
     ...contentQueries.searchPaged(kinds, q, sources.active),
     enabled: !url,
@@ -95,7 +100,7 @@ export function BrowsePage({
     >
       <div className="flex h-full flex-col">
         <div className="mb-5 shrink-0" {...anchor('browse-kinds')}>
-          <KindChips kinds={contentKinds} kind={kind} onKindChange={goToKind} />
+          <KindChips kinds={browsable} kind={kind} onKindChange={goToKind} />
         </div>
         <div className="min-h-0 flex-1">
           {offline ? (

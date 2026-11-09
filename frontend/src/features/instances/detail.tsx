@@ -111,7 +111,7 @@ function InstanceDetail({
   useAutoTour('instance', Boolean(info.data));
   const config = useQuery(entryQueries.config('instance', id));
   const worlds = useQuery(instanceQueries.worlds(id));
-  const install = useEntryInstall(instance.name);
+  const install = useEntryInstall(instance.name, instance.accepts ?? []);
   const [focus, setFocus] = useState<string | null>(null);
   const [logSession, setLogSession] = useState<string | null>(null);
   const { launch, restart, isLaunching } = useLaunch();

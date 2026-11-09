@@ -1,6 +1,8 @@
+import type { KeyRule } from '@/api';
 import { ExternalLink } from '@/components/external-link';
 import { Checkbox } from '@/components/ui/checkbox';
 import { FieldError } from '@/components/ui/field';
+import { choiceValues, hasRule } from '@/features/shared/entry/lib';
 import { m } from '@/paraglide/messages.js';
 import { useMemoryRange } from '@/queries/host';
 
@@ -15,8 +17,22 @@ import {
 } from '../fields';
 
 /** The details step: name + memory, plus the server.properties block. */
-export function DetailsStep({ form, kind }: { form: WizardForm; kind: Kind }) {
+export function DetailsStep({
+  form,
+  kind,
+  rules,
+}: {
+  form: WizardForm;
+  kind: Kind;
+  rules: KeyRule[];
+}) {
   const memoryRange = useMemoryRange();
+  const allowed = (items: typeof GAMEMODES, key: string) => {
+    const values = choiceValues(rules, key);
+    return options(
+      values ? items.filter((o) => values.includes(o.value)) : items,
+    );
+  };
   return (
     <div className="flex flex-col gap-4">
       <form.Subscribe
@@ -37,17 +53,19 @@ export function DetailsStep({ form, kind }: { form: WizardForm; kind: Kind }) {
         )}
       </form.Subscribe>
 
-      <form.AppField name="details.memory">
-        {(field: WizardForm) => (
-          <field.SliderField
-            label={m['app.label.memory']()}
-            formatValue={(v: number) => m['entry.create.gb']({ value: v })}
-            min={memoryRange.min}
-            max={memoryRange.max}
-            step={1}
-          />
-        )}
-      </form.AppField>
+      {hasRule(rules, 'memory') && (
+        <form.AppField name="details.memory">
+          {(field: WizardForm) => (
+            <field.SliderField
+              label={m['app.label.memory']()}
+              formatValue={(v: number) => m['entry.create.gb']({ value: v })}
+              min={memoryRange.min}
+              max={memoryRange.max}
+              step={1}
+            />
+          )}
+        </form.AppField>
+      )}
 
       {kind === 'server' && (
         <>
@@ -80,7 +98,7 @@ export function DetailsStep({ form, kind }: { form: WizardForm; kind: Kind }) {
                   {(field: WizardForm) => (
                     <field.SelectField
                       label={m['entry.create.properties.gamemode']()}
-                      options={options(GAMEMODES)}
+                      options={allowed(GAMEMODES, 'gamemode')}
                       triggerClassName="w-full"
                       disabled={hardcore}
                     />
@@ -90,7 +108,7 @@ export function DetailsStep({ form, kind }: { form: WizardForm; kind: Kind }) {
                   {(field: WizardForm) => (
                     <field.SelectField
                       label={m['entry.create.properties.difficulty']()}
-                      options={options(DIFFICULTIES)}
+                      options={allowed(DIFFICULTIES, 'difficulty')}
                       triggerClassName="w-full"
                       disabled={hardcore}
                     />
@@ -122,32 +140,36 @@ export function DetailsStep({ form, kind }: { form: WizardForm; kind: Kind }) {
           </div>
 
           <div className="grid grid-cols-2 gap-4 pt-1">
-            <form.AppField name="details.hardcore">
-              {(field: WizardForm) => (
-                <PropToggle
-                  id="prop-hardcore"
-                  label={m['entry.create.properties.hardcore']()}
-                  checked={field.state.value}
-                  onChange={(checked) => {
-                    field.handleChange(checked);
-                    if (checked) {
-                      form.setFieldValue('details.gamemode', 'survival');
-                      form.setFieldValue('details.difficulty', 'hard');
-                    }
-                  }}
-                />
-              )}
-            </form.AppField>
-            <form.AppField name="details.onlineMode">
-              {(field: WizardForm) => (
-                <PropToggle
-                  id="prop-online"
-                  label={m['entry.create.properties.online_mode']()}
-                  checked={field.state.value}
-                  onChange={field.handleChange}
-                />
-              )}
-            </form.AppField>
+            {hasRule(rules, 'hardcore') && (
+              <form.AppField name="details.hardcore">
+                {(field: WizardForm) => (
+                  <PropToggle
+                    id="prop-hardcore"
+                    label={m['entry.create.properties.hardcore']()}
+                    checked={field.state.value}
+                    onChange={(checked) => {
+                      field.handleChange(checked);
+                      if (checked) {
+                        form.setFieldValue('details.gamemode', 'survival');
+                        form.setFieldValue('details.difficulty', 'hard');
+                      }
+                    }}
+                  />
+                )}
+              </form.AppField>
+            )}
+            {hasRule(rules, 'online-mode') && (
+              <form.AppField name="details.onlineMode">
+                {(field: WizardForm) => (
+                  <PropToggle
+                    id="prop-online"
+                    label={m['entry.create.properties.online_mode']()}
+                    checked={field.state.value}
+                    onChange={field.handleChange}
+                  />
+                )}
+              </form.AppField>
+            )}
           </div>
 
           <form.AppField name="details.eula">

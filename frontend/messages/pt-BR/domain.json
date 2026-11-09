@@ -12,6 +12,10 @@
       "normal": "Normal",
       "peaceful": "Pacífico"
     },
+    "edition": {
+      "bedrock": "Bedrock",
+      "java": "Java"
+    },
     "entry_type": {
       "instance": "instância",
       "server": "servidor"
