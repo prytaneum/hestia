@@ -5,6 +5,7 @@ import { m } from '@/paraglide/messages.js';
 import { ActionButton, Detail, List, Table } from './data';
 import { UiForm } from './form';
 import { Heading, Image, Markup, Meter, Notice, Text } from './layout';
+import { Webview } from './webview';
 
 /** Draws one node of a plugin tree with the app's own components; a node it does not know is shown as a notice. */
 export function UiView({ node }: { node: UiNode }) {
@@ -47,6 +48,8 @@ export function UiView({ node }: { node: UiNode }) {
       return <Notice text={node.text} tone={node.tone} />;
     case 'progress':
       return <Meter fraction={node.fraction} label={node.label} />;
+    case 'webview':
+      return <Webview {...node} />;
     default:
       return (
         <Notice

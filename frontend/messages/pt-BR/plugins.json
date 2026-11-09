@@ -7,6 +7,7 @@
     "load_failed": "Não foi possível carregar esta página do plugin",
     "missing": "Esta página do plugin não está disponível",
     "pick": "Escolha uma opção",
-    "unknown_node": "Este plugin usa um elemento que esta versão não suporta ({type})."
+    "unknown_node": "Este plugin usa um elemento que esta versão não suporta ({type}).",
+    "webview_title": "Conteúdo de {plugin}"
   }
 }
