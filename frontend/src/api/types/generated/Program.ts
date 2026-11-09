@@ -2,9 +2,15 @@
 
 /**
  * A program the plugin may run. `command` is a name resolved on `PATH` or a
- * path inside the plugin's data directory; `args` are argument patterns.
+ * path inside the plugin's data directory; `java` instead names a Java major,
+ * run from the runtime Hestia manages. Exactly one of the two is set. `args`
+ * are argument patterns.
  */
-export type Program = { id: string, command: string, args: Array<string>, env: Array<string>, 
+export type Program = { id: string, command: string, 
+/**
+ * The Java major of a Hestia-managed runtime, resolved at call time.
+ */
+java?: number, args: Array<string>, env: Array<string>, 
 /**
  * Per target triple; required for a program inside the data directory.
  */

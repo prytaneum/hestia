@@ -133,6 +133,7 @@
         "permissions": "Permissões",
         "program_env": "pode receber {names}",
         "program_path": "executa {path}",
+        "program_java": "Java {major} gerenciado pelo Hestia",
         "programs": "Programas que ele pode executar",
         "schedule_every": "a cada {seconds} s",
         "schedules": "Agendamentos em que ele roda",

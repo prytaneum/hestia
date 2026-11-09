@@ -133,6 +133,7 @@
         "permissions": "Permissions",
         "program_env": "may be given {names}",
         "program_path": "runs {path}",
+        "program_java": "Hestia-managed Java {major}",
         "programs": "Programs it can run",
         "schedule_every": "every {seconds} s",
         "schedules": "Schedules it runs on",

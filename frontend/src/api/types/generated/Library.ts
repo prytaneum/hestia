@@ -5,4 +5,10 @@ import type { Artifact } from "./Artifact";
  * A classpath dependency, resolved to its download and its path under the
  * libraries root (Maven layout).
  */
-export type Library = { name: string, path: string, artifact: Artifact, };
+export type Library = { name: string, path: string, artifact: Artifact, 
+/**
+ * Produced locally by the flavor's build rather than downloaded: the
+ * artifact names nothing to fetch, and the file must exist once the build
+ * has run.
+ */
+built: boolean, };

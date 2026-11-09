@@ -99,7 +99,14 @@ export function describeGrant(
       grant.programs.map((program) => ({
         label: program.id,
         detail: [
-          [program.command, ...program.args].join(' '),
+          [
+            program.java === undefined
+              ? program.command
+              : m['settings.plugins.grant.program_java']({
+                  major: program.java,
+                }),
+            ...program.args,
+          ].join(' '),
           program.env.length > 0 &&
             m['settings.plugins.grant.program_env']({
               names: program.env.join(', '),

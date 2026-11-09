@@ -9,4 +9,14 @@ export type FlavorDescription = { name: string, summary: string,
 /**
  * The content kind the flavor's own loader consumes; none for a flavor that loads nothing.
  */
-loads: ContentKind | null, server: boolean, client: boolean, };
+loads?: ContentKind, server: boolean, client: boolean, 
+/**
+ * The key under which a Modrinth pack (`.mrpack`) names this flavor's
+ * loader in its `dependencies`.
+ */
+mrpackKey?: string, 
+/**
+ * The component uid under which a Prism or MultiMC instance names this
+ * flavor's loader.
+ */
+prismUid?: string, };
