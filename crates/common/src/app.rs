@@ -97,12 +97,19 @@ fn dev_pubkey() -> Option<&'static str> {
     None
 }
 
-/// Standard-format minisign public keys (`RW…`) of the official plugins store,
-/// held only by the plugins repository's CI. Empty until that key exists: with
-/// no key nothing is official, so the set fails closed. Add the key here when
-/// it is generated; it is a different key and format from [`UPDATE_PUBKEY`], so
-/// it cannot sign an app update and an update key cannot make a plugin official.
-pub const OFFICIAL_PLUGIN_PUBKEYS: &[&str] = &[];
+/// Standard-format minisign public keys (`RW…`) of the official plugins
+/// repository, current key first, then the rotation spare. Its CI signs with
+/// the current key; the spare's private half stays offline. A plugin signed by
+/// either is official. A binary trusts only the keys compiled into it, so the
+/// spare ships before it is needed: to rotate, sign with the spare, then release
+/// a build that lists it first and adds a new spare. With no key nothing is
+/// official, so the set fails closed. These are a different key and format from
+/// [`UPDATE_PUBKEY`], so one cannot sign an app update and an update key cannot
+/// make a plugin official.
+pub const OFFICIAL_PLUGIN_PUBKEYS: &[&str] = &[
+    "RWSXtqX9WAyTeSF7fFWCeqC429ZGzf/LtYC1EddcI2Sgp8ht2jD5+hQt",
+    "RWRpMK/ixsoJvML4S14c7PfzQyu4Eo/drawjt9yT5GS9xniEB8PNxmNY",
+];
 
 /// The keys whose plugins are official. `HESTIA_OFFICIAL_PLUGIN_PUBKEY`
 /// replaces the compiled-in set for a local test, in a **debug** build only.
