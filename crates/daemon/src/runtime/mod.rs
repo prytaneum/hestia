@@ -66,6 +66,7 @@ pub async fn start_server(
         log,
         cwd: Some(plan.cwd),
         env: plan.env.into_iter().collect(),
+        ..Default::default()
     };
     match processes.start(spec).await {
         Ok(info) => Ok(info),
@@ -192,6 +193,10 @@ impl Runtime {
         });
         let processes = engine.processes().clone();
         processes.attach(hub.clone(), Some(on_exit));
+        match std::env::current_exe() {
+            Ok(exe) => processes.set_relay_program(exe),
+            Err(e) => tracing::warn!("cannot locate the daemon binary for the stdin relay: {e}"),
+        }
         let claims = Claims::default();
         let jobs = Jobs::new(
             engine.clone(),

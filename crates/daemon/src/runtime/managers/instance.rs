@@ -149,6 +149,7 @@ async fn launch(
         log: LogSource::File(prepared.log_file),
         cwd: Some(prepared.plan.cwd),
         env: prepared.plan.env.into_iter().collect(),
+        ..Default::default()
     };
     match processes.start(spec).await {
         Ok(info) => {

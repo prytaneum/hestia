@@ -52,6 +52,15 @@ enum Command {
     Ping,
     /// Stop a running daemon; supervised processes keep running
     Stop,
+    /// Hold a program's stdin behind a named pipe (spawned by the supervisor)
+    #[cfg(windows)]
+    #[command(hide = true)]
+    StdinRelay {
+        #[arg(long)]
+        pipe: String,
+        #[arg(last = true, required = true)]
+        program: Vec<String>,
+    },
 }
 
 fn main() -> ExitCode {
@@ -83,6 +92,20 @@ fn main() -> ExitCode {
         Some(Command::Stop) => {
             let _guard = common::init_logging(level, None);
             rt.block_on(run_stop())
+        }
+        #[cfg(windows)]
+        Some(Command::StdinRelay { pipe, program }) => {
+            // The relay's stderr is the program's captured log, so only warnings may reach it.
+            let _guard = common::init_logging(LogLevel::Warn, None);
+            rt.block_on(async {
+                match engine::run_relay(&pipe, &program[0], &program[1..]).await {
+                    Ok(code) => code,
+                    Err(e) => {
+                        tracing::error!("stdin relay failed: {e}");
+                        1
+                    }
+                }
+            })
         }
         _ => {
             #[cfg(windows)]

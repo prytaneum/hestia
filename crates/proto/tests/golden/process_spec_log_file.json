@@ -10,5 +10,7 @@
   "env": {},
   "log": {
     "file": "/home/user/.hestia/servers/a1b2c3/logs/latest.log"
-  }
+  },
+  "stdin": false,
+  "stop": "signal"
 }

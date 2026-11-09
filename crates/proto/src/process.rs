@@ -18,6 +18,18 @@ pub enum LogSource {
     File(PathBuf),
 }
 
+/// How a graceful stop starts. Either way a process that outlasts the grace
+/// period is signalled, then killed.
+#[derive(Serialize, Deserialize, Default, Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
+#[serde(rename_all = "snake_case")]
+pub enum StopMethod {
+    #[default]
+    Signal,
+    /// Write this line to the process's stdin first; needs `ProcessSpec::stdin`.
+    Line(String),
+}
+
 /// A request to launch a process under the daemon's supervisor.
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
@@ -31,6 +43,9 @@ pub struct ProcessSpec {
     pub cwd: Option<PathBuf>,
     pub env: BTreeMap<String, String>,
     pub log: LogSource,
+    /// Give the process a stdin endpoint that survives the daemon.
+    pub stdin: bool,
+    pub stop: StopMethod,
 }
 
 /// Where a supervised process is in its lifecycle.

@@ -66,6 +66,7 @@ impl ProcessSupervisor {
                 cwd: Some(task.cwd.clone()),
                 env: Default::default(),
                 log: LogSource::Capture,
+                ..Default::default()
             })
             .await
             .map_err(|e| anyhow::anyhow!("cannot run {}: {e:?}", task.program.display()))?;

@@ -13,3 +13,4 @@ export type { ProcessSpec } from "./generated/ProcessSpec";
 export type { ProcessStartResult } from "./generated/ProcessStartResult";
 export type { ProcessStartedEvent } from "./generated/ProcessStartedEvent";
 export type { ProcessState } from "./generated/ProcessState";
+export type { StopMethod } from "./generated/StopMethod";

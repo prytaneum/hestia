@@ -21,6 +21,9 @@ pub struct ProcessRecord {
     pub pid_started: u64,
     pub spec: ProcessSpec,
     pub started_unix: i64,
+    /// FIFO path or pipe name a later daemon reopens to reach the process's stdin.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub stdin_endpoint: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ended: Option<Ended>,
 }
@@ -39,7 +42,12 @@ pub struct Ended {
 impl ProcessRecord {
     /// The spec is stored with its credentials masked; the real one only lives
     /// in memory long enough to spawn.
-    pub fn for_spawn(spec: &ProcessSpec, pid: u32, started_unix: i64) -> Self {
+    pub fn for_spawn(
+        spec: &ProcessSpec,
+        pid: u32,
+        started_unix: i64,
+        stdin_endpoint: Option<String>,
+    ) -> Self {
         ProcessRecord {
             id: spec.id.clone(),
             pid,
@@ -49,6 +57,7 @@ impl ProcessRecord {
                 ..spec.clone()
             },
             started_unix,
+            stdin_endpoint,
             ended: None,
         }
     }
@@ -153,7 +162,7 @@ mod tests {
         };
         save(
             &proc_dir,
-            &ProcessRecord::for_spawn(&spec, std::process::id(), 42),
+            &ProcessRecord::for_spawn(&spec, std::process::id(), 42, None),
         );
 
         let on_disk = fs::read_to_string(proc_dir.join(FILE)).unwrap();
@@ -182,7 +191,7 @@ mod tests {
         let proc_dir = dir.path().join("server-x");
         fs::create_dir_all(&proc_dir).unwrap();
 
-        let live = ProcessRecord::for_spawn(&spec("server-x"), 1234, 100);
+        let live = ProcessRecord::for_spawn(&spec("server-x"), 1234, 100, None);
         save(&proc_dir, &live);
         assert!(scan_finished(dir.path()).is_empty());
 
@@ -201,7 +210,7 @@ mod tests {
         for (id, ended) in [("a", 300), ("b", 100), ("c", 200)] {
             let proc_dir = dir.path().join(id);
             fs::create_dir_all(&proc_dir).unwrap();
-            let record = ProcessRecord::for_spawn(&spec(id), 1, ended - 60);
+            let record = ProcessRecord::for_spawn(&spec(id), 1, ended - 60, None);
             save(&proc_dir, &record.end(ProcessState::Exited, Some(0), ended));
         }
         let ids: Vec<String> = scan_finished(dir.path())

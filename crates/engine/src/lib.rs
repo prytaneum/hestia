@@ -64,7 +64,9 @@ pub use minecraft::{
     FlavorInfo, FlavorProvider, Loads, Minecraft, ResolveRequest, Side, REQUIRED_JAVA_MAJORS,
 };
 pub use net::Network;
-pub use process::{ExitObserver, ProcessEvents, ProcessSupervisor, StartError};
+#[cfg(windows)]
+pub use process::run_relay;
+pub use process::{ExitObserver, ProcessEvents, ProcessSupervisor, StartError, StdinError};
 pub use schema::notices as quarantined;
 pub use servers::{RconConfig, ServerPhase, ServerRecord, Servers};
 pub use skins::Skins;

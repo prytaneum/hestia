@@ -12,6 +12,7 @@
 mod identity;
 mod records;
 mod secrets;
+mod stdin;
 mod tail;
 mod task;
 
@@ -24,12 +25,15 @@ use std::time::Duration;
 
 use proto::process::{
     LogSource, LogStream, ProcessExitEvent, ProcessInfo, ProcessLogLine, ProcessSpec,
-    ProcessStartedEvent, ProcessState,
+    ProcessStartedEvent, ProcessState, StopMethod,
 };
 use tokio::process::{Child, Command};
 use tokio::sync::Notify;
 
 use records::ProcessRecord;
+#[cfg(windows)]
+pub use stdin::run_relay;
+pub use stdin::StdinError;
 
 /// Lines `process.logs` returns when no explicit tail is given.
 const DEFAULT_LOG_LINES: usize = 2000;
@@ -82,16 +86,23 @@ struct Entry {
     info: Mutex<ProcessInfo>,
     log_path: PathBuf,
     err_path: Option<PathBuf>,
+    stdin_endpoint: Option<String>,
     stopping: AtomicBool,
     stop_notify: Notify,
 }
 
 impl Entry {
-    fn new(info: ProcessInfo, log_path: PathBuf, err_path: Option<PathBuf>) -> Arc<Self> {
+    fn new(
+        info: ProcessInfo,
+        log_path: PathBuf,
+        err_path: Option<PathBuf>,
+        stdin_endpoint: Option<String>,
+    ) -> Arc<Self> {
         Arc::new(Entry {
             info: Mutex::new(info),
             log_path,
             err_path,
+            stdin_endpoint,
             stopping: AtomicBool::new(false),
             stop_notify: Notify::new(),
         })
@@ -131,6 +142,7 @@ pub type ExitObserver = Arc<dyn Fn(&ProcessInfo) + Send + Sync>;
 pub struct ProcessSupervisor {
     events: OnceLock<Arc<dyn ProcessEvents>>,
     on_exit: OnceLock<ExitObserver>,
+    relay_program: OnceLock<PathBuf>,
     dir: PathBuf,
     table: Mutex<HashMap<String, Arc<Entry>>>,
 }
@@ -140,6 +152,7 @@ impl ProcessSupervisor {
         ProcessSupervisor {
             events: OnceLock::new(),
             on_exit: OnceLock::new(),
+            relay_program: OnceLock::new(),
             dir,
             table: Mutex::new(HashMap::new()),
         }
@@ -152,6 +165,12 @@ impl ProcessSupervisor {
         if let Some(on_exit) = on_exit {
             let _ = self.on_exit.set(on_exit);
         }
+    }
+
+    /// The program that wraps a stdin-endpoint process on Windows (the daemon's
+    /// own binary, run as `stdin-relay`). The engine cannot name it itself.
+    pub fn set_relay_program(&self, program: PathBuf) {
+        let _ = self.relay_program.set(program);
     }
 
     fn dir(&self) -> &Path {
@@ -179,14 +198,24 @@ impl ProcessSupervisor {
             source,
         };
         let io = prepare_stdio(&spec, &proc_dir).map_err(failed)?;
-        let child = build_command(&spec, io.out, io.err)
-            .spawn()
-            .map_err(failed)?;
+        let (stdin_endpoint, child) = if spec.stdin {
+            let relay = self.relay_program.get().map(PathBuf::as_path);
+            let launch = stdin::create(&spec, &proc_dir, relay).map_err(failed)?;
+            let child = build_command(&launch.spec, launch.stdin, io.out, io.err)
+                .spawn()
+                .map_err(failed)?;
+            (Some(launch.target), child)
+        } else {
+            let child = build_command(&spec, Stdio::null(), io.out, io.err)
+                .spawn()
+                .map_err(failed)?;
+            (None, child)
+        };
         let pid = child.id().unwrap_or(0);
         let started_unix = common::now_unix();
 
-        let record = ProcessRecord::for_spawn(&spec, pid, started_unix);
-        let entry = Entry::new(record.info(), io.log_path, io.err_path);
+        let record = ProcessRecord::for_spawn(&spec, pid, started_unix, stdin_endpoint.clone());
+        let entry = Entry::new(record.info(), io.log_path, io.err_path, stdin_endpoint);
         self.table
             .lock()
             .unwrap()
@@ -231,11 +260,13 @@ impl ProcessSupervisor {
         for record in records::scan(self.dir()) {
             known.insert(record.id.clone());
             if record.ended.is_some() {
+                remove_endpoint(&record);
                 continue;
             }
             let proc_dir = self.dir().join(&record.id);
             if !identity::is_same(record.pid, record.pid_started) {
                 tracing::info!(id = %record.id, pid = record.pid, "process exited while unsupervised");
+                remove_endpoint(&record);
                 records::save(
                     &proc_dir,
                     &record
@@ -256,7 +287,12 @@ impl ProcessSupervisor {
 
             let (log_path, err_path) = log_paths(&record.spec, &proc_dir);
             let tail_from = std::fs::metadata(&log_path).map(|m| m.len()).unwrap_or(0);
-            let entry = Entry::new(record.info(), log_path, err_path);
+            let entry = Entry::new(
+                record.info(),
+                log_path,
+                err_path,
+                record.stdin_endpoint.clone(),
+            );
             self.table
                 .lock()
                 .unwrap()
@@ -316,6 +352,21 @@ impl ProcessSupervisor {
             tracing::debug!(id = %stale.id, "pruning a finished process directory");
             let _ = std::fs::remove_dir_all(self.dir().join(&stale.id));
         }
+    }
+
+    /// Write one line to a running process's stdin endpoint, owned or adopted.
+    pub async fn write_line(&self, id: &str, line: &str) -> Result<(), StdinError> {
+        let entry = self.table.lock().unwrap().get(id).cloned();
+        let entry = entry
+            .filter(|e| e.is_running())
+            .ok_or_else(|| StdinError::NotRunning(id.to_string()))?;
+        let target = entry
+            .stdin_endpoint
+            .as_deref()
+            .ok_or_else(|| StdinError::NoEndpoint(id.to_string()))?;
+        stdin::write_line(target, line).await.inspect_err(|e| {
+            tracing::warn!(id, "cannot write to the stdin endpoint: {e}");
+        })
     }
 
     /// Returns false if no such id is tracked.
@@ -525,12 +576,15 @@ fn prepare_stdio(spec: &ProcessSpec, proc_dir: &Path) -> std::io::Result<Prepare
     })
 }
 
-fn build_command(spec: &ProcessSpec, out: Stdio, err: Stdio) -> Command {
+fn remove_endpoint(record: &ProcessRecord) {
+    if let Some(target) = &record.stdin_endpoint {
+        stdin::remove(target);
+    }
+}
+
+fn build_command(spec: &ProcessSpec, stdin: Stdio, out: Stdio, err: Stdio) -> Command {
     let mut cmd = Command::new(&spec.program);
-    cmd.args(&spec.args)
-        .stdin(Stdio::null())
-        .stdout(out)
-        .stderr(err);
+    cmd.args(&spec.args).stdin(stdin).stdout(out).stderr(err);
     // The child must outlive the daemon: no kill_on_drop, and its own process
     // group so terminal signals aimed at hestiad never reach it.
     #[cfg(unix)]
@@ -564,7 +618,7 @@ async fn supervise(
         record.id.clone(),
         events.clone(),
     );
-    let code = wait_or_stop(&entry, &mut watched, &record.id).await;
+    let code = wait_or_stop(&entry, &mut watched, &record).await;
     tailer.finish().await;
 
     let killed = entry.stopping.load(Ordering::SeqCst);
@@ -594,31 +648,48 @@ async fn supervise(
         },
     );
 
+    remove_endpoint(&record);
     records::save(&proc_dir, &record.end(state, code, common::now_unix()));
     if let Some(observe) = &on_exit {
         observe(&entry.snapshot());
     }
 }
 
-async fn wait_or_stop(entry: &Entry, watched: &mut Watched, id: &str) -> Option<i32> {
+async fn send_stop_line(record: &ProcessRecord) -> bool {
+    let (StopMethod::Line(line), Some(target)) = (&record.spec.stop, &record.stdin_endpoint) else {
+        return false;
+    };
+    match stdin::write_line(target, line).await {
+        Ok(()) => true,
+        Err(e) => {
+            tracing::warn!(id = %record.id, "cannot send the stop line: {e}");
+            false
+        }
+    }
+}
+
+async fn wait_or_stop(entry: &Entry, watched: &mut Watched, record: &ProcessRecord) -> Option<i32> {
+    let id = record.id.as_str();
     match watched {
         Watched::Owned { child, tree } => {
             let pid = child.id().unwrap_or(0);
             tokio::select! {
                 status = child.wait() => status.ok().and_then(|s| s.code()),
                 _ = entry.stop_notify.notified() => {
+                    if send_stop_line(record).await {
+                        tracing::debug!(id, pid, "sent the stop line");
+                        if let Ok(status) = tokio::time::timeout(STOP_GRACE, child.wait()).await {
+                            return status.ok().and_then(|s| s.code());
+                        }
+                    }
                     tracing::debug!(id, pid, "requesting graceful stop");
                     match tree.as_ref() {
                         Some(tree) => tree.stop(),
                         None => identity::request_stop(pid),
                     }
-                    let graceful = tokio::select! {
-                        status = child.wait() => Some(status),
-                        _ = tokio::time::sleep(STOP_GRACE) => None,
-                    };
-                    match graceful {
-                        Some(status) => status.ok().and_then(|s| s.code()),
-                        None => {
+                    match tokio::time::timeout(STOP_GRACE, child.wait()).await {
+                        Ok(status) => status.ok().and_then(|s| s.code()),
+                        Err(_) => {
                             tracing::warn!(id, pid, "grace period expired; killing process");
                             match tree.as_ref() {
                                 Some(tree) => tree.kill(),
@@ -640,6 +711,16 @@ async fn wait_or_stop(entry: &Entry, watched: &mut Watched, id: &str) -> Option<
                         }
                     }
                     _ = entry.stop_notify.notified() => {
+                        if send_stop_line(record).await {
+                            tracing::debug!(id, pid, "sent the stop line to adopted process");
+                            let deadline = tokio::time::Instant::now() + STOP_GRACE;
+                            while identity::is_same(pid, token) && tokio::time::Instant::now() < deadline {
+                                tokio::time::sleep(Duration::from_millis(200)).await;
+                            }
+                            if !identity::is_same(pid, token) {
+                                return None;
+                            }
+                        }
                         tracing::debug!(id, pid, "requesting graceful stop of adopted process");
                         identity::request_stop(pid);
                         let deadline = tokio::time::Instant::now() + STOP_GRACE;
