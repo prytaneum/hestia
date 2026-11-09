@@ -8,7 +8,7 @@ import { tanstackRouter } from '@tanstack/router-plugin/vite';
 import viteReact from '@vitejs/plugin-react';
 import { defineConfig } from 'vitest/config';
 
-import { acyclicChunks } from './build/acyclic-chunks';
+import { acyclicChunks } from './build/acyclic-chunks.ts';
 
 // Tauri drives the frontend: it opens a webview at `server` in dev and bundles
 // the static `build.outDir` (dist) in release. There is no Node server at
