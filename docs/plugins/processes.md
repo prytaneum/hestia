@@ -29,6 +29,22 @@ args = ["*"]
 
 Source: `plugins/tunnel-demo/plugin.toml`. The example uses `sleep` as a stand-in for a real agent such as `tailscale`.
 
+### Managed Java
+
+A program with `java = <major>` instead of a `command` runs on the Java runtime Hestia manages for that major, installed
+on first use. Nothing is pinned at approval, because the runtime belongs to the host, and the grant shows it as
+"Hestia-managed Java 21". Arguments (`-jar`, a jar under `data/`, `-version`) are declared as patterns like any other
+program.
+
+```toml
+[[programs]]
+id = "tool"
+java = 21
+args = ["-jar", "*"]
+```
+
+Source: `crates/engine/tests/fixture/plugins/replay-flavor/plugin.toml`.
+
 ### Programs in `data/`
 
 A `command` with a `/` is a file inside the plugin's `data/` directory and must carry a `sha256` per target triple:
@@ -105,7 +121,7 @@ Rules for every call:
 - A program not declared, arguments outside the patterns, or an environment name not in `env` is
   `Error::PermissionDenied`. Without `process:spawn` every call is denied.
 - At most 256 arguments of 32 KiB each, with no NUL.
-- The working directory is `data/`. The environment starts empty (on Windows only `SystemRoot`).
+- The working directory is `data/`; `exec_in(program, args, timeout, cwd)` runs in another directory, a guest path under a writable mount of the call (`/data`, or `/build` during a flavor's `build`), and anything else is `permission-denied`. The environment starts empty (on Windows only `SystemRoot`).
 - The host logs program ids and exit statuses, never arguments or values: they carry auth keys.
 
 ## Owning a long-lived agent

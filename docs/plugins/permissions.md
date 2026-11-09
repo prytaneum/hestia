@@ -57,13 +57,21 @@ env = ["PLAYIT_SECRET"]          # the only names a call may pass
 [programs.sha256]
 x86_64-unknown-linux-gnu = "…"   # one per target triple the plugin supports
 x86_64-pc-windows-msvc = "…"
+
+[[programs]]
+id = "tool"
+java = 21                        # instead of `command`: Hestia's managed Java 21, resolved when called
+args = ["-jar", "*"]
 ```
 
+- A `java` program is shown in the grant as "Hestia-managed Java 21". The runtime is host-owned, so nothing is pinned at
+  approval; the arguments, environment and permission rules are the same as for any program.
 - The SDK's `hestia::process` runs them. `exec` runs a program to completion, with output cut at 1 MiB per stream. The
   other calls handle long-lived agents: `spawn`, `stop`, `status`, `logs` and `list`.
 - A call naming another program, arguments outside the patterns, or an undeclared environment name is refused with
   `permission-denied`.
-- There is no shell, the working directory is `data/`, and the environment starts empty.
+- There is no shell, the working directory is `data/` unless `exec_in` names another (`/data`, or `/build` during a
+  flavor's `build`; anything else is `permission-denied`), and the environment starts empty.
 - A spawned agent is supervised with the owner `plugin:<id>`. Only its plugin can see or stop it, `list()` finds it again
   after a restart, and disabling or removing the plugin stops it.
 - `env` may not name `LD_*`, `DYLD_*`, `PATH` or a `*JAVA*OPTIONS` variable, and a shell cannot be declared as a program.

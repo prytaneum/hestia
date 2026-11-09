@@ -61,7 +61,8 @@ update that changes it asks again.
 | Key | Type | Meaning |
 |---|---|---|
 | `id` | slug | what the SDK's `process` calls name; unique |
-| `command` | string | a name on `PATH` (1 to 64 of letters, digits, `.`, `_`, `-`, `+`, not starting with `.` or `-`), or, with a `/`, a file inside `data/` |
+| `command` | string | a name on `PATH` (1 to 64 of letters, digits, `.`, `_`, `-`, `+`, not starting with `.` or `-`), or, with a `/`, a file inside `data/`; omitted when `java` is set |
+| `java` | integer, 1 to 99 | instead of `command`: the Java major of the runtime Hestia manages, installed when missing and resolved at call time, never pinned. Exactly one of `command` and `java` (`ProgramCommandOrJava`); no `sha256` |
 | `args` | list of strings | patterns: a literal, `*` for one token, a trailing `**` for the rest; `**` anywhere else is refused |
 | `env` | list of names | the only environment variables a call may pass. `LD_*`, `DYLD_*`, `PATH` and `*JAVA*OPTIONS` are refused (`BadProgramEnv`) |
 | `sha256` | table, target triple to hex | required for a `data/` program (`ProgramNeedsHash`): 64 lowercase hex characters per triple |

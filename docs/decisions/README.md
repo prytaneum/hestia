@@ -41,6 +41,7 @@ the alternative you rejected — that is usually the part nobody can recover lat
 - **0106** — [The plugin API is mechanisms, not features](0106-the-plugin-api-is-mechanisms-not-features.md)
 - **0108** — [A schedule is an event delivered to its own plugin](0108-a-schedule-is-an-event-to-its-own-plugin.md)
 - **0109** — [A plugin webview is an opaque-origin iframe with a mediated message bridge](0109-plugin-webviews-are-opaque-iframes.md)
+- **0110** — [A flavor builds in an area of its own, and the host places what it builds](0110-a-flavor-builds-in-its-own-area.md)
 
 ### [Cross-cutting foundations](../architecture/common.md)
 
@@ -76,6 +77,7 @@ the alternative you rejected — that is usually the part nobody can recover lat
 - **0059** — [Discord presence belongs to the daemon, and is a loop rather than a hook](0059-discord-presence-is-a-daemon-loop.md)
 - **0106** — [The plugin API is mechanisms, not features](0106-the-plugin-api-is-mechanisms-not-features.md)
 - **0108** — [A schedule is an event delivered to its own plugin](0108-a-schedule-is-an-event-to-its-own-plugin.md)
+- **0110** — [A flavor builds in an area of its own, and the host places what it builds](0110-a-flavor-builds-in-its-own-area.md)
 
 ### [Minecraft providers](../architecture/minecraft.md)
 
@@ -110,6 +112,7 @@ the alternative you rejected — that is usually the part nobody can recover lat
 - **0074** — [The game reports what was played; the launcher only keeps the history](0074-the-game-reports-what-was-played.md)
 - **0088** — [The daemon sequences a version change, its restart and its modpack](0088-the-daemon-sequences-a-version-change.md)
 - **0107** — [An entry's icon lives in the entry's directory, kept by the daemon](0107-an-entry-icon-lives-in-the-entry.md)
+- **0110** — [A flavor builds in an area of its own, and the host places what it builds](0110-a-flavor-builds-in-its-own-area.md)
 
 ### [Content & modpacks](../architecture/content.md)
 

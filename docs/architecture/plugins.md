@@ -257,6 +257,21 @@ Adding a kind is its vocabulary in `proto::provider`, an adapter module beside
 the others, and a line in each of `Contributions::connect`, `register` and
 `unregister`.
 
+A flavor whose profile names something it cannot download implements the optional
+`build` operation ([0110](../decisions/0110-a-flavor-builds-in-its-own-area.md)).
+The adapter calls it from the flavor's `install` step with a per-call context: two
+extra preopens beside `/data`, `/build` (read-write, `meta/flavors/<flavor-id>/`)
+and `/vanilla` (read-only, the directory of the side's vanilla jar), and a
+progress and cancel sink that maps onto `ProvisionProgress` and the provision's
+cancel, under the one-hour command timeout. The guest writes only under `/build`;
+`providers/build.rs` copies each named output to the place the profile gave it (a
+`ServerJar::Built` filename in the server's data directory, or the path of a
+`Library` marked `built` under `meta/libraries/`), refusing a symlink, an escape
+and a target the profile did not declare, and fails the provision unless every
+built file exists. A flavor also declares how Modrinth packs and Prism instances
+name its loader (`mrpackKey`, `prismUid`), which the transfer formats read from
+the registered flavors.
+
 ## Declarative UI and themes
 
 A plugin never ships markup, scripts or styles into the app. A page is a
@@ -328,8 +343,12 @@ protocol itself.
 `process:spawn` runs only the `[[programs]]` the manifest declares: argument
 patterns, an environment name list, and either a `PATH` name pinned to an absolute
 path at approval or a file in `data/` copied to a host-owned `plugins/<id>/bin/`
-and run only after its per-target sha256 matches. No shell, working directory
-`data/`, empty environment. A spawned agent is supervised under the owner
+and run only after its per-target sha256 matches, or, with `java = <major>` in
+place of `command`, the Hestia-managed runtime of that major, resolved at call
+time (installed when missing) through a `ManagedJava` resolver the daemon lends
+the runtime at load, and never pinned. No shell, working directory `data/` unless
+`exec` names `cwd`, a guest path under a writable mount of the call (`/data`, or
+`/build` during a flavor's `build`), empty environment. A spawned agent is supervised under the owner
 `plugin:<id>`, visible and stoppable only by its plugin, and stopped when the
 plugin is disabled or removed
 ([0101](../decisions/0101-plugins-spawn-only-declared-programs.md)). The SDK's
@@ -412,6 +431,7 @@ added by its index URL. It has one shape
 │       ├── bin/            host-owned copies of verified data-directory programs
 │       └── settings.json   setting values, owner-only; may hold secrets
 ├── meta/plugins/           compiled components (.cwasm) — regenerable
+├── meta/flavors/<id>/      a flavor's build area, `/build` during its `build` — regenerable
 └── tmp/plugins/            packages fetched from a link, held until installed
 ```
 
@@ -465,3 +485,4 @@ plugins the tests build are fixtures
 | [0105](../decisions/0105-a-java-provider-only-resolves.md) | a Java provider only resolves; the host downloads and extracts |
 | [0106](../decisions/0106-the-plugin-api-is-mechanisms-not-features.md) | the plugin API is mechanisms, not features |
 | [0108](../decisions/0108-a-schedule-is-an-event-to-its-own-plugin.md) | a schedule is an event delivered to its own plugin |
+| [0110](../decisions/0110-a-flavor-builds-in-its-own-area.md) | a flavor builds in an area of its own; the host places the outputs |

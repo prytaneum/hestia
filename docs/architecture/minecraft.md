@@ -62,9 +62,12 @@ runs, so it needs the unrestricted `flavor:provide` permission, and the guest
 only describes: every profile it returns is vetted before the engine acts on it.
 Each artifact must carry a sha1 and sit on one of the plugin's network hosts,
 every path must stay relative, the Java major must be one the launcher knows,
-and the jar must be a download. One refusal fails the whole resolve. A plugin
-flavor has no install step yet, so it cannot build its own jar. The profile
-types live in `proto::profile` so the SDK can build them.
+and the jar must be a download or named as built. One refusal fails the whole
+resolve. A plugin flavor builds what its profile names as built through the
+optional `build` operation, run from the `install` hook in an area of its own and
+placed by the host ([0110](../decisions/0110-a-flavor-builds-in-its-own-area.md),
+[Plugins](plugins.md#provider-surfaces)). The profile types live in
+`proto::profile` so the SDK can build them.
 
 ## Profiles — what a launch needs
 

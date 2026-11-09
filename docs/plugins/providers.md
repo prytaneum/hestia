@@ -22,7 +22,7 @@ id = "index"
 | Kind | Permissions | Registers into | Operations |
 |---|---|---|---|
 | `content` | `content:read`, `network:connect` | the content source registry | `info`, `parse-url`, `recognise-file-url`, `search`, `project`, `projects`, `versions`, `versions-by-id`, `identify` |
-| `flavor` | `flavor:provide`, `network:connect` | the flavor registry | `info`, `versions`, `loader-versions`, `resolve-server`, `resolve-client` |
+| `flavor` | `flavor:provide`, `network:connect` | the flavor registry | `info`, `versions`, `loader-versions`, `resolve-server`, `resolve-client`, `build` |
 | `format` | `format:provide` | the archive formats import detection ranks | `info`, `read`, `land`, `write` |
 | `java` | `java:provide`, `network:connect` | the Java provider roster | `majors`, `resolve` |
 
@@ -86,7 +86,7 @@ It leaves the optional operations unhandled, so URL pasting, bulk lookup and fil
 ## Flavors
 
 A flavor decides the code the game runs, so the host vets every profile before acting on it: each artifact must carry a
-sha1 and sit on one of the plugin's `network` hosts. The jar must be a download; a plugin cannot build one.
+sha1 and sit on one of the plugin's `network` hosts, unless the profile names it as built (see `build` below).
 
 | Operation | Args | Reply | Notes |
 |---|---|---|---|
@@ -94,11 +94,38 @@ sha1 and sit on one of the plugin's `network` hosts. The jar must be a download;
 | `versions` | none | `GameVersion[]` | newest first |
 | `loader-versions` | `{ game }` | `string[]` | optional: loader builds, newest first |
 | `resolve-server` | `{ version, loaderVersion? }` | `ServerProfile` | |
-| `resolve-client` | `{ version, loaderVersion? }` | `InstanceProfile` | |
+| `resolve-client` | `{ version, loaderVersion? }` | `InstanceProfile` | a library may be marked `built: true` |
+| `build` | `{ side, version, loaderVersion?, vanillaJar? }` | `{ outputs: [{ path, target }] }` | optional: produces what the profile names as built |
+
+`info` may also give `mrpackKey` (the key a Modrinth pack names the flavor's loader by in its `dependencies`) and
+`prismUid` (the component uid of a Prism or MultiMC instance), so packs and instances of the flavor import and export.
+
+### Building what cannot be downloaded
+
+A flavor that runs a build on the user's machine names the result in its profile: a server's `ServerJar::Built {
+filename }`, or a client `Library` with `built: true` (it needs no URL or sha1, and `path` is where it lands under the
+shared libraries). The host then calls `build` ([0110](../decisions/0110-a-flavor-builds-in-its-own-area.md)) every time
+the entry is provisioned or launched, so it must be cheap once done: check your own outputs first.
+
+During that call, and only that call, the guest has two more mounts beside `/data`:
+
+| Mount | Access | What |
+|---|---|---|
+| `/build` | read-write | the flavor's own area, `meta/flavors/<flavor-id>/`, shared by every entry of the flavor |
+| `/vanilla` | read-only | the directory of the side's vanilla jar; `vanillaJar` is that jar's guest path, absent when the side has none |
+
+Run tools with `hestia::process::exec_in(program, args, timeout, "/build")`, declare them in `[[programs]]` (a Java tool
+as `java = 21`, run on a Hestia-managed runtime), and answer with the files to keep: `path` is a file under `/build`,
+`target` is the filename of the profile's built server jar or the `path` of one of its built libraries. The host copies
+each output into place, refuses a symlink, a path outside `/build` and a target the profile did not name, and fails the
+provision when a built file is still missing. A server that launches from an args file is not supported yet.
+`hestia::progress::report` and `cancelled` reach the provision's progress and cancel while `build` runs. Return
+`unsupported` (answer nothing) for a version with nothing to build.
 
 No published example exists. The test fixture
 [`replay-flavor`](../../crates/engine/tests/fixture/plugins/replay-flavor/src/lib.rs) is the compiled reference: it
-re-serves a vanilla-shaped profile and includes two deliberately bad versions the host must refuse. Its
+re-serves a vanilla-shaped profile, includes two deliberately bad versions the host must refuse, and has `build`
+versions that run a declared managed-Java program in `/build`. Its
 manifest, `crates/engine/tests/fixture/plugins/replay-flavor/plugin.toml`:
 
 ```toml
@@ -106,8 +133,13 @@ id = "replay-flavor"
 version = "0.1.0"
 api = "^1.0.0"
 wasm = "plugin.wasm"
-permissions = ["flavor:provide", "network:connect"]
+permissions = ["flavor:provide", "network:connect", "process:spawn"]
 network = ["files.example.com"]
+
+[[programs]]
+id = "builder"
+java = 21
+args = ["*"]
 
 [[contributes.providers]]
 kind = "flavor"
@@ -123,6 +155,7 @@ impl Plugin for Replay {
             .on::<Versions>(|flavor, _| versions(flavor))
             .on::<ResolveServer>(resolve_server)
             .on::<ResolveClient>(resolve_client)
+            .on::<Build>(build)
             .finish()
     }
 }
