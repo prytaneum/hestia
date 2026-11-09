@@ -281,8 +281,10 @@ impl Engine {
                     loader_version: record.profile.loader_version.as_deref(),
                     root: &meta,
                     meta: &meta,
-                    minecraft_jar: &client_jar,
-                    java: &java,
+                    java: Some(crate::minecraft::JavaInstall {
+                        minecraft_jar: &client_jar,
+                        java: &java,
+                    }),
                     cache: None,
                     processes: self.processes(),
                 },

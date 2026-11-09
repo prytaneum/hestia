@@ -2,9 +2,54 @@
 //! servers, instances).
 
 use engine::{
-    Cache, Config, InstanceProfile, Instances, ServerJar, ServerPhase, ServerProfile, Servers,
+    Cache, Config, InstanceProfile, Instances, ServerJar, ServerLaunch, ServerPhase, ServerProfile,
+    ServerRuntime, Servers,
 };
 use proto::download::{Checksum, HashAlgorithm};
+
+fn java_runtime(jar: &str) -> ServerRuntime {
+    ServerRuntime::Java {
+        jar: ServerJar::Download(proto::minecraft::Artifact {
+            filename: jar.into(),
+            ..Default::default()
+        }),
+        launch: ServerLaunch::Jar,
+        java_major: 21,
+        jvm_args: Vec::new(),
+    }
+}
+
+#[test]
+fn a_native_server_refuses_the_java_only_keys() {
+    let dir = temp_dir("native-keys");
+    let servers = Servers::new(dir.path().join("servers"));
+    let profile = ServerProfile {
+        flavor: "bedrock".into(),
+        runtime: ServerRuntime::Native {
+            archive: proto::minecraft::Artifact {
+                filename: "bedrock.zip".into(),
+                ..Default::default()
+            },
+            executable: "bedrock_server".into(),
+            env: Vec::new(),
+        },
+        ..Default::default()
+    };
+    let record = servers.create("bds", profile, None).unwrap();
+    for key in ["memory", "jvm-args"] {
+        let refused = servers.config_set(&record.id, key, "4G").unwrap_err();
+        assert!(matches!(
+            refused.downcast_ref::<proto::error::ErrorInfo>(),
+            Some(proto::error::ErrorInfo::ConfigKeyNotApplicable { .. })
+        ));
+        assert!(servers.config_get(&record.id, key).is_err());
+    }
+    assert!(servers
+        .config_list(&record.id)
+        .unwrap()
+        .iter()
+        .all(|(key, _)| key != "memory"));
+}
 
 /// A directory that removes itself when the test ends, named after the test so
 /// a leftover under a debugger says which one left it.
@@ -116,7 +161,7 @@ fn servers_store_round_trips_records() {
     let profile = ServerProfile {
         flavor: "vanilla".into(),
         game_version: "1.21.1".into(),
-        java_major: 21,
+        runtime: java_runtime("server.jar"),
         ..Default::default()
     };
     let record = servers.create("My Server!", profile.clone(), None).unwrap();
@@ -379,10 +424,7 @@ async fn server_update_swaps_profile_and_keeps_settings() {
     let profile = |version: &str| ServerProfile {
         flavor: "paper".into(),
         game_version: version.into(),
-        jar: ServerJar::Download(proto::minecraft::Artifact {
-            filename: "server.jar".into(),
-            ..Default::default()
-        }),
+        runtime: java_runtime("server.jar"),
         ..ServerProfile::default()
     };
     let record = servers.create("SMP", profile("1.21"), None).unwrap();

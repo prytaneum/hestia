@@ -66,7 +66,8 @@ pub struct ServerDetails {
     pub game_version: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub loader_version: Option<String>,
-    pub java_major: i32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub java_major: Option<i32>,
     pub created_unix: i64,
     pub game_port: u16,
     /// The entry root (`servers/<id>/`) — hestia's namespace.

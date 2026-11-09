@@ -13,7 +13,7 @@ use proto::minecraft::{Edition, GameVersion};
 use self::buildtools::Product;
 use super::materialize::OnProgress;
 use super::meta::{mojang, spigot};
-use super::profile::{ServerJar, ServerLaunch, ServerProfile};
+use super::profile::{ServerJar, ServerLaunch, ServerProfile, ServerRuntime};
 use super::provider::{
     FlavorInfo, FlavorProvider, InstallRequest, Prerequisite, ResolveRequest, Side, SERVER_ONLY,
 };
@@ -118,12 +118,14 @@ impl FlavorProvider for BuildTools {
             flavor: self.info.id.to_string(),
             game_version: request.version.clone(),
             loader_version: None,
-            jar: ServerJar::Built {
-                filename: self.product.jar_name(&request.version),
+            runtime: ServerRuntime::Java {
+                jar: ServerJar::Built {
+                    filename: self.product.jar_name(&request.version),
+                },
+                launch: ServerLaunch::Jar,
+                java_major: java_major(&request.version).await?,
+                jvm_args: Vec::new(),
             },
-            launch: ServerLaunch::Jar,
-            java_major: java_major(&request.version).await?,
-            jvm_args: Vec::new(),
         })
     }
 

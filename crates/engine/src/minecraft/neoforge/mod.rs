@@ -23,7 +23,7 @@ use proto::minecraft::{Edition, GameVersion};
 use super::materialize::{self, OnProgress};
 use super::meta::{mojang, neoforge};
 use super::plan;
-use super::profile::{InstanceProfile, ServerJar, ServerLaunch, ServerProfile};
+use super::profile::{InstanceProfile, ServerJar, ServerLaunch, ServerProfile, ServerRuntime};
 use super::provider::{
     FlavorInfo, FlavorProvider, InstallRequest, ResolveRequest, Side, BOTH_SIDES,
 };
@@ -144,6 +144,7 @@ async fn run_install(
     // coordinate has already changed once between NeoForge generations. It is
     // on disk after the first fetch, so the re-read is cheap next to the chain
     // it guards.
+    let java = request.java_install()?;
     let (installer_jar, installer) = read_installer(request.root, request.cache, loader).await?;
     let libraries = request.root.join("libraries");
     if processors::patched_output(&installer, side, &libraries).is_some_and(|jar| jar.is_file()) {
@@ -167,9 +168,9 @@ async fn run_install(
         &processors::Install {
             root: request.root,
             installer: &installer_jar,
-            minecraft_jar: request.minecraft_jar,
+            minecraft_jar: java.minecraft_jar,
             side,
-            java: request.java,
+            java: java.java,
             processes: request.processes,
         },
         on_progress,
@@ -214,11 +215,13 @@ impl FlavorProvider for NeoForge {
         Ok(ServerProfile {
             flavor: ID.to_string(),
             game_version: request.version.clone(),
-            launch: ServerLaunch::ArgsFile(server_args_file(&loader)),
+            runtime: ServerRuntime::Java {
+                launch: ServerLaunch::ArgsFile(server_args_file(&loader)),
+                jar: ServerJar::Download(mojang::server_artifact(&base)?),
+                java_major: mojang::java_major(&base),
+                jvm_args: Vec::new(),
+            },
             loader_version: Some(loader),
-            jar: ServerJar::Download(mojang::server_artifact(&base)?),
-            java_major: mojang::java_major(&base),
-            jvm_args: Vec::new(),
         })
     }
 

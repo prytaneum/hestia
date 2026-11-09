@@ -57,7 +57,8 @@ pub use java::{Java, JavaInstallOutcome};
 pub use jvm::JavaSettings;
 pub use minecraft::launch::LaunchPlan;
 pub use minecraft::profile::{
-    AssetIndex, InstanceProfile, Library, Native, ServerJar, ServerProfile,
+    AssetIndex, InstanceProfile, Library, Native, ServerJar, ServerLaunch, ServerProfile,
+    ServerRuntime,
 };
 pub use minecraft::{
     FlavorInfo, FlavorProvider, Loads, Minecraft, ResolveRequest, Side, REQUIRED_JAVA_MAJORS,

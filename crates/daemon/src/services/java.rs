@@ -31,7 +31,7 @@ pub(super) fn register(on: &mut Channels<'_>) {
             .servers()
             .list()
             .iter()
-            .map(|r| r.profile.java_major)
+            .filter_map(|r| r.profile.runtime.java_major())
             .chain(
                 engine
                     .instances()

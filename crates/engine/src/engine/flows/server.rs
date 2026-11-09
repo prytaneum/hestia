@@ -1,6 +1,6 @@
 //! Server provisioning, in-place version updates, and the launch plan.
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
 use proto::backup::BackupKind;
@@ -15,8 +15,8 @@ use crate::engine::{Engine, ServerCreateSpec, ServerUpdateSpec};
 use crate::jvm::JavaSettings;
 use crate::minecraft::launch::LaunchPlan;
 use crate::minecraft::materialize::{self, OnProgress};
-use crate::minecraft::profile::{ServerJar, ServerProfile};
-use crate::minecraft::{ping, Side};
+use crate::minecraft::profile::{ServerJar, ServerProfile, ServerRuntime};
+use crate::minecraft::{ping, JavaInstall, Side};
 use crate::servers::ServerRecord;
 use crate::usage;
 
@@ -55,11 +55,12 @@ impl Engine {
         // against the schema the server itself generated.
         let provisioned = async {
             let java = self
-                .ensure_java(record.profile.java_major, None, on_progress)
+                .ensure_server_java(&record.profile, on_progress)
                 .await?;
             on_progress.check()?;
             self.servers.provision(&record)?;
-            self.materialize_server(&record, &java, on_progress).await?;
+            self.materialize_server(&record, java.as_deref(), on_progress)
+                .await?;
             for entry in &spec.config {
                 self.servers
                     .config_set(&record.id, &entry.key, &entry.value)?;
@@ -125,30 +126,52 @@ impl Engine {
                 .await
                 .context("pre-update backup failed")?;
         }
-        let java = self
-            .ensure_java(profile.java_major, None, on_progress)
-            .await?;
+        let java = self.ensure_server_java(&profile, on_progress).await?;
         // The pre-update backup is on disk by now, so a cancel here costs
         // nothing: the server is still on its old version.
         on_progress.check()?;
         let (record, previous_jar) = self.servers.begin_update(&record.id, profile)?;
-        self.materialize_server(&record, &java, on_progress).await?;
+        self.materialize_server(&record, java.as_deref(), on_progress)
+            .await?;
         let record = self.servers.finish_update(&record, &previous_jar)?;
         let warnings = self.server_warnings(&record);
         Ok((record, warnings))
     }
 
+    async fn ensure_server_java(
+        &self,
+        profile: &ServerProfile,
+        on_progress: OnProgress<'_>,
+    ) -> Result<Option<PathBuf>> {
+        match profile.runtime.java_major() {
+            Some(major) => Ok(Some(self.ensure_java(major, None, on_progress).await?)),
+            None => Ok(None),
+        }
+    }
+
     /// Fetch, install, derive: a built server cannot run until its install has
-    /// finished, and the install needs the fetched jar.
+    /// finished, and the install needs the fetched jar or archive.
     async fn materialize_server(
         &self,
         record: &ServerRecord,
-        java: &Path,
+        java: Option<&Path>,
         on_progress: OnProgress<'_>,
     ) -> Result<()> {
         let data = self.servers.data_dir(record);
-        let jar = &record.profile.jar;
-        if let ServerJar::Download(artifact) = jar {
+        let fetched = match &record.profile.runtime {
+            ServerRuntime::Java {
+                jar: ServerJar::Download(artifact),
+                ..
+            }
+            | ServerRuntime::Native {
+                archive: artifact, ..
+            } => Some(artifact),
+            ServerRuntime::Java {
+                jar: ServerJar::Built { .. },
+                ..
+            } => None,
+        };
+        if let Some(artifact) = fetched {
             materialize::ensure_artifact(
                 Some(&self.cache),
                 artifact,
@@ -159,6 +182,11 @@ impl Engine {
             )
             .await?;
         }
+        let jar_path = data.join(record.profile.runtime.filename());
+        let java_install = java.map(|java| JavaInstall {
+            minecraft_jar: &jar_path,
+            java,
+        });
         self.minecraft
             .install(
                 Side::Server,
@@ -168,17 +196,18 @@ impl Engine {
                     loader_version: record.profile.loader_version.as_deref(),
                     root: &data,
                     meta: &meta_dir(self.data_home()),
-                    minecraft_jar: &data.join(jar.filename()),
-                    java,
+                    java: java_install,
                     cache: Some(&self.cache),
                     processes: self.processes(),
                 },
                 on_progress,
             )
             .await?;
-        self.servers
-            .derive_properties_schema(record, java, self.processes(), on_progress)
-            .await;
+        if let Some(java) = java {
+            self.servers
+                .derive_properties_schema(record, java, self.processes(), on_progress)
+                .await;
+        }
         Ok(())
     }
 
@@ -193,12 +222,17 @@ impl Engine {
             &data_dir,
             &[crate::properties::level_name(&data_dir)],
         )?;
-        let java = self.installed_java(record.profile.java_major)?;
+        let java = record
+            .profile
+            .runtime
+            .java_major()
+            .map(|major| self.installed_java(major))
+            .transpose()?;
         let jvm = record
             .jvm
             .or_defaults(&self.config.settings().java_defaults())
             .or_defaults(&flavor_defaults(&record.profile));
-        let plan = self.servers.launch_plan(&record, &java, &jvm);
+        let plan = self.servers.launch_plan(&record, java.as_deref(), &jvm)?;
         Ok((record, plan))
     }
 
@@ -215,19 +249,24 @@ impl Engine {
         let data_dir = self.servers.data_dir(&record);
         let warnings = self.server_warnings(&record);
         let defaults = self.config.settings().java_defaults();
-        let jvm_args_source = jvm_args_source(&record.jvm, &defaults, &record.profile.jvm_args);
-        let jvm_args = record
-            .jvm
-            .or_defaults(&defaults)
-            .or_defaults(&flavor_defaults(&record.profile))
-            .jvm_args;
+        let (jvm_args, jvm_args_source) = match &record.profile.runtime {
+            ServerRuntime::Java { jvm_args, .. } => (
+                record
+                    .jvm
+                    .or_defaults(&defaults)
+                    .or_defaults(&flavor_defaults(&record.profile))
+                    .jvm_args,
+                jvm_args_source(&record.jvm, &defaults, jvm_args),
+            ),
+            ServerRuntime::Native { .. } => (Vec::new(), JvmArgsSource::None),
+        };
         Ok(ServerDetails {
             id: record.id,
             name: record.name,
             flavor: record.profile.flavor,
             game_version: record.profile.game_version,
             loader_version: record.profile.loader_version,
-            java_major: record.profile.java_major,
+            java_major: record.profile.runtime.java_major(),
             created_unix: record.created_unix,
             game_port: record.game_port,
             disk_bytes: usage::dir_size(&entry_dir),
@@ -247,9 +286,13 @@ impl Engine {
 /// so this only fills what neither of the two settings layers did, which is
 /// exactly what `or_defaults` means.
 fn flavor_defaults(profile: &ServerProfile) -> JavaSettings {
+    let jvm_args = match &profile.runtime {
+        ServerRuntime::Java { jvm_args, .. } => jvm_args.clone(),
+        ServerRuntime::Native { .. } => Vec::new(),
+    };
     JavaSettings {
         memory: None,
-        jvm_args: profile.jvm_args.clone(),
+        jvm_args,
     }
 }
 
@@ -273,6 +316,7 @@ fn jvm_args_source(
 
 #[cfg(test)]
 mod tests {
+    use crate::minecraft::profile::ServerLaunch;
     use proto::error::ErrorInfo;
 
     use super::*;
@@ -354,7 +398,12 @@ mod tests {
     #[test]
     fn a_flavor_recommends_flags_but_never_memory() {
         let profile = ServerProfile {
-            jvm_args: flavor(&["-XX:+UseG1GC"]),
+            runtime: ServerRuntime::Java {
+                jar: ServerJar::default(),
+                launch: ServerLaunch::default(),
+                java_major: 21,
+                jvm_args: flavor(&["-XX:+UseG1GC"]),
+            },
             ..ServerProfile::default()
         };
         let resolved = settings(&[])

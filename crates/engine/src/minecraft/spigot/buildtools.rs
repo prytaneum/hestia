@@ -152,7 +152,7 @@ async fn run(
         .run(
             Task {
                 id: build_id(version),
-                program: request.java,
+                program: request.java_install()?.java,
                 args: vec![
                     "-jar".into(),
                     tools.to_string_lossy().into_owned(),

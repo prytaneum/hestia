@@ -18,7 +18,7 @@ use proto::content::ContentKind;
 use proto::minecraft::{Edition, GameVersion, VersionKind};
 
 use super::meta::{mojang, paper};
-use super::profile::{ServerJar, ServerLaunch, ServerProfile};
+use super::profile::{ServerJar, ServerLaunch, ServerProfile, ServerRuntime};
 use super::provider::{FlavorInfo, FlavorProvider, ResolveRequest, SERVER_ONLY};
 
 /// The game versions a project publishes, ordered and typed by Mojang's own
@@ -56,10 +56,12 @@ async fn resolve(project: &str, request: &ResolveRequest<'_>) -> Result<ServerPr
         flavor: project.to_string(),
         game_version: request.version.clone(),
         loader_version: Some(build.number.to_string()),
-        jar: ServerJar::Download(build.download),
-        launch: ServerLaunch::Jar,
-        java_major: java.major,
-        jvm_args: java.flags,
+        runtime: ServerRuntime::Java {
+            jar: ServerJar::Download(build.download),
+            launch: ServerLaunch::Jar,
+            java_major: java.major,
+            jvm_args: java.flags,
+        },
     })
 }
 

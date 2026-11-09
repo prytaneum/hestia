@@ -7,19 +7,20 @@ use std::path::{Path, PathBuf};
 
 use proto::instance::QuickPlay;
 
-use super::profile::{InstanceProfile, ServerLaunch, ServerProfile};
+use super::profile::{InstanceProfile, ServerJar, ServerLaunch};
 use crate::jvm::JavaSettings;
 
 // Mojang's rule vocabulary spells the classpath separator per-OS; keep ours in
 // lockstep with the JVM's.
 pub(crate) const CLASSPATH_SEPARATOR: &str = if cfg!(windows) { ";" } else { ":" };
 
-/// A ready-to-spawn process: program + args + working directory.
+/// A ready-to-spawn process: program + args + working directory + environment.
 #[derive(Debug, Clone)]
 pub struct LaunchPlan {
     pub program: PathBuf,
     pub args: Vec<String>,
     pub cwd: PathBuf,
+    pub env: Vec<(String, String)>,
 }
 
 /// The signed-in identity substituted into the client's auth placeholders.
@@ -53,15 +54,28 @@ pub struct InstancePaths<'a> {
     pub quick_play_log: Option<&'a Path>,
 }
 
-/// The server invocation, run from the server's data directory: `-jar <jar>
-/// nogui`, or `@<args file> nogui` for a flavor whose install generates one.
+/// The Java server invocation, run from the server's data directory: `-jar
+/// <jar> nogui`, or `@<args file> nogui` for a flavor whose install generates
+/// one.
 pub fn server_plan(
-    profile: &ServerProfile,
+    jar: &ServerJar,
+    launch: &ServerLaunch,
     java: &Path,
     dir: &Path,
     settings: &JavaSettings,
 ) -> LaunchPlan {
-    server_invocation(profile, java, Path::new(""), dir, settings)
+    server_invocation(jar, launch, java, Path::new(""), dir, settings)
+}
+
+/// A native server: its executable, run from the data directory with its own
+/// environment.
+pub fn native_plan(executable: &str, env: &[(String, String)], dir: &Path) -> LaunchPlan {
+    LaunchPlan {
+        program: dir.join(executable),
+        args: Vec::new(),
+        cwd: dir.to_path_buf(),
+        env: env.to_vec(),
+    }
 }
 
 /// The same invocation, but with every artifact named relative to `artifacts`
@@ -74,28 +88,25 @@ pub fn server_plan(
 /// properties. The profile's primary artifact is the vanilla server jar for
 /// exactly this game version, which is what the key set describes.
 pub fn server_schema_plan(
-    profile: &ServerProfile,
+    jar: &ServerJar,
     java: &Path,
     artifacts: &Path,
     cwd: &Path,
     settings: &JavaSettings,
 ) -> LaunchPlan {
-    let profile = ServerProfile {
-        launch: ServerLaunch::Jar,
-        ..profile.clone()
-    };
-    server_invocation(&profile, java, artifacts, cwd, settings)
+    server_invocation(jar, &ServerLaunch::Jar, java, artifacts, cwd, settings)
 }
 
 fn server_invocation(
-    profile: &ServerProfile,
+    jar: &ServerJar,
+    launch: &ServerLaunch,
     java: &Path,
     artifacts: &Path,
     cwd: &Path,
     settings: &JavaSettings,
 ) -> LaunchPlan {
     let mut args = settings.flags();
-    match &profile.launch {
+    match launch {
         ServerLaunch::ArgsFile(file) => {
             // The file names its libraries relative to the launch directory, so it
             // is passed relative too and never resolved against `artifacts`.
@@ -103,7 +114,7 @@ fn server_invocation(
         }
         ServerLaunch::Jar => {
             args.push("-jar".to_string());
-            args.push(join_str(artifacts, profile.jar.filename()));
+            args.push(join_str(artifacts, jar.filename()));
         }
     }
     args.push("nogui".to_string());
@@ -111,6 +122,7 @@ fn server_invocation(
         program: java.to_path_buf(),
         args,
         cwd: cwd.to_path_buf(),
+        env: Vec::new(),
     }
 }
 
@@ -189,6 +201,7 @@ pub fn instance_plan(
         program: java.to_path_buf(),
         args,
         cwd: paths.game_dir.to_path_buf(),
+        env: Vec::new(),
     }
 }
 
@@ -316,15 +329,12 @@ mod tests {
 
     #[test]
     fn an_args_file_replaces_the_jar_invocation() {
-        let profile = ServerProfile {
-            launch: ServerLaunch::ArgsFile(
-                "libraries/net/neoforged/neoforge/21.1.244/unix_args.txt".into(),
-            ),
-            jar: server_jar("server.jar"),
-            ..ServerProfile::default()
-        };
+        let launch = ServerLaunch::ArgsFile(
+            "libraries/net/neoforged/neoforge/21.1.244/unix_args.txt".into(),
+        );
         let plan = server_plan(
-            &profile,
+            &server_jar("server.jar"),
+            &launch,
             Path::new("/java"),
             Path::new("/srv"),
             &JavaSettings::default(),
@@ -341,15 +351,8 @@ mod tests {
 
     #[test]
     fn the_schema_run_ignores_the_args_file() {
-        let profile = ServerProfile {
-            launch: ServerLaunch::ArgsFile(
-                "libraries/net/neoforged/neoforge/21.1.244/unix_args.txt".into(),
-            ),
-            jar: server_jar("server.jar"),
-            ..ServerProfile::default()
-        };
         let plan = server_schema_plan(
-            &profile,
+            &server_jar("server.jar"),
             Path::new("/java"),
             Path::new("/srv/data"),
             Path::new("/srv/.schema"),
@@ -370,12 +373,9 @@ mod tests {
 
     #[test]
     fn a_plain_server_is_a_jar_invocation() {
-        let profile = ServerProfile {
-            jar: server_jar("server.jar"),
-            ..Default::default()
-        };
         let plan = server_plan(
-            &profile,
+            &server_jar("server.jar"),
+            &ServerLaunch::Jar,
             Path::new("/java/bin/java"),
             Path::new("/srv"),
             &JavaSettings::default(),
@@ -644,13 +644,20 @@ mod tests {
     }
 
     #[test]
+    fn a_native_server_runs_its_executable_from_the_data_dir() {
+        let env = [("LD_LIBRARY_PATH".to_string(), ".".to_string())];
+        let plan = native_plan("bedrock_server", &env, Path::new("/srv/data"));
+        assert_eq!(plan.program, Path::new("/srv/data/bedrock_server"));
+        assert!(plan.args.is_empty());
+        assert_eq!(plan.cwd, Path::new("/srv/data"));
+        assert_eq!(plan.env, env);
+    }
+
+    #[test]
     fn server_plan_prepends_memory_and_extra_flags() {
-        let profile = ServerProfile {
-            jar: server_jar("server.jar"),
-            ..Default::default()
-        };
         let plan = server_plan(
-            &profile,
+            &server_jar("server.jar"),
+            &ServerLaunch::Jar,
             Path::new("java"),
             Path::new("/srv"),
             &settings(Some("4G"), &["-XX:+UseG1GC"]),

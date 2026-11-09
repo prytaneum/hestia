@@ -1,5 +1,3 @@
-use std::collections::BTreeMap;
-
 use engine::{Engine, LaunchRequest};
 use proto::error::{EntryKind, ErrorInfo};
 use proto::instance::{
@@ -150,7 +148,7 @@ async fn launch(
         args: prepared.plan.args,
         log: LogSource::File(prepared.log_file),
         cwd: Some(prepared.plan.cwd),
-        env: BTreeMap::new(),
+        env: prepared.plan.env.into_iter().collect(),
     };
     match processes.start(spec).await {
         Ok(info) => {

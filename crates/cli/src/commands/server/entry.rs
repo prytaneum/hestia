@@ -100,7 +100,10 @@ pub(super) fn show_info(info: &ServerDetails) -> Result<()> {
             "loader",
             info.loader_version.clone().unwrap_or_else(|| "-".into()),
         ),
-        ("java", info.java_major.to_string()),
+        (
+            "java",
+            info.java_major.map_or("-".into(), |m| m.to_string()),
+        ),
         ("address", format!("localhost:{}", info.game_port)),
         ("disk", ui::human_bytes(info.disk_bytes)),
         ("jvm args", jvm_args_label(info)),

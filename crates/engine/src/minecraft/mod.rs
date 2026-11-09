@@ -29,7 +29,7 @@ use proto::minecraft::{Edition, Flavor, GameVersion};
 use crate::cache::Cache;
 use profile::{InstanceProfile, ServerProfile};
 
-pub use provider::{accepted_kinds, unmet, InstallRequest, Prerequisite, Side};
+pub use provider::{accepted_kinds, unmet, InstallRequest, JavaInstall, Prerequisite, Side};
 pub use provider::{FlavorInfo, FlavorProvider, Loads, ResolveRequest};
 
 /// The Java majors Minecraft launch profiles ever require: 8 (pre-1.17),

@@ -6,7 +6,7 @@ use async_trait::async_trait;
 use proto::minecraft::{Edition, GameVersion};
 
 use super::meta::mojang;
-use super::profile::{InstanceProfile, ServerJar, ServerLaunch, ServerProfile};
+use super::profile::{InstanceProfile, ServerJar, ServerLaunch, ServerProfile, ServerRuntime};
 use super::provider::{FlavorInfo, FlavorProvider, ResolveRequest, BOTH_SIDES};
 
 const ID: &str = "vanilla";
@@ -39,10 +39,12 @@ impl FlavorProvider for Vanilla {
             flavor: ID.to_string(),
             game_version: request.version.clone(),
             loader_version: None,
-            jar: ServerJar::Download(mojang::server_artifact(&version)?),
-            launch: ServerLaunch::Jar,
-            java_major: mojang::java_major(&version),
-            jvm_args: Vec::new(),
+            runtime: ServerRuntime::Java {
+                jar: ServerJar::Download(mojang::server_artifact(&version)?),
+                launch: ServerLaunch::Jar,
+                java_major: mojang::java_major(&version),
+                jvm_args: Vec::new(),
+            },
         })
     }
 

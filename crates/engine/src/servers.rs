@@ -21,7 +21,7 @@ use crate::jvm::JavaSettings;
 use crate::keys::invalid;
 use crate::minecraft::launch::{self, LaunchPlan};
 use crate::minecraft::materialize::{self, OnProgress};
-use crate::minecraft::profile::ServerProfile;
+use crate::minecraft::profile::{ServerProfile, ServerRuntime};
 use crate::process::{Outcome, ProcessSupervisor, Task};
 use crate::properties;
 use crate::registry::{self, Entry, Store};
@@ -253,7 +253,7 @@ impl Servers {
         let data = self.data_dir(record);
         std::fs::create_dir_all(&data)
             .with_context(|| format!("cannot create {}", data.display()))?;
-        materialize::validate_filename(record.profile.jar.filename())?;
+        materialize::validate_filename(record.profile.runtime.filename())?;
         std::fs::write(data.join("eula.txt"), "eula=true\n").context("cannot write eula.txt")?;
         tracing::info!(id = %record.id, "server provisioned");
         Ok(())
@@ -341,13 +341,11 @@ impl Servers {
         processes: &ProcessSupervisor,
         job: OnProgress<'_>,
     ) -> Result<()> {
-        let plan = launch::server_schema_plan(
-            &record.profile,
-            java,
-            &self.data_dir(record),
-            scratch,
-            &record.jvm,
-        );
+        let ServerRuntime::Java { jar, .. } = &record.profile.runtime else {
+            bail!("only a Java server has a properties schema to derive");
+        };
+        let plan =
+            launch::server_schema_plan(jar, java, &self.data_dir(record), scratch, &record.jvm);
         let outcome = processes
             .run(
                 Task {
@@ -380,8 +378,8 @@ impl Servers {
     /// untouched. Returns the swapped record and the jar it replaces.
     pub fn begin_update(&self, id: &str, profile: ServerProfile) -> Result<(ServerRecord, String)> {
         self.store.mutate(id, |record| {
-            materialize::validate_filename(profile.jar.filename())?;
-            let previous_jar = record.profile.jar.filename().to_string();
+            materialize::validate_filename(profile.runtime.filename())?;
+            let previous_jar = record.profile.runtime.filename().to_string();
             record.profile = profile;
             record.phase = ServerPhase::Updating;
             Ok((record.clone(), previous_jar))
@@ -389,7 +387,7 @@ impl Servers {
     }
 
     pub fn finish_update(&self, record: &ServerRecord, previous_jar: &str) -> Result<ServerRecord> {
-        if previous_jar != record.profile.jar.filename() {
+        if previous_jar != record.profile.runtime.filename() {
             let _ = std::fs::remove_file(self.data_dir(record).join(previous_jar));
         }
         tracing::info!(
@@ -514,19 +512,40 @@ impl Servers {
         self.store.remove(reference)
     }
 
+    /// `java` is the resolved runtime a Java server launches on; a native
+    /// server has none and ignores it.
     pub fn launch_plan(
         &self,
         record: &ServerRecord,
-        java: &Path,
+        java: Option<&Path>,
         jvm: &JavaSettings,
-    ) -> LaunchPlan {
-        launch::server_plan(&record.profile, java, &self.data_dir(record), jvm)
+    ) -> Result<LaunchPlan> {
+        let dir = self.data_dir(record);
+        match &record.profile.runtime {
+            ServerRuntime::Java { jar, launch, .. } => {
+                let java = java.context("a Java server needs a resolved Java runtime")?;
+                Ok(launch::server_plan(jar, launch, java, &dir, jvm))
+            }
+            ServerRuntime::Native {
+                executable, env, ..
+            } => Ok(launch::native_plan(executable, env, &dir)),
+        }
+    }
+
+    fn require_java_key(record: &ServerRecord, key: &str) -> Result<()> {
+        if record.jvm.get(key).is_some() && record.profile.runtime.java_major().is_none() {
+            bail!(proto::error::ErrorInfo::ConfigKeyNotApplicable {
+                key: key.to_string()
+            });
+        }
+        Ok(())
     }
 
     /// Read one setting: a reserved JVM key from the record, or any other key
     /// from `server.properties`. `Ok(None)` means the key is not set.
     pub fn config_get(&self, id: &str, key: &str) -> Result<Option<String>> {
         let record = self.store.require(id)?;
+        Self::require_java_key(&record, key)?;
         if let Some(value) = record.jvm.get(key) {
             return Ok(value);
         }
@@ -547,6 +566,7 @@ impl Servers {
     /// clears a JVM key. Settings take effect on the next start.
     pub fn config_set(&self, id: &str, key: &str, value: &str) -> Result<()> {
         self.store.mutate(id, |record| {
+            Self::require_java_key(record, key)?;
             if record.jvm.set(key, value)? {
                 return Ok(());
             }
@@ -590,7 +610,10 @@ impl Servers {
     /// `server.properties` entry.
     pub fn config_list(&self, id: &str) -> Result<Vec<(String, String)>> {
         let record = self.store.require(id)?;
-        let mut entries = record.jvm.entries();
+        let mut entries = match record.profile.runtime.java_major() {
+            Some(_) => record.jvm.entries(),
+            None => Vec::new(),
+        };
         entries.extend(properties::read_properties(
             &self.data_dir(&record).join(properties::PROPERTIES),
         ));

@@ -5,7 +5,7 @@
 
 use std::path::Path;
 
-use anyhow::{bail, Result};
+use anyhow::{bail, Context, Result};
 use async_trait::async_trait;
 use proto::content::ContentKind;
 use proto::minecraft::{Edition, GameVersion, Requirement};
@@ -36,11 +36,25 @@ pub struct InstallRequest<'a> {
     pub root: &'a Path,
     /// The shared `meta/` root, for work no single entry owns.
     pub meta: &'a Path,
+    /// What a Java-based install builds with; `None` for a native server.
+    pub java: Option<JavaInstall<'a>>,
+    pub cache: Option<&'a Cache>,
+    pub processes: &'a ProcessSupervisor,
+}
+
+pub struct JavaInstall<'a> {
     /// The vanilla jar for this side, already materialized.
     pub minecraft_jar: &'a Path,
     pub java: &'a Path,
-    pub cache: Option<&'a Cache>,
-    pub processes: &'a ProcessSupervisor,
+}
+
+impl<'a> InstallRequest<'a> {
+    /// For a flavor whose install runs Java tooling.
+    pub fn java_install(&self) -> Result<&JavaInstall<'a>> {
+        self.java
+            .as_ref()
+            .context("this install needs a Java runtime")
+    }
 }
 
 /// The third-party content a flavor's own loader consumes: mods for a

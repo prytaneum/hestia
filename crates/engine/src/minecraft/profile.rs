@@ -73,12 +73,61 @@ pub struct ServerProfile {
     pub game_version: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub loader_version: Option<String>,
-    pub jar: ServerJar,
-    pub launch: ServerLaunch,
-    pub java_major: i32,
-    /// The flavor's own recommended JVM flags, used only when the entry sets no
-    /// `jvm-args` of its own and no global default exists.
-    pub jvm_args: Vec<String>,
+    pub runtime: ServerRuntime,
+}
+
+/// How a server runs: on a Java runtime from a jar, or as a native executable
+/// unpacked from a downloaded archive. A variant, so Java-only machinery cannot
+/// be applied to a server that has no Java.
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(
+    tag = "type",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
+pub enum ServerRuntime {
+    Java {
+        jar: ServerJar,
+        launch: ServerLaunch,
+        java_major: i32,
+        /// The flavor's own recommended JVM flags, used only when the entry
+        /// sets no `jvm-args` of its own and no global default exists.
+        jvm_args: Vec<String>,
+    },
+    Native {
+        archive: Artifact,
+        /// Relative to the data directory.
+        executable: String,
+        env: Vec<(String, String)>,
+    },
+}
+
+impl Default for ServerRuntime {
+    fn default() -> Self {
+        ServerRuntime::Java {
+            jar: ServerJar::default(),
+            launch: ServerLaunch::default(),
+            java_major: 0,
+            jvm_args: Vec::new(),
+        }
+    }
+}
+
+impl ServerRuntime {
+    pub fn java_major(&self) -> Option<i32> {
+        match self {
+            ServerRuntime::Java { java_major, .. } => Some(*java_major),
+            ServerRuntime::Native { .. } => None,
+        }
+    }
+
+    /// The file a version change replaces: the jar, or the archive.
+    pub fn filename(&self) -> &str {
+        match self {
+            ServerRuntime::Java { jar, .. } => jar.filename(),
+            ServerRuntime::Native { archive, .. } => &archive.filename,
+        }
+    }
 }
 
 /// The resolved launch profile for a Minecraft *client* (instance).

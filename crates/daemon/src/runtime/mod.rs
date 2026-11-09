@@ -61,7 +61,7 @@ pub async fn start_server(
         args: plan.args,
         log: LogSource::File(plan.cwd.join("logs").join("latest.log")),
         cwd: Some(plan.cwd),
-        env: Default::default(),
+        env: plan.env.into_iter().collect(),
     };
     match processes.start(spec).await {
         Ok(info) => Ok(info),
@@ -116,7 +116,7 @@ pub fn server_info(
         game_version: record.profile.game_version,
         loader_version: record.profile.loader_version,
         edition,
-        java_major: Some(record.profile.java_major),
+        java_major: record.profile.runtime.java_major(),
         created_unix: record.created_unix,
         ready,
         game_port: record.game_port,

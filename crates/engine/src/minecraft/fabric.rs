@@ -10,7 +10,9 @@ use proto::content::ContentKind;
 use proto::minecraft::{Artifact, Edition, GameVersion, VersionKind};
 
 use super::meta::{fabric, mojang};
-use super::profile::{InstanceProfile, Library, ServerJar, ServerLaunch, ServerProfile};
+use super::profile::{
+    InstanceProfile, Library, ServerJar, ServerLaunch, ServerProfile, ServerRuntime,
+};
 use super::provider::{FlavorInfo, FlavorProvider, ResolveRequest, BOTH_SIDES};
 
 const ID: &str = "fabric";
@@ -74,18 +76,20 @@ impl FlavorProvider for Fabric {
             flavor: ID.to_string(),
             game_version: request.version.clone(),
             loader_version: Some(loader.clone()),
-            jar: ServerJar::Download(Artifact {
-                filename: format!(
-                    "fabric-server-mc.{}-loader.{}-launcher.{}.jar",
-                    request.version, loader, installer
-                ),
-                url,
-                size: 0,
-                checksum: None,
-            }),
-            launch: ServerLaunch::Jar,
-            java_major: mojang::java_major(&base),
-            jvm_args: Vec::new(),
+            runtime: ServerRuntime::Java {
+                jar: ServerJar::Download(Artifact {
+                    filename: format!(
+                        "fabric-server-mc.{}-loader.{}-launcher.{}.jar",
+                        request.version, loader, installer
+                    ),
+                    url,
+                    size: 0,
+                    checksum: None,
+                }),
+                launch: ServerLaunch::Jar,
+                java_major: mojang::java_major(&base),
+                jvm_args: Vec::new(),
+            },
         })
     }
 
