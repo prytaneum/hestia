@@ -610,6 +610,7 @@ hestia config set instance.multi-session true # allow an instance to run several
 hestia config set discord.enabled false       # stop publishing Discord presence
 hestia config set content.curseforge-key <key> # unlock the CurseForge source
 hestia config set network.offline true        # stop reaching the network at all
+hestia config set developer true              # show the plugin authoring tools (see Launcher plugins)
 ```
 
 `network.offline` pins the launcher offline. Nothing is attempted while it is set, so anything that needs upstream
@@ -731,6 +732,15 @@ for a named repository that is an error, for all of them a warning, and the cach
 stops new installs from it until a fresh one is fetched. An installed plugin the index revokes is disabled, with the
 reason as its error. `browse` works offline from the
 last good copies.
+
+Developer mode (`hestia config set developer true`, default off) gates the authoring tools. Off, the verbs below
+(`new`, `pack`, `dev`, `check`, `keygen`, `index`) are hidden from help and refuse with `developer mode is off; enable it
+with: hestia config set developer true`; the daemon also refuses a dev install and the `plugin.log` stream on its own.
+On, `hestia plugin info` adds the grant digest, the component cache directory and the last error's cause chain. The CLI
+reads the setting from the daemon only for `plugin` and help invocations; a daemon that is down reads as off.
+`HESTIA_DEVELOPER=1` turns the CLI side on without a daemon (the daemon's own refusal still applies). Turning the mode
+off disables every plugin run from a folder, with the reason as its last error. Completions still list the hidden
+verbs; running one is still refused.
 
 Writing one needs no daemon. A plugin lives in a repository: a cargo workspace (`members = ["plugins/*"]`) with one
 `plugins/<id>/` folder per plugin, holding `plugin.toml`, `Cargo.toml`, `src/` and optionally `assets/` and `themes/`.

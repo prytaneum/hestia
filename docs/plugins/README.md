@@ -11,6 +11,13 @@ guide is for the author.
 Needs a Rust toolchain and the `wasm32-wasip2` target. `new`, `pack` and `dev` build locally; `dev` and `add` need a
 running daemon (`hestia daemon start`).
 
+The authoring verbs are hidden until you turn on developer mode (in the desktop: Settings > General > Advanced). With
+the daemon running:
+
+```bash
+hestia config set developer true
+```
+
 ```bash
 rustup target add wasm32-wasip2
 hestia plugin new hello        # ./hello/: a cargo workspace, plugins/hello/, CI workflows

@@ -377,6 +377,12 @@ flowchart TD
   from an added repository (`<label>/<id>` or a bare id), and a **dev** install
   that runs a folder in place and reloads it on every rebuild (mtime polled once a
   second; a folder inside the plugins directory is refused).
+- **Developer mode.** The `developer` config key (default off) gates what only an author needs: a `dev` install, the
+  `plugin.log` stream (a subscription filtered to a dev plugin, and its publication) and the extra `PluginInfo.developer`
+  diagnostics (grant digest, component cache directory, error chain). The daemon refuses them with
+  `ErrorInfo::DeveloperModeOff`, whatever the client; the CLI additionally hides the authoring verbs. Setting the key to
+  false disables every dev plugin, which also ends its reload poll, with the reason as its last error. Installing from a
+  file, link or repository, enable, disable, remove and settings are never gated.
 - **What you approve is what lands.** A downloaded package is held under
   `tmp/plugins/` by an opaque token (fifteen minutes; `tmp/` is emptied at startup
   besides), so inspect and install see the same file. The install takes the grant
