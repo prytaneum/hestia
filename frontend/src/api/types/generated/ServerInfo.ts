@@ -3,6 +3,7 @@ import type { ContentKind } from "./ContentKind";
 import type { Edition } from "./Edition";
 import type { PlayerList } from "./PlayerList";
 import type { ProcessInfo } from "./ProcessInfo";
+import type { ServerPort } from "./ServerPort";
 
 /**
  * A managed server: the stored record plus, when it has been started, the
@@ -20,7 +21,7 @@ gamePort: number,
 /**
  * Every port the server binds, the game port first.
  */
-ports: Array<number>, 
+ports: Array<ServerPort>, 
 /**
  * The player lists this server keeps.
  */

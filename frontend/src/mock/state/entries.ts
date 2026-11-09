@@ -75,7 +75,7 @@ const servers: ServerInfo[] = [
     createdUnix: ago(86_400 * 30),
     ready: true,
     gamePort: 25_565,
-    ports: [25_565],
+    ports: [{ port: 25_565, protocol: 'tcp' }],
     playerLists: JAVA_PLAYER_LISTS,
     console: true,
     accepts: accepts('vanilla', true),
@@ -91,7 +91,7 @@ const servers: ServerInfo[] = [
     createdUnix: ago(86_400 * 8),
     ready: true,
     gamePort: 25_566,
-    ports: [25_566],
+    ports: [{ port: 25_566, protocol: 'tcp' }],
     playerLists: JAVA_PLAYER_LISTS,
     console: true,
     accepts: accepts('paper', true),
@@ -105,7 +105,10 @@ const servers: ServerInfo[] = [
     createdUnix: ago(86_400 * 3),
     ready: true,
     gamePort: 19_132,
-    ports: [19_132, 19_133],
+    ports: [
+      { port: 19_132, protocol: 'tcp' },
+      { port: 19_134, protocol: 'udp' },
+    ],
     playerLists: ['whitelist', 'ops'],
     console: true,
     accepts: accepts('bedrock', true),
@@ -230,7 +233,12 @@ export function addServer(params: {
     createdUnix: now(),
     ready: true,
     gamePort: gamePort,
-    ports: bedrock ? [gamePort, gamePort + 1] : [gamePort],
+    ports: bedrock
+      ? [
+          { port: gamePort, protocol: 'tcp' },
+          { port: gamePort + 2, protocol: 'udp' },
+        ]
+      : [{ port: gamePort, protocol: 'tcp' }],
     playerLists: bedrock ? ['whitelist', 'ops'] : JAVA_PLAYER_LISTS,
     console: true,
     accepts: accepts(params.flavor || 'vanilla', true),
