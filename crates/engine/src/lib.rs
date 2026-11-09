@@ -16,6 +16,7 @@ mod engine;
 mod error;
 mod extract;
 mod files;
+mod hold;
 pub mod host;
 mod instances;
 mod java;

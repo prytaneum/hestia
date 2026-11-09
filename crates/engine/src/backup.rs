@@ -16,6 +16,7 @@ use proto::backup::{BackupInfo, BackupKind};
 use proto::error::{ArchiveFault, ArchiveFormat, ErrorInfo};
 use serde::{Deserialize, Serialize};
 
+use crate::hold::Truncation;
 use crate::schema::{self, Document};
 
 const BACKUPS: &str = "backups";
@@ -99,12 +100,16 @@ pub fn recover(entry_dir: &Path, data_dir: &Path) -> crate::reclaim::Reclaimed {
 
 /// Archive `data_dir` into a new backup under the entry root, skipping the
 /// top-level `exclude` names and Minecraft's transient `session.lock` files.
-/// The archive lands whole or not at all (written through a `.part` temp file).
+/// A file in `truncate` (path relative to `data_dir`) is archived with exactly
+/// that many bytes — the length a held Bedrock world lists — and fails when the
+/// file is shorter. The archive lands whole or not at all (written through a
+/// `.part` temp file).
 pub fn create(
     entry_dir: &Path,
     data_dir: &Path,
     kind: BackupKind,
     exclude: &[String],
+    truncate: &Truncation,
     on_progress: OnProgress<'_>,
 ) -> Result<BackupInfo> {
     if !data_dir.is_dir() {
@@ -128,7 +133,7 @@ pub fn create(
     let path = dir.join(format!("{id}{EXTENSION}"));
     let part = common::atomic::staged(&path);
 
-    let written = write_archive(&part, data_dir, exclude, on_progress);
+    let written = write_archive(&part, data_dir, exclude, truncate, on_progress);
     if let Err(e) = written {
         let _ = std::fs::remove_file(&part);
         return Err(e);
@@ -148,6 +153,7 @@ fn write_archive(
     dest: &Path,
     data_dir: &Path,
     exclude: &[String],
+    truncate: &Truncation,
     on_progress: OnProgress<'_>,
 ) -> Result<()> {
     let file = File::create(dest).with_context(|| format!("cannot create {}", dest.display()))?;
@@ -163,6 +169,7 @@ fn write_archive(
             &mut builder,
             data_dir,
             &entry,
+            truncate,
             &mut done,
             total,
             on_progress,
@@ -243,6 +250,7 @@ fn append_tree(
     builder: &mut tar::Builder<flate2::write::GzEncoder<File>>,
     base: &Path,
     rel: &Path,
+    truncate: &Truncation,
     done: &mut u64,
     total: u64,
     on_progress: OnProgress<'_>,
@@ -252,9 +260,12 @@ fn append_tree(
         return Ok(());
     }
     if path.is_symlink() || !path.is_dir() {
-        builder
-            .append_path_with_name(&path, rel)
-            .with_context(|| format!("archiving {}", rel.display()))?;
+        match truncate.get(rel) {
+            Some(&length) => append_truncated(builder, &path, rel, length)?,
+            None => builder
+                .append_path_with_name(&path, rel)
+                .with_context(|| format!("archiving {}", rel.display()))?,
+        }
         *done += 1;
         on_progress(*done, total)?;
         return Ok(());
@@ -273,12 +284,37 @@ fn append_tree(
             builder,
             base,
             &rel.join(child.file_name()),
+            truncate,
             done,
             total,
             on_progress,
         )?;
     }
     Ok(())
+}
+
+fn append_truncated<W: std::io::Write>(
+    builder: &mut tar::Builder<W>,
+    path: &Path,
+    rel: &Path,
+    length: u64,
+) -> Result<()> {
+    let file = File::open(path).with_context(|| format!("cannot open {}", path.display()))?;
+    let metadata = file.metadata()?;
+    if metadata.len() < length {
+        bail!(
+            "{} is {} bytes, shorter than the {length} the server listed",
+            rel.display(),
+            metadata.len()
+        );
+    }
+    let mut header = tar::Header::new_gnu();
+    header.set_metadata(&metadata);
+    header.set_size(length);
+    header.set_cksum();
+    builder
+        .append_data(&mut header, rel, file.take(length))
+        .with_context(|| format!("archiving {}", rel.display()))
 }
 
 /// A world lock is transient state, not world data. It must not survive into
@@ -519,7 +555,15 @@ mod tests {
         write(&data.join("server.jar"), "current-jar");
         write(&data.join("logs/latest.log"), "log");
 
-        let backup = create(entry, &data, BackupKind::Manual, &exclude, &|_, _| Ok(())).unwrap();
+        let backup = create(
+            entry,
+            &data,
+            BackupKind::Manual,
+            &exclude,
+            &Truncation::new(),
+            &|_, _| Ok(()),
+        )
+        .unwrap();
         assert_eq!(list(entry).len(), 1);
         assert_eq!(list(entry)[0].id, backup.id);
         assert_eq!(list(entry)[0].kind, BackupKind::Manual);
@@ -552,7 +596,15 @@ mod tests {
         let entry = entry_dir.path();
         let data = entry.join("data");
         write(&data.join("world/level.dat"), "one");
-        let backup = create(entry, &data, BackupKind::Manual, &[], &|_, _| Ok(())).unwrap();
+        let backup = create(
+            entry,
+            &data,
+            BackupKind::Manual,
+            &[],
+            &Truncation::new(),
+            &|_, _| Ok(()),
+        )
+        .unwrap();
 
         // Rewrite the archive with a manifest this build cannot read.
         let path = backups_dir(entry).join(format!("{}{EXTENSION}", backup.id));
@@ -635,7 +687,15 @@ mod tests {
         write(&data.join("world/session.lock"), "world lock");
         write(&data.join("world/region/r.0.0.mca"), "world data");
 
-        let backup = create(entry, &data, BackupKind::Manual, &[], &|_, _| Ok(())).unwrap();
+        let backup = create(
+            entry,
+            &data,
+            BackupKind::Manual,
+            &[],
+            &Truncation::new(),
+            &|_, _| Ok(()),
+        )
+        .unwrap();
         let archive = backups_dir(entry).join(format!("{}{EXTENSION}", backup.id));
         let file = File::open(archive).unwrap();
         let decoder = flate2::read::GzDecoder::new(file);
@@ -675,7 +735,15 @@ mod tests {
         // And a fresh archive cleans up before writing, so the store is tidy
         // whether or not the daemon restarted in between.
         write(&orphan, "half an archive");
-        create(entry, &data, BackupKind::Manual, &[], &|_, _| Ok(())).unwrap();
+        create(
+            entry,
+            &data,
+            BackupKind::Manual,
+            &[],
+            &Truncation::new(),
+            &|_, _| Ok(()),
+        )
+        .unwrap();
         assert!(!orphan.exists());
         assert_eq!(list(entry).len(), 1);
     }
@@ -687,10 +755,42 @@ mod tests {
         let data = entry.join("data");
         write(&data.join("world/level.dat"), "x");
 
-        let old = create(entry, &data, BackupKind::Scheduled, &[], &|_, _| Ok(())).unwrap();
-        let mid = create(entry, &data, BackupKind::Scheduled, &[], &|_, _| Ok(())).unwrap();
-        let new = create(entry, &data, BackupKind::Scheduled, &[], &|_, _| Ok(())).unwrap();
-        let manual = create(entry, &data, BackupKind::Manual, &[], &|_, _| Ok(())).unwrap();
+        let old = create(
+            entry,
+            &data,
+            BackupKind::Scheduled,
+            &[],
+            &Truncation::new(),
+            &|_, _| Ok(()),
+        )
+        .unwrap();
+        let mid = create(
+            entry,
+            &data,
+            BackupKind::Scheduled,
+            &[],
+            &Truncation::new(),
+            &|_, _| Ok(()),
+        )
+        .unwrap();
+        let new = create(
+            entry,
+            &data,
+            BackupKind::Scheduled,
+            &[],
+            &Truncation::new(),
+            &|_, _| Ok(()),
+        )
+        .unwrap();
+        let manual = create(
+            entry,
+            &data,
+            BackupKind::Manual,
+            &[],
+            &Truncation::new(),
+            &|_, _| Ok(()),
+        )
+        .unwrap();
 
         let removed = prune(entry, BackupKind::Scheduled, 1).unwrap();
         let removed_ids: Vec<&str> = removed.iter().map(|b| b.id.as_str()).collect();
@@ -707,7 +807,15 @@ mod tests {
         let entry_dir = temp_entry("errors");
         let entry = entry_dir.path();
         let missing = entry.join("nope");
-        assert!(create(entry, &missing, BackupKind::Manual, &[], &|_, _| Ok(())).is_err());
+        assert!(create(
+            entry,
+            &missing,
+            BackupKind::Manual,
+            &[],
+            &Truncation::new(),
+            &|_, _| Ok(())
+        )
+        .is_err());
         assert!(restore(entry, &entry.join("data"), "ghost", &[], &|_, _| Ok(())).is_err());
         assert!(!remove(entry, "ghost").unwrap());
     }
@@ -743,5 +851,40 @@ mod tests {
         );
         assert_eq!(kind_of("20260707-120000-update"), Some(BackupKind::Update));
         assert_eq!(kind_of("20260707-120000"), None);
+    }
+
+    #[test]
+    fn truncation_cuts_listed_files_and_keeps_the_rest_whole() {
+        let entry_dir = temp_entry("truncate");
+        let entry = entry_dir.path();
+        let data = entry.join("data");
+        write(&data.join("worlds/w/db/a.ldb"), "0123456789");
+        write(&data.join("worlds/w/level.dat"), "whole");
+        let truncate = Truncation::from([(PathBuf::from("worlds/w/db/a.ldb"), 4)]);
+        let backup = create(entry, &data, BackupKind::Manual, &[], &truncate, &|_, _| {
+            Ok(())
+        })
+        .unwrap();
+
+        std::fs::remove_dir_all(&data).unwrap();
+        std::fs::create_dir_all(&data).unwrap();
+        restore(entry, &data, &backup.id, &[], &|_, _| Ok(())).unwrap();
+        let content = |p: &str| std::fs::read_to_string(data.join(p)).unwrap();
+        assert_eq!(content("worlds/w/db/a.ldb"), "0123");
+        assert_eq!(content("worlds/w/level.dat"), "whole");
+    }
+
+    #[test]
+    fn a_file_shorter_than_its_listed_length_fails_the_backup() {
+        let entry_dir = temp_entry("short");
+        let entry = entry_dir.path();
+        let data = entry.join("data");
+        write(&data.join("worlds/w/a.ldb"), "abc");
+        let truncate = Truncation::from([(PathBuf::from("worlds/w/a.ldb"), 10)]);
+        let result = create(entry, &data, BackupKind::Manual, &[], &truncate, &|_, _| {
+            Ok(())
+        });
+        assert!(result.is_err());
+        assert!(list(entry).is_empty());
     }
 }
