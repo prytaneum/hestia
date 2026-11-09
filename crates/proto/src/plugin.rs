@@ -1077,7 +1077,7 @@ fn check_api(api: &str) -> Result<(), ManifestError> {
     }
 }
 
-fn stays_inside(path: &str) -> bool {
+pub(crate) fn stays_inside(path: &str) -> bool {
     !path.is_empty()
         && !path.starts_with(['/', '\\'])
         && !path.contains([':', '\\'])

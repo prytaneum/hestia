@@ -28,4 +28,12 @@ rowAction?: string, } | { "type": "list", items: Array<ListItem>, } | { "type": 
 /**
  * 0 to 1; absent when the length of the work is unknown.
  */
-fraction?: number, label?: string, };
+fraction?: number, label?: string, } | { "type": "webview", 
+/**
+ * An `.html` file under the plugin's `assets/`.
+ */
+src: string, 
+/**
+ * In pixels, 1 to [`MAX_WEBVIEW_HEIGHT`].
+ */
+height: number, };

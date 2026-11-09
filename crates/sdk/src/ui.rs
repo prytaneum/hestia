@@ -75,6 +75,14 @@ pub fn image(src: impl Into<String>, alt: impl Into<String>) -> UiNode {
     }
 }
 
+/// `src` is an `.html` file under the plugin's `assets/`; `height` is in pixels.
+pub fn webview(src: impl Into<String>, height: u32) -> UiNode {
+    UiNode::Webview {
+        src: src.into(),
+        height,
+    }
+}
+
 pub fn row<S: Into<String>>(cells: impl IntoIterator<Item = S>) -> TableRow {
     TableRow {
         cells: cells.into_iter().map(Into::into).collect(),

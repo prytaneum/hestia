@@ -58,6 +58,7 @@
       }
     },
     { "type": "notice", "tone": "warning", "text": "Careful" },
-    { "type": "progress", "fraction": 0.5, "label": "Halfway" }
+    { "type": "progress", "fraction": 0.5, "label": "Halfway" },
+    { "type": "webview", "src": "assets/chart.html", "height": 320 }
   ]
 }

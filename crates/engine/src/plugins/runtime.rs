@@ -6,7 +6,7 @@ use std::time::Duration;
 
 use futures_util::future::BoxFuture;
 use proto::plugin::{Grant, PageContext, PluginSource, DATA_MOUNT};
-use proto::ui::{Action, Effect, UiNode};
+use proto::ui::{Action, Effect, UiError, UiNode};
 use serde::de::DeserializeOwned;
 use serde_json::Value;
 use sha2::{Digest, Sha256};
@@ -386,7 +386,7 @@ impl LoadedPlugin {
             })
             .await?
             .map_err(guest_error)?;
-        self.decode_ui(page, &reply)
+        self.decode_ui(page, &reply, UiNode::validate)
     }
 
     /// Runs the plugin's `ui.action` under [`UI_TIMEOUT`] and checks the effects
@@ -416,14 +416,24 @@ impl LoadedPlugin {
             })
             .await?
             .map_err(guest_error)?;
-        self.decode_ui(page, &reply)
+        self.decode_ui(page, &reply, |effects: &Vec<Effect>| {
+            effects.iter().try_for_each(Effect::validate)
+        })
     }
 
-    fn decode_ui<T: DeserializeOwned>(&self, page: &str, reply: &str) -> Result<T, CallError> {
-        serde_json::from_str(reply).map_err(|error| {
+    fn decode_ui<T: DeserializeOwned>(
+        &self,
+        page: &str,
+        reply: &str,
+        validate: impl FnOnce(&T) -> Result<(), UiError>,
+    ) -> Result<T, CallError> {
+        let invalid = |error: &dyn std::fmt::Display| {
             tracing::warn!(plugin = %self.id, %page, %error, "plugin returned an invalid UI document");
             CallError::InvalidUi(page.to_string())
-        })
+        };
+        let document = serde_json::from_str(reply).map_err(|error| invalid(&error))?;
+        validate(&document).map_err(|error| invalid(&error))?;
+        Ok(document)
     }
 
     /// Runs the plugin's `events.on-event` under `timeout`.

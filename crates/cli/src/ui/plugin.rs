@@ -46,6 +46,7 @@ fn push_views(node: &UiNode, out: &mut Vec<View>) {
             out.push(View::line(lines.join("\n")));
         }
         UiNode::Image { alt, .. } => out.push(View::note(alt)),
+        UiNode::Webview { .. } => out.push(View::note("[web content: open in the desktop app]")),
         UiNode::Table { columns, rows, .. } => out.push(View::table(
             "",
             columns,

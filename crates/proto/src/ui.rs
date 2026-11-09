@@ -233,4 +233,115 @@ pub enum UiNode {
         #[serde(skip_serializing_if = "Option::is_none")]
         label: Option<String>,
     },
+    /// A page of the plugin's own, drawn in a sandboxed frame with no access to
+    /// the app. It talks to the host only through the frame's message bridge.
+    Webview {
+        /// An `.html` file under the plugin's `assets/`.
+        src: String,
+        /// In pixels, 1 to [`MAX_WEBVIEW_HEIGHT`].
+        height: u32,
+    },
+}
+
+/// The tallest frame a plugin may ask for.
+pub const MAX_WEBVIEW_HEIGHT: u32 = 2000;
+
+/// Why a tree or an effect is refused before a front-end draws it.
+#[derive(thiserror::Error, Debug, PartialEq, Eq)]
+pub enum UiError {
+    #[error("webview src {0:?} must be a relative .html path under assets/")]
+    WebviewSrc(String),
+    #[error("webview height {0} must be 1 to {MAX_WEBVIEW_HEIGHT}")]
+    WebviewHeight(u32),
+}
+
+impl UiNode {
+    /// Checks every node of the tree; a plugin's output is untrusted.
+    pub fn validate(&self) -> Result<(), UiError> {
+        match self {
+            UiNode::Stack { children, .. } => children.iter().try_for_each(UiNode::validate),
+            UiNode::List { items } => items
+                .iter()
+                .flat_map(|item| &item.actions)
+                .try_for_each(UiNode::validate),
+            UiNode::Webview { src, height } => {
+                let under_assets = src
+                    .strip_prefix("assets/")
+                    .is_some_and(crate::plugin::stays_inside);
+                if !under_assets || !src.ends_with(".html") {
+                    return Err(UiError::WebviewSrc(src.clone()));
+                }
+                if !(1..=MAX_WEBVIEW_HEIGHT).contains(height) {
+                    return Err(UiError::WebviewHeight(*height));
+                }
+                Ok(())
+            }
+            _ => Ok(()),
+        }
+    }
+}
+
+impl Effect {
+    pub fn validate(&self) -> Result<(), UiError> {
+        match self {
+            Effect::Render { tree } => tree.validate(),
+            _ => Ok(()),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn webview(src: &str, height: u32) -> UiNode {
+        UiNode::Webview {
+            src: src.into(),
+            height,
+        }
+    }
+
+    #[test]
+    fn a_webview_under_assets_is_accepted() {
+        assert_eq!(webview("assets/chart/index.html", 300).validate(), Ok(()));
+    }
+
+    #[test]
+    fn a_webview_src_that_escapes_or_is_not_html_is_refused() {
+        for src in [
+            "",
+            "assets/",
+            "assets/../plugin.toml",
+            "assets/a/../../x.html",
+            "/assets/a.html",
+            "themes/a.html",
+            "assets/a.png",
+            "assets\\a.html",
+            "https://example.com/a.html",
+            "assets//a.html",
+        ] {
+            assert!(webview(src, 300).validate().is_err(), "{src}");
+        }
+    }
+
+    #[test]
+    fn a_webview_height_is_bounded() {
+        assert_eq!(
+            webview("assets/a.html", 0).validate(),
+            Err(UiError::WebviewHeight(0))
+        );
+        assert!(webview("assets/a.html", MAX_WEBVIEW_HEIGHT + 1)
+            .validate()
+            .is_err());
+    }
+
+    #[test]
+    fn a_nested_webview_is_checked() {
+        let tree = UiNode::Stack {
+            direction: Direction::Vertical,
+            children: vec![webview("../x.html", 10)],
+        };
+        assert!(tree.validate().is_err());
+        assert!(Effect::Render { tree }.validate().is_err());
+    }
 }
