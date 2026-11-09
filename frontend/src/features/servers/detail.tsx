@@ -48,6 +48,7 @@ import {
   StatCard,
   useLiveResources,
 } from '@/features/shared/entry/detail';
+import { useFlavorName } from '@/features/shared/entry/hooks';
 import { configValue } from '@/features/shared/entry/settings';
 import { agoLabel, bytes } from '@/lib/format';
 import { cn } from '@/lib/utils';
@@ -135,6 +136,7 @@ function ServerDetail({
   const stop = useMutation(entryMutations.stop('server', id));
   const restart = useMutation(serverMutations.restart(id));
   const job = useBusyJob('server', id);
+  const flavorName = useFlavorName('server', server.flavor);
 
   const running = isRunning(server);
   const runsOnJava = server.javaMajor != null;
@@ -166,7 +168,7 @@ function ServerDetail({
         badges={
           <>
             <Badge variant="secondary" className="uppercase">
-              {server.flavor}
+              {flavorName}
             </Badge>
             <EditionBadge edition={server.edition} />
             <Badge variant="outline" className="font-mono">
