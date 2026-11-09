@@ -2,6 +2,7 @@
 //! and disconnect, so reconnecting per command floods its own log.
 
 mod complete;
+mod pipe;
 
 pub use complete::{candidates, is_end, redirect, Typed};
 
@@ -11,12 +12,19 @@ use std::sync::{Arc, Mutex};
 use anyhow::Result;
 
 use crate::minecraft::rcon::Rcon;
+use crate::process::ProcessSupervisor;
 use crate::servers::RconConfig;
 
 const MAX_USAGES: usize = 256;
 // Bukkit servers replace `help` with a paged index; vanilla's stays namespaced.
 const NAMESPACED_HELP: &str = "minecraft:help";
 const HELP: &str = "help";
+
+/// How a server's console is reached: Java's RCON, or a native server's stdin.
+pub enum Transport {
+    Rcon(RconConfig),
+    Pipe(Arc<ProcessSupervisor>),
+}
 
 type Slot = Arc<tokio::sync::Mutex<Option<Session>>>;
 
@@ -32,14 +40,25 @@ pub struct Consoles {
 }
 
 impl Consoles {
-    pub async fn command(&self, server: &str, rcon: &RconConfig, command: &str) -> Result<String> {
+    pub async fn command(
+        &self,
+        server: &str,
+        transport: &Transport,
+        command: &str,
+    ) -> Result<String> {
         let slot = self.slot(server);
         let mut session = slot.lock().await;
-        run(&mut session, rcon, command).await
+        match transport {
+            Transport::Rcon(rcon) => run(&mut session, rcon, command).await,
+            Transport::Pipe(processes) => pipe::command(processes, server, command).await,
+        }
     }
 
     /// The server's `help` reply for what may follow `words`, asked once per connection.
-    pub async fn usage(&self, server: &str, rcon: &RconConfig, words: &str) -> Result<String> {
+    pub async fn usage(&self, server: &str, transport: &Transport, words: &str) -> Result<String> {
+        let Transport::Rcon(rcon) = transport else {
+            return Ok(String::new());
+        };
         let slot = self.slot(server);
         let mut session = slot.lock().await;
         let known = session

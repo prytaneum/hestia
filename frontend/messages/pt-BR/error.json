@@ -106,6 +106,7 @@
       "boolean": "verdadeiro ou falso",
       "command": "comando",
       "commands": "o histórico de comandos",
+      "console_line": "um comando de console é uma única linha simples de até 1024 caracteres",
       "copy": "copiar",
       "create": "criar",
       "curse_forge": "CurseForge",

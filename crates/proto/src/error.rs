@@ -136,6 +136,7 @@ pub enum Reason {
     ProcessIdCharset,
     PlayerName,
     ScheduleFormat,
+    ConsoleLine,
 }
 
 impl fmt::Display for Reason {
@@ -169,6 +170,9 @@ impl fmt::Display for Reason {
             Reason::ScheduleFormat => f.write_str(
                 "a schedule is an interval of at least 5m (30m, 6h, 1d) or a daily time (04:30)",
             ),
+            Reason::ConsoleLine => {
+                f.write_str("a console command is one plain line of at most 1024 characters")
+            }
         }
     }
 }

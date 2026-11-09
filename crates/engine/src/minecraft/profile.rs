@@ -121,6 +121,10 @@ impl ServerRuntime {
         }
     }
 
+    pub fn is_native(&self) -> bool {
+        matches!(self, ServerRuntime::Native { .. })
+    }
+
     pub fn java_major(&self) -> Option<i32> {
         match self {
             ServerRuntime::Java { java_major, .. } => Some(*java_major),

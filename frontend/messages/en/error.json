@@ -106,6 +106,7 @@
       "boolean": "true or false",
       "command": "command",
       "commands": "the command history",
+      "console_line": "a console command is one plain line of at most 1024 characters",
       "copy": "copy",
       "create": "create",
       "curse_forge": "CurseForge",

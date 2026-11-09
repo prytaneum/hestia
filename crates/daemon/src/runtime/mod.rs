@@ -21,7 +21,7 @@ use proto::error::ErrorInfo;
 use proto::instance::InstanceInfo;
 use proto::minecraft::Edition;
 use proto::players::PlayerList;
-use proto::process::{LogSource, ProcessInfo, ProcessSpec};
+use proto::process::{LogSource, ProcessInfo, ProcessSpec, StopMethod};
 use proto::server::ServerInfo;
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::sync::Notify;
@@ -55,9 +55,13 @@ pub async fn start_server(
     id: &str,
 ) -> Result<ProcessInfo, ErrorInfo> {
     let (record, plan) = engine.server_launch_plan(id).map_err(engine_error)?;
-    let log = match record.profile.runtime {
-        ServerRuntime::Java { .. } => LogSource::File(plan.cwd.join("logs").join("latest.log")),
-        ServerRuntime::Native { .. } => LogSource::Capture,
+    let (log, stdin, stop) = match record.profile.runtime {
+        ServerRuntime::Java { .. } => (
+            LogSource::File(plan.cwd.join("logs").join("latest.log")),
+            false,
+            StopMethod::Signal,
+        ),
+        ServerRuntime::Native { .. } => (LogSource::Capture, true, StopMethod::Line("stop".into())),
     };
     let spec = ProcessSpec {
         id: server_process_id(id),
@@ -66,7 +70,8 @@ pub async fn start_server(
         log,
         cwd: Some(plan.cwd),
         env: plan.env.into_iter().collect(),
-        ..Default::default()
+        stdin,
+        stop,
     };
     match processes.start(spec).await {
         Ok(info) => Ok(info),
@@ -130,7 +135,7 @@ pub fn server_info(
             .flatten()
             .collect(),
         player_lists,
-        console: record.rcon.is_some(),
+        console: record.rcon.is_some() || record.profile.runtime.is_native(),
         accepts,
         process,
     }

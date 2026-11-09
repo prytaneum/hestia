@@ -369,6 +369,12 @@ impl ProcessSupervisor {
         })
     }
 
+    /// Where a tracked process's captured output lands.
+    pub fn log_path(&self, id: &str) -> Option<PathBuf> {
+        let entry = self.table.lock().unwrap().get(id).cloned()?;
+        Some(entry.log_path.clone())
+    }
+
     /// Returns false if no such id is tracked.
     pub fn stop(&self, id: &str) -> bool {
         let entry = self.table.lock().unwrap().get(id).cloned();
