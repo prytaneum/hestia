@@ -338,6 +338,17 @@ A click or submit calls `plugin.ui.action` and applies the returned effects:
 `render` replaces the cached tree, `toast` goes through `notify`, `navigate`
 opens another page of the plugin, and `refresh` refetches.
 
+### Plugin commands
+
+A plugin's `[[contributes.commands]]` appear where they act, not on a page of
+their own (`features/plugins/commands.tsx`, over `plugin.commands`): a server-
+or instance-scoped command in that entry's actions menu, a top-scoped one on
+the plugin's row in Settings → Plugins. A command with declared arguments opens
+a form generated from its `CommandArg` list; one without runs at once. Either
+way it is a `plugin.run` job started through `runJobMutation`, so the job store
+shows its progress and reports the outcome once, with text output as the toast's
+description ([0089](../decisions/0089-a-job-outcome-is-reported-once.md)).
+
 ### Themes
 
 A plugin may contribute `[[contributes.themes]]` (id, name, `file`,

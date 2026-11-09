@@ -58,6 +58,7 @@ const DENIED: &[&str] = &[
     "plugin.run",
     "plugin.asset",
     "plugin.pages",
+    "plugin.commands",
     "plugin.themes",
     "plugin.ui.render",
     "plugin.ui.action",

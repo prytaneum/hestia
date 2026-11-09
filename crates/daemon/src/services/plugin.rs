@@ -7,9 +7,10 @@ use proto::catalogue::{
 use proto::error::{EntryKind, ErrorInfo};
 use proto::job::{JobStarted, JobSubject};
 use proto::plugin::{
-    CommandScope, PageContext, PageContribution, PageSlot, PluginAsset, PluginDisable,
-    PluginEnable, PluginGet, PluginInspect, PluginInstall, PluginList, PluginPages, PluginRemove,
-    PluginRun, PluginSettingsGet, PluginSettingsSet, PluginThemes, PluginUiAction, PluginUiRender,
+    CommandScope, PageContext, PageContribution, PageSlot, PluginAsset, PluginCommands,
+    PluginDisable, PluginEnable, PluginGet, PluginInspect, PluginInstall, PluginList, PluginPages,
+    PluginRemove, PluginRun, PluginSettingsGet, PluginSettingsSet, PluginThemes, PluginUiAction,
+    PluginUiRender,
 };
 use proto::Empty;
 
@@ -128,6 +129,10 @@ pub(super) fn register(on: &mut Channels<'_>) {
 
     on.handle::<PluginPages, _, _>(|_: Empty, ctx| async move {
         Ok(ctx.runtime.plugins().pages().await)
+    });
+
+    on.handle::<PluginCommands, _, _>(|_: Empty, ctx| async move {
+        Ok(ctx.runtime.plugins().commands().await)
     });
 
     on.handle::<PluginThemes, _, _>(|_: Empty, ctx| async move {

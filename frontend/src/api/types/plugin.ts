@@ -14,6 +14,7 @@ export type { PageSlot } from "./generated/PageSlot";
 export type { Permission } from "./generated/Permission";
 export type { PluginAssetParams } from "./generated/PluginAssetParams";
 export type { PluginAssetResult } from "./generated/PluginAssetResult";
+export type { PluginCommand } from "./generated/PluginCommand";
 export type { PluginInfo } from "./generated/PluginInfo";
 export type { PluginInspection } from "./generated/PluginInspection";
 export type { PluginInstallDone } from "./generated/PluginInstallDone";

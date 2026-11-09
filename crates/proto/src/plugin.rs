@@ -1450,6 +1450,24 @@ impl Contract for PluginPages {
     type Result = Vec<PluginPage>;
 }
 
+/// A command of an enabled plugin and the plugin that contributes it.
+#[derive(Serialize, Deserialize, Default, Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
+#[serde(default, rename_all = "camelCase")]
+pub struct PluginCommand {
+    pub plugin: String,
+    pub command: CommandContribution,
+}
+
+/// The commands of every enabled plugin that can run them, for a front-end to
+/// offer beside the things they act on.
+pub struct PluginCommands;
+impl Contract for PluginCommands {
+    const CHANNEL: &'static str = "plugin.commands";
+    type Params = Empty;
+    type Result = Vec<PluginCommand>;
+}
+
 /// A theme of an enabled plugin. `file` is package-relative; the webview
 /// builds the `hestia-plugin` URL itself because its form differs per platform.
 #[derive(Serialize, Deserialize, Default, Debug, Clone, PartialEq, Eq)]

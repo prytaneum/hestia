@@ -118,6 +118,7 @@ import type { PageContext } from "./generated/PageContext";
 import type { PingResult } from "./generated/PingResult";
 import type { PluginAssetParams } from "./generated/PluginAssetParams";
 import type { PluginAssetResult } from "./generated/PluginAssetResult";
+import type { PluginCommand } from "./generated/PluginCommand";
 import type { PluginInfo } from "./generated/PluginInfo";
 import type { PluginInspection } from "./generated/PluginInspection";
 import type { PluginInstallDone } from "./generated/PluginInstallDone";
@@ -299,6 +300,7 @@ export interface Channels {
   "net.status": { params: Empty; result: NetworkStatus };
   "plugin.asset": { params: Partial<PluginAssetParams>; result: PluginAssetResult };
   "plugin.catalogue": { params: Partial<CatalogueParams>; result: Catalogue };
+  "plugin.commands": { params: Empty; result: Array<PluginCommand> };
   "plugin.disable": { params: Partial<PluginRef>; result: PluginInfo };
   "plugin.enable": { params: Partial<PluginRef>; result: PluginInfo };
   "plugin.info": { params: Partial<PluginRef>; result: PluginInfo };

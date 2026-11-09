@@ -267,6 +267,7 @@ const greeter = {
 
 export const channels: ChannelHandlers = {
   'plugin.pages': () => pages,
+  'plugin.commands': () => [],
   'plugin.themes': () => [],
   'plugin.ui.render': () => greeter,
   'plugin.ui.action': () => [

@@ -9,10 +9,12 @@ import type {
   RepositoryRefreshed,
 } from './types/catalogue';
 import type {
+  PluginCommand,
   PluginInfo,
   PluginInspection,
   PluginInstallDone,
   PluginPage,
+  PluginRunDone,
   PluginTheme,
   PluginUiActionParams,
   PluginUiRenderParams,
@@ -26,6 +28,23 @@ export function themes(): Promise<PluginTheme[]> {
 
 export function pages(): Promise<PluginPage[]> {
   return call('plugin.pages');
+}
+
+export function commands(): Promise<PluginCommand[]> {
+  return call('plugin.commands');
+}
+
+/** Runs a plugin command; `entry` is the server or instance a scoped command acts on. */
+export function run(
+  params: {
+    plugin: string;
+    command: string;
+    entry?: string;
+    args: Record<string, unknown>;
+  },
+  job: JobRun,
+): Promise<PluginRunDone> {
+  return runJob('plugin.run', params, job);
 }
 
 export function render(params: PluginUiRenderParams): Promise<UiNode> {

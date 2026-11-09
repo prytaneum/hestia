@@ -3,10 +3,13 @@ import { queryOptions } from '@tanstack/react-query';
 import { m } from '@/paraglide/messages.js';
 import type {
   Effect,
+  EntryKind,
   PluginInfo,
   PluginInspection,
   PluginInstallDone,
   PluginInstallProgress,
+  PluginRunDone,
+  PluginRunProgress,
   PluginUiActionParams,
   RepositoryAdded,
   RepositoryRefreshed,
@@ -20,6 +23,14 @@ export type PluginInstallVariables = {
   id: string;
   approve: string;
 } & api.PluginInstallTarget;
+
+export type PluginRunVariables = {
+  plugin: string;
+  command: string;
+  title: string;
+  entry?: { kind: EntryKind; id: string };
+  args: Record<string, unknown>;
+};
 
 export const pluginQueries = {
   list: () =>
@@ -48,6 +59,11 @@ export const pluginQueries = {
     queryOptions({
       queryKey: keys.plugins.pages(),
       queryFn: () => api.pages(),
+    }),
+  commands: () =>
+    queryOptions({
+      queryKey: keys.plugins.commands(),
+      queryFn: () => api.commands(),
     }),
   settings: (id: string) =>
     queryOptions({
@@ -115,6 +131,24 @@ export const pluginMutations = {
     mutation<PluginInspection, api.PluginPackage>({
       mutationKey: [...keys.plugins.all, 'inspect'],
       mutationFn: (source) => api.inspect(source),
+    }),
+  /** A command's output is the plugin's own; text is shown, anything else only confirms. */
+  run: () =>
+    jobMutation<PluginRunDone, PluginRunVariables, PluginRunProgress>({
+      mutationKey: [...keys.plugins.all, 'run'],
+      meta: ({ entry }) => ({ channel: 'plugin.run', subject: entry }),
+      run: ({ plugin, command, entry, args }, job) =>
+        api.run({ plugin, command, entry: entry?.id, args }, job),
+      invalidates: () => [],
+      notify: {
+        done: (done, { title }) => ({
+          title: m['plugins.command.done']({ title }),
+          description:
+            typeof done.output === 'string' && done.output
+              ? done.output
+              : undefined,
+        }),
+      },
     }),
   install: () =>
     jobMutation<

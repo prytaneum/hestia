@@ -21,7 +21,7 @@ use engine::{
 };
 use proto::error::ErrorInfo;
 use proto::plugin::{
-    CommandContribution, Manifest, PageContribution, PluginInfo, PluginInspection,
+    CommandContribution, Manifest, PageContribution, PluginCommand, PluginInfo, PluginInspection,
     PluginInstallPhase, PluginPage, PluginState, PluginStateEvent, PluginTheme, SettingValue,
 };
 use tokio::task::{spawn_blocking, JoinSet};
@@ -325,24 +325,40 @@ impl Plugins {
 
     /// Every page of the plugins that are running.
     pub async fn pages(&self) -> Vec<PluginPage> {
-        let mut pages = Vec::new();
+        self.running_contributions(|contributes| contributes.pages)
+            .await
+            .into_iter()
+            .map(|(plugin, page)| PluginPage { plugin, page })
+            .collect()
+    }
+
+    pub async fn commands(&self) -> Vec<PluginCommand> {
+        self.running_contributions(|contributes| contributes.commands)
+            .await
+            .into_iter()
+            .map(|(plugin, command)| PluginCommand { plugin, command })
+            .collect()
+    }
+
+    /// What `pick` takes from the contributions of every enabled plugin that
+    /// has a component to answer it, each with its plugin's id.
+    async fn running_contributions<T>(
+        &self,
+        pick: impl Fn(proto::plugin::Contributions) -> Vec<T>,
+    ) -> Vec<(String, T)> {
+        let mut picked = Vec::new();
         for info in self.list().await {
             if info.state != PluginState::Enabled || info.manifest.wasm.is_none() {
                 continue;
             }
             let plugin = info.manifest.id;
-            pages.extend(
-                info.manifest
-                    .contributes
-                    .pages
+            picked.extend(
+                pick(info.manifest.contributes)
                     .into_iter()
-                    .map(|page| PluginPage {
-                        plugin: plugin.clone(),
-                        page,
-                    }),
+                    .map(|item| (plugin.clone(), item)),
             );
         }
-        pages
+        picked
     }
 
     /// Every theme of the plugins that are enabled, running or not.

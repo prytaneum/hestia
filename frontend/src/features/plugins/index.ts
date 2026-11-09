@@ -1,3 +1,4 @@
+export { PluginCommandItems, usePluginCommands } from './commands';
 export { isPluginTab, type PluginTab } from './lib';
 export { PluginPage } from './page';
 export {
