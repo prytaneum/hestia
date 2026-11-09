@@ -20,6 +20,8 @@ const ALLOWLIST_FILE: &str = "allowlist.json";
 const PERMISSIONS_FILE: &str = "permissions.json";
 
 // Past the vanilla 16 so a proxy's prefixed names (Floodgate's `.Steve`) fit.
+const ONLINE_MARKER: &str = "players online:";
+
 const MAX_NAME_LEN: usize = 32;
 
 /// The lists a server of this edition keeps; Bedrock has no ban list.
@@ -168,16 +170,20 @@ fn checked_name(edition: Edition, player: &str) -> Result<&str> {
     Ok(player)
 }
 
-/// The players out of a `list` or `list uuids` reply. Every version puts them after the
-/// first colon, comma-separated — on the same line or the next — each as
+/// The players out of a `list` or `list uuids` reply. Every version puts them after
+/// `players online:`, comma-separated — on the same line or the next — each as
 /// `Name (uuid)`. A server too old to know the argument answers with bare
-/// names, which leaves the uuid empty.
+/// names, which leaves the uuid empty. A Bedrock reply is read from the log,
+/// so lines around those two are someone else's output.
 fn parse_online(reply: &str) -> Vec<PlayerEntry> {
-    let Some((_, players)) = reply.split_once(':') else {
+    let Some((_, after)) = reply.split_once(ONLINE_MARKER) else {
         return Vec::new();
     };
-    players
-        .split([',', '\n'])
+    let mut lines = after.splitn(3, '\n');
+    [lines.next(), lines.next()]
+        .into_iter()
+        .flatten()
+        .flat_map(|line| line.split(','))
         .map(str::trim)
         .filter(|player| !player.is_empty())
         .map(|player| {
@@ -360,6 +366,11 @@ mod tests {
         assert_eq!(
             names("There are 3/10 players online:\nAlex, Cool Steve ,Zed"),
             ["Alex", "Cool Steve", "Zed"]
+        );
+        assert_eq!(
+            names("Player connected: Bob, xuid: 1\nThere are 1/10 players online:\nBob\nPlayer connected: Eve, xuid: 2"),
+            ["Bob"],
+            "log lines around the reply are not players"
         );
     }
 
