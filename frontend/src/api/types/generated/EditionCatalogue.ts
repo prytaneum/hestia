@@ -8,4 +8,9 @@ import type { KeyRule } from "./KeyRule";
  * property rules its entries are validated against. A flavor id is unique
  * only within its edition.
  */
-export type EditionCatalogue = { edition: Edition, rules: Array<KeyRule>, flavors: Array<Flavor>, };
+export type EditionCatalogue = { edition: Edition, rules: Array<KeyRule>, flavors: Array<Flavor>, 
+/**
+ * The `server.properties` key holding the name a server is listed under;
+ * absent for instances.
+ */
+nameKey?: string, };

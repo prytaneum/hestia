@@ -27,6 +27,7 @@ impl Engine {
                     Side::Client => crate::instances::Instances::config_rules(),
                 },
                 flavors: self.flavors(side, edition).await,
+                name_key: (side == Side::Server).then(|| edition::name_key(edition).to_string()),
             });
         }
         editions

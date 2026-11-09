@@ -31,6 +31,8 @@ const OPS_FILE: &str = "ops.json";
 const BANNED_FILE: &str = "banned-players.json";
 
 /// Keys hestia owns: the game port is fixed at create, rcon is configured at start.
+pub(super) const NAME_KEY: &str = "motd";
+
 pub(super) const MANAGED: &[&str] = &["server-port", "enable-rcon", "rcon.port", "rcon.password"];
 
 const BOOLEANS: &[&str] = &[

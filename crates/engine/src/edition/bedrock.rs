@@ -36,6 +36,8 @@ const ALLOWLIST_FILE: &str = "allowlist.json";
 const PERMISSIONS_FILE: &str = "permissions.json";
 
 /// Keys hestia owns: the ports, and the transport BDS 1.26 only serves one way.
+pub(super) const NAME_KEY: &str = "server-name";
+
 pub(super) const MANAGED: &[&str] = &[
     "server-port",
     "server-portv6",

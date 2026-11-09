@@ -123,6 +123,10 @@ pub struct EditionCatalogue {
     pub edition: Edition,
     pub rules: Vec<KeyRule>,
     pub flavors: Vec<Flavor>,
+    /// The `server.properties` key holding the name a server is listed under;
+    /// absent for instances.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name_key: Option<String>,
 }
 
 /// Where a provisioning job (server create, instance launch preparation) is.

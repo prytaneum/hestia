@@ -110,6 +110,14 @@ pub(crate) fn check_setting(edition: Edition, file: &Path, key: &str, value: &st
 }
 
 /// The `server.properties` keys hestia owns; a `config set` to one is rejected.
+/// The property a server's listed name lives in.
+pub fn name_key(edition: Edition) -> &'static str {
+    match edition {
+        Edition::Java => java::NAME_KEY,
+        Edition::Bedrock => bedrock::NAME_KEY,
+    }
+}
+
 pub(crate) fn managed_keys(edition: Edition) -> &'static [&'static str] {
     match edition {
         Edition::Java => java::MANAGED,
@@ -343,6 +351,13 @@ fn checked_name(edition: Edition, player: &str) -> Result<&str> {
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn each_edition_names_the_key_a_server_is_listed_under() {
+        assert_eq!(name_key(Edition::Java), "motd");
+        assert_eq!(name_key(Edition::Bedrock), "server-name");
+    }
+
     use super::*;
 
     #[test]
