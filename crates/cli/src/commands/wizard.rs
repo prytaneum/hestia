@@ -5,6 +5,7 @@
 //! same session, ending on the created entry's summary. It opens whenever a
 //! create is interactive and flavor, version, name or (server) EULA is missing.
 
+use std::borrow::Cow;
 use std::collections::HashMap;
 
 use anyhow::Result;
@@ -24,7 +25,7 @@ use ratatui::widgets::{List, ListItem, ListState, Paragraph};
 use ratatui::Frame;
 use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
 
-use crate::commands::mc::{edition_label, flavor_detail, flavor_label, kind_label, motd_key};
+use crate::commands::mc::{edition_label, flavor_detail, flavor_label, kind_label};
 use crate::ui::components::working::draw_working;
 use crate::ui::components::{Picker, PickerItem, SelectList, TextInput};
 use crate::ui::session::{self, Flow, Screen};
@@ -39,6 +40,10 @@ pub enum FieldKind {
     Choice(Vec<String>),
 }
 
+/// The seed's slot for a server's listed name; the chosen edition's
+/// `nameKey` replaces it, and it is dropped when the edition has none.
+pub const NAME_FIELD: &str = "listed-name";
+
 /// One settings row, prefilled from the command's flags. An empty value is
 /// not sent — the entry keeps whatever its own default is; `hint` says where
 /// that default comes from (dim, in place of a value). Defaults the game owns
@@ -46,7 +51,7 @@ pub enum FieldKind {
 /// exist once that version's server generates its own file.
 #[derive(Clone)]
 pub struct Field {
-    pub key: &'static str,
+    pub key: Cow<'static, str>,
     pub label: &'static str,
     pub hint: &'static str,
     pub kind: FieldKind,
@@ -61,7 +66,7 @@ impl Field {
         value: Option<String>,
     ) -> Field {
         Field {
-            key,
+            key: key.into(),
             label,
             hint,
             kind: FieldKind::Text,
@@ -76,7 +81,7 @@ impl Field {
         value: Option<String>,
     ) -> Field {
         Field {
-            key,
+            key: key.into(),
             label,
             hint,
             kind: FieldKind::Number,
@@ -92,7 +97,7 @@ impl Field {
         value: Option<String>,
     ) -> Field {
         Field {
-            key,
+            key: key.into(),
             label,
             hint,
             kind: FieldKind::Choice(options.iter().map(|o| o.to_string()).collect()),
@@ -363,19 +368,24 @@ impl WizardScreen {
     /// has no rule for is dropped when it is a JVM setting, and a choice takes
     /// the edition's own values.
     fn applicable_fields(&self) -> Vec<Field> {
-        let rules = self.catalogue().map(|c| c.rules.as_slice()).unwrap_or(&[]);
+        let catalogue = self.catalogue();
+        let rules = catalogue.map(|c| c.rules.as_slice()).unwrap_or(&[]);
+        let name_key = catalogue.and_then(|c| c.name_key.as_deref());
         let rule = |key: &str| rules.iter().find(|r| r.key == key);
         self.seed
             .fields
             .iter()
             .filter(|f| f.key != "memory" || rule("memory").is_some())
+            .filter(|f| f.key != NAME_FIELD || name_key.is_some())
             .map(|f| {
                 let mut field = f.clone();
-                if field.key == "motd" {
-                    field.key = motd_key(self.edition);
+                if field.key == NAME_FIELD {
+                    if let Some(key) = name_key {
+                        field.key = Cow::Owned(key.to_string());
+                    }
                 }
                 if let (FieldKind::Choice(options), Some(KeyKind::Choice { values })) =
-                    (&mut field.kind, rule(field.key).map(|r| &r.kind))
+                    (&mut field.kind, rule(&field.key).map(|r| &r.kind))
                 {
                     *options = values.clone();
                 }
@@ -940,6 +950,13 @@ mod tests {
                 id: "vanilla".into(),
                 ..Default::default()
             }],
+            name_key: Some(
+                match edition {
+                    Edition::Java => "motd",
+                    Edition::Bedrock => "server-name",
+                }
+                .into(),
+            ),
         }
     }
 
@@ -965,7 +982,7 @@ mod tests {
             eula: false,
             fields: vec![
                 Field::text("memory", "memory", "", None),
-                Field::text("motd", "motd", "", None),
+                Field::text(NAME_FIELD, "motd", "", None),
                 Field::choice("gamemode", "gamemode", "", &["survival", "spectator"], None),
             ],
             extra: Vec::new(),
@@ -1001,7 +1018,7 @@ mod tests {
             Some(Edition::Bedrock),
         );
         let fields = s.applicable_fields();
-        let keys: Vec<_> = fields.iter().map(|f| f.key).collect();
+        let keys: Vec<_> = fields.iter().map(|f| f.key.as_ref()).collect();
         assert_eq!(keys, ["server-name", "gamemode"]);
         match &fields[1].kind {
             FieldKind::Choice(options) => assert_eq!(options, &["survival", "creative"]),

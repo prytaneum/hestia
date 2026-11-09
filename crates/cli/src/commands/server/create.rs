@@ -99,19 +99,29 @@ pub(super) async fn run(client: &Client, args: CreateArgs) -> Result<()> {
         bail!("pass --eula to accept the Minecraft EULA ({EULA_URL})");
     }
     let edition = args.edition.map_or(Edition::Java, Edition::from);
-    let flavors = mc::fetch_flavors(client, EntryKind::Server, edition).await?;
-    let flavor = mc::pick_flavor(flavors, args.flavor)?;
+    let catalogue = mc::catalogue_for(
+        mc::fetch_catalogues(client, EntryKind::Server).await?,
+        edition,
+    )?;
+    let catalogue_names_servers = catalogue.name_key.is_some();
+    let flavor = mc::pick_flavor(catalogue.flavors, args.flavor)?;
     let versions = mc::fetch_versions(client, EntryKind::Server, edition, &flavor).await?;
     let version = mc::pick_version(versions, args.version)?;
     let name = args.name.unwrap_or_else(|| format!("{flavor}-{version}"));
     let config = build_config(
         args.memory,
         [
-            (mc::motd_key(edition), args.motd),
-            ("max-players", args.max_players.map(|n| n.to_string())),
-            ("difficulty", args.difficulty),
-            ("gamemode", args.gamemode),
-            ("level-seed", args.seed),
+            (
+                catalogue.name_key.unwrap_or_default(),
+                args.motd.filter(|_| catalogue_names_servers),
+            ),
+            (
+                "max-players".into(),
+                args.max_players.map(|n| n.to_string()),
+            ),
+            ("difficulty".into(), args.difficulty),
+            ("gamemode".into(), args.gamemode),
+            ("level-seed".into(), args.seed),
         ],
         args.prop,
     )?;
@@ -163,7 +173,7 @@ async fn run_wizard(client: &Client, args: CreateArgs) -> Result<()> {
                 "auto — lowest free from 25565",
                 args.port.map(|p| p.to_string()),
             ),
-            Field::text("motd", "motd", "server default", args.motd),
+            Field::text(wizard::NAME_FIELD, "motd", "server default", args.motd),
             Field::number(
                 "max-players",
                 "max players",
@@ -205,7 +215,7 @@ async fn run_wizard(client: &Client, args: CreateArgs) -> Result<()> {
 /// the same key as a dedicated flag wins.
 fn build_config(
     memory: Option<String>,
-    flags: impl IntoIterator<Item = (&'static str, Option<String>)>,
+    flags: impl IntoIterator<Item = (String, Option<String>)>,
     prop: Vec<String>,
 ) -> Result<Vec<ConfigEntry>> {
     let mut config = Vec::new();
@@ -217,10 +227,7 @@ fn build_config(
     }
     for (key, value) in flags {
         if let Some(value) = value {
-            config.push(ConfigEntry {
-                key: key.into(),
-                value,
-            });
+            config.push(ConfigEntry { key, value });
         }
     }
     for entry in prop {

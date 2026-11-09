@@ -307,14 +307,6 @@ pub fn edition_label(edition: Edition) -> &'static str {
     }
 }
 
-/// The `server.properties` key holding the server-list message.
-pub fn motd_key(edition: Edition) -> &'static str {
-    match edition {
-        Edition::Java => "motd",
-        Edition::Bedrock => "server-name",
-    }
-}
-
 pub async fn fetch_versions(
     client: &Client,
     kind: EntryKind,
@@ -563,6 +555,7 @@ mod tests {
                     ..Default::default()
                 })
                 .collect(),
+            name_key: None,
         }
     }
 
