@@ -5,6 +5,7 @@ use std::sync::LazyLock;
 use anyhow::{bail, Context, Result};
 use proto::error::Reason;
 use proto::keys::{KeyKind, KeyRule};
+use proto::minecraft::Edition;
 use proto::server::ServerProperty;
 
 use crate::keys::{self, rule};
@@ -79,24 +80,98 @@ const CHOICES: &[(&str, &[&str])] = &[
     ("region-file-compression", &["deflate", "lz4", "none"]),
 ];
 
-static TABLE: LazyLock<Vec<KeyRule>> = LazyLock::new(|| {
-    let booleans = BOOLEANS.iter().map(|key| rule(key, KeyKind::Boolean));
-    let integers = INTEGERS
+const BEDROCK_BOOLEANS: &[&str] = &[
+    "allow-cheats",
+    "allow-inbound-script-debugging",
+    "allow-list",
+    "allow-outbound-script-debugging",
+    "block-network-ids-are-hashes",
+    "client-side-chunk-generation-enabled",
+    "content-log-console-output-enabled",
+    "content-log-file-enabled",
+    "disable-custom-skins",
+    "disable-persona",
+    "disable-player-interaction",
+    "enable-lan-visibility",
+    "force-gamemode",
+    "online-mode",
+    "server-authoritative-dismount-strict",
+    "server-authoritative-entity-interactions-strict",
+    "server-authoritative-movement-strict",
+    "texturepack-required",
+];
+
+const BEDROCK_INTEGERS: &[(&str, i64, i64)] = &[
+    ("compression-threshold", 0, 65535),
+    ("max-players", 1, INT_MAX),
+    ("max-threads", 0, INT_MAX),
+    ("player-idle-timeout", 0, INT_MAX),
+    ("server-port", 1, 65535),
+    ("server-portv6", 1, 65535),
+    ("tick-distance", 4, 12),
+    ("view-distance", 5, INT_MAX),
+];
+
+const ENFORCEMENT: &[&str] = &["disabled", "observe", "enforce"];
+
+const BEDROCK_CHOICES: &[(&str, &[&str])] = &[
+    ("chat-restriction", &["None", "Dropped", "Disabled"]),
+    ("compression-algorithm", &["zlib", "snappy"]),
+    (
+        "content-log-level",
+        &["error", "warning", "info", "verbose"],
+    ),
+    (
+        "default-player-permission-level",
+        &["visitor", "member", "operator"],
+    ),
+    ("difficulty", &["peaceful", "easy", "normal", "hard"]),
+    ("gamemode", &["survival", "creative", "adventure"]),
+    (
+        "script-debugger-auto-attach",
+        &["disabled", "connect", "listen"],
+    ),
+    (
+        "server-authoritative-entity-attack-range-validation",
+        ENFORCEMENT,
+    ),
+    (
+        "server-authoritative-entity-attack-request-validation",
+        ENFORCEMENT,
+    ),
+    ("transport", &["raknet", "nethernet"]),
+];
+
+fn table(
+    booleans: &[&str],
+    integers: &[(&str, i64, i64)],
+    choices: &[(&str, &[&str])],
+) -> Vec<KeyRule> {
+    let booleans = booleans.iter().map(|key| rule(key, KeyKind::Boolean));
+    let integers = integers
         .iter()
         .map(|&(key, min, max)| rule(key, KeyKind::Integer { min, max }));
-    let choices = CHOICES.iter().map(|&(key, values)| {
+    let choices = choices.iter().map(|&(key, values)| {
         let values = values.iter().map(|v| v.to_string()).collect();
         rule(key, KeyKind::Choice { values })
     });
     booleans.chain(integers).chain(choices).collect()
-});
-
-pub(crate) fn rules() -> &'static [KeyRule] {
-    &TABLE
 }
 
-pub(crate) fn validate(key: &str, value: &str) -> Result<(), Reason> {
-    match TABLE.iter().find(|rule| rule.key == key) {
+static JAVA_TABLE: LazyLock<Vec<KeyRule>> = LazyLock::new(|| table(BOOLEANS, INTEGERS, CHOICES));
+
+static BEDROCK_TABLE: LazyLock<Vec<KeyRule>> =
+    LazyLock::new(|| table(BEDROCK_BOOLEANS, BEDROCK_INTEGERS, BEDROCK_CHOICES));
+
+pub(crate) fn rules(edition: Edition) -> &'static [KeyRule] {
+    match edition {
+        Edition::Java => &JAVA_TABLE,
+        Edition::Bedrock => &BEDROCK_TABLE,
+    }
+}
+
+pub(crate) fn validate(edition: Edition, key: &str, value: &str) -> Result<(), Reason> {
+    match rules(edition).iter().find(|rule| rule.key == key) {
         Some(rule) => keys::validate(&rule.kind, value),
         None => {
             tracing::debug!(
@@ -302,14 +377,51 @@ mod tests {
 
     #[test]
     fn a_known_property_is_held_to_its_rule_and_an_unknown_one_is_not() {
-        assert_eq!(validate("view-distance", "12"), Ok(()));
+        assert_eq!(validate(Edition::Java, "view-distance", "12"), Ok(()));
         assert_eq!(
-            validate("view-distance", "900"),
+            validate(Edition::Java, "view-distance", "900"),
             Err(Reason::OutOfRange { min: 3, max: 32 })
         );
-        assert_eq!(validate("max-players", "abc"), Err(Reason::NotWholeNumber));
-        assert_eq!(validate("pvp", "maybe"), Err(Reason::NotBoolean));
-        assert_eq!(validate("a-future-property", "anything"), Ok(()));
+        assert_eq!(
+            validate(Edition::Java, "max-players", "abc"),
+            Err(Reason::NotWholeNumber)
+        );
+        assert_eq!(
+            validate(Edition::Java, "pvp", "maybe"),
+            Err(Reason::NotBoolean)
+        );
+        assert_eq!(
+            validate(Edition::Java, "a-future-property", "anything"),
+            Ok(())
+        );
+    }
+
+    #[test]
+    fn bedrock_rules_hold_its_own_keys_to_its_own_values() {
+        let check = |key, value| validate(Edition::Bedrock, key, value);
+        assert_eq!(check("gamemode", "creative"), Ok(()));
+        assert!(matches!(
+            check("gamemode", "spectator"),
+            Err(Reason::NotOneOf { .. })
+        ));
+        assert_eq!(
+            check("tick-distance", "3"),
+            Err(Reason::OutOfRange { min: 4, max: 12 })
+        );
+        assert_eq!(
+            check("view-distance", "4"),
+            Err(Reason::OutOfRange {
+                min: 5,
+                max: INT_MAX
+            })
+        );
+        assert_eq!(check("allow-cheats", "maybe"), Err(Reason::NotBoolean));
+        assert_eq!(check("server-name", "any; thing"), Ok(()));
+        assert_eq!(
+            validate(Edition::Java, "tick-distance", "3"),
+            Ok(()),
+            "a Java server has no such rule"
+        );
     }
 
     fn schema(pairs: &[(&str, &str)]) -> Vec<(String, String)> {

@@ -80,7 +80,7 @@ impl Engine {
     /// The degraded state a server carries right now — what a create's warnings
     /// said, still true long after that output scrolled past.
     pub(crate) fn server_warnings(&self, record: &ServerRecord) -> Vec<WarningInfo> {
-        if self.servers.has_schema(record) || record.profile.runtime.java_major().is_none() {
+        if self.servers.has_schema(record) {
             return Vec::new();
         }
         vec![WarningInfo::PropertiesSchemaMissing {
@@ -182,6 +182,7 @@ impl Engine {
             )
             .await?;
         }
+        let schema = self.servers.schema_path(record);
         let jar_path = data.join(record.profile.runtime.filename());
         let java_install = java.map(|java| JavaInstall {
             minecraft_jar: &jar_path,
@@ -199,14 +200,18 @@ impl Engine {
                     java: java_install,
                     cache: Some(&self.cache),
                     processes: self.processes(),
+                    schema: Some(&schema),
                 },
                 on_progress,
             )
             .await?;
-        if let Some(java) = java {
-            self.servers
-                .derive_properties_schema(record, java, self.processes(), on_progress)
-                .await;
+        match java {
+            Some(java) => {
+                self.servers
+                    .derive_properties_schema(record, java, self.processes(), on_progress)
+                    .await
+            }
+            None => self.servers.seed_from_schema(record),
         }
         Ok(())
     }

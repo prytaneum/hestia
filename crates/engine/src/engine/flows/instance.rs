@@ -287,6 +287,7 @@ impl Engine {
                     }),
                     cache: None,
                     processes: self.processes(),
+                    schema: None,
                 },
                 &job,
             )

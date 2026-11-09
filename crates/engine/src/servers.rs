@@ -12,7 +12,7 @@ use std::path::{Path, PathBuf};
 use anyhow::{bail, Context, Result};
 use proto::error::EntryKind;
 use proto::keys::KeyRule;
-use proto::minecraft::{ProvisionPhase, ProvisionProgress};
+use proto::minecraft::{Edition, ProvisionPhase, ProvisionProgress};
 use proto::server::ServerProperty;
 use proto::tasks::ServerTask;
 use serde::{Deserialize, Serialize};
@@ -293,6 +293,15 @@ impl Servers {
         }
         tracing::info!(id = %record.id, "server provisioned");
         Ok(())
+    }
+
+    /// Seed the live file with the keys the shipped schema has and it lacks.
+    pub(crate) fn seed_from_schema(&self, record: &ServerRecord) {
+        let schema = properties::read_properties(&self.schema_path(record));
+        let live = self.data_dir(record).join(properties::PROPERTIES);
+        if let Err(e) = properties::seed_properties(&live, &schema) {
+            tracing::warn!(id = %record.id, error = format!("{e:#}"), "cannot seed server.properties");
+        }
     }
 
     /// Run the server once to derive this version's `server.properties`
@@ -627,8 +636,11 @@ impl Servers {
                     "no properties schema to validate against; accepting the key"
                 );
             }
-            properties::validate(key, value).map_err(invalid(key))?;
-            if properties::HARDCORE_KEYS.contains(&key) {
+            properties::validate(record.profile.runtime.edition(), key, value)
+                .map_err(invalid(key))?;
+            if record.profile.runtime.edition() == Edition::Java
+                && properties::HARDCORE_KEYS.contains(&key)
+            {
                 properties::check_hardcore_invariant(&file, key, value)?;
             }
             properties::merge_properties(&file, &[(key, value.to_string())])
@@ -636,9 +648,12 @@ impl Servers {
     }
 
     /// Every rule a server's settings are checked against.
-    pub fn config_rules() -> Vec<KeyRule> {
-        let mut rules = JavaSettings::rules();
-        rules.extend(properties::rules().iter().cloned());
+    pub fn config_rules(edition: Edition) -> Vec<KeyRule> {
+        let mut rules = match edition {
+            Edition::Java => JavaSettings::rules(),
+            Edition::Bedrock => Vec::new(),
+        };
+        rules.extend(properties::rules(edition).iter().cloned());
         rules
     }
 

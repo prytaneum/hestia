@@ -8,7 +8,7 @@ use proto::entry::{
     EntryVersions,
 };
 use proto::error::{EntryKind, ErrorInfo, Field};
-use proto::minecraft::{ConfigEntry, FlavorsResult};
+use proto::minecraft::{ConfigEntry, Edition, FlavorsResult};
 use proto::process::ProcessState;
 use proto::Empty;
 
@@ -20,7 +20,10 @@ pub(super) fn register(on: &mut Channels<'_>) {
         let side = side_for(&ctx, p.kind)?;
         Ok(FlavorsResult {
             flavors: ctx.runtime.engine().flavors(side).await,
-            rules: config_rules(side),
+            rules: match side {
+                Side::Server => engine::Servers::config_rules(Edition::Java),
+                Side::Client => engine::Instances::config_rules(),
+            },
         })
     });
 
@@ -179,13 +182,22 @@ pub(super) fn register(on: &mut Channels<'_>) {
         let entry = entry_for(&ctx, &target, Intent::Read)?;
         let engine = ctx.runtime.engine();
         let (values, rules) = match entry.kind {
-            EntryKind::Server => (
-                engine.servers().config_list(&entry.id),
-                config_rules(Side::Server),
-            ),
+            EntryKind::Server => {
+                let edition = engine
+                    .servers()
+                    .require(&entry.id)
+                    .map_err(engine_error)?
+                    .profile
+                    .runtime
+                    .edition();
+                (
+                    engine.servers().config_list(&entry.id),
+                    engine::Servers::config_rules(edition),
+                )
+            }
             EntryKind::Instance => (
                 engine.instances().config_list(&entry.id),
-                config_rules(Side::Client),
+                engine::Instances::config_rules(),
             ),
         };
         let entries = values
@@ -195,11 +207,4 @@ pub(super) fn register(on: &mut Channels<'_>) {
             .collect();
         Ok(EntryConfigListResult { entries, rules })
     });
-}
-
-fn config_rules(side: Side) -> Vec<proto::keys::KeyRule> {
-    match side {
-        Side::Server => engine::Servers::config_rules(),
-        Side::Client => engine::Instances::config_rules(),
-    }
 }

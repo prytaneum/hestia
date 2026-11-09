@@ -100,7 +100,8 @@ impl FlavorProvider for Bedrock {
         on.check()?;
         let archive = root.join(format!("bedrock-server-{version}.zip"));
         let (target, zip) = (root.to_path_buf(), archive.clone());
-        tokio::task::spawn_blocking(move || unpack(&zip, &target))
+        let schema = request.schema.map(Path::to_path_buf);
+        tokio::task::spawn_blocking(move || unpack(&zip, &target, schema.as_deref()))
             .await
             .context("the Bedrock install task panicked")??;
         on.check()?;
@@ -113,10 +114,17 @@ impl FlavorProvider for Bedrock {
 
 /// Everything in the zip lands over `root` except the user-owned entries that
 /// already exist; directories merge, so packs a user added survive an update.
-fn unpack(archive: &Path, root: &Path) -> Result<()> {
+///
+/// The zip's own `server.properties` is copied to `schema` first: on an update
+/// the live file is the user's, so the shipped one is only visible here.
+fn unpack(archive: &Path, root: &Path, schema: Option<&Path>) -> Result<()> {
     let staging = root.join(STAGING);
     let _ = std::fs::remove_dir_all(&staging);
     let merged = crate::extract::extract_archive(archive, &staging).and_then(|()| {
+        let shipped = staging.join("server.properties");
+        if let (Some(schema), true) = (schema, shipped.is_file()) {
+            std::fs::copy(&shipped, schema).context("cannot store the properties schema")?;
+        }
         for entry in std::fs::read_dir(&staging)? {
             let name = entry?.file_name();
             let owned = name.to_str().is_some_and(|n| USER_OWNED.contains(&n));
@@ -204,6 +212,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let root = dir.path();
         let zip = root.join("v1.zip");
+        let schema = root.join("schema.properties");
         zip_of(
             &zip,
             &[
@@ -212,7 +221,7 @@ mod tests {
                 ("behavior_packs/vanilla/a.json", "1"),
             ],
         );
-        unpack(&zip, root).unwrap();
+        unpack(&zip, root, Some(&schema)).unwrap();
         assert_eq!(
             std::fs::read_to_string(root.join("server.properties")).unwrap(),
             "default"
@@ -236,7 +245,7 @@ mod tests {
                 ("behavior_packs/vanilla/a.json", "2"),
             ],
         );
-        unpack(&zip, root).unwrap();
+        unpack(&zip, root, Some(&schema)).unwrap();
 
         assert_eq!(
             std::fs::read_to_string(root.join(EXECUTABLE)).unwrap(),
@@ -254,6 +263,37 @@ mod tests {
             "2"
         );
         assert!(!root.join(STAGING).exists());
+        assert_eq!(std::fs::read_to_string(&schema).unwrap(), "default");
+    }
+
+    #[test]
+    fn an_update_seeds_the_keys_it_introduces_and_keeps_the_users_values() {
+        use crate::properties::{read_properties, read_property, seed_properties};
+
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+        let (zip, schema) = (root.join("bds.zip"), root.join("schema.properties"));
+        std::fs::write(root.join("server.properties"), "gamemode=creative\n").unwrap();
+        zip_of(
+            &zip,
+            &[
+                (EXECUTABLE, "x"),
+                ("server.properties", "gamemode=survival\nnew-key=on\n"),
+            ],
+        );
+        unpack(&zip, root, Some(&schema)).unwrap();
+        seed_properties(&root.join("server.properties"), &read_properties(&schema)).unwrap();
+
+        let live = root.join("server.properties");
+        assert_eq!(
+            read_property(&live, "gamemode").as_deref(),
+            Some("creative")
+        );
+        assert_eq!(read_property(&live, "new-key").as_deref(), Some("on"));
+        assert_eq!(
+            read_property(&schema, "gamemode").as_deref(),
+            Some("survival")
+        );
     }
 
     #[test]

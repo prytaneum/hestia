@@ -40,6 +40,9 @@ pub struct InstallRequest<'a> {
     pub java: Option<JavaInstall<'a>>,
     pub cache: Option<&'a Cache>,
     pub processes: &'a ProcessSupervisor,
+    /// Where a native server install stores the `server.properties` it ships,
+    /// the schema its settings are checked against; unused otherwise.
+    pub schema: Option<&'a Path>,
 }
 
 pub struct JavaInstall<'a> {
