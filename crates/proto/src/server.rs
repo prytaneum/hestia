@@ -10,6 +10,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::content::{ContentFailure, ContentKind};
 use crate::contract::{Contract, Empty};
+use crate::icon::EntryIcon;
 use crate::job::{Job, JobStarted};
 use crate::minecraft::{ConfigEntry, ProvisionProgress};
 use crate::modpack::PackPolicy;
@@ -42,6 +43,8 @@ pub struct ServerInfo {
     /// never has to keep its own copy of the flavor table in step.
     #[serde(default)]
     pub accepts: Vec<ContentKind>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub icon: Option<EntryIcon>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub process: Option<ProcessInfo>,
 }

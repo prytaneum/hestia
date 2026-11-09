@@ -5,7 +5,9 @@
  */
 import type {
   ContentKind,
+  EntryIcon,
   EntryTarget,
+  IconSource,
   InstalledContent,
   JobSubject,
 } from '@/api/types';
@@ -69,6 +71,17 @@ export function entryChannels(): ChannelHandlers {
         p.kind === 'server' ? entries.listServers() : entries.listInstances();
       entries.removeEntry(entryOf(p).id, list);
       return ok();
+    },
+
+    'entry.icon.set': (p) => {
+      const entry: { id: string; icon?: EntryIcon } = targetEntry(p);
+      const source = p.source as IconSource;
+      entry.icon = {
+        path: source.from === 'file' ? source.path : `${entry.id}/icon.png`,
+        revision: Date.now(),
+        generator: source.from === 'generated' ? source.generator : undefined,
+      };
+      return entry.icon;
     },
 
     'entry.stop': (p) => {

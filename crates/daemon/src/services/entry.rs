@@ -8,6 +8,7 @@ use proto::entry::{
     EntryVersions,
 };
 use proto::error::{EntryKind, ErrorInfo, Field};
+use proto::icon::EntryIconSet;
 use proto::minecraft::{ConfigEntry, FlavorsResult};
 use proto::process::ProcessState;
 use proto::Empty;
@@ -87,6 +88,14 @@ pub(super) fn register(on: &mut Channels<'_>) {
         };
         tracing::info!(kind = ?entry.kind, %id, %name, "entry renamed");
         Ok(EntryRenamed { id, name })
+    });
+
+    on.handle::<EntryIconSet, _, _>(|p, ctx| async move {
+        let entry = entry_for(&ctx, &p.target, Intent::Idle)?;
+        ctx.runtime
+            .engine()
+            .set_entry_icon(entry.entry_ref(), &p.source)
+            .map_err(engine_error)
     });
 
     on.handle::<EntryStop, _, _>(|p, ctx| async move {

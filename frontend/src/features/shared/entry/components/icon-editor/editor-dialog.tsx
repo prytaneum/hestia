@@ -2,9 +2,7 @@
  * The one place an icon is made: compose a generated one (background +
  * symbol), pick your own image, or reset to a fresh random one. The body sits
  * in the project's standard dialog chrome; the two-pane arrangement borrows
- * the Modrinth editor's shape without carrying its look. With an `entryId` the
- * choice bakes on save; the create wizard passes none and reads `onSaved`
- * instead.
+ * the Modrinth editor's shape without carrying its look.
  */
 import {
   ArrowsClockwiseIcon,
@@ -12,19 +10,24 @@ import {
   PencilIcon,
   TrashIcon,
 } from '@phosphor-icons/react';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation } from '@tanstack/react-query';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { useEffect, useMemo, useState } from 'react';
 
-import { dialog } from '@/api';
-import { type IconConfig, iconUrl } from '@/api/icons';
+import {
+  dialog,
+  type EntryIcon,
+  type EntryKind,
+  type IconGenerator,
+} from '@/api';
+import * as icons from '@/api/icons';
 import { AppDialog, DialogFooter } from '@/components/dialog';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
 import { useDropzone } from '@/hooks/use-dropzone';
 import { cn } from '@/lib/utils';
 import { m } from '@/paraglide/messages.js';
-import { iconMutations, iconQueries } from '@/queries/icons';
+import { entryMutations } from '@/queries/entry';
 
 import {
   backgroundIdOf,
@@ -34,7 +37,7 @@ import {
   bakeIcon,
   DEFAULT_BACKGROUND_ID,
   DEFAULT_SYMBOL_ID,
-  randomIconConfig,
+  randomIconGenerator,
   type SymbolCategory,
   symbolOption,
   symbolOptions,
@@ -57,56 +60,44 @@ function categoryLabel(category: SymbolCategory): string {
 export function IconEditorDialog({
   open,
   onOpenChange,
-  entryId,
-  initial,
-  onSaved,
+  kind,
+  id,
+  icon,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /** Present: bake/record for this entry on save; absent: only report. */
-  entryId?: string;
-  initial?: IconConfig | null;
-  onSaved?: (config: IconConfig) => void;
+  kind: EntryKind;
+  id: string;
+  /** What the entry wears now, which the editor opens on. */
+  icon?: EntryIcon;
 }) {
   const [backgroundId, setBackgroundId] = useState(DEFAULT_BACKGROUND_ID);
   const [symbolId, setSymbolId] = useState(DEFAULT_SYMBOL_ID);
   const [customPath, setCustomPath] = useState<string | null>(null);
   const [customUrl, setCustomUrl] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const generate = useMutation(iconMutations.generate());
-  const setIcon = useMutation(iconMutations.set());
-  const icons = useQuery({
-    ...iconQueries.list(),
-    enabled: Boolean(entryId),
-  });
-  const storedConfig = useQuery({
-    ...iconQueries.config(entryId ?? ''),
-    enabled: Boolean(entryId),
-  });
+  const setIcon = useMutation(entryMutations.setIcon(kind));
 
   useEffect(() => {
     if (!open) return;
-    const fromStore = entryId ? storedConfig.data : null;
-    const savedConfig = initial ?? fromStore;
+    const generator = icon?.generator;
     setBackgroundId(
-      backgroundIdOf(savedConfig?.background) ?? DEFAULT_BACKGROUND_ID,
+      backgroundIdOf(generator?.background) ?? DEFAULT_BACKGROUND_ID,
     );
     setSymbolId(
-      savedConfig?.symbol && symbolOption(savedConfig.symbol)
-        ? savedConfig.symbol
+      generator?.symbol && symbolOption(generator.symbol)
+        ? generator.symbol
         : DEFAULT_SYMBOL_ID,
     );
-    const existing = entryId ? icons.data?.[entryId] : undefined;
-    const customEntry =
-      entryId && existing && !fromStore ? existing : undefined;
-    setCustomUrl(customEntry ? iconUrl(customEntry) : null);
-    setCustomPath(customEntry?.path ?? null);
+    const picked = icon && !generator ? icon : undefined;
+    setCustomUrl(picked ? icons.url(picked) : null);
+    setCustomPath(picked?.path ?? null);
     setSaving(false);
-  }, [open, entryId, initial, icons.data, storedConfig.data]);
+  }, [open, icon]);
 
   const selectedBackground = backgroundOption(backgroundId);
   const selectedSymbol = symbolOption(symbolId);
-  const config = useMemo<IconConfig>(
+  const config = useMemo<IconGenerator>(
     () => ({
       background: {
         ...(selectedBackground?.background ?? backgroundOptions[0].background),
@@ -126,17 +117,14 @@ export function IconEditorDialog({
     if (path) applyCustomImage(path);
   };
 
-  // Only an existing entry can carry its own image; the create wizard has no
-  // entry to record one against.
   const { getRootProps, isDragActive } = useDropzone<HTMLDivElement>({
     accept: dialog.IMAGE_EXTENSIONS,
     multiple: false,
-    disabled: !entryId,
     onDrop: ([image]) => applyCustomImage(image),
   });
 
   const applyRandom = () => {
-    const rolled = randomIconConfig(config);
+    const rolled = randomIconGenerator(config);
     const background = backgroundIdOf(rolled.background);
     if (background) setBackgroundId(background);
     setSymbolId(rolled.symbol);
@@ -150,16 +138,13 @@ export function IconEditorDialog({
     setSaving(true);
     try {
       if (customUrl) {
-        if (entryId && customPath)
-          await setIcon.mutateAsync({ entryId, sourcePath: customPath });
-      } else if (selectedSymbol) {
-        if (entryId)
-          await generate.mutateAsync({
-            entryId,
-            config,
-            bytes: await bakeIcon(config),
+        if (customPath && customPath !== icon?.path)
+          await setIcon.mutateAsync({
+            id,
+            source: { from: 'file', path: customPath },
           });
-        else onSaved?.(config);
+      } else if (selectedSymbol) {
+        await setIcon.mutateAsync({ id, source: await bakeIcon(config) });
       }
       onOpenChange(false);
     } finally {
@@ -168,15 +153,11 @@ export function IconEditorDialog({
   };
 
   const resetIcon = async () => {
-    if (saving || !entryId) return;
+    if (saving) return;
     setSaving(true);
     try {
       const rolled = applyRandom();
-      await generate.mutateAsync({
-        entryId,
-        config: rolled,
-        bytes: await bakeIcon(rolled),
-      });
+      await setIcon.mutateAsync({ id, source: await bakeIcon(rolled) });
       onOpenChange(false);
     } finally {
       setSaving(false);
@@ -217,46 +198,42 @@ export function IconEditorDialog({
             {m['entry.icon.editor.randomize']()}
           </Button>
 
-          {entryId && (
-            <>
-              <div className="flex flex-col gap-2">
-                <span className="text-xs font-medium">
-                  {m['entry.icon.editor.image']()}
-                </span>
-                <div className="flex items-center gap-2">
-                  {customUrl && (
-                    <img
-                      src={customUrl}
-                      alt=""
-                      className="size-8 shrink-0 object-cover ring-1 ring-border"
-                    />
-                  )}
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="flex-1"
-                    data-icon="inline-start"
-                    onClick={pickCustomImage}
-                  >
-                    <ImageIcon />
-                    {m['entry.icon.editor.pick_image']()}
-                  </Button>
-                </div>
-              </div>
-
+          <div className="flex flex-col gap-2">
+            <span className="text-xs font-medium">
+              {m['entry.icon.editor.image']()}
+            </span>
+            <div className="flex items-center gap-2">
+              {customUrl && (
+                <img
+                  src={customUrl}
+                  alt=""
+                  className="size-8 shrink-0 object-cover ring-1 ring-border"
+                />
+              )}
               <Button
                 type="button"
                 variant="outline"
-                className="w-full"
+                className="flex-1"
                 data-icon="inline-start"
-                onClick={resetIcon}
-                disabled={saving}
+                onClick={pickCustomImage}
               >
-                <TrashIcon />
-                {m['entry.icon.reset']()}
+                <ImageIcon />
+                {m['entry.icon.editor.pick_image']()}
               </Button>
-            </>
-          )}
+            </div>
+          </div>
+
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full"
+            data-icon="inline-start"
+            onClick={resetIcon}
+            disabled={saving}
+          >
+            <TrashIcon />
+            {m['entry.icon.reset']()}
+          </Button>
         </aside>
 
         <div className="min-w-0 flex-1 overflow-y-auto">
@@ -350,7 +327,7 @@ function IconPreview({
   customUrl,
   className,
 }: {
-  config: IconConfig;
+  config: IconGenerator;
   customUrl: string | null;
   className?: string;
 }) {
@@ -377,7 +354,7 @@ function IconPreview({
 }
 
 /** "Background · Symbol", or "Custom image" when a picked image takes over. */
-function previewName(config: IconConfig, customUrl: string | null): string {
+function previewName(config: IconGenerator, customUrl: string | null): string {
   if (customUrl) return m['entry.icon.editor.image']();
   const background = backgroundOption(
     backgroundIdOf(config.background) ?? '',

@@ -250,6 +250,13 @@ mod tests {
         write(&data_dir, "saves/world/level.dat", "nbt");
         write(&entry_dir, "logs/session-1.log", "noise");
         write(&data_dir, "crash-reports/crash.txt", "noise");
+        let generator = proto::icon::IconGenerator {
+            background: proto::icon::IconBackground::Color {
+                value: "#336699".to_string(),
+            },
+            symbol: "chest".to_string(),
+        };
+        crate::icon::write(&entry_dir, b"\x89PNG\r\n\x1a\n", Some(&generator)).unwrap();
 
         let record = record();
         let archive_path = dir.path().join("cozy.hestia");
@@ -296,6 +303,11 @@ mod tests {
             "lang:en"
         );
         assert!(restored.path().join("data/saves/world/level.dat").is_file());
+        assert_eq!(
+            crate::icon::read(restored.path()).and_then(|icon| icon.generator),
+            Some(generator),
+            "the icon travels, and reopens in the editor as it was composed"
+        );
         assert!(
             !restored.path().join("logs").exists(),
             "session logs regenerate"

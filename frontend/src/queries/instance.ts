@@ -21,9 +21,9 @@ import type {
   Replace,
 } from '../api';
 import * as entry from '../api/entry';
+import * as icons from '../api/icons';
 import * as api from '../api/instance';
 import { mutation } from './core';
-import { useEntryIconLookup } from './icons';
 import { jobMutation, subjectName } from './jobs';
 import { entryTarget, keys } from './keys';
 import { type LogsOptions, type LogsResult, useFollowedLogs } from './logs';
@@ -48,7 +48,7 @@ export const instanceQueries = {
   list: () =>
     queryOptions({
       queryKey: keys.instances.list(),
-      queryFn: () => api.list(),
+      queryFn: () => api.list().then(icons.allowed),
     }),
   /** The worlds, servers and Realms joined lately, across every instance. */
   recent: () =>
@@ -205,25 +205,19 @@ export const instanceMutations = {
 };
 
 export function useInstances() {
-  const iconFor = useEntryIconLookup();
   return useQuery({
     ...instanceQueries.list(),
-    select: (instances) =>
-      instances.map((instance) => ({
-        ...instance,
-        iconUrl: iconFor(instance.id),
-      })),
+    select: (instances) => instances.map(icons.withUrl),
   });
 }
 
 /** One instance, selected out of the list query (there is no status channel). */
 export function useInstance(id: string) {
-  const iconFor = useEntryIconLookup();
   return useQuery({
     ...instanceQueries.list(),
     select: (instances: InstanceInfo[]) => {
       const instance = instances.find((entry) => entry.id === id);
-      return instance ? { ...instance, iconUrl: iconFor(instance.id) } : null;
+      return instance ? icons.withUrl(instance) : null;
     },
   });
 }

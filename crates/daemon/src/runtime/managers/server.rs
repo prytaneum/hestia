@@ -15,9 +15,8 @@ use crate::runtime::{
 /// whatever the provision degraded on. Assembled where the engine is in reach.
 fn provisioned(engine: &Engine, outcome: (engine::ServerRecord, Vec<WarningInfo>)) -> ServerDone {
     let (record, warnings) = outcome;
-    let accepts = engine.server_accepts(&record.profile.flavor);
     ServerDone {
-        server: server_info(record, None, accepts),
+        server: server_info(engine, record, None),
         warnings,
         failures: Vec::new(),
     }

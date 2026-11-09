@@ -156,7 +156,9 @@ function InstanceDetail({
         parentTo="/instances"
         icon={entryIcon('instance')}
         iconUrl={instance.iconUrl}
-        iconAction={<EntryIconMenu id={id} />}
+        iconAction={
+          <EntryIconMenu kind="instance" id={id} icon={instance.icon} />
+        }
         name={instance.name}
         busy={job && <EntryJobProgress job={job} name={instance.name} />}
         badges={

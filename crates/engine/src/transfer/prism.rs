@@ -12,6 +12,8 @@
 //! here: the answer is "whichever flavors are registered", which is the flow's
 //! to ask.
 
+use std::path::Path;
+
 use anyhow::Result;
 use proto::error::{ArchiveFault, ArchiveFormat, ErrorInfo};
 use proto::provider::Provider;
@@ -21,6 +23,7 @@ use serde_json::Value;
 use super::archive::Reader;
 use super::{pool, Blueprint, Descriptor, Format, Landed, Recipe, Target};
 use crate::cancel::Job;
+use crate::icon;
 use crate::jvm::{JavaSettings, JVM_ARGS_KEY, MEMORY_KEY};
 
 pub(crate) const CONFIG: &str = "instance.cfg";
@@ -39,6 +42,11 @@ const LOADERS: &[(&str, &str)] = &[
 ];
 
 const MINECRAFT: &str = "net.minecraft";
+
+/// What Prism accepts as an icon file; `icon::write` then takes only what it
+/// can show.
+const ICON_SUFFIXES: [&str; 7] = ["svg", "png", "ico", "gif", "jpg", "jpeg", "webp"];
+const ICON_FALLBACK: &str = "icon.png";
 
 /// What the two files together say the instance is.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -100,8 +108,51 @@ impl Format for Prism {
             &|_| true,
         )?;
         let adopted = pool::adopt(target.entry_dir, target.data_dir)?;
+        land_icon(reader, prefix, target.entry_dir);
         Ok(Landed { files, adopted })
     }
+}
+
+/// An icon only dresses the instance, so one that cannot be taken is left
+/// behind rather than failing the import.
+fn land_icon(reader: &mut Reader, prefix: &str, entry_dir: &Path) {
+    let icon_key = reader
+        .read_text(&format!("{prefix}{CONFIG}"))
+        .ok()
+        .and_then(|text| setting(&parse_config(&text), "iconKey").map(str::to_string))
+        .unwrap_or_default();
+    let Some(member) = icon_member(&reader.names(), prefix, &icon_key) else {
+        return;
+    };
+    let landed = reader
+        .read_at_most(&member, icon::MAX_BYTES)
+        .and_then(|image| icon::write(entry_dir, &image, None));
+    if let Err(e) = landed {
+        tracing::warn!(member, error = %format!("{e:#}"), "the instance's icon was not imported");
+    }
+}
+
+/// Where the archive keeps its custom icon, found the way Prism's own import
+/// looks: a file at the instance root named for the `iconKey`, else
+/// `icon.png`. A built-in key names no file, and there is none to take.
+fn icon_member(names: &[String], prefix: &str, icon_key: &str) -> Option<String> {
+    let images: Vec<(&str, &str)> = names
+        .iter()
+        .filter_map(|name| {
+            let file = name.strip_prefix(prefix)?;
+            let (stem, suffix) = file.rsplit_once('.')?;
+            let image = !file.contains('/') && ICON_SUFFIXES.contains(&suffix);
+            image.then_some((file, stem))
+        })
+        .collect();
+    let keyed = |(file, stem): &&(&str, &str)| {
+        !icon_key.is_empty() && (*file == icon_key || *stem == icon_key)
+    };
+    images
+        .iter()
+        .find(keyed)
+        .or_else(|| images.iter().find(|(file, _)| *file == ICON_FALLBACK))
+        .map(|(file, _)| format!("{prefix}{file}"))
 }
 
 fn describe(reader: &mut Reader, prefix: &str) -> Result<Instance> {
@@ -323,6 +374,26 @@ mod tests {
         };
         let jvm = jvm_settings(&instance);
         assert_eq!(jvm.get(JVM_ARGS_KEY).unwrap(), None);
+    }
+
+    #[test]
+    fn the_icon_is_the_root_file_named_for_its_key_else_icon_png() {
+        let archive = vec![
+            "p/instance.cfg".to_string(),
+            "p/icon.png".to_string(),
+            "p/cozy_pack.webp".to_string(),
+            "p/.minecraft/flame.png".to_string(),
+        ];
+        assert_eq!(
+            icon_member(&archive, "p/", "cozy_pack").as_deref(),
+            Some("p/cozy_pack.webp")
+        );
+        assert_eq!(
+            icon_member(&archive, "p/", "flame").as_deref(),
+            Some("p/icon.png"),
+            "a built-in key names no file at the root"
+        );
+        assert_eq!(icon_member(&archive[..1], "p/", "instance"), None);
     }
 
     #[test]

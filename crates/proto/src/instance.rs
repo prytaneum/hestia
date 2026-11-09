@@ -11,6 +11,7 @@ use serde::{Deserialize, Serialize};
 use crate::change::Scope;
 use crate::content::{ContentFailure, ContentKind};
 use crate::contract::{Contract, Empty};
+use crate::icon::EntryIcon;
 use crate::job::{Job, JobStarted};
 use crate::minecraft::{ConfigEntry, ProvisionProgress};
 use crate::modpack::PackPolicy;
@@ -42,6 +43,8 @@ pub struct InstanceInfo {
     /// The content kinds this instance can take — see [`ServerInfo::accepts`].
     #[serde(default)]
     pub accepts: Vec<ContentKind>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub icon: Option<EntryIcon>,
     pub sessions: Vec<ProcessInfo>,
 }
 

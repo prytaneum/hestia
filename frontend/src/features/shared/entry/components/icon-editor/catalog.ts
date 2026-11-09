@@ -4,12 +4,13 @@
  * and the pieces the editor and the wizard both build on — ids, configs,
  * the randomization blacklist and the canvas baker.
  *
- * The background and symbol ids are the literal sidecar values the editor
- * reopens from; keep them stable or stored icons break.
+ * The symbol ids and gradient colors are what the daemon records beside a
+ * generated icon and the editor reopens from; keep them stable or stored icons
+ * break.
  */
 
 import type { CSSProperties } from 'react';
-import type { IconBackground, IconConfig } from '@/api/icons';
+import type { IconBackground, IconGenerator, IconSource } from '@/api';
 import backpack from '@/assets/icons/backpack.png';
 import beacon from '@/assets/icons/beacon.png';
 import blueShark from '@/assets/icons/blue-shark.png';
@@ -65,7 +66,7 @@ interface BackgroundOption {
   id: string;
   name: () => string;
   background: Extract<
-    IconConfig['background'],
+    IconGenerator['background'],
     { type: 'linear-top-down-gradient' }
   >;
 }
@@ -83,8 +84,8 @@ export const backgroundOptions: BackgroundOption[] = [
     id: 'rose',
     background: {
       type: 'linear-top-down-gradient',
-      top_color: '#D62E63',
-      bottom_color: '#F95C62',
+      topColor: '#D62E63',
+      bottomColor: '#F95C62',
     },
     name: () => m['entry.icon.editor.backgrounds.rose'](),
   },
@@ -92,8 +93,8 @@ export const backgroundOptions: BackgroundOption[] = [
     id: 'orange',
     background: {
       type: 'linear-top-down-gradient',
-      top_color: '#FF8D29',
-      bottom_color: '#FFB452',
+      topColor: '#FF8D29',
+      bottomColor: '#FFB452',
     },
     name: () => m['entry.icon.editor.backgrounds.orange'](),
   },
@@ -101,8 +102,8 @@ export const backgroundOptions: BackgroundOption[] = [
     id: 'yellow',
     background: {
       type: 'linear-top-down-gradient',
-      top_color: '#FFC629',
-      bottom_color: '#FFEE53',
+      topColor: '#FFC629',
+      bottomColor: '#FFEE53',
     },
     name: () => m['entry.icon.editor.backgrounds.yellow'](),
   },
@@ -110,8 +111,8 @@ export const backgroundOptions: BackgroundOption[] = [
     id: 'lime',
     background: {
       type: 'linear-top-down-gradient',
-      top_color: '#6FDA1D',
-      bottom_color: '#CBFF50',
+      topColor: '#6FDA1D',
+      bottomColor: '#CBFF50',
     },
     name: () => m['entry.icon.editor.backgrounds.lime'](),
   },
@@ -119,8 +120,8 @@ export const backgroundOptions: BackgroundOption[] = [
     id: 'green',
     background: {
       type: 'linear-top-down-gradient',
-      top_color: '#0B9F21',
-      bottom_color: '#4FD24B',
+      topColor: '#0B9F21',
+      bottomColor: '#4FD24B',
     },
     name: () => m['entry.icon.editor.backgrounds.green'](),
   },
@@ -128,8 +129,8 @@ export const backgroundOptions: BackgroundOption[] = [
     id: 'purple',
     background: {
       type: 'linear-top-down-gradient',
-      top_color: '#4739FF',
-      bottom_color: '#6670FF',
+      topColor: '#4739FF',
+      bottomColor: '#6670FF',
     },
     name: () => m['entry.icon.editor.backgrounds.purple'](),
   },
@@ -137,8 +138,8 @@ export const backgroundOptions: BackgroundOption[] = [
     id: 'blue',
     background: {
       type: 'linear-top-down-gradient',
-      top_color: '#227EFF',
-      bottom_color: '#5EC1FF',
+      topColor: '#227EFF',
+      bottomColor: '#5EC1FF',
     },
     name: () => m['entry.icon.editor.backgrounds.blue'](),
   },
@@ -146,8 +147,8 @@ export const backgroundOptions: BackgroundOption[] = [
     id: 'lavender',
     background: {
       type: 'linear-top-down-gradient',
-      top_color: '#C056FD',
-      bottom_color: '#B889FF',
+      topColor: '#C056FD',
+      bottomColor: '#B889FF',
     },
     name: () => m['entry.icon.editor.backgrounds.lavender'](),
   },
@@ -155,8 +156,8 @@ export const backgroundOptions: BackgroundOption[] = [
     id: 'pink',
     background: {
       type: 'linear-top-down-gradient',
-      top_color: '#F640C0',
-      bottom_color: '#FF7BF1',
+      topColor: '#F640C0',
+      bottomColor: '#FF7BF1',
     },
     name: () => m['entry.icon.editor.backgrounds.pink'](),
   },
@@ -164,8 +165,8 @@ export const backgroundOptions: BackgroundOption[] = [
     id: 'light_gray',
     background: {
       type: 'linear-top-down-gradient',
-      top_color: '#AEAEAE',
-      bottom_color: '#D9D9D9',
+      topColor: '#AEAEAE',
+      bottomColor: '#D9D9D9',
     },
     name: () => m['entry.icon.editor.backgrounds.light_gray'](),
   },
@@ -173,8 +174,8 @@ export const backgroundOptions: BackgroundOption[] = [
     id: 'gray',
     background: {
       type: 'linear-top-down-gradient',
-      top_color: '#373C4C',
-      bottom_color: '#4C4F58',
+      topColor: '#373C4C',
+      bottomColor: '#4C4F58',
     },
     name: () => m['entry.icon.editor.backgrounds.gray'](),
   },
@@ -182,8 +183,8 @@ export const backgroundOptions: BackgroundOption[] = [
     id: 'dark_gray',
     background: {
       type: 'linear-top-down-gradient',
-      top_color: '#1B1D29',
-      bottom_color: '#252731',
+      topColor: '#1B1D29',
+      bottomColor: '#252731',
     },
     name: () => m['entry.icon.editor.backgrounds.dark_gray'](),
   },
@@ -488,13 +489,13 @@ export function backgroundOption(id: string): BackgroundOption | undefined {
 }
 
 export function backgroundIdOf(
-  background: IconConfig['background'] | undefined,
+  background: IconGenerator['background'] | undefined,
 ): string | undefined {
   if (!background || background.type === 'color') return undefined;
   return backgroundOptions.find(
     (option) =>
-      option.background.top_color === background.top_color &&
-      option.background.bottom_color === background.bottom_color,
+      option.background.topColor === background.topColor &&
+      option.background.bottomColor === background.bottomColor,
   )?.id;
 }
 
@@ -506,7 +507,7 @@ export function symbolOption(id: string): SymbolOption | undefined {
 export function backgroundStyle(background: IconBackground): CSSProperties {
   if (background.type === 'color') return { backgroundColor: background.value };
   return {
-    backgroundImage: `linear-gradient(to bottom, ${background.top_color}, ${background.bottom_color})`,
+    backgroundImage: `linear-gradient(to bottom, ${background.topColor}, ${background.bottomColor})`,
   };
 }
 
@@ -535,7 +536,7 @@ function isBlocked(backgroundId: string, symbolId: string): boolean {
 }
 
 /** Roll a config distinct from `current`, avoiding the look-alike clashes. */
-export function randomIconConfig(current?: IconConfig): IconConfig {
+export function randomIconGenerator(current?: IconGenerator): IconGenerator {
   const currentBackground = current
     ? backgroundIdOf(current.background)
     : undefined;
@@ -574,13 +575,13 @@ function backgroundFill(
 ): string | CanvasGradient {
   if (background.type === 'color') return background.value;
   const gradient = context.createLinearGradient(0, 0, 0, BAKED_ICON_SIZE);
-  gradient.addColorStop(0, background.top_color);
-  gradient.addColorStop(1, background.bottom_color);
+  gradient.addColorStop(0, background.topColor);
+  gradient.addColorStop(1, background.bottomColor);
   return gradient;
 }
 
-/** Paint the config onto a 256px canvas and encode it as opaque PNG bytes; assets are same-origin. */
-export async function bakeIcon(config: IconConfig): Promise<number[]> {
+/** Paint the config onto a 256px canvas as the icon an entry is set to; assets are same-origin. */
+export async function bakeIcon(config: IconGenerator): Promise<IconSource> {
   const symbol = symbolOption(config.symbol);
   if (!symbol) throw new Error(`Unknown icon symbol: ${config.symbol}`);
   const image = new Image();
@@ -596,9 +597,6 @@ export async function bakeIcon(config: IconConfig): Promise<number[]> {
   context.fillRect(0, 0, BAKED_ICON_SIZE, BAKED_ICON_SIZE);
   context.drawImage(image, 0, 0, BAKED_ICON_SIZE, BAKED_ICON_SIZE);
 
-  const blob = await new Promise<Blob | null>((resolve) =>
-    canvas.toBlob(resolve, 'image/png'),
-  );
-  if (!blob) throw new Error('Failed to encode the icon');
-  return Array.from(new Uint8Array(await blob.arrayBuffer()));
+  const [, png] = canvas.toDataURL('image/png').split(',');
+  return { from: 'generated', image: png, generator: config };
 }

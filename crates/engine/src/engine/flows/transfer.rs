@@ -398,7 +398,7 @@ fn export_destination(
 /// A path a client named for the daemon to read or write. It must be absolute:
 /// the two are different processes and need not share a working directory, so a
 /// relative path means something different on each side of the socket.
-fn daemon_local_path(value: &str) -> Result<PathBuf> {
+pub(super) fn daemon_local_path(value: &str) -> Result<PathBuf> {
     let path = PathBuf::from(value.trim());
     if path.as_os_str().is_empty() {
         return Err(ErrorInfo::FieldRequired { field: Field::Path }.into());

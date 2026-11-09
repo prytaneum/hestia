@@ -24,9 +24,9 @@ import type {
   ServerUpdateParams,
 } from '../api';
 import * as entry from '../api/entry';
+import * as icons from '../api/icons';
 import * as api from '../api/server';
 import { mutation } from './core';
-import { useEntryIconLookup } from './icons';
 import { jobMutation, subjectName } from './jobs';
 import { entryTarget, keys } from './keys';
 import { type LogsOptions, type LogsResult, useFollowedLogs } from './logs';
@@ -41,12 +41,15 @@ export const serverQueries = {
   list: () =>
     queryOptions({
       queryKey: keys.servers.list(),
-      queryFn: () => api.list(),
+      queryFn: () => api.list().then(icons.allowed),
     }),
   detail: (id: string) =>
     queryOptions({
       queryKey: keys.servers.detail(id),
-      queryFn: () => api.status(id),
+      queryFn: async () => {
+        const [server] = await icons.allowed([await api.status(id)]);
+        return server;
+      },
     }),
   // The informational view (locations + footprint) is a directory walk, so it
   // rides its own key — fetched fresh (never seeded from the diskless list) and
@@ -213,18 +216,15 @@ export const serverMutations = {
 };
 
 export function useServers() {
-  const iconFor = useEntryIconLookup();
   return useQuery({
     ...serverQueries.list(),
-    select: (servers) =>
-      servers.map((server) => ({ ...server, iconUrl: iconFor(server.id) })),
+    select: (servers) => servers.map(icons.withUrl),
   });
 }
 
 /** One server's status, seeded from the list cache so a row costs no call. */
 export function useServer(id: string) {
   const queryClient = useQueryClient();
-  const iconFor = useEntryIconLookup();
   return useQuery({
     ...serverQueries.detail(id),
     initialData: () =>
@@ -233,7 +233,7 @@ export function useServer(id: string) {
         ?.find((server) => server.id === id),
     initialDataUpdatedAt: () =>
       queryClient.getQueryState(keys.servers.list())?.dataUpdatedAt,
-    select: (server) => ({ ...server, iconUrl: iconFor(server.id) }),
+    select: icons.withUrl,
   });
 }
 

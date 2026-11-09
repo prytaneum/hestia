@@ -161,10 +161,18 @@ impl Engine {
                 job,
             )
             .await;
-        if outcome.is_err() && matches!(target, ModpackTarget::Create { .. }) {
-            // A create that could not be filled leaves nothing, exactly as a
-            // failed or cancelled plain create does.
-            let _ = self.remove_instance(&entry);
+        if let ModpackTarget::Create { .. } = target {
+            match &outcome {
+                Ok(done) => {
+                    self.inherit_pack_icon(EntryRef::Instance(&entry), &done.pack.icon_url)
+                        .await
+                }
+                // A create that could not be filled leaves nothing, exactly as a
+                // failed or cancelled plain create does.
+                Err(_) => {
+                    let _ = self.remove_instance(&entry);
+                }
+            }
         }
         outcome
     }
@@ -218,8 +226,16 @@ impl Engine {
                 job,
             )
             .await;
-        if outcome.is_err() && matches!(target, ModpackTarget::Create { .. }) {
-            let _ = self.servers.remove(&entry);
+        if let ModpackTarget::Create { .. } = target {
+            match &outcome {
+                Ok(done) => {
+                    self.inherit_pack_icon(EntryRef::Server(&entry), &done.pack.icon_url)
+                        .await
+                }
+                Err(_) => {
+                    let _ = self.servers.remove(&entry);
+                }
+            }
         }
         outcome
     }

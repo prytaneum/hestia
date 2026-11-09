@@ -40,7 +40,6 @@ client = { workspace = true }
 common = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
-image = { workspace = true }
 base64 = { workspace = true }
 reqwest = { workspace = true }
 tokio = { workspace = true }

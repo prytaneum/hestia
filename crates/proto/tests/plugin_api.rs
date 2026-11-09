@@ -202,6 +202,7 @@ fn api() -> Api {
         files::ServerFilesMove, files::ServerFilesRead, files::ServerFilesRemove,
         files::ServerFilesWrite,
         health::Ping,
+        icon::EntryIconSet,
         host::HostInfo,
         image::ImageFetch,
         instance::AddressPing, instance::InstanceCreate, instance::InstanceInfoQuery,

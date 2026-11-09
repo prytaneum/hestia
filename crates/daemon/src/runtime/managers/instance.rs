@@ -47,9 +47,8 @@ impl Jobs {
                         &reporter.job(),
                     )
                     .await?;
-                let accepts = engine.instance_accepts(&changed.record.profile.flavor);
                 Ok(InstanceUpdateDone {
-                    instance: instance_info(changed.record, Vec::new(), accepts),
+                    instance: instance_info(engine, changed.record, Vec::new()),
                     warnings: changed.warnings,
                     failures: changed.failures,
                 })

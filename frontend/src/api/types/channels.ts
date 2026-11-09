@@ -56,6 +56,8 @@ import type { EntryContentRemoveParams } from "./generated/EntryContentRemovePar
 import type { EntryContentSetVersionParams } from "./generated/EntryContentSetVersionParams";
 import type { EntryContentUpdateParams } from "./generated/EntryContentUpdateParams";
 import type { EntryFlavorsParams } from "./generated/EntryFlavorsParams";
+import type { EntryIcon } from "./generated/EntryIcon";
+import type { EntryIconSetParams } from "./generated/EntryIconSetParams";
 import type { EntryLoadersParams } from "./generated/EntryLoadersParams";
 import type { EntryLogsParams } from "./generated/EntryLogsParams";
 import type { EntryModpackCheckParams } from "./generated/EntryModpackCheckParams";
@@ -257,6 +259,7 @@ export interface Channels {
   "entry.config.list": { params: Partial<EntryTarget>; result: EntryConfigListResult };
   "entry.config.set": { params: Omit<Partial<EntryConfigSetParams>, "target"> & { "target"?: Partial<EntryTarget> }; result: Empty };
   "entry.flavors": { params: Partial<EntryFlavorsParams>; result: FlavorsResult };
+  "entry.icon.set": { params: Omit<Partial<EntryIconSetParams>, "target"> & { "target"?: Partial<EntryTarget> }; result: EntryIcon };
   "entry.loaders": { params: Partial<EntryLoadersParams>; result: Array<string> };
   "entry.logs": { params: Omit<Partial<EntryLogsParams>, "target"> & { "target"?: Partial<EntryTarget> }; result: Array<ProcessLogLine> };
   "entry.remove": { params: Partial<EntryTarget>; result: Empty };

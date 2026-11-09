@@ -13,7 +13,7 @@ import { Button } from '@/components/ui/button';
 import { ProvisionProgressView } from '@/features/shared/entry/components';
 import {
   bakeIcon,
-  randomIconConfig,
+  randomIconGenerator,
 } from '@/features/shared/entry/components/icon-editor/catalog';
 import {
   createWizardDefaults,
@@ -28,8 +28,8 @@ import { notify } from '@/lib/notify';
 import { m } from '@/paraglide/messages.js';
 import { catalogueQueries } from '@/queries/catalogue';
 import { configQueries, launcherDefaults } from '@/queries/config';
+import { entryMutations } from '@/queries/entry';
 import { useMemoryRange } from '@/queries/host';
-import { iconMutations } from '@/queries/icons';
 import { instanceMutations } from '@/queries/instance';
 import { useJobDisplay, useJobMutation } from '@/queries/jobs';
 import { serverMutations } from '@/queries/server';
@@ -89,17 +89,16 @@ export function CreateEntryDialog({
 
   const createServer = useJobMutation(serverMutations.create());
   const createInstance = useMutation(instanceMutations.create());
-  const generateIcon = useMutation(iconMutations.generate());
+  const setIcon = useMutation(entryMutations.setIcon(kind));
   const creating = createServer.isPending || createInstance.isPending;
   const progress = createServer.progress;
   const job = createServer.job;
 
   useJobDisplay(job, open && creating);
 
-  const applyRandomIcon = (entryId: string) => {
-    const icon = randomIconConfig();
-    bakeIcon(icon)
-      .then((bytes) => generateIcon.mutate({ entryId, config: icon, bytes }))
+  const applyRandomIcon = (id: string) => {
+    bakeIcon(randomIconGenerator())
+      .then((source) => setIcon.mutate({ id, source }))
       .catch(() => undefined);
   };
 

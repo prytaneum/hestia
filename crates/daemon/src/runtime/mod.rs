@@ -106,11 +106,13 @@ pub async fn stop_server(
 }
 
 pub fn server_info(
+    engine: &Engine,
     record: ServerRecord,
     process: Option<proto::process::ProcessInfo>,
-    accepts: Vec<proto::content::ContentKind>,
 ) -> ServerInfo {
     let ready = record.ready();
+    let accepts = engine.server_accepts(&record.profile.flavor);
+    let icon = engine.servers().icon(&record);
     ServerInfo {
         id: record.id,
         name: record.name,
@@ -123,15 +125,18 @@ pub fn server_info(
         game_port: record.game_port,
         console: record.rcon.is_some(),
         accepts,
+        icon,
         process,
     }
 }
 
 pub fn instance_info(
+    engine: &Engine,
     record: InstanceRecord,
     sessions: Vec<proto::process::ProcessInfo>,
-    accepts: Vec<proto::content::ContentKind>,
 ) -> InstanceInfo {
+    let accepts = engine.instance_accepts(&record.profile.flavor);
+    let icon = engine.instances().icon(&record);
     InstanceInfo {
         id: record.id,
         name: record.name,
@@ -143,6 +148,7 @@ pub fn instance_info(
         last_played_unix: record.last_played_unix,
         playtime_seconds: record.playtime_seconds,
         accepts,
+        icon,
         sessions,
     }
 }
@@ -219,8 +225,7 @@ impl Runtime {
     /// A server's record merged with its live process state (when started).
     pub fn server_view(&self, record: ServerRecord) -> ServerInfo {
         let process = self.processes.status(&server_process_id(&record.id));
-        let accepts = self.engine.server_accepts(&record.profile.flavor);
-        server_info(record, process, accepts)
+        server_info(&self.engine, record, process)
     }
 
     /// Stop a running server, wait for its process to exit, and start it
@@ -236,8 +241,7 @@ impl Runtime {
 
     pub fn instance_view(&self, record: InstanceRecord) -> InstanceInfo {
         let sessions = self.instance_sessions(&record.id);
-        let accepts = self.engine.instance_accepts(&record.profile.flavor);
-        instance_info(record, sessions, accepts)
+        instance_info(&self.engine, record, sessions)
     }
 
     /// Every live session of an instance, newest first.

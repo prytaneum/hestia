@@ -458,6 +458,11 @@ pub enum ErrorInfo {
         width: u32,
         height: u32,
     },
+    /// Not a PNG, JPEG, WebP or GIF, judged by its bytes.
+    IconNotAnImage,
+    IconTooLarge {
+        megabytes: u64,
+    },
     /// A launch asked to join a world or server directly, but the game only
     /// learned the Quick Play arguments in 1.20 — an older client would ignore
     /// them and open to the title screen, which is not what was asked for.
@@ -931,6 +936,8 @@ impl fmt::Display for ErrorInfo {
                 f,
                 "a skin texture must be 64×64 (or the legacy 64×32), got {width}×{height}"
             ),
+            IconNotAnImage => write!(f, "an icon must be a PNG, JPEG, WebP or GIF image"),
+            IconTooLarge { megabytes } => write!(f, "an icon must be at most {megabytes} MB"),
             QuickPlayUnsupported { version } => write!(
                 f,
                 "joining a world or server on launch needs Minecraft 1.20 or newer; this instance \

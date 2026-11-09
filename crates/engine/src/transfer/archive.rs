@@ -237,12 +237,19 @@ impl Reader {
     }
 
     pub(crate) fn read_bytes(&mut self, name: &str) -> Result<Vec<u8>> {
-        let mut entry = self
+        self.read_at_most(name, u64::MAX)
+    }
+
+    /// Stops one byte past `limit`, so an oversized member is told apart
+    /// without being inflated whole.
+    pub(crate) fn read_at_most(&mut self, name: &str, limit: u64) -> Result<Vec<u8>> {
+        let entry = self
             .zip
             .by_name(name)
             .with_context(|| format!("'{name}' is missing from the archive"))?;
         let mut bytes = Vec::new();
         entry
+            .take(limit.saturating_add(1))
             .read_to_end(&mut bytes)
             .with_context(|| format!("cannot read '{name}' from the archive"))?;
         Ok(bytes)

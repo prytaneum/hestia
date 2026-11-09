@@ -11,10 +11,12 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{bail, Context, Result};
 use proto::error::EntryKind;
+use proto::icon::EntryIcon;
 use proto::keys::KeyRule;
 use proto::sync::SyncOverrides;
 use serde::{Deserialize, Serialize};
 
+use crate::icon;
 use crate::jvm::{JavaSettings, JVM_ARGS_KEY, MEMORY_KEY};
 use crate::minecraft::profile::InstanceProfile;
 use crate::registry::{Entry, Store};
@@ -84,6 +86,10 @@ impl Instances {
     /// writes (saves, options, logs).
     pub fn data_dir(&self, record: &InstanceRecord) -> PathBuf {
         self.instance_dir(record).join(DATA)
+    }
+
+    pub fn icon(&self, record: &InstanceRecord) -> Option<EntryIcon> {
+        icon::read(&self.instance_dir(record))
     }
 
     pub fn list(&self) -> Vec<InstanceRecord> {

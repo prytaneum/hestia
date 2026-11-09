@@ -73,12 +73,11 @@ impl Jobs {
                 let import = engine
                     .import_instance(&path, &name, &chain, &reporter.job())
                     .await?;
-                let accepts = engine.instance_accepts(&import.record.profile.flavor);
                 // The view an import answers with is the same one
                 // `instance.list` returns, so a front-end can drop it
                 // straight into the library it already renders. A
                 // just-imported instance has no sessions by definition.
-                let instance = instance_info(import.record, Vec::new(), accepts);
+                let instance = instance_info(engine, import.record, Vec::new());
                 Ok(ImportDone {
                     format: import.format,
                     instance,

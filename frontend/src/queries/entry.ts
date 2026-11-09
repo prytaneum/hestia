@@ -3,7 +3,13 @@
  * argument. Keys stay per entry and nest under its stable id.
  */
 import { queryOptions } from '@tanstack/react-query';
-import type { ConfigEntry, EntryKind, EntryRenamed } from '../api';
+import type {
+  ConfigEntry,
+  EntryIcon,
+  EntryKind,
+  EntryRenamed,
+  IconSource,
+} from '../api';
 import * as api from '../api/entry';
 import { mutation } from './core';
 import { entryScope, entryTarget } from './keys';
@@ -40,6 +46,16 @@ export const entryMutations = {
       mutationKey: [...scope.detail(id), 'stop'],
       mutationFn: ({ session }) => api.stop(entryTarget(kind, id), session),
       invalidates: () => [scope.list(), scope.detail(id)],
+    });
+  },
+  /** Takes the id as a variable: the create wizard sets one on an entry it just made. */
+  setIcon: (kind: EntryKind) => {
+    const scope = entryScope(kind);
+    return mutation<EntryIcon, { id: string; source: IconSource }>({
+      mutationKey: [...scope.all, 'icon', 'set'],
+      mutationFn: ({ id, source }) =>
+        api.setIcon(entryTarget(kind, id), source),
+      invalidates: ({ id }) => [scope.list(), scope.detail(id)],
     });
   },
   /** `memory` and `jvm-args`, plus any `server.properties` key on a server. */

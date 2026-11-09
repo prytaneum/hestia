@@ -17,6 +17,7 @@ mod error;
 mod extract;
 mod files;
 pub mod host;
+mod icon;
 mod instances;
 mod java;
 mod jvm;

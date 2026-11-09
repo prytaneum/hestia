@@ -5,10 +5,19 @@
 import { PencilSimpleIcon } from '@phosphor-icons/react';
 import { useState } from 'react';
 
+import type { EntryIcon, EntryKind } from '@/api';
 import { m } from '@/paraglide/messages.js';
 import { IconEditorDialog } from './icon-editor/editor-dialog';
 
-export function EntryIconMenu({ id }: { id: string }) {
+export function EntryIconMenu({
+  kind,
+  id,
+  icon,
+}: {
+  kind: EntryKind;
+  id: string;
+  icon?: EntryIcon;
+}) {
   const [editorOpen, setEditorOpen] = useState(false);
 
   return (
@@ -24,7 +33,9 @@ export function EntryIconMenu({ id }: { id: string }) {
       <IconEditorDialog
         open={editorOpen}
         onOpenChange={setEditorOpen}
-        entryId={id}
+        kind={kind}
+        id={id}
+        icon={icon}
       />
     </>
   );

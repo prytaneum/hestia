@@ -11,12 +11,14 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{bail, Context, Result};
 use proto::error::EntryKind;
+use proto::icon::EntryIcon;
 use proto::keys::KeyRule;
 use proto::minecraft::{ProvisionPhase, ProvisionProgress};
 use proto::server::ServerProperty;
 use proto::tasks::ServerTask;
 use serde::{Deserialize, Serialize};
 
+use crate::icon;
 use crate::jvm::JavaSettings;
 use crate::keys::invalid;
 use crate::minecraft::launch::{self, LaunchPlan};
@@ -137,6 +139,10 @@ impl Servers {
     /// writes (jar, libraries, `eula.txt`, `server.properties`, the world).
     pub fn data_dir(&self, record: &ServerRecord) -> PathBuf {
         self.server_dir(record).join(DATA)
+    }
+
+    pub fn icon(&self, record: &ServerRecord) -> Option<EntryIcon> {
+        icon::read(&self.server_dir(record))
     }
 
     /// The `server.properties` schema derived for this server's version. Absent

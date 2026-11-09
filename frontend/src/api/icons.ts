@@ -1,65 +1,30 @@
 /**
- * Custom entry icons: desktop-local, copied into `<data_home>/icons/` by the
- * shell (`icons_*` commands) and served over the asset protocol. Keyed by the
- * entry's stable id; the disk is the registry.
+ * An entry's icon is read where the daemon keeps it, in the entry's own
+ * directory, so the shell has to let the webview at each one before its
+ * `asset:` URL resolves.
  */
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { invokeCommand } from './core/ipc';
+import type { EntryIcon } from './types/icon';
 
-/** One stored icon; `mtime` doubles as the cache-busting version. */
-export interface IconEntry {
-  path: string;
-  mtime: number;
+/** Let the webview load the entries' icons, then hand the entries back. */
+export async function allowed<T extends { icon?: EntryIcon }>(
+  entries: T[],
+): Promise<T[]> {
+  const paths = entries.flatMap((entry) =>
+    entry.icon ? [entry.icon.path] : [],
+  );
+  if (paths.length > 0) await invokeCommand('icons_allow', { paths });
+  return entries;
 }
 
-/** The generated-icon background, tagged by type; colors are `#rrggbb`. */
-export type IconBackground =
-  | { type: 'color'; value: string }
-  | {
-      type: 'linear-top-down-gradient';
-      top_color: string;
-      bottom_color: string;
-    };
-
-/** The sidecar config that produced a generated icon. */
-export interface IconConfig {
-  background: IconBackground;
-  symbol: string;
+export function url(icon: EntryIcon): string {
+  return `${convertFileSrc(icon.path)}?v=${icon.revision}`;
 }
 
-export function list(): Promise<Record<string, IconEntry>> {
-  return invokeCommand('icons_list');
-}
-
-/** Copy a picked image into the data home as `entryId`'s icon. */
-export function set(entryId: string, sourcePath: string): Promise<IconEntry> {
-  return invokeCommand('icon_set', { entryId, sourcePath });
-}
-
-export function fetch(entryId: string, url: string): Promise<IconEntry> {
-  return invokeCommand('icon_fetch', { entryId, url });
-}
-
-/** Delete the entry's icon and generation config. */
-export function remove(entryId: string): Promise<void> {
-  return invokeCommand('icon_remove', { entryId });
-}
-
-/** Store the baked `bytes` as the entry's icon, recording `config` beside them. */
-export function generate(
-  entryId: string,
-  config: IconConfig,
-  bytes: number[],
-): Promise<IconEntry> {
-  return invokeCommand('icon_set_bytes', { entryId, config, bytes });
-}
-
-/** The stored generation config, or null when the icon was picked instead. */
-export function config(entryId: string): Promise<IconConfig | null> {
-  return invokeCommand('icon_config', { entryId });
-}
-
-/** The webview-loadable URL for a stored icon. */
-export function iconUrl(entry: IconEntry): string {
-  return `${convertFileSrc(entry.path)}?v=${entry.mtime}`;
+/** The entry with the URL its icon loads from, the shape every row renders. */
+export function withUrl<T extends { icon?: EntryIcon }>(
+  entry: T,
+): T & { iconUrl?: string } {
+  return { ...entry, iconUrl: entry.icon && url(entry.icon) };
 }

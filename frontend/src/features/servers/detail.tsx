@@ -160,7 +160,7 @@ function ServerDetail({
         parentTo="/servers"
         icon={entryIcon('server')}
         iconUrl={server.iconUrl}
-        iconAction={<EntryIconMenu id={id} />}
+        iconAction={<EntryIconMenu kind="server" id={id} icon={server.icon} />}
         name={server.name}
         busy={job && <EntryJobProgress job={job} name={server.name} />}
         badges={

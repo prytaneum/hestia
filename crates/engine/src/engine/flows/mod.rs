@@ -9,6 +9,7 @@ mod content;
 mod download;
 pub use content::entry::EntryRef;
 mod flavors;
+mod icon;
 mod instance;
 
 pub use instance::LaunchRequest;

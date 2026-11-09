@@ -27,6 +27,8 @@ game rewrites ([0018](../decisions/0018-entry-root-versus-data-dir.md)).
 ```
 servers/<dir>/                    instances/<dir>/
 ├── server.json     record        ├── instance.json    record
+├── icon.<ext>      its icon      ├── icon.<ext>       its icon
+├── icon.json       if generated  ├── icon.json        if generated
 ├── schema.properties            ├── content.json     install index
 ├── content.json    install index├── modpack.json     if from a pack
 ├── modpack.json    if from a pack├── mods/ resourcepacks/ shaderpacks/
@@ -40,6 +42,14 @@ servers/<dir>/                    instances/<dir>/
 
 Directories appear on demand rather than at create, so the tree only shows what
 is in use.
+
+The **icon** is part of the entry: `icon.<ext>` (PNG, JPEG, WebP or GIF, judged by
+its bytes, at most 10 MB) and, for a generated one, `icon.json` naming its
+background and symbol. `entry.icon.set` writes it from a picked file or a PNG the
+desktop baked, an entry made from a modpack takes the pack's icon, and the server
+and instance views carry its path, a revision and the generator. Living in the
+entry root, it moves, exports and is removed with the entry
+([0107](../decisions/0107-an-entry-icon-lives-in-the-entry.md)).
 
 ## Identity: an opaque id, a readable directory
 

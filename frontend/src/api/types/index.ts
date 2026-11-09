@@ -17,6 +17,7 @@ export type * from "./format";
 export type * from "./health";
 export type * from "./hook";
 export type * from "./host";
+export type * from "./icon";
 export type * from "./image";
 export type * from "./instance";
 export type * from "./java";

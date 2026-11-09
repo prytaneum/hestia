@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { KeyRule } from '@/api/types';
-import { randomIconConfig } from '@/features/shared/entry/components/icon-editor/catalog';
+import { randomIconGenerator } from '@/features/shared/entry/components/icon-editor/catalog';
 import { detailsStepSchema } from '@/features/shared/entry/lib';
 
 const details = (over: Record<string, unknown> = {}) => ({
@@ -14,7 +14,7 @@ const details = (over: Record<string, unknown> = {}) => ({
   port: '',
   hardcore: false,
   onlineMode: true,
-  icon: randomIconConfig(),
+  icon: randomIconGenerator(),
   eula: true,
   ...over,
 });

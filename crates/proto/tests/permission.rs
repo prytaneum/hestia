@@ -71,6 +71,7 @@ const DENIED: &[&str] = &[
     "job",
     // Reach outside the plugin's grants: any path, any address, the whole cache
     "content.inspect",
+    "entry.icon.set",
     "instance.import.inspect",
     "minecraft.ping",
     "cache.info",

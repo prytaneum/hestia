@@ -78,11 +78,6 @@ export const keys = {
     list: () => [...keys.prefs.all, 'list'] as const,
     safeMode: () => [...keys.prefs.all, 'safe-mode'] as const,
   },
-  icons: {
-    all: ['icons'] as const,
-    list: () => [...keys.icons.all, 'list'] as const,
-    config: (id: string) => [...keys.icons.all, 'config', id] as const,
-  },
   cache: {
     all: ['cache'] as const,
     info: () => [...keys.cache.all, 'info'] as const,

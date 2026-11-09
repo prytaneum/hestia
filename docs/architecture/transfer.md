@@ -110,6 +110,7 @@ cozy.hestia (a zip)
 ├── hestia.instance.json    the manifest: format version, who wrote it, the record
 ├── content.json            the pool index — provenance survives the trip
 ├── modpack.json            the pack the instance runs, when it runs one
+├── icon.<ext>, icon.json   the instance's icon and, if generated, what composed it
 ├── mods/ resourcepacks/ shaderpacks/ datapacks/   local-only files
 └── data/                   the game directory: config, options.txt, saves
 ```
@@ -163,7 +164,11 @@ rather than resolving them, so the import resolves them exactly as
 `instance create` does — and an archive pinning a loader hestia has no flavor for
 is refused **by name** (`ArchiveUnsupported`), never silently installed as
 vanilla. `instance.cfg` contributes the display name and, where that instance
-overrode its launcher's defaults, its memory and JVM arguments.
+overrode its launcher's defaults, its memory and JVM arguments. Its icon comes
+too: the image `iconKey` names at the instance root, or `icon.png`, the lookup
+Prism itself makes; one that is not an image or is too large is skipped, since an
+icon only dresses the instance
+([0107](../decisions/0107-an-entry-icon-lives-in-the-entry.md)).
 
 Its `.minecraft/` becomes `data/`, and the loose jars in it are **adopted into
 the content pool** (`transfer/pool.rs`): moved to the managed directory, indexed,

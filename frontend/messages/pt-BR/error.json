@@ -47,6 +47,8 @@
       "fields_required": "{fields} são obrigatórios.",
       "hardcore_locked": "{key} fica travado em '{value}' enquanto o hardcore está ativo. Desative o hardcore primeiro.",
       "hardcore_requires": "O hardcore exige {settings}. Defina isso primeiro.",
+      "icon_not_an_image": "Um ícone precisa ser uma imagem PNG, JPEG, WebP ou GIF.",
+      "icon_too_large": "Um ícone pode ter no máximo {megabytes} MB.",
       "incompatible_version": "Este app e o daemon estão em versões diferentes (protocolo {got} vs {want}). Atualize o Hestia.",
       "internal": "{detail}",
       "invalid_value": "{reason}.",

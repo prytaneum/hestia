@@ -7,7 +7,6 @@
  * entry's prefix.
  */
 import { queryOptions } from '@tanstack/react-query';
-import { logger } from '@/lib/log';
 import { m } from '@/paraglide/messages.js';
 import type {
   EntryKind,
@@ -18,7 +17,6 @@ import type {
   ModpackTarget,
   ModpackUpdate,
 } from '../api';
-import * as icons from '../api/icons';
 import type { PackRef } from '../api/modpack';
 import * as api from '../api/modpack';
 import { mutation } from './core';
@@ -35,8 +33,6 @@ function packOutcome(title: string, done: ModpackDone): JobOutcome {
     warnings: done.warnings,
   };
 }
-
-const log = logger('modpack');
 
 /** What an install job needs: the pack, where it goes, and a server's extras. */
 interface InstallInput {
@@ -93,15 +89,11 @@ export const modpackMutations = {
     jobMutation<ModpackDone, InstallInput>({
       mutationKey: ['modpack', kind, 'install'],
       meta: () => ({ channel: `${kind}.modpack.install` }),
-      run: async ({ pack, target, eula, port }, job) => {
-        const done =
-          kind === 'server'
-            ? await api.installServer(pack, target, { eula, port }, job)
-            : await api.installInstance(pack, target, job);
-        if (target.mode === 'create') await inheritPackIcon(done);
-        return done;
-      },
-      invalidates: () => [keys.servers.all, keys.instances.all, keys.icons.all],
+      run: ({ pack, target, eula, port }, job) =>
+        kind === 'server'
+          ? api.installServer(pack, target, { eula, port }, job)
+          : api.installInstance(pack, target, job),
+      invalidates: () => [keys.servers.all, keys.instances.all],
       notify: {
         done: (done) =>
           packOutcome(
@@ -132,12 +124,3 @@ export const modpackMutations = {
       invalidates: () => invalidates(kind, id),
     }),
 };
-
-async function inheritPackIcon({ entry, pack }: ModpackDone) {
-  if (!pack.iconUrl) return;
-  try {
-    await icons.fetch(entry, pack.iconUrl);
-  } catch (error) {
-    log.warn({ entry, error }, 'modpack icon not inherited');
-  }
-}
