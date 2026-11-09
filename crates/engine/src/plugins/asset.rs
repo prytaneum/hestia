@@ -11,7 +11,7 @@ pub const MAX_ASSET_BYTES: u64 = 8 * 1024 * 1024;
 
 const SERVED_DIRS: [&str; 2] = ["assets", "themes"];
 
-const MIME_TYPES: [(&str, &str); 13] = [
+const MIME_TYPES: [(&str, &str); 15] = [
     ("css", "text/css"),
     ("woff2", "font/woff2"),
     ("woff", "font/woff"),
@@ -25,6 +25,8 @@ const MIME_TYPES: [(&str, &str); 13] = [
     ("avif", "image/avif"),
     ("svg", "image/svg+xml"),
     ("json", "application/json"),
+    ("html", "text/html"),
+    ("js", "text/javascript"),
 ];
 
 fn rejected(path: &str, reason: FileFault) -> anyhow::Error {
@@ -130,6 +132,8 @@ mod tests {
         std::fs::write(package.join("assets/icon.png"), b"png").unwrap();
         std::fs::write(package.join("themes/ember.css"), b"a{}").unwrap();
         std::fs::write(package.join("assets/notes.txt"), b"x").unwrap();
+        std::fs::write(package.join("assets/page.html"), b"<p>").unwrap();
+        std::fs::write(package.join("assets/page.js"), b"1").unwrap();
         std::fs::write(package.join("plugin.toml"), b"secret").unwrap();
         (home, plugins)
     }
@@ -161,6 +165,19 @@ mod tests {
         assert_eq!(
             plugins.asset("demo", "themes/ember.css").unwrap().mime,
             "text/css"
+        );
+    }
+
+    #[test]
+    fn a_page_and_its_script_are_served() {
+        let (_home, plugins) = install(true);
+        assert_eq!(
+            plugins.asset("demo", "assets/page.html").unwrap().mime,
+            "text/html"
+        );
+        assert_eq!(
+            plugins.asset("demo", "assets/page.js").unwrap().mime,
+            "text/javascript"
         );
     }
 
@@ -214,7 +231,7 @@ mod tests {
     fn an_unknown_extension_is_refused() {
         let (_home, plugins) = install(true);
         rejected_with(&plugins, "assets/notes.txt", FileFault::UnsupportedType);
-        rejected_with(&plugins, "assets/script.js", FileFault::UnsupportedType);
+        rejected_with(&plugins, "assets/run.exe", FileFault::UnsupportedType);
     }
 
     #[test]

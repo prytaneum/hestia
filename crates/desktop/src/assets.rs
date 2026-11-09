@@ -17,6 +17,19 @@ use crate::proxy::{self, SVG, SVG_CSP};
 
 pub const SCHEME: &str = "hestia-plugin";
 
+const HTML: &str = "text/html";
+
+/// A plugin's page runs in an opaque-origin frame, so `'self'` matches nothing:
+/// its own files are named by scheme. No network, no nested frames, no forms;
+/// `sandbox` keeps the origin opaque even if the file is opened on its own.
+const HTML_CSP: &str = "sandbox allow-scripts; default-src 'none'; \
+    script-src 'unsafe-inline' hestia-plugin: http://hestia-plugin.localhost; \
+    style-src 'unsafe-inline' hestia-plugin: http://hestia-plugin.localhost; \
+    img-src hestia-plugin: http://hestia-plugin.localhost data: blob:; \
+    font-src hestia-plugin: http://hestia-plugin.localhost data:; \
+    connect-src hestia-plugin: http://hestia-plugin.localhost; \
+    base-uri 'none'; form-action 'none'; frame-src 'none'";
+
 pub fn serve(
     ctx: UriSchemeContext<'_, tauri::Wry>,
     request: Request<Vec<u8>>,
@@ -103,6 +116,9 @@ fn asset(mime: &str, bytes: Vec<u8>) -> Response<Vec<u8>> {
     if mime == SVG {
         response = response.header(header::CONTENT_SECURITY_POLICY, SVG_CSP);
     }
+    if mime == HTML {
+        response = response.header(header::CONTENT_SECURITY_POLICY, HTML_CSP);
+    }
     response
         .body(bytes)
         .unwrap_or_else(|_| proxy::status(StatusCode::INTERNAL_SERVER_ERROR))
@@ -125,6 +141,16 @@ mod tests {
                 "{uri}"
             );
         }
+    }
+
+    #[test]
+    fn a_page_is_served_sandboxed_without_network() {
+        let response = asset(HTML, Vec::new());
+        let csp = response.headers()[header::CONTENT_SECURITY_POLICY]
+            .to_str()
+            .unwrap();
+        assert!(csp.starts_with("sandbox allow-scripts;"));
+        assert!(!csp.contains("allow-same-origin") && !csp.contains("https:"));
     }
 
     #[test]
