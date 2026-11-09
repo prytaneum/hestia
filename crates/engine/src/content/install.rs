@@ -45,7 +45,7 @@ pub(crate) fn kind_dir(kind: ContentKind) -> Result<&'static str> {
         ContentKind::ResourcePack => Ok("resourcepacks"),
         ContentKind::Shader => Ok("shaderpacks"),
         ContentKind::DataPack => Ok("datapacks"),
-        ContentKind::BehaviorPack => Ok("behaviorpacks"),
+        ContentKind::BehaviorPack => Ok("behavior_packs"),
         ContentKind::Modpack => bail!(proto::error::ErrorInfo::UnsupportedOperation {
             reason: proto::error::Unsupported::ModpackNotSingleFile
         }),

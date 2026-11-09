@@ -135,8 +135,16 @@ impl ContentProvider for Modrinth {
         } else {
             query.limit.clamp(1, 100)
         };
+        let Some(facets) = build_facets(query) else {
+            return Ok(SearchResult {
+                hits: Vec::new(),
+                offset: query.offset,
+                limit,
+                total: 0,
+            });
+        };
         let mut params: Vec<(&str, String)> = vec![
-            ("facets", build_facets(query)),
+            ("facets", facets),
             ("index", sort_index(query.sort).to_string()),
             ("offset", query.offset.to_string()),
             ("limit", limit.to_string()),
@@ -410,9 +418,9 @@ fn parse_version(source: &str, v: &Value) -> ContentVersion {
 /// Modrinth facets are a JSON array of single-element arrays (each AND'd). The
 /// loader is expressed as a `categories:` facet, as Modrinth does. Only set
 /// filters are included.
-fn build_facets(query: &SearchQuery) -> String {
+fn build_facets(query: &SearchQuery) -> Option<String> {
     let mut facets: Vec<Vec<String>> =
-        vec![vec![format!("project_type:{}", project_type(query.kind))]];
+        vec![vec![format!("project_type:{}", project_type(query.kind)?)]];
     if let Some(loader) = non_empty(&query.loader) {
         facets.push(vec![format!("categories:{loader}")]);
     }
@@ -424,17 +432,18 @@ fn build_facets(query: &SearchQuery) -> String {
             facets.push(vec![format!("categories:{category}")]);
         }
     }
-    serde_json::to_string(&facets).unwrap_or_default()
+    Some(serde_json::to_string(&facets).unwrap_or_default())
 }
 
-fn project_type(kind: ContentKind) -> &'static str {
+fn project_type(kind: ContentKind) -> Option<&'static str> {
     match kind {
-        ContentKind::Mod | ContentKind::BehaviorPack => "mod",
-        ContentKind::Modpack => "modpack",
-        ContentKind::ResourcePack => "resourcepack",
-        ContentKind::Shader => "shader",
-        ContentKind::DataPack => "datapack",
-        ContentKind::Plugin => "plugin",
+        ContentKind::Mod => Some("mod"),
+        ContentKind::Modpack => Some("modpack"),
+        ContentKind::ResourcePack => Some("resourcepack"),
+        ContentKind::Shader => Some("shader"),
+        ContentKind::DataPack => Some("datapack"),
+        ContentKind::Plugin => Some("plugin"),
+        ContentKind::BehaviorPack => None,
     }
 }
 
@@ -584,15 +593,30 @@ mod tests {
             ..SearchQuery::default()
         };
         assert_eq!(
-            build_facets(&query),
-            r#"[["project_type:mod"],["categories:fabric"],["versions:1.21.1"],["categories:optimization"]]"#
+            build_facets(&query).as_deref(),
+            Some(
+                r#"[["project_type:mod"],["categories:fabric"],["versions:1.21.1"],["categories:optimization"]]"#
+            )
         );
 
         let bare = SearchQuery {
             kind: ContentKind::Modpack,
             ..SearchQuery::default()
         };
-        assert_eq!(build_facets(&bare), r#"[["project_type:modpack"]]"#);
+        assert_eq!(
+            build_facets(&bare).as_deref(),
+            Some(r#"[["project_type:modpack"]]"#)
+        );
+
+        let bedrock = SearchQuery {
+            kind: ContentKind::BehaviorPack,
+            ..SearchQuery::default()
+        };
+        assert_eq!(
+            build_facets(&bedrock),
+            None,
+            "modrinth has no bedrock packs"
+        );
     }
 
     #[test]
