@@ -11,11 +11,20 @@ server differs from a game client.
 |---|---|---|
 | Provisioned | fully, at create | at each launch |
 | Sessions | one (a world has one authoritative writer) | many, opt-in |
-| Console | RCON | none |
+| Console | RCON (Java) or a stdin endpoint (Bedrock) | none |
 | Backups | archive/restore + scheduled task | none — [import/export](transfer.md) instead |
 | Shared settings (`sync`) | no, deliberately | yes |
 | Ports | claimed and reconciled | n/a |
 | Runs as | itself | the signed-in account |
+
+A server also has an **edition**, `java` or `bedrock`, stored on its record at
+create. Everything below that differs by edition lives in the engine's
+`edition/` module — property rules, player files and commands, console, ports,
+backups, worlds — and the daemon reports the results (`ports`, `playerLists`,
+`accepts`) on `ServerInfo`, so a front-end renders what it is told
+([0112](../decisions/0112-the-edition-is-the-first-axis.md)). A Bedrock server
+runs a native executable with no Java and no JVM settings
+([0113](../decisions/0113-a-server-runtime-is-java-or-native.md)).
 
 ## The directory layout
 
@@ -39,7 +48,9 @@ servers/<dir>/                    instances/<dir>/
 ```
 
 Directories appear on demand rather than at create, so the tree only shows what
-is in use.
+is in use. A Bedrock server's `data/` holds the unpacked BDS (`bedrock_server`,
+`server.properties`, `allowlist.json`, `permissions.json`, `worlds/`,
+`behavior_packs/`, `resource_packs/`).
 
 ## Identity: an opaque id, a readable directory
 
@@ -129,16 +140,22 @@ mid-swap" (keep) ([0023](../decisions/0023-server-phase-over-a-ready-bool.md)).
 
 ### Ports
 
-A server claims its game port at create (lowest free from 25565, or pinned) and
-its RCON console — port plus a random password — at first start. Claims are
-checked against every other record **plus a live bind probe** under the
-store's write lock, so concurrent creates can never collide.
-`ensure_start_config` reconciles them into `server.properties` before each spawn,
-preserving your edits.
+A server claims its game port at create (lowest free from 25565 for Java, 19132
+for Bedrock, or pinned). A Java server also claims an RCON console — port plus a
+random password — at first start. Claims are checked against every other record
+**plus a live bind probe** under the store's write lock, so concurrent creates
+can never collide. The edition's `configure_start` reconciles them into
+`server.properties` before each spawn, preserving your edits.
 
 RCON has no bind-address setting in vanilla, so the listener is network
 reachable; the per-server random password is the only barrier, and it never
 appears in a log.
+
+A Bedrock server binds two ports, and `ServerInfo.ports` lists every port with
+its protocol, game port first, so a front-end says what to forward. The game
+port is probed for both TCP and UDP; a second UDP port is allocated from 19133
+at each start and written, with `transport=nethernet`, into `server.properties`
+([0116](../decisions/0116-bedrock-pins-nethernet.md)).
 
 ### The properties schema
 
@@ -160,6 +177,12 @@ rather than rejecting every one
 ([0025](../decisions/0025-properties-schema-is-generated.md)). The schema decides
 which keys exist; what a value may be is a separate curated table
 ([0082](../decisions/0082-config-values-pass-one-typed-schema.md)).
+
+A **Bedrock** server cannot print its defaults, so its schema is the
+`server.properties` shipped inside the BDS zip, captured at install and refreshed
+on update. Which value a key may take is the edition's own table (`gamemode`,
+`difficulty`, `tick-distance` and the rest), and `server-port`, `server-portv6`,
+`server-udp-ports` and `transport` are managed.
 
 The same rule holds for showing them. `server.properties` (the channel) lists
 the union of the schema's keys and the live file's, each with the value in
@@ -199,6 +222,25 @@ Sessions share one `data/`, so each is pointed at its own generated Log4j2 confi
 writing `<instance>/logs/session-<seq>.log` rather than all fighting over
 `logs/latest.log`. The generated config is Log4Shell-safe by construction
 ([0039](../decisions/0039-per-session-log4j-config.md)).
+
+## Players
+
+`server.players` reads the lists from the server's own files and, for a running
+server, who is online from the console's `list`; `server.players.set` and
+`.kick` are console commands, so they need the server running. The edition
+decides what exists, and `ServerInfo.playerLists` says which lists a server
+keeps:
+
+| | Java | Bedrock |
+|---|---|---|
+| Lists | whitelist, operators, banned | allowlist, operators |
+| Files | `whitelist.json`, `ops.json`, `banned-players.json` | `allowlist.json`, `permissions.json` |
+| Add and remove | `whitelist`, `op`, `ban` commands | `allowlist add\|remove`, `op`, `deop` |
+| Ban | yes | no — BDS has no ban command |
+| Operators | by name | online players only; BDS resolves them by connection |
+
+Names are spliced into a console command, so the edition checks them first
+(Bedrock quotes them and refuses what could close the quote).
 
 ## Version updates
 
@@ -249,6 +291,11 @@ sequenceDiagram
     D->>S: rcon save-on
     Note over D,S: save-on is retried even when archiving failed
 ```
+
+A live **Bedrock** server pauses differently: `save hold`, polling `save query`
+until the world files are ready, copying each file truncated to the length the
+server reports, then `save resume`
+([0117](../decisions/0117-bedrock-hot-backups-follow-save-hold.md)).
 
 Creation skips what the launcher re-materialises — the server jar, `libraries/`,
 `logs/`, `cache/`, the managed content mirrors, transient `session.lock` files —
@@ -390,6 +437,16 @@ span more than a decade of formats, and a corrupt or mid-write one still has to
 appear in the listing, so a failure yields the folder alone with `read: false`
 ([0022](../decisions/0022-a-world-describes-itself.md)).
 
+### Bedrock worlds
+
+`server.worlds` lists a Java server's one world, or every folder under a Bedrock
+server's `worlds/`, the active (`level-name`) one first and then the most
+recently played; each is described from its own `level.dat` (little-endian NBT
+behind an 8-byte header, read in `minecraft/bedrock/nbt.rs`) with the same
+best-effort rule as a Java world. `server.worlds.import` is a job that brings a
+`.mcworld` into a stopped Bedrock server, optionally making it the active world;
+a cancel or failure leaves no partial folder, and a Java server refuses it.
+
 ## Joining directly
 
 A launch can name what the session should open: `InstanceLaunchParams.quickPlay`
@@ -447,6 +504,16 @@ therefore made *and* reported as degraded (`ServerListInUse`), rather than
 refused: the daemon cannot make the write durable, but it can say so
 ([0026](../decisions/0026-degraded-outcomes-ride-on-the-result.md)).
 
+## Known limits of Bedrock servers
+
+- The Windows stdin relay is written and builds behind `#[cfg(windows)]` but has
+  not been run on Windows; the unix FIFO is tested.
+- Only vanilla BDS ships. Endstone and LeviLamina, and CurseForge's Bedrock
+  catalogue, wait on the plugin system.
+- A BDS server record written before the edition model does not load: there is no
+  migration, because the project keeps no backwards compatibility yet.
+- No ban list (BDS has no ban command), and `op` needs the player online.
+
 ## Decisions
 
 - [0018 — The entry root is Hestia's; `data/` is the game's](../decisions/0018-entry-root-versus-data-dir.md)
@@ -464,5 +531,10 @@ refused: the daemon cannot make the write durable, but it can say so
 - [0039 — Per-session logs come from a generated Log4j2 config](../decisions/0039-per-session-log4j-config.md)
 - [0053 — Server provisioning is front-loaded by design](../decisions/0053-server-provisioning-is-front-loaded.md)
 - [0055 — The server console is RCON, not a stdin pipe](../decisions/0055-the-console-is-rcon-not-a-pipe.md)
+- [0112 — The edition is the first axis, and one module owns what each edition does](../decisions/0112-the-edition-is-the-first-axis.md)
+- [0113 — A server runtime is Java or native, and a native one never meets Java](../decisions/0113-a-server-runtime-is-java-or-native.md)
+- [0114 — A Bedrock console is a reattachable stdin endpoint](../decisions/0114-a-bedrock-console-is-a-reattachable-stdin-endpoint.md)
+- [0116 — Bedrock pins NetherNet, and status comes from the console](../decisions/0116-bedrock-pins-nethernet.md)
+- [0117 — Bedrock hot backups follow `save hold`, and copy what the server reports](../decisions/0117-bedrock-hot-backups-follow-save-hold.md)
 - [0077 — The console keeps its RCON connection, and completes from the server's own `help`](../decisions/0077-the-console-keeps-its-connection.md)
 - [0064 — A record of the user's is mutated, never rebuilt](../decisions/0064-a-record-is-mutated-not-rebuilt.md)

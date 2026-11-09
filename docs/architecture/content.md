@@ -4,7 +4,8 @@
 
 Content is everything you add to an entry that Mojang did not ship: mods,
 plugins, resourcepacks, shaders, datapacks — and modpacks, which are all of the
-above bundled with a loader and a version.
+above bundled with a loader and a version. A Bedrock server takes behaviour and
+resource packs instead ([below](#bedrock-packs)).
 
 Three layers, deliberately separate:
 
@@ -30,6 +31,15 @@ Stateless but for the API keys `configure()` hands down.
 Every platform response is mapped into the normalized `proto::content` types at
 this boundary, so a front-end never sees a platform's raw shape
 ([0010](../decisions/0010-one-content-provider-trait.md)).
+
+**A source declares the editions it serves.** `ContentProvider::editions()`
+defaults to Java, and `ContentSource.editions` carries it on `content.sources`, so
+a front-end offers a source only to entries of those editions and a daemon call
+naming the wrong one is refused (`ContentSourceEdition`). Modrinth and CurseForge
+are Java sources: Modrinth has no Bedrock content at all, and CurseForge's is a
+separate catalogue that is not wired. A source also skips the kinds it does not
+catalogue, so a mixed request does not fail per kind
+([0118](../decisions/0118-a-bedrock-pack-is-a-file-extracted-at-sync.md)).
 
 A provider also recognises its own site's project and version page URLs, so a
 pasted `modrinth.com/mod/…` or `curseforge.com/minecraft/…` link installs exactly
@@ -92,6 +102,11 @@ loader consumes, and what the **side** reads for itself.
 | vanilla server | | | | | ✓ |
 | instance on a modloader | ✓ | | ✓ | ✓ | ✓ |
 | vanilla instance | | | ✓ | ✓ | ✓ |
+| Bedrock server | | | ✓ (+ behaviour packs) | | |
+
+The edition supplies the base set: a Java server reads datapacks, an instance
+reads resourcepacks and shaders, and a Bedrock server reads behaviour packs and
+resourcepacks. That set plus the flavor's loader is `accepts`.
 
 A refusal carries the accepted set rather than a sentence, and `ServerInfo` /
 `InstanceInfo` carry `accepts` on the wire so no front-end keeps its own copy
@@ -250,6 +265,23 @@ every mirror unless narrowed. The client-side support flag is waived for
 datapacks: a datapack runs on a world's server side, including a client's
 integrated server ([0016](../decisions/0016-datapacks-are-world-of-record.md)).
 
+## Bedrock packs
+
+A Bedrock add-on is a `.mcpack` or `.mcaddon` zip, and BDS loads folders listed
+per world by pack uuid. The pack **file** is still the item of record, so sha1,
+provenance, pin, enable and removal work as for a mod: behaviour packs live in the
+managed `behavior_packs/`, resource packs in the existing `resourcepacks/`, and a
+`.mcaddon` is split into its packs on install. Packs come from a local file or a
+direct link, since no Bedrock source is wired yet.
+
+At each start the entry's sync extracts every enabled pack into
+`data/behavior_packs/<uuid>/` or `data/resource_packs/<uuid>/` (marked with a
+`.hestia` file) and rewrites the world's `world_behavior_packs.json` or
+`world_resource_packs.json`. Only Hestia's own uuids are touched there: packs
+the server ships (recorded in `.bds-packs` at install) and packs a user dropped
+in are left as found, and the latter show as untracked
+([0118](../decisions/0118-a-bedrock-pack-is-a-file-extracted-at-sync.md)).
+
 ## Modpacks
 
 A pack installs into a new or existing server or instance from a project, a page
@@ -394,3 +426,4 @@ update *does* carry the game version with it — that is what updating a pack me
 - [0075 — A local file is identified by its hash](../decisions/0075-a-local-file-is-identified-by-its-hash.md)
 - [0076 — A pack file is identified wherever it came from](../decisions/0076-a-pack-file-is-identified-wherever-it-came-from.md)
 - [0078 — A pack updates from a file, and leaves an entry two ways](../decisions/0078-a-pack-updates-from-a-file.md)
+- [0118 — A Bedrock pack is a file of record, extracted at sync](../decisions/0118-a-bedrock-pack-is-a-file-extracted-at-sync.md)
