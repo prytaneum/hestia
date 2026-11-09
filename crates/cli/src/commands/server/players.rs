@@ -4,6 +4,7 @@
 
 use anyhow::Result;
 use clap::Subcommand;
+use client::proto::minecraft::Edition;
 use client::proto::players::{PlayerEntry, PlayerList};
 use client::Client;
 
@@ -80,6 +81,7 @@ pub(super) async fn run(client: &Client, server: &str, cmd: PlayersCmd) -> Resul
 
 async fn list(client: &Client, server: &str) -> Result<()> {
     let players = client.players().list(server).await?;
+    let info = client.server().status(server).await?;
     let names = |entries: &[PlayerEntry]| match entries.is_empty() {
         true => "—".to_string(),
         false => entries
@@ -88,10 +90,17 @@ async fn list(client: &Client, server: &str) -> Result<()> {
             .collect::<Vec<_>>()
             .join(", "),
     };
-    ui::show(View::detail([
-        ("online", names(&players.online)),
-        ("whitelist", names(&players.whitelist)),
-        ("operators", names(&players.ops)),
-        ("banned", names(&players.banned)),
-    ]))
+    let allow_label = match info.edition {
+        Edition::Java => "whitelist",
+        Edition::Bedrock => "allowlist",
+    };
+    let mut rows = vec![("online", names(&players.online))];
+    for list in &info.player_lists {
+        rows.push(match list {
+            PlayerList::Whitelist => (allow_label, names(&players.whitelist)),
+            PlayerList::Ops => ("operators", names(&players.ops)),
+            PlayerList::Banned => ("banned", names(&players.banned)),
+        });
+    }
+    ui::show(View::detail(rows))
 }

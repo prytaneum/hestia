@@ -10,7 +10,9 @@ use std::collections::HashMap;
 use anyhow::Result;
 use client::proto::error::EntryKind;
 use client::proto::instance::InstanceInfo;
-use client::proto::minecraft::{ConfigEntry, Flavor, GameVersion, ProvisionProgress, VersionKind};
+use client::proto::minecraft::{
+    ConfigEntry, Edition, Flavor, GameVersion, ProvisionProgress, VersionKind,
+};
 use client::proto::server::{ServerCreateParams, ServerDone};
 use client::Client;
 use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
@@ -290,6 +292,7 @@ impl WizardScreen {
                 first = 2;
             }
         }
+        screen.fields = screen.applicable_fields();
         screen.step = first;
         screen.first_step = first;
         screen.entered_step();
@@ -301,6 +304,21 @@ impl WizardScreen {
             i if i < STEPS.len() => STEPS[i],
             _ => Step::Working,
         }
+    }
+
+    /// A Bedrock server is not a JVM process, so it has no memory to size.
+    fn applicable_fields(&self) -> Vec<Field> {
+        let bedrock = self
+            .seed
+            .flavors
+            .iter()
+            .any(|f| f.id == self.flavor && f.edition == Edition::Bedrock);
+        self.seed
+            .fields
+            .iter()
+            .filter(|f| !(bedrock && f.key == "memory"))
+            .cloned()
+            .collect()
     }
 
     fn default_name(&self) -> String {
@@ -524,6 +542,7 @@ impl Screen for WizardScreen {
                 KeyCode::Enter => {
                     if !self.seed.flavors.is_empty() {
                         self.flavor = self.seed.flavors[self.flavor_list.selected()].id.clone();
+                        self.fields = self.applicable_fields();
                         self.advance();
                     }
                 }

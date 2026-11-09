@@ -7,8 +7,9 @@ use anyhow::{bail, Context, Result};
 use clap::Subcommand;
 use client::proto::backup::BackupInfo;
 use client::proto::error::{EntryKind, EntryTarget};
+use client::proto::instance::WorldInfo;
 use client::proto::minecraft::{
-    ConfigEntry, Flavor, GameVersion, ProvisionPhase, ProvisionProgress, VersionKind,
+    ConfigEntry, Edition, Flavor, GameVersion, ProvisionPhase, ProvisionProgress, VersionKind,
 };
 use client::proto::process::{ProcessInfo, ProcessState};
 use client::Client;
@@ -260,7 +261,19 @@ pub fn playtime_label(seconds: i64) -> String {
 
 pub async fn fetch_flavors(client: &Client, kind: EntryKind) -> Result<Vec<Flavor>> {
     let _spinner = Spinner::start("fetching flavors");
-    Ok(client.entry().flavors(kind).await?)
+    Ok(java_first(client.entry().flavors(kind).await?))
+}
+
+fn java_first(mut flavors: Vec<Flavor>) -> Vec<Flavor> {
+    flavors.sort_by_key(|f| f.edition == Edition::Bedrock);
+    flavors
+}
+
+pub fn edition_label(edition: Edition) -> &'static str {
+    match edition {
+        Edition::Java => "java",
+        Edition::Bedrock => "bedrock",
+    }
 }
 
 pub async fn fetch_versions(
@@ -379,6 +392,7 @@ fn show_flavors(flavors: &[Flavor]) -> Result<()> {
             vec![
                 f.id.clone(),
                 f.name.clone(),
+                edition_label(f.edition).into(),
                 accepts_label(f),
                 flavor_detail(f),
             ]
@@ -386,7 +400,7 @@ fn show_flavors(flavors: &[Flavor]) -> Result<()> {
         .collect();
     ui::show(View::table(
         "flavors",
-        ["ID", "NAME", "TAKES", "SUMMARY"],
+        ["ID", "NAME", "EDITION", "TAKES", "SUMMARY"],
         rows,
     ))
 }
@@ -394,7 +408,11 @@ fn show_flavors(flavors: &[Flavor]) -> Result<()> {
 /// One selector line: the name and what it takes; the daemon's summary is the
 /// row's second line.
 pub fn flavor_label(flavor: &Flavor) -> String {
-    format!("{} ({})", flavor.name, accepts_label(flavor))
+    let edition = match flavor.edition {
+        Edition::Java => "",
+        Edition::Bedrock => "Bedrock · ",
+    };
+    format!("{edition}{} ({})", flavor.name, accepts_label(flavor))
 }
 
 /// The summary, prefixed with anything this machine is missing — a flavor that
@@ -461,5 +479,46 @@ pub fn kind_label(kind: VersionKind) -> &'static str {
         VersionKind::Snapshot => "snapshot",
         VersionKind::OldBeta => "beta",
         VersionKind::OldAlpha => "alpha",
+    }
+}
+
+/// The world's game mode, with the flags that change how it plays.
+pub fn world_mode_label(world: &WorldInfo) -> String {
+    if !world.read {
+        return "unreadable".into();
+    }
+    let mut label = world.game_mode.to_string();
+    if world.hardcore {
+        label.push_str(" hardcore");
+    } else {
+        label = format!("{label} ({})", world.difficulty);
+    }
+    if world.cheats {
+        label.push_str(" +cheats");
+    }
+    label
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn flavor(id: &str, edition: Edition) -> Flavor {
+        Flavor {
+            id: id.into(),
+            edition,
+            ..Flavor::default()
+        }
+    }
+
+    #[test]
+    fn java_leads_and_order_is_kept_within_an_edition() {
+        let sorted = java_first(vec![
+            flavor("bedrock", Edition::Bedrock),
+            flavor("vanilla", Edition::Java),
+            flavor("paper", Edition::Java),
+        ]);
+        let ids: Vec<_> = sorted.iter().map(|f| f.id.as_str()).collect();
+        assert_eq!(ids, ["vanilla", "paper", "bedrock"]);
     }
 }
