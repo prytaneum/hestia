@@ -3,6 +3,7 @@
 //! no state of its own, but the catalogue readers keep regenerable copies of
 //! what they fetch under `meta/`, and NeoForge keeps the installer it resolves from.
 
+pub(crate) mod bedrock;
 mod fabric;
 pub(crate) mod launch;
 pub(crate) mod log4j;
@@ -52,6 +53,7 @@ impl Default for Minecraft {
                 Box::new(spigot::BuildTools::spigot()),
                 Box::new(spigot::BuildTools::bukkit()),
                 Box::new(neoforge::NeoForge),
+                Box::new(bedrock::Bedrock),
             ],
         }
     }

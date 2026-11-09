@@ -3,7 +3,7 @@
 //! none (import/export is the intended replacement, not yet built); the daemon
 //! admits one job per entry at a time.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
 use proto::backup::{BackupInfo, BackupKind};
@@ -11,7 +11,9 @@ use proto::minecraft::{ProvisionPhase, ProvisionProgress};
 
 use crate::backup;
 use crate::engine::Engine;
+use crate::minecraft::bedrock;
 use crate::minecraft::materialize::OnProgress;
+use crate::minecraft::profile::ServerRuntime;
 use crate::servers::ServerRecord;
 
 impl Engine {
@@ -34,7 +36,7 @@ impl Engine {
             self.servers.server_dir(&record),
             self.servers.data_dir(&record),
             kind,
-            server_backup_excludes(&record),
+            server_backup_excludes(&record, &self.servers.data_dir(&record)),
             on_progress,
         )
         .await;
@@ -70,7 +72,7 @@ impl Engine {
             self.servers.server_dir(&record),
             self.servers.data_dir(&record),
             backup.to_string(),
-            server_backup_excludes(&record),
+            server_backup_excludes(&record, &self.servers.data_dir(&record)),
             on_progress,
         )
         .await
@@ -137,15 +139,21 @@ impl Engine {
 /// first run — and the managed content mirrors (`mods/`, `plugins/`), which the
 /// sync pass re-creates from the entry root at the next start. Transient
 /// `session.lock` files are omitted by the archive walker at every depth.
-fn server_backup_excludes(record: &ServerRecord) -> Vec<String> {
-    vec![
-        record.profile.runtime.filename().to_string(),
-        "libraries".into(),
-        "logs".into(),
-        "cache".into(),
-        "mods".into(),
-        "plugins".into(),
-    ]
+fn server_backup_excludes(record: &ServerRecord, data: &Path) -> Vec<String> {
+    let installed = match record.profile.runtime {
+        ServerRuntime::Java { .. } => vec![record.profile.runtime.filename().to_string()],
+        ServerRuntime::Native { .. } => bedrock::binaries(data),
+    };
+    installed
+        .into_iter()
+        .chain([
+            "libraries".into(),
+            "logs".into(),
+            "cache".into(),
+            "mods".into(),
+            "plugins".into(),
+        ])
+        .collect()
 }
 
 /// Run a blocking archive pass off-thread, forwarding its per-file ticks to

@@ -2,7 +2,6 @@
 //! piston-meta catalogue and the Fabric Meta API. Fetch + parse only; the
 //! providers assemble the results into launch profiles.
 
-#[allow(dead_code)] // shortcut: unused until the bedrock provider lands, drop with it
 pub mod bedrock;
 pub mod fabric;
 pub mod mojang;
