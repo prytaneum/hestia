@@ -25,13 +25,18 @@ import { GrantList } from './plugin-grant';
 interface Candidate {
   source: PluginPackage;
   inspection: PluginInspection;
+  dev: boolean;
 }
 
 /** A link's package was downloaded by the inspect; install that file, not the link again. */
-function installTarget({ source, inspection }: Candidate): PluginInstallTarget {
-  return 'path' in source
-    ? { path: source.path }
-    : { staged: inspection.staged ?? '' };
+function installTarget({
+  source,
+  inspection,
+  dev,
+}: Candidate): PluginInstallTarget {
+  if ('path' in source)
+    return dev ? { path: source.path, dev } : { path: source.path };
+  return { staged: inspection.staged ?? '' };
 }
 
 /**
@@ -62,10 +67,10 @@ export function usePluginInstall() {
       });
   };
 
-  const start = async (source: PluginPackage) => {
+  const start = async (source: PluginPackage, dev = false) => {
     try {
       const inspection = await inspect.mutateAsync(source);
-      const candidate = { source, inspection };
+      const candidate = { source, inspection, dev };
       if (approvalDialog(inspection).complete) await approve(candidate);
       else setReview(candidate);
     } catch (error) {

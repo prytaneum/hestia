@@ -124,7 +124,9 @@ export type PluginPackage =
   | { repo: string; plugin: string };
 
 /** A local package by its path, or a downloaded one by its inspection's `staged` token. */
-export type PluginInstallTarget = { path: string } | { staged: string };
+export type PluginInstallTarget =
+  | { path: string; dev?: true }
+  | { staged: string };
 
 /** What installing the package would grant; runs none of it. */
 export function inspect(source: PluginPackage): Promise<PluginInspection> {

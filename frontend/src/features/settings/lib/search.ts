@@ -23,6 +23,8 @@ export type SettingsGroup =
   | 'general'
   | 'appearance'
   | 'updates'
+  | 'advanced'
+  | 'plugin-developer'
   | 'java-defaults'
   | 'java-runtimes'
   | 'content-sources'
@@ -101,6 +103,16 @@ const INDEX: Entry[] = [
       m['settings.tutorial.label'],
       m['settings.tutorial.hint'],
       m['settings.tutorial.replay'],
+    ),
+  },
+  {
+    id: 'developer',
+    tab: 'general',
+    group: 'advanced',
+    text: text(
+      m['settings.advanced'],
+      m['settings.developer.label'],
+      m['settings.developer.description'],
     ),
   },
   {
@@ -210,6 +222,16 @@ const INDEX: Entry[] = [
       m['settings.plugins.install_file'],
       m['settings.plugins.install_link'],
       m['settings.plugins.tabs.browse'],
+    ),
+  },
+  {
+    id: 'plugin-developer',
+    tab: 'plugins',
+    group: 'plugin-developer',
+    text: text(
+      m['settings.plugins.developer.title'],
+      m['settings.plugins.developer.hint'],
+      m['settings.plugins.developer.load'],
     ),
   },
   {

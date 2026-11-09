@@ -5,6 +5,7 @@ export {
   describeApproval,
   describeGrant,
 } from './approval';
+export { appendDevLog, type DevLogLine } from './dev-log';
 export {
   firstTabWithMatch,
   SETTINGS_TABS,

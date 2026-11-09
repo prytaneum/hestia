@@ -64,6 +64,12 @@ export async function pickInstanceArchive(): Promise<string[]> {
 /** Pick one modpack file and return its absolute path, or null when dismissed. */
 export const pickPackFile = () => pickOne('Modpacks', ['mrpack', 'zip']);
 
+/** Pick one folder and return its absolute path, or null when dismissed. */
+export async function pickFolder(): Promise<string | null> {
+  const selection = await open({ multiple: false, directory: true });
+  return typeof selection === 'string' ? selection : null;
+}
+
 /** The plugin package extension. */
 export const PLUGIN_EXTENSIONS = ['hplugin'];
 

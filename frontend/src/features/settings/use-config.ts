@@ -14,6 +14,7 @@ export interface ModpackConfig {
 interface ConfigEntries {
   home?: string;
   autostart?: boolean;
+  developer?: boolean;
   defaults?: { memory?: string; 'jvm-args'?: string };
   content?: { 'curseforge-key'?: string };
   discord?: { enabled?: boolean };

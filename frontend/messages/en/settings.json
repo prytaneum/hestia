@@ -156,6 +156,19 @@
         "secret_set": "Set. Type to replace",
         "secret_unset": "Not set",
         "title": "Settings"
+      },
+      "developer": {
+        "title": "Developer",
+        "hint": "Plugins loaded from a folder run in place and reload when their files change.",
+        "load": "Load folder",
+        "reload": "Reload",
+        "empty": "No plugin is loaded from a folder.",
+        "logs": "Log",
+        "log_empty": "No output yet.",
+        "stats": "{calls} calls, {traps} traps, {timeouts} timeouts",
+        "digest": "Grant digest",
+        "cache": "Component cache",
+        "error_chain": "Error chain"
       }
     },
     "search_empty": "No setting matches “{query}”.",
@@ -229,6 +242,11 @@
       "restart_required": "Update installed — restart Hestia to run it",
       "title": "Updates",
       "up_to_date": "Hestia is up to date"
+    },
+    "advanced": "Advanced",
+    "developer": {
+      "label": "Developer mode",
+      "description": "Shows the plugin authoring tools: load a plugin from a folder, watch its log and see extra diagnostics. Turning it off disables plugins loaded from a folder."
     }
   }
 }

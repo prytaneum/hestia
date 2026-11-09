@@ -12,6 +12,7 @@ type Tree = Record<string, unknown>;
 const settings: Tree = {
   home: HOME,
   autostart: false,
+  developer: false,
   defaults: { memory: '4G', 'jvm-args': '' },
   content: { 'curseforge-key': '' },
   discord: { enabled: true },

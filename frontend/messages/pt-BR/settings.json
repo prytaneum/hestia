@@ -156,6 +156,19 @@
         "secret_set": "Definido. Digite para substituir",
         "secret_unset": "Não definido",
         "title": "Configurações"
+      },
+      "developer": {
+        "title": "Desenvolvedor",
+        "hint": "Plugins carregados de uma pasta rodam no lugar e recarregam quando seus arquivos mudam.",
+        "load": "Carregar pasta",
+        "reload": "Recarregar",
+        "empty": "Nenhum plugin carregado de uma pasta.",
+        "logs": "Log",
+        "log_empty": "Nenhuma saída ainda.",
+        "stats": "{calls} chamadas, {traps} falhas, {timeouts} tempos esgotados",
+        "digest": "Resumo das permissões",
+        "cache": "Cache de componentes",
+        "error_chain": "Cadeia de erros"
       }
     },
     "search_empty": "Nenhuma configuração corresponde a “{query}”.",
@@ -229,6 +242,11 @@
       "restart_required": "Atualização instalada — reinicie o Hestia para usá-la",
       "title": "Atualizações",
       "up_to_date": "O Hestia está atualizado"
+    },
+    "advanced": "Avançado",
+    "developer": {
+      "label": "Modo desenvolvedor",
+      "description": "Mostra as ferramentas para criar plugins: carregar um plugin de uma pasta, acompanhar seu log e ver diagnósticos extras. Desativar o modo desativa os plugins carregados de uma pasta."
     }
   }
 }

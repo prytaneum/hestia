@@ -153,6 +153,18 @@ export function GeneralTab() {
         </Setting>
       </SettingsSection>
 
+      <SettingsSection group="advanced" legend={m['settings.advanced']()}>
+        <Setting id="developer">
+          <SwitchRow
+            id="developer-mode"
+            label={m['settings.developer.label']()}
+            description={m['settings.developer.description']()}
+            checked={entries.developer ?? false}
+            onChange={(checked) => commit('developer', checked)}
+          />
+        </Setting>
+      </SettingsSection>
+
       <SettingsSection group="appearance" legend={m['settings.appearance']()}>
         <Setting id="theme">
           <ThemeField />
