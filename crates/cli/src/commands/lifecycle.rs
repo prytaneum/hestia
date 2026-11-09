@@ -6,19 +6,35 @@
 //! common actions do not force the caller to first recall which kind a name is.
 
 use anyhow::{bail, Result};
-use client::proto::error::{EntryKind, EntryTarget};
-use client::{Client, ProcessEvent};
+use client::proto::error::{EntryKind, EntryTarget, ErrorInfo};
+use client::{Client, IpcError, ProcessEvent};
 
 use super::{connect, instance, mc, server};
 use crate::ui::{self, Spinner, View};
 
 /// Resolve a name (or id) to the single server or instance it identifies,
-/// erroring when it matches both or neither.
+/// erroring when it matches both or neither. A signed-out account refuses the
+/// instance list, which only matters when the name is not a server.
 async fn resolve(client: &Client, name: &str) -> Result<EntryKind> {
     let servers = client.server().list().await?;
     let is_server = mc::find_by_reference(servers, name, |s| (&s.id, &s.name)).is_some();
-    let instances = client.instance().list().await?;
-    let is_instance = mc::find_by_reference(instances, name, |i| (&i.id, &i.name)).is_some();
+    let instances =
+        client.instance().list().await.map(|instances| {
+            mc::find_by_reference(instances, name, |i| (&i.id, &i.name)).is_some()
+        });
+    classify(name, is_server, instances)
+}
+
+fn classify(name: &str, is_server: bool, instances: Result<bool, IpcError>) -> Result<EntryKind> {
+    let is_instance = match instances {
+        Ok(is_instance) => is_instance,
+        Err(error)
+            if is_server && matches!(client::error_info(&error), ErrorInfo::SignInRequired) =>
+        {
+            false
+        }
+        Err(error) => return Err(error.into()),
+    };
     match (is_server, is_instance) {
         (true, false) => Ok(EntryKind::Server),
         (false, true) => Ok(EntryKind::Instance),
