@@ -154,9 +154,11 @@ function AddPlayer({
 export function ServerPlayersTab({
   id,
   running,
+  lists: kept,
 }: {
   id: string;
   running: boolean;
+  lists: PlayerList[];
 }) {
   const players = useQuery(playersQueries.list(id, running));
   const set = useMutation(playersMutations.set(id));
@@ -180,10 +182,8 @@ export function ServerPlayersTab({
     ops,
     banned,
   };
-  const views: View[] = running
-    ? ['online', 'whitelist', 'ops', 'banned']
-    : ['whitelist', 'ops', 'banned'];
-  const view = views.includes(chosen) ? chosen : 'whitelist';
+  const views: View[] = running ? ['online', ...kept] : kept;
+  const view = views.includes(chosen) ? chosen : views[0];
 
   const entries = lists[view];
   const needle = search.trim().toLowerCase();

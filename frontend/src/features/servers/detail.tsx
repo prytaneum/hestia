@@ -355,7 +355,11 @@ function ServerDetail({
         />
 
         <TabsContent value="players" className="flex min-h-0 flex-col p-5">
-          <ServerPlayersTab id={id} running={running} />
+          <ServerPlayersTab
+            id={id}
+            running={running}
+            lists={server.playerLists}
+          />
         </TabsContent>
 
         <TabsContent value="files" className="flex min-h-0 flex-col p-5">
