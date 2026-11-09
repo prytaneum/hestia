@@ -247,7 +247,43 @@ fn action(
 }
 ```
 
-No published example plugin has a page yet.
+The [`dashboard`](https://github.com/prytaneum/plugin-examples/tree/main/plugins/dashboard) example has a `nav` page that lists every entry and an `entry` tab on each
+server with a form. Its form and save action, from `plugins/dashboard/src/lib.rs`:
+
+```rust
+fn notes(entry: &str) -> Result<UiNode, Error> {
+    let note = hestia::data::load::<String>(entry)?.unwrap_or_default();
+    Ok(ui::stack([
+        ui::heading("Notes", 1),
+        ui::form(
+            "note",
+            [FormField::Text {
+                name: "note".into(),
+                label: "Note".into(),
+                value: note,
+            }],
+            "Save",
+            "save",
+        ),
+    ]))
+}
+```
+
+```rust
+("notes", "save") => {
+    let entry = context
+        .entry
+        .ok_or_else(|| Error::Invalid("no entry".into()))?;
+    hestia::data::save(&entry, &values["note"])?;
+    Ok(vec![
+        Effect::Toast {
+            tone: Tone::Success,
+            text: "Note saved".into(),
+        },
+        Effect::Refresh,
+    ])
+}
+```
 
 ## How each front-end draws it
 

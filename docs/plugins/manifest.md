@@ -140,7 +140,7 @@ required = true
 help = ""
 ```
 
-No example plugin contributes a command; the fields are `proto::plugin::CommandContribution` and `CommandArg`. A scoped
+The `hello` example declares one; the fields are `proto::plugin::CommandContribution` and `CommandArg`. A scoped
 command may not take a built-in verb of its scope as its id (`ReservedCommand`), and may not declare an argument named
 `entry` (`ReservedArg`). Argument names are slugs, unique per command. See [commands.md](commands.md).
 
@@ -187,7 +187,7 @@ slot = "entry"            # nav (default), entry or settings
 kind = "server"           # required when slot = "entry": server or instance
 ```
 
-No example plugin contributes a page; the fields are `PageContribution`. The icon names are listed in
+The `dashboard` example declares a `nav` and an `entry` page; the fields are `PageContribution`. The icon names are listed in
 [ui.md](ui.md#declaring-a-page). An `entry` page without a `kind` is
 `PageNeedsKind`. An icon path is checked like any package path.
 

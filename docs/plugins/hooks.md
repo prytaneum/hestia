@@ -30,7 +30,8 @@ permissions = ["launch:patch", "account:read"]
 hooks = ["before-launch"]
 ```
 
-No example plugin declares a hook; this manifest is written from `proto::hook::BeforeLaunch`.
+Source: `plugins/launch-flags/plugin.toml`. The [`launch-flags`](https://github.com/prytaneum/plugin-examples/tree/main/plugins/launch-flags) example adds garbage collector
+flags chosen by a `select` setting.
 
 ## Answering
 
@@ -57,6 +58,27 @@ impl hestia::Plugin for Tuner {
 }
 
 hestia::plugin!(Tuner);
+```
+
+The same shape in `plugins/launch-flags/src/lib.rs`, reading the plugin's setting:
+
+```rust
+call.on::<BeforeLaunch>(|context| {
+    let collector = hestia::settings::get::<String>("collector")
+        .ok()
+        .flatten()
+        .unwrap_or_default();
+    let flags: &[&str] = match collector.as_str() {
+        "zgc" => &["-XX:+UseZGC"],
+        _ => &["-XX:+UseG1GC", "-XX:MaxGCPauseMillis=130"],
+    };
+    hestia::log::info(&format!("{collector} flags for {}", context.instance_name));
+    Ok(LaunchPatch {
+        extra_jvm_args: flags.iter().map(|flag| flag.to_string()).collect(),
+        ..LaunchPatch::default()
+    })
+})
+.finish()
 ```
 
 A point no handler takes adds nothing. A context that does not decode is logged and answered as no patch.

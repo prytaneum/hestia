@@ -56,7 +56,7 @@ command reference is in [cli.md](../cli.md#launcher-plugins).
 
 Example plugins live in [prytaneum/plugin-examples](https://github.com/prytaneum/plugin-examples)
 ([0103](../decisions/0103-example-plugins-live-in-their-own-repository.md)): `hello`, `static-index`, `tunnel-demo`,
-`discord-presence` and the `theme-ember-night` theme. Every Rust sample in this guide names the file it comes from. A
+`launch-flags`, `dashboard`, `discord-presence` and the `theme-ember-night` theme. Every Rust sample in this guide names the file it comes from. A
 feature with no compiled example is documented from its manifest and the SDK signature only, and says so.
 
 ## Licensing

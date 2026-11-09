@@ -2,8 +2,8 @@
 
 A plugin adds commands to the CLI and the desktop. The manifest's `[[contributes.commands]]` is the schema: the daemon
 checks every call's arguments against it before the plugin runs, so the plugin receives only declared, correctly typed
-arguments. No example plugin contributes a command yet; the manifest below is written from
-`proto::plugin::CommandContribution`, and the Rust is the engine test fixture `probe`.
+arguments. The [`hello`](https://github.com/prytaneum/plugin-examples/tree/main/plugins/hello) example contributes one; the longer handler below is the engine
+test fixture `probe`.
 
 ## Declaring one
 
@@ -12,14 +12,14 @@ arguments. No example plugin contributes a command yet; the manifest below is wr
 id = "greet"
 title = "Greet"
 description = "Say hello"
-scope = "top"
 
 [[contributes.commands.args]]
 name = "name"
 kind = "string"
-required = true
 help = "Who to greet"
 ```
+
+Source: `plugins/hello/plugin.toml`. `hestia hello greet --name Bob` answers `hello, Bob`.
 
 | Key | Meaning |
 |---|---|
@@ -60,6 +60,20 @@ entry is not claimed while the command runs: a command that must exclude other w
 `Plugin::run(command, args)` receives the command id and the arguments object, and returns a JSON value. `hestia::args`
 reads the object into a struct and refuses a mismatch with the declaration as `Error::Invalid`. Progress goes through
 `hestia::progress::report(fraction, message)`, and a long command polls `hestia::progress::cancelled()`.
+
+```rust
+fn run(command: &str, args: Value) -> Result<Value, Error> {
+    match command {
+        "greet" => {
+            let name = args["name"].as_str().unwrap_or("world");
+            Ok(json!(format!("hello, {name}")))
+        }
+        _ => Err(Error::NotFound(format!("unknown command `{command}`"))),
+    }
+}
+```
+
+Source: `plugins/hello/src/lib.rs`. A command that reports progress and honours a cancel:
 
 ```rust
 fn run(command: &str, args: Value) -> Result<Value, Error> {
