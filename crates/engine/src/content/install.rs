@@ -17,6 +17,7 @@ use proto::content::{
 use serde::{Deserialize, Serialize};
 use sha1::Sha1;
 
+use super::bedrock;
 use crate::checksum;
 use crate::registry;
 use crate::schema::{self, Document};
@@ -118,6 +119,9 @@ fn place(
     worlds: &[String],
     excluded: bool,
 ) -> Result<(u32, u32)> {
+    if bedrock::is_pack_item(item) {
+        return Ok((0, 0));
+    }
     let managed = managed_path(entry_dir, item)?;
     let wanted: HashSet<PathBuf> = match excluded {
         true => HashSet::new(),

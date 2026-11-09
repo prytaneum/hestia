@@ -108,6 +108,7 @@ impl FlavorProvider for Bedrock {
             .await
             .context("the Bedrock install task panicked")??;
         on.check()?;
+        crate::content::bedrock::record_shipped(root);
         std::fs::write(root.join(STAMP), version).context("cannot write the install stamp")?;
         let _ = std::fs::remove_file(&archive);
         tracing::info!(version, "bedrock server installed");
@@ -172,10 +173,14 @@ pub fn binaries(data: &Path) -> Vec<String> {
         .filter(|e| e.path().is_file())
         .filter_map(|e| e.file_name().into_string().ok())
         .filter(|n| n.ends_with(".dll") || n.contains(".so"));
-    [EXECUTABLE.to_string(), STAMP.to_string()]
-        .into_iter()
-        .chain(libraries)
-        .collect()
+    [
+        EXECUTABLE.to_string(),
+        STAMP.to_string(),
+        crate::content::bedrock::SHIPPED.to_string(),
+    ]
+    .into_iter()
+    .chain(libraries)
+    .collect()
 }
 
 #[cfg(test)]

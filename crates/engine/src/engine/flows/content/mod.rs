@@ -194,6 +194,9 @@ impl Engine {
                     id: record.id,
                     name: record.name,
                     game_version: record.profile.game_version,
+                    edition: self
+                        .minecraft()
+                        .edition(Side::Server, &record.profile.flavor),
                     flavor: record.profile.flavor,
                     side: Side::Server,
                 })
@@ -206,6 +209,9 @@ impl Engine {
                     id: record.id,
                     name: record.name,
                     game_version: record.profile.game_version,
+                    edition: self
+                        .minecraft()
+                        .edition(Side::Client, &record.profile.flavor),
                     flavor: record.profile.flavor,
                     side: Side::Client,
                 })

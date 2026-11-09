@@ -11,13 +11,14 @@ use proto::content::{
     DependencyKind, InstalledContent, LOCAL_SOURCE,
 };
 use proto::error::ErrorInfo;
-use proto::minecraft::ProvisionPhase;
+use proto::minecraft::{Artifact, ProvisionPhase};
+use uuid::Uuid;
 
 use super::super::download::Download;
 use super::entry::{content_target, datapack_worlds, side_gate, EntryContent};
 use super::phase_progress;
 use crate::content::pool::Pool;
-use crate::content::{inspect, install, record, Identified, LocalFile};
+use crate::content::{bedrock, inspect, install, record, Identified, LocalFile};
 use crate::engine::Engine;
 use crate::minecraft::materialize::{self, OnProgress};
 
@@ -57,6 +58,7 @@ impl Engine {
         let mut failures = Vec::new();
         let mut roots = Vec::new();
         let mut files = Vec::new();
+        let mut items = Vec::new();
         for item in &spec.items {
             let picked = [&item.project, &item.url, &item.path]
                 .iter()
@@ -80,13 +82,26 @@ impl Engine {
                         pin: parsed.version.unwrap_or_else(|| item.version.clone()),
                         project: parsed.project,
                     }),
-                    None => failures.push(failure(
-                        &item.url,
-                        "",
-                        ErrorInfo::UnsupportedContentUrl {
-                            url: item.url.clone(),
-                        },
-                    )),
+                    None => match bedrock::url_filename(&item.url) {
+                        Some(filename) => {
+                            match self
+                                .add_downloaded_packs(ctx, &item.url, &filename, on_progress)
+                                .await
+                            {
+                                Ok(mut packs) => items.append(&mut packs),
+                                Err(e) => {
+                                    failures.push(failure(&item.url, "", crate::error_info(e)))
+                                }
+                            }
+                        }
+                        None => failures.push(failure(
+                            &item.url,
+                            "",
+                            ErrorInfo::UnsupportedContentUrl {
+                                url: item.url.clone(),
+                            },
+                        )),
+                    },
                 }
             } else if !item.project.is_empty() {
                 roots.push(PlatformRoot {
@@ -103,7 +118,6 @@ impl Engine {
             }
         }
 
-        let mut items = Vec::new();
         let tracked_from = |item: &ContentAddItem| match item.source.is_empty() {
             true => spec.source.clone(),
             false => item.source.clone(),
@@ -120,6 +134,14 @@ impl Engine {
         }
         let identified = self.content.identify(&hashed).await;
         for (item, file) in files.into_iter().zip(&local) {
+            let path = Path::new(&item.path);
+            if bedrock::is_pack_file(path) {
+                match self.add_bedrock_packs(ctx, path, &file_name(path)) {
+                    Ok(mut packs) => items.append(&mut packs),
+                    Err(e) => failures.push(failure(&item.path, "", crate::error_info(e))),
+                }
+                continue;
+            }
             let matches = file
                 .as_ref()
                 .and_then(|f| identified.get(&f.sha1))
@@ -177,6 +199,77 @@ impl Engine {
             );
         }
         Ok((items, failures))
+    }
+
+    /// A Bedrock `.mcpack` is one item; an `.mcaddon` is split into one item per
+    /// pack it holds. The pack's own manifest decides its kind, not the request.
+    fn add_bedrock_packs(
+        &self,
+        ctx: &EntryContent,
+        source: &Path,
+        filename: &str,
+    ) -> Result<Vec<InstalledContent>> {
+        let packs = bedrock::read(source)?;
+        for pack in &packs {
+            self.ensure_accepts(ctx, pack.kind)?;
+        }
+        if !bedrock::is_addon(source) {
+            return Ok(vec![store_pack(ctx, &packs[0], source, filename, "")?]);
+        }
+        let parts = self
+            .pack_staging()
+            .join(format!("{}.addon", Uuid::now_v7().simple()));
+        let stored = bedrock::split(source, &parts).and_then(|split| {
+            split
+                .iter()
+                .map(|(pack, path)| {
+                    store_pack(
+                        ctx,
+                        pack,
+                        path,
+                        &file_name(path),
+                        &format!("addon:{filename}"),
+                    )
+                })
+                .collect()
+        });
+        if let Err(e) = std::fs::remove_dir_all(&parts) {
+            tracing::debug!(path = %parts.display(), error = %e, "no addon staging dir to remove");
+        }
+        stored
+    }
+
+    async fn add_downloaded_packs(
+        &self,
+        ctx: &EntryContent,
+        url: &str,
+        filename: &str,
+        on_progress: OnProgress<'_>,
+    ) -> Result<Vec<InstalledContent>> {
+        let staged = self
+            .pack_staging()
+            .join(format!("{}-{filename}", Uuid::now_v7().simple()));
+        let download = Download {
+            artifact: Artifact {
+                url: url.to_string(),
+                filename: filename.to_string(),
+                ..Artifact::default()
+            },
+            target: staged.clone(),
+            label: filename.to_string(),
+            source: String::new(),
+        };
+        let packs = match self
+            .download(&download, ProvisionPhase::Content, on_progress)
+            .await
+        {
+            Ok(_) => self.add_bedrock_packs(ctx, &staged, filename),
+            Err(e) => Err(e),
+        };
+        if let Err(e) = std::fs::remove_file(&staged) {
+            tracing::debug!(path = %staged.display(), error = %e, "no pack download to remove");
+        }
+        packs
     }
 
     /// Resolve every platform root (and, for mods, required dependencies —
@@ -469,6 +562,26 @@ pub(super) fn import_file(
     }
     let sha1 = install::sha1_file(&managed)?;
     Ok((managed, sha1))
+}
+
+fn store_pack(
+    ctx: &EntryContent,
+    pack: &bedrock::Pack,
+    source: &Path,
+    filename: &str,
+    origin: &str,
+) -> Result<InstalledContent> {
+    let (managed, sha1) = import_file(ctx, pack.kind, source, filename)?;
+    let project = record::Project::untracked(pack.kind, pack.name.clone(), &managed);
+    let release = record::Release {
+        version_number: pack.version_string(),
+        ..record::Release::local(filename.to_string(), sha1)
+    };
+    let holding = record::Holding {
+        origin: origin.to_string(),
+        ..record::Holding::fresh(&[])
+    };
+    Ok(record::assemble(project, release, holding))
 }
 
 pub(super) fn file_name(path: &Path) -> String {

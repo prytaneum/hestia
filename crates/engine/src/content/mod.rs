@@ -5,6 +5,7 @@
 //! per-source configuration `configure()` hands down, since CurseForge serves
 //! nothing without an API key.
 
+pub(crate) mod bedrock;
 pub(crate) mod curseforge;
 pub(crate) mod exclude;
 pub(crate) mod icon;

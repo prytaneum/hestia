@@ -5,7 +5,7 @@ use std::path::Path;
 use anyhow::{bail, Context, Result};
 use proto::content::ContentKind;
 
-use super::pack;
+use super::{bedrock, pack};
 use crate::transfer::archive::Reader;
 
 // Loader-agnostic: a new flavor adds its manifest name here.
@@ -21,6 +21,9 @@ const MOD_MANIFESTS: [&str; 5] = [
 /// un-installable as single-file content. An unrecognised but valid zip is
 /// `None`.
 pub(crate) fn classify(path: &Path) -> Result<Option<ContentKind>> {
+    if bedrock::is_pack_file(path) {
+        return Ok(bedrock::read(path)?.first().map(|pack| pack.kind));
+    }
     let mut reader = Reader::open(path).with_context(|| {
         format!(
             "'{}' is not a readable .jar or .zip archive",

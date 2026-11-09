@@ -31,6 +31,7 @@ pub(in crate::engine::flows) struct EntryContent {
     pub(in crate::engine::flows) game_version: String,
     pub(in crate::engine::flows) flavor: String,
     pub(in crate::engine::flows) side: Side,
+    pub(in crate::engine::flows) edition: Edition,
 }
 
 impl From<Side> for EntryKind {
@@ -210,6 +211,7 @@ mod tests {
             game_version: "1.21.1".to_string(),
             flavor: "fabric".to_string(),
             side: Side::Client,
+            edition: Edition::Java,
         }
     }
 

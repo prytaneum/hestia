@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
 use proto::backup::BackupKind;
-use proto::minecraft::ProvisionPhase;
+use proto::minecraft::{Edition, ProvisionPhase};
 
 use proto::server::{JvmArgsSource, ServerDetails, ServerPingResult};
 use proto::warning::WarningInfo;
@@ -222,11 +222,12 @@ impl Engine {
         let record = self.ready_server(reference)?;
         let record = self.servers.ensure_start_config(&record.id)?;
         let data_dir = self.servers.data_dir(&record);
-        install::sync(
-            &self.servers.server_dir(&record),
-            &data_dir,
-            &[crate::properties::level_name(&data_dir)],
-        )?;
+        let entry_dir = self.servers.server_dir(&record);
+        let level = crate::properties::level_name(&data_dir);
+        install::sync(&entry_dir, &data_dir, std::slice::from_ref(&level))?;
+        if self.server_edition(&record.profile.flavor) == Edition::Bedrock {
+            crate::content::bedrock::sync(&entry_dir, &data_dir, &level)?;
+        }
         let java = record
             .profile
             .runtime
