@@ -69,7 +69,7 @@ pub use net::Network;
 pub use process::run_relay;
 pub use process::{ExitObserver, ProcessEvents, ProcessSupervisor, StartError, StdinError};
 pub use schema::notices as quarantined;
-pub use servers::{RconConfig, ServerPhase, ServerRecord, Servers};
+pub use servers::{BedrockTransport, RconConfig, ServerPhase, ServerRecord, Servers};
 pub use skins::Skins;
 pub use sync::Sync;
 pub use tasks::Schedule;

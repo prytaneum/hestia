@@ -107,6 +107,13 @@ impl Engine {
     }
 }
 
+/// The `N/M` a Bedrock `list` reply opens with (`There are 0/10 players online:`).
+pub(crate) fn parse_player_count(reply: &str) -> Option<(u32, u32)> {
+    let (before, _) = reply.split_once(ONLINE_MARKER)?;
+    let (online, max) = before.split_whitespace().last()?.split_once('/')?;
+    Some((online.parse().ok()?, max.parse().ok()?))
+}
+
 /// The console command for a list change, with the name it was built for.
 fn set_command(
     edition: Edition,
@@ -277,6 +284,15 @@ fn read_operators(path: &Path, allowlist: &[PlayerEntry]) -> Vec<PlayerEntry> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_player_count_is_read_from_a_list_reply() {
+        assert_eq!(
+            parse_player_count("[INFO] There are 2/10 players online:\nA, B"),
+            Some((2, 10))
+        );
+        assert_eq!(parse_player_count("Unknown command"), None);
+    }
 
     #[test]
     fn a_name_that_could_break_out_of_the_command_is_refused() {

@@ -9,6 +9,7 @@ use proto::minecraft::{Edition, ProvisionPhase};
 use proto::server::{JvmArgsSource, ServerDetails, ServerPingResult};
 use proto::warning::WarningInfo;
 
+use super::players::parse_player_count;
 use super::{guard_downgrade, meta_dir, phase_progress, pick_name};
 use crate::content::install;
 use crate::engine::{Engine, ServerCreateSpec, ServerUpdateSpec};
@@ -17,7 +18,7 @@ use crate::minecraft::launch::LaunchPlan;
 use crate::minecraft::materialize::{self, OnProgress};
 use crate::minecraft::profile::{ServerJar, ServerProfile, ServerRuntime};
 use crate::minecraft::{ping, JavaInstall, Side};
-use crate::servers::ServerRecord;
+use crate::servers::{BedrockTransport, ServerRecord};
 use crate::usage;
 
 impl Engine {
@@ -245,7 +246,34 @@ impl Engine {
     pub async fn server_ping(&self, reference: &str) -> Result<ServerPingResult> {
         let record = self.servers.require(reference)?;
         let edition = self.server_edition(&record.profile.flavor);
+        if edition == Edition::Bedrock
+            && self.servers.bedrock_transport(&record) == BedrockTransport::Nethernet
+        {
+            return self.nethernet_status(&record).await;
+        }
         ping::ping(edition, record.game_port).await
+    }
+
+    /// NetherNet answers no RakNet ping, so a running server's status is read
+    /// from its console and the version and name from what is on disk.
+    async fn nethernet_status(&self, record: &ServerRecord) -> Result<ServerPingResult> {
+        let reply = self
+            .server_command(&record.id, "list")
+            .await
+            .context("cannot reach the server's console")?;
+        let (players_online, players_max) = parse_player_count(&reply)
+            .with_context(|| format!("unexpected list reply from {}", record.id))?;
+        let properties = self
+            .servers
+            .data_dir(record)
+            .join(crate::properties::PROPERTIES);
+        Ok(ServerPingResult {
+            players_online,
+            players_max,
+            motd: crate::properties::read_property(&properties, "server-name").unwrap_or_default(),
+            version: record.profile.game_version.clone(),
+            ..Default::default()
+        })
     }
 
     /// The server's static, informational view: descriptor, locations, and the

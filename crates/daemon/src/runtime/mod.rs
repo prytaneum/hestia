@@ -112,6 +112,7 @@ pub fn server_info(
     process: Option<proto::process::ProcessInfo>,
     accepts: Vec<proto::content::ContentKind>,
     edition: Edition,
+    ports: Vec<proto::server::ServerPort>,
 ) -> ServerInfo {
     let ready = record.ready();
     ServerInfo {
@@ -125,10 +126,7 @@ pub fn server_info(
         created_unix: record.created_unix,
         ready,
         game_port: record.game_port,
-        ports: [Some(record.game_port), record.ipv6_port]
-            .into_iter()
-            .flatten()
-            .collect(),
+        ports,
         player_lists: engine::player_lists(edition),
         console: record.rcon.is_some() || record.profile.runtime.is_native(),
         accepts,
@@ -224,7 +222,8 @@ impl Runtime {
         let process = self.processes.status(&server_process_id(&record.id));
         let accepts = self.engine.server_accepts(&record.profile.flavor);
         let edition = self.engine.server_edition(&record.profile.flavor);
-        server_info(record, process, accepts, edition)
+        let ports = self.engine.servers().ports(&record);
+        server_info(record, process, accepts, edition, ports)
     }
 
     /// Stop a running server, wait for its process to exit, and start it

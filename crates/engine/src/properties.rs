@@ -188,6 +188,7 @@ pub(crate) fn validate(edition: Edition, key: &str, value: &str) -> Result<(), R
 pub(crate) const MANAGED: &[&str] = &[
     "server-port",
     "server-portv6",
+    "server-udp-ports",
     "enable-rcon",
     "rcon.port",
     "rcon.password",

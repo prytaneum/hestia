@@ -18,6 +18,24 @@ use crate::players::PlayerList;
 use crate::process::ProcessInfo;
 use crate::warning::WarningInfo;
 
+#[derive(Serialize, Deserialize, Default, Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
+#[serde(rename_all = "snake_case")]
+pub enum PortProtocol {
+    #[default]
+    Tcp,
+    Udp,
+}
+
+/// A port a server binds and the protocol a firewall must open for it.
+#[derive(Serialize, Deserialize, Default, Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
+#[serde(default, rename_all = "camelCase")]
+pub struct ServerPort {
+    pub port: u16,
+    pub protocol: PortProtocol,
+}
+
 /// A managed server: the stored record plus, when it has been started, the
 /// supervised process snapshot.
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
@@ -39,7 +57,7 @@ pub struct ServerInfo {
     /// Allocated at create and stable thereafter — players connect to it.
     pub game_port: u16,
     /// Every port the server binds, the game port first.
-    pub ports: Vec<u16>,
+    pub ports: Vec<ServerPort>,
     /// The player lists this server keeps.
     pub player_lists: Vec<PlayerList>,
     /// True once RCON is configured, which happens at the first start.

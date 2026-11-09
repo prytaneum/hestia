@@ -76,8 +76,8 @@ fn bedrock_servers_claim_two_distinct_udp_ports_each() {
         std::fs::create_dir_all(servers.data_dir(&record)).unwrap();
         let started = servers.ensure_start_config(&record.id).unwrap();
         let v6 = started
-            .ipv6_port
-            .expect("a bedrock server gains an IPv6 port");
+            .second_port
+            .expect("a bedrock server gains a second port");
         assert!(started.game_port >= 19132 && v6 >= 19133);
         assert!(started.rcon.is_none(), "bedrock has no rcon");
         assert!(
@@ -88,9 +88,13 @@ fn bedrock_servers_claim_two_distinct_udp_ports_each() {
             std::fs::read_to_string(servers.data_dir(&started).join("server.properties")).unwrap();
         assert!(file.contains(&format!("server-port={}", started.game_port)));
         assert!(file.contains(&format!("server-portv6={v6}")));
+        assert!(file.contains(&format!("server-udp-ports={v6}")));
     }
     assert!(servers
         .config_set(&servers.list()[0].id, "server-portv6", "1")
+        .is_err());
+    assert!(servers
+        .config_set(&servers.list()[0].id, "server-udp-ports", "1")
         .is_err());
 }
 

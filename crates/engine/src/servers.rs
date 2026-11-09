@@ -13,7 +13,7 @@ use anyhow::{bail, Context, Result};
 use proto::error::EntryKind;
 use proto::keys::KeyRule;
 use proto::minecraft::{Edition, ProvisionPhase, ProvisionProgress};
-use proto::server::ServerProperty;
+use proto::server::{PortProtocol, ServerPort, ServerProperty};
 use proto::tasks::ServerTask;
 use serde::{Deserialize, Serialize};
 
@@ -36,7 +36,7 @@ const DATA: &str = "data";
 const GAME_PORT_BASE: u16 = 25565;
 const RCON_PORT_BASE: u16 = 25575;
 const BEDROCK_PORT_BASE: u16 = 19132;
-const BEDROCK_PORT_V6_BASE: u16 = 19133;
+const BEDROCK_SECOND_PORT_BASE: u16 = 19133;
 const PORT_SPAN: u16 = 100;
 
 // Pre-EULA servers (before 1.7.10) have no gate and would boot for real; the
@@ -79,9 +79,10 @@ pub struct ServerRecord {
     pub phase: ServerPhase,
     /// Claimed at create and never moved — players connect to it.
     pub game_port: u16,
-    /// A Bedrock server's second UDP port, for IPv6; claimed at first start.
+    /// A Bedrock server's second UDP port (IPv6 under RakNet, the client
+    /// transport under NetherNet); claimed at first start.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub ipv6_port: Option<u16>,
+    pub second_port: Option<u16>,
     /// Claimed at first start; internal, so it may be reallocated freely.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub rcon: Option<RconConfig>,
@@ -170,6 +171,23 @@ impl Servers {
         self.store.require(reference)
     }
 
+    /// Every port the server binds under its current settings, the game port
+    /// first — what a user forwards.
+    pub fn ports(&self, record: &ServerRecord) -> Vec<ServerPort> {
+        if Transport::of(&record.profile) == Transport::Tcp {
+            return vec![ServerPort {
+                port: record.game_port,
+                protocol: PortProtocol::Tcp,
+            }];
+        }
+        self.bedrock_transport(record)
+            .ports(record.game_port, record.second_port)
+    }
+
+    pub fn bedrock_transport(&self, record: &ServerRecord) -> BedrockTransport {
+        BedrockTransport::read(&self.data_dir(record).join(properties::PROPERTIES))
+    }
+
     /// Register a new server: allocate its id from the name, claim its game
     /// port, create its directory, and write the (not yet ready) record.
     pub fn create(
@@ -186,7 +204,7 @@ impl Servers {
                 created_unix: common::now_unix(),
                 phase: ServerPhase::Provisioning,
                 game_port: self.claim_game_port(port, transport)?,
-                ipv6_port: None,
+                second_port: None,
                 rcon: None,
                 jvm: JavaSettings::default(),
                 tasks: Vec::new(),
@@ -217,7 +235,7 @@ impl Servers {
             .flat_map(|r| {
                 [
                     Some(r.game_port),
-                    r.ipv6_port,
+                    r.second_port,
                     r.rcon.as_ref().map(|c| c.port),
                 ]
             })
@@ -240,21 +258,16 @@ impl Servers {
             }
 
             let file = self.data_dir(record).join(properties::PROPERTIES);
-            if transport == Transport::Udp {
+            if transport == Transport::TcpAndUdp {
                 let mut taken = claimed;
                 taken.insert(game_port);
-                let ipv6 = match record.ipv6_port {
-                    Some(port) if !unavailable(&taken, port, transport) => port,
-                    _ => allocate_port(BEDROCK_PORT_V6_BASE, &taken, transport)?,
+                let second = match record.second_port {
+                    Some(port) if !unavailable(&taken, port, Transport::Udp) => port,
+                    _ => allocate_port(BEDROCK_SECOND_PORT_BASE, &taken, Transport::Udp)?,
                 };
-                properties::merge_properties(
-                    &file,
-                    &[
-                        ("server-port", game_port.to_string()),
-                        ("server-portv6", ipv6.to_string()),
-                    ],
-                )?;
-                record.ipv6_port = Some(ipv6);
+                let netcode = BedrockTransport::read(&file);
+                properties::merge_properties(&file, &netcode.property_entries(game_port, second))?;
+                record.second_port = Some(second);
                 return Ok(record.clone());
             }
 
@@ -684,26 +697,74 @@ impl Servers {
 }
 
 /// What a server's listeners speak: a Java server one TCP port, a Bedrock
-/// server UDP.
+/// server's game port both (TCP under NetherNet, UDP under RakNet).
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Transport {
     Tcp,
     Udp,
+    TcpAndUdp,
 }
 
 impl Transport {
     fn of(profile: &ServerProfile) -> Self {
         match profile.runtime {
             ServerRuntime::Java { .. } => Transport::Tcp,
-            ServerRuntime::Native { .. } => Transport::Udp,
+            ServerRuntime::Native { .. } => Transport::TcpAndUdp,
         }
     }
 
     fn game_base(self) -> u16 {
         match self {
             Transport::Tcp => GAME_PORT_BASE,
-            Transport::Udp => BEDROCK_PORT_BASE,
+            Transport::Udp | Transport::TcpAndUdp => BEDROCK_PORT_BASE,
         }
+    }
+}
+
+/// The `transport` a Bedrock server's `server.properties` selects. It decides
+/// which ports the game binds, so it is re-read at every start.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum BedrockTransport {
+    Nethernet,
+    Raknet,
+}
+
+impl BedrockTransport {
+    pub fn read(properties_file: &Path) -> Self {
+        match properties::read_property(properties_file, "transport").as_deref() {
+            Some("raknet") => Self::Raknet,
+            _ => Self::Nethernet,
+        }
+    }
+
+    /// NetherNet's dual-stack socket listens on TCP `server-port` and takes its
+    /// client UDP port from `server-udp-ports`; `server-portv6` is ignored
+    /// there but kept coherent. RakNet binds UDP `server-port` and `-portv6`.
+    fn property_entries(self, game: u16, second: u16) -> Vec<(&'static str, String)> {
+        let mut entries = vec![
+            ("server-port", game.to_string()),
+            ("server-portv6", second.to_string()),
+        ];
+        if self == Self::Nethernet {
+            entries.push(("server-udp-ports", second.to_string()));
+        }
+        entries
+    }
+
+    fn ports(self, game: u16, second: Option<u16>) -> Vec<ServerPort> {
+        let game_protocol = match self {
+            Self::Nethernet => PortProtocol::Tcp,
+            Self::Raknet => PortProtocol::Udp,
+        };
+        let game = ServerPort {
+            port: game,
+            protocol: game_protocol,
+        };
+        let second = second.map(|port| ServerPort {
+            port,
+            protocol: PortProtocol::Udp,
+        });
+        std::iter::once(game).chain(second).collect()
     }
 }
 
@@ -712,6 +773,7 @@ fn can_bind(port: u16, transport: Transport) -> bool {
     match transport {
         Transport::Tcp => std::net::TcpListener::bind(("0.0.0.0", port)).is_ok(),
         Transport::Udp => std::net::UdpSocket::bind(("0.0.0.0", port)).is_ok(),
+        Transport::TcpAndUdp => can_bind(port, Transport::Tcp) && can_bind(port, Transport::Udp),
     }
 }
 
@@ -735,4 +797,51 @@ fn generate_password() -> String {
         .iter()
         .map(|b| CHARSET[(*b as usize) % CHARSET.len()] as char)
         .collect()
+}
+
+#[cfg(test)]
+mod transport_tests {
+    use super::*;
+
+    #[test]
+    fn nethernet_maps_the_second_port_to_udp_ports() {
+        let entries = BedrockTransport::Nethernet.property_entries(19132, 19133);
+        assert_eq!(
+            entries,
+            vec![
+                ("server-port", "19132".to_string()),
+                ("server-portv6", "19133".to_string()),
+                ("server-udp-ports", "19133".to_string()),
+            ]
+        );
+    }
+
+    #[test]
+    fn raknet_binds_two_udp_ports() {
+        let entries = BedrockTransport::Raknet.property_entries(19132, 19133);
+        assert_eq!(entries.len(), 2);
+        let ports = BedrockTransport::Raknet.ports(19132, Some(19133));
+        assert!(ports.iter().all(|p| p.protocol == PortProtocol::Udp));
+        let ports = BedrockTransport::Nethernet.ports(19132, Some(19133));
+        assert_eq!(ports[0].protocol, PortProtocol::Tcp);
+        assert_eq!(ports[1].protocol, PortProtocol::Udp);
+    }
+
+    #[test]
+    fn transport_defaults_to_nethernet() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("server.properties");
+        assert_eq!(BedrockTransport::read(&file), BedrockTransport::Nethernet);
+        std::fs::write(&file, "transport=raknet\n").unwrap();
+        assert_eq!(BedrockTransport::read(&file), BedrockTransport::Raknet);
+    }
+
+    #[test]
+    fn a_bedrock_game_port_needs_tcp_and_udp_free() {
+        let tcp = std::net::TcpListener::bind(("0.0.0.0", 0)).unwrap();
+        let port = tcp.local_addr().unwrap().port();
+        assert!(unavailable(&HashSet::new(), port, Transport::TcpAndUdp));
+        let claimed = HashSet::from([port.wrapping_add(1)]);
+        assert!(unavailable(&claimed, port.wrapping_add(1), Transport::Udp));
+    }
 }

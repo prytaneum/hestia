@@ -18,8 +18,9 @@ fn provisioned(engine: &Engine, outcome: (engine::ServerRecord, Vec<WarningInfo>
     let (record, warnings) = outcome;
     let accepts = engine.server_accepts(&record.profile.flavor);
     let edition = engine.server_edition(&record.profile.flavor);
+    let ports = engine.servers().ports(&record);
     ServerDone {
-        server: server_info(record, None, accepts, edition),
+        server: server_info(record, None, accepts, edition, ports),
         warnings,
         failures: Vec::new(),
     }

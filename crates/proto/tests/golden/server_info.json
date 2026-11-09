@@ -10,7 +10,10 @@
   "ready": true,
   "gamePort": 25565,
   "ports": [
-    25565
+    {
+      "port": 25565,
+      "protocol": "tcp"
+    }
   ],
   "playerLists": [
     "whitelist",

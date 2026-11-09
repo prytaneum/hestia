@@ -2,7 +2,9 @@
 
 use anyhow::{bail, Context, Result};
 use client::proto::process::{ProcessInfo, ProcessState};
-use client::proto::server::{JvmArgsSource, ServerDetails, ServerInfo, ServerPingResult};
+use client::proto::server::{
+    JvmArgsSource, PortProtocol, ServerDetails, ServerInfo, ServerPingResult, ServerPort,
+};
 use client::Client;
 
 use crate::commands::mc;
@@ -134,12 +136,21 @@ fn jvm_args_label(info: &ServerDetails) -> String {
     format!("{} ({source})", info.jvm_args.join(" "))
 }
 
-/// Only a server binding a second port (Bedrock's IPv6) has more than its address to say.
-fn ports_label(ports: &[u16]) -> Option<String> {
-    match ports {
-        [v4, v6] => Some(format!("{v4} (IPv4), {v6} (IPv6)")),
-        _ => None,
-    }
+/// Only a server binding a second port (Bedrock) has more than its address to say.
+fn ports_label(ports: &[ServerPort]) -> Option<String> {
+    (ports.len() > 1).then(|| {
+        ports
+            .iter()
+            .map(|p| {
+                let protocol = match p.protocol {
+                    PortProtocol::Tcp => "tcp",
+                    PortProtocol::Udp => "udp",
+                };
+                format!("{}/{protocol}", p.port)
+            })
+            .collect::<Vec<_>>()
+            .join(", ")
+    })
 }
 
 fn address_label(info: &ServerInfo) -> String {
@@ -157,12 +168,20 @@ fn state_label(info: &ServerInfo) -> String {
 mod tests {
     use super::*;
 
+    fn port(port: u16, protocol: PortProtocol) -> ServerPort {
+        ServerPort { port, protocol }
+    }
+
     #[test]
     fn only_a_second_port_is_worth_a_ports_row() {
-        assert_eq!(ports_label(&[25565]), None);
+        assert_eq!(ports_label(&[port(25565, PortProtocol::Tcp)]), None);
         assert_eq!(
-            ports_label(&[19132, 19133]).as_deref(),
-            Some("19132 (IPv4), 19133 (IPv6)")
+            ports_label(&[
+                port(19132, PortProtocol::Tcp),
+                port(19133, PortProtocol::Udp)
+            ])
+            .as_deref(),
+            Some("19132/tcp, 19133/udp")
         );
     }
 }
