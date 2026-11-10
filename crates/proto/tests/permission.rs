@@ -11,6 +11,8 @@ use proto::{Contract, Topic};
 /// Channels and topics that deliberately name no permission, each with the reason.
 const DENIED: &[&str] = &[
     // Secrets
+    "config.get",
+    "config.list",
     "entry.config.get",
     "entry.config.list",
     "entry.logs",
@@ -158,6 +160,7 @@ fn every_unclassified_channel_is_explicitly_denied() {
 #[test]
 fn secret_bearing_and_privileged_channels_stay_closed() {
     use proto::accounts::*;
+    use proto::config::*;
     use proto::daemon::*;
     use proto::entry::*;
     use proto::events::*;
@@ -176,6 +179,8 @@ fn secret_bearing_and_privileged_channels_stay_closed() {
         (ServerProperties::CHANNEL, ServerProperties::PLUGIN),
         (EntryConfigGet::CHANNEL, EntryConfigGet::PLUGIN),
         (EntryConfigList::CHANNEL, EntryConfigList::PLUGIN),
+        (ConfigGet::CHANNEL, ConfigGet::PLUGIN),
+        (ConfigList::CHANNEL, ConfigList::PLUGIN),
         (EventsSubscribe::CHANNEL, EventsSubscribe::PLUGIN),
         (JobCancel::CHANNEL, JobCancel::PLUGIN),
         (AccountLoginBegin::CHANNEL, AccountLoginBegin::PLUGIN),

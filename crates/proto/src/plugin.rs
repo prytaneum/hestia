@@ -200,7 +200,7 @@ impl Permission {
         match self {
             Permission::EntryRead => "See your servers and instances and their settings",
             Permission::EntryWrite => {
-                "Create, change and delete servers and instances, including their files"
+                "Create, change and delete servers and instances, including their files and JVM arguments"
             }
             Permission::ProcessRead => "See which servers and games are running",
             Permission::ProcessControl => {

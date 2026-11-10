@@ -459,47 +459,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn a_plugin_never_sees_the_curseforge_key() {
-        let harness = harness(crate::services::make_router());
-        harness
-            ._runtime
-            .engine()
-            .set_config("content.curseforge-key", json!("sekret"))
-            .expect("set key");
-        let chain = CallChain::default();
-
-        let error = harness
-            .host
-            .call(
-                "demo",
-                &chain,
-                "config.get",
-                json!({ "key": "content.curseforge-key" }),
-            )
-            .await
-            .expect_err("hidden key reads as absent");
-        assert!(matches!(error, HostError::NotFound(_)));
-
-        let content = harness
-            .host
-            .call("demo", &chain, "config.get", json!({ "key": "content" }))
-            .await
-            .expect("subtree");
-        assert!(!content.to_string().contains("sekret"), "{content}");
-        assert!(content["value"].get("curseforgeKey").is_none());
-
-        let all = harness
-            .host
-            .call("demo", &chain, "config.list", json!({}))
-            .await
-            .expect("list");
-        assert!(!all.to_string().contains("sekret"), "{all}");
-        assert!(all["entries"]["content"].get("curseforge-key").is_none());
-        assert!(all["entries"].get("defaults").is_some());
-    }
-
-    #[tokio::test]
-    async fn a_client_still_sees_and_sets_every_setting() {
+    async fn a_client_still_sets_a_user_only_setting() {
         let harness = harness(crate::services::make_router());
         let set = as_client(
             &harness,
@@ -508,28 +468,15 @@ mod tests {
         )
         .await;
         assert!(set.error.is_none(), "{set:?}");
-        let set = as_client(
-            &harness,
-            "config.set",
-            json!({ "key": "content.curseforge-key", "value": "sekret" }),
-        )
-        .await;
-        assert!(set.error.is_none(), "{set:?}");
-
-        let got = as_client(
-            &harness,
-            "config.get",
-            json!({ "key": "content.curseforge-key" }),
-        )
-        .await;
-        assert_eq!(got.payload["value"], "sekret");
-        let content = as_client(&harness, "config.get", json!({ "key": "content" })).await;
-        assert_eq!(content.payload["value"]["curseforgeKey"], "sekret");
-        let all = as_client(&harness, "config.list", json!({})).await;
         assert_eq!(
-            all.payload["entries"]["content"]["curseforge-key"],
-            "sekret"
+            harness
+                ._runtime
+                .engine()
+                .config()
+                .settings()
+                .defaults
+                .jvm_args,
+            "-Dx=1"
         );
-        assert_eq!(all.payload["entries"]["defaults"]["jvm-args"], "-Dx=1");
     }
 }

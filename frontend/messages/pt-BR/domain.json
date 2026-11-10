@@ -70,7 +70,7 @@
         "content_read": "Buscar e inspecionar mods, pacotes e outros conteúdos",
         "content_write": "Instalar, atualizar e remover mods, pacotes e outros conteúdos",
         "entry_read": "Ver seus servidores e instâncias e as configurações deles",
-        "entry_write": "Criar, alterar e excluir servidores e instâncias, incluindo seus arquivos",
+        "entry_write": "Criar, alterar e excluir servidores e instâncias, incluindo seus arquivos e argumentos da JVM",
         "flavor_provide": "Adicionar distribuições do jogo que escolhem o código que o jogo executa, incluindo a classe principal e os argumentos",
         "format_provide": "Adicionar formatos de arquivo que escolhem a versão do jogo, o carregador e as configurações da JVM das instâncias importadas",
         "ipc_connect": "Conversar com os programas em execução neste computador que ele lista, como um cliente de chat",

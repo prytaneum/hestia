@@ -10,16 +10,6 @@
       "payload": "ChangedEvent",
       "permission": "entry:read"
     },
-    "config.get": {
-      "params": "ConfigGetParams",
-      "permission": "config:read",
-      "result": "ConfigGetResult"
-    },
-    "config.list": {
-      "params": "Empty",
-      "permission": "config:read",
-      "result": "ConfigListResult"
-    },
     "config.set": {
       "params": "ConfigSetParams",
       "permission": "config:write",
@@ -577,9 +567,6 @@
     "ChangedEvent": "type ChangedEvent = { scope: Scope, };",
     "Checksum": "type Checksum = { algorithm: HashAlgorithm, hex: string, };",
     "ConfigEntry": "type ConfigEntry = { key: string, value: string, };",
-    "ConfigGetParams": "type ConfigGetParams = { key: string, };",
-    "ConfigGetResult": "type ConfigGetResult = { value: unknown, };",
-    "ConfigListResult": "type ConfigListResult = { entries: Record<string, unknown>, };",
     "ConfigSetParams": "type ConfigSetParams = { key: string, value: unknown, };",
     "ContentAddItem": "type ContentAddItem = { project: string, version: string, url: string, path: string, filename: string, source: string, };",
     "ContentDependency": "type ContentDependency = { projectId: string, versionId: string, kind: DependencyKind, };",

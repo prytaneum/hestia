@@ -13,7 +13,7 @@ access to the computer.
 | Permission | Tier | Allows |
 |---|---|---|
 | `entry:read` | sandboxed | See your servers and instances and their settings |
-| `entry:write` | unrestricted | Create, change and delete servers and instances, including their files |
+| `entry:write` | unrestricted | Create, change and delete servers and instances, including their files and JVM arguments |
 | `process:read` | sandboxed | See which servers and games are running |
 | `process:control` | unrestricted | Start and stop servers and games, and run console commands |
 | `process:spawn` | unrestricted | Run the programs it lists (below) |

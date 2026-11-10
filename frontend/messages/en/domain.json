@@ -70,7 +70,7 @@
         "content_read": "Search and inspect mods, packs and other content",
         "content_write": "Install, update and remove mods, packs and other content",
         "entry_read": "See your servers and instances and their settings",
-        "entry_write": "Create, change and delete servers and instances, including their files",
+        "entry_write": "Create, change and delete servers and instances, including their files and JVM arguments",
         "flavor_provide": "Add game distributions that choose what code the game runs, including its main class and arguments",
         "format_provide": "Add archive formats that choose the game version, loader and JVM settings of instances you import",
         "ipc_connect": "Talk to the programs running on this computer that it lists, such as a chat client",
