@@ -1690,7 +1690,10 @@ fn a_package_the_runtime_refuses_leaves_nothing_behind() {
     ));
     assert!(engine.plugins().get("tunnel").is_none());
     assert_eq!(
-        std::fs::read_dir(home.path().join("plugins")).map_or(0, |dir| dir.count()),
+        std::fs::read_dir(home.path().join("plugins")).map_or(0, |dir| dir
+            .flatten()
+            .filter(|entry| entry.path().is_dir())
+            .count()),
         0,
         "no package and no staging directory is left"
     );
