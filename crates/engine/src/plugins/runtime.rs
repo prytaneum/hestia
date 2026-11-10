@@ -596,7 +596,7 @@ impl LoadedPlugin {
 
         let control = context.run.map(Arc::new);
         let mut store = self
-            .new_store(chain, control.clone(), context.mounts)
+            .new_store(chain, control.clone(), context.mounts, deadline)
             .map_err(|error| CallError::Setup(format!("{error:#}")))?;
         let attempt = async {
             let instance = self.pre.instantiate_async(&mut store).await?;
@@ -653,6 +653,7 @@ impl LoadedPlugin {
         chain: CallChain,
         run: Option<Arc<CommandRun>>,
         extra: Vec<Mount>,
+        deadline: Instant,
     ) -> wasmtime::Result<Store<PluginState>> {
         let mut mounts = vec![Mount {
             host: self.data_dir.clone(),
@@ -684,6 +685,7 @@ impl LoadedPlugin {
             .build();
         let state = PluginState {
             run,
+            deadline,
             mounts,
             wasi: wasi.build(),
             http: WasiHttpCtx::new(),

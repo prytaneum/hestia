@@ -15,12 +15,17 @@ use proto::plugin::{Grant, Permission, Program};
 use proto::process::{ProcessInfo, ProcessSpec, ProcessState};
 use tokio::io::{AsyncRead, AsyncReadExt};
 use tokio::process::Command;
+use tokio::time::Instant;
 
+use super::context::Mount;
 use super::program::{self, ManagedJava, StageError};
+use crate::cancel::Cancel;
+use crate::process::identity::Tree;
 use crate::process::ProcessSupervisor;
 
 const OUTPUT_CAP: usize = 1024 * 1024;
-const MAX_EXEC: Duration = Duration::from_secs(5 * 60);
+const CANCEL_POLL: Duration = Duration::from_millis(50);
+const MOUNT_NAMES: [&str; 3] = ["build", "vanilla", "data"];
 const MAX_RUNNING: usize = 8;
 const MAX_LOG_LINES: usize = 1000;
 const MAX_ARGS: usize = 256;
@@ -42,6 +47,27 @@ pub(crate) struct Output {
     pub status: Option<i32>,
     pub stdout: Vec<u8>,
     pub stderr: Vec<u8>,
+}
+
+/// What bounds and resolves one `exec`: the mounts of the current call, the
+/// instant its budget ends, and the signal that ends it early.
+pub(crate) struct CallScope<'a> {
+    pub mounts: &'a [Mount],
+    pub deadline: Instant,
+    pub cancel: Option<&'a Cancel>,
+}
+
+/// Kills the child's whole tree when dropped, so a cancelled, timed-out or
+/// dropped call leaves nothing behind. Disarmed once the child has been reaped:
+/// a group id outlives its leader and could by then belong to a stranger.
+struct TreeGuard(Option<Tree>);
+
+impl Drop for TreeGuard {
+    fn drop(&mut self) {
+        if let Some(tree) = self.0.take() {
+            tree.kill();
+        }
+    }
 }
 
 /// One plugin's grip on the programs it declared. Holds nothing mutable: every
@@ -67,46 +93,64 @@ impl Programs {
         &self,
         program: &str,
         args: Vec<String>,
+        env: Vec<(String, String)>,
         timeout_ms: u32,
         cwd: Option<PathBuf>,
+        scope: &CallScope<'_>,
     ) -> Result<Output, ProgramError> {
         let program = self.authorize(program, &args)?;
+        let args = args
+            .iter()
+            .map(|arg| expand_mounts(arg, scope.mounts))
+            .collect::<Result<Vec<_>, _>>()?;
+        let vars = self.child_env(&program, env)?;
         let executable = self.executable(&program).await?;
-        let timeout =
-            Duration::from_millis(u64::from(timeout_ms)).clamp(Duration::from_millis(1), MAX_EXEC);
+        let remaining = scope.deadline.saturating_duration_since(Instant::now());
+        let timeout = Duration::from_millis(u64::from(timeout_ms).max(1)).min(remaining);
+        if timeout.is_zero() {
+            return Err(ProgramError::Failed(
+                "the call has no time left to run a program".into(),
+            ));
+        }
 
         let mut command = Command::new(&executable);
         command
             .args(&args)
             .env_clear()
-            .envs(base_env())
+            .envs(vars)
             .current_dir(cwd.as_ref().unwrap_or(&self.data_dir))
             .stdin(Stdio::null())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .kill_on_drop(true);
+        #[cfg(unix)]
+        command.process_group(0);
         #[cfg(windows)]
         command.creation_flags(windows_sys::Win32::System::Threading::CREATE_NO_WINDOW);
         let mut child = command.spawn().map_err(|error| {
             ProgramError::Failed(format!("cannot run `{}`: {error}", program.id))
         })?;
+        let mut tree = TreeGuard(Tree::hold(&child));
         let (stdout, stderr) = (
             child.stdout.take().expect("stdout is piped"),
             child.stderr.take().expect("stderr is piped"),
         );
-        let finished = tokio::time::timeout(timeout, async {
-            let (status, stdout, stderr) =
-                tokio::join!(child.wait(), capped(stdout), capped(stderr));
-            (status, stdout, stderr)
-        })
-        .await;
-        let Ok((status, stdout, stderr)) = finished else {
-            tracing::warn!(plugin = %self.plugin, program = %program.id, ?timeout, "plugin program timed out");
-            return Err(ProgramError::Failed(format!(
-                "`{}` did not finish within {timeout:?}",
-                program.id
-            )));
+        let finished = async { tokio::join!(child.wait(), capped(stdout), capped(stderr)) };
+        let (status, stdout, stderr) = tokio::select! {
+            finished = finished => finished,
+            () = tokio::time::sleep(timeout) => {
+                tracing::warn!(plugin = %self.plugin, program = %program.id, ?timeout, "plugin program timed out");
+                return Err(ProgramError::Failed(format!(
+                    "`{}` did not finish within {timeout:?}",
+                    program.id
+                )));
+            }
+            () = cancelled(scope.cancel) => {
+                tracing::info!(plugin = %self.plugin, program = %program.id, "plugin program cancelled");
+                return Err(ProgramError::Failed(format!("`{}` was cancelled", program.id)));
+            }
         };
+        tree.0 = None;
         let status = status
             .map_err(|error| {
                 ProgramError::Failed(format!("cannot wait for `{}`: {error}", program.id))
@@ -127,23 +171,13 @@ impl Programs {
         env: Vec<(String, String)>,
     ) -> Result<String, ProgramError> {
         let program = self.authorize(program, &args)?;
-        if let Some((name, _)) = env
-            .iter()
-            .find(|(name, value)| !program.env.contains(name) || value.contains('\0'))
-        {
-            return Err(ProgramError::Denied(format!(
-                "`{}` does not declare the environment variable `{name}`",
-                program.id
-            )));
-        }
+        let vars = self.child_env(&program, env)?;
         if self.running().len() >= MAX_RUNNING {
             return Err(ProgramError::Failed(format!(
                 "a plugin may keep at most {MAX_RUNNING} processes running"
             )));
         }
         let executable = self.executable(&program).await?;
-        let mut vars: BTreeMap<String, String> = base_env().collect();
-        vars.extend(env);
         let info = self
             .supervisor
             .start(ProcessSpec {
@@ -192,6 +226,47 @@ impl Programs {
     pub(crate) fn list(&self) -> Result<Vec<String>, ProgramError> {
         self.require_spawn()?;
         Ok(self.running().into_iter().map(|info| info.id).collect())
+    }
+
+    /// The environment `program` runs with: the base, the variables it declares
+    /// (anything else is refused), and a `PATH` of only the pinned directories
+    /// of the programs it lists in `path`.
+    fn child_env(
+        &self,
+        program: &Program,
+        env: Vec<(String, String)>,
+    ) -> Result<BTreeMap<String, String>, ProgramError> {
+        if let Some((name, _)) = env
+            .iter()
+            .find(|(name, value)| !program.env.contains(name) || value.contains('\0'))
+        {
+            return Err(ProgramError::Denied(format!(
+                "`{}` does not declare the environment variable `{name}`",
+                program.id
+            )));
+        }
+        let mut vars: BTreeMap<String, String> = base_env().collect();
+        if !program.path.is_empty() {
+            let directories = program
+                .path
+                .iter()
+                .map(|id| {
+                    self.pinned(id)
+                        .and_then(|path| path.parent().map(PathBuf::from))
+                        .ok_or_else(|| {
+                            ProgramError::Failed(format!(
+                                "`{id}`, on the path of `{}`, was not found where it was pinned",
+                                program.id
+                            ))
+                        })
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            let joined = std::env::join_paths(directories)
+                .map_err(|error| ProgramError::Invalid(error.to_string()))?;
+            vars.insert("PATH".into(), joined.to_string_lossy().into_owned());
+        }
+        vars.extend(env);
+        Ok(vars)
     }
 
     /// The path the `PATH` program `id` was pinned to at approval, while it is
@@ -309,6 +384,37 @@ impl Programs {
                 info.state == ProcessState::Running && info.owner.as_deref() == Some(owner.as_str())
             })
             .collect()
+    }
+}
+
+/// `arg` with each `${build}`, `${vanilla}` and `${data}` replaced by the host
+/// path of that mount of the current call. Patterns were matched against the
+/// guest form first, so a grant stays host-independent.
+fn expand_mounts(arg: &str, mounts: &[Mount]) -> Result<String, ProgramError> {
+    let mut expanded = arg.to_string();
+    for name in MOUNT_NAMES {
+        let token = format!("${{{name}}}");
+        if !expanded.contains(&token) {
+            continue;
+        }
+        let mount = mounts
+            .iter()
+            .find(|mount| mount.guest.strip_prefix('/') == Some(name))
+            .ok_or_else(|| {
+                ProgramError::Denied(format!("this call has no `{name}` directory to refer to"))
+            })?;
+        expanded = expanded.replace(&token, &mount.host.to_string_lossy());
+    }
+    Ok(expanded)
+}
+
+/// Resolves once `cancel` is raised; never when there is nothing to cancel.
+async fn cancelled(cancel: Option<&Cancel>) {
+    let Some(cancel) = cancel else {
+        return std::future::pending().await;
+    };
+    while !cancel.is_cancelled() {
+        tokio::time::sleep(CANCEL_POLL).await;
     }
 }
 

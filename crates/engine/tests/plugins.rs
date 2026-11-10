@@ -140,6 +140,21 @@ impl Probe {
         Result<Value, CallError>,
         watch::Receiver<Option<PluginRunProgress>>,
     ) {
+        self.run_within(command, args, cancel, grace, CALL_BUDGET)
+            .await
+    }
+
+    async fn run_within(
+        &self,
+        command: &str,
+        args: Value,
+        cancel: &Cancel,
+        grace: Duration,
+        budget: Duration,
+    ) -> (
+        Result<Value, CallError>,
+        watch::Receiver<Option<PluginRunProgress>>,
+    ) {
         let (progress, reports) = watch::channel(None);
         let control = CommandRun {
             cancel: cancel.clone(),
@@ -148,7 +163,7 @@ impl Probe {
         };
         let outcome = self
             .plugin
-            .run_command(&CallChain::default(), command, &args, control, CALL_BUDGET)
+            .run_command(&CallChain::default(), command, &args, control, budget)
             .await;
         (outcome, reports)
     }
@@ -546,6 +561,160 @@ mod programs {
         .await;
         assert!(refused(outcome).contains("SECRET"));
         assert!(probe.supervisor.list().is_empty());
+    }
+
+    fn shell(path: &[&str]) -> Program {
+        Program {
+            path: path.iter().map(|id| id.to_string()).collect(),
+            ..on_path("shell", "sh", &["**"], &["ALLOWED"])
+        }
+    }
+
+    fn gone(pid: u32) -> bool {
+        match std::fs::read_to_string(format!("/proc/{pid}/stat")) {
+            Ok(stat) => stat
+                .rsplit_once(')')
+                .is_some_and(|(_, rest)| rest.trim_start().starts_with('Z')),
+            Err(_) => true,
+        }
+    }
+
+    async fn pid_of(file: &std::path::Path) -> u32 {
+        for _ in 0..200 {
+            if let Some(pid) = std::fs::read_to_string(file)
+                .ok()
+                .and_then(|text| text.trim().parse().ok())
+            {
+                return pid;
+            }
+            tokio::time::sleep(Duration::from_millis(25)).await;
+        }
+        panic!("the program never wrote its grandchild's pid");
+    }
+
+    const SPAWN_GRANDCHILD: &str =
+        "sleep 300 & echo $! > ${data}/grandchild; echo $$ > ${data}/child; wait";
+
+    #[cfg(target_os = "linux")]
+    #[tokio::test]
+    async fn a_cancelled_call_kills_the_program_and_what_it_started() {
+        let shell = shell(&[]);
+        let probe = Probe::load_with(spawning(vec![shell.clone()]), pinned(&[&shell]));
+        let cancel = Cancel::new();
+        let args =
+            json!({ "program": "shell", "args": ["-c", SPAWN_GRANDCHILD], "timeoutMs": 120_000 });
+        let data = probe.data.path().join("data");
+
+        let (outcome, ()) = tokio::join!(
+            async { probe.run("exec", args, &cancel, GRACE).await.0 },
+            async {
+                pid_of(&data.join("child")).await;
+                cancel.cancel();
+            }
+        );
+        assert!(outcome.is_err());
+        let pids = [
+            pid_of(&data.join("child")).await,
+            pid_of(&data.join("grandchild")).await,
+        ];
+        tokio::time::sleep(Duration::from_millis(300)).await;
+        assert!(pids.into_iter().all(gone), "{pids:?} outlived the call");
+    }
+
+    #[cfg(target_os = "linux")]
+    #[tokio::test]
+    async fn a_program_is_killed_with_its_tree_when_the_call_budget_ends() {
+        let shell = shell(&[]);
+        let probe = Probe::load_with(spawning(vec![shell.clone()]), pinned(&[&shell]));
+        let args =
+            json!({ "program": "shell", "args": ["-c", SPAWN_GRANDCHILD], "timeoutMs": 600_000 });
+        let started = std::time::Instant::now();
+
+        let (outcome, _) = probe
+            .run_within("exec", args, &Cancel::new(), GRACE, Duration::from_secs(1))
+            .await;
+
+        assert!(outcome.is_err());
+        assert!(started.elapsed() < Duration::from_secs(10));
+        let data = probe.data.path().join("data");
+        let pids = [
+            pid_of(&data.join("child")).await,
+            pid_of(&data.join("grandchild")).await,
+        ];
+        tokio::time::sleep(Duration::from_millis(300)).await;
+        assert!(pids.into_iter().all(gone), "{pids:?} outlived the call");
+    }
+
+    #[tokio::test]
+    async fn a_program_path_holds_only_the_directories_of_the_programs_it_lists() {
+        let tools = tempfile::tempdir().unwrap();
+        let tool = tools.path().join("mytool");
+        std::fs::copy(resolve_on_path("true").unwrap(), &tool).unwrap();
+        let mytool = on_path("mytool", "mytool", &["**"], &[]);
+        let shell = shell(&["mytool"]);
+        let mut paths = pinned(&[]);
+        paths.extend([
+            ("mytool".to_string(), tool),
+            ("shell".to_string(), resolve_on_path("sh").unwrap()),
+        ]);
+        let probe = Probe::load_with(spawning(vec![shell, mytool]), paths);
+
+        let ran = call(
+            &probe,
+            "exec",
+            json!({ "program": "shell", "args": ["-c", "echo $PATH"] }),
+        )
+        .await
+        .unwrap();
+        assert_eq!(
+            ran["stdout"],
+            json!(format!("{}\n", tools.path().display()))
+        );
+    }
+
+    #[tokio::test]
+    async fn exec_refuses_an_undeclared_environment_name_and_passes_a_declared_one() {
+        let shell = shell(&[]);
+        let probe = Probe::load_with(spawning(vec![shell.clone()]), pinned(&[&shell]));
+        let echo =
+            |env: Value| json!({ "program": "shell", "args": ["-c", "echo $ALLOWED"], "env": env });
+
+        let refused_name = call(&probe, "exec", echo(json!({ "SECRET": "x" }))).await;
+        assert!(refused(refused_name).contains("SECRET"));
+        let refused_path = call(&probe, "exec", echo(json!({ "PATH": "/tmp" }))).await;
+        assert!(refused(refused_path).contains("PATH"));
+        let ran = call(&probe, "exec", echo(json!({ "ALLOWED": "yes" })))
+            .await
+            .unwrap();
+        assert_eq!(ran["stdout"], json!("yes\n"));
+    }
+
+    #[tokio::test]
+    async fn a_mount_placeholder_expands_for_a_mount_the_call_has_and_is_refused_otherwise() {
+        let echo = on_path("echo", "echo", &["**"], &[]);
+        let probe = Probe::load_with(spawning(vec![echo.clone()]), pinned(&[&echo]));
+
+        let ran = call(
+            &probe,
+            "exec",
+            json!({ "program": "echo", "args": ["${data}/x", "$HOME"] }),
+        )
+        .await
+        .unwrap();
+        let data = probe.data.path().join("data");
+        assert_eq!(
+            ran["stdout"],
+            json!(format!("{}/x $HOME\n", data.display()))
+        );
+        for mount in ["${vanilla}", "${build}"] {
+            let outcome = call(
+                &probe,
+                "exec",
+                json!({ "program": "echo", "args": [mount] }),
+            )
+            .await;
+            assert!(refused(outcome).contains("no `"), "{mount}");
+        }
     }
 
     fn data_program(sha256: &str) -> Program {

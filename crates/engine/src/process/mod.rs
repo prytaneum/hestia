@@ -9,7 +9,7 @@
 //! The engine does not know a socket exists, so where lifecycle events go
 //! arrives from outside through [`ProcessEvents`].
 
-mod identity;
+pub(crate) mod identity;
 mod records;
 mod secrets;
 mod tail;

@@ -284,6 +284,9 @@ fn grant_rows(
             let env: Vec<&str> = program.env.iter().map(String::as_str).collect();
             line = format!("{line} (env: {})", env.join(", "));
         }
+        if !program.path.is_empty() {
+            line = format!("{line} (PATH: {})", program.path.join(", "));
+        }
         if let Some(path) = program_paths.get(&program.id) {
             line = format!("{line} → {path}");
         }

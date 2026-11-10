@@ -132,6 +132,7 @@
         "network": "Network hosts",
         "permissions": "Permissions",
         "program_env": "may be given {names}",
+        "program_search": "finds {names} on its PATH",
         "program_path": "runs {path}",
         "program_java": "Hestia-managed Java {major}",
         "programs": "Programs it can run",

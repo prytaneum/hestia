@@ -348,7 +348,13 @@ place of `command`, the Hestia-managed runtime of that major, resolved at call
 time (installed when missing) through a `ManagedJava` resolver the daemon lends
 the runtime at load, and never pinned. No shell, working directory `data/` unless
 `exec` names `cwd`, a guest path under a writable mount of the call (`/data`, or
-`/build` during a flavor's `build`), empty environment. A spawned agent is supervised under the owner
+`/build` during a flavor's `build`), empty environment plus declared names (and,
+for a program that lists `path`, a `PATH` of only those programs' pinned
+directories). `exec` runs under the current call's remaining budget, observes its
+cancel, kills the child's whole process tree on cancel, timeout or drop, and
+replaces `${build}`, `${vanilla}` and `${data}` in an argument with the host path
+of that mount of the call. A flavor `build` also holds an exclusive lock on
+`meta/flavors/<id>/.lock`. A spawned agent is supervised under the owner
 `plugin:<id>`, visible and stoppable only by its plugin, and stopped when the
 plugin is disabled or removed
 ([0101](../decisions/0101-plugins-spawn-only-declared-programs.md)). The SDK's

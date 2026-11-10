@@ -111,6 +111,10 @@ export function describeGrant(
             m['settings.plugins.grant.program_env']({
               names: program.env.join(', '),
             }),
+          program.path.length > 0 &&
+            m['settings.plugins.grant.program_search']({
+              names: program.path.join(', '),
+            }),
           programPaths[program.id] &&
             m['settings.plugins.grant.program_path']({
               path: programPaths[program.id],

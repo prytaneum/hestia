@@ -132,6 +132,7 @@
         "network": "Hosts de rede",
         "permissions": "Permissões",
         "program_env": "pode receber {names}",
+        "program_search": "encontra {names} no seu PATH",
         "program_path": "executa {path}",
         "program_java": "Java {major} gerenciado pelo Hestia",
         "programs": "Programas que ele pode executar",

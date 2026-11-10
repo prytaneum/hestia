@@ -15,7 +15,7 @@ use super::context::{writable_dir, Mount};
 use super::http::PluginHttp;
 use super::ipc::{Connections, IpcError};
 use super::output::PluginLog;
-use super::process::{ProgramError, Programs};
+use super::process::{CallScope, ProgramError, Programs};
 use super::settings::PluginSettings;
 use crate::cancel::Cancel;
 
@@ -87,6 +87,8 @@ pub struct CommandRun {
 /// Per-call store data; dropped with the call.
 pub(crate) struct PluginState {
     pub(crate) run: Option<Arc<CommandRun>>,
+    /// When the call that owns this store runs out of budget.
+    pub(crate) deadline: tokio::time::Instant,
     pub(crate) mounts: Vec<Mount>,
     pub(crate) wasi: WasiCtx,
     pub(crate) http: WasiHttpCtx,
@@ -257,6 +259,7 @@ impl bindings::hestia::plugin::process::Host for PluginState {
         &mut self,
         program: String,
         args: Vec<String>,
+        env: Vec<(String, String)>,
         timeout_ms: u32,
         cwd: Option<String>,
     ) -> Result<bindings::hestia::plugin::process::ExecOutput, PluginError> {
@@ -264,7 +267,14 @@ impl bindings::hestia::plugin::process::Host for PluginState {
         let cwd = cwd
             .map(|guest| writable_dir(&self.mounts, &guest).map_err(PluginError::PermissionDenied))
             .transpose()?;
-        let output = programs.exec(&program, args, timeout_ms, cwd).await?;
+        let scope = CallScope {
+            mounts: &self.mounts,
+            deadline: self.deadline,
+            cancel: self.run.as_ref().map(|run| &run.cancel),
+        };
+        let output = programs
+            .exec(&program, args, env, timeout_ms, cwd, &scope)
+            .await?;
         Ok(bindings::hestia::plugin::process::ExecOutput {
             status: output.status,
             stdout: output.stdout,

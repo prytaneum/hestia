@@ -65,6 +65,7 @@ update that changes it asks again.
 | `java` | integer, 1 to 99 | instead of `command`: the Java major of the runtime Hestia manages, installed when missing and resolved at call time, never pinned. Exactly one of `command` and `java` (`ProgramCommandOrJava`); no `sha256` |
 | `args` | list of strings | patterns: a literal, `*` for one token, a trailing `**` for the rest; `**` anywhere else is refused |
 | `env` | list of names | the only environment variables a call may pass. `LD_*`, `DYLD_*`, `PATH` and `*JAVA*OPTIONS` are refused (`BadProgramEnv`) |
+| `path` | list of program ids | other `PATH` programs of this manifest whose pinned directories are the program's `PATH`, and nothing else; each must be another `PATH` program, named once (`BadProgramPath`) |
 | `sha256` | table, target triple to hex | required for a `data/` program (`ProgramNeedsHash`): 64 lowercase hex characters per triple |
 
 A shell (`sh`, `bash`, `zsh`, `dash`, `fish`, `ksh`, `csh`, `tcsh`, `cmd`, `powershell`, `pwsh`, `wscript`, with or

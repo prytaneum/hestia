@@ -108,7 +108,14 @@ impl Plugin for Probe {
             },
             "exec" => {
                 let (program, argv) = program_call(&args);
-                let output = hestia::process::exec(&program, &refs(&argv), Duration::from_secs(10))?;
+                let env = env_pairs(&args);
+                let env: Vec<(&str, &str)> = env
+                    .iter()
+                    .map(|(name, value)| (name.as_str(), value.as_str()))
+                    .collect();
+                let timeout = Duration::from_millis(args["timeoutMs"].as_u64().unwrap_or(10_000));
+                let output =
+                    hestia::process::exec_with(&program, &refs(&argv), &env, timeout, None)?;
                 Ok(json!({
                     "status": output.status,
                     "stdout": String::from_utf8_lossy(&output.stdout),
@@ -116,12 +123,7 @@ impl Plugin for Probe {
             }
             "spawn" => {
                 let (program, argv) = program_call(&args);
-                let env: Vec<(String, String)> = args["env"]
-                    .as_object()
-                    .into_iter()
-                    .flatten()
-                    .map(|(name, value)| (name.clone(), value.as_str().unwrap_or_default().into()))
-                    .collect();
+                let env = env_pairs(&args);
                 let env: Vec<(&str, &str)> = env
                     .iter()
                     .map(|(name, value)| (name.as_str(), value.as_str()))
@@ -151,6 +153,15 @@ fn program_call(args: &Value) -> (String, Vec<String>) {
         .filter_map(|arg| arg.as_str().map(str::to_string))
         .collect();
     (program, argv)
+}
+
+fn env_pairs(args: &Value) -> Vec<(String, String)> {
+    args["env"]
+        .as_object()
+        .into_iter()
+        .flatten()
+        .map(|(name, value)| (name.clone(), value.as_str().unwrap_or_default().into()))
+        .collect()
 }
 
 fn refs(argv: &[String]) -> Vec<&str> {

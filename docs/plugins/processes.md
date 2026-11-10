@@ -93,9 +93,9 @@ Both take a program `id`, never a path. Arguments must fit the declared patterns
 |---|---|---|
 | For | a short command whose output you want | a long-lived agent |
 | Returns | `Output { status, stdout, stderr }` once the program exits | a process id |
-| Limits | each stream is cut at 1 MiB; `timeout` is clamped to 1 ms to 5 minutes and a program that outlasts it is killed | at most 8 running per plugin |
-| Environment | empty | empty, plus the declared names you pass |
-| Supervision | none; the child dies with the call | the daemon's process supervisor, owner `plugin:<id>`; output captured |
+| Limits | each stream is cut at 1 MiB; a program that outlasts `timeout` or the time the call has left is killed, with everything it started; so is one still running when the call is cancelled | at most 8 running per plugin |
+| Environment | empty, plus the declared names you pass (`exec_with`) | empty, plus the declared names you pass |
+| Supervision | none; the child's whole tree dies with the call | the daemon's process supervisor, owner `plugin:<id>`; output captured |
 
 ```rust
 let status = hestia::process::exec("tailscale", &["status", "--json"], Duration::from_secs(10))?;
@@ -104,6 +104,17 @@ hestia::process::stop(&agent)?;
 ```
 
 Source: the doc example of `crates/sdk/src/process.rs` (a compiled no-run doctest); it declares `tailscale` and `agent`.
+
+`exec_with(program, args, env, timeout, cwd)` is `exec` with declared environment variables and an optional `cwd`.
+
+An `exec` argument may hold `${build}`, `${vanilla}` or `${data}`; the host replaces each with the host path of that mount
+of the current call, after the argument is checked against the patterns (which match the placeholder as written). A
+placeholder for a mount the call does not have, such as `${build}` outside a flavor's `build`, is `permission-denied`.
+Nothing else in an argument is rewritten.
+
+A program that needs other tools on its `PATH` lists them: `path = ["git"]` names other `PATH` programs of the manifest,
+and the child's `PATH` is exactly their pinned directories, joined with the platform separator. An entry must name
+another `PATH` program, once (`BadProgramPath`). The grant shows it. `spawn` gets the same `PATH`.
 
 The rest of `hestia::process`:
 
@@ -121,7 +132,7 @@ Rules for every call:
 - A program not declared, arguments outside the patterns, or an environment name not in `env` is
   `Error::PermissionDenied`. Without `process:spawn` every call is denied.
 - At most 256 arguments of 32 KiB each, with no NUL.
-- The working directory is `data/`; `exec_in(program, args, timeout, cwd)` runs in another directory, a guest path under a writable mount of the call (`/data`, or `/build` during a flavor's `build`), and anything else is `permission-denied`. The environment starts empty (on Windows only `SystemRoot`).
+- The working directory is `data/`; `exec_in(program, args, timeout, cwd)` (or `exec_with`) runs in another directory, a guest path under a writable mount of the call (`/data`, or `/build` during a flavor's `build`), and anything else is `permission-denied`. The environment starts empty (on Windows only `SystemRoot`).
 - The host logs program ids and exit statuses, never arguments or values: they carry auth keys.
 
 ## Owning a long-lived agent
