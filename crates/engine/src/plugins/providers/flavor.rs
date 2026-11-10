@@ -364,15 +364,11 @@ impl FlavorProvider for PluginFlavorProvider {
         request: &InstallRequest<'_>,
         on: OnProgress<'_>,
     ) -> Result<()> {
-        let building = self.builds.load(Ordering::Relaxed);
-        let _held = match building {
-            true => Some(build::lock_area(&self.area(request.meta), on.cancel()).await?),
-            false => None,
-        };
-        let outputs = match building {
-            true => self.build(side, request, on).await?,
-            false => Vec::new(),
-        };
+        if !self.builds.load(Ordering::Relaxed) {
+            return self.place(side, request, Vec::new()).await;
+        }
+        let _held = build::lock_area(&self.area(request.meta), on.cancel()).await?;
+        let outputs = self.build(side, request, on).await?;
         self.place(side, request, outputs).await
     }
 }
