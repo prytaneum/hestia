@@ -8,7 +8,7 @@ network = ["files.example.com"]
 [[programs]]
 id = "builder"
 java = 21
-args = ["*"]
+args = ["*", "**"]
 
 [[contributes.providers]]
 kind = "flavor"

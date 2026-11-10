@@ -70,7 +70,7 @@ fn info(flavor: &str) -> Result<FlavorDescription, Error> {
 
 fn versions(flavor: &str) -> Result<Vec<GameVersion>, Error> {
     check(flavor)?;
-    Ok(["1.21", "foreign", "unsigned", "built", "outside", "symlink", "empty"]
+    Ok(["1.21", "foreign", "unsigned", "built", "ordered", "expand", "outside", "symlink", "empty"]
         .into_iter()
         .map(|id| GameVersion {
             id: id.into(),
@@ -83,7 +83,7 @@ fn resolve_server(flavor: &str, query: ResolveQuery) -> Result<ServerProfile, Er
     check(flavor)?;
     let version = query.version.as_str();
     let jar = match version {
-        "built" | "outside" | "symlink" | "empty" => ServerJar::Built {
+        "built" | "ordered" | "expand" | "outside" | "symlink" | "empty" => ServerJar::Built {
             filename: BUILT_JAR.into(),
         },
         _ => ServerJar::Download(artifact(version, "server.jar", JAR_SHA1)?),
@@ -132,7 +132,17 @@ fn produced(path: &str, target: &str) -> BuildDone {
 }
 
 fn run_builder(mode: &str) -> Result<(), Error> {
-    let ran = hestia::process::exec_in("builder", &[mode], Duration::from_secs(10), "/build")?;
+    run_builder_with(&[mode])
+}
+
+fn run_builder_with(args: &[&str]) -> Result<(), Error> {
+    let ran = hestia::process::exec_with(
+        "builder",
+        args,
+        &[],
+        Duration::from_secs(10),
+        Some("/build"),
+    )?;
     match ran.status {
         Some(0) => Ok(()),
         _ => Err(Error::Failed("the builder program failed".into())),
@@ -144,6 +154,14 @@ fn build(flavor: &str, query: BuildQuery) -> Result<BuildDone, Error> {
     match (query.side, query.version.as_str()) {
         (BuildSide::Server, "built") => {
             run_builder("build")?;
+            Ok(produced("/build/built.jar", BUILT_JAR))
+        }
+        (BuildSide::Server, "ordered") => {
+            run_builder("ordered")?;
+            Ok(produced("/build/built.jar", BUILT_JAR))
+        }
+        (BuildSide::Server, "expand") => {
+            run_builder_with(&["expand", "${build}/x"])?;
             Ok(produced("/build/built.jar", BUILT_JAR))
         }
         (BuildSide::Server, "outside") => {

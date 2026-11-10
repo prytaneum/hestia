@@ -172,16 +172,28 @@ fn builder_java(home: &std::path::Path) {
     let java = home.join("java/fixture-21/bin/java");
     std::fs::write(
         &java,
-        "#!/bin/sh\ncase \"$1\" in\nbuild) printf 'built jar' > built.jar;;\nsymlink) ln -sf /etc/passwd link.jar;;\nesac\nexit 0\n",
+        "#!/bin/sh\ncase \"$1\" in\nbuild) printf 'built jar' > built.jar;;\nexpand) printf '%s' \"$2\" > built.jar;;\nordered) echo start >> order.log; sleep 1; printf 'built jar' > built.jar; echo end >> order.log;;\nsymlink) ln -sf /etc/passwd link.jar;;\nesac\nexit 0\n",
     )
     .expect("builder java");
     std::fs::set_permissions(&java, std::fs::Permissions::from_mode(0o755)).expect("executable");
 }
 
 async fn provision(engine: &engine::Engine, version: &str) -> anyhow::Result<engine::ServerRecord> {
+    provision_named(engine, version, "smp").await
+}
+
+async fn provision_named(
+    engine: &engine::Engine,
+    version: &str,
+    name: &str,
+) -> anyhow::Result<engine::ServerRecord> {
     let (cancel, report) = (Cancel::new(), |_: &ProvisionProgress| {});
+    let spec = ServerCreateSpec {
+        name: name.into(),
+        ..server(version)
+    };
     engine
-        .provision_server(server(version), &job(&cancel, &report))
+        .provision_server(spec, &job(&cancel, &report))
         .await
         .map(|(record, _)| record)
 }
@@ -218,6 +230,45 @@ async fn a_built_server_jar_is_produced_in_the_build_area_and_placed_in_the_serv
         !data.join("server.jar").exists(),
         "nothing was downloaded for a built jar"
     );
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn a_build_argument_names_the_host_path_of_the_build_area() {
+    let (engine, home) = rig(&["127.0.0.1"]).await;
+    builder_java(home.path());
+
+    let record = provision(&engine, "expand").await.expect("provision");
+
+    let data = engine.servers().data_dir(&record);
+    let area = home.path().join("meta/flavors").join(FLAVOR);
+    assert_eq!(
+        std::fs::read_to_string(data.join("built.jar")).unwrap(),
+        format!("{}/x", area.display())
+    );
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn two_builds_of_one_flavor_run_one_after_the_other() {
+    let (engine, home) = rig(&["127.0.0.1"]).await;
+    builder_java(home.path());
+
+    let (first, second) = tokio::join!(
+        provision_named(&engine, "ordered", "one"),
+        provision_named(&engine, "ordered", "two")
+    );
+    first.expect("first provision");
+    second.expect("second provision");
+
+    let log = std::fs::read_to_string(
+        home.path()
+            .join("meta/flavors")
+            .join(FLAVOR)
+            .join("order.log"),
+    )
+    .unwrap();
+    assert_eq!(log, "start\nend\nstart\nend\n");
 }
 
 #[tokio::test]

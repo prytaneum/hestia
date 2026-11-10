@@ -155,6 +155,11 @@ impl PluginFlavorProvider {
         })
     }
 
+    /// The directory this flavor builds in, shared by every build of it.
+    fn area(&self, meta: &Path) -> std::path::PathBuf {
+        meta.join("flavors").join(self.guest.id())
+    }
+
     /// A copy of the vanilla jar in a host-owned directory of its own, so the
     /// read-only mount shows that jar and nothing beside it: a server's jar
     /// sits in its data directory, next to `server.properties` and its RCON
@@ -181,9 +186,7 @@ impl PluginFlavorProvider {
         request: &InstallRequest<'_>,
         on: OnProgress<'_>,
     ) -> Result<Vec<BuildOutput>> {
-        let area = request.meta.join("flavors").join(self.guest.id());
-        std::fs::create_dir_all(&area)
-            .with_context(|| format!("cannot create {}", area.display()))?;
+        let area = self.area(request.meta);
         let mut mounts = vec![Mount {
             host: area,
             guest: BUILD_MOUNT,
@@ -288,7 +291,7 @@ impl PluginFlavorProvider {
                 })
             })
             .collect::<Result<Vec<_>>>()?;
-        let area = request.meta.join("flavors").join(self.guest.id());
+        let area = self.area(request.meta);
         tokio::task::spawn_blocking(move || build::place(&area, &outputs, &expected))
             .await?
             .map_err(|fault| {
@@ -361,7 +364,12 @@ impl FlavorProvider for PluginFlavorProvider {
         request: &InstallRequest<'_>,
         on: OnProgress<'_>,
     ) -> Result<()> {
-        let outputs = match self.builds.load(Ordering::Relaxed) {
+        let building = self.builds.load(Ordering::Relaxed);
+        let _held = match building {
+            true => Some(build::lock_area(&self.area(request.meta), on.cancel()).await?),
+            false => None,
+        };
+        let outputs = match building {
             true => self.build(side, request, on).await?,
             false => Vec::new(),
         };

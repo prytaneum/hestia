@@ -5,8 +5,50 @@
 
 use std::path::{Component, Path, PathBuf};
 
+use anyhow::Context;
 use proto::plugin::BUILD_MOUNT;
 use proto::provider::flavor::BuildOutput;
+
+use crate::cancel::{Cancel, Cancelled};
+
+const LOCK_FILE: &str = ".lock";
+const CANCEL_POLL: std::time::Duration = std::time::Duration::from_millis(50);
+
+/// An exclusive hold on one flavor's build area, released when dropped. It
+/// spans processes, so a second build of the flavor under the same data home
+/// waits. The lock file is bookkeeping: outputs are placed only by name.
+pub(super) struct AreaLock {
+    _file: std::fs::File,
+}
+
+/// Creates `area` and waits for its lock, giving up with [`Cancelled`] when
+/// `cancel` is raised. The wait is a blocking thread, which on cancel finishes
+/// acquiring and releases at once.
+pub(super) async fn lock_area(area: &Path, cancel: &Cancel) -> anyhow::Result<AreaLock> {
+    std::fs::create_dir_all(area).with_context(|| format!("cannot create {}", area.display()))?;
+    let path = area.join(LOCK_FILE);
+    let mut waiting = tokio::task::spawn_blocking(move || {
+        let file = std::fs::OpenOptions::new()
+            .create(true)
+            .truncate(false)
+            .write(true)
+            .open(&path)?;
+        file.lock()?;
+        std::io::Result::Ok(AreaLock { _file: file })
+    });
+    loop {
+        tokio::select! {
+            held = &mut waiting => {
+                return held?.with_context(|| format!("cannot lock {}", area.display()));
+            }
+            () = tokio::time::sleep(CANCEL_POLL) => {
+                if cancel.is_cancelled() {
+                    return Err(Cancelled.into());
+                }
+            }
+        }
+    }
+}
 
 #[derive(Debug, thiserror::Error)]
 pub(super) enum Fault {
