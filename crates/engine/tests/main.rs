@@ -4,6 +4,7 @@
 mod auth_oracle;
 mod fixture;
 mod flows;
+mod official;
 mod plugins;
 mod process;
 mod store;
