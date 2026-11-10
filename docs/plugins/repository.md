@@ -105,7 +105,8 @@ index of each beside the other catalogue caches.
 ### The official repository
 
 `prytaneum/plugins` is configured in every install: seeded into `repositories.json` on first start and again whenever
-it is missing, pinned to the official keys compiled into the build (current and spare). It cannot be removed (`repo
+it is missing, pinned to the official keys compiled into the build (current and spare) and re-pinned to them on every start, so a
+release that rotates a key needs nothing from the user. It cannot be removed (`repo
 remove` refuses, and the desktop shows no remove button for it). It is the only repository that pins the official keys;
 a repository the user adds that declares one is refused. A bare id (`hestia plugin add modrinth`) searches every
 configured repository, official included; an id offered under several keys asks which.

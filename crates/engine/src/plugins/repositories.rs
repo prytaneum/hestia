@@ -6,13 +6,12 @@ use std::path::PathBuf;
 use std::sync::Mutex;
 
 use anyhow::Result;
+use proto::error::ErrorInfo;
 use proto::repository::RepositoryIndex;
 use serde::{Deserialize, Serialize};
 
-use crate::net::store;
-use proto::error::ErrorInfo;
-
 use super::repos::RepoError;
+use crate::net::store;
 use crate::schema::{self, Document};
 
 #[derive(Serialize, Deserialize, Default, Debug, Clone, PartialEq, Eq)]
@@ -46,7 +45,8 @@ pub struct Repositories {
 }
 
 impl Repositories {
-    /// Seeds the official repository when the file lacks it.
+    /// Seeds the official repository when the file lacks it, and re-pins it to
+    /// the keys this build trusts when the file names others.
     pub fn new(path: PathBuf) -> Self {
         let repositories = Repositories {
             path,
@@ -124,19 +124,27 @@ pub fn is_official_repository(url: &str) -> bool {
 }
 
 /// Pins the official keys: seeding is the only path that may, since a
-/// user-added repository declaring one is refused.
+/// user-added repository declaring one is refused. The binary is the trust
+/// anchor, so keys on disk that differ (a rotation, a hand edit) are replaced.
 pub(crate) fn seed_official_with(repositories: &mut Vec<RepositoryEntry>, keys: &[&str]) -> bool {
     let url = official_url();
-    if repositories.iter().any(|saved| saved.url == url) {
-        return false;
+    let key = keys.first().copied().unwrap_or_default().to_string();
+    let next = keys.get(1).copied().unwrap_or_default().to_string();
+    if let Some(saved) = repositories.iter_mut().find(|saved| saved.url == url) {
+        if saved.key == key && saved.next == next {
+            return false;
+        }
+        tracing::info!("re-pinning the official plugin repository to this build's keys");
+        saved.key = key;
+        saved.next = next;
+        return true;
     }
-    let mut keys = keys.iter();
     repositories.insert(
         0,
         RepositoryEntry {
             url,
-            key: keys.next().copied().unwrap_or_default().to_string(),
-            next: keys.next().copied().unwrap_or_default().to_string(),
+            key,
+            next,
             name: "Official".to_string(),
             label: "HST".to_string(),
             added_unix: common::now_unix(),
@@ -202,6 +210,21 @@ mod tests {
         let reseeded = Repositories::new(path).list();
         assert_eq!(reseeded.len(), 1);
         assert!(is_official_repository(&reseeded[0].url));
+    }
+
+    #[test]
+    fn the_official_repository_is_repinned_to_this_builds_keys() {
+        let mut entries = Vec::new();
+        seed_official_with(&mut entries, &["OLD", "OLDNEXT"]);
+
+        assert!(seed_official_with(&mut entries, &["NEW", "NEWNEXT"]));
+
+        assert_eq!(entries.len(), 1);
+        assert_eq!(
+            (entries[0].key.as_str(), entries[0].next.as_str()),
+            ("NEW", "NEWNEXT")
+        );
+        assert!(!seed_official_with(&mut entries, &["NEW", "NEWNEXT"]));
     }
 
     #[test]
