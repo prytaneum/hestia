@@ -185,23 +185,25 @@ function RepositoryRow({ repository }: { repository: RepositoryInfo }) {
           </ExternalLink>
         )}
       </div>
-      <ConfirmDialog
-        trigger={
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            aria-label={m['app.action.remove']()}
-            disabled={remove.isPending}
-          >
-            <TrashIcon className="size-4" />
-          </Button>
-        }
-        title={m['settings.plugins.repos.remove_title']({ name })}
-        description={m['settings.plugins.repos.remove_description']()}
-        destructive
-        confirmLabel={m['app.action.remove']()}
-        onConfirm={() => remove.mutate(repository.url)}
-      />
+      {!repository.official && (
+        <ConfirmDialog
+          trigger={
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label={m['app.action.remove']()}
+              disabled={remove.isPending}
+            >
+              <TrashIcon className="size-4" />
+            </Button>
+          }
+          title={m['settings.plugins.repos.remove_title']({ name })}
+          description={m['settings.plugins.repos.remove_description']()}
+          destructive
+          confirmLabel={m['app.action.remove']()}
+          onConfirm={() => remove.mutate(repository.url)}
+        />
+      )}
     </div>
   );
 }

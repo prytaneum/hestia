@@ -107,6 +107,12 @@ async fn list(plugins: &client::Plugin<'_>) -> Result<()> {
 
 async fn remove(plugins: &client::Plugin<'_>, reference: &str, yes: bool) -> Result<()> {
     let repository = resolve(&plugins.repo_list().await?, reference)?;
+    if repository.official {
+        bail!(
+            "'{}' is the official repository and cannot be removed",
+            repository.name
+        );
+    }
     if !yes {
         let remove = ui::confirm(
             &format!(

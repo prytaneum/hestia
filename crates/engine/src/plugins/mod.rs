@@ -54,7 +54,11 @@ pub use providers::{
 };
 pub use remote::{Origin, Remote, Staged};
 pub use repos::{ensure_fresh, key_id_of, revocation, verify_build, verify_index, RepoError};
-pub(crate) use repositories::{cache_index, cached_index, Repositories, RepositoryEntry};
+#[cfg(test)]
+pub(crate) use repositories::seed_official_with;
+pub(crate) use repositories::{
+    cache_index, cached_index, is_official_repository, Repositories, RepositoryEntry,
+};
 pub use runtime::{
     CallError, LoadError, LoadedPlugin, PluginRuntime, PluginStats, CANCEL_GRACE, COMMAND_TIMEOUT,
     EVENT_TIMEOUT, HOOK_TIMEOUT, PROVIDER_TIMEOUT, UI_TIMEOUT,

@@ -91,6 +91,7 @@
       "repository_invalid": "Não é um repositório de plugins do Hestia: {detail}",
       "repository_key_changed": "Este repositório agora assina com a chave {declared}, mas você confiou na chave {pinned}. Nada foi alterado. Se a mudança for esperada, remova o repositório e adicione-o de novo.",
       "repository_not_found": "Nenhum repositório de plugins corresponde a '{reference}'.",
+      "repository_official": "'{repository}' é o repositório oficial e não pode ser removido.",
       "repository_refused": "O repositório foi recusado: {detail}",
       "quick_play_unsupported": "Entrar em um mundo ou servidor ao iniciar exige o Minecraft 1.20 ou mais recente; esta instância usa {version}.",
       "server_list_entry_not_found": "Nenhum servidor chamado '{reference}' na lista multijogador desta instância.",

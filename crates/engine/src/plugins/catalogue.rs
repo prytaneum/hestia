@@ -9,6 +9,7 @@ use proto::repository::{Build, IndexedPlugin, RepositoryIndex};
 
 use super::index::icon_url;
 use super::repos::{key_id_of, revocation};
+use super::repositories::is_official_repository;
 use super::store::PluginRecord;
 
 /// A configured repository with the index to read it by.
@@ -34,6 +35,7 @@ impl Source {
             label: self.index.label.clone(),
             website: self.index.website.clone(),
             key_id: self.key_id.clone(),
+            official: is_official_repository(&self.url),
             plugins: self.index.plugins.len() as u32,
             version: self.index.version,
         }

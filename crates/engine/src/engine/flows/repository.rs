@@ -19,8 +19,8 @@ use crate::checksum::hex;
 use crate::net;
 use crate::plugins::{
     build_catalogue, build_url, cache_index, cached_index, declared_keys, ensure_fresh, expand,
-    key_id_of, open, pick, pinned_keys, refuse_official_key, revocation, verify_build, Installed,
-    Listings, Origin, Pick, RepoError, RepositoryEntry, Source,
+    is_official_repository, key_id_of, open, pick, pinned_keys, refuse_official_key, revocation,
+    verify_build, Installed, Listings, Origin, Pick, RepoError, RepositoryEntry, Source,
 };
 
 const INDEX_CAP: u64 = 8 * 1024 * 1024;
@@ -44,6 +44,7 @@ impl Synced {
                 label: self.entry.label.clone(),
                 website: self.entry.website.clone(),
                 key_id: key_id_of(&self.entry.key).unwrap_or_default(),
+                official: is_official_repository(&self.entry.url),
                 ..RepositoryInfo::default()
             },
         }
@@ -504,6 +505,7 @@ mod tests {
     use proto::repository::INDEX_LIFETIME_SECONDS;
 
     use super::*;
+    use crate::plugins::seed_official_with;
     use crate::plugins::testkit::{sample_index, sign_index, Signer, SAMPLE_NOW, SAMPLE_VERSION};
 
     #[test]
@@ -563,7 +565,7 @@ mod tests {
             crate::error_info(error),
             ErrorInfo::RepositoryInvalid { .. }
         ));
-        assert!(engine.repositories().is_empty());
+        assert_eq!(engine.repositories().len(), 1, "only the official one");
     }
 
     #[test]
@@ -579,6 +581,43 @@ mod tests {
             crate::error_info(error),
             ErrorInfo::RepositoryNotFound { .. }
         ));
+    }
+
+    #[test]
+    fn the_official_repository_cannot_be_removed() {
+        let home = tempfile::tempdir().unwrap();
+        let engine = Engine::new(Some(home.path()));
+        let [official] = engine.repositories().try_into().unwrap();
+
+        let error = engine.remove_repository(&official.url).unwrap_err();
+
+        assert!(official.official);
+        assert!(matches!(
+            crate::error_info(error),
+            ErrorInfo::RepositoryOfficial { .. }
+        ));
+        assert_eq!(engine.repositories().len(), 1);
+    }
+
+    #[test]
+    fn an_index_signed_by_either_pinned_official_key_is_accepted() {
+        cache_home();
+        let (current, spare) = (Signer::new(), Signer::new());
+        let mut entries = Vec::new();
+        seed_official_with(&mut entries, &[&current.key(), &spare.key()]);
+        let official = entries.pop().unwrap();
+        let url = official.url.clone();
+
+        for signer in [&current, &spare] {
+            let bytes = sample_index(&signer.key(), |_| {});
+            let signature = sign_index(signer, &bytes);
+            accept_index(&official, &bytes, &signature, None, SAMPLE_NOW).unwrap();
+        }
+        let stranger = Signer::new();
+        let bytes = sample_index(&stranger.key(), |_| {});
+        let signature = sign_index(&stranger, &bytes);
+        assert!(accept_index(&official, &bytes, &signature, None, SAMPLE_NOW).is_err());
+        assert_eq!(official.url, url);
     }
 
     fn entry_for(url: &str, signer: &Signer, spare: Option<&Signer>) -> RepositoryEntry {

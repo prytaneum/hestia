@@ -15,7 +15,11 @@ label: string, website: string,
 /**
  * The pinned minisign key's id. The key, never the name, is what is trusted.
  */
-keyId: string, plugins: number, 
+keyId: string, 
+/**
+ * The repository Hestia ships with; it cannot be removed.
+ */
+official: boolean, plugins: number, 
 /**
  * The index version last accepted.
  */

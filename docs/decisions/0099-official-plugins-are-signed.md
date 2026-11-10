@@ -26,3 +26,8 @@ key (`RepoError::OfficialKey`, answered as `repository_refused`). The official s
 may register an id without the `<owner>.` prefix, anyone else is refused as before.
 
 Rejected: a flag inside the manifest or the index (self-asserted), and trusting the official store's address.
+
+**Amended 2026-11-10.** The official repository, `prytaneum/plugins`, is preconfigured: seeded into `repositories.json`
+at first start and whenever it is missing, pinned to the official keys, and not removable. Seeding is the only path that
+pins them; `repo.add` still refuses an index declaring one. Rejected: a special case in verification (the pin alone
+does the job) and letting the user remove it (a user without it could not install official plugins by bare id).

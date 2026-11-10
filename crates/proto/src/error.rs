@@ -535,6 +535,10 @@ pub enum ErrorInfo {
     RepositoryExpired {
         repository: String,
     },
+    /// The official repository ships with Hestia and cannot be removed.
+    RepositoryOfficial {
+        repository: String,
+    },
     /// The repository has no build of the plugin this Hestia can install.
     PluginBuildUnavailable {
         id: String,
@@ -989,6 +993,9 @@ impl fmt::Display for ErrorInfo {
                 f,
                 "the index of '{repository}' has expired; refresh it before installing from it"
             ),
+            RepositoryOfficial { repository } => {
+                write!(f, "'{repository}' is the official repository and cannot be removed")
+            }
             PluginBuildUnavailable { id, detail } => {
                 write!(f, "no installable build of '{id}': {detail}")
             }

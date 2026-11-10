@@ -25,6 +25,8 @@ pub struct RepositoryInfo {
     pub website: String,
     /// The pinned minisign key's id. The key, never the name, is what is trusted.
     pub key_id: String,
+    /// The repository Hestia ships with; it cannot be removed.
+    pub official: bool,
     pub plugins: u32,
     /// The index version last accepted.
     pub version: u64,

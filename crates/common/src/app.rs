@@ -111,6 +111,10 @@ pub const OFFICIAL_PLUGIN_PUBKEYS: &[&str] = &[
     "RWRpMK/ixsoJvML4S14c7PfzQyu4Eo/drawjt9yT5GS9xniEB8PNxmNY",
 ];
 
+/// The official plugins repository, as `owner/repo`. It is present in every
+/// install and cannot be removed; it is pinned to [`OFFICIAL_PLUGIN_PUBKEYS`].
+pub const OFFICIAL_PLUGIN_REPOSITORY: &str = "prytaneum/plugins";
+
 /// The keys whose plugins are official. `HESTIA_OFFICIAL_PLUGIN_PUBKEY`
 /// replaces the compiled-in set for a local test, in a **debug** build only.
 pub fn official_plugin_pubkeys() -> Vec<&'static str> {

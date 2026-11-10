@@ -102,6 +102,14 @@ index of each beside the other catalogue caches.
   Removing a repository makes its plugins obsolete until a repository with that key is added again. A plugin installed
   from a file, folder or plain link has no signer and is never obsolete.
 
+### The official repository
+
+`prytaneum/plugins` is configured in every install: seeded into `repositories.json` on first start and again whenever
+it is missing, pinned to the official keys compiled into the build (current and spare). It cannot be removed (`repo
+remove` refuses, and the desktop shows no remove button for it). It is the only repository that pins the official keys;
+a repository the user adds that declares one is refused. A bare id (`hestia plugin add modrinth`) searches every
+configured repository, official included; an id offered under several keys asks which.
+
 ### Add from a link
 
 A repository's website can offer one click to add it, with a `hestia://add-repo` link carrying the index URL:

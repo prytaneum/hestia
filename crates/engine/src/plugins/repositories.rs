@@ -10,6 +10,9 @@ use proto::repository::RepositoryIndex;
 use serde::{Deserialize, Serialize};
 
 use crate::net::store;
+use proto::error::ErrorInfo;
+
+use super::repos::RepoError;
 use crate::schema::{self, Document};
 
 #[derive(Serialize, Deserialize, Default, Debug, Clone, PartialEq, Eq)]
@@ -43,11 +46,18 @@ pub struct Repositories {
 }
 
 impl Repositories {
+    /// Seeds the official repository when the file lacks it.
     pub fn new(path: PathBuf) -> Self {
-        Repositories {
+        let repositories = Repositories {
             path,
             writes: Mutex::new(()),
+        };
+        let seeded = repositories
+            .update(|saved| seed_official_with(saved, &common::app::official_plugin_pubkeys()));
+        if let Err(error) = seeded {
+            tracing::warn!(%error, "the official plugin repository was not seeded");
         }
+        repositories
     }
 
     pub fn list(&self) -> Vec<RepositoryEntry> {
@@ -75,6 +85,12 @@ impl Repositories {
     /// False when no such repository is configured. Its cached index goes
     /// with it only in the sense that nothing reads it any more.
     pub fn remove(&self, url: &str) -> Result<bool> {
+        if is_official_repository(url) {
+            return Err(ErrorInfo::from(RepoError::Official {
+                repository: url.to_string(),
+            })
+            .into());
+        }
         self.update(|repositories| {
             let before = repositories.len();
             repositories.retain(|saved| saved.url != url);
@@ -94,6 +110,40 @@ impl Repositories {
         }
         Ok(changed)
     }
+}
+
+/// The index URL of the official repository.
+fn official_url() -> String {
+    super::index::expand(common::app::OFFICIAL_PLUGIN_REPOSITORY)
+        .expect("the official repository is a valid owner/repo")
+}
+
+/// Whether `url` is the official repository, which is never removed.
+pub fn is_official_repository(url: &str) -> bool {
+    url == official_url()
+}
+
+/// Pins the official keys: seeding is the only path that may, since a
+/// user-added repository declaring one is refused.
+pub(crate) fn seed_official_with(repositories: &mut Vec<RepositoryEntry>, keys: &[&str]) -> bool {
+    let url = official_url();
+    if repositories.iter().any(|saved| saved.url == url) {
+        return false;
+    }
+    let mut keys = keys.iter();
+    repositories.insert(
+        0,
+        RepositoryEntry {
+            url,
+            key: keys.next().copied().unwrap_or_default().to_string(),
+            next: keys.next().copied().unwrap_or_default().to_string(),
+            name: "Official".to_string(),
+            label: "HST".to_string(),
+            added_unix: common::now_unix(),
+            ..RepositoryEntry::default()
+        },
+    );
+    true
 }
 
 /// The last index of `url` that passed verification.
@@ -125,6 +175,45 @@ mod tests {
     }
 
     #[test]
+    fn the_official_repository_is_seeded_once_and_again_when_missing() {
+        let home = tempfile::tempdir().unwrap();
+        let path = home.path().join("repositories.json");
+
+        let first = Repositories::new(path.clone()).list();
+        assert_eq!(first.len(), 1);
+        assert!(is_official_repository(&first[0].url));
+        let keys = common::app::official_plugin_pubkeys();
+        assert_eq!(first[0].key, keys[0]);
+        assert_eq!(
+            Some(first[0].next.as_str()),
+            keys.get(1).copied().or(Some(""))
+        );
+
+        let reopened = Repositories::new(path.clone());
+        assert_eq!(reopened.list(), first);
+
+        reopened.save(entry("https://a.example/i.json")).unwrap();
+        reopened
+            .update(|saved| {
+                saved.clear();
+                true
+            })
+            .unwrap();
+        let reseeded = Repositories::new(path).list();
+        assert_eq!(reseeded.len(), 1);
+        assert!(is_official_repository(&reseeded[0].url));
+    }
+
+    #[test]
+    fn the_official_repository_is_never_removed() {
+        let home = tempfile::tempdir().unwrap();
+        let repositories = Repositories::new(home.path().join("repositories.json"));
+
+        assert!(repositories.remove(&official_url()).is_err());
+        assert_eq!(repositories.list().len(), 1);
+    }
+
+    #[test]
     fn repositories_persist_replace_by_url_and_remove() {
         let home = tempfile::tempdir().unwrap();
         let repositories = Repositories::new(home.path().join("repositories.json"));
@@ -140,11 +229,11 @@ mod tests {
         repositories.save(renamed).unwrap();
 
         let saved = repositories.list();
-        assert_eq!(saved.len(), 2);
-        assert_eq!(saved[0].name, "A");
+        assert_eq!(saved.len(), 3);
+        assert_eq!(saved[1].name, "A");
         assert!(repositories.remove("https://a.example/i.json").unwrap());
         assert!(!repositories.remove("https://a.example/i.json").unwrap());
-        assert_eq!(repositories.list().len(), 1);
+        assert_eq!(repositories.list().len(), 2);
         assert!(repositories.get("https://b.example/i.json").is_some());
     }
 }

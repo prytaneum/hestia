@@ -723,7 +723,7 @@ before trusting it.
 hestia plugin repo add <owner/repo|github.com/owner/repo|https-plugins-json-url>   # owner/repo reads its `repo` branch; shows name, label, website, key id, plugin count; asks; -y trusts the key shown
 hestia plugin repo list          # alias ls; label, name, key id, plugin count, website
 hestia plugin repo refresh [ref] # fetch again; an unreachable one keeps its cached index and warns
-hestia plugin repo remove <ref>  # alias rm; label, name or index URL; confirms, -y skips; its plugins keep running, as obsolete
+hestia plugin repo remove <ref>  # alias rm; label, name or index URL; confirms, -y skips; its plugins keep running, as obsolete; the official repository is refused
 hestia plugin browse [query] [--repo <ref>]   # every plugin of every repository, with store label, key id and status
 ```
 

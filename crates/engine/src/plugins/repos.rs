@@ -27,6 +27,8 @@ pub enum RepoError {
     WrongSubject { expected: String, found: String },
     #[error("index version {offered} is older than the cached {cached}")]
     Rollback { offered: u64, cached: u64 },
+    #[error("{repository} is the official repository and cannot be removed")]
+    Official { repository: String },
     #[error("the index of {repository} has expired")]
     Expired { repository: String },
     #[error("the index is not valid: {0}")]
@@ -40,6 +42,7 @@ impl From<RepoError> for ErrorInfo {
                 ErrorInfo::RepositoryKeyChanged { pinned, declared }
             }
             RepoError::Expired { repository } => ErrorInfo::RepositoryExpired { repository },
+            RepoError::Official { repository } => ErrorInfo::RepositoryOfficial { repository },
             RepoError::BadKey(_) | RepoError::Malformed(_) => ErrorInfo::RepositoryInvalid {
                 detail: error.to_string(),
             },
