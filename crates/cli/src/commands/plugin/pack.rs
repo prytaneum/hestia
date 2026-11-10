@@ -25,31 +25,10 @@ pub fn run(ids: &[String], sign: Option<&Path>) -> Result<()> {
         .transpose()?;
     let plugins = select(checked.plugins, ids)?;
 
-    let components: Vec<&PluginDir> = plugins
-        .iter()
-        .filter(|plugin| plugin.manifest.wasm.is_some())
-        .collect();
-    let metadata = if components.is_empty() {
-        None
-    } else {
-        let metadata = Metadata::read(repo.root())?;
-        let packages = components
-            .iter()
-            .map(|plugin| metadata.package_name(&plugin.path))
-            .collect::<Result<Vec<_>>>()?;
-        cargo::build(repo.root(), &packages)?;
-        Some(metadata)
-    };
-
     let dist = repo.root().join(DIST);
     std::fs::create_dir_all(&dist)?;
-    for plugin in &plugins {
-        let component = match (&plugin.manifest.wasm, &metadata) {
-            (Some(_), Some(metadata)) => Some(metadata.component(&plugin.path)?),
-            _ => None,
-        };
-        let package = pack_plugin(plugin, component.as_ref(), &dist)
-            .with_context(|| format!("cannot pack '{}'", plugin.manifest.id))?;
+    let packages = build(repo.root(), &plugins, &dist)?;
+    for (plugin, package) in plugins.iter().zip(packages) {
         if let Some(signer) = &signer {
             sign_package(signer, &plugin.manifest, &package)?;
         }
@@ -64,7 +43,44 @@ pub fn run(ids: &[String], sign: Option<&Path>) -> Result<()> {
     Ok(())
 }
 
-fn sign_package(signer: &Signer, manifest: &proto::plugin::Manifest, package: &Path) -> Result<()> {
+/// Builds the plugins' components in one cargo run and writes each package into
+/// `out`, returning the package paths in the order given.
+pub(super) fn build(root: &Path, plugins: &[PluginDir], out: &Path) -> Result<Vec<PathBuf>> {
+    let components: Vec<&PluginDir> = plugins
+        .iter()
+        .filter(|plugin| plugin.manifest.wasm.is_some())
+        .collect();
+    let metadata = if components.is_empty() {
+        None
+    } else {
+        let metadata = Metadata::read(root)?;
+        let packages = components
+            .iter()
+            .map(|plugin| metadata.package_name(&plugin.path))
+            .collect::<Result<Vec<_>>>()?;
+        cargo::build(root, &packages)?;
+        Some(metadata)
+    };
+
+    plugins
+        .iter()
+        .map(|plugin| {
+            let component = match (&plugin.manifest.wasm, &metadata) {
+                (Some(_), Some(metadata)) => Some(metadata.component(&plugin.path)?),
+                _ => None,
+            };
+            pack_plugin(plugin, component.as_ref(), out)
+                .with_context(|| format!("cannot pack '{}'", plugin.manifest.id))
+        })
+        .collect()
+}
+
+/// Writes `<package>.minisig`, bound to the manifest's id and version.
+pub(super) fn sign_package(
+    signer: &Signer,
+    manifest: &proto::plugin::Manifest,
+    package: &Path,
+) -> Result<()> {
     let file = package
         .file_name()
         .and_then(|name| name.to_str())
@@ -130,8 +146,8 @@ pub(super) fn package_files(
     Ok((manifest, files))
 }
 
-/// Writes `dist/<id>-<version>.hplugin`.
-fn pack_plugin(
+/// Writes `<dist>/<id>-<version>.hplugin`.
+pub(super) fn pack_plugin(
     plugin: &PluginDir,
     component: Option<&cargo::Component>,
     dist: &Path,

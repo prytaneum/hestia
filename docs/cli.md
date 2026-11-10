@@ -750,8 +750,9 @@ hestia plugin new <id>           # outside a repository: creates ./<id>/ with th
                                  #   inside one: adds only plugins/<id>/
 hestia plugin pack [id…]         # from anywhere in the repository: build and write dist/<id>-<version>.hplugin
 hestia plugin check [dir]        # validate the repository against the one shape
-hestia plugin index [--previous <https-url|file>] [--add dist/*.hplugin] [--repository <https-url>] [--sign <secret key>]
-                                 # write dist/plugins.json, the repository's listing (+ .minisig with --sign)
+hestia plugin publish --out <dir> --sign <secret key> [--repository <https-url>]
+                                 # build the versions with no package in <dir>/packages yet, then write and sign
+                                 #   <dir>/plugins.json (<dir> is a checkout of the `repo` branch; no network)
 hestia plugin keygen [--out <dir>] [--unencrypted]
                                  # write hestia.key and hestia.pub (to --out, default the current directory) and set
                                  #   `key` in [workspace.metadata.hestia]; never overwrites a key; --unencrypted for a CI secret
@@ -762,8 +763,11 @@ hestia plugin dev [dir] [-y]     # run plugins/<id>/ in place, reload on every r
 The shape, the index format and the release flow are in [plugins/repository.md](plugins/repository.md) and
 [plugins/publishing.md](plugins/publishing.md). `check`
 needs `[workspace.metadata.hestia]` (`name`, `label`, `website`, `key`, a valid minisign public key) and a theme-only plugin listed in `exclude`;
-`pack` and `index` run it first. `index` keeps the previous index's builds and revocations, adds each package with its
-sha256, bumps `version`, and takes `commit` from git and `repository` from `--repository` or the `origin` remote.
+`pack` and `publish` run it first. `publish` never rebuilds a published version: a package in `<out>/packages/` whose
+sha256 no longer matches `plugins.json` is refused. It lists every package there as a build with its sha256, reads
+`revoked.toml`, sets `version` to the signing time (never below the previous one) and `expires` 30 days on, and takes
+`commit` from git and `repository` from `--repository` or the `origin` remote. `--sign` is required and must be the
+repository's declared key.
 
 `pack` runs `cargo build --release --target wasm32-wasip2` (needs `rustup target add wasm32-wasip2`), writes the `api`
 requirement into the packaged `plugin.toml` from the `hestia-sdk` version cargo resolved (never type it yourself), and

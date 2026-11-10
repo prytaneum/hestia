@@ -151,7 +151,7 @@ hestia plugin pack  --sign <secret key>
 - `next` is an optional spare key. Generate it the same way, keep its secret offline, and add its public half as `next`
   before it is needed: a client trusts only what it pinned. To rotate, sign with the spare; the index then declares it as
   `key`, and a client that pinned it follows.
-- `pack --sign` writes `<id>-<version>.hplugin.minisig` beside each package; the publish workflow signs the index the
+- `pack --sign` writes `<id>-<version>.hplugin.minisig` beside each package; `hestia plugin publish --sign` signs each package it builds and the index the
   same way. Publish each `.minisig` next to its file. `--sign` refuses a secret key that is not the declared `key`.
 - Keys and signatures are standard minisign text: the key is the `RW...` base64 string, a signature is the `.minisig`
   file. `check` requires the declared keys to parse.

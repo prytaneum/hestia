@@ -30,6 +30,7 @@ pub struct StoreMeta {
 
 /// One folder under `plugins/`, as found on disk. Whether it is valid is for
 /// the caller to judge.
+#[derive(Clone)]
 pub struct PluginDir {
     pub dir_name: String,
     pub path: PathBuf,

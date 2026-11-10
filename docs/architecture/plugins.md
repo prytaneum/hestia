@@ -34,7 +34,7 @@ what a third party could use.
 | Sandbox, store, install, trust | `crates/engine/src/plugins/` | `PluginRuntime`, `Plugins`, hooks, providers, repositories |
 | Loaded state, events, host calls | `crates/daemon/src/runtime/plugins/` | `RouterHost` (the `HostCalls` impl), event delivery, enable/disable |
 | Channels | `crates/daemon/src/services/plugin.rs` | the `plugin.*` registrar |
-| Authoring tools | `crates/cli/src/commands/plugin/` | `new`, `pack`, `check`, `index` (to become `publish`), `keygen`, `dev`, and the management verbs |
+| Authoring tools | `crates/cli/src/commands/plugin/` | `new`, `pack`, `check`, `publish`, `keygen`, `dev`, and the management verbs |
 
 The engine never links `ipc` or `client`; what it needs from the daemon is the
 `HostCalls` trait (`permission`, `call`, `run_job`), which `RouterHost`

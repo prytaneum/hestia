@@ -6,11 +6,11 @@ mod cargo;
 mod check;
 mod config;
 mod dev;
-mod index;
 mod keygen;
 mod new;
 mod pack;
 mod page;
+mod publish;
 mod repo;
 pub(crate) mod run;
 mod sign;
@@ -50,20 +50,17 @@ pub enum PluginCmd {
         /// Inside the repository by default
         dir: Option<std::path::PathBuf>,
     },
-    /// Write dist/plugins.json, the listing of the repository's plugins
-    Index {
-        /// The previous index (https URL or file): its builds and revocations carry over
-        #[arg(long, value_name = "URL_OR_FILE")]
-        previous: Option<String>,
-        /// Packages to add as builds, e.g. dist/*.hplugin
-        #[arg(long, num_args = 1.., value_name = "HPLUGIN")]
-        add: Vec<std::path::PathBuf>,
+    /// Build unpublished versions into <out>/packages and sign <out>/plugins.json
+    Publish {
+        /// A checkout of the repository's `repo` branch
+        #[arg(long, value_name = "DIR")]
+        out: std::path::PathBuf,
+        /// The minisign secret key; it must be the repository's declared key
+        #[arg(long, value_name = "SECRET_KEY")]
+        sign: std::path::PathBuf,
         /// The repository's https URL; the `origin` remote by default
         #[arg(long)]
         repository: Option<String>,
-        /// Sign the index with this minisign secret key, writing plugins.json.minisig
-        #[arg(long, value_name = "SECRET_KEY")]
-        sign: Option<std::path::PathBuf>,
     },
     /// Generate the repository's signing key pair and declare its public key
     Keygen {
@@ -136,12 +133,11 @@ pub async fn run(cmd: PluginCmd) -> Result<()> {
         PluginCmd::Pack { ids, sign } => pack::run(&ids, sign.as_deref()),
         PluginCmd::Dev { dir, yes } => dev::run(dir.as_deref(), yes).await,
         PluginCmd::Check { dir } => check::run(dir.as_deref()),
-        PluginCmd::Index {
-            previous,
-            add,
-            repository,
+        PluginCmd::Publish {
+            out,
             sign,
-        } => index::run(previous.as_deref(), &add, repository, sign.as_deref()).await,
+            repository,
+        } => publish::run(&out, &sign, repository),
         PluginCmd::Keygen { out, unencrypted } => keygen::run(out.as_deref(), unencrypted),
         PluginCmd::Manage(cmd) => manage(cmd).await,
     }

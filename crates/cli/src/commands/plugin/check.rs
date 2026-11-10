@@ -190,10 +190,6 @@ pub mod tests {
         }
     }
 
-    pub fn valid_meta() -> &'static str {
-        META
-    }
-
     fn message(repo: &Repository) -> String {
         format!("{:#}", check(repo).err().expect("check must fail"))
     }

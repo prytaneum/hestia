@@ -9,7 +9,7 @@ use client::Client;
 use proto::config::DEVELOPER_KEY;
 
 pub const ENV_OVERRIDE: &str = "HESTIA_DEVELOPER";
-pub const AUTHORING_VERBS: [&str; 6] = ["new", "pack", "dev", "check", "keygen", "index"];
+pub const AUTHORING_VERBS: [&str; 6] = ["new", "pack", "dev", "check", "keygen", "publish"];
 pub const OFF_MESSAGE: &str =
     "developer mode is off; enable it with: hestia config set developer true";
 
