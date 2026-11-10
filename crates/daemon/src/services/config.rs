@@ -5,8 +5,8 @@ use std::path::Path;
 
 use engine::ConfigError;
 use proto::config::{
-    ConfigGet, ConfigGetResult, ConfigList, ConfigListResult, ConfigSet, AUTOSTART_KEY,
-    DEVELOPER_KEY, HOME_KEY,
+    hide_from_plugin, plugin_may_read, plugin_may_write, ConfigGet, ConfigGetResult, ConfigList,
+    ConfigListResult, ConfigSet, AUTOSTART_KEY, DEVELOPER_KEY, HOME_KEY,
 };
 use proto::error::{ErrorInfo, ValueKind};
 use proto::Empty;
@@ -37,6 +37,10 @@ fn config_err(e: ConfigError) -> ErrorInfo {
 
 pub(super) fn register(on: &mut Channels<'_>) {
     on.handle::<ConfigGet, _, _>(|p, ctx| async move {
+        let from_plugin = matches!(ctx.caller, Caller::Plugin(_));
+        if from_plugin && !plugin_may_read(&p.key) {
+            return Err(ErrorInfo::ConfigKeyUnknown { key: p.key });
+        }
         if p.key == HOME_KEY {
             return Ok(ConfigGetResult {
                 value: json!(ctx.runtime.engine().data_home().display().to_string()),
@@ -51,16 +55,19 @@ pub(super) fn register(on: &mut Channels<'_>) {
             .engine()
             .config()
             .get(&p.key)
-            .map(|value| ConfigGetResult { value })
+            .map(|mut value| {
+                if from_plugin {
+                    hide_from_plugin(&p.key, &mut value);
+                }
+                ConfigGetResult { value }
+            })
             .map_err(config_err)
     });
 
     on.handle::<ConfigSet, _, _>(|p, ctx| async move {
-        // Developer mode unlocks dev installs; only the user may turn it on.
-        if p.key == DEVELOPER_KEY && matches!(ctx.caller, Caller::Plugin(_)) {
-            return Err(ErrorInfo::ConfigRejected {
-                key: DEVELOPER_KEY.into(),
-            });
+        if matches!(ctx.caller, Caller::Plugin(_)) && !plugin_may_write(&p.key) {
+            tracing::warn!(key = %p.key, "plugin refused a user-only setting");
+            return Err(ErrorInfo::ConfigRejected { key: p.key });
         }
         if p.key == HOME_KEY {
             let Value::String(dir) = p.value else {
@@ -120,6 +127,9 @@ pub(super) fn register(on: &mut Channels<'_>) {
                 json!(ctx.runtime.engine().data_home().display().to_string()),
             );
             map.insert(AUTOSTART_KEY.into(), json!(autostart::is_enabled()));
+        }
+        if matches!(ctx.caller, Caller::Plugin(_)) {
+            hide_from_plugin("", &mut entries);
         }
         Ok(ConfigListResult { entries })
     });

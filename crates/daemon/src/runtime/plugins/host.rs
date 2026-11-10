@@ -389,23 +389,147 @@ mod tests {
         assert!(matches!(&error, HostError::Failed(message) if message.contains("sign in")));
     }
 
+    async fn as_client(
+        harness: &Harness,
+        channel: &str,
+        payload: Value,
+    ) -> ipc::protocol::Response {
+        let (out, _) = unbounded_channel();
+        let ctx = HandlerContext {
+            runtime: harness._runtime.clone(),
+            conn_id: 0,
+            out,
+            caller: Caller::Client,
+            chain: CallChain::default(),
+        };
+        crate::services::make_router()
+            .route(Request::new(channel, payload, None), ctx)
+            .await
+    }
+
     #[tokio::test]
-    async fn a_plugin_cannot_turn_developer_mode_on() {
+    async fn a_plugin_cannot_change_a_user_only_setting() {
         let harness = harness(crate::services::make_router());
-        let error = harness
+        let attempts = [
+            ("developer", json!(true)),
+            ("autostart", json!(true)),
+            ("home", json!("/tmp/elsewhere")),
+            ("java.provider", json!("other")),
+            ("defaults.jvm-args", json!("-Dx=1")),
+            ("defaults.jvmArgs", json!("-Dx=1")),
+            ("defaults.jvm_args", json!("-Dx=1")),
+            ("defaults", json!({ "memory": "", "jvmArgs": "-Dx=1" })),
+            ("java", json!({ "provider": "other" })),
+        ];
+        for (key, value) in attempts {
+            let error = harness
+                .host
+                .call(
+                    "demo",
+                    &CallChain::default(),
+                    "config.set",
+                    json!({ "key": key, "value": value }),
+                )
+                .await
+                .expect_err(key);
+            assert!(
+                matches!(&error, HostError::Invalid(message) if message.contains(key)),
+                "{key}: {error:?}"
+            );
+        }
+        let settings = harness._runtime.engine().config().settings();
+        assert!(!harness._runtime.plugins().developer());
+        assert!(settings.defaults.jvm_args.is_empty());
+        assert_ne!(settings.java.provider, "other");
+    }
+
+    #[tokio::test]
+    async fn a_plugin_can_change_an_ordinary_setting() {
+        let harness = harness(crate::services::make_router());
+        harness
             .host
             .call(
                 "demo",
                 &CallChain::default(),
                 "config.set",
-                json!({ "key": proto::config::DEVELOPER_KEY, "value": true }),
+                json!({ "key": "defaults.memory", "value": "2G" }),
             )
             .await
-            .expect_err("only the user may enable developer mode");
-        assert!(
-            matches!(&error, HostError::Invalid(message) if message.contains("developer")),
-            "{error:?}"
+            .expect("defaults.memory is the plugin's to set");
+    }
+
+    #[tokio::test]
+    async fn a_plugin_never_sees_the_curseforge_key() {
+        let harness = harness(crate::services::make_router());
+        harness
+            ._runtime
+            .engine()
+            .set_config("content.curseforge-key", json!("sekret"))
+            .expect("set key");
+        let chain = CallChain::default();
+
+        let error = harness
+            .host
+            .call(
+                "demo",
+                &chain,
+                "config.get",
+                json!({ "key": "content.curseforge-key" }),
+            )
+            .await
+            .expect_err("hidden key reads as absent");
+        assert!(matches!(error, HostError::NotFound(_)));
+
+        let content = harness
+            .host
+            .call("demo", &chain, "config.get", json!({ "key": "content" }))
+            .await
+            .expect("subtree");
+        assert!(!content.to_string().contains("sekret"), "{content}");
+        assert!(content["value"].get("curseforgeKey").is_none());
+
+        let all = harness
+            .host
+            .call("demo", &chain, "config.list", json!({}))
+            .await
+            .expect("list");
+        assert!(!all.to_string().contains("sekret"), "{all}");
+        assert!(all["entries"]["content"].get("curseforge-key").is_none());
+        assert!(all["entries"].get("defaults").is_some());
+    }
+
+    #[tokio::test]
+    async fn a_client_still_sees_and_sets_every_setting() {
+        let harness = harness(crate::services::make_router());
+        let set = as_client(
+            &harness,
+            "config.set",
+            json!({ "key": "defaults.jvm-args", "value": "-Dx=1" }),
+        )
+        .await;
+        assert!(set.error.is_none(), "{set:?}");
+        let set = as_client(
+            &harness,
+            "config.set",
+            json!({ "key": "content.curseforge-key", "value": "sekret" }),
+        )
+        .await;
+        assert!(set.error.is_none(), "{set:?}");
+
+        let got = as_client(
+            &harness,
+            "config.get",
+            json!({ "key": "content.curseforge-key" }),
+        )
+        .await;
+        assert_eq!(got.payload["value"], "sekret");
+        let content = as_client(&harness, "config.get", json!({ "key": "content" })).await;
+        assert_eq!(content.payload["value"]["curseforgeKey"], "sekret");
+        let all = as_client(&harness, "config.list", json!({})).await;
+        assert_eq!(
+            all.payload["entries"]["content"]["curseforge-key"],
+            "sekret"
         );
-        assert!(!harness._runtime.plugins().developer());
+        assert_eq!(all.payload["entries"]["defaults"]["jvm-args"], "-Dx=1");
     }
 }

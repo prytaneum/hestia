@@ -21,7 +21,7 @@ access to the computer.
 | `content:write` | unrestricted | Install, update and remove mods, packs and other content |
 | `account:read` | sandboxed | See the names of signed-in accounts, never their tokens |
 | `config:read` | sandboxed | Read launcher settings |
-| `config:write` | unrestricted | Change launcher settings, including default JVM arguments |
+| `config:write` | unrestricted | Change launcher settings; the launcher location, autostart, developer mode, the Java provider and default JVM arguments stay yours |
 | `java:read` | sandboxed | See installed and available Java runtimes |
 | `java:manage` | sandboxed | Install and remove Java runtimes |
 | `network:connect` | sandboxed | Connect to the hosts it lists in `network` |

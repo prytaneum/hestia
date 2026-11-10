@@ -211,7 +211,7 @@ impl Permission {
             Permission::ContentWrite => "Install, update and remove mods, packs and other content",
             Permission::AccountRead => "See the names of signed-in accounts, never their tokens",
             Permission::ConfigRead => "Read launcher settings",
-            Permission::ConfigWrite => "Change launcher settings, including default JVM arguments",
+            Permission::ConfigWrite => "Change launcher settings; the launcher location, autostart, developer mode, the Java provider and default JVM arguments stay yours",
             Permission::JavaRead => "See installed and available Java runtimes",
             Permission::JavaManage => "Install and remove Java runtimes",
             Permission::NetworkConnect => "Connect to the hosts it lists",
