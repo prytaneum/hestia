@@ -12,6 +12,11 @@ export type Program = { id: string, command: string,
  */
 java?: number, args: Array<string>, env: Array<string>, 
 /**
+ * Ids of other `PATH` programs of the same manifest whose pinned
+ * directories become the child's `PATH`, and nothing else.
+ */
+path: Array<string>, 
+/**
  * Per target triple; required for a program inside the data directory.
  */
 sha256: { [key in string]: string }, };

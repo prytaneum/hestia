@@ -46,9 +46,12 @@ pub struct Status {
     pub exit_code: Option<i32>,
 }
 
-/// Runs a short-lived program to completion; one that outlasts `timeout` is killed.
+/// Runs a program to completion; one that outlasts `timeout`, or what the
+/// current call has left, is killed with everything it started. An argument
+/// may hold `${build}`, `${vanilla}` or `${data}`, replaced by the host path
+/// of that mount of this call.
 pub fn exec(program: &str, args: &[&str], timeout: Duration) -> Result<Output, Error> {
-    run(program, args, timeout, None)
+    exec_with(program, args, &[], timeout, None)
 }
 
 /// [`exec`] in `cwd`, a guest path under a writable mount of this call: `/data`,
@@ -60,17 +63,21 @@ pub fn exec_in(
     timeout: Duration,
     cwd: &str,
 ) -> Result<Output, Error> {
-    run(program, args, timeout, Some(cwd))
+    exec_with(program, args, &[], timeout, Some(cwd))
 }
 
-fn run(
+/// [`exec`] with `env`, which may only name variables the program declares, and
+/// an optional `cwd` as in [`exec_in`]. The program's `PATH` holds only the
+/// programs its manifest lists in `path`.
+pub fn exec_with(
     program: &str,
     args: &[&str],
+    env: &[(&str, &str)],
     timeout: Duration,
     cwd: Option<&str>,
 ) -> Result<Output, Error> {
     let timeout_ms = u32::try_from(timeout.as_millis()).unwrap_or(u32::MAX);
-    let output = host::exec(program, &strings(args), timeout_ms, cwd)?;
+    let output = host::exec(program, &strings(args), &pairs(env), timeout_ms, cwd)?;
     Ok(Output {
         status: output.status,
         stdout: output.stdout,
@@ -82,11 +89,7 @@ fn run(
 /// process id, which stays valid after the daemon restarts. `env` may only
 /// name variables the program declares.
 pub fn spawn(program: &str, args: &[&str], env: &[(&str, &str)]) -> Result<String, Error> {
-    let env: Vec<(String, String)> = env
-        .iter()
-        .map(|(name, value)| (name.to_string(), value.to_string()))
-        .collect();
-    Ok(host::spawn(program, &strings(args), &env)?)
+    Ok(host::spawn(program, &strings(args), &pairs(env))?)
 }
 
 /// Asks one of the plugin's own processes to stop. A process the plugin did
@@ -120,4 +123,10 @@ pub fn list() -> Result<Vec<String>, Error> {
 
 fn strings(args: &[&str]) -> Vec<String> {
     args.iter().map(|arg| arg.to_string()).collect()
+}
+
+fn pairs(env: &[(&str, &str)]) -> Vec<(String, String)> {
+    env.iter()
+        .map(|(name, value)| (name.to_string(), value.to_string()))
+        .collect()
 }

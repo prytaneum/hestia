@@ -415,6 +415,9 @@ pub struct Program {
     pub java: Option<u32>,
     pub args: Vec<String>,
     pub env: BTreeSet<String>,
+    /// Ids of other `PATH` programs of the same manifest whose pinned
+    /// directories become the child's `PATH`, and nothing else.
+    pub path: Vec<String>,
     /// Per target triple; required for a program inside the data directory.
     pub sha256: BTreeMap<String, String>,
 }
@@ -523,6 +526,27 @@ impl Program {
             return Err(bad());
         }
         self.validate_arguments()
+    }
+
+    fn is_path_kind(&self) -> bool {
+        self.java.is_none() && !self.in_data_dir()
+    }
+
+    fn validate_path(&self, declared: &[Program]) -> Result<(), ManifestError> {
+        let mut seen = BTreeSet::new();
+        for id in &self.path {
+            let names_path_program = *id != self.id
+                && declared
+                    .iter()
+                    .any(|other| other.id == *id && other.is_path_kind());
+            if !names_path_program || !seen.insert(id) {
+                return Err(ManifestError::BadProgramPath {
+                    program: self.id.clone(),
+                    entry: id.clone(),
+                });
+            }
+        }
+        Ok(())
     }
 
     fn validate_arguments(&self) -> Result<(), ManifestError> {
@@ -769,6 +793,8 @@ pub enum ManifestError {
     ProgramNeedsHash(String),
     #[error("program environment variable `{0}` is not a valid name, or is one no plugin may set")]
     BadProgramEnv(String),
+    #[error("program `{program}` lists `{entry}` in `path`, which must be another `PATH` program of the manifest, named once")]
+    BadProgramPath { program: String, entry: String },
     #[error("programs need the permission `process:spawn`")]
     ProgramPermissionMissing,
     #[error("ipc endpoint `{0}` must be a relative name of letters, digits, `.`, `_` or `-`, optionally ending in `*`")]
@@ -849,6 +875,7 @@ impl Manifest {
         }
         for program in &self.programs {
             program.validate()?;
+            program.validate_path(&self.programs)?;
         }
         let contributes = &self.contributes;
         if contributes.schedules.len() > MAX_SCHEDULES {

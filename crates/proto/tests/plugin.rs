@@ -480,6 +480,42 @@ mod manifest {
     }
 
     #[test]
+    fn a_program_path_names_other_path_programs_once() {
+        let git = Program {
+            id: "git".into(),
+            ..path_program("git", &[])
+        };
+        let building = |path: &[&str], extra: Vec<Program>| {
+            let mut manifest = spawning(Program {
+                path: path.iter().map(|id| id.to_string()).collect(),
+                ..path_program("agent", &[])
+            });
+            manifest.programs.extend(extra);
+            manifest.validate()
+        };
+        assert_eq!(building(&["git"], vec![git.clone()]), Ok(()));
+        for (path, extra) in [
+            (vec!["git"], vec![]),
+            (vec!["agent"], vec![]),
+            (vec!["git", "git"], vec![git.clone()]),
+            (
+                vec!["jvm"],
+                vec![Program {
+                    id: "jvm".into(),
+                    command: String::new(),
+                    java: Some(21),
+                    ..Program::default()
+                }],
+            ),
+        ] {
+            assert!(matches!(
+                building(&path, extra),
+                Err(ManifestError::BadProgramPath { .. })
+            ));
+        }
+    }
+
+    #[test]
     fn a_program_declaring_a_loader_variable_is_rejected() {
         for name in [
             "LD_PRELOAD",

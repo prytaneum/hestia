@@ -28,11 +28,17 @@ interface process {
         exit-code: option<s32>,
     }
 
-    /// Runs a short-lived program to completion; one that outlasts `timeout-ms` is killed.
+    /// Runs a program to completion. One that outlasts `timeout-ms`, or the
+    /// time the current call has left, is killed with everything it started, as
+    /// is one still running when the call is cancelled or dropped. `env` may
+    /// only name variables the program declares; its `PATH` is built from the
+    /// programs it lists in `path`. An argument may hold `${build}`, `${vanilla}`
+    /// or `${data}`, which the host replaces with the host path of that mount
+    /// of this call (`permission-denied` when the call has no such mount).
     /// `cwd` is a guest path under a writable mount of this call (`/data`, or
     /// `/build` during a flavor's `build`); `none` runs in `data/`. Any other
     /// directory is `permission-denied`.
-    exec: func(program: string, args: list<string>, timeout-ms: u32, cwd: option<string>) -> result<exec-output, plugin-error>;
+    exec: func(program: string, args: list<string>, env: list<tuple<string, string>>, timeout-ms: u32, cwd: option<string>) -> result<exec-output, plugin-error>;
 
     /// Starts a long-lived program under the daemon's supervisor and returns its
     /// process id. The id is persistent: it names the process after the daemon
