@@ -17,10 +17,9 @@ const LIB: &str = include_str!("templates/lib.rs.tmpl");
 /// release tag when the plugin system ships.
 const HESTIA_REV: &str = "refs/heads/feature/plugins";
 const WORKFLOW_REF: &str = "feature/plugins";
-const WORKFLOWS: [(&str, &str); 3] = [
+const WORKFLOWS: [(&str, &str); 2] = [
     ("ci.yml", include_str!("templates/ci.yml.tmpl")),
-    ("index.yml", include_str!("templates/index.yml.tmpl")),
-    ("release.yml", include_str!("templates/release.yml.tmpl")),
+    ("publish.yml", include_str!("templates/publish.yml.tmpl")),
 ];
 
 /// Adds `plugins/<id>/` to the repository around the current directory, or
@@ -110,8 +109,7 @@ mod tests {
             ".gitignore",
             "README.md",
             ".github/workflows/ci.yml",
-            ".github/workflows/index.yml",
-            ".github/workflows/release.yml",
+            ".github/workflows/publish.yml",
             "plugins/hello/plugin.toml",
             "plugins/hello/Cargo.toml",
             "plugins/hello/src/lib.rs",

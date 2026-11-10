@@ -1,7 +1,9 @@
-name: plugin-index
+name: plugin-publish
 
-# Reusable: regenerates and publishes a plugin repository's signed index. No
-# builds. The caller job must grant `contents: write`.
+# Reusable: builds and signs the plugin versions the `repo` branch has no
+# package for yet, regenerates and signs its plugins.json, and commits both to
+# that orphan branch. Call it on a push to the default branch and on a weekly
+# schedule. The caller job must grant `contents: write`.
 on:
   workflow_call:
     inputs:
@@ -30,51 +32,59 @@ jobs:
           if [ -n "$HESTIA_SIGNING_KEY" ]; then
             echo "signed=true" >> "$GITHUB_OUTPUT"
           else
-            echo "::warning::HESTIA_SIGNING_KEY is not set, so no index was published"
+            echo "::warning::HESTIA_SIGNING_KEY is not set, so nothing was published"
           fi
 
-  index:
+  publish:
     needs: gate
     if: needs.gate.outputs.signed == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: write
     concurrency:
-      group: hestia-index
+      group: plugin-publish-${{ github.repository }}
+      cancel-in-progress: false
     env:
-      GH_TOKEN: ${{ github.token }}
-      GH_REPO: ${{ github.repository }}
+      HESTIA_DEVELOPER: "1"
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-wasip2
       - uses: Swatinem/rust-cache@v2
       - name: Install the hestia CLI
         env:
           HESTIA_REF: ${{ inputs.hestia-ref }}
         run: cargo install --locked --git https://github.com/prytaneum/hestia --rev "$HESTIA_REF" cli
+      - name: Check out the repo branch
+        run: |
+          branch="$RUNNER_TEMP/repo-branch"
+          if git ls-remote --exit-code --heads origin repo >/dev/null; then
+            git fetch --depth 1 origin repo
+            git worktree add --detach "$branch" FETCH_HEAD
+          else
+            git worktree add --detach "$branch"
+            git -C "$branch" switch --orphan repo
+          fi
       - name: Write the signing key
         env:
           HESTIA_SIGNING_KEY: ${{ secrets.HESTIA_SIGNING_KEY }}
         run: |
           install -m 600 /dev/null "$RUNNER_TEMP/hestia.key"
           printf '%s\n' "$HESTIA_SIGNING_KEY" > "$RUNNER_TEMP/hestia.key"
-      - run: hestia plugin check
-      - name: Fetch the current index
-        run: |
-          code=$(curl -sSL -o "$RUNNER_TEMP/previous.json" -w '%{http_code}' \
-            "https://github.com/$GH_REPO/releases/download/hestia-index/hestia-index.json")
-          case "$code" in
-            200) echo "PREVIOUS=--previous $RUNNER_TEMP/previous.json" >> "$GITHUB_ENV" ;;
-            404) echo "no previous index; this is the first run" ;;
-            *) echo "::error::fetching the current index answered $code"; exit 1 ;;
-          esac
-      - name: Index
-        run: hestia plugin index $PREVIOUS --repository "https://github.com/$GH_REPO" --sign "$RUNNER_TEMP/hestia.key"
       - name: Publish
+        run: hestia plugin publish --out "$RUNNER_TEMP/repo-branch" --sign "$RUNNER_TEMP/hestia.key" --repository "https://github.com/${{ github.repository }}"
+      - name: Commit and push
+        working-directory: ${{ runner.temp }}/repo-branch
         run: |
-          gh release view hestia-index >/dev/null 2>&1 \
-            || gh release create hestia-index --title "Hestia index" --notes "Regenerated on every push; do not edit." --latest=false
-          gh release upload hestia-index dist/hestia-index.json dist/hestia-index.json.minisig --clobber
+          git add -A
+          if git diff --cached --quiet; then
+            echo "nothing changed"
+            exit 0
+          fi
+          git -c user.name=github-actions[bot] -c user.email=41898282+github-actions[bot]@users.noreply.github.com \
+            commit -m "publish: ${GITHUB_SHA::7}"
+          git push origin HEAD:repo
       - name: Remove the signing key
         if: always()
         run: rm -f "$RUNNER_TEMP/hestia.key"

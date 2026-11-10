@@ -14,21 +14,16 @@ signed and published by the workflows in `.github/workflows/`.
    ```
 
    `keygen` writes `hestia.key` (kept out of git) and declares the public key in `Cargo.toml`; commit that change.
-   Until the secret exists the `index` workflow skips publishing. Losing the key means readers must remove and re-add
+   Until the secret exists the `publish` workflow skips publishing. Losing the key means readers must remove and re-add
    the repository.
-3. Push to `main`. The `index` workflow publishes `hestia-index.json` on the `hestia-index` release, and
-   `hestia plugin repo add <owner>/<repo>` lists your plugins as unreleased.
+3. Push to `main`. The `publish` workflow commits the signed packages and `plugins.json` to a `repo` branch, and
+   `hestia plugin repo add <owner>/<repo>` adds the repository.
 
 ## Release a plugin
 
-Set the new `version` in `plugins/<id>/plugin.toml` and `Cargo.toml`, merge it, then push the tag:
-
-```bash
-git tag <id>-v<version> && git push origin <id>-v<version>
-```
-
-The `release` workflow tests and packs only that plugin, attaches `<id>-<version>.hplugin` and its signature to the
-tag's release and refreshes the index. Users can then install it.
+Set the new `version` in `plugins/<id>/plugin.toml` and `Cargo.toml` and merge it. The `publish` workflow builds and
+signs only the versions the `repo` branch has no package for yet, then refreshes the index; there is no tag to push. It
+also runs weekly so the index never expires.
 
 ## More plugins
 

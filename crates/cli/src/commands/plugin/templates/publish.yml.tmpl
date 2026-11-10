@@ -1,14 +1,16 @@
-name: release
+name: publish
 
 on:
   push:
-    tags: ["*-v*"]
+    branches: [main]
+  schedule:
+    - cron: "17 4 * * 1"
 
 jobs:
-  release:
+  publish:
     permissions:
       contents: write
-    uses: prytaneum/hestia/.github/workflows/plugin-release.yml@{workflow_ref}
+    uses: prytaneum/hestia/.github/workflows/plugin-publish.yml@{workflow_ref}
     with:
       hestia-ref: {hestia_rev}
     secrets:
