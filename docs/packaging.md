@@ -329,6 +329,10 @@ A tagged release without the secret warns rather than fails.
   `externalBin` files to exist, but only the bundler reads them, so the job empties that list through `TAURI_CONFIG`
   instead of compiling sidecars it never ships. `deny` runs `cargo-deny`. The workflow also declares
   `workflow_call`, so the release can reuse it verbatim.
+- [`official-index.yml`](../.github/workflows/official-index.yml) — on a branch push and weekly: fetches the official
+  plugins repository's `plugins.json`, verifies it with the keys compiled into this build and fails when it expires
+  within 10 days (a 404 is a notice until that repository is published). Kept out of `ci.yml` so a stale plugins
+  index never blocks a launcher release.
 - [`release.yml`](../.github/workflows/release.yml) — on a `v*` tag: `preflight`, then `gate` and `package` side by
   side, then `manifest`.
   `preflight` refuses the release before anything is compiled if the tag, `Cargo.toml` and `tauri.conf.json` disagree on

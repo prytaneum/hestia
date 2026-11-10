@@ -5,8 +5,6 @@ on:
     branches: [main, develop]
   pull_request:
     branches: [main, develop]
-  schedule:
-    - cron: "17 6 * * 1"
   # release.yml calls this workflow as its gate, so a tag cannot publish
   # artifacts that never passed the same checks a branch push does.
   workflow_call: {}
@@ -126,38 +124,3 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: EmbarkStudios/cargo-deny-action@v2
-
-  # The published official index must verify against the keys this build
-  # trusts, and must not be close to lapsing. The repository does not exist
-  # until it is published, so a 404 is a notice, not a failure.
-  official-index:
-    if: github.event_name == 'push' || github.event_name == 'schedule'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - name: Fetch the official index
-        id: fetch
-        run: |
-          base=https://raw.githubusercontent.com/prytaneum/plugins/repo
-          mkdir -p "$RUNNER_TEMP/official"
-          for file in plugins.json plugins.json.minisig; do
-            status=$(curl -sS -o "$RUNNER_TEMP/official/$file" -w '%{http_code}' "$base/$file")
-            if [ "$status" = 404 ]; then
-              echo "::notice::the official repository is not published yet ($file is a 404)"
-              echo "published=false" >> "$GITHUB_OUTPUT"
-              exit 0
-            fi
-            [ "$status" = 200 ] || { echo "::error::$file answered HTTP $status"; exit 1; }
-          done
-          echo "published=true" >> "$GITHUB_OUTPUT"
-      - if: steps.fetch.outputs.published == 'true'
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: wasm32-wasip2
-      - if: steps.fetch.outputs.published == 'true'
-        uses: Swatinem/rust-cache@v2
-      - name: Verify it with this build's official keys
-        if: steps.fetch.outputs.published == 'true'
-        env:
-          OFFICIAL_INDEX_DIR: ${{ runner.temp }}/official
-        run: cargo test -p engine --test integration official -- --ignored

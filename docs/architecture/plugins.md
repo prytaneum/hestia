@@ -428,9 +428,9 @@ minisign public key and an optional spare, added by its index URL. It has one sh
   ([0099](../decisions/0099-official-plugins-are-signed.md)). A debug build reads
   `HESTIA_OFFICIAL_PLUGIN_PUBKEY` for local runs.
 - **The official repository** (`common::app::OFFICIAL_PLUGIN_REPOSITORY`) is seeded
-  into `repositories.json` when absent, pinned to those keys, and refused by
+  into `repositories.json` when absent, re-pinned to those keys on every load, and refused by
   `repo.remove` (`RepositoryOfficial`); `RepositoryInfo.official` lets a front-end
-  hide remove. A weekly CI job verifies the published index with the compiled keys
+  hide remove. A weekly workflow (`official-index.yml`, kept out of the release gate) verifies the published index with the compiled keys
   and fails when it expires within 10 days.
 
 ## On disk
