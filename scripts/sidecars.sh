@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Build the CLI, daemon, and tray and stage them as Tauri sidecars, so
-# `cargo tauri build` bundles them into every desktop installer.
+# `cargo tauri build` bundles them into every desktop installer. Also stages the
+# official plugins pinned in plugins.lock (scripts/plugins.sh).
 #
 # Release is the default (what installers ship). `--debug` stages debug builds
 # instead: the daemon's `debug_assertions` then keep dev data under target/debug/data
@@ -55,3 +56,7 @@ for bin in hestia hestiad hestia-tray; do
   cp "$srcdir/$bin$ext" "$dest/$bin-$triple$ext"
   echo "  staged $dest/$bin-$triple$ext"
 done
+
+# The installers carry the official plugins as resources, and a build run from
+# target/<profile> finds them beside its binaries — the daemon seeds from there.
+scripts/plugins.sh crates/desktop/bundled-plugins "$srcdir/plugins"

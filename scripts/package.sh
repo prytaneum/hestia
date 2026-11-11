@@ -95,8 +95,9 @@ portable() {
     --features cli/portable,daemon/portable,tray/portable
   # tauri-build asserts every externalBin exists on disk, but only the bundler
   # ships them and the archive copies its own — so the list is emptied rather
-  # than compiling an installer sidecar set nothing here reads.
-  TAURI_CONFIG='{"bundle":{"externalBin":[]}}' \
+  # than compiling an installer sidecar set nothing here reads. The same goes
+  # for the plugin resources, which the archive copies itself below.
+  TAURI_CONFIG='{"bundle":{"externalBin":[],"resources":[]}}' \
     cargo build --release --target-dir "$out" \
     -p desktop --features desktop/portable,desktop/custom-protocol
 
@@ -113,6 +114,7 @@ portable() {
   for bin in hestia hestiad; do
     cp "$out/release/$bin$ext" "$stage/bin/"
   done
+  scripts/plugins.sh "$stage/plugins"
   cp LICENSE README.md "$stage/"
   if [ "$os" = windows ]; then
     powershell -NoProfile -Command \

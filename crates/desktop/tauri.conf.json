@@ -76,6 +76,9 @@
         "role": "Editor"
       }
     ],
+    "resources": {
+      "bundled-plugins/": "plugins/"
+    },
     "externalBin": [
       "binaries/hestiad",
       "binaries/hestia-tray",

@@ -91,7 +91,7 @@ jobs:
       # tauri-build asserts every `externalBin` exists on disk, though only the
       # bundler reads them and this job never bundles. Emptying the list saves
       # compiling the three sidecars just to satisfy that check.
-      TAURI_CONFIG: '{"bundle":{"externalBin":[]}}'
+      TAURI_CONFIG: '{"bundle":{"externalBin":[],"resources":[]}}'
     steps:
       - uses: actions/checkout@v7
       - name: Install Tauri Linux dependencies

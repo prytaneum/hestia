@@ -8,3 +8,6 @@
 
 # Sidecar binaries staged for bundling (built by scripts/sidecars.sh)
 /binaries/
+
+# Official plugins staged for bundling (fetched by scripts/plugins.sh)
+/bundled-plugins/

@@ -1,0 +1,3 @@
+# The official plugins every installer bundles, pinned by version and the
+# sha256 of the package. One per line: <id> <version> <sha256>. Fetched and
+# verified by scripts/plugins.sh; see docs/packaging.md to bump a line.
