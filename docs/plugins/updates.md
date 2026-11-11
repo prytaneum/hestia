@@ -20,9 +20,9 @@ plugin id is ignored.
 ## Plugin API compatibility
 
 A build runs only when its `api` requirement is met by this Hestia's plugin API. When the latest version needs a newer
-API, the entry is reported with `apiCompatible: false` and the requirement it needs; the index carries the API
-requirement, not a Hestia version. `available` is then the newest build that does run, if it is newer than what is
-installed.
+API, `requires` names that requirement (the index carries the API requirement, not a Hestia version) and `available` is
+the newest build that does run, if it is newer than what is installed, with `apiCompatible: true`. When no newer build
+runs, `available` is the latest version and `apiCompatible` is false.
 
 ## Permissions
 

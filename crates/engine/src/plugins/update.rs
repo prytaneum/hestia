@@ -41,14 +41,15 @@ fn offer(source: &Source, plugin: &IndexedPlugin, record: &Installed) -> Option<
     let (available, api_compatible, requires) = match &choice {
         Pick::Prebuilt(build) => (build.version.as_str(), true, None),
         Pick::Unreleased(older) => (older.as_ref()?.version.as_str(), true, None),
-        Pick::Incompatible { older, requires } => (
-            older
+        Pick::Incompatible { older, requires } => {
+            match older
                 .map(|build| build.version.as_str())
-                .filter(|version| newer(version))
-                .unwrap_or(plugin.version.as_str()),
-            false,
-            requires.map(str::to_string),
-        ),
+                .filter(|v| newer(v))
+            {
+                Some(runnable) => (runnable, true, requires.map(str::to_string)),
+                None => (plugin.version.as_str(), false, requires.map(str::to_string)),
+            }
+        }
     };
     newer(available).then(|| OutdatedPlugin {
         id: record.id.clone(),
@@ -126,7 +127,7 @@ mod tests {
 
         let found = outdated(&sources, &[installed("aa", "0.1.0", &key)]);
         assert_eq!(found[0].available, "0.2.0");
-        assert!(!found[0].api_compatible);
+        assert!(found[0].api_compatible);
         assert_eq!(found[0].requires.as_deref(), Some("^9.0.0"));
 
         let found = outdated(&sources, &[installed("aa", "0.2.0", &key)]);

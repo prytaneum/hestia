@@ -1449,10 +1449,11 @@ pub struct OutdatedPlugin {
     /// The newest build this Hestia can run when one is newer than `installed`;
     /// otherwise the newest listed version, which `api_compatible` says it cannot run.
     pub available: String,
-    /// False when the latest listed version needs another plugin API than this
-    /// Hestia's. The index carries the API requirement, not a Hestia version.
+    /// Whether this Hestia can run `available`.
     pub api_compatible: bool,
-    /// The API requirement of the latest version when `api_compatible` is false.
+    /// The plugin API the latest listed version needs, when this Hestia's does not
+    /// meet it, even if an older `available` build runs. The index carries the API
+    /// requirement, not a Hestia version.
     pub requires: Option<String>,
     /// What the update asks beyond the installed grant. From a repository this
     /// is the permissions its index lists; the install inspection has the full grant.

@@ -11,12 +11,13 @@ export type OutdatedPlugin = { id: string, installed: string,
  */
 available: string, 
 /**
- * False when the latest listed version needs another plugin API than this
- * Hestia's. The index carries the API requirement, not a Hestia version.
+ * Whether this Hestia can run `available`.
  */
 apiCompatible: boolean, 
 /**
- * The API requirement of the latest version when `api_compatible` is false.
+ * The plugin API the latest listed version needs, when this Hestia's does not
+ * meet it, even if an older `available` build runs. The index carries the API
+ * requirement, not a Hestia version.
  */
 requires?: string, 
 /**
