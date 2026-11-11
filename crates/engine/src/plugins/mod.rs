@@ -4,6 +4,7 @@
 //! plugin's component sandboxed ([0091](../../../../docs/decisions/0091-plugins-are-wasm-components.md)).
 
 mod asset;
+mod bundled;
 mod cache;
 mod catalogue;
 mod chain;
@@ -33,6 +34,7 @@ pub(crate) mod testkit;
 mod update;
 
 pub use asset::MAX_ASSET_BYTES;
+pub use bundled::{BundleRefusal, Seeded};
 pub use catalogue::Listings;
 pub(crate) use catalogue::{build as build_catalogue, pick, Installed, Pick, Source};
 pub use chain::{CallChain, ChainError, MAX_CHAIN_DEPTH};
@@ -65,6 +67,6 @@ pub use runtime::{
     EVENT_TIMEOUT, HOOK_TIMEOUT, PROVIDER_TIMEOUT, UI_TIMEOUT,
 };
 pub use settings::{PluginSettings, SettingsError};
-pub use store::{PluginPackage, PluginRecord, Plugins};
+pub use store::{Approver, PluginPackage, PluginRecord, Plugins};
 pub(crate) use update::{mirror_of, outdated};
 pub use update::{UpdateOutcome, UpdateRequest};

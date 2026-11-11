@@ -113,7 +113,7 @@ impl Repositories {
 }
 
 /// The index URL of the official repository.
-fn official_url() -> String {
+pub(super) fn official_url() -> String {
     super::index::expand(common::app::OFFICIAL_PLUGIN_REPOSITORY)
         .expect("the official repository is a valid owner/repo")
 }

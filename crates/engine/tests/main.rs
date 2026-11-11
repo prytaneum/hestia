@@ -2,6 +2,7 @@
 //! would otherwise be its own binary carrying the whole engine and wasmtime.
 
 mod auth_oracle;
+mod bundled;
 mod fixture;
 mod flows;
 mod official;

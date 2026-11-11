@@ -14,7 +14,7 @@ use sha2::{Digest, Sha256};
 use super::program::pin_programs;
 use super::remote::Staged;
 use super::store::{
-    PluginRecord, Plugins, Previous, MANIFEST, PACKAGE, PREVIOUS_PACKAGE, STAGING_SUFFIX,
+    Approver, PluginRecord, Plugins, Previous, MANIFEST, PACKAGE, PREVIOUS_PACKAGE, STAGING_SUFFIX,
 };
 use crate::cancel::Cancel;
 use crate::checksum::{digest_file, hex};
@@ -322,6 +322,7 @@ impl Plugins {
             theme_sha256,
             grant,
             grant_digest,
+            approved_by: Approver::User,
             program_paths,
             enabled: installed.as_ref().is_none_or(|record| record.enabled),
             installed_unix: common::now_unix(),

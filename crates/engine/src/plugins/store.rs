@@ -25,6 +25,17 @@ pub struct PluginPackage {
     pub wasm: Option<Vec<u8>>,
 }
 
+/// Who approved the grant a plugin was installed with.
+#[derive(Serialize, Deserialize, Default, Debug, Clone, Copy, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum Approver {
+    #[default]
+    User,
+    /// A bundled package whose official signature verified: the user approved
+    /// the installer that carries it.
+    Official,
+}
+
 /// What the daemon remembers about an installed plugin. Holds no secrets: a
 /// plugin's secret settings live with the credential store, not here.
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
@@ -46,6 +57,7 @@ pub struct PluginRecord {
     /// What the user approved.
     pub grant: Grant,
     pub grant_digest: String,
+    pub approved_by: Approver,
     /// Program id to the absolute path its `PATH` name resolved to when the
     /// grant was approved; the only path that program ever runs from.
     pub program_paths: BTreeMap<String, PathBuf>,

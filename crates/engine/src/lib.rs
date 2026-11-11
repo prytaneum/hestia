@@ -71,13 +71,13 @@ pub use net::Network;
 pub use plugins::{
     command_args, find_command, is_official_signer, key_id_of, owner_of, refuse_official_key,
     resolve_on_path, revocation, target_triple, unregister_providers, verify_build, verify_index,
-    BeforeLaunch, CallChain, CallContext, CallError, ChainError, CommandRun, Contributions, Hook,
-    HookOutcome, Hooks, HostCalls, HostError, Inspection, LaunchPatch, Listings, LoadError,
-    LoadedPlugin, ManagedJava, Mount, Origin, Participant, PluginContentProvider,
-    PluginFlavorProvider, PluginFormat, PluginJavaProvider, PluginPackage, PluginRecord,
-    PluginRuntime, PluginSettings, PluginStats, Plugins, Remote, RepoError, Roster, SettingsError,
-    Staged, UpdateOutcome, UpdateRequest, CANCEL_GRACE, COMMAND_TIMEOUT, EVENT_TIMEOUT,
-    HOOK_TIMEOUT, MAX_ASSET_BYTES, MAX_CHAIN_DEPTH, PROVIDER_TIMEOUT, UI_TIMEOUT,
+    Approver, BeforeLaunch, BundleRefusal, CallChain, CallContext, CallError, ChainError,
+    CommandRun, Contributions, Hook, HookOutcome, Hooks, HostCalls, HostError, Inspection,
+    LaunchPatch, Listings, LoadError, LoadedPlugin, ManagedJava, Mount, Origin, Participant,
+    PluginContentProvider, PluginFlavorProvider, PluginFormat, PluginJavaProvider, PluginPackage,
+    PluginRecord, PluginRuntime, PluginSettings, PluginStats, Plugins, Remote, RepoError, Roster,
+    Seeded, SettingsError, Staged, UpdateOutcome, UpdateRequest, CANCEL_GRACE, COMMAND_TIMEOUT,
+    EVENT_TIMEOUT, HOOK_TIMEOUT, MAX_ASSET_BYTES, MAX_CHAIN_DEPTH, PROVIDER_TIMEOUT, UI_TIMEOUT,
 };
 pub use presence::Presence;
 pub use process::{ExitObserver, ProcessEvents, ProcessSupervisor, StartError};
