@@ -397,6 +397,12 @@ flowchart TD
   by the capped extractor. The manifest's `api = "^N.M.P"` must be satisfied by
   the host's `API_VERSION`, or the install is refused instead of failing at
   instantiation.
+- **Bundled official plugins.** Installers carry the plugins pinned in `plugins.lock`; at start, before any plugin
+  loads, `Plugins::seed_bundled` (`engine/src/plugins/bundled.rs`) installs each one that is missing or newer than the
+  official install it replaces. The package must verify against an official key, which is what lets its computed
+  grant install with no prompt (`approvedBy: official` on the record); an upgrade that widens the grant, a package
+  that fails verification and a plugin the user removed (`plugins/bundled.json`) are all left alone. See
+  [packaging.md](../packaging.md#the-bundled-official-plugins).
 - **A plugin that does not run.** A theme-only package has no component and no
   `api`. A plugin's state is `enabled`, `disabled`, `failed` (with the load error) or
   `needs_approval`; a daemon in safe mode loads none.
@@ -469,8 +475,9 @@ minisign public key and an optional spare, added by its index URL. It has one sh
 <data_home>/
 ├── plugins/
 │   ├── repositories.json   the added repositories and their pinned keys
+│   ├── bundled.json        the bundled plugin ids already seeded, so a removed one stays removed
 │   └── <id>/
-│       ├── plugin.json     the record: source, signer, grant, grant digest, enabled, pinned program paths
+│       ├── plugin.json     the record: source, signer, grant, grant digest, who approved it, enabled, pinned program paths
 │       ├── package/        the extracted package
 │       ├── data/           the plugin's own directory; the only one it can write
 │       ├── bin/            host-owned copies of verified data-directory programs

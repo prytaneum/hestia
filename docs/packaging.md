@@ -88,6 +88,47 @@ What it adds over stock:
 - **Update-friendly** — running a newer setup over an existing install upgrades in place (no uninstall detour), reusing
   the recorded install directory, install mode, and components; downgrades take the stock uninstall-first path.
 
+## The bundled official plugins
+
+Core features are plugins, so a fresh install with none could not create anything. Every installer therefore carries the
+official plugins, and the daemon installs them on its first start
+([`engine/src/plugins/bundled.rs`](../crates/engine/src/plugins/bundled.rs)).
+
+**The lock.** [`plugins.lock`](../plugins.lock) pins each one, a line of `<id> <version> <sha256>` (the sha256 of
+`<id>-<version>.hplugin`). It is empty until the first official plugin is published, and everything below works with an
+empty lock. [`scripts/plugins.sh`](../scripts/plugins.sh) downloads each package and its `.minisig` from the official
+repository's `repo` branch (`packages/<id>-<version>.hplugin`), refuses one whose sha256 differs from the lock, and lays
+the files into every destination it is given. `HESTIA_PLUGINS_BASE` points it at a mirror or a `file://` tree.
+
+**Where they land.**
+
+| Build                        | Staged by                                               | Found by the daemon at                |
+|------------------------------|---------------------------------------------------------|---------------------------------------|
+| installers (every format)    | `scripts/sidecars.sh` into `crates/desktop/bundled-plugins/`, shipped as the `plugins/` resource (`bundle.resources`) | `<install root>/plugins` (NSIS) or `/usr/lib/Hestia/plugins` (deb, rpm, AppImage) |
+| portable archives            | `scripts/package.sh portable` into the archive's `plugins/` | `<archive>/plugins`                   |
+| a local or debug build       | `scripts/sidecars.sh` into `target/<profile>/plugins/`  | `target/<profile>/plugins`            |
+
+`common::paths::bundled_plugins` resolves it from the layout root, the same way the binaries find each other. CI and the
+portable build empty `bundle.resources` through `TAURI_CONFIG` for the Tauri shell they compile without bundling, like
+`externalBin`.
+
+**What the daemon does at start**, before it loads any plugin:
+
+- A package is trusted only if its `.minisig` verifies against an official key (`common::app::official_plugin_pubkeys`)
+  with the trusted comment for exactly this id, version and file name. One that fails is not installed, is logged at
+  `error` and counted in the `refused` total of the `bundled plugins seeded` line.
+- A verified package that is missing installs with its computed grant pre-approved: there is no prompt at first start,
+  and the user approved the installer that carries it. The record stores `approvedBy: official`. A third-party package
+  never takes this path.
+- An official install older than the bundled one is upgraded; a newer (auto-updated) one is never replaced. An upgrade
+  that would widen the grant is refused and left for the normal update flow to ask about.
+- A plugin the user removed stays removed: `<data home>/plugins/bundled.json` records every bundled id seen installed,
+  and an id listed there with no install is not seeded again. A plugin added to a later bundle is new, so it installs.
+
+**Bumping the lock.** Publish the plugin to `prytaneum/plugins`, then put its new version and the sha256 of
+`packages/<id>-<version>.hplugin` on the `repo` branch in `plugins.lock` (`sha256sum`), in the commit that changes the
+launcher's side. Run `scripts/plugins.sh target/debug/plugins` to check the line resolves.
+
 ## The `hestia://` link
 
 The desktop app handles `hestia://add-repo?url=<https index URL>` (see
@@ -326,7 +367,7 @@ A tagged release without the secret warns rather than fails.
   untracked, so it precedes anything resolving those imports), then `check` (biome), `typecheck` (tsc), `test` (vitest)
   and `build`. `desktop` covers what `check` excludes: it installs the WebKitGTK stack, builds the frontend
   (`generate_context!` embeds `frontend/dist`), then runs clippy and the crate's tests. tauri-build requires the
-  `externalBin` files to exist, but only the bundler reads them, so the job empties that list through `TAURI_CONFIG`
+  `externalBin` files and `resources` to exist, but only the bundler reads them, so the job empties both through `TAURI_CONFIG`
   instead of compiling sidecars it never ships. `deny` runs `cargo-deny`. The workflow also declares
   `workflow_call`, so the release can reuse it verbatim.
 - [`official-index.yml`](../.github/workflows/official-index.yml) — on a branch push and weekly: fetches the official
