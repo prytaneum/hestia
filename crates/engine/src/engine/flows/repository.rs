@@ -160,6 +160,14 @@ impl Engine {
     /// Unsigned URL installs are re-downloaded only when `params.unsigned`.
     pub async fn outdated_plugins(&self, params: &OutdatedParams) -> Result<Outdated> {
         let network_down = self.network().status().state == NetworkState::Offline;
+        self.outdated_given(network_down, params).await
+    }
+
+    async fn outdated_given(
+        &self,
+        network_down: bool,
+        params: &OutdatedParams,
+    ) -> Result<Outdated> {
         let synced = if network_down {
             self.local_repositories()
         } else {
@@ -903,11 +911,10 @@ mod tests {
         )
         .unwrap();
 
-        engine.network().set_offline_mode(true);
-        let answer = engine.outdated_plugins(&OutdatedParams::default()).await;
-        engine.network().set_offline_mode(false);
-
-        let answer = answer.unwrap();
+        let answer = engine
+            .outdated_given(true, &OutdatedParams::default())
+            .await
+            .unwrap();
         assert!(answer.offline);
         assert_eq!(answer.plugins.len(), 1);
         assert_eq!(answer.plugins[0].available, "0.2.0");
