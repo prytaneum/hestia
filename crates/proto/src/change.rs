@@ -55,7 +55,7 @@ impl Scope {
         match self {
             Scope::Entries | Scope::Sync | Scope::Screenshots => Some(Permission::EntryRead),
             Scope::Accounts => Some(Permission::AccountRead),
-            Scope::Config => Some(Permission::ConfigRead),
+            Scope::Config => Some(Permission::ConfigWrite),
             Scope::Java => Some(Permission::JavaRead),
             Scope::Skins | Scope::Cache | Scope::Plugins => None,
         }

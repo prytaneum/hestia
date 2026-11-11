@@ -42,7 +42,6 @@ const PERMISSION_TEXT: Record<Permission, () => string> = {
   'content:read': m['domain.plugin.permission.content_read'],
   'content:write': m['domain.plugin.permission.content_write'],
   'account:read': m['domain.plugin.permission.account_read'],
-  'config:read': m['domain.plugin.permission.config_read'],
   'config:write': m['domain.plugin.permission.config_write'],
   'java:read': m['domain.plugin.permission.java_read'],
   'java:manage': m['domain.plugin.permission.java_manage'],

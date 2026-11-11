@@ -128,8 +128,6 @@ pub enum Permission {
     /// Profiles only, never tokens.
     #[serde(rename = "account:read")]
     AccountRead,
-    #[serde(rename = "config:read")]
-    ConfigRead,
     #[serde(rename = "config:write")]
     ConfigWrite,
     #[serde(rename = "java:read")]
@@ -186,7 +184,6 @@ impl Permission {
             | Permission::ProcessRead
             | Permission::ContentRead
             | Permission::AccountRead
-            | Permission::ConfigRead
             | Permission::JavaRead
             | Permission::JavaManage
             | Permission::NetworkConnect
@@ -210,7 +207,6 @@ impl Permission {
             Permission::ContentRead => "Search and inspect mods, packs and other content",
             Permission::ContentWrite => "Install, update and remove mods, packs and other content",
             Permission::AccountRead => "See the names of signed-in accounts, never their tokens",
-            Permission::ConfigRead => "Read launcher settings",
             Permission::ConfigWrite => "Change launcher settings; the launcher location, autostart, developer mode, the Java provider and default JVM arguments stay yours",
             Permission::JavaRead => "See installed and available Java runtimes",
             Permission::JavaManage => "Install and remove Java runtimes",
