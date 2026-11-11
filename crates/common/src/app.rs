@@ -107,8 +107,8 @@ fn dev_pubkey() -> Option<&'static str> {
 /// [`UPDATE_PUBKEY`], so one cannot sign an app update and an update key cannot
 /// make a plugin official.
 pub const OFFICIAL_PLUGIN_PUBKEYS: &[&str] = &[
-    "RWSXtqX9WAyTeSF7fFWCeqC429ZGzf/LtYC1EddcI2Sgp8ht2jD5+hQt",
-    "RWRpMK/ixsoJvML4S14c7PfzQyu4Eo/drawjt9yT5GS9xniEB8PNxmNY",
+    "RWQQBf6dBpEvpJiznp3nTLoynPyWQPPjmukLSE82dq1BOA6H5mlI6Hep",
+    "RWQFJGKG1jnGmh8VBwbwWYgSPS2kkeBelJfWeFAE0WZ3pQjh+RLncFAR",
 ];
 
 /// The official plugins repository, as `owner/repo`. It is present in every
