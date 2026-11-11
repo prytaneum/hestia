@@ -45,6 +45,23 @@ pub fn sibling_binary(names: &[&str]) -> Option<PathBuf> {
     })
 }
 
+/// Where the official plugins an installer carries are laid down, if they are:
+/// `plugins/` at the layout root (the Windows installer, the portable archives
+/// and every cargo profile directory), or Tauri's resource directory on Linux,
+/// `lib/<product>/plugins/` beside `bin/`.
+pub fn bundled_plugins() -> Option<PathBuf> {
+    bundled_plugins_in(&install_root()?)
+}
+
+fn bundled_plugins_in(root: &Path) -> Option<PathBuf> {
+    [
+        root.join("plugins"),
+        root.join("lib").join(crate::app::NAME).join("plugins"),
+    ]
+    .into_iter()
+    .find(|candidate| candidate.is_dir())
+}
+
 /// A `data/` directory inside the build's own layout — the portable archives
 /// and every debug build. Anchored on the layout root, never the executable's
 /// own directory, so every binary of one build agrees on one home.
@@ -185,6 +202,21 @@ pub fn log_dir(override_dir: Option<&Path>) -> PathBuf {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn bundled_plugins_are_found_at_the_root_or_in_the_linux_resource_dir() {
+        let home = tempfile::tempdir().unwrap();
+        let root = home.path();
+        assert_eq!(bundled_plugins_in(root), None);
+
+        let resource = root.join("lib").join(crate::app::NAME).join("plugins");
+        fs::create_dir_all(&resource).unwrap();
+        assert_eq!(bundled_plugins_in(root), Some(resource));
+
+        let beside = root.join("plugins");
+        fs::create_dir_all(&beside).unwrap();
+        assert_eq!(bundled_plugins_in(root), Some(beside));
+    }
 
     #[test]
     fn every_binary_of_one_layout_agrees_on_the_root() {

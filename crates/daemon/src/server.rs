@@ -53,7 +53,10 @@ pub async fn run_daemon(log_path: std::path::PathBuf, safe_mode: bool) -> i32 {
     }
     let plugins = runtime.plugins().clone();
     plugins.watch_dev();
-    tokio::spawn(async move { plugins.load_enabled().await });
+    tokio::spawn(async move {
+        plugins.seed_bundled().await;
+        plugins.load_enabled().await
+    });
 
     tracing::info!("hestiad listening on {}", endpoint.display());
     crate::tray::spawn();

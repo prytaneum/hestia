@@ -96,6 +96,39 @@ impl Plugins {
             .map_err(|_| anyhow::anyhow!("the plugin runtime is already attached"))
     }
 
+    /// Installs the official plugins the installer carries that this data home
+    /// lacks, before anything is loaded. A package that fails its official
+    /// signature is reported and skipped.
+    pub async fn seed_bundled(&self) {
+        let Some(dir) = common::paths::bundled_plugins() else {
+            tracing::debug!("no bundled plugins beside this build");
+            return;
+        };
+        let Some(sandbox) = self.sandbox.get().cloned() else {
+            return;
+        };
+        let engine = self.engine.clone();
+        let keys: Vec<String> = common::app::official_plugin_pubkeys()
+            .into_iter()
+            .map(str::to_string)
+            .collect();
+        let seeded = spawn_blocking(move || {
+            engine
+                .plugins()
+                .seed_bundled(&dir, &keys, |wasm| sandbox.check(wasm).map_err(Into::into))
+        })
+        .await;
+        match seeded {
+            Ok(seeded) => tracing::info!(
+                installed = seeded.installed.len(),
+                upgraded = seeded.upgraded.len(),
+                refused = seeded.refused.len(),
+                "bundled plugins seeded"
+            ),
+            Err(error) => tracing::error!(%error, "seeding the bundled plugins failed"),
+        }
+    }
+
     /// Loads every enabled plugin concurrently. One that fails is marked failed
     /// and the others carry on.
     pub async fn load_enabled(self: &Arc<Self>) {
