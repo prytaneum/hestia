@@ -35,6 +35,8 @@ jobs:
 2. `hestia plugin publish --out <repo checkout> --sign <key>`: runs `check`, packs and signs every plugin whose version
    has no package in `packages/` yet, refuses a version already there with another sha256, then regenerates
    `plugins.json` from `packages/`, the sources and `revoked.toml`, with `expires` set 30 days out, and signs it.
+   Packing refuses, before anything is signed, a component built against another WIT (a stale `Cargo.lock` pinning an
+   old `hestia-sdk`): fix it with `cargo update -p hestia-sdk`.
 3. Commit the result to the `repo` branch as a bot and push.
 
 `raw.githubusercontent.com` caches each file for about five minutes, so for a few minutes after a publish a client may

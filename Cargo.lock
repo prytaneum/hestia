@@ -752,6 +752,9 @@ dependencies = [
  "toml 1.2.1+spec-1.1.0",
  "tracing",
  "tui-markdown",
+ "wasm-encoder 0.261.0",
+ "wasmparser 0.261.0",
+ "wit-parser 0.261.0",
  "zip",
 ]
 

@@ -16,6 +16,7 @@ mod repo;
 pub(crate) mod run;
 mod sign;
 mod store;
+mod world;
 
 use anyhow::{bail, Context, Result};
 use clap::Subcommand;

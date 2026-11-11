@@ -758,6 +758,7 @@ hestia plugin keygen [--out <dir>] [--unencrypted]
                                  # write hestia.key and hestia.pub (to --out, default the current directory) and set
                                  #   `key` in [workspace.metadata.hestia]; never overwrites a key; --unencrypted for a CI secret
 hestia plugin pack --sign <secret key>   # also write <package>.minisig (the key must match the repository's declared one)
+                                 # pack and publish refuse a component built against another WIT (`cargo update -p hestia-sdk`)
 hestia plugin dev [dir] [-y]     # run plugins/<id>/ in place, reload on every rebuild, stream its log
 ```
 

@@ -10,6 +10,7 @@ use super::cargo::{self, Metadata};
 use super::check;
 use super::repo::{PluginDir, MANIFEST, PLUGINS_DIR};
 use super::sign::Signer;
+use super::world;
 use crate::ui::{self, View};
 
 const DIST: &str = "dist";
@@ -137,6 +138,7 @@ pub(super) fn package_files(
     if let (Some(wasm_path), Some(component)) = (&manifest.wasm, component) {
         let wasm = std::fs::read(&component.wasm)
             .with_context(|| format!("cannot read {}", component.wasm.display()))?;
+        world::check_component(&manifest.id, &wasm)?;
         files.push((wasm_path.clone(), wasm));
     }
     for bundled in BUNDLED_DIRS {
@@ -236,6 +238,44 @@ mod tests {
         Some(text)
     }
 
+    fn entry_exists(archive: &Path, name: &str) -> bool {
+        let mut zip = zip::ZipArchive::new(std::fs::File::open(archive).unwrap()).unwrap();
+        let found = zip.by_name(name).is_ok();
+        found
+    }
+
+    #[test]
+    fn a_component_built_against_another_wit_is_not_packed() {
+        let repo = tempfile::tempdir().unwrap();
+        let plugin = plugin_on_disk(
+            repo.path(),
+            "id = \"tunnel\"\nname = \"Tunnel\"\nversion = \"0.2.0\"\nwasm = \"plugin.wasm\"\n",
+        );
+        let wasm = repo.path().join("built.wasm");
+        std::fs::write(&wasm, stale_component()).unwrap();
+        let component = cargo::Component {
+            wasm,
+            sdk_version: "1.0.0-beta.3".to_string(),
+        };
+
+        let error = pack_plugin(&plugin, Some(&component), repo.path()).unwrap_err();
+
+        assert!(format!("{error:#}").contains("cargo update -p hestia-sdk"));
+    }
+
+    fn stale_component() -> Vec<u8> {
+        use wasm_encoder::{
+            Component, ComponentImportSection, ComponentTypeRef, ComponentTypeSection, InstanceType,
+        };
+        let mut types = ComponentTypeSection::new();
+        types.instance(&InstanceType::new());
+        let mut imports = ComponentImportSection::new();
+        imports.import("hestia:plugin/gone@1.0.0", ComponentTypeRef::Instance(0));
+        let mut component = Component::new();
+        component.section(&types).section(&imports);
+        component.finish()
+    }
+
     #[test]
     fn a_packed_component_declares_the_api_of_its_sdk_and_bundles_its_folders() {
         let repo = tempfile::tempdir().unwrap();
@@ -244,7 +284,7 @@ mod tests {
             "id = \"tunnel\"\nname = \"Tunnel\"\nversion = \"0.2.0\"\nwasm = \"plugin.wasm\"\npermissions = [\"ui:css\"]\n\n[[contributes.themes]]\nid = \"dark\"\nname = \"Dark\"\nfile = \"themes/dark.css\"\n",
         );
         let wasm = repo.path().join("built.wasm");
-        std::fs::write(&wasm, "component").unwrap();
+        std::fs::write(&wasm, wasm_encoder::Component::new().finish()).unwrap();
         let component = cargo::Component {
             wasm,
             sdk_version: "1.0.0-beta.3".to_string(),
@@ -257,7 +297,7 @@ mod tests {
             toml::from_str(&entry(&archive, MANIFEST).unwrap()).unwrap();
         assert_eq!(manifest.api.as_deref(), Some("^1.0.0"));
         manifest.validate().unwrap();
-        assert_eq!(entry(&archive, "plugin.wasm").unwrap(), "component");
+        assert!(entry_exists(&archive, "plugin.wasm"));
         assert_eq!(entry(&archive, "assets/icon.txt").unwrap(), "icon");
         assert_eq!(entry(&archive, "themes/dark.css").unwrap(), "body{}");
     }

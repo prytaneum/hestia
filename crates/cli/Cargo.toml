@@ -33,3 +33,10 @@ futures-util = { workspace = true }
 anyhow = { workspace = true }
 minisign = { workspace = true }
 tracing = { workspace = true }
+wasmparser = { workspace = true }
+
+[dev-dependencies]
+wasm-encoder = { workspace = true }
+
+[build-dependencies]
+wit-parser = { workspace = true }
