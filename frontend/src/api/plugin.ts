@@ -9,6 +9,7 @@ import type {
   RepositoryRefreshed,
 } from './types/catalogue';
 import type {
+  Outdated,
   PluginCommand,
   PluginInfo,
   PluginInspection,
@@ -80,6 +81,11 @@ export function repoRefresh(url?: string): Promise<RepositoryRefreshed> {
 /** Every plugin the configured repositories offer; unreachable ones answer from their cached index. */
 export function catalogue(): Promise<Catalogue> {
   return call('plugin.catalogue');
+}
+
+/** `unsigned` also re-downloads unsigned link installs to read their version. */
+export function outdated(unsigned = false): Promise<Outdated> {
+  return call('plugin.outdated', { unsigned });
 }
 
 export function list(): Promise<PluginInfo[]> {

@@ -50,6 +50,13 @@ export const pluginQueries = {
       queryFn: () => api.catalogue(),
       staleTime: CATALOG_STALE_MS,
     }),
+  /** Refreshes every repository like the catalogue; the daemon also pushes `plugin.updates`. */
+  outdated: () =>
+    queryOptions({
+      queryKey: keys.plugins.outdated(),
+      queryFn: () => api.outdated(),
+      staleTime: CATALOG_STALE_MS,
+    }),
   themes: () =>
     queryOptions({
       queryKey: keys.plugins.themes(),

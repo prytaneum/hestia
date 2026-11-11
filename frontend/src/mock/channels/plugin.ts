@@ -276,6 +276,7 @@ export const channels: ChannelHandlers = {
     { type: 'toast', tone: 'success', text: 'Hello from the mock plugin' },
   ],
   'plugin.list': () => plugins,
+  'plugin.outdated': () => ({ plugins: [], offline: false, warnings: [] }),
   'plugin.settings.get': (p) =>
     find(str(p, 'id'))?.manifest.settings.map((setting) => ({
       key: setting.key,

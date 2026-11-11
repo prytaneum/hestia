@@ -116,6 +116,8 @@ import type { ModpackRemoveResult } from "./generated/ModpackRemoveResult";
 import type { ModpackStatusResult } from "./generated/ModpackStatusResult";
 import type { ModpackUpdateResult } from "./generated/ModpackUpdateResult";
 import type { NetworkStatus } from "./generated/NetworkStatus";
+import type { Outdated } from "./generated/Outdated";
+import type { OutdatedParams } from "./generated/OutdatedParams";
 import type { PageContext } from "./generated/PageContext";
 import type { PingResult } from "./generated/PingResult";
 import type { PluginAssetParams } from "./generated/PluginAssetParams";
@@ -311,6 +313,7 @@ export interface Channels {
   "plugin.inspect": { params: Partial<PluginPackageRef>; result: PluginInspection };
   "plugin.install": { params: Partial<PluginInstallParams>; result: JobStarted };
   "plugin.list": { params: Empty; result: Array<PluginInfo> };
+  "plugin.outdated": { params: Partial<OutdatedParams>; result: Outdated };
   "plugin.pages": { params: Empty; result: Array<PluginPage> };
   "plugin.remove": { params: Partial<PluginRef>; result: Empty };
   "plugin.repo.add": { params: Partial<RepositoryAddParams>; result: RepositoryAdded };
@@ -416,6 +419,7 @@ export interface Topics {
   "plugin.log": PluginLogEvent;
   "plugin.schedule": ScheduleEvent;
   "plugin.state": PluginStateEvent;
+  "plugin.updates": Outdated;
   "process.exit": ProcessExitEvent;
   "process.metrics": ProcessMetricsEvent;
   "process.output": ProcessOutputEvent;
@@ -436,6 +440,7 @@ export const TIMEOUTS: Partial<Record<keyof Channels, number>> = {
   "plugin.catalogue": 120000,
   "plugin.enable": 60000,
   "plugin.inspect": 120000,
+  "plugin.outdated": 120000,
   "plugin.repo.add": 60000,
   "plugin.repo.refresh": 120000,
   "plugin.ui.action": 10000,

@@ -121,6 +121,8 @@ export function invalidationKeys(event: DaemonEvent): QueryKey[] {
       return CHANGED[event.payload.scope];
     case 'plugin.state':
       return [keys.plugins.all];
+    case 'plugin.updates':
+      return [keys.plugins.outdated()];
     default:
       return [];
   }
@@ -135,6 +137,7 @@ const UPSTREAM_KEYS: QueryKey[] = [
   keys.update.all,
   keys.skins.all,
   keys.plugins.catalogue(),
+  keys.plugins.outdated(),
   [...keys.servers.all, 'versions'],
   [...keys.instances.all, 'versions'],
 ];

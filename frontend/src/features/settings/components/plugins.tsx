@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 
 import { dialog } from '@/api';
 import { Bone } from '@/components/skeleton';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Field, FieldDescription } from '@/components/ui/field';
 import { Tabs, TabsChip, TabsContent, TabsList } from '@/components/ui/tabs';
@@ -21,11 +22,23 @@ import { PluginRow } from './plugin-row';
 
 /** Installed and Browse, one level below the Plugins tab. */
 export function PluginsPanel() {
+  const outdated = useQuery(pluginQueries.outdated());
+  const updates = outdated.data?.plugins.length ?? 0;
   return (
     <Tabs defaultValue="installed" className="gap-3">
       <TabsList variant="line" className="h-auto justify-start gap-1.5">
         <TabsChip value="installed">
           {m['settings.plugins.tabs.installed']()}
+          {updates > 0 && (
+            <Badge
+              variant="secondary"
+              title={m['settings.plugins.updates_available']({
+                count: updates,
+              })}
+            >
+              {updates}
+            </Badge>
+          )}
         </TabsChip>
         <TabsChip value="browse">
           {m['settings.plugins.tabs.browse']()}
@@ -44,6 +57,7 @@ export function PluginsPanel() {
 /** Installed plugins, one row each; the list also takes a dropped `.hplugin`. */
 export function PluginList() {
   const plugins = useQuery(pluginQueries.list());
+  const outdated = useQuery(pluginQueries.outdated());
   const daemon = useDaemon();
   const install = usePluginInstall();
   const { getRootProps, isDragActive } = useDropzone<HTMLDivElement>({
@@ -109,7 +123,20 @@ export function PluginList() {
           </p>
         ) : (
           installed.map((plugin) => (
-            <PluginRow key={plugin.manifest.id} plugin={plugin} />
+            <PluginRow
+              key={plugin.manifest.id}
+              plugin={plugin}
+              update={outdated.data?.plugins.find(
+                (offer) => offer.id === plugin.manifest.id,
+              )}
+              busy={install.busy}
+              onUpdate={(offer) =>
+                void install.start({
+                  repo: offer.repository,
+                  plugin: offer.id,
+                })
+              }
+            />
           ))
         )}
       </div>

@@ -6,7 +6,12 @@ import {
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 
-import type { PluginInfo, PluginSource, PluginState } from '@/api';
+import type {
+  OutdatedPlugin,
+  PluginInfo,
+  PluginSource,
+  PluginState,
+} from '@/api';
 import {
   Accordion,
   AccordionContent,
@@ -45,7 +50,17 @@ const SOURCE_LABEL: Record<PluginSource, () => string> = {
  * a mono detail line, the switch and remove. Clicking the row opens what the
  * plugin is allowed to do below it.
  */
-export function PluginRow({ plugin }: { plugin: PluginInfo }) {
+export function PluginRow({
+  plugin,
+  update,
+  busy,
+  onUpdate,
+}: {
+  plugin: PluginInfo;
+  update?: OutdatedPlugin;
+  busy: boolean;
+  onUpdate: (offer: OutdatedPlugin) => void;
+}) {
   const enable = useMutation(pluginMutations.enable());
   const disable = useMutation(pluginMutations.disable());
   const remove = useMutation(pluginMutations.remove());
@@ -149,6 +164,24 @@ export function PluginRow({ plugin }: { plugin: PluginInfo }) {
               </div>
             </button>
 
+            {update && (
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={busy || !update.apiCompatible || !update.repository}
+                title={
+                  update.apiCompatible
+                    ? undefined
+                    : m['settings.plugins.update_needs_api']({
+                        version: update.available,
+                        api: update.requires ?? '',
+                      })
+                }
+                onClick={() => onUpdate(update)}
+              >
+                {m['settings.plugins.update_to']({ version: update.available })}
+              </Button>
+            )}
             {plugin.state !== 'needs_approval' && (
               <Switch
                 size="sm"
