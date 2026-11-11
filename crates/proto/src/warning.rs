@@ -113,6 +113,13 @@ pub enum WarningInfo {
     /// The index listed other permissions for the plugin than its package asks
     /// for. The install used the package's own, which the user approved.
     PluginPermissionsDisagree { plugin: String },
+    /// An update failed to load, so the previous version was put back.
+    /// `version` is the one that failed.
+    PluginUpdateRolledBack {
+        id: String,
+        version: String,
+        error: String,
+    },
 }
 
 impl WarningInfo {
@@ -184,6 +191,9 @@ impl WarningInfo {
                 "check the permissions shown at install; the repository's listing was wrong or \
                  changed"
                     .to_string()
+            }
+            PluginUpdateRolledBack { id, .. } => {
+                format!("`{id}` is still at its old version; report the problem to its author")
             }
             DocumentQuarantined { path, .. } => format!(
                 "nothing was deleted — the file is at `{path}`; update hestia if it came from a \
@@ -275,6 +285,10 @@ impl fmt::Display for WarningInfo {
             PluginPermissionsDisagree { plugin } => write!(
                 f,
                 "the repository listed other permissions for '{plugin}' than its package asks for"
+            ),
+            PluginUpdateRolledBack { id, version, error } => write!(
+                f,
+                "the update of '{id}' to {version} failed to load and was rolled back: {error}"
             ),
             DocumentQuarantined {
                 document, detail, ..

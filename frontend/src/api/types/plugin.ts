@@ -39,6 +39,8 @@ export type { PluginStateEvent } from "./generated/PluginStateEvent";
 export type { PluginTheme } from "./generated/PluginTheme";
 export type { PluginUiActionParams } from "./generated/PluginUiActionParams";
 export type { PluginUiRenderParams } from "./generated/PluginUiRenderParams";
+export type { PluginUpdateDone } from "./generated/PluginUpdateDone";
+export type { PluginUpdateParams } from "./generated/PluginUpdateParams";
 export type { Program } from "./generated/Program";
 export type { ProviderContribution } from "./generated/ProviderContribution";
 export type { ScheduleContribution } from "./generated/ScheduleContribution";

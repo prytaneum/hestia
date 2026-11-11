@@ -140,6 +140,8 @@ import type { PluginStateEvent } from "./generated/PluginStateEvent";
 import type { PluginTheme } from "./generated/PluginTheme";
 import type { PluginUiActionParams } from "./generated/PluginUiActionParams";
 import type { PluginUiRenderParams } from "./generated/PluginUiRenderParams";
+import type { PluginUpdateDone } from "./generated/PluginUpdateDone";
+import type { PluginUpdateParams } from "./generated/PluginUpdateParams";
 import type { ProcessExitEvent } from "./generated/ProcessExitEvent";
 import type { ProcessInfo } from "./generated/ProcessInfo";
 import type { ProcessLogLine } from "./generated/ProcessLogLine";
@@ -326,6 +328,7 @@ export interface Channels {
   "plugin.themes": { params: Empty; result: Array<PluginTheme> };
   "plugin.ui.action": { params: Omit<Partial<PluginUiActionParams>, "action" | "context"> & { "action"?: Partial<Action>; "context"?: Partial<PageContext> }; result: Array<Effect> };
   "plugin.ui.render": { params: Omit<Partial<PluginUiRenderParams>, "context"> & { "context"?: Partial<PageContext> }; result: UiNode };
+  "plugin.update": { params: Partial<PluginUpdateParams>; result: JobStarted };
   "process.list": { params: Empty; result: Array<ProcessInfo> };
   "process.logs": { params: Partial<ProcessLogsParams>; result: Array<ProcessLogLine> };
   "process.start": { params: Partial<ProcessSpec>; result: ProcessStartResult };
@@ -400,6 +403,7 @@ export interface Jobs {
   "modpack.update": { progress: ProvisionProgress; done: ModpackDone };
   "plugin.install": { progress: PluginInstallProgress; done: PluginInstallDone };
   "plugin.run": { progress: PluginRunProgress; done: PluginRunDone };
+  "plugin.update": { progress: PluginInstallProgress; done: PluginUpdateDone };
   "server.backup.create": { progress: ProvisionProgress; done: BackupDone };
   "server.backup.restore": { progress: ProvisionProgress; done: BackupDone };
   "server.create": { progress: ProvisionProgress; done: ServerDone };

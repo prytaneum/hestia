@@ -509,6 +509,11 @@ pub enum ErrorInfo {
     },
     /// The package's grant is not the one the caller approved; inspect it again.
     PluginApprovalStale,
+    /// The update asks for more than is installed and no approval for its
+    /// grant came with the call; nothing was changed.
+    PluginUpdateNeedsApproval {
+        id: String,
+    },
     /// A developer-only call while `developer` is off.
     DeveloperModeOff,
     /// No configured repository matches `reference`.
@@ -977,6 +982,10 @@ impl fmt::Display for ErrorInfo {
             PluginApprovalStale => write!(
                 f,
                 "the package's permissions changed since you reviewed them"
+            ),
+            PluginUpdateNeedsApproval { id } => write!(
+                f,
+                "the update of '{id}' asks for more permissions than you approved"
             ),
             RepositoryNotFound { reference } => {
                 write!(f, "no plugin repository matches '{reference}'")

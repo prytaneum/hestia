@@ -50,6 +50,7 @@ const DENIED: &[&str] = &[
     "plugin.remove",
     "plugin.inspect",
     "plugin.install",
+    "plugin.update",
     "plugin.repo.add",
     "plugin.repo.list",
     "plugin.repo.remove",

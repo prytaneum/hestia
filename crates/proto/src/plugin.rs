@@ -1568,6 +1568,50 @@ impl Job for PluginInstall {
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
 #[serde(default, rename_all = "camelCase")]
+pub struct PluginUpdateParams {
+    pub id: String,
+    /// The installed plugin to update.
+    pub plugin: String,
+    /// The `grantDigest` of the inspection of the update the user approved.
+    /// Required only when the update asks for more than is installed; a
+    /// narrower or equal grant applies without it.
+    pub approve: String,
+}
+
+/// A job. Resolves, downloads and verifies the newest build against the key
+/// that signed the installed one, swaps it in, and loads it. An update that
+/// asks for more than was approved is refused with
+/// `plugin_update_needs_approval` before anything changes on disk. A build that
+/// fails to load is swapped back out and reported as `plugin_update_rolled_back`
+/// on the done event, with the plugin still at its old version. A cancel leaves
+/// nothing behind.
+pub struct PluginUpdate;
+impl Contract for PluginUpdate {
+    const CHANNEL: &'static str = "plugin.update";
+    type Params = PluginUpdateParams;
+    type Result = JobStarted;
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
+#[serde(rename_all = "camelCase")]
+pub struct PluginUpdateDone {
+    /// The plugin as it runs now: the new version, or the old one after a rollback.
+    pub plugin: PluginInfo,
+    /// The version that was installed before the update.
+    pub from: String,
+    #[serde(default)]
+    pub warnings: Vec<WarningInfo>,
+}
+
+impl Job for PluginUpdate {
+    type Progress = PluginInstallProgress;
+    type Done = PluginUpdateDone;
+}
+
+#[derive(Serialize, Deserialize, Default, Debug, Clone)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
+#[serde(default, rename_all = "camelCase")]
 pub struct PluginRunParams {
     pub id: String,
     pub plugin: String,
