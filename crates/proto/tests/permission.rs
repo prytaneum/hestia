@@ -55,6 +55,8 @@ const DENIED: &[&str] = &[
     "plugin.repo.remove",
     "plugin.repo.refresh",
     "plugin.catalogue",
+    "plugin.outdated",
+    "plugin.updates",
     "plugin.run",
     "plugin.asset",
     "plugin.pages",
@@ -253,7 +255,8 @@ fn a_topic_without_a_permission_reaches_no_plugin() {
     use serde_json::json;
     for topic in [
         "process.output",
-        "plugin.log",
+        "plugin.schedule",
+        "plugin.updates",
         "plugin.schedule",
         "no.such.topic",
     ] {

@@ -4,7 +4,7 @@
 use std::collections::{BTreeMap, HashSet};
 
 use proto::catalogue::{Availability, CataloguePlugin, Lister, RepositoryInfo};
-use proto::plugin::{api_supported, compare_versions};
+use proto::plugin::{api_supported, compare_versions, Grant};
 use proto::repository::{Build, IndexedPlugin, RepositoryIndex};
 
 use super::index::icon_url;
@@ -47,6 +47,7 @@ pub struct Installed {
     pub id: String,
     pub version: String,
     pub signer: Option<String>,
+    pub grant: Grant,
 }
 
 /// How one listed plugin can be installed.
@@ -150,14 +151,7 @@ fn entry(
     listings: &[(&Source, &IndexedPlugin)],
     installed: &[Installed],
 ) -> CataloguePlugin {
-    let (source, plugin) = listings
-        .iter()
-        .max_by(|(a_source, a), (b_source, b)| {
-            compare_versions(&a.version, &b.version)
-                .then_with(|| rank(&pick(a_source, a)).cmp(&rank(&pick(b_source, b))))
-        })
-        .copied()
-        .expect("a group has a listing");
+    let (source, plugin) = best(listings).expect("a group has a listing");
     let choice = pick(source, plugin);
     CataloguePlugin {
         id: id.to_string(),
@@ -191,6 +185,19 @@ fn entry(
             .find(|record| record.id == id && record.signer.as_deref() == Some(key_id))
             .map(|record| record.version.clone()),
     }
+}
+
+/// The listing to offer among mirrors: the newest version, preferring one with a build.
+pub(super) fn best<'a>(
+    listings: &[(&'a Source, &'a IndexedPlugin)],
+) -> Option<(&'a Source, &'a IndexedPlugin)> {
+    listings
+        .iter()
+        .copied()
+        .max_by(|(a_source, a), (b_source, b)| {
+            compare_versions(&a.version, &b.version)
+                .then_with(|| rank(&pick(a_source, a)).cmp(&rank(&pick(b_source, b))))
+        })
 }
 
 fn rank(choice: &Pick<'_>) -> bool {
@@ -404,6 +411,7 @@ mod tests {
             id: "aa".to_string(),
             version: "0.1.0".to_string(),
             signer: Some(key_id_of(&first).unwrap()),
+            grant: Grant::default(),
         }];
 
         let catalogue = build(&sources, &installed, None, None);

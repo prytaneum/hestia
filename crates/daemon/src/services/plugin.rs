@@ -8,9 +8,9 @@ use proto::error::{EntryKind, ErrorInfo};
 use proto::job::{JobStarted, JobSubject};
 use proto::plugin::{
     CommandScope, PageContext, PageContribution, PageSlot, PluginAsset, PluginCommands,
-    PluginDisable, PluginEnable, PluginGet, PluginInspect, PluginInstall, PluginList, PluginPages,
-    PluginRemove, PluginRun, PluginSettingsGet, PluginSettingsSet, PluginThemes, PluginUiAction,
-    PluginUiRender,
+    PluginDisable, PluginEnable, PluginGet, PluginInspect, PluginInstall, PluginList,
+    PluginOutdated, PluginPages, PluginRemove, PluginRun, PluginSettingsGet, PluginSettingsSet,
+    PluginThemes, PluginUiAction, PluginUiRender,
 };
 use proto::Empty;
 
@@ -92,6 +92,17 @@ pub(super) fn register(on: &mut Channels<'_>) {
             .map_err(crate::runtime::engine_error)?;
         ctx.runtime.plugins().enforce_revocations().await;
         Ok(catalogue)
+    });
+
+    on.handle::<PluginOutdated, _, _>(|p, ctx| async move {
+        let outdated = ctx
+            .runtime
+            .engine()
+            .outdated_plugins(&p)
+            .await
+            .map_err(crate::runtime::engine_error)?;
+        ctx.runtime.plugins().enforce_revocations().await;
+        Ok(outdated)
     });
 
     on.handle::<PluginInspect, _, _>(|p, ctx| async move {

@@ -10,6 +10,10 @@ use proto::catalogue::{
     Catalogue, CatalogueParams, RepositoryAdded, RepositoryInfo, RepositoryRefreshed,
 };
 use proto::error::ErrorInfo;
+use proto::net::NetworkState;
+use proto::plugin::{
+    api_supported, compare_versions, Outdated, OutdatedParams, OutdatedPlugin, PluginSource,
+};
 use proto::repository::{Build, IndexedPlugin, RepositoryIndex};
 use proto::warning::WarningInfo;
 use sha2::{Digest, Sha256};
@@ -19,8 +23,9 @@ use crate::checksum::hex;
 use crate::net;
 use crate::plugins::{
     build_catalogue, build_url, cache_index, cached_index, declared_keys, ensure_fresh, expand,
-    is_official_repository, key_id_of, open, pick, pinned_keys, refuse_official_key, revocation,
-    verify_build, Installed, Listings, Origin, Pick, RepoError, RepositoryEntry, Source,
+    is_official_repository, key_id_of, open, outdated, pick, pinned_keys, refuse_official_key,
+    revocation, verify_build, Installed, Listings, Origin, Pick, PluginRecord, RepoError,
+    RepositoryEntry, Source,
 };
 
 const INDEX_CAP: u64 = 8 * 1024 * 1024;
@@ -148,6 +153,87 @@ impl Engine {
             warnings: synced.iter().filter_map(Synced::warning).collect(),
             repositories: synced.iter().map(Synced::info).collect(),
         })
+    }
+
+    /// Signed installs are compared against the repositories pinning their
+    /// key, refreshed once each; offline they are compared against the cache.
+    /// Unsigned URL installs are re-downloaded only when `params.unsigned`.
+    pub async fn outdated_plugins(&self, params: &OutdatedParams) -> Result<Outdated> {
+        let network_down = self.network().status().state == NetworkState::Offline;
+        let synced = if network_down {
+            self.local_repositories()
+        } else {
+            self.sync_repositories(None).await?
+        };
+        let unreachable = synced
+            .iter()
+            .filter_map(|s| s.stale.as_ref())
+            .any(|reason| {
+                matches!(
+                    reason,
+                    ErrorInfo::Offline { .. } | ErrorInfo::DownloadFailed { .. }
+                )
+            });
+        let warnings = synced.iter().filter_map(Synced::warning).collect();
+        let sources: Vec<Source> = synced
+            .into_iter()
+            .filter_map(|synced| synced.source)
+            .collect();
+        let mut plugins = outdated(&sources, &self.installed_plugins());
+        if params.unsigned && !network_down {
+            plugins.extend(self.outdated_unsigned().await);
+        }
+        Ok(Outdated {
+            plugins,
+            offline: network_down || unreachable,
+            warnings,
+        })
+    }
+
+    async fn outdated_unsigned(&self) -> Vec<OutdatedPlugin> {
+        let mut found = Vec::new();
+        for record in self.plugins().list() {
+            let (PluginSource::Url, None, Some(url)) = (record.source, &record.signer, &record.url)
+            else {
+                continue;
+            };
+            match self.unsigned_offer(url, &record).await {
+                Ok(Some(offer)) => found.push(offer),
+                Ok(None) => {}
+                Err(error) => {
+                    tracing::warn!(plugin = %record.id, %error, "cannot check an unsigned install for updates")
+                }
+            }
+        }
+        found
+    }
+
+    async fn unsigned_offer(
+        &self,
+        url: &str,
+        record: &PluginRecord,
+    ) -> Result<Option<OutdatedPlugin>> {
+        let installed = self.plugins().read_manifest(&record.id)?.version;
+        let downloads = self.plugin_downloads();
+        let token = downloads.fetch(url).await?;
+        let inspected = downloads
+            .staged(&token)
+            .and_then(|staged| self.plugins().inspect(&staged.path));
+        downloads.discard(&token);
+        let manifest = inspected?.manifest;
+        if manifest.id != record.id || !compare_versions(&manifest.version, &installed).is_gt() {
+            return Ok(None);
+        }
+        let api_compatible = manifest.api.as_deref().is_none_or(api_supported);
+        Ok(Some(OutdatedPlugin {
+            id: record.id.clone(),
+            installed,
+            available: manifest.version.clone(),
+            api_compatible,
+            requires: manifest.api.clone().filter(|_| !api_compatible),
+            widened: manifest.grant().widening_over(&record.grant),
+            repository: String::new(),
+        }))
     }
 
     pub async fn catalogue(&self, params: &CatalogueParams) -> Result<Catalogue> {
@@ -405,6 +491,7 @@ impl Engine {
                     id: record.id,
                     version,
                     signer: record.signer,
+                    grant: record.grant,
                 })
             })
             .collect()
@@ -781,5 +868,48 @@ mod tests {
             engine.revoked_installs(),
             [("aa".to_string(), "leaks tokens".to_string())]
         );
+    }
+
+    #[tokio::test]
+    async fn offline_answers_from_the_cached_index_and_says_so() {
+        cache_home();
+        let url = "https://offline.example/plugins.json";
+        let home = tempfile::tempdir().unwrap();
+        let engine = Engine::new(Some(home.path()));
+        let signer = Signer::new();
+        let entry = entry_for(url, &signer, None);
+        let bytes = sample_index(&signer.key(), |_| {});
+        accept_index(
+            &entry,
+            &bytes,
+            &sign_index(&signer, &bytes),
+            None,
+            SAMPLE_NOW,
+        )
+        .unwrap();
+        engine.plugin_repositories().save(entry).unwrap();
+        let record = crate::plugins::PluginRecord {
+            id: "aa".to_string(),
+            signer: Some(crate::plugins::key_id_of(&signer.key()).unwrap()),
+            repository: Some(url.to_string()),
+            ..crate::plugins::PluginRecord::default()
+        };
+        engine.plugins().save(&record).unwrap();
+        let package = engine.plugins().package_dir("aa").unwrap();
+        std::fs::create_dir_all(&package).unwrap();
+        std::fs::write(
+            package.join("plugin.toml"),
+            "id = \"aa\"\nversion = \"0.1.0\"\n",
+        )
+        .unwrap();
+
+        engine.network().set_offline_mode(true);
+        let answer = engine.outdated_plugins(&OutdatedParams::default()).await;
+        engine.network().set_offline_mode(false);
+
+        let answer = answer.unwrap();
+        assert!(answer.offline);
+        assert_eq!(answer.plugins.len(), 1);
+        assert_eq!(answer.plugins[0].available, "0.2.0");
     }
 }

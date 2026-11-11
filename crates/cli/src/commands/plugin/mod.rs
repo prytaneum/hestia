@@ -8,6 +8,7 @@ mod config;
 mod dev;
 mod keygen;
 mod new;
+mod outdated;
 mod pack;
 mod page;
 mod publish;
@@ -89,6 +90,14 @@ pub enum ManageCmd {
         #[arg(short = 'y', long, help = "Approve exactly the permissions shown")]
         yes: bool,
     },
+    /// Installed plugins with a newer version on offer
+    Outdated {
+        #[arg(
+            long,
+            help = "Also re-download unsigned link installs to read their version"
+        )]
+        unsigned: bool,
+    },
     /// Plugins the added repositories offer
     Browse {
         /// Matches id, name and description
@@ -149,6 +158,7 @@ async fn manage(cmd: ManageCmd) -> Result<()> {
     match cmd {
         ManageCmd::List => list(plugins.list().await?),
         ManageCmd::Add { target, yes } => add::add(plugins, &target, yes).await,
+        ManageCmd::Outdated { unsigned } => outdated::run(plugins, unsigned).await,
         ManageCmd::Browse { query, repo } => browse::run(plugins, query, repo.as_deref()).await,
         ManageCmd::Repo { cmd } => store::run(cmd, plugins).await,
         ManageCmd::Info { id } => info(&plugins.info(&id).await?),

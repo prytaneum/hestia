@@ -30,6 +30,7 @@ mod settings;
 mod store;
 #[cfg(test)]
 pub(crate) mod testkit;
+mod update;
 
 pub use asset::MAX_ASSET_BYTES;
 pub use catalogue::Listings;
@@ -65,3 +66,4 @@ pub use runtime::{
 };
 pub use settings::{PluginSettings, SettingsError};
 pub use store::{PluginPackage, PluginRecord, Plugins};
+pub(crate) use update::outdated;

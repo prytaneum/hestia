@@ -40,6 +40,7 @@ pub async fn run_daemon(log_path: std::path::PathBuf, safe_mode: bool) -> i32 {
     runtime.engine().reconcile_idle();
     runtime.engine().reconcile_idle_packs().await;
     crate::runtime::spawn_task_scheduler(runtime.clone());
+    crate::runtime::spawn_plugin_update_checker(runtime.clone());
     crate::runtime::spawn_metrics_sampler(runtime.clone());
     crate::runtime::spawn_network_watcher(runtime.clone());
     let presence = crate::runtime::spawn_presence_updater(runtime.clone());

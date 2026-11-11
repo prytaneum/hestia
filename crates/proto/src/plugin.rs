@@ -1439,6 +1439,60 @@ impl Contract for PluginInspect {
     type Result = PluginInspection;
 }
 
+/// An installed plugin with a newer version on offer.
+#[derive(Serialize, Deserialize, Default, Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
+#[serde(default, rename_all = "camelCase")]
+pub struct OutdatedPlugin {
+    pub id: String,
+    pub installed: String,
+    /// The newest build this Hestia can run when one is newer than `installed`;
+    /// otherwise the newest listed version, which `api_compatible` says it cannot run.
+    pub available: String,
+    /// False when the latest listed version needs another plugin API than this
+    /// Hestia's. The index carries the API requirement, not a Hestia version.
+    pub api_compatible: bool,
+    /// The API requirement of the latest version when `api_compatible` is false.
+    pub requires: Option<String>,
+    /// What the update asks beyond the installed grant. From a repository this
+    /// is the permissions its index lists; the install inspection has the full grant.
+    pub widened: Grant,
+    /// The index URL that offers it; empty for an unsigned URL install.
+    pub repository: String,
+}
+
+#[derive(Serialize, Deserialize, Default, Debug, Clone)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
+#[serde(default, rename_all = "camelCase")]
+pub struct OutdatedParams {
+    /// Also re-download every unsigned URL install to read its version. Never
+    /// done by the schedule: it asks a server nobody vouched for.
+    pub unsigned: bool,
+}
+
+#[derive(Serialize, Deserialize, Default, Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
+#[serde(default, rename_all = "camelCase")]
+pub struct Outdated {
+    pub plugins: Vec<OutdatedPlugin>,
+    /// The answer comes from cached indexes: the network is down.
+    pub offline: bool,
+    pub warnings: Vec<WarningInfo>,
+}
+impl Topic for Outdated {
+    const TOPIC: &'static str = "plugin.updates";
+}
+
+/// Refreshes every repository once, then compares what each signed plugin was
+/// installed from with what those repositories list.
+pub struct PluginOutdated;
+impl Contract for PluginOutdated {
+    const CHANNEL: &'static str = "plugin.outdated";
+    const TIMEOUT: Duration = Duration::from_secs(2 * 60);
+    type Params = OutdatedParams;
+    type Result = Outdated;
+}
+
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
 #[serde(default, rename_all = "camelCase")]

@@ -217,7 +217,7 @@ fn api() -> Api {
         net::NetStatus,
         players::ServerPlayerKick, players::ServerPlayers, players::ServerPlayerSet,
         plugin::PluginAsset, plugin::PluginCommands, plugin::PluginDisable, plugin::PluginEnable, plugin::PluginGet,
-        plugin::PluginInspect, plugin::PluginInstall, plugin::PluginList, plugin::PluginPages,
+        plugin::PluginInspect, plugin::PluginInstall, plugin::PluginList, plugin::PluginOutdated, plugin::PluginPages,
         plugin::PluginRemove, plugin::PluginRun, plugin::PluginSettingsGet, plugin::PluginSettingsSet,
         plugin::PluginThemes, plugin::PluginUiAction, plugin::PluginUiRender,
         process::ProcessList, process::ProcessLogs, process::ProcessStart, process::ProcessStatus,
@@ -253,7 +253,7 @@ fn api() -> Api {
         change::ChangedEvent,
         net::NetworkStatus,
         plugin::PluginLogEvent, plugin::PluginStateEvent,
-        plugin::ScheduleEvent,
+        plugin::Outdated, plugin::ScheduleEvent,
         process::ProcessExitEvent, process::ProcessMetricsEvent, process::ProcessOutputEvent,
         process::ProcessStartedEvent,
     );

@@ -4,10 +4,11 @@ use proto::catalogue::{
     RepositoryRef, RepositoryRefreshParams, RepositoryRefreshed,
 };
 use proto::plugin::{
-    PluginAssetParams, PluginAssetResult, PluginInfo, PluginInspection, PluginInstallDone,
-    PluginInstallParams, PluginInstallProgress, PluginLogEvent, PluginPackageRef, PluginPage,
-    PluginRef, PluginRunDone, PluginRunParams, PluginRunProgress, PluginSettingsSetParams,
-    PluginStateEvent, PluginUiActionParams, PluginUiRenderParams, SettingValue,
+    Outdated, OutdatedParams, PluginAssetParams, PluginAssetResult, PluginInfo, PluginInspection,
+    PluginInstallDone, PluginInstallParams, PluginInstallProgress, PluginLogEvent,
+    PluginPackageRef, PluginPage, PluginRef, PluginRunDone, PluginRunParams, PluginRunProgress,
+    PluginSettingsSetParams, PluginStateEvent, PluginUiActionParams, PluginUiRenderParams,
+    SettingValue,
 };
 use proto::ui::{Effect, UiNode};
 use proto::Topic;
@@ -30,6 +31,14 @@ impl Plugin<'_> {
     pub async fn list(&self) -> Result<Vec<PluginInfo>, IpcError> {
         self.session
             .call::<proto::plugin::PluginList>(&proto::Empty {})
+            .await
+    }
+
+    /// Newer builds of installed plugins. `unsigned` also re-downloads unsigned
+    /// URL installs to read their version.
+    pub async fn outdated(&self, unsigned: bool) -> Result<Outdated, IpcError> {
+        self.session
+            .call::<proto::plugin::PluginOutdated>(&OutdatedParams { unsigned })
             .await
     }
 
