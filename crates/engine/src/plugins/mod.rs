@@ -66,4 +66,5 @@ pub use runtime::{
 };
 pub use settings::{PluginSettings, SettingsError};
 pub use store::{PluginPackage, PluginRecord, Plugins};
-pub(crate) use update::outdated;
+pub(crate) use update::{mirror_of, outdated};
+pub use update::{UpdateOutcome, UpdateRequest};

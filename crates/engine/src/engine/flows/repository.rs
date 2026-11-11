@@ -23,9 +23,9 @@ use crate::checksum::hex;
 use crate::net;
 use crate::plugins::{
     build_catalogue, build_url, cache_index, cached_index, declared_keys, ensure_fresh, expand,
-    is_official_repository, key_id_of, open, outdated, pick, pinned_keys, refuse_official_key,
-    revocation, verify_build, Installed, Listings, Origin, Pick, PluginRecord, RepoError,
-    RepositoryEntry, Source,
+    is_official_repository, key_id_of, mirror_of, open, outdated, pick, pinned_keys,
+    refuse_official_key, revocation, verify_build, Installed, Listings, Origin, Pick, PluginRecord,
+    RepoError, RepositoryEntry, Source,
 };
 
 const INDEX_CAP: u64 = 8 * 1024 * 1024;
@@ -265,6 +265,44 @@ impl Engine {
             repositories,
             warnings,
         })
+    }
+
+    /// Downloads the newest build of an installed plugin from a repository
+    /// pinning the key that signed it, or re-downloads an unsigned link
+    /// install, and holds it for [`Plugins::apply_update`](crate::Plugins::apply_update).
+    /// Returns the token.
+    pub async fn stage_plugin_update(&self, id: &str) -> Result<String> {
+        let record = self
+            .plugins()
+            .get(id)
+            .ok_or_else(|| ErrorInfo::PluginNotFound { id: id.to_string() })?;
+        match (
+            record.signer.as_deref(),
+            record.source,
+            record.url.as_deref(),
+        ) {
+            (Some(signer), _, _) => {
+                let sources: Vec<Source> = self
+                    .sync_repositories(None)
+                    .await?
+                    .into_iter()
+                    .filter_map(|synced| synced.source)
+                    .collect();
+                let url = mirror_of(&sources, id, signer)
+                    .ok_or_else(|| ErrorInfo::PluginBuildUnavailable {
+                        id: id.to_string(),
+                        detail: "no repository you added lists it any more".to_string(),
+                    })?
+                    .url
+                    .clone();
+                self.stage_repository_build(&url, id).await
+            }
+            (None, PluginSource::Url, Some(url)) => self.plugin_downloads().fetch(url).await,
+            _ => Err(ErrorInfo::PluginInvalid {
+                detail: "only a repository or link install can be updated".to_string(),
+            }
+            .into()),
+        }
     }
 
     /// Downloads the newest installable build of `id` from the repository at

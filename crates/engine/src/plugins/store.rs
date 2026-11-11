@@ -14,6 +14,9 @@ pub(crate) const PACKAGE: &str = "package";
 pub(crate) const DATA: &str = "data";
 pub(super) const MANIFEST: &str = "plugin.toml";
 pub(super) const STAGING_SUFFIX: &str = ".staging";
+/// The one package version an update keeps, beside `package/`.
+pub(super) const PREVIOUS_PACKAGE: &str = "package.prev";
+const FAILED_PACKAGE: &str = "package.failed";
 
 /// An installed package read from disk: its validated manifest and, unless it
 /// is theme-only, the component bytes.
@@ -54,6 +57,16 @@ impl Document for PluginRecord {
     const NAME: &'static str = "plugin.json";
 }
 
+/// The record an update replaced, kept with [`PREVIOUS_PACKAGE`] so a rollback
+/// restores both.
+#[derive(Serialize, Deserialize)]
+#[serde(transparent)]
+pub(super) struct Previous(pub(super) PluginRecord);
+
+impl Document for Previous {
+    const NAME: &'static str = "plugin.prev.json";
+}
+
 pub struct Plugins {
     pub(super) dir: PathBuf,
     pub(super) writes: Mutex<()>,
@@ -68,7 +81,58 @@ impl Plugins {
     }
 
     pub(crate) fn reclaim(&self) -> Reclaimed {
+        self.restore_interrupted_swaps();
         reclaim::suffixed(&self.dir, STAGING_SUFFIX)
+    }
+
+    /// A crash between the two renames of an update leaves no `package/`; the
+    /// previous one goes back, with its record.
+    fn restore_interrupted_swaps(&self) {
+        for entry in std::fs::read_dir(&self.dir).into_iter().flatten().flatten() {
+            let dir = entry.path();
+            if dir.join(PACKAGE).exists() || !dir.join(PREVIOUS_PACKAGE).is_dir() {
+                continue;
+            }
+            match self.restore_previous(&dir) {
+                Ok(record) => {
+                    tracing::warn!(plugin = %record.id, "an interrupted plugin update was rolled back")
+                }
+                Err(error) => {
+                    tracing::error!(path = %dir.display(), error = %format!("{error:#}"), "cannot roll back an interrupted plugin update")
+                }
+            }
+        }
+    }
+
+    /// Blocking. Puts the previous package and its record back over the current
+    /// ones, which are deleted. Errors when there is no previous version.
+    pub fn rollback(&self, id: &str) -> Result<PluginRecord> {
+        let dir = self.plugin_dir(id)?;
+        let _writes = self.writes.lock().unwrap();
+        self.restore_previous(&dir)
+    }
+
+    fn restore_previous(&self, dir: &std::path::Path) -> Result<PluginRecord> {
+        let Previous(record) = registry::read_record::<Previous>(dir)
+            .with_context(|| format!("{} has no previous version", dir.display()))?;
+        let package = dir.join(PACKAGE);
+        let failed = dir.join(FAILED_PACKAGE);
+        if package.exists() {
+            if failed.exists() {
+                std::fs::remove_dir_all(&failed)?;
+            }
+            std::fs::rename(&package, &failed).context("cannot set the new package aside")?;
+        }
+        std::fs::rename(dir.join(PREVIOUS_PACKAGE), &package)
+            .context("cannot put the previous package back")?;
+        registry::write_record(dir, &record)?;
+        std::fs::remove_file(registry::record_path::<Previous>(dir))?;
+        if let Err(error) = std::fs::remove_dir_all(&failed) {
+            if failed.exists() {
+                tracing::warn!(%error, "the failed package is left for the next update to clear");
+            }
+        }
+        Ok(record)
     }
 
     /// The plugin's directory; the id is checked because it becomes a path.

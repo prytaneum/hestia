@@ -1,11 +1,118 @@
-//! Which signed installs a repository now offers a newer build of. Pure, like
-//! the catalogue it reads through: the caller supplies the indexes and what is
-//! installed.
+//! Which signed installs a repository now offers a newer build of, and applying
+//! one. The check is pure, like the catalogue it reads through: the caller
+//! supplies the indexes and what is installed.
 
-use proto::plugin::{compare_versions, Grant, OutdatedPlugin};
+use std::future::Future;
+
+use anyhow::Result;
+use proto::plugin::{compare_versions, Grant, OutdatedPlugin, PluginInstallPhase};
 use proto::repository::IndexedPlugin;
 
 use super::catalogue::{best, pick, Installed, Pick, Source};
+use super::remote::Staged;
+use super::store::{PluginRecord, Plugins};
+use crate::cancel::Cancel;
+
+/// The listings of `id` by repositories pinning `signer`, mirrors included.
+pub(crate) fn listings_of<'a>(
+    sources: &'a [Source],
+    id: &str,
+    signer: &str,
+) -> Vec<(&'a Source, &'a IndexedPlugin)> {
+    sources
+        .iter()
+        .filter(|source| source.key_id == signer)
+        .flat_map(|source| {
+            source
+                .index
+                .plugins
+                .iter()
+                .filter(|plugin| plugin.id == id)
+                .map(move |plugin| (source, plugin))
+        })
+        .collect()
+}
+
+/// The repository to take the newest build of `id` from, when `signer` signed
+/// the install.
+pub(crate) fn mirror_of<'a>(sources: &'a [Source], id: &str, signer: &str) -> Option<&'a Source> {
+    best(&listings_of(sources, id, signer)).map(|(source, _)| source)
+}
+
+/// A verified package for an installed plugin, and what the user approved.
+pub struct UpdateRequest<'a> {
+    pub id: &'a str,
+    pub staged: &'a Staged,
+    pub approve: &'a str,
+}
+
+pub enum UpdateOutcome {
+    Applied {
+        record: PluginRecord,
+        from: String,
+    },
+    /// The new version failed to activate and the previous one is installed again.
+    RolledBack {
+        record: PluginRecord,
+        version: String,
+        error: String,
+    },
+}
+
+impl Plugins {
+    /// Blocking swap, then `activate` on the new record when the plugin is
+    /// enabled. If activation fails, the previous package and record come back
+    /// and the failure is reported, not raised. Never swaps back to an older
+    /// version for any other reason.
+    pub async fn apply_update<Fut>(
+        &self,
+        request: UpdateRequest<'_>,
+        cancel: &Cancel,
+        on_phase: &(dyn Fn(PluginInstallPhase) + Sync),
+        validate: impl FnOnce(&[u8]) -> Result<()>,
+        activate: impl FnOnce(PluginRecord) -> Fut,
+    ) -> Result<UpdateOutcome>
+    where
+        Fut: Future<Output = Result<()>>,
+    {
+        let from = self.read_manifest(request.id)?.version;
+        let updated = self.update(
+            request.staged,
+            request.id,
+            request.approve,
+            cancel,
+            on_phase,
+            validate,
+        )?;
+        let version = self.read_manifest(request.id)?.version;
+        if !updated.record.enabled {
+            tracing::info!(plugin = %request.id, %from, %version, "plugin updated");
+            return Ok(UpdateOutcome::Applied {
+                record: updated.record,
+                from,
+            });
+        }
+        match activate(updated.record.clone()).await {
+            Ok(()) => {
+                tracing::info!(plugin = %request.id, %from, %version, "plugin updated");
+                Ok(UpdateOutcome::Applied {
+                    record: updated.record,
+                    from,
+                })
+            }
+            Err(error) => {
+                let error = format!("{error:#}");
+                tracing::warn!(plugin = %request.id, %version, %error, "plugin update failed to load, rolling back");
+                let record = self.rollback(request.id)?;
+                Ok(UpdateOutcome::RolledBack {
+                    record,
+                    version,
+                    error,
+                })
+            }
+        }
+    }
+}
 
 /// The signed installs with a newer version on offer, by id. Only repositories
 /// pinning the key that signed the install count, so another key listing the
@@ -15,19 +122,7 @@ pub fn outdated(sources: &[Source], installed: &[Installed]) -> Vec<OutdatedPlug
         .iter()
         .filter_map(|record| {
             let signer = record.signer.as_deref()?;
-            let listings: Vec<(&Source, &IndexedPlugin)> = sources
-                .iter()
-                .filter(|source| source.key_id == signer)
-                .flat_map(|source| {
-                    source
-                        .index
-                        .plugins
-                        .iter()
-                        .filter(|plugin| plugin.id == record.id)
-                        .map(move |plugin| (source, plugin))
-                })
-                .collect();
-            let (source, plugin) = best(&listings)?;
+            let (source, plugin) = best(&listings_of(sources, &record.id, signer))?;
             offer(source, plugin, record)
         })
         .collect();

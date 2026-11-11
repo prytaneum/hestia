@@ -8,17 +8,20 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{bail, Context, Result};
 use proto::error::ErrorInfo;
-use proto::plugin::{Grant, Manifest, PluginInstallPhase, PluginSource};
+use proto::plugin::{compare_versions, Grant, Manifest, PluginInstallPhase, PluginSource};
 use sha2::{Digest, Sha256};
 
 use super::program::pin_programs;
 use super::remote::Staged;
-use super::store::{PluginRecord, Plugins, MANIFEST, PACKAGE, STAGING_SUFFIX};
+use super::store::{
+    PluginRecord, Plugins, Previous, MANIFEST, PACKAGE, PREVIOUS_PACKAGE, STAGING_SUFFIX,
+};
 use crate::cancel::Cancel;
 use crate::checksum::{digest_file, hex};
 use crate::extract::extract_zip_capped;
 use crate::files::copy_tree;
 use crate::reclaim;
+use crate::registry;
 use crate::usage::dir_size;
 
 /// Uncompressed size of a package. A plugin is a component and a few assets;
@@ -26,6 +29,18 @@ use crate::usage::dir_size;
 const PACKAGE_LIMIT: u64 = 64 * 1024 * 1024;
 const MANIFEST_LIMIT: u64 = 1024 * 1024;
 const RETIRED: &str = "previous";
+
+/// What an update leaves behind: the record now installed and the one it replaced.
+pub struct Updated {
+    pub record: PluginRecord,
+    pub previous: PluginRecord,
+}
+
+#[derive(Clone, Copy, Default)]
+struct Intake<'a> {
+    downloaded: Option<&'a Staged>,
+    replacing: Option<&'a PluginRecord>,
+}
 
 pub struct Inspection {
     pub manifest: Manifest,
@@ -170,7 +185,7 @@ impl Plugins {
         on_phase: &dyn Fn(PluginInstallPhase),
         validate: impl FnOnce(&[u8]) -> Result<()>,
     ) -> Result<PluginRecord> {
-        self.install_from(path, None, approve, cancel, on_phase, validate)
+        self.install_from(path, Intake::default(), approve, cancel, on_phase, validate)
     }
 
     /// [`Self::install`] of an archive fetched from `url`, which the record keeps.
@@ -182,20 +197,45 @@ impl Plugins {
         on_phase: &dyn Fn(PluginInstallPhase),
         validate: impl FnOnce(&[u8]) -> Result<()>,
     ) -> Result<PluginRecord> {
-        self.install_from(
-            &staged.path,
-            Some(staged),
-            approve,
-            cancel,
-            on_phase,
-            validate,
-        )
+        let intake = Intake {
+            downloaded: Some(staged),
+            replacing: None,
+        };
+        self.install_from(&staged.path, intake, approve, cancel, on_phase, validate)
+    }
+
+    /// Blocking. Swaps a newer build of an installed repository or link plugin
+    /// in, keeping the old package as the one previous version. A grant wider
+    /// than the installed one needs `approve` to be its digest; an equal or
+    /// narrower one applies without it. `data/` is untouched.
+    pub fn update(
+        &self,
+        staged: &Staged,
+        id: &str,
+        approve: &str,
+        cancel: &Cancel,
+        on_phase: &dyn Fn(PluginInstallPhase),
+        validate: impl FnOnce(&[u8]) -> Result<()>,
+    ) -> Result<Updated> {
+        let previous = self
+            .get(id)
+            .ok_or_else(|| ErrorInfo::PluginNotFound { id: id.to_string() })?;
+        if !matches!(previous.source, PluginSource::Repo | PluginSource::Url) {
+            return Err(invalid("only a repository or link install can be updated"));
+        }
+        let intake = Intake {
+            downloaded: Some(staged),
+            replacing: Some(&previous),
+        };
+        let record =
+            self.install_from(&staged.path, intake, approve, cancel, on_phase, validate)?;
+        Ok(Updated { record, previous })
     }
 
     fn install_from(
         &self,
         path: &Path,
-        downloaded: Option<&Staged>,
+        intake: Intake<'_>,
         approve: &str,
         cancel: &Cancel,
         on_phase: &dyn Fn(PluginInstallPhase),
@@ -231,9 +271,21 @@ impl Plugins {
         }
         let grant = manifest.grant();
         let grant_digest = grant.digest();
-        if grant_digest != approve {
-            tracing::warn!(plugin = %id, "install refused: the grant is not the one approved");
-            bail!(ErrorInfo::PluginApprovalStale);
+        match intake.replacing {
+            Some(installed) => {
+                self.check_update(installed, &manifest, intake.downloaded)?;
+                if grant.widening_over(&installed.grant) != Grant::default()
+                    && grant_digest != approve
+                {
+                    tracing::warn!(plugin = %id, "update refused: it asks for more than was approved");
+                    bail!(ErrorInfo::PluginUpdateNeedsApproval { id });
+                }
+            }
+            None if grant_digest != approve => {
+                tracing::warn!(plugin = %id, "install refused: the grant is not the one approved");
+                bail!(ErrorInfo::PluginApprovalStale);
+            }
+            None => {}
         }
         let (wasm_sha256, theme_sha256) = digest_package(&manifest, &staged, validate)?;
         let program_paths = pin_programs(&id, &manifest);
@@ -241,18 +293,28 @@ impl Plugins {
 
         on_phase(PluginInstallPhase::Installing);
         let installed = self.get(&id);
-        let origin = downloaded.and_then(|staged| staged.origin.as_ref());
-        self.swap_package(&dir, &staged, &staging.join(RETIRED))?;
+        let origin = intake.downloaded.and_then(|staged| staged.origin.as_ref());
+        let retired = match intake.replacing {
+            Some(previous) => {
+                self.keep_previous(&dir, previous)?;
+                dir.join(PREVIOUS_PACKAGE)
+            }
+            None => {
+                self.discard_previous(&dir);
+                staging.join(RETIRED)
+            }
+        };
+        self.swap_package(&dir, &staged, &retired)?;
         let record = PluginRecord {
             id: id.clone(),
-            source: match downloaded {
+            source: match intake.downloaded {
                 Some(Staged {
                     origin: Some(_), ..
                 }) => PluginSource::Repo,
                 Some(_) => PluginSource::Url,
                 None => source.kind(),
             },
-            url: downloaded.map(|staged| staged.url.clone()),
+            url: intake.downloaded.map(|staged| staged.url.clone()),
             dev_path: None,
             signer: origin.map(|origin| origin.signer.clone()),
             repository: origin.map(|origin| origin.repository.clone()),
@@ -267,6 +329,51 @@ impl Plugins {
         self.save(&record)?;
         tracing::info!(plugin = %id, updated = installed.is_some(), "plugin installed");
         Ok(record)
+    }
+
+    fn check_update(
+        &self,
+        installed: &PluginRecord,
+        manifest: &Manifest,
+        downloaded: Option<&Staged>,
+    ) -> Result<()> {
+        if manifest.id != installed.id {
+            return Err(invalid("the update is a different plugin"));
+        }
+        let signer = downloaded
+            .and_then(|staged| staged.origin.as_ref())
+            .map(|origin| &origin.signer);
+        if signer != installed.signer.as_ref() {
+            tracing::warn!(plugin = %installed.id, "update refused: not signed by the installed plugin's key");
+            return Err(invalid(
+                "the update is not signed by the key that signed the installed plugin",
+            ));
+        }
+        let current = self.read_manifest(&installed.id)?.version;
+        if !compare_versions(&manifest.version, &current).is_gt() {
+            return Err(invalid(format!(
+                "{} is not newer than the installed {current}",
+                manifest.version
+            )));
+        }
+        Ok(())
+    }
+
+    /// Records what the swap is about to replace; the old package follows by rename.
+    fn keep_previous(&self, dir: &Path, previous: &PluginRecord) -> Result<()> {
+        let _writes = self.writes.lock().unwrap();
+        std::fs::create_dir_all(dir)?;
+        let retired = dir.join(PREVIOUS_PACKAGE);
+        if retired.exists() {
+            std::fs::remove_dir_all(&retired).context("cannot clear the older previous version")?;
+        }
+        registry::write_record(dir, &Previous(previous.clone()))
+    }
+
+    fn discard_previous(&self, dir: &Path) {
+        let _writes = self.writes.lock().unwrap();
+        let _ = std::fs::remove_file(registry::record_path::<Previous>(dir));
+        let _ = std::fs::remove_dir_all(dir.join(PREVIOUS_PACKAGE));
     }
 
     /// Moves the old package aside before the new one goes in, and back if
