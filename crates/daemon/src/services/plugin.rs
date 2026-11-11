@@ -10,7 +10,7 @@ use proto::plugin::{
     CommandScope, PageContext, PageContribution, PageSlot, PluginAsset, PluginCommands,
     PluginDisable, PluginEnable, PluginGet, PluginInspect, PluginInstall, PluginList,
     PluginOutdated, PluginPages, PluginRemove, PluginRun, PluginSettingsGet, PluginSettingsSet,
-    PluginThemes, PluginUiAction, PluginUiRender,
+    PluginThemes, PluginUiAction, PluginUiRender, PluginUpdate,
 };
 use proto::Empty;
 
@@ -133,6 +133,22 @@ pub(super) fn register(on: &mut Channels<'_>) {
         ) {
             Some(id) => Ok(JobStarted { id }),
             None => Err(ErrorInfo::PluginInstallInProgress { id: plugin }),
+        }
+    });
+
+    on.handle::<PluginUpdate, _, _>(|p, ctx| async move {
+        if ctx.runtime.engine().plugins().get(&p.plugin).is_none() {
+            return Err(ErrorInfo::PluginNotFound { id: p.plugin });
+        }
+        match ctx.runtime.jobs().start_plugin_update(
+            ctx.runtime.plugins().clone(),
+            p.plugin.clone(),
+            p.id,
+            p.approve,
+            ctx.chain.clone(),
+        ) {
+            Some(id) => Ok(JobStarted { id }),
+            None => Err(ErrorInfo::PluginInstallInProgress { id: p.plugin }),
         }
     });
 

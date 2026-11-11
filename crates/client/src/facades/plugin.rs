@@ -8,7 +8,7 @@ use proto::plugin::{
     PluginInstallDone, PluginInstallParams, PluginInstallProgress, PluginLogEvent,
     PluginPackageRef, PluginPage, PluginRef, PluginRunDone, PluginRunParams, PluginRunProgress,
     PluginSettingsSetParams, PluginStateEvent, PluginUiActionParams, PluginUiRenderParams,
-    SettingValue,
+    PluginUpdateDone, PluginUpdateParams, SettingValue,
 };
 use proto::ui::{Effect, UiNode};
 use proto::Topic;
@@ -261,6 +261,25 @@ impl Plugin<'_> {
             ..PluginInstallParams::default()
         };
         self.run_install(params, on_progress).await
+    }
+
+    /// Updates `plugin` to the newest build its signing key's repositories offer.
+    /// `approve` is the grant digest from [`Self::inspect_repo`], needed only
+    /// when the update asks for more than is installed.
+    pub async fn update(
+        &self,
+        plugin: &str,
+        approve: &str,
+        on_progress: impl Fn(&PluginInstallProgress) + Send + Sync + 'static,
+    ) -> Result<PluginUpdateDone, IpcError> {
+        let params = PluginUpdateParams {
+            id: job_id("plugin-update"),
+            plugin: plugin.to_string(),
+            approve: approve.to_string(),
+        };
+        self.session
+            .run_job::<proto::plugin::PluginUpdate>(&params.id.clone(), &params, on_progress)
+            .await
     }
 
     /// Runs a command the plugin contributes and waits for its output. The

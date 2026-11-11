@@ -7,6 +7,7 @@ mod dev;
 mod events;
 mod host;
 mod package;
+mod update;
 
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};

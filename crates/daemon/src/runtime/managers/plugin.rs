@@ -5,6 +5,7 @@ use proto::error::ErrorInfo;
 use proto::job::JobSubject;
 use proto::plugin::{
     PluginInstall, PluginInstallDone, PluginInstallProgress, PluginRun, PluginRunDone,
+    PluginUpdate, PluginUpdateDone,
 };
 use serde_json::Value;
 use tokio::sync::watch;
@@ -47,6 +48,40 @@ impl Jobs {
                     plugin: plugins.installed(record).await,
                     warnings,
                 })
+            })
+        }))
+    }
+
+    /// `None` if `plugin` is already installing or updating.
+    pub fn start_plugin_update(
+        &self,
+        plugins: Arc<Plugins>,
+        plugin: String,
+        id: String,
+        approve: String,
+        chain: CallChain,
+    ) -> Option<String> {
+        let claim = self
+            .claims
+            .claim(format!("plugin-{plugin}"), JobKind::Install)
+            .ok()?;
+        let spec = Spec {
+            id,
+            prefix: "plugin-update",
+            claim: Some(claim),
+            subject: None,
+            chain,
+        };
+
+        Some(self.run::<PluginUpdate, _>(spec, move |_, reporter| {
+            Box::pin(async move {
+                let report = reporter.checked();
+                let done: PluginUpdateDone = plugins
+                    .update(&plugin, &approve, reporter.cancel(), &|phase| {
+                        let _ = report(&PluginInstallProgress { phase });
+                    })
+                    .await?;
+                Ok(done)
             })
         }))
     }
