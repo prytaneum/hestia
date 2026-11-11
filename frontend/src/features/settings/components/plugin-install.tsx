@@ -2,7 +2,12 @@ import { LinkIcon } from '@phosphor-icons/react';
 import { useMutation } from '@tanstack/react-query';
 import { useState } from 'react';
 
-import { dialog, errorMessage, type PluginInspection } from '@/api';
+import {
+  dialog,
+  errorMessage,
+  type OutdatedPlugin,
+  type PluginInspection,
+} from '@/api';
 import type { PluginInstallTarget, PluginPackage } from '@/api/plugin';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -26,6 +31,8 @@ interface Candidate {
   source: PluginPackage;
   inspection: PluginInspection;
   dev: boolean;
+  /** The installed plugin this candidate updates, through `plugin.update`. */
+  updates?: string;
 }
 
 /** A link's package was downloaded by the inspect; install that file, not the link again. */
@@ -43,11 +50,13 @@ function installTarget({
  * Install from a local package or an https link: inspect it, have the user
  * approve exactly what it asks for in a native dialog, then install against
  * that grant's digest. A grant too long for the dialog is reviewed on the page
- * first (`review`).
+ * first (`review`). An update takes the same road to the `plugin.update` job,
+ * and is applied without asking when it adds nothing to the approved grant.
  */
 export function usePluginInstall() {
   const inspect = useMutation(pluginMutations.inspect());
   const install = useJobMutation(pluginMutations.install());
+  const update = useJobMutation(pluginMutations.update());
   const [review, setReview] = useState<Candidate | null>(null);
 
   const approve = async (candidate: Candidate) => {
@@ -56,10 +65,17 @@ export function usePluginInstall() {
     const { title, message } = approvalDialog(inspection);
     const approved = await dialog.ask(message, {
       title,
-      okLabel: m['app.action.install'](),
+      okLabel: candidate.updates
+        ? m['settings.plugins.update']()
+        : m['app.action.install'](),
       cancelLabel: m['app.action.cancel'](),
     });
-    if (approved)
+    if (approved && candidate.updates)
+      update.mutate({
+        plugin: candidate.updates,
+        approve: inspection.grantDigest,
+      });
+    else if (approved)
       install.mutate({
         id: inspection.manifest.id,
         approve: inspection.grantDigest,
@@ -78,12 +94,30 @@ export function usePluginInstall() {
     }
   };
 
+  const startUpdate = async (offer: OutdatedPlugin) => {
+    try {
+      const source = { repo: offer.repository, plugin: offer.id };
+      const inspection = await inspect.mutateAsync(source);
+      const candidate = { source, inspection, dev: false, updates: offer.id };
+      if (describeApproval(inspection).length === 0)
+        update.mutate({
+          plugin: offer.id,
+          approve: inspection.grantDigest,
+        });
+      else if (approvalDialog(inspection).complete) await approve(candidate);
+      else setReview(candidate);
+    } catch (error) {
+      notify.error(errorMessage(error));
+    }
+  };
+
   return {
     start,
+    update: startUpdate,
     review,
     approve,
     dismiss: () => setReview(null),
-    busy: inspect.isPending || install.isPending,
+    busy: inspect.isPending || install.isPending || update.isPending,
   };
 }
 

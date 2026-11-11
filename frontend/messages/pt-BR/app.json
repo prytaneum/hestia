@@ -90,7 +90,8 @@
         },
         "plugin": {
           "install": "Instalando um plugin",
-          "run": "Executando um comando de plugin"
+          "run": "Executando um comando de plugin",
+          "update": "Atualizando um plugin"
         },
         "server": {
           "backup": {
@@ -139,7 +140,8 @@
         },
         "plugin": {
           "install": "Instalando um plugin",
-          "run": "Executando um comando de plugin"
+          "run": "Executando um comando de plugin",
+          "update": "Atualizando um plugin"
         },
         "server": {
           "backup": {

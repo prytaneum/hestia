@@ -122,6 +122,8 @@
       "update": "Atualizar",
       "update_needs_api": "A versão {version} exige a API de plugins {api}.",
       "update_to": "Atualizar para {version}",
+      "update_rolled_back": "{name} não foi atualizado",
+      "updated": "{name} atualizado para {version}",
       "updates_available": "{count} atualizações disponíveis",
       "empty": "Nenhum plugin instalado.",
       "full_access": "Acesso total",

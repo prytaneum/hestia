@@ -19,6 +19,7 @@ import type {
   PluginTheme,
   PluginUiActionParams,
   PluginUiRenderParams,
+  PluginUpdateDone,
   SettingValue,
 } from './types/plugin';
 import type { Effect, UiNode } from './types/ui';
@@ -86,6 +87,18 @@ export function catalogue(): Promise<Catalogue> {
 /** `unsigned` also re-downloads unsigned link installs to read their version. */
 export function outdated(unsigned = false): Promise<Outdated> {
   return call('plugin.outdated', { unsigned });
+}
+
+/**
+ * Moves an installed plugin to its newest build. `approve` is the `grantDigest`
+ * of the update's inspection; the daemon refuses an update that asks for more
+ * than is installed without it.
+ */
+export function update(
+  params: { plugin: string; approve: string },
+  job: JobRun,
+): Promise<PluginUpdateDone> {
+  return runJob('plugin.update', params, job);
 }
 
 export function list(): Promise<PluginInfo[]> {

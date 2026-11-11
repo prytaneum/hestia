@@ -130,12 +130,7 @@ export function PluginList() {
                 (offer) => offer.id === plugin.manifest.id,
               )}
               busy={install.busy}
-              onUpdate={(offer) =>
-                void install.start({
-                  repo: offer.repository,
-                  plugin: offer.id,
-                })
-              }
+              onUpdate={(offer) => void install.update(offer)}
             />
           ))
         )}

@@ -73,6 +73,7 @@
       "offline": "Could not reach {service} — you appear to be offline.",
       "offline_mode": "Hestia is in offline mode. Turn it off in Settings to go back online.",
       "plugin_approval_stale": "The plugin's permissions changed since you reviewed them.",
+      "plugin_update_needs_approval": "'{id}' needs approval for the permissions it asks for before it can update.",
       "plugin_build_unavailable": "'{id}' can't be installed: {detail}.",
       "plugin_call_failed": "Plugin '{id}' failed: {detail}",
       "plugin_command_invalid": "Plugin '{plugin}' command '{command}': {detail}",

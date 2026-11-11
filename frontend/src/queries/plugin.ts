@@ -11,6 +11,7 @@ import type {
   PluginRunDone,
   PluginRunProgress,
   PluginUiActionParams,
+  PluginUpdateDone,
   RepositoryAdded,
   RepositoryRefreshed,
 } from '../api';
@@ -23,6 +24,8 @@ export type PluginInstallVariables = {
   id: string;
   approve: string;
 } & api.PluginInstallTarget;
+
+export type PluginUpdateVariables = { plugin: string; approve: string };
 
 export type PluginRunVariables = {
   plugin: string;
@@ -176,4 +179,30 @@ export const pluginMutations = {
         }),
       },
     }),
+  update: () =>
+    jobMutation<PluginUpdateDone, PluginUpdateVariables, PluginInstallProgress>(
+      {
+        mutationKey: [...keys.plugins.all, 'update'],
+        meta: () => ({ channel: 'plugin.update' }),
+        run: (variables, job) => api.update(variables, job),
+        invalidates: () => [keys.plugins.all],
+        notify: {
+          done: (done) => {
+            const name = done.plugin.manifest.name || done.plugin.manifest.id;
+            const rolledBack = done.warnings.some(
+              (warning) => warning.kind === 'plugin_update_rolled_back',
+            );
+            return {
+              title: rolledBack
+                ? m['settings.plugins.update_rolled_back']({ name })
+                : m['settings.plugins.updated']({
+                    name,
+                    version: done.plugin.manifest.version,
+                  }),
+              warnings: done.warnings,
+            };
+          },
+        },
+      },
+    ),
 };
