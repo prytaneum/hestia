@@ -21,9 +21,14 @@ impl Signer {
             .with_context(|| format!("cannot read the secret key {}", path.display()))?;
         let secret = match SecretKeyBox::from_string(&text)?.into_unencrypted_secret_key() {
             Ok(secret) => secret,
-            Err(_) => SecretKeyBox::from_string(&text)?
+            Err(plain) => SecretKeyBox::from_string(&text)?
                 .into_secret_key(None)
-                .context("cannot unlock the secret key")?,
+                .map_err(|locked| {
+                    anyhow::anyhow!(
+                        "cannot load the secret key {}: {plain}; as an encrypted key: {locked} (make keys with `hestia plugin keygen`)",
+                        path.display()
+                    )
+                })?,
         };
         let public = PublicKey::from_secret_key(&secret)?;
         if public.to_base64() != declared_key.trim() {

@@ -25,7 +25,8 @@ jobs:
 - The secret is passed by name: `secrets: inherit` only reaches workflows of the same organisation.
 - The caller job grants `contents: write`; a called workflow can only narrow its caller's permissions.
 - `HESTIA_SIGNING_KEY` holds the file `hestia plugin keygen --unencrypted` wrote (`gh secret set HESTIA_SIGNING_KEY <
-  hestia.key`). With the secret unset the workflow warns and publishes nothing.
+  hestia.key`). With the secret unset the workflow warns and publishes nothing. Make the key with `hestia plugin keygen`:
+  an unencrypted key written by the `minisign` 0.12 CLI fails its checksum in the library Hestia signs with.
 - There is no tag to push: bump `version` in `plugins/<id>/plugin.toml` on the default branch to release it.
 
 **Publish** (push to the default branch, and weekly):
@@ -35,6 +36,10 @@ jobs:
    has no package in `packages/` yet, refuses a version already there with another sha256, then regenerates
    `plugins.json` from `packages/`, the sources and `revoked.toml`, with `expires` set 30 days out, and signs it.
 3. Commit the result to the `repo` branch as a bot and push.
+
+`raw.githubusercontent.com` caches each file for about five minutes, so for a few minutes after a publish a client may
+read the new `plugins.json` with the old signature, or the reverse, and refuse the index as not verifying. It keeps its
+last good copy, and the next refresh succeeds once the cache turns over.
 
 The weekly run changes nothing but the signature and `expires`. GitHub disables a public repository's scheduled
 workflows after 60 days without activity, so a repository nobody touches goes stale: its index expires and new installs
