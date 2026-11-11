@@ -29,6 +29,19 @@ runs, `available` is the latest version and `apiCompatible` is false.
 `widened` lists the permissions the offered version asks for beyond what you approved, as its repository's index states
 them. Applying the update shows the full comparison and asks for approval.
 
+## Applying an update
+
+`hestia plugin update <id>` (or `--all`), or the Update button, downloads the newest build and verifies it against the
+key that signed the installed plugin; a build signed by any other key is refused, and so is one that is not newer.
+
+If the new version asks for more than you approved, nothing changes until you approve exactly that grant: the CLI shows
+it and asks (`-y` approves what is shown), the desktop shows it in the approval dialog. An update that asks for the
+same or less applies without asking.
+
+Your plugin's `data/` is kept. Hestia also keeps the one previous package. If the new version fails to initialise, it is
+put back and the update reports `plugin_update_rolled_back`; if it traps within its first minute it is rolled back too.
+Commands already running finish on the old code, and running `plugin.run` jobs are not interrupted.
+
 ## Offline
 
 With the network down, or a repository unreachable, the answer is built from the last good copy of each index, and the

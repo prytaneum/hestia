@@ -726,6 +726,7 @@ hestia plugin repo refresh [ref] # fetch again; an unreachable one keeps its cac
 hestia plugin repo remove <ref>  # alias rm; label, name or index URL; confirms, -y skips; its plugins keep running, as obsolete; the official repository is refused
 hestia plugin browse [query] [--repo <ref>]   # every plugin of every repository, with store label, key id and status
 hestia plugin outdated [--unsigned]            # installed plugins with a newer build; --unsigned also re-downloads unsigned link installs
+hestia plugin update <id|--all> [-y]           # move to the newest build; one that asks for more permissions shows them and asks first, -y approves exactly those; a build that fails to load is rolled back
 ```
 
 A refresh refuses an index signed by another key, declaring another key, older than the one kept or past its expiry;

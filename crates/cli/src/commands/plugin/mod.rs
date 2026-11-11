@@ -16,6 +16,7 @@ mod repo;
 pub(crate) mod run;
 mod sign;
 mod store;
+mod update;
 mod world;
 
 use anyhow::{bail, Context, Result};
@@ -99,6 +100,17 @@ pub enum ManageCmd {
         )]
         unsigned: bool,
     },
+    /// Update installed plugins to their newest build, asking before they gain permissions
+    Update {
+        /// The plugin to update
+        #[arg(required_unless_present = "all")]
+        id: Option<String>,
+        /// Every plugin with a newer build on offer
+        #[arg(long, conflicts_with = "id")]
+        all: bool,
+        #[arg(short = 'y', long, help = "Approve exactly the new permissions shown")]
+        yes: bool,
+    },
     /// Plugins the added repositories offer
     Browse {
         /// Matches id, name and description
@@ -160,6 +172,7 @@ async fn manage(cmd: ManageCmd) -> Result<()> {
         ManageCmd::List => list(plugins.list().await?),
         ManageCmd::Add { target, yes } => add::add(plugins, &target, yes).await,
         ManageCmd::Outdated { unsigned } => outdated::run(plugins, unsigned).await,
+        ManageCmd::Update { id, all: _, yes } => update::run(plugins, id.as_deref(), yes).await,
         ManageCmd::Browse { query, repo } => browse::run(plugins, query, repo.as_deref()).await,
         ManageCmd::Repo { cmd } => store::run(cmd, plugins).await,
         ManageCmd::Info { id } => info(&plugins.info(&id).await?),

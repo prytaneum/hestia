@@ -435,6 +435,20 @@ minisign public key and an optional spare, added by its index URL. It has one sh
   refreshing each repository once through the normal refresh path, and publishes
   `plugin.updates` when the list changes; the topic names no permission, so no plugin
   hears it. Offline it answers from the cached indexes and sets `offline`.
+- **Applying an update** (`plugin.update`, a job; `Plugins::apply_update` in
+  `engine/src/plugins/update.rs`, loaded by `daemon/src/runtime/plugins/update.rs`) stages the
+  newest build from a repository pinning the installed signer, verifies it like an install,
+  and refuses it unless it is newer and signed by that same key. A grant wider than the
+  installed one (compared as a whole `Grant`, not a permission list) needs `approve` to be
+  its digest, else the call fails with `plugin_update_needs_approval` before anything
+  changes; an equal or narrower grant applies. The swap renames `package/` to
+  `package.prev/` and writes the replaced record to `plugin.prev.json`, so exactly one
+  previous version exists; `data/` is untouched. The new build is loaded beside the running
+  one and replaces its slot only once `init` succeeds, so calls in flight finish on the old
+  code. A build that fails to load is rolled back and the done event carries
+  `plugin_update_rolled_back`; one that traps in its first minute is rolled back by a
+  watcher (logged and visible as the plugin's state change). A crash between the two
+  renames is repaired at the next start. Nothing else ever installs an older version.
 - **Signing is CLI-only.** The engine links `minisign-verify`; `hestia plugin
   keygen`, `pack --sign` and the index signing use the signing crate in `cli`.
 - **Official.** A plugin is official when its recorded signer is one of
