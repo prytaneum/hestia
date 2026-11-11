@@ -57,6 +57,7 @@ command reference is in [cli.md](../cli.md#launcher-plugins).
 | [webview.md](webview.md) | the sandboxed `webview` node and its `postMessage` bridge, with a helper to copy |
 | [themes.md](themes.md) | restyling the app with a stylesheet |
 | [repository.md](repository.md) | the one shape of a plugin repository, its index and its keys |
+| [updates.md](updates.md) | how installed plugins are checked for newer builds, and what is never checked |
 | [publishing.md](publishing.md) | `check`, `pack` and `index` from CI, on GitHub or any host |
 | [other-languages.md](other-languages.md) | writing a plugin without the Rust SDK |
 

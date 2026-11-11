@@ -425,6 +425,16 @@ minisign public key and an optional spare, added by its index URL. It has one sh
   Revocation is enforced on every refresh: a revoked installed version is disabled
   with the reason as its error. Removing a repository leaves its plugins enabled
   and without updates.
+- **Update checks** (`plugin.outdated`, `engine/src/plugins/update.rs`) read the same
+  catalogue code: for each signed install, the repositories pinning its signer key are
+  grouped as mirrors, the newest listing wins and `pick` chooses its build, so there is no
+  second picker. A build the host's API cannot run is reported `apiCompatible: false`;
+  a version without a build, an obsolete plugin and every unsigned or local install are
+  not reported, except an unsigned URL install when the call sets `unsigned`. The daemon
+  runs it a minute after start and every six hours (`spawn_plugin_update_checker`),
+  refreshing each repository once through the normal refresh path, and publishes
+  `plugin.updates` when the list changes; the topic names no permission, so no plugin
+  hears it. Offline it answers from the cached indexes and sets `offline`.
 - **Signing is CLI-only.** The engine links `minisign-verify`; `hestia plugin
   keygen`, `pack --sign` and the index signing use the signing crate in `cli`.
 - **Official.** A plugin is official when its recorded signer is one of
