@@ -72,11 +72,6 @@ pub fn check(repo: &Repository) -> Result<Checked> {
             return fail(problems);
         }
     };
-    if plugins.is_empty() {
-        problems.push(format!(
-            "no plugins under {PLUGINS_DIR}/; add one with `hestia plugin new <id>`"
-        ));
-    }
     let excluded: BTreeSet<String> = workspace_list(&workspace, "exclude").into_iter().collect();
     let mut ids = BTreeSet::new();
     for plugin in &plugins {

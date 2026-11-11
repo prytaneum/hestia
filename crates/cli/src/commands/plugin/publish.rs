@@ -341,14 +341,19 @@ mod tests {
     }
 
     fn fixture() -> Fixture {
+        fixture_with(&["aa", "bb"])
+    }
+
+    fn fixture_with(ids: &[&str]) -> Fixture {
         let pair = KeyPair::generate_unencrypted_keypair().unwrap();
         let meta = format!(
             "\n[workspace.metadata.hestia]\nname = \"Sample\"\nlabel = \"SMP\"\nwebsite = \"https://example.com\"\nkey = \"{}\"\n",
             pair.pk.to_base64()
         );
         let (root, repo) = repo_with(&meta, &[]);
-        add_plugin(&repo, "aa", "aa", true);
-        add_plugin(&repo, "bb", "bb", true);
+        for id in ids {
+            add_plugin(&repo, id, id, true);
+        }
         let key_file = root.path().join("hestia.key");
         std::fs::write(&key_file, pair.sk.to_box(None).unwrap().to_string()).unwrap();
         let signer = Signer::load(&key_file, &pair.pk.to_base64()).unwrap();
@@ -424,6 +429,22 @@ mod tests {
             signature.trusted_comment().unwrap(),
             proto::repository::index_comment(outcome.index.version, outcome.index.expires)
         );
+    }
+
+    #[test]
+    fn a_repository_without_plugins_publishes_an_empty_signed_index() {
+        let fixture = fixture_with(&[]);
+
+        let outcome = run_publish(&fixture, 1_700_000_000).unwrap();
+
+        assert!(outcome.built.is_empty());
+        assert!(outcome.index.plugins.is_empty());
+        assert!(fixture.out.path().join(INDEX_FILE).is_file());
+        assert!(fixture
+            .out
+            .path()
+            .join(format!("{INDEX_FILE}.minisig"))
+            .is_file());
     }
 
     #[test]
