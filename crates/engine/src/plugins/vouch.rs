@@ -1,0 +1,150 @@
+//! The one rule for an engine download of a URL a plugin supplied: it is fetched
+//! through the guarded client, over https, and every hop of its redirect chain
+//! is held to the plugin's grant again. A plugin-backed provider owns a
+//! [`Policy`] built from its grant; whatever downloads what that provider
+//! returned fetches it through [`Policy::get`].
+
+use std::sync::OnceLock;
+use std::time::Duration;
+
+use proto::error::ErrorInfo;
+use proto::plugin::{network_matches, Grant};
+use reqwest::header::LOCATION;
+use reqwest::{Response, Url};
+
+use super::http::{authorize, Refusal};
+use crate::net::{self, guard};
+
+const MAX_REDIRECTS: usize = 5;
+const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
+const READ_TIMEOUT: Duration = Duration::from_secs(30);
+
+/// Why a plugin-supplied download was stopped.
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+pub enum Refused {
+    #[error("{0}")]
+    Destination(Refusal),
+    #[error("`{0}` is not a host the plugin declared as serving unhashed files")]
+    Unhashed(String),
+    #[error("the redirect target is not a valid URL")]
+    BadRedirect,
+    #[error("too many redirects")]
+    TooManyRedirects,
+}
+
+impl From<Refused> for ErrorInfo {
+    fn from(refused: Refused) -> Self {
+        ErrorInfo::DownloadFailed {
+            detail: refused.to_string(),
+        }
+    }
+}
+
+/// What a plugin may have the engine fetch: its grant, plus a loopback host the
+/// grant names when the engine is built with the `loopback` feature (its own
+/// tests), which no build that ships enables.
+#[derive(Debug)]
+pub struct Policy {
+    grant: Grant,
+    loopback: bool,
+}
+
+impl Policy {
+    pub fn new(grant: &Grant) -> Self {
+        Policy::build(grant, cfg!(feature = "loopback"))
+    }
+
+    fn build(grant: &Grant, loopback: bool) -> Self {
+        Policy {
+            grant: grant.clone(),
+            loopback,
+        }
+    }
+
+    /// Whether `url` may be fetched under this policy. `unhashed` is true when
+    /// nothing verifies the body, which then has to come from a host the grant
+    /// declares as serving unhashed files.
+    pub fn permits(&self, url: &str, unhashed: bool) -> bool {
+        Url::parse(url).is_ok_and(|url| self.check(&url, unhashed).is_ok())
+    }
+
+    fn check(&self, url: &Url, unhashed: bool) -> Result<(), Refused> {
+        let host = if self.loopback && is_loopback(url) {
+            let host = url.host_str().unwrap_or_default().to_ascii_lowercase();
+            if !self.grant.network.iter().any(|e| network_matches(e, &host)) {
+                return Err(Refused::Destination(Refusal::HostNotGranted(host)));
+            }
+            host
+        } else {
+            authorize(&self.grant, url, false).map_err(Refused::Destination)?
+        };
+        if unhashed
+            && !self
+                .grant
+                .unhashed
+                .iter()
+                .any(|e| network_matches(e, &host))
+        {
+            return Err(Refused::Unhashed(host));
+        }
+        Ok(())
+    }
+
+    fn client(&self, url: &Url) -> &'static reqwest::Client {
+        if self.loopback && is_loopback(url) {
+            local_client()
+        } else {
+            guard::client()
+        }
+    }
+
+    /// Fetches `url`, following redirects only to targets the grant allows;
+    /// `unhashed` is held on every hop.
+    pub async fn get(&self, url: &str, unhashed: bool) -> anyhow::Result<Response> {
+        let mut url =
+            Url::parse(url).map_err(|_| ErrorInfo::from(Refused::Destination(Refusal::BadUrl)))?;
+        for _ in 0..=MAX_REDIRECTS {
+            self.check(&url, unhashed).map_err(|refused| {
+                tracing::warn!(host = url.host_str().unwrap_or_default(), %refused, "plugin download refused");
+                ErrorInfo::from(refused)
+            })?;
+            let response = net::send(None, self.client(&url).get(url.clone())).await?;
+            if !response.status().is_redirection() {
+                return Ok(response);
+            }
+            let Some(location) = response.headers().get(LOCATION) else {
+                return Ok(response);
+            };
+            url = location
+                .to_str()
+                .ok()
+                .and_then(|location| url.join(location).ok())
+                .ok_or(ErrorInfo::from(Refused::BadRedirect))?;
+        }
+        Err(ErrorInfo::from(Refused::TooManyRedirects).into())
+    }
+}
+
+fn is_loopback(url: &Url) -> bool {
+    matches!(
+        url.host_str().map(str::to_ascii_lowercase).as_deref(),
+        Some("localhost" | "127.0.0.1" | "[::1]")
+    )
+}
+
+fn local_client() -> &'static reqwest::Client {
+    static CLIENT: OnceLock<reqwest::Client> = OnceLock::new();
+    CLIENT.get_or_init(|| {
+        reqwest::Client::builder()
+            .user_agent(common::app::user_agent())
+            .connect_timeout(CONNECT_TIMEOUT)
+            .read_timeout(READ_TIMEOUT)
+            .redirect(reqwest::redirect::Policy::none())
+            .no_proxy()
+            .build()
+            .expect("loopback reqwest client builds")
+    })
+}
+
+#[cfg(test)]
+mod tests;

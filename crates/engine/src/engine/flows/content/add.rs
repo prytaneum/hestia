@@ -358,7 +358,7 @@ impl Engine {
                     }
                 }
             }
-            match plan_release(ctx, kind, &node.project.title, &version) {
+            match self.plan_release(ctx, kind, &node.project.title, &version) {
                 Ok(download) => downloads.push(((node, version), download)),
                 Err(e) => failures.push(failure(
                     &node.given,
@@ -435,7 +435,7 @@ impl Engine {
         version: &ContentVersion,
         on_progress: OnProgress<'_>,
     ) -> Result<record::Release> {
-        let download = plan_release(ctx, kind, title, version)?;
+        let download = self.plan_release(ctx, kind, title, version)?;
         let sha1 = self
             .download(&download, ProvisionPhase::Content, on_progress)
             .await?;
@@ -507,20 +507,24 @@ pub(in crate::engine::flows) fn local_context(
     }
 }
 
-pub(super) fn plan_release(
-    ctx: &EntryContent,
-    kind: ContentKind,
-    title: &str,
-    version: &ContentVersion,
-) -> Result<Download> {
-    let artifact = install::primary_file(version)?.artifact.clone();
-    materialize::validate_filename(&artifact.filename)?;
-    Ok(Download {
-        target: content_target(ctx, kind, &artifact.filename)?,
-        artifact,
-        label: title.to_string(),
-        source: version.source.clone(),
-    })
+impl Engine {
+    pub(super) fn plan_release(
+        &self,
+        ctx: &EntryContent,
+        kind: ContentKind,
+        title: &str,
+        version: &ContentVersion,
+    ) -> Result<Download> {
+        let artifact = install::primary_file(version)?.artifact.clone();
+        materialize::validate_filename(&artifact.filename)?;
+        Ok(Download {
+            target: content_target(ctx, kind, &artifact.filename)?,
+            artifact,
+            label: title.to_string(),
+            source: version.source.clone(),
+            policy: self.content.download_policy(&version.source)?,
+        })
+    }
 }
 
 pub(super) fn release_of(version: &ContentVersion, sha1: String) -> Result<record::Release> {

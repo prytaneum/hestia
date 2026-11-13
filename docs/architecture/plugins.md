@@ -342,8 +342,21 @@ exact host, or `*.domain` for the names one label below it; a wildcard over a
 public suffix such as `*.github.io` fails manifest validation), and the daemon must be
 online. Dialling goes through the shared guard client, whose resolver refuses
 addresses that point inside the machine, so a granted name cannot reach the local
-network. A request has a 30 s timeout and a 32 MiB body cap. A content source's
-files are checked against the same host list before the engine downloads them.
+network. A request has a 30 s timeout and a 32 MiB body cap.
+
+A URL a provider returns (a content file, a flavor artifact, a Java build) is checked against the same host list at
+the provider, and the provider owns the `Policy` (`vouch.rs`) built from its grant. Provenance travels with the
+provider, never with the URL: `ContentProvider::download_policy`, `FlavorProvider::download_policy(url)` and the
+`policy` on a `JavaPackage` name it, and the flow that fetches builds its `Downloader` with it. A downloader holding a
+policy fetches through the same guard client over https only, with redirects walked by hand: every hop is checked
+against the grant again, and a download with no checksum must sit on an unhashed host on every hop. A refusal fails the
+download as `DownloadFailed` naming the reason. A plugin flavor's profile persists, so its policy is asked again at
+every launch; files on Mojang's own hosts (the vanilla layer it builds on) stay under the core policy. A plugin content
+file with no checksum must say `unhashed` and sit on an unhashed host, as a flavor artifact does. Files a pack's own
+index names are not plugin-supplied and keep the core client.
+
+The engine's `loopback` feature (enabled only by its own dev-dependency, so tests in the separate integration crate can
+serve from a loopback host a grant names, over http) is never part of a build that ships.
 
 A plugin request feeds the shared reachability state the way a core one does
 ([0067](../decisions/0067-reachability-is-observed-not-asked.md)): any answer, an HTTP error status included, marks the

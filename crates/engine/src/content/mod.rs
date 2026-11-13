@@ -30,6 +30,7 @@ use proto::content::{
 };
 
 use crate::config::ContentSettings;
+use crate::plugins::vouch::Policy;
 use crate::roster::{RegisterError, Roster};
 use provider::ContentProvider;
 pub(crate) use provider::{LocalFile, UrlRef};
@@ -394,6 +395,16 @@ impl Content {
                 }
             }
         }
+    }
+
+    /// The policy the files of source `id` are downloaded under. An empty or
+    /// local source names no remote files; any other unknown source is refused
+    /// rather than assumed to be the launcher's own.
+    pub(crate) fn download_policy(&self, id: &str) -> Result<Option<Arc<Policy>>> {
+        if id.is_empty() || id == LOCAL_SOURCE {
+            return Ok(None);
+        }
+        Ok(self.provider(id)?.download_policy())
     }
 
     pub(crate) fn datapacks_as_mods(&self, id: &str) -> bool {

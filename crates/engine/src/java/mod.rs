@@ -231,6 +231,7 @@ impl Java {
         on_progress: &(impl Fn(&JavaInstallProgress) + Send + Sync),
     ) -> Result<()> {
         Downloader::new(None)
+            .vouched(package.policy.clone())
             .fetch(
                 &package.url,
                 &paths.archive,

@@ -97,6 +97,13 @@ pub async fn send(service: Option<Service>, request: RequestBuilder) -> Result<R
                 }
             }
             Err(error) => {
+                if guard::was_refused(&error) {
+                    network().observe_reachable();
+                    return Err(ErrorInfo::DownloadFailed {
+                        detail: "the host resolves to a non-public address".into(),
+                    }
+                    .into());
+                }
                 if !retry::is_transport(&error) {
                     network().observe_reachable();
                     return Err(upstream(service, &error));
@@ -199,5 +206,28 @@ fn upstream(service: Option<Service>, error: &reqwest::Error) -> anyhow::Error {
             detail: error.to_string(),
         }
         .into(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn a_resolver_refusal_is_a_typed_failure_and_not_a_dropped_network() {
+        let started = std::time::Instant::now();
+        let error = send(None, guard::client().get("https://localhost/"))
+            .await
+            .expect_err("localhost resolves to loopback");
+
+        assert!(!is_offline(&error));
+        assert!(matches!(
+            error.downcast_ref::<ErrorInfo>(),
+            Some(ErrorInfo::DownloadFailed { detail }) if detail.contains("non-public")
+        ));
+        assert!(
+            started.elapsed() < retry::delay(1),
+            "refusal is not retried"
+        );
     }
 }

@@ -5,6 +5,7 @@
 
 use std::path::{Component, Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
 
 use anyhow::{bail, Context, Result};
 use futures_util::StreamExt;
@@ -16,7 +17,8 @@ use super::plan::{AssetObject, Meter, Tally};
 use super::profile::{AssetIndex, Library, Native};
 
 use crate::cache::Cache;
-use crate::download::Downloader;
+use crate::download::{Downloader, PolicyFor};
+use crate::plugins::vouch::Policy;
 
 const ASSET_HOST: &str = "https://resources.download.minecraft.net";
 const CONCURRENT_FETCHES: usize = 16;
@@ -54,8 +56,10 @@ pub(crate) fn present(path: &Path, size: u64) -> bool {
 }
 
 /// Ensure one artifact at `destination`, reporting byte progress under `phase`.
+/// `policy` is the one a plugin-named artifact is fetched under, `None` for a core one.
 pub async fn ensure_artifact(
     cache: Option<&Cache>,
+    policy: Option<Arc<Policy>>,
     artifact: &Artifact,
     destination: &Path,
     phase: ProvisionPhase,
@@ -68,6 +72,7 @@ pub async fn ensure_artifact(
     on_progress.check()?;
     let meter = Meter::new(tally);
     Downloader::new(cache)
+        .vouched(policy)
         .fetch(
             &artifact.url,
             destination,
@@ -166,6 +171,7 @@ impl<'a> Fetched<'a> {
 /// Fetch the libraries a plan found missing under `root` (Maven layout).
 pub async fn ensure_libraries(
     cache: Option<&Cache>,
+    policy_for: PolicyFor<'_>,
     missing: &[Library],
     root: &Path,
     tally: Option<&Tally>,
@@ -192,6 +198,7 @@ pub async fn ensure_libraries(
             let destination = safe_join(root, &library.path)?;
             let meter = fetched.meter();
             Downloader::new(cache)
+                .vouched(policy_for(&library.artifact.url))
                 .fetch(
                     &library.artifact.url,
                     &destination,
@@ -286,6 +293,7 @@ pub struct AssetStore {
 /// small, and a launch needs its objects to know what it has to download.
 pub async fn read_assets(
     cache: Option<&Cache>,
+    policy: Option<Arc<Policy>>,
     index: &AssetIndex,
     root: &Path,
     game_dir: &Path,
@@ -300,6 +308,7 @@ pub async fn read_assets(
             ..ProvisionProgress::default()
         });
         Downloader::new(cache)
+            .vouched(policy)
             .fetch(
                 &index.artifact.url,
                 &index_path,

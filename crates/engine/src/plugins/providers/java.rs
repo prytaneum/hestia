@@ -10,15 +10,15 @@ use anyhow::Result;
 use async_trait::async_trait;
 use proto::download::{Checksum, HashAlgorithm};
 use proto::java::JavaRelease;
-use proto::plugin::{Grant, Manifest};
+use proto::plugin::Manifest;
 use proto::provider::java::{self as op, Distribution, JavaBuild, TargetQuery};
 use proto::Empty;
 
 use super::{contributed, registered, Guest};
 use crate::engine::Engine;
 use crate::java::{JavaPackage, JavaProvider, JavaTarget};
-use crate::plugins::http::download_allowed;
 use crate::plugins::runtime::LoadedPlugin;
+use crate::plugins::vouch::Policy;
 
 /// Why a guest's build was refused.
 #[derive(Debug, PartialEq, Eq, thiserror::Error)]
@@ -35,7 +35,7 @@ enum Refusal {
     Version,
 }
 
-fn vet(grant: &Grant, major: i32, build: JavaBuild) -> Result<JavaPackage, Refusal> {
+fn vet(policy: &Arc<Policy>, major: i32, build: JavaBuild) -> Result<JavaPackage, Refusal> {
     let plain = !build.vendor.is_empty()
         && build
             .vendor
@@ -47,7 +47,7 @@ fn vet(grant: &Grant, major: i32, build: JavaBuild) -> Result<JavaPackage, Refus
     if build.version.trim().is_empty() {
         return Err(Refusal::Version);
     }
-    if !download_allowed(grant, &build.url) {
+    if !policy.permits(&build.url, false) {
         return Err(Refusal::Host(build.url));
     }
     let checksum = Checksum {
@@ -68,12 +68,14 @@ fn vet(grant: &Grant, major: i32, build: JavaBuild) -> Result<JavaPackage, Refus
         url: build.url,
         checksum,
         size: 0,
+        policy: Some(policy.clone()),
     })
 }
 
 /// A Java provider a plugin contributes, registered as `<plugin>.<id>`, or bare when official.
 pub struct PluginJavaProvider {
     guest: Guest,
+    policy: Arc<Policy>,
 }
 
 #[async_trait]
@@ -101,7 +103,7 @@ impl JavaProvider for PluginJavaProvider {
                 target.os, target.arch
             )));
         };
-        vet(self.guest.plugin().grant(), major, build).map_err(|refusal| {
+        vet(&self.policy, major, build).map_err(|refusal| {
             tracing::warn!(provider = %self.guest.id(), %refusal, "java build refused");
             self.guest
                 .failed(format!("resolve returned a refused build: {refusal}"))
@@ -119,6 +121,7 @@ pub(super) fn connect(
     contributed::<Distribution>(manifest)
         .map(|local| PluginJavaProvider {
             guest: Guest::new::<Distribution>(plugin.clone(), manifest, local, official),
+            policy: Arc::new(Policy::new(plugin.grant())),
         })
         .collect()
 }
@@ -138,15 +141,18 @@ pub(super) fn register(
 
 #[cfg(test)]
 mod tests {
+    use proto::plugin::{Grant, Permission};
+
     use super::*;
 
     const SHA: &str = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
 
-    fn grant() -> Grant {
-        Grant {
+    fn policy() -> Arc<Policy> {
+        Arc::new(Policy::new(&Grant {
+            permissions: [Permission::NetworkConnect].into(),
             network: ["api.azul.com".to_string()].into(),
             ..Grant::default()
-        }
+        }))
     }
 
     fn build() -> JavaBuild {
@@ -161,7 +167,7 @@ mod tests {
 
     #[test]
     fn a_well_formed_build_becomes_a_package() {
-        let package = vet(&grant(), 21, build()).expect("accepted");
+        let package = vet(&policy(), 21, build()).expect("accepted");
         assert_eq!(package.archive_name, "zulu-21.tar.gz");
         assert_eq!(package.release_name, "21.0.2");
         assert_eq!(package.checksum.hex, SHA);
@@ -173,7 +179,7 @@ mod tests {
             url: "https://evil.example.com/zulu.tar.gz".into(),
             ..build()
         };
-        assert!(matches!(vet(&grant(), 21, off), Err(Refusal::Host(_))));
+        assert!(matches!(vet(&policy(), 21, off), Err(Refusal::Host(_))));
     }
 
     #[test]
@@ -182,7 +188,7 @@ mod tests {
             url: "http://api.azul.com/zulu.tar.gz".into(),
             ..build()
         };
-        assert!(matches!(vet(&grant(), 21, http), Err(Refusal::Host(_))));
+        assert!(matches!(vet(&policy(), 21, http), Err(Refusal::Host(_))));
     }
 
     #[test]
@@ -192,7 +198,7 @@ mod tests {
                 sha256: sha.into(),
                 ..build()
             };
-            assert_eq!(vet(&grant(), 21, bad).err(), Some(Refusal::Checksum));
+            assert_eq!(vet(&policy(), 21, bad).err(), Some(Refusal::Checksum));
         }
     }
 
@@ -202,13 +208,13 @@ mod tests {
             archive: "rar".into(),
             ..build()
         };
-        assert!(matches!(vet(&grant(), 21, rar), Err(Refusal::Archive(_))));
+        assert!(matches!(vet(&policy(), 21, rar), Err(Refusal::Archive(_))));
         let traversal = JavaBuild {
             vendor: "../x".into(),
             ..build()
         };
         assert!(matches!(
-            vet(&grant(), 21, traversal),
+            vet(&policy(), 21, traversal),
             Err(Refusal::Vendor(_))
         ));
     }

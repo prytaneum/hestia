@@ -135,6 +135,7 @@ fn package_from_json(assets: Vec<Asset>, major: i32, target: &JavaTarget) -> Res
                 hex: package.checksum,
             },
             size: package.size,
+            policy: None,
         };
         if resolved.url.is_empty()
             || resolved.archive_name.is_empty()

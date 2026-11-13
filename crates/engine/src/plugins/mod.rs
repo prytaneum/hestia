@@ -33,6 +33,7 @@ mod store;
 #[cfg(test)]
 pub(crate) mod testkit;
 mod update;
+pub(crate) mod vouch;
 
 pub use asset::MAX_ASSET_BYTES;
 pub use bundled::{BundleRefusal, Seeded};

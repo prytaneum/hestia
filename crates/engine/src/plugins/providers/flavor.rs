@@ -15,7 +15,7 @@ use std::sync::Arc;
 use anyhow::{Context, Result};
 use async_trait::async_trait;
 use proto::minecraft::{Artifact, GameVersion, ProvisionPhase, ProvisionProgress};
-use proto::plugin::{Grant, Manifest, PluginRunProgress, BUILD_MOUNT, VANILLA_MOUNT};
+use proto::plugin::{Manifest, PluginRunProgress, BUILD_MOUNT, VANILLA_MOUNT};
 use proto::profile::ServerProfile;
 use proto::profile::{InstanceProfile, Library, ServerJar, ServerLaunch};
 use proto::provider::flavor;
@@ -34,13 +34,13 @@ use crate::engine::Engine;
 use crate::minecraft::materialize::{safe_join, validate_filename, OnProgress};
 use crate::minecraft::overlay;
 use crate::minecraft::{
-    FlavorInfo, FlavorProvider, InstallRequest, ResolveRequest, Side, BOTH_SIDES, CLIENT_ONLY,
-    REQUIRED_JAVA_MAJORS, SERVER_ONLY,
+    serves_vanilla, FlavorInfo, FlavorProvider, InstallRequest, ResolveRequest, Side, BOTH_SIDES,
+    CLIENT_ONLY, REQUIRED_JAVA_MAJORS, SERVER_ONLY,
 };
 use crate::plugins::context::{CallContext, Mount};
-use crate::plugins::http::{download_allowed, unhashed_allowed};
 use crate::plugins::imports::CommandRun;
 use crate::plugins::runtime::{LoadedPlugin, CANCEL_GRACE, COMMAND_TIMEOUT};
+use crate::plugins::vouch::Policy;
 
 const PROGRESS_STEPS: u64 = 1000;
 
@@ -63,26 +63,26 @@ enum Refusal {
     NoVanilla,
 }
 
-fn artifact(grant: &Grant, artifact: &Artifact) -> Result<(), Refusal> {
+fn artifact(policy: &Policy, artifact: &Artifact) -> Result<(), Refusal> {
     validate_filename(&artifact.filename).map_err(|e| Refusal::Path(e.to_string()))?;
-    if !download_allowed(grant, &artifact.url) {
+    if !policy.permits(&artifact.url, false) {
         return Err(Refusal::Host(artifact.filename.clone()));
     }
     let verified = match &artifact.checksum {
         Some(checksum) => checksum.is_valid(),
-        None => artifact.unhashed && unhashed_allowed(grant, &artifact.url),
+        None => artifact.unhashed && policy.permits(&artifact.url, true),
     };
     verified
         .then_some(())
         .ok_or_else(|| Refusal::Checksum(artifact.filename.clone()))
 }
 
-fn library(grant: &Grant, library: &Library) -> Result<(), Refusal> {
+fn library(policy: &Policy, library: &Library) -> Result<(), Refusal> {
     safe_join(Path::new(""), &library.path).map_err(|e| Refusal::Path(e.to_string()))?;
     if library.built {
         return Ok(());
     }
-    artifact(grant, &library.artifact)
+    artifact(policy, &library.artifact)
 }
 
 fn java(major: i32) -> Result<(), Refusal> {
@@ -92,9 +92,9 @@ fn java(major: i32) -> Result<(), Refusal> {
         .ok_or(Refusal::Java(major))
 }
 
-fn vet_server(grant: &Grant, profile: &ServerProfile) -> Result<(), Refusal> {
+fn vet_server(policy: &Policy, profile: &ServerProfile) -> Result<(), Refusal> {
     match &profile.jar {
-        ServerJar::Download(jar) => artifact(grant, jar)?,
+        ServerJar::Download(jar) => artifact(policy, jar)?,
         ServerJar::Built { filename } => {
             validate_filename(filename).map_err(|e| Refusal::Path(e.to_string()))?
         }
@@ -105,9 +105,9 @@ fn vet_server(grant: &Grant, profile: &ServerProfile) -> Result<(), Refusal> {
     java(profile.java_major)
 }
 
-fn vet_server_addition(grant: &Grant, addition: &ServerAddition) -> Result<(), Refusal> {
+fn vet_server_addition(policy: &Policy, addition: &ServerAddition) -> Result<(), Refusal> {
     match &addition.jar {
-        Some(ServerJar::Download(jar)) => artifact(grant, jar),
+        Some(ServerJar::Download(jar)) => artifact(policy, jar),
         Some(ServerJar::Built { filename }) => {
             validate_filename(filename).map_err(|e| Refusal::Path(e.to_string()))
         }
@@ -115,23 +115,23 @@ fn vet_server_addition(grant: &Grant, addition: &ServerAddition) -> Result<(), R
     }
 }
 
-fn vet_client_addition(grant: &Grant, addition: &ClientAddition) -> Result<(), Refusal> {
+fn vet_client_addition(policy: &Policy, addition: &ClientAddition) -> Result<(), Refusal> {
     addition
         .libraries
         .iter()
-        .try_for_each(|lib| library(grant, lib))
+        .try_for_each(|lib| library(policy, lib))
 }
 
-fn vet_client(grant: &Grant, profile: &InstanceProfile) -> Result<(), Refusal> {
-    artifact(grant, &profile.client)?;
+fn vet_client(policy: &Policy, profile: &InstanceProfile) -> Result<(), Refusal> {
+    artifact(policy, &profile.client)?;
     for lib in &profile.libraries {
-        library(grant, lib)?;
+        library(policy, lib)?;
     }
     for native in &profile.natives {
-        library(grant, &native.library)?;
+        library(policy, &native.library)?;
     }
     validate_filename(&profile.asset_index.id).map_err(|e| Refusal::Path(e.to_string()))?;
-    artifact(grant, &profile.asset_index.artifact)?;
+    artifact(policy, &profile.asset_index.artifact)?;
     if profile.main_class.is_empty() {
         return Err(Refusal::MainClass);
     }
@@ -148,6 +148,7 @@ pub struct PluginFlavorProvider {
     /// The flavor a profile that builds on vanilla is layered over; set when the
     /// provider is registered.
     vanilla: Option<Arc<dyn FlavorProvider>>,
+    policy: Arc<Policy>,
 }
 
 impl PluginFlavorProvider {
@@ -172,11 +173,13 @@ impl PluginFlavorProvider {
             mrpack_key: described.mrpack_key.map(Cow::Owned),
             prism_uid: described.prism_uid.map(Cow::Owned),
         };
+        let policy = Arc::new(Policy::new(guest.plugin().grant()));
         Ok(PluginFlavorProvider {
             guest,
             info,
             builds: AtomicBool::new(true),
             vanilla: None,
+            policy,
         })
     }
 
@@ -366,7 +369,6 @@ impl FlavorProvider for PluginFlavorProvider {
     }
 
     async fn resolve_server(&self, request: &ResolveRequest<'_>) -> Result<ServerProfile> {
-        let grant = self.guest.plugin().grant();
         let refused = |refusal| self.refused(op::ResolveServer::OP, refusal);
         let mut profile = match self
             .guest
@@ -374,11 +376,11 @@ impl FlavorProvider for PluginFlavorProvider {
             .await?
         {
             ServerResolution::Full(profile) => {
-                vet_server(grant, &profile).map_err(refused)?;
+                vet_server(&self.policy, &profile).map_err(refused)?;
                 *profile
             }
             ServerResolution::OnVanilla(addition) => {
-                vet_server_addition(grant, &addition).map_err(refused)?;
+                vet_server_addition(&self.policy, &addition).map_err(refused)?;
                 let base = self
                     .vanilla(op::ResolveServer::OP)?
                     .resolve_server(request)
@@ -392,7 +394,6 @@ impl FlavorProvider for PluginFlavorProvider {
     }
 
     async fn resolve_client(&self, request: &ResolveRequest<'_>) -> Result<InstanceProfile> {
-        let grant = self.guest.plugin().grant();
         let refused = |refusal| self.refused(op::ResolveClient::OP, refusal);
         let mut profile = match self
             .guest
@@ -400,11 +401,11 @@ impl FlavorProvider for PluginFlavorProvider {
             .await?
         {
             ClientResolution::Full(profile) => {
-                vet_client(grant, &profile).map_err(refused)?;
+                vet_client(&self.policy, &profile).map_err(refused)?;
                 *profile
             }
             ClientResolution::OnVanilla(addition) => {
-                vet_client_addition(grant, &addition).map_err(refused)?;
+                vet_client_addition(&self.policy, &addition).map_err(refused)?;
                 let base = self
                     .vanilla(op::ResolveClient::OP)?
                     .resolve_client(request)
@@ -415,6 +416,10 @@ impl FlavorProvider for PluginFlavorProvider {
         profile.flavor = self.info.id.to_string();
         profile.game_version = request.version.clone();
         Ok(profile)
+    }
+
+    fn download_policy(&self, url: &str) -> Option<Arc<Policy>> {
+        (!serves_vanilla(url)).then(|| self.policy.clone())
     }
 
     async fn install(

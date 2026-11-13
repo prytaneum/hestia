@@ -1729,6 +1729,7 @@ dependencies = [
  "base64 0.23.1",
  "common",
  "discord-rich-presence",
+ "engine",
  "fastnbt",
  "flate2",
  "futures-util",

@@ -151,8 +151,12 @@ impl Engine {
         let data = self.servers.data_dir(record);
         let jar = &record.profile.jar;
         if let ServerJar::Download(artifact) = jar {
+            let flavor = self
+                .minecraft
+                .provider(Side::Server, &record.profile.flavor)?;
             materialize::ensure_artifact(
                 Some(&self.cache),
+                flavor.download_policy(&artifact.url),
                 artifact,
                 &data.join(&artifact.filename),
                 ProvisionPhase::Server,

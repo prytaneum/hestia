@@ -21,6 +21,7 @@ pub(crate) mod rcon;
 pub(crate) mod servers;
 mod spigot;
 mod vanilla;
+pub(crate) use vanilla::serves as serves_vanilla;
 pub(crate) mod world;
 
 use std::path::Path;
@@ -210,7 +211,7 @@ impl Minecraft {
         self.provider(Side::Client, vanilla::ID).ok()
     }
 
-    fn provider(&self, side: Side, flavor: &str) -> Result<Arc<dyn FlavorProvider>> {
+    pub(crate) fn provider(&self, side: Side, flavor: &str) -> Result<Arc<dyn FlavorProvider>> {
         self.flavors
             .snapshot()
             .into_iter()

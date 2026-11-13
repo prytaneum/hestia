@@ -157,7 +157,15 @@ async fn run_install(
         &libraries,
         &materialize::present,
     )?;
-    materialize::ensure_libraries(request.cache, &missing, &libraries, None, on_progress).await?;
+    materialize::ensure_libraries(
+        request.cache,
+        &crate::download::core,
+        &missing,
+        &libraries,
+        None,
+        on_progress,
+    )
+    .await?;
 
     tracing::info!(
         loader,

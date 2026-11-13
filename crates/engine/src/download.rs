@@ -4,6 +4,7 @@
 //! and feeds it after a successful download.
 
 use std::path::Path;
+use std::sync::Arc;
 
 use anyhow::{anyhow, bail, Context, Result};
 use futures_util::StreamExt;
@@ -13,12 +14,22 @@ use tokio::io::AsyncWriteExt;
 use crate::cache::Cache;
 use crate::checksum::Hasher;
 use crate::net;
+use crate::plugins::vouch::Policy;
 
 pub type ProgressFn<'a> = dyn Fn(&DownloadProgress) -> Result<()> + Send + Sync + 'a;
+
+/// The policy an artifact is fetched under, by its URL: `None` for a core one.
+pub type PolicyFor<'a> = &'a (dyn Fn(&str) -> Option<Arc<Policy>> + Send + Sync);
+
+/// A [`PolicyFor`] for files the launcher itself names.
+pub fn core(_url: &str) -> Option<Arc<Policy>> {
+    None
+}
 
 pub struct Downloader<'a> {
     cache: Option<&'a Cache>,
     untrusted_limit: Option<u64>,
+    policy: Option<Arc<Policy>>,
 }
 
 impl<'a> Downloader<'a> {
@@ -26,7 +37,15 @@ impl<'a> Downloader<'a> {
         Downloader {
             cache,
             untrusted_limit: None,
+            policy: None,
         }
+    }
+
+    /// For a file a plugin named: it is fetched under `policy`, which holds
+    /// every redirect hop to the plugin's grant. `None` leaves a core download.
+    pub fn vouched(mut self, policy: Option<Arc<Policy>>) -> Self {
+        self.policy = policy;
+        self
     }
 
     /// For a URL a user typed: refuses a redirect off https and a body larger
@@ -35,6 +54,7 @@ impl<'a> Downloader<'a> {
         Downloader {
             cache: None,
             untrusted_limit: Some(max_bytes),
+            policy: None,
         }
     }
 
@@ -117,11 +137,16 @@ impl<'a> Downloader<'a> {
         checksum: Option<&Checksum>,
         on_progress: &ProgressFn<'_>,
     ) -> Result<()> {
-        let client = match self.untrusted_limit {
-            Some(_) => net::https_only_client(),
-            None => net::client(),
+        let response = match &self.policy {
+            Some(policy) => policy.get(url, checksum.is_none()).await?,
+            None => {
+                let client = match self.untrusted_limit {
+                    Some(_) => net::https_only_client(),
+                    None => net::client(),
+                };
+                net::send(None, client.get(url)).await?
+            }
         };
-        let response = net::send(None, client.get(url)).await?;
         if !response.status().is_success() {
             bail!(proto::error::ErrorInfo::DownloadFailed {
                 detail: format!("{url}: HTTP {}", response.status().as_u16()),

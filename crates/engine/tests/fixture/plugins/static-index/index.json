@@ -22,7 +22,11 @@
       "loaders": ["fabric"],
       "files": [
         {
-          "artifact": { "url": "cobble-tweaks-1.0.0.jar", "filename": "cobble-tweaks-1.0.0.jar" },
+          "artifact": {
+            "url": "cobble-tweaks-1.0.0.jar",
+            "filename": "cobble-tweaks-1.0.0.jar",
+            "checksum": { "algorithm": "sha1", "hex": "32a22d349740b9065493b697ae61279f4f85aea2" }
+          },
           "primary": true
         }
       ]

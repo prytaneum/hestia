@@ -5,6 +5,7 @@
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use anyhow::{bail, Result};
 use async_trait::async_trait;
@@ -17,6 +18,7 @@ use serde_json::Value;
 
 use super::install;
 use crate::config::ContentSettings;
+use crate::plugins::vouch::Policy;
 
 /// A project reference recognised in a platform's own site URL, optionally
 /// pinned to one version. `kind` is what the URL's own path says the project is.
@@ -60,6 +62,11 @@ pub trait ContentProvider: Send + Sync {
     /// Recognise the project and version behind the URL of a file this
     /// platform serves, so a pack's file is tracked to its source.
     async fn recognise_file_url(&self, _url: &str) -> Option<SourceFileRef> {
+        None
+    }
+    /// The policy the files this source names are downloaded under; `None` for
+    /// a source the launcher itself ships.
+    fn download_policy(&self) -> Option<Arc<Policy>> {
         None
     }
     /// Whether a datapack is catalogued as a `Mod` project here.

@@ -12,6 +12,7 @@ use proto::content::{
     ContentKind, ContentProject, ContentVersion, SearchQuery, SearchResult, SourceFileRef,
     SourceInfo, VersionQuery,
 };
+use proto::minecraft::Artifact;
 use proto::plugin::Manifest;
 use proto::provider::content::{self as op, IdQuery, ProjectQuery, Sha1Query, Source, UrlQuery};
 use proto::Empty;
@@ -19,20 +20,26 @@ use proto::Empty;
 use super::{connect_each, registered, Guest};
 use crate::content::provider::{ContentProvider, LocalFile, UrlRef};
 use crate::engine::Engine;
-use crate::plugins::http::download_allowed;
 use crate::plugins::runtime::LoadedPlugin;
+use crate::plugins::vouch::Policy;
 
 /// A source a plugin contributes, registered as `<plugin>.<id>`, or bare when official.
 pub struct PluginContentProvider {
     guest: Guest,
     info: SourceInfo,
+    policy: Arc<Policy>,
 }
 
 impl PluginContentProvider {
     /// Asks the guest to describe its source.
     async fn connect(guest: Guest) -> Result<Self> {
         let info = guest.ask::<op::Info>(&Empty {}).await?;
-        Ok(PluginContentProvider { guest, info })
+        let policy = Arc::new(Policy::new(guest.plugin().grant()));
+        Ok(PluginContentProvider {
+            guest,
+            info,
+            policy,
+        })
     }
 
     fn project_of(&self, mut project: ContentProject) -> ContentProject {
@@ -47,7 +54,7 @@ impl PluginContentProvider {
         let listed = version.files.len();
         version
             .files
-            .retain(|file| download_allowed(self.guest.plugin().grant(), &file.artifact.url));
+            .retain(|file| self.downloadable(&file.artifact));
         if version.files.len() < listed {
             tracing::warn!(
                 source = %self.guest.id(),
@@ -57,6 +64,13 @@ impl PluginContentProvider {
             );
         }
         (listed == 0 || !version.files.is_empty()).then_some(version)
+    }
+
+    fn downloadable(&self, artifact: &Artifact) -> bool {
+        match artifact.checksum {
+            Some(_) => self.policy.permits(&artifact.url, false),
+            None => artifact.unhashed && self.policy.permits(&artifact.url, true),
+        }
     }
 
     fn versions_of(&self, versions: Vec<ContentVersion>) -> Vec<ContentVersion> {
@@ -102,7 +116,7 @@ impl ContentProvider for PluginContentProvider {
     }
 
     async fn recognise_file_url(&self, url: &str) -> Option<SourceFileRef> {
-        if !download_allowed(self.guest.plugin().grant(), url) {
+        if !self.policy.permits(url, false) {
             return None;
         }
         self.guest
@@ -113,6 +127,10 @@ impl ContentProvider for PluginContentProvider {
             })
             .ok()?
             .flatten()
+    }
+
+    fn download_policy(&self) -> Option<Arc<Policy>> {
+        Some(self.policy.clone())
     }
 
     fn datapacks_as_mods(&self) -> bool {

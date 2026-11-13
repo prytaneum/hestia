@@ -48,6 +48,7 @@ impl Engine {
         let downloads: Vec<((), Download)> = missing
             .iter()
             .map(|(item, managed)| {
+                let policy = self.content.download_policy(&item.source)?;
                 let download = Download {
                     artifact: Artifact {
                         url: item.url.clone(),
@@ -62,6 +63,7 @@ impl Engine {
                     target: managed.clone(),
                     label: item.title.clone(),
                     source: item.source.clone(),
+                    policy,
                 };
                 materialize::validate_filename(&item.filename).map(|()| ((), download))
             })

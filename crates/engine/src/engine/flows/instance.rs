@@ -211,8 +211,12 @@ impl Engine {
         let assets_root = meta.join("assets");
         let game_dir = self.instances.data_dir(&record);
 
+        let flavor = self
+            .minecraft
+            .provider(Side::Client, &record.profile.flavor)?;
         let store = materialize::read_assets(
             Some(&self.cache),
+            flavor.download_policy(&record.profile.asset_index.artifact.url),
             &record.profile.asset_index,
             &assets_root,
             &game_dir,
@@ -264,6 +268,7 @@ impl Engine {
         if plan.client {
             materialize::ensure_artifact(
                 None,
+                flavor.download_policy(&record.profile.client.url),
                 &record.profile.client,
                 &client_jar,
                 ProvisionPhase::Client,
@@ -273,7 +278,15 @@ impl Engine {
             .await?;
         }
 
-        materialize::ensure_libraries(None, &plan.libraries, &libraries_root, tally, &job).await?;
+        materialize::ensure_libraries(
+            None,
+            &|url| flavor.download_policy(url),
+            &plan.libraries,
+            &libraries_root,
+            tally,
+            &job,
+        )
+        .await?;
 
         let natives_dir = meta.join("natives").join(&record.profile.game_version);
         materialize::ensure_natives(&record.profile.natives, &libraries_root, &natives_dir, &job)?;

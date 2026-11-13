@@ -281,6 +281,7 @@ impl Engine {
                     target: content_target(ctx, pending.kind, &file.artifact.filename)?,
                     label: label.clone(),
                     source: resolved.source.clone(),
+                    policy: None,
                 })
             });
             match planned {
@@ -351,6 +352,7 @@ impl Engine {
                     target,
                     label: file.path.clone(),
                     source: String::new(),
+                    policy: None,
                 };
                 (file, download)
             })

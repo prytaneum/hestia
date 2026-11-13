@@ -161,15 +161,16 @@ impl Engine {
                 source: version.source.clone(),
             });
         }
-        let mut archive = self.download_pack(artifact, job).await.map_err(|e| {
-            match e.downcast_ref::<ErrorInfo>() {
+        let mut archive = self
+            .download_pack(&version.source, artifact, job)
+            .await
+            .map_err(|e| match e.downcast_ref::<ErrorInfo>() {
                 Some(ErrorInfo::ArchiveUnrecognised { .. }) => ErrorInfo::NotAModpack {
                     reference: version.id.clone(),
                 }
                 .into(),
                 _ => e,
-            }
-        })?;
+            })?;
         let mut resolved = self.pack_manifest(&mut archive).await?;
         resolved.source = version.source;
         resolved.project_id = version.project_id;
@@ -178,12 +179,19 @@ impl Engine {
         Ok((resolved, Some(project), archive))
     }
 
-    async fn download_pack(&self, artifact: &Artifact, job: &Job<'_>) -> Result<pack::Archive> {
+    async fn download_pack(
+        &self,
+        source: &str,
+        artifact: &Artifact,
+        job: &Job<'_>,
+    ) -> Result<pack::Archive> {
         let staged = self
             .pack_staging()
             .join(format!("{}.pack", Uuid::now_v7().simple()));
+        let policy = self.content.download_policy(source)?;
         let downloaded = materialize::ensure_artifact(
             Some(&self.cache),
+            policy,
             artifact,
             &staged,
             ProvisionPhase::Content,

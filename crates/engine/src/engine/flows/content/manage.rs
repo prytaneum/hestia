@@ -11,7 +11,7 @@ use proto::content::{
 use proto::minecraft::ProvisionPhase;
 
 use super::super::batch::gather_ordered;
-use super::add::{failure, file_name, import_file, plan_release, release_context, release_of};
+use super::add::{failure, file_name, import_file, release_context, release_of};
 use super::entry::{content_loader, EntryContent};
 use super::phase_progress;
 use crate::content::pool::Pool;
@@ -72,7 +72,7 @@ impl Engine {
                     }
                 }
             }
-            match plan_release(ctx, item.kind, &item.title, &version) {
+            match self.plan_release(ctx, item.kind, &item.title, &version) {
                 Ok(download) => downloads.push(((item, version), download)),
                 Err(e) => failures.push(failure(&item.filename, &item.title, crate::error_info(e))),
             }

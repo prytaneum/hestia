@@ -1,12 +1,15 @@
 //! Where a Java runtime build comes from. A provider only resolves: it names
 //! the archive, and `Java` downloads, verifies and extracts it.
 
+use std::sync::Arc;
+
 use anyhow::Result;
 use async_trait::async_trait;
 use proto::download::Checksum;
 use proto::java::JavaRelease;
 
 use super::platform::JavaTarget;
+use crate::plugins::vouch::Policy;
 
 /// One resolved build of a runtime, ready to download.
 pub struct JavaPackage {
@@ -18,6 +21,8 @@ pub struct JavaPackage {
     pub checksum: Checksum,
     /// `0` when the provider does not know it before the download starts.
     pub size: u64,
+    /// Set when a plugin named the archive: it is downloaded under this policy.
+    pub policy: Option<Arc<Policy>>,
 }
 
 #[async_trait]

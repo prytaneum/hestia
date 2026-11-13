@@ -2,6 +2,7 @@
 //! SHA-1 out, singly or as a batch under one progress extent.
 
 use std::path::PathBuf;
+use std::sync::Arc;
 
 use anyhow::{bail, Result};
 use proto::error::ErrorInfo;
@@ -12,14 +13,17 @@ use crate::cancel::Job;
 use crate::content::install;
 use crate::engine::Engine;
 use crate::minecraft::materialize;
+use crate::plugins::vouch::Policy;
 
 /// A file to fetch to `target`; `label` and `source` name it if its author has
-/// opted out of distribution.
+/// opted out of distribution. `policy` is the one a plugin-named file is
+/// fetched under, `None` for a file the launcher or a pack's own index names.
 pub(super) struct Download {
     pub artifact: Artifact,
     pub target: PathBuf,
     pub label: String,
     pub source: String,
+    pub policy: Option<Arc<Policy>>,
 }
 
 impl Engine {
@@ -38,6 +42,7 @@ impl Engine {
         }
         materialize::ensure_artifact(
             Some(&self.cache),
+            download.policy.clone(),
             &download.artifact,
             &download.target,
             phase,

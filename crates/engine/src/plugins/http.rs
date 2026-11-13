@@ -6,7 +6,6 @@
 //! through [`guard::client`], whose resolver vets the addresses it connects to,
 //! so a granted name that resolves inside this machine is still refused.
 
-use std::collections::BTreeSet;
 use std::future::Future;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -91,36 +90,6 @@ pub fn authorize(grant: &Grant, url: &Url, offline: bool) -> Result<String, Refu
         return Err(Refusal::Offline);
     }
     Ok(domain)
-}
-
-/// Whether the engine may fetch `url` on behalf of a plugin holding `grant`:
-/// the file a content source lists must sit on one of its granted hosts, over
-/// https (plain http only to a loopback host the grant names, which a test or a
-/// local index serves from).
-pub fn download_allowed(grant: &Grant, url: &str) -> bool {
-    download_on(&grant.network, url)
-}
-
-/// Whether a download from `url` may go without a checksum: it is on a granted
-/// host and that host is one the grant lists as serving unhashed files.
-pub fn unhashed_allowed(grant: &Grant, url: &str) -> bool {
-    download_on(&grant.network, url) && download_on(&grant.unhashed, url)
-}
-
-fn download_on(hosts: &BTreeSet<String>, url: &str) -> bool {
-    let Ok(url) = Url::parse(url) else {
-        return false;
-    };
-    if !url.username().is_empty() || url.password().is_some() {
-        return false;
-    }
-    let Some(host) = url.host_str() else {
-        return false;
-    };
-    let host = host.trim_end_matches('.').to_ascii_lowercase();
-    let loopback = matches!(host.as_str(), "localhost" | "127.0.0.1" | "[::1]");
-    let secure = url.scheme() == "https" || (url.scheme() == "http" && loopback);
-    secure && hosts.iter().any(|entry| network_matches(entry, &host))
 }
 
 /// The `wasi:http` hooks of one plugin call.
@@ -343,33 +312,6 @@ mod tests {
             "https://93.184.216.34/",
         ] {
             assert_eq!(check(&grant, literal), Err(Refusal::IpLiteral), "{literal}");
-        }
-    }
-
-    #[test]
-    fn a_download_needs_a_granted_host_over_https() {
-        let grant = grant(
-            &["files.example.com", "*.cdn.example.org", "127.0.0.1"],
-            true,
-        );
-        for allowed in [
-            "https://files.example.com/a.jar",
-            "https://x.cdn.example.org/a.jar",
-            "http://127.0.0.1:8080/a.jar",
-        ] {
-            assert!(download_allowed(&grant, allowed), "{allowed}");
-        }
-        for denied in [
-            "http://files.example.com/a.jar",
-            "https://evil.example.com/a.jar",
-            "https://files.example.com.evil.com/a.jar",
-            "https://user:pw@files.example.com/a.jar",
-            "https://cdn.example.org/a.jar",
-            "http://localhost/a.jar",
-            "ftp://files.example.com/a.jar",
-            "not a url",
-        ] {
-            assert!(!download_allowed(&grant, denied), "{denied}");
         }
     }
 
