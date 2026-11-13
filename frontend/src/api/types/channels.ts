@@ -132,6 +132,7 @@ import type { PluginLogEvent } from "./generated/PluginLogEvent";
 import type { PluginPackageRef } from "./generated/PluginPackageRef";
 import type { PluginPage } from "./generated/PluginPage";
 import type { PluginRef } from "./generated/PluginRef";
+import type { PluginRolledBackEvent } from "./generated/PluginRolledBackEvent";
 import type { PluginRunDone } from "./generated/PluginRunDone";
 import type { PluginRunParams } from "./generated/PluginRunParams";
 import type { PluginRunProgress } from "./generated/PluginRunProgress";
@@ -421,6 +422,7 @@ export interface Topics {
   "job": JobEvents;
   "net.state": NetworkStatus;
   "plugin.log": PluginLogEvent;
+  "plugin.rolled_back": PluginRolledBackEvent;
   "plugin.schedule": ScheduleEvent;
   "plugin.state": PluginStateEvent;
   "plugin.updates": Outdated;

@@ -121,4 +121,13 @@ describe('the daemon-topic invalidation map', () => {
       }),
     ).toEqual([]);
   });
+
+  it('refreshes the plugins when an update is rolled back late', () => {
+    expect(
+      invalidationKeys({
+        topic: 'plugin.rolled_back',
+        payload: { id: 'demo', version: '2.0.0', restored: '1.0.0' },
+      }),
+    ).toEqual([keys.plugins.all]);
+  });
 });

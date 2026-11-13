@@ -7,7 +7,7 @@ use std::time::Duration;
 
 use anyhow::bail;
 use engine::{Cancel, LoadedPlugin, UpdateOutcome, UpdateRequest};
-use proto::plugin::{PluginInstallPhase, PluginUpdateDone};
+use proto::plugin::{PluginInstallPhase, PluginRolledBackEvent, PluginUpdateDone};
 use proto::warning::WarningInfo;
 use tokio::task::spawn_blocking;
 use tokio::time::Instant;
@@ -156,17 +156,97 @@ impl Plugins {
     async fn roll_back_trapped(&self, id: &str) {
         let engine = self.engine.clone();
         let target = id.to_string();
+        let rolled_back = self.read_version(id).await;
         let restored = spawn_blocking(move || engine.plugins().rollback(&target)).await;
         match restored {
             Ok(Ok(record)) => {
                 tracing::warn!(plugin = %id, "updated plugin trapped in its first minute; rolled back");
                 self.engine.processes().stop_owned(&engine::owner_of(id));
                 self.activate(record).await;
+                self.hub.publish_topic(&PluginRolledBackEvent {
+                    id: id.to_string(),
+                    version: rolled_back,
+                    restored: self.read_version(id).await,
+                });
             }
             Ok(Err(error)) => {
                 tracing::error!(plugin = %id, error = %format!("{error:#}"), "cannot roll back a trapping update");
             }
             Err(error) => tracing::error!(plugin = %id, %error, "rollback task failed"),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::runtime::event_hub::EventHub;
+    use engine::{Engine, PluginRecord};
+    use tokio::sync::mpsc::unbounded_channel;
+
+    fn manifest(version: &str) -> String {
+        format!(
+            "id = \"demo\"\nversion = \"{version}\"\napi = \"^{}\"\nwasm = \"plugin.wasm\"\n",
+            proto::plugin::API_VERSION
+        )
+    }
+
+    fn rolled_back_events(
+        events: &mut tokio::sync::mpsc::UnboundedReceiver<String>,
+    ) -> Vec<serde_json::Value> {
+        let mut found = Vec::new();
+        while let Ok(frame) = events.try_recv() {
+            let event: serde_json::Value = serde_json::from_str(&frame).unwrap();
+            if event["event"] == "plugin.rolled_back" {
+                found.push(event);
+            }
+        }
+        found
+    }
+
+    #[tokio::test]
+    async fn a_rollback_publishes_both_versions() {
+        let home = tempfile::tempdir().unwrap();
+        let engine = Arc::new(Engine::new(Some(home.path())));
+        let hub = Arc::new(EventHub::default());
+        let plugins = Plugins::new(engine.clone(), hub.clone(), false);
+        let record = PluginRecord {
+            id: "demo".into(),
+            enabled: true,
+            ..PluginRecord::default()
+        };
+        engine.plugins().save(&record).unwrap();
+        let dir = engine.plugins().plugin_dir("demo").unwrap();
+        std::fs::copy(dir.join("plugin.json"), dir.join("plugin.prev.json")).unwrap();
+        for (package, version) in [("package", "2.0.0"), ("package.prev", "1.0.0")] {
+            std::fs::create_dir_all(dir.join(package)).unwrap();
+            std::fs::write(dir.join(package).join("plugin.toml"), manifest(version)).unwrap();
+        }
+        let (out, mut events) = unbounded_channel();
+        hub.subscribe(1, out, None);
+
+        plugins.roll_back_trapped("demo").await;
+
+        let event = rolled_back_events(&mut events)
+            .pop()
+            .expect("a rollback event");
+        assert_eq!(
+            event["payload"],
+            serde_json::json!({"id": "demo", "version": "2.0.0", "restored": "1.0.0"})
+        );
+    }
+
+    #[tokio::test]
+    async fn a_failed_rollback_publishes_nothing() {
+        let home = tempfile::tempdir().unwrap();
+        let engine = Arc::new(Engine::new(Some(home.path())));
+        let hub = Arc::new(EventHub::default());
+        let plugins = Plugins::new(engine, hub.clone(), false);
+        let (out, mut events) = unbounded_channel();
+        hub.subscribe(1, out, None);
+
+        plugins.roll_back_trapped("demo").await;
+
+        assert!(rolled_back_events(&mut events).is_empty());
     }
 }

@@ -66,6 +66,7 @@ const DENIED: &[&str] = &[
     "plugin.ui.render",
     "plugin.ui.action",
     "plugin.state",
+    "plugin.rolled_back",
     "plugin.schedule",
     "plugin.log",
     // Other clients' subscriptions and jobs
@@ -258,6 +259,7 @@ fn a_topic_without_a_permission_reaches_no_plugin() {
         "process.output",
         "plugin.schedule",
         "plugin.updates",
+        "plugin.rolled_back",
         "plugin.schedule",
         "no.such.topic",
     ] {

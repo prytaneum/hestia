@@ -1242,6 +1242,23 @@ impl Topic for PluginStateEvent {
     const TOPIC: &'static str = "plugin.state";
 }
 
+/// Published when an updated plugin trapped or was disabled in its first minute
+/// and the previous version was put back, after the `plugin.update` job had
+/// already finished. An update that fails to load reports on the job instead.
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
+#[serde(rename_all = "camelCase")]
+pub struct PluginRolledBackEvent {
+    pub id: String,
+    /// The version that was taken out.
+    pub version: String,
+    /// The version that serves again.
+    pub restored: String,
+}
+impl Topic for PluginRolledBackEvent {
+    const TOPIC: &'static str = "plugin.rolled_back";
+}
+
 /// A tick of one of the plugin's own `contributes.schedules`. The daemon puts it
 /// in that plugin's inbox and nowhere else: it is never published to the hub, so
 /// no other plugin or client receives it.

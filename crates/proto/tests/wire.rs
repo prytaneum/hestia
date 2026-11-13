@@ -33,3 +33,20 @@ fn a_provider_owned_name_is_externally_tagged() {
     );
     assert_eq!(serde_json::to_value(Service::Mojang).unwrap(), "mojang");
 }
+
+#[test]
+fn a_rollback_event_is_camel_case_on_its_own_topic() {
+    use proto::plugin::PluginRolledBackEvent;
+    use proto::Topic;
+
+    let event = PluginRolledBackEvent {
+        id: "demo".into(),
+        version: "2.0.0".into(),
+        restored: "1.0.0".into(),
+    };
+    assert_eq!(PluginRolledBackEvent::TOPIC, "plugin.rolled_back");
+    assert_eq!(
+        serde_json::to_value(&event).unwrap(),
+        serde_json::json!({"id": "demo", "version": "2.0.0", "restored": "1.0.0"})
+    );
+}

@@ -29,6 +29,7 @@ export type { PluginLogEvent } from "./generated/PluginLogEvent";
 export type { PluginPackageRef } from "./generated/PluginPackageRef";
 export type { PluginPage } from "./generated/PluginPage";
 export type { PluginRef } from "./generated/PluginRef";
+export type { PluginRolledBackEvent } from "./generated/PluginRolledBackEvent";
 export type { PluginRunDone } from "./generated/PluginRunDone";
 export type { PluginRunParams } from "./generated/PluginRunParams";
 export type { PluginRunProgress } from "./generated/PluginRunProgress";

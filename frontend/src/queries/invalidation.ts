@@ -13,7 +13,9 @@ import {
   onDaemonEvent,
   type Topics,
 } from '../api';
+import { notify } from '../lib/notify';
 import { entryOfProcess } from '../lib/process-id';
+import { m } from '../paraglide/messages.js';
 import { invalidate, queryClient } from './client';
 import { FOOTPRINT, keys } from './keys';
 
@@ -123,6 +125,8 @@ export function invalidationKeys(event: DaemonEvent): QueryKey[] {
       return [keys.plugins.all];
     case 'plugin.updates':
       return [keys.plugins.outdated()];
+    case 'plugin.rolled_back':
+      return [keys.plugins.all];
     default:
       return [];
   }
@@ -150,6 +154,13 @@ function sweepOnReturnToOnline(status: Topics['net.state']): void {
   wasOffline = offline;
 }
 
+function announceRollback(rollback: Topics['plugin.rolled_back']): void {
+  notify.warning(m['settings.plugins.rolled_back'](rollback), {
+    id: `plugin-rolled-back-${rollback.id}`,
+    description: m['settings.plugins.rolled_back_hint'](rollback),
+  });
+}
+
 let started = false;
 
 /** Install the feed once, at app bootstrap. */
@@ -158,6 +169,7 @@ export function startInvalidation(): void {
   started = true;
   onDaemonEvent((event) => {
     for (const key of invalidationKeys(event)) invalidate(key);
+    if (event.topic === 'plugin.rolled_back') announceRollback(event.payload);
     // Coming back online is the other reconnect: everything upstream-backed
     // failed or answered from a cached catalogue while we were out.
     if (event.topic === 'net.state') sweepOnReturnToOnline(event.payload);

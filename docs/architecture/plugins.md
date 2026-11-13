@@ -453,7 +453,8 @@ minisign public key and an optional spare, added by its index URL. It has one sh
   one and replaces its slot only once `init` succeeds, so calls in flight finish on the old
   code. A build that fails to load is rolled back and the done event carries
   `plugin_update_rolled_back`; one that traps in its first minute is rolled back by a
-  watcher (logged and visible as the plugin's state change). A crash between the two
+  watcher, which logs it, publishes `plugin.rolled_back` (id, the version taken out, the version restored; no plugin
+  may receive it) and shows up as the plugin's state change. A crash between the two
   renames is repaired at the next start. Nothing else ever installs an older version.
 - **Signing is CLI-only.** The engine links `minisign-verify`; `hestia plugin
   keygen`, `pack --sign` and the index signing use the signing crate in `cli`.

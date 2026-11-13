@@ -54,6 +54,7 @@ pub const TOPICS: &[TopicAccess] = &[
     access::<crate::net::NetworkStatus>(),
     access::<crate::plugin::Outdated>(),
     access::<crate::plugin::PluginLogEvent>(),
+    access::<crate::plugin::PluginRolledBackEvent>(),
     access::<crate::plugin::PluginStateEvent>(),
     access::<crate::plugin::ScheduleEvent>(),
     access::<crate::process::ProcessExitEvent>(),

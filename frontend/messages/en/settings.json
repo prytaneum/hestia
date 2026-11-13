@@ -123,6 +123,8 @@
       "update_needs_api": "Version {version} needs plugin API {api}.",
       "update_to": "Update to {version}",
       "update_rolled_back": "{name} was not updated",
+      "rolled_back": "{id} was rolled back to {restored}",
+      "rolled_back_hint": "Version {version} stopped working shortly after the update. Report the problem to its author.",
       "updated": "{name} updated to {version}",
       "updates_available": "{count} updates available",
       "empty": "No plugins installed.",

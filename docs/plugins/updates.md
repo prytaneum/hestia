@@ -39,7 +39,8 @@ it and asks (`-y` approves what is shown), the desktop shows it in the approval 
 same or less applies without asking.
 
 Your plugin's `data/` is kept. Hestia also keeps the one previous package. If the new version fails to initialise, it is
-put back and the update reports `plugin_update_rolled_back`; if it traps within its first minute it is rolled back too.
+put back and the update reports `plugin_update_rolled_back`; if it traps or is disabled within its first minute it is rolled back too, and the daemon publishes
+`plugin.rolled_back` (the id, the version taken out and the version restored), which the desktop shows as a toast.
 Commands already running finish on the old code, and running `plugin.run` jobs are not interrupted.
 
 ## Offline
