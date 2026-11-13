@@ -405,6 +405,50 @@ mod manifest {
     }
 
     #[test]
+    fn a_wildcard_over_a_public_suffix_is_refused_by_name() {
+        for good in [
+            "*.example.com",
+            "*.example.co.uk",
+            "*.user.github.io",
+            "github.io",
+        ] {
+            let manifest = Manifest {
+                network: vec![good.into()],
+                ..valid()
+            };
+            assert_eq!(manifest.validate(), Ok(()), "{good}");
+        }
+        for bad in ["*.co.uk", "*.github.io", "*.CO.UK.", "*.s3.amazonaws.com"] {
+            let manifest = Manifest {
+                network: vec![bad.into()],
+                ..valid()
+            };
+            assert_eq!(
+                manifest.validate(),
+                Err(ManifestError::PublicSuffixWildcard(bad.into())),
+                "{bad}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_wildcard_reaches_one_label_down_and_no_further() {
+        use proto::plugin::network_matches;
+        assert!(network_matches("*.example.com", "api.example.com"));
+        assert!(network_matches("*.Example.com.", "api.example.com"));
+        assert!(network_matches("example.com", "example.com"));
+        for outside in [
+            "example.com",
+            "a.b.example.com",
+            "evilexample.com",
+            ".example.com",
+            "api.example.com.evil.net",
+        ] {
+            assert!(!network_matches("*.example.com", outside), "{outside}");
+        }
+    }
+
+    #[test]
     fn network_hosts_are_names_never_addresses() {
         for good in [
             "example.com",

@@ -808,6 +808,8 @@ pub enum ManifestError {
     BadSetting { key: String, detail: String },
     #[error("network host `{0}` must be a domain name or `*.` and a domain, not an address")]
     BadNetworkHost(String),
+    #[error("network host `{0}` is a wildcard over a public suffix, which would grant every site registered under it")]
+    PublicSuffixWildcard(String),
     #[error("unhashed host `{0}` must be a host listed in `network`")]
     BadUnhashedHost(String),
     #[error("provider kind `{0}` is not one this host offers")]
@@ -886,6 +888,10 @@ impl Manifest {
         }
         if let Some(host) = self.network.iter().find(|host| !is_network_host(host)) {
             return Err(ManifestError::BadNetworkHost(host.clone()));
+        }
+        #[cfg(feature = "suffix")]
+        if let Some(host) = self.network.iter().find(|host| covers_public_suffix(host)) {
+            return Err(ManifestError::PublicSuffixWildcard(host.clone()));
         }
         if let Some(host) = self
             .unhashed
@@ -1169,8 +1175,8 @@ pub fn ipc_matches(pattern: &str, name: &str) -> bool {
 }
 
 /// A granted host: a domain name, or `*.` and a domain of at least two labels
-/// that matches its subdomains only. An address would skip the resolver check
-/// the network permission relies on.
+/// that matches the names one label below it. An address would skip the
+/// resolver check the network permission relies on.
 pub fn is_network_host(entry: &str) -> bool {
     let domain = entry.strip_prefix("*.").unwrap_or(entry);
     let domain = domain.strip_suffix('.').unwrap_or(domain);
@@ -1188,6 +1194,33 @@ pub fn is_network_host(entry: &str) -> bool {
         .last()
         .is_some_and(|label| label.bytes().all(|byte| byte.is_ascii_digit()));
     named && !numeric && domain.len() <= 253 && (labels.len() >= 2 || domain == entry)
+}
+
+/// Whether the granted host `entry` reaches `host`, which is lowercase and has
+/// no trailing dot: an exact name, or for `*.domain` a name exactly one label
+/// below `domain`, never `domain` itself nor anything deeper.
+pub fn network_matches(entry: &str, host: &str) -> bool {
+    let entry = entry.trim_end_matches('.').to_ascii_lowercase();
+    match entry.strip_prefix("*.") {
+        Some(domain) => host
+            .strip_suffix(domain)
+            .and_then(|rest| rest.strip_suffix('.'))
+            .is_some_and(|label| !label.is_empty() && !label.contains('.')),
+        None => host == entry,
+    }
+}
+
+/// Whether `entry` is a wildcard whose domain is itself a public suffix, such
+/// as `*.co.uk` or `*.github.io`: the names under one belong to unrelated
+/// registrants, so no single plugin can be granted all of them.
+#[cfg(feature = "suffix")]
+pub fn covers_public_suffix(entry: &str) -> bool {
+    let Some(domain) = entry.strip_prefix("*.") else {
+        return false;
+    };
+    let domain = domain.trim_end_matches('.').to_ascii_lowercase();
+    psl::suffix(domain.as_bytes())
+        .is_some_and(|suffix| suffix.is_known() && suffix.as_bytes() == domain.as_bytes())
 }
 
 /// `major.minor.patch`, ignoring any pre-release or build suffix.

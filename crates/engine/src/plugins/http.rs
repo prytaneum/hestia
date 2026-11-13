@@ -14,7 +14,7 @@ use std::time::Duration;
 
 use http_body_util::{BodyExt, LengthLimitError, Limited};
 use proto::net::NetworkState;
-use proto::plugin::{Grant, Permission};
+use proto::plugin::{network_matches, Grant, Permission};
 use reqwest::Url;
 use tracing::Level;
 use wasmtime_wasi_http::{Error, RequestOptions, WasiBody, WasiHttpHooks};
@@ -83,7 +83,7 @@ pub fn authorize(grant: &Grant, url: &Url, offline: bool) -> Result<String, Refu
     if !grant
         .network
         .iter()
-        .any(|entry| host_matches(entry, &domain))
+        .any(|entry| network_matches(entry, &domain))
     {
         return Err(Refusal::HostNotGranted(domain));
     }
@@ -91,18 +91,6 @@ pub fn authorize(grant: &Grant, url: &Url, offline: bool) -> Result<String, Refu
         return Err(Refusal::Offline);
     }
     Ok(domain)
-}
-
-/// `entry` is an exact host, or `*.domain`, which matches subdomains of
-/// `domain` at any depth but not `domain` itself. `host` is already normalised.
-fn host_matches(entry: &str, host: &str) -> bool {
-    let entry = entry.trim_end_matches('.').to_ascii_lowercase();
-    match entry.strip_prefix("*.") {
-        Some(domain) => host
-            .strip_suffix(domain)
-            .is_some_and(|rest| rest.len() > 1 && rest.ends_with('.')),
-        None => host == entry,
-    }
 }
 
 /// Whether the engine may fetch `url` on behalf of a plugin holding `grant`:
@@ -132,7 +120,7 @@ fn download_on(hosts: &BTreeSet<String>, url: &str) -> bool {
     let host = host.trim_end_matches('.').to_ascii_lowercase();
     let loopback = matches!(host.as_str(), "localhost" | "127.0.0.1" | "[::1]");
     let secure = url.scheme() == "https" || (url.scheme() == "http" && loopback);
-    secure && hosts.iter().any(|entry| host_matches(entry, &host))
+    secure && hosts.iter().any(|entry| network_matches(entry, &host))
 }
 
 /// The `wasi:http` hooks of one plugin call.
@@ -320,15 +308,12 @@ mod tests {
             Ok("x.cdn.example.org".into())
         );
         assert_eq!(
-            check(&grant, "https://a.b.cdn.example.org/"),
-            Ok("a.b.cdn.example.org".into())
-        );
-        assert_eq!(
             check(&grant, "https://example.com:8443/"),
             Ok("example.com".into())
         );
         for denied in [
             "https://cdn.example.org/",
+            "https://a.b.cdn.example.org/",
             "https://evilcdn.example.org/",
             "https://cdn.example.org.evil.com/",
             "https://sub.example.com/",

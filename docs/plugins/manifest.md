@@ -47,7 +47,7 @@ package: no leading `/`, no `\`, no `:`, no `.` or `..` segments.
 | Key | Type | Meaning |
 |---|---|---|
 | `permissions` | list of permission names | see [permissions.md](permissions.md) |
-| `network` | list of hosts | the hosts `network:connect` reaches: a domain name, or `*.domain` for its subdomains at any depth. An address is refused (`BadNetworkHost`) |
+| `network` | list of hosts | the hosts `network:connect` reaches: a domain name, or `*.domain` for the names one label below it (`*.example.com` reaches `api.example.com`, not `a.b.example.com`). An address is refused (`BadNetworkHost`), and so is a wildcard over a public suffix such as `*.co.uk` or `*.github.io` (`PublicSuffixWildcard`) |
 | `unhashed` | list of hosts | the `network` hosts a flavor may serve a download from without a checksum; each must also be in `network` (`BadUnhashedHost`). Part of the grant, so the approval prompt shows it |
 | `ipc` | list of names | the local endpoints `ipc:connect` reaches, such as `discord-ipc-*`; refused without the permission (`IpcPermissionMissing`) |
 | `files` | list of paths | the files of a server's directory that `entry:read` may read through `server.files.read`, as exact relative paths such as `whitelist.json` or `config/a.json`: no leading `/`, `\`, `:`, `.` or `..` segment, no glob. `server.properties` is refused whatever its case (`BadEntryFile`); refused without `entry:read` (`FilesPermissionMissing`) |

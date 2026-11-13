@@ -334,7 +334,8 @@ the desktop, and the plugin's `settings-changed` export is told when one changes
 `network:connect` plus a `network` host list gates outbound HTTP. `wasi:http` is
 linked for everyone and each request is decided in `http.rs`: https only, no
 credentials in the URL, no IP literal, the host must match a granted entry (an
-exact host, or `*.domain` for subdomains at any depth), and the daemon must be
+exact host, or `*.domain` for the names one label below it; a wildcard over a
+public suffix such as `*.github.io` fails manifest validation), and the daemon must be
 online. Dialling goes through the shared guard client, whose resolver refuses
 addresses that point inside the machine, so a granted name cannot reach the local
 network. A request has a 30 s timeout and a 32 MiB body cap. A content source's
