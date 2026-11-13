@@ -214,7 +214,7 @@ Every call between host and plugin fails with one WIT variant, `plugin-error`, i
 | `unsupported` | `UnsupportedOperation`, `ContentKindRejected`, `QuickPlayUnsupported`, unsupported loaders and URLs, `MultiSessionDisabled`, `SyncUnitDisabled`, `IncompatibleVersion` |
 | `offline` | `Offline`, `OfflineMode` |
 | `upstream` (no status) | `Upstream` |
-| `sign-in-required` | `SignInRequired`, `SessionExpired`, `LoginDeclined`, `LoginTimedOut` |
+| `sign-in-required` | `SignInRequired`, `PluginSignInRequired`, `SessionExpired`, `LoginDeclined`, `LoginTimedOut` |
 | `not-configured` | `ConfigKeyUnset` |
 | `missing-requirement` | `MissingRequirement` (with its url); a declared program that is not installed, from `process` (the name and url of its `requires`, or its command and no url) |
 | `busy` | `EntryRunning` and the `*InProgress` kinds, `WorkRunning` |
@@ -225,7 +225,7 @@ carries the `ErrorInfo` whole, so there is no second classification in the daemo
 
 *Plugin to host* (`GuestError::into_info`, via `CallError::into_info`): what a plugin answers becomes the `ErrorInfo` its
 caller sees. `offline` is `Offline`, naming the provider when the call was a provider operation; `upstream` and
-`rate-limited` of a provider are `Upstream` naming the provider's `Service`; `sign-in-required` is `SignInRequired`;
+`rate-limited` of a provider are `Upstream` naming the provider's `Service`; `sign-in-required` is `PluginSignInRequired` naming the plugin;
 `not-configured` is `PluginSettingInvalid` with the key; every other case is `PluginCallFailed` carrying the message
 (for a command, page or hook with no provider to blame, `upstream` and `rate-limited` are that too). `unsupported` is
 not an error of the call at all: `CallError::Unsupported` lets an optional provider operation fall back and fails a

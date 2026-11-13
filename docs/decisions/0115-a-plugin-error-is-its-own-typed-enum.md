@@ -23,7 +23,7 @@ variant, so the generated type never leaves the sandbox module.
   no longer classifies by `code()`. A program that is not installed (not pinned at approval, or missing from `data/`)
   is `missing-requirement`.
 - *Up*: `GuestError::into_info` turns what a plugin answered into an `ErrorInfo`. A provider's `offline`, `upstream` and
-  `rate-limited` are attributed to the provider's `Service`; `sign-in-required` is `SignInRequired`; `not-configured` is
+  `rate-limited` are attributed to the provider's `Service`; `sign-in-required` is `PluginSignInRequired`, naming the plugin; `not-configured` is
   `PluginSettingInvalid`; everything else is `PluginCallFailed` with the message. `unsupported` still means "not
   implemented" and keeps an optional operation's fallback. A hook's error still vetoes, its message being the reason, and
   a hook that traps or times out still fails open.

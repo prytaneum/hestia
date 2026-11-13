@@ -709,6 +709,10 @@ pub enum ErrorInfo {
 
     // --- auth ---
     SignInRequired,
+    /// A plugin answered that its own account has to be signed in first.
+    PluginSignInRequired {
+        plugin: String,
+    },
     SessionExpired {
         reference: String,
     },
@@ -895,9 +899,11 @@ impl ErrorInfo {
             | RepositoryNotFound { .. }
             | ConfigKeyUnknown { .. }
             | ConfigKeyUnset { .. } => code::NOT_FOUND,
-            SignInRequired | SessionExpired { .. } | LoginDeclined | LoginTimedOut => {
-                code::UNAUTHORIZED
-            }
+            SignInRequired
+            | PluginSignInRequired { .. }
+            | SessionExpired { .. }
+            | LoginDeclined
+            | LoginTimedOut => code::UNAUTHORIZED,
             ConfigKeyDenied { .. } => code::FORBIDDEN,
             UnknownChannel { .. } => "unknown_channel",
             IncompatibleVersion { .. } => "version_mismatch",
@@ -1106,6 +1112,7 @@ impl fmt::Display for ErrorInfo {
             JavaProviderUnknown { id } => write!(f, "no java provider '{id}' is registered"),
             PluginInstallInProgress { id } => write!(f, "'{id}' is already being installed"),
             SignInRequired => write!(f, "sign in with a Microsoft account first"),
+            PluginSignInRequired { plugin } => write!(f, "plugin '{plugin}' needs you to sign in"),
             SessionExpired { reference } => {
                 write!(f, "your sign-in for '{reference}' expired — sign in again")
             }

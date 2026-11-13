@@ -168,7 +168,9 @@ fn a_failure_with_no_provider_to_blame_names_the_plugin() {
 fn a_user_can_act_on_what_the_plugin_reports() {
     assert_eq!(
         GuestError::SignInRequired.into_info("probe", None),
-        ErrorInfo::SignInRequired
+        ErrorInfo::PluginSignInRequired {
+            plugin: "probe".into()
+        }
     );
     assert_eq!(
         GuestError::NotConfigured("api-key".into()).into_info("probe", None),

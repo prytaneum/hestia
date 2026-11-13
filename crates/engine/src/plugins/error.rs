@@ -142,7 +142,9 @@ impl GuestError {
             (GuestError::Upstream { .. } | GuestError::RateLimited(_), Some(service)) => {
                 ErrorInfo::Upstream { service, detail }
             }
-            (GuestError::SignInRequired, _) => ErrorInfo::SignInRequired,
+            (GuestError::SignInRequired, _) => ErrorInfo::PluginSignInRequired {
+                plugin: plugin.to_string(),
+            },
             (GuestError::NotConfigured(key), _) => ErrorInfo::PluginSettingInvalid {
                 plugin: plugin.to_string(),
                 key,
@@ -324,9 +326,11 @@ impl From<&ErrorInfo> for GuestError {
                 message,
             },
 
-            SignInRequired | SessionExpired { .. } | LoginDeclined | LoginTimedOut => {
-                GuestError::SignInRequired
-            }
+            SignInRequired
+            | PluginSignInRequired { .. }
+            | SessionExpired { .. }
+            | LoginDeclined
+            | LoginTimedOut => GuestError::SignInRequired,
 
             ConfigKeyUnset { key } => GuestError::NotConfigured(key.clone()),
 

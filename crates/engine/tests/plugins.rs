@@ -1559,7 +1559,9 @@ async fn a_provider_that_needs_a_sign_in_or_a_setting_says_so() {
         .expect_err("the guest needs a sign-in");
     assert_eq!(
         sign_in.downcast_ref::<ErrorInfo>(),
-        Some(&ErrorInfo::SignInRequired)
+        Some(&ErrorInfo::PluginSignInRequired {
+            plugin: "probe".into()
+        })
     );
 
     let unset = java_releases_in_mode(&[], "fail not-configured")
