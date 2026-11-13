@@ -6,8 +6,9 @@ searches, creates, imports or installs. The design is in
 [architecture/plugins.md](../architecture/plugins.md#provider-surfaces); the reasoning for the shape is [0106](../decisions/0106-the-plugin-api-is-mechanisms-not-features.md).
 
 ```toml
-permissions = ["content:read", "network:connect"]
-network = ["index.example.com"]
+[permissions]
+"content:read" = {}
+"network:connect" = { hosts = ["index.example.com"] }
 
 [[contributes.providers]]
 kind = "content"
@@ -17,8 +18,8 @@ id = "index"
 - The registry id is `<plugin>.<id>` (`static-index.index`). A plugin signed by the official key registers under the
   bare `<id>` instead; an id already taken, by a built-in or another plugin, is refused.
 - A kind needs the permissions in the table below. A manifest that declares a kind without them is refused at `pack` and
-  at install. A kind that lists `network:connect` also needs at least one host in `network`.
-- The guest only names files; the host downloads them, and only from the plugin's `network` hosts.
+  at install. `network:connect` always needs at least one entry in its `hosts`.
+- The guest only names files; the host downloads them, and only from the plugin's `hosts`.
 
 | Kind | Permissions | Registers into | Operations |
 |---|---|---|---|
@@ -59,7 +60,7 @@ A source describes what exists; the host downloads the files. The permissions ar
 | `search` | `SearchQuery` | `SearchResult` | |
 | `project` | `{ project, kind? }` | `ContentProject` | by id or slug |
 | `projects` | `{ ids }` | `ContentProject[]` | optional |
-| `versions` | `VersionQuery` | `ContentVersion[]` | a file whose URL is not on a `network` host is dropped |
+| `versions` | `VersionQuery` | `ContentVersion[]` | a file whose URL is not on a granted host is dropped |
 | `versions-by-id` | `{ ids }` | `ContentVersion[]` | optional |
 | `identify` | `{ sha1s }` | map of sha1 to `ContentVersion` | optional |
 
@@ -87,11 +88,11 @@ It leaves the optional operations unhandled, so URL pasting, bulk lookup and fil
 ## Flavors
 
 A flavor decides the code the game runs, so the host vets every profile before acting on it: each artifact must carry a
-checksum (sha1 or sha256, which the download is verified against) and sit on one of the plugin's `network` hosts, unless the profile names it as built (see `build` below).
+checksum (sha1 or sha256, which the download is verified against) and sit on one of the plugin's `hosts`, unless the profile names it as built (see `build` below).
 
 A host that generates a file on request has no checksum to publish. A profile may mark such an artifact `unhashed: true`
-instead of leaving the checksum out, and the host accepts it only from a host the manifest lists in `unhashed` (each also
-in `network`). The list is part of the grant, so the user sees it when approving the install or an update that adds one
+instead of leaving the checksum out, and the host accepts it only from a host `network:connect` lists in `unhashed` (each also
+in its `hosts`). The list is part of the grant, so the user sees it when approving the install or an update that adds one
 ([0114](../decisions/0114-an-unhashed-download-is-declared.md)). A missing checksum without the marker is refused.
 
 | Operation | Args | Reply | Notes |
@@ -110,7 +111,7 @@ in `network`). The list is part of the grant, so the user sees it when approving
 
 A flavor that layers over the game (a modloader) answers `onVanilla` with only what it adds, and the host resolves the
 vanilla profile for the requested version and merges them ([0113](../decisions/0113-a-flavor-builds-on-the-vanilla-profile.md)).
-The guest never reads Mojang's metadata, and needs no Mojang host in `network`.
+The guest never reads Mojang's metadata, and needs no Mojang host in `hosts`.
 
 | | `ClientAddition` | `ServerAddition` |
 |---|---|---|
@@ -157,8 +158,10 @@ id = "replay-flavor"
 version = "0.1.0"
 api = "^1.0.0"
 wasm = "plugin.wasm"
-permissions = ["flavor:provide", "network:connect", "process:spawn"]
-network = ["files.example.com"]
+[permissions]
+"flavor:provide" = {}
+"network:connect" = { hosts = ["files.example.com"], unhashed = ["files.example.com"] }
+"process:spawn" = { programs = ["builder"] }
 
 [[programs]]
 id = "builder"
@@ -217,7 +220,7 @@ impl Plugin for Replay {
 }
 ```
 
-with `permissions = ["format:provide"]` and `kind = "format"` in its `plugin.toml`.
+with `"format:provide" = {}` under `[permissions]` and `kind = "format"` in its `plugin.toml`.
 
 ## Java distributions
 
@@ -230,7 +233,7 @@ it and registers it ([0105](../decisions/0105-a-java-provider-only-resolves.md))
 | `resolve` | `{ major, os, arch }` | `JavaBuild` or null when there is no build for that platform |
 
 - `os` is `linux`, `windows` or `mac`; `arch` is `x64` or `aarch64`.
-- A `JavaBuild` is `{ vendor, version, url, sha256, archive }`. The URL must be https on a `network` host, the sha256 is
+- A `JavaBuild` is `{ vendor, version, url, sha256, archive }`. The URL must be https on a granted host, the sha256 is
   64 hex characters, `archive` is `tar.gz` or `zip`, and `vendor` is a plain name (letters, digits, `-`, `_`) because it
   names the install directory.
 - The user picks it with the `java.provider` setting or `hestia java install --provider <plugin>.<id>`.

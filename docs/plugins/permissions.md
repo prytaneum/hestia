@@ -1,7 +1,9 @@
 # Plugin permissions
 
-A plugin reaches nothing it was not granted. Its manifest declares the permissions it needs and the narrower lists they
-apply to; the user approves that grant at install, and an update that asks for more asks again. A daemon channel a
+A plugin reaches nothing it was not granted. Its manifest's `[permissions]` table declares the permissions it needs, each
+with the scope it applies to; the user approves that grant, which is `permission -> scope`, at install, and an update that
+asks for more (a permission, or one more entry in a scope) asks again
+([0117](../decisions/0117-a-grant-is-permission-to-scope.md)). A daemon channel a
 plugin may call names the permission it needs on its contract; a channel that names none is closed to plugins
 ([0092](../decisions/0092-a-contract-names-the-permission-a-plugin-needs.md)).
 
@@ -10,27 +12,31 @@ plugin may call names the permission it needs on its contract; a channel that na
 An **unrestricted** permission lets a plugin act on the computer outside the sandbox, so the install states it as full
 access to the computer.
 
-| Permission | Tier | Allows |
-|---|---|---|
-| `entry:read` | sandboxed | See your servers and instances and their settings |
-| `entry:write` | unrestricted | Create, change and delete servers and instances, including their files and JVM arguments |
-| `process:read` | sandboxed | See which servers and games are running |
-| `process:control` | unrestricted | Start and stop servers and games, and run console commands |
-| `process:spawn` | unrestricted | Run the programs it lists (below) |
-| `content:read` | sandboxed | Search and inspect mods, packs and other content |
-| `content:write` | unrestricted | Install, update and remove mods, packs and other content |
-| `account:read` | sandboxed | See the names of signed-in accounts, never their tokens |
-| `config:read` | sandboxed | See the few launcher settings that are safe to share, never keys, locations or update settings |
-| `config:write` | unrestricted | Change the few launcher settings that are safe to hand over; everything that decides where data lives, what runs, what updates and what is downloaded stays yours |
-| `java:read` | sandboxed | See installed and available Java runtimes |
-| `java:manage` | sandboxed | Install and remove Java runtimes |
-| `network:connect` | sandboxed | Connect to the hosts it lists in `network` |
-| `ui:css` | sandboxed | Restyle the app with its own stylesheet ([0100](../decisions/0100-themes-are-plugin-css.md)) |
-| `launch:patch` | sandboxed | Adjust launch settings from an allowlist when a game or server starts; a wrapper program also needs `process:spawn` |
-| `ipc:connect` | unrestricted | Talk to the programs running on this computer that it lists in `ipc` (below) |
-| `flavor:provide` | unrestricted | Add game distributions that choose what code the game runs, including its main class and arguments |
-| `format:provide` | unrestricted | Add archive formats that choose the game version, loader and JVM settings of instances you import |
-| `java:provide` | unrestricted | Add Java distributions that choose the runtime binary Hestia executes |
+| Permission | Tier | Scope | Allows |
+|---|---|---|---|
+| `entry:read` | sandboxed | `files` | See your servers and instances and their settings |
+| `entry:write` | unrestricted | none | Create, change and delete servers and instances, including their files and JVM arguments |
+| `process:read` | sandboxed | none | See which servers and games are running |
+| `process:control` | unrestricted | none | Start and stop servers and games, and run console commands |
+| `process:spawn` | unrestricted | `programs` (required) | Run the programs it names (below) |
+| `content:read` | sandboxed | none | Search and inspect mods, packs and other content |
+| `content:write` | unrestricted | none | Install, update and remove mods, packs and other content |
+| `account:read` | sandboxed | none | See the names of signed-in accounts, never their tokens |
+| `config:read` | sandboxed | none | See the few launcher settings that are safe to share, never keys, locations or update settings |
+| `config:write` | unrestricted | none | Change the few launcher settings that are safe to hand over; everything that decides where data lives, what runs, what updates and what is downloaded stays yours |
+| `java:read` | sandboxed | none | See installed and available Java runtimes |
+| `java:manage` | sandboxed | none | Install and remove Java runtimes |
+| `network:connect` | sandboxed | `hosts` (required), `unhashed` | Connect to the hosts it lists |
+| `ui:css` | sandboxed | none | Restyle the app with its own stylesheet ([0100](../decisions/0100-themes-are-plugin-css.md)) |
+| `launch:patch` | sandboxed | `properties` | Adjust launch settings from an allowlist when a game or server starts; a wrapper program also needs `process:spawn` |
+| `ipc:connect` | unrestricted | `endpoints` (required) | Talk to the programs running on this computer that it lists (below) |
+| `flavor:provide` | unrestricted | none | Add game distributions that choose what code the game runs, including its main class and arguments |
+| `format:provide` | unrestricted | none | Add archive formats that choose the game version, loader and JVM settings of instances you import |
+| `java:provide` | unrestricted | none | Add Java distributions that choose the runtime binary Hestia executes |
+
+A permission takes only the scope kinds in its row, and a scope marked required may not be empty; the manifest is
+refused otherwise (`ScopeNotAccepted`, `ScopeRequired`). The table is `Permission::spec`; the entry rules are in
+[manifest.md](manifest.md#access). A permission written as `"content:read" = {}` is held with no narrowing.
 
 ## Settings
 
@@ -44,13 +50,35 @@ The table is checked against the settings schema by a test in `crates/engine/src
 Hook points and provider kinds name the permissions they need in `proto::hook` and `proto::provider`; a manifest that
 declares one without them is refused at `pack` and at install.
 
+## Network
+
+`network:connect` reaches only its `hosts`: a domain name, or `*.domain` for the names one label below it. Its `unhashed`
+lists the hosts (each also in `hosts`) a flavor's profile may serve a file from without a checksum
+([0114](../decisions/0114-an-unhashed-download-is-declared.md)).
+
+```toml
+[permissions]
+"network:connect" = { hosts = ["api.adoptium.net", "meta.fabricmc.net"], unhashed = ["meta.fabricmc.net"] }
+```
+
+## Launch properties
+
+`launch:patch` may set only the `-D` keys in its `properties`; the allowlist for the other launch arguments is fixed
+([manifest.md](manifest.md#launch-properties)).
+
+```toml
+[permissions]
+"launch:patch" = { properties = ["my.property"] }
+```
+
 ## Programs
 
-`process:spawn` runs only the programs the manifest declares
+`process:spawn` runs only the programs the manifest defines and names in its `programs`
 ([0101](../decisions/0101-plugins-spawn-only-declared-programs.md)):
 
 ```toml
-permissions = ["process:spawn"]
+[permissions]
+"process:spawn" = { programs = ["tailscale", "agent", "tool"] }
 
 [[programs]]
 id = "tailscale"
@@ -77,8 +105,9 @@ args = ["-jar", "*"]
   approval; the arguments, environment and permission rules are the same as for any program.
 - The SDK's `hestia::process` runs them. `exec` runs a program to completion, with output cut at 1 MiB per stream. The
   other calls handle long-lived agents: `spawn`, `stop`, `status`, `logs` and `list`.
-- A call naming another program, arguments outside the patterns, or an undeclared environment name is refused with
-  `denied`.
+- A call naming another program, one defined but not named in `programs`, arguments outside the patterns, or an
+  undeclared environment name is refused with `denied`. The grant holds each named program's whole definition, so a
+  changed pattern, environment name or hash asks for approval again.
 - There is no shell, the working directory is `data/` unless `exec_in` names another (`/data`, or `/build` during a
   flavor's `build`; anything else is `denied`), and the environment starts empty.
 - A spawned agent is supervised with the owner `plugin:<id>`. Only its plugin can see or stop it, `list()` finds it again
@@ -90,13 +119,14 @@ exits.
 
 ## Entry files
 
-`entry:read` does not let a plugin read the files of a server. `server.files.read` serves a plugin only the paths its
-manifest lists in `files`, matched exactly, and the list is part of the grant: the install prompt shows it and an update
-that adds a path asks again.
+`entry:read` does not let a plugin read the files of a server. `server.files.read` serves a plugin only the paths in the
+`files` of its `entry:read`, matched exactly, and the list is part of the grant: the install prompt shows it and an update
+that adds a path asks again. The channel's contract names that narrowing, so the plugin gate applies it and no handler
+checks it.
 
 ```toml
-permissions = ["entry:read"]
-files = ["whitelist.json", "ops.json", "banned-players.json"]
+[permissions]
+"entry:read" = { files = ["whitelist.json", "ops.json", "banned-players.json"] }
 ```
 
 - A path is relative to the server's directory and already normalised: no leading `/`, no `\`, no `.` or `..`
@@ -106,12 +136,12 @@ files = ["whitelist.json", "ops.json", "banned-players.json"]
 
 ## Local endpoints
 
-`ipc:connect` reaches only the local endpoints the manifest lists
+`ipc:connect` reaches only the local endpoints in its `endpoints`
 ([0106](../decisions/0106-the-plugin-api-is-mechanisms-not-features.md)):
 
 ```toml
-permissions = ["ipc:connect"]
-ipc = ["discord-ipc-*", "app/com.discordapp.Discord/discord-ipc-*"]
+[permissions]
+"ipc:connect" = { endpoints = ["discord-ipc-*", "app/com.discordapp.Discord/discord-ipc-*"] }
 ```
 
 - An entry is a relative name of letters, digits, `.`, `_` and `-`, with `/` between segments. A trailing `*` matches

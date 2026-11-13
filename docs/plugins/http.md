@@ -1,6 +1,6 @@
 # HTTP, URLs and hashes
 
-A plugin with `network:connect` reaches the hosts its manifest lists in `network`, over `wasi:http`. `hestia::http` wraps
+A plugin with `network:connect` reaches the hosts that permission lists in `hosts`, over `wasi:http`. `hestia::http` wraps
 that in a request builder, a response with headers and status classes, a URL builder and the mapping from a failing
 status to the typed `hestia::Error`. `hestia::hash` covers the digests. The pure parts (status mapping, `Retry-After`,
 header lookup, URL encoding, hashes) are unit tested in `crates/sdk/src/http/` and `crates/sdk/src/hash.rs`.

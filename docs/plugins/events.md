@@ -7,7 +7,9 @@ anything is queued, whether this plugin may receive it. The rules live in `proto
 ## Subscribing
 
 ```toml
-permissions = ["process:read", "process:spawn"]
+[permissions]
+"process:read" = {}
+"process:spawn" = { programs = ["agent"] }
 
 [contributes]
 events = ["process.started", "process.exit"]

@@ -10,7 +10,7 @@ import type { Program } from "./Program";
  *
  * A scope is the only shape a grant has, so validation, widening, the digest
  * and the approval prompt each walk it once and cover every kind by
- * construction ([0116](../../../../docs/decisions/0116-a-grant-is-permission-to-scope.md)).
+ * construction ([0117](../../../../docs/decisions/0117-a-grant-is-permission-to-scope.md)).
  */
 export type Grant = { permissions: { [key in Permission]?: PermissionScope }, 
 /**

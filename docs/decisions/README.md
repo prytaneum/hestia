@@ -48,6 +48,7 @@ the alternative you rejected — that is usually the part nobody can recover lat
 - **0114** — [An unhashed download is declared, and the user approves the host](0114-an-unhashed-download-is-declared.md)
 - **0115** — [A plugin error is its own typed enum, mapped to and from ErrorInfo by the host](0115-a-plugin-error-is-its-own-typed-enum.md)
 - **0116** — [An official provider shadows the built-in of the same id](0116-an-official-provider-shadows-the-builtin.md)
+- **0117** — [A grant is permission to scope, driven by one table](0117-a-grant-is-permission-to-scope.md)
 
 ### [Cross-cutting foundations](../architecture/common.md)
 

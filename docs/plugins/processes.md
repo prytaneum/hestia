@@ -21,7 +21,9 @@ update that would pin a different path (or no longer finds the program) is held 
 unattended update never applies one.
 
 ```toml
-permissions = ["process:read", "process:spawn"]
+[permissions]
+"process:read" = {}
+"process:spawn" = { programs = ["agent"] }
 
 [[programs]]
 id = "agent"
@@ -72,7 +74,7 @@ program.
 A package holds the manifest, the component, `assets/` and `themes/`, and nothing is copied into `data/` at install, so
 an agent that is not on `PATH` is fetched at run time into `data/`. The host copies the file before it trusts it:
 
-1. The plugin downloads the agent with `hestia::http::get` (needs `network:connect` and the download host in `network`;
+1. The plugin downloads the agent with `hestia::http::get` (needs `network:connect` and the download host in its `hosts`;
    the body is at most 32 MiB; redirects are not followed, so request the final URL) and writes it under
    `proto::plugin::DATA_MOUNT` (`/data`) with `std::fs`, at the path the manifest's `command` names. On Windows the same
    name with `.exe` is tried too.

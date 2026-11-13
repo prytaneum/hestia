@@ -1,7 +1,7 @@
 //! Outbound HTTPS to the hosts the manifest grants, over `wasi:http`.
 //!
 //! The plugin needs the `network:connect` permission and lists each host in
-//! `network`. Only `https://` URLs to named hosts are allowed. A refused
+//! its `hosts`. Only `https://` URLs to named hosts are allowed. A refused
 //! request is [`Error::Denied`]; a host that cannot be reached is
 //! [`Error::Offline`]. The host does not follow redirects, so a `3xx` answer
 //! comes back as it is and the plugin decides whether to request the `Location`

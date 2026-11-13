@@ -2,6 +2,8 @@
 
 *Applies to: [Plugins](../architecture/plugins.md#provider-surfaces)*
 
+> Superseded in part by [0117](0117-a-grant-is-permission-to-scope.md): the hosts are the `unhashed` scope of `network:connect` (beside its `hosts`), not top-level `network` and `unhashed` lists, and `Grant.unhashed` is `Grant::unhashed()`.
+
 A plugin flavor's artifacts are vetted before the host downloads them: a granted host, a safe filename and a checksum
 the download is verified against. Some upstreams publish nothing to check a file against. Fabric's server launcher is
 generated per request by its meta service, and two of the loader's own libraries carry no hash in its profile. Core

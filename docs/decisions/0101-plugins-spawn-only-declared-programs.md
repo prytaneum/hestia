@@ -2,6 +2,8 @@
 
 *Applies to: [The engine](../architecture/engine.md), [plugin permissions](../plugins/permissions.md)*
 
+> Superseded in part by [0117](0117-a-grant-is-permission-to-scope.md): `[[programs]]` still defines each program, but `process:spawn` grants it by naming its id in `programs`; the grant is no longer "every declared program".
+
 Tunnelling services (playit.gg, Tailscale) work through a native agent, and the v1 sandbox gives a plugin neither
 processes nor local sockets. `process:spawn` lets a plugin run native code, so it is an unrestricted permission and the
 install states it as full access to the computer. What follows narrows what that access can reach.

@@ -114,6 +114,12 @@ contract; the daemon then publishes `changed` after it succeeds, and the desktop
 
 A contract a plugin may call sets `const PLUGIN: Option<Permission> = Some(Permission::…)`; one it must never reach goes
 on `DENIED` in `crates/proto/tests/permission.rs` ([0092](decisions/0092-a-contract-names-the-permission-a-plugin-needs.md)).
+A plugin channel that is narrower than its permission names the scope kind that narrows it
+(`const NARROWED_BY: Option<ScopeKind> = Some(ScopeKind::Files)`) and a `touches(&Params) -> Vec<String>` that returns
+the entries one call reaches; the plugin gate checks them against the caller's grant, so no handler checks a grant by
+hand ([0117](decisions/0117-a-grant-is-permission-to-scope.md)). A new permission is a `Permission::spec` arm (tier,
+accepted scope kinds, whether a scope is required) and an entry in `Permission::ALL`; a new scope kind is a
+`ScopeKind` variant with its entry rule in `scope.rs`.
 
 If you change an existing payload's shape, update `crates/proto/tests/` (the
 `wire`/`golden` encodings are pinned on purpose). A plugin-reachable contract's shape is also snapshotted by

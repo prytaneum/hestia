@@ -24,7 +24,9 @@ Declare the points in the manifest; declaring one without its permissions is ref
 (`HookPermissionMissing`):
 
 ```toml
-permissions = ["launch:patch", "account:read"]
+[permissions]
+"launch:patch" = {}
+"account:read" = {}
 
 [contributes]
 hooks = ["before-launch"]
@@ -124,7 +126,7 @@ JVM arguments (`extra_jvm_args`):
 - `-XX:Name=value` for `MaxGCPauseMillis`, `G1NewSizePercent`, `G1ReservePercent`, `G1MixedGCCountTarget`,
   `InitiatingHeapOccupancyPercent`, `ParallelGCThreads`, `ConcGCThreads` (digits, at most 9), and `G1HeapRegionSize`,
   `MetaspaceSize`, `MaxMetaspaceSize`, `ReservedCodeCacheSize` (digits with an optional `k`, `m` or `g`).
-- `-Dkey=value` only for a key the manifest listed in `[launch] properties` ([manifest.md](manifest.md#launch)) and that
+- `-Dkey=value` only for a key the manifest listed in the `properties` of `launch:patch` ([permissions.md](permissions.md#launch-properties)) and that
   is not on the hard deny list; the value is at most 1024 characters with no control characters.
 - No code-loading option (`-javaagent`, `-cp`, `--module-path`, …) passes, and the heap (`-Xmx`) is not on the list.
 
@@ -140,7 +142,10 @@ a missing permission or a file that vanished drops the wrapper with the same `La
 the first plugin in id order is the outermost.
 
 ```toml
-permissions = ["launch:patch", "account:read", "process:spawn"]
+[permissions]
+"launch:patch" = {}
+"account:read" = {}
+"process:spawn" = { programs = ["mangohud"] }
 
 [[programs]]
 id = "mangohud"

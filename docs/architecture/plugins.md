@@ -27,7 +27,7 @@ what a third party could use.
 
 | Piece | Where | Role |
 |---|---|---|
-| Manifest, grant, permissions, contracts | `crates/proto/src/plugin.rs`, `repository.rs` | the wire and the `plugin.toml` schema; `MIT OR Apache-2.0` |
+| Manifest, grant, permissions, scopes, contracts | `crates/proto/src/plugin/` (`permission.rs`, `scope.rs`, `grant.rs`, `manifest.rs`), `repository.rs` | the wire and the `plugin.toml` schema; `MIT OR Apache-2.0` |
 | Hook points, provider kinds and operations, topic registry | `crates/proto/src/hook.rs`, `provider.rs` + `provider/`, `events.rs` | what varies, as data |
 | The ABI | `crates/sdk/wit/` (`hestia:plugin@1.0.0`) | one WIT package; its version is `proto::plugin::API_VERSION` |
 | Guest SDK | `crates/sdk/` (`hestia-sdk`) | bindings and proto types for a Rust plugin; `MIT OR Apache-2.0` |
@@ -37,7 +37,7 @@ what a third party could use.
 | Authoring tools | `crates/cli/src/commands/plugin/` | `new`, `pack`, `check`, `publish`, `keygen`, `dev`, and the management verbs |
 
 The engine never links `ipc` or `client`; what it needs from the daemon is the
-`HostCalls` trait (`permission`, `call`, `run_job`), which `RouterHost`
+`HostCalls` trait (`permission`, `touched`, `call`, `run_job`), which `RouterHost`
 implements over the router.
 
 ## The sandbox
@@ -96,11 +96,31 @@ boundary is guest code against the daemon; the data home is one trust domain.
 
 ## Permissions
 
-A manifest lists `permissions`, plus the narrower lists they apply to (`network`
-hosts, `[[programs]]`, `events` globs, `hooks`). Together they are the **grant**:
-the user approves exactly that at install, and an update that widens it asks
-again. The tiers and the full table are in
+A manifest's `[permissions]` is a table: each permission is a key and carries a
+**scope**, the entries it reaches, by kind (`network:connect` takes `hosts` and
+`unhashed`, `entry:read` takes `files`, `ipc:connect` takes `endpoints`,
+`process:spawn` takes `programs`, `launch:patch` takes `properties`). What a
+manifest contributes (hooks, events, schedules, themes, secret settings) is
+derived from it and listed beside them. Together they are the **grant**, which is
+`permission → scope` and nothing else: the user approves exactly that at install,
+and an update that widens it asks again. The tiers and the full table are in
 [plugins/permissions.md](../plugins/permissions.md).
+
+- **One table drives it.** `Permission::spec` says, for each permission, its tier,
+  the scope kinds it accepts and whether it needs an entry of the first. Validation
+  (a kind the permission does not take, a required scope left empty, each entry
+  against its kind's rule) reads it, and so do `Grant::widening_over` (a permission
+  added, or any entry added to a scope, widens; it walks the maps, so a new
+  `ScopeKind` is covered), `Grant::approval_digest` (the canonical JSON of the
+  whole grant) and the approval prompts, which loop over permissions and their
+  scope kinds. A permission without a `spec` arm fails to compile; one missing from
+  `Permission::ALL` fails `crates/proto/tests/scope.rs`
+  ([0117](../decisions/0117-a-grant-is-permission-to-scope.md)).
+- **Contributions are a scope of their own.** `Grant::contributions` holds the
+  `hooks`, `events`, `schedules`, `secrets` and `themes` kinds, derived from the
+  manifest, so they widen, hash and render like any scope. A program entry is the
+  program's whole definition on one line, so a changed definition is a new entry;
+  `Grant::programs` keeps the definitions the host runs.
 
 - **A contract names its permission.** `Contract::PLUGIN` and `Topic::PLUGIN` are
   `Option<Permission>`, `None` by default. `None` means closed, so a channel added
@@ -126,7 +146,16 @@ again. The tiers and the full table are in
   the channel's permission and checks it against the grant before anything is
   routed; a missing permission is `denied`, not a missing import. The
   linker supplies every import to every plugin, and each import checks the grant
-  when called.
+  when called, reading its scope through `Grant` accessors (`hosts`, `endpoints`,
+  `properties`, `program`, `covers`).
+- **A contract declares its narrowing.** `Contract::NARROWED_BY` names the scope
+  kind of its `PLUGIN` permission that narrows it, and `Contract::touches` reads the
+  entries a call reaches from its parameters. The router keeps that extractor beside
+  the permission, `HostCalls::touched` hands the gate the result, and the gate
+  refuses a call whose entries the caller's scope does not cover (`Touched::Malformed`
+  when the payload does not decode). No handler checks a grant of its own; the
+  `plugin_api` snapshot lists `narrowedBy` for each narrowed channel and fails one
+  whose kind its permission does not take.
 
 ## Calling the daemon
 
@@ -209,10 +238,12 @@ as `hestia <plugin> <command>`. Plugin ids may not take a CLI verb
 (`RESERVED_IDS`). A command id is one to three words and the CLI matches the
 longest one; a `words` argument takes the bare words after it.
 
-`server.files.read` is `entry:read` for a plugin, narrowed to the manifest's
-`files`: the handler asks `Plugins::grants_file` for the calling plugin, and the
-list is part of the `Grant`, so it is shown at install and widens an update
-([0092](decisions/0092-a-contract-names-the-permission-a-plugin-needs.md)).
+`server.files.read` is `entry:read` for a plugin, narrowed to the `files` of that
+permission's scope: the contract names `ScopeKind::Files` and the path it reads, the
+gate does the rest, and the list is part of the `Grant`, so it is shown at install
+and widens an update
+([0092](decisions/0092-a-contract-names-the-permission-a-plugin-needs.md),
+[0117](../decisions/0117-a-grant-is-permission-to-scope.md)).
 
 ## Events
 
@@ -375,7 +406,7 @@ the desktop, and the plugin's `settings-changed` export is told when one changes
 
 ## Network
 
-`network:connect` plus a `network` host list gates outbound HTTP. `wasi:http` is
+`network:connect` with its `hosts` gates outbound HTTP. `wasi:http` is
 linked for everyone and each request is decided in `http.rs`: https only, no
 credentials in the URL, no IP literal, the host must match a granted entry (an
 exact host, or `*.domain` for the names one label below it; a wildcard over a
@@ -407,7 +438,7 @@ nothing. The guest sees the failure as `connection-timeout` or `destination-unav
 
 ## Local endpoints
 
-`ipc:connect` plus an `ipc` list reaches local programs over a Unix socket under
+`ipc:connect` with its `endpoints` reaches local programs over a Unix socket under
 the user's runtime and temp directories, or a Windows named pipe
 (`plugins/ipc.rs`, the dialing behind `cfg`). An entry is a relative name whose
 last segment may end in `*`; a bare `*` is refused, so a grant always names what
@@ -666,3 +697,4 @@ plugins the tests build are fixtures
 | [0114](../decisions/0114-an-unhashed-download-is-declared.md) | an unhashed download is declared, and the host is part of the grant |
 | [0115](../decisions/0115-a-plugin-error-is-its-own-typed-enum.md) | a plugin error is its own typed enum, mapped to and from `ErrorInfo` by the host |
 | [0116](../decisions/0116-an-official-provider-shadows-the-builtin.md) | an official provider shadows the built-in of the same id; a dev install can register as official |
+| [0117](../decisions/0117-a-grant-is-permission-to-scope.md) | a grant is permission to scope, driven by one table |

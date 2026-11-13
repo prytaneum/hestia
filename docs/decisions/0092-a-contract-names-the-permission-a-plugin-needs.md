@@ -2,6 +2,8 @@
 
 *Applies to: [The socket boundary](../architecture/wire.md#proto--the-contracts)*
 
+> Superseded in part by [0117](0117-a-grant-is-permission-to-scope.md): the entry files are the `files` scope of `entry:read`, and the narrowing is declared on the contract (`NARROWED_BY`) and checked by the plugin gate, not by a handler.
+
 A plugin's `host.call` can reach any daemon channel ([0091](0091-plugins-are-wasm-components.md)).
 Without a per-channel rule, every channel a later change adds — including one
 that returns a secret — would be reachable by default.

@@ -16,7 +16,9 @@ id = "theme-ember-night"
 name = "Ember Night"
 version = "0.1.0"
 description = "A warm, low-light theme that only overrides Hestia's colour variables."
-permissions = ["ui:css"]
+
+[permissions]
+"ui:css" = {}
 
 [[contributes.themes]]
 id = "ember-night"

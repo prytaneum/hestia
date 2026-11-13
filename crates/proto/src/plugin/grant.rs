@@ -13,7 +13,7 @@ use super::{Program, ScheduleContribution};
 ///
 /// A scope is the only shape a grant has, so validation, widening, the digest
 /// and the approval prompt each walk it once and cover every kind by
-/// construction ([0116](../../../../docs/decisions/0116-a-grant-is-permission-to-scope.md)).
+/// construction ([0117](../../../../docs/decisions/0117-a-grant-is-permission-to-scope.md)).
 #[derive(Serialize, Deserialize, Default, Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
 #[serde(default, rename_all = "camelCase")]

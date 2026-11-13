@@ -1,7 +1,7 @@
 # The manifest
 
 `plugin.toml` sits at the root of the plugin's folder and, packed, at the root of the `.hplugin`. The types are
-`proto::plugin::Manifest` and its parts (`crates/proto/src/plugin.rs`); `Manifest::validate` is what `pack`, `dev` and
+`proto::plugin::Manifest` and its parts (`crates/proto/src/plugin/`); `Manifest::validate` is what `pack`, `dev` and
 install run, and each refusal below is one of its `ManifestError`s. Keys are camelCase; none of the current ones has a
 second word. An unknown key is ignored.
 
@@ -11,7 +11,10 @@ name = "Tunnel demo"
 version = "0.1.0"
 wasm = "plugin.wasm"
 description = "Runs a stand-in tunnel agent while a server is up, to show the process:spawn model."
-permissions = ["process:read", "process:spawn"]
+
+[permissions]
+"process:read" = {}
+"process:spawn" = { programs = ["agent"] }
 
 [[programs]]
 id = "agent"
@@ -44,25 +47,48 @@ package: no leading `/`, no `\`, no `:`, no `.` or `..` segments.
 
 ## Access
 
+`[permissions]` is a table. Each key is a permission name and its value is that permission's **scope**: an inline table
+with an entry list for each kind of scope the permission takes, or `{}` for none. `{}` is the only spelling of "no
+scope" (`true` and a bare list are refused). Which kinds a permission takes, and whether it needs one, is the table in
+[permissions.md](permissions.md); a kind a permission does not take is `ScopeNotAccepted`, a required one left empty is
+`ScopeRequired`, and a kind that is not one of the names below does not parse.
+
+```toml
+[permissions]
+"entry:read" = { files = ["whitelist.json", "ops.json"] }
+"content:read" = {}
+"network:connect" = { hosts = ["api.adoptium.net"], unhashed = ["meta.fabricmc.net"] }
+"process:spawn" = { programs = ["git"] }
+"ipc:connect" = { endpoints = ["discord-ipc-*"] }
+"launch:patch" = { properties = ["my.property"] }
+```
+
+| Scope kind | Taken by | Entries |
+|---|---|---|
+| `hosts` | `network:connect` (required) | a domain name, or `*.domain` for the names one label below it (`*.example.com` reaches `api.example.com`, not `a.b.example.com`). An address is refused (`BadNetworkHost`), and so is a wildcard over a public suffix such as `*.co.uk` or `*.github.io` (`PublicSuffixWildcard`) |
+| `unhashed` | `network:connect` | the `hosts` a flavor may serve a download from without a checksum; each must also be in `hosts` (`BadUnhashedHost`) |
+| `files` | `entry:read` | the files of a server's directory it may read through `server.files.read`, as exact relative paths such as `whitelist.json` or `config/a.json`: no leading `/`, `\`, `:`, `.` or `..` segment, no glob. `server.properties` is refused whatever its case (`BadEntryFile`) |
+| `endpoints` | `ipc:connect` (required) | the local endpoints it reaches, such as `discord-ipc-*` (`BadIpcEndpoint`) |
+| `programs` | `process:spawn` (required) | the ids of the `[[programs]]` it may run; an id the manifest does not define is `ProgramNotDefined` |
+| `properties` | `launch:patch` | the `-D` system property keys a launch hook may set (`BadLaunchProperty`, below) |
+
 | Key | Type | Meaning |
 |---|---|---|
-| `permissions` | list of permission names | see [permissions.md](permissions.md) |
-| `network` | list of hosts | the hosts `network:connect` reaches: a domain name, or `*.domain` for the names one label below it (`*.example.com` reaches `api.example.com`, not `a.b.example.com`). An address is refused (`BadNetworkHost`), and so is a wildcard over a public suffix such as `*.co.uk` or `*.github.io` (`PublicSuffixWildcard`) |
-| `unhashed` | list of hosts | the `network` hosts a flavor may serve a download from without a checksum; each must also be in `network` (`BadUnhashedHost`). Part of the grant, so the approval prompt shows it |
-| `ipc` | list of names | the local endpoints `ipc:connect` reaches, such as `discord-ipc-*`; refused without the permission (`IpcPermissionMissing`) |
-| `files` | list of paths | the files of a server's directory that `entry:read` may read through `server.files.read`, as exact relative paths such as `whitelist.json` or `config/a.json`: no leading `/`, `\`, `:`, `.` or `..` segment, no glob. `server.properties` is refused whatever its case (`BadEntryFile`); refused without `entry:read` (`FilesPermissionMissing`) |
-| `[[programs]]` | tables | the programs `process:spawn` may run; refused without the permission (`ProgramPermissionMissing`) |
-| `[launch] properties` | list of strings | the `-D` system property keys a launch hook may set |
+| `[permissions]` | table of scopes | see above and [permissions.md](permissions.md) |
+| `[[programs]]` | tables | the programs `process:spawn` may run, defined here and granted by naming the id in its `programs` |
 | `[[settings]]` | tables | typed user settings |
 
-Together with `contributes.hooks`, `events`, `schedules` and the theme ids, these form the grant the user approves; an
-update that changes it asks again.
+Together with `contributes.hooks`, `events`, `schedules` and the theme ids, and the secret settings, the permissions with
+their scopes form the grant the user approves; an update that adds a permission or any scope entry asks again. The
+contribution entries are derived, never declared as scope. The old top-level `permissions = [...]`, `network`,
+`unhashed`, `ipc`, `files` and `[launch]` keys are gone: `permissions` as a list does not parse, and the others are
+ignored like any unknown key, granting nothing.
 
 ### `[[programs]]`
 
 | Key | Type | Meaning |
 |---|---|---|
-| `id` | slug | what the SDK's `process` calls name; unique |
+| `id` | slug | what the SDK's `process` calls name, and what `process:spawn` lists in `programs`; unique |
 | `command` | string | a name on `PATH` (1 to 64 of letters, digits, `.`, `_`, `-`, `+`, not starting with `.` or `-`), or, with a `/`, a file inside `data/`; omitted when `java` is set |
 | `java` | integer, 1 to 99 | instead of `command`: the Java major of the runtime Hestia manages, installed when missing and resolved at call time, never pinned. Exactly one of `command` and `java` (`ProgramCommandOrJava`); no `sha256` |
 | `args` | list of strings | patterns: a literal, `*` for one token, a trailing `**` for the rest; `**` anywhere else is refused |
@@ -73,11 +99,11 @@ update that changes it asks again.
 A shell (`sh`, `bash`, `zsh`, `dash`, `fish`, `ksh`, `csh`, `tcsh`, `cmd`, `powershell`, `pwsh`, `wscript`, with or
 without `.exe`) is refused as a command. How programs run is in [processes.md](processes.md).
 
-### `[launch]`
+### Launch properties
 
 ```toml
-[launch]
-properties = ["my.property"]
+[permissions]
+"launch:patch" = { properties = ["my.property"] }
 ```
 
 A key is 1 to 100 characters of letters, digits, `.`, `_` and `-`, and may not be one that loads code or weakens the
@@ -179,8 +205,7 @@ id = "index"
 ```
 
 Source: `plugins/static-index/plugin.toml`. `kind` must be one this host offers (`UnknownProviderKind`) and its
-permissions must be held (`ProviderPermissionMissing`); a kind that needs `network:connect` also needs at least one
-`network` host (`ProviderNeedsHosts`).
+permissions must be held (`ProviderPermissionMissing`); `network:connect` always needs its `hosts` (`ScopeRequired`).
 
 ### Pages
 
@@ -200,7 +225,8 @@ The `dashboard` example declares a `nav` and an `entry` page; the fields are `Pa
 ### Themes
 
 ```toml
-permissions = ["ui:css"]
+[permissions]
+"ui:css" = {}
 
 [[contributes.themes]]
 id = "ember-night"
@@ -215,6 +241,6 @@ without `ui:css` is `ThemeNeedsUiCss`.
 ## Validation, in order
 
 `validate` checks every rule and reports all the mistakes, one per line, in this order: id shape, reserved id, version, `api` against `wasm`, package paths, page icons
-and kinds, `network` hosts, `[launch]` keys, settings, `ipc`, programs and their permission, schedule count and range,
+and kinds, permissions against the scope table (kinds the permission does not take, each entry by its kind's rule, required scopes, unhashed hosts against hosts, program ids against `[[programs]]`), settings, programs, schedule count and range,
 event globs, command ids and arguments, the theme permission, hooks, duplicate or malformed ids across every list, then
 providers. `hestia plugin check`, `pack` and `dev` report the same errors the install would.
