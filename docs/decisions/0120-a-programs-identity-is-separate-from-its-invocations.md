@@ -40,7 +40,8 @@ render the pin and the not-found program from the inspection.
 (`{ name, url }`, `https`), or its command when it declares none. A flavor's description lists the program ids it
 `requires`; when the host lists flavors it checks them now and reports each unmet one on `Flavor.requires`, which the
 CLI refuses before a build and the desktop wizard already shows with its link. A managed Java that cannot be installed
-is a plain failure, not a requirement: the host installs it itself, so the cause is the network or the disk.
+is reported the same way, as `missing-requirement` naming the program's `requires` or `Hestia-managed Java <major>`,
+so a caller handles one outcome for "this program cannot run here"; the cause is in the daemon log.
 
 **The hash is verified when approval is evaluated, not on every call.** A call checks that the pinned file still exists
 and is executable, as before. Hashing a multi-megabyte binary on every `exec` is too slow, and refusing on a hash

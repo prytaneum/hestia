@@ -366,10 +366,13 @@ impl Programs {
         if let Some(major) = java {
             return self.java.executable(major).await.map_err(|error| {
                 tracing::warn!(plugin = %self.plugin, program = %program.id, major, error = %format!("{error:#}"), "managed java unavailable");
-                ProgramError::Failed(format!(
-                    "Hestia-managed Java {major} is not available for `{}`: {error:#}",
-                    program.id
-                ))
+                match &program.requires {
+                    Some(_) => missing(program),
+                    None => ProgramError::Missing {
+                        name: format!("Hestia-managed Java {major}"),
+                        url: None,
+                    },
+                }
             });
         }
         if program.on_path() {

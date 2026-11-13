@@ -1095,10 +1095,11 @@ mod programs {
             json!({ "program": "tool", "args": ["-version"], "javaMajor": 21 }),
         )
         .await;
-        let Err(CallError::Guest(GuestError::Failed(message))) = inside else {
+        let Err(CallError::Guest(GuestError::MissingRequirement { name, url })) = inside else {
             panic!("a major inside the range reaches the managed runtimes: {inside:?}");
         };
-        assert!(message.contains("Java 21"), "{message}");
+        assert_eq!(name, "Hestia-managed Java 21");
+        assert_eq!(url, None);
     }
 
     #[tokio::test]
