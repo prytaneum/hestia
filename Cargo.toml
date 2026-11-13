@@ -85,6 +85,63 @@ split-debuginfo = "unpacked"
 [profile.dev.package."*"]
 debug = "line-tables-only"
 
+# Compiling a plugin runs Cranelift inside the daemon, so an unoptimised
+# compiler makes every debug-build plugin load and plugin test slow. These are
+# the crates on that path; they are rebuilt only when the lockfile moves.
+[profile.dev.package.cranelift-codegen]
+opt-level = 3
+
+[profile.dev.package.cranelift-frontend]
+opt-level = 3
+
+[profile.dev.package.cranelift-entity]
+opt-level = 3
+
+[profile.dev.package.cranelift-bforest]
+opt-level = 3
+
+[profile.dev.package.cranelift-bitset]
+opt-level = 3
+
+[profile.dev.package.cranelift-control]
+opt-level = 3
+
+[profile.dev.package.cranelift-assembler-x64]
+opt-level = 3
+
+[profile.dev.package.regalloc2]
+opt-level = 3
+
+[profile.dev.package.wasmparser]
+opt-level = 3
+
+[profile.dev.package.wasmtime]
+opt-level = 3
+
+[profile.dev.package.wasmtime-environ]
+opt-level = 3
+
+[profile.dev.package.wasmtime-internal-cranelift]
+opt-level = 3
+
+[profile.dev.package.gimli]
+opt-level = 3
+
+[profile.dev.package.object]
+opt-level = 3
+
+[profile.dev.package.hashbrown]
+opt-level = 3
+
+[profile.dev.package.rustc-hash]
+opt-level = 3
+
+[profile.dev.package.smallvec]
+opt-level = 3
+
+[profile.dev.package.bumpalo]
+opt-level = 3
+
 [profile.release]
 lto = "thin"
 codegen-units = 1
