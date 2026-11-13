@@ -211,6 +211,11 @@ pub(super) fn register(on: &mut Channels<'_>) {
             replace,
             id: p.id,
         });
+        // Auto-update checks inside the launch itself; otherwise look now, off
+        // the launch's path, so a found update is reported while it plays.
+        if !ctx.runtime.engine().config().settings().content.auto_update {
+            ctx.runtime.spawn_update_check();
+        }
         Ok(JobStarted { id })
     });
 }

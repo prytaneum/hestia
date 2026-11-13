@@ -40,6 +40,7 @@ pub async fn run_daemon(log_path: std::path::PathBuf) -> i32 {
     crate::runtime::spawn_task_scheduler(runtime.clone());
     crate::runtime::spawn_metrics_sampler(runtime.clone());
     crate::runtime::spawn_network_watcher(runtime.clone());
+    crate::runtime::spawn_update_watcher(runtime.clone());
     let presence = crate::runtime::spawn_presence_updater(runtime.clone());
     let router = Arc::new(make_router());
 

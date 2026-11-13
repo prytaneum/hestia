@@ -3,10 +3,10 @@
 //! instances alike.
 
 use proto::content::{
-    ContentInspect, ContentListResult, ContentProjectGet, ContentResolveUrl, ContentSearch,
-    ContentSources, ContentVersions, EntryContentAdd, EntryContentCheckUpdates, EntryContentEnable,
-    EntryContentList, EntryContentMatches, EntryContentRemove, EntryContentSetVersion,
-    EntryContentUpdate,
+    ContentAvailableUpdates, ContentInspect, ContentListResult, ContentProjectGet,
+    ContentResolveUrl, ContentSearch, ContentSources, ContentVersions, EntryContentAdd,
+    EntryContentCheckUpdates, EntryContentEnable, EntryContentHold, EntryContentList,
+    EntryContentMatches, EntryContentRemove, EntryContentSetVersion, EntryContentUpdate,
 };
 use proto::error::{ErrorInfo, Field};
 use proto::job::JobStarted;
@@ -164,13 +164,31 @@ fn register_entry(on: &mut Channels<'_>) {
 
     on.handle::<EntryContentCheckUpdates, _, _>(|p, ctx| async move {
         let entry = entry_for(&ctx, &p.target, Intent::Read)?;
-        let updates = ctx
+        let checked = ctx
             .runtime
             .engine()
-            .check_entry_updates(entry.entry_ref(), p.kind)
+            .check_entry_updates(entry.entry_ref(), p.kind, p.refresh)
             .await
             .map_err(crate::runtime::engine_error)?;
-        Ok(updates)
+        ctx.runtime.announce_updates(checked.fresh);
+        ctx.runtime.auto_update_server(entry);
+        Ok(checked.updates)
+    });
+
+    on.handle::<ContentAvailableUpdates, _, _>(|_: Empty, ctx| async move {
+        Ok(ctx.runtime.engine().known_updates())
+    });
+
+    on.handle::<EntryContentHold, _, _>(|p, ctx| async move {
+        if p.item.is_empty() {
+            return Err(ErrorInfo::FieldRequired { field: Field::Item });
+        }
+        let (entry, _claim) = entry_held(&ctx, &p.target, Hold::live(JobKind::Content))?;
+        ctx.runtime
+            .engine()
+            .hold_entry_content(entry.entry_ref(), p.kind, &p.item, p.held)
+            .map_err(crate::runtime::engine_error)
+            .map(|()| Empty {})
     });
 
     on.handle::<EntryContentMatches, _, _>(|p, ctx| async move {

@@ -24,6 +24,10 @@ pub enum ContentJob {
         items: Vec<String>,
         path: String,
     },
+    /// Move every item auto-update may touch to its newest version.
+    AutoUpdate {
+        entry: Entry,
+    },
     /// Re-pin one item to a specific published version.
     SetVersion {
         entry: Entry,
@@ -82,6 +86,7 @@ impl ContentJob {
         match self {
             ContentJob::Add { entry, .. }
             | ContentJob::Update { entry, .. }
+            | ContentJob::AutoUpdate { entry }
             | ContentJob::SetVersion { entry, .. } => entry,
         }
     }
@@ -92,10 +97,12 @@ impl ContentJob {
                 EntryKind::Server => "server-content-add",
                 EntryKind::Instance => "instance-content-add",
             },
-            ContentJob::Update { entry, .. } => match entry.kind {
-                EntryKind::Server => "server-content-update",
-                EntryKind::Instance => "instance-content-update",
-            },
+            ContentJob::Update { entry, .. } | ContentJob::AutoUpdate { entry } => {
+                match entry.kind {
+                    EntryKind::Server => "server-content-update",
+                    EntryKind::Instance => "instance-content-update",
+                }
+            }
             ContentJob::SetVersion { entry, .. } => match entry.kind {
                 EntryKind::Server => "server-content-set-version",
                 EntryKind::Instance => "instance-content-set-version",
@@ -129,6 +136,11 @@ impl ContentJob {
                         .await
                 }
             },
+            ContentJob::AutoUpdate { entry } => {
+                engine
+                    .auto_update_entry(entry.entry_ref(), on_progress)
+                    .await
+            }
             ContentJob::SetVersion {
                 entry,
                 kind,
