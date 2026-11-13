@@ -126,7 +126,7 @@ The guest never reads Mojang's metadata, and needs no Mojang host in `hosts`.
 | `jvmArgs`, `gameArgs` | appended after vanilla's | `jvmArgs` only: the flavor's recommended flags |
 | `jar` | | replaces vanilla's server jar; absent runs vanilla's |
 
-A library in `libraries` may be declared rather than spelled out ([0118](../decisions/0118-downloads-are-host-side.md)):
+A library in `libraries` may be declared rather than spelled out ([0119](../decisions/0119-downloads-are-host-side.md)):
 
 ```rust
 LibrarySpec {

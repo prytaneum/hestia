@@ -2,7 +2,7 @@
 //! arguments the rest of the engine knows: a Maven library gets its path, URL
 //! and checksum, and whatever the rules disallow on this machine is dropped.
 //! It runs before vetting, so nothing downstream ever sees an unresolved form
-//! ([0118](../../../../../docs/decisions/0118-downloads-are-host-side.md)).
+//! ([0119](../../../../../docs/decisions/0119-downloads-are-host-side.md)).
 
 use std::collections::{HashMap, HashSet};
 

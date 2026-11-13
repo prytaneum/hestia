@@ -373,7 +373,7 @@ A flavor may answer with only what it adds to the vanilla profile, which the hos
 A flavor artifact needs a sha1 or sha256 the download is verified against, or the `unhashed` marker from a host the
 manifest lists ([0114](../decisions/0114-an-unhashed-download-is-declared.md)).
 
-What a flavor adds may be declarative ([0118](../decisions/0118-downloads-are-host-side.md)). `providers/normalise.rs`
+What a flavor adds may be declarative ([0119](../decisions/0119-downloads-are-host-side.md)). `providers/normalise.rs`
 runs on the guest's `onVanilla` answer before vetting: a library given as a `maven` coordinate plus repository gets its
 name, path, URL and file from the one coordinate parser (`minecraft/maven.rs`), and with `sha1Sidecar` and no checksum
 its `<url>.sha1` is fetched under the plugin's own `Policy` (the sidecar host must be granted; each URL once per

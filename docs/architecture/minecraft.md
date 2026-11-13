@@ -70,7 +70,7 @@ placed by the host ([0110](../decisions/0110-a-flavor-builds-in-its-own-area.md)
 `proto::profile` so the SDK can build them.
 
 Two pieces the vanilla and modloader flavors use are shared with plugins
-([0118](../decisions/0118-downloads-are-host-side.md)). `minecraft/maven.rs` is the one parser of
+([0119](../decisions/0119-downloads-are-host-side.md)). `minecraft/maven.rs` is the one parser of
 `group:artifact:version[:classifier][@ext]`: the path under a repository, the filename and the URL come from it, and
 a part with a character a Maven name lacks, or made only of dots, does not parse. `minecraft/rules.rs` is the one
 evaluator of Mojang `rules` (the last applicable rule decides, no rules allow, a rule naming `features` is skipped, and
