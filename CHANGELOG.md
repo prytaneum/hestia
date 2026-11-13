@@ -9,8 +9,34 @@ that release's notes, rendered as markdown.
 
 ## 1.0.0-beta.3
 
-Every running job in one place, launch progress where you press Play, and
-quieter, clearer notifications.
+Bedrock servers, every running job in one place, launch progress where you
+press Play, and quieter, clearer notifications.
+
+### Bedrock servers
+
+- **Bedrock Dedicated Server.** Host a server for phones, consoles and Windows
+  players: `hestia server create --edition bedrock vanilla <version>`, or pick
+  the edition first in the create wizard on the desktop and the CLI. It runs
+  natively on x86_64 Linux and Windows, with no Java to install or size.
+- **Ports.** A Bedrock server claims its game port and a second UDP port, laid
+  out for the transport its settings select (RakNet or NetherNet). `status` and
+  the server header list each port with its protocol, and status pings the
+  server over RakNet.
+- **Console and players.** The console drives the server over stdin and stays
+  reattachable. Players shows the allowlist and operators; `op` takes a player
+  who is online, and there is no ban list on Bedrock.
+- **Worlds.** `hestia server <name> world list` shows a server's worlds, and
+  `world import ./w.mcworld --use` brings one in while the server is stopped.
+  Backups run while the server is live.
+- **Packs.** Behavior and resource packs install from a local `.mcpack` or
+  `.mcaddon`, or a direct https link (`behaviorpack add`, alias `bp`, and
+  `resourcepack add`). A content source is only offered to the editions it
+  serves.
+- **Settings.** `server.properties` is typed and seeded per edition, so settings
+  follow Bedrock's own rules, and Java-only keys such as `memory` and
+  `jvm-args` are refused with a reason.
+
+### Jobs and notifications
 
 - **Notifications.** A bell in the status bar opens every running job, with
   progress and cancel, and every notification of the session, so a toast you
