@@ -288,25 +288,28 @@ impl Plugins {
         let grant = manifest.grant();
         let resolved = self.pin(&id, &manifest);
         let resolved_digest = approval_digest(&grant, &resolved);
-        let program_paths = match intake.replacing {
+        let (program_paths, approved_by) = match intake.replacing {
             Some(installed) => {
                 self.check_update(installed, &manifest, intake.downloaded)?;
                 let moved = changed_pins(&installed.program_paths, &resolved, &manifest);
                 let widened = grant.widening_over(&installed.grant) != Grant::default();
                 if !widened && moved.is_empty() {
-                    carried_pins(&installed.program_paths, &manifest)
+                    (
+                        carried_pins(&installed.program_paths, &manifest),
+                        installed.approved_by,
+                    )
                 } else if resolved_digest != approve {
                     tracing::warn!(plugin = %id, widened, moved = ?moved, "update refused: it asks for more than was approved");
                     bail!(ErrorInfo::PluginUpdateNeedsApproval { id });
                 } else {
-                    resolved
+                    (resolved, Approver::User)
                 }
             }
             None if resolved_digest != approve => {
                 tracing::warn!(plugin = %id, "install refused: the grant and pins are not the ones approved");
                 bail!(ErrorInfo::PluginApprovalStale);
             }
-            None => resolved,
+            None => (resolved, Approver::User),
         };
         let grant_digest = approval_digest(&grant, &program_paths);
         let (wasm_sha256, theme_sha256) = digest_package(&manifest, &staged, validate)?;
@@ -344,7 +347,7 @@ impl Plugins {
             theme_sha256,
             grant,
             grant_digest,
-            approved_by: Approver::User,
+            approved_by,
             program_paths,
             enabled: installed.as_ref().is_none_or(|record| record.enabled),
             installed_unix: common::now_unix(),
@@ -615,6 +618,70 @@ mod tests {
         let updated = rig.update(&rig.package("1.1.0", ""), "").unwrap();
 
         assert!(updated.record.program_paths.is_empty());
+    }
+
+    fn approved_by_official(rig: &Rig) {
+        let mut record = rig.plugins.get("demo").unwrap();
+        record.approved_by = Approver::Official;
+        rig.plugins.save(&record).unwrap();
+    }
+
+    #[test]
+    fn an_install_is_approved_by_the_user() {
+        let rig = Rig::new(at_a);
+
+        let record = rig.install(&rig.package("1.0.0", ""));
+
+        assert_eq!(record.approved_by, Approver::User);
+    }
+
+    #[test]
+    fn an_update_that_needs_no_approval_keeps_who_approved_the_install() {
+        let rig = Rig::new(at_a);
+        rig.install(&rig.package("1.0.0", ""));
+        approved_by_official(&rig);
+
+        let updated = rig.update(&rig.package("1.1.0", ""), "").unwrap();
+
+        assert_eq!(updated.record.approved_by, Approver::Official);
+        assert_eq!(
+            rig.plugins.get("demo").unwrap().approved_by,
+            Approver::Official
+        );
+    }
+
+    #[test]
+    fn an_update_the_user_approves_is_approved_by_the_user() {
+        let mut rig = Rig::new(at_a);
+        rig.install(&rig.package("1.0.0", ""));
+        approved_by_official(&rig);
+        let next = rig.package("1.1.0", "");
+        rig.resolving(at_b);
+
+        assert!(rig.update(&next, "").is_err());
+        assert_eq!(
+            rig.plugins.get("demo").unwrap().approved_by,
+            Approver::Official
+        );
+        let updated = rig.update(&next, &rig.digest(&next)).unwrap();
+
+        assert_eq!(updated.record.approved_by, Approver::User);
+    }
+
+    #[test]
+    fn a_newly_declared_program_the_user_approves_is_approved_by_the_user() {
+        let rig = Rig::new(at_a);
+        rig.install(&rig.package("1.0.0", ""));
+        approved_by_official(&rig);
+        let widened = rig.package(
+            "1.1.0",
+            "\n[[programs]]\nid = \"curl\"\ncommand = \"curl\"\nargs = [\"**\"]\n",
+        );
+
+        assert!(rig.update(&widened, "").is_err());
+        let updated = rig.update(&widened, &rig.digest(&widened)).unwrap();
+
+        assert_eq!(updated.record.approved_by, Approver::User);
     }
 
     #[test]
