@@ -1,14 +1,14 @@
 use ipc::errors::IpcError;
 use proto::content::{
-    ContentAddSpec, ContentDone, ContentInspect, ContentInspectParams, ContentInspectResult,
-    ContentKind, ContentProject, ContentProjectGet, ContentResolveUrl, ContentSearch,
-    ContentSource, ContentSources, ContentUpdate, ContentVersion, ContentVersions, EntryContentAdd,
-    EntryContentAddParams, EntryContentCheckUpdates, EntryContentCheckUpdatesParams,
-    EntryContentEnable, EntryContentEnableParams, EntryContentList, EntryContentListParams,
-    EntryContentRemove, EntryContentRemoveParams, EntryContentSetVersion,
-    EntryContentSetVersionParams, EntryContentUpdate, EntryContentUpdateParams, InstalledContent,
-    ProjectParams, ResolveUrlParams, ResolvedUrl, SearchQuery, SearchResult, UntrackedFile,
-    VersionQuery,
+    ContentAddSpec, ContentAvailableUpdates, ContentDone, ContentInspect, ContentInspectParams,
+    ContentInspectResult, ContentKind, ContentProject, ContentProjectGet, ContentResolveUrl,
+    ContentSearch, ContentSource, ContentSources, ContentUpdate, ContentVersion, ContentVersions,
+    EntryContentAdd, EntryContentAddParams, EntryContentCheckUpdates,
+    EntryContentCheckUpdatesParams, EntryContentEnable, EntryContentEnableParams, EntryContentHold,
+    EntryContentHoldParams, EntryContentList, EntryContentListParams, EntryContentRemove,
+    EntryContentRemoveParams, EntryContentSetVersion, EntryContentSetVersionParams,
+    EntryContentUpdate, EntryContentUpdateParams, EntryUpdates, InstalledContent, ProjectParams,
+    ResolveUrlParams, ResolvedUrl, SearchQuery, SearchResult, UntrackedFile, VersionQuery,
 };
 use proto::error::EntryTarget;
 use proto::minecraft::ProvisionProgress;
@@ -166,17 +166,45 @@ impl Content<'_> {
         Ok(())
     }
 
-    /// Which platform-sourced items of the kind have a newer compatible version.
+    /// Which platform-sourced items of the kind have a newer compatible
+    /// version; `refresh` asks upstream even inside the daemon's TTL.
     pub async fn check_updates(
         &self,
         target: &EntryTarget,
         kind: ContentKind,
+        refresh: bool,
     ) -> Result<Vec<ContentUpdate>, IpcError> {
         let params = EntryContentCheckUpdatesParams {
             target: target.clone(),
             kind,
+            refresh,
         };
         self.session.call::<EntryContentCheckUpdates>(&params).await
+    }
+
+    /// Every entry's updates as the daemon's earlier checks left them.
+    pub async fn available_updates(&self) -> Result<Vec<EntryUpdates>, IpcError> {
+        self.session
+            .call::<ContentAvailableUpdates>(&proto::Empty {})
+            .await
+    }
+
+    /// Hold one installed item at its version, or release it.
+    pub async fn hold(
+        &self,
+        target: &EntryTarget,
+        kind: ContentKind,
+        item: &str,
+        held: bool,
+    ) -> Result<(), IpcError> {
+        let params = EntryContentHoldParams {
+            target: target.clone(),
+            kind,
+            item: item.to_string(),
+            held,
+        };
+        self.session.call::<EntryContentHold>(&params).await?;
+        Ok(())
     }
 
     /// Re-pin one item to a specific published `version` (id or number).
