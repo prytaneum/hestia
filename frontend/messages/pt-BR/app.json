@@ -285,6 +285,7 @@
       "close": "Dispensar notificação",
       "content_added": "Conteúdo adicionado a {name}",
       "content_updated": "Conteúdo de {name} atualizado",
+      "content_updates_found": "{count} atualização(ões) de conteúdo disponível(is)",
       "created": "{name} criado",
       "failed_count": "{failed} de {total} falharam",
       "failed_only": "{failed} falharam",

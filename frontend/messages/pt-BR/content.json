@@ -13,7 +13,6 @@
       "subtitle": "Descubra mods, pacotes e shaders",
       "no_sources": "Nenhuma fonte online tem conteúdo para a edição deste servidor. Modrinth e CurseForge cobrem apenas Java. Importe um arquivo de pacote."
     },
-    "drop": "Solte para adicionar a {name}",
     "change_version": {
       "action": "Trocar versão…",
       "description": "Escolha qualquer versão publicada, de qualquer fonte que tenha este arquivo; a troca é aplicada no próximo início.",
@@ -27,12 +26,15 @@
     "current_version": "atual",
     "dependencies": "Dependências ({count})",
     "disabled": "Desativado",
+    "drop": "Solte para adicionar a {name}",
+    "held": "Fixado",
     "hint": {
       "content": "Escolha o conteúdo para instalar.",
       "review": "Revise e instale.",
       "target": "Escolha onde este conteúdo será instalado.",
       "worlds": "Escolha os mundos que receberão este datapack."
     },
+    "hold": "Fixar nesta versão",
     "import_file": "Solte arquivos locais ou clique para escolher",
     "import_file_hint": "Arquivos reconhecidos continuam atualizáveis; dependências não são instaladas.",
     "install_title": "Instalar {name}",
@@ -84,6 +86,7 @@
     "none_of_kind": "Nenhum {kind} instalado.",
     "none_selected": "nenhum selecionado",
     "pinned_version": "Versão fixada",
+    "release": "Permitir atualizar",
     "remove": {
       "description": "{name} será removido. Seus arquivos serão excluídos; a mudança se aplica na próxima inicialização.",
       "from_world_description": "{name} será removido de {world}. Os outros mundos o mantêm; a mudança vale no próximo início.",

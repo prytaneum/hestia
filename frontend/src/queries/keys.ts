@@ -154,6 +154,7 @@ export const keys = {
     url: (url: string) => [...keys.content.all, 'url', url] as const,
     versions: (query: Partial<VersionQuery>) =>
       [...keys.content.all, 'versions', query] as const,
+    available: () => [...keys.content.all, 'available-updates'] as const,
   },
   skins: {
     all: ['skins'] as const,

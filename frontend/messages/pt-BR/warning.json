@@ -2,6 +2,7 @@
   "$schema": "https://inlang.com/schema/inlang-message-format",
   "warning": {
     "hint": {
+      "content_not_updated": "Atualize-os você mesmo pela lista de conteúdo da entrada para ver o motivo, ou fixe um para mantê-lo onde está.",
       "document_quarantined": "Nada foi apagado — o arquivo está em {path}. Atualize o hestia se ele veio de uma versão mais nova, ou apague-o quando já tiver tirado dele o que precisa.",
       "export_files_embedded": "Nada a fazer, a menos que queira publicar o pacote — nesse caso, reinstale esses arquivos a partir de uma fonte.",
       "import_content_missing": "Instale-os novamente a partir de uma fonte, se ainda os quiser.",
@@ -11,13 +12,14 @@
       "modpack_overrides_kept": "Exclua um arquivo no diretório do jogo para usar a versão do pacote na próxima atualização.",
       "pack_not_moved": "Os mods dele podem não carregar. Mova o pacote você mesmo quando uma versão para esta for publicada.",
       "properties_schema_missing": "Qualquer chave é aceita até que ele possa ser derivado novamente, então confira a grafia você mesmo. Atualizar o servidor o deriva de novo.",
-      "server_not_restarted": "Inicie o servidor você mesmo depois de corrigir a causa.",
       "server_list_in_use": "Feche o jogo e faça a mudança de novo, ou adicione o servidor pela tela multijogador do jogo.",
+      "server_not_restarted": "Inicie o servidor você mesmo depois de corrigir a causa.",
       "session_not_verified": "O modo um jogador funciona normalmente; inicie novamente quando estiver online para jogar multijogador.",
       "sync_unit_skipped": "Verifique as permissões dos arquivos da instância e inicie novamente.",
       "sync_unit_unsupported": "Esta instância mantém a própria cópia. Compartilhar {unit} exige o Minecraft {requires} ou mais recente."
     },
     "kind": {
+      "content_not_updated": "{count} item(ns) não puderam ser atualizados antes de iniciar e mantiveram a versão.",
       "document_quarantined": "{document} não pôde ser lido e foi posto de lado: {detail}",
       "export_files_embedded": "{count} arquivo(s) não tinham download para referenciar e foram embutidos no arquivo.",
       "import_content_missing": "{count} arquivo(s) não estavam no arquivo importado e não tinham download, então ficaram de fora.",
@@ -27,8 +29,8 @@
       "modpack_overrides_kept": "{count} arquivo(s) que você editou foram mantidos em vez dos do modpack.",
       "pack_not_moved": "O modpack “{pack}” {versionNumber} é feito para o Minecraft {packGameVersion} e não tem versão para {target}.",
       "properties_schema_missing": "'{name}' não tem esquema de propriedades, então suas chaves de server.properties não podem ser verificadas.",
-      "server_not_restarted": "“{server}” foi parado para a atualização e não pôde ser iniciado de novo: {detail}",
       "server_list_in_use": "“{instance}” tem {sessions} sessão(ões) aberta(s), então o jogo em execução vai sobrescrever esta mudança na lista multijogador ao sair.",
+      "server_not_restarted": "“{server}” foi parado para a atualização e não pôde ser iniciado de novo: {detail}",
       "session_not_verified": "Não foi possível acessar a Microsoft para renovar {account}, então esta sessão usa o login armazenado.",
       "sync_unit_skipped": "{unit} não pôde ser sincronizado: {detail}",
       "sync_unit_unsupported": "“{instance}” não pode compartilhar {unit}: isso exige o Minecraft {requires} ou mais recente."

@@ -180,5 +180,24 @@ export function contentChannels(): ChannelHandlers {
     'content.matches': () => [],
 
     'content.check_updates': (p) => content.updates(resolve(p), kindOf(p)),
+
+    'content.available_updates': () =>
+      content.available([
+        ...entries.listServers().map((s) => ({
+          kind: 'server' as const,
+          id: s.id,
+          name: s.name,
+        })),
+        ...entries.listInstances().map((i) => ({
+          kind: 'instance' as const,
+          id: i.id,
+          name: i.name,
+        })),
+      ]),
+
+    'content.hold': (p) => {
+      content.setHeld(resolve(p), kindOf(p), str(p, 'item'), p.held === true);
+      return ok();
+    },
   };
 }

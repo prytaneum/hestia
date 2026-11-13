@@ -9,6 +9,8 @@ import type {
   ContentProject,
   ContentUpdate,
   ContentVersion,
+  EntryKind,
+  EntryUpdates,
   InstalledContent,
   ResolvedUrl,
   SearchResult,
@@ -280,6 +282,7 @@ function installed(
     origin,
     enabled: true,
     disabledWorlds: [],
+    held: false,
   };
 }
 
@@ -373,6 +376,7 @@ export function installFile(
     origin: '',
     enabled: true,
     disabledWorlds: [],
+    held: false,
   };
   pool(id).push(item);
   return item;
@@ -472,6 +476,9 @@ export function updates(id: string, kind: ContentKind): ContentUpdate[] {
     .map((item, index) => {
       const latest = versionsOf(item.projectId)[0];
       return {
+        kind: item.kind,
+        title: item.title,
+        held: item.held,
         filename: item.filename,
         projectId: item.projectId,
         currentVersionId: item.versionId,
@@ -481,6 +488,33 @@ export function updates(id: string, kind: ContentKind): ContentUpdate[] {
         updatable: index % 2 === 1,
       };
     });
+}
+
+/** Every entry's updates, for `content.available_updates`. */
+export function available(
+  entries: { kind: EntryKind; id: string; name: string }[],
+): EntryUpdates[] {
+  return entries.flatMap(({ kind, id, name }) => {
+    const kinds = [...new Set(pool(id).map((item) => item.kind))];
+    const found = kinds
+      .flatMap((k) => updates(id, k))
+      .filter((u) => u.updatable);
+    return found.length > 0
+      ? [{ target: { kind, entry: id }, name, updates: found }]
+      : [];
+  });
+}
+
+export function setHeld(
+  id: string,
+  kind: ContentKind,
+  ref: string,
+  held: boolean,
+): void {
+  const item = pool(id).find(
+    (candidate) => candidate.kind === kind && isItem(candidate, ref),
+  );
+  if (item) item.held = held;
 }
 
 /** Drop everything a pack installed, for `*.modpack.remove`. */

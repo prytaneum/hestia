@@ -285,6 +285,7 @@
       "close": "Dismiss notification",
       "content_added": "Content added to {name}",
       "content_updated": "Content in {name} updated",
+      "content_updates_found": "{count} content update(s) available",
       "created": "{name} created",
       "failed_count": "{failed} of {total} failed",
       "failed_only": "{failed} failed",

@@ -136,6 +136,8 @@ export interface ContentHandlers {
   /** Picks a file and updates a local item from it. */
   onUpdateFromFile: (item: InstalledContent) => void;
   onSetVersion: (item: InstalledContent, version: ContentVersion) => void;
+  /** Keeps an item at its version, out of update-all and auto-update. */
+  onHold: (item: InstalledContent, held: boolean) => void;
   /** The batch verbs, run one kind at a time. */
   onRemoveMany: (rows: InstalledContent[]) => void;
   onUpdateMany: (rows: InstalledContent[]) => void;

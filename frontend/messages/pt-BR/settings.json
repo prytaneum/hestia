@@ -133,6 +133,11 @@
       "restart_required": "Atualização instalada — reinicie o Hestia para usá-la",
       "title": "Atualizações",
       "up_to_date": "O Hestia está atualizado"
+    },
+    "content_updates": {
+      "auto_update_description": "Aplica atualizações de mods, pacotes e shaders ao iniciar uma instância e a um servidor parado assim que forem encontradas. Itens fixados e o conteúdo do próprio modpack não são alterados.",
+      "auto_update_label": "Atualizar conteúdo automaticamente",
+      "section": "Atualizações de conteúdo"
     }
   }
 }

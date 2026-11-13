@@ -190,6 +190,7 @@
       "session_title": "Stop the session from {time}?",
       "sessions_description": "All {count} running sessions are closed. Unsaved progress may be lost.",
       "title": "Stop {name}?"
-    }
+    },
+    "updates_available": "{count} content update(s) available"
   }
 }

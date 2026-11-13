@@ -24,6 +24,7 @@ export type SettingsGroup =
   | 'java-defaults'
   | 'java-runtimes'
   | 'content-sources'
+  | 'content-updates'
   | 'modpack'
   | 'instance-behaviour'
   | 'sync'
@@ -141,6 +142,15 @@ const INDEX: Entry[] = [
     tab: 'content',
     group: 'content-sources',
     text: text(m['settings.curseforge_key'], m['settings.curseforge_key_hint']),
+  },
+  {
+    id: 'auto-update',
+    tab: 'content',
+    group: 'content-updates',
+    text: text(
+      m['settings.content_updates.auto_update_label'],
+      m['settings.content_updates.auto_update_description'],
+    ),
   },
   {
     id: 'modpack',

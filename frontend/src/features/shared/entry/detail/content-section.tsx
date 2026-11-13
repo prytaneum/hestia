@@ -69,6 +69,7 @@ export function ContentSection({
   const pack = useQuery(modpackQueries.status(entry.kind, id));
 
   const enable = useMutation(entryContentMutations.enable(entry.kind, id));
+  const hold = useMutation(entryContentMutations.hold(entry.kind, id));
   const remove = useMutation(entryContentMutations.remove(entry.kind, id));
   const update = useJobMutation(entryContentMutations.update(entry.kind, id));
   const setVersion = useJobMutation(
@@ -115,6 +116,8 @@ export function ContentSection({
         version: version.id,
         source: version.source,
       }),
+    onHold: (item, held) =>
+      hold.mutate({ kind: item.kind, item: installedRef(item), held }),
     onRemoveMany: (rows) => void runBatches(rows, remove.mutateAsync),
     onUpdateMany: (rows) => void runBatches(rows, update.mutateAsync),
   };
@@ -163,12 +166,18 @@ function ContentSectionView({
     ),
   });
   const items = lists.flatMap((q) => q.data?.items ?? []);
-  const updatable = new Set(
+  // filename → the version it can move to.
+  const updatable = new Map(
     updates.flatMap((q) =>
-      (q.data ?? []).filter((u) => u.updatable).map((u) => u.filename),
+      (q.data ?? [])
+        .filter((u) => u.updatable)
+        .map((u) => [u.filename, u.latestVersionNumber] as const),
     ),
   );
-  const checking = updates.some((q) => q.isFetching);
+  const refresh = useMutation(
+    entryContentMutations.refreshUpdates(entry.kind, entry.id),
+  );
+  const checking = refresh.isPending || updates.some((q) => q.isFetching);
 
   // null = not selecting; a set of row keys while the select mode is active.
   const [selected, setSelected] = useState<Set<string> | null>(null);
@@ -196,9 +205,10 @@ function ContentSectionView({
   };
 
   // A disabled item is not in the game's load dirs, so it is not what an update
-  // is for; the rows in view are the ones a bulk action may touch.
+  // is for, and a held one is kept where it is; the rows in view are the ones a
+  // bulk action may touch.
   const updatableRows = filtered.filter(
-    (c) => c.enabled && updatable.has(c.filename),
+    (c) => c.enabled && !c.held && updatable.has(c.filename),
   );
   const selectedRows = items.filter((c) => selected?.has(rowKey(c)));
   const selectedUpdatable = selectedRows.filter(
@@ -268,7 +278,7 @@ function ContentSectionView({
                     data-icon="inline-start"
                     disabled={checking || offline}
                     onClick={() => {
-                      for (const q of updates) void q.refetch();
+                      for (const k of kinds) refresh.mutate(k);
                     }}
                   >
                     <ArrowsClockwiseIcon weight="bold" />

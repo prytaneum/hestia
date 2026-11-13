@@ -33,6 +33,7 @@ import type { ContentMatch } from "./generated/ContentMatch";
 import type { ContentProject } from "./generated/ContentProject";
 import type { ContentSource } from "./generated/ContentSource";
 import type { ContentUpdate } from "./generated/ContentUpdate";
+import type { ContentUpdatesFoundEvent } from "./generated/ContentUpdatesFoundEvent";
 import type { ContentVersion } from "./generated/ContentVersion";
 import type { DaemonStatusResult } from "./generated/DaemonStatusResult";
 import type { DaemonStopParams } from "./generated/DaemonStopParams";
@@ -46,6 +47,7 @@ import type { EntryConfigValue } from "./generated/EntryConfigValue";
 import type { EntryContentAddParams } from "./generated/EntryContentAddParams";
 import type { EntryContentCheckUpdatesParams } from "./generated/EntryContentCheckUpdatesParams";
 import type { EntryContentEnableParams } from "./generated/EntryContentEnableParams";
+import type { EntryContentHoldParams } from "./generated/EntryContentHoldParams";
 import type { EntryContentListParams } from "./generated/EntryContentListParams";
 import type { EntryContentMatchesParams } from "./generated/EntryContentMatchesParams";
 import type { EntryContentRemoveParams } from "./generated/EntryContentRemoveParams";
@@ -63,6 +65,7 @@ import type { EntryRenameParams } from "./generated/EntryRenameParams";
 import type { EntryRenamed } from "./generated/EntryRenamed";
 import type { EntryStopParams } from "./generated/EntryStopParams";
 import type { EntryTarget } from "./generated/EntryTarget";
+import type { EntryUpdates } from "./generated/EntryUpdates";
 import type { EntryVersionsParams } from "./generated/EntryVersionsParams";
 import type { EventsSubscribeParams } from "./generated/EventsSubscribeParams";
 import type { EventsSubscribeResult } from "./generated/EventsSubscribeResult";
@@ -204,8 +207,10 @@ export interface Channels {
   "config.list": { params: Empty; result: ConfigListResult };
   "config.set": { params: ConfigSetParams; result: Empty };
   "content.add": { params: Omit<Partial<EntryContentAddParams>, "target" | "items"> & { "target"?: Partial<EntryTarget>; "items"?: Array<Partial<ContentAddItem>> }; result: JobStarted };
+  "content.available_updates": { params: Empty; result: Array<EntryUpdates> };
   "content.check_updates": { params: Omit<Partial<EntryContentCheckUpdatesParams>, "target"> & { "target"?: Partial<EntryTarget> }; result: Array<ContentUpdate> };
   "content.enable": { params: Omit<Partial<EntryContentEnableParams>, "target"> & { "target"?: Partial<EntryTarget> }; result: Empty };
+  "content.hold": { params: Omit<Partial<EntryContentHoldParams>, "target"> & { "target"?: Partial<EntryTarget> }; result: Empty };
   "content.inspect": { params: Partial<ContentInspectParams>; result: ContentInspectResult };
   "content.list": { params: Omit<Partial<EntryContentListParams>, "target"> & { "target"?: Partial<EntryTarget> }; result: ContentListResult };
   "content.matches": { params: Omit<Partial<EntryContentMatchesParams>, "target"> & { "target"?: Partial<EntryTarget> }; result: Array<ContentMatch> };
@@ -352,6 +357,7 @@ export type JobEvents = {
 
 export interface Topics {
   "changed": ChangedEvent;
+  "content.updates_found": ContentUpdatesFoundEvent;
   "job": JobEvents;
   "net.state": NetworkStatus;
   "process.exit": ProcessExitEvent;

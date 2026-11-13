@@ -33,4 +33,9 @@ enabled: boolean,
  * For datapacks: worlds it targets but is not loaded in — the per-world
  * twin of `enabled`. Empty for the other kinds.
  */
-disabledWorlds: Array<string>, };
+disabledWorlds: Array<string>, 
+/**
+ * Kept at its version: "update all" and auto-update pass it by. Choosing
+ * a version sets it; updating the item by name clears it.
+ */
+held: boolean, };

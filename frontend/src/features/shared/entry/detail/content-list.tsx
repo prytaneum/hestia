@@ -3,6 +3,8 @@ import {
   DotsThreeIcon,
   FileArrowUpIcon,
   GlobeIcon,
+  LockSimpleIcon,
+  LockSimpleOpenIcon,
   PackageIcon,
   ProhibitIcon,
   PuzzlePieceIcon,
@@ -56,7 +58,8 @@ export function ContentListResult({
   onToggleSelect,
 }: {
   items: InstalledContent[];
-  updatable: Set<string>;
+  /** filename → the version it can move to. */
+  updatable: Map<string, string>;
   selected: Set<string> | null;
   onToggleSelect: (key: string) => void;
 }) {
@@ -87,7 +90,7 @@ export function ContentListResult({
           <ContentRow
             key={rowKey(c)}
             item={c}
-            updatable={updatable.has(c.filename)}
+            latest={updatable.get(c.filename)}
             // Only an instance has many worlds to scope; a server has one, so
             // its datapack row stays a plain row.
             worlds={
@@ -145,14 +148,15 @@ function OriginBadge({
 
 function ContentRow({
   item,
-  updatable,
+  latest,
   worlds,
   onChangeVersion,
   checked,
   onToggle,
 }: {
   item: InstalledContent;
-  updatable: boolean;
+  /** The version it can move to; absent when it is current. */
+  latest?: string;
   /** The worlds this row can scope to; empty for everything but a datapack. */
   worlds: string[];
   onChangeVersion: () => void;
@@ -162,6 +166,7 @@ function ContentRow({
 }) {
   const { handlers, packName, busy } = useContent();
   const [removing, setRemoving] = useState(false);
+  const updatable = latest !== undefined;
   const selecting = checked !== undefined;
   const Icon = contentIcon(item.kind);
   // A local-file import has no project page to open.
@@ -182,10 +187,22 @@ function ContentRow({
               {m['content.disabled']()}
             </Badge>
           )}
+          {item.held && (
+            <Badge variant="outline" className="shrink-0">
+              <LockSimpleIcon />
+              {m['content.held']()}
+            </Badge>
+          )}
           <OriginBadge origin={item.origin} packName={packName} />
         </div>
         <div className="truncate font-mono text-[11px] text-muted-foreground">
           {contentKindLabel[item.kind]()} · {item.source} · {item.versionNumber}
+          {updatable && (
+            <span className="text-primary">
+              {' → '}
+              {latest}
+            </span>
+          )}
         </div>
       </div>
     </>
@@ -228,7 +245,7 @@ function ContentRow({
             <div className="flex min-w-0 flex-1 items-center gap-3">{body}</div>
           )}
 
-          {updatable && item.enabled && (
+          {updatable && item.enabled && !item.held && (
             <Button
               size="icon-sm"
               variant="outline"
@@ -275,6 +292,13 @@ function ContentRow({
                   <DropdownMenuItem disabled={busy} onClick={onChangeVersion}>
                     <SwapIcon />
                     {m['content.change_version.action']()}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    disabled={busy}
+                    onClick={() => handlers.onHold(item, !item.held)}
+                  >
+                    {item.held ? <LockSimpleOpenIcon /> : <LockSimpleIcon />}
+                    {item.held ? m['content.release']() : m['content.hold']()}
                   </DropdownMenuItem>
                 </>
               )}

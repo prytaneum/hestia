@@ -13,7 +13,7 @@ const settings: Tree = {
   home: HOME,
   autostart: false,
   defaults: { memory: '4G', 'jvm-args': '' },
-  content: { 'curseforge-key': '' },
+  content: { 'curseforge-key': '', 'auto-update': false },
   discord: { enabled: true },
   instance: { 'multi-session': false },
   modpack: {

@@ -7,6 +7,7 @@ import {
   SavedInput,
   Setting,
   SettingsSection,
+  SwitchRow,
 } from '@/features/settings/components';
 import { useConfig } from '@/features/settings/use-config';
 import { m } from '@/paraglide/messages.js';
@@ -25,6 +26,23 @@ export function ContentTab() {
           <CurseForgeKey
             value={entries.content?.['curseforge-key'] ?? ''}
             onSave={(value) => save('content.curseforge-key', value)}
+          />
+        </Setting>
+      </SettingsSection>
+
+      <SettingsSection
+        group="content-updates"
+        legend={m['settings.content_updates.section']()}
+      >
+        <Setting id="auto-update">
+          <SwitchRow
+            id="auto-update"
+            label={m['settings.content_updates.auto_update_label']()}
+            description={m[
+              'settings.content_updates.auto_update_description'
+            ]()}
+            checked={entries.content?.['auto-update'] ?? false}
+            onChange={(checked) => commit('content.auto-update', checked)}
           />
         </Setting>
       </SettingsSection>

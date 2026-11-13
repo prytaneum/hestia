@@ -190,6 +190,7 @@
       "session_title": "Parar a sessão das {time}?",
       "sessions_description": "Todas as {count} sessões em execução serão fechadas. Progresso não salvo pode ser perdido.",
       "title": "Parar {name}?"
-    }
+    },
+    "updates_available": "{count} atualização(ões) de conteúdo disponível(is)"
   }
 }

@@ -120,13 +120,30 @@ describe('the daemon-topic invalidation map', () => {
           failures: [],
         },
       }),
-    ).toEqual([keys.servers.all, keys.instances.all]);
+    ).toEqual([
+      keys.servers.all,
+      keys.instances.all,
+      keys.content.available(),
+    ]);
   });
 
   it('refreshes both entry kinds when another client changed an entry', () => {
     expect(
       invalidationKeys({ topic: 'changed', payload: { scope: 'entries' } }),
-    ).toEqual([keys.servers.all, keys.instances.all]);
+    ).toEqual([
+      keys.servers.all,
+      keys.instances.all,
+      keys.content.available(),
+    ]);
+  });
+
+  it('refreshes the known updates when a check found new ones', () => {
+    expect(
+      invalidationKeys({
+        topic: 'content.updates_found',
+        payload: { fresh: 2 },
+      }),
+    ).toEqual([keys.content.available()]);
   });
 
   it('refreshes the skins that follow a changed account', () => {

@@ -2,6 +2,7 @@
   "$schema": "https://inlang.com/schema/inlang-message-format",
   "warning": {
     "hint": {
+      "content_not_updated": "Update them yourself from the entry's content list to see why, or hold one to keep it where it is.",
       "document_quarantined": "Nothing was deleted — the file is at {path}. Update hestia if it came from a newer version, or delete it once you have what you need from it.",
       "export_files_embedded": "Nothing to do unless you mean to publish the pack — reinstall those files from a source first if you do.",
       "import_content_missing": "Install them again from a source if you still want them.",
@@ -11,13 +12,14 @@
       "modpack_overrides_kept": "Delete a file under the game directory to take the pack's version of it at the next update.",
       "pack_not_moved": "Its mods may not load. Move the pack yourself once a build for this version is published.",
       "properties_schema_missing": "Any key is accepted until it can be derived again, so check spelling yourself. Updating the server re-derives it.",
-      "server_not_restarted": "Start the server yourself once the cause is fixed.",
       "server_list_in_use": "Close the game and make the change again, or add the server from the in-game multiplayer screen instead.",
+      "server_not_restarted": "Start the server yourself once the cause is fixed.",
       "session_not_verified": "Singleplayer works as usual; launch again once you are back online to play multiplayer.",
       "sync_unit_skipped": "Check the instance's file permissions, then launch it again.",
       "sync_unit_unsupported": "This instance keeps its own copy. Sharing {unit} needs Minecraft {requires} or newer."
     },
     "kind": {
+      "content_not_updated": "{count} item(s) could not be updated before the launch and kept their version.",
       "document_quarantined": "{document} could not be read and was set aside: {detail}",
       "export_files_embedded": "{count} file(s) had no download to reference and were embedded in the archive.",
       "import_content_missing": "{count} file(s) were not in the archive and had no download, so they were left out.",
@@ -27,8 +29,8 @@
       "modpack_overrides_kept": "{count} file(s) you had edited were kept instead of the modpack's.",
       "pack_not_moved": "The modpack “{pack}” {versionNumber} is built for Minecraft {packGameVersion} and has no version for {target}.",
       "properties_schema_missing": "'{name}' has no property schema, so its server.properties keys cannot be checked.",
-      "server_not_restarted": "“{server}” was stopped for the update and could not be started again: {detail}",
       "server_list_in_use": "“{instance}” has {sessions} session(s) open, so the running game will overwrite this change to the multiplayer list when it exits.",
+      "server_not_restarted": "“{server}” was stopped for the update and could not be started again: {detail}",
       "session_not_verified": "Could not reach Microsoft to refresh {account}, so this session runs on the stored sign-in.",
       "sync_unit_skipped": "{unit} could not be synced: {detail}",
       "sync_unit_unsupported": "“{instance}” cannot share {unit}: that needs Minecraft {requires} or newer."

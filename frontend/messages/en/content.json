@@ -13,7 +13,6 @@
       "subtitle": "Discover mods, packs and shaders",
       "no_sources": "No online source has content for this server's edition. Modrinth and CurseForge cover Java only. Import a pack file instead."
     },
-    "drop": "Drop to add to {name}",
     "change_version": {
       "action": "Change version…",
       "description": "Pick any published version, from any source that carries this file; the swap applies at the next launch.",
@@ -27,12 +26,15 @@
     "current_version": "current",
     "dependencies": "Dependencies ({count})",
     "disabled": "Disabled",
+    "drop": "Drop to add to {name}",
+    "held": "Held",
     "hint": {
       "content": "Choose the content to install.",
       "review": "Review and install.",
       "target": "Choose where this content is installed.",
       "worlds": "Choose the worlds to add this datapack to."
     },
+    "hold": "Hold at this version",
     "import_file": "Drop local files, or click to choose",
     "import_file_hint": "Recognized files stay updatable; dependencies are not installed.",
     "install_title": "Install {name}",
@@ -84,6 +86,7 @@
     "none_of_kind": "No {kind} installed.",
     "none_selected": "none selected",
     "pinned_version": "Pinned version",
+    "release": "Let it update",
     "remove": {
       "description": "{name} will be removed. Its files are deleted; the change applies at the next start.",
       "from_world_description": "{name} will be removed from {world}. Other worlds keep it; the change applies at the next launch.",
