@@ -74,6 +74,7 @@
       "offline_mode": "O Hestia está em modo offline. Desative nas Configurações para voltar a ficar online.",
       "plugin_approval_stale": "As permissões do plugin mudaram desde que você as revisou.",
       "plugin_update_needs_approval": "'{id}' precisa de aprovação para as permissões que pede antes de atualizar.",
+      "update_plugins_incompatible": "Esta atualização muda a API de plugins (versão {api}) e não há versão compatível de: {plugins}. Nada foi baixado.",
       "plugin_build_unavailable": "Não é possível instalar '{id}': {detail}.",
       "plugin_call_failed": "O plugin '{id}' falhou: {detail}",
       "plugin_command_invalid": "Comando '{command}' do plugin '{plugin}': {detail}",

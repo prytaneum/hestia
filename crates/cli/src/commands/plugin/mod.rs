@@ -329,6 +329,7 @@ fn state_label(state: PluginState) -> &'static str {
         PluginState::Disabled => "disabled",
         PluginState::Failed => "failed",
         PluginState::NeedsApproval => "needs approval",
+        PluginState::NeedsUpdate => "needs update",
     }
 }
 

@@ -1114,7 +1114,18 @@ fn semver_core(version: &str) -> Option<(u64, u64, u64)> {
 
 /// Whether a build written against caret requirement `api` runs on this host.
 pub fn api_supported(api: &str) -> bool {
-    check_api(api).is_ok()
+    api_supported_by(api, API_VERSION)
+}
+
+/// Whether a build written against caret requirement `api` runs on a host
+/// exposing plugin API `host`, such as the one a release is about to bring.
+pub fn api_supported_by(api: &str, host: &str) -> bool {
+    check_api_against(api, host).is_ok()
+}
+
+/// Whether `version` is a plugin API version a host can expose.
+pub fn is_api_version(version: &str) -> bool {
+    semver_core(version).is_some()
 }
 
 /// Orders versions by `major.minor.patch`; one that does not parse sorts first.
@@ -1125,18 +1136,23 @@ pub fn compare_versions(a: &str, b: &str) -> std::cmp::Ordering {
 /// Caret semantics: a guest built against `^N.M.P` runs on a host `N.m.p` at
 /// or above `N.M.P`. A newer guest may import something the host lacks.
 fn check_api(api: &str) -> Result<(), ManifestError> {
+    check_api_against(api, API_VERSION)
+}
+
+fn check_api_against(api: &str, host_version: &str) -> Result<(), ManifestError> {
     let required = api
         .strip_prefix('^')
         .and_then(semver_core)
         .ok_or_else(|| ManifestError::BadApi(api.to_string()))?;
-    let host = semver_core(API_VERSION).expect("API_VERSION is a semantic version");
+    let mismatch = || ManifestError::ApiMismatch {
+        required: api.to_string(),
+        host: host_version.to_string(),
+    };
+    let host = semver_core(host_version).ok_or_else(mismatch)?;
     if required.0 == host.0 && required <= host {
         Ok(())
     } else {
-        Err(ManifestError::ApiMismatch {
-            required: api.to_string(),
-            host: API_VERSION.to_string(),
-        })
+        Err(mismatch())
     }
 }
 
@@ -1158,6 +1174,9 @@ pub enum PluginState {
     Failed,
     #[default]
     NeedsApproval,
+    /// Written against a plugin API this Hestia no longer exposes; it stays off
+    /// until a build for the current API replaces it.
+    NeedsUpdate,
 }
 
 #[derive(Serialize, Deserialize, Default, Debug, Clone, Copy, PartialEq, Eq)]

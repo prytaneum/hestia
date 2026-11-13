@@ -514,6 +514,12 @@ pub enum ErrorInfo {
     PluginUpdateNeedsApproval {
         id: String,
     },
+    /// A release changes the plugin API and an installed official plugin has no
+    /// build for it, so the update was not downloaded.
+    UpdatePluginsIncompatible {
+        api: String,
+        plugins: Vec<String>,
+    },
     /// A developer-only call while `developer` is off.
     DeveloperModeOff,
     /// No configured repository matches `reference`.
@@ -1005,6 +1011,12 @@ impl fmt::Display for ErrorInfo {
             RepositoryOfficial { repository } => {
                 write!(f, "'{repository}' is the official repository and cannot be removed")
             }
+            UpdatePluginsIncompatible { api, plugins } => write!(
+                f,
+                "this release uses plugin API {api}, and no build for it is listed for {}; \
+                 the update was not downloaded",
+                plugins.join(", ")
+            ),
             PluginBuildUnavailable { id, detail } => {
                 write!(f, "no installable build of '{id}': {detail}")
             }

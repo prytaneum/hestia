@@ -94,7 +94,8 @@
         "disabled": "Disabled",
         "enabled": "Enabled",
         "failed": "Failed",
-        "needs_approval": "Needs approval"
+        "needs_approval": "Needs approval",
+        "needs_update": "Needs update"
       }
     },
     "sync_state": {

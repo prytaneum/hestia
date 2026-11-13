@@ -769,3 +769,15 @@ mod manifest {
         }
     }
 }
+
+#[test]
+fn a_build_is_judged_against_the_host_it_will_run_on() {
+    use proto::plugin::{api_supported_by, is_api_version};
+
+    assert!(api_supported_by("^1.0.0", "1.2.0"));
+    assert!(!api_supported_by("^1.2.0", "1.0.0"));
+    assert!(!api_supported_by("^1.0.0", "2.0.0"));
+    assert!(api_supported_by("^2.0.0", "2.0.0"));
+    assert!(!api_supported_by("^1.0.0", "next"));
+    assert!(is_api_version("2.0.0") && !is_api_version("next"));
+}

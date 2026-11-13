@@ -35,6 +35,7 @@ const STATE_LABEL: Record<PluginState, () => string> = {
   disabled: m['domain.plugin.state.disabled'],
   failed: m['domain.plugin.state.failed'],
   needs_approval: m['domain.plugin.state.needs_approval'],
+  needs_update: m['domain.plugin.state.needs_update'],
 };
 
 const SOURCE_LABEL: Record<PluginSource, () => string> = {
@@ -76,9 +77,11 @@ export function PluginRow({
   const label = name || id;
   const on = plugin.state === 'enabled';
   const attention =
-    plugin.state === 'failed' || plugin.state === 'needs_approval';
+    plugin.state === 'failed' ||
+    plugin.state === 'needs_approval' ||
+    plugin.state === 'needs_update';
   const reason =
-    plugin.state === 'failed'
+    plugin.state === 'failed' || plugin.state === 'needs_update'
       ? plugin.lastError
       : plugin.state === 'needs_approval'
         ? m['settings.plugins.needs_approval_hint']()
@@ -199,17 +202,20 @@ export function PluginRow({
                 {m['settings.plugins.check_update']()}
               </Button>
             )}
-            {plugin.state !== 'needs_approval' && (
-              <Switch
-                size="sm"
-                aria-label={
-                  on ? m['app.action.disable']() : m['app.action.enable']()
-                }
-                checked={on}
-                disabled={enable.isPending || disable.isPending}
-                onCheckedChange={(next) => (next ? enable : disable).mutate(id)}
-              />
-            )}
+            {plugin.state !== 'needs_approval' &&
+              plugin.state !== 'needs_update' && (
+                <Switch
+                  size="sm"
+                  aria-label={
+                    on ? m['app.action.disable']() : m['app.action.enable']()
+                  }
+                  checked={on}
+                  disabled={enable.isPending || disable.isPending}
+                  onCheckedChange={(next) =>
+                    (next ? enable : disable).mutate(id)
+                  }
+                />
+              )}
             <ConfirmDialog
               trigger={
                 <Button

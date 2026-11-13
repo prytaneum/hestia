@@ -94,7 +94,8 @@
         "disabled": "Desativado",
         "enabled": "Ativado",
         "failed": "Com falha",
-        "needs_approval": "Aguardando aprovação"
+        "needs_approval": "Aguardando aprovação",
+        "needs_update": "Precisa de atualização"
       }
     },
     "sync_state": {
