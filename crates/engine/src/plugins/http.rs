@@ -167,7 +167,7 @@ impl WasiHttpHooks for PluginHttp {
             })?;
             let response = send(request, url).await.inspect_err(|error| {
                 tracing::debug!(plugin = %plugin, %host, %error, "plugin http request failed");
-                unreached.store(is_unreachable(error), Ordering::Relaxed);
+                note_failure(error, &unreached);
             })?;
             unreached.store(false, Ordering::Relaxed);
             network().observe_reachable();
@@ -210,6 +210,16 @@ async fn send(request: Request, url: Url) -> Result<Response, Error> {
     }))
 }
 
+/// A plugin request is never retried, so its one transport failure counts as
+/// the spent retries of a core request do.
+fn note_failure(error: &Error, unreached: &AtomicBool) {
+    let unreachable = is_unreachable(error);
+    unreached.store(unreachable, Ordering::Relaxed);
+    if unreachable {
+        network().observe_unreachable();
+    }
+}
+
 fn is_unreachable(error: &Error) -> bool {
     matches!(
         error,
@@ -241,6 +251,24 @@ fn body_error(error: Box<dyn std::error::Error + Send + Sync>) -> Error {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn only_a_transport_failure_marks_the_network_unreachable() {
+        let unreached = AtomicBool::new(false);
+        network().observe_reachable();
+
+        note_failure(&Error::HttpProtocolError, &unreached);
+        assert_eq!(network().status().state, NetworkState::Online);
+        assert!(!unreached.load(Ordering::Relaxed));
+
+        note_failure(&Error::DestinationIpProhibited, &unreached);
+        assert_eq!(network().status().state, NetworkState::Online);
+
+        note_failure(&Error::ConnectionTimeout, &unreached);
+        assert_eq!(network().status().state, NetworkState::Offline);
+        assert!(unreached.load(Ordering::Relaxed));
+        network().observe_reachable();
+    }
 
     fn grant(hosts: &[&str], connect: bool) -> Grant {
         Grant {

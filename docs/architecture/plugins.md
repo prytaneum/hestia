@@ -328,6 +328,13 @@ addresses that point inside the machine, so a granted name cannot reach the loca
 network. A request has a 30 s timeout and a 32 MiB body cap. A content source's
 files are checked against the same host list before the engine downloads them.
 
+A plugin request feeds the shared reachability state the way a core one does
+([0067](../decisions/0067-reachability-is-observed-not-asked.md)): any answer, an HTTP error status included, marks the
+network up, and a transport failure (a connect error or a timeout) marks it down. A plugin request is never retried, so
+its one failure stands for the spent retries of a core request. A refused request never left the machine and moves
+nothing; the guest sees the failure as `connection-timeout` or `destination-unavailable`, and a provider call
+that ends that way answers `Offline` naming its provider.
+
 ## Local endpoints
 
 `ipc:connect` plus an `ipc` list reaches local programs over a Unix socket under
