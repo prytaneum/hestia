@@ -404,8 +404,12 @@ flowchart TD
   that fails verification and a plugin the user removed (`plugins/bundled.json`) are all left alone. See
   [packaging.md](../packaging.md#the-bundled-official-plugins).
 - **A plugin that does not run.** A theme-only package has no component and no
-  `api`. A plugin's state is `enabled`, `disabled`, `failed` (with the load error) or
-  `needs_approval`; a daemon in safe mode loads none.
+  `api`. A plugin's state is `enabled`, `disabled`, `failed` (with the load error),
+  `needs_approval` or `needs_update` (built for a plugin API this host no longer exposes; the update check still
+  lists it, so a compatible build is offered); a daemon in safe mode loads none.
+- **App updates.** An app update that changes the plugin API carries the official plugins with it: it stages compatible
+  builds before downloading, refuses when one has none, and the new daemon installs them before loading any
+  ([0112](../decisions/0112-the-app-and-official-plugins-update-together.md)).
 
 ### Repositories and trust
 
@@ -493,6 +497,7 @@ minisign public key and an optional spare, added by its index URL. It has one sh
 │       └── settings.json   setting values, owner-only; may hold secrets
 ├── meta/plugins/           compiled components (.cwasm) — regenerable
 ├── meta/flavors/<id>/      a flavor's build area, `/build` during its `build` — regenerable
+├── updates/plugins/<api>/  official builds staged for the app update that brings that plugin API
 └── tmp/plugins/            packages fetched from a link, held until installed
 ```
 
@@ -548,3 +553,4 @@ plugins the tests build are fixtures
 | [0108](../decisions/0108-a-schedule-is-an-event-to-its-own-plugin.md) | a schedule is an event delivered to its own plugin |
 | [0110](../decisions/0110-a-flavor-builds-in-its-own-area.md) | a flavor builds in an area of its own; the host places the outputs |
 | [0111](../decisions/0111-a-repository-publishes-to-its-own-branch.md) | a repository publishes to its own orphan branch |
+| [0112](../decisions/0112-the-app-and-official-plugins-update-together.md) | the app and the official plugins update together |

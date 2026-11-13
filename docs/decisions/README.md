@@ -43,6 +43,7 @@ the alternative you rejected — that is usually the part nobody can recover lat
 - **0109** — [A plugin webview is an opaque-origin iframe with a mediated message bridge](0109-plugin-webviews-are-opaque-iframes.md)
 - **0110** — [A flavor builds in an area of its own, and the host places what it builds](0110-a-flavor-builds-in-its-own-area.md)
 - **0111** — [A plugin repository publishes to its own orphan branch](0111-a-repository-publishes-to-its-own-branch.md)
+- **0112** — [The app and the official plugins update together](0112-the-app-and-official-plugins-update-together.md)
 
 ### [Cross-cutting foundations](../architecture/common.md)
 
@@ -61,6 +62,7 @@ the alternative you rejected — that is usually the part nobody can recover lat
 - **0037** — [Following logs is scoped to the entry, not to one run of it](0037-following-logs-is-entry-scoped.md)
 - **0060** — [A managed document carries its own schema version, and an unreadable one is set aside](0060-a-managed-document-carries-its-schema-version.md)
 - **0062** — [The daemon owns self-update; the shell asks like everything else](0062-the-daemon-owns-self-update.md)
+- **0112** — [The app and the official plugins update together](0112-the-app-and-official-plugins-update-together.md)
 - **0066** — [A channel picks the feed, not an entry inside one](0066-a-channel-picks-the-feed-not-the-entry.md)
 - **0067** — [Reachability is observed from real traffic, and offline is a state the whole system reads](0067-reachability-is-observed-not-asked.md)
 - **0068** — [The tray speaks the tray protocol, not a library that might be installed](0068-the-tray-speaks-the-tray-protocol.md)

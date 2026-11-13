@@ -331,7 +331,13 @@ deb install an AppImage would download something it has no way to apply. The
 `portable` feature short-circuits detection to unmanaged: an archive the user
 unpacked by hand has no installer to update through.
 
-Network reads are stateless; the staging directory only holds the download.
+When a release's `plugin_api` is one the installed official plugins cannot run on, `Engine::download_update` first stages
+compatible builds of them (`engine/src/engine/flows/handover.rs`, planned by `plugins/handover.rs`) into
+`updates/plugins/<api>/`, or refuses with `update_plugins_incompatible` before downloading anything; the new daemon
+installs them at start, before it loads a plugin
+([0112](../decisions/0112-the-app-and-official-plugins-update-together.md)).
+
+Network reads are stateless; the staging directory only holds the downloads.
 
 `version.rs` is the comparison the check rests on: anything unparsable compares
 as *no answer*, and every caller treats that as a refusal — a malformed version

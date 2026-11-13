@@ -100,6 +100,7 @@ stripped, so the document is additive in both directions.
   "channel": "stable",
   "notes": "…markdown, from the CHANGELOG section for this version…",
   "pub_date": "2026-08-06T12:00:00Z",
+  "plugin_api": "1.0.0",
   "platforms": {
     "windows-x86_64": {
       "url": "https://…/Hestia_1.3.0_x64-setup.exe",
@@ -122,6 +123,7 @@ stripped, so the document is additive in both directions.
 | `version` | yes | semver. The daemon compares it against its own by full semver precedence, prerelease included |
 | `channel` | no | which feed this document belongs to. The path decides it; a body that disagrees is overwritten |
 | `notes` | no | markdown, rendered by the desktop after an upgrade. Defaults to `""`, never null |
+| `plugin_api` | no | the plugin API (a semver) the release's daemon exposes. Present, it lets the daemon stage compatible official plugins before applying the update, or refuse it when one has none ([0112](decisions/0112-the-app-and-official-plugins-update-together.md)). Absent, no coordination |
 | `pub_date` | no | RFC 3339. Not read by the daemon |
 | `platforms` | yes | keyed `{os}-{arch}` in Rust's `consts` spelling (`linux-x86_64`, `windows-x86_64`) |
 

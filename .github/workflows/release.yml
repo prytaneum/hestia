@@ -265,9 +265,16 @@ jobs:
             grab && /^## / { exit }
             grab { print }
           ' CHANGELOG.md)"
+          # The plugin API this release's daemon exposes, so a running daemon
+          # can stage compatible official plugins before applying the update.
+          plugin_api="$(sed -n 's/^pub const API_VERSION: &str = "\(.*\)";$/\1/p' crates/proto/src/plugin.rs)"
+          if [ -z "$plugin_api" ]; then
+            echo "cannot read API_VERSION from crates/proto/src/plugin.rs" >&2
+            exit 1
+          fi
           manifest="$(jq -n --arg v "$version" --arg d "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-            --arg n "$notes" --arg c "$channel" \
-            '{version: $v, notes: $n, channel: $c, pub_date: $d, platforms: {}}')"
+            --arg n "$notes" --arg c "$channel" --arg a "$plugin_api" \
+            '{version: $v, notes: $n, channel: $c, pub_date: $d, plugin_api: $a, platforms: {}}')"
           # A platform's default entry is what a build asks for when it has no
           # more specific format: the NSIS setup, the AppImage. `formats` holds
           # the rest, and a build predating the map simply never reads it.

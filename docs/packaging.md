@@ -125,6 +125,11 @@ portable build empty `bundle.resources` through `TAURI_CONFIG` for the Tauri she
 - A plugin the user removed stays removed: `<data home>/plugins/bundled.json` records every bundled id seen installed,
   and an id listed there with no install is not seeded again. A plugin added to a later bundle is new, so it installs.
 
+**Staged builds** take the same path. An app update that changes the plugin API leaves the official builds for the new API
+in `<data home>/updates/plugins/<api>/`, and the daemon that exposes that API seeds from there before it loads anything,
+then removes the directory ([decision 0112](decisions/0112-the-app-and-official-plugins-update-together.md)). A fresh
+installer needs none of that: it carries plugins built for its own API, so the coordination is satisfied by construction.
+
 **Bumping the lock.** Publish the plugin to `prytaneum/plugins`, then put its new version and the sha256 of
 `packages/<id>-<version>.hplugin` on the `repo` branch in `plugins.lock` (`sha256sum`), in the commit that changes the
 launcher's side. Run `scripts/plugins.sh target/debug/plugins` to check the line resolves.
@@ -165,6 +170,7 @@ which the API answers wrapped in its `{success, message, data}` envelope:
 {
   "version": "0.1.0",
   "notes": "…",
+  "plugin_api": "1.0.0",
   "platforms": {
     "windows-x86_64": {
       "url": "…-setup.exe",
@@ -187,6 +193,13 @@ which the API answers wrapped in its `{success, message, data}` envelope:
   }
 }
 ```
+
+`plugin_api` is the plugin API (`API_VERSION` in `crates/proto/src/plugin.rs`) the release's daemon exposes. The
+`manifest` job reads it from that file, so it cannot drift from the code, and fails the release if it cannot. When it
+differs from what installed official plugins can run on, `update.download` stages compatible builds of them in the data
+home before it fetches the installer, and the new daemon installs them at its first start; with none to be had, the
+update is refused ([decision 0112](decisions/0112-the-app-and-official-plugins-update-together.md)). A manifest without
+the field asks for no coordination.
 
 A platform's top-level entry is its default artifact — the NSIS setup, the AppImage. `formats` carries the rest, and is
 additive: a build that predates a format never asks for it and reads the same manifest a newer one does.
