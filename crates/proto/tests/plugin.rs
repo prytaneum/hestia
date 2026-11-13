@@ -18,9 +18,10 @@ fn api_version_matches_the_wit_package() {
 mod manifest {
     use proto::error::EntryKind;
     use proto::plugin::{
-        CommandArg, CommandContribution, CommandScope, Manifest, ManifestError, PageContribution,
-        PageSlot, Permission, Program, ProviderContribution, ScheduleContribution, Setting,
-        SettingKind, ThemeContribution, Tier, MAX_SCHEDULES, MAX_SCHEDULE_SECS,
+        CommandArg, CommandArgKind, CommandContribution, CommandScope, Manifest, ManifestError,
+        PageContribution, PageSlot, Permission, Program, ProviderContribution,
+        ScheduleContribution, Setting, SettingKind, ThemeContribution, Tier, MAX_SCHEDULES,
+        MAX_SCHEDULE_SECS,
     };
 
     fn valid() -> Manifest {
@@ -701,6 +702,128 @@ mod manifest {
         let mut manifest = command(CommandScope::Top, &[]);
         manifest.contributes.commands[0].id = "backup".into();
         assert_eq!(manifest.validate(), Ok(()));
+    }
+
+    #[test]
+    fn a_command_id_is_a_few_slugs_and_unique_as_a_whole() {
+        let with_id = |id: &str| {
+            let mut manifest = command(CommandScope::Server, &[]);
+            manifest.contributes.commands[0].id = id.into();
+            manifest
+        };
+        assert_eq!(with_id("lists show").validate(), Ok(()));
+        for bad in ["", "a  b", " a", "a ", "a b c d", "Bad word", "a/b"] {
+            assert_eq!(
+                with_id(bad).validate(),
+                Err(ManifestError::BadCommandId(bad.into())),
+                "{bad:?}"
+            );
+        }
+        assert_eq!(
+            with_id("backup now").validate(),
+            Err(ManifestError::ReservedCommand("backup now".into()))
+        );
+        let mut twice = with_id("lists show");
+        twice.contributes.commands.push(CommandContribution {
+            id: "lists show".into(),
+            scope: CommandScope::Server,
+            ..CommandContribution::default()
+        });
+        assert_eq!(
+            twice.validate(),
+            Err(ManifestError::DuplicateId("lists show".into()))
+        );
+        twice.contributes.commands[1].id = "lists".into();
+        assert_eq!(twice.validate(), Ok(()));
+    }
+
+    #[test]
+    fn a_words_argument_is_alone_and_last() {
+        let words = |name: &str| CommandArg {
+            name: name.into(),
+            kind: CommandArgKind::Words,
+            ..CommandArg::default()
+        };
+        let plain = |name: &str| CommandArg {
+            name: name.into(),
+            ..CommandArg::default()
+        };
+        let with_args = |args: Vec<CommandArg>| {
+            let mut manifest = command(CommandScope::Top, &[]);
+            manifest.contributes.commands[0].args = args;
+            manifest
+        };
+        assert_eq!(
+            with_args(vec![plain("a"), words("names")]).validate(),
+            Ok(())
+        );
+        for args in [
+            vec![words("names"), plain("a")],
+            vec![words("a"), words("b")],
+        ] {
+            assert_eq!(
+                with_args(args).validate(),
+                Err(ManifestError::BadWordsArg("open".into()))
+            );
+        }
+    }
+
+    #[test]
+    fn a_plugin_names_the_entry_files_it_reads() {
+        let reading = |files: &[&str], permissions: &[Permission]| Manifest {
+            files: files.iter().map(ToString::to_string).collect(),
+            permissions: permissions.to_vec(),
+            ..valid()
+        };
+        let read = [Permission::EntryRead];
+        assert_eq!(
+            reading(&["whitelist.json", "config/a.json"], &read).validate(),
+            Ok(())
+        );
+        for bad in [
+            "",
+            "/etc/passwd",
+            "../x",
+            "a/../b",
+            "./a",
+            "a//b",
+            "a\\b",
+            "C:x",
+            "*.json",
+            "a?",
+            "server.properties",
+            "Server.Properties",
+        ] {
+            assert_eq!(
+                reading(&[bad], &read).validate(),
+                Err(ManifestError::BadEntryFile(bad.into())),
+                "{bad:?}"
+            );
+        }
+        assert_eq!(
+            reading(&["ops.json"], &[]).validate(),
+            Err(ManifestError::FilesPermissionMissing)
+        );
+    }
+
+    #[test]
+    fn a_new_entry_file_widens_the_grant() {
+        let installed = Manifest {
+            files: vec!["ops.json".into()],
+            ..valid()
+        }
+        .grant();
+        let wider = Manifest {
+            files: vec!["ops.json".into(), "whitelist.json".into()],
+            ..valid()
+        }
+        .grant();
+        assert_eq!(
+            wider.widening_over(&installed).files,
+            ["whitelist.json".to_string()].into()
+        );
+        assert_eq!(installed.widening_over(&wider).files, Default::default());
+        assert_ne!(wider.digest(), installed.digest());
     }
 
     #[test]

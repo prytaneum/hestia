@@ -382,6 +382,11 @@
       "permission": "entry:write",
       "result": "Empty"
     },
+    "server.files.read": {
+      "params": "ServerFileParams",
+      "permission": "entry:read",
+      "result": "FileReadResult"
+    },
     "server.files.remove": {
       "params": "ServerFilesRemoveParams",
       "permission": "entry:write",
@@ -612,6 +617,7 @@
     "Field": "type Field = \"name\" | \"project\" | \"version\" | \"item\" | \"backup\" | \"command\" | \"program\" | \"url\" | \"path\" | \"flavor\" | \"world\" | \"address\" | \"memory\" | \"jvm_args\" | \"player\" | \"retention\" | \"java_version\" | \"schedule\" | \"order\" | \"realm\" | \"process_id\";",
     "FileEntry": "type FileEntry = { name: string, path: string, dir: boolean, size: bigint, modifiedUnix: bigint, };",
     "FileFault": "type FileFault = \"outside_entry\" | \"already_exists\" | \"not_a_directory\" | \"is_a_directory\" | \"too_large\" | \"not_text\" | \"archive_format\" | \"into_itself\" | \"unsupported_type\";",
+    "FileReadResult": "type FileReadResult = { content: string, };",
     "Flavor": "type Flavor = { id: string, name: string, summary: string, accepts: Array<ContentKind>, requires: Array<Requirement>, };",
     "FlavorDescription": "type FlavorDescription = { name: string, summary: string, loads?: ContentKind, server: boolean, client: boolean, mrpackKey?: string, prismUid?: string, };",
     "FlavorsResult": "type FlavorsResult = { flavors: Array<Flavor>, rules: Array<KeyRule>, };",

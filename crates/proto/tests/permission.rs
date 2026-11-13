@@ -18,7 +18,6 @@ const DENIED: &[&str] = &[
     "entry.logs",
     "process.logs",
     "process.output",
-    "server.files.read",
     "server.properties",
     // Arbitrary program, argv and env; plugins spawn only through `process:spawn`
     "process.start",
@@ -169,7 +168,6 @@ fn secret_bearing_and_privileged_channels_stay_closed() {
     use proto::daemon::*;
     use proto::entry::*;
     use proto::events::*;
-    use proto::files::*;
     use proto::job::*;
     use proto::plugin::*;
     use proto::process::*;
@@ -180,7 +178,6 @@ fn secret_bearing_and_privileged_channels_stay_closed() {
         (ProcessStart::CHANNEL, ProcessStart::PLUGIN),
         (ProcessLogs::CHANNEL, ProcessLogs::PLUGIN),
         (EntryLogs::CHANNEL, EntryLogs::PLUGIN),
-        (ServerFilesRead::CHANNEL, ServerFilesRead::PLUGIN),
         (ServerProperties::CHANNEL, ServerProperties::PLUGIN),
         (EntryConfigGet::CHANNEL, EntryConfigGet::PLUGIN),
         (EntryConfigList::CHANNEL, EntryConfigList::PLUGIN),

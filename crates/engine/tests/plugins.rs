@@ -333,6 +333,29 @@ fn arguments_are_checked_against_the_declaration_before_the_guest_runs() {
 }
 
 #[test]
+fn a_words_argument_takes_a_list_of_strings() {
+    let command = CommandContribution {
+        id: "players allow".into(),
+        args: vec![CommandArg {
+            name: "names".into(),
+            kind: CommandArgKind::Words,
+            required: true,
+            help: String::new(),
+        }],
+        ..CommandContribution::default()
+    };
+    let check = |args| command_args("demo", &command, None, &args);
+
+    assert_eq!(
+        check(json!({ "names": ["a", "b"] })).unwrap(),
+        json!({ "names": ["a", "b"] })
+    );
+    assert!(refused(check(json!({}))).contains("`names` is required"));
+    assert!(refused(check(json!({ "names": "a" }))).contains("must be a list of strings"));
+    assert!(refused(check(json!({ "names": ["a", 1] }))).contains("must be a list of strings"));
+}
+
+#[test]
 fn a_scoped_command_needs_its_entry_and_a_top_one_refuses_it() {
     let args = json!({ "name": "a" });
     let server = declared(CommandScope::Server);

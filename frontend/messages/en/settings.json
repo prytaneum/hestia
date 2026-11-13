@@ -137,6 +137,7 @@
       "grant": {
         "events": "Events it listens to",
         "full_access": "Full access to your computer",
+        "files": "Files it can read in a server",
         "hooks": "Hooks",
         "ipc": "Local programs it can talk to",
         "launch_properties": "Launch properties it may set",

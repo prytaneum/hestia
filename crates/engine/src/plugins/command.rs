@@ -85,6 +85,9 @@ fn matches_kind(arg: &CommandArg, value: &Value) -> bool {
         CommandArgKind::String | CommandArgKind::Entry => value.is_string(),
         CommandArgKind::Number => value.is_number(),
         CommandArgKind::Bool => value.is_boolean(),
+        CommandArgKind::Words => value
+            .as_array()
+            .is_some_and(|words| words.iter().all(Value::is_string)),
     }
 }
 
@@ -94,5 +97,6 @@ fn kind_name(kind: CommandArgKind) -> &'static str {
         CommandArgKind::Entry => "string naming an entry",
         CommandArgKind::Number => "number",
         CommandArgKind::Bool => "boolean",
+        CommandArgKind::Words => "list of strings",
     }
 }

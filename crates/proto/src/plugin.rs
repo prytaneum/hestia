@@ -245,6 +245,8 @@ impl fmt::Display for Permission {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
 #[serde(default, rename_all = "camelCase")]
 pub struct CommandContribution {
+    /// One to [`MAX_COMMAND_WORDS`] slugs separated by a space (`players allow`).
+    /// On the CLI the words follow the scope's grammar, longest match first.
     pub id: String,
     pub title: String,
     pub description: String,
@@ -273,6 +275,9 @@ pub enum CommandArgKind {
     Number,
     Bool,
     Entry,
+    /// The bare words after the command, as a list of strings. At most one per
+    /// command, and the last.
+    Words,
 }
 
 #[derive(Serialize, Deserialize, Default, Debug, Clone, PartialEq, Eq)]
@@ -283,6 +288,27 @@ pub struct CommandArg {
     pub kind: CommandArgKind,
     pub required: bool,
     pub help: String,
+}
+
+/// The most words a command id may have.
+pub const MAX_COMMAND_WORDS: usize = 3;
+
+impl CommandContribution {
+    /// The words of the id.
+    pub fn words(&self) -> impl Iterator<Item = &str> {
+        self.id.split(' ')
+    }
+
+    /// How many leading words of `argv` spell this command's id; zero when they
+    /// do not all match.
+    pub fn matched_words(&self, argv: &[String]) -> usize {
+        let words: Vec<&str> = self.words().collect();
+        match argv.len() >= words.len() && words.iter().zip(argv).all(|(word, given)| word == given)
+        {
+            true => words.len(),
+            false => 0,
+        }
+    }
 }
 
 impl CommandScope {
@@ -665,6 +691,9 @@ pub struct Manifest {
     pub network: Vec<String>,
     /// Local endpoints `ipc:connect` reaches, as names like `discord-ipc-*`.
     pub ipc: Vec<String>,
+    /// Files in a server's directory that `entry:read` may read, as exact
+    /// relative paths. A plugin reads no other file of an entry.
+    pub files: Vec<String>,
     pub programs: Vec<Program>,
     pub launch: Launch,
     pub settings: Vec<Setting>,
@@ -680,6 +709,7 @@ pub struct Grant {
     pub permissions: BTreeSet<Permission>,
     pub network: BTreeSet<String>,
     pub ipc: BTreeSet<String>,
+    pub files: BTreeSet<String>,
     pub programs: BTreeSet<Program>,
     pub launch_properties: BTreeSet<String>,
     pub hooks: BTreeSet<String>,
@@ -714,6 +744,7 @@ impl Grant {
             permissions: &self.permissions - &installed.permissions,
             network: &self.network - &installed.network,
             ipc: &self.ipc - &installed.ipc,
+            files: &self.files - &installed.files,
             programs: &self.programs - &installed.programs,
             launch_properties: &self.launch_properties - &installed.launch_properties,
             hooks: &self.hooks - &installed.hooks,
@@ -797,6 +828,18 @@ pub enum ManifestError {
     BadIpcEndpoint(String),
     #[error("ipc endpoints need the permission `ipc:connect`")]
     IpcPermissionMissing,
+    #[error(
+        "command `{0}` is one to {MAX_COMMAND_WORDS} words, each a slug, separated by one space"
+    )]
+    BadCommandId(String),
+    #[error(
+        "command `{0}` declares a `words` argument that is not the only one of its kind and last"
+    )]
+    BadWordsArg(String),
+    #[error("file `{0}` must be a relative path of plain names, with no `..`, glob or backslash, and may not be `server.properties`")]
+    BadEntryFile(String),
+    #[error("files need the permission `entry:read`")]
+    FilesPermissionMissing,
 }
 
 impl Manifest {
@@ -866,6 +909,12 @@ impl Manifest {
         if !self.ipc.is_empty() && !self.permissions.contains(&Permission::IpcConnect) {
             return Err(ManifestError::IpcPermissionMissing);
         }
+        if let Some(file) = self.files.iter().find(|file| !is_entry_file(file)) {
+            return Err(ManifestError::BadEntryFile(file.clone()));
+        }
+        if !self.files.is_empty() && !self.permissions.contains(&Permission::EntryRead) {
+            return Err(ManifestError::FilesPermissionMissing);
+        }
         if !self.programs.is_empty() && !self.permissions.contains(&Permission::ProcessSpawn) {
             return Err(ManifestError::ProgramPermissionMissing);
         }
@@ -886,14 +935,9 @@ impl Manifest {
                 id: schedule.id.clone(),
             });
         }
-        let lists: [Vec<&String>; 8] = [
+        let lists: [Vec<&String>; 7] = [
             self.settings.iter().map(|setting| &setting.key).collect(),
             self.programs.iter().map(|program| &program.id).collect(),
-            contributes
-                .commands
-                .iter()
-                .map(|command| &command.id)
-                .collect(),
             contributes
                 .providers
                 .iter()
@@ -916,8 +960,28 @@ impl Manifest {
             return Err(ManifestError::BadEventPattern(pattern.clone()));
         }
         for command in &contributes.commands {
-            if command.scope.reserved_ids().contains(&command.id.as_str()) {
+            let words: Vec<&str> = command.words().collect();
+            if words.len() > MAX_COMMAND_WORDS
+                || words
+                    .iter()
+                    .any(|word| !is_slug(word, CONTRIBUTION_ID_LENGTH))
+            {
+                return Err(ManifestError::BadCommandId(command.id.clone()));
+            }
+            if command.scope.reserved_ids().contains(&words[0]) {
                 return Err(ManifestError::ReservedCommand(command.id.clone()));
+            }
+            let words_args = command
+                .args
+                .iter()
+                .filter(|arg| arg.kind == CommandArgKind::Words)
+                .count();
+            let last_is_words = command
+                .args
+                .last()
+                .is_some_and(|arg| arg.kind == CommandArgKind::Words);
+            if words_args > 1 || (words_args == 1 && !last_is_words) {
+                return Err(ManifestError::BadWordsArg(command.id.clone()));
             }
             let mut seen = BTreeSet::new();
             for arg in &command.args {
@@ -949,6 +1013,12 @@ impl Manifest {
                     hook: hook.clone(),
                     permission: *missing,
                 });
+            }
+        }
+        let mut command_ids = BTreeSet::new();
+        for command in &contributes.commands {
+            if !command_ids.insert(&command.id) {
+                return Err(ManifestError::DuplicateId(command.id.clone()));
             }
         }
         for ids in lists {
@@ -987,6 +1057,7 @@ impl Manifest {
             permissions: self.permissions.iter().copied().collect(),
             network: self.network.iter().cloned().collect(),
             ipc: self.ipc.iter().cloned().collect(),
+            files: self.files.iter().cloned().collect(),
             programs: self.programs.iter().cloned().collect(),
             launch_properties: self.launch.properties.iter().cloned().collect(),
             hooks: self.contributes.hooks.iter().cloned().collect(),
@@ -1154,6 +1225,15 @@ fn check_api_against(api: &str, host_version: &str) -> Result<(), ManifestError>
     } else {
         Err(mismatch())
     }
+}
+
+/// A file a plugin may name in `files`: matched against a call's path by exact
+/// string, so it must already be normalised. `server.properties` holds the
+/// RCON password and is never readable by a plugin.
+fn is_entry_file(path: &str) -> bool {
+    stays_inside(path)
+        && !path.contains(['*', '?', '[', ']', '{', '}'])
+        && !path.eq_ignore_ascii_case("server.properties")
 }
 
 pub(crate) fn stays_inside(path: &str) -> bool {

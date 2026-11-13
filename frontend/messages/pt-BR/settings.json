@@ -137,6 +137,7 @@
       "grant": {
         "events": "Eventos que ele escuta",
         "full_access": "Acesso total ao seu computador",
+        "files": "Arquivos que pode ler em um servidor",
         "hooks": "Hooks",
         "ipc": "Programas locais com que pode conversar",
         "launch_properties": "Propriedades de inicialização que ele pode definir",

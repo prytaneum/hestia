@@ -22,4 +22,9 @@ network: Array<string>,
 /**
  * Local endpoints `ipc:connect` reaches, as names like `discord-ipc-*`.
  */
-ipc: Array<string>, programs: Array<Program>, launch: Launch, settings: Array<Setting>, contributes: Contributions, };
+ipc: Array<string>, 
+/**
+ * Files in a server's directory that `entry:read` may read, as exact
+ * relative paths. A plugin reads no other file of an entry.
+ */
+files: Array<string>, programs: Array<Program>, launch: Launch, settings: Array<Setting>, contributes: Contributions, };

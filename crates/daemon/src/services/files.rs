@@ -3,7 +3,7 @@
 //! runs off the async runtime.
 
 use engine::FileTree;
-use proto::error::{ErrorInfo, Field};
+use proto::error::{ErrorInfo, Field, FileFault};
 use proto::files::{
     FileReadResult, ServerFilesCompress, ServerFilesCopy, ServerFilesExtract, ServerFilesImport,
     ServerFilesList, ServerFilesMkdir, ServerFilesMove, ServerFilesRead, ServerFilesRemove,
@@ -12,7 +12,7 @@ use proto::files::{
 use proto::Empty;
 
 use super::guards::{server_for, Intent};
-use crate::runtime::{Channels, HandlerContext};
+use crate::runtime::{Caller, Channels, HandlerContext};
 
 pub(super) fn register(on: &mut Channels<'_>) {
     on.handle::<ServerFilesList, _, _>(|p, ctx| async move {
@@ -22,6 +22,13 @@ pub(super) fn register(on: &mut Channels<'_>) {
     });
 
     on.handle::<ServerFilesRead, _, _>(|p, ctx| async move {
+        if !readable_by(&ctx, &p.path) {
+            tracing::warn!(caller = %ctx.caller, path = %p.path, "plugin refused a file its grant does not list");
+            return Err(ErrorInfo::FileRejected {
+                path: p.path,
+                reason: FileFault::OutsideEntry,
+            });
+        }
         let tree = tree(&ctx, &p.server, Intent::Read)?;
         let content = blocking(move || tree.read(&p.path)).await?;
         Ok(FileReadResult { content })
@@ -84,6 +91,15 @@ fn tree(ctx: &HandlerContext, server: &str, intent: Intent) -> Result<FileTree, 
     Ok(FileTree::new(
         ctx.runtime.engine().servers().data_dir(&record),
     ))
+}
+
+/// A plugin reads only the files its grant lists, by exact path: the game
+/// directory also holds `server.properties`, which carries the RCON password.
+fn readable_by(ctx: &HandlerContext, path: &str) -> bool {
+    match &ctx.caller {
+        Caller::Client => true,
+        Caller::Plugin(id) => ctx.runtime.plugins().grants_file(id, path),
+    }
 }
 
 fn require_some(paths: &[String]) -> Result<(), ErrorInfo> {

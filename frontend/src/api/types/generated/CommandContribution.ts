@@ -2,4 +2,9 @@
 import type { CommandArg } from "./CommandArg";
 import type { CommandScope } from "./CommandScope";
 
-export type CommandContribution = { id: string, title: string, description: string, scope: CommandScope, args: Array<CommandArg>, };
+export type CommandContribution = { 
+/**
+ * One to [`MAX_COMMAND_WORDS`] slugs separated by a space (`players allow`).
+ * On the CLI the words follow the scope's grammar, longest match first.
+ */
+id: string, title: string, description: string, scope: CommandScope, args: Array<CommandArg>, };

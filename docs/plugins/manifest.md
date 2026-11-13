@@ -49,6 +49,7 @@ package: no leading `/`, no `\`, no `:`, no `.` or `..` segments.
 | `permissions` | list of permission names | see [permissions.md](permissions.md) |
 | `network` | list of hosts | the hosts `network:connect` reaches: a domain name, or `*.domain` for its subdomains at any depth. An address is refused (`BadNetworkHost`) |
 | `ipc` | list of names | the local endpoints `ipc:connect` reaches, such as `discord-ipc-*`; refused without the permission (`IpcPermissionMissing`) |
+| `files` | list of paths | the files of a server's directory that `entry:read` may read through `server.files.read`, as exact relative paths such as `whitelist.json` or `config/a.json`: no leading `/`, `\`, `:`, `.` or `..` segment, no glob. `server.properties` is refused whatever its case (`BadEntryFile`); refused without `entry:read` (`FilesPermissionMissing`) |
 | `[[programs]]` | tables | the programs `process:spawn` may run; refused without the permission (`ProgramPermissionMissing`) |
 | `[launch] properties` | list of strings | the `-D` system property keys a launch hook may set |
 | `[[settings]]` | tables | typed user settings |
@@ -137,14 +138,16 @@ scope = "top"          # top (default), server or instance
 
 [[contributes.commands.args]]
 name = "name"
-kind = "string"        # string (default), number, bool or entry
+kind = "string"        # string (default), number, bool, entry or words
 required = true
 help = ""
 ```
 
 The `hello` example declares one; the fields are `proto::plugin::CommandContribution` and `CommandArg`. A scoped
 command may not take a built-in verb of its scope as its id (`ReservedCommand`), and may not declare an argument named
-`entry` (`ReservedArg`). Argument names are slugs, unique per command. See [commands.md](commands.md).
+`entry` (`ReservedArg`). Argument names are slugs, unique per command. A command id is one to three slugs separated by a
+space (`players allow`; `BadCommandId`), unique as a whole, and the built-in check reads its first word. A `words`
+argument is at most one per command and the last (`BadWordsArg`). See [commands.md](commands.md).
 
 ### Events and schedules
 

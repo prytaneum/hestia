@@ -48,7 +48,7 @@ therefore part of the plugin API: changing it bumps `API_VERSION`.
 |---|---|
 | `process.start` | Arbitrary program, argv and env; plugins spawn only through `process:spawn` |
 | `process.logs`, `entry.logs`, `process.output` | An old client prints its session id to stdout |
-| `server.files.read`, `server.properties` | `server.properties` holds `rcon.password` until these redact it |
+| `server.properties` | Holds `rcon.password` until it redacts it |
 | `entry.config.get`, `entry.config.list` | A server's config falls through to `server.properties`, which holds `rcon.password`, until these redact `properties::SECRET` |
 | `config.get`, `config.list` | `content.curseforge-key` is returned until it is redacted or leaves core |
 | `account.login.*`, `account.switch`, `account.remove`, `skin.*`, `cape.*` | Sign-in, tokens and the account's own profile |
@@ -57,7 +57,16 @@ therefore part of the plugin API: changing it bumps `API_VERSION`.
 | `content.inspect`, `instance.import.inspect`, `minecraft.ping`, `cache.*` | Reach a path, an address or the whole cache outside any grant |
 | `app.info`, `host.info`, `health.ping`, `net.status`, `net.state` | No permission fits; opened when a plugin needs one |
 
-Two tests in `crates/proto/tests/permission.rs` hold this. One fails when a
+**`server.files.read` is `entry:read` for a plugin, narrowed to its manifest.**
+The game directory holds `rcon.password`, and redacting one key leaves every
+other secret a mod or plugin keeps in its config. The manifest lists the files
+it reads (`files`, relative normalised paths, never `server.properties`); the
+list is part of the `Grant`, shown at install and counted by `widening_over`,
+and the handler serves a plugin caller only a path in its own grant, by exact
+match. A client reads anything, as before. A hard-coded list of player files was
+rejected: the host would name one plugin's feature.
+
+Two tests in `crates/proto/tests/permission.rs` hold the always-`None` list. One fails when a
 contract names no permission and is not on the denied list, so a new contract
 forces a decision. The other pins the secret-bearing and privileged channels
 above to `None`, so reclassifying one fails loudly.

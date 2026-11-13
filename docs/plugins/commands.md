@@ -23,7 +23,7 @@ Source: `plugins/hello/plugin.toml`. `hestia hello greet --name Bob` answers `he
 
 | Key | Meaning |
 |---|---|
-| `id` | the command name; a slug, unique in the plugin |
+| `id` | the command name: one to three slugs separated by a space, such as `players allow`; unique in the plugin. On the CLI the words are typed in order and the longest id that matches wins, so `players` and `players allow` may both exist |
 | `title`, `description` | shown in listings and `--help` |
 | `scope` | what it acts on: `top` (default), `server` or `instance` |
 | `args` | the declared arguments |
@@ -36,6 +36,10 @@ An argument has a `name` (a slug, unique per command), a `kind`, `required` (def
 | `number` | number | `--count 3` |
 | `bool` | boolean | `--flag` |
 | `entry` | string naming an entry | `--<name> value` |
+| `words` | array of strings | the bare words after the command: `hestia server smp players allow steve alex` gives `names = ["steve", "alex"]` |
+
+A command has at most one `words` argument and it is the last; flags and bare words may be mixed. A `words` argument that
+is `required` is refused when no word is given. On the desktop it is a text field split on whitespace.
 
 `entry` is only checked to be a string; the daemon does not resolve it. An omitted optional argument is absent from the
 object the plugin receives, never `null`. An undeclared argument, a missing required one or a wrong type is refused with

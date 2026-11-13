@@ -38,12 +38,12 @@ pub async fn top(argv: Vec<String>) -> Result<()> {
         );
     }
     let commands: Vec<&CommandContribution> = commands_of(plugin, CommandScope::Top).collect();
-    let Some((name, args)) = rest.split_first() else {
+    let Some(name) = rest.first() else {
         return list_commands(id, &commands);
     };
-    let Some(command) = commands.iter().find(|c| c.id == *name) else {
+    let Some((command, matched)) = longest_match(commands.iter().copied(), rest) else {
         if super::page::is_page(plugin, name) {
-            return super::page::open(&client, plugin, name, args).await;
+            return super::page::open(&client, plugin, name, &rest[1..]).await;
         }
         let ids: Vec<&str> = commands.iter().map(|c| c.id.as_str()).collect();
         bail!(
@@ -51,7 +51,15 @@ pub async fn top(argv: Vec<String>) -> Result<()> {
             joined(&ids)
         );
     };
-    execute(&client, id, command, CommandScope::Top, None, args).await
+    execute(
+        &client,
+        id,
+        command,
+        CommandScope::Top,
+        None,
+        &rest[matched..],
+    )
+    .await
 }
 
 pub async fn scoped(
@@ -60,16 +68,26 @@ pub async fn scoped(
     entry: &str,
     argv: Vec<String>,
 ) -> Result<()> {
-    let (name, args) = argv
-        .split_first()
-        .ok_or_else(|| anyhow!("missing command"))?;
+    let name = argv.first().ok_or_else(|| anyhow!("missing command"))?;
     let plugins = client.plugin().list().await?;
-    let matches: Vec<(&PluginInfo, &CommandContribution)> = plugins
+    let candidates: Vec<(&PluginInfo, &CommandContribution, usize)> = plugins
         .iter()
         .filter(|p| p.state == PluginState::Enabled)
         .flat_map(|p| commands_of(p, scope).map(move |c| (p, c)))
-        .filter(|(_, c)| c.id == *name)
+        .map(|(p, c)| (p, c, c.matched_words(&argv)))
+        .filter(|(_, _, matched)| *matched > 0)
         .collect();
+    let longest = candidates
+        .iter()
+        .map(|(_, _, matched)| *matched)
+        .max()
+        .unwrap_or(0);
+    let matches: Vec<(&PluginInfo, &CommandContribution)> = candidates
+        .iter()
+        .filter(|(_, _, matched)| *matched == longest)
+        .map(|(p, c, _)| (*p, *c))
+        .collect();
+    let args = &argv[longest..];
     let (plugin, command) = match matches.as_slice() {
         [] => bail!("unrecognized command '{name}'; run `--help` for the built-in ones"),
         [only] => *only,
@@ -93,6 +111,17 @@ pub async fn scoped(
         args,
     )
     .await
+}
+
+/// The command whose id spells the most leading words of `argv`, and how many.
+fn longest_match<'a>(
+    commands: impl Iterator<Item = &'a CommandContribution>,
+    argv: &[String],
+) -> Option<(&'a CommandContribution, usize)> {
+    commands
+        .map(|command| (command, command.matched_words(argv)))
+        .filter(|(_, matched)| *matched > 0)
+        .max_by_key(|(_, matched)| *matched)
 }
 
 fn commands_of(
@@ -194,6 +223,7 @@ fn show_help(plugin: &str, command: &CommandContribution, scope: CommandScope) -
         .map(|arg| {
             let flag = match arg.kind {
                 CommandArgKind::Bool => format!("--{}", arg.name),
+                CommandArgKind::Words => format!("<{}>...", arg.name),
                 kind => format!("--{} <{}>", arg.name, kind_label(kind)),
             };
             let required = if arg.required { " (required)" } else { "" };
@@ -213,17 +243,25 @@ fn kind_label(kind: CommandArgKind) -> &'static str {
         CommandArgKind::Number => "number",
         CommandArgKind::Bool => "bool",
         CommandArgKind::Entry => "entry",
+        CommandArgKind::Words => "words",
     }
 }
 
-/// `--json` is the CLI's own flag and is never passed on.
+/// `--json` is the CLI's own flag and is never passed on. Bare words bind to the
+/// command's `words` argument, which an omitted list leaves absent.
 fn parse_args(declared: &[CommandArg], argv: &[String]) -> Result<(Map<String, Value>, bool)> {
     let mut args = Map::new();
     let mut json = false;
+    let words = declared.iter().find(|a| a.kind == CommandArgKind::Words);
+    let mut bare: Vec<Value> = Vec::new();
     let mut tokens = argv.iter();
     while let Some(token) = tokens.next() {
         let Some(flag) = token.strip_prefix("--") else {
-            bail!("unexpected '{token}'; arguments are given as --name value");
+            if words.is_none() {
+                bail!("unexpected '{token}'; arguments are given as --name value");
+            }
+            bare.push(Value::String(token.clone()));
+            continue;
         };
         let (name, inline) = match flag.split_once('=') {
             Some((name, value)) => (name, Some(value.to_string())),
@@ -241,6 +279,9 @@ fn parse_args(declared: &[CommandArg], argv: &[String]) -> Result<(Map<String, V
             bail!("unknown argument --{name}; declared: {}", names.join(", "));
         };
         let value = match arg.kind {
+            CommandArgKind::Words => {
+                bail!("--{name} takes the words after the command, not a flag")
+            }
             CommandArgKind::Bool => match inline.as_deref() {
                 None => Value::Bool(true),
                 Some(text) => Value::Bool(
@@ -259,6 +300,9 @@ fn parse_args(declared: &[CommandArg], argv: &[String]) -> Result<(Map<String, V
             }
         };
         args.insert(name.to_string(), value);
+    }
+    if let (Some(words), false) = (words, bare.is_empty()) {
+        args.insert(words.name.clone(), Value::Array(bare));
     }
     if let Some(missing) = declared
         .iter()
@@ -402,6 +446,39 @@ mod tests {
     fn a_value_flag_without_a_value_and_a_stray_word_are_refused() {
         assert!(parse_args(&declared(), &argv(&["--name"])).is_err());
         assert!(parse_args(&declared(), &argv(&["stray"])).is_err());
+    }
+
+    fn command(id: &str) -> CommandContribution {
+        CommandContribution {
+            id: id.into(),
+            ..CommandContribution::default()
+        }
+    }
+
+    #[test]
+    fn the_command_spelling_the_most_words_wins() {
+        let commands = [command("players"), command("players allow")];
+        let (found, matched) =
+            longest_match(commands.iter(), &argv(&["players", "allow", "steve"])).unwrap();
+        assert_eq!((found.id.as_str(), matched), ("players allow", 2));
+        let (found, matched) =
+            longest_match(commands.iter(), &argv(&["players", "bogus"])).unwrap();
+        assert_eq!((found.id.as_str(), matched), ("players", 1));
+        assert!(longest_match(commands.iter(), &argv(&["allow"])).is_none());
+        assert!(longest_match(commands.iter(), &argv(&[])).is_none());
+    }
+
+    #[test]
+    fn bare_words_bind_to_the_words_argument() {
+        let declared = [
+            arg("loud", CommandArgKind::Bool, false),
+            arg("names", CommandArgKind::Words, true),
+        ];
+        let (args, _) = parse_args(&declared, &argv(&["steve", "--loud", "alex"])).unwrap();
+        assert_eq!(args["names"], json!(["steve", "alex"]));
+        assert_eq!(args["loud"], json!(true));
+        assert!(parse_args(&declared, &argv(&["--loud"])).is_err());
+        assert!(parse_args(&declared, &argv(&["--names", "x"])).is_err());
     }
 
     #[test]

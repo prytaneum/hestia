@@ -169,7 +169,13 @@ channels. The manifest's `[[contributes.commands]]` is the schema; the daemon
 checks arguments against it first. `plugin.run` carries no `PLUGIN` permission, so
 a plugin cannot start another's command through `host.call`. The CLI reaches them
 as `hestia <plugin> <command>`. Plugin ids may not take a CLI verb
-(`RESERVED_IDS`).
+(`RESERVED_IDS`). A command id is one to three words and the CLI matches the
+longest one; a `words` argument takes the bare words after it.
+
+`server.files.read` is `entry:read` for a plugin, narrowed to the manifest's
+`files`: the handler asks `Plugins::grants_file` for the calling plugin, and the
+list is part of the `Grant`, so it is shown at install and widens an update
+([0092](decisions/0092-a-contract-names-the-permission-a-plugin-needs.md)).
 
 ## Events
 

@@ -78,6 +78,22 @@ args = ["-jar", "*"]
 The [`tunnel-demo`](https://github.com/prytaneum/plugin-examples/tree/main/plugins/tunnel-demo) example plugin starts a stand-in agent when a server starts and stops it when the server
 exits.
 
+## Entry files
+
+`entry:read` does not let a plugin read the files of a server. `server.files.read` serves a plugin only the paths its
+manifest lists in `files`, matched exactly, and the list is part of the grant: the install prompt shows it and an update
+that adds a path asks again.
+
+```toml
+permissions = ["entry:read"]
+files = ["whitelist.json", "ops.json", "banned-players.json"]
+```
+
+- A path is relative to the server's directory and already normalised: no leading `/`, no `\`, no `.` or `..`
+  segment, no glob. `./ops.json` is refused at install and, in a call, matches nothing.
+- `server.properties` can never be listed, because it holds the RCON password.
+- A client other than a plugin reads any file, as before ([0092](../decisions/0092-a-contract-names-the-permission-a-plugin-needs.md)).
+
 ## Local endpoints
 
 `ipc:connect` reaches only the local endpoints the manifest lists

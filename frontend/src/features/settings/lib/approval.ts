@@ -7,6 +7,7 @@ type GrantSectionKind =
   | 'programs'
   | 'network'
   | 'ipc'
+  | 'files'
   | 'launch_properties'
   | 'hooks'
   | 'events'
@@ -60,6 +61,7 @@ const HEADING: Record<GrantSectionKind, () => string> = {
   programs: m['settings.plugins.grant.programs'],
   network: m['settings.plugins.grant.network'],
   ipc: m['settings.plugins.grant.ipc'],
+  files: m['settings.plugins.grant.files'],
   launch_properties: m['settings.plugins.grant.launch_properties'],
   hooks: m['settings.plugins.grant.hooks'],
   events: m['settings.plugins.grant.events'],
@@ -125,6 +127,7 @@ export function describeGrant(
     ],
     ['network', values(grant.network)],
     ['ipc', values(grant.ipc)],
+    ['files', values(grant.files)],
     ['launch_properties', values(grant.launchProperties)],
     ['hooks', values(grant.hooks)],
     ['events', values(grant.events)],

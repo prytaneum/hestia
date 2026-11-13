@@ -807,10 +807,11 @@ hestia hello                     # list the plugin's commands (title, descriptio
 hestia hello greet --name world  # run one; --name <value>, --flag for a bool, --count 3 for a number
 hestia hello greet --help        # the declared arguments and their help
 hestia hello greet --json        # print the raw JSON output instead of a table or block
-hestia server smp players add --name steve   # a server-scoped command `players` on server smp
+hestia server smp lists add steve alex       # a server-scoped command `lists add` taking bare words
 ```
 
-Only declared arguments are accepted (`--name value` or `--name=value`); a missing required one or an unknown one is
+A command id may be several words (`lists add`; the longest match wins), and a command that declares a `words` argument
+takes the bare words after it. Only declared arguments are accepted (`--name value` or `--name=value`); a missing required one or an unknown one is
 refused, naming what it expected. A progress-reporting command shows its message inline like the built-in jobs. The
 output renders as a key/value block for an object, a table for a list of objects, a line for a string, and indented JSON
 otherwise. If two plugins contribute the same scoped command, you are asked which to run (without a terminal it errors,

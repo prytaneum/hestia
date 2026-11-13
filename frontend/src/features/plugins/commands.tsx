@@ -57,7 +57,12 @@ function given(
   return Object.fromEntries(
     args
       .filter((arg) => arg.required || values[arg.name] !== '')
-      .map((arg) => [arg.name, values[arg.name]]),
+      .map((arg) => [
+        arg.name,
+        arg.kind === 'words'
+          ? String(values[arg.name]).split(/\s+/).filter(Boolean)
+          : values[arg.name],
+      ]),
   );
 }
 
@@ -75,7 +80,10 @@ function ArgumentsDialog({
   const set = (name: string, value: Value) =>
     setValues((previous) => ({ ...previous, [name]: value }));
   const complete = args.every(
-    (arg) => !arg.required || arg.kind === 'bool' || values[arg.name] !== '',
+    (arg) =>
+      !arg.required ||
+      arg.kind === 'bool' ||
+      String(values[arg.name]).trim() !== '',
   );
 
   return (
