@@ -64,6 +64,8 @@ pub const TOPICS: &[TopicAccess] = &[
     access::<crate::process::ProcessMetricsEvent>(),
     access::<crate::process::ProcessOutputEvent>(),
     access::<crate::process::ProcessStartedEvent>(),
+    access::<crate::pushed::IpcClosedEvent>(),
+    access::<crate::pushed::IpcReadableEvent>(),
     access::<crate::server::ServerReadyEvent>(),
 ];
 

@@ -170,12 +170,12 @@ impl<'r> Channels<'r> {
                         }
                     };
                     let runtime = ctx.runtime.clone();
-                    let touched = ctx.touched.clone();
+                    let changed = ctx.changed.clone();
                     match f(params, ctx).await {
                         Ok(result) => {
                             let payload = serde_json::to_value(result).unwrap_or(Value::Null);
                             if let Some(scope) = C::CHANGES {
-                                publish_changed(&runtime, scope, touched.ids());
+                                publish_changed(&runtime, scope, changed.ids());
                             }
                             Response::success(payload)
                         }
@@ -199,7 +199,7 @@ mod tests {
     use tokio::sync::mpsc::unbounded_channel;
 
     use super::requires_account;
-    use crate::runtime::{Caller, HandlerContext, Runtime, Touched};
+    use crate::runtime::{Caller, Changed, HandlerContext, Runtime};
 
     fn changes(runtime: &Runtime) -> Arc<Mutex<Vec<ChangedEvent>>> {
         let seen = Arc::new(Mutex::new(Vec::new()));
@@ -225,7 +225,7 @@ mod tests {
             out,
             caller: Caller::Client,
             chain: CallChain::default(),
-            touched: Touched::default(),
+            changed: Changed::default(),
         };
         let response = crate::services::make_router()
             .route(Request::new(channel, payload, None), ctx)

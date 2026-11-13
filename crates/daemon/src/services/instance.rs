@@ -44,7 +44,7 @@ pub(super) fn register(on: &mut Channels<'_>) {
             version = %record.profile.game_version,
             "instance created"
         );
-        ctx.touched.add(&record.id);
+        ctx.changed.add(&record.id);
         Ok(ctx.runtime.instance_view(record))
     });
 

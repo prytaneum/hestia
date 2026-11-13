@@ -7,12 +7,14 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-use engine::{CallChain, CallError, HostCalls, LoadedPlugin, EVENT_TIMEOUT};
+use engine::{CallChain, CallError, HostCalls, LoadedPlugin, Pushed, EVENT_TIMEOUT};
 use proto::events::topic_permission;
 use proto::glob::topic_matches;
 use proto::plugin::{Grant, PluginStateEvent, ScheduleEvent, ScopeKind};
+use proto::pushed::{is_private, IpcClosedEvent, IpcReadableEvent};
 use proto::Topic;
 use serde_json::{json, Value};
+use tokio::sync::mpsc::UnboundedReceiver;
 use tokio::sync::Notify;
 use tokio::task::JoinHandle;
 use tokio::time::{interval_at, MissedTickBehavior};
@@ -27,12 +29,11 @@ const TIMEOUTS_IN_A_ROW: u32 = 3;
 /// Every topic is classified in `proto::events::TOPICS`; a topic none classifies,
 /// such as process output, never reaches a plugin. A `job` event goes only to a
 /// plugin granted the permission of the channel that started the job;
-/// `plugin.state` needs none but is cut to its id and state.
+/// `plugin.state` needs none but is cut to its id and state. A topic pushed to
+/// one plugin alone is never admitted from the hub, whoever claims to have
+/// published it.
 pub fn admit(grant: &Grant, host: &dyn HostCalls, topic: &str, payload: &Value) -> Option<Value> {
-    if !grant
-        .contributed(ScopeKind::Events)
-        .any(|pattern| topic_matches(pattern, topic))
-    {
+    if is_private(topic) || !subscribes(grant, topic) {
         return None;
     }
     if topic == PluginStateEvent::TOPIC {
@@ -46,6 +47,19 @@ pub fn admit(grant: &Grant, host: &dyn HostCalls, topic: &str, payload: &Value) 
     needed
         .is_some_and(|permission| grant.holds(permission))
         .then(|| payload.clone())
+}
+
+fn subscribes(grant: &Grant, topic: &str) -> bool {
+    grant
+        .contributed(ScopeKind::Events)
+        .any(|pattern| topic_matches(pattern, topic))
+}
+
+/// Whether the plugin may be handed an event the host pushed to it: it must
+/// subscribe to the topic and hold the permission the topic names.
+fn admit_pushed(grant: &Grant, topic: &str) -> bool {
+    subscribes(grant, topic)
+        && topic_permission(topic, &Value::Null).is_some_and(|permission| grant.holds(permission))
 }
 
 /// A plugin's pending events: bounded, and when full the oldest is dropped, so a
@@ -169,16 +183,23 @@ impl Delivery {
                 }
             }),
         );
-        let mut tasks: Vec<_> = grant
-            .schedules()
-            .map(|schedule| {
-                tokio::spawn(tick(
-                    inbox.clone(),
-                    schedule.id.clone(),
-                    Duration::from_secs(schedule.every),
-                ))
-            })
-            .collect();
+        let mut tasks: Vec<_> = Vec::new();
+        if admit_pushed(&grant, IpcReadableEvent::TOPIC)
+            || admit_pushed(&grant, IpcClosedEvent::TOPIC)
+        {
+            tasks.push(tokio::spawn(forward(
+                inbox.clone(),
+                grant.clone(),
+                loaded.pushed(),
+            )));
+        }
+        tasks.extend(grant.schedules().map(|schedule| {
+            tokio::spawn(tick(
+                inbox.clone(),
+                schedule.id.clone(),
+                Duration::from_secs(schedule.every),
+            ))
+        }));
         let ticks: Vec<_> = tasks.iter().map(JoinHandle::abort_handle).collect();
         let hub_for_drain = hub.clone();
         let key_for_drain = key.clone();
@@ -194,6 +215,16 @@ impl Drop for Delivery {
     fn drop(&mut self) {
         self.hub.unlisten(&self.key);
         self.tasks.iter().for_each(JoinHandle::abort);
+    }
+}
+
+/// Moves what the plugin's own connections report into its inbox, once it has
+/// subscribed to the topic and holds the permission.
+async fn forward(inbox: Arc<Inbox>, grant: Arc<Grant>, mut pushed: UnboundedReceiver<Pushed>) {
+    while let Some(event) = pushed.recv().await {
+        if admit_pushed(&grant, event.topic) {
+            inbox.push(event.topic, event.payload);
+        }
     }
 }
 
@@ -342,6 +373,50 @@ mod tests {
         let entries = grant(&["server.ready"], &[Permission::EntryRead]);
         assert!(admitted(&entries, "server.ready", ready.clone()).is_some());
         assert!(admitted(&grant(&["server.ready"], &[]), "server.ready", ready).is_none());
+    }
+
+    #[test]
+    fn a_pushed_topic_is_never_admitted_from_the_hub() {
+        let owner = grant(&["ipc.*"], &[Permission::IpcConnect]);
+        let readable = json!({ "connection": "1" });
+        assert!(admitted(&owner, "ipc.readable", readable.clone()).is_none());
+        assert!(admitted(&owner, "ipc.closed", readable).is_none());
+    }
+
+    #[test]
+    fn a_pushed_event_needs_the_subscription_and_the_permission() {
+        let both = grant(&["ipc.readable"], &[Permission::IpcConnect]);
+        assert!(admit_pushed(&both, "ipc.readable"));
+        assert!(!admit_pushed(&both, "ipc.closed"));
+        assert!(admit_pushed(
+            &grant(&["ipc.*"], &[Permission::IpcConnect]),
+            "ipc.closed"
+        ));
+        assert!(!admit_pushed(&grant(&["ipc.*"], &[]), "ipc.readable"));
+        assert!(!admit_pushed(
+            &grant(&["server.*"], &[Permission::IpcConnect]),
+            "ipc.readable"
+        ));
+    }
+
+    #[tokio::test]
+    async fn only_admitted_pushed_events_reach_the_inbox() {
+        let inbox = Arc::new(Inbox::new("demo"));
+        let (sender, receiver) = tokio::sync::mpsc::unbounded_channel();
+        let event = |topic| Pushed {
+            topic,
+            payload: json!({ "connection": "1" }),
+        };
+        sender.send(event("ipc.readable")).unwrap();
+        sender.send(event("ipc.closed")).unwrap();
+        drop(sender);
+
+        let listening = Arc::new(grant(&["ipc.closed"], &[Permission::IpcConnect]));
+        forward(inbox.clone(), listening, receiver).await;
+
+        let queue = inbox.queue.lock().unwrap();
+        assert_eq!(queue.len(), 1);
+        assert_eq!(queue[0].0, "ipc.closed");
     }
 
     #[test]

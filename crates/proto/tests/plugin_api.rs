@@ -264,7 +264,7 @@ fn api() -> Api {
         plugin::PluginAutoUpdatedEvent, plugin::PluginLogEvent, plugin::PluginRolledBackEvent, plugin::PluginStateEvent,
         plugin::Outdated, plugin::ScheduleEvent, server::ServerReadyEvent,
         process::ProcessExitEvent, process::ProcessMetricsEvent, process::ProcessOutputEvent,
-        process::ProcessStartedEvent,
+        process::ProcessStartedEvent, pushed::IpcClosedEvent, pushed::IpcReadableEvent,
     );
     each!(api.provider_op:
         provider::content::Info, provider::content::ParseUrl, provider::content::RecogniseFileUrl,

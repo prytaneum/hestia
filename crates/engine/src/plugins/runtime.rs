@@ -26,7 +26,7 @@ use super::error::GuestError;
 use super::http::PluginHttp;
 use super::imports::bindings::{self, hestia::plugin::types::PluginError};
 use super::imports::{CommandRun, Gate, HostCalls, PluginState};
-use super::ipc::Connections;
+use super::ipc::{Connections, Pushed};
 use super::output::{Captured, PluginLog};
 use super::process::Programs;
 use super::program::{ManagedJava, NoManagedJava};
@@ -341,6 +341,12 @@ impl LoadedPlugin {
     /// again loads a fresh one.
     pub fn is_disabled(&self) -> bool {
         self.disabled.load(Ordering::Relaxed)
+    }
+
+    /// What this plugin's connections report on their own, to be put in its event
+    /// queue. Taking it again replaces the earlier receiver.
+    pub fn pushed(&self) -> tokio::sync::mpsc::UnboundedReceiver<Pushed> {
+        self.ipc.pushed()
     }
 
     pub fn stats(&self) -> PluginStats {

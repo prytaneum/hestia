@@ -7,9 +7,9 @@ use std::collections::BTreeSet;
 use std::sync::{Arc, Mutex};
 
 #[derive(Clone, Default)]
-pub struct Touched(Arc<Mutex<BTreeSet<String>>>);
+pub struct Changed(Arc<Mutex<BTreeSet<String>>>);
 
-impl Touched {
+impl Changed {
     pub fn add(&self, id: &str) {
         self.0.lock().unwrap().insert(id.to_string());
     }
@@ -25,7 +25,7 @@ mod tests {
 
     #[test]
     fn ids_are_unique_and_sorted() {
-        let touched = Touched::default();
+        let touched = Changed::default();
         touched.add("b");
         touched.add("a");
         touched.add("b");

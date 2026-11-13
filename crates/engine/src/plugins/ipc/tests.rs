@@ -1,6 +1,7 @@
 use proto::plugin::PermissionScope;
 
 use super::*;
+use tokio::io::AsyncReadExt;
 
 fn connections(permissions: &[Permission], ipc: &[&str]) -> Connections {
     Connections::new(
@@ -111,4 +112,121 @@ async fn a_quiet_peer_reads_as_empty_after_the_wait() {
         .await
         .unwrap();
     assert!(read.is_empty());
+}
+
+mod pushed {
+    use proto::pushed::{IpcClosedEvent, IpcReadableEvent};
+    use proto::Topic;
+    use tokio::io::{AsyncWriteExt, DuplexStream};
+    use tokio::sync::mpsc::UnboundedReceiver;
+
+    use super::*;
+
+    const QUIET: Duration = Duration::from_millis(100);
+
+    fn open() -> (Connections, UnboundedReceiver<Pushed>, String, DuplexStream) {
+        let ipc = connections(&[Permission::IpcConnect], &[]);
+        let events = ipc.pushed();
+        let (near, far) = tokio::io::duplex(4096);
+        let id = ipc.adopt(Box::new(near));
+        (ipc, events, id, far)
+    }
+
+    async fn next(events: &mut UnboundedReceiver<Pushed>) -> Option<Pushed> {
+        tokio::time::timeout(QUIET, events.recv())
+            .await
+            .ok()
+            .flatten()
+    }
+
+    fn readable(id: &str) -> Pushed {
+        Pushed {
+            topic: IpcReadableEvent::TOPIC,
+            payload: serde_json::json!({ "connection": id }),
+        }
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn arriving_bytes_fire_one_readable_event_until_the_plugin_receives() {
+        let (ipc, mut events, id, mut far) = open();
+        far.write_all(b"one").await.unwrap();
+        far.write_all(b"two").await.unwrap();
+        assert_eq!(next(&mut events).await, Some(readable(&id)));
+        far.write_all(b"three").await.unwrap();
+        assert_eq!(next(&mut events).await, None);
+
+        let read = ipc.receive(&id, 64, Duration::ZERO).await.unwrap();
+        assert_eq!(read, b"onetwothree");
+        assert_eq!(next(&mut events).await, None);
+
+        far.write_all(b"four").await.unwrap();
+        assert_eq!(next(&mut events).await, Some(readable(&id)));
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn a_receive_that_leaves_bytes_behind_fires_again() {
+        let (ipc, mut events, id, mut far) = open();
+        far.write_all(b"abcdef").await.unwrap();
+        assert_eq!(next(&mut events).await, Some(readable(&id)));
+
+        assert_eq!(ipc.receive(&id, 4, Duration::ZERO).await.unwrap(), b"abcd");
+        assert_eq!(next(&mut events).await, Some(readable(&id)));
+        assert_eq!(ipc.receive(&id, 4, Duration::ZERO).await.unwrap(), b"ef");
+        assert_eq!(next(&mut events).await, None);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn bytes_a_waiting_receive_takes_fire_nothing() {
+        let (ipc, mut events, id, mut far) = open();
+        let waiting =
+            tokio::spawn(
+                async move { ipc.receive(&id, 64, Duration::from_secs(5)).await.unwrap() },
+            );
+        tokio::task::yield_now().await;
+        far.write_all(b"hi").await.unwrap();
+        assert_eq!(waiting.await.unwrap(), b"hi");
+        assert_eq!(next(&mut events).await, None);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn a_peer_that_closes_fires_closed_once_after_its_last_bytes() {
+        let (ipc, mut events, id, mut far) = open();
+        far.write_all(b"bye").await.unwrap();
+        drop(far);
+        assert_eq!(next(&mut events).await, Some(readable(&id)));
+        assert_eq!(
+            next(&mut events).await,
+            Some(Pushed {
+                topic: IpcClosedEvent::TOPIC,
+                payload: serde_json::json!({ "connection": id }),
+            })
+        );
+        assert_eq!(next(&mut events).await, None);
+
+        assert_eq!(ipc.receive(&id, 64, Duration::ZERO).await.unwrap(), b"bye");
+        assert!(matches!(
+            ipc.receive(&id, 64, Duration::ZERO).await,
+            Err(IpcError::NotFound(_))
+        ));
+        assert_eq!(next(&mut events).await, None);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn closing_a_connection_oneself_fires_nothing() {
+        let (ipc, mut events, id, far) = open();
+        ipc.close(&id).unwrap();
+        drop(far);
+        assert_eq!(next(&mut events).await, None);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn nothing_is_queued_until_the_receiver_is_taken() {
+        let ipc = connections(&[Permission::IpcConnect], &[]);
+        let (near, mut far) = tokio::io::duplex(64);
+        ipc.adopt(Box::new(near));
+        far.write_all(b"early").await.unwrap();
+        tokio::time::sleep(QUIET).await;
+        let mut events = ipc.pushed();
+        assert_eq!(next(&mut events).await, None);
+    }
 }

@@ -53,6 +53,7 @@ pub use hooks::{
 pub use imports::{CommandRun, HostCalls};
 pub(crate) use index::{build_url, declared_keys, expand, open, pinned_keys};
 pub use install::Inspection;
+pub use ipc::Pushed;
 pub use official::{is_official_signer, refuse_official_key};
 pub use patch::LaunchPatch;
 pub use process::owner_of;

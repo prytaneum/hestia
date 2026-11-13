@@ -87,7 +87,7 @@ pub(super) fn register(on: &mut Channels<'_>) {
             }
         };
         tracing::info!(kind = ?entry.kind, %id, %name, "entry renamed");
-        ctx.touched.add(&id);
+        ctx.changed.add(&id);
         Ok(EntryRenamed { id, name })
     });
 

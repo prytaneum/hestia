@@ -235,7 +235,7 @@ pub(super) fn find_server(
             entry: EntryKind::Server,
             reference: reference.to_string(),
         })?;
-    ctx.touched.add(&record.id);
+    ctx.changed.add(&record.id);
     Ok(record)
 }
 
@@ -252,7 +252,7 @@ pub(super) fn find_instance(
             entry: EntryKind::Instance,
             reference: reference.to_string(),
         })?;
-    ctx.touched.add(&record.id);
+    ctx.changed.add(&record.id);
     Ok(record)
 }
 

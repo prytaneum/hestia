@@ -37,6 +37,7 @@ pub mod presence;
 pub mod process;
 pub mod profile;
 pub mod provider;
+pub mod pushed;
 pub mod repository;
 pub mod screenshot;
 pub mod server;

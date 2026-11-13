@@ -31,7 +31,7 @@ pub(super) fn register(on: &mut Channels<'_>) {
     });
 
     on.handle::<PluginSettingsSet, _, _>(|p, ctx| async move {
-        ctx.touched.add(&p.id);
+        ctx.changed.add(&p.id);
         ctx.runtime
             .plugins()
             .set_setting(&p.id, &p.key, p.value, &ctx.chain)
@@ -40,17 +40,17 @@ pub(super) fn register(on: &mut Channels<'_>) {
     });
 
     on.handle::<PluginEnable, _, _>(|p, ctx| async move {
-        ctx.touched.add(&p.id);
+        ctx.changed.add(&p.id);
         ctx.runtime.plugins().enable(&p.id).await
     });
 
     on.handle::<PluginDisable, _, _>(|p, ctx| async move {
-        ctx.touched.add(&p.id);
+        ctx.changed.add(&p.id);
         ctx.runtime.plugins().disable(&p.id).await
     });
 
     on.handle::<PluginRemove, _, _>(|p, ctx| async move {
-        ctx.touched.add(&p.id);
+        ctx.changed.add(&p.id);
         ctx.runtime.plugins().remove(&p.id).await?;
         Ok(Empty {})
     });

@@ -11,7 +11,7 @@ use tracing::Instrument;
 
 use engine::CallChain;
 
-use crate::runtime::{Caller, HandlerContext, Router, RouterHost, Runtime, Touched};
+use crate::runtime::{Caller, Changed, HandlerContext, Router, RouterHost, Runtime};
 use crate::services::make_router;
 
 pub async fn run_daemon(log_path: std::path::PathBuf, safe_mode: bool) -> i32 {
@@ -159,7 +159,7 @@ async fn serve_connection(
             out: out_tx.clone(),
             caller: Caller::Client,
             chain: CallChain::default(),
-            touched: Touched::default(),
+            changed: Changed::default(),
         };
         let router = router.clone();
         tokio::spawn(async move {

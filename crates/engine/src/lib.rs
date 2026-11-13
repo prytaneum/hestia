@@ -76,7 +76,7 @@ pub use plugins::{
     HostCalls, Inspection, LaunchPatch, Listings, LoadError, LoadedPlugin, ManagedJava, Mount,
     Origin, Participant, PluginContentProvider, PluginFlavorProvider, PluginFormat,
     PluginJavaProvider, PluginPackage, PluginRecord, PluginRuntime, PluginSettings, PluginStats,
-    Plugins, Remote, RepoError, Roster, Seeded, SettingsError, Staged, UpdateOutcome,
+    Plugins, Pushed, Remote, RepoError, Roster, Seeded, SettingsError, Staged, UpdateOutcome,
     UpdateRequest, CANCEL_GRACE, COMMAND_TIMEOUT, EVENT_TIMEOUT, HOOK_TIMEOUT, MAX_ASSET_BYTES,
     MAX_CHAIN_DEPTH, PROVIDER_TIMEOUT, UI_TIMEOUT,
 };

@@ -63,6 +63,7 @@ libc = "0.2"
 libc = "0.2"
 
 [dev-dependencies]
+tokio = { workspace = true, features = ["test-util"] }
 engine = { path = ".", features = ["loopback"] }
 tempfile.workspace = true
 minisign = { workspace = true }

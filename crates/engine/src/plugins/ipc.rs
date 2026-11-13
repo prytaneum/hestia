@@ -10,7 +10,14 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use proto::plugin::{Grant, Permission, ScopeKind};
-use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
+use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt, WriteHalf};
+use tokio::sync::mpsc::UnboundedReceiver;
+use tokio::task::JoinHandle;
+
+mod inbound;
+
+pub use inbound::Pushed;
+use inbound::{Ended, Inbound, Signals};
 
 const MAX_CONNECTIONS: usize = 8;
 const MAX_MESSAGE_BYTES: usize = 1024 * 1024;
@@ -31,15 +38,26 @@ pub(crate) enum IpcError {
 trait Stream: AsyncRead + AsyncWrite + Send + Unpin {}
 impl<T: AsyncRead + AsyncWrite + Send + Unpin> Stream for T {}
 
-type Connection = Arc<tokio::sync::Mutex<Box<dyn Stream>>>;
+struct Connection {
+    writer: tokio::sync::Mutex<WriteHalf<Box<dyn Stream>>>,
+    inbound: Arc<Inbound>,
+    reader: JoinHandle<()>,
+}
+
+impl Drop for Connection {
+    fn drop(&mut self) {
+        self.reader.abort();
+    }
+}
 
 /// One plugin's open connections. Dropped with the plugin's instance, which
 /// closes them all.
 pub(crate) struct Connections {
     plugin: Arc<str>,
     grant: Arc<Grant>,
-    open: Mutex<HashMap<String, Connection>>,
+    open: Mutex<HashMap<String, Arc<Connection>>>,
     next: AtomicU64,
+    signals: Signals,
 }
 
 impl Connections {
@@ -49,7 +67,14 @@ impl Connections {
             grant,
             open: Mutex::default(),
             next: AtomicU64::new(1),
+            signals: Signals::default(),
         }
+    }
+
+    /// What the connections tell their plugin on their own: bytes arrived, the
+    /// peer closed. Taking it again replaces the earlier receiver.
+    pub(crate) fn pushed(&self) -> UnboundedReceiver<Pushed> {
+        self.signals.open()
     }
 
     fn allowed(&self) -> Result<(), IpcError> {
@@ -61,7 +86,7 @@ impl Connections {
         ))
     }
 
-    fn connection(&self, id: &str) -> Result<Connection, IpcError> {
+    fn connection(&self, id: &str) -> Result<Arc<Connection>, IpcError> {
         self.allowed()?;
         self.open
             .lock()
@@ -94,10 +119,17 @@ impl Connections {
 
     fn adopt(&self, stream: Box<dyn Stream>) -> String {
         let id = self.next.fetch_add(1, Ordering::Relaxed).to_string();
+        let (reader, writer) = tokio::io::split(stream);
+        let (inbound, reader) = Inbound::spawn(id.clone(), self.signals.clone(), reader);
+        let connection = Connection {
+            writer: tokio::sync::Mutex::new(writer),
+            inbound,
+            reader,
+        };
         self.open
             .lock()
             .unwrap()
-            .insert(id.clone(), Arc::new(tokio::sync::Mutex::new(stream)));
+            .insert(id.clone(), Arc::new(connection));
         id
     }
 
@@ -108,7 +140,7 @@ impl Connections {
             )));
         }
         let connection = self.connection(id)?;
-        let mut stream = connection.lock().await;
+        let mut stream = connection.writer.lock().await;
         let written = async {
             stream.write_all(bytes).await?;
             stream.flush().await
@@ -127,21 +159,16 @@ impl Connections {
         timeout: Duration,
     ) -> Result<Vec<u8>, IpcError> {
         let connection = self.connection(id)?;
-        let mut buffer = vec![0; (max as usize).clamp(1, MAX_MESSAGE_BYTES)];
-        let mut stream = connection.lock().await;
-        match tokio::time::timeout(timeout.min(MAX_WAIT), stream.read(&mut buffer)).await {
-            Err(_) => Ok(Vec::new()),
-            Ok(Ok(0)) => {
+        let max = (max as usize).clamp(1, MAX_MESSAGE_BYTES);
+        match connection.inbound.take(max, timeout.min(MAX_WAIT)).await {
+            Ok(bytes) => Ok(bytes),
+            Err(Ended::Peer) => {
                 self.forget(id);
                 Err(IpcError::NotFound(format!(
                     "connection `{id}` was closed by its peer"
                 )))
             }
-            Ok(Ok(read)) => {
-                buffer.truncate(read);
-                Ok(buffer)
-            }
-            Ok(Err(error)) => {
+            Err(Ended::Failed(error)) => {
                 self.forget(id);
                 Err(IpcError::Failed(format!("connection `{id}`: {error}")))
             }
@@ -163,11 +190,16 @@ impl Connections {
 
     /// Closes every connection; used when the plugin is taken out of service.
     pub(crate) fn close_all(&self) {
-        self.open.lock().unwrap().clear();
+        let open: Vec<_> = self.open.lock().unwrap().drain().collect();
+        open.iter()
+            .for_each(|(_, connection)| connection.reader.abort());
     }
 
     fn forget(&self, id: &str) {
-        self.open.lock().unwrap().remove(id);
+        let removed = self.open.lock().unwrap().remove(id);
+        if let Some(connection) = removed {
+            connection.reader.abort();
+        }
     }
 }
 

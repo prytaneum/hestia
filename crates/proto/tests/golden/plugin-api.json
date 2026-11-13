@@ -234,6 +234,14 @@
       "permission": "entry:read",
       "result": "Array<WorldInfo>"
     },
+    "ipc.closed": {
+      "payload": "IpcClosedEvent",
+      "permission": "ipc:connect"
+    },
+    "ipc.readable": {
+      "payload": "IpcReadableEvent",
+      "permission": "ipc:connect"
+    },
     "java.install": {
       "done": "JavaInstallDone",
       "params": "JavaInstallParams",
@@ -689,6 +697,8 @@
     "InstanceUpdateDone": "type InstanceUpdateDone = { instance: InstanceInfo, warnings: Array<WarningInfo>, failures: Array<ContentFailure>, };",
     "InstanceUpdateParams": "type InstanceUpdateParams = { instance: string, version: string, loaderVersion?: string, allowDowngrade: boolean, pack: PackPolicy, id: string, };",
     "IoOp": "type IoOp = \"create\" | \"read\" | \"write\" | \"remove\" | \"move\" | \"copy\" | \"open\" | \"link\" | \"unlink\" | \"extract\";",
+    "IpcClosedEvent": "type IpcClosedEvent = { connection: string, };",
+    "IpcReadableEvent": "type IpcReadableEvent = { connection: string, };",
     "JavaBuild": "type JavaBuild = { vendor: string, version: string, url: string, sha256: string, archive: string, };",
     "JavaInstallDone": "type JavaInstallDone = { runtime: JavaRuntime, alreadyInstalled: boolean, };",
     "JavaInstallParams": "type JavaInstallParams = { major: number, id: string, force: boolean, provider?: string, };",
