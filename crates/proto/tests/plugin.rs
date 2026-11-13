@@ -24,6 +24,18 @@ mod manifest {
         MAX_SCHEDULE_SECS,
     };
 
+    /// The first error, in rule order.
+    trait Verdict {
+        fn verdict(&self) -> Result<(), ManifestError>;
+    }
+
+    impl Verdict for Manifest {
+        fn verdict(&self) -> Result<(), ManifestError> {
+            self.validate()
+                .map_err(|errors| errors.into_vec().remove(0))
+        }
+    }
+
     fn valid() -> Manifest {
         Manifest {
             id: "tunnel".into(),
@@ -39,9 +51,9 @@ mod manifest {
         let mut theme = valid();
         theme.api = None;
         theme.wasm = None;
-        assert_eq!(theme.validate(), Ok(()));
+        assert_eq!(theme.verdict(), Ok(()));
         theme.wasm = Some("plugin.wasm".into());
-        assert_eq!(theme.validate(), Err(ManifestError::MissingApi));
+        assert_eq!(theme.verdict(), Err(ManifestError::MissingApi));
     }
 
     fn hooked(hook: &str, permissions: &[Permission]) -> Manifest {
@@ -54,21 +66,21 @@ mod manifest {
     #[test]
     fn a_hook_needs_its_permissions_and_must_be_known() {
         assert_eq!(
-            hooked("before-launch", &[Permission::LaunchPatch]).validate(),
+            hooked("before-launch", &[Permission::LaunchPatch]).verdict(),
             Err(ManifestError::HookPermissionMissing {
                 hook: "before-launch".into(),
                 permission: Permission::AccountRead,
             })
         );
         assert_eq!(
-            hooked("before-content-install", &[]).validate(),
+            hooked("before-content-install", &[]).verdict(),
             Err(ManifestError::HookPermissionMissing {
                 hook: "before-content-install".into(),
                 permission: Permission::ContentRead,
             })
         );
         assert_eq!(
-            hooked("on-tuesday", &[]).validate(),
+            hooked("on-tuesday", &[]).verdict(),
             Err(ManifestError::UnknownHook("on-tuesday".into()))
         );
     }
@@ -78,7 +90,7 @@ mod manifest {
         let declaring = |key: &str| {
             let mut manifest = valid();
             manifest.launch.properties.push(key.into());
-            manifest.validate()
+            manifest.verdict()
         };
         assert_eq!(declaring("my.mod.flag"), Ok(()));
         for key in [
@@ -107,7 +119,7 @@ mod manifest {
         for point in proto::hook::POINTS {
             let (name, needs) = (point.name, point.permissions);
             let manifest = hooked(name, needs);
-            assert_eq!(manifest.validate(), Ok(()), "{name}");
+            assert_eq!(manifest.verdict(), Ok(()), "{name}");
             assert!(manifest.grant().unrestricted().is_empty(), "{name}");
         }
     }
@@ -126,7 +138,7 @@ mod manifest {
             let mut manifest = valid();
             manifest.wasm = Some(path.into());
             assert_eq!(
-                manifest.validate(),
+                manifest.verdict(),
                 Err(ManifestError::PathEscapes(path.into())),
                 "{path}"
             );
@@ -138,7 +150,7 @@ mod manifest {
             ..Default::default()
         });
         assert!(matches!(
-            manifest.validate(),
+            manifest.verdict(),
             Err(ManifestError::PathEscapes(_))
         ));
     }
@@ -153,11 +165,11 @@ mod manifest {
             ..Default::default()
         });
         assert_eq!(
-            manifest.validate(),
+            manifest.verdict(),
             Err(ManifestError::ThemeNeedsUiCss("dusk".into()))
         );
         manifest.permissions.push(Permission::UiCss);
-        assert_eq!(manifest.validate(), Ok(()));
+        assert_eq!(manifest.verdict(), Ok(()));
     }
 
     fn scheduled(schedules: &[(&str, u64)]) -> Manifest {
@@ -174,10 +186,10 @@ mod manifest {
 
     #[test]
     fn a_schedule_ticks_no_more_often_than_every_thirty_seconds() {
-        assert_eq!(scheduled(&[("poll", 30)]).validate(), Ok(()));
+        assert_eq!(scheduled(&[("poll", 30)]).verdict(), Ok(()));
         for every in [0, 29, MAX_SCHEDULE_SECS + 1] {
             assert_eq!(
-                scheduled(&[("poll", every)]).validate(),
+                scheduled(&[("poll", every)]).verdict(),
                 Err(ManifestError::BadScheduleInterval { id: "poll".into() })
             );
         }
@@ -186,15 +198,15 @@ mod manifest {
     #[test]
     fn schedule_ids_are_slugs_and_unique() {
         assert!(matches!(
-            scheduled(&[("poll", 60), ("poll", 90)]).validate(),
+            scheduled(&[("poll", 60), ("poll", 90)]).verdict(),
             Err(ManifestError::DuplicateId(_))
         ));
         assert!(matches!(
-            scheduled(&[("", 60)]).validate(),
+            scheduled(&[("", 60)]).verdict(),
             Err(ManifestError::BadContributionId(_))
         ));
         assert!(matches!(
-            scheduled(&[("Poll", 60)]).validate(),
+            scheduled(&[("Poll", 60)]).verdict(),
             Err(ManifestError::BadContributionId(_))
         ));
     }
@@ -205,7 +217,7 @@ mod manifest {
         let at = |count: usize| {
             let schedules: Vec<(&str, u64)> =
                 ids[..count].iter().map(|id| (id.as_str(), 60)).collect();
-            scheduled(&schedules).validate()
+            scheduled(&schedules).verdict()
         };
         assert_eq!(at(MAX_SCHEDULES), Ok(()));
         assert_eq!(at(MAX_SCHEDULES + 1), Err(ManifestError::TooManySchedules));
@@ -225,27 +237,27 @@ mod manifest {
 
     #[test]
     fn an_entry_page_needs_a_kind() {
-        assert_eq!(paged(PageSlot::Nav, None, None).validate(), Ok(()));
+        assert_eq!(paged(PageSlot::Nav, None, None).verdict(), Ok(()));
         assert_eq!(
-            paged(PageSlot::Entry, None, None).validate(),
+            paged(PageSlot::Entry, None, None).verdict(),
             Err(ManifestError::PageNeedsKind("overview".into()))
         );
         assert_eq!(
-            paged(PageSlot::Entry, Some(EntryKind::Server), None).validate(),
+            paged(PageSlot::Entry, Some(EntryKind::Server), None).verdict(),
             Ok(())
         );
     }
 
     #[test]
     fn a_page_icon_is_a_name_or_a_path_inside_the_package() {
-        assert_eq!(paged(PageSlot::Nav, None, Some("chart")).validate(), Ok(()));
+        assert_eq!(paged(PageSlot::Nav, None, Some("chart")).verdict(), Ok(()));
         assert_eq!(
-            paged(PageSlot::Nav, None, Some("assets/icon.svg")).validate(),
+            paged(PageSlot::Nav, None, Some("assets/icon.svg")).verdict(),
             Ok(())
         );
         for icon in ["../icon.svg", "/icon.svg", "a/../../icon.png"] {
             assert_eq!(
-                paged(PageSlot::Nav, None, Some(icon)).validate(),
+                paged(PageSlot::Nav, None, Some(icon)).verdict(),
                 Err(ManifestError::PathEscapes(icon.into())),
                 "{icon}"
             );
@@ -267,7 +279,7 @@ mod manifest {
             } else {
                 ManifestError::BadId(id.into())
             };
-            assert_eq!(manifest.validate(), Err(expected));
+            assert_eq!(manifest.verdict(), Err(expected));
         }
         let mut manifest = valid();
         manifest.contributes.providers.push(ProviderContribution {
@@ -275,7 +287,7 @@ mod manifest {
             id: "Not A Slug".into(),
         });
         assert!(matches!(
-            manifest.validate(),
+            manifest.verdict(),
             Err(ManifestError::BadContributionId(_))
         ));
     }
@@ -288,7 +300,7 @@ mod manifest {
             id: "index".into(),
         });
         assert_eq!(
-            manifest.validate(),
+            manifest.verdict(),
             Err(ManifestError::ProviderPermissionMissing {
                 provider: "index".into(),
                 permission: Permission::ContentRead
@@ -296,14 +308,14 @@ mod manifest {
         );
         manifest.permissions = vec![Permission::ContentRead, Permission::NetworkConnect];
         assert_eq!(
-            manifest.validate(),
+            manifest.verdict(),
             Err(ManifestError::ProviderNeedsHosts("index".into()))
         );
         manifest.network = vec!["index.example.com".into()];
-        assert_eq!(manifest.validate(), Ok(()));
+        assert_eq!(manifest.verdict(), Ok(()));
         manifest.contributes.providers[0].kind = "mystery".into();
         assert_eq!(
-            manifest.validate(),
+            manifest.verdict(),
             Err(ManifestError::UnknownProviderKind("mystery".into()))
         );
     }
@@ -317,7 +329,7 @@ mod manifest {
         });
         manifest.permissions = vec![Permission::ContentRead, Permission::NetworkConnect];
         assert_eq!(
-            manifest.validate(),
+            manifest.verdict(),
             Err(ManifestError::ProviderPermissionMissing {
                 provider: "quilt".into(),
                 permission: Permission::FlavorProvide
@@ -325,11 +337,11 @@ mod manifest {
         );
         manifest.permissions = vec![Permission::FlavorProvide, Permission::NetworkConnect];
         assert_eq!(
-            manifest.validate(),
+            manifest.verdict(),
             Err(ManifestError::ProviderNeedsHosts("quilt".into()))
         );
         manifest.network = vec!["meta.quiltmc.org".into()];
-        assert_eq!(manifest.validate(), Ok(()));
+        assert_eq!(manifest.verdict(), Ok(()));
         assert_eq!(Permission::FlavorProvide.tier(), Tier::Unrestricted);
     }
 
@@ -342,14 +354,14 @@ mod manifest {
         });
         manifest.permissions = vec![Permission::ContentRead];
         assert_eq!(
-            manifest.validate(),
+            manifest.verdict(),
             Err(ManifestError::ProviderPermissionMissing {
                 provider: "prism".into(),
                 permission: Permission::FormatProvide
             })
         );
         manifest.permissions = vec![Permission::FormatProvide];
-        assert_eq!(manifest.validate(), Ok(()));
+        assert_eq!(manifest.verdict(), Ok(()));
         assert_eq!(Permission::FormatProvide.tier(), Tier::Unrestricted);
     }
 
@@ -362,7 +374,7 @@ mod manifest {
         });
         manifest.permissions = vec![Permission::FlavorProvide, Permission::NetworkConnect];
         assert_eq!(
-            manifest.validate(),
+            manifest.verdict(),
             Err(ManifestError::ProviderPermissionMissing {
                 provider: "zulu".into(),
                 permission: Permission::JavaProvide
@@ -370,7 +382,7 @@ mod manifest {
         );
         manifest.permissions = vec![Permission::JavaProvide, Permission::NetworkConnect];
         manifest.network = vec!["api.azul.com".into()];
-        assert_eq!(manifest.validate(), Ok(()));
+        assert_eq!(manifest.verdict(), Ok(()));
         assert_eq!(Permission::JavaProvide.tier(), Tier::Unrestricted);
     }
 
@@ -378,11 +390,11 @@ mod manifest {
     fn event_patterns_are_a_topic_or_a_trailing_glob() {
         let mut manifest = valid();
         manifest.contributes.events = vec!["server.*".into(), "job".into()];
-        assert_eq!(manifest.validate(), Ok(()));
+        assert_eq!(manifest.verdict(), Ok(()));
         for bad in ["*", "server*", "a.*.b", ""] {
             manifest.contributes.events = vec![bad.into()];
             assert_eq!(
-                manifest.validate(),
+                manifest.verdict(),
                 Err(ManifestError::BadEventPattern(bad.into()))
             );
         }
@@ -399,7 +411,7 @@ mod manifest {
             })
             .into();
         assert_eq!(
-            manifest.validate(),
+            manifest.verdict(),
             Err(ManifestError::DuplicateId("token".into()))
         );
     }
@@ -416,7 +428,7 @@ mod manifest {
                 network: vec![good.into()],
                 ..valid()
             };
-            assert_eq!(manifest.validate(), Ok(()), "{good}");
+            assert_eq!(manifest.verdict(), Ok(()), "{good}");
         }
         for bad in ["*.co.uk", "*.github.io", "*.CO.UK.", "*.s3.amazonaws.com"] {
             let manifest = Manifest {
@@ -424,7 +436,7 @@ mod manifest {
                 ..valid()
             };
             assert_eq!(
-                manifest.validate(),
+                manifest.verdict(),
                 Err(ManifestError::PublicSuffixWildcard(bad.into())),
                 "{bad}"
             );
@@ -461,7 +473,7 @@ mod manifest {
                 network: vec![good.into()],
                 ..valid()
             };
-            assert_eq!(manifest.validate(), Ok(()), "{good}");
+            assert_eq!(manifest.verdict(), Ok(()), "{good}");
         }
         for bad in [
             "",
@@ -485,7 +497,7 @@ mod manifest {
                 ..valid()
             };
             assert_eq!(
-                manifest.validate(),
+                manifest.verdict(),
                 Err(ManifestError::BadNetworkHost(bad.into())),
                 "{bad}"
             );
@@ -500,14 +512,14 @@ mod manifest {
             ..valid()
         };
         assert_eq!(
-            manifest.validate(),
+            manifest.verdict(),
             Err(ManifestError::BadUnhashedHost("other.example.com".into()))
         );
         let declared = Manifest {
             unhashed: vec!["meta.example.com".into()],
             ..manifest
         };
-        assert_eq!(declared.validate(), Ok(()));
+        assert_eq!(declared.verdict(), Ok(()));
         assert!(declared.grant().unhashed.contains("meta.example.com"));
     }
 
@@ -537,10 +549,10 @@ mod manifest {
             ..spawning(path_program("tailscale", &[]))
         };
         assert_eq!(
-            manifest.validate(),
+            manifest.verdict(),
             Err(ManifestError::ProgramPermissionMissing)
         );
-        assert_eq!(spawning(path_program("tailscale", &[])).validate(), Ok(()));
+        assert_eq!(spawning(path_program("tailscale", &[])).verdict(), Ok(()));
     }
 
     #[test]
@@ -555,7 +567,7 @@ mod manifest {
                 ..path_program("agent", &[])
             });
             manifest.programs.extend(extra);
-            manifest.validate()
+            manifest.verdict()
         };
         assert_eq!(building(&["git"], vec![git.clone()]), Ok(()));
         for (path, extra) in [
@@ -599,7 +611,7 @@ mod manifest {
                 ..path_program("tailscale", &[])
             });
             assert_eq!(
-                manifest.validate(),
+                manifest.verdict(),
                 Err(ManifestError::BadProgramEnv(name.into())),
                 "{name}"
             );
@@ -608,7 +620,7 @@ mod manifest {
             env: ["TS_AUTHKEY".to_string(), "JAVA_HOME".to_string()].into(),
             ..path_program("tailscale", &[])
         });
-        assert_eq!(allowed.validate(), Ok(()));
+        assert_eq!(allowed.verdict(), Ok(()));
     }
 
     #[test]
@@ -628,21 +640,21 @@ mod manifest {
             };
             assert!(
                 matches!(
-                    spawning(program).validate(),
+                    spawning(program).verdict(),
                     Err(ManifestError::BadProgram(_))
                 ),
                 "{bad}"
             );
         }
         assert_eq!(
-            spawning(path_program("bin/playit", &[])).validate(),
+            spawning(path_program("bin/playit", &[])).verdict(),
             Err(ManifestError::ProgramNeedsHash("agent".into()))
         );
         assert!(matches!(
-            spawning(hashed("bin/playit", "ABC")).validate(),
+            spawning(hashed("bin/playit", "ABC")).verdict(),
             Err(ManifestError::BadProgram(_))
         ));
-        assert_eq!(spawning(hashed("bin/playit", &hash)).validate(), Ok(()));
+        assert_eq!(spawning(hashed("bin/playit", &hash)).verdict(), Ok(()));
     }
 
     #[test]
@@ -652,7 +664,7 @@ mod manifest {
             args: vec!["-jar".into(), "*".into()],
             ..Program::default()
         };
-        assert_eq!(spawning(java(21)).validate(), Ok(()));
+        assert_eq!(spawning(java(21)).verdict(), Ok(()));
         assert_eq!(java(21).command_label(), "Hestia-managed Java 21");
 
         let both = Program {
@@ -666,12 +678,12 @@ mod manifest {
         };
         for program in [both, neither, java(0), java(100)] {
             assert_eq!(
-                spawning(program).validate(),
+                spawning(program).verdict(),
                 Err(ManifestError::ProgramCommandOrJava("agent".into()))
             );
         }
         assert_eq!(
-            spawning(hashed).validate(),
+            spawning(hashed).verdict(),
             Err(ManifestError::BadProgram("agent".into()))
         );
         let shell_arg = Program {
@@ -679,7 +691,7 @@ mod manifest {
             ..java(21)
         };
         assert_eq!(
-            spawning(shell_arg).validate(),
+            spawning(shell_arg).verdict(),
             Err(ManifestError::BadProgram("agent".into()))
         );
     }
@@ -706,7 +718,7 @@ mod manifest {
         assert!(path_program("x", &[]).permits(&[]));
         assert!(!path_program("x", &[]).permits(&args(&["a"])));
         assert_eq!(
-            spawning(path_program("x", &["**", "a"])).validate(),
+            spawning(path_program("x", &["**", "a"])).verdict(),
             Err(ManifestError::BadProgram("agent".into()))
         );
     }
@@ -731,20 +743,20 @@ mod manifest {
     #[test]
     fn command_arguments_are_slugs_declared_once_and_never_the_entry_of_a_scoped_command() {
         assert_eq!(
-            command(CommandScope::Top, &["name", "port"]).validate(),
+            command(CommandScope::Top, &["name", "port"]).verdict(),
             Ok(())
         );
-        assert_eq!(command(CommandScope::Top, &["entry"]).validate(), Ok(()));
+        assert_eq!(command(CommandScope::Top, &["entry"]).verdict(), Ok(()));
         assert!(matches!(
-            command(CommandScope::Top, &["Bad Name"]).validate(),
+            command(CommandScope::Top, &["Bad Name"]).verdict(),
             Err(ManifestError::BadContributionId(_))
         ));
         assert_eq!(
-            command(CommandScope::Top, &["name", "name"]).validate(),
+            command(CommandScope::Top, &["name", "name"]).verdict(),
             Err(ManifestError::DuplicateId("name".into()))
         );
         assert_eq!(
-            command(CommandScope::Server, &["entry"]).validate(),
+            command(CommandScope::Server, &["entry"]).verdict(),
             Err(ManifestError::ReservedArg("open".into()))
         );
     }
@@ -758,13 +770,13 @@ mod manifest {
             let mut manifest = command(scope, &[]);
             manifest.contributes.commands[0].id = verb.into();
             assert_eq!(
-                manifest.validate(),
+                manifest.verdict(),
                 Err(ManifestError::ReservedCommand(verb.into()))
             );
         }
         let mut manifest = command(CommandScope::Top, &[]);
         manifest.contributes.commands[0].id = "backup".into();
-        assert_eq!(manifest.validate(), Ok(()));
+        assert_eq!(manifest.verdict(), Ok(()));
     }
 
     #[test]
@@ -774,16 +786,16 @@ mod manifest {
             manifest.contributes.commands[0].id = id.into();
             manifest
         };
-        assert_eq!(with_id("lists show").validate(), Ok(()));
+        assert_eq!(with_id("lists show").verdict(), Ok(()));
         for bad in ["", "a  b", " a", "a ", "a b c d", "Bad word", "a/b"] {
             assert_eq!(
-                with_id(bad).validate(),
+                with_id(bad).verdict(),
                 Err(ManifestError::BadCommandId(bad.into())),
                 "{bad:?}"
             );
         }
         assert_eq!(
-            with_id("backup now").validate(),
+            with_id("backup now").verdict(),
             Err(ManifestError::ReservedCommand("backup now".into()))
         );
         let mut twice = with_id("lists show");
@@ -793,11 +805,11 @@ mod manifest {
             ..CommandContribution::default()
         });
         assert_eq!(
-            twice.validate(),
+            twice.verdict(),
             Err(ManifestError::DuplicateId("lists show".into()))
         );
         twice.contributes.commands[1].id = "lists".into();
-        assert_eq!(twice.validate(), Ok(()));
+        assert_eq!(twice.verdict(), Ok(()));
     }
 
     #[test]
@@ -817,7 +829,7 @@ mod manifest {
             manifest
         };
         assert_eq!(
-            with_args(vec![plain("a"), words("names")]).validate(),
+            with_args(vec![plain("a"), words("names")]).verdict(),
             Ok(())
         );
         for args in [
@@ -825,7 +837,7 @@ mod manifest {
             vec![words("a"), words("b")],
         ] {
             assert_eq!(
-                with_args(args).validate(),
+                with_args(args).verdict(),
                 Err(ManifestError::BadWordsArg("open".into()))
             );
         }
@@ -840,7 +852,7 @@ mod manifest {
         };
         let read = [Permission::EntryRead];
         assert_eq!(
-            reading(&["whitelist.json", "config/a.json"], &read).validate(),
+            reading(&["whitelist.json", "config/a.json"], &read).verdict(),
             Ok(())
         );
         for bad in [
@@ -858,13 +870,13 @@ mod manifest {
             "Server.Properties",
         ] {
             assert_eq!(
-                reading(&[bad], &read).validate(),
+                reading(&[bad], &read).verdict(),
                 Err(ManifestError::BadEntryFile(bad.into())),
                 "{bad:?}"
             );
         }
         assert_eq!(
-            reading(&["ops.json"], &[]).validate(),
+            reading(&["ops.json"], &[]).verdict(),
             Err(ManifestError::FilesPermissionMissing)
         );
     }
@@ -898,13 +910,47 @@ mod manifest {
             let mut manifest = valid();
             manifest.api = Some(api.into());
             assert!(
-                matches!(manifest.validate(), Err(ManifestError::ApiMismatch { .. })),
+                matches!(manifest.verdict(), Err(ManifestError::ApiMismatch { .. })),
                 "{api}"
             );
         }
         let mut manifest = valid();
         manifest.api = Some("1.0.0".into());
-        assert!(matches!(manifest.validate(), Err(ManifestError::BadApi(_))));
+        assert!(matches!(manifest.verdict(), Err(ManifestError::BadApi(_))));
+    }
+
+    #[test]
+    fn independent_mistakes_are_all_reported() {
+        let manifest = Manifest {
+            id: "Bad Id".into(),
+            version: "one".into(),
+            api: None,
+            network: vec!["10.0.0.1".into()],
+            files: vec!["../ops.json".into()],
+            contributes: proto::plugin::Contributions {
+                hooks: vec!["on-tuesday".into()],
+                ..Default::default()
+            },
+            ..valid()
+        };
+
+        let errors = manifest.validate().unwrap_err();
+
+        for expected in [
+            ManifestError::BadId("Bad Id".into()),
+            ManifestError::BadVersion("one".into()),
+            ManifestError::MissingApi,
+            ManifestError::BadNetworkHost("10.0.0.1".into()),
+            ManifestError::BadEntryFile("../ops.json".into()),
+            ManifestError::FilesPermissionMissing,
+            ManifestError::UnknownHook("on-tuesday".into()),
+        ] {
+            assert!(
+                errors.contains(&expected),
+                "{expected:?} missing from {errors}"
+            );
+        }
+        assert_eq!(errors.to_string().lines().count(), errors.iter().count());
     }
 
     #[test]

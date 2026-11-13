@@ -503,19 +503,22 @@ impl Program {
                 .all(|(pattern, arg)| pattern == ANY_ONE || pattern == arg)
     }
 
-    fn validate(&self) -> Result<(), ManifestError> {
+    fn collect_errors(&self, errors: &mut Vec<ManifestError>) {
         let bad = || ManifestError::BadProgram(self.id.clone());
         if let Some(major) = self.java {
             if !self.command.is_empty() || !(1..=MAX_JAVA_MAJOR).contains(&major) {
-                return Err(ManifestError::ProgramCommandOrJava(self.id.clone()));
+                errors.push(ManifestError::ProgramCommandOrJava(self.id.clone()));
             }
             if !self.sha256.is_empty() {
-                return Err(bad());
+                errors.push(bad());
             }
-            return self.validate_arguments();
+            errors.extend(self.validate_arguments().err());
+            return;
         }
         if self.command.is_empty() {
-            return Err(ManifestError::ProgramCommandOrJava(self.id.clone()));
+            errors.push(ManifestError::ProgramCommandOrJava(self.id.clone()));
+            errors.extend(self.validate_arguments().err());
+            return;
         }
         let name = self.command.rsplit('/').next().unwrap_or_default();
         let stem = name
@@ -523,27 +526,27 @@ impl Program {
             .unwrap_or(name)
             .to_ascii_lowercase();
         if SHELLS.contains(&stem.as_str()) || self.command.contains('\0') {
-            return Err(bad());
-        }
-        if self.in_data_dir() {
+            errors.push(bad());
+        } else if self.in_data_dir() {
             if !stays_inside(&self.command) {
-                return Err(bad());
+                errors.push(bad());
             }
             if self.sha256.is_empty() {
-                return Err(ManifestError::ProgramNeedsHash(self.id.clone()));
-            }
-            let hashes_ok = self.sha256.iter().all(|(triple, hash)| {
-                !triple.is_empty()
-                    && triple
-                        .bytes()
-                        .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-'))
-                    && hash.len() == 64
-                    && hash
-                        .bytes()
-                        .all(|byte| matches!(byte, b'0'..=b'9' | b'a'..=b'f'))
-            });
-            if !hashes_ok {
-                return Err(bad());
+                errors.push(ManifestError::ProgramNeedsHash(self.id.clone()));
+            } else {
+                let hashes_ok = self.sha256.iter().all(|(triple, hash)| {
+                    !triple.is_empty()
+                        && triple
+                            .bytes()
+                            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-'))
+                        && hash.len() == 64
+                        && hash
+                            .bytes()
+                            .all(|byte| matches!(byte, b'0'..=b'9' | b'a'..=b'f'))
+                });
+                if !hashes_ok {
+                    errors.push(bad());
+                }
             }
         } else if !(1..=64).contains(&name.len())
             || name.starts_with(['.', '-'])
@@ -551,9 +554,9 @@ impl Program {
                 byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b'-' | b'+')
             })
         {
-            return Err(bad());
+            errors.push(bad());
         }
-        self.validate_arguments()
+        errors.extend(self.validate_arguments().err());
     }
 
     fn is_path_kind(&self) -> bool {
@@ -864,20 +867,104 @@ pub enum ManifestError {
     FilesPermissionMissing,
 }
 
+fn collect_command_errors(command: &CommandContribution, errors: &mut Vec<ManifestError>) {
+    let words: Vec<&str> = command.words().collect();
+    if words.len() > MAX_COMMAND_WORDS
+        || words
+            .iter()
+            .any(|word| !is_slug(word, CONTRIBUTION_ID_LENGTH))
+    {
+        errors.push(ManifestError::BadCommandId(command.id.clone()));
+    }
+    if words
+        .first()
+        .is_some_and(|first| command.scope.reserved_ids().contains(first))
+    {
+        errors.push(ManifestError::ReservedCommand(command.id.clone()));
+    }
+    let words_args = command
+        .args
+        .iter()
+        .filter(|arg| arg.kind == CommandArgKind::Words)
+        .count();
+    let last_is_words = command
+        .args
+        .last()
+        .is_some_and(|arg| arg.kind == CommandArgKind::Words);
+    if words_args > 1 || (words_args == 1 && !last_is_words) {
+        errors.push(ManifestError::BadWordsArg(command.id.clone()));
+    }
+    let mut seen = BTreeSet::new();
+    for arg in &command.args {
+        if !is_slug(&arg.name, CONTRIBUTION_ID_LENGTH) {
+            errors.push(ManifestError::BadContributionId(arg.name.clone()));
+        }
+        if arg.name == ENTRY_ARG && command.scope != CommandScope::Top {
+            errors.push(ManifestError::ReservedArg(command.id.clone()));
+        }
+        if !seen.insert(&arg.name) {
+            errors.push(ManifestError::DuplicateId(arg.name.clone()));
+        }
+    }
+}
+
+/// Every rule a manifest breaks, one per line when displayed. Never empty.
+#[derive(Debug, PartialEq, Eq)]
+pub struct ManifestErrors(Vec<ManifestError>);
+
+impl ManifestErrors {
+    pub fn iter(&self) -> std::slice::Iter<'_, ManifestError> {
+        self.0.iter()
+    }
+
+    pub fn contains(&self, error: &ManifestError) -> bool {
+        self.0.contains(error)
+    }
+
+    pub fn into_vec(self) -> Vec<ManifestError> {
+        self.0
+    }
+}
+
+impl std::fmt::Display for ManifestErrors {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        for (at, error) in self.0.iter().enumerate() {
+            if at > 0 {
+                f.write_str("\n")?;
+            }
+            write!(f, "{error}")?;
+        }
+        Ok(())
+    }
+}
+
+impl std::error::Error for ManifestErrors {}
+
 impl Manifest {
-    pub fn validate(&self) -> Result<(), ManifestError> {
+    /// Every rule the manifest breaks, in a stable order; `Ok` when none.
+    pub fn validate(&self) -> Result<(), ManifestErrors> {
+        let mut errors = Vec::new();
+        self.collect_errors(&mut errors);
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(ManifestErrors(errors))
+        }
+    }
+
+    fn collect_errors(&self, errors: &mut Vec<ManifestError>) {
         if !is_plugin_id(&self.id) {
-            return Err(ManifestError::BadId(self.id.clone()));
+            errors.push(ManifestError::BadId(self.id.clone()));
         }
         if RESERVED_IDS.contains(&self.id.as_str()) {
-            return Err(ManifestError::ReservedId(self.id.clone()));
+            errors.push(ManifestError::ReservedId(self.id.clone()));
         }
         if semver_core(&self.version).is_none() {
-            return Err(ManifestError::BadVersion(self.version.clone()));
+            errors.push(ManifestError::BadVersion(self.version.clone()));
         }
         match (&self.api, &self.wasm) {
-            (Some(api), _) => check_api(api)?,
-            (None, Some(_)) => return Err(ManifestError::MissingApi),
+            (Some(api), _) => errors.extend(check_api(api).err()),
+            (None, Some(_)) => errors.push(ManifestError::MissingApi),
             (None, None) => {}
         }
         let paths = self
@@ -886,32 +973,32 @@ impl Manifest {
             .chain(self.contributes.themes.iter().map(|theme| &theme.file));
         for path in paths {
             if !stays_inside(path) {
-                return Err(ManifestError::PathEscapes(path.clone()));
+                errors.push(ManifestError::PathEscapes(path.clone()));
             }
         }
         for page in &self.contributes.pages {
             if let Some(icon) = page.icon_path() {
                 if !stays_inside(icon) {
-                    return Err(ManifestError::PathEscapes(icon.to_string()));
+                    errors.push(ManifestError::PathEscapes(icon.to_string()));
                 }
             }
             if page.slot == PageSlot::Entry && page.kind.is_none() {
-                return Err(ManifestError::PageNeedsKind(page.id.clone()));
+                errors.push(ManifestError::PageNeedsKind(page.id.clone()));
             }
         }
         if let Some(host) = self.network.iter().find(|host| !is_network_host(host)) {
-            return Err(ManifestError::BadNetworkHost(host.clone()));
+            errors.push(ManifestError::BadNetworkHost(host.clone()));
         }
         #[cfg(feature = "suffix")]
         if let Some(host) = self.network.iter().find(|host| covers_public_suffix(host)) {
-            return Err(ManifestError::PublicSuffixWildcard(host.clone()));
+            errors.push(ManifestError::PublicSuffixWildcard(host.clone()));
         }
         if let Some(host) = self
             .unhashed
             .iter()
             .find(|host| !self.network.contains(host))
         {
-            return Err(ManifestError::BadUnhashedHost(host.clone()));
+            errors.push(ManifestError::BadUnhashedHost(host.clone()));
         }
         if let Some(key) = self
             .launch
@@ -919,7 +1006,7 @@ impl Manifest {
             .iter()
             .find(|key| !is_launch_property(key))
         {
-            return Err(ManifestError::BadLaunchProperty(key.clone()));
+            errors.push(ManifestError::BadLaunchProperty(key.clone()));
         }
         for setting in &self.settings {
             let bad = |detail: &str| ManifestError::BadSetting {
@@ -927,44 +1014,44 @@ impl Manifest {
                 detail: detail.into(),
             };
             if setting.kind == SettingKind::Select && setting.options.is_empty() {
-                return Err(bad("a select needs options"));
+                errors.push(bad("a select needs options"));
             }
             if setting.kind == SettingKind::Secret && setting.default.is_some() {
-                return Err(bad("a secret has no default"));
+                errors.push(bad("a secret has no default"));
             }
             if let Some(Err(detail)) = setting.default.as_ref().map(|value| setting.check(value)) {
-                return Err(bad(&format!("default {detail}")));
+                errors.push(bad(&format!("default {detail}")));
             }
         }
         if let Some(endpoint) = self.ipc.iter().find(|endpoint| !is_ipc_pattern(endpoint)) {
-            return Err(ManifestError::BadIpcEndpoint(endpoint.clone()));
+            errors.push(ManifestError::BadIpcEndpoint(endpoint.clone()));
         }
         if !self.ipc.is_empty() && !self.permissions.contains(&Permission::IpcConnect) {
-            return Err(ManifestError::IpcPermissionMissing);
+            errors.push(ManifestError::IpcPermissionMissing);
         }
         if let Some(file) = self.files.iter().find(|file| !is_entry_file(file)) {
-            return Err(ManifestError::BadEntryFile(file.clone()));
+            errors.push(ManifestError::BadEntryFile(file.clone()));
         }
         if !self.files.is_empty() && !self.permissions.contains(&Permission::EntryRead) {
-            return Err(ManifestError::FilesPermissionMissing);
+            errors.push(ManifestError::FilesPermissionMissing);
         }
         if !self.programs.is_empty() && !self.permissions.contains(&Permission::ProcessSpawn) {
-            return Err(ManifestError::ProgramPermissionMissing);
+            errors.push(ManifestError::ProgramPermissionMissing);
         }
         for program in &self.programs {
-            program.validate()?;
-            program.validate_path(&self.programs)?;
+            program.collect_errors(errors);
+            errors.extend(program.validate_path(&self.programs).err());
         }
         let contributes = &self.contributes;
         if contributes.schedules.len() > MAX_SCHEDULES {
-            return Err(ManifestError::TooManySchedules);
+            errors.push(ManifestError::TooManySchedules);
         }
         if let Some(schedule) = contributes
             .schedules
             .iter()
             .find(|schedule| !(MIN_SCHEDULE_SECS..=MAX_SCHEDULE_SECS).contains(&schedule.every))
         {
-            return Err(ManifestError::BadScheduleInterval {
+            errors.push(ManifestError::BadScheduleInterval {
                 id: schedule.id.clone(),
             });
         }
@@ -990,59 +1077,27 @@ impl Manifest {
             .iter()
             .find(|pattern| !crate::glob::is_topic_glob(pattern))
         {
-            return Err(ManifestError::BadEventPattern(pattern.clone()));
+            errors.push(ManifestError::BadEventPattern(pattern.clone()));
         }
         for command in &contributes.commands {
-            let words: Vec<&str> = command.words().collect();
-            if words.len() > MAX_COMMAND_WORDS
-                || words
-                    .iter()
-                    .any(|word| !is_slug(word, CONTRIBUTION_ID_LENGTH))
-            {
-                return Err(ManifestError::BadCommandId(command.id.clone()));
-            }
-            if command.scope.reserved_ids().contains(&words[0]) {
-                return Err(ManifestError::ReservedCommand(command.id.clone()));
-            }
-            let words_args = command
-                .args
-                .iter()
-                .filter(|arg| arg.kind == CommandArgKind::Words)
-                .count();
-            let last_is_words = command
-                .args
-                .last()
-                .is_some_and(|arg| arg.kind == CommandArgKind::Words);
-            if words_args > 1 || (words_args == 1 && !last_is_words) {
-                return Err(ManifestError::BadWordsArg(command.id.clone()));
-            }
-            let mut seen = BTreeSet::new();
-            for arg in &command.args {
-                if !is_slug(&arg.name, CONTRIBUTION_ID_LENGTH) {
-                    return Err(ManifestError::BadContributionId(arg.name.clone()));
-                }
-                if arg.name == ENTRY_ARG && command.scope != CommandScope::Top {
-                    return Err(ManifestError::ReservedArg(command.id.clone()));
-                }
-                if !seen.insert(&arg.name) {
-                    return Err(ManifestError::DuplicateId(arg.name.clone()));
-                }
-            }
+            collect_command_errors(command, errors);
         }
         if let Some(theme) = contributes.themes.first() {
             if !self.permissions.contains(&Permission::UiCss) {
-                return Err(ManifestError::ThemeNeedsUiCss(theme.id.clone()));
+                errors.push(ManifestError::ThemeNeedsUiCss(theme.id.clone()));
             }
         }
         for hook in &contributes.hooks {
-            let point =
-                crate::hook::point(hook).ok_or_else(|| ManifestError::UnknownHook(hook.clone()))?;
+            let Some(point) = crate::hook::point(hook) else {
+                errors.push(ManifestError::UnknownHook(hook.clone()));
+                continue;
+            };
             if let Some(missing) = point
                 .permissions
                 .iter()
                 .find(|permission| !self.permissions.contains(permission))
             {
-                return Err(ManifestError::HookPermissionMissing {
+                errors.push(ManifestError::HookPermissionMissing {
                     hook: hook.clone(),
                     permission: *missing,
                 });
@@ -1051,38 +1106,39 @@ impl Manifest {
         let mut command_ids = BTreeSet::new();
         for command in &contributes.commands {
             if !command_ids.insert(&command.id) {
-                return Err(ManifestError::DuplicateId(command.id.clone()));
+                errors.push(ManifestError::DuplicateId(command.id.clone()));
             }
         }
         for ids in lists {
             let mut seen = BTreeSet::new();
             for id in ids {
                 if !is_slug(id, CONTRIBUTION_ID_LENGTH) {
-                    return Err(ManifestError::BadContributionId(id.clone()));
+                    errors.push(ManifestError::BadContributionId(id.clone()));
                 }
                 if !seen.insert(id) {
-                    return Err(ManifestError::DuplicateId(id.clone()));
+                    errors.push(ManifestError::DuplicateId(id.clone()));
                 }
             }
         }
         for provider in &contributes.providers {
-            let needs = crate::provider::kind(&provider.kind)
-                .ok_or_else(|| ManifestError::UnknownProviderKind(provider.kind.clone()))?
-                .permissions;
+            let Some(kind) = crate::provider::kind(&provider.kind) else {
+                errors.push(ManifestError::UnknownProviderKind(provider.kind.clone()));
+                continue;
+            };
+            let needs = kind.permissions;
             if let Some(missing) = needs
                 .iter()
                 .find(|permission| !self.permissions.contains(permission))
             {
-                return Err(ManifestError::ProviderPermissionMissing {
+                errors.push(ManifestError::ProviderPermissionMissing {
                     provider: provider.id.clone(),
                     permission: *missing,
                 });
             }
             if needs.contains(&Permission::NetworkConnect) && self.network.is_empty() {
-                return Err(ManifestError::ProviderNeedsHosts(provider.id.clone()));
+                errors.push(ManifestError::ProviderNeedsHosts(provider.id.clone()));
             }
         }
-        Ok(())
     }
 
     pub fn grant(&self) -> Grant {

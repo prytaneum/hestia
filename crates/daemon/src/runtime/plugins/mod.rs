@@ -23,7 +23,7 @@ use engine::{
 };
 use proto::error::ErrorInfo;
 use proto::plugin::{
-    CommandContribution, Manifest, ManifestError, PageContribution, PluginCommand,
+    CommandContribution, Manifest, ManifestError, ManifestErrors, PageContribution, PluginCommand,
     PluginDeveloperInfo, PluginInfo, PluginInspection, PluginInstallPhase, PluginPage,
     PluginSource, PluginState, PluginStateEvent, PluginTheme, SettingValue,
 };
@@ -41,10 +41,13 @@ const SAFE_MODE_NOTE: &str = "not loaded: the daemon is in safe mode";
 const DEVELOPER_OFF_NOTE: &str = "disabled: developer mode was turned off";
 
 fn api_mismatch(error: &anyhow::Error) -> bool {
-    matches!(
-        error.downcast_ref::<ManifestError>(),
-        Some(ManifestError::ApiMismatch { .. })
-    )
+    error
+        .downcast_ref::<ManifestErrors>()
+        .is_some_and(|errors| {
+            errors
+                .iter()
+                .any(|error| matches!(error, ManifestError::ApiMismatch { .. }))
+        })
 }
 
 struct Slot {
