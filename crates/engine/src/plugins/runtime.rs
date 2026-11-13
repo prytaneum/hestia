@@ -82,6 +82,8 @@ pub enum CallError {
     Setup(String),
     #[error("{0}")]
     Guest(String),
+    #[error("{0}")]
+    Unreachable(String),
     #[error("the plugin does not implement `{0}`")]
     Unsupported(String),
     #[error("the page `{0}` returned a document outside the UI vocabulary")]
@@ -544,16 +546,22 @@ impl LoadedPlugin {
             call.op.to_string(),
             call.args.to_string(),
         );
-        self.guarded(chain, timeout, context, move |store, instance| {
-            Box::pin(async move {
-                instance
-                    .hestia_plugin_provider()
-                    .call_invoke(store, &kind, &id, &op, &args)
-                    .await
+        let (reply, unreached) = self
+            .guarded(chain, timeout, context, move |store, instance| {
+                Box::pin(async move {
+                    let reply = instance
+                        .hestia_plugin_provider()
+                        .call_invoke(&mut *store, &kind, &id, &op, &args)
+                        .await?;
+                    let unreached = store.data().http_hooks.unreached.load(Ordering::Relaxed);
+                    Ok((reply, unreached))
+                })
             })
+            .await?;
+        reply.map_err(|error| match guest_error(error) {
+            CallError::Guest(message) if unreached => CallError::Unreachable(message),
+            other => other,
         })
-        .await?
-        .map_err(guest_error)
     }
 
     /// The path a `PATH` program was pinned to at approval, when this plugin
@@ -693,6 +701,7 @@ impl LoadedPlugin {
                 plugin: self.id.clone(),
                 grant: self.grant.clone(),
                 log: self.log.clone(),
+                unreached: Arc::default(),
             },
             table: ResourceTable::new(),
             limits,

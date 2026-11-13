@@ -4,7 +4,8 @@ use hestia::proto::plugin::PageContext;
 use hestia::proto::{server::ServerList, Empty};
 use hestia::ui::{self, Action, Effect, Tone, UiNode};
 use hestia::proto::hook::{BeforeContentInstall, BeforeLaunch, BeforeServerStart, LaunchPatch};
-use hestia::{json, Error, Intercept, Intercepted, Plugin, Value};
+use hestia::proto::provider::java::Majors;
+use hestia::{json, Error, Intercept, Intercepted, Plugin, Provide, Provided, Value};
 
 struct Probe;
 
@@ -65,6 +66,18 @@ impl Plugin for Probe {
             ]),
             _ => Err(Error::NotFound(format!("unknown page `{page}`"))),
         }
+    }
+
+    fn provide(call: Provide) -> Provided {
+        call.on::<Majors>(|_, _| {
+            match hestia::data::load::<String>("mode")?.as_deref() {
+                Some(mode) if mode.starts_with("get ") => {
+                    hestia::http::get(&mode["get ".len()..]).map(|_| Vec::new())
+                }
+                _ => Ok(Vec::new()),
+            }
+        })
+        .finish()
     }
 
     fn intercept(call: Intercept) -> Intercepted {

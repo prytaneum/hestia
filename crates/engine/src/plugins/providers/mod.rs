@@ -17,8 +17,9 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::Result;
-use proto::error::ErrorInfo;
+use proto::error::{ErrorInfo, Service};
 use proto::plugin::Manifest;
+use proto::provider::Provider;
 use proto::provider::{ProviderKind, ProviderOp};
 
 pub use content::PluginContentProvider;
@@ -38,12 +39,20 @@ pub(super) struct Guest {
     kind: &'static str,
     local: String,
     id: String,
+    service: Service,
 }
 
 impl Guest {
-    fn new<K: ProviderKind>(plugin: Arc<LoadedPlugin>, local: &str) -> Self {
+    fn new<K: ProviderKind>(plugin: Arc<LoadedPlugin>, manifest: &Manifest, local: &str) -> Self {
+        let id = format!("{}.{local}", plugin.id());
+        let name = if manifest.name.is_empty() {
+            &manifest.id
+        } else {
+            &manifest.name
+        };
         Guest {
-            id: format!("{}.{local}", plugin.id()),
+            service: Service::Provider(Provider::new(&id, name)),
+            id,
             kind: K::KIND,
             local: local.to_string(),
             plugin,
@@ -88,6 +97,13 @@ impl Guest {
         {
             Ok(reply) => reply,
             Err(CallError::Unsupported(_)) => return Ok(None),
+            Err(CallError::Unreachable(detail)) => {
+                tracing::warn!(plugin = self.plugin.id(), provider = %self.local, kind, op = O::OP, %detail, "provider upstream unreachable");
+                return Err(ErrorInfo::Offline {
+                    service: Some(self.service.clone()),
+                }
+                .into());
+            }
             Err(error) => return Err(self.failed(format!("{}: {error}", O::OP))),
         };
         serde_json::from_str(&reply).map(Some).map_err(|error| {
@@ -135,7 +151,7 @@ where
 {
     let mut connected = Vec::new();
     for local in contributed::<K>(manifest) {
-        match connect(Guest::new::<K>(plugin.clone(), local)).await {
+        match connect(Guest::new::<K>(plugin.clone(), manifest, local)).await {
             Ok(provider) => connected.push(provider),
             Err(error) => tracing::warn!(
                 plugin = plugin.id(),

@@ -13,7 +13,7 @@ use engine::{
     command_args, CallChain, CallError, Cancel, CommandRun, HostCalls, HostError, LoadedPlugin,
     PluginRecord, PluginRuntime, PluginSettings, ProcessSupervisor,
 };
-use proto::error::ErrorInfo;
+use proto::error::{ErrorInfo, Service};
 use proto::plugin::{
     CommandArg, CommandArgKind, CommandContribution, CommandScope, Grant, PageContext, Permission,
     PluginRunProgress, Setting, SettingKind,
@@ -821,4 +821,68 @@ mod programs {
         let running = call(&probe, "running", json!({})).await.unwrap();
         assert_eq!(running, json!([]));
     }
+}
+
+async fn java_releases_through(
+    network: &[&str],
+    url: &str,
+) -> Result<Vec<proto::java::JavaRelease>, anyhow::Error> {
+    let probe = Probe::load_with_network(&[Permission::NetworkConnect], network);
+    probe.set_mode(&format!("get {url}"));
+    let Probe {
+        plugin,
+        data,
+        supervisor: _supervisor,
+    } = probe;
+    let manifest = proto::plugin::Manifest {
+        id: "probe".into(),
+        name: "Probe Net".into(),
+        contributes: proto::plugin::Contributions {
+            providers: vec![proto::plugin::ProviderContribution {
+                kind: "java".into(),
+                id: "reach".into(),
+            }],
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+    let home = tempfile::tempdir().unwrap();
+    let engine = crate::fixture::engine(home.path(), vec![], vec![]);
+    engine::Contributions::connect(&Arc::new(plugin), &manifest)
+        .await
+        .register(&engine, "probe", false);
+    let releases = engine.java().releases("probe.reach").await;
+    drop(data);
+    releases
+}
+
+#[tokio::test]
+async fn a_provider_that_cannot_reach_its_host_fails_as_an_upstream_service() {
+    let error = java_releases_through(&["unreachable.invalid"], "https://unreachable.invalid/")
+        .await
+        .expect_err("the host does not resolve");
+
+    let Some(ErrorInfo::Offline {
+        service: Some(Service::Provider(provider)),
+    }) = error.downcast_ref::<ErrorInfo>()
+    else {
+        panic!("{error:#}");
+    };
+    assert_eq!(provider.id, "probe.reach");
+    assert_eq!(provider.name, "Probe Net");
+}
+
+#[tokio::test]
+async fn a_provider_that_fails_for_its_own_reasons_is_still_a_plugin_failure() {
+    let error = java_releases_through(&["example.com"], "https://other.example.org/")
+        .await
+        .expect_err("the host is outside the allowlist");
+
+    assert!(
+        matches!(
+            error.downcast_ref::<ErrorInfo>(),
+            Some(ErrorInfo::PluginCallFailed { .. })
+        ),
+        "{error:#}"
+    );
 }

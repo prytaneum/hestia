@@ -7,6 +7,7 @@
 //! so a granted name that resolves inside this machine is still refused.
 
 use std::future::Future;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -128,6 +129,10 @@ pub(crate) struct PluginHttp {
     pub(crate) plugin: Arc<str>,
     pub(crate) grant: Arc<Grant>,
     pub(crate) log: Arc<PluginLog>,
+    /// Whether the last request of this call failed to reach its host. The
+    /// guest only sees an opaque error code, so this is how a provider call
+    /// that failed for want of a connection is told from one the guest got wrong.
+    pub(crate) unreached: Arc<AtomicBool>,
 }
 
 impl WasiHttpHooks for PluginHttp {
@@ -149,6 +154,7 @@ impl WasiHttpHooks for PluginHttp {
             > + Send,
     > {
         let (plugin, grant, log) = (self.plugin.clone(), self.grant.clone(), self.log.clone());
+        let unreached = self.unreached.clone();
         Box::new(async move {
             let offline = network().status().state == NetworkState::Offline;
             let checked = Url::parse(&request.uri().to_string())
@@ -161,7 +167,10 @@ impl WasiHttpHooks for PluginHttp {
             })?;
             let response = send(request, url).await.inspect_err(|error| {
                 tracing::debug!(plugin = %plugin, %host, %error, "plugin http request failed");
+                unreached.store(is_unreachable(error), Ordering::Relaxed);
             })?;
+            unreached.store(false, Ordering::Relaxed);
+            network().observe_reachable();
             tracing::debug!(
                 plugin = %plugin,
                 %host,
@@ -199,6 +208,13 @@ async fn send(request: Request, url: Url) -> Result<Response, Error> {
             .map_err(body_error)
             .boxed_unsync()
     }))
+}
+
+fn is_unreachable(error: &Error) -> bool {
+    matches!(
+        error,
+        Error::ConnectionTimeout | Error::DestinationUnavailable
+    )
 }
 
 /// Mapped by kind: reqwest's own message carries the full URL.
