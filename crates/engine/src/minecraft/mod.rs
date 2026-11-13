@@ -10,6 +10,7 @@ pub(crate) mod log4j;
 pub(crate) mod materialize;
 mod meta;
 mod neoforge;
+pub(crate) mod overlay;
 mod paper;
 pub(crate) mod ping;
 pub(crate) mod plan;
@@ -202,6 +203,11 @@ impl Minecraft {
         self.provider(side, flavor)?
             .install(side, request, on_progress)
             .await
+    }
+
+    /// The flavor a plugin's profile builds on: Mojang's game, unchanged.
+    pub(crate) fn vanilla(&self) -> Option<Arc<dyn FlavorProvider>> {
+        self.provider(Side::Client, vanilla::ID).ok()
     }
 
     fn provider(&self, side: Side, flavor: &str) -> Result<Arc<dyn FlavorProvider>> {

@@ -5,6 +5,10 @@
 //! `generated` says it carries none on purpose. `sha256` verifies by sha256 and
 //! `wrongsum` names a sha256 the download does not match.
 //!
+//! `onvanilla` answers with what it adds to the vanilla profile instead of a
+//! whole one, and `onvanilla-foreign` adds a library from a host outside the
+//! grant.
+//!
 //! Four more exercise `build`. On the server, `built` runs the declared
 //! managed-Java program in `/build` and returns the jar it wrote, `outside`
 //! claims a file outside `/build`, `symlink` has the program leave a symlink and returns it and `empty`
@@ -19,8 +23,8 @@ use hestia::proto::profile::{
     AssetIndex, FlavorDescription, InstanceProfile, Library, ServerJar, ServerProfile,
 };
 use hestia::proto::provider::flavor::{
-    Build, BuildDone, BuildOutput, BuildQuery, BuildSide, Info, ResolveClient, ResolveQuery,
-    ResolveServer, Versions,
+    Build, BuildDone, BuildOutput, BuildQuery, BuildSide, ClientAddition, ClientResolution, Info,
+    ResolveClient, ResolveQuery, ResolveServer, ServerAddition, ServerResolution, Versions,
 };
 use hestia::{Error, Plugin, Provide, Provided};
 use std::time::Duration;
@@ -45,7 +49,7 @@ fn artifact(version: &str, name: &str, sha1: &str) -> Result<Artifact, Error> {
     let base = hestia::data::load::<String>("base-url")?
         .unwrap_or_else(|| "https://files.example.com".into());
     let url = match version {
-        "foreign" => format!("https://evil.example.org/{name}"),
+        "foreign" | "onvanilla-foreign" => format!("https://evil.example.org/{name}"),
         _ => format!("{}/{name}", base.trim_end_matches('/')),
     };
     Ok(Artifact {
@@ -87,7 +91,7 @@ fn info(flavor: &str) -> Result<FlavorDescription, Error> {
 
 fn versions(flavor: &str) -> Result<Vec<GameVersion>, Error> {
     check(flavor)?;
-    Ok(["1.21", "foreign", "unsigned", "generated", "sha256", "wrongsum", "built", "ordered", "expand", "outside", "symlink", "empty"]
+    Ok(["1.21", "foreign", "unsigned", "generated", "sha256", "wrongsum", "onvanilla", "onvanilla-foreign", "built", "ordered", "expand", "outside", "symlink", "empty"]
         .into_iter()
         .map(|id| GameVersion {
             id: id.into(),
@@ -96,27 +100,56 @@ fn versions(flavor: &str) -> Result<Vec<GameVersion>, Error> {
         .collect())
 }
 
-fn resolve_server(flavor: &str, query: ResolveQuery) -> Result<ServerProfile, Error> {
+fn loader_library(version: &str) -> Result<Library, Error> {
+    Ok(Library {
+        name: "example:loader:1.0".into(),
+        path: "example/loader/1.0/loader-1.0.jar".into(),
+        artifact: artifact(version, "loader.jar", JAR_SHA1)?,
+        built: false,
+    })
+}
+
+fn resolve_server(flavor: &str, query: ResolveQuery) -> Result<ServerResolution, Error> {
     check(flavor)?;
     let version = query.version.as_str();
+    if version.starts_with("onvanilla") {
+        return Ok(ServerResolution::OnVanilla(ServerAddition {
+            loader_version: Some("9.9".into()),
+            jar: Some(ServerJar::Download(artifact(
+                version,
+                "loader-server.jar",
+                JAR_SHA1,
+            )?)),
+            jvm_args: vec!["-Dloader".into()],
+        }));
+    }
     let jar = match version {
         "built" | "ordered" | "expand" | "outside" | "symlink" | "empty" => ServerJar::Built {
             filename: BUILT_JAR.into(),
         },
         _ => ServerJar::Download(artifact(version, "server.jar", JAR_SHA1)?),
     };
-    Ok(ServerProfile {
+    Ok(ServerResolution::Full(Box::new(ServerProfile {
         game_version: version.into(),
         jar,
         java_major: 21,
         ..ServerProfile::default()
-    })
+    })))
 }
 
-fn resolve_client(flavor: &str, query: ResolveQuery) -> Result<InstanceProfile, Error> {
+fn resolve_client(flavor: &str, query: ResolveQuery) -> Result<ClientResolution, Error> {
     check(flavor)?;
     let version = query.version.as_str();
-    Ok(InstanceProfile {
+    if version.starts_with("onvanilla") {
+        return Ok(ClientResolution::OnVanilla(ClientAddition {
+            loader_version: Some("9.9".into()),
+            libraries: vec![loader_library(version)?],
+            main_class: "example.loader.Main".into(),
+            jvm_args: vec!["-Dloader".into()],
+            game_args: vec!["--loader".into()],
+        }));
+    }
+    Ok(ClientResolution::Full(Box::new(InstanceProfile {
         game_version: version.into(),
         client: artifact(version, "client.jar", JAR_SHA1)?,
         libraries: (version == "built")
@@ -136,7 +169,7 @@ fn resolve_client(flavor: &str, query: ResolveQuery) -> Result<InstanceProfile, 
         java_major: 21,
         main_class: "net.minecraft.client.main.Main".into(),
         ..InstanceProfile::default()
-    })
+    })))
 }
 
 fn produced(path: &str, target: &str) -> BuildDone {

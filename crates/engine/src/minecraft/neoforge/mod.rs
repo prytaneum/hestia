@@ -231,7 +231,7 @@ impl FlavorProvider for NeoForge {
         let base = mojang::version_json(&request.version).await?;
         let (_, installer) = read_installer(request.meta, request.cache, &loader).await?;
 
-        let libraries = super::fabric::merge_libraries(
+        let libraries = super::overlay::merge_libraries(
             mojang::libraries(&base),
             mojang::libraries(&installer.version),
         );

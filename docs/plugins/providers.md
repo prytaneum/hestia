@@ -99,12 +99,30 @@ in `network`). The list is part of the grant, so the user sees it when approving
 | `info` | none | `FlavorDescription` | asked once, when the plugin is enabled |
 | `versions` | none | `GameVersion[]` | newest first |
 | `loader-versions` | `{ game }` | `string[]` | optional: loader builds, newest first |
-| `resolve-server` | `{ version, loaderVersion? }` | `ServerProfile` | |
-| `resolve-client` | `{ version, loaderVersion? }` | `InstanceProfile` | a library may be marked `built: true` |
+| `resolve-server` | `{ version, loaderVersion? }` | `{ full: ServerProfile }` or `{ onVanilla: ServerAddition }` | |
+| `resolve-client` | `{ version, loaderVersion? }` | `{ full: InstanceProfile }` or `{ onVanilla: ClientAddition }` | a library may be marked `built: true` |
 | `build` | `{ side, version, loaderVersion?, vanillaJar? }` | `{ outputs: [{ path, target }] }` | optional: produces what the profile names as built |
 
 `info` may also give `mrpackKey` (the key a Modrinth pack names the flavor's loader by in its `dependencies`) and
 `prismUid` (the component uid of a Prism or MultiMC instance), so packs and instances of the flavor import and export.
+
+### Building on vanilla
+
+A flavor that layers over the game (a modloader) answers `onVanilla` with only what it adds, and the host resolves the
+vanilla profile for the requested version and merges them ([0113](../decisions/0113-a-flavor-builds-on-the-vanilla-profile.md)).
+The guest never reads Mojang's metadata, and needs no Mojang host in `network`.
+
+| | `ClientAddition` | `ServerAddition` |
+|---|---|---|
+| `loaderVersion` | the loader build, shown on the entry | the same |
+| `libraries` | merged over vanilla's: one of the same Maven coordinate replaces it, whatever its version | |
+| `mainClass` | replaces vanilla's when not empty | |
+| `jvmArgs`, `gameArgs` | appended after vanilla's | `jvmArgs` only: the flavor's recommended flags |
+| `jar` | | replaces vanilla's server jar; absent runs vanilla's |
+
+The client, natives, asset index and Java major always come from vanilla. Only the additions are vetted against the
+plugin's hosts and checksums; vanilla's own files are the host's. A flavor whose profile is not a layer over vanilla (a
+server platform with its own jar and Java requirement) answers `full`.
 
 ### Building what cannot be downloaded
 

@@ -10,7 +10,7 @@ use super::{ProviderKind, ProviderOp};
 use crate::contract::Empty;
 use crate::minecraft::GameVersion;
 use crate::plugin::Permission;
-use crate::profile::{FlavorDescription, InstanceProfile, ServerProfile};
+use crate::profile::{FlavorDescription, InstanceProfile, Library, ServerJar, ServerProfile};
 
 pub struct Flavor;
 impl ProviderKind for Flavor {
@@ -80,6 +80,54 @@ pub struct BuildDone {
     pub outputs: Vec<BuildOutput>,
 }
 
+/// What a flavor adds to the vanilla client of the requested game version. The
+/// host resolves the vanilla profile itself and merges these over it: a library
+/// replaces a vanilla one of the same Maven coordinate, the arguments follow
+/// vanilla's, and a non-empty `main_class` replaces vanilla's.
+#[derive(Serialize, Deserialize, Default, Debug, Clone)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
+#[serde(default, rename_all = "camelCase")]
+pub struct ClientAddition {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub loader_version: Option<String>,
+    pub libraries: Vec<Library>,
+    pub main_class: String,
+    pub jvm_args: Vec<String>,
+    pub game_args: Vec<String>,
+}
+
+/// What a flavor adds to the vanilla server of the requested game version. The
+/// host takes the Java major from vanilla; `jar` replaces vanilla's server jar
+/// and is absent for a flavor that runs it unchanged.
+#[derive(Serialize, Deserialize, Default, Debug, Clone)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
+#[serde(default, rename_all = "camelCase")]
+pub struct ServerAddition {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub loader_version: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub jar: Option<ServerJar>,
+    pub jvm_args: Vec<String>,
+}
+
+/// A client profile in full, or built on the vanilla one.
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
+#[serde(rename_all = "camelCase")]
+pub enum ClientResolution {
+    Full(Box<InstanceProfile>),
+    OnVanilla(ClientAddition),
+}
+
+/// A server profile in full, or built on the vanilla one.
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
+#[serde(rename_all = "camelCase")]
+pub enum ServerResolution {
+    Full(Box<ServerProfile>),
+    OnVanilla(ServerAddition),
+}
+
 /// Describes the flavor. Asked once, when the plugin is enabled.
 pub struct Info;
 impl ProviderOp for Info {
@@ -108,13 +156,14 @@ impl ProviderOp for LoaderVersions {
     type Reply = Vec<String>;
 }
 
-/// The launch profile of a server. The jar is a download or named as built.
+/// The launch profile of a server, in full or as what it adds to vanilla's. The
+/// jar is a download or named as built.
 pub struct ResolveServer;
 impl ProviderOp for ResolveServer {
     type Kind = Flavor;
     const OP: &'static str = "resolve-server";
     type Args = ResolveQuery;
-    type Reply = ServerProfile;
+    type Reply = ServerResolution;
 }
 
 /// The launch profile of a client, under the same rules as [`ResolveServer`]; a
@@ -124,7 +173,7 @@ impl ProviderOp for ResolveClient {
     type Kind = Flavor;
     const OP: &'static str = "resolve-client";
     type Args = ResolveQuery;
-    type Reply = InstanceProfile;
+    type Reply = ClientResolution;
 }
 
 /// Builds what the profile names but cannot download. Optional: unsupported

@@ -66,7 +66,11 @@ async fn rig_unhashed(
 ) -> (Arc<engine::Engine>, tempfile::TempDir) {
     let home = tempfile::tempdir().expect("temp home");
     let files = fixture::Files::serve().await;
-    let engine = Arc::new(fixture::engine(home.path(), vec![], vec![]));
+    let engine = Arc::new(fixture::engine(
+        home.path(),
+        vec![fixture::Flavor::serving("vanilla", &files)],
+        vec![],
+    ));
     fixture::java_runtime(home.path(), 21);
     let manifest: Manifest = toml::from_str(fixture::replay::MANIFEST).expect("manifest");
     let plugin = load(home.path(), &files, hosts, unhashed, &engine);
@@ -206,6 +210,67 @@ async fn an_unhashed_artifact_is_accepted_only_from_a_host_the_grant_lists() {
     provision(&undeclared, "generated")
         .await
         .expect_err("the marker alone is not enough");
+}
+
+#[tokio::test]
+async fn a_client_built_on_vanilla_is_the_additions_merged_over_the_vanilla_profile() {
+    let (engine, home) = rig(&["127.0.0.1"]).await;
+
+    let profile = engine
+        .minecraft()
+        .resolve_instance(FLAVOR, "onvanilla", None, home.path(), None)
+        .await
+        .expect("the additions are vetted and merged");
+
+    assert_eq!(profile.flavor, FLAVOR);
+    assert_eq!(profile.game_version, "onvanilla");
+    assert_eq!(profile.loader_version.as_deref(), Some("9.9"));
+    assert_eq!(
+        profile.client.filename, "client.jar",
+        "the client is vanilla's"
+    );
+    assert_eq!(profile.main_class, "example.loader.Main");
+    assert_eq!(profile.jvm_args, ["-Dloader"]);
+    assert_eq!(profile.game_args, ["--loader"]);
+    assert_eq!(
+        profile
+            .libraries
+            .iter()
+            .map(|lib| lib.name.as_str())
+            .collect::<Vec<_>>(),
+        ["example:loader:1.0"]
+    );
+}
+
+#[tokio::test]
+async fn a_server_built_on_vanilla_runs_the_jar_the_flavor_names() {
+    let (engine, _home) = rig(&["127.0.0.1"]).await;
+
+    let record = provision(&engine, "onvanilla")
+        .await
+        .expect("provision a server built on vanilla");
+
+    assert_eq!(record.profile.loader_version.as_deref(), Some("9.9"));
+    assert_eq!(record.profile.java_major, 21, "the Java major is vanilla's");
+    assert!(engine
+        .servers()
+        .data_dir(&record)
+        .join("loader-server.jar")
+        .is_file());
+}
+
+#[tokio::test]
+async fn an_addition_off_the_plugins_hosts_is_refused_before_vanilla_is_asked() {
+    let (engine, home) = rig(&["127.0.0.1"]).await;
+
+    engine
+        .minecraft()
+        .resolve_instance(FLAVOR, "onvanilla-foreign", None, home.path(), None)
+        .await
+        .expect_err("the added library is on a host the plugin was not granted");
+    provision(&engine, "onvanilla-foreign")
+        .await
+        .expect_err("so is the server jar");
 }
 
 /// The managed Java the fixture's `builder` program runs: a script that, asked

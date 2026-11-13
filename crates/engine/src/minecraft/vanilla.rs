@@ -11,7 +11,7 @@ use super::meta::mojang;
 use super::profile::{InstanceProfile, ServerJar, ServerLaunch, ServerProfile};
 use super::provider::{FlavorInfo, FlavorProvider, ResolveRequest, BOTH_SIDES};
 
-const ID: &str = "vanilla";
+pub(super) const ID: &str = "vanilla";
 
 const INFO: FlavorInfo = FlavorInfo {
     id: Cow::Borrowed(ID),

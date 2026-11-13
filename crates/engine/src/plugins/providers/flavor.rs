@@ -20,7 +20,8 @@ use proto::profile::ServerProfile;
 use proto::profile::{InstanceProfile, Library, ServerJar, ServerLaunch};
 use proto::provider::flavor;
 use proto::provider::flavor::{
-    self as op, BuildOutput, BuildQuery, Flavor, GameQuery, ResolveQuery,
+    self as op, BuildOutput, BuildQuery, ClientAddition, ClientResolution, Flavor, GameQuery,
+    ResolveQuery, ServerAddition, ServerResolution,
 };
 use proto::provider::ProviderOp;
 use proto::Empty;
@@ -31,6 +32,7 @@ use super::{connect_each, registered, Guest};
 use crate::cancel::Cancelled;
 use crate::engine::Engine;
 use crate::minecraft::materialize::{safe_join, validate_filename, OnProgress};
+use crate::minecraft::overlay;
 use crate::minecraft::{
     FlavorInfo, FlavorProvider, InstallRequest, ResolveRequest, Side, BOTH_SIDES, CLIENT_ONLY,
     REQUIRED_JAVA_MAJORS, SERVER_ONLY,
@@ -57,6 +59,8 @@ enum Refusal {
     Java(i32),
     #[error("the profile names no main class")]
     MainClass,
+    #[error("the flavor builds on vanilla, which this launcher does not offer")]
+    NoVanilla,
 }
 
 fn artifact(grant: &Grant, artifact: &Artifact) -> Result<(), Refusal> {
@@ -101,6 +105,23 @@ fn vet_server(grant: &Grant, profile: &ServerProfile) -> Result<(), Refusal> {
     java(profile.java_major)
 }
 
+fn vet_server_addition(grant: &Grant, addition: &ServerAddition) -> Result<(), Refusal> {
+    match &addition.jar {
+        Some(ServerJar::Download(jar)) => artifact(grant, jar),
+        Some(ServerJar::Built { filename }) => {
+            validate_filename(filename).map_err(|e| Refusal::Path(e.to_string()))
+        }
+        None => Ok(()),
+    }
+}
+
+fn vet_client_addition(grant: &Grant, addition: &ClientAddition) -> Result<(), Refusal> {
+    addition
+        .libraries
+        .iter()
+        .try_for_each(|lib| library(grant, lib))
+}
+
 fn vet_client(grant: &Grant, profile: &InstanceProfile) -> Result<(), Refusal> {
     artifact(grant, &profile.client)?;
     for lib in &profile.libraries {
@@ -124,6 +145,9 @@ pub struct PluginFlavorProvider {
     /// Cleared once the guest answers `build` with unsupported, so a flavor with
     /// nothing to build costs no guest call per launch.
     builds: AtomicBool,
+    /// The flavor a profile that builds on vanilla is layered over; set when the
+    /// provider is registered.
+    vanilla: Option<Arc<dyn FlavorProvider>>,
 }
 
 impl PluginFlavorProvider {
@@ -152,6 +176,7 @@ impl PluginFlavorProvider {
             guest,
             info,
             builds: AtomicBool::new(true),
+            vanilla: None,
         })
     }
 
@@ -306,6 +331,12 @@ impl PluginFlavorProvider {
             .failed(format!("{op} returned a refused profile: {refusal}"))
     }
 
+    fn vanilla(&self, op: &str) -> Result<&Arc<dyn FlavorProvider>> {
+        self.vanilla
+            .as_ref()
+            .ok_or_else(|| self.refused(op, Refusal::NoVanilla))
+    }
+
     fn resolve_query(request: &ResolveRequest<'_>) -> ResolveQuery {
         ResolveQuery {
             version: request.version.clone(),
@@ -335,24 +366,52 @@ impl FlavorProvider for PluginFlavorProvider {
     }
 
     async fn resolve_server(&self, request: &ResolveRequest<'_>) -> Result<ServerProfile> {
-        let mut profile = self
+        let grant = self.guest.plugin().grant();
+        let refused = |refusal| self.refused(op::ResolveServer::OP, refusal);
+        let mut profile = match self
             .guest
             .ask::<op::ResolveServer>(&Self::resolve_query(request))
-            .await?;
-        vet_server(self.guest.plugin().grant(), &profile)
-            .map_err(|refusal| self.refused(op::ResolveServer::OP, refusal))?;
+            .await?
+        {
+            ServerResolution::Full(profile) => {
+                vet_server(grant, &profile).map_err(refused)?;
+                *profile
+            }
+            ServerResolution::OnVanilla(addition) => {
+                vet_server_addition(grant, &addition).map_err(refused)?;
+                let base = self
+                    .vanilla(op::ResolveServer::OP)?
+                    .resolve_server(request)
+                    .await?;
+                overlay::server(base, addition)
+            }
+        };
         profile.flavor = self.info.id.to_string();
         profile.game_version = request.version.clone();
         Ok(profile)
     }
 
     async fn resolve_client(&self, request: &ResolveRequest<'_>) -> Result<InstanceProfile> {
-        let mut profile = self
+        let grant = self.guest.plugin().grant();
+        let refused = |refusal| self.refused(op::ResolveClient::OP, refusal);
+        let mut profile = match self
             .guest
             .ask::<op::ResolveClient>(&Self::resolve_query(request))
-            .await?;
-        vet_client(self.guest.plugin().grant(), &profile)
-            .map_err(|refusal| self.refused(op::ResolveClient::OP, refusal))?;
+            .await?
+        {
+            ClientResolution::Full(profile) => {
+                vet_client(grant, &profile).map_err(refused)?;
+                *profile
+            }
+            ClientResolution::OnVanilla(addition) => {
+                vet_client_addition(grant, &addition).map_err(refused)?;
+                let base = self
+                    .vanilla(op::ResolveClient::OP)?
+                    .resolve_client(request)
+                    .await?;
+                overlay::client(base, addition)
+            }
+        };
         profile.flavor = self.info.id.to_string();
         profile.game_version = request.version.clone();
         Ok(profile)
@@ -402,7 +461,8 @@ pub(super) fn register(
     official: bool,
     flavors: Vec<PluginFlavorProvider>,
 ) {
-    for flavor in flavors {
+    for mut flavor in flavors {
+        flavor.vanilla = engine.minecraft().vanilla();
         let id = flavor.info.id.to_string();
         let outcome = engine
             .minecraft()

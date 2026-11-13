@@ -44,6 +44,7 @@ the alternative you rejected — that is usually the part nobody can recover lat
 - **0110** — [A flavor builds in an area of its own, and the host places what it builds](0110-a-flavor-builds-in-its-own-area.md)
 - **0111** — [A plugin repository publishes to its own orphan branch](0111-a-repository-publishes-to-its-own-branch.md)
 - **0112** — [The app and the official plugins update together](0112-the-app-and-official-plugins-update-together.md)
+- **0113** — [A flavor builds on the vanilla profile, and the host merges it](0113-a-flavor-builds-on-the-vanilla-profile.md)
 - **0114** — [An unhashed download is declared, and the user approves the host](0114-an-unhashed-download-is-declared.md)
 
 ### [Cross-cutting foundations](../architecture/common.md)
@@ -91,6 +92,7 @@ the alternative you rejected — that is usually the part nobody can recover lat
 - **0007** — [Spigot and CraftBukkit are compiled here, because no one may ship them](0007-spigot-is-compiled-locally.md)
 - **0008** — [What an entry takes is a property of its flavor, and the flavor says so](0008-flavor-declares-accepted-content.md)
 - **0009** — [A flavor may recommend JVM flags; the user still outranks it](0009-flavor-recommends-jvm-flags.md)
+- **0113** — [A flavor builds on the vanilla profile, and the host merges it](0113-a-flavor-builds-on-the-vanilla-profile.md)
 
 ### [Servers & instances](../architecture/entries.md)
 
