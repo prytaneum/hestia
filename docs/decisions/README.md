@@ -115,6 +115,7 @@ the alternative you rejected — that is usually the part nobody can recover lat
 - **0079** — [A local item updates from a file](0079-a-local-item-updates-from-a-file.md)
 - **0077** — [The console keeps its RCON connection, and completes from the server's own `help`](0077-the-console-keeps-its-connection.md)
 - **0118** — [A Bedrock pack is a file of record, extracted at sync](0118-a-bedrock-pack-is-a-file-extracted-at-sync.md)
+- **0119** — [Content updates are checked when they matter, not on a timer](0119-content-updates-are-checked-when-they-matter.md)
 
 ### [Accounts & skins](../architecture/accounts.md)
 

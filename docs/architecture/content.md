@@ -191,7 +191,8 @@ it.
 | Operation | Behaviour |
 |---|---|
 | `enable` | flips a flag in `content.json`. Enforced at the single point it needs — the launch-time mirror keeps a disabled item out of `data/`, so it can never be resurrected by a restore. A datapack's mirror is per world, so disabling drops the mirror in the chosen worlds |
-| `check_updates` | a *separate* on-demand call, not baked into `list`, so `list` stays fast and offline |
+| `check_updates` | a *separate* call, not baked into `list`, so `list` stays fast and offline. Answered from the update cache inside its TTL; `refresh` asks upstream anyway (see [Update checks](#update-checks)) |
+| `hold` | keeps an item at its version: "update all" (an empty batch) and auto-update pass it by. `set_version` holds the item it re-pins; an `update` naming it releases the hold |
 | `update` / `remove` | take a *batch* of references — one job, one call. Named items are resolved before the first one moves, so a batch naming something that does not exist changes nothing; an empty batch means every item of the kind (`update`) and is refused (`remove`). Past that an update is per-item like an install: every item resolves, the moves download side by side under one progress extent, and an item that cannot move comes back as a failure while every one that did is recorded |
 | `update` with a `path` | moves the one named *local* item onto that file, keeping its enabled flag and worlds; a tracked or pack-owned item is refused. The old mirrors go first, so a rebuild under the same name is what loads next ([0079](../decisions/0079-a-local-item-updates-from-a-file.md)) |
 | `set_version` | re-pins one item to a chosen published version — the update path with an explicit pin instead of "newest". With a `source`, the version comes from that source instead: the installed file's hash finds the project there (`matches` lists which sources recognise it), and the record moves to it. A local file adopts a source the same way ([0075](../decisions/0075-a-local-file-is-identified-by-its-hash.md)) |
@@ -199,6 +200,39 @@ it.
 All of them refuse a running or busy entry: open jars lock on Windows, and
 changes only take effect at the next start anyway
 ([0014](../decisions/0014-enable-update-check-and-pin.md)).
+
+### Update checks
+
+A check runs when its answer is used, never on a timer
+([0119](../decisions/0119-content-updates-are-checked-when-they-matter.md)):
+
+| Trigger | Checks |
+|---|---|
+| daemon start, network back online | every ready Java entry, in one pass |
+| `content.check_updates` (a content tab opening, `<kind> list`) | that entry and kind |
+| an instance launch | every entry, off the launch's path, unless auto-update runs inside the launch |
+
+The engine's `UpdateCache` (`content/updates.rs`) keeps one answer per
+installed release, game version and loader for 30 minutes. A check inside the
+TTL costs no request, and `content.available_updates` lists what the cache
+holds, whatever its age, without asking upstream. The flow
+(`flows/content/updates.rs`) groups the remaining items by source, game version
+and loader across entries, asks each group through `ContentProvider::latest` in
+one request (Modrinth `/version_files/update`, release channel first;
+CurseForge bulk `/mods` and its `latestFilesIndexes`), and resolves exactly only
+the items whose bulk answer differs from the installed version. A source without
+`latest` resolves each item exactly. An update with no pin plans from the same
+answers, so a check followed by "update all" asks nothing twice.
+
+A check that finds an update no earlier answer reported publishes
+`content.updates_found { fresh }`, and the desktop notifies once per event.
+
+**Auto-update** (`content.auto-update`, off by default) moves every item that
+is platform-sourced, not held, and not installed by a modpack. For an instance
+it runs inside the launch, in the first session only, and items it cannot move
+come back as a `ContentNotUpdated` warning on the launch. For a server it starts
+a `content.update` job as soon as a check finds updates while the server is
+stopped and unclaimed. A running server is caught by a later check.
 
 ### Local files are inspected, not trusted
 

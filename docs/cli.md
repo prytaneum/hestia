@@ -415,9 +415,16 @@ hestia instance modded mod set-version sodium 0.6.0 -S curseforge
                                  # ...taken from another source that carries
                                  #   the installed file
 hestia instance modded mod list  # installed mods (+ any untracked jars in the
-                                 #   game dir)
-hestia instance modded mod update [sodium ...]   # newest compatible (all, or
-                                 #   the ones you name — one job either way)
+                                 #   game dir); UPDATE names the version each
+                                 #   can move to, and whether it is held
+hestia instance modded mod update [sodium ...]   # newest compatible (all but
+                                 #   the held ones, or the ones you name — one
+                                 #   job either way; naming one releases it)
+hestia instance modded mod update --check        # ask upstream now, past the
+                                 #   daemon's 30-minute answer cache
+hestia instance modded mod hold sodium    # keep it at its version; set-version
+                                 #   holds too
+hestia instance modded mod unhold sodium  # let it update again
 hestia instance modded mod remove sodium [iris ...]   # one call; a name that
                                  #   matches nothing removes none of them
 hestia instance modded resourcepack add <slug>   # same verbs for packs/shaders
@@ -535,6 +542,21 @@ version needs `--downgrade`. A pack file is the only way a pack no source publis
 a file holding a different pack needs `--other-pack`. On a terminal both are asked rather than refused. Files the pack wrote into the game directory that you have since edited are never
 overwritten or deleted; the command says which it kept.
 
+## Content updates
+
+```bash
+hestia updates                   # every entry's known content updates: entry,
+                                 #   item, current and latest version, held
+hestia updates --apply           # move them, entry by entry, kind by kind;
+                                 #   held items stay, a running entry is refused
+```
+
+The daemon checks for content updates when it starts, when the network comes back, as an instance launches and when an
+entry's content is listed, and keeps each answer for 30 minutes — so `hestia updates` answers at once without asking
+upstream. `instance list` and `server list` carry an UPDATES column, and `server <name> status` an `updates` row, from the
+same answers. With `content.auto-update` on, an instance's updates apply as it launches (held items and a modpack's own
+content excepted) and a stopped server's as soon as they are found.
+
 ## Jobs
 
 ```bash
@@ -632,6 +654,8 @@ hestia config set autostart true # register the daemon to start at login
 hestia config set instance.multi-session true # allow an instance to run several sessions
 hestia config set discord.enabled false       # stop publishing Discord presence
 hestia config set content.curseforge-key <key> # unlock the CurseForge source
+hestia config set content.auto-update true    # apply content updates on launch,
+                                              #   and to a stopped server when found
 hestia config set network.offline true        # stop reaching the network at all
 ```
 
