@@ -15,6 +15,19 @@ import sys
 
 SRC = "crates/proto/src"
 OUT = "frontend/src/api/types"
+
+
+def proto_sources():
+    """(module, path) for every proto source file; a module that is a directory
+    (`plugin/mod.rs`) contributes all of its files under the directory's name."""
+    found = [(os.path.basename(p)[:-3], p) for p in sorted(glob.glob(f"{SRC}/*.rs"))]
+    for entry in sorted(glob.glob(f"{SRC}/*/mod.rs")):
+        directory = os.path.dirname(entry)
+        found += [
+            (os.path.basename(directory), p)
+            for p in sorted(glob.glob(f"{directory}/*.rs"))
+        ]
+    return found
 GEN = f"{OUT}/generated"
 
 BLOCK = r"impl(?:<[^>]*>)?\s+{trait}\s+for\s+(\w+)(?:<[^>]*>)?\s*\{{(.*?)\n\}}"
@@ -73,7 +86,7 @@ class Types:
         self.imports = set()
         self.partial = set()
         self.fields = {}
-        for path in glob.glob(f"{SRC}/*.rs"):
+        for _, path in proto_sources():
             text = open(path).read()
             lines = text.splitlines()
             for m in STRUCT_RE.finditer(text):
@@ -206,8 +219,7 @@ def main():
     expected_contracts = 0
     expected_topics = 0
 
-    for path in sorted(glob.glob(f"{SRC}/*.rs")):
-        module = os.path.basename(path)[:-3]
+    for module, path in proto_sources():
         text = open(path).read()
         consts = dict(STRING_CONSTS.findall(text))
         expected_contracts += len(re.findall(r"impl\s+Contract\s+for\s", text))

@@ -1,6 +1,23 @@
-import type { DescribedSection } from '@/features/settings/lib';
+import type { DescribedSection, GrantScope } from '@/features/settings/lib';
 import { cn } from '@/lib/utils';
 import { m } from '@/paraglide/messages.js';
+
+function ScopeList({ scopes }: { scopes: GrantScope[] }) {
+  return scopes.map((scope) => (
+    <div key={scope.heading + scope.entries.join()} className="space-y-0.5">
+      {scope.heading && (
+        <div className="text-[11px] text-muted-foreground">{scope.heading}</div>
+      )}
+      <ul className="space-y-0.5 text-[11px]">
+        {scope.entries.map((entry) => (
+          <li key={entry} className="break-all font-mono text-foreground/80">
+            {entry}
+          </li>
+        ))}
+      </ul>
+    </div>
+  ));
+}
 
 /** What a plugin is allowed, section by section, full access first. */
 export function GrantList({ sections }: { sections: DescribedSection[] }) {
@@ -29,10 +46,14 @@ export function GrantList({ sections }: { sections: DescribedSection[] }) {
                 <dt className="truncate font-mono text-foreground/80">
                   {item.label}
                 </dt>
-                <dd className="text-muted-foreground">{item.detail}</dd>
+                <dd className="space-y-1 text-muted-foreground">
+                  {item.detail}
+                  <ScopeList scopes={item.scopes} />
+                </dd>
               </div>
             ))}
           </dl>
+          <ScopeList scopes={section.scopes} />
         </div>
       ))}
     </div>

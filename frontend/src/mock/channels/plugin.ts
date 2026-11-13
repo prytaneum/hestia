@@ -5,6 +5,7 @@
 import type {
   Grant,
   Manifest,
+  Permission,
   PluginInfo,
   PluginPage,
   PluginState,
@@ -22,13 +23,8 @@ const manifest = (id: string, name: string): Manifest => ({
   api: '^1.0.0',
   description: '',
   authors: [],
-  permissions: [],
-  network: [],
-  unhashed: [],
-  ipc: [],
-  files: [],
+  permissions: {},
   programs: [],
-  launch: { properties: [] },
   settings: [],
   contributes: {
     commands: [],
@@ -41,20 +37,7 @@ const manifest = (id: string, name: string): Manifest => ({
   },
 });
 
-const emptyGrant: Grant = {
-  permissions: [],
-  network: [],
-  unhashed: [],
-  ipc: [],
-  files: [],
-  programs: [],
-  launchProperties: [],
-  hooks: [],
-  events: [],
-  schedules: [],
-  secretSettings: [],
-  uiCss: [],
-};
+const emptyGrant: Grant = { permissions: {}, contributions: {}, programs: {} };
 
 interface Fixture {
   id: string;
@@ -63,7 +46,7 @@ interface Fixture {
   description?: string;
   authors?: string[];
   grant?: Grant;
-  unrestricted?: Grant['permissions'];
+  unrestricted?: Permission[];
   commands?: number;
   themes?: number;
   settings?: Setting[];
@@ -92,7 +75,6 @@ const installed = ({
       description,
       authors,
       permissions: grant.permissions,
-      network: grant.network,
       settings,
       contributes: {
         ...base.contributes,
@@ -133,7 +115,7 @@ const plugins: PluginInfo[] = [
     state: 'enabled',
     description: 'Greets you in the log every time the daemon starts.',
     authors: ['Hestia'],
-    grant: { ...emptyGrant, permissions: ['entry:read'] },
+    grant: { ...emptyGrant, permissions: { 'entry:read': {} } },
     commands: 1,
     stats: { calls: 128, traps: 0, timeouts: 0 },
   }),
@@ -180,8 +162,13 @@ const plugins: PluginInfo[] = [
     authors: ['Ana Ribeiro', 'kodo'],
     grant: {
       ...emptyGrant,
-      permissions: ['entry:read', 'entry:write', 'network:connect'],
-      network: ['s3.amazonaws.com', 'r2.cloudflarestorage.com'],
+      permissions: {
+        'entry:read': {},
+        'entry:write': {},
+        'network:connect': {
+          hosts: ['s3.amazonaws.com', 'r2.cloudflarestorage.com'],
+        },
+      },
     },
     unrestricted: ['entry:write'],
     commands: 2,
@@ -193,7 +180,7 @@ const plugins: PluginInfo[] = [
     state: 'disabled',
     description: 'A warm dark theme.',
     authors: ['Hestia'],
-    grant: { ...emptyGrant, uiCss: ['themes/0.css'] },
+    grant: { ...emptyGrant, contributions: { themes: ['themes/0.css'] } },
     themes: 1,
   }),
   installed({
@@ -202,7 +189,7 @@ const plugins: PluginInfo[] = [
     state: 'failed',
     description: 'Shows what you are playing in Discord.',
     authors: ['someone'],
-    grant: { ...emptyGrant, permissions: ['process:read'] },
+    grant: { ...emptyGrant, permissions: { 'process:read': {} } },
     lastError: 'disabled after repeated traps',
     stats: { calls: 17, traps: 3, timeouts: 0 },
   }),
@@ -212,20 +199,23 @@ const plugins: PluginInfo[] = [
     state: 'needs_approval',
     description: 'Keeps the mods of several instances in step.',
     authors: ['kodo'],
-    grant: { ...emptyGrant, permissions: ['content:read', 'content:write'] },
+    grant: {
+      ...emptyGrant,
+      permissions: { 'content:read': {}, 'content:write': {} },
+    },
     unrestricted: ['content:write'],
   }),
 ];
 
 const requested: Grant = {
   ...emptyGrant,
-  permissions: [
-    'entry:read',
-    'entry:write',
-    'process:control',
-    'network:connect',
-  ],
-  network: ['api.example.com'],
+  permissions: {
+    'entry:read': { files: ['whitelist.json', 'ops.json'] },
+    'entry:write': {},
+    'process:control': {},
+    'network:connect': { hosts: ['api.example.com'] },
+  },
+  contributions: { events: ['server.*'] },
 };
 
 const stored = new Map<string, unknown>();

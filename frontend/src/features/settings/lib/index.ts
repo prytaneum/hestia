@@ -4,6 +4,7 @@ export {
   type DescribedSection,
   describeApproval,
   describeGrant,
+  type GrantScope,
 } from './approval';
 export { appendDevLog, type DevLogLine } from './dev-log';
 export {

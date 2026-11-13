@@ -17,14 +17,31 @@ GEN = f"{OUT}/generated"
 SKIP_MODULES = {"lib", "contract", "naming"}
 TYPE_RE = re.compile(r"^pub (?:struct|enum) ([A-Za-z0-9_]+)")
 
-modules = []
-for path in sorted(glob.glob(f"{SRC}/*.rs")):
-    module = os.path.basename(path)[:-3]
+
+def proto_sources():
+    """(module, path) for every proto source file; a module that is a directory
+    (`plugin/mod.rs`) contributes all of its files under the directory's name."""
+    found = [(os.path.basename(p)[:-3], p) for p in sorted(glob.glob(f"{SRC}/*.rs"))]
+    for entry in sorted(glob.glob(f"{SRC}/*/mod.rs")):
+        directory = os.path.dirname(entry)
+        found += [
+            (os.path.basename(directory), p)
+            for p in sorted(glob.glob(f"{directory}/*.rs"))
+        ]
+    return found
+
+by_module = {}
+for module, path in proto_sources():
     if module in SKIP_MODULES:
         continue
+    by_module.setdefault(module, []).append(path)
+
+modules = []
+for module, paths in sorted(by_module.items()):
     names = sorted(
         {
             m.group(1)
+            for path in paths
             for line in open(path)
             if (m := TYPE_RE.match(line)) and os.path.exists(f"{GEN}/{m.group(1)}.ts")
         }

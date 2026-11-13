@@ -1,31 +1,36 @@
-import type { Grant, Permission, PluginInspection } from '@/api/types';
+import type {
+  Grant,
+  Permission,
+  PermissionScope,
+  PluginInspection,
+  ScopeKind,
+} from '@/api/types';
 import { m } from '@/paraglide/messages.js';
 
 type GrantSectionKind =
   | 'full_access'
   | 'permissions'
-  | 'programs'
-  | 'network'
-  | 'unhashed'
-  | 'ipc'
-  | 'files'
-  | 'launch_properties'
-  | 'hooks'
-  | 'events'
-  | 'schedules'
-  | 'secret_settings'
-  | 'themes';
+  | 'contributions'
+  | 'pinned';
 
-/** One thing a grant allows: a permission and what it means, or a listed value. */
+/** One kind of entries a grant lists, under the permission that carries them. */
+export interface GrantScope {
+  heading: string;
+  entries: string[];
+}
+
+/** One thing a grant allows: a permission and what it means, with its scope. */
 export interface GrantItem {
   label: string;
   detail?: string;
+  scopes: GrantScope[];
 }
 
 export interface DescribedSection {
   kind: GrantSectionKind;
   heading: string;
   items: GrantItem[];
+  scopes: GrantScope[];
 }
 
 /**
@@ -60,31 +65,47 @@ const PERMISSION_TEXT: Record<Permission, () => string> = {
 const HEADING: Record<GrantSectionKind, () => string> = {
   full_access: m['settings.plugins.grant.full_access'],
   permissions: m['settings.plugins.grant.permissions'],
-  programs: m['settings.plugins.grant.programs'],
-  network: m['settings.plugins.grant.network'],
-  unhashed: m['settings.plugins.grant.unhashed'],
-  ipc: m['settings.plugins.grant.ipc'],
-  files: m['settings.plugins.grant.files'],
-  launch_properties: m['settings.plugins.grant.launch_properties'],
-  hooks: m['settings.plugins.grant.hooks'],
-  events: m['settings.plugins.grant.events'],
-  schedules: m['settings.plugins.grant.schedules'],
-  secret_settings: m['settings.plugins.grant.secret_settings'],
-  themes: m['settings.plugins.grant.themes'],
+  contributions: m['settings.plugins.grant.contributions'],
+  pinned: m['settings.plugins.grant.pinned'],
 };
 
-const permission = (name: Permission): GrantItem => ({
+const KIND_HEADING: Record<ScopeKind, () => string> = {
+  hosts: m['settings.plugins.grant.kind.hosts'],
+  unhashed: m['settings.plugins.grant.kind.unhashed'],
+  files: m['settings.plugins.grant.kind.files'],
+  endpoints: m['settings.plugins.grant.kind.endpoints'],
+  programs: m['settings.plugins.grant.kind.programs'],
+  properties: m['settings.plugins.grant.kind.properties'],
+  hooks: m['settings.plugins.grant.kind.hooks'],
+  events: m['settings.plugins.grant.kind.events'],
+  schedules: m['settings.plugins.grant.kind.schedules'],
+  secrets: m['settings.plugins.grant.kind.secrets'],
+  themes: m['settings.plugins.grant.kind.themes'],
+};
+
+const scopesOf = (scope: PermissionScope): GrantScope[] =>
+  (Object.keys(KIND_HEADING) as ScopeKind[]).flatMap((kind) => {
+    const entries = scope[kind] ?? [];
+    return entries.length > 0
+      ? [{ heading: KIND_HEADING[kind](), entries }]
+      : [];
+  });
+
+const permissionItem = (
+  name: Permission,
+  scope: PermissionScope,
+): GrantItem => ({
   label: name,
   detail: PERMISSION_TEXT[name](),
+  scopes: scopesOf(scope),
 });
-
-const values = (list: string[]): GrantItem[] =>
-  list.map((label) => ({ label }));
 
 /**
  * What `grant` allows, as non-empty sections in the order a person should weigh
- * them: the full-access permissions first (which ones those are is the daemon's
- * call, `unrestricted`), then the sandboxed ones, then the narrower lists.
+ * them: the full-access permissions first (which ones those are is the
+ * daemon's call, `unrestricted`), then the sandboxed ones, each with the scope
+ * it carries, then what the plugin contributes and where its programs are
+ * pinned.
  */
 export function describeGrant(
   grant: Grant,
@@ -92,86 +113,61 @@ export function describeGrant(
   programPaths: Record<string, string> = {},
 ): DescribedSection[] {
   const full = new Set(unrestricted);
-  const sections: Array<[GrantSectionKind, GrantItem[]]> = [
-    ['full_access', unrestricted.map(permission)],
-    [
-      'permissions',
-      grant.permissions.filter((name) => !full.has(name)).map(permission),
-    ],
-    [
-      'programs',
-      grant.programs.map((program) => ({
-        label: program.id,
-        detail: [
-          [
-            program.java === undefined
-              ? program.command
-              : m['settings.plugins.grant.program_java']({
-                  major: program.java,
-                }),
-            ...program.args,
-          ].join(' '),
-          program.env.length > 0 &&
-            m['settings.plugins.grant.program_env']({
-              names: program.env.join(', '),
-            }),
-          program.path.length > 0 &&
-            m['settings.plugins.grant.program_search']({
-              names: program.path.join(', '),
-            }),
-          programPaths[program.id] &&
-            m['settings.plugins.grant.program_path']({
-              path: programPaths[program.id],
-            }),
-        ]
-          .filter(Boolean)
-          .join(' · '),
-      })),
-    ],
-    ['network', values(grant.network)],
-    ['unhashed', values(grant.unhashed)],
-    ['ipc', values(grant.ipc)],
-    ['files', values(grant.files)],
-    ['launch_properties', values(grant.launchProperties)],
-    ['hooks', values(grant.hooks)],
-    ['events', values(grant.events)],
-    [
-      'schedules',
-      grant.schedules.map((schedule) => ({
-        label: schedule.id,
-        detail: m['settings.plugins.grant.schedule_every']({
-          seconds: String(schedule.every),
-        }),
-      })),
-    ],
-    ['secret_settings', values(grant.secretSettings)],
-    ['themes', values(grant.uiCss)],
+  const held = (Object.keys(grant.permissions) as Permission[]).map((name) =>
+    permissionItem(name, grant.permissions[name] ?? {}),
+  );
+  const isFull = (item: GrantItem) => full.has(item.label as Permission);
+  const pinned = Object.entries(programPaths).map(
+    ([id, path]) => `${id} → ${path}`,
+  );
+  const sections: DescribedSection[] = [
+    {
+      kind: 'full_access',
+      heading: HEADING.full_access(),
+      items: held.filter(isFull),
+      scopes: [],
+    },
+    {
+      kind: 'permissions',
+      heading: HEADING.permissions(),
+      items: held.filter((item) => !isFull(item)),
+      scopes: [],
+    },
+    {
+      kind: 'contributions',
+      heading: HEADING.contributions(),
+      items: [],
+      scopes: scopesOf(grant.contributions),
+    },
+    {
+      kind: 'pinned',
+      heading: HEADING.pinned(),
+      items: [],
+      scopes: pinned.length > 0 ? [{ heading: '', entries: pinned }] : [],
+    },
   ];
-  return sections
-    .filter(([, items]) => items.length > 0)
-    .map(([kind, items]) => ({ kind, heading: HEADING[kind](), items }));
+  return sections.filter(
+    (section) => section.items.length > 0 || section.scopes.length > 0,
+  );
 }
 
 /**
  * What an approval covers: the whole grant when new; on an update the
- * widening plus every program with a pinned path, since the digest binds the
- * pin and an update that only moves it must still show where it now points.
+ * widening, plus every pinned program path, since the digest binds the pin and
+ * an update that only moves it must still show where it now points.
  */
 export function describeApproval(
   inspection: PluginInspection,
 ): DescribedSection[] {
-  const grant = inspection.replaces
-    ? {
-        ...inspection.widened,
-        programs: inspection.grant.programs.filter(
-          (program) =>
-            inspection.programPaths[program.id] !== undefined ||
-            inspection.widened.programs.some((wide) => wide.id === program.id),
-        ),
-      }
-    : inspection.grant;
+  const grant = inspection.replaces ? inspection.widened : inspection.grant;
   return describeGrant(grant, inspection.unrestricted, inspection.programPaths);
 }
+
+const scopeLines = (scopes: GrantScope[], indent: string): string[] =>
+  scopes.flatMap(({ heading, entries }) => [
+    ...(heading ? [`${indent}${heading}`] : []),
+    ...entries.map((entry) => `${indent}  - ${entry}`),
+  ]);
 
 export interface ApprovalDialog {
   title: string;
@@ -205,12 +201,12 @@ export function approvalDialog(inspection: PluginInspection): ApprovalDialog {
         : m['settings.plugins.approval.none'](),
     );
   for (const section of sections) {
-    lines.push(
-      section.heading,
-      ...section.items.map(({ label, detail }) =>
-        detail ? `• ${label} — ${detail}` : `• ${label}`,
-      ),
-    );
+    lines.push(section.heading);
+    for (const { label, detail, scopes } of section.items) {
+      lines.push(detail ? `• ${label} — ${detail}` : `• ${label}`);
+      lines.push(...scopeLines(scopes, '  '));
+    }
+    lines.push(...scopeLines(section.scopes, ''));
   }
 
   if (lines.length <= MAX_DIALOG_LINES)
