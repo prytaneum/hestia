@@ -6,6 +6,7 @@ mod content_source;
 mod flavor;
 mod format;
 mod plugin_update;
+mod shadow;
 
 use crate::fixture;
 

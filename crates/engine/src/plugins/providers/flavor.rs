@@ -469,9 +469,10 @@ pub(super) fn register(
     for mut flavor in flavors {
         flavor.vanilla = engine.minecraft().vanilla();
         let id = flavor.info.id.to_string();
+        let live = flavor.guest.live();
         let outcome = engine
             .minecraft()
-            .register(owner, official, Arc::new(flavor));
+            .register(owner, official, live, Arc::new(flavor));
         registered(owner, "flavor", &id, outcome);
     }
 }

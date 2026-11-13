@@ -134,7 +134,10 @@ pub(super) fn register(
 ) {
     for provider in providers {
         let id = provider.guest.id().to_string();
-        let outcome = engine.java().register(owner, official, Arc::new(provider));
+        let live = provider.guest.live();
+        let outcome = engine
+            .java()
+            .register(owner, official, live, Arc::new(provider));
         registered(owner, "java", &id, outcome);
     }
 }

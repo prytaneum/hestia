@@ -13,13 +13,13 @@ use super::*;
 
 const SOURCE: &str = "static-index.index";
 
-fn manifest() -> Manifest {
+pub(super) fn manifest() -> Manifest {
     let manifest: Manifest = toml::from_str(fixture::index::MANIFEST).expect("manifest");
     manifest.validate().expect("a valid manifest");
     manifest
 }
 
-fn load(
+pub(super) fn load(
     home: &std::path::Path,
     files: &fixture::Files,
     hosts: &[&str],

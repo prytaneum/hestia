@@ -290,7 +290,14 @@ in one place, so the daemon never names a kind. Ids read `<plugin>.<id>`; a
 plugin signed by the official key registers its providers under the bare `<id>` instead (`adoptium`, not
 `adoptium.adoptium`), which is how it replaces a core provider of that name. `Contributions::connect` takes the flag, so
 the id a guest carries, the `Service::Provider` it reports and the registered id are the same string. Registration
-refuses a duplicate id, so a bare id still held by a built-in is left to the built-in and logged as refused.
+refuses a duplicate id, with one exception: an official plugin's bare id may equal a built-in's, and then it
+**shadows** it ([0116](../decisions/0116-an-official-provider-shadows-the-builtin.md)). `Roster` keeps both entries and
+`snapshot()` yields one per id: the live shadower, standing where the built-in was listed, else the built-in. The
+built-in is the fallback in the one sense the registry can give: it answers again as soon as the plugin is unregistered
+(disabled, removed, failed to load) or its `LoadedPlugin` is disabled after repeated traps (each registration carries a
+`Live` check), with no restart. A guest's `unsupported` answer for an optional operation still takes the host's generic
+default, not the built-in's implementation. A non-official plugin's bare id stays refused, and a second official claiming
+a bare id already held by a plugin is a `Duplicate`. Shadowing and unshadowing are logged at `info`.
 
 | Kind | Needs | Registers into | Page |
 |---|---|---|---|
@@ -460,7 +467,13 @@ flowchart TD
   `plugin.log` stream (a subscription filtered to a dev plugin, and its publication) and the extra `PluginInfo.developer`
   diagnostics (grant digest, component cache directory, error chain). The daemon refuses them with
   `ErrorInfo::DeveloperModeOff`, whatever the client; the CLI additionally hides the authoring verbs. Setting the key to
-  false disables every dev plugin, which also ends its reload poll, with the reason as its last error. Installing from a
+  false disables every dev plugin, which also ends its reload poll, with the reason as its last error. A dev install may
+  also be marked **official for registration only** (`plugin dev --official`, `PluginInstallParams.official`,
+  `PluginRecord.devOfficial`, shown as `PluginInfo.devOfficial`): while developer mode is on, its providers register
+  under bare ids and may shadow built-ins, so a port can be tested before it is signed. The one read of the flag is
+  `Plugins::dev_official` in the daemon, consulted where `Contributions::connect` takes `official`; the grant, approval
+  digest, permission checks, `PluginInfo.official` (derived from the signer, so false), bundled install and auto-update
+  never see it. A dev install has no signer and cannot be updated, so the real official key's privileges are out of reach. Installing from a
   file, link or repository, enable, disable, remove and settings are never gated.
 - **What you approve is what lands.** A downloaded package is held under
   `tmp/plugins/` by an opaque token (fifteen minutes; `tmp/` is emptied at startup
@@ -635,3 +648,4 @@ plugins the tests build are fixtures
 | [0113](../decisions/0113-a-flavor-builds-on-the-vanilla-profile.md) | a flavor builds on the vanilla profile; the host merges it |
 | [0114](../decisions/0114-an-unhashed-download-is-declared.md) | an unhashed download is declared, and the host is part of the grant |
 | [0115](../decisions/0115-a-plugin-error-is-its-own-typed-enum.md) | a plugin error is its own typed enum, mapped to and from `ErrorInfo` by the host |
+| [0116](../decisions/0116-an-official-provider-shadows-the-builtin.md) | an official provider shadows the built-in of the same id; a dev install can register as official |

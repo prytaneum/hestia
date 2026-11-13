@@ -31,7 +31,7 @@ use proto::content::{
 
 use crate::config::ContentSettings;
 use crate::plugins::vouch::Policy;
-use crate::roster::{RegisterError, Roster};
+use crate::roster::{Live, RegisterError, Roster};
 use provider::ContentProvider;
 pub(crate) use provider::{LocalFile, UrlRef};
 
@@ -160,16 +160,18 @@ impl Content {
         }
     }
 
-    /// Add `owner`'s source. Its id must read `<owner>.<id>`, so it cannot
-    /// shadow a built-in, unless `official` (signed by the official plugins key).
+    /// Add `owner`'s source. Its id must read `<owner>.<id>`, unless `official`
+    /// (signed by the official plugins key), which may take a bare id and so
+    /// shadow the built-in of that id.
     pub fn register(
         &self,
         owner: &str,
         official: bool,
+        live: Live,
         provider: Arc<dyn ContentProvider>,
     ) -> Result<(), RegisterError> {
         self.providers
-            .register(owner, official, provider.id(), provider.clone())
+            .register(owner, official, live, provider.id(), provider.clone())
     }
 
     /// Remove every source `owner` registered. Content already installed from

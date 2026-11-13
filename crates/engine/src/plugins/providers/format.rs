@@ -201,9 +201,10 @@ pub(super) async fn connect(
 pub(super) fn register(engine: &Engine, owner: &str, official: bool, formats: Vec<PluginFormat>) {
     for format in formats {
         let id = format.id().to_string();
+        let live = format.guest.live();
         let outcome = engine
             .formats()
-            .register(owner, official, &id, Arc::new(format));
+            .register(owner, official, live, &id, Arc::new(format));
         registered(owner, "format", &id, outcome);
     }
 }

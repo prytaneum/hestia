@@ -223,7 +223,10 @@ pub(super) fn register(
 ) {
     for source in sources {
         let id = source.guest.id().to_string();
-        let outcome = engine.content().register(owner, official, Arc::new(source));
+        let live = source.guest.live();
+        let outcome = engine
+            .content()
+            .register(owner, official, live, Arc::new(source));
         registered(owner, "content", &id, outcome);
     }
 }

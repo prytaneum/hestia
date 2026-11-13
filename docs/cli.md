@@ -767,7 +767,10 @@ hestia plugin keygen [--out <dir>] [--unencrypted]
                                  #   `key` in [workspace.metadata.hestia]; never overwrites a key; --unencrypted for a CI secret
 hestia plugin pack --sign <secret key>   # also write <package>.minisig (the key must match the repository's declared one)
                                  # pack and publish refuse a component built against another WIT (`cargo update -p hestia-sdk`)
-hestia plugin dev [dir] [-y]     # run plugins/<id>/ in place, rebuild when its sources change, stream its log
+hestia plugin dev [dir] [-y] [--official]
+                                 # run plugins/<id>/ in place, rebuild when its sources change, stream its log;
+                                 #   --official registers its providers under bare ids that shadow the built-ins
+                                 #   (developer mode only; the grant is approved exactly as without it)
 hestia plugin dev|pack|publish --sdk <dir>
                                  # build against a local checkout of the hestia-sdk crate (crates/sdk); $HESTIA_SDK is
                                  #   the fallback, the flag wins; no file of the plugin is edited

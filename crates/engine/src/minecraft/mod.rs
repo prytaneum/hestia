@@ -31,7 +31,7 @@ use anyhow::{Context, Result};
 use proto::minecraft::{Flavor, GameVersion};
 
 use crate::cache::Cache;
-use crate::roster::{RegisterError, Roster};
+use crate::roster::{Live, RegisterError, Roster};
 use profile::{InstanceProfile, ServerProfile};
 
 pub use loaders::Loaders;
@@ -78,16 +78,17 @@ impl Minecraft {
         }
     }
 
-    /// Add `owner`'s flavor. Its id must read `<owner>.<id>`, so it cannot
-    /// shadow a built-in.
+    /// Add `owner`'s flavor. Its id must read `<owner>.<id>`, unless `official`, which may
+    /// shadow the built-in of a bare id.
     pub fn register(
         &self,
         owner: &str,
         official: bool,
+        live: Live,
         provider: Arc<dyn FlavorProvider>,
     ) -> Result<(), RegisterError> {
         let id = provider.info().id.to_string();
-        self.flavors.register(owner, official, &id, provider)
+        self.flavors.register(owner, official, live, &id, provider)
     }
 
     /// Remove every flavor `owner` registered. An entry already created from

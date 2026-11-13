@@ -31,6 +31,7 @@ use crate::engine::Engine;
 use crate::plugins::chain::CallChain;
 use crate::plugins::context::CallContext;
 use crate::plugins::runtime::{CallError, LoadedPlugin, ProviderCall, PROVIDER_TIMEOUT};
+use crate::roster::Live;
 
 /// The guest end of one contributed provider: the plugin and the id its
 /// manifest gives the provider. Registered as `<plugin>.<id>`, or as the bare
@@ -67,6 +68,13 @@ impl Guest {
             local: local.to_string(),
             plugin,
         }
+    }
+
+    /// Whether the plugin can still answer; false once it is disabled after
+    /// repeated traps.
+    fn live(&self) -> Live {
+        let plugin = self.plugin.clone();
+        Arc::new(move || !plugin.is_disabled())
     }
 
     /// The id the provider is registered under.

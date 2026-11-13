@@ -82,7 +82,7 @@ pub use plugins::{
 };
 pub use presence::Presence;
 pub use process::{ExitObserver, ProcessEvents, ProcessSupervisor, StartError};
-pub use roster::RegisterError;
+pub use roster::{always_live, Live, RegisterError};
 pub use schema::notices as quarantined;
 pub use servers::{RconConfig, ServerPhase, ServerRecord, Servers};
 pub use skins::Skins;
