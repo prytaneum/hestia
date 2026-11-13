@@ -118,6 +118,7 @@ const installed = ({
     unrestricted,
     obsolete: false,
     official: false,
+    devOfficial: false,
     calls: stats.calls,
     traps: stats.traps,
     timeouts: stats.timeouts,

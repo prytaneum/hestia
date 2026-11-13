@@ -52,6 +52,9 @@ pub struct PluginRecord {
     pub repository: Option<String>,
     /// The folder a [`PluginSource::Dev`] plugin runs from, in place.
     pub dev_path: Option<PathBuf>,
+    /// A [`PluginSource::Dev`] plugin whose providers register as an official
+    /// plugin's do. Read by provider registration only, never by approval.
+    pub dev_official: bool,
     pub wasm_sha256: Option<String>,
     /// Package-relative theme file to its hex sha256.
     pub theme_sha256: BTreeMap<String, String>,

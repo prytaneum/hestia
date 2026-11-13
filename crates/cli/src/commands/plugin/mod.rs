@@ -51,6 +51,11 @@ pub enum PluginCmd {
         dir: Option<std::path::PathBuf>,
         #[arg(short = 'y', long, help = "Approve exactly the permissions shown")]
         yes: bool,
+        #[arg(
+            long,
+            help = "Register its providers as an official plugin's: bare ids that shadow the built-ins"
+        )]
+        official: bool,
         #[command(flatten)]
         sdk: sdk::SdkOption,
     },
@@ -165,7 +170,12 @@ pub async fn run(cmd: PluginCmd) -> Result<()> {
     match cmd {
         PluginCmd::New { id } => new::run(&id),
         PluginCmd::Pack { ids, sign, sdk } => pack::run(&ids, sign.as_deref(), &sdk),
-        PluginCmd::Dev { dir, yes, sdk } => dev::run(dir.as_deref(), yes, &sdk).await,
+        PluginCmd::Dev {
+            dir,
+            yes,
+            official,
+            sdk,
+        } => dev::run(dir.as_deref(), yes, official, &sdk).await,
         PluginCmd::Check { ids, dir } => check::run(dir.as_deref(), &ids),
         PluginCmd::Publish {
             out,
@@ -253,6 +263,8 @@ fn list(plugins: Vec<PluginInfo>) -> Result<()> {
                     p.manifest.id,
                     if p.official {
                         format!("{} (official)", p.manifest.name)
+                    } else if p.dev_official {
+                        format!("{} (dev official)", p.manifest.name)
                     } else {
                         p.manifest.name
                     },
@@ -283,6 +295,12 @@ fn info(plugin: &PluginInfo) -> Result<()> {
     }
     if plugin.official {
         rows.push(("Official", "signed by the official plugins key".to_string()));
+    }
+    if plugin.dev_official {
+        rows.push((
+            "Dev official",
+            "providers register as an official plugin's; grants are unchanged".to_string(),
+        ));
     }
     if let Some(repository) = &plugin.repository {
         rows.push(("Repository", repository.clone()));

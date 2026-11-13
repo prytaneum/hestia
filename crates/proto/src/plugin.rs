@@ -1404,6 +1404,9 @@ pub struct PluginInfo {
     pub signer: Option<String>,
     /// Signed by the official-plugins key; derived from `signer` on every read.
     pub official: bool,
+    /// A dev install registering its providers as an official plugin's would;
+    /// in effect only while developer mode is on.
+    pub dev_official: bool,
     /// The index URL of the repository it was installed from.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub repository: Option<String>,
@@ -1756,6 +1759,9 @@ pub struct PluginInstallParams {
     /// Run the folder at `path` in place instead of copying it, and reload it
     /// when its component or themes change.
     pub dev: bool,
+    /// With `dev`, register the folder's providers as an official plugin's
+    /// would be: bare ids that may shadow a built-in. Grants are untouched.
+    pub official: bool,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq)]

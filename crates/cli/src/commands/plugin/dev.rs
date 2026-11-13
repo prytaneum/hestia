@@ -94,7 +94,7 @@ fn prepare(dir: &Path, sdk: Option<Sdk>) -> Result<(PathBuf, Option<Staged>)> {
     Ok((out, Some(staged)))
 }
 
-pub async fn run(dir: Option<&Path>, yes: bool, sdk: &SdkOption) -> Result<()> {
+pub async fn run(dir: Option<&Path>, yes: bool, official: bool, sdk: &SdkOption) -> Result<()> {
     let sdk = Sdk::resolve(sdk)?;
     let dir = std::fs::canonicalize(dir.unwrap_or(Path::new(".")))
         .context("cannot resolve the plugin folder")?;
@@ -114,7 +114,7 @@ pub async fn run(dir: Option<&Path>, yes: bool, sdk: &SdkOption) -> Result<()> {
     let id = inspection.manifest.id.clone();
     let mut events = plugins.follow(&id).await?;
     plugins
-        .install_dev(&package, &inspection.grant_digest)
+        .install_dev(&package, &inspection.grant_digest, official)
         .await?;
     let watching = if staged.is_some() {
         "rebuilds when its sources change and "
