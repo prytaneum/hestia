@@ -56,6 +56,7 @@ pub async fn run(args: Updates) -> Result<()> {
     }
 
     let mut failed = 0usize;
+    let mut applied = 0usize;
     for entry in &entries {
         let mut kinds = Vec::new();
         for update in entry.updates.iter().filter(|u| u.updatable && !u.held) {
@@ -64,6 +65,7 @@ pub async fn run(args: Updates) -> Result<()> {
             }
         }
         for kind in kinds {
+            applied += 1;
             let outcome = content::update(
                 &client,
                 entry.target.kind,
@@ -82,6 +84,11 @@ pub async fn run(args: Updates) -> Result<()> {
                 )))?;
             }
         }
+    }
+    if applied == 0 {
+        return ui::show(View::note(
+            "every update is held — `<kind> unhold <item>` lets one move",
+        ));
     }
     if failed > 0 {
         bail!("{failed} update batch(es) did not apply");
