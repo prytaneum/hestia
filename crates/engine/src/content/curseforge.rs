@@ -26,7 +26,7 @@ use crate::config::ContentSettings;
 
 use super::json::{non_empty, str_field, u64_field};
 use super::pack;
-use super::provider::{ContentProvider, LocalFile, UrlRef};
+use super::provider::{ContentProvider, LatestQuery, LocalFile, UrlRef};
 
 const API: &str = "https://api.curseforge.com/v1";
 const SITE: &str = "curseforge.com";
@@ -301,6 +301,25 @@ impl ContentProvider for CurseForge {
 
     async fn versions_by_id(&self, ids: &[String]) -> Result<Vec<ContentVersion>> {
         Ok(self.files(ids).await?.iter().map(parse_file).collect())
+    }
+
+    /// One `/mods` request per batch: each mod carries `latestFilesIndexes`,
+    /// its newest file per game version, loader and channel.
+    async fn latest(&self, query: &LatestQuery<'_>) -> Result<Option<HashMap<String, String>>> {
+        let mut ids: Vec<&str> = query.files.iter().map(|f| f.project_id.as_str()).collect();
+        ids.sort_unstable();
+        ids.dedup();
+        let loader = query.loader.and_then(loader_type);
+        let mut out = HashMap::with_capacity(ids.len());
+        for chunk in ids.chunks(BATCH) {
+            let body = self.post("/mods", json!({ "modIds": chunk })).await?;
+            for project in data(&body).as_array().into_iter().flatten() {
+                if let Some(file) = latest_file(project, query.game_version, loader) {
+                    out.insert(u64_field(project, "id").to_string(), file.to_string());
+                }
+            }
+        }
+        Ok(Some(out))
     }
 
     async fn identify(&self, files: &[LocalFile]) -> Result<HashMap<String, ContentVersion>> {
@@ -776,6 +795,29 @@ fn class_dir(class: u64) -> &'static str {
         .unwrap_or("mods")
 }
 
+/// The newest release file a mod lists for the game version and loader, else
+/// its newest file of any channel. File ids grow with upload time.
+fn latest_file(project: &Value, game_version: &str, loader: Option<u32>) -> Option<u64> {
+    const RELEASE: u64 = 1;
+    let fitting: Vec<(u64, u64)> = project
+        .get("latestFilesIndexes")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter(|index| str_field(index, "gameVersion") == game_version)
+        .filter(|index| loader.is_none_or(|l| u64_field(index, "modLoader") == u64::from(l)))
+        .map(|index| (u64_field(index, "fileId"), u64_field(index, "releaseType")))
+        .collect();
+    let newest = |release_only: bool| {
+        fitting
+            .iter()
+            .filter(|(_, channel)| !release_only || *channel == RELEASE)
+            .map(|(id, _)| *id)
+            .max()
+    };
+    newest(true).or_else(|| newest(false))
+}
+
 fn loader_type(loader: &str) -> Option<u32> {
     LOADERS
         .iter()
@@ -853,6 +895,28 @@ mod tests {
     use super::*;
 
     #[test]
+    fn latest_file_prefers_a_release_for_the_version_and_loader() {
+        let project = json!({ "latestFilesIndexes": [
+            { "gameVersion": "1.21.1", "fileId": 30, "modLoader": 4, "releaseType": 2 },
+            { "gameVersion": "1.21.1", "fileId": 20, "modLoader": 4, "releaseType": 1 },
+            { "gameVersion": "1.21.1", "fileId": 40, "modLoader": 6, "releaseType": 1 },
+            { "gameVersion": "1.20.1", "fileId": 50, "modLoader": 4, "releaseType": 1 },
+        ]});
+        assert_eq!(latest_file(&project, "1.21.1", Some(4)), Some(20));
+        assert_eq!(latest_file(&project, "1.21.1", None), Some(40));
+        assert_eq!(latest_file(&project, "1.19.2", Some(4)), None);
+    }
+
+    #[test]
+    fn latest_file_falls_back_to_any_channel() {
+        let project = json!({ "latestFilesIndexes": [
+            { "gameVersion": "1.21.1", "fileId": 30, "modLoader": 4, "releaseType": 2 },
+            { "gameVersion": "1.21.1", "fileId": 10, "modLoader": 4, "releaseType": 3 },
+        ]});
+        assert_eq!(latest_file(&project, "1.21.1", Some(4)), Some(30));
+    }
+
+    #[test]
     fn site_urls_parse_to_project_refs() {
         let cf = CurseForge::default();
         for url in [
@@ -913,6 +977,7 @@ mod tests {
         let cf = CurseForge::default();
         cf.configure(&ContentSettings {
             curseforge_key: "  from-config  ".to_string(),
+            ..ContentSettings::default()
         });
         assert_eq!(cf.key(), "from-config");
         assert!(cf.available());

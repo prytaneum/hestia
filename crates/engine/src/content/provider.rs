@@ -48,6 +48,22 @@ impl LocalFile {
     }
 }
 
+/// One installed file a bulk update lookup asks about.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct InstalledFile {
+    pub project_id: String,
+    pub sha1: String,
+}
+
+/// What one bulk update lookup covers: files sharing a game version and the
+/// loader their kind installs for.
+#[derive(Debug, Clone, Copy)]
+pub struct LatestQuery<'a> {
+    pub game_version: &'a str,
+    pub loader: Option<&'a str>,
+    pub files: &'a [InstalledFile],
+}
+
 #[async_trait]
 pub trait ContentProvider: Send + Sync {
     fn id(&self) -> &'static str;
@@ -88,6 +104,15 @@ pub trait ContentProvider: Send + Sync {
     async fn versions_by_id(&self, ids: &[String]) -> Result<Vec<ContentVersion>> {
         let _ = ids;
         Ok(Vec::new())
+    }
+    /// The newest compatible version id of each file's project — the newest
+    /// release, else the newest of any channel — keyed by project id, in as
+    /// few requests as the platform allows. A project missing from the map has
+    /// no compatible version at all. `None` means the source has no bulk
+    /// lookup, and its items resolve one at a time through `versions`.
+    async fn latest(&self, query: &LatestQuery<'_>) -> Result<Option<HashMap<String, String>>> {
+        let _ = query;
+        Ok(None)
     }
     /// The version each file is a release of, keyed by the file's sha1.
     async fn identify(&self, files: &[LocalFile]) -> Result<HashMap<String, ContentVersion>> {

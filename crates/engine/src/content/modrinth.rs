@@ -17,7 +17,7 @@ use proto::minecraft::Artifact;
 use serde_json::Value;
 
 use super::json::{non_empty, parse_side, str_field, u64_field};
-use super::provider::{ContentProvider, FileRef, LocalFile, UrlRef};
+use super::provider::{ContentProvider, FileRef, InstalledFile, LatestQuery, LocalFile, UrlRef};
 
 const API: &str = "https://api.modrinth.com/v2";
 /// Only for an organization's name: v2 has no organization route.
@@ -228,6 +228,42 @@ impl ContentProvider for Modrinth {
             }
         }
         Ok(out)
+    }
+
+    /// Release first, then any channel for the files no release fits — the
+    /// same preference `install::pick_newest` applies.
+    async fn latest(&self, query: &LatestQuery<'_>) -> Result<Option<HashMap<String, String>>> {
+        let mut out = HashMap::with_capacity(query.files.len());
+        for chunk in query.files.chunks(HASH_LIMIT) {
+            let mut pending: Vec<&InstalledFile> = chunk.iter().collect();
+            for channels in [Some(["release"]), None] {
+                if pending.is_empty() {
+                    break;
+                }
+                let hashes: Vec<&str> = pending.iter().map(|f| f.sha1.as_str()).collect();
+                let mut body = serde_json::json!({
+                    "hashes": hashes,
+                    "algorithm": "sha1",
+                    "loaders": query.loader.into_iter().collect::<Vec<_>>(),
+                    "game_versions": [query.game_version],
+                });
+                if let Some(channels) = channels {
+                    body["version_types"] = serde_json::json!(channels);
+                }
+                let found = post_json(&format!("{API}/version_files/update"), &body).await?;
+                pending.retain(|file| match found.get(&file.sha1) {
+                    Some(version) => {
+                        out.insert(
+                            file.project_id.clone(),
+                            parse_version(self.id(), version).id,
+                        );
+                        false
+                    }
+                    None => true,
+                });
+            }
+        }
+        Ok(Some(out))
     }
 
     async fn versions(&self, query: &VersionQuery) -> Result<Vec<ContentVersion>> {

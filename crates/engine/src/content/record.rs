@@ -76,6 +76,7 @@ pub(crate) struct Holding {
     pub origin: String,
     pub enabled: bool,
     pub disabled_worlds: Vec<String>,
+    pub held: bool,
 }
 
 impl Holding {
@@ -85,6 +86,7 @@ impl Holding {
             origin: String::new(),
             enabled: true,
             disabled_worlds: Vec::new(),
+            held: false,
         }
     }
 }
@@ -121,6 +123,7 @@ impl From<&InstalledContent> for Holding {
             origin: item.origin.clone(),
             enabled: item.enabled,
             disabled_worlds: item.disabled_worlds.clone(),
+            held: item.held,
         }
     }
 }
@@ -144,12 +147,22 @@ pub(crate) fn assemble(project: Project, release: Release, holding: Holding) -> 
         origin: holding.origin,
         enabled: holding.enabled,
         disabled_worlds: holding.disabled_worlds,
+        held: holding.held,
     }
 }
 
-/// Move an item onto another release, keeping what it is and how it is held.
-pub(crate) fn repin(item: &InstalledContent, release: Release) -> InstalledContent {
-    assemble(Project::from(item), release, Holding::from(item))
+/// Move an item onto another release, keeping what it is and how it is held
+/// — except the hold itself, which the caller decides: choosing a version holds
+/// it there, and updating it by name lets it go.
+pub(crate) fn repin(item: &InstalledContent, release: Release, held: bool) -> InstalledContent {
+    assemble(
+        Project::from(item),
+        release,
+        Holding {
+            held,
+            ..Holding::from(item)
+        },
+    )
 }
 
 pub(crate) fn resource(
@@ -191,6 +204,7 @@ mod tests {
                 origin: "modpack:kitchen-sink".to_string(),
                 enabled: false,
                 disabled_worlds: vec!["saves/hardcore".to_string()],
+                held: true,
             },
         )
     }
@@ -209,7 +223,7 @@ mod tests {
     #[test]
     fn repinning_moves_the_release_and_nothing_else() {
         let before = held();
-        let after = repin(&before, moved());
+        let after = repin(&before, moved(), before.held);
 
         assert_eq!(after.version_id, "v2");
         assert_eq!(after.filename, "sodium-2.0.0.jar");
@@ -222,12 +236,20 @@ mod tests {
         assert!(!after.enabled);
         assert_eq!(after.worlds, before.worlds);
         assert_eq!(after.disabled_worlds, before.disabled_worlds);
+        assert!(after.held);
+    }
+
+    #[test]
+    fn repinning_sets_the_hold_the_caller_asks_for() {
+        let before = held();
+        assert!(!repin(&before, moved(), false).held);
+        assert!(repin(&InstalledContent::default(), moved(), true).held);
     }
 
     #[test]
     fn reholding_keeps_the_new_release_under_the_old_holding() {
         let previous = held();
-        let supplied = repin(&previous, moved());
+        let supplied = repin(&previous, moved(), previous.held);
         let resupplied = rehold(
             &supplied,
             Holding {

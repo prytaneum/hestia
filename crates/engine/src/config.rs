@@ -25,7 +25,8 @@ pub struct Settings {
     /// JVM defaults applied to any server or instance whose record leaves the
     /// matching per-entry setting unset.
     pub defaults: JvmDefaults,
-    /// Credentials for the content sources that need one.
+    /// Credentials for the content sources that need one, and whether found
+    /// updates apply on their own.
     pub content: ContentSettings,
     /// What an instance is allowed to do beyond the safe default.
     pub instance: InstanceSettings,
@@ -129,12 +130,16 @@ pub struct JvmDefaults {
     pub jvm_args: String,
 }
 
-/// Per-source credentials, keyed `content.curseforge-key`. CurseForge is
+/// Per-source credentials, keyed `content.curseforge-key`, and the update policy. CurseForge is
 /// offered only once a key resolves — this, else the build-time one.
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
 #[serde(default, rename_all = "camelCase")]
 pub struct ContentSettings {
     pub curseforge_key: String,
+    /// `content.auto-update`: apply updates found for an instance as it
+    /// launches, and for a stopped server as soon as a check finds them. Off by
+    /// default — a mod update can break a world, so the user opts in.
+    pub auto_update: bool,
 }
 
 impl Document for Settings {

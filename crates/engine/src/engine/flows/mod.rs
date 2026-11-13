@@ -8,6 +8,7 @@ mod console;
 mod content;
 mod download;
 pub use content::entry::EntryRef;
+pub use content::updates::{Checked, Swept};
 mod flavors;
 mod instance;
 

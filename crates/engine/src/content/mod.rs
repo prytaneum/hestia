@@ -18,6 +18,7 @@ pub(crate) mod pack;
 pub(crate) mod pool;
 pub(crate) mod provider;
 pub(crate) mod record;
+pub(crate) mod updates;
 
 use std::collections::{BTreeSet, HashMap};
 use std::path::Path;
@@ -335,6 +336,23 @@ impl Content {
     }
 
     /// Several versions by id — the bulk twin of [`Content::projects`].
+    /// One source's bulk update lookup; `None` when it has none.
+    pub(crate) async fn latest(
+        &self,
+        source: &str,
+        query: &provider::LatestQuery<'_>,
+    ) -> Result<Option<HashMap<String, String>>> {
+        let provider = self.provider(source)?;
+        tracing::debug!(
+            source = provider.id(),
+            files = query.files.len(),
+            game_version = query.game_version,
+            loader = ?query.loader,
+            "content update lookup"
+        );
+        provider.latest(query).await
+    }
+
     pub async fn versions_by_id(
         &self,
         source: &str,

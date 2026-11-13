@@ -9,8 +9,8 @@ mod flows;
 
 pub(crate) use flows::parse_player_count;
 pub use flows::{
-    EntryRef, ExportOutcome, ImportOutcome, LaunchRequest, ModpackOutcome, ServerListWrite,
-    VersionChange,
+    Checked, EntryRef, ExportOutcome, ImportOutcome, LaunchRequest, ModpackOutcome,
+    ServerListWrite, Swept, VersionChange,
 };
 
 use std::path::{Path, PathBuf};
@@ -72,6 +72,7 @@ pub struct Engine {
     accounts: Accounts,
     minecraft: Minecraft,
     content: Content,
+    content_updates: crate::content::updates::UpdateCache,
     servers: Servers,
     instances: Instances,
     skins: Skins,
@@ -111,6 +112,7 @@ impl Engine {
             accounts,
             minecraft,
             content,
+            content_updates: Default::default(),
             servers,
             instances,
             skins,

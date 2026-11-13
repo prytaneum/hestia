@@ -191,6 +191,11 @@ impl Engine {
             )?;
         }
         let (account, mut warnings) = self.launch_account(account, offline).await?;
+        // Only the first session reconciles: another one has the mirror in use,
+        // so the pool must not move under it.
+        if reconcile && self.config.settings().content.auto_update {
+            warnings.extend(self.auto_update_for_launch(&record.id, on_progress).await?);
+        }
 
         materialize::validate_filename(&record.profile.game_version)?;
         let meta = meta_dir(self.data_home());

@@ -45,13 +45,13 @@ pub use accounts::{Accounts, LoginChallenge, ReauthRequired};
 pub use cache::{Cache, CacheEntry, CacheUsage};
 pub use cancel::{is_cancelled, Cancel, Job};
 pub use config::{Config, ConfigError, Settings};
-pub use content::provider::{ContentProvider, LocalFile, UrlRef};
+pub use content::provider::{ContentProvider, InstalledFile, LatestQuery, LocalFile, UrlRef};
 pub use content::Content;
 pub use download::Downloader;
 pub use edition::{config_rules, has_console, player_lists, process_io, ProcessIo};
 pub use engine::{
-    Engine, EntryRef, ExportOutcome, ImportOutcome, LaunchRequest, ModpackOutcome,
-    ServerCreateSpec, ServerListWrite, ServerUpdateSpec, VersionChange,
+    Checked, Engine, EntryRef, ExportOutcome, ImportOutcome, LaunchRequest, ModpackOutcome,
+    ServerCreateSpec, ServerListWrite, ServerUpdateSpec, Swept, VersionChange,
 };
 pub use error::error_info;
 pub use files::FileTree;
