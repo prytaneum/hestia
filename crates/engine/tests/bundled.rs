@@ -6,10 +6,9 @@ use std::path::Path;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use engine::{
-    Approver, CallChain, HostCalls, HostError, PluginRuntime, Plugins, ProcessSupervisor,
-};
+use engine::{Approver, CallChain, HostCalls, PluginRuntime, Plugins, ProcessSupervisor};
 use minisign::KeyPair;
+use proto::error::ErrorInfo;
 use proto::plugin::{Permission, API_VERSION};
 use proto::repository::build_comment;
 use serde_json::Value;
@@ -31,7 +30,7 @@ impl HostCalls for NoChannels {
         _chain: &CallChain,
         _channel: &str,
         _payload: Value,
-    ) -> Result<Value, HostError> {
+    ) -> Result<Value, ErrorInfo> {
         Ok(Value::Null)
     }
 
@@ -41,7 +40,7 @@ impl HostCalls for NoChannels {
         chain: &CallChain,
         channel: &str,
         payload: Value,
-    ) -> Result<Value, HostError> {
+    ) -> Result<Value, ErrorInfo> {
         self.call(plugin, chain, channel, payload).await
     }
 }

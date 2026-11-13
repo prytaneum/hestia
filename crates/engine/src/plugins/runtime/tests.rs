@@ -10,7 +10,8 @@ use sha2::{Digest, Sha256};
 
 use super::*;
 use crate::checksum::hex;
-use crate::plugins::{HostCalls, HostError};
+use crate::plugins::HostCalls;
+use proto::error::ErrorInfo;
 
 fn supervisor(data: &tempfile::TempDir) -> Arc<crate::process::ProcessSupervisor> {
     Arc::new(crate::process::ProcessSupervisor::new(
@@ -18,22 +19,28 @@ fn supervisor(data: &tempfile::TempDir) -> Arc<crate::process::ProcessSupervisor
     ))
 }
 
-const PLUGIN_ERROR: &str = r#"(variant (case "permission-denied" string) (case "not-found" string) (case "invalid" string) (case "failed" string) (case "unsupported" string))"#;
+const PLUGIN_ERROR_TYPES: &str = r#"
+    (type $u (record (field "status" (option u16)) (field "retry-after" (option u32)) (field "message" string)))
+    (export "upstream-failure" (type $uf (eq $u)))
+    (type $r (record (field "name" string) (field "url" (option string))))
+    (export "requirement" (type $rq (eq $r)))
+    (type $e (variant (case "not-found" string) (case "invalid" string) (case "denied" string) (case "unsupported" string) (case "offline" (option string)) (case "upstream" $uf) (case "rate-limited" (option u32)) (case "sign-in-required") (case "not-configured" string) (case "missing-requirement" $rq) (case "busy" string) (case "failed" string)))
+    (export "plugin-error" (type (eq $e)))"#;
 
 /// A component exporting `lifecycle.init`; `body` runs first. With
 /// `calls_host` it can call `host.call` and traps when that answers an error.
 fn guest(calls_host: bool, body: &str) -> Vec<u8> {
     let (import, core_import, with) = if calls_host {
         (
-            format!(
+            String::from(
                 r#"(import "hestia:plugin/host@1.0.0" (instance $host
-                    (type $e {PLUGIN_ERROR})
-                    (export "plugin-error" (type $error (eq $e)))
+                    (alias outer 1 $err (type $outer))
+                    (export "plugin-error" (type $error (eq $outer)))
                     (export "call" (func (param "channel" string) (param "payload" string)
                         (result (result string (error $error)))))))
                 (core func $call (canon lower (func $host "call")
                     (memory (core memory $libc "memory"))
-                    (realloc (core func $libc "realloc"))))"#
+                    (realloc (core func $libc "realloc"))))"#,
             ),
             r#"(import "host" "call" (func $call (param i32 i32 i32 i32 i32)))
                (data (i32.const 16) "chan") (data (i32.const 32) "{}")"#,
@@ -44,9 +51,7 @@ fn guest(calls_host: bool, body: &str) -> Vec<u8> {
     };
     let text = format!(
         r#"(component
-            (import "hestia:plugin/types@1.0.0" (instance $types
-                (type $e {PLUGIN_ERROR})
-                (export "plugin-error" (type (eq $e)))))
+            (import "hestia:plugin/types@1.0.0" (instance $types {PLUGIN_ERROR_TYPES}))
             (alias export $types "plugin-error" (type $err))
             (core module $libc
                 (memory (export "memory") 1)
@@ -115,7 +120,7 @@ fn guest(calls_host: bool, body: &str) -> Vec<u8> {
             (instance $ui (export "render" (func $render)) (export "action" (func $action)))
             (export "hestia:plugin/ui@1.0.0" (instance $ui))
             (func $intercept (param "point" string) (param "context" string)
-                (result (result string (error string)))
+                (result (result string (error $err)))
                 (canon lift (core func $main "run")
                     (memory (core memory $libc "memory"))
                     (realloc (core func $libc "realloc"))))
@@ -158,7 +163,7 @@ impl HostCalls for TestHost {
         chain: &CallChain,
         _channel: &str,
         _payload: Value,
-    ) -> Result<Value, HostError> {
+    ) -> Result<Value, ErrorInfo> {
         let nth = self.reached.fetch_add(1, Ordering::SeqCst);
         if self.stall_first && nth == 0 {
             tokio::time::sleep(Duration::from_secs(60)).await;
@@ -177,7 +182,7 @@ impl HostCalls for TestHost {
         chain: &CallChain,
         channel: &str,
         payload: Value,
-    ) -> Result<Value, HostError> {
+    ) -> Result<Value, ErrorInfo> {
         self.call(plugin, chain, channel, payload).await
     }
 }
@@ -363,4 +368,38 @@ async fn a_page_answer_outside_the_ui_vocabulary_is_a_typed_error_naming_the_pag
         )
         .await;
     assert!(matches!(acted, Err(CallError::InvalidUi(_))), "{acted:?}");
+}
+
+#[test]
+fn only_unsupported_falls_back_and_every_other_case_is_the_guests_own() {
+    assert!(matches!(
+        guest_error(PluginError::Unsupported("no".into())),
+        CallError::Unsupported(message) if message == "no"
+    ));
+    assert!(matches!(
+        guest_error(PluginError::Offline(None)),
+        CallError::Guest(GuestError::Offline(None))
+    ));
+    assert!(matches!(
+        guest_error(PluginError::SignInRequired),
+        CallError::Guest(GuestError::SignInRequired)
+    ));
+}
+
+#[test]
+fn a_call_failure_other_than_the_plugins_names_the_plugin() {
+    assert_eq!(
+        CallError::Busy.into_info("probe", None),
+        ErrorInfo::PluginCallFailed {
+            id: "probe".into(),
+            detail: "no free slot to run the plugin".into(),
+        }
+    );
+    assert_eq!(
+        CallError::InvalidUi("overview".into()).into_info("probe", None),
+        ErrorInfo::PluginUiInvalid {
+            plugin: "probe".into(),
+            page: "overview".into(),
+        }
+    );
 }

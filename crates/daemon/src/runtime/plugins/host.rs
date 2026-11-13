@@ -1,9 +1,9 @@
 use std::sync::{Arc, Weak};
 
 use async_trait::async_trait;
-use engine::{CallChain, HostCalls, HostError};
+use engine::{CallChain, HostCalls};
 use ipc::protocol::{decode_event, Request};
-use proto::error::{code, ErrorInfo};
+use proto::error::ErrorInfo;
 use proto::job::{JobEvent, JobStarted, JobState};
 use proto::plugin::{Permission, PluginLogEvent};
 use serde_json::Value;
@@ -29,10 +29,10 @@ impl RouterHost {
         }
     }
 
-    fn runtime(&self) -> Result<Arc<Runtime>, HostError> {
-        self.runtime
-            .upgrade()
-            .ok_or_else(|| HostError::Failed("the daemon is shutting down".into()))
+    fn runtime(&self) -> Result<Arc<Runtime>, ErrorInfo> {
+        self.runtime.upgrade().ok_or_else(|| ErrorInfo::Internal {
+            detail: "the daemon is shutting down".into(),
+        })
     }
 
     async fn route(
@@ -42,7 +42,7 @@ impl RouterHost {
         chain: &CallChain,
         channel: &str,
         payload: Value,
-    ) -> Result<Value, HostError> {
+    ) -> Result<Value, ErrorInfo> {
         let (out, _) = unbounded_channel();
         let ctx = HandlerContext {
             runtime,
@@ -57,10 +57,13 @@ impl RouterHost {
             .await;
         match response.error {
             None => Ok(response.payload),
-            Some(error) => Err(match serde_json::from_value::<ErrorInfo>(error) {
-                Ok(info) => host_error(info),
-                Err(_) => HostError::Failed("the daemon answered with an unreadable error".into()),
-            }),
+            Some(error) => Err(
+                serde_json::from_value::<ErrorInfo>(error).unwrap_or_else(|_| {
+                    ErrorInfo::Internal {
+                        detail: "the daemon answered with an unreadable error".into(),
+                    }
+                }),
+            ),
         }
     }
 }
@@ -93,7 +96,7 @@ impl HostCalls for RouterHost {
         chain: &CallChain,
         channel: &str,
         payload: Value,
-    ) -> Result<Value, HostError> {
+    ) -> Result<Value, ErrorInfo> {
         let runtime = self.runtime()?;
         self.route(runtime, plugin, chain, channel, payload).await
     }
@@ -104,20 +107,20 @@ impl HostCalls for RouterHost {
         chain: &CallChain,
         channel: &str,
         payload: Value,
-    ) -> Result<Value, HostError> {
+    ) -> Result<Value, ErrorInfo> {
         if !self
             .router
             .plugin_access(channel)
             .is_some_and(|access| access.job)
         {
-            return Err(HostError::Invalid(format!(
-                "`{channel}` does not start a job"
-            )));
+            return Err(ErrorInfo::MalformedRequest {
+                detail: format!("`{channel}` does not start a job"),
+            });
         }
         let Value::Object(mut fields) = payload else {
-            return Err(HostError::Invalid(
-                "a job payload must be a JSON object".into(),
-            ));
+            return Err(ErrorInfo::MalformedRequest {
+                detail: "a job payload must be a JSON object".into(),
+            });
         };
         let runtime = self.runtime()?;
         let job_id = generate_job_id(&format!("plugin-{plugin}"));
@@ -145,13 +148,15 @@ impl HostCalls for RouterHost {
                 return Err(error);
             }
         };
-        let started: JobStarted = serde_json::from_value(started)
-            .map_err(|error| HostError::Failed(format!("unexpected job reply: {error}")))?;
+        let started: JobStarted =
+            serde_json::from_value(started).map_err(|error| ErrorInfo::Internal {
+                detail: format!("unexpected job reply: {error}"),
+            })?;
         if started.id != job_id {
             watch.runtime.cancellations().cancel(&started.id);
-            return Err(HostError::Failed(format!(
-                "`{channel}` did not take the job id it was given"
-            )));
+            return Err(ErrorInfo::Internal {
+                detail: format!("`{channel}` did not take the job id it was given"),
+            });
         }
 
         while let Some(frame) = events.recv().await {
@@ -160,7 +165,9 @@ impl HostCalls for RouterHost {
                 return outcome;
             }
         }
-        Err(HostError::Failed("the job's events stopped".into()))
+        Err(ErrorInfo::Internal {
+            detail: "the job's events stopped".into(),
+        })
     }
 }
 
@@ -186,7 +193,7 @@ impl Drop for Watch {
 
 /// The job's end as the plugin sees it; `None` for a frame that is progress or
 /// belongs to something else.
-fn job_outcome(frame: &str, job_id: &str) -> Option<Result<Value, HostError>> {
+fn job_outcome(frame: &str, job_id: &str) -> Option<Result<Value, ErrorInfo>> {
     let frame: Value = serde_json::from_str(frame).ok()?;
     let event = decode_event(&frame);
     if event.topic != proto::job::TOPIC {
@@ -199,18 +206,10 @@ fn job_outcome(frame: &str, job_id: &str) -> Option<Result<Value, HostError>> {
     match event.state {
         JobState::Progress(_) => None,
         JobState::Done(done) => Some(Ok(done)),
-        JobState::Failed { error } => Some(Err(host_error(error))),
-        JobState::Cancelled => Some(Err(HostError::Failed("the job was cancelled".into()))),
-    }
-}
-
-fn host_error(info: ErrorInfo) -> HostError {
-    let message = info.to_string();
-    match info.code() {
-        code::NOT_FOUND => HostError::NotFound(message),
-        code::BAD_REQUEST => HostError::Invalid(message),
-        code::FORBIDDEN => HostError::Denied(message),
-        _ => HostError::Failed(message),
+        JobState::Failed { error } => Some(Err(error)),
+        JobState::Cancelled => Some(Err(ErrorInfo::Internal {
+            detail: "the job was cancelled".into(),
+        })),
     }
 }
 
@@ -376,7 +375,7 @@ mod tests {
             .run_job("demo", &CallChain::default(), "instance.list", json!({}))
             .await
             .expect_err("instance.list is not a job");
-        assert!(matches!(error, HostError::Invalid(_)));
+        assert!(matches!(error, ErrorInfo::MalformedRequest { .. }));
     }
 
     #[tokio::test]
@@ -387,7 +386,7 @@ mod tests {
             .call("demo", &CallChain::default(), "instance.list", json!({}))
             .await
             .expect_err("no account is signed in");
-        assert!(matches!(&error, HostError::Failed(message) if message.contains("sign in")));
+        assert_eq!(error, ErrorInfo::SignInRequired);
     }
 
     async fn as_client(
@@ -436,7 +435,7 @@ mod tests {
                 .await
                 .expect_err(key);
             assert!(
-                matches!(&error, HostError::Denied(message) if message.contains(key)),
+                matches!(&error, ErrorInfo::ConfigKeyDenied { key: denied } if denied == key),
                 "{key}: {error:?}"
             );
         }
@@ -469,7 +468,10 @@ mod tests {
                 )
                 .await
                 .expect_err(key);
-            assert!(matches!(error, HostError::Denied(_)), "{key}: {error:?}");
+            assert!(
+                matches!(error, ErrorInfo::ConfigKeyDenied { .. }),
+                "{key}: {error:?}"
+            );
         }
     }
 

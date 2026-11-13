@@ -238,7 +238,10 @@ macro_rules! plugin {
                 fn intercept(
                     point: ::std::string::String,
                     context: ::std::string::String,
-                ) -> ::core::result::Result<::std::string::String, ::std::string::String> {
+                ) -> ::core::result::Result<
+                    ::std::string::String,
+                    $crate::bindings::hestia::plugin::types::PluginError,
+                > {
                     <$plugin as $crate::Plugin>::intercept($crate::Intercept::new(point, context))
                         .into_answer()
                 }

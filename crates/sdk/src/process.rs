@@ -6,7 +6,7 @@
 //! of a command, for the runtime Hestia manages), the `args` patterns it may
 //! be called with (a literal, `*` for one token, a trailing `**` for the rest)
 //! and the `env` names it may be given. A program, argument list or variable
-//! the manifest did not declare is [`Error::PermissionDenied`]. There is no
+//! the manifest did not declare is [`Error::Denied`]. There is no
 //! shell: the working directory is `data/` unless [`exec_in`] names another, and
 //! the environment starts empty.
 //!
@@ -56,7 +56,7 @@ pub fn exec(program: &str, args: &[&str], timeout: Duration) -> Result<Output, E
 
 /// [`exec`] in `cwd`, a guest path under a writable mount of this call: `/data`,
 /// or `/build` while a flavor's `build` runs. Any other directory is
-/// [`Error::PermissionDenied`].
+/// [`Error::Denied`].
 pub fn exec_in(
     program: &str,
     args: &[&str],

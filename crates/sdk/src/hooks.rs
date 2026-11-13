@@ -27,19 +27,22 @@
 
 use proto::hook::HookPoint;
 
+use crate::bindings::hestia::plugin::types::PluginError;
+use crate::Error;
+
 /// One hook point the host is running, waiting for the handler that answers it.
 pub struct Intercept {
     point: String,
     context: String,
-    answer: Option<Result<String, String>>,
+    answer: Option<Result<String, Error>>,
 }
 
 /// What [`Intercept::finish`] hands back to the host.
-pub struct Intercepted(Result<String, String>);
+pub struct Intercepted(Result<String, PluginError>);
 
 impl Intercepted {
     #[doc(hidden)]
-    pub fn into_answer(self) -> Result<String, String> {
+    pub fn into_answer(self) -> Result<String, PluginError> {
         self.0
     }
 }
@@ -60,18 +63,18 @@ impl Intercept {
     }
 
     /// Answers `P` with `handler` when it is the point being run. The handler
-    /// returns the patch to add, or an `Err` that vetoes the operation; its text
-    /// is the reason shown to the user.
+    /// returns the patch to add, or an `Err` that vetoes the operation; its
+    /// message is the reason shown to the user.
     pub fn on<P: HookPoint>(
         mut self,
-        handler: impl FnOnce(P::Context) -> Result<P::Patch, String>,
+        handler: impl FnOnce(P::Context) -> Result<P::Patch, Error>,
     ) -> Self {
         if self.answer.is_some() || self.point != P::NAME {
             return self;
         }
         self.answer = Some(match serde_json::from_str(&self.context) {
             Ok(context) => handler(context)
-                .and_then(|patch| serde_json::to_string(&patch).map_err(|error| error.to_string())),
+                .and_then(|patch| serde_json::to_string(&patch).map_err(Error::from)),
             Err(error) => {
                 crate::log::warn(&format!("unreadable `{}` context: {error}", P::NAME));
                 Ok("null".to_string())
@@ -83,6 +86,10 @@ impl Intercept {
     /// The answer of the handler that matched; a point no handler took adds
     /// nothing.
     pub fn finish(self) -> Intercepted {
-        Intercepted(self.answer.unwrap_or_else(|| Ok("null".to_string())))
+        Intercepted(
+            self.answer
+                .unwrap_or_else(|| Ok("null".to_string()))
+                .map_err(Into::into),
+        )
     }
 }

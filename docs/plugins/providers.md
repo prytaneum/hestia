@@ -249,8 +249,17 @@ call.on::<Majors>(|id, _| /* Result<Vec<JavaRelease>, Error> */)
 ## Errors
 
 Return `Error::NotFound` for a provider id the plugin did not declare (the examples' `check` does), `Error::Invalid`
-for arguments it cannot use, and `Error::Failed` for anything else. A failure reaches the user as `PluginCallFailed`
-naming the plugin and the provider, so keep the message free of tokens and secrets. When the call fails after its
-last `hestia::http` request could not reach the host (a timeout or no route), the host reports it instead as the
-provider's service being offline (`Offline`, naming the plugin's display name), as it does for a built-in provider; a
-refused or answered request stays a plugin failure.
+for arguments it cannot use, and the case that says what happened for anything else. The host keeps the case
+([0115](../decisions/0115-a-plugin-error-is-its-own-typed-enum.md)):
+
+| The plugin returns | The user sees |
+|---|---|
+| `Error::Offline` | the provider's service is `Offline`, named by the provider's display name, as for a built-in provider |
+| `Error::Upstream { status, retry_after, .. }`, `Error::RateLimited { retry_after }` | an upstream failure of the provider's service |
+| `Error::SignInRequired` | the sign-in prompt |
+| `Error::NotConfigured(key)` | the plugin's setting `key` is not set |
+| anything else | `PluginCallFailed` naming the plugin, with the message |
+
+`hestia::http` already returns `Error::Offline` for a request that timed out or found no route, so passing it up with `?`
+reports the provider offline; a refused request is `Error::Denied` and an answered one is the plugin's to judge, such
+as `Error::Upstream` for a 503. Keep every message free of tokens and secrets.

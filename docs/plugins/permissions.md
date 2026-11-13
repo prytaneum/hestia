@@ -78,9 +78,9 @@ args = ["-jar", "*"]
 - The SDK's `hestia::process` runs them. `exec` runs a program to completion, with output cut at 1 MiB per stream. The
   other calls handle long-lived agents: `spawn`, `stop`, `status`, `logs` and `list`.
 - A call naming another program, arguments outside the patterns, or an undeclared environment name is refused with
-  `permission-denied`.
+  `denied`.
 - There is no shell, the working directory is `data/` unless `exec_in` names another (`/data`, or `/build` during a
-  flavor's `build`; anything else is `permission-denied`), and the environment starts empty.
+  flavor's `build`; anything else is `denied`), and the environment starts empty.
 - A spawned agent is supervised with the owner `plugin:<id>`. Only its plugin can see or stop it, `list()` finds it again
   after a restart, and disabling or removing the plugin stops it.
 - `env` may not name `LD_*`, `DYLD_*`, `PATH` or a `*JAVA*OPTIONS` variable, and a shell cannot be declared as a program.

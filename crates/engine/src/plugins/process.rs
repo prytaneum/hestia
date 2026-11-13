@@ -39,6 +39,8 @@ pub(crate) enum ProgramError {
     NotFound(String),
     #[error("{0}")]
     Invalid(String),
+    #[error("`{0}` is not installed on this computer")]
+    Missing(String),
     #[error("{0}")]
     Failed(String),
 }
@@ -339,11 +341,8 @@ impl Programs {
         }
         if !program.in_data_dir() {
             return self.pinned(&program.id).ok_or_else(|| {
-                ProgramError::Failed(format!(
-                    "`{}` was not found at the path pinned when the plugin was approved; \
-                         install the plugin again to approve it afresh",
-                    program.id
-                ))
+                tracing::warn!(plugin = %self.plugin, program = %program.id, "program not found at its pinned path");
+                ProgramError::Missing(program.command.clone())
             });
         }
         let (data_dir, bin_dir, program) =
@@ -355,11 +354,11 @@ impl Programs {
         .map_err(|error| ProgramError::Failed(error.to_string()))?;
         staged.map_err(|error| {
             tracing::warn!(plugin = %self.plugin, %error, "program refused");
-            match error {
+            match &error {
                 StageError::HashMismatch | StageError::NoHashForTarget(_) => {
                     ProgramError::Denied(error.to_string())
                 }
-                StageError::Missing(_) => ProgramError::NotFound(error.to_string()),
+                StageError::Missing(command) => ProgramError::Missing(command.clone()),
                 StageError::Io(_) => ProgramError::Failed(error.to_string()),
             }
         })

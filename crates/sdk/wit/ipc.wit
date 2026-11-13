@@ -2,7 +2,7 @@ package hestia:plugin@1.0.0;
 
 /// Connections to local endpoints: Unix sockets under the user's runtime and
 /// temp directories, or Windows named pipes. Every function answers
-/// `permission-denied` unless the plugin holds `ipc:connect`, and `open`
+/// `denied` unless the plugin holds `ipc:connect`, and `open`
 /// refuses an endpoint the manifest's `ipc` list does not grant.
 ///
 /// The host keeps a connection open across calls, since each call runs on a

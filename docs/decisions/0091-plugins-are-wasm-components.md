@@ -61,7 +61,7 @@ and the call is dropped 10 s later.
 | The user's files | WASI filesystem is empty except the plugin's own preopened `data/` directory |
 | Native code execution | The WASM sandbox bounds the guest itself: no syscalls but the WASI imports the linker supplies, and no dylib is ever loaded. Permissions in the unrestricted tier ([0092](0092-a-contract-names-the-permission-a-plugin-needs.md)) grant native code execution by design, and the install prompt states them as full access to the computer |
 | The daemon's availability | An epoch tick yields a spinning guest, a wall-clock timeout bounds each call, `StoreLimits` and a pooling allocator cap memory globally, and at most 4 calls run concurrently per plugin. A timed-out or cancelled call's store is dropped and never reused |
-| Capabilities (what a call may do) | A channel call is checked against its contract's `PLUGIN` permission by the host before dispatch. A gated interface the user did not grant is linked as a stub whose every function returns `permission-denied` |
+| Capabilities (what a call may do) | A channel call is checked against its contract's `PLUGIN` permission by the host before dispatch. A gated interface the user did not grant is linked as a stub whose every function returns `denied` |
 
 The trust boundary is guest code against the daemon. The data home is one trust
 domain: someone who can already write it can replace the daemon too, so a local

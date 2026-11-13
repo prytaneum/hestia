@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
 use engine::{CallChain, CallError, CommandRun, LoadedPlugin, CANCEL_GRACE, COMMAND_TIMEOUT};
-use proto::error::ErrorInfo;
 use proto::job::JobSubject;
 use proto::plugin::{
     PluginInstall, PluginInstallDone, PluginInstallProgress, PluginRun, PluginRunDone,
@@ -136,11 +135,7 @@ impl Jobs {
                         Err(engine::Cancelled.into())
                     }
                     Err(CallError::Cancelled) => Err(engine::Cancelled.into()),
-                    Err(error) => Err(ErrorInfo::PluginCallFailed {
-                        id: loaded.id().to_string(),
-                        detail: error.to_string(),
-                    }
-                    .into()),
+                    Err(error) => Err(error.into_info(loaded.id(), None).into()),
                 }
             })
         })

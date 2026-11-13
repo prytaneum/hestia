@@ -7,7 +7,6 @@
 //! so a granted name that resolves inside this machine is still refused.
 
 use std::future::Future;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -97,10 +96,6 @@ pub(crate) struct PluginHttp {
     pub(crate) plugin: Arc<str>,
     pub(crate) grant: Arc<Grant>,
     pub(crate) log: Arc<PluginLog>,
-    /// Whether the last request of this call failed to reach its host. The
-    /// guest only sees an opaque error code, so this is how a provider call
-    /// that failed for want of a connection is told from one the guest got wrong.
-    pub(crate) unreached: Arc<AtomicBool>,
 }
 
 impl WasiHttpHooks for PluginHttp {
@@ -122,7 +117,6 @@ impl WasiHttpHooks for PluginHttp {
             > + Send,
     > {
         let (plugin, grant, log) = (self.plugin.clone(), self.grant.clone(), self.log.clone());
-        let unreached = self.unreached.clone();
         Box::new(async move {
             let offline = network().status().state == NetworkState::Offline;
             let checked = Url::parse(&request.uri().to_string())
@@ -135,9 +129,10 @@ impl WasiHttpHooks for PluginHttp {
             })?;
             let response = send(request, url).await.inspect_err(|error| {
                 tracing::debug!(plugin = %plugin, %host, %error, "plugin http request failed");
-                note_failure(error, &unreached);
+                if is_unreachable(error) {
+                    network().observe_unreachable();
+                }
             })?;
-            unreached.store(false, Ordering::Relaxed);
             network().observe_reachable();
             tracing::debug!(
                 plugin = %plugin,
@@ -180,14 +175,6 @@ async fn send(request: Request, url: Url) -> Result<Response, Error> {
 
 /// A plugin request is never retried, so its one transport failure counts as
 /// the spent retries of a core request do.
-fn note_failure(error: &Error, unreached: &AtomicBool) {
-    let unreachable = is_unreachable(error);
-    unreached.store(unreachable, Ordering::Relaxed);
-    if unreachable {
-        network().observe_unreachable();
-    }
-}
-
 fn is_unreachable(error: &Error) -> bool {
     matches!(
         error,
@@ -221,21 +208,11 @@ mod tests {
     use super::*;
 
     #[test]
-    fn only_a_transport_failure_marks_the_network_unreachable() {
-        let unreached = AtomicBool::new(false);
-        network().observe_reachable();
-
-        note_failure(&Error::HttpProtocolError, &unreached);
-        assert_eq!(network().status().state, NetworkState::Online);
-        assert!(!unreached.load(Ordering::Relaxed));
-
-        note_failure(&Error::DestinationIpProhibited, &unreached);
-        assert_eq!(network().status().state, NetworkState::Online);
-
-        note_failure(&Error::ConnectionTimeout, &unreached);
-        assert_eq!(network().status().state, NetworkState::Offline);
-        assert!(unreached.load(Ordering::Relaxed));
-        network().observe_reachable();
+    fn only_a_transport_failure_counts_as_unreachable() {
+        assert!(!is_unreachable(&Error::HttpProtocolError));
+        assert!(!is_unreachable(&Error::DestinationIpProhibited));
+        assert!(is_unreachable(&Error::ConnectionTimeout));
+        assert!(is_unreachable(&Error::DestinationUnavailable));
     }
 
     fn grant(hosts: &[&str], connect: bool) -> Grant {

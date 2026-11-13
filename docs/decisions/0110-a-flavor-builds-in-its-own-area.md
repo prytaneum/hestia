@@ -45,7 +45,7 @@ Java 21". The plugin runtime holds a `ManagedJava` resolver lent at load, so it 
 
 **`process.exec` takes a working directory.** `cwd` is a guest path at or under a writable mount of the current call:
 `/data`, or `/build` during `build`. `none` keeps `data/`; anything else, a `..` component, a missing directory or a
-symlink that leaves the mount is `permission-denied`. `spawn` is unchanged.
+symlink that leaves the mount is `denied`. `spawn` is unchanged.
 
 **Progress and cancel are not specific to commands.** The `progress` import reads whatever sink the call was given. A
 `build` maps `report` onto `ProvisionProgress` (phase `Libraries` for a client, `Server` for a server) and `cancelled`

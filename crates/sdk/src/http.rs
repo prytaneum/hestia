@@ -2,7 +2,8 @@
 //!
 //! The plugin needs the `network:connect` permission and lists each host in
 //! `network`. Only `https://` URLs to named hosts are allowed. A refused
-//! request is [`Error::PermissionDenied`]; the host does not follow redirects,
+//! request is [`Error::Denied`]; a host that cannot be reached is
+//! [`Error::Offline`]. The host does not follow redirects,
 //! so a `3xx` answer comes back as it is and the plugin decides whether to
 //! request the `Location` (which must be granted too).
 //!
@@ -142,7 +143,10 @@ fn read_body(incoming: &IncomingBody) -> Result<Vec<u8>, Error> {
 fn refusal(code: ErrorCode) -> Error {
     match code {
         ErrorCode::HttpRequestDenied | ErrorCode::DestinationIpProhibited => {
-            Error::PermissionDenied(format!("http request refused: {code:?}"))
+            Error::Denied(format!("http request refused: {code:?}"))
+        }
+        ErrorCode::ConnectionTimeout | ErrorCode::DestinationUnavailable => {
+            Error::Offline(Some(format!("http request failed: {code:?}")))
         }
         other => Error::Failed(format!("http request failed: {other:?}")),
     }

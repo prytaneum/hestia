@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use proto::error::ErrorInfo;
 use proto::plugin::{Grant, Permission, PluginRunProgress};
 use serde_json::Value;
 use tokio::sync::watch;
@@ -12,6 +13,7 @@ use wasmtime_wasi_http::{WasiHttpCtx, WasiHttpCtxView, WasiHttpView};
 
 use super::chain::CallChain;
 use super::context::{writable_dir, Mount};
+use super::error::GuestError;
 use super::http::PluginHttp;
 use super::ipc::{Connections, IpcError};
 use super::output::PluginLog;
@@ -30,19 +32,6 @@ pub(crate) mod bindings {
 
 use bindings::hestia::plugin::types::PluginError;
 
-/// Why the daemon could not serve a plugin's `host.call` or `host.run-job`.
-#[derive(Debug, thiserror::Error)]
-pub enum HostError {
-    #[error("{0}")]
-    NotFound(String),
-    #[error("{0}")]
-    Invalid(String),
-    #[error("{0}")]
-    Denied(String),
-    #[error("{0}")]
-    Failed(String),
-}
-
 /// What the daemon lends a plugin: its channels and jobs. Implemented by the
 /// daemon so the engine never learns the router exists.
 #[async_trait]
@@ -58,7 +47,7 @@ pub trait HostCalls: Send + Sync {
         chain: &CallChain,
         channel: &str,
         payload: Value,
-    ) -> Result<Value, HostError>;
+    ) -> Result<Value, ErrorInfo>;
 
     /// Starts a job channel and resolves with its `Done` payload.
     async fn run_job(
@@ -67,7 +56,7 @@ pub trait HostCalls: Send + Sync {
         chain: &CallChain,
         channel: &str,
         payload: Value,
-    ) -> Result<Value, HostError>;
+    ) -> Result<Value, ErrorInfo>;
 
     /// A line a dev plugin logged, already rate-limited and truncated.
     fn dev_log(&self, _plugin: &str, _level: &str, _text: &str) {}
@@ -148,7 +137,7 @@ impl Gate {
         let Some(needed) = self.host.permission(channel) else {
             self.log
                 .line(Level::WARN, &format!("reached closed channel `{channel}`"));
-            return Err(PluginError::PermissionDenied(format!(
+            return Err(PluginError::Denied(format!(
                 "channel `{channel}` is not available to plugins"
             )));
         };
@@ -157,7 +146,7 @@ impl Gate {
                 Level::WARN,
                 &format!("lacks the permission for channel `{channel}`"),
             );
-            return Err(PluginError::PermissionDenied(format!(
+            return Err(PluginError::Denied(format!(
                 "channel `{channel}` needs the `{needed}` permission"
             )));
         }
@@ -177,10 +166,7 @@ impl Gate {
         };
         match reply {
             Ok(value) => Ok(value.to_string()),
-            Err(HostError::NotFound(message)) => Err(PluginError::NotFound(message)),
-            Err(HostError::Invalid(message)) => Err(PluginError::Invalid(message)),
-            Err(HostError::Denied(message)) => Err(PluginError::PermissionDenied(message)),
-            Err(HostError::Failed(message)) => Err(PluginError::Failed(message)),
+            Err(info) => Err(GuestError::from(&info).into()),
         }
     }
 }
@@ -248,12 +234,7 @@ impl bindings::hestia::plugin::types::Host for PluginState {}
 
 impl From<ProgramError> for PluginError {
     fn from(error: ProgramError) -> Self {
-        match error {
-            ProgramError::Denied(message) => PluginError::PermissionDenied(message),
-            ProgramError::NotFound(message) => PluginError::NotFound(message),
-            ProgramError::Invalid(message) => PluginError::Invalid(message),
-            ProgramError::Failed(message) => PluginError::Failed(message),
-        }
+        GuestError::from(error).into()
     }
 }
 
@@ -268,7 +249,7 @@ impl bindings::hestia::plugin::process::Host for PluginState {
     ) -> Result<bindings::hestia::plugin::process::ExecOutput, PluginError> {
         let programs = self.programs.clone();
         let cwd = cwd
-            .map(|guest| writable_dir(&self.mounts, &guest).map_err(PluginError::PermissionDenied))
+            .map(|guest| writable_dir(&self.mounts, &guest).map_err(PluginError::Denied))
             .transpose()?;
         let scope = CallScope {
             mounts: &self.mounts,
@@ -327,12 +308,7 @@ impl bindings::hestia::plugin::process::Host for PluginState {
 
 impl From<IpcError> for PluginError {
     fn from(error: IpcError) -> Self {
-        match error {
-            IpcError::Denied(message) => PluginError::PermissionDenied(message),
-            IpcError::NotFound(message) => PluginError::NotFound(message),
-            IpcError::Invalid(message) => PluginError::Invalid(message),
-            IpcError::Failed(message) => PluginError::Failed(message),
-        }
+        GuestError::from(error).into()
     }
 }
 

@@ -19,6 +19,7 @@ pub use content::BeforeContentInstall;
 pub use launch::{BeforeLaunch, BeforeServerStart};
 
 use super::chain::CallChain;
+use super::error::GuestError;
 use super::runtime::{CallError, LoadedPlugin, HOOK_TIMEOUT};
 
 /// What `Hooks::run` yields when no plugin vetoed.
@@ -50,14 +51,14 @@ pub trait Participant: Send + Sync + 'static {
     fn is_disabled(&self) -> bool;
 
     /// Runs `point` with `context` as JSON under `timeout`. The inner error is
-    /// a veto; the answer is the point's patch as JSON.
+    /// a veto, whose message is the reason; the answer is the point's patch as JSON.
     fn intercept<'a>(
         &'a self,
         point: &'a str,
         context: &'a str,
         chain: &'a CallChain,
         timeout: Duration,
-    ) -> BoxFuture<'a, Result<Result<String, String>, CallError>>;
+    ) -> BoxFuture<'a, Result<Result<String, GuestError>, CallError>>;
 }
 
 impl Participant for LoadedPlugin {
@@ -79,7 +80,7 @@ impl Participant for LoadedPlugin {
         context: &'a str,
         chain: &'a CallChain,
         timeout: Duration,
-    ) -> BoxFuture<'a, Result<Result<String, String>, CallError>> {
+    ) -> BoxFuture<'a, Result<Result<String, GuestError>, CallError>> {
         Box::pin(LoadedPlugin::intercept(
             self, chain, point, context, timeout,
         ))
@@ -158,12 +159,12 @@ impl<P: Participant> Hooks<P> {
                         Err(error) => failed(&mut outcome, &format!("unreadable patch: {error}")),
                     }
                 }
-                Ok(Err(reason)) => {
+                Ok(Err(error)) => {
                     tracing::info!(plugin = plugin.id(), hook = name, "plugin vetoed");
                     return Err(ErrorInfo::PluginVetoed {
                         plugin: plugin.id().to_string(),
                         hook: name.to_string(),
-                        reason,
+                        reason: error.to_string(),
                     });
                 }
                 Err(error) => failed(&mut outcome, &error),

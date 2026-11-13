@@ -237,7 +237,7 @@ async fn drain(inbox: Arc<Inbox>, plugin: Arc<LoadedPlugin>, hub: Arc<EventHub>,
 #[cfg(test)]
 mod tests {
     use async_trait::async_trait;
-    use engine::HostError;
+    use proto::error::ErrorInfo;
     use proto::plugin::Permission;
 
     use super::*;
@@ -256,7 +256,7 @@ mod tests {
             _: &CallChain,
             _: &str,
             _: Value,
-        ) -> Result<Value, HostError> {
+        ) -> Result<Value, ErrorInfo> {
             unreachable!()
         }
 
@@ -266,7 +266,7 @@ mod tests {
             _: &CallChain,
             _: &str,
             _: Value,
-        ) -> Result<Value, HostError> {
+        ) -> Result<Value, ErrorInfo> {
             unreachable!()
         }
     }

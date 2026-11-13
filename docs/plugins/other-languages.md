@@ -38,7 +38,9 @@ world plugin {
   `hooks` and `provider.invoke`. Hook points, provider kinds and event topics are data in `proto`, not new exports
   ([0106](../decisions/0106-the-plugin-api-is-mechanisms-not-features.md)).
 - Payloads are JSON strings (`type json = string`), shaped like the matching `proto` types. Errors are the
-  `plugin-error` variant: `permission-denied`, `not-found`, `invalid`, `failed`, `unsupported`.
+  `plugin-error` variant, the same in both directions: `not-found`, `invalid`, `denied`, `unsupported`, `offline`,
+  `upstream` (status, retry-after, message), `rate-limited`, `sign-in-required`, `not-configured` (a setting key),
+  `missing-requirement` (name, url), `busy` and `failed`. `hooks.intercept` returns it too; its message is the veto reason.
 - `deps/` holds the WASI 0.2.12 packages the world builds on (`wasi:cli`, `clocks`, `filesystem`, `http`, `io`, `random`,
   `sockets`). The Rust SDK imports `wasi:http` through a separate world, `http-client`, so a guest that never touches the
   network does not carry it.

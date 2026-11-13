@@ -1,6 +1,5 @@
 //! Installed plugins: what is loaded and in which state.
 
-use engine::CallError;
 use proto::catalogue::{
     PluginCatalogue, PluginRepoAdd, PluginRepoList, PluginRepoRefresh, PluginRepoRemove,
 };
@@ -181,7 +180,7 @@ pub(super) fn register(on: &mut Channels<'_>) {
         loaded
             .render_page(&ctx.chain, &p.page, &context)
             .await
-            .map_err(|error| ui_error(&p.plugin, error))
+            .map_err(|error| error.into_info(&p.plugin, None))
     });
 
     on.handle::<PluginUiAction, _, _>(|p, ctx| async move {
@@ -190,7 +189,7 @@ pub(super) fn register(on: &mut Channels<'_>) {
         loaded
             .page_action(&ctx.chain, &p.page, &p.action, &p.values, &context)
             .await
-            .map_err(|error| ui_error(&p.plugin, error))
+            .map_err(|error| error.into_info(&p.plugin, None))
     });
 
     on.handle::<PluginRun, _, _>(|p, ctx| async move {
@@ -250,17 +249,4 @@ fn page_context(
         EntryKind::Instance => instance_for(ctx, &reference, Intent::Read)?.id,
     };
     Ok(PageContext { entry: Some(id) })
-}
-
-fn ui_error(plugin: &str, error: CallError) -> ErrorInfo {
-    match error {
-        CallError::InvalidUi(page) => ErrorInfo::PluginUiInvalid {
-            plugin: plugin.to_string(),
-            page,
-        },
-        other => ErrorInfo::PluginCallFailed {
-            id: plugin.to_string(),
-            detail: other.to_string(),
-        },
-    }
 }

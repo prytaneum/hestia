@@ -124,7 +124,7 @@ again. The tiers and the full table are in
   and `plugin.*`. The list and the reason for each entry are in 0092.
 - **Where it is enforced.** On a channel call, `Gate::dispatch` asks the host for
   the channel's permission and checks it against the grant before anything is
-  routed; a missing permission is `permission-denied`, not a missing import. The
+  routed; a missing permission is `denied`, not a missing import. The
   linker supplies every import to every plugin, and each import checks the grant
   when called.
 
@@ -146,12 +146,12 @@ sequenceDiagram
     G->>Gate: host.call("content.search", json)
     Gate->>H: permission("content.search")
     H-->>Gate: Some(content:read), or None = closed
-    Gate->>Gate: in the grant? else permission-denied
+    Gate->>Gate: in the grant? else denied
     Gate->>H: call(plugin, chain, channel, payload)
     H->>R: Request, Caller::Plugin(id), chain
     R-->>H: payload or ErrorInfo
-    H-->>Gate: Value or HostError
-    Gate-->>G: json, or not-found / invalid / failed
+    H-->>Gate: Value or ErrorInfo
+    Gate-->>G: json, or the mapped plugin-error
 ```
 
 `RouterHost` routes through the same router as a socket client, so decoding, the
@@ -167,6 +167,39 @@ path. It travels explicitly with the call, because the job runner moves work int
 the path is refused (`Reentry`), as is a path deeper than 8 (`MAX_CHAIN_DEPTH`).
 Anything a call causes that reaches a plugin (a hook, an event handler, a
 provider) takes the same chain.
+
+### Errors
+
+Every call between host and plugin fails with one WIT variant, `plugin-error`, in both directions
+([0115](decisions/0115-a-plugin-error-is-its-own-typed-enum.md)); its Rust mirror is `GuestError`
+(`engine/src/plugins/error.rs`), and that file is the only place the two sides are translated.
+
+*Host to plugin* (`From<&ErrorInfo> for GuestError`, an exhaustive match): a daemon failure reaches the plugin as
+
+| Case | From |
+|---|---|
+| `not-found` | the `*NotFound` kinds, `ConfigKeyUnknown`, `UnknownChannel` |
+| `invalid` | validation, conflict and malformed-request kinds (`FieldRequired`, `InvalidValue`, `AlreadyExists`, `NotRunning`, `MalformedRequest`, archive and modpack faults, `PluginCommandInvalid`, ...) |
+| `denied` | `DeveloperModeOff`, `ElevationRequired`, and the gate's own refusals (no permission, closed channel) |
+| `unsupported` | `UnsupportedOperation`, `ContentKindRejected`, `QuickPlayUnsupported`, unsupported loaders and URLs, `MultiSessionDisabled`, `SyncUnitDisabled`, `IncompatibleVersion` |
+| `offline` | `Offline`, `OfflineMode` |
+| `upstream` (no status) | `Upstream` |
+| `sign-in-required` | `SignInRequired`, `SessionExpired`, `LoginDeclined`, `LoginTimedOut` |
+| `not-configured` | `ConfigKeyUnset` |
+| `missing-requirement` | `MissingRequirement` (with its url); a declared program that is not installed, from `process` (no url) |
+| `busy` | `EntryRunning` and the `*InProgress` kinds, `WorkRunning` |
+| `failed` | everything else: plugin, repository and update kinds, `Io`, `DownloadFailed`, `Internal`, ... |
+
+A `ProgramError` or `IpcError` maps the same way (`Denied` to `denied`, `NotFound` to `not-found`, ...). `HostCalls`
+carries the `ErrorInfo` whole, so there is no second classification in the daemon.
+
+*Plugin to host* (`GuestError::into_info`, via `CallError::into_info`): what a plugin answers becomes the `ErrorInfo` its
+caller sees. `offline` is `Offline`, naming the provider when the call was a provider operation; `upstream` and
+`rate-limited` of a provider are `Upstream` naming the provider's `Service`; `sign-in-required` is `SignInRequired`;
+`not-configured` is `PluginSettingInvalid` with the key; every other case is `PluginCallFailed` carrying the message
+(for a command, page or hook with no provider to blame, `upstream` and `rate-limited` are that too). `unsupported` is
+not an error of the call at all: `CallError::Unsupported` lets an optional provider operation fall back and fails a
+required one. A hook's error is a veto whose reason is the message; a hook that traps or times out is skipped.
 
 **A plugin's own commands** are one export, `commands.run(command, args)`, not
 channels. The manifest's `[[contributes.commands]]` is the schema; the daemon
@@ -362,8 +395,8 @@ A plugin request feeds the shared reachability state the way a core one does
 ([0067](../decisions/0067-reachability-is-observed-not-asked.md)): any answer, an HTTP error status included, marks the
 network up, and a transport failure (a connect error or a timeout) marks it down. A plugin request is never retried, so
 its one failure stands for the spent retries of a core request. A refused request never left the machine and moves
-nothing; the guest sees the failure as `connection-timeout` or `destination-unavailable`, and a provider call
-that ends that way answers `Offline` naming its provider.
+nothing. The guest sees the failure as `connection-timeout` or `destination-unavailable`, which the SDK turns into
+`offline`; a provider that answers `offline` is reported as its own service being `Offline`.
 
 ## Local endpoints
 
@@ -557,7 +590,7 @@ API version (`proto::plugin::API_VERSION`, `crates/sdk/tests/version.rs` fails o
 drift). Imports: `host` (`call`, `run-job`), `log`, `process`, `progress`,
 `settings`, `ipc` and the `http-client` world over `wasi:http`; exports:
 `lifecycle`, `commands`, `events`, `settings-changed`, `ui`, `hooks`
-(`intercept`) and `provider` (`invoke`). That list is closed: a new hook point or
+(`intercept`) and `provider` (`invoke`). Every function that can fail returns `plugin-error` ([Errors](#errors)). That list is closed: a new hook point or
 provider kind is data in `proto`, not a new interface. `hestia-sdk` wraps the
 exports in a `Plugin` trait with default methods, and `intercept`/`provide`
 route a request to typed handlers with `.on::<Point>(…)` and `.on::<Op>(…)`.
@@ -601,3 +634,4 @@ plugins the tests build are fixtures
 | [0112](../decisions/0112-the-app-and-official-plugins-update-together.md) | the app and the official plugins update together |
 | [0113](../decisions/0113-a-flavor-builds-on-the-vanilla-profile.md) | a flavor builds on the vanilla profile; the host merges it |
 | [0114](../decisions/0114-an-unhashed-download-is-declared.md) | an unhashed download is declared, and the host is part of the grant |
+| [0115](../decisions/0115-a-plugin-error-is-its-own-typed-enum.md) | a plugin error is its own typed enum, mapped to and from `ErrorInfo` by the host |

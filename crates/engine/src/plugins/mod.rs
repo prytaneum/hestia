@@ -11,6 +11,7 @@ mod chain;
 mod command;
 mod context;
 mod dev;
+mod error;
 mod handover;
 mod hooks;
 mod http;
@@ -43,12 +44,13 @@ pub(crate) use catalogue::{build as build_catalogue, pick, Installed, Pick, Sour
 pub use chain::{CallChain, ChainError, MAX_CHAIN_DEPTH};
 pub use command::{command_args, find_command};
 pub use context::{CallContext, Mount};
+pub use error::GuestError;
 pub(crate) use handover::{plan as plan_handover, Carry, Plan as Handover};
 pub use hooks::{
     BeforeContentInstall, BeforeLaunch, BeforeServerStart, Hook, HookOutcome, Hooks, Participant,
     Roster,
 };
-pub use imports::{CommandRun, HostCalls, HostError};
+pub use imports::{CommandRun, HostCalls};
 pub(crate) use index::{build_url, declared_keys, expand, open, pinned_keys};
 pub use install::Inspection;
 pub use official::{is_official_signer, refuse_official_key};

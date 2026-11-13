@@ -4,6 +4,7 @@ use hestia::proto::plugin::PageContext;
 use hestia::proto::{server::ServerList, Empty};
 use hestia::ui::{self, Action, Effect, Tone, UiNode};
 use hestia::proto::hook::{BeforeContentInstall, BeforeLaunch, BeforeServerStart, LaunchPatch};
+use hestia::proto::instance::InstanceList;
 use hestia::proto::provider::java::Majors;
 use hestia::{json, Error, Intercept, Intercepted, Plugin, Provide, Provided, Value};
 
@@ -18,9 +19,11 @@ impl Plugin for Probe {
                 std::hint::black_box(&hoard);
                 Ok(())
             }
+            Some("list-instances") => hestia::call::<InstanceList>(&Empty {}).map(drop),
             Some(mode) if mode.starts_with("get ") => {
                 hestia::http::get(&mode["get ".len()..]).map(drop)
             }
+            Some(mode) if mode.starts_with("fail ") => Err(typed(&mode["fail ".len()..])),
             _ => Ok(()),
         }
     }
@@ -74,6 +77,7 @@ impl Plugin for Probe {
                 Some(mode) if mode.starts_with("get ") => {
                     hestia::http::get(&mode["get ".len()..]).map(|_| Vec::new())
                 }
+                Some(mode) if mode.starts_with("fail ") => Err(typed(&mode["fail ".len()..])),
                 _ => Ok(Vec::new()),
             }
         })
@@ -95,7 +99,7 @@ impl Plugin for Probe {
                 .flatten()
                 .unwrap_or_default();
             match refused.contains(&context.file_name) {
-                true => Err("not on this list".into()),
+                true => Err(Error::Denied("not on this list".into())),
                 false => Ok(Empty {}),
             }
         })
@@ -105,6 +109,7 @@ impl Plugin for Probe {
     fn run(command: &str, args: Value) -> Result<Value, Error> {
         match command {
             "echo" => Ok(args),
+            "fail" => Err(typed(args["kind"].as_str().unwrap_or_default())),
             "progress" => {
                 hestia::progress::report(Some(0.5), "halfway");
                 hestia::progress::report(None, "finishing");
@@ -181,10 +186,33 @@ fn refs(argv: &[String]) -> Vec<&str> {
     argv.iter().map(String::as_str).collect()
 }
 
-fn answer(key: &str) -> Result<LaunchPatch, String> {
+fn typed(kind: &str) -> Error {
+    match kind {
+        "offline" => Error::Offline(Some("no route".into())),
+        "upstream" => Error::Upstream {
+            status: Some(503),
+            retry_after: Some(30),
+            message: "the service is down".into(),
+        },
+        "rate-limited" => Error::RateLimited {
+            retry_after: Some(7),
+        },
+        "sign-in" => Error::SignInRequired,
+        "not-configured" => Error::NotConfigured("api-key".into()),
+        "missing" => Error::MissingRequirement {
+            name: "git".into(),
+            url: Some("https://git-scm.com".into()),
+        },
+        "busy" => Error::Busy("the entry is claimed".into()),
+        "not-found" => Error::NotFound("no such thing".into()),
+        other => Error::Failed(format!("unknown failure `{other}`")),
+    }
+}
+
+fn answer(key: &str) -> Result<LaunchPatch, Error> {
     let plan: Value = hestia::data::load(key).ok().flatten().unwrap_or_default();
     if let Some(reason) = plan["veto"].as_str() {
-        return Err(reason.to_string());
+        return Err(Error::Failed(reason.to_string()));
     }
     let list = |key: &str| -> Vec<String> {
         plan[key]

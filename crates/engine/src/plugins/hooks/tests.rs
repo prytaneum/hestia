@@ -7,6 +7,7 @@ enum Answer {
     Patch(&'static str),
     Malformed,
     Veto,
+    VetoTyped,
     Timeout,
     Trap,
     Reentry,
@@ -39,13 +40,14 @@ impl Participant for Fake {
         _: &'a str,
         _: &'a CallChain,
         timeout: Duration,
-    ) -> BoxFuture<'a, Result<Result<String, String>, CallError>> {
+    ) -> BoxFuture<'a, Result<Result<String, GuestError>, CallError>> {
         self.calls.lock().unwrap().push(self.id);
         Box::pin(async move {
             match self.answer {
                 Answer::Patch(arg) => Ok(Ok(serde_json::json!([arg]).to_string())),
                 Answer::Malformed => Ok(Ok("{\"not\":\"a list\"}".into())),
-                Answer::Veto => Ok(Err("nope".into())),
+                Answer::Veto => Ok(Err(GuestError::Failed("nope".into()))),
+                Answer::VetoTyped => Ok(Err(GuestError::NotConfigured("api-key".into()))),
                 Answer::Timeout => Err(CallError::Timeout(timeout)),
                 Answer::Trap => Err(CallError::Trap("boom".into())),
                 Answer::Reentry => Err(CallError::Chain(crate::plugins::ChainError::Reentry(
@@ -212,6 +214,22 @@ async fn a_veto_stops_at_that_plugin() {
         }
     );
     assert_eq!(rig.called(), ["alpha", "bravo"]);
+}
+
+#[tokio::test]
+async fn a_typed_veto_shows_its_message_as_the_reason() {
+    let rig = Rig::new().with("alpha", Answer::VetoTyped);
+
+    let error = rig.run().await.unwrap_err();
+
+    assert_eq!(
+        error,
+        ErrorInfo::PluginVetoed {
+            plugin: "alpha".into(),
+            hook: "before-launch".into(),
+            reason: "the setting `api-key` is not set".into(),
+        }
+    );
 }
 
 #[tokio::test]

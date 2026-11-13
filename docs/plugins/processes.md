@@ -80,8 +80,8 @@ an agent that is not on `PATH` is fetched at run time into `data/`. The host cop
    cannot write, hashes the copy against the `sha256` for this host's triple, sets the exec bit and renames it into
    place. Only the copy runs, so the plugin cannot swap the file between the check and the run, and rewriting `data/`
    afterwards changes nothing. A copy that already matches is reused.
-3. A symlink in `data/` is refused. A file that does not match is `Error::PermissionDenied`, a missing one
-   `Error::NotFound`.
+3. A symlink in `data/` is refused. A file that does not match is `Error::Denied`, a missing one
+   `Error::MissingRequirement`.
 
 The hash is in the manifest, so the plugin can run exactly the build it declared: publishing a new agent version means
 shipping a new plugin version with the new hashes, which asks the user to approve again. No example plugin downloads an
@@ -111,7 +111,7 @@ Source: the doc example of `crates/sdk/src/process.rs` (a compiled no-run doctes
 
 An `exec` argument may hold `${build}`, `${vanilla}` or `${data}`; the host replaces each with the host path of that mount
 of the current call, after the argument is checked against the patterns (which match the placeholder as written). A
-placeholder for a mount the call does not have, such as `${build}` outside a flavor's `build`, is `permission-denied`.
+placeholder for a mount the call does not have, such as `${build}` outside a flavor's `build`, is `denied`.
 Nothing else in an argument is rewritten.
 
 A program that needs other tools on its `PATH` lists them: `path = ["git"]` names other `PATH` programs of the manifest,
@@ -132,9 +132,9 @@ A process the plugin did not start reads as `Error::NotFound`, so another plugin
 Rules for every call:
 
 - A program not declared, arguments outside the patterns, or an environment name not in `env` is
-  `Error::PermissionDenied`. Without `process:spawn` every call is denied.
+  `Error::Denied`. Without `process:spawn` every call is denied.
 - At most 256 arguments of 32 KiB each, with no NUL.
-- The working directory is `data/`; `exec_in(program, args, timeout, cwd)` (or `exec_with`) runs in another directory, a guest path under a writable mount of the call (`/data`, or `/build` during a flavor's `build`), and anything else is `permission-denied`. The environment starts empty (on Windows only `SystemRoot`).
+- The working directory is `data/`; `exec_in(program, args, timeout, cwd)` (or `exec_with`) runs in another directory, a guest path under a writable mount of the call (`/data`, or `/build` during a flavor's `build`), and anything else is `denied`. The environment starts empty (on Windows only `SystemRoot`).
 - The host logs program ids and exit statuses, never arguments or values: they carry auth keys.
 
 ## Owning a long-lived agent

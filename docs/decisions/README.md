@@ -46,6 +46,7 @@ the alternative you rejected — that is usually the part nobody can recover lat
 - **0112** — [The app and the official plugins update together](0112-the-app-and-official-plugins-update-together.md)
 - **0113** — [A flavor builds on the vanilla profile, and the host merges it](0113-a-flavor-builds-on-the-vanilla-profile.md)
 - **0114** — [An unhashed download is declared, and the user approves the host](0114-an-unhashed-download-is-declared.md)
+- **0115** — [A plugin error is its own typed enum, mapped to and from ErrorInfo by the host](0115-a-plugin-error-is-its-own-typed-enum.md)
 
 ### [Cross-cutting foundations](../architecture/common.md)
 

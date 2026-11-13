@@ -1704,7 +1704,8 @@ mod launch_hooks {
     use std::sync::Arc;
 
     use async_trait::async_trait;
-    use engine::{HostCalls, HostError, LoadedPlugin, PluginRecord, PluginRuntime, Roster};
+    use engine::{HostCalls, LoadedPlugin, PluginRecord, PluginRuntime, Roster};
+    use proto::error::ErrorInfo;
     use proto::plugin::{Grant, Permission};
     use proto::warning::WarningInfo;
     use serde_json::{json, Value};
@@ -1726,8 +1727,10 @@ mod launch_hooks {
             _chain: &CallChain,
             _channel: &str,
             _payload: Value,
-        ) -> Result<Value, HostError> {
-            Err(HostError::NotFound("no host in this test".into()))
+        ) -> Result<Value, ErrorInfo> {
+            Err(ErrorInfo::UnknownChannel {
+                channel: "no host in this test".into(),
+            })
         }
 
         async fn run_job(
@@ -1736,7 +1739,7 @@ mod launch_hooks {
             chain: &CallChain,
             channel: &str,
             payload: Value,
-        ) -> Result<Value, HostError> {
+        ) -> Result<Value, ErrorInfo> {
             self.call(plugin, chain, channel, payload).await
         }
     }

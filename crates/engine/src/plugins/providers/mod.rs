@@ -107,12 +107,11 @@ impl Guest {
         {
             Ok(reply) => reply,
             Err(CallError::Unsupported(_)) => return Ok(None),
-            Err(CallError::Unreachable(detail)) => {
-                tracing::warn!(plugin = self.plugin.id(), provider = %self.local, kind, op = O::OP, %detail, "provider upstream unreachable");
-                return Err(ErrorInfo::Offline {
-                    service: Some(self.service.clone()),
-                }
-                .into());
+            Err(CallError::Guest(error)) => {
+                tracing::warn!(plugin = self.plugin.id(), provider = %self.local, kind, op = O::OP, %error, "provider failed");
+                return Err(error
+                    .into_info(self.plugin.id(), Some(self.service.clone()))
+                    .into());
             }
             Err(error) => return Err(self.failed(format!("{}: {error}", O::OP))),
         };

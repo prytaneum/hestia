@@ -5,6 +5,7 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use futures_util::future::BoxFuture;
+use proto::error::{ErrorInfo, Service};
 use proto::plugin::{Grant, PageContext, PluginSource, DATA_MOUNT};
 use proto::ui::{Action, Effect, UiError, UiNode};
 use serde::de::DeserializeOwned;
@@ -21,6 +22,7 @@ use wasmtime_wasi_http::WasiHttpCtx;
 use super::cache::ComponentCache;
 use super::chain::{CallChain, ChainError};
 use super::context::{CallContext, Mount};
+use super::error::GuestError;
 use super::http::PluginHttp;
 use super::imports::bindings::{self, hestia::plugin::types::PluginError};
 use super::imports::{CommandRun, Gate, HostCalls, PluginState};
@@ -80,14 +82,31 @@ pub enum CallError {
     Trap(String),
     #[error("cannot prepare the plugin's sandbox: {0}")]
     Setup(String),
-    #[error("{0}")]
-    Guest(String),
-    #[error("{0}")]
-    Unreachable(String),
+    #[error(transparent)]
+    Guest(GuestError),
     #[error("the plugin does not implement `{0}`")]
     Unsupported(String),
     #[error("the page `{0}` returned a document outside the UI vocabulary")]
     InvalidUi(String),
+}
+
+impl CallError {
+    /// What the host tells its own caller about this failure. `service` is the
+    /// provider the call was made for, when there is one; the plugin's own
+    /// typed failure is mapped by [`GuestError::into_info`].
+    pub fn into_info(self, plugin: &str, service: Option<Service>) -> ErrorInfo {
+        match self {
+            CallError::Guest(error) => error.into_info(plugin, service),
+            CallError::InvalidUi(page) => ErrorInfo::PluginUiInvalid {
+                plugin: plugin.to_string(),
+                page,
+            },
+            other => ErrorInfo::PluginCallFailed {
+                id: plugin.to_string(),
+                detail: other.to_string(),
+            },
+        }
+    }
 }
 
 /// Counters kept for diagnosis.
@@ -394,8 +413,11 @@ impl LoadedPlugin {
             )
             .await?
             .map_err(guest_error)?;
-        serde_json::from_str(&reply)
-            .map_err(|error| CallError::Guest(format!("the command's result is not JSON: {error}")))
+        serde_json::from_str(&reply).map_err(|error| {
+            CallError::Guest(GuestError::Failed(format!(
+                "the command's result is not JSON: {error}"
+            )))
+        })
     }
 
     /// Runs the plugin's `ui.render` under [`UI_TIMEOUT`] and checks the tree
@@ -504,15 +526,14 @@ impl LoadedPlugin {
     }
 
     /// Runs the hook point `point` under `timeout` with its context as JSON. The
-    /// inner error is the plugin's veto reason; the answer is the point's patch
-    /// as JSON.
+    /// inner error is the plugin's veto; the answer is the point's patch as JSON.
     pub(super) async fn intercept(
         &self,
         chain: &CallChain,
         point: &str,
         context: &str,
         timeout: Duration,
-    ) -> Result<Result<String, String>, CallError> {
+    ) -> Result<Result<String, GuestError>, CallError> {
         let (point, context) = (point.to_string(), context.to_string());
         self.guarded(
             chain,
@@ -524,6 +545,7 @@ impl LoadedPlugin {
                         .hestia_plugin_hooks()
                         .call_intercept(store, &point, &context)
                         .await
+                        .map(|reply| reply.map_err(GuestError::from))
                 })
             },
         )
@@ -546,22 +568,16 @@ impl LoadedPlugin {
             call.op.to_string(),
             call.args.to_string(),
         );
-        let (reply, unreached) = self
-            .guarded(chain, timeout, context, move |store, instance| {
-                Box::pin(async move {
-                    let reply = instance
-                        .hestia_plugin_provider()
-                        .call_invoke(&mut *store, &kind, &id, &op, &args)
-                        .await?;
-                    let unreached = store.data().http_hooks.unreached.load(Ordering::Relaxed);
-                    Ok((reply, unreached))
-                })
+        self.guarded(chain, timeout, context, move |store, instance| {
+            Box::pin(async move {
+                instance
+                    .hestia_plugin_provider()
+                    .call_invoke(store, &kind, &id, &op, &args)
+                    .await
             })
-            .await?;
-        reply.map_err(|error| match guest_error(error) {
-            CallError::Guest(message) if unreached => CallError::Unreachable(message),
-            other => other,
         })
+        .await?
+        .map_err(guest_error)
     }
 
     /// The path a `PATH` program was pinned to at approval, when this plugin
@@ -701,7 +717,6 @@ impl LoadedPlugin {
                 plugin: self.id.clone(),
                 grant: self.grant.clone(),
                 log: self.log.clone(),
-                unreached: Arc::default(),
             },
             table: ResourceTable::new(),
             limits,
@@ -757,12 +772,9 @@ fn context_json(context: &PageContext) -> String {
 }
 
 fn guest_error(error: PluginError) -> CallError {
-    match error {
-        PluginError::Unsupported(message) => CallError::Unsupported(message),
-        PluginError::PermissionDenied(message)
-        | PluginError::NotFound(message)
-        | PluginError::Invalid(message)
-        | PluginError::Failed(message) => CallError::Guest(message),
+    match GuestError::from(error) {
+        GuestError::Unsupported(message) => CallError::Unsupported(message),
+        other => CallError::Guest(other),
     }
 }
 

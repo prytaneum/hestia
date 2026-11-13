@@ -92,7 +92,7 @@ call.on::<BeforeContentInstall>(|context| {
         .flatten()
         .unwrap_or_default();
     match refused.contains(&context.file_name) {
-        true => Err("not on this list".into()),
+        true => Err(Error::Denied("not on this list".into())),
         false => Ok(Empty {}),
     }
 })
@@ -103,7 +103,7 @@ call.on::<BeforeContentInstall>(|context| {
 - Each plugin runs under a 2 second limit on a fresh instance. A timeout, a trap, a refused re-entry or an answer that is
   not the point's patch skips that plugin and adds a `PluginHookFailed` warning to the operation's result; the operation
   goes ahead.
-- Only an `Err` from the handler stops it: the run ends at that plugin, later plugins are not called, and the operation
+- Only an `Err` from the handler stops it (any `hestia::Error`; its message is the reason): the run ends at that plugin, later plugins are not called, and the operation
   fails with `PluginVetoed { plugin, hook, reason }`. For `before-content-install` the veto refuses that file only, the
   rest of the batch installs, and the reason is prefixed with the file name.
 - Plugins run in plugin-id order, enabled and loaded ones whose grant lists the point, and their patches fold in that

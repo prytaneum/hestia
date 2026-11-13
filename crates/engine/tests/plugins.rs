@@ -10,7 +10,7 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use engine::{
-    command_args, CallChain, CallError, Cancel, CommandRun, HostCalls, HostError, LoadedPlugin,
+    command_args, CallChain, CallError, Cancel, CommandRun, GuestError, HostCalls, LoadedPlugin,
     PluginRecord, PluginRuntime, PluginSettings, ProcessSupervisor,
 };
 use proto::error::{ErrorInfo, Service};
@@ -32,17 +32,20 @@ struct ReadChannels;
 #[async_trait]
 impl HostCalls for ReadChannels {
     fn permission(&self, channel: &str) -> Option<Permission> {
-        (channel == "server.list").then_some(Permission::EntryRead)
+        matches!(channel, "server.list" | "instance.list").then_some(Permission::EntryRead)
     }
 
     async fn call(
         &self,
         _plugin: &str,
         _chain: &CallChain,
-        _channel: &str,
+        channel: &str,
         _payload: Value,
-    ) -> Result<Value, HostError> {
-        Ok(json!([]))
+    ) -> Result<Value, ErrorInfo> {
+        match channel {
+            "instance.list" => Err(ErrorInfo::Offline { service: None }),
+            _ => Ok(json!([])),
+        }
     }
 
     async fn run_job(
@@ -51,7 +54,7 @@ impl HostCalls for ReadChannels {
         chain: &CallChain,
         channel: &str,
         payload: Value,
-    ) -> Result<Value, HostError> {
+    ) -> Result<Value, ErrorInfo> {
         self.call(plugin, chain, channel, payload).await
     }
 }
@@ -232,9 +235,10 @@ async fn a_command_runs_and_answers_its_output() {
     assert_eq!(outcome.unwrap(), json!({ "name": "smp" }));
 
     let (unknown, _) = probe.run("nope", json!({}), &Cancel::new(), GRACE).await;
-    let Err(CallError::Guest(message)) = unknown else {
+    let Err(CallError::Guest(error)) = unknown else {
         panic!("{unknown:?}");
     };
+    let message = error.to_string();
     assert!(message.contains("unknown command"), "{message}");
 }
 
@@ -266,9 +270,10 @@ async fn a_cancelled_command_sees_it_and_stops_on_its_own() {
 
     let (outcome, _) = probe.run("wait", json!({}), &cancel, CALL_BUDGET).await;
 
-    let Err(CallError::Guest(message)) = outcome else {
+    let Err(CallError::Guest(error)) = outcome else {
         panic!("{outcome:?}");
     };
+    let message = error.to_string();
     assert_eq!(message, "stopped");
 }
 
@@ -375,9 +380,11 @@ async fn a_channel_outside_the_grant_answers_permission_denied_and_the_plugin_st
 
     probe.set_mode("list-servers");
     let denied = probe.init().await;
-    let Err(CallError::Guest(message)) = denied else {
+    let Err(CallError::Guest(error)) = denied else {
         panic!("{denied:?}");
     };
+    assert!(matches!(&error, GuestError::Denied(_)), "{error:?}");
+    let message = error.to_string();
     assert!(message.contains("entry:read"), "{message}");
 
     probe.set_mode("idle");
@@ -387,7 +394,7 @@ async fn a_channel_outside_the_grant_answers_permission_denied_and_the_plugin_st
 async fn http_refusal(probe: &Probe, url: &str) -> String {
     probe.set_mode(&format!("get {url}"));
     match probe.init().await {
-        Err(CallError::Guest(message)) => message,
+        Err(CallError::Guest(error)) => error.to_string(),
         other => panic!("{other:?}"),
     }
 }
@@ -430,6 +437,59 @@ async fn a_granted_channel_reaches_the_host() {
     probe.set_mode("list-servers");
 
     probe.init().await.unwrap();
+}
+
+#[tokio::test]
+async fn a_typed_daemon_failure_reaches_the_guest_as_its_own_case() {
+    let probe = Probe::load(&[Permission::EntryRead]);
+    probe.set_mode("list-instances");
+
+    let outcome = probe.init().await;
+
+    let Err(CallError::Guest(GuestError::Offline(detail))) = outcome else {
+        panic!("{outcome:?}");
+    };
+    assert!(detail.is_some());
+}
+
+#[tokio::test]
+async fn a_command_failure_keeps_its_case_for_the_host() {
+    let probe = Probe::load(&[]);
+    let cases = [
+        ("offline", GuestError::Offline(Some("no route".into()))),
+        (
+            "upstream",
+            GuestError::Upstream {
+                status: Some(503),
+                retry_after: Some(30),
+                message: "the service is down".into(),
+            },
+        ),
+        ("rate-limited", GuestError::RateLimited(Some(7))),
+        ("sign-in", GuestError::SignInRequired),
+        (
+            "not-configured",
+            GuestError::NotConfigured("api-key".into()),
+        ),
+        (
+            "missing",
+            GuestError::MissingRequirement {
+                name: "git".into(),
+                url: Some("https://git-scm.com".into()),
+            },
+        ),
+        ("busy", GuestError::Busy("the entry is claimed".into())),
+        ("not-found", GuestError::NotFound("no such thing".into())),
+    ];
+    for (kind, expected) in cases {
+        let (outcome, _) = probe
+            .run("fail", json!({ "kind": kind }), &Cancel::new(), GRACE)
+            .await;
+        let Err(CallError::Guest(error)) = outcome else {
+            panic!("{kind}: {outcome:?}");
+        };
+        assert_eq!(error, expected, "{kind}");
+    }
 }
 
 #[tokio::test]
@@ -527,9 +587,28 @@ mod programs {
 
     fn refused(outcome: Result<Value, CallError>) -> String {
         match outcome {
-            Err(CallError::Guest(message)) => message,
+            Err(CallError::Guest(error)) => error.to_string(),
             other => panic!("expected a refusal: {other:?}"),
         }
+    }
+
+    #[tokio::test]
+    async fn a_declared_program_missing_from_this_machine_is_a_missing_requirement() {
+        let echo = on_path("echo", "echo", &["hello", "*"], &[]);
+        let probe = Probe::load_with(spawning(vec![echo]), BTreeMap::new());
+
+        let outcome = call(
+            &probe,
+            "exec",
+            json!({ "program": "echo", "args": ["hello", "world"] }),
+        )
+        .await;
+
+        let Err(CallError::Guest(GuestError::MissingRequirement { name, url: None })) = outcome
+        else {
+            panic!("{outcome:?}");
+        };
+        assert_eq!(name, "echo");
     }
 
     #[tokio::test]
@@ -850,7 +929,14 @@ async fn java_releases_through(
     network: &[&str],
     url: &str,
 ) -> Result<Vec<proto::java::JavaRelease>, anyhow::Error> {
-    let (engine, _home, _data) = register_java_probe(network, url, false).await;
+    java_releases_in_mode(network, &format!("get {url}")).await
+}
+
+async fn java_releases_in_mode(
+    network: &[&str],
+    mode: &str,
+) -> Result<Vec<proto::java::JavaRelease>, anyhow::Error> {
+    let (engine, _home, _data) = register_java_probe_in_mode(network, mode, false).await;
     engine.java().releases("probe.reach").await
 }
 
@@ -859,8 +945,16 @@ async fn register_java_probe(
     url: &str,
     official: bool,
 ) -> (engine::Engine, tempfile::TempDir, tempfile::TempDir) {
+    register_java_probe_in_mode(network, &format!("get {url}"), official).await
+}
+
+async fn register_java_probe_in_mode(
+    network: &[&str],
+    mode: &str,
+    official: bool,
+) -> (engine::Engine, tempfile::TempDir, tempfile::TempDir) {
     let probe = Probe::load_with_network(&[Permission::NetworkConnect], network);
-    probe.set_mode(&format!("get {url}"));
+    probe.set_mode(mode);
     let Probe {
         plugin,
         data,
@@ -916,6 +1010,71 @@ async fn a_provider_that_cannot_reach_its_host_fails_as_an_upstream_service() {
     };
     assert_eq!(provider.id, "probe.reach");
     assert_eq!(provider.name, "Probe Net");
+}
+
+fn provider_service() -> Service {
+    Service::Provider(proto::provider::Provider::new("probe.reach", "Probe Net"))
+}
+
+#[tokio::test]
+async fn a_provider_that_answers_offline_is_attributed_to_itself() {
+    let error = java_releases_in_mode(&[], "fail offline")
+        .await
+        .expect_err("the guest says it is offline");
+
+    assert_eq!(
+        error.downcast_ref::<ErrorInfo>(),
+        Some(&ErrorInfo::Offline {
+            service: Some(provider_service())
+        }),
+        "{error:#}"
+    );
+}
+
+#[tokio::test]
+async fn a_provider_that_meets_an_upstream_failure_is_named_in_it() {
+    let upstream = java_releases_in_mode(&[], "fail upstream")
+        .await
+        .expect_err("the guest reports a 503");
+    let Some(ErrorInfo::Upstream { service, detail }) = upstream.downcast_ref::<ErrorInfo>() else {
+        panic!("{upstream:#}");
+    };
+    assert_eq!(service, &provider_service());
+    assert!(detail.contains("the service is down"), "{detail}");
+
+    let limited = java_releases_in_mode(&[], "fail rate-limited")
+        .await
+        .expect_err("the guest is rate limited");
+    assert!(
+        matches!(
+            limited.downcast_ref::<ErrorInfo>(),
+            Some(ErrorInfo::Upstream { service, .. }) if service == &provider_service()
+        ),
+        "{limited:#}"
+    );
+}
+
+#[tokio::test]
+async fn a_provider_that_needs_a_sign_in_or_a_setting_says_so() {
+    let sign_in = java_releases_in_mode(&[], "fail sign-in")
+        .await
+        .expect_err("the guest needs a sign-in");
+    assert_eq!(
+        sign_in.downcast_ref::<ErrorInfo>(),
+        Some(&ErrorInfo::SignInRequired)
+    );
+
+    let unset = java_releases_in_mode(&[], "fail not-configured")
+        .await
+        .expect_err("the guest needs a setting");
+    assert!(
+        matches!(
+            unset.downcast_ref::<ErrorInfo>(),
+            Some(ErrorInfo::PluginSettingInvalid { plugin, key, .. })
+                if plugin == "probe" && key == "api-key"
+        ),
+        "{unset:#}"
+    );
 }
 
 #[tokio::test]
