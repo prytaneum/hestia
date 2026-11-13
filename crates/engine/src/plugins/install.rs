@@ -677,8 +677,9 @@ mod tests {
         let rig = Rig::new(at_a);
         rig.install(&rig.package("1.0.0", ""));
         approved_by_official(&rig);
-        let widened = rig.package(
+        let widened = rig.package_granting(
             "1.1.0",
+            "\"git\", \"curl\"",
             "\n[[programs]]\nid = \"curl\"\ncommand = \"curl\"\nargs = [\"**\"]\n",
         );
 
