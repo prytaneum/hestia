@@ -10,6 +10,7 @@ use std::time::Duration;
 use futures_util::future::BoxFuture;
 use proto::error::ErrorInfo;
 use proto::hook::HookPoint;
+use proto::plugin::ScopeKind;
 use proto::warning::WarningInfo;
 
 mod content;
@@ -67,7 +68,9 @@ impl Participant for LoadedPlugin {
     }
 
     fn declares(&self, point: &str) -> bool {
-        self.grant().hooks.contains(point)
+        self.grant()
+            .contributed(ScopeKind::Hooks)
+            .any(|hook| hook == point)
     }
 
     fn is_disabled(&self) -> bool {

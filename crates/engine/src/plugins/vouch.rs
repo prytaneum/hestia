@@ -8,7 +8,7 @@ use std::sync::OnceLock;
 use std::time::Duration;
 
 use proto::error::ErrorInfo;
-use proto::plugin::{network_matches, Grant};
+use proto::plugin::{Grant, Permission, ScopeKind};
 use reqwest::header::LOCATION;
 use reqwest::{Response, Url};
 
@@ -71,7 +71,10 @@ impl Policy {
     fn check(&self, url: &Url, unhashed: bool) -> Result<(), Refused> {
         let host = if self.loopback && is_loopback(url) {
             let host = url.host_str().unwrap_or_default().to_ascii_lowercase();
-            if !self.grant.network.iter().any(|e| network_matches(e, &host)) {
+            if !self
+                .grant
+                .covers(Permission::NetworkConnect, ScopeKind::Hosts, &host)
+            {
                 return Err(Refused::Destination(Refusal::HostNotGranted(host)));
             }
             host
@@ -81,9 +84,7 @@ impl Policy {
         if unhashed
             && !self
                 .grant
-                .unhashed
-                .iter()
-                .any(|e| network_matches(e, &host))
+                .covers(Permission::NetworkConnect, ScopeKind::Unhashed, &host)
         {
             return Err(Refused::Unhashed(host));
         }

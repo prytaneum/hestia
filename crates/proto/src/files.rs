@@ -6,7 +6,7 @@ use std::time::Duration;
 use serde::{Deserialize, Serialize};
 
 use crate::contract::{Contract, Empty};
-use crate::plugin::Permission;
+use crate::plugin::{Permission, ScopeKind};
 
 #[derive(Serialize, Deserialize, Default, Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
@@ -51,8 +51,13 @@ pub struct ServerFilesRead;
 impl Contract for ServerFilesRead {
     const CHANNEL: &'static str = "server.files.read";
     const PLUGIN: Option<Permission> = Some(Permission::EntryRead);
+    const NARROWED_BY: Option<ScopeKind> = Some(ScopeKind::Files);
     type Params = ServerFileParams;
     type Result = FileReadResult;
+
+    fn touches(params: &ServerFileParams) -> Vec<String> {
+        vec![params.path.clone()]
+    }
 }
 
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]

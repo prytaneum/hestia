@@ -7,18 +7,35 @@
 //! so the CLI's `pack` can validate one without a daemon.
 
 use std::collections::{BTreeMap, BTreeSet};
-use std::fmt;
 use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
-use sha2::{Digest, Sha256};
 
-use crate::change::Scope;
+use crate::change::Scope as Changed;
 use crate::contract::{Contract, Empty, Topic};
 use crate::error::EntryKind;
 use crate::job::{Job, JobStarted};
 use crate::ui::{Action, Effect, UiNode};
 use crate::warning::WarningInfo;
+
+mod grant;
+mod manifest;
+mod permission;
+mod scope;
+
+pub use grant::Grant;
+pub use manifest::{
+    api_supported, api_supported_by, compare_versions, is_api_version, is_plugin_id, Manifest,
+    ManifestError, ManifestErrors,
+};
+pub use permission::{Permission, Spec, Tier};
+#[cfg(feature = "suffix")]
+pub use scope::covers_public_suffix;
+pub(crate) use scope::stays_inside;
+pub use scope::{
+    ipc_matches, is_ipc_pattern, is_launch_property, is_network_host, network_matches,
+    PermissionScope, ScopeKind, Touched,
+};
 
 pub const API_VERSION: &str = "1.0.0";
 
@@ -106,146 +123,6 @@ pub const RESERVED_INSTANCE_VERBS: &[&str] = &[
 
 const ID_LENGTH: std::ops::RangeInclusive<usize> = 2..=40;
 const CONTRIBUTION_ID_LENGTH: std::ops::RangeInclusive<usize> = 1..=40;
-
-#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
-pub enum Permission {
-    #[serde(rename = "entry:read")]
-    EntryRead,
-    #[serde(rename = "entry:write")]
-    EntryWrite,
-    #[serde(rename = "process:read")]
-    ProcessRead,
-    #[serde(rename = "process:control")]
-    ProcessControl,
-    /// Run only the programs in [`Manifest::programs`].
-    #[serde(rename = "process:spawn")]
-    ProcessSpawn,
-    #[serde(rename = "content:read")]
-    ContentRead,
-    #[serde(rename = "content:write")]
-    ContentWrite,
-    /// Profiles only, never tokens.
-    #[serde(rename = "account:read")]
-    AccountRead,
-    /// Only the settings [`crate::config::PLUGIN_ACCESS`] marks readable.
-    #[serde(rename = "config:read")]
-    ConfigRead,
-    /// Only the settings [`crate::config::PLUGIN_ACCESS`] marks writable.
-    #[serde(rename = "config:write")]
-    ConfigWrite,
-    #[serde(rename = "java:read")]
-    JavaRead,
-    #[serde(rename = "java:manage")]
-    JavaManage,
-    /// Outbound HTTP to the hosts in [`Manifest::network`].
-    #[serde(rename = "network:connect")]
-    NetworkConnect,
-    #[serde(rename = "ui:css")]
-    UiCss,
-    /// Return an allowlisted patch from a launch or server-start hook.
-    #[serde(rename = "launch:patch")]
-    LaunchPatch,
-    /// Connect to the local endpoints in [`Manifest::ipc`]: Unix sockets in
-    /// the user's runtime and temp directories, or Windows named pipes.
-    #[serde(rename = "ipc:connect")]
-    IpcConnect,
-    /// Contribute a Minecraft flavor, which decides the main class, libraries and
-    /// arguments the game runs with and so bypasses the launch-arg allowlist.
-    #[serde(rename = "flavor:provide")]
-    FlavorProvide,
-    /// Contribute an archive format, whose blueprint chooses the game version,
-    /// loader and JVM settings of the instance the user will run.
-    #[serde(rename = "format:provide")]
-    FormatProvide,
-    /// Contribute a Java distribution, which picks the runtime binary Hestia
-    /// executes for every server and game.
-    #[serde(rename = "java:provide")]
-    JavaProvide,
-}
-
-/// How far a permission reaches. An unrestricted one can run native code, so
-/// the install prompt states it as full access to the computer.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Tier {
-    Sandboxed,
-    Unrestricted,
-}
-
-impl Permission {
-    pub fn tier(self) -> Tier {
-        match self {
-            Permission::EntryWrite
-            | Permission::ContentWrite
-            | Permission::ConfigWrite
-            | Permission::ProcessControl
-            | Permission::ProcessSpawn
-            | Permission::IpcConnect
-            | Permission::FlavorProvide
-            | Permission::FormatProvide
-            | Permission::JavaProvide => Tier::Unrestricted,
-            Permission::EntryRead
-            | Permission::ProcessRead
-            | Permission::ContentRead
-            | Permission::AccountRead
-            | Permission::ConfigRead
-            | Permission::JavaRead
-            | Permission::JavaManage
-            | Permission::NetworkConnect
-            | Permission::UiCss
-            | Permission::LaunchPatch => Tier::Sandboxed,
-        }
-    }
-
-    /// One line for the install prompt.
-    pub fn description(self) -> &'static str {
-        match self {
-            Permission::EntryRead => "See your servers and instances and their settings",
-            Permission::EntryWrite => {
-                "Create, change and delete servers and instances, including their files and JVM arguments"
-            }
-            Permission::ProcessRead => "See which servers and games are running",
-            Permission::ProcessControl => {
-                "Start and stop servers and games, and run console commands"
-            }
-            Permission::ProcessSpawn => "Run the programs it lists",
-            Permission::ContentRead => "Search and inspect mods, packs and other content",
-            Permission::ContentWrite => "Install, update and remove mods, packs and other content",
-            Permission::AccountRead => "See the names of signed-in accounts, never their tokens",
-            Permission::ConfigRead => "See the few launcher settings that are safe to share, never keys, locations or update settings",
-            Permission::ConfigWrite => "Change the few launcher settings that are safe to hand over; everything that decides where data lives, what runs, what updates and what is downloaded stays yours",
-            Permission::JavaRead => "See installed and available Java runtimes",
-            Permission::JavaManage => "Install and remove Java runtimes",
-            Permission::NetworkConnect => "Connect to the hosts it lists",
-            Permission::UiCss => "Restyle the app with its own stylesheet",
-            Permission::LaunchPatch => {
-                "Adjust launch settings from an allowlist when a game or server starts"
-            }
-            Permission::IpcConnect => {
-                "Talk to the programs running on this computer that it lists, such as a chat client"
-            }
-            Permission::FlavorProvide => {
-                "Add game distributions that choose what code the game runs, including its main class and arguments"
-            }
-            Permission::FormatProvide => {
-                "Add archive formats that choose the game version, loader and JVM settings of instances you import"
-            }
-            Permission::JavaProvide => {
-                "Add Java distributions that choose the runtime binary Hestia executes"
-            }
-        }
-    }
-}
-
-/// The `domain:action` name a manifest declares.
-impl fmt::Display for Permission {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match serde_json::to_value(self) {
-            Ok(serde_json::Value::String(name)) => f.write_str(&name),
-            _ => Err(fmt::Error),
-        }
-    }
-}
 
 #[derive(Serialize, Deserialize, Default, Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
@@ -424,6 +301,22 @@ pub struct ScheduleContribution {
     pub every: u64,
 }
 
+impl ScheduleContribution {
+    /// The entry a grant lists for this schedule, readable and parseable:
+    /// `poll: 300s`.
+    pub fn entry(&self) -> String {
+        format!("{}: {}s", self.id, self.every)
+    }
+
+    pub fn from_entry(entry: &str) -> Option<ScheduleContribution> {
+        let (id, every) = entry.split_once(": ")?;
+        Some(ScheduleContribution {
+            id: id.to_string(),
+            every: every.strip_suffix('s')?.parse().ok()?,
+        })
+    }
+}
+
 pub const MIN_SCHEDULE_SECS: u64 = 30;
 pub const MAX_SCHEDULE_SECS: u64 = 30 * 24 * 60 * 60;
 pub const MAX_SCHEDULES: usize = 8;
@@ -469,6 +362,30 @@ const ANY_REST: &str = "**";
 const ANY_ONE: &str = "*";
 
 impl Program {
+    /// The entry a grant lists for this program: its whole definition on one
+    /// line, each list as JSON so no argument can pass for another field. Two
+    /// programs that differ anywhere have different entries, which is what makes
+    /// a changed definition widen.
+    pub fn entry(&self) -> String {
+        let mut entry = format!("{}: {}", self.id, self.command_label());
+        let mut field = |name: &str, value: serde_json::Value| {
+            entry.push_str(&format!(" {name} {value}"));
+        };
+        if !self.args.is_empty() {
+            field("args", serde_json::json!(self.args));
+        }
+        if !self.env.is_empty() {
+            field("env", serde_json::json!(self.env));
+        }
+        if !self.path.is_empty() {
+            field("path", serde_json::json!(self.path));
+        }
+        if !self.sha256.is_empty() {
+            field("sha256", serde_json::json!(self.sha256));
+        }
+        entry
+    }
+
     /// A command with a slash is a path inside the plugin's data directory;
     /// one without is a name resolved on `PATH` when the grant is approved.
     pub fn in_data_dir(&self) -> bool {
@@ -615,14 +532,6 @@ pub fn is_program_env(name: &str) -> bool {
             .is_some_and(|at| upper[at..].contains("OPTIONS"))
 }
 
-#[derive(Serialize, Deserialize, Default, Debug, Clone, PartialEq, Eq)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
-#[serde(default, rename_all = "camelCase")]
-pub struct Launch {
-    /// `-D` system property keys a launch hook may set.
-    pub properties: Vec<String>,
-}
-
 #[derive(Serialize, Deserialize, Default, Debug, Clone, Copy, PartialEq, Eq)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
 #[serde(rename_all = "snake_case")]
@@ -678,688 +587,6 @@ impl Setting {
             (SettingKind::Bool, _) => Err("must be true or false".into()),
         }
     }
-}
-
-#[derive(Serialize, Deserialize, Default, Debug, Clone, PartialEq, Eq)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
-#[serde(default, rename_all = "camelCase")]
-pub struct Manifest {
-    pub id: String,
-    pub name: String,
-    pub version: String,
-    /// Caret requirement on the host ABI, `^N.M.x`. Written by `pack`; a
-    /// theme-only package has none.
-    pub api: Option<String>,
-    pub description: String,
-    pub authors: Vec<String>,
-    pub homepage: Option<String>,
-    /// Package-relative path of the component.
-    pub wasm: Option<String>,
-    pub permissions: Vec<Permission>,
-    /// Hosts the `network` permission reaches.
-    pub network: Vec<String>,
-    /// The `network` hosts a flavor may serve a download from without a
-    /// checksum, because they generate it on request.
-    pub unhashed: Vec<String>,
-    /// Local endpoints `ipc:connect` reaches, as names like `discord-ipc-*`.
-    pub ipc: Vec<String>,
-    /// Files in a server's directory that `entry:read` may read, as exact
-    /// relative paths. A plugin reads no other file of an entry.
-    pub files: Vec<String>,
-    pub programs: Vec<Program>,
-    pub launch: Launch,
-    pub settings: Vec<Setting>,
-    pub contributes: Contributions,
-}
-
-/// Everything a user approves, canonical and sorted. Approval, widening and
-/// re-approval compare grants, never bare permission lists.
-#[derive(Serialize, Deserialize, Default, Debug, Clone, PartialEq, Eq)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
-#[serde(default, rename_all = "camelCase")]
-pub struct Grant {
-    pub permissions: BTreeSet<Permission>,
-    pub network: BTreeSet<String>,
-    pub unhashed: BTreeSet<String>,
-    pub ipc: BTreeSet<String>,
-    pub files: BTreeSet<String>,
-    pub programs: BTreeSet<Program>,
-    pub launch_properties: BTreeSet<String>,
-    pub hooks: BTreeSet<String>,
-    pub events: BTreeSet<String>,
-    pub schedules: BTreeSet<ScheduleContribution>,
-    pub secret_settings: BTreeSet<String>,
-    pub ui_css: BTreeSet<String>,
-}
-
-impl Grant {
-    /// What a user approves: hex sha256 of the canonical JSON of the grant
-    /// together with the absolute path each `PATH` program is pinned to
-    /// ([0101](../../../docs/decisions/0101-plugins-spawn-only-declared-programs.md)).
-    /// The only place the digest is computed.
-    pub fn approval_digest(&self, program_paths: &BTreeMap<String, String>) -> String {
-        let canonical = serde_json::to_vec(&serde_json::json!({
-            "grant": self,
-            "programPaths": program_paths,
-        }))
-        .expect("an approval is plain data");
-        Sha256::digest(canonical)
-            .iter()
-            .map(|byte| format!("{byte:02x}"))
-            .collect()
-    }
-
-    /// The permissions that reach beyond the sandbox.
-    pub fn unrestricted(&self) -> Vec<Permission> {
-        self.permissions
-            .iter()
-            .copied()
-            .filter(|permission| permission.tier() == Tier::Unrestricted)
-            .collect()
-    }
-
-    /// What this grant asks for beyond `installed`.
-    pub fn widening_over(&self, installed: &Grant) -> Grant {
-        Grant {
-            permissions: &self.permissions - &installed.permissions,
-            network: &self.network - &installed.network,
-            unhashed: &self.unhashed - &installed.unhashed,
-            ipc: &self.ipc - &installed.ipc,
-            files: &self.files - &installed.files,
-            programs: &self.programs - &installed.programs,
-            launch_properties: &self.launch_properties - &installed.launch_properties,
-            hooks: &self.hooks - &installed.hooks,
-            events: &self.events - &installed.events,
-            schedules: &self.schedules - &installed.schedules,
-            secret_settings: &self.secret_settings - &installed.secret_settings,
-            ui_css: &self.ui_css - &installed.ui_css,
-        }
-    }
-}
-
-#[derive(Debug, thiserror::Error, PartialEq, Eq)]
-pub enum ManifestError {
-    #[error("plugin id `{0}` must be 2-40 lowercase letters, digits or dashes")]
-    BadId(String),
-    #[error("plugin id `{0}` is reserved")]
-    ReservedId(String),
-    #[error("version `{0}` is not a semantic version")]
-    BadVersion(String),
-    #[error("api `{0}` is not a caret requirement like ^1.0.0")]
-    BadApi(String),
-    #[error("api `{required}` is not satisfied by host API {host}")]
-    ApiMismatch { required: String, host: String },
-    #[error("a plugin with a component must declare its api")]
-    MissingApi,
-    #[error("path `{0}` must be relative and stay inside the package")]
-    PathEscapes(String),
-    #[error("contribution id `{0}` must be 1-40 lowercase letters, digits or dashes")]
-    BadContributionId(String),
-    #[error("id `{0}` is declared twice in the same list")]
-    DuplicateId(String),
-    #[error("command `{0}` declares the argument `entry`, which a scoped command receives itself")]
-    ReservedArg(String),
-    #[error("command `{0}` is a built-in verb for its scope")]
-    ReservedCommand(String),
-    #[error("event `{0}` must be a topic like `job` or a prefix glob like `server.*`")]
-    BadEventPattern(String),
-    #[error("schedule `{id}` must tick every {MIN_SCHEDULE_SECS} to {MAX_SCHEDULE_SECS} seconds")]
-    BadScheduleInterval { id: String },
-    #[error("a plugin declares at most {MAX_SCHEDULES} schedules")]
-    TooManySchedules,
-    #[error("hook `{0}` is not one this host offers")]
-    UnknownHook(String),
-    #[error("hook `{hook}` needs the permission `{permission}`")]
-    HookPermissionMissing {
-        hook: String,
-        permission: Permission,
-    },
-    #[error("page `{0}` appears on an entry and must declare its kind")]
-    PageNeedsKind(String),
-    #[error("theme `{0}` restyles the app and must be granted the permission `ui:css`")]
-    ThemeNeedsUiCss(String),
-    #[error("launch property `{0}` is not a valid name, or is one no plugin may set")]
-    BadLaunchProperty(String),
-    #[error("setting `{key}`: {detail}")]
-    BadSetting { key: String, detail: String },
-    #[error("network host `{0}` must be a domain name or `*.` and a domain, not an address")]
-    BadNetworkHost(String),
-    #[error("network host `{0}` is a wildcard over a public suffix, which would grant every site registered under it")]
-    PublicSuffixWildcard(String),
-    #[error("unhashed host `{0}` must be a host listed in `network`")]
-    BadUnhashedHost(String),
-    #[error("provider kind `{0}` is not one this host offers")]
-    UnknownProviderKind(String),
-    #[error("provider `{provider}` needs the permission `{permission}`")]
-    ProviderPermissionMissing {
-        provider: String,
-        permission: Permission,
-    },
-    #[error("provider `{0}` needs at least one network host to fetch from")]
-    ProviderNeedsHosts(String),
-    #[error("program `{0}` needs a plain command name or a path inside data/, no shell, and well-formed arguments and hashes")]
-    BadProgram(String),
-    #[error("program `{0}` names exactly one of `command` and `java` (a major from 1 to 99), and a `java` program has no hash")]
-    ProgramCommandOrJava(String),
-    #[error("program `{0}` runs from data/ and must declare a sha256 per target triple")]
-    ProgramNeedsHash(String),
-    #[error("program environment variable `{0}` is not a valid name, or is one no plugin may set")]
-    BadProgramEnv(String),
-    #[error("program `{program}` lists `{entry}` in `path`, which must be another `PATH` program of the manifest, named once")]
-    BadProgramPath { program: String, entry: String },
-    #[error("programs need the permission `process:spawn`")]
-    ProgramPermissionMissing,
-    #[error("ipc endpoint `{0}` must be a relative name of letters, digits, `.`, `_` or `-`, optionally ending in `*`")]
-    BadIpcEndpoint(String),
-    #[error("ipc endpoints need the permission `ipc:connect`")]
-    IpcPermissionMissing,
-    #[error(
-        "command `{0}` is one to {MAX_COMMAND_WORDS} words, each a slug, separated by one space"
-    )]
-    BadCommandId(String),
-    #[error(
-        "command `{0}` declares a `words` argument that is not the only one of its kind and last"
-    )]
-    BadWordsArg(String),
-    #[error("file `{0}` must be a relative path of plain names, with no `..`, glob or backslash, and may not be `server.properties`")]
-    BadEntryFile(String),
-    #[error("files need the permission `entry:read`")]
-    FilesPermissionMissing,
-}
-
-fn collect_command_errors(command: &CommandContribution, errors: &mut Vec<ManifestError>) {
-    let words: Vec<&str> = command.words().collect();
-    if words.len() > MAX_COMMAND_WORDS
-        || words
-            .iter()
-            .any(|word| !is_slug(word, CONTRIBUTION_ID_LENGTH))
-    {
-        errors.push(ManifestError::BadCommandId(command.id.clone()));
-    }
-    if words
-        .first()
-        .is_some_and(|first| command.scope.reserved_ids().contains(first))
-    {
-        errors.push(ManifestError::ReservedCommand(command.id.clone()));
-    }
-    let words_args = command
-        .args
-        .iter()
-        .filter(|arg| arg.kind == CommandArgKind::Words)
-        .count();
-    let last_is_words = command
-        .args
-        .last()
-        .is_some_and(|arg| arg.kind == CommandArgKind::Words);
-    if words_args > 1 || (words_args == 1 && !last_is_words) {
-        errors.push(ManifestError::BadWordsArg(command.id.clone()));
-    }
-    let mut seen = BTreeSet::new();
-    for arg in &command.args {
-        if !is_slug(&arg.name, CONTRIBUTION_ID_LENGTH) {
-            errors.push(ManifestError::BadContributionId(arg.name.clone()));
-        }
-        if arg.name == ENTRY_ARG && command.scope != CommandScope::Top {
-            errors.push(ManifestError::ReservedArg(command.id.clone()));
-        }
-        if !seen.insert(&arg.name) {
-            errors.push(ManifestError::DuplicateId(arg.name.clone()));
-        }
-    }
-}
-
-/// Every rule a manifest breaks, one per line when displayed. Never empty.
-#[derive(Debug, PartialEq, Eq)]
-pub struct ManifestErrors(Vec<ManifestError>);
-
-impl ManifestErrors {
-    pub fn iter(&self) -> std::slice::Iter<'_, ManifestError> {
-        self.0.iter()
-    }
-
-    pub fn contains(&self, error: &ManifestError) -> bool {
-        self.0.contains(error)
-    }
-
-    pub fn into_vec(self) -> Vec<ManifestError> {
-        self.0
-    }
-}
-
-impl std::fmt::Display for ManifestErrors {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        for (at, error) in self.0.iter().enumerate() {
-            if at > 0 {
-                f.write_str("\n")?;
-            }
-            write!(f, "{error}")?;
-        }
-        Ok(())
-    }
-}
-
-impl std::error::Error for ManifestErrors {}
-
-impl Manifest {
-    /// Every rule the manifest breaks, in a stable order; `Ok` when none.
-    pub fn validate(&self) -> Result<(), ManifestErrors> {
-        let mut errors = Vec::new();
-        self.collect_errors(&mut errors);
-        if errors.is_empty() {
-            Ok(())
-        } else {
-            Err(ManifestErrors(errors))
-        }
-    }
-
-    fn collect_errors(&self, errors: &mut Vec<ManifestError>) {
-        if !is_plugin_id(&self.id) {
-            errors.push(ManifestError::BadId(self.id.clone()));
-        }
-        if RESERVED_IDS.contains(&self.id.as_str()) {
-            errors.push(ManifestError::ReservedId(self.id.clone()));
-        }
-        if semver_core(&self.version).is_none() {
-            errors.push(ManifestError::BadVersion(self.version.clone()));
-        }
-        match (&self.api, &self.wasm) {
-            (Some(api), _) => errors.extend(check_api(api).err()),
-            (None, Some(_)) => errors.push(ManifestError::MissingApi),
-            (None, None) => {}
-        }
-        let paths = self
-            .wasm
-            .iter()
-            .chain(self.contributes.themes.iter().map(|theme| &theme.file));
-        for path in paths {
-            if !stays_inside(path) {
-                errors.push(ManifestError::PathEscapes(path.clone()));
-            }
-        }
-        for page in &self.contributes.pages {
-            if let Some(icon) = page.icon_path() {
-                if !stays_inside(icon) {
-                    errors.push(ManifestError::PathEscapes(icon.to_string()));
-                }
-            }
-            if page.slot == PageSlot::Entry && page.kind.is_none() {
-                errors.push(ManifestError::PageNeedsKind(page.id.clone()));
-            }
-        }
-        if let Some(host) = self.network.iter().find(|host| !is_network_host(host)) {
-            errors.push(ManifestError::BadNetworkHost(host.clone()));
-        }
-        #[cfg(feature = "suffix")]
-        if let Some(host) = self.network.iter().find(|host| covers_public_suffix(host)) {
-            errors.push(ManifestError::PublicSuffixWildcard(host.clone()));
-        }
-        if let Some(host) = self
-            .unhashed
-            .iter()
-            .find(|host| !self.network.contains(host))
-        {
-            errors.push(ManifestError::BadUnhashedHost(host.clone()));
-        }
-        if let Some(key) = self
-            .launch
-            .properties
-            .iter()
-            .find(|key| !is_launch_property(key))
-        {
-            errors.push(ManifestError::BadLaunchProperty(key.clone()));
-        }
-        for setting in &self.settings {
-            let bad = |detail: &str| ManifestError::BadSetting {
-                key: setting.key.clone(),
-                detail: detail.into(),
-            };
-            if setting.kind == SettingKind::Select && setting.options.is_empty() {
-                errors.push(bad("a select needs options"));
-            }
-            if setting.kind == SettingKind::Secret && setting.default.is_some() {
-                errors.push(bad("a secret has no default"));
-            }
-            if let Some(Err(detail)) = setting.default.as_ref().map(|value| setting.check(value)) {
-                errors.push(bad(&format!("default {detail}")));
-            }
-        }
-        if let Some(endpoint) = self.ipc.iter().find(|endpoint| !is_ipc_pattern(endpoint)) {
-            errors.push(ManifestError::BadIpcEndpoint(endpoint.clone()));
-        }
-        if !self.ipc.is_empty() && !self.permissions.contains(&Permission::IpcConnect) {
-            errors.push(ManifestError::IpcPermissionMissing);
-        }
-        if let Some(file) = self.files.iter().find(|file| !is_entry_file(file)) {
-            errors.push(ManifestError::BadEntryFile(file.clone()));
-        }
-        if !self.files.is_empty() && !self.permissions.contains(&Permission::EntryRead) {
-            errors.push(ManifestError::FilesPermissionMissing);
-        }
-        if !self.programs.is_empty() && !self.permissions.contains(&Permission::ProcessSpawn) {
-            errors.push(ManifestError::ProgramPermissionMissing);
-        }
-        for program in &self.programs {
-            program.collect_errors(errors);
-            errors.extend(program.validate_path(&self.programs).err());
-        }
-        let contributes = &self.contributes;
-        if contributes.schedules.len() > MAX_SCHEDULES {
-            errors.push(ManifestError::TooManySchedules);
-        }
-        if let Some(schedule) = contributes
-            .schedules
-            .iter()
-            .find(|schedule| !(MIN_SCHEDULE_SECS..=MAX_SCHEDULE_SECS).contains(&schedule.every))
-        {
-            errors.push(ManifestError::BadScheduleInterval {
-                id: schedule.id.clone(),
-            });
-        }
-        let lists: [Vec<&String>; 7] = [
-            self.settings.iter().map(|setting| &setting.key).collect(),
-            self.programs.iter().map(|program| &program.id).collect(),
-            contributes
-                .providers
-                .iter()
-                .map(|provider| &provider.id)
-                .collect(),
-            contributes.pages.iter().map(|page| &page.id).collect(),
-            contributes.themes.iter().map(|theme| &theme.id).collect(),
-            contributes.hooks.iter().collect(),
-            contributes
-                .schedules
-                .iter()
-                .map(|schedule| &schedule.id)
-                .collect(),
-        ];
-        if let Some(pattern) = contributes
-            .events
-            .iter()
-            .find(|pattern| !crate::glob::is_topic_glob(pattern))
-        {
-            errors.push(ManifestError::BadEventPattern(pattern.clone()));
-        }
-        for command in &contributes.commands {
-            collect_command_errors(command, errors);
-        }
-        if let Some(theme) = contributes.themes.first() {
-            if !self.permissions.contains(&Permission::UiCss) {
-                errors.push(ManifestError::ThemeNeedsUiCss(theme.id.clone()));
-            }
-        }
-        for hook in &contributes.hooks {
-            let Some(point) = crate::hook::point(hook) else {
-                errors.push(ManifestError::UnknownHook(hook.clone()));
-                continue;
-            };
-            if let Some(missing) = point
-                .permissions
-                .iter()
-                .find(|permission| !self.permissions.contains(permission))
-            {
-                errors.push(ManifestError::HookPermissionMissing {
-                    hook: hook.clone(),
-                    permission: *missing,
-                });
-            }
-        }
-        let mut command_ids = BTreeSet::new();
-        for command in &contributes.commands {
-            if !command_ids.insert(&command.id) {
-                errors.push(ManifestError::DuplicateId(command.id.clone()));
-            }
-        }
-        for ids in lists {
-            let mut seen = BTreeSet::new();
-            for id in ids {
-                if !is_slug(id, CONTRIBUTION_ID_LENGTH) {
-                    errors.push(ManifestError::BadContributionId(id.clone()));
-                }
-                if !seen.insert(id) {
-                    errors.push(ManifestError::DuplicateId(id.clone()));
-                }
-            }
-        }
-        for provider in &contributes.providers {
-            let Some(kind) = crate::provider::kind(&provider.kind) else {
-                errors.push(ManifestError::UnknownProviderKind(provider.kind.clone()));
-                continue;
-            };
-            let needs = kind.permissions;
-            if let Some(missing) = needs
-                .iter()
-                .find(|permission| !self.permissions.contains(permission))
-            {
-                errors.push(ManifestError::ProviderPermissionMissing {
-                    provider: provider.id.clone(),
-                    permission: *missing,
-                });
-            }
-            if needs.contains(&Permission::NetworkConnect) && self.network.is_empty() {
-                errors.push(ManifestError::ProviderNeedsHosts(provider.id.clone()));
-            }
-        }
-    }
-
-    pub fn grant(&self) -> Grant {
-        Grant {
-            permissions: self.permissions.iter().copied().collect(),
-            network: self.network.iter().cloned().collect(),
-            unhashed: self.unhashed.iter().cloned().collect(),
-            ipc: self.ipc.iter().cloned().collect(),
-            files: self.files.iter().cloned().collect(),
-            programs: self.programs.iter().cloned().collect(),
-            launch_properties: self.launch.properties.iter().cloned().collect(),
-            hooks: self.contributes.hooks.iter().cloned().collect(),
-            events: self.contributes.events.iter().cloned().collect(),
-            schedules: self.contributes.schedules.iter().cloned().collect(),
-            secret_settings: self
-                .settings
-                .iter()
-                .filter(|setting| setting.kind == SettingKind::Secret)
-                .map(|setting| setting.key.clone())
-                .collect(),
-            ui_css: self
-                .contributes
-                .themes
-                .iter()
-                .map(|theme| theme.id.clone())
-                .collect(),
-        }
-    }
-}
-
-/// The shape of a plugin id, which is also its directory name.
-pub fn is_plugin_id(id: &str) -> bool {
-    is_slug(id, ID_LENGTH)
-}
-
-fn is_slug(value: &str, length: std::ops::RangeInclusive<usize>) -> bool {
-    length.contains(&value.len())
-        && !value.starts_with('-')
-        && !value.ends_with('-')
-        && value
-            .bytes()
-            .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'-')
-}
-
-/// Whether `key` may be declared in `[launch] properties` and set by a launch
-/// hook: a plain property name that is not one a plugin could use to load code,
-/// redirect libraries or weaken the JVM. No declaration unlocks a refused one.
-pub fn is_launch_property(key: &str) -> bool {
-    const REFUSED_NAMES: [&str; 4] = [
-        "java.library.path",
-        "java.system.class.loader",
-        "java.ext.dirs",
-        "java.endorsed.dirs",
-    ];
-    const REFUSED_PREFIXES: [&str; 4] = ["java.security.", "jdk.", "sun.", "log4j"];
-    const REFUSED_PARTS: [&str; 4] = ["agent", "classpath", "class.path", "module"];
-    let lower = key.to_ascii_lowercase();
-    (1..=100).contains(&key.len())
-        && key
-            .bytes()
-            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b'-'))
-        && !REFUSED_NAMES.contains(&lower.as_str())
-        && !REFUSED_PREFIXES
-            .iter()
-            .any(|prefix| lower.starts_with(prefix))
-        && !REFUSED_PARTS.iter().any(|part| lower.contains(part))
-}
-
-const IPC_WILDCARD: char = '*';
-
-fn is_ipc_segment(segment: &str) -> bool {
-    !segment.is_empty()
-        && segment != "."
-        && segment != ".."
-        && segment
-            .bytes()
-            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b'-'))
-}
-
-/// A declarable local endpoint: a relative name of plain segments, resolved
-/// under the user's runtime and temp directories (a named pipe on Windows,
-/// where a name with `/` never matches). The last segment may end in `*`,
-/// which matches any plain characters, such as the digit of `discord-ipc-0`;
-/// a bare `*` is refused, since it would grant every endpoint in a directory.
-pub fn is_ipc_pattern(pattern: &str) -> bool {
-    let body = pattern.strip_suffix(IPC_WILDCARD).unwrap_or(pattern);
-    (1..=128).contains(&pattern.len())
-        && !body.contains(IPC_WILDCARD)
-        && body.split('/').all(is_ipc_segment)
-}
-
-/// Whether the concrete endpoint `name` is one `pattern` grants.
-pub fn ipc_matches(pattern: &str, name: &str) -> bool {
-    if !is_ipc_pattern(name) || name.contains(IPC_WILDCARD) {
-        return false;
-    }
-    match pattern.strip_suffix(IPC_WILDCARD) {
-        Some(prefix) => name
-            .strip_prefix(prefix)
-            .is_some_and(|rest| !rest.is_empty() && is_ipc_segment(rest)),
-        None => pattern == name,
-    }
-}
-
-/// A granted host: a domain name, or `*.` and a domain of at least two labels
-/// that matches the names one label below it. An address would skip the
-/// resolver check the network permission relies on.
-pub fn is_network_host(entry: &str) -> bool {
-    let domain = entry.strip_prefix("*.").unwrap_or(entry);
-    let domain = domain.strip_suffix('.').unwrap_or(domain);
-    let labels: Vec<&str> = domain.split('.').collect();
-    let named = labels.iter().all(|label| {
-        !label.is_empty()
-            && label.len() <= 63
-            && !label.starts_with('-')
-            && !label.ends_with('-')
-            && label
-                .bytes()
-                .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-')
-    });
-    let numeric = labels
-        .last()
-        .is_some_and(|label| label.bytes().all(|byte| byte.is_ascii_digit()));
-    named && !numeric && domain.len() <= 253 && (labels.len() >= 2 || domain == entry)
-}
-
-/// Whether the granted host `entry` reaches `host`, which is lowercase and has
-/// no trailing dot: an exact name, or for `*.domain` a name exactly one label
-/// below `domain`, never `domain` itself nor anything deeper.
-pub fn network_matches(entry: &str, host: &str) -> bool {
-    let entry = entry.trim_end_matches('.').to_ascii_lowercase();
-    match entry.strip_prefix("*.") {
-        Some(domain) => host
-            .strip_suffix(domain)
-            .and_then(|rest| rest.strip_suffix('.'))
-            .is_some_and(|label| !label.is_empty() && !label.contains('.')),
-        None => host == entry,
-    }
-}
-
-/// Whether `entry` is a wildcard whose domain is itself a public suffix, such
-/// as `*.co.uk` or `*.github.io`: the names under one belong to unrelated
-/// registrants, so no single plugin can be granted all of them.
-#[cfg(feature = "suffix")]
-pub fn covers_public_suffix(entry: &str) -> bool {
-    let Some(domain) = entry.strip_prefix("*.") else {
-        return false;
-    };
-    let domain = domain.trim_end_matches('.').to_ascii_lowercase();
-    psl::suffix(domain.as_bytes())
-        .is_some_and(|suffix| suffix.is_known() && suffix.as_bytes() == domain.as_bytes())
-}
-
-/// `major.minor.patch`, ignoring any pre-release or build suffix.
-fn semver_core(version: &str) -> Option<(u64, u64, u64)> {
-    let core = version.split(['-', '+']).next()?;
-    let mut parts = core.split('.').map(|part| part.parse::<u64>().ok());
-    let triple = (parts.next()??, parts.next()??, parts.next()??);
-    parts.next().is_none().then_some(triple)
-}
-
-/// Whether a build written against caret requirement `api` runs on this host.
-pub fn api_supported(api: &str) -> bool {
-    api_supported_by(api, API_VERSION)
-}
-
-/// Whether a build written against caret requirement `api` runs on a host
-/// exposing plugin API `host`, such as the one a release is about to bring.
-pub fn api_supported_by(api: &str, host: &str) -> bool {
-    check_api_against(api, host).is_ok()
-}
-
-/// Whether `version` is a plugin API version a host can expose.
-pub fn is_api_version(version: &str) -> bool {
-    semver_core(version).is_some()
-}
-
-/// Orders versions by `major.minor.patch`; one that does not parse sorts first.
-pub fn compare_versions(a: &str, b: &str) -> std::cmp::Ordering {
-    semver_core(a).cmp(&semver_core(b))
-}
-
-/// Caret semantics: a guest built against `^N.M.P` runs on a host `N.m.p` at
-/// or above `N.M.P`. A newer guest may import something the host lacks.
-fn check_api(api: &str) -> Result<(), ManifestError> {
-    check_api_against(api, API_VERSION)
-}
-
-fn check_api_against(api: &str, host_version: &str) -> Result<(), ManifestError> {
-    let required = api
-        .strip_prefix('^')
-        .and_then(semver_core)
-        .ok_or_else(|| ManifestError::BadApi(api.to_string()))?;
-    let mismatch = || ManifestError::ApiMismatch {
-        required: api.to_string(),
-        host: host_version.to_string(),
-    };
-    let host = semver_core(host_version).ok_or_else(mismatch)?;
-    if required.0 == host.0 && required <= host {
-        Ok(())
-    } else {
-        Err(mismatch())
-    }
-}
-
-/// A file a plugin may name in `files`: matched against a call's path by exact
-/// string, so it must already be normalised. `server.properties` holds the
-/// RCON password and is never readable by a plugin.
-fn is_entry_file(path: &str) -> bool {
-    stays_inside(path)
-        && !path.contains(['*', '?', '[', ']', '{', '}'])
-        && !path.eq_ignore_ascii_case("server.properties")
-}
-
-pub(crate) fn stays_inside(path: &str) -> bool {
-    !path.is_empty()
-        && !path.starts_with(['/', '\\'])
-        && !path.contains([':', '\\'])
-        && path
-            .split('/')
-            .all(|segment| !matches!(segment, "" | "." | ".."))
 }
 
 #[derive(Serialize, Deserialize, Default, Debug, Clone, Copy, PartialEq, Eq)]
@@ -1570,7 +797,7 @@ pub struct PluginSettingsSetParams {
 pub struct PluginSettingsSet;
 impl Contract for PluginSettingsSet {
     const CHANNEL: &'static str = "plugin.settings.set";
-    const CHANGES: Option<Scope> = Some(Scope::Plugins);
+    const CHANGES: Option<Changed> = Some(Changed::Plugins);
     type Params = PluginSettingsSetParams;
     type Result = Empty;
 }
@@ -1586,7 +813,7 @@ pub struct PluginEnable;
 impl Contract for PluginEnable {
     const CHANNEL: &'static str = "plugin.enable";
     const TIMEOUT: Duration = Duration::from_secs(60);
-    const CHANGES: Option<Scope> = Some(Scope::Plugins);
+    const CHANGES: Option<Changed> = Some(Changed::Plugins);
     type Params = PluginRef;
     type Result = PluginInfo;
 }
@@ -1594,7 +821,7 @@ impl Contract for PluginEnable {
 pub struct PluginDisable;
 impl Contract for PluginDisable {
     const CHANNEL: &'static str = "plugin.disable";
-    const CHANGES: Option<Scope> = Some(Scope::Plugins);
+    const CHANGES: Option<Changed> = Some(Changed::Plugins);
     type Params = PluginRef;
     type Result = PluginInfo;
 }
@@ -1630,7 +857,7 @@ impl Contract for PluginAsset {
 pub struct PluginRemove;
 impl Contract for PluginRemove {
     const CHANNEL: &'static str = "plugin.remove";
-    const CHANGES: Option<Scope> = Some(Scope::Plugins);
+    const CHANGES: Option<Changed> = Some(Changed::Plugins);
     type Params = PluginRef;
     type Result = Empty;
 }

@@ -16,7 +16,7 @@ use engine::{
 use proto::error::{ErrorInfo, Service};
 use proto::plugin::{
     CommandArg, CommandArgKind, CommandContribution, CommandScope, Grant, PageContext, Permission,
-    PluginRunProgress, Setting, SettingKind,
+    PermissionScope, PluginRunProgress, ScopeKind, Setting, SettingKind, Touched,
 };
 use proto::ui::{Action, Effect, UiNode};
 use serde_json::{json, Value};
@@ -32,7 +32,20 @@ struct ReadChannels;
 #[async_trait]
 impl HostCalls for ReadChannels {
     fn permission(&self, channel: &str) -> Option<Permission> {
-        matches!(channel, "server.list" | "instance.list").then_some(Permission::EntryRead)
+        matches!(
+            channel,
+            "server.list" | "instance.list" | "server.files.read"
+        )
+        .then_some(Permission::EntryRead)
+    }
+
+    fn touched(&self, channel: &str, payload: &Value) -> Touched {
+        match channel {
+            "server.files.read" => {
+                <proto::files::ServerFilesRead as proto::Contract>::touched(payload)
+            }
+            _ => Touched::Unscoped,
+        }
     }
 
     async fn call(
@@ -81,8 +94,18 @@ impl Probe {
 
     fn load_with_network(permissions: &[Permission], network: &[&str]) -> Probe {
         let grant = Grant {
-            permissions: permissions.iter().copied().collect(),
-            network: network.iter().map(|host| host.to_string()).collect(),
+            permissions: permissions
+                .iter()
+                .map(|permission| {
+                    let scope = match permission {
+                        Permission::NetworkConnect => {
+                            PermissionScope::of(ScopeKind::Hosts, network.iter().copied())
+                        }
+                        _ => PermissionScope::default(),
+                    };
+                    (*permission, scope)
+                })
+                .collect(),
             ..Grant::default()
         };
         Probe::load_with(grant, BTreeMap::new())
@@ -441,6 +464,54 @@ async fn a_granted_channel_reaches_the_host() {
     probe.init().await.unwrap();
 }
 
+fn reading(files: &[&str]) -> Probe {
+    Probe::load_with(
+        Grant {
+            permissions: [(
+                Permission::EntryRead,
+                PermissionScope::of(ScopeKind::Files, files.iter().copied()),
+            )]
+            .into(),
+            ..Grant::default()
+        },
+        BTreeMap::new(),
+    )
+}
+
+#[tokio::test]
+async fn a_narrowed_channel_serves_only_what_the_scope_covers() {
+    let probe = reading(&["ops.json"]);
+    probe.set_mode("read ops.json");
+    probe.init().await.expect("a listed file");
+
+    for refused in [
+        "server.properties",
+        "whitelist.json",
+        "../ops.json",
+        "ops.json/",
+    ] {
+        probe.set_mode(&format!("read {refused}"));
+        let outcome = probe.init().await;
+        assert!(
+            matches!(outcome, Err(CallError::Guest(GuestError::Denied(_)))),
+            "{refused}: {outcome:?}"
+        );
+    }
+}
+
+#[tokio::test]
+async fn a_narrowed_channel_is_closed_to_a_plugin_whose_scope_names_nothing() {
+    let probe = reading(&[]);
+    probe.set_mode("read ops.json");
+
+    let outcome = probe.init().await;
+
+    assert!(
+        matches!(outcome, Err(CallError::Guest(GuestError::Denied(_)))),
+        "{outcome:?}"
+    );
+}
+
 #[tokio::test]
 async fn a_typed_daemon_failure_reaches_the_guest_as_its_own_case() {
     let probe = Probe::load(&[Permission::EntryRead]);
@@ -556,9 +627,14 @@ mod programs {
     use proto::plugin::Program;
 
     fn spawning(programs: Vec<Program>) -> Grant {
+        let mut scope = PermissionScope::default();
+        scope.extend(ScopeKind::Programs, programs.iter().map(Program::entry));
         Grant {
-            permissions: [Permission::ProcessSpawn].into(),
-            programs: programs.into_iter().collect(),
+            permissions: [(Permission::ProcessSpawn, scope)].into(),
+            programs: programs
+                .into_iter()
+                .map(|program| (program.id.clone(), program))
+                .collect(),
             ..Grant::default()
         }
     }
@@ -643,7 +719,7 @@ mod programs {
     async fn without_the_permission_nothing_runs() {
         let echo = on_path("echo", "echo", &["**"], &[]);
         let grant = Grant {
-            programs: [echo.clone()].into(),
+            programs: [("echo".to_string(), echo.clone())].into(),
             ..Grant::default()
         };
         let probe = Probe::load_with(grant, pinned(&[&echo]));
@@ -1092,4 +1168,55 @@ async fn a_provider_that_fails_for_its_own_reasons_is_still_a_plugin_failure() {
         ),
         "{error:#}"
     );
+}
+
+mod manifest_table {
+    use proto::plugin::{Manifest, Permission, ScopeKind};
+
+    const HEAD: &str =
+        "id = \"demo\"\nversion = \"1.0.0\"\napi = \"^1.0.0\"\nwasm = \"plugin.wasm\"\n";
+
+    fn parse(permissions: &str) -> Result<Manifest, toml::de::Error> {
+        toml::from_str(&format!("{HEAD}{permissions}"))
+    }
+
+    #[test]
+    fn a_permission_is_a_key_and_its_scope_a_table() {
+        assert!(
+            parse("[permissions]\nnetwork = { hosts = [\"a.example.com\"] }\n").is_err(),
+            "`network` is not a permission name"
+        );
+
+        let manifest = parse(
+            r#"
+[permissions]
+"content:read" = {}
+"network:connect" = { hosts = ["a.example.com"], unhashed = ["a.example.com"] }
+"entry:read" = { files = ["ops.json"] }
+"#,
+        )
+        .expect("parses");
+        manifest.validate().expect("valid");
+        let grant = manifest.grant();
+        assert!(grant.holds(Permission::ContentRead));
+        assert_eq!(grant.hosts().collect::<Vec<_>>(), ["a.example.com"]);
+        assert!(grant.covers(Permission::EntryRead, ScopeKind::Files, "ops.json"));
+        assert!(!grant.covers(Permission::EntryRead, ScopeKind::Files, "ops.json "));
+    }
+
+    #[test]
+    fn an_unknown_scope_kind_or_a_bare_list_is_refused() {
+        assert!(parse("[permissions]\n\"entry:read\" = { everything = [\"*\"] }\n").is_err());
+        assert!(parse("[permissions]\n\"entry:read\" = true\n").is_err());
+        assert!(parse("permissions = [\"entry:read\"]\n").is_err());
+    }
+
+    #[test]
+    fn the_old_top_level_lists_grant_nothing() {
+        let manifest = parse("network = [\"a.example.com\"]\nfiles = [\"ops.json\"]\n")
+            .expect("unknown keys are ignored");
+        let grant = manifest.grant();
+        assert_eq!(grant.hosts().count(), 0);
+        assert!(grant.permissions.is_empty());
+    }
 }

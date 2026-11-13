@@ -4,6 +4,7 @@ use hestia::pages::{Paged, Pages, Values};
 use hestia::proto::{server::ServerList, Empty};
 use hestia::ui::{self, Effect, Tone};
 use hestia::proto::hook::{BeforeContentInstall, BeforeLaunch, BeforeServerStart, LaunchPatch};
+use hestia::proto::files::{ServerFileParams, ServerFilesRead};
 use hestia::proto::instance::InstanceList;
 use hestia::proto::provider::java::Majors;
 use hestia::{
@@ -50,6 +51,13 @@ impl Plugin for Probe {
                 Ok(())
             }
             Some("list-instances") => hestia::call::<InstanceList>(&Empty {}).map(drop),
+            Some(mode) if mode.starts_with("read ") => hestia::call::<ServerFilesRead>(
+                &ServerFileParams {
+                    server: "smp".into(),
+                    path: mode["read ".len()..].into(),
+                },
+            )
+            .map(drop),
             Some(mode) if mode.starts_with("get ") => {
                 hestia::http::get(&mode["get ".len()..]).map(drop)
             }

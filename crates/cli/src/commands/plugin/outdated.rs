@@ -32,10 +32,7 @@ fn row(plugin: &OutdatedPlugin) -> Vec<String> {
         (Some(api), false) => format!("needs plugin API {api}"),
         (None, false) => "needs another plugin API".to_string(),
         _ if plugin.widened.permissions.is_empty() => "ready".to_string(),
-        _ => format!(
-            "asks for {} more permissions",
-            plugin.widened.permissions.len()
-        ),
+        _ => "asks for more access".to_string(),
     };
     vec![
         plugin.id.clone(),

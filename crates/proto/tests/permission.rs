@@ -92,7 +92,10 @@ const DENIED: &[&str] = &[
 fn declared() -> Vec<(String, bool)> {
     let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
     let mut found = Vec::new();
-    for entry in fs::read_dir(dir).unwrap() {
+    for entry in fs::read_dir(&dir)
+        .unwrap()
+        .chain(fs::read_dir(dir.join("plugin")).unwrap())
+    {
         let path = entry.unwrap().path();
         if path.extension().and_then(|e| e.to_str()) != Some("rs") {
             continue;
@@ -225,8 +228,10 @@ fn every_topic_is_in_the_registry_plugins_are_admitted_by() {
         .into_iter()
         .map(|(name, _)| name)
         .filter(|name| {
-            fs::read_dir(Path::new(env!("CARGO_MANIFEST_DIR")).join("src"))
+            let src = Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+            fs::read_dir(&src)
                 .unwrap()
+                .chain(fs::read_dir(src.join("plugin")).unwrap())
                 .any(|entry| {
                     fs::read_to_string(entry.unwrap().path())
                         .unwrap_or_default()

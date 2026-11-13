@@ -2,9 +2,11 @@ id = "replay-flavor"
 version = "0.1.0"
 api = "^1.0.0"
 wasm = "plugin.wasm"
-permissions = ["flavor:provide", "network:connect", "process:spawn"]
-network = ["files.example.com"]
-unhashed = ["files.example.com"]
+
+[permissions]
+"flavor:provide" = {}
+"network:connect" = { hosts = ["files.example.com"], unhashed = ["files.example.com"] }
+"process:spawn" = { programs = ["builder"] }
 
 [[programs]]
 id = "builder"

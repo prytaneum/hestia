@@ -96,11 +96,19 @@ impl Api {
     {
         self.list::<C>("Contract");
         if let Some(permission) = C::PLUGIN {
-            let entry = json!({
+            let mut entry = json!({
                 "permission": permission.to_string(),
                 "params": self.types.root::<C::Params>(),
                 "result": self.types.root::<C::Result>(),
             });
+            if let Some(kind) = C::NARROWED_BY {
+                assert!(
+                    permission.spec().scopes.contains(&kind),
+                    "{} is narrowed by `{kind}`, which `{permission}` does not take",
+                    C::CHANNEL
+                );
+                entry["narrowedBy"] = json!(kind.name());
+            }
             self.channels.insert(C::CHANNEL.to_string(), entry);
         }
     }
@@ -281,6 +289,7 @@ fn implemented(kind: &str) -> BTreeSet<String> {
     let files = fs::read_dir(&src)
         .unwrap()
         .chain(fs::read_dir(src.join("provider")).unwrap())
+        .chain(fs::read_dir(src.join("plugin")).unwrap())
         .map(|entry| entry.unwrap().path())
         .filter(|path| path.extension().is_some_and(|extension| extension == "rs"));
     for path in files {

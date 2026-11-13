@@ -320,7 +320,7 @@ fn info(plugin: &PluginInfo) -> Result<()> {
     let permissions: Vec<String> = plugin
         .grant
         .permissions
-        .iter()
+        .keys()
         .map(ToString::to_string)
         .collect();
     rows.push((

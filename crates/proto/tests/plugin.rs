@@ -16,13 +16,43 @@ fn api_version_matches_the_wit_package() {
 }
 
 mod manifest {
+    use std::collections::BTreeMap;
+
     use proto::error::EntryKind;
     use proto::plugin::{
         CommandArg, CommandArgKind, CommandContribution, CommandScope, Manifest, ManifestError,
-        PageContribution, PageSlot, Permission, Program, ProviderContribution,
-        ScheduleContribution, Setting, SettingKind, ThemeContribution, Tier, MAX_SCHEDULES,
-        MAX_SCHEDULE_SECS,
+        PageContribution, PageSlot, Permission, PermissionScope, Program, ProviderContribution,
+        ScheduleContribution, ScopeKind, Setting, SettingKind, ThemeContribution, Tier,
+        MAX_SCHEDULES, MAX_SCHEDULE_SECS,
     };
+
+    fn granting(permissions: &[Permission]) -> BTreeMap<Permission, PermissionScope> {
+        permissions
+            .iter()
+            .map(|permission| (*permission, PermissionScope::default()))
+            .collect()
+    }
+
+    fn scoped(kind: ScopeKind, entries: &[&str]) -> PermissionScope {
+        PermissionScope::of(kind, entries.iter().copied())
+    }
+
+    fn with_scope(
+        mut manifest: Manifest,
+        permission: Permission,
+        scope: PermissionScope,
+    ) -> Manifest {
+        manifest.permissions.insert(permission, scope);
+        manifest
+    }
+
+    fn reaching(hosts: &[&str]) -> Manifest {
+        with_scope(
+            valid(),
+            Permission::NetworkConnect,
+            scoped(ScopeKind::Hosts, hosts),
+        )
+    }
 
     /// The first error, in rule order.
     trait Verdict {
@@ -59,7 +89,7 @@ mod manifest {
     fn hooked(hook: &str, permissions: &[Permission]) -> Manifest {
         let mut manifest = valid();
         manifest.contributes.hooks.push(hook.into());
-        manifest.permissions = permissions.to_vec();
+        manifest.permissions = granting(permissions);
         manifest
     }
 
@@ -88,8 +118,11 @@ mod manifest {
     #[test]
     fn a_declared_launch_property_must_be_one_no_plugin_is_refused() {
         let declaring = |key: &str| {
-            let mut manifest = valid();
-            manifest.launch.properties.push(key.into());
+            let manifest = with_scope(
+                valid(),
+                Permission::LaunchPatch,
+                scoped(ScopeKind::Properties, &[key]),
+            );
             manifest.verdict()
         };
         assert_eq!(declaring("my.mod.flag"), Ok(()));
@@ -168,7 +201,9 @@ mod manifest {
             manifest.verdict(),
             Err(ManifestError::ThemeNeedsUiCss("dusk".into()))
         );
-        manifest.permissions.push(Permission::UiCss);
+        manifest
+            .permissions
+            .insert(Permission::UiCss, PermissionScope::default());
         assert_eq!(manifest.verdict(), Ok(()));
     }
 
@@ -306,12 +341,18 @@ mod manifest {
                 permission: Permission::ContentRead
             })
         );
-        manifest.permissions = vec![Permission::ContentRead, Permission::NetworkConnect];
+        manifest.permissions = granting(&[Permission::ContentRead, Permission::NetworkConnect]);
         assert_eq!(
             manifest.verdict(),
-            Err(ManifestError::ProviderNeedsHosts("index".into()))
+            Err(ManifestError::ScopeRequired {
+                permission: Permission::NetworkConnect,
+                kind: ScopeKind::Hosts
+            })
         );
-        manifest.network = vec!["index.example.com".into()];
+        manifest.permissions.insert(
+            Permission::NetworkConnect,
+            scoped(ScopeKind::Hosts, &["index.example.com"]),
+        );
         assert_eq!(manifest.verdict(), Ok(()));
         manifest.contributes.providers[0].kind = "mystery".into();
         assert_eq!(
@@ -327,7 +368,11 @@ mod manifest {
             kind: "flavor".into(),
             id: "quilt".into(),
         });
-        manifest.permissions = vec![Permission::ContentRead, Permission::NetworkConnect];
+        manifest.permissions = granting(&[Permission::ContentRead, Permission::NetworkConnect]);
+        manifest.permissions.insert(
+            Permission::NetworkConnect,
+            scoped(ScopeKind::Hosts, &["meta.quiltmc.org"]),
+        );
         assert_eq!(
             manifest.verdict(),
             Err(ManifestError::ProviderPermissionMissing {
@@ -335,12 +380,9 @@ mod manifest {
                 permission: Permission::FlavorProvide
             })
         );
-        manifest.permissions = vec![Permission::FlavorProvide, Permission::NetworkConnect];
-        assert_eq!(
-            manifest.verdict(),
-            Err(ManifestError::ProviderNeedsHosts("quilt".into()))
-        );
-        manifest.network = vec!["meta.quiltmc.org".into()];
+        manifest
+            .permissions
+            .insert(Permission::FlavorProvide, PermissionScope::default());
         assert_eq!(manifest.verdict(), Ok(()));
         assert_eq!(Permission::FlavorProvide.tier(), Tier::Unrestricted);
     }
@@ -352,7 +394,7 @@ mod manifest {
             kind: "format".into(),
             id: "prism".into(),
         });
-        manifest.permissions = vec![Permission::ContentRead];
+        manifest.permissions = granting(&[Permission::ContentRead]);
         assert_eq!(
             manifest.verdict(),
             Err(ManifestError::ProviderPermissionMissing {
@@ -360,7 +402,7 @@ mod manifest {
                 permission: Permission::FormatProvide
             })
         );
-        manifest.permissions = vec![Permission::FormatProvide];
+        manifest.permissions = granting(&[Permission::FormatProvide]);
         assert_eq!(manifest.verdict(), Ok(()));
         assert_eq!(Permission::FormatProvide.tier(), Tier::Unrestricted);
     }
@@ -372,7 +414,11 @@ mod manifest {
             kind: "java".into(),
             id: "zulu".into(),
         });
-        manifest.permissions = vec![Permission::FlavorProvide, Permission::NetworkConnect];
+        manifest.permissions = granting(&[Permission::FlavorProvide, Permission::NetworkConnect]);
+        manifest.permissions.insert(
+            Permission::NetworkConnect,
+            scoped(ScopeKind::Hosts, &["api.azul.com"]),
+        );
         assert_eq!(
             manifest.verdict(),
             Err(ManifestError::ProviderPermissionMissing {
@@ -380,8 +426,9 @@ mod manifest {
                 permission: Permission::JavaProvide
             })
         );
-        manifest.permissions = vec![Permission::JavaProvide, Permission::NetworkConnect];
-        manifest.network = vec!["api.azul.com".into()];
+        manifest
+            .permissions
+            .insert(Permission::JavaProvide, PermissionScope::default());
         assert_eq!(manifest.verdict(), Ok(()));
         assert_eq!(Permission::JavaProvide.tier(), Tier::Unrestricted);
     }
@@ -424,17 +471,11 @@ mod manifest {
             "*.user.github.io",
             "github.io",
         ] {
-            let manifest = Manifest {
-                network: vec![good.into()],
-                ..valid()
-            };
+            let manifest = reaching(&[good]);
             assert_eq!(manifest.verdict(), Ok(()), "{good}");
         }
         for bad in ["*.co.uk", "*.github.io", "*.CO.UK.", "*.s3.amazonaws.com"] {
-            let manifest = Manifest {
-                network: vec![bad.into()],
-                ..valid()
-            };
+            let manifest = reaching(&[bad]);
             assert_eq!(
                 manifest.verdict(),
                 Err(ManifestError::PublicSuffixWildcard(bad.into())),
@@ -469,10 +510,7 @@ mod manifest {
             "api.v2-x.io",
             "Example.COM.",
         ] {
-            let manifest = Manifest {
-                network: vec![good.into()],
-                ..valid()
-            };
+            let manifest = reaching(&[good]);
             assert_eq!(manifest.verdict(), Ok(()), "{good}");
         }
         for bad in [
@@ -492,10 +530,7 @@ mod manifest {
             "example.com:443",
             "*.*.com",
         ] {
-            let manifest = Manifest {
-                network: vec![bad.into()],
-                ..valid()
-            };
+            let manifest = reaching(&[bad]);
             assert_eq!(
                 manifest.verdict(),
                 Err(ManifestError::BadNetworkHost(bad.into())),
@@ -506,32 +541,34 @@ mod manifest {
 
     #[test]
     fn an_unhashed_host_must_be_a_network_host() {
-        let manifest = Manifest {
-            network: vec!["meta.example.com".into()],
-            unhashed: vec!["other.example.com".into()],
-            ..valid()
-        };
+        let mut network = scoped(ScopeKind::Hosts, &["meta.example.com"]);
+        network.extend(ScopeKind::Unhashed, ["other.example.com"]);
+        let manifest = with_scope(valid(), Permission::NetworkConnect, network);
         assert_eq!(
             manifest.verdict(),
             Err(ManifestError::BadUnhashedHost("other.example.com".into()))
         );
-        let declared = Manifest {
-            unhashed: vec!["meta.example.com".into()],
-            ..manifest
-        };
+        let mut network = scoped(ScopeKind::Hosts, &["meta.example.com"]);
+        network.extend(ScopeKind::Unhashed, ["meta.example.com"]);
+        let declared = with_scope(valid(), Permission::NetworkConnect, network);
         assert_eq!(declared.verdict(), Ok(()));
-        assert!(declared.grant().unhashed.contains("meta.example.com"));
+        assert!(declared
+            .grant()
+            .unhashed()
+            .any(|host| host == "meta.example.com"));
     }
 
     fn spawning(program: Program) -> Manifest {
-        Manifest {
-            permissions: vec![Permission::ProcessSpawn],
-            programs: vec![Program {
-                id: "agent".into(),
-                ..program
-            }],
-            ..valid()
-        }
+        let mut manifest = with_scope(
+            valid(),
+            Permission::ProcessSpawn,
+            scoped(ScopeKind::Programs, &["agent"]),
+        );
+        manifest.programs = vec![Program {
+            id: "agent".into(),
+            ..program
+        }];
+        manifest
     }
 
     fn path_program(command: &str, args: &[&str]) -> Program {
@@ -543,16 +580,25 @@ mod manifest {
     }
 
     #[test]
-    fn a_program_needs_the_spawn_permission() {
-        let manifest = Manifest {
-            permissions: vec![],
-            ..spawning(path_program("tailscale", &[]))
-        };
+    fn spawning_names_only_programs_the_manifest_defines() {
+        let mut manifest = spawning(path_program("tailscale", &[]));
+        assert_eq!(manifest.verdict(), Ok(()));
+        manifest.programs.clear();
         assert_eq!(
             manifest.verdict(),
-            Err(ManifestError::ProgramPermissionMissing)
+            Err(ManifestError::ProgramNotDefined("agent".into()))
         );
-        assert_eq!(spawning(path_program("tailscale", &[])).verdict(), Ok(()));
+        let mut empty = valid();
+        empty
+            .permissions
+            .insert(Permission::ProcessSpawn, PermissionScope::default());
+        assert_eq!(
+            empty.verdict(),
+            Err(ManifestError::ScopeRequired {
+                permission: Permission::ProcessSpawn,
+                kind: ScopeKind::Programs
+            })
+        );
     }
 
     #[test]
@@ -845,14 +891,15 @@ mod manifest {
 
     #[test]
     fn a_plugin_names_the_entry_files_it_reads() {
-        let reading = |files: &[&str], permissions: &[Permission]| Manifest {
-            files: files.iter().map(ToString::to_string).collect(),
-            permissions: permissions.to_vec(),
-            ..valid()
+        let reading = |files: &[&str]| {
+            with_scope(
+                valid(),
+                Permission::EntryRead,
+                scoped(ScopeKind::Files, files),
+            )
         };
-        let read = [Permission::EntryRead];
         assert_eq!(
-            reading(&["whitelist.json", "config/a.json"], &read).verdict(),
+            reading(&["whitelist.json", "config/a.json"]).verdict(),
             Ok(())
         );
         for bad in [
@@ -870,34 +917,46 @@ mod manifest {
             "Server.Properties",
         ] {
             assert_eq!(
-                reading(&[bad], &read).verdict(),
+                reading(&[bad]).verdict(),
                 Err(ManifestError::BadEntryFile(bad.into())),
                 "{bad:?}"
             );
         }
         assert_eq!(
-            reading(&["ops.json"], &[]).verdict(),
-            Err(ManifestError::FilesPermissionMissing)
+            with_scope(
+                valid(),
+                Permission::ContentRead,
+                scoped(ScopeKind::Files, &["ops.json"])
+            )
+            .verdict(),
+            Err(ManifestError::ScopeNotAccepted {
+                permission: Permission::ContentRead,
+                kind: ScopeKind::Files
+            })
         );
     }
 
     #[test]
     fn a_new_entry_file_widens_the_grant() {
-        let installed = Manifest {
-            files: vec!["ops.json".into()],
-            ..valid()
-        }
-        .grant();
-        let wider = Manifest {
-            files: vec!["ops.json".into(), "whitelist.json".into()],
-            ..valid()
-        }
-        .grant();
+        let reading = |files: &[&str]| {
+            with_scope(
+                valid(),
+                Permission::EntryRead,
+                scoped(ScopeKind::Files, files),
+            )
+            .grant()
+        };
+        let installed = reading(&["ops.json"]);
+        let wider = reading(&["ops.json", "whitelist.json"]);
         assert_eq!(
-            wider.widening_over(&installed).files,
-            ["whitelist.json".to_string()].into()
+            wider.widening_over(&installed).permissions,
+            [(
+                Permission::EntryRead,
+                scoped(ScopeKind::Files, &["whitelist.json"])
+            )]
+            .into()
         );
-        assert_eq!(installed.widening_over(&wider).files, Default::default());
+        assert!(!installed.widens(&wider));
         assert_ne!(
             wider.approval_digest(&Default::default()),
             installed.approval_digest(&Default::default())
@@ -925,8 +984,19 @@ mod manifest {
             id: "Bad Id".into(),
             version: "one".into(),
             api: None,
-            network: vec!["10.0.0.1".into()],
-            files: vec!["../ops.json".into()],
+            permissions: [
+                (
+                    Permission::NetworkConnect,
+                    scoped(ScopeKind::Hosts, &["10.0.0.1"]),
+                ),
+                (
+                    Permission::EntryRead,
+                    scoped(ScopeKind::Files, &["../ops.json"]),
+                ),
+                (Permission::ContentRead, scoped(ScopeKind::Files, &["a"])),
+                (Permission::IpcConnect, PermissionScope::default()),
+            ]
+            .into(),
             contributes: proto::plugin::Contributions {
                 hooks: vec!["on-tuesday".into()],
                 ..Default::default()
@@ -942,7 +1012,14 @@ mod manifest {
             ManifestError::MissingApi,
             ManifestError::BadNetworkHost("10.0.0.1".into()),
             ManifestError::BadEntryFile("../ops.json".into()),
-            ManifestError::FilesPermissionMissing,
+            ManifestError::ScopeNotAccepted {
+                permission: Permission::ContentRead,
+                kind: ScopeKind::Files,
+            },
+            ManifestError::ScopeRequired {
+                permission: Permission::IpcConnect,
+                kind: ScopeKind::Endpoints,
+            },
             ManifestError::UnknownHook("on-tuesday".into()),
         ] {
             assert!(
@@ -956,32 +1033,47 @@ mod manifest {
     #[test]
     fn widening_a_manifest_changes_its_grant() {
         let base = valid();
+        let spawns = |program: Program| {
+            let mut manifest = with_scope(
+                valid(),
+                Permission::ProcessSpawn,
+                scoped(ScopeKind::Programs, &["ts"]),
+            );
+            manifest.programs = vec![Program {
+                id: "ts".into(),
+                command: "tailscale".into(),
+                ..program
+            }];
+            manifest
+        };
         let widened: Vec<Manifest> = vec![
             Manifest {
-                permissions: vec![Permission::NetworkConnect],
+                permissions: granting(&[Permission::NetworkConnect]),
                 ..base.clone()
             },
-            Manifest {
-                network: vec!["example.com".into()],
-                ..base.clone()
-            },
-            Manifest {
-                programs: vec![Program {
-                    id: "ts".into(),
-                    command: "tailscale".into(),
-                    ..Program::default()
-                }],
-                ..base.clone()
-            },
-            Manifest {
-                programs: vec![Program {
-                    id: "ts".into(),
-                    command: "tailscale".into(),
-                    env: ["TOKEN".to_string()].into(),
-                    ..Program::default()
-                }],
-                ..base.clone()
-            },
+            reaching(&["example.com"]),
+            spawns(Program::default()),
+            spawns(Program {
+                env: ["TOKEN".to_string()].into(),
+                ..Program::default()
+            }),
+            spawns(Program {
+                args: vec!["status".into()],
+                ..Program::default()
+            }),
+            spawns(Program {
+                sha256: [("x86_64-unknown-linux-gnu".to_string(), "0".repeat(64))].into(),
+                ..Program::default()
+            }),
+            spawns(Program {
+                path: vec!["git".into()],
+                ..Program::default()
+            }),
+            spawns(Program {
+                command: String::new(),
+                java: Some(21),
+                ..Program::default()
+            }),
             Manifest {
                 settings: vec![Setting {
                     key: "key".into(),

@@ -5,7 +5,7 @@
 use std::sync::Arc;
 
 use engine::{LoadedPlugin, PluginRecord, PluginRuntime};
-use proto::plugin::Manifest;
+use proto::plugin::{Manifest, Permission, PermissionScope, ScopeKind};
 use sha2::{Digest, Sha256};
 
 use super::launch_hooks::NoHost;
@@ -31,8 +31,11 @@ fn load(
     .expect("runtime")
     .with_java(engine.clone());
     let mut grant = manifest.grant();
-    grant.network = hosts.iter().map(|host| host.to_string()).collect();
-    grant.unhashed = unhashed.iter().map(|host| host.to_string()).collect();
+    let mut network = PermissionScope::of(ScopeKind::Hosts, hosts.iter().copied());
+    network.extend(ScopeKind::Unhashed, unhashed.iter().copied());
+    grant
+        .permissions
+        .insert(Permission::NetworkConnect, network);
     let record = PluginRecord {
         id: manifest.id.clone(),
         wasm_sha256: Some(

@@ -12,7 +12,7 @@ use ipc::protocol::{Request, Response};
 use proto::change::{ChangedEvent, Scope};
 use proto::error::ErrorInfo;
 use proto::job::JobStarted;
-use proto::plugin::Permission;
+use proto::plugin::{Permission, Touched};
 use proto::Contract;
 use serde_json::Value;
 use tracing::Instrument;
@@ -54,9 +54,11 @@ type BoxFuture = Pin<Box<dyn Future<Output = Response> + Send>>;
 type Handler = Arc<dyn Fn(Request, HandlerContext) -> BoxFuture + Send + Sync>;
 
 /// How a plugin may reach a channel its contract opened to plugins.
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy)]
 pub struct PluginAccess {
     pub permission: Permission,
+    /// What a call's payload touches, for the narrowing its contract declares.
+    pub touched: fn(&Value) -> Touched,
     /// The channel starts a job (it answers `JobStarted`), so `host.run-job`
     /// can follow it to its end.
     pub job: bool,
@@ -149,6 +151,7 @@ impl<'r> Channels<'r> {
                 C::CHANNEL.to_string(),
                 PluginAccess {
                     permission,
+                    touched: C::touched,
                     job: TypeId::of::<C::Result>() == TypeId::of::<JobStarted>(),
                 },
             );

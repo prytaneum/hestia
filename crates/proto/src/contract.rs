@@ -10,7 +10,7 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
 use crate::change::Scope;
-use crate::plugin::Permission;
+use crate::plugin::{Permission, ScopeKind, Touched};
 
 /// How long a call waits for its reply unless its contract says otherwise; a
 /// wedged handler can't hang the caller forever.
@@ -32,8 +32,32 @@ pub trait Contract {
     /// channel unreachable from plugins, so a new contract is closed until it is
     /// classified ([0092](../../docs/decisions/0092-a-contract-names-the-permission-a-plugin-needs.md)).
     const PLUGIN: Option<Permission> = None;
+    /// The scope kind of [`Self::PLUGIN`] that narrows this channel for a
+    /// plugin, with [`Self::touches`] naming what a call reaches. The plugin
+    /// gate refuses a call whose touched entries the caller's scope does not
+    /// cover, so a narrowing is declared here and never hand-written in a
+    /// handler.
+    const NARROWED_BY: Option<ScopeKind> = None;
     type Params: Serialize + DeserializeOwned;
     type Result: Serialize + DeserializeOwned;
+
+    /// The entries of [`Self::NARROWED_BY`] this call reaches, such as the path
+    /// it reads.
+    fn touches(params: &Self::Params) -> Vec<String> {
+        let _ = params;
+        Vec::new()
+    }
+
+    /// What the plugin gate checks for this channel, read from its raw payload.
+    fn touched(payload: &serde_json::Value) -> Touched {
+        match Self::NARROWED_BY {
+            None => Touched::Unscoped,
+            Some(kind) => match serde_json::from_value::<Self::Params>(payload.clone()) {
+                Ok(params) => Touched::Items(kind, Self::touches(&params)),
+                Err(_) => Touched::Malformed,
+            },
+        }
+    }
 }
 
 /// A topic string for an unsolicited daemon→client event; the implementing type

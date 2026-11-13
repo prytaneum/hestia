@@ -1,11 +1,20 @@
+use proto::plugin::PermissionScope;
+
 use super::*;
 
 fn connections(permissions: &[Permission], ipc: &[&str]) -> Connections {
     Connections::new(
         "talker".into(),
         Arc::new(Grant {
-            permissions: permissions.iter().copied().collect(),
-            ipc: ipc.iter().map(|pattern| pattern.to_string()).collect(),
+            permissions: permissions
+                .iter()
+                .map(|permission| {
+                    (
+                        *permission,
+                        PermissionScope::of(ScopeKind::Endpoints, ipc.iter().copied()),
+                    )
+                })
+                .collect(),
             ..Grant::default()
         }),
     )

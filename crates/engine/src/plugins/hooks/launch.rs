@@ -1,8 +1,14 @@
+use std::collections::BTreeSet;
+
 use proto::hook::{self, HookPoint};
 
 use super::Hook;
 use crate::plugins::patch::LaunchPatch;
 use crate::plugins::runtime::LoadedPlugin;
+
+fn properties(plugin: &LoadedPlugin) -> BTreeSet<String> {
+    plugin.grant().properties().map(str::to_string).collect()
+}
 
 /// Just before a game launch. A plugin's answer is held to its own grant and
 /// the allowlist before it is folded in.
@@ -16,7 +22,7 @@ impl Hook for BeforeLaunch {
     fn vet(plugin: &LoadedPlugin, patch: <Self::Point as HookPoint>::Patch) -> LaunchPatch {
         LaunchPatch::vetted(
             plugin.id(),
-            &plugin.grant().launch_properties,
+            &properties(plugin),
             patch.extra_jvm_args,
             patch.extra_game_args,
         )
@@ -42,7 +48,7 @@ impl Hook for BeforeServerStart {
     fn vet(plugin: &LoadedPlugin, patch: <Self::Point as HookPoint>::Patch) -> LaunchPatch {
         LaunchPatch::vetted_for_server(
             plugin.id(),
-            &plugin.grant().launch_properties,
+            &properties(plugin),
             patch.extra_jvm_args,
             patch.extra_game_args,
         )

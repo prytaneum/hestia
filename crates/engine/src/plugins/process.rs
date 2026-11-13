@@ -288,7 +288,7 @@ impl Programs {
     }
 
     fn require_spawn(&self) -> Result<(), ProgramError> {
-        if self.grant.permissions.contains(&Permission::ProcessSpawn) {
+        if self.grant.holds(Permission::ProcessSpawn) {
             return Ok(());
         }
         Err(ProgramError::Denied(
@@ -311,15 +311,10 @@ impl Programs {
                     .into(),
             ));
         }
-        let program = self
-            .grant
-            .programs
-            .iter()
-            .find(|program| program.id == id)
-            .ok_or_else(|| {
-                tracing::warn!(plugin = %self.plugin, program = id, "undeclared program refused");
-                ProgramError::Denied(format!("`{id}` is not a program this plugin declares"))
-            })?;
+        let program = self.grant.program(id).ok_or_else(|| {
+            tracing::warn!(plugin = %self.plugin, program = id, "undeclared program refused");
+            ProgramError::Denied(format!("`{id}` is not a program this plugin declares"))
+        })?;
         if !program.permits(args) {
             tracing::warn!(plugin = %self.plugin, program = id, "arguments outside the declared patterns refused");
             return Err(ProgramError::Denied(format!(

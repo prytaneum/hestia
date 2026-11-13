@@ -292,7 +292,7 @@ impl Plugins {
             Some(installed) => {
                 self.check_update(installed, &manifest, intake.downloaded)?;
                 let moved = changed_pins(&installed.program_paths, &resolved, &manifest);
-                let widened = grant.widening_over(&installed.grant) != Grant::default();
+                let widened = grant.widens(&installed.grant);
                 if !widened && moved.is_empty() {
                     (
                         carried_pins(&installed.program_paths, &manifest),
@@ -476,10 +476,14 @@ mod tests {
         }
 
         fn package(&self, version: &str, extra: &str) -> Staged {
+            self.package_granting(version, "\"git\"", extra)
+        }
+
+        fn package_granting(&self, version: &str, granted: &str, extra: &str) -> Staged {
             let dir = self.folders.path().join(version);
             std::fs::create_dir_all(&dir).unwrap();
             let manifest = format!(
-                "id = \"demo\"\nname = \"Demo\"\nversion = \"{version}\"\napi = \"^1.0.0\"\nwasm = \"plugin.wasm\"\npermissions = [\"process:spawn\"]\n\n[[programs]]\nid = \"git\"\ncommand = \"git\"\nargs = [\"**\"]\n{extra}"
+                "id = \"demo\"\nname = \"Demo\"\nversion = \"{version}\"\napi = \"^1.0.0\"\nwasm = \"plugin.wasm\"\n\n[permissions]\n\"process:spawn\" = {{ programs = [{granted}] }}\n\n[[programs]]\nid = \"git\"\ncommand = \"git\"\nargs = [\"**\"]\n{extra}"
             );
             std::fs::write(dir.join(MANIFEST), manifest).unwrap();
             std::fs::write(dir.join("plugin.wasm"), version).unwrap();
@@ -688,8 +692,9 @@ mod tests {
     fn a_newly_declared_program_is_pinned_under_the_approved_digest() {
         let rig = Rig::new(at_a);
         rig.install(&rig.package("1.0.0", ""));
-        let next = rig.package(
+        let next = rig.package_granting(
             "1.1.0",
+            "\"git\", \"curl\"",
             "\n[[programs]]\nid = \"curl\"\ncommand = \"curl\"\nargs = [\"**\"]\n",
         );
 

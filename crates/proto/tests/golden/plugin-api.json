@@ -393,6 +393,7 @@
       "result": "Empty"
     },
     "server.files.read": {
+      "narrowedBy": "files",
       "params": "ServerFileParams",
       "permission": "entry:read",
       "result": "FileReadResult"

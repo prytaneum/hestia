@@ -8,7 +8,7 @@ use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
 use anyhow::{bail, Context, Result};
-use proto::plugin::{compare_versions, Grant, PluginSource};
+use proto::plugin::{compare_versions, PluginSource};
 use serde::{Deserialize, Serialize};
 
 use super::official::is_official_signer_in;
@@ -118,7 +118,7 @@ impl Plugins {
                     tracing::debug!(plugin = %id, %version, %current, "bundled plugin is not newer; kept");
                     return Ok((id, Outcome::Kept));
                 }
-                if inspection.grant.widening_over(&installed.grant) != Grant::default() {
+                if inspection.grant.widens(&installed.grant) {
                     bail!("{version} asks for more than {current} was approved for; update it to approve");
                 }
                 let moved = changed_pins(
@@ -304,7 +304,7 @@ mod tests {
             &official,
             "aa",
             "1.0.0",
-            "permissions = [\"entry:read\"]\n",
+            "[permissions]\n\"entry:read\" = {}\n",
         );
 
         let seeded = seed(&home, &official);
@@ -389,7 +389,7 @@ mod tests {
             &official,
             "aa",
             "2.0.0",
-            "permissions = [\"entry:read\"]\n",
+            "[permissions]\n\"entry:read\" = {}\n",
         );
 
         let seeded = seed(&home, &official);
@@ -420,7 +420,7 @@ mod tests {
         let tampered = bundle(&home, &official, "aa", "1.0.0", "");
         std::fs::write(
             &tampered,
-            archive("aa", "1.0.0", "permissions = [\"entry:write\"]\n"),
+            archive("aa", "1.0.0", "[permissions]\n\"entry:write\" = {}\n"),
         )
         .unwrap();
         let unsigned = bundle(&home, &official, "bb", "1.0.0", "");

@@ -231,7 +231,7 @@ mod tests {
         let fixture = fixture();
         let approved = install(&fixture).grant_digest;
 
-        let widened = format!("{MANIFEST_TEXT}permissions = [\"entry:read\"]\n");
+        let widened = format!("{MANIFEST_TEXT}[permissions]\n\"entry:read\" = {{}}\n");
         rewrite(fixture.folder.path(), MANIFEST, &widened, 60);
         let record = fixture.plugins.refresh_dev("demo").unwrap();
 

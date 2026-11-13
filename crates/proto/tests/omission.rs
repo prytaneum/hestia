@@ -11,7 +11,10 @@ use std::path::Path;
 fn only_an_option_is_omitted_from_the_wire() {
     let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
     let mut violations = Vec::new();
-    for entry in fs::read_dir(&dir).unwrap() {
+    for entry in fs::read_dir(&dir)
+        .unwrap()
+        .chain(fs::read_dir(dir.join("plugin")).unwrap())
+    {
         let path = entry.unwrap().path();
         if path.extension().and_then(|e| e.to_str()) != Some("rs") {
             continue;

@@ -2,8 +2,10 @@ id = "static-index"
 version = "0.1.0"
 api = "^1.0.0"
 wasm = "plugin.wasm"
-permissions = ["content:read", "network:connect"]
-network = ["index.example.com"]
+
+[permissions]
+"content:read" = {}
+"network:connect" = { hosts = ["index.example.com"] }
 
 [[contributes.providers]]
 kind = "content"

@@ -2,11 +2,11 @@
 //! or a Windows named pipe.
 //!
 //! The plugin needs the `ipc:connect` permission and must list each endpoint
-//! in the manifest's `ipc`, where a trailing `*` matches any plain characters:
+//! in its `endpoints`, where a trailing `*` matches any plain characters:
 //!
 //! ```toml
-//! permissions = ["ipc:connect"]
-//! ipc = ["chat-ipc-*"]
+//! [permissions]
+//! "ipc:connect" = { endpoints = ["chat-ipc-*"] }
 //! ```
 //!
 //! The host keeps a connection open across calls, while every call runs on a

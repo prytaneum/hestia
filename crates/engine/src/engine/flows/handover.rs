@@ -7,7 +7,6 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result};
 use proto::error::ErrorInfo;
 use proto::net::NetworkState;
-use proto::plugin::Grant;
 use sha2::{Digest, Sha256};
 
 use super::repository::{file_name, SIGNATURE_CAP};
@@ -100,7 +99,7 @@ impl Engine {
                 continue;
             };
             let asks_for_more = match self.plugins().declared_grant(package) {
-                Ok(grant) => grant.widening_over(&installed.grant) != Grant::default(),
+                Ok(grant) => grant.widens(&installed.grant),
                 Err(error) => {
                     tracing::warn!(plugin = %id, %error, "staged official build's grant cannot be read here");
                     true
@@ -286,7 +285,7 @@ mod tests {
         let official = Signer::new();
         install(&engine, "aa", "0.1.0", "1.0.0", &official);
         install(&engine, "bb", "0.1.0", "1.0.0", &official);
-        let (dir, wider) = staged_package(&engine, "aa", "permissions = [\"content:read\"]\n");
+        let (dir, wider) = staged_package(&engine, "aa", "[permissions]\n\"content:read\" = {}\n");
         let (_, same) = staged_package(&engine, "bb", "");
 
         let refusal = engine

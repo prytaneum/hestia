@@ -1601,13 +1601,13 @@ async fn a_cancelled_launch_stops_at_a_checkpoint() {
 
 fn plugin_manifest(network: &[&str]) -> String {
     let permissions = if network.is_empty() {
-        ""
+        String::new()
     } else {
-        "\"network:connect\""
+        format!("[permissions]\n\"network:connect\" = {{ hosts = {network:?} }}\n")
     };
     format!(
         "id = \"tunnel\"\nversion = \"1.0.0\"\napi = \"^{}\"\nwasm = \"plugin.wasm\"\n\
-         permissions = [{permissions}]\nnetwork = {network:?}\n",
+         {permissions}",
         proto::plugin::API_VERSION
     )
 }
@@ -1645,13 +1645,17 @@ fn a_reinstall_that_widens_the_grant_needs_its_own_approval() {
         ErrorInfo::PluginApprovalStale
     ));
     assert!(
-        plugins.read_manifest("tunnel").unwrap().network.is_empty(),
+        !plugins
+            .read_manifest("tunnel")
+            .unwrap()
+            .permissions
+            .contains_key(&proto::plugin::Permission::NetworkConnect),
         "the refused package is not installed"
     );
 
     let widened = plugins.inspect(source.path()).expect("inspect");
     let record = install_plugin(plugins, source.path(), &widened.grant_digest).expect("update");
-    assert!(record.grant.network.contains("api.example.com"));
+    assert!(record.grant.hosts().any(|host| host == "api.example.com"));
     assert!(kept.exists(), "an update keeps the plugin's data");
 }
 
@@ -1707,7 +1711,7 @@ mod launch_hooks {
     use async_trait::async_trait;
     use engine::{HostCalls, LoadedPlugin, PluginRecord, PluginRuntime, Roster};
     use proto::error::ErrorInfo;
-    use proto::plugin::{Grant, Permission};
+    use proto::plugin::{Grant, Permission, PermissionScope, ScopeKind, Touched};
     use proto::warning::WarningInfo;
     use serde_json::{json, Value};
     use sha2::{Digest, Sha256};
@@ -1720,6 +1724,10 @@ mod launch_hooks {
     impl HostCalls for NoHost {
         fn permission(&self, _channel: &str) -> Option<Permission> {
             None
+        }
+
+        fn touched(&self, _channel: &str, _payload: &Value) -> Touched {
+            Touched::Unscoped
         }
 
         async fn call(
@@ -1776,9 +1784,18 @@ mod launch_hooks {
                     .collect(),
             ),
             grant: Grant {
-                permissions: permissions.into(),
-                hooks: hooks.map(String::from).into(),
-                launch_properties: ["my.mod.flag".to_string()].into(),
+                permissions: permissions
+                    .map(|permission| {
+                        let scope = match permission {
+                            Permission::LaunchPatch => {
+                                PermissionScope::of(ScopeKind::Properties, ["my.mod.flag"])
+                            }
+                            _ => PermissionScope::default(),
+                        };
+                        (permission, scope)
+                    })
+                    .into(),
+                contributions: PermissionScope::of(ScopeKind::Hooks, hooks),
                 ..Grant::default()
             },
             ..PluginRecord::default()

@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use engine::{LoadedPlugin, PluginRecord, PluginRuntime};
 use proto::content::VersionQuery;
-use proto::plugin::Manifest;
+use proto::plugin::{Manifest, Permission, PermissionScope, ScopeKind};
 use sha2::{Digest, Sha256};
 
 use super::launch_hooks::NoHost;
@@ -33,7 +33,10 @@ pub(super) fn load(
     )
     .expect("runtime");
     let mut grant = manifest.grant();
-    grant.network = hosts.iter().map(|host| host.to_string()).collect();
+    grant.permissions.insert(
+        Permission::NetworkConnect,
+        PermissionScope::of(ScopeKind::Hosts, hosts.iter().copied()),
+    );
     let record = PluginRecord {
         id: manifest.id.clone(),
         wasm_sha256: Some(

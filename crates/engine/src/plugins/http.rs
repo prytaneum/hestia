@@ -12,7 +12,7 @@ use std::time::Duration;
 
 use http_body_util::{BodyExt, LengthLimitError, Limited};
 use proto::net::NetworkState;
-use proto::plugin::{network_matches, Grant, Permission};
+use proto::plugin::{Grant, Permission, ScopeKind};
 use reqwest::Url;
 use tracing::Level;
 use wasmtime_wasi_http::{Error, RequestOptions, WasiBody, WasiHttpHooks};
@@ -59,7 +59,7 @@ impl Refusal {
 /// The destination host, lowercased and without a trailing dot, when a plugin
 /// holding `grant` may request `url` while the daemon is (not) `offline`.
 pub fn authorize(grant: &Grant, url: &Url, offline: bool) -> Result<String, Refusal> {
-    if !grant.permissions.contains(&Permission::NetworkConnect) {
+    if !grant.holds(Permission::NetworkConnect) {
         return Err(Refusal::NotGranted);
     }
     if url.scheme() != "https" {
@@ -78,11 +78,7 @@ pub fn authorize(grant: &Grant, url: &Url, offline: bool) -> Result<String, Refu
         return Err(Refusal::IpLiteral);
     }
     let domain = domain.trim_end_matches('.').to_ascii_lowercase();
-    if !grant
-        .network
-        .iter()
-        .any(|entry| network_matches(entry, &domain))
-    {
+    if !grant.covers(Permission::NetworkConnect, ScopeKind::Hosts, &domain) {
         return Err(Refusal::HostNotGranted(domain));
     }
     if offline {
@@ -205,6 +201,8 @@ fn body_error(error: Box<dyn std::error::Error + Send + Sync>) -> Error {
 
 #[cfg(test)]
 mod tests {
+    use proto::plugin::PermissionScope;
+
     use super::*;
 
     #[test]
@@ -216,12 +214,15 @@ mod tests {
     }
 
     fn grant(hosts: &[&str], connect: bool) -> Grant {
+        if !connect {
+            return Grant::default();
+        }
         Grant {
-            permissions: connect
-                .then_some(Permission::NetworkConnect)
-                .into_iter()
-                .collect(),
-            network: hosts.iter().map(|host| host.to_string()).collect(),
+            permissions: [(
+                Permission::NetworkConnect,
+                PermissionScope::of(ScopeKind::Hosts, hosts.iter().copied()),
+            )]
+            .into(),
             ..Grant::default()
         }
     }

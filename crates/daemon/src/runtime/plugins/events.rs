@@ -10,7 +10,7 @@ use std::time::{Duration, Instant};
 use engine::{CallChain, CallError, HostCalls, LoadedPlugin, EVENT_TIMEOUT};
 use proto::events::topic_permission;
 use proto::glob::topic_matches;
-use proto::plugin::{Grant, PluginStateEvent, ScheduleEvent};
+use proto::plugin::{Grant, PluginStateEvent, ScheduleEvent, ScopeKind};
 use proto::Topic;
 use serde_json::{json, Value};
 use tokio::sync::Notify;
@@ -30,8 +30,7 @@ const TIMEOUTS_IN_A_ROW: u32 = 3;
 /// `plugin.state` needs none but is cut to its id and state.
 pub fn admit(grant: &Grant, host: &dyn HostCalls, topic: &str, payload: &Value) -> Option<Value> {
     if !grant
-        .events
-        .iter()
+        .contributed(ScopeKind::Events)
         .any(|pattern| topic_matches(pattern, topic))
     {
         return None;
@@ -45,7 +44,7 @@ pub fn admit(grant: &Grant, host: &dyn HostCalls, topic: &str, payload: &Value) 
         topic_permission(topic, payload)
     };
     needed
-        .is_some_and(|permission| grant.permissions.contains(&permission))
+        .is_some_and(|permission| grant.holds(permission))
         .then(|| payload.clone())
 }
 
@@ -146,7 +145,13 @@ impl Delivery {
         host: Arc<dyn HostCalls>,
         loaded: Arc<LoadedPlugin>,
     ) -> Option<Delivery> {
-        if loaded.grant().events.is_empty() && loaded.grant().schedules.is_empty() {
+        let subscribed = loaded.grant();
+        if subscribed.contributed(ScopeKind::Events).next().is_none()
+            && subscribed
+                .contributed(ScopeKind::Schedules)
+                .next()
+                .is_none()
+        {
             return None;
         }
         let key = format!("plugin:{}:{}", loaded.id(), hub.next_subscriber_id());
@@ -165,8 +170,7 @@ impl Delivery {
             }),
         );
         let mut tasks: Vec<_> = grant
-            .schedules
-            .iter()
+            .schedules()
             .map(|schedule| {
                 tokio::spawn(tick(
                     inbox.clone(),
@@ -238,7 +242,7 @@ async fn drain(inbox: Arc<Inbox>, plugin: Arc<LoadedPlugin>, hub: Arc<EventHub>,
 mod tests {
     use async_trait::async_trait;
     use proto::error::ErrorInfo;
-    use proto::plugin::Permission;
+    use proto::plugin::{Permission, PermissionScope, Touched};
 
     use super::*;
 
@@ -248,6 +252,10 @@ mod tests {
     impl HostCalls for Channels {
         fn permission(&self, channel: &str) -> Option<Permission> {
             (channel == "content.search").then_some(Permission::ContentRead)
+        }
+
+        fn touched(&self, _channel: &str, _payload: &Value) -> Touched {
+            Touched::Unscoped
         }
 
         async fn call(
@@ -273,8 +281,11 @@ mod tests {
 
     fn grant(events: &[&str], permissions: &[Permission]) -> Grant {
         Grant {
-            events: events.iter().map(|e| e.to_string()).collect(),
-            permissions: permissions.iter().copied().collect(),
+            contributions: PermissionScope::of(ScopeKind::Events, events.iter().copied()),
+            permissions: permissions
+                .iter()
+                .map(|permission| (*permission, PermissionScope::default()))
+                .collect(),
             ..Grant::default()
         }
     }

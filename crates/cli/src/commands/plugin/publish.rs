@@ -186,7 +186,7 @@ fn build_index(
                 icon: plugin.path.join(&icon).is_file().then_some(icon),
                 path: format!("{PLUGINS_DIR}/{}", plugin.dir_name),
                 version: manifest.version.clone(),
-                permissions: manifest.permissions.clone(),
+                permissions: manifest.permissions.keys().copied().collect(),
                 commit: source.commit.clone(),
                 builds: packages
                     .iter()

@@ -1,15 +1,15 @@
 use proto::error::ErrorInfo;
-use proto::plugin::{Grant, Permission};
+use proto::plugin::{Grant, Permission, PermissionScope, ScopeKind};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
 
 use super::*;
 
 fn grant(network: &[&str], unhashed: &[&str]) -> Grant {
+    let mut scope = PermissionScope::of(ScopeKind::Hosts, network.iter().copied());
+    scope.extend(ScopeKind::Unhashed, unhashed.iter().copied());
     Grant {
-        permissions: [Permission::NetworkConnect].into(),
-        network: network.iter().map(|host| host.to_string()).collect(),
-        unhashed: unhashed.iter().map(|host| host.to_string()).collect(),
+        permissions: [(Permission::NetworkConnect, scope)].into(),
         ..Grant::default()
     }
 }

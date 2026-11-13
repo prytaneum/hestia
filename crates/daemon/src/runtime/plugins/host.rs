@@ -5,7 +5,7 @@ use engine::{CallChain, HostCalls};
 use ipc::protocol::{decode_event, Request};
 use proto::error::ErrorInfo;
 use proto::job::{JobEvent, JobStarted, JobState};
-use proto::plugin::{Permission, PluginLogEvent};
+use proto::plugin::{Permission, PluginLogEvent, Touched};
 use serde_json::Value;
 use tokio::sync::mpsc::unbounded_channel;
 
@@ -88,6 +88,12 @@ impl HostCalls for RouterHost {
         self.router
             .plugin_access(channel)
             .map(|access| access.permission)
+    }
+
+    fn touched(&self, channel: &str, payload: &Value) -> Touched {
+        self.router
+            .plugin_access(channel)
+            .map_or(Touched::Malformed, |access| (access.touched)(payload))
     }
 
     async fn call(

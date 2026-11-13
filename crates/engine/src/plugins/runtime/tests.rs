@@ -1,10 +1,9 @@
-use std::collections::BTreeSet;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use async_trait::async_trait;
-use proto::plugin::{Grant, Permission};
+use proto::plugin::{Grant, Permission, PermissionScope, Touched};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 
@@ -157,6 +156,10 @@ impl HostCalls for TestHost {
         self.permission
     }
 
+    fn touched(&self, _channel: &str, _payload: &Value) -> Touched {
+        Touched::Unscoped
+    }
+
     async fn call(
         &self,
         _plugin: &str,
@@ -192,7 +195,10 @@ fn record(wasm: &[u8], permissions: &[Permission]) -> PluginRecord {
         id: "probe".into(),
         wasm_sha256: Some(hex(&Sha256::digest(wasm))),
         grant: Grant {
-            permissions: permissions.iter().copied().collect::<BTreeSet<_>>(),
+            permissions: permissions
+                .iter()
+                .map(|permission| (*permission, PermissionScope::default()))
+                .collect(),
             ..Grant::default()
         },
         ..PluginRecord::default()

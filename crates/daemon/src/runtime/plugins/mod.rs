@@ -437,13 +437,6 @@ impl Plugins {
         Ok((command, self.running(id)?))
     }
 
-    /// Whether the running plugin `id` holds `path` among the entry files it
-    /// was granted. The match is exact: a grant lists normalised paths only.
-    pub fn grants_file(&self, id: &str, path: &str) -> bool {
-        self.running(id)
-            .is_ok_and(|loaded| loaded.grant().files.contains(path))
-    }
-
     /// The plugin's declared settings; a secret reports only whether it is set.
     pub async fn settings(&self, id: &str) -> ServiceResult<Vec<SettingValue>> {
         self.record(id)?;

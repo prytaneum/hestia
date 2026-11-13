@@ -6,7 +6,9 @@ use std::future::Future;
 
 use anyhow::Result;
 use proto::net::NetworkState;
-use proto::plugin::{compare_versions, Grant, Outdated, OutdatedPlugin, PluginInstallPhase};
+use proto::plugin::{
+    compare_versions, Grant, Outdated, OutdatedPlugin, PermissionScope, PluginInstallPhase,
+};
 use proto::repository::IndexedPlugin;
 
 use super::catalogue::{best, pick, Installed, Pick, Source};
@@ -160,7 +162,8 @@ fn offer(source: &Source, plugin: &IndexedPlugin, record: &Installed) -> Option<
                 .permissions
                 .iter()
                 .copied()
-                .filter(|permission| !record.grant.permissions.contains(permission))
+                .filter(|permission| !record.grant.holds(*permission))
+                .map(|permission| (permission, PermissionScope::default()))
                 .collect(),
             ..Grant::default()
         },
@@ -335,11 +338,14 @@ mod tests {
             index.plugins[0].permissions = vec![Permission::EntryRead, Permission::EntryWrite];
         })];
         let mut record = installed("aa", "0.1.0", &key);
-        record.grant.permissions.insert(Permission::EntryRead);
+        record
+            .grant
+            .permissions
+            .insert(Permission::EntryRead, PermissionScope::default());
 
         let found = outdated(&sources, &[record]);
 
-        let widened: Vec<_> = found[0].widened.permissions.iter().collect();
+        let widened: Vec<_> = found[0].widened.permissions.keys().collect();
         assert_eq!(widened, [&Permission::EntryWrite]);
     }
 
@@ -377,7 +383,10 @@ mod tests {
         let official = Signer::new().key();
         let installed = [installed("aa", "0.1.0", &official)];
         let mut widened = offer("aa");
-        widened.widened.permissions.insert(Permission::EntryWrite);
+        widened
+            .widened
+            .permissions
+            .insert(Permission::EntryWrite, PermissionScope::default());
 
         let found = auto_updatable(&outdated_of(vec![widened]), &installed, &[&official]);
 

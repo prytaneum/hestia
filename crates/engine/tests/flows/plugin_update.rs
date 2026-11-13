@@ -11,12 +11,14 @@ use super::*;
 const SIGNER: &str = "KEY";
 
 fn manifest(version: &str, permissions: &[Permission]) -> String {
-    let permissions: Vec<String> = permissions.iter().map(|p| format!("\"{p}\"")).collect();
+    let permissions: String = permissions
+        .iter()
+        .map(|permission| format!("\"{permission}\" = {{}}\n"))
+        .collect();
     format!(
         "id = \"tunnel\"\nversion = \"{version}\"\napi = \"^{}\"\nwasm = \"plugin.wasm\"\n\
-         permissions = [{}]\n",
+         [permissions]\n{permissions}",
         proto::plugin::API_VERSION,
-        permissions.join(", ")
     )
 }
 
@@ -222,8 +224,7 @@ async fn a_widened_grant_waits_for_approval_and_changes_nothing() {
         .get("tunnel")
         .unwrap()
         .grant
-        .permissions
-        .contains(&Permission::EntryRead));
+        .holds(Permission::EntryRead));
 }
 
 #[tokio::test]

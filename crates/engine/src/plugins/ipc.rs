@@ -9,7 +9,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use proto::plugin::{ipc_matches, Grant, Permission};
+use proto::plugin::{Grant, Permission, ScopeKind};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 
 const MAX_CONNECTIONS: usize = 8;
@@ -53,7 +53,7 @@ impl Connections {
     }
 
     fn allowed(&self) -> Result<(), IpcError> {
-        if self.grant.permissions.contains(&Permission::IpcConnect) {
+        if self.grant.holds(Permission::IpcConnect) {
             return Ok(());
         }
         Err(IpcError::Denied(
@@ -75,9 +75,7 @@ impl Connections {
         self.allowed()?;
         if !self
             .grant
-            .ipc
-            .iter()
-            .any(|pattern| ipc_matches(pattern, endpoint))
+            .covers(Permission::IpcConnect, ScopeKind::Endpoints, endpoint)
         {
             return Err(IpcError::Denied(format!(
                 "`{endpoint}` is not an endpoint this plugin declares"

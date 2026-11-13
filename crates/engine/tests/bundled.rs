@@ -9,7 +9,7 @@ use async_trait::async_trait;
 use engine::{Approver, CallChain, HostCalls, PluginRuntime, Plugins, ProcessSupervisor};
 use minisign::KeyPair;
 use proto::error::ErrorInfo;
-use proto::plugin::{Permission, API_VERSION};
+use proto::plugin::{Permission, Touched, API_VERSION};
 use proto::repository::build_comment;
 use serde_json::Value;
 use zip::write::SimpleFileOptions;
@@ -22,6 +22,10 @@ struct NoChannels;
 impl HostCalls for NoChannels {
     fn permission(&self, _channel: &str) -> Option<Permission> {
         None
+    }
+
+    fn touched(&self, _channel: &str, _payload: &Value) -> Touched {
+        Touched::Unscoped
     }
 
     async fn call(

@@ -408,7 +408,7 @@ impl Engine {
             .into());
         }
         let listed: BTreeSet<_> = plugin.permissions.iter().collect();
-        let asked: BTreeSet<_> = manifest.permissions.iter().collect();
+        let asked: BTreeSet<_> = manifest.permissions.keys().collect();
         let disagree = build.version == plugin.version && listed != asked;
         if disagree {
             tracing::warn!(plugin = %plugin.id, repository = %entry.url, "index permissions differ from the package");

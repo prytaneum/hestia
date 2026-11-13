@@ -11,7 +11,10 @@ use std::path::Path;
 fn every_wire_struct_is_camel_case() {
     let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
     let mut violations = Vec::new();
-    for entry in fs::read_dir(&dir).unwrap() {
+    for entry in fs::read_dir(&dir)
+        .unwrap()
+        .chain(fs::read_dir(dir.join("plugin")).unwrap())
+    {
         let path = entry.unwrap().path();
         if path.extension().and_then(|e| e.to_str()) != Some("rs") {
             continue;

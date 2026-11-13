@@ -144,7 +144,7 @@ pub(super) fn register(
 
 #[cfg(test)]
 mod tests {
-    use proto::plugin::{Grant, Permission};
+    use proto::plugin::{Grant, Permission, PermissionScope, ScopeKind};
 
     use super::*;
 
@@ -152,8 +152,11 @@ mod tests {
 
     fn policy() -> Arc<Policy> {
         Arc::new(Policy::new(&Grant {
-            permissions: [Permission::NetworkConnect].into(),
-            network: ["api.azul.com".to_string()].into(),
+            permissions: [(
+                Permission::NetworkConnect,
+                PermissionScope::of(ScopeKind::Hosts, ["api.azul.com"]),
+            )]
+            .into(),
             ..Grant::default()
         }))
     }

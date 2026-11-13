@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use proto::error::ErrorInfo;
-use proto::plugin::{Grant, Permission, PluginRunProgress};
+use proto::plugin::{Grant, Permission, PluginRunProgress, Touched};
 use serde_json::Value;
 use tokio::sync::watch;
 use tracing::Level;
@@ -38,6 +38,10 @@ use bindings::hestia::plugin::types::PluginError;
 pub trait HostCalls: Send + Sync {
     /// The permission `channel` needs, or `None` when plugins may not reach it.
     fn permission(&self, channel: &str) -> Option<Permission>;
+
+    /// What a call to `channel` with `payload` touches, for the narrowing its
+    /// contract declares; [`Touched::Unscoped`] when it declares none.
+    fn touched(&self, channel: &str, payload: &Value) -> Touched;
 
     /// `chain` already includes `plugin`; the daemon carries it in the request
     /// it synthesises so anything that fires a plugin in turn can refuse a loop.
@@ -141,7 +145,7 @@ impl Gate {
                 "channel `{channel}` is not available to plugins"
             )));
         };
-        if !self.grant.permissions.contains(&needed) {
+        if !self.grant.holds(needed) {
             self.log.line(
                 Level::WARN,
                 &format!("lacks the permission for channel `{channel}`"),
@@ -152,6 +156,30 @@ impl Gate {
         }
         let payload: Value = serde_json::from_str(payload)
             .map_err(|error| PluginError::Invalid(format!("payload is not JSON: {error}")))?;
+        match self.host.touched(channel, &payload) {
+            Touched::Unscoped => {}
+            Touched::Malformed => {
+                return Err(PluginError::Invalid(format!(
+                    "payload does not fit channel `{channel}`"
+                )))
+            }
+            Touched::Items(kind, items) => {
+                if let Some(item) = items
+                    .iter()
+                    .find(|item| !self.grant.covers(needed, kind, item))
+                {
+                    self.log.line(
+                        Level::WARN,
+                        &format!(
+                            "reached `{item}` through `{channel}`, outside its `{needed}` scope"
+                        ),
+                    );
+                    return Err(PluginError::Denied(format!(
+                        "channel `{channel}` may not reach `{item}`: it is not in the `{kind}` of `{needed}`"
+                    )));
+                }
+            }
+        }
         let reply = match kind {
             Dispatch::Call => {
                 self.host

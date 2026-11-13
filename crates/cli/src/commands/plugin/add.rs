@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 
 use anyhow::{bail, Context, Result};
 use client::proto::catalogue::{Availability, CatalogueParams, CataloguePlugin};
-use client::proto::plugin::{Grant, Permission, PluginInspection, Tier};
+use client::proto::plugin::{Grant, PermissionScope, PluginInspection, Tier};
 
 use super::{browse, store};
 use crate::ui::{self, Spinner, View};
@@ -226,31 +226,19 @@ fn resolve(path: &str) -> Result<String> {
 pub(super) fn show_grant(inspection: &PluginInspection) -> Result<()> {
     let manifest = &inspection.manifest;
     let (heading, grant) = match &inspection.replaces {
-        Some(installed) => {
-            let mut shown = inspection.widened.clone();
-            shown.programs.extend(
-                inspection
-                    .grant
-                    .programs
-                    .iter()
-                    .filter(|program| inspection.program_paths.contains_key(&program.id))
-                    .cloned(),
-            );
-            (
-                format!(
-                    "update '{}' {} → {}",
-                    manifest.id, installed.manifest.version, manifest.version
-                ),
-                shown,
-            )
-        }
+        Some(installed) => (
+            format!(
+                "update '{}' {} → {}",
+                manifest.id, installed.manifest.version, manifest.version
+            ),
+            &inspection.widened,
+        ),
         None => (
             format!("install '{}' {}", manifest.id, manifest.version),
-            inspection.grant.clone(),
+            &inspection.grant,
         ),
     };
     ui::show(View::line(heading))?;
-    let grant = &grant;
     let rows = grant_rows(grant, &inspection.program_paths);
     if rows.is_empty() {
         return ui::show(View::note(match inspection.replaces {
@@ -258,11 +246,7 @@ pub(super) fn show_grant(inspection: &PluginInspection) -> Result<()> {
             None => "asks for no permissions",
         }));
     }
-    if grant
-        .permissions
-        .iter()
-        .any(|permission| permission.tier() == Tier::Unrestricted)
-    {
+    if !grant.unrestricted().is_empty() {
         ui::show(View::warning("asks for full access to your computer"))?;
     }
     ui::show(View::detail(rows))
@@ -272,62 +256,34 @@ fn grant_rows(
     grant: &Grant,
     program_paths: &BTreeMap<String, String>,
 ) -> Vec<(&'static str, String)> {
-    let (unrestricted, sandboxed): (Vec<&Permission>, Vec<&Permission>) = grant
+    let (unrestricted, sandboxed): (Vec<_>, Vec<_>) = grant
         .permissions
         .iter()
-        .partition(|permission| permission.tier() == Tier::Unrestricted);
-    let line = |permission: &Permission| format!("{permission} — {}", permission.description());
-    let mut rows: Vec<(&'static str, String)> = unrestricted
-        .into_iter()
-        .map(|permission| ("Full access", line(permission)))
-        .chain(
-            sandboxed
-                .into_iter()
-                .map(|permission| ("Permission", line(permission))),
-        )
-        .collect();
-    rows.extend(grant.programs.iter().map(|program| {
-        let mut line = std::iter::once(&program.command_label())
-            .chain(&program.args)
-            .cloned()
-            .collect::<Vec<_>>()
-            .join(" ");
-        if !program.env.is_empty() {
-            let env: Vec<&str> = program.env.iter().map(String::as_str).collect();
-            line = format!("{line} (env: {})", env.join(", "));
-        }
-        if !program.path.is_empty() {
-            line = format!("{line} (PATH: {})", program.path.join(", "));
-        }
-        if let Some(path) = program_paths.get(&program.id) {
-            line = format!("{line} → {path}");
-        }
-        ("Program", format!("{}: {line}", program.id))
-    }));
-    rows.extend(grant.schedules.iter().map(|schedule| {
-        (
-            "Schedule",
-            format!("{}: every {} s", schedule.id, schedule.every),
-        )
-    }));
-    let lists = [
-        ("Network", &grant.network),
-        ("Unchecked downloads from", &grant.unhashed),
-        ("Local endpoints", &grant.ipc),
-        ("Entry files", &grant.files),
-        ("Launch properties", &grant.launch_properties),
-        ("Hooks", &grant.hooks),
-        ("Events", &grant.events),
-        ("Secret settings", &grant.secret_settings),
-        ("Themes", &grant.ui_css),
-    ];
-    for (label, items) in lists {
-        if !items.is_empty() {
-            let items: Vec<&str> = items.iter().map(String::as_str).collect();
-            rows.push((label, items.join(", ")));
+        .partition(|(permission, _)| permission.tier() == Tier::Unrestricted);
+    let mut rows = Vec::new();
+    for (heading, permissions) in [("Full access", unrestricted), ("Permission", sandboxed)] {
+        for (permission, scope) in permissions {
+            rows.push((
+                heading,
+                format!("{permission} — {}", permission.description()),
+            ));
+            rows.extend(scope_rows(scope));
         }
     }
+    rows.extend(scope_rows(&grant.contributions));
+    rows.extend(
+        program_paths
+            .iter()
+            .map(|(id, path)| ("Pinned", format!("{id} → {path}"))),
+    );
     rows
+}
+
+fn scope_rows(scope: &PermissionScope) -> impl Iterator<Item = (&'static str, String)> + '_ {
+    scope.iter().map(|(kind, entries)| {
+        let entries: Vec<&str> = entries.iter().map(String::as_str).collect();
+        (kind.label(), entries.join(", "))
+    })
 }
 
 #[cfg(test)]
