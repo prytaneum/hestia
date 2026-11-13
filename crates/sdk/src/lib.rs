@@ -23,6 +23,7 @@ mod call;
 mod command;
 pub mod data;
 mod error;
+pub mod hash;
 pub mod hooks;
 pub mod http;
 pub mod ipc;

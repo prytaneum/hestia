@@ -60,6 +60,7 @@ command reference is in [cli.md](../cli.md#launcher-plugins).
 | [manifest.md](manifest.md) | every `plugin.toml` field and what validation refuses |
 | [permissions.md](permissions.md) | the permissions, the tiers, declared programs and local endpoints |
 | [commands.md](commands.md) | contributed commands: arguments, scopes, progress, cancel, how the CLI and desktop run them |
+| [http.md](http.md) | outbound HTTP, URLs, status errors and hashes |
 | [events.md](events.md) | subscribing to daemon events, delivery rules and schedules |
 | [hooks.md](hooks.md) | adjusting or vetoing a launch, a server start or a content install |
 | [providers.md](providers.md) | adding content sources, flavors, archive formats and Java distributions |

@@ -608,6 +608,12 @@ provider kind is data in `proto`, not a new interface. `hestia-sdk` wraps the
 exports in a `Plugin` trait with default methods, and `intercept`/`provide`
 route a request to typed handlers with `.on::<Point>(…)` and `.on::<Op>(…)`.
 
+`hestia::http` is a small client over `wasi:http`: a `Request` builder, a `Response` with headers and status classes, a
+`Url` builder with percent-encoding, and `Response::error_for_status`, the one place a status becomes a typed `Error`
+(`404` not found, `429` rate limited with its `Retry-After`, anything else upstream; `401` and `403` stay upstream for
+the plugin to map). The mapping is pure and tested natively. `hestia::hash` gives `sha1`, `sha256` and `sha512` as hex,
+over the `sha1` and `sha2` crates the engine already uses.
+
 The API changes by caret semver: additive bumps the minor, breaking the major, and
 the host never serves two versions. `crates/proto/tests/plugin_api.rs` snapshots
 every plugin-reachable contract and topic, every hook point and provider

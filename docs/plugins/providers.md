@@ -262,4 +262,4 @@ for arguments it cannot use, and the case that says what happened for anything e
 
 `hestia::http` already returns `Error::Offline` for a request that timed out or found no route, so passing it up with `?`
 reports the provider offline; a refused request is `Error::Denied` and an answered one is the plugin's to judge, such
-as `Error::Upstream` for a 503. Keep every message free of tokens and secrets.
+as `Error::Upstream` for a 503; `response.error_for_status()?` does that mapping ([http.md](http.md#from-a-status-to-an-error)). Keep every message free of tokens and secrets.

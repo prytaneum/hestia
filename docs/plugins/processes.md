@@ -85,7 +85,7 @@ an agent that is not on `PATH` is fetched at run time into `data/`. The host cop
 
 The hash is in the manifest, so the plugin can run exactly the build it declared: publishing a new agent version means
 shipping a new plugin version with the new hashes, which asks the user to approve again. No example plugin downloads an
-agent; the SDK has no download helper, only the calls above.
+agent; the SDK has `hestia::http` for the download and `hestia::hash::file` to check it, but no one-call helper.
 
 ## `exec` and `spawn`
 
