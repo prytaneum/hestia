@@ -5,6 +5,7 @@
 
 use std::collections::BTreeMap;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -27,10 +28,16 @@ use crate::fixture::probe;
 
 const CALL_BUDGET: Duration = Duration::from_secs(30);
 
-struct ReadChannels;
+struct ReadChannels {
+    setting_changes: Arc<AtomicUsize>,
+}
 
 #[async_trait]
 impl HostCalls for ReadChannels {
+    fn setting_changed(&self, _plugin: &str) {
+        self.setting_changes.fetch_add(1, Ordering::Relaxed);
+    }
+
     fn permission(&self, channel: &str) -> Option<Permission> {
         matches!(
             channel,
@@ -85,6 +92,7 @@ struct Probe {
     data: tempfile::TempDir,
     #[cfg_attr(not(unix), allow(dead_code))]
     supervisor: Arc<ProcessSupervisor>,
+    changes: Arc<AtomicUsize>,
 }
 
 impl Probe {
@@ -115,8 +123,11 @@ impl Probe {
         let wasm = std::fs::read(probe::component()).unwrap();
         let data = tempfile::tempdir().unwrap();
         let supervisor = Arc::new(ProcessSupervisor::new(data.path().join("processes")));
+        let changes = Arc::new(AtomicUsize::new(0));
         let runtime = PluginRuntime::new(
-            Arc::new(ReadChannels),
+            Arc::new(ReadChannels {
+                setting_changes: changes.clone(),
+            }),
             data.path().join("cache"),
             supervisor.clone(),
         )
@@ -141,6 +152,7 @@ impl Probe {
             plugin,
             data,
             supervisor,
+            changes,
         }
     }
 
@@ -620,6 +632,201 @@ async fn a_set_setting_reaches_the_guest_and_only_its_own_plugin_reads_it() {
     assert!(own.list()[0].value.is_none());
 }
 
+#[tokio::test]
+async fn a_plugin_sets_its_own_declared_settings_and_is_not_told_of_its_own_write() {
+    let probe = Probe::load(&[]);
+    async fn call(probe: &Probe, key: &str, value: Value) -> Result<Value, CallError> {
+        let args = json!({ "key": key, "value": value });
+        probe
+            .run("set-setting", args, &Cancel::new(), GRACE)
+            .await
+            .0
+    }
+    let own = PluginSettings::new(probe.data.path().join("settings.json"), declared_settings());
+
+    call(&probe, "api-key", json!("s3cret")).await.unwrap();
+    assert_eq!(own.get("api-key"), Some(json!("s3cret")));
+    assert!(own.list()[0].set && own.list()[0].value.is_none());
+    assert_eq!(probe.changes.load(Ordering::Relaxed), 1);
+
+    let wrong_kind = call(&probe, "api-key", json!(7)).await;
+    assert!(
+        matches!(wrong_kind, Err(CallError::Guest(GuestError::Invalid(_)))),
+        "{wrong_kind:?}"
+    );
+    let undeclared = call(&probe, "nope", json!(1)).await;
+    assert!(
+        matches!(undeclared, Err(CallError::Guest(GuestError::NotFound(_)))),
+        "{undeclared:?}"
+    );
+    assert_eq!(own.get("api-key"), Some(json!("s3cret")));
+    assert_eq!(probe.changes.load(Ordering::Relaxed), 1);
+
+    call(&probe, "api-key", Value::Null).await.unwrap();
+    assert_eq!(own.get("api-key"), None);
+    assert!(!probe
+        .data
+        .path()
+        .join("data/settings-changed.json")
+        .exists());
+}
+
+mod locking {
+    use super::*;
+
+    async fn bump(probe: &Probe, args: Value) -> Result<Value, CallError> {
+        probe.run("bump", args, &Cancel::new(), GRACE).await.0
+    }
+
+    fn counter(probe: &Probe) -> Value {
+        let bytes = std::fs::read(probe.data.path().join("data/counter.json")).unwrap();
+        serde_json::from_slice(&bytes).unwrap()
+    }
+
+    #[tokio::test]
+    async fn overlapping_updates_of_one_key_all_land() {
+        let probe = Probe::load(&[]);
+        let args = json!({ "name": "counter", "pauseMs": 20 });
+        let calls = (0..8).map(|_| bump(&probe, args.clone()));
+
+        let outcomes = futures_util::future::join_all(calls).await;
+
+        let mut seen: Vec<u64> = outcomes
+            .into_iter()
+            .map(|outcome| outcome.unwrap().as_u64().unwrap())
+            .collect();
+        seen.sort_unstable();
+        assert_eq!(seen, (1..=8).collect::<Vec<_>>());
+        assert_eq!(counter(&probe), json!(8));
+    }
+
+    #[tokio::test]
+    async fn different_keys_do_not_wait_for_each_other() {
+        let probe = Probe::load(&[]);
+        let slow = bump(&probe, json!({ "name": "slow", "pauseMs": 400 }));
+        let quick = async {
+            tokio::time::sleep(Duration::from_millis(100)).await;
+            let started = std::time::Instant::now();
+            bump(&probe, json!({ "name": "counter" })).await.unwrap();
+            started.elapsed()
+        };
+        let (slow, quick) = tokio::join!(slow, quick);
+        slow.unwrap();
+        assert!(quick < Duration::from_millis(300), "{quick:?}");
+    }
+
+    #[tokio::test]
+    async fn a_trap_releases_the_lock() {
+        let probe = Probe::load(&[]);
+        let trapped = bump(&probe, json!({ "name": "counter", "trap": true })).await;
+        assert!(matches!(trapped, Err(CallError::Trap(_))), "{trapped:?}");
+
+        let started = std::time::Instant::now();
+        let next = bump(&probe, json!({ "name": "counter" })).await.unwrap();
+        assert_eq!(next, json!(1));
+        assert!(started.elapsed() < Duration::from_secs(3));
+    }
+
+    #[tokio::test]
+    async fn a_timeout_releases_the_lock() {
+        let probe = Probe::load(&[]);
+        let (hung, _) = probe
+            .run_within(
+                "bump",
+                json!({ "name": "counter", "hang": true }),
+                &Cancel::new(),
+                GRACE,
+                Duration::from_millis(300),
+            )
+            .await;
+        assert!(matches!(hung, Err(CallError::Timeout(_))), "{hung:?}");
+
+        let started = std::time::Instant::now();
+        let next = bump(&probe, json!({ "name": "counter" })).await.unwrap();
+        assert_eq!(next, json!(1));
+        assert!(started.elapsed() < Duration::from_secs(3));
+    }
+
+    #[tokio::test]
+    async fn a_lock_name_that_is_no_data_key_is_refused() {
+        let probe = Probe::load(&[]);
+        let refused = bump(&probe, json!({ "name": "../x" })).await;
+        assert!(
+            matches!(refused, Err(CallError::Guest(GuestError::Invalid(_)))),
+            "{refused:?}"
+        );
+    }
+}
+
+#[cfg(unix)]
+mod pushed {
+    use tokio::io::AsyncWriteExt;
+    use tokio::net::UnixListener;
+
+    use super::*;
+
+    #[tokio::test]
+    async fn a_connections_readable_and_closed_events_reach_the_guest() {
+        let name = format!(
+            "probe-ipc-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        );
+        let path = std::path::Path::new("/tmp").join(&name);
+        let listener = UnixListener::bind(&path).unwrap();
+        let grant = Grant {
+            permissions: [Permission::IpcConnect].into(),
+            ipc: [format!("{}*", &name[..name.len() - 1])].into(),
+            events: ["ipc.*".to_string()].into(),
+            ..Grant::default()
+        };
+        let probe = Probe::load_with(grant, BTreeMap::new());
+        let mut pushed = probe.plugin.pushed();
+
+        let cancel = Cancel::new();
+        let (id, accepted) = tokio::join!(
+            probe.run("ipc-open", json!({ "endpoint": name }), &cancel, GRACE),
+            listener.accept()
+        );
+        let id = id.0.unwrap();
+        let (mut peer, _) = accepted.unwrap();
+        peer.write_all(b"hello").await.unwrap();
+
+        let next = async {
+            tokio::time::timeout(CALL_BUDGET, pushed.recv())
+                .await
+                .unwrap()
+        };
+        let readable = next.await.unwrap();
+        assert_eq!(readable.topic, "ipc.readable");
+        assert_eq!(readable.payload, json!({ "connection": id }));
+        probe
+            .plugin
+            .on_event(
+                &CallChain::default(),
+                readable.topic,
+                &readable.payload,
+                CALL_BUDGET,
+            )
+            .await
+            .unwrap();
+        let received = std::fs::read(probe.data.path().join("data/ipc-received.json")).unwrap();
+        assert_eq!(serde_json::from_slice::<Value>(&received).unwrap(), "hello");
+
+        drop(peer);
+        let closed = tokio::time::timeout(CALL_BUDGET, pushed.recv())
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(closed.topic, "ipc.closed");
+        assert_eq!(closed.payload, json!({ "connection": id }));
+        std::fs::remove_file(path).unwrap();
+    }
+}
+
 #[cfg(unix)]
 mod programs {
     use super::*;
@@ -1037,6 +1244,7 @@ async fn register_java_probe_in_mode(
         plugin,
         data,
         supervisor: _supervisor,
+        changes: _changes,
     } = probe;
     let manifest = proto::plugin::Manifest {
         id: "probe".into(),

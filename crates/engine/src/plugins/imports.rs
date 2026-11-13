@@ -16,9 +16,10 @@ use super::context::{writable_dir, Mount};
 use super::error::GuestError;
 use super::http::PluginHttp;
 use super::ipc::{Connections, IpcError};
+use super::lock::{Held, LockError, Locks};
 use super::output::PluginLog;
 use super::process::{CallScope, ProgramError, Programs};
-use super::settings::PluginSettings;
+use super::settings::{PluginSettings, SettingsError};
 use crate::cancel::Cancel;
 
 pub(crate) mod bindings {
@@ -64,6 +65,10 @@ pub trait HostCalls: Send + Sync {
 
     /// A line a dev plugin logged, already rate-limited and truncated.
     fn dev_log(&self, _plugin: &str, _level: &str, _text: &str) {}
+
+    /// The plugin changed one of its own settings. The daemon tells the
+    /// clients that show settings; the plugin is not told, it made the change.
+    fn setting_changed(&self, _plugin: &str) {}
 }
 
 const PROGRESS_MESSAGE_CHARS: usize = 512;
@@ -95,6 +100,9 @@ pub(crate) struct PluginState {
     pub(crate) gate: Arc<Gate>,
     pub(crate) programs: Arc<Programs>,
     pub(crate) ipc: Arc<Connections>,
+    pub(crate) locks: Arc<Locks>,
+    /// The locks this call took; dropping the store releases them.
+    pub(crate) held: Held,
 }
 
 /// What a `host.call` is checked against. Apart from [`PluginState`] so an
@@ -233,6 +241,47 @@ impl bindings::hestia::plugin::progress::Host for PluginState {
 impl bindings::hestia::plugin::settings::Host for PluginState {
     async fn get(&mut self, key: String) -> Option<String> {
         self.settings.get(&key).map(|value| value.to_string())
+    }
+
+    async fn set(&mut self, key: String, value: String) -> Result<(), PluginError> {
+        let value: Value = serde_json::from_str(&value)
+            .map_err(|error| PluginError::Invalid(format!("the value is not JSON: {error}")))?;
+        let settings = self.settings.clone();
+        let stored = tokio::task::spawn_blocking(move || settings.set(&key, value))
+            .await
+            .map_err(|error| PluginError::Failed(format!("cannot store the setting: {error}")))?;
+        match stored {
+            Ok(()) => {
+                self.gate.host.setting_changed(&self.gate.plugin);
+                Ok(())
+            }
+            Err(SettingsError::Unknown(key)) => Err(PluginError::NotFound(format!(
+                "the plugin declares no setting `{key}`"
+            ))),
+            Err(SettingsError::Invalid(detail)) => Err(PluginError::Invalid(detail)),
+            Err(SettingsError::Store(error)) => {
+                tracing::warn!(plugin = %self.gate.plugin, %error, "cannot store a plugin setting");
+                Err(PluginError::Failed("cannot store the setting".into()))
+            }
+        }
+    }
+}
+
+impl From<LockError> for PluginError {
+    fn from(error: LockError) -> Self {
+        GuestError::from(error).into()
+    }
+}
+
+impl bindings::hestia::plugin::data::Host for PluginState {
+    async fn lock(&mut self, name: String) -> Result<(), PluginError> {
+        let locks = self.locks.clone();
+        Ok(locks.acquire(&mut self.held, &name, self.deadline).await?)
+    }
+
+    async fn unlock(&mut self, name: String) -> Result<(), PluginError> {
+        let locks = self.locks.clone();
+        Ok(locks.release(&mut self.held, &name)?)
     }
 }
 

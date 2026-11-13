@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 use std::path::PathBuf;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 use anyhow::{bail, Context, Result};
 use proto::plugin::{is_plugin_id, Grant, Manifest, PluginSource};
@@ -85,7 +85,7 @@ impl Document for Previous {
 
 pub struct Plugins {
     pub(super) dir: PathBuf,
-    pub(super) writes: Mutex<()>,
+    pub(super) writes: Arc<Mutex<()>>,
     pub(super) resolver: Resolver,
 }
 
@@ -93,7 +93,7 @@ impl Plugins {
     pub fn new(dir: PathBuf) -> Self {
         Plugins {
             dir,
-            writes: Mutex::new(()),
+            writes: Arc::default(),
             resolver: resolve_on_path,
         }
     }

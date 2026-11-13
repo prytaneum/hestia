@@ -103,7 +103,8 @@ pub trait Plugin {
     }
 
     /// Runs after the user changed or cleared the setting `key`; read the new
-    /// value with [`settings::get`].
+    /// value with [`settings::get`]. It does not run for the plugin's own
+    /// [`settings::set`].
     fn on_settings_changed(key: &str) {
         let _ = key;
     }

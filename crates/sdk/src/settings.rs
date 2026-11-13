@@ -1,5 +1,6 @@
-//! The plugin's own settings, as the manifest declares them and the user set
-//! them. Secrets arrive in clear, to this plugin only.
+//! The plugin's own settings, as the manifest declares them. The user sets
+//! them; the plugin may set them too, for a token it obtained itself or a choice
+//! it wants to remember. Secrets arrive in clear, to this plugin only.
 //!
 //! ```no_run
 //! let key: Option<String> = hestia::settings::get("api-key")?;
@@ -7,6 +8,7 @@
 //! ```
 
 use serde::de::DeserializeOwned;
+use serde::Serialize;
 
 use crate::bindings::hestia::plugin::settings;
 use crate::Error;
@@ -16,4 +18,32 @@ pub fn get<T: DeserializeOwned>(key: &str) -> Result<Option<T>, Error> {
     settings::get(key)
         .map(|json| serde_json::from_str(&json).map_err(Error::from))
         .transpose()
+}
+
+/// Stores `value` as the plugin's own setting `key`.
+///
+/// The host checks it against the manifest's declaration exactly as it checks
+/// the user's write: [`Error::NotFound`] for a key the manifest does not
+/// declare, [`Error::Invalid`] for a value of the wrong kind or outside its
+/// constraints. The user's windows are told the settings changed. The plugin's
+/// own [`Plugin::on_settings_changed`](crate::Plugin::on_settings_changed) does
+/// not run for this write, so setting a key from there cannot loop.
+///
+/// ```no_run
+/// // A plugin with a `secret` setting `token`, filled in by its own sign-in:
+/// hestia::settings::set("token", &"s3cret")?;
+/// # Ok::<(), hestia::Error>(())
+/// ```
+pub fn set<T: Serialize>(key: &str, value: &T) -> Result<(), Error> {
+    Ok(settings::set(key, &serde_json::to_string(value)?)?)
+}
+
+/// Clears `key` back to the manifest's default.
+///
+/// ```no_run
+/// hestia::settings::clear("token")?;
+/// # Ok::<(), hestia::Error>(())
+/// ```
+pub fn clear(key: &str) -> Result<(), Error> {
+    Ok(settings::set(key, "null")?)
 }

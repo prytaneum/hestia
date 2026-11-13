@@ -1,5 +1,6 @@
 use std::collections::BTreeMap;
 use std::path::PathBuf;
+use std::sync::{Arc, Mutex};
 
 use anyhow::Result;
 use proto::plugin::{Setting, SettingKind, SettingValue};
@@ -39,11 +40,24 @@ pub enum SettingsError {
 pub struct PluginSettings {
     path: PathBuf,
     declared: Vec<Setting>,
+    writes: Arc<Mutex<()>>,
 }
 
 impl PluginSettings {
     pub fn new(path: PathBuf, declared: Vec<Setting>) -> Self {
-        PluginSettings { path, declared }
+        PluginSettings {
+            path,
+            declared,
+            writes: Arc::default(),
+        }
+    }
+
+    /// Serialises this plugin's writes with the lock other writers of the same
+    /// file hold, so a write by the plugin and one by the user cannot lose each
+    /// other's key.
+    pub(super) fn sharing(mut self, writes: Arc<Mutex<()>>) -> Self {
+        self.writes = writes;
+        self
     }
 
     fn stored(&self) -> BTreeMap<String, Value> {
@@ -80,13 +94,15 @@ impl PluginSettings {
     }
 
     /// Stores `value` for `key` after checking it against the declared kind;
-    /// `null` clears the key.
+    /// `null` clears the key. The user's write and the plugin's own go through
+    /// here alike.
     pub fn set(&self, key: &str, value: Value) -> Result<(), SettingsError> {
         let setting = self
             .declared
             .iter()
             .find(|setting| setting.key == key)
             .ok_or_else(|| SettingsError::Unknown(key.to_string()))?;
+        let _writes = self.writes.lock().unwrap();
         let mut stored = Stored {
             values: self.stored(),
         };
@@ -106,17 +122,15 @@ impl Plugins {
     /// Blocking: reads the installed manifest for what the plugin declares.
     pub fn settings(&self, id: &str) -> Result<PluginSettings> {
         let declared = self.read_manifest(id)?.settings;
-        Ok(PluginSettings::new(
-            self.plugin_dir(id)?.join(FILE),
-            declared,
-        ))
+        Ok(
+            PluginSettings::new(self.plugin_dir(id)?.join(FILE), declared)
+                .sharing(self.writes.clone()),
+        )
     }
 
-    /// Blocking: [`PluginSettings::set`] serialised with the other writes.
+    /// Blocking: [`PluginSettings::set`] on the plugin's declared settings.
     pub fn set_setting(&self, id: &str, key: &str, value: Value) -> Result<(), SettingsError> {
-        let settings = self.settings(id)?;
-        let _writes = self.writes.lock().unwrap();
-        settings.set(key, value)
+        self.settings(id)?.set(key, value)
     }
 }
 

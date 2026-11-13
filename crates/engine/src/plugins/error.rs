@@ -8,6 +8,7 @@ use proto::error::{ErrorInfo, Service};
 
 use super::imports::bindings::hestia::plugin::types::{PluginError, Requirement, UpstreamFailure};
 use super::ipc::IpcError;
+use super::lock::LockError;
 use super::process::ProgramError;
 
 /// Why a call between the host and a plugin failed, with the case kept.
@@ -168,6 +169,15 @@ impl From<IpcError> for GuestError {
             IpcError::NotFound(message) => GuestError::NotFound(message),
             IpcError::Invalid(message) => GuestError::Invalid(message),
             IpcError::Failed(message) => GuestError::Failed(message),
+        }
+    }
+}
+
+impl From<LockError> for GuestError {
+    fn from(error: LockError) -> Self {
+        match error {
+            LockError::Invalid(message) => GuestError::Invalid(message),
+            LockError::Busy(message) => GuestError::Busy(message),
         }
     }
 }

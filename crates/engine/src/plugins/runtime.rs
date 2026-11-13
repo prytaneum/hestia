@@ -27,6 +27,7 @@ use super::http::PluginHttp;
 use super::imports::bindings::{self, hestia::plugin::types::PluginError};
 use super::imports::{CommandRun, Gate, HostCalls, PluginState};
 use super::ipc::{Connections, Pushed};
+use super::lock::{Held, Locks};
 use super::output::{Captured, PluginLog};
 use super::process::Programs;
 use super::program::{ManagedJava, NoManagedJava};
@@ -256,6 +257,7 @@ impl PluginRuntime {
         let ipc = Arc::new(Connections::new(id.clone(), grant.clone()));
         Ok(LoadedPlugin {
             ipc,
+            locks: Arc::default(),
             id,
             engine: self.engine.clone(),
             pre,
@@ -322,6 +324,7 @@ pub struct LoadedPlugin {
     grant: Arc<Grant>,
     programs: Arc<Programs>,
     ipc: Arc<Connections>,
+    locks: Arc<Locks>,
     data_dir: PathBuf,
     settings: Arc<PluginSettings>,
     log: Arc<PluginLog>,
@@ -740,6 +743,8 @@ impl LoadedPlugin {
             settings: self.settings.clone(),
             programs: self.programs.clone(),
             ipc: self.ipc.clone(),
+            locks: self.locks.clone(),
+            held: Held::default(),
             gate: Arc::new(Gate {
                 plugin: self.id.clone(),
                 host: self.host.clone(),

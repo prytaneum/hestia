@@ -3,7 +3,9 @@
 //! `[A-Za-z0-9_-]`, and stored as `<key>.json`.
 //!
 //! Calls may run concurrently, and each [`save`] replaces the whole file, so
-//! when two calls save the same key the last writer wins.
+//! when two calls save the same key the last writer wins. To change a value
+//! another call may change too, use [`update`]: it holds a lock over the key
+//! from the read to the write.
 //!
 //! ```no_run
 //! use serde::{Deserialize, Serialize};
@@ -27,6 +29,7 @@ use proto::plugin::DATA_MOUNT;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
+use crate::bindings::hestia::plugin::data as host;
 use crate::Error;
 
 const KEY_LENGTH: std::ops::RangeInclusive<usize> = 1..=64;
@@ -64,6 +67,52 @@ pub fn save<T: Serialize>(key: &str, value: &T) -> Result<(), Error> {
             let _ = fs::remove_file(&staged);
             Err(error.into())
         }
+    }
+}
+
+/// Reads the value under `key` (or its default), lets `change` edit it, and
+/// saves it, atomically with respect to every other [`update`] of the same key
+/// in this plugin's calls: a concurrent one waits its turn, so no update is lost.
+///
+/// The host holds the lock, and releases it when the call ends however it ends.
+/// A call waits a few seconds for another to finish, then fails with
+/// [`Error::Busy`]. Do not call [`update`] on the same key from inside `change`
+/// ([`Error::Invalid`]), and keep `change` quick: it holds everyone else up. A
+/// plain [`save`] does not take the lock, so mix it in only when losing a race
+/// is acceptable.
+///
+/// ```no_run
+/// use serde::{Deserialize, Serialize};
+///
+/// #[derive(Serialize, Deserialize, Default)]
+/// struct Counter {
+///     runs: u32,
+/// }
+///
+/// let runs = hestia::data::update("counter", |counter: &mut Counter| {
+///     counter.runs += 1;
+///     counter.runs
+/// })?;
+/// # Ok::<(), hestia::Error>(())
+/// ```
+pub fn update<T, R>(key: &str, change: impl FnOnce(&mut T) -> R) -> Result<R, Error>
+where
+    T: Serialize + DeserializeOwned + Default,
+{
+    path(key)?;
+    host::lock(key)?;
+    let _held = Held(key);
+    let mut value = load::<T>(key)?.unwrap_or_default();
+    let result = change(&mut value);
+    save(key, &value)?;
+    Ok(result)
+}
+
+struct Held<'a>(&'a str);
+
+impl Drop for Held<'_> {
+    fn drop(&mut self) {
+        let _ = host::unlock(self.0);
     }
 }
 

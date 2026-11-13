@@ -85,6 +85,7 @@ world plugin {
     import progress;
     import settings;
     import ipc;
+    import data;
     export lifecycle;
     export commands;
     export events;

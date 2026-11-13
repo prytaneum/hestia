@@ -3,6 +3,7 @@ use std::sync::{Arc, Weak};
 use async_trait::async_trait;
 use engine::{CallChain, HostCalls};
 use ipc::protocol::{decode_event, Request};
+use proto::change::{ChangedEvent, Scope};
 use proto::error::ErrorInfo;
 use proto::job::{JobEvent, JobStarted, JobState};
 use proto::plugin::{Permission, PluginLogEvent, Touched};
@@ -81,6 +82,15 @@ impl HostCalls for RouterHost {
                 id: plugin.to_string(),
                 level: level.to_string(),
                 text: text.to_string(),
+            });
+        }
+    }
+
+    fn setting_changed(&self, plugin: &str) {
+        if let Ok(runtime) = self.runtime() {
+            runtime.hub().publish_topic(&ChangedEvent {
+                scope: Scope::Plugins,
+                ids: vec![plugin.to_string()],
             });
         }
     }
@@ -334,6 +344,31 @@ mod tests {
         harness.cancelled = cancelled;
         harness.seen = seen;
         harness
+    }
+
+    #[tokio::test]
+    async fn a_plugins_own_setting_change_is_announced_with_its_id() {
+        let harness = fixture();
+        let seen = Arc::new(Mutex::new(Vec::new()));
+        let sink = seen.clone();
+        harness._runtime.hub().listen(
+            "test",
+            Arc::new(move |topic: &str, payload: &Value| {
+                sink.lock()
+                    .unwrap()
+                    .push((topic.to_string(), payload.clone()));
+            }),
+        );
+
+        harness.host.setting_changed("demo");
+
+        assert_eq!(
+            *seen.lock().unwrap(),
+            [(
+                "changed".to_string(),
+                json!({ "scope": "plugins", "ids": ["demo"] })
+            )]
+        );
     }
 
     #[tokio::test]

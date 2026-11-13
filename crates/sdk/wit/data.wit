@@ -1,0 +1,24 @@
+package hestia:plugin@1.0.0;
+
+/// Locks over the plugin's own `data/` files. Calls of one plugin can overlap,
+/// each on a fresh instance, and a file the guest reads, changes and writes
+/// back would lose an update; a lock held across those three steps keeps them
+/// from interleaving. The WASI filesystem has no file locks, so the host
+/// keeps them.
+///
+/// A lock belongs to the plugin and is named like a data file, 1 to 64 of
+/// `A-Z a-z 0-9 - _`. It is released by `unlock`, and in any case when the
+/// call that took it ends, whether it returned, trapped, timed out or was
+/// cancelled, so a crashed guest cannot leave the plugin stuck.
+interface data {
+    use types.{plugin-error};
+
+    /// Takes the lock `name`, waiting for another call's hold on it, at most a
+    /// few seconds and never past the end of this call; `busy` when it is still
+    /// held then. `invalid` for a name that is no data key, when this call
+    /// already holds `name`, or when the plugin uses too many names.
+    lock: func(name: string) -> result<_, plugin-error>;
+
+    /// Releases a lock this call holds; `invalid` when it does not.
+    unlock: func(name: string) -> result<_, plugin-error>;
+}

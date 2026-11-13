@@ -19,6 +19,7 @@ mod imports;
 mod index;
 mod install;
 mod ipc;
+mod lock;
 mod official;
 mod output;
 mod patch;

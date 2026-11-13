@@ -41,6 +41,28 @@ struct Id {
     id: String,
 }
 
+#[derive(Deserialize)]
+struct Bump {
+    name: String,
+    #[serde(default, rename = "pauseMs")]
+    pause_ms: u64,
+    #[serde(default)]
+    trap: bool,
+    #[serde(default)]
+    hang: bool,
+}
+
+#[derive(Deserialize)]
+struct Setting {
+    key: String,
+    value: Value,
+}
+
+#[derive(Deserialize)]
+struct Endpoint {
+    endpoint: String,
+}
+
 impl Plugin for Probe {
     fn init() -> Result<(), Error> {
         match hestia::data::load::<String>("mode")?.as_deref() {
@@ -72,6 +94,13 @@ impl Plugin for Probe {
                 .ok()
                 .flatten()
                 .unwrap_or_default();
+            if topic == "ipc.readable" {
+                let id = payload["connection"].as_str().unwrap_or_default();
+                let bytes = hestia::ipc::Connection::resume(id)
+                    .receive(4096, Duration::ZERO)
+                    .unwrap_or_default();
+                let _ = hestia::data::save("ipc-received", &String::from_utf8_lossy(&bytes));
+            }
             seen.push(json!({ "topic": topic, "payload": payload }));
             let _ = hestia::data::save("events", &seen);
         })
@@ -188,6 +217,25 @@ impl Plugin for Probe {
                     .map(|(name, value)| (name.as_str(), value.as_str()))
                     .collect();
                 hestia::process::spawn(&call.program, &refs(&call.args), &env)
+            })
+            .on("bump", |call: Bump| {
+                hestia::data::update(&call.name, |count: &mut u32| {
+                    std::thread::sleep(Duration::from_millis(call.pause_ms));
+                    if call.trap {
+                        panic!("trapped while holding the lock");
+                    }
+                    while call.hang {
+                        std::thread::sleep(Duration::from_millis(10));
+                    }
+                    *count += 1;
+                    *count
+                })
+            })
+            .on("set-setting", |call: Setting| {
+                hestia::settings::set(&call.key, &call.value)
+            })
+            .on("ipc-open", |call: Endpoint| {
+                Ok(hestia::ipc::open(&call.endpoint)?.id().to_string())
             })
             .on("stop", |call: Id| hestia::process::stop(&call.id))
             .on("running", |_: Empty| hestia::process::list())
