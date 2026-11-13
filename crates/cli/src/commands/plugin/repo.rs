@@ -38,6 +38,14 @@ pub struct PluginDir {
     pub has_crate: bool,
 }
 
+impl PluginDir {
+    /// The folder read again, for a manifest edited since it was first read.
+    pub fn reload(&self) -> Result<PluginDir> {
+        let plugins_dir = self.path.parent().context("a plugin folder has a parent")?;
+        read_plugin(plugins_dir, self.dir_name.clone())
+    }
+}
+
 impl Repository {
     /// The nearest ancestor of `dir` (itself included) holding a `Cargo.toml`
     /// beside a `plugins/` folder.
@@ -68,8 +76,18 @@ impl Repository {
         self.root.join(PLUGINS_DIR).join(id)
     }
 
-    /// Every folder under `plugins/`, sorted by name.
+    /// Every folder under `plugins/`, sorted by name; the first one that cannot
+    /// be read fails the call.
     pub fn plugins(&self) -> Result<Vec<PluginDir>> {
+        self.scan()?
+            .into_iter()
+            .map(|found| found.map_err(|broken| anyhow::anyhow!(broken.reason)))
+            .collect()
+    }
+
+    /// Every folder under `plugins/`, sorted by name, each read on its own so one
+    /// unreadable `plugin.toml` does not hide the rest.
+    pub fn scan(&self) -> Result<Vec<Result<PluginDir, Unreadable>>> {
         let plugins_dir = self.root.join(PLUGINS_DIR);
         let mut names = Vec::new();
         for entry in std::fs::read_dir(&plugins_dir)
@@ -81,11 +99,23 @@ impl Repository {
             }
         }
         names.sort();
-        names
+        Ok(names
             .into_iter()
-            .map(|dir_name| read_plugin(&plugins_dir, dir_name))
-            .collect()
+            .map(|dir_name| {
+                read_plugin(&plugins_dir, dir_name.clone()).map_err(|error| Unreadable {
+                    dir_name,
+                    reason: format!("{error:#}"),
+                })
+            })
+            .collect())
     }
+}
+
+/// A folder under `plugins/` whose `plugin.toml` is missing or does not parse.
+#[derive(Debug, Clone)]
+pub struct Unreadable {
+    pub dir_name: String,
+    pub reason: String,
 }
 
 fn read_plugin(plugins_dir: &Path, dir_name: String) -> Result<PluginDir> {

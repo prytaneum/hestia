@@ -7,10 +7,13 @@ use std::process::{Command, Stdio};
 use anyhow::{bail, Context, Result};
 use serde_json::Value;
 
+use super::sdk::{Sdk, SDK_PACKAGE};
+
 const TARGET: &str = "wasm32-wasip2";
-const SDK_PACKAGE: &str = "hestia-sdk";
+const LOCKFILE: &str = "Cargo.lock";
 
 /// A built component and the SDK it was built against.
+#[derive(Clone)]
 pub struct Component {
     pub wasm: PathBuf,
     pub sdk_version: String,
@@ -19,8 +22,9 @@ pub struct Component {
 pub struct Metadata(Value);
 
 impl Metadata {
-    pub fn read(root: &Path) -> Result<Metadata> {
-        let output = cargo(root)
+    pub fn read(root: &Path, sdk: Option<&Sdk>) -> Result<Metadata> {
+        let _lock = LockGuard::hold(root, sdk);
+        let output = cargo(root, sdk)
             .args(["metadata", "--format-version", "1"])
             .stderr(Stdio::inherit())
             .output()
@@ -111,20 +115,99 @@ pub fn api_requirement(sdk_version: &str) -> String {
     format!("^{core}")
 }
 
-/// Builds the release component of each named package.
-pub fn build(root: &Path, packages: &[&str]) -> Result<()> {
+/// Builds the release component of each named package, cargo's own output
+/// going to the terminal.
+pub fn build(root: &Path, packages: &[&str], sdk: Option<&Sdk>) -> Result<()> {
     ensure_target(root)?;
-    let mut command = cargo(root);
-    command.args(["build", "--release", "--target", TARGET]);
-    for package in packages {
-        command.args(["-p", package]);
-    }
+    let _lock = LockGuard::hold(root, sdk);
     tracing::info!(?packages, "building plugin components");
-    let status = command.status().map_err(spawn_error)?;
+    let status = build_command(root, packages, sdk)
+        .status()
+        .map_err(spawn_error)?;
     if !status.success() {
         bail!("cargo build failed");
     }
     Ok(())
+}
+
+/// Like [`build`], but cargo's diagnostics come back in the error instead of
+/// reaching the terminal.
+pub fn build_captured(root: &Path, packages: &[&str], sdk: Option<&Sdk>) -> Result<()> {
+    ensure_target(root)?;
+    let _lock = LockGuard::hold(root, sdk);
+    tracing::info!(?packages, "building plugin components");
+    let output = build_command(root, packages, sdk)
+        .args(["--message-format", "short", "--color", "never"])
+        .output()
+        .map_err(spawn_error)?;
+    if !output.status.success() {
+        bail!("{}", diagnostics(&String::from_utf8_lossy(&output.stderr)));
+    }
+    Ok(())
+}
+
+fn build_command(root: &Path, packages: &[&str], sdk: Option<&Sdk>) -> Command {
+    let mut command = cargo(root, sdk);
+    command.args(["build", "--release", "--target", TARGET]);
+    for package in packages {
+        command.args(["-p", package]);
+    }
+    command
+}
+
+/// The lines that explain a failure; cargo's progress lines are noise.
+fn diagnostics(stderr: &str) -> String {
+    const PROGRESS: [&str; 6] = [
+        "Compiling",
+        "Finished",
+        "Downloading",
+        "Downloaded",
+        "Locking",
+        "Updating",
+    ];
+    let lines: Vec<&str> = stderr
+        .lines()
+        .filter(|line| {
+            let line = line.trim_start();
+            !line.is_empty() && !PROGRESS.iter().any(|word| line.starts_with(word))
+        })
+        .collect();
+    if lines.is_empty() {
+        "cargo build failed".to_string()
+    } else {
+        lines.join("\n")
+    }
+}
+
+/// Patching changes what cargo resolves, so cargo rewrites `Cargo.lock`; a
+/// plugin's files must come out of an `--sdk` run as they went in.
+struct LockGuard {
+    path: PathBuf,
+    original: Option<Option<Vec<u8>>>,
+}
+
+impl LockGuard {
+    fn hold(root: &Path, sdk: Option<&Sdk>) -> LockGuard {
+        let path = root.join(LOCKFILE);
+        let original = sdk.map(|_| std::fs::read(&path).ok());
+        LockGuard { path, original }
+    }
+}
+
+impl Drop for LockGuard {
+    fn drop(&mut self) {
+        let restored = match self.original.take() {
+            None => return,
+            Some(Some(bytes)) => std::fs::write(&self.path, bytes),
+            Some(None) => match std::fs::remove_file(&self.path) {
+                Err(error) if error.kind() == ErrorKind::NotFound => Ok(()),
+                other => other,
+            },
+        };
+        if let Err(error) = restored {
+            tracing::warn!(%error, "could not restore Cargo.lock after the --sdk build");
+        }
+    }
 }
 
 fn ensure_target(root: &Path) -> Result<()> {
@@ -145,9 +228,12 @@ fn ensure_target(root: &Path) -> Result<()> {
     Ok(())
 }
 
-fn cargo(root: &Path) -> Command {
+fn cargo(root: &Path, sdk: Option<&Sdk>) -> Command {
     let mut command = Command::new("cargo");
     command.current_dir(root);
+    if let Some(sdk) = sdk {
+        command.args(sdk.config_args(root));
+    }
     command
 }
 
@@ -164,6 +250,43 @@ fn spawn_error(error: std::io::Error) -> anyhow::Error {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn only_the_explanation_of_a_failed_build_is_kept() {
+        let stderr = "   Compiling plug v0.1.0\nsrc/lib.rs:3:5: error[E0425]: cannot find value `x`\nerror: could not compile `plug`\n";
+        assert_eq!(
+            diagnostics(stderr),
+            "src/lib.rs:3:5: error[E0425]: cannot find value `x`\nerror: could not compile `plug`"
+        );
+        assert_eq!(diagnostics("   Compiling a\n"), "cargo build failed");
+    }
+
+    #[test]
+    fn the_lockfile_is_put_back_after_an_sdk_build() {
+        let root = tempfile::tempdir().unwrap();
+        let lock = root.path().join(LOCKFILE);
+        let sdk = Sdk::for_test(root.path());
+
+        std::fs::write(&lock, "original").unwrap();
+        {
+            let _guard = LockGuard::hold(root.path(), Some(&sdk));
+            std::fs::write(&lock, "rewritten by cargo").unwrap();
+        }
+        assert_eq!(std::fs::read_to_string(&lock).unwrap(), "original");
+
+        std::fs::remove_file(&lock).unwrap();
+        {
+            let _guard = LockGuard::hold(root.path(), Some(&sdk));
+            std::fs::write(&lock, "created by cargo").unwrap();
+        }
+        assert!(!lock.exists());
+
+        {
+            let _guard = LockGuard::hold(root.path(), None);
+            std::fs::write(&lock, "kept").unwrap();
+        }
+        assert_eq!(std::fs::read_to_string(&lock).unwrap(), "kept");
+    }
 
     #[test]
     fn the_sdk_version_is_the_one_this_plugin_resolved() {

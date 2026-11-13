@@ -1,7 +1,8 @@
 # A plugin repository
 
 Every plugin repository has this one shape, whether it holds one plugin or twenty. Hestia never adapts to a
-repository; `hestia plugin check` enforces the shape, and `pack` and `publish` run it first. The decision behind it is
+repository; `hestia plugin check` enforces the shape, and `pack` and `publish` run it first. Each plugin is judged on
+its own: one invalid plugin is reported, and the others are still checked, packed and published. The decision behind it is
 [0094](../decisions/0094-a-plugin-repository-has-one-shape.md).
 
 ```

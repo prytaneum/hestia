@@ -9,6 +9,7 @@ use zip::write::SimpleFileOptions;
 use super::cargo::{self, Metadata};
 use super::check;
 use super::repo::{PluginDir, MANIFEST, PLUGINS_DIR};
+use super::sdk::{Sdk, SdkOption};
 use super::sign::Signer;
 use super::world;
 use crate::ui::{self, View};
@@ -17,19 +18,25 @@ const DIST: &str = "dist";
 const BUNDLED_DIRS: [&str; 2] = ["assets", "themes"];
 
 /// Packs the named plugins of the repository around the current directory, or
-/// all of them.
-pub fn run(ids: &[String], sign: Option<&Path>) -> Result<()> {
+/// all of them. Invalid plugins are skipped and reported at the end.
+pub fn run(ids: &[String], sign: Option<&Path>, sdk: &SdkOption) -> Result<()> {
+    let sdk = Sdk::resolve(sdk)?;
     let repo = check::find(None)?;
-    let checked = check::check(&repo)?;
+    let inspection = check::inspect(&repo)?;
+    inspection.require_shape()?;
+    let inspection = inspection.select(ids)?;
+    if inspection.plugins.is_empty() {
+        bail!("no plugins under {PLUGINS_DIR}/; add one with `hestia plugin new <id>`");
+    }
+    let checked = inspection.checked();
     let signer = sign
         .map(|path| Signer::load(path, &checked.meta.key))
         .transpose()?;
-    let plugins = select(checked.plugins, ids)?;
 
     let dist = repo.root().join(DIST);
     std::fs::create_dir_all(&dist)?;
-    let packages = build(repo.root(), &plugins, &dist)?;
-    for (plugin, package) in plugins.iter().zip(packages) {
+    let packages = build(repo.root(), &checked.plugins, &dist, sdk.as_ref())?;
+    for (plugin, package) in checked.plugins.iter().zip(packages) {
         if let Some(signer) = &signer {
             sign_package(signer, &plugin.manifest, &package)?;
         }
@@ -41,12 +48,17 @@ pub fn run(ids: &[String], sign: Option<&Path>) -> Result<()> {
                 .display()
         )))?;
     }
-    Ok(())
+    check::fail_invalid(&inspection.invalid(), "packed")
 }
 
 /// Builds the plugins' components in one cargo run and writes each package into
 /// `out`, returning the package paths in the order given.
-pub(super) fn build(root: &Path, plugins: &[PluginDir], out: &Path) -> Result<Vec<PathBuf>> {
+pub(super) fn build(
+    root: &Path,
+    plugins: &[PluginDir],
+    out: &Path,
+    sdk: Option<&Sdk>,
+) -> Result<Vec<PathBuf>> {
     let components: Vec<&PluginDir> = plugins
         .iter()
         .filter(|plugin| plugin.manifest.wasm.is_some())
@@ -54,12 +66,12 @@ pub(super) fn build(root: &Path, plugins: &[PluginDir], out: &Path) -> Result<Ve
     let metadata = if components.is_empty() {
         None
     } else {
-        let metadata = Metadata::read(root)?;
+        let metadata = Metadata::read(root, sdk)?;
         let packages = components
             .iter()
             .map(|plugin| metadata.package_name(&plugin.path))
             .collect::<Result<Vec<_>>>()?;
-        cargo::build(root, &packages)?;
+        cargo::build(root, &packages, sdk)?;
         Some(metadata)
     };
 
@@ -90,26 +102,6 @@ pub(super) fn sign_package(
     let comment = proto::repository::build_comment(&manifest.id, &manifest.version, file);
     signer.write(&bytes, &comment, package)?;
     Ok(())
-}
-
-fn select(all: Vec<PluginDir>, ids: &[String]) -> Result<Vec<PluginDir>> {
-    if all.is_empty() {
-        bail!("no plugins under {PLUGINS_DIR}/; add one with `hestia plugin new <id>`");
-    }
-    if ids.is_empty() {
-        return Ok(all);
-    }
-    let known: Vec<String> = all.iter().map(|plugin| plugin.dir_name.clone()).collect();
-    if let Some(unknown) = ids.iter().find(|id| !known.contains(id)) {
-        bail!(
-            "no plugin '{unknown}' under {PLUGINS_DIR}/ (found: {})",
-            known.join(", ")
-        );
-    }
-    Ok(all
-        .into_iter()
-        .filter(|plugin| ids.contains(&plugin.dir_name))
-        .collect())
 }
 
 /// A package's files by package-relative name.

@@ -757,7 +757,8 @@ Writing one needs no daemon. A plugin lives in a repository: a cargo workspace (
 hestia plugin new <id>           # outside a repository: creates ./<id>/ with the workspace and plugins/<id>/;
                                  #   inside one: adds only plugins/<id>/
 hestia plugin pack [id…]         # from anywhere in the repository: build and write dist/<id>-<version>.hplugin
-hestia plugin check [dir]        # validate the repository against the one shape
+hestia plugin check [id…] [--dir <dir>]
+                                 # validate the repository against the one shape; every plugin's result is listed
 hestia plugin publish --out <dir> --sign <secret key> [--repository <https-url>]
                                  # build the versions with no package in <dir>/packages yet, then write and sign
                                  #   <dir>/plugins.json (<dir> is a checkout of the `repo` branch; no network)
@@ -766,8 +767,24 @@ hestia plugin keygen [--out <dir>] [--unencrypted]
                                  #   `key` in [workspace.metadata.hestia]; never overwrites a key; --unencrypted for a CI secret
 hestia plugin pack --sign <secret key>   # also write <package>.minisig (the key must match the repository's declared one)
                                  # pack and publish refuse a component built against another WIT (`cargo update -p hestia-sdk`)
-hestia plugin dev [dir] [-y]     # run plugins/<id>/ in place, reload on every rebuild, stream its log
+hestia plugin dev [dir] [-y]     # run plugins/<id>/ in place, rebuild when its sources change, stream its log
+hestia plugin dev|pack|publish --sdk <dir>
+                                 # build against a local checkout of the hestia-sdk crate (crates/sdk); $HESTIA_SDK is
+                                 #   the fallback, the flag wins; no file of the plugin is edited
 ```
+
+`--sdk` hands cargo a `patch` on its command line (`--config 'patch.<source>.hestia-sdk.path="<dir>"'`, for the
+`crates-io` or git source the plugins' `Cargo.toml` names) so an unreleased or changing SDK needs no hand-written
+`[patch]`. The folder must hold the `hestia-sdk` crate's `Cargo.toml`; `Cargo.lock` is put back as it was after each
+cargo run. `dev` watches `src/`, `Cargo.toml`, `plugin.toml`, `assets/` and `themes/` (polled every half second),
+rebuilds once a burst of edits has been quiet for half a second, and reports the build's errors in place; a failed
+build leaves the previous one running and the watch going.
+
+`check`, `pack` and `publish` work per plugin. `check` lists each plugin as `ok` or with every problem found (a manifest
+reports all of its mistakes, not the first) and exits non-zero when any selected plugin failed; naming ids narrows it.
+`pack` and `publish` still need the repository as a whole to follow the shape, but then process every valid plugin and
+report the invalid ones at the end, failing the run. An invalid plugin gets no new build in the index; its previously
+published builds stay listed. A named id that is not under `plugins/` is an error.
 
 The shape, the index format and the release flow are in [plugins/repository.md](plugins/repository.md) and
 [plugins/publishing.md](plugins/publishing.md). `check`

@@ -14,9 +14,11 @@ mod page;
 mod publish;
 mod repo;
 pub(crate) mod run;
+mod sdk;
 mod sign;
 mod store;
 mod update;
+mod watch;
 mod world;
 
 use anyhow::{bail, Context, Result};
@@ -40,6 +42,8 @@ pub enum PluginCmd {
         /// Sign each package with this minisign secret key, writing <file>.minisig
         #[arg(long, value_name = "SECRET_KEY")]
         sign: Option<std::path::PathBuf>,
+        #[command(flatten)]
+        sdk: sdk::SdkOption,
     },
     /// Run a plugin from its folder, reload it on every rebuild and stream its log
     Dev {
@@ -47,10 +51,16 @@ pub enum PluginCmd {
         dir: Option<std::path::PathBuf>,
         #[arg(short = 'y', long, help = "Approve exactly the permissions shown")]
         yes: bool,
+        #[command(flatten)]
+        sdk: sdk::SdkOption,
     },
-    /// Check that the repository follows the one shape plugin repositories have
+    /// Check that the repository follows the one shape plugin repositories have,
+    /// and report every plugin's result
     Check {
-        /// Inside the repository by default
+        /// Plugins to check; all of the repository's by default
+        ids: Vec<String>,
+        /// A folder inside the repository; the current directory by default
+        #[arg(long, value_name = "DIR")]
         dir: Option<std::path::PathBuf>,
     },
     /// Build unpublished versions into <out>/packages and sign <out>/plugins.json
@@ -64,6 +74,8 @@ pub enum PluginCmd {
         /// The repository's https URL; the `origin` remote by default
         #[arg(long)]
         repository: Option<String>,
+        #[command(flatten)]
+        sdk: sdk::SdkOption,
     },
     /// Generate the repository's signing key pair and declare its public key
     Keygen {
@@ -152,14 +164,15 @@ pub enum ManageCmd {
 pub async fn run(cmd: PluginCmd) -> Result<()> {
     match cmd {
         PluginCmd::New { id } => new::run(&id),
-        PluginCmd::Pack { ids, sign } => pack::run(&ids, sign.as_deref()),
-        PluginCmd::Dev { dir, yes } => dev::run(dir.as_deref(), yes).await,
-        PluginCmd::Check { dir } => check::run(dir.as_deref()),
+        PluginCmd::Pack { ids, sign, sdk } => pack::run(&ids, sign.as_deref(), &sdk),
+        PluginCmd::Dev { dir, yes, sdk } => dev::run(dir.as_deref(), yes, &sdk).await,
+        PluginCmd::Check { ids, dir } => check::run(dir.as_deref(), &ids),
         PluginCmd::Publish {
             out,
             sign,
             repository,
-        } => publish::run(&out, &sign, repository),
+            sdk,
+        } => publish::run(&out, &sign, repository, &sdk),
         PluginCmd::Keygen { out, unencrypted } => keygen::run(out.as_deref(), unencrypted),
         PluginCmd::Manage(cmd) => manage(cmd).await,
     }

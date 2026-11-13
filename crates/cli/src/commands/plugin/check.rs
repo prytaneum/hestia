@@ -1,4 +1,4 @@
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
 use anyhow::{bail, Context, Result};
@@ -10,20 +10,146 @@ const SPEC: &str = "https://github.com/prytaneum/hestia/blob/main/docs/plugins/r
 const MEMBERS_GLOB: &str = "plugins/*";
 const LABEL_LENGTH: std::ops::RangeInclusive<usize> = 1..=4;
 
-/// A repository that follows the shape.
+/// The valid plugins of a repository that follows the shape, and the folders
+/// left out because they are not valid.
 pub struct Checked {
     pub meta: StoreMeta,
     pub plugins: Vec<PluginDir>,
+    pub skipped: Vec<String>,
 }
 
-pub fn run(dir: Option<&Path>) -> Result<()> {
+/// One folder under `plugins/` and everything wrong with it.
+pub struct PluginCheck {
+    pub dir_name: String,
+    pub plugin: Option<PluginDir>,
+    pub problems: Vec<String>,
+}
+
+impl PluginCheck {
+    pub fn is_valid(&self) -> bool {
+        self.problems.is_empty()
+    }
+}
+
+/// What a check found: problems of the repository as a whole, and a result for
+/// each plugin. A plugin's problems never hide another plugin's result.
+pub struct Inspection {
+    pub meta: StoreMeta,
+    pub repo_problems: Vec<String>,
+    pub plugins: Vec<PluginCheck>,
+}
+
+impl Inspection {
+    /// Keeps the named plugins, or all of them when `ids` is empty. A name that
+    /// is not a folder under `plugins/` is an error.
+    pub fn select(mut self, ids: &[String]) -> Result<Inspection> {
+        if let Some(unknown) = ids
+            .iter()
+            .find(|id| !self.plugins.iter().any(|check| check.dir_name == **id))
+        {
+            let known: Vec<&str> = self
+                .plugins
+                .iter()
+                .map(|check| check.dir_name.as_str())
+                .collect();
+            bail!(
+                "no plugin '{unknown}' under {PLUGINS_DIR}/ (found: {})",
+                known.join(", ")
+            );
+        }
+        if !ids.is_empty() {
+            self.plugins.retain(|check| ids.contains(&check.dir_name));
+        }
+        Ok(self)
+    }
+
+    /// Fails when the repository as a whole departs from the shape: nothing can
+    /// be packed or published from it.
+    pub fn require_shape(&self) -> Result<()> {
+        if self.repo_problems.is_empty() {
+            Ok(())
+        } else {
+            fail(&self.repo_problems)
+        }
+    }
+
+    pub fn checked(&self) -> Checked {
+        Checked {
+            meta: self.meta.clone(),
+            plugins: self
+                .plugins
+                .iter()
+                .filter(|check| check.is_valid())
+                .filter_map(|check| check.plugin.clone())
+                .collect(),
+            skipped: self
+                .plugins
+                .iter()
+                .filter(|check| !check.is_valid())
+                .map(|check| check.dir_name.clone())
+                .collect(),
+        }
+    }
+
+    pub fn invalid(&self) -> Vec<&PluginCheck> {
+        self.plugins
+            .iter()
+            .filter(|check| !check.is_valid())
+            .collect()
+    }
+}
+
+pub fn run(dir: Option<&Path>, ids: &[String]) -> Result<()> {
     let repo = find(dir)?;
-    let checked = check(&repo)?;
+    let inspection = inspect(&repo)?.select(ids)?;
+    for check in &inspection.plugins {
+        let path = format!("{PLUGINS_DIR}/{}", check.dir_name);
+        if check.is_valid() {
+            ui::show(View::line(format!("ok: {path}")))?;
+        } else {
+            ui::show(View::line(failure_text(check)))?;
+        }
+    }
+    let failed = inspection.invalid().len();
+    if !inspection.repo_problems.is_empty() {
+        inspection.require_shape()?;
+    }
+    if failed > 0 {
+        bail!("{failed} of {} plugin(s) failed", inspection.plugins.len());
+    }
     ui::show(View::line(format!(
         "ok: '{}', {} plugin(s)",
-        checked.meta.name,
-        checked.plugins.len()
+        inspection.meta.name,
+        inspection.plugins.len()
     )))
+}
+
+/// Reports every invalid plugin and fails; `action` is what the run could not
+/// do for them ("packed", "published").
+pub fn fail_invalid(invalid: &[&PluginCheck], action: &str) -> Result<()> {
+    if invalid.is_empty() {
+        return Ok(());
+    }
+    for check in invalid {
+        ui::show(View::warning(failure_text(check)))?;
+    }
+    let names: Vec<&str> = invalid
+        .iter()
+        .map(|check| check.dir_name.as_str())
+        .collect();
+    bail!(
+        "not {action}: {} (fix them and run again)",
+        names.join(", ")
+    )
+}
+
+fn failure_text(check: &PluginCheck) -> String {
+    let list: String = check
+        .problems
+        .iter()
+        .map(|problem| format!("\n  - {problem}"))
+        .collect();
+    format!("{PLUGINS_DIR}/{}:{list}", check.dir_name)
 }
 
 pub fn find(dir: Option<&Path>) -> Result<Repository> {
@@ -36,8 +162,8 @@ pub fn find(dir: Option<&Path>) -> Result<Repository> {
     })
 }
 
-/// Every way the repository departs from the shape, in one error.
-pub fn check(repo: &Repository) -> Result<Checked> {
+/// Every way the repository and each of its plugins depart from the shape.
+pub fn inspect(repo: &Repository) -> Result<Inspection> {
     let mut problems = Vec::new();
     let workspace = repo.workspace()?;
 
@@ -65,29 +191,61 @@ pub fn check(repo: &Repository) -> Result<Checked> {
         }
     };
 
-    let plugins = match repo.plugins() {
-        Ok(plugins) => plugins,
+    let scanned = match repo.scan() {
+        Ok(scanned) => scanned,
         Err(error) => {
             problems.push(format!("{error:#}"));
-            return fail(problems);
+            Vec::new()
         }
     };
     let excluded: BTreeSet<String> = workspace_list(&workspace, "exclude").into_iter().collect();
-    let mut ids = BTreeSet::new();
-    for plugin in &plugins {
-        check_plugin(plugin, &excluded, &mut problems);
-        if !ids.insert(plugin.manifest.id.as_str()) {
-            problems.push(format!("id '{}' is declared twice", plugin.manifest.id));
+    let mut plugins: Vec<PluginCheck> = scanned
+        .into_iter()
+        .map(|found| match found {
+            Ok(plugin) => {
+                let mut problems = Vec::new();
+                check_plugin(&plugin, &excluded, &mut problems);
+                PluginCheck {
+                    dir_name: plugin.dir_name.clone(),
+                    plugin: Some(plugin),
+                    problems,
+                }
+            }
+            Err(broken) => PluginCheck {
+                dir_name: broken.dir_name,
+                plugin: None,
+                problems: vec![broken.reason],
+            },
+        })
+        .collect();
+    flag_duplicate_ids(&mut plugins);
+    Ok(Inspection {
+        meta,
+        repo_problems: problems,
+        plugins,
+    })
+}
+
+fn flag_duplicate_ids(plugins: &mut [PluginCheck]) {
+    let mut by_id: BTreeMap<String, usize> = BTreeMap::new();
+    for check in plugins.iter() {
+        if let Some(plugin) = &check.plugin {
+            *by_id.entry(plugin.manifest.id.clone()).or_default() += 1;
         }
     }
-    if problems.is_empty() {
-        Ok(Checked { meta, plugins })
-    } else {
-        fail(problems)
+    for check in plugins.iter_mut() {
+        let Some(plugin) = &check.plugin else {
+            continue;
+        };
+        if by_id[&plugin.manifest.id] > 1 {
+            check
+                .problems
+                .push(format!("id '{}' is declared twice", plugin.manifest.id));
+        }
     }
 }
 
-fn fail<T>(problems: Vec<String>) -> Result<T> {
+fn fail<T>(problems: &[String]) -> Result<T> {
     let list: String = problems
         .iter()
         .map(|problem| format!("\n  - {problem}"))
@@ -134,8 +292,12 @@ fn check_plugin(plugin: &PluginDir, excluded: &BTreeSet<String>, problems: &mut 
     if manifest.wasm.is_some() && manifest.api.is_none() {
         manifest.api = Some(format!("^{}", proto::plugin::API_VERSION));
     }
-    if let Err(error) = manifest.validate() {
-        problems.push(format!("{path}/plugin.toml: {error}"));
+    if let Err(errors) = manifest.validate() {
+        problems.extend(
+            errors
+                .iter()
+                .map(|error| format!("{path}/plugin.toml: {error}")),
+        );
     }
     match (plugin.has_crate, excluded.contains(&path)) {
         (false, false) => problems.push(format!(
@@ -186,7 +348,19 @@ pub mod tests {
     }
 
     fn message(repo: &Repository) -> String {
-        format!("{:#}", check(repo).err().expect("check must fail"))
+        let inspection = inspect(repo).unwrap();
+        let plugin_problems = inspection
+            .plugins
+            .iter()
+            .flat_map(|check| check.problems.clone());
+        let all: Vec<String> = inspection
+            .repo_problems
+            .iter()
+            .cloned()
+            .chain(plugin_problems)
+            .collect();
+        assert!(!all.is_empty(), "inspection must find a problem");
+        all.join("\n")
     }
 
     #[test]
@@ -195,10 +369,14 @@ pub mod tests {
         add_plugin(&repo, "aa", "aa", true);
         add_plugin(&repo, "themes", "themes", false);
 
-        let checked = check(&repo).unwrap();
+        let inspection = inspect(&repo).unwrap();
 
+        assert!(inspection.repo_problems.is_empty());
+        assert!(inspection.invalid().is_empty());
+        let checked = inspection.checked();
         assert_eq!(checked.meta.label, "SMP");
         assert_eq!(checked.plugins.len(), 2);
+        assert!(checked.skipped.is_empty());
     }
 
     #[test]
@@ -260,5 +438,122 @@ pub mod tests {
         assert!(message.contains("`label` must be 1 to 4"));
         assert!(message.contains("`website` must be an https URL"));
         assert!(message.contains("signing `key`"));
+    }
+
+    fn ids(names: &[&str]) -> Vec<String> {
+        names.iter().map(|name| name.to_string()).collect()
+    }
+
+    #[test]
+    fn one_invalid_plugin_does_not_hide_the_others() {
+        let (_root, repo) = repo_with(META, &[]);
+        add_plugin(&repo, "aa", "aa", true);
+        add_plugin(&repo, "bb", "Bad Id", true);
+        add_plugin(&repo, "cc", "cc", true);
+
+        let inspection = inspect(&repo).unwrap();
+
+        assert!(inspection.repo_problems.is_empty());
+        let verdicts: Vec<(&str, bool)> = inspection
+            .plugins
+            .iter()
+            .map(|check| (check.dir_name.as_str(), check.is_valid()))
+            .collect();
+        assert_eq!(verdicts, [("aa", true), ("bb", false), ("cc", true)]);
+        let checked = inspection.checked();
+        let valid: Vec<&str> = checked
+            .plugins
+            .iter()
+            .map(|plugin| plugin.dir_name.as_str())
+            .collect();
+        assert_eq!(valid, ["aa", "cc"]);
+        assert_eq!(checked.skipped, ["bb"]);
+    }
+
+    #[test]
+    fn every_manifest_mistake_of_a_plugin_is_listed() {
+        let (_root, repo) = repo_with(META, &[]);
+        add_plugin(&repo, "aa", "Bad Id", true);
+        std::fs::write(
+            repo.plugin_path("aa").join("plugin.toml"),
+            "id = \"Bad Id\"\nname = \"x\"\nversion = \"one\"\n",
+        )
+        .unwrap();
+
+        let inspection = inspect(&repo).unwrap();
+
+        let problems = &inspection.plugins[0].problems;
+        assert!(problems.iter().any(|problem| problem.contains("plugin id")));
+        assert!(problems
+            .iter()
+            .any(|problem| problem.contains("not a semantic version")));
+        assert!(problems
+            .iter()
+            .any(|problem| problem.contains("folder name must equal the id")));
+    }
+
+    #[test]
+    fn an_unreadable_manifest_is_that_plugins_problem_only() {
+        let (_root, repo) = repo_with(META, &[]);
+        add_plugin(&repo, "aa", "aa", true);
+        add_plugin(&repo, "bb", "bb", true);
+        std::fs::write(repo.plugin_path("bb").join("plugin.toml"), "id = [").unwrap();
+
+        let inspection = inspect(&repo).unwrap();
+
+        assert!(inspection.plugins[0].is_valid());
+        assert!(!inspection.plugins[1].is_valid());
+        assert!(inspection.plugins[1].plugin.is_none());
+    }
+
+    #[test]
+    fn both_plugins_sharing_an_id_are_flagged() {
+        let (_root, repo) = repo_with(META, &[]);
+        add_plugin(&repo, "aa", "aa", true);
+        add_plugin(&repo, "bb", "aa", true);
+
+        let inspection = inspect(&repo).unwrap();
+
+        assert!(inspection
+            .plugins
+            .iter()
+            .all(|check| check.problems.iter().any(|p| p.contains("declared twice"))));
+    }
+
+    #[test]
+    fn selecting_by_name_keeps_only_those_and_refuses_unknown_names() {
+        let (_root, repo) = repo_with(META, &[]);
+        add_plugin(&repo, "aa", "aa", true);
+        add_plugin(&repo, "bb", "bb", true);
+
+        let selected = inspect(&repo).unwrap().select(&ids(&["bb"])).unwrap();
+        assert_eq!(selected.plugins.len(), 1);
+        assert_eq!(selected.plugins[0].dir_name, "bb");
+
+        let all = inspect(&repo).unwrap().select(&[]).unwrap();
+        assert_eq!(all.plugins.len(), 2);
+
+        let error = inspect(&repo)
+            .unwrap()
+            .select(&ids(&["aa", "zz"]))
+            .err()
+            .expect("an unknown name is an error");
+        assert!(error.to_string().contains("no plugin 'zz'"));
+    }
+
+    #[test]
+    fn failing_the_invalid_plugins_names_each_of_them() {
+        let (_root, repo) = repo_with(META, &[]);
+        add_plugin(&repo, "aa", "Bad", true);
+        add_plugin(&repo, "bb", "Worse", true);
+        let inspection = inspect(&repo).unwrap();
+
+        let error = fail_invalid(&inspection.invalid(), "packed").unwrap_err();
+
+        assert_eq!(
+            error.to_string(),
+            "not packed: aa, bb (fix them and run again)"
+        );
+        assert!(fail_invalid(&[], "packed").is_ok());
     }
 }

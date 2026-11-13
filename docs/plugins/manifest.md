@@ -214,7 +214,7 @@ without `ui:css` is `ThemeNeedsUiCss`.
 
 ## Validation, in order
 
-`validate` stops at the first failure: id shape, reserved id, version, `api` against `wasm`, package paths, page icons
+`validate` checks every rule and reports all the mistakes, one per line, in this order: id shape, reserved id, version, `api` against `wasm`, package paths, page icons
 and kinds, `network` hosts, `[launch]` keys, settings, `ipc`, programs and their permission, schedule count and range,
 event globs, command ids and arguments, the theme permission, hooks, duplicate or malformed ids across every list, then
-providers. `hestia plugin pack` and `hestia plugin dev` report the same error the install would.
+providers. `hestia plugin check`, `pack` and `dev` report the same errors the install would.

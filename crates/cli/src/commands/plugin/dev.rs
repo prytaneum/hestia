@@ -1,28 +1,32 @@
 use std::path::{Path, PathBuf};
-use std::time::{Duration, SystemTime};
 
 use anyhow::{bail, Context, Result};
 use client::proto::plugin::PluginState;
 use client::DevEvent;
+use tokio::task::JoinHandle;
 
 use super::add::show_grant;
 use super::cargo::{self, Component, Metadata};
 use super::pack::package_files;
 use super::repo::{PluginDir, Repository, CRATE_MANIFEST, MANIFEST};
+use super::sdk::{Sdk, SdkOption};
 use super::state_label;
+use super::watch::{Watch, POLL};
 use crate::commands::connect;
 use crate::ui::{self, View};
 
 const STAGE: &str = "dist/dev";
-const POLL: Duration = Duration::from_secs(1);
-const WATCHED_DIRS: [&str; 2] = ["assets", "themes"];
 
-/// A plugin crate in a repository, rebuilt by the author and re-staged here
-/// into a package folder the daemon reads in place.
+/// A plugin crate in a repository, rebuilt on every change to its sources and
+/// re-staged here into a package folder the daemon reads in place.
+#[derive(Clone)]
 struct Staged {
     plugin: PluginDir,
     component: Option<Component>,
     out: PathBuf,
+    root: PathBuf,
+    package: Option<String>,
+    sdk: Option<Sdk>,
 }
 
 impl Staged {
@@ -38,43 +42,21 @@ impl Staged {
         Ok(())
     }
 
-    fn stamp(&self) -> Option<SystemTime> {
-        let sources = self
-            .component
-            .iter()
-            .map(|component| component.wasm.clone())
-            .chain(std::iter::once(self.plugin.path.join(MANIFEST)));
-        let dirs = WATCHED_DIRS.map(|dir| self.plugin.path.join(dir));
-        sources
-            .filter_map(|file| modified(&file))
-            .chain(dirs.iter().filter_map(|dir| newest_in(dir)))
-            .max()
+    /// Builds the crate and stages the result. Nothing is staged, and `self` is
+    /// untouched, when either fails, so the running build stays as it was.
+    fn rebuilt(&self) -> Result<Staged> {
+        let mut next = self.clone();
+        next.plugin = self.plugin.reload()?;
+        if let Some(package) = &self.package {
+            cargo::build_captured(&self.root, &[package.as_str()], self.sdk.as_ref())?;
+        }
+        next.write()?;
+        Ok(next)
     }
 }
 
-fn modified(path: &Path) -> Option<SystemTime> {
-    std::fs::metadata(path)
-        .and_then(|meta| meta.modified())
-        .ok()
-}
-
-fn newest_in(dir: &Path) -> Option<SystemTime> {
-    std::fs::read_dir(dir)
-        .ok()?
-        .filter_map(Result::ok)
-        .filter_map(|entry| {
-            let path = entry.path();
-            if path.is_dir() {
-                newest_in(&path)
-            } else {
-                modified(&path)
-            }
-        })
-        .max()
-}
-
 /// A crate is built and staged; any other folder is already an unpacked package.
-fn prepare(dir: &Path) -> Result<(PathBuf, Option<Staged>)> {
+fn prepare(dir: &Path, sdk: Option<Sdk>) -> Result<(PathBuf, Option<Staged>)> {
     if !dir.join(MANIFEST).is_file() {
         bail!(
             "{} has no {MANIFEST}; point at a plugin folder",
@@ -91,27 +73,32 @@ fn prepare(dir: &Path) -> Result<(PathBuf, Option<Staged>)> {
         .into_iter()
         .find(|plugin| std::fs::canonicalize(&plugin.path).is_ok_and(|path| path == dir))
         .context("this folder is not one of the repository's plugins")?;
-    let component = if plugin.manifest.wasm.is_some() {
-        let metadata = Metadata::read(repo.root())?;
-        cargo::build(repo.root(), &[metadata.package_name(&plugin.path)?])?;
-        Some(metadata.component(&plugin.path)?)
+    let (component, package) = if plugin.manifest.wasm.is_some() {
+        let metadata = Metadata::read(repo.root(), sdk.as_ref())?;
+        let package = metadata.package_name(&plugin.path)?.to_string();
+        cargo::build(repo.root(), &[package.as_str()], sdk.as_ref())?;
+        (Some(metadata.component(&plugin.path)?), Some(package))
     } else {
-        None
+        (None, None)
     };
     let out = repo.root().join(STAGE).join(&plugin.manifest.id);
     let staged = Staged {
         plugin,
         component,
         out: out.clone(),
+        root: repo.root().to_path_buf(),
+        package,
+        sdk,
     };
     staged.write()?;
     Ok((out, Some(staged)))
 }
 
-pub async fn run(dir: Option<&Path>, yes: bool) -> Result<()> {
+pub async fn run(dir: Option<&Path>, yes: bool, sdk: &SdkOption) -> Result<()> {
+    let sdk = Sdk::resolve(sdk)?;
     let dir = std::fs::canonicalize(dir.unwrap_or(Path::new(".")))
         .context("cannot resolve the plugin folder")?;
-    let (package, staged) = prepare(&dir)?;
+    let (package, staged) = prepare(&dir, sdk)?;
     let package = package.to_string_lossy().into_owned();
 
     let client = connect().await?;
@@ -129,22 +116,46 @@ pub async fn run(dir: Option<&Path>, yes: bool) -> Result<()> {
     plugins
         .install_dev(&package, &inspection.grant_digest)
         .await?;
+    let watching = if staged.is_some() {
+        "rebuilds when its sources change and "
+    } else {
+        ""
+    };
     ui::show(View::line(format!(
-        "'{id}' runs from {package} and reloads when it changes; Ctrl-C to stop watching"
+        "'{id}' runs from {package}, {watching}reloads when it changes; Ctrl-C to stop watching"
     )))?;
 
-    let mut stamp = staged.as_ref().and_then(Staged::stamp);
+    let mut staged = staged;
+    let mut watch = staged.as_ref().map(|_| Watch::new(dir.clone()));
+    let mut building: Option<JoinHandle<Result<Staged>>> = None;
     let mut tick = tokio::time::interval(POLL);
     loop {
         tokio::select! {
             _ = tokio::signal::ctrl_c() => break,
-            _ = tick.tick() => {
-                let Some(staged) = &staged else { continue };
-                let now = staged.stamp();
-                if now != stamp {
-                    stamp = now;
-                    if let Err(error) = staged.write() {
-                        ui::show(View::warning(format!("cannot stage the plugin: {error:#}")))?;
+            _ = tick.tick(), if building.is_none() => {
+                let (Some(current), Some(watch)) = (&staged, &mut watch) else { continue };
+                if watch.poll() {
+                    ui::show(View::note(format!("'{id}' changed; rebuilding")))?;
+                    let current = current.clone();
+                    building = Some(tokio::task::spawn_blocking(move || current.rebuilt()));
+                }
+            }
+            built = async { building.as_mut().expect("guarded by the branch condition").await }, if building.is_some() => {
+                building = None;
+                match built {
+                    Ok(Ok(next)) => {
+                        staged = Some(next);
+                        ui::show(View::note(format!("'{id}' rebuilt")))?;
+                    }
+                    Ok(Err(error)) => {
+                        tracing::warn!(plugin = %id, %error, "dev rebuild failed");
+                        ui::show(View::warning(format!(
+                            "'{id}' did not build; the previous build keeps running\n{error:#}"
+                        )))?;
+                    }
+                    Err(error) => {
+                        tracing::error!(plugin = %id, %error, "dev rebuild task failed");
+                        ui::show(View::warning(format!("'{id}' did not build: {error}")))?;
                     }
                 }
             }

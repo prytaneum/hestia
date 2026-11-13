@@ -15,6 +15,7 @@ use tempfile::NamedTempFile;
 use super::check::{self, Checked};
 use super::pack;
 use super::repo::{PluginDir, MANIFEST, PLUGINS_DIR};
+use super::sdk::{Sdk, SdkOption};
 use super::sign::Signer;
 use crate::ui::{self, View};
 
@@ -51,10 +52,14 @@ struct RevokedFile {
 
 /// Builds the plugins whose version has no package in `<out>/packages/` yet,
 /// then regenerates and signs `<out>/plugins.json` from the packages there, the
-/// repository's sources and `revoked.toml`.
-pub fn run(out: &Path, sign: &Path, repository: Option<String>) -> Result<()> {
+/// repository's sources and `revoked.toml`. An invalid plugin gets no new build
+/// and keeps its published ones; it is reported once the index is written.
+pub fn run(out: &Path, sign: &Path, repository: Option<String>, sdk: &SdkOption) -> Result<()> {
+    let sdk = Sdk::resolve(sdk)?;
     let repo = check::find(None)?;
-    let checked = check::check(&repo)?;
+    let inspection = check::inspect(&repo)?;
+    inspection.require_shape()?;
+    let checked = inspection.checked();
     let signer = Signer::load(sign, &checked.meta.key)?;
     let source = Source {
         repository: match repository {
@@ -72,7 +77,7 @@ pub fn run(out: &Path, sign: &Path, repository: Option<String>) -> Result<()> {
         &signer,
         &source,
         revoked,
-        |plugins, packages| pack::build(&root, plugins, packages),
+        |plugins, packages| pack::build(&root, plugins, packages, sdk.as_ref()),
     )?;
     tracing::info!(
         version = outcome.index.version,
@@ -89,7 +94,8 @@ pub fn run(out: &Path, sign: &Path, repository: Option<String>) -> Result<()> {
         outcome.index.version,
         outcome.index.plugins.len(),
         outcome.built.len()
-    )))
+    )))?;
+    check::fail_invalid(&inspection.invalid(), "published")
 }
 
 fn publish(
@@ -130,7 +136,7 @@ fn publish(
     }
 
     let packages = read_packages(&packages_dir)?;
-    let index = build_index(checked, source, previous.version, &packages, revoked)?;
+    let index = build_index(checked, source, &previous, &packages, revoked)?;
     write_index(out, &index, signer)?;
     Ok(Outcome { built, index })
 }
@@ -162,12 +168,12 @@ fn verify_published(out: &Path, previous: &RepositoryIndex) -> Result<()> {
 fn build_index(
     checked: &Checked,
     source: &Source,
-    previous_version: u64,
+    previous: &RepositoryIndex,
     packages: &[Package],
     revoked: Vec<Revocation>,
 ) -> Result<RepositoryIndex> {
-    let version = source.signed_unix.max(previous_version + 1);
-    let plugins = checked
+    let version = source.signed_unix.max(previous.version + 1);
+    let mut plugins: Vec<IndexedPlugin> = checked
         .plugins
         .iter()
         .map(|plugin| {
@@ -198,6 +204,19 @@ fn build_index(
             }
         })
         .collect();
+    plugins.extend(
+        previous
+            .plugins
+            .iter()
+            .filter(|listed| {
+                checked
+                    .skipped
+                    .iter()
+                    .any(|dir| listed.path == format!("{PLUGINS_DIR}/{dir}"))
+            })
+            .cloned(),
+    );
+    plugins.sort_by(|a, b| a.path.cmp(&b.path));
 
     Ok(RepositoryIndex {
         schema_version: INDEX_SCHEMA_VERSION,
@@ -375,7 +394,7 @@ mod tests {
     }
 
     fn run_publish(fixture: &Fixture, signed_unix: u64) -> Result<Outcome> {
-        let checked = check::check(&fixture.repo)?;
+        let checked = check::inspect(&fixture.repo)?.checked();
         publish(
             &checked,
             fixture.out.path(),
@@ -476,6 +495,42 @@ mod tests {
         assert_eq!(aa.version, "0.2.0");
         assert_eq!(aa.builds.len(), 2);
         assert_eq!(outcome.index.plugins[1].builds.len(), 1);
+    }
+
+    #[test]
+    fn an_invalid_plugin_gets_no_build_and_keeps_its_published_ones() {
+        let fixture = fixture_with(&["aa", "bb", "cc"]);
+        run_publish(&fixture, 1_700_000_000).unwrap();
+        bump(&fixture, "aa", "0.2.0");
+        bump(&fixture, "bb", "0.2.0");
+        std::fs::write(
+            fixture.repo.plugin_path("bb").join(MANIFEST),
+            "id = \"bb\"\nname = \"bb\"\nversion = \"not-a-version\"\n",
+        )
+        .unwrap();
+
+        let outcome = run_publish(&fixture, 1_700_000_100).unwrap();
+
+        assert_eq!(outcome.built, ["aa-0.2.0"]);
+        let listed: Vec<(&str, usize)> = outcome
+            .index
+            .plugins
+            .iter()
+            .map(|plugin| (plugin.id.as_str(), plugin.builds.len()))
+            .collect();
+        assert_eq!(listed, [("aa", 2), ("bb", 1), ("cc", 1)]);
+        assert_eq!(outcome.index.plugins[1].version, "0.1.0");
+    }
+
+    #[test]
+    fn a_plugin_that_was_never_published_and_is_invalid_is_left_out() {
+        let fixture = fixture_with(&["aa"]);
+        add_plugin(&fixture.repo, "bb", "Bad Id", true);
+
+        let outcome = run_publish(&fixture, 1_700_000_000).unwrap();
+
+        assert_eq!(outcome.built, ["aa-0.1.0"]);
+        assert_eq!(outcome.index.plugins.len(), 1);
     }
 
     #[test]

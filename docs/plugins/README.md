@@ -29,9 +29,13 @@ hestia plugin add dist/hello-0.1.0.hplugin
 
 - `new <id>` outside a repository creates one around the plugin; inside one it adds only `plugins/<id>/`. The id is 2 to
   40 lowercase letters, digits or dashes and may not be a CLI verb ([manifest.md](manifest.md#identity)).
-- `dev` stages `dist/dev/<id>/`, installs that folder in dev mode and streams the plugin's log. After editing, rebuild
-  with `cargo build --release --target wasm32-wasip2`; `dev` picks the new component up within a second. A manifest
-  that asks for more than you approved leaves the plugin at `needs approval`; run `dev` again.
+- `dev` builds the plugin, stages `dist/dev/<id>/`, installs that folder in dev mode and streams the plugin's log. It
+  then watches `src/`, `Cargo.toml`, `plugin.toml`, `assets/` and `themes/` and rebuilds when they change, so saving a
+  file is enough; a build that fails is reported and the previous build keeps running. A manifest that asks for more
+  than you approved leaves the plugin at `needs approval`; run `dev` again.
+- `--sdk <dir>` (or `HESTIA_SDK`) on `dev`, `pack` and `publish` builds against a local checkout of the SDK crate
+  (`crates/sdk` of a Hestia checkout) while it is unreleased or changing. Nothing in your plugin is edited, so there is
+  no `[patch]` to write or to remember to remove.
 - `pack` builds the component, writes the `api` requirement into the packaged manifest and zips `plugin.toml`, the
   component, `assets/` and `themes/`. Add `--sign <key>` to also write the `.minisig`.
 - `add` takes a `.hplugin`, a folder, an https link, or a plugin id from an added repository, shows the permissions it
