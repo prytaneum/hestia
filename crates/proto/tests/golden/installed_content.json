@@ -14,5 +14,6 @@
   "worlds": [],
   "origin": "modpack:1KVo5zza",
   "enabled": true,
-  "disabledWorlds": []
+  "disabledWorlds": [],
+  "held": false
 }

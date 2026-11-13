@@ -93,6 +93,10 @@ pub enum WarningInfo {
     /// starting it again failed. `detail` is operational English, shown as
     /// secondary text.
     ServerNotRestarted { server: String, detail: String },
+    /// Auto-update could not move these items before the launch, so the game
+    /// runs on the versions already installed. Named, like an import's files:
+    /// which mod stayed behind is what someone chasing a crash needs.
+    ContentNotUpdated { count: u32, files: Vec<String> },
     /// A version change left the entry's modpack where it was because the pack
     /// has no version built for the new game version.
     PackNotMoved {
@@ -139,6 +143,11 @@ impl WarningInfo {
             }
             ImportContentMissing { .. } => {
                 "install them again from a source (`mod add <name>`) if you still want them"
+                    .to_string()
+            }
+            ContentNotUpdated { .. } => {
+                "update them yourself from the entry's content list to see why, or hold one to \
+                 keep it where it is"
                     .to_string()
             }
             ServerListInUse { .. } => {
@@ -204,6 +213,10 @@ impl fmt::Display for WarningInfo {
             ImportContentMissing { count, .. } => write!(
                 f,
                 "{count} file(s) were not in the archive and had no download, so they were left out"
+            ),
+            ContentNotUpdated { count, .. } => write!(
+                f,
+                "{count} item(s) could not be updated before the launch and kept their version"
             ),
             ServerListInUse { instance, sessions } => write!(
                 f,

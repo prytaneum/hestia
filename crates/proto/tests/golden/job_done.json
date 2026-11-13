@@ -19,7 +19,8 @@
       "worlds": [],
       "origin": "",
       "enabled": true,
-      "disabledWorlds": []
+      "disabledWorlds": [],
+      "held": false
     }
   ],
   "failures": [
