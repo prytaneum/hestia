@@ -778,9 +778,15 @@ mod pushed {
         let path = std::path::Path::new("/tmp").join(&name);
         let listener = UnixListener::bind(&path).unwrap();
         let grant = Grant {
-            permissions: [Permission::IpcConnect].into(),
-            ipc: [format!("{}*", &name[..name.len() - 1])].into(),
-            events: ["ipc.*".to_string()].into(),
+            permissions: [(
+                Permission::IpcConnect,
+                PermissionScope::of(
+                    ScopeKind::Endpoints,
+                    [format!("{}*", &name[..name.len() - 1])],
+                ),
+            )]
+            .into(),
+            contributions: PermissionScope::of(ScopeKind::Events, ["ipc.*"]),
             ..Grant::default()
         };
         let probe = Probe::load_with(grant, BTreeMap::new());
