@@ -104,6 +104,7 @@ const installed = ({
     calls: stats.calls,
     traps: stats.traps,
     timeouts: stats.timeouts,
+    throttled: 0,
     ...(lastError ? { lastError } : {}),
   };
 };

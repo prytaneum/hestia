@@ -10,6 +10,7 @@ export type { ServerDone } from "./generated/ServerDone";
 export type { ServerInfo } from "./generated/ServerInfo";
 export type { ServerPingResult } from "./generated/ServerPingResult";
 export type { ServerProperty } from "./generated/ServerProperty";
+export type { ServerReadyEvent } from "./generated/ServerReadyEvent";
 export type { ServerRef } from "./generated/ServerRef";
 export type { ServerStartResult } from "./generated/ServerStartResult";
 export type { ServerUpdateParams } from "./generated/ServerUpdateParams";

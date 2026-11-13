@@ -317,7 +317,7 @@ impl ScheduleContribution {
     }
 }
 
-pub const MIN_SCHEDULE_SECS: u64 = 30;
+pub const MIN_SCHEDULE_SECS: u64 = 1;
 pub const MAX_SCHEDULE_SECS: u64 = 30 * 24 * 60 * 60;
 pub const MAX_SCHEDULES: usize = 8;
 
@@ -651,6 +651,8 @@ pub struct PluginInfo {
     pub calls: u64,
     pub traps: u64,
     pub timeouts: u64,
+    /// Wake-ups the daemon held back to keep the plugin within its call budget.
+    pub throttled: u64,
     /// Size of the plugin's `data/` directory, measured only by `plugin.info`:
     /// walking every plugin's tree on each `plugin.list` costs too much.
     #[serde(skip_serializing_if = "Option::is_none")]

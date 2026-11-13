@@ -31,6 +31,7 @@ export type * from "./plugin";
 export type * from "./process";
 export type * from "./profile";
 export type * from "./provider";
+export type * from "./pushed";
 export type * from "./screenshot";
 export type * from "./server";
 export type * from "./skins";

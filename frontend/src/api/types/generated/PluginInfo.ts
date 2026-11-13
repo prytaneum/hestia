@@ -47,6 +47,10 @@ grant: Grant,
  */
 unrestricted: Array<Permission>, lastError?: string, calls: number, traps: number, timeouts: number, 
 /**
+ * Wake-ups the daemon held back to keep the plugin within its call budget.
+ */
+throttled: number, 
+/**
  * Size of the plugin's `data/` directory, measured only by `plugin.info`:
  * walking every plugin's tree on each `plugin.list` costs too much.
  */

@@ -4,6 +4,7 @@
 //! [`RouterHost`].
 
 mod auto;
+mod budget;
 mod dev;
 mod events;
 mod host;
@@ -714,6 +715,7 @@ impl Plugins {
             calls: stats.calls,
             traps: stats.traps,
             timeouts: stats.timeouts,
+            throttled: stats.throttled,
             data_bytes: None,
         }
     }

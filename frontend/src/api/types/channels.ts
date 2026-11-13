@@ -5,6 +5,8 @@ import type { AccountLoginBeginParams } from "./generated/AccountLoginBeginParam
 import type { AccountLoginBeginResult } from "./generated/AccountLoginBeginResult";
 import type { AccountLoginCompleteParams } from "./generated/AccountLoginCompleteParams";
 import type { AccountRemoveParams } from "./generated/AccountRemoveParams";
+import type { AccountSignedInEvent } from "./generated/AccountSignedInEvent";
+import type { AccountSignedOutEvent } from "./generated/AccountSignedOutEvent";
 import type { AccountSwitchParams } from "./generated/AccountSwitchParams";
 import type { Action } from "./generated/Action";
 import type { AddressPingParams } from "./generated/AddressPingParams";
@@ -99,6 +101,8 @@ import type { InstanceSyncStatus } from "./generated/InstanceSyncStatus";
 import type { InstanceSyncUnitParams } from "./generated/InstanceSyncUnitParams";
 import type { InstanceUpdateDone } from "./generated/InstanceUpdateDone";
 import type { InstanceUpdateParams } from "./generated/InstanceUpdateParams";
+import type { IpcClosedEvent } from "./generated/IpcClosedEvent";
+import type { IpcReadableEvent } from "./generated/IpcReadableEvent";
 import type { JavaInstallDone } from "./generated/JavaInstallDone";
 import type { JavaInstallParams } from "./generated/JavaInstallParams";
 import type { JavaInstallProgress } from "./generated/JavaInstallProgress";
@@ -195,6 +199,7 @@ import type { ServerPlayerKickParams } from "./generated/ServerPlayerKickParams"
 import type { ServerPlayerSetParams } from "./generated/ServerPlayerSetParams";
 import type { ServerPlayersResult } from "./generated/ServerPlayersResult";
 import type { ServerProperty } from "./generated/ServerProperty";
+import type { ServerReadyEvent } from "./generated/ServerReadyEvent";
 import type { ServerRef } from "./generated/ServerRef";
 import type { ServerStartResult } from "./generated/ServerStartResult";
 import type { ServerTask } from "./generated/ServerTask";
@@ -419,7 +424,11 @@ export type JobEvents = {
 }[keyof Jobs];
 
 export interface Topics {
+  "account.signed_in": AccountSignedInEvent;
+  "account.signed_out": AccountSignedOutEvent;
   "changed": ChangedEvent;
+  "ipc.closed": IpcClosedEvent;
+  "ipc.readable": IpcReadableEvent;
   "job": JobEvents;
   "net.state": NetworkStatus;
   "plugin.auto_updated": PluginAutoUpdatedEvent;
@@ -432,6 +441,7 @@ export interface Topics {
   "process.metrics": ProcessMetricsEvent;
   "process.output": ProcessOutputEvent;
   "process.started": ProcessStartedEvent;
+  "server.ready": ServerReadyEvent;
 }
 
 export const TIMEOUTS: Partial<Record<keyof Channels, number>> = {

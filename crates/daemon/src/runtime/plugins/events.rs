@@ -19,6 +19,7 @@ use tokio::sync::Notify;
 use tokio::task::JoinHandle;
 use tokio::time::{interval_at, MissedTickBehavior};
 
+use super::budget::{Budget, Verdict, Wake};
 use crate::runtime::EventHub;
 
 const QUEUE_CAPACITY: usize = 256;
@@ -70,6 +71,7 @@ struct Inbox {
     ready: Notify,
     dropped: AtomicU64,
     last_warned: Mutex<Option<Instant>>,
+    budget: Mutex<Budget>,
 }
 
 impl Inbox {
@@ -80,6 +82,25 @@ impl Inbox {
             ready: Notify::new(),
             dropped: AtomicU64::new(0),
             last_warned: Mutex::new(None),
+            budget: Mutex::new(Budget::new(Instant::now())),
+        }
+    }
+
+    fn judge(&self, wake: Wake) -> Verdict {
+        self.budget.lock().unwrap().judge(wake, Instant::now())
+    }
+
+    /// Records a wake-up the budget held back; the log hears of it at most once
+    /// a minute.
+    fn throttled(&self, plugin: &LoadedPlugin, wake: Wake) {
+        plugin.record_throttled();
+        let due = self.budget.lock().unwrap().note_throttled(Instant::now());
+        if due {
+            tracing::warn!(
+                plugin = %self.plugin,
+                ?wake,
+                "plugin is being woken faster than its call budget allows"
+            );
         }
     }
 
@@ -239,6 +260,28 @@ async fn tick(inbox: Arc<Inbox>, id: String, every: Duration) {
     }
 }
 
+/// The one place a host-initiated call is paid for. A tick over budget is
+/// dropped; an event waits for a token while the queue behind it keeps dropping
+/// its oldest.
+async fn within_budget(inbox: &Inbox, plugin: &LoadedPlugin, wake: Wake) -> bool {
+    let mut held = false;
+    loop {
+        match inbox.judge(wake) {
+            Verdict::Run => return true,
+            Verdict::Skip => {
+                inbox.throttled(plugin, wake);
+                return false;
+            }
+            Verdict::Wait(pause) => {
+                if !std::mem::replace(&mut held, true) {
+                    inbox.throttled(plugin, wake);
+                }
+                tokio::time::sleep(pause).await;
+            }
+        }
+    }
+}
+
 /// Serial, in order, each event on a fresh store. Stops for good, until the
 /// plugin is loaded again, after [`TIMEOUTS_IN_A_ROW`] timeouts.
 async fn drain(inbox: Arc<Inbox>, plugin: Arc<LoadedPlugin>, hub: Arc<EventHub>, key: String) {
@@ -246,6 +289,13 @@ async fn drain(inbox: Arc<Inbox>, plugin: Arc<LoadedPlugin>, hub: Arc<EventHub>,
     let mut timeouts = 0;
     loop {
         let (topic, payload) = inbox.pop().await;
+        let wake = match topic.as_str() {
+            ScheduleEvent::TOPIC => Wake::Tick,
+            _ => Wake::Event,
+        };
+        if !within_budget(&inbox, &plugin, wake).await {
+            continue;
+        }
         match plugin
             .on_event(&chain, &topic, &payload, EVENT_TIMEOUT)
             .await

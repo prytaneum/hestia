@@ -5,5 +5,7 @@ export type { AccountLoginBeginParams } from "./generated/AccountLoginBeginParam
 export type { AccountLoginBeginResult } from "./generated/AccountLoginBeginResult";
 export type { AccountLoginCompleteParams } from "./generated/AccountLoginCompleteParams";
 export type { AccountRemoveParams } from "./generated/AccountRemoveParams";
+export type { AccountSignedInEvent } from "./generated/AccountSignedInEvent";
+export type { AccountSignedOutEvent } from "./generated/AccountSignedOutEvent";
 export type { AccountSwitchParams } from "./generated/AccountSwitchParams";
 export type { LoginMethod } from "./generated/LoginMethod";

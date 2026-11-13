@@ -115,6 +115,8 @@ pub struct PluginStats {
     pub calls: u64,
     pub traps: u64,
     pub timeouts: u64,
+    /// Host-initiated wake-ups held back by the daemon's call budget.
+    pub throttled: u64,
 }
 
 /// Advances the engine's epoch from a thread of its own. A tokio task would
@@ -271,6 +273,7 @@ impl PluginRuntime {
             calls: AtomicU64::new(0),
             traps: AtomicU64::new(0),
             timeouts: AtomicU64::new(0),
+            throttled: AtomicU64::new(0),
             recent_traps: Mutex::new(VecDeque::new()),
             disabled: AtomicBool::new(false),
             _ticker: self.ticker.clone(),
@@ -327,6 +330,7 @@ pub struct LoadedPlugin {
     calls: AtomicU64,
     traps: AtomicU64,
     timeouts: AtomicU64,
+    throttled: AtomicU64,
     recent_traps: Mutex<VecDeque<std::time::Instant>>,
     disabled: AtomicBool,
     _ticker: Arc<Ticker>,
@@ -354,7 +358,13 @@ impl LoadedPlugin {
             calls: self.calls.load(Ordering::Relaxed),
             traps: self.traps.load(Ordering::Relaxed),
             timeouts: self.timeouts.load(Ordering::Relaxed),
+            throttled: self.throttled.load(Ordering::Relaxed),
         }
+    }
+
+    /// Counts a wake-up the daemon's call budget held back.
+    pub fn record_throttled(&self) {
+        self.throttled.fetch_add(1, Ordering::Relaxed);
     }
 
     /// Runs the plugin's `lifecycle.init`.
