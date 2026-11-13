@@ -127,6 +127,7 @@
       "update_to": "Atualizar para {version}",
       "update_rolled_back": "{name} não foi atualizado",
       "rolled_back": "{id} foi revertido para {restored}",
+      "auto_updated": "{id} foi atualizado para {to}",
       "rolled_back_hint": "A versão {version} parou de funcionar logo após a atualização. Relate o problema ao autor.",
       "updated": "{name} atualizado para {version}",
       "updates_available": "{count} atualizações disponíveis",

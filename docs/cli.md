@@ -610,6 +610,7 @@ hestia config set instance.multi-session true # allow an instance to run several
 hestia config set discord.enabled false       # stop publishing Discord presence
 hestia config set content.curseforge-key <key> # unlock the CurseForge source
 hestia config set network.offline true        # stop reaching the network at all
+hestia config set plugins.auto-update false   # stop applying official plugin updates unattended
 hestia config set developer true              # show the plugin authoring tools (see Launcher plugins)
 ```
 
@@ -619,6 +620,11 @@ already fetched are still answered from their cached copy, so creating an instan
 keeps working. `hestia daemon status` reports the current state on its `network` line — `online`, `checking`,
 `offline — upstream is unreachable`, or `offline (pinned by network.offline)`. The unpinned states are observed from the
 requests the daemon actually makes, so the line never disagrees with what a command is about to do.
+
+`plugins.auto-update` (default on) lets the daemon apply an update to an official plugin by itself after each scheduled
+check (every six hours), when the update asks for nothing beyond what is already granted. It is skipped while the
+network is offline, and logged at info. Third-party plugins, and official updates that widen the grant, only appear in
+`hestia plugin outdated` until you update them.
 
 While `discord.enabled` is on, a running Discord client is told which instance is being played, its flavor and game
 version, and how long the session has run — and that the launcher is open at all, as an idle presence, since the daemon

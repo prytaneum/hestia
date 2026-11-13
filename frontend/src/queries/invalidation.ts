@@ -126,6 +126,7 @@ export function invalidationKeys(event: DaemonEvent): QueryKey[] {
     case 'plugin.updates':
       return [keys.plugins.outdated()];
     case 'plugin.rolled_back':
+    case 'plugin.auto_updated':
       return [keys.plugins.all];
     default:
       return [];
@@ -161,6 +162,12 @@ function announceRollback(rollback: Topics['plugin.rolled_back']): void {
   });
 }
 
+function announceAutoUpdate(update: Topics['plugin.auto_updated']): void {
+  notify.success(m['settings.plugins.auto_updated'](update), {
+    id: `plugin-auto-updated-${update.id}`,
+  });
+}
+
 let started = false;
 
 /** Install the feed once, at app bootstrap. */
@@ -170,6 +177,8 @@ export function startInvalidation(): void {
   onDaemonEvent((event) => {
     for (const key of invalidationKeys(event)) invalidate(key);
     if (event.topic === 'plugin.rolled_back') announceRollback(event.payload);
+    if (event.topic === 'plugin.auto_updated')
+      announceAutoUpdate(event.payload);
     // Coming back online is the other reconnect: everything upstream-backed
     // failed or answered from a cached catalogue while we were out.
     if (event.topic === 'net.state') sweepOnReturnToOnline(event.payload);

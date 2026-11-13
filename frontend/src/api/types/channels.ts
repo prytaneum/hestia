@@ -122,6 +122,7 @@ import type { PageContext } from "./generated/PageContext";
 import type { PingResult } from "./generated/PingResult";
 import type { PluginAssetParams } from "./generated/PluginAssetParams";
 import type { PluginAssetResult } from "./generated/PluginAssetResult";
+import type { PluginAutoUpdatedEvent } from "./generated/PluginAutoUpdatedEvent";
 import type { PluginCommand } from "./generated/PluginCommand";
 import type { PluginInfo } from "./generated/PluginInfo";
 import type { PluginInspection } from "./generated/PluginInspection";
@@ -421,6 +422,7 @@ export interface Topics {
   "changed": ChangedEvent;
   "job": JobEvents;
   "net.state": NetworkStatus;
+  "plugin.auto_updated": PluginAutoUpdatedEvent;
   "plugin.log": PluginLogEvent;
   "plugin.rolled_back": PluginRolledBackEvent;
   "plugin.schedule": ScheduleEvent;

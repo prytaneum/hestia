@@ -440,7 +440,15 @@ minisign public key and an optional spare, added by its index URL. It has one sh
   runs it a minute after start and every six hours (`spawn_plugin_update_checker`),
   refreshing each repository once through the normal refresh path, and publishes
   `plugin.updates` when the list changes; the topic names no permission, so no plugin
-  hears it. Offline it answers from the cached indexes and sets `offline`.
+  hears it. Offline it answers from the cached indexes and sets `offline`. After each check, official
+  plugins (signer is an official key) whose offer is runnable here and whose `widened` grant is empty are applied
+  through the same `Plugins::update` path as `plugin.update` (`daemon/src/runtime/plugins/auto.rs`,
+  `Engine::auto_update_candidates`), under the plugin's install claim; an update whose full grant
+  turns out wider than the installed one is refused by that path and left for the user. Each success is logged at info
+  and published as `plugin.auto_updated` (id, from, to; no plugin may receive it), and is dropped from the
+  `plugin.updates` list. Third-party and widened updates only surface in `plugin.updates`. `plugins.auto-update`
+  (default on) turns it off; it also does nothing while the network state is offline. There is no metered-connection
+  signal, so `network.offline` is the way to opt out of network use.
 - **Applying an update** (`plugin.update`, a job; `Plugins::apply_update` in
   `engine/src/plugins/update.rs`, loaded by `daemon/src/runtime/plugins/update.rs`) stages the
   newest build from a repository pinning the installed signer, verifies it like an install,

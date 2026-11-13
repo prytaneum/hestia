@@ -130,4 +130,13 @@ describe('the daemon-topic invalidation map', () => {
       }),
     ).toEqual([keys.plugins.all]);
   });
+
+  it('refreshes the plugins when one updates itself', () => {
+    expect(
+      invalidationKeys({
+        topic: 'plugin.auto_updated',
+        payload: { id: 'demo', from: '1.0.0', to: '1.1.0' },
+      }),
+    ).toEqual([keys.plugins.all]);
+  });
 });
