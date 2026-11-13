@@ -117,7 +117,7 @@ fn vet_client(grant: &Grant, profile: &InstanceProfile) -> Result<(), Refusal> {
     java(profile.java_major)
 }
 
-/// A flavor a plugin contributes, registered as `<plugin>.<id>`.
+/// A flavor a plugin contributes, registered as `<plugin>.<id>`, or bare when official.
 pub struct PluginFlavorProvider {
     guest: Guest,
     info: FlavorInfo,
@@ -391,8 +391,9 @@ fn provision_progress(side: Side, reported: &PluginRunProgress) -> ProvisionProg
 pub(super) async fn connect(
     plugin: &Arc<LoadedPlugin>,
     manifest: &Manifest,
+    official: bool,
 ) -> Vec<PluginFlavorProvider> {
-    connect_each::<Flavor, _, _, _>(plugin, manifest, PluginFlavorProvider::connect).await
+    connect_each::<Flavor, _, _, _>(plugin, manifest, official, PluginFlavorProvider::connect).await
 }
 
 pub(super) fn register(

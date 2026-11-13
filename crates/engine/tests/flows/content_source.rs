@@ -71,9 +71,9 @@ async fn rig(hosts: &[&str]) -> (engine::Engine, String, tempfile::TempDir) {
         .expect("create the instance")
         .id;
     let (plugin, manifest) = load(home.path(), &files, hosts);
-    engine::Contributions::connect(&plugin, &manifest)
+    engine::Contributions::connect(&plugin, &manifest, false)
         .await
-        .register(&engine, &manifest.id, false);
+        .register(&engine, &manifest.id);
     (engine, id, home)
 }
 

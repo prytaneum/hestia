@@ -71,7 +71,7 @@ fn vet(grant: &Grant, major: i32, build: JavaBuild) -> Result<JavaPackage, Refus
     })
 }
 
-/// A Java provider a plugin contributes, registered as `<plugin>.<id>`.
+/// A Java provider a plugin contributes, registered as `<plugin>.<id>`, or bare when official.
 pub struct PluginJavaProvider {
     guest: Guest,
 }
@@ -111,10 +111,14 @@ impl JavaProvider for PluginJavaProvider {
 
 /// Nothing is asked of the guest until a build is resolved, so none can fail
 /// to connect.
-pub(super) fn connect(plugin: &Arc<LoadedPlugin>, manifest: &Manifest) -> Vec<PluginJavaProvider> {
+pub(super) fn connect(
+    plugin: &Arc<LoadedPlugin>,
+    manifest: &Manifest,
+    official: bool,
+) -> Vec<PluginJavaProvider> {
     contributed::<Distribution>(manifest)
         .map(|local| PluginJavaProvider {
-            guest: Guest::new::<Distribution>(plugin.clone(), manifest, local),
+            guest: Guest::new::<Distribution>(plugin.clone(), manifest, local, official),
         })
         .collect()
 }

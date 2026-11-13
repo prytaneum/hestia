@@ -61,9 +61,9 @@ async fn rig(hosts: &[&str]) -> (Arc<engine::Engine>, tempfile::TempDir) {
     fixture::java_runtime(home.path(), 21);
     let manifest: Manifest = toml::from_str(fixture::replay::MANIFEST).expect("manifest");
     let plugin = load(home.path(), &files, hosts, &engine);
-    engine::Contributions::connect(&plugin, &manifest)
+    engine::Contributions::connect(&plugin, &manifest, false)
         .await
-        .register(&engine, &manifest.id, false);
+        .register(&engine, &manifest.id);
     (engine, home)
 }
 

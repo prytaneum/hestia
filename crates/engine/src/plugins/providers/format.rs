@@ -75,7 +75,7 @@ impl From<&FormatBlueprint> for Blueprint {
     }
 }
 
-/// A format a plugin contributes, registered as `<plugin>.<id>`.
+/// A format a plugin contributes, registered as `<plugin>.<id>`, or bare when official.
 pub struct PluginFormat {
     guest: Guest,
     info: FormatInfo,
@@ -190,8 +190,12 @@ impl PluginFormat {
     }
 }
 
-pub(super) async fn connect(plugin: &Arc<LoadedPlugin>, manifest: &Manifest) -> Vec<PluginFormat> {
-    connect_each::<Format, _, _, _>(plugin, manifest, PluginFormat::connect).await
+pub(super) async fn connect(
+    plugin: &Arc<LoadedPlugin>,
+    manifest: &Manifest,
+    official: bool,
+) -> Vec<PluginFormat> {
+    connect_each::<Format, _, _, _>(plugin, manifest, official, PluginFormat::connect).await
 }
 
 pub(super) fn register(engine: &Engine, owner: &str, official: bool, formats: Vec<PluginFormat>) {

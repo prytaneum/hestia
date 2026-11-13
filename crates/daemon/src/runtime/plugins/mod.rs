@@ -759,6 +759,7 @@ impl Plugins {
             .cloned()
             .context("the plugin runtime is not running")?;
         let data_dir = self.engine.plugins().data_dir(&record.id)?;
+        let official = is_official_signer(record.signer.as_deref());
         let record = record.clone();
         let engine = self.engine.clone();
         let loaded = spawn_blocking(move || {
@@ -768,7 +769,7 @@ impl Plugins {
         .await??;
         loaded.init(&CallChain::default(), INIT_TIMEOUT).await?;
         let loaded = Arc::new(loaded);
-        let contributions = Contributions::connect(&loaded, &package.manifest).await;
+        let contributions = Contributions::connect(&loaded, &package.manifest, official).await;
         Ok(Activation::Ready(Some(loaded), contributions))
     }
 
@@ -797,12 +798,7 @@ impl Plugins {
             }
             unregister_providers(&self.engine, id);
             if state == PluginState::Enabled {
-                let official = self
-                    .engine
-                    .plugins()
-                    .get(id)
-                    .is_some_and(|record| is_official_signer(record.signer.as_deref()));
-                contributions.register(&self.engine, id, official);
+                contributions.register(&self.engine, id);
             }
             slots.insert(
                 id.to_string(),

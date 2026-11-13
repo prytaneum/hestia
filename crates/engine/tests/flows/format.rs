@@ -41,13 +41,13 @@ async fn load(home: &std::path::Path) -> (engine::Engine, Manifest, engine::Cont
     let settings =
         engine::PluginSettings::new(home.join("replay-format-settings.json"), Vec::new());
     let plugin = Arc::new(runtime.load(&record, &wasm, data, settings).expect("load"));
-    let contributions = engine::Contributions::connect(&plugin, &manifest).await;
+    let contributions = engine::Contributions::connect(&plugin, &manifest, false).await;
     (engine, manifest, contributions)
 }
 
 async fn rig(home: &std::path::Path) -> engine::Engine {
     let (engine, manifest, contributions) = load(home).await;
-    contributions.register(&engine, &manifest.id, false);
+    contributions.register(&engine, &manifest.id);
     engine
 }
 

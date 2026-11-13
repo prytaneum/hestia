@@ -243,8 +243,11 @@ operation it does not implement; an optional operation then takes its
 documented fallback in the host (`projects` asks `project` for each,
 `versions-by-id`, `identify` and `loader-versions` find nothing), a required one
 fails the call. `Contributions` connects, registers and unregisters every kind
-in one place, so the daemon never names a kind. Ids read `<plugin>.<id>`; only a
-plugin signed by the official key may take a bare id.
+in one place, so the daemon never names a kind. Ids read `<plugin>.<id>`; a
+plugin signed by the official key registers its providers under the bare `<id>` instead (`adoptium`, not
+`adoptium.adoptium`), which is how it replaces a core provider of that name. `Contributions::connect` takes the flag, so
+the id a guest carries, the `Service::Provider` it reports and the registered id are the same string. Registration
+refuses a duplicate id, so a bare id still held by a built-in is left to the built-in and logged as refused.
 
 | Kind | Needs | Registers into | Page |
 |---|---|---|---|

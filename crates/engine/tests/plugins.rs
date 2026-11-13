@@ -827,6 +827,15 @@ async fn java_releases_through(
     network: &[&str],
     url: &str,
 ) -> Result<Vec<proto::java::JavaRelease>, anyhow::Error> {
+    let (engine, _home, _data) = register_java_probe(network, url, false).await;
+    engine.java().releases("probe.reach").await
+}
+
+async fn register_java_probe(
+    network: &[&str],
+    url: &str,
+    official: bool,
+) -> (engine::Engine, tempfile::TempDir, tempfile::TempDir) {
     let probe = Probe::load_with_network(&[Permission::NetworkConnect], network);
     probe.set_mode(&format!("get {url}"));
     let Probe {
@@ -848,12 +857,26 @@ async fn java_releases_through(
     };
     let home = tempfile::tempdir().unwrap();
     let engine = crate::fixture::engine(home.path(), vec![], vec![]);
-    engine::Contributions::connect(&Arc::new(plugin), &manifest)
+    engine::Contributions::connect(&Arc::new(plugin), &manifest, official)
         .await
-        .register(&engine, "probe", false);
-    let releases = engine.java().releases("probe.reach").await;
-    drop(data);
-    releases
+        .register(&engine, "probe");
+    (engine, home, data)
+}
+
+#[tokio::test]
+async fn an_official_plugins_provider_registers_under_its_bare_id() {
+    let (engine, _home, _data) =
+        register_java_probe(&["example.com"], "https://example.com/", true).await;
+    assert!(engine.java().provider("reach").is_ok());
+    assert!(engine.java().provider("probe.reach").is_err());
+}
+
+#[tokio::test]
+async fn a_third_party_plugins_provider_stays_prefixed() {
+    let (engine, _home, _data) =
+        register_java_probe(&["example.com"], "https://example.com/", false).await;
+    assert!(engine.java().provider("probe.reach").is_ok());
+    assert!(engine.java().provider("reach").is_err());
 }
 
 #[tokio::test]

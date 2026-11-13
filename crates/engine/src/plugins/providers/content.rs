@@ -22,7 +22,7 @@ use crate::engine::Engine;
 use crate::plugins::http::download_allowed;
 use crate::plugins::runtime::LoadedPlugin;
 
-/// A source a plugin contributes, registered as `<plugin>.<id>`.
+/// A source a plugin contributes, registered as `<plugin>.<id>`, or bare when official.
 pub struct PluginContentProvider {
     guest: Guest,
     info: SourceInfo,
@@ -191,8 +191,10 @@ impl ContentProvider for PluginContentProvider {
 pub(super) async fn connect(
     plugin: &Arc<LoadedPlugin>,
     manifest: &Manifest,
+    official: bool,
 ) -> Vec<PluginContentProvider> {
-    connect_each::<Source, _, _, _>(plugin, manifest, PluginContentProvider::connect).await
+    connect_each::<Source, _, _, _>(plugin, manifest, official, PluginContentProvider::connect)
+        .await
 }
 
 pub(super) fn register(

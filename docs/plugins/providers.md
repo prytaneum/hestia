@@ -14,7 +14,8 @@ kind = "content"
 id = "index"
 ```
 
-- The registry id is `<plugin>.<id>` (`static-index.index`). Only a plugin signed by the official key may take a bare id.
+- The registry id is `<plugin>.<id>` (`static-index.index`). A plugin signed by the official key registers under the
+  bare `<id>` instead; an id already taken, by a built-in or another plugin, is refused.
 - A kind needs the permissions in the table below. A manifest that declares a kind without them is refused at `pack` and
   at install. A kind that lists `network:connect` also needs at least one host in `network`.
 - The guest only names files; the host downloads them, and only from the plugin's `network` hosts.
