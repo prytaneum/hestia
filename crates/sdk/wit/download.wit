@@ -1,0 +1,43 @@
+package hestia:plugin@1.0.0;
+
+/// Has the daemon fetch a file to disk, so the plugin never holds the body.
+/// Needs `network:connect`: the URL, and every redirect it follows, must be on a
+/// host the plugin's grant names, over https, and must not resolve to this
+/// computer or its network.
+interface download {
+    use types.{plugin-error};
+
+    enum algorithm {
+        sha1,
+        sha256,
+        sha512,
+    }
+
+    /// A digest the file must have, as lowercase or uppercase hex.
+    record checksum {
+        algorithm: algorithm,
+        hex: string,
+    }
+
+    record outcome {
+        /// The size of the file written, in bytes.
+        size: u64,
+    }
+
+    /// Fetches `url` to `dest`, a guest path under a writable mount of this
+    /// call (`/data`, or `/build` during a flavor's `build`) whose directory
+    /// already exists; any other path is `denied`. The file appears at `dest`
+    /// only when it is complete and, given `expect`, matches it; a mismatch
+    /// fails and leaves nothing there.
+    ///
+    /// `expect` of `none` is allowed only when every host the transfer touches
+    /// is one the grant lists as serving unhashed files; otherwise the call is
+    /// `denied`. With a checksum, a file the engine already downloaded is
+    /// served from its cache, so repeating a download costs nothing.
+    ///
+    /// The transfer reports progress into the current call and stops when the
+    /// call is cancelled or out of time. A file larger than 4 GiB is refused
+    /// while it streams. An answer other than success is `not-found` for 404 and
+    /// `upstream` carrying the status for the rest; no route is `offline`.
+    download: func(url: string, expect: option<checksum>, dest: string) -> result<outcome, plugin-error>;
+}

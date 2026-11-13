@@ -22,6 +22,7 @@
 mod call;
 pub mod commands;
 pub mod data;
+pub mod download;
 mod error;
 pub mod events;
 pub mod hash;
@@ -38,6 +39,7 @@ pub mod ui;
 
 pub use call::{call, run_job};
 pub use commands::{Commands, Ran};
+pub use download::download;
 pub use error::Error;
 pub use events::Events;
 pub use hooks::{Intercept, Intercepted};

@@ -1,4 +1,4 @@
-//! Incremental SHA-1 / SHA-256 hashing. One definition every consumer (downloader, cache) verifies through.
+//! Incremental SHA-1 / SHA-256 / SHA-512 hashing. One definition every consumer (downloader, cache) verifies through.
 
 use std::fs::File;
 use std::io::{self, Read};
@@ -6,11 +6,12 @@ use std::path::Path;
 
 use proto::download::HashAlgorithm;
 use sha1::Sha1;
-use sha2::{Digest, Sha256};
+use sha2::{Digest, Sha256, Sha512};
 
 pub enum Hasher {
     Sha1(Sha1),
     Sha256(Sha256),
+    Sha512(Sha512),
 }
 
 impl Hasher {
@@ -18,6 +19,7 @@ impl Hasher {
         match algorithm {
             HashAlgorithm::Sha1 => Hasher::Sha1(Sha1::new()),
             HashAlgorithm::Sha256 => Hasher::Sha256(Sha256::new()),
+            HashAlgorithm::Sha512 => Hasher::Sha512(Sha512::new()),
         }
     }
 
@@ -25,6 +27,7 @@ impl Hasher {
         match self {
             Hasher::Sha1(h) => h.update(data),
             Hasher::Sha256(h) => h.update(data),
+            Hasher::Sha512(h) => h.update(data),
         }
     }
 
@@ -32,6 +35,7 @@ impl Hasher {
         match self {
             Hasher::Sha1(h) => hex(&h.finalize()),
             Hasher::Sha256(h) => hex(&h.finalize()),
+            Hasher::Sha512(h) => hex(&h.finalize()),
         }
     }
 }

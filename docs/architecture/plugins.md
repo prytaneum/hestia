@@ -455,6 +455,14 @@ every launch; files on Mojang's own hosts (the vanilla layer it builds on) stay 
 file with no checksum must say `unhashed` and sit on an unhashed host, as a flavor artifact does. Files a pack's own
 index names are not plugin-supplied and keep the core client.
 
+A guest fetches a file through the `download` import, which is the same path with the guest as the caller
+([0119](../decisions/0119-downloads-are-host-side.md)): `download.rs` vets the URL under the plugin's `Policy`, resolves
+`dest` through the writable mounts of the call (the rule `process.exec`'s `cwd` uses, plus a plain file name in an
+existing directory), and runs the engine's `Downloader` with the content-addressed cache, a 4 GiB cap, and the call's
+progress, cancel and deadline. The failure keeps its reason (`Refused`, `Fault`) so `GuestError::fetch` answers
+`denied`, `not-found`, `upstream` with the status, `offline` or `invalid` and never a string. The downloader opens its
+`.part` exclusively, so a symlink planted at the staging name is refused.
+
 The engine's `loopback` feature (enabled only by its own dev-dependency, so tests in the separate integration crate can
 serve from a loopback host a grant names, over http) is never part of a build that ships.
 
@@ -662,7 +670,7 @@ are reclaimed at startup.
 `crates/sdk/wit/` is the ABI: one package, `hestia:plugin`, whose version is the
 API version (`proto::plugin::API_VERSION`, `crates/sdk/tests/version.rs` fails on
 drift). Imports: `host` (`call`, `run-job`), `log`, `process`, `progress`,
-`settings`, `ipc`, `data` and the `http-client` world over `wasi:http`; exports:
+`settings`, `ipc`, `data`, `download` and the `http-client` world over `wasi:http`; exports:
 `lifecycle`, `commands`, `events`, `settings-changed`, `ui`, `hooks`
 (`intercept`) and `provider` (`invoke`). Every function that can fail returns `plugin-error` ([Errors](#errors)). That list is closed: a new hook point or
 provider kind is data in `proto`, not a new interface. `hestia-sdk` wraps the
@@ -729,3 +737,4 @@ plugins the tests build are fixtures
 | [0116](../decisions/0116-an-official-provider-shadows-the-builtin.md) | an official provider shadows the built-in of the same id; a dev install can register as official |
 | [0117](../decisions/0117-a-grant-is-permission-to-scope.md) | a grant is permission to scope, driven by one table |
 | [0118](../decisions/0118-host-pushed-events-and-a-call-budget-instead-of-a-resident-instance.md) | host-pushed events and a call budget instead of a resident instance |
+| [0119](../decisions/0119-downloads-are-host-side.md) | downloads are host-side: a host download call and declarative Maven libraries |

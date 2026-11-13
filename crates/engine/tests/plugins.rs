@@ -131,7 +131,8 @@ impl Probe {
             data.path().join("cache"),
             supervisor.clone(),
         )
-        .unwrap();
+        .unwrap()
+        .with_download_cache(Arc::new(engine::Cache::new(data.path().join("downloads"))));
         let record = PluginRecord {
             id: "probe".into(),
             wasm_sha256: Some(
@@ -1432,5 +1433,358 @@ mod manifest_table {
         let grant = manifest.grant();
         assert_eq!(grant.hosts().count(), 0);
         assert!(grant.permissions.is_empty());
+    }
+}
+
+mod downloads {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    use tokio::net::TcpListener;
+
+    use super::*;
+
+    const BODY: &str = "hello world\n";
+    const SHA1: &str = "22596363b3de40b06f981fb85d82312e8c0ed511";
+    const SHA256: &str = "a948904f2f0f479b8f8197694b30184b0d2ed1c1cd2a1ec0fb85d299a192a447";
+
+    struct Origin {
+        port: u16,
+        served: Arc<AtomicUsize>,
+    }
+
+    impl Origin {
+        async fn start() -> Origin {
+            let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+            let port = listener.local_addr().unwrap().port();
+            let served = Arc::new(AtomicUsize::new(0));
+            let counter = served.clone();
+            tokio::spawn(async move {
+                loop {
+                    let Ok((mut socket, _)) = listener.accept().await else {
+                        return;
+                    };
+                    let counter = counter.clone();
+                    tokio::spawn(async move {
+                        let mut request = vec![0u8; 2048];
+                        let read = socket.read(&mut request).await.unwrap_or(0);
+                        let request = String::from_utf8_lossy(&request[..read]).into_owned();
+                        let path = request.split_whitespace().nth(1).unwrap_or("/");
+                        counter.fetch_add(1, Ordering::SeqCst);
+                        let reply = match path {
+                            "/file.bin" => format!(
+                                "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{BODY}",
+                                BODY.len()
+                            ),
+                            "/hop" => format!(
+                                "HTTP/1.1 302 Found\r\nLocation: http://localhost:{port}/file.bin\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+                            ),
+                            "/stall" => "HTTP/1.1 200 OK\r\nContent-Length: 1000000\r\nConnection: close\r\n\r\n".to_string(),
+                            "/busy" => "HTTP/1.1 500 Internal Server Error\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".to_string(),
+                            _ => "HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".to_string(),
+                        };
+                        let _ = socket.write_all(reply.as_bytes()).await;
+                        let _ = socket.flush().await;
+                        if path == "/stall" {
+                            tokio::time::sleep(Duration::from_secs(60)).await;
+                        }
+                    });
+                }
+            });
+            Origin { port, served }
+        }
+
+        fn url(&self, path: &str) -> String {
+            format!("http://127.0.0.1:{}{path}", self.port)
+        }
+
+        fn requests(&self) -> usize {
+            self.served.load(Ordering::SeqCst)
+        }
+    }
+
+    fn fetcher(hosts: &[&str], unhashed: &[&str]) -> Probe {
+        let mut network = PermissionScope::of(ScopeKind::Hosts, hosts.iter().copied());
+        network.extend(ScopeKind::Unhashed, unhashed.iter().copied());
+        Probe::load_with(
+            Grant {
+                permissions: [(Permission::NetworkConnect, network)].into(),
+                ..Grant::default()
+            },
+            BTreeMap::new(),
+        )
+    }
+
+    async fn download(probe: &Probe, args: Value) -> Result<Value, GuestError> {
+        match probe.run("download", args, &Cancel::new(), GRACE).await.0 {
+            Ok(value) => Ok(value),
+            Err(CallError::Guest(error)) => Err(error),
+            Err(other) => panic!("{other:?}"),
+        }
+    }
+
+    fn data_file(probe: &Probe, name: &str) -> PathBuf {
+        probe.data.path().join("data").join(name)
+    }
+
+    fn left_in_data(probe: &Probe) -> Vec<std::ffi::OsString> {
+        std::fs::read_dir(probe.data.path().join("data"))
+            .unwrap()
+            .map(|entry| entry.unwrap().file_name())
+            .collect()
+    }
+
+    #[tokio::test]
+    async fn a_download_with_its_checksum_lands_whole_and_reports_progress() {
+        let origin = Origin::start().await;
+        let probe = fetcher(&["127.0.0.1"], &[]);
+
+        let (outcome, reports) = probe
+            .run(
+                "download",
+                json!({ "url": origin.url("/file.bin"), "dest": "/data/tool.jar", "sha1": SHA1 }),
+                &Cancel::new(),
+                GRACE,
+            )
+            .await;
+
+        assert_eq!(
+            outcome.unwrap(),
+            json!({ "size": BODY.len(), "present": true })
+        );
+        assert_eq!(
+            std::fs::read_to_string(data_file(&probe, "tool.jar")).unwrap(),
+            BODY
+        );
+        let latest = reports.borrow().clone().unwrap();
+        assert_eq!(
+            (latest.fraction, latest.message.as_str()),
+            (Some(1.0), "downloading tool.jar")
+        );
+    }
+
+    #[tokio::test]
+    async fn a_checksum_the_engine_already_holds_is_served_from_its_cache() {
+        let origin = Origin::start().await;
+        let probe = fetcher(&["127.0.0.1"], &[]);
+        let args =
+            |dest: &str| json!({ "url": origin.url("/file.bin"), "dest": dest, "sha256": SHA256 });
+
+        download(&probe, args("/data/one.bin")).await.unwrap();
+        download(&probe, args("/data/two.bin")).await.unwrap();
+
+        assert_eq!(origin.requests(), 1);
+        assert_eq!(
+            std::fs::read_to_string(data_file(&probe, "two.bin")).unwrap(),
+            BODY
+        );
+    }
+
+    #[tokio::test]
+    async fn a_checksum_mismatch_fails_and_leaves_nothing() {
+        let origin = Origin::start().await;
+        let probe = fetcher(&["127.0.0.1"], &[]);
+
+        let error = download(
+            &probe,
+            json!({ "url": origin.url("/file.bin"), "dest": "/data/tool.jar", "sha1": "0".repeat(40) }),
+        )
+        .await
+        .unwrap_err();
+
+        assert!(matches!(error, GuestError::Failed(_)), "{error:?}");
+        assert!(error.to_string().contains("checksum mismatch"), "{error}");
+        assert!(left_in_data(&probe).is_empty());
+    }
+
+    #[tokio::test]
+    async fn a_malformed_checksum_is_invalid() {
+        let origin = Origin::start().await;
+        let probe = fetcher(&["127.0.0.1"], &[]);
+
+        let error = download(
+            &probe,
+            json!({ "url": origin.url("/file.bin"), "dest": "/data/tool.jar", "sha1": "abc" }),
+        )
+        .await
+        .unwrap_err();
+
+        assert!(matches!(error, GuestError::Invalid(_)), "{error:?}");
+        assert_eq!(origin.requests(), 0);
+    }
+
+    #[tokio::test]
+    async fn no_checksum_needs_a_host_the_grant_declares_unhashed() {
+        let origin = Origin::start().await;
+        let args = json!({ "url": origin.url("/file.bin"), "dest": "/data/generated.bin" });
+
+        let refused = download(&fetcher(&["127.0.0.1"], &[]), args.clone())
+            .await
+            .unwrap_err();
+        assert!(matches!(refused, GuestError::Denied(_)), "{refused:?}");
+        assert!(refused.to_string().contains("unhashed"), "{refused}");
+        assert_eq!(origin.requests(), 0);
+
+        let probe = fetcher(&["127.0.0.1"], &["127.0.0.1"]);
+        download(&probe, args).await.unwrap();
+        assert!(data_file(&probe, "generated.bin").is_file());
+    }
+
+    #[tokio::test]
+    async fn a_destination_outside_a_writable_mount_is_denied() {
+        let origin = Origin::start().await;
+        let probe = fetcher(&["127.0.0.1"], &[]);
+
+        for dest in [
+            "/etc/tool.jar",
+            "/build/tool.jar",
+            "/vanilla/tool.jar",
+            "/data/../escape.jar",
+            "/data/missing/tool.jar",
+            "/data",
+            "tool.jar",
+        ] {
+            let error = download(
+                &probe,
+                json!({ "url": origin.url("/file.bin"), "dest": dest, "sha1": SHA1 }),
+            )
+            .await
+            .unwrap_err();
+            assert!(matches!(error, GuestError::Denied(_)), "{dest}: {error:?}");
+        }
+        assert_eq!(origin.requests(), 0);
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn a_symlink_at_the_staging_name_is_not_written_through() {
+        let origin = Origin::start().await;
+        let probe = fetcher(&["127.0.0.1"], &[]);
+        let outside = probe.data.path().join("secret.txt");
+        std::fs::write(&outside, "secret").unwrap();
+        std::os::unix::fs::symlink(&outside, data_file(&probe, "tool.jar.part")).unwrap();
+
+        download(
+            &probe,
+            json!({ "url": origin.url("/file.bin"), "dest": "/data/tool.jar", "sha1": SHA1 }),
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(std::fs::read_to_string(&outside).unwrap(), "secret");
+        assert_eq!(
+            std::fs::read_to_string(data_file(&probe, "tool.jar")).unwrap(),
+            BODY
+        );
+    }
+
+    #[tokio::test]
+    async fn a_redirect_to_a_host_outside_the_grant_is_refused() {
+        let origin = Origin::start().await;
+        let probe = fetcher(&["127.0.0.1"], &[]);
+
+        let error = download(
+            &probe,
+            json!({ "url": origin.url("/hop"), "dest": "/data/tool.jar", "sha1": SHA1 }),
+        )
+        .await
+        .unwrap_err();
+
+        assert!(matches!(error, GuestError::Denied(_)), "{error:?}");
+        assert!(error.to_string().contains("localhost"), "{error}");
+        assert!(!data_file(&probe, "tool.jar").exists());
+
+        let both = fetcher(&["127.0.0.1", "localhost"], &[]);
+        download(
+            &both,
+            json!({ "url": origin.url("/hop"), "dest": "/data/tool.jar", "sha1": SHA1 }),
+        )
+        .await
+        .expect("granted on every hop");
+    }
+
+    #[tokio::test]
+    async fn failing_statuses_are_typed() {
+        let origin = Origin::start().await;
+        let probe = fetcher(&["127.0.0.1"], &[]);
+        let fetch =
+            |path: &str| json!({ "url": origin.url(path), "dest": "/data/tool.jar", "sha1": SHA1 });
+
+        let missing = download(&probe, fetch("/nothing")).await.unwrap_err();
+        assert!(matches!(missing, GuestError::NotFound(_)), "{missing:?}");
+
+        let failing = download(&probe, fetch("/busy")).await.unwrap_err();
+        assert!(
+            matches!(
+                failing,
+                GuestError::Upstream {
+                    status: Some(500),
+                    ..
+                }
+            ),
+            "{failing:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn without_the_network_permission_nothing_is_fetched() {
+        let origin = Origin::start().await;
+        let probe = Probe::load(&[]);
+
+        let error = download(
+            &probe,
+            json!({ "url": origin.url("/file.bin"), "dest": "/data/tool.jar", "sha1": SHA1 }),
+        )
+        .await
+        .unwrap_err();
+
+        assert!(matches!(error, GuestError::Denied(_)), "{error:?}");
+        assert_eq!(origin.requests(), 0);
+    }
+
+    #[tokio::test]
+    async fn a_cancelled_call_stops_the_transfer_and_leaves_nothing() {
+        let origin = Origin::start().await;
+        let probe = fetcher(&["127.0.0.1"], &[]);
+        let cancel = Cancel::new();
+        let asker = cancel.clone();
+        tokio::spawn(async move {
+            tokio::time::sleep(Duration::from_millis(300)).await;
+            asker.cancel();
+        });
+
+        let started = std::time::Instant::now();
+        let (outcome, _) = probe
+            .run(
+                "download",
+                json!({ "url": origin.url("/stall"), "dest": "/data/tool.jar", "sha1": SHA1 }),
+                &cancel,
+                CALL_BUDGET,
+            )
+            .await;
+
+        assert!(outcome.is_err(), "{outcome:?}");
+        assert!(started.elapsed() < Duration::from_secs(10));
+        assert!(left_in_data(&probe).is_empty());
+    }
+
+    #[tokio::test]
+    async fn a_call_out_of_time_stops_the_transfer() {
+        let origin = Origin::start().await;
+        let probe = fetcher(&["127.0.0.1"], &[]);
+
+        let started = std::time::Instant::now();
+        let (outcome, _) = probe
+            .run_within(
+                "download",
+                json!({ "url": origin.url("/stall"), "dest": "/data/tool.jar", "sha1": SHA1 }),
+                &Cancel::new(),
+                GRACE,
+                Duration::from_millis(600),
+            )
+            .await;
+
+        assert!(outcome.is_err(), "{outcome:?}");
+        assert!(started.elapsed() < Duration::from_secs(10));
     }
 }

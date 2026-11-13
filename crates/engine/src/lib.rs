@@ -78,7 +78,7 @@ pub use plugins::{
     PluginJavaProvider, PluginPackage, PluginRecord, PluginRuntime, PluginSettings, PluginStats,
     Plugins, Pushed, Remote, RepoError, Roster, Seeded, SettingsError, Staged, UpdateOutcome,
     UpdateRequest, CANCEL_GRACE, COMMAND_TIMEOUT, EVENT_TIMEOUT, HOOK_TIMEOUT, MAX_ASSET_BYTES,
-    MAX_CHAIN_DEPTH, PROVIDER_TIMEOUT, UI_TIMEOUT,
+    MAX_CHAIN_DEPTH, MAX_DOWNLOAD_BYTES, PROVIDER_TIMEOUT, UI_TIMEOUT,
 };
 pub use presence::Presence;
 pub use process::{ExitObserver, ProcessEvents, ProcessSupervisor, StartError};

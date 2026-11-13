@@ -18,9 +18,9 @@ use std::time::Duration;
 
 use anyhow::Context;
 use engine::{
-    is_official_signer, unregister_providers, CallChain, Cancel, Contributions, Engine, HostCalls,
-    Listings, LoadedPlugin, PluginRecord, PluginRuntime, PluginStats, Roster, SettingsError,
-    EVENT_TIMEOUT,
+    is_official_signer, unregister_providers, Cache, CallChain, Cancel, Contributions, Engine,
+    HostCalls, Listings, LoadedPlugin, PluginRecord, PluginRuntime, PluginStats, Roster,
+    SettingsError, EVENT_TIMEOUT,
 };
 use proto::error::ErrorInfo;
 use proto::plugin::{
@@ -99,7 +99,10 @@ impl Plugins {
             self.engine.plugin_cache_dir(),
             self.engine.processes().clone(),
         )?
-        .with_java(self.engine.clone());
+        .with_java(self.engine.clone())
+        .with_download_cache(Arc::new(Cache::new(
+            self.engine.cache().dir().to_path_buf(),
+        )));
         self.host
             .set(host)
             .map_err(|_| anyhow::anyhow!("the plugin runtime is already attached"))?;

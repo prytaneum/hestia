@@ -37,6 +37,16 @@ struct Program {
 }
 
 #[derive(Deserialize)]
+struct Fetch {
+    url: String,
+    dest: String,
+    #[serde(default)]
+    sha1: Option<String>,
+    #[serde(default)]
+    sha256: Option<String>,
+}
+
+#[derive(Deserialize)]
 struct Id {
     id: String,
 }
@@ -236,6 +246,16 @@ impl Plugin for Probe {
             })
             .on("ipc-open", |call: Endpoint| {
                 Ok(hestia::ipc::open(&call.endpoint)?.id().to_string())
+            })
+            .on("download", |call: Fetch| {
+                let expect = match (&call.sha1, &call.sha256) {
+                    (Some(hex), _) => hestia::download::Expect::Sha1(hex),
+                    (None, Some(hex)) => hestia::download::Expect::Sha256(hex),
+                    (None, None) => hestia::download::Expect::Unhashed,
+                };
+                let outcome = hestia::download(&call.url, expect, &call.dest);
+                let present = std::path::Path::new(&call.dest).exists();
+                outcome.map(|file| json!({ "size": file.size, "present": present }))
             })
             .on("stop", |call: Id| hestia::process::stop(&call.id))
             .on("running", |_: Empty| hestia::process::list())

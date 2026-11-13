@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use proto::download::{Checksum, HashAlgorithm};
 use proto::error::ErrorInfo;
 use proto::plugin::{Grant, Permission, PluginRunProgress, Touched};
 use serde_json::Value;
@@ -12,7 +13,8 @@ use wasmtime_wasi::{WasiCtx, WasiCtxView, WasiView};
 use wasmtime_wasi_http::{WasiHttpCtx, WasiHttpCtxView, WasiHttpView};
 
 use super::chain::CallChain;
-use super::context::{writable_dir, Mount};
+use super::context::{writable_dir, writable_file, Mount};
+use super::download::{DownloadScope, Downloads};
 use super::error::GuestError;
 use super::http::PluginHttp;
 use super::ipc::{Connections, IpcError};
@@ -103,6 +105,7 @@ pub(crate) struct PluginState {
     pub(crate) locks: Arc<Locks>,
     /// The locks this call took; dropping the store releases them.
     pub(crate) held: Held,
+    pub(crate) downloads: Arc<Downloads>,
 }
 
 /// What a `host.call` is checked against. Apart from [`PluginState`] so an
@@ -417,5 +420,44 @@ impl bindings::hestia::plugin::ipc::Host for PluginState {
 
     async fn list(&mut self) -> Result<Vec<String>, PluginError> {
         Ok(self.ipc.list()?)
+    }
+}
+
+impl From<bindings::hestia::plugin::download::Checksum> for Checksum {
+    fn from(checksum: bindings::hestia::plugin::download::Checksum) -> Self {
+        use bindings::hestia::plugin::download::Algorithm;
+        Checksum {
+            algorithm: match checksum.algorithm {
+                Algorithm::Sha1 => HashAlgorithm::Sha1,
+                Algorithm::Sha256 => HashAlgorithm::Sha256,
+                Algorithm::Sha512 => HashAlgorithm::Sha512,
+            },
+            hex: checksum.hex,
+        }
+    }
+}
+
+impl bindings::hestia::plugin::download::Host for PluginState {
+    async fn download(
+        &mut self,
+        url: String,
+        expect: Option<bindings::hestia::plugin::download::Checksum>,
+        dest: String,
+    ) -> Result<bindings::hestia::plugin::download::Outcome, PluginError> {
+        if !self.gate.grant.holds(Permission::NetworkConnect) {
+            return Err(PluginError::Denied(
+                "downloading needs the `network:connect` permission".into(),
+            ));
+        }
+        let destination = writable_file(&self.mounts, &dest).map_err(PluginError::Denied)?;
+        let downloads = self.downloads.clone();
+        let scope = DownloadScope {
+            deadline: self.deadline,
+            run: self.run.as_deref(),
+        };
+        let size = downloads
+            .fetch(&url, expect.map(Checksum::from), &destination, &scope)
+            .await?;
+        Ok(bindings::hestia::plugin::download::Outcome { size })
     }
 }

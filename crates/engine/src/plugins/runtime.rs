@@ -22,6 +22,7 @@ use wasmtime_wasi_http::WasiHttpCtx;
 use super::cache::ComponentCache;
 use super::chain::{CallChain, ChainError};
 use super::context::{CallContext, Mount};
+use super::download::Downloads;
 use super::error::GuestError;
 use super::http::PluginHttp;
 use super::imports::bindings::{self, hestia::plugin::types::PluginError};
@@ -33,6 +34,8 @@ use super::process::Programs;
 use super::program::{ManagedJava, NoManagedJava};
 use super::settings::PluginSettings;
 use super::store::PluginRecord;
+use super::vouch::Policy;
+use crate::cache::Cache;
 use crate::checksum::hex;
 use crate::process::ProcessSupervisor;
 
@@ -158,6 +161,7 @@ pub struct PluginRuntime {
     host: Arc<dyn HostCalls>,
     processes: Arc<ProcessSupervisor>,
     java: Arc<dyn ManagedJava>,
+    downloads: Option<Arc<Cache>>,
     ticker: Arc<Ticker>,
     cache: ComponentCache,
 }
@@ -210,6 +214,7 @@ impl PluginRuntime {
             host,
             processes,
             java: Arc::new(NoManagedJava),
+            downloads: None,
             ticker,
         })
     }
@@ -218,6 +223,14 @@ impl PluginRuntime {
     /// it such a program fails when called.
     pub fn with_java(mut self, java: Arc<dyn ManagedJava>) -> Self {
         self.java = java;
+        self
+    }
+
+    /// Lends plugins the engine's download cache, so a `download` with a
+    /// checksum the engine already holds costs no transfer; without it every
+    /// download goes to the network.
+    pub fn with_download_cache(mut self, cache: Arc<Cache>) -> Self {
+        self.downloads = Some(cache);
         self
     }
 
@@ -255,9 +268,11 @@ impl PluginRuntime {
             java: self.java.clone(),
         });
         let ipc = Arc::new(Connections::new(id.clone(), grant.clone()));
+        let downloads = Arc::new(Downloads::new(Policy::new(&grant), self.downloads.clone()));
         Ok(LoadedPlugin {
             ipc,
             locks: Arc::default(),
+            downloads,
             id,
             engine: self.engine.clone(),
             pre,
@@ -325,6 +340,7 @@ pub struct LoadedPlugin {
     programs: Arc<Programs>,
     ipc: Arc<Connections>,
     locks: Arc<Locks>,
+    downloads: Arc<Downloads>,
     data_dir: PathBuf,
     settings: Arc<PluginSettings>,
     log: Arc<PluginLog>,
@@ -745,6 +761,7 @@ impl LoadedPlugin {
             ipc: self.ipc.clone(),
             locks: self.locks.clone(),
             held: Held::default(),
+            downloads: self.downloads.clone(),
             gate: Arc::new(Gate {
                 plugin: self.id.clone(),
                 host: self.host.clone(),

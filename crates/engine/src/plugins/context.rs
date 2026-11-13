@@ -57,6 +57,29 @@ pub(crate) fn writable_dir(mounts: &[Mount], guest: &str) -> Result<PathBuf, Str
     Err(denied())
 }
 
+/// The host path of the file `guest`, whose directory must be one
+/// [`writable_dir`] accepts. The name is a single plain component, so nothing
+/// the guest wrote can make it name another place, and an existing directory
+/// is refused: a file is what lands there.
+pub(crate) fn writable_file(mounts: &[Mount], guest: &str) -> Result<PathBuf, String> {
+    let denied = || format!("`{guest}` is not a file the call may write");
+    let path = Path::new(guest);
+    let (Some(parent), Some(name)) = (path.parent(), path.file_name()) else {
+        return Err(denied());
+    };
+    let name = name.to_str().ok_or_else(denied)?;
+    if name.contains(['\\', ':']) {
+        return Err(denied());
+    }
+    let file = writable_dir(mounts, parent.to_str().ok_or_else(denied)?)
+        .map_err(|_| denied())?
+        .join(name);
+    match file.is_dir() {
+        true => Err(denied()),
+        false => Ok(file),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -95,6 +118,33 @@ mod tests {
             "",
         ] {
             assert!(writable_dir(&mounts, refused).is_err(), "{refused}");
+        }
+    }
+
+    #[test]
+    fn a_file_is_one_plain_name_in_a_writable_directory() {
+        let home = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(home.path().join("data/sub")).unwrap();
+        std::fs::create_dir_all(home.path().join("vanilla")).unwrap();
+        let mounts = mounts(home.path());
+
+        let file = writable_file(&mounts, "/data/sub/tool.jar").unwrap();
+        assert!(file.ends_with("data/sub/tool.jar"));
+        assert!(writable_file(&mounts, "/data/new.bin").is_ok());
+        for refused in [
+            "/data",
+            "/data/sub",
+            "/data/missing/tool.jar",
+            "/data/../vanilla/tool.jar",
+            "/data/sub/..",
+            "/vanilla/tool.jar",
+            "/etc/passwd",
+            "tool.jar",
+            "/data/a:b",
+            "/data/a\\b",
+            "",
+        ] {
+            assert!(writable_file(&mounts, refused).is_err(), "{refused}");
         }
     }
 

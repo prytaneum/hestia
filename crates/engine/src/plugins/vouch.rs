@@ -65,7 +65,13 @@ impl Policy {
     /// nothing verifies the body, which then has to come from a host the grant
     /// declares as serving unhashed files.
     pub fn permits(&self, url: &str, unhashed: bool) -> bool {
-        Url::parse(url).is_ok_and(|url| self.check(&url, unhashed).is_ok())
+        self.vet(url, unhashed).is_ok()
+    }
+
+    /// [`Policy::permits`] with the reason, for a caller that answers typed.
+    pub fn vet(&self, url: &str, unhashed: bool) -> Result<(), Refused> {
+        let url = Url::parse(url).map_err(|_| Refused::Destination(Refusal::BadUrl))?;
+        self.check(&url, unhashed)
     }
 
     fn check(&self, url: &Url, unhashed: bool) -> Result<(), Refused> {
@@ -103,11 +109,11 @@ impl Policy {
     /// `unhashed` is held on every hop.
     pub async fn get(&self, url: &str, unhashed: bool) -> anyhow::Result<Response> {
         let mut url =
-            Url::parse(url).map_err(|_| ErrorInfo::from(Refused::Destination(Refusal::BadUrl)))?;
+            Url::parse(url).map_err(|_| refusal(Refused::Destination(Refusal::BadUrl)))?;
         for _ in 0..=MAX_REDIRECTS {
             self.check(&url, unhashed).map_err(|refused| {
                 tracing::warn!(host = url.host_str().unwrap_or_default(), %refused, "plugin download refused");
-                ErrorInfo::from(refused)
+                refusal(refused)
             })?;
             let response = net::send(None, self.client(&url).get(url.clone())).await?;
             if !response.status().is_redirection() {
@@ -120,10 +126,16 @@ impl Policy {
                 .to_str()
                 .ok()
                 .and_then(|location| url.join(location).ok())
-                .ok_or(ErrorInfo::from(Refused::BadRedirect))?;
+                .ok_or_else(|| refusal(Refused::BadRedirect))?;
         }
-        Err(ErrorInfo::from(Refused::TooManyRedirects).into())
+        Err(refusal(Refused::TooManyRedirects))
     }
+}
+
+/// The failure as an [`ErrorInfo`] with the typed reason attached, so a caller
+/// that answers a plugin can tell a refusal from a transfer failure.
+fn refusal(refused: Refused) -> anyhow::Error {
+    anyhow::Error::new(ErrorInfo::from(refused.clone())).context(refused)
 }
 
 fn is_loopback(url: &Url) -> bool {

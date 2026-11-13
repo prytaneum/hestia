@@ -16,6 +16,23 @@ use crate::checksum::Hasher;
 use crate::net;
 use crate::plugins::vouch::Policy;
 
+/// Why a transfer stopped, kept apart from the message so a caller that has to
+/// answer typed (a plugin) can tell a missing file from a refusal. Always
+/// attached to the [`ErrorInfo`](proto::error::ErrorInfo) of the same text, so
+/// nothing that reads the failure that way changes.
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+pub enum Fault {
+    #[error("{detail}")]
+    Status { status: u16, detail: String },
+    #[error("{detail}")]
+    TooLarge { detail: String },
+}
+
+fn typed(fault: Fault) -> anyhow::Error {
+    let detail = fault.to_string();
+    anyhow::Error::new(proto::error::ErrorInfo::DownloadFailed { detail }).context(fault)
+}
+
 pub type ProgressFn<'a> = dyn Fn(&DownloadProgress) -> Result<()> + Send + Sync + 'a;
 
 /// The policy an artifact is fetched under, by its URL: `None` for a core one.
@@ -45,6 +62,13 @@ impl<'a> Downloader<'a> {
     /// every redirect hop to the plugin's grant. `None` leaves a core download.
     pub fn vouched(mut self, policy: Option<Arc<Policy>>) -> Self {
         self.policy = policy;
+        self
+    }
+
+    /// Refuses a body larger than `max_bytes`, as it streams, on top of whatever
+    /// else the downloader was built to enforce.
+    pub fn limited(mut self, max_bytes: u64) -> Self {
+        self.untrusted_limit = Some(max_bytes);
         self
     }
 
@@ -88,6 +112,7 @@ impl<'a> Downloader<'a> {
         }
 
         let part = common::atomic::staged(destination);
+        let _ = tokio::fs::remove_file(&part).await;
         let outcome = self.fill_part(url, &part, checksum, on_progress).await;
         let from_cache = match outcome {
             Ok(from_cache) => from_cache,
@@ -148,9 +173,11 @@ impl<'a> Downloader<'a> {
             }
         };
         if !response.status().is_success() {
-            bail!(proto::error::ErrorInfo::DownloadFailed {
-                detail: format!("{url}: HTTP {}", response.status().as_u16()),
-            });
+            let status = response.status().as_u16();
+            return Err(typed(Fault::Status {
+                status,
+                detail: format!("{url}: HTTP {status}"),
+            }));
         }
         let total = response.content_length().unwrap_or(0);
         self.ensure_within_limit(url, total)?;
@@ -179,9 +206,9 @@ impl<'a> Downloader<'a> {
 
     fn ensure_within_limit(&self, url: &str, size: u64) -> Result<()> {
         match self.untrusted_limit {
-            Some(limit) if size > limit => bail!(proto::error::ErrorInfo::DownloadFailed {
+            Some(limit) if size > limit => Err(typed(Fault::TooLarge {
                 detail: format!("{url}: larger than {limit} bytes"),
-            }),
+            })),
             _ => Ok(()),
         }
     }
@@ -196,7 +223,11 @@ struct Sink {
 
 impl Sink {
     async fn create(part: &Path, checksum: Option<&Checksum>, total: u64) -> Result<Self> {
-        let file = tokio::fs::File::create(part)
+        // Exclusive, so a symlink a plugin planted at `part` is refused, not followed.
+        let file = tokio::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(part)
             .await
             .with_context(|| format!("cannot open {} for writing", part.display()))?;
         Ok(Sink {

@@ -75,6 +75,7 @@ the alternative you rejected — that is usually the part nobody can recover lat
 - **0091** — [Plugins are WASM components on wasmtime, with WIT as the one ABI](0091-plugins-are-wasm-components.md)
 - **0095** — [Interceptors are bounded and fail open, so a hook is customisation and never a control](0095-interceptors-are-bounded-and-fail-open.md)
 - **0101** — [Plugins spawn only the programs they declare](0101-plugins-spawn-only-declared-programs.md)
+- **0119** — [Downloads are host-side: a host download call and declarative Maven libraries](0119-downloads-are-host-side.md)
 
 ### [The daemon](../architecture/daemon.md)
 
@@ -97,6 +98,7 @@ the alternative you rejected — that is usually the part nobody can recover lat
 - **0008** — [What an entry takes is a property of its flavor, and the flavor says so](0008-flavor-declares-accepted-content.md)
 - **0009** — [A flavor may recommend JVM flags; the user still outranks it](0009-flavor-recommends-jvm-flags.md)
 - **0113** — [A flavor builds on the vanilla profile, and the host merges it](0113-a-flavor-builds-on-the-vanilla-profile.md)
+- **0119** — [Downloads are host-side: a host download call and declarative Maven libraries](0119-downloads-are-host-side.md)
 
 ### [Servers & instances](../architecture/entries.md)
 

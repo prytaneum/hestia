@@ -6,10 +6,14 @@
 
 use proto::error::{ErrorInfo, Service};
 
+use super::download::MAX_DOWNLOAD_BYTES;
 use super::imports::bindings::hestia::plugin::types::{PluginError, Requirement, UpstreamFailure};
 use super::ipc::IpcError;
 use super::lock::LockError;
 use super::process::ProgramError;
+use super::vouch::Refused;
+use crate::cancel::is_cancelled;
+use crate::download::Fault;
 
 /// Why a call between the host and a plugin failed, with the case kept.
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
@@ -71,6 +75,63 @@ fn requirement_text(name: &str, url: Option<&str>) -> String {
 }
 
 impl GuestError {
+    /// The case's name, for a log line that must not carry its message.
+    pub fn kind(&self) -> &'static str {
+        match self {
+            GuestError::NotFound(_) => "not-found",
+            GuestError::Invalid(_) => "invalid",
+            GuestError::Denied(_) => "denied",
+            GuestError::Unsupported(_) => "unsupported",
+            GuestError::Offline(_) => "offline",
+            GuestError::Upstream { .. } => "upstream",
+            GuestError::RateLimited(_) => "rate-limited",
+            GuestError::SignInRequired => "sign-in-required",
+            GuestError::NotConfigured(_) => "not-configured",
+            GuestError::MissingRequirement { .. } => "missing-requirement",
+            GuestError::Busy(_) => "busy",
+            GuestError::Failed(_) => "failed",
+        }
+    }
+
+    /// What a plugin is told of a failed engine download: a refusal of the
+    /// grant is `denied`, a missing file `not-found`, any other status
+    /// `upstream` with the status, no route `offline`, and a body over the
+    /// cap `invalid`. Anything else is `failed` without the engine's own
+    /// message, which may name host paths.
+    pub(super) fn fetch(error: &anyhow::Error) -> Self {
+        if let Some(refused) = error.downcast_ref::<Refused>() {
+            return GuestError::Denied(refused.to_string());
+        }
+        match error.downcast_ref::<Fault>() {
+            Some(Fault::Status { status: 404, .. }) => {
+                return GuestError::NotFound("the server has no such file".into())
+            }
+            Some(Fault::Status { status, .. }) => {
+                return GuestError::Upstream {
+                    status: Some(*status),
+                    retry_after: None,
+                    message: format!("the server answered {status}"),
+                }
+            }
+            Some(Fault::TooLarge { .. }) => {
+                return GuestError::Invalid(format!(
+                    "the file is larger than the {MAX_DOWNLOAD_BYTES} bytes a download may be"
+                ))
+            }
+            None => {}
+        }
+        if is_cancelled(error) {
+            return GuestError::Failed("the call was cancelled".into());
+        }
+        match error.downcast_ref::<ErrorInfo>() {
+            Some(info @ (ErrorInfo::Offline { .. } | ErrorInfo::OfflineMode)) => {
+                GuestError::from(info)
+            }
+            Some(ErrorInfo::DownloadFailed { detail }) => GuestError::Failed(detail.clone()),
+            _ => GuestError::Failed("the download could not be completed".into()),
+        }
+    }
+
     /// What the host tells its own caller about a plugin's failure. `service`
     /// is the provider the plugin answered for, when it answered for one: only
     /// then can an upstream failure be attributed to something the user knows.

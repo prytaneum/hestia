@@ -6,14 +6,16 @@ use serde::{Deserialize, Serialize};
 pub enum HashAlgorithm {
     Sha1,
     Sha256,
+    Sha512,
 }
 
 impl HashAlgorithm {
-    /// Length of the algorithm's digest in hex characters (40 / 64).
+    /// Length of the algorithm's digest in hex characters (40 / 64 / 128).
     pub fn hex_digest_length(self) -> usize {
         match self {
             HashAlgorithm::Sha1 => 40,
             HashAlgorithm::Sha256 => 64,
+            HashAlgorithm::Sha512 => 128,
         }
     }
 
@@ -21,6 +23,7 @@ impl HashAlgorithm {
         match self {
             HashAlgorithm::Sha1 => "sha1",
             HashAlgorithm::Sha256 => "sha256",
+            HashAlgorithm::Sha512 => "sha512",
         }
     }
 }

@@ -11,6 +11,7 @@ mod chain;
 mod command;
 mod context;
 mod dev;
+mod download;
 mod error;
 mod handover;
 mod hooks;
@@ -45,6 +46,7 @@ pub(crate) use catalogue::{build as build_catalogue, pick, Installed, Pick, Sour
 pub use chain::{CallChain, ChainError, MAX_CHAIN_DEPTH};
 pub use command::{command_args, find_command};
 pub use context::{CallContext, Mount};
+pub use download::MAX_DOWNLOAD_BYTES;
 pub use error::GuestError;
 pub(crate) use handover::{plan as plan_handover, Carry, Plan as Handover};
 pub use hooks::{

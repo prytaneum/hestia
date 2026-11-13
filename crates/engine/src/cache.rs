@@ -24,7 +24,11 @@ pub struct Cache {
     dir: PathBuf,
 }
 
-const ALGORITHMS: [HashAlgorithm; 2] = [HashAlgorithm::Sha1, HashAlgorithm::Sha256];
+const ALGORITHMS: [HashAlgorithm; 3] = [
+    HashAlgorithm::Sha1,
+    HashAlgorithm::Sha256,
+    HashAlgorithm::Sha512,
+];
 
 /// The URL -> blob index of proxied images. It lives beside the blobs it names
 /// so that `usage` and `clear` account for it.
