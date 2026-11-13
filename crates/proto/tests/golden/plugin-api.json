@@ -6,6 +6,14 @@
       "permission": "account:read",
       "result": "AccountListResult"
     },
+    "account.signed_in": {
+      "payload": "AccountSignedInEvent",
+      "permission": "account:read"
+    },
+    "account.signed_out": {
+      "payload": "AccountSignedOutEvent",
+      "permission": "account:read"
+    },
     "changed": {
       "payload": "ChangedEvent",
       "permission": "entry:read"
@@ -445,6 +453,10 @@
       "permission": "entry:write",
       "result": "Empty"
     },
+    "server.ready": {
+      "payload": "ServerReadyEvent",
+      "permission": "entry:read"
+    },
     "server.restart": {
       "params": "ServerRef",
       "permission": "process:control",
@@ -567,6 +579,8 @@
   "types": {
     "Account": "type Account = { uuid: string, name: string, needsReauth: boolean, };",
     "AccountListResult": "type AccountListResult = { accounts: Array<Account>, defaultUuid: string, };",
+    "AccountSignedInEvent": "type AccountSignedInEvent = { uuid: string, name: string, };",
+    "AccountSignedOutEvent": "type AccountSignedOutEvent = { uuid: string, name: string, };",
     "ArchiveEntry": "type ArchiveEntry = { path: string, name: string, directory: boolean, sizeBytes: bigint, referenced: boolean, };",
     "ArchiveFault": "type ArchiveFault = \"not_an_archive\" | \"manifest_missing\" | \"manifest_malformed\" | \"unsafe_path\" | \"format_version\" | \"manifest_type\" | \"no_game_version\" | \"no_components\" | \"file_unpublished\";",
     "ArchiveFormat": "type ArchiveFormat = \"zip\" | \"hestia\" | \"backup\" | { \"provider\": Provider };",
@@ -580,7 +594,7 @@
     "BuildOutput": "type BuildOutput = { path: string, target: string, };",
     "BuildQuery": "type BuildQuery = { side: BuildSide, version: string, loaderVersion?: string, vanillaJar?: string, };",
     "BuildSide": "type BuildSide = \"server\" | \"client\";",
-    "ChangedEvent": "type ChangedEvent = { scope: Scope, };",
+    "ChangedEvent": "type ChangedEvent = { scope: Scope, ids: Array<string>, };",
     "Checksum": "type Checksum = { algorithm: HashAlgorithm, hex: string, };",
     "ClientAddition": "type ClientAddition = { loaderVersion?: string, libraries: Array<Library>, mainClass: string, jvmArgs: Array<string>, gameArgs: Array<string>, };",
     "ClientResolution": "type ClientResolution = { \"full\": InstanceProfile } | { \"onVanilla\": ClientAddition };",
@@ -764,6 +778,7 @@
     "ServerPlayerSetParams": "type ServerPlayerSetParams = { server: string, player: string, list: PlayerList, listed: boolean, };",
     "ServerPlayersResult": "type ServerPlayersResult = { online: Array<PlayerEntry>, whitelist: Array<PlayerEntry>, ops: Array<PlayerEntry>, banned: Array<PlayerEntry>, };",
     "ServerProfile": "type ServerProfile = { flavor: string, gameVersion: string, loaderVersion?: string, jar: ServerJar, launch: ServerLaunch, javaMajor: number, jvmArgs: Array<string>, };",
+    "ServerReadyEvent": "type ServerReadyEvent = { id: string, };",
     "ServerRef": "type ServerRef = { server: string, };",
     "ServerResolution": "type ServerResolution = { \"full\": ServerProfile } | { \"onVanilla\": ServerAddition };",
     "ServerStartResult": "type ServerStartResult = { processId: string, pid: number, warnings: Array<WarningInfo>, };",

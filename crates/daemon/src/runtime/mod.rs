@@ -9,8 +9,10 @@ mod metrics;
 mod network;
 mod plugins;
 mod presence;
+mod ready;
 pub mod router;
 mod scheduler;
+mod touched;
 
 use std::fmt;
 use std::path::PathBuf;
@@ -37,8 +39,10 @@ pub use metrics::spawn_metrics_sampler;
 pub use network::spawn_network_watcher;
 pub use plugins::{Package, Plugins, RouterHost};
 pub use presence::spawn_presence_updater;
+pub use ready::spawn_ready_watcher;
 pub use router::{error_response, require_account, Channels, Router};
 pub use scheduler::{spawn_plugin_update_checker, spawn_task_scheduler};
+pub use touched::Touched;
 
 // The supervisor key vocabulary lives in `proto::naming`: a front-end names the
 // process it follows from the entry's id alone, so both sides must derive the
@@ -371,7 +375,8 @@ impl fmt::Display for Caller {
 
 /// What every handler receives: the shared runtime, the calling connection's
 /// outbound channel (so streaming handlers like `events.subscribe` can push to
-/// it), and who is calling. `chain` is the plugins already on the call path.
+/// it), and who is calling. `chain` is the plugins already on the call path;
+/// `touched` collects what the request changed, for its `changed` event.
 #[derive(Clone)]
 pub struct HandlerContext {
     pub runtime: Arc<Runtime>,
@@ -379,4 +384,5 @@ pub struct HandlerContext {
     pub out: UnboundedSender<String>,
     pub caller: Caller,
     pub chain: CallChain,
+    pub touched: Touched,
 }

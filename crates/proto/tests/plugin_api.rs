@@ -259,10 +259,10 @@ fn api() -> Api {
         update::UpdateDownload,
     );
     each!(api.topic:
-        change::ChangedEvent,
+        accounts::AccountSignedInEvent, accounts::AccountSignedOutEvent, change::ChangedEvent,
         net::NetworkStatus,
         plugin::PluginAutoUpdatedEvent, plugin::PluginLogEvent, plugin::PluginRolledBackEvent, plugin::PluginStateEvent,
-        plugin::Outdated, plugin::ScheduleEvent,
+        plugin::Outdated, plugin::ScheduleEvent, server::ServerReadyEvent,
         process::ProcessExitEvent, process::ProcessMetricsEvent, process::ProcessOutputEvent,
         process::ProcessStartedEvent,
     );

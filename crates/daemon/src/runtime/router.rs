@@ -121,8 +121,8 @@ impl Router {
     }
 }
 
-fn publish_changed(runtime: &Runtime, scope: Scope) {
-    runtime.hub().publish_topic(&ChangedEvent { scope });
+fn publish_changed(runtime: &Runtime, scope: Scope, ids: Vec<String>) {
+    runtime.hub().publish_topic(&ChangedEvent { scope, ids });
 }
 
 /// The registrar handed to every service: binds a typed contract handler onto the
@@ -170,11 +170,12 @@ impl<'r> Channels<'r> {
                         }
                     };
                     let runtime = ctx.runtime.clone();
+                    let touched = ctx.touched.clone();
                     match f(params, ctx).await {
                         Ok(result) => {
                             let payload = serde_json::to_value(result).unwrap_or(Value::Null);
                             if let Some(scope) = C::CHANGES {
-                                publish_changed(&runtime, scope);
+                                publish_changed(&runtime, scope, touched.ids());
                             }
                             Response::success(payload)
                         }
@@ -188,7 +189,97 @@ impl<'r> Channels<'r> {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::{Arc, Mutex};
+
+    use engine::CallChain;
+    use ipc::protocol::Request;
+    use proto::change::ChangedEvent;
+    use proto::profile::ServerProfile;
+    use serde_json::{json, Value};
+    use tokio::sync::mpsc::unbounded_channel;
+
     use super::requires_account;
+    use crate::runtime::{Caller, HandlerContext, Runtime, Touched};
+
+    fn changes(runtime: &Runtime) -> Arc<Mutex<Vec<ChangedEvent>>> {
+        let seen = Arc::new(Mutex::new(Vec::new()));
+        let sink = seen.clone();
+        runtime.hub().listen(
+            "test",
+            Arc::new(move |topic: &str, payload: &Value| {
+                if topic == "changed" {
+                    sink.lock()
+                        .unwrap()
+                        .push(serde_json::from_value(payload.clone()).unwrap());
+                }
+            }),
+        );
+        seen
+    }
+
+    async fn call(runtime: &Arc<Runtime>, channel: &str, payload: Value) -> Value {
+        let (out, _) = unbounded_channel();
+        let ctx = HandlerContext {
+            runtime: runtime.clone(),
+            conn_id: 0,
+            out,
+            caller: Caller::Client,
+            chain: CallChain::default(),
+            touched: Touched::default(),
+        };
+        let response = crate::services::make_router()
+            .route(Request::new(channel, payload, None), ctx)
+            .await;
+        assert!(response.error.is_none(), "{:?}", response.error);
+        response.payload
+    }
+
+    #[tokio::test]
+    async fn an_entry_call_names_the_stable_id_however_the_caller_spelled_it() {
+        let home = tempfile::tempdir().unwrap();
+        let engine = engine::Engine::new(Some(home.path()));
+        let record = engine
+            .servers()
+            .create("My Server", ServerProfile::default(), None)
+            .unwrap();
+        engine.servers().mark_ready(&record.id).unwrap();
+        let runtime = Arc::new(Runtime::over(engine, home.path().join("d.log"), false));
+        let seen = changes(&runtime);
+
+        let renamed = call(
+            &runtime,
+            "entry.rename",
+            json!({ "target": { "kind": "server", "entry": "My Server" }, "name": "Other" }),
+        )
+        .await;
+
+        let new_id = renamed["id"].as_str().unwrap();
+        let events = seen.lock().unwrap();
+        assert_eq!(events.len(), 1);
+        let mut expected = vec![record.id.clone(), new_id.to_string()];
+        expected.sort();
+        expected.dedup();
+        assert_eq!(events[0].ids, expected);
+    }
+
+    #[tokio::test]
+    async fn a_call_that_resolves_nothing_changes_the_whole_scope() {
+        let home = tempfile::tempdir().unwrap();
+        let engine = engine::Engine::new(Some(home.path()));
+        let runtime = Arc::new(Runtime::over(engine, home.path().join("d.log"), false));
+        let seen = changes(&runtime);
+
+        call(
+            &runtime,
+            "config.set",
+            json!({ "key": "discord.enabled", "value": false }),
+        )
+        .await;
+
+        let events = seen.lock().unwrap();
+        assert_eq!(events.len(), 1);
+        assert!(events[0].ids.is_empty());
+    }
 
     #[test]
     fn gates_instance_and_sync_channels() {

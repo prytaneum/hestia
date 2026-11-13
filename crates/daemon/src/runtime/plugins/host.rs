@@ -10,7 +10,7 @@ use serde_json::Value;
 use tokio::sync::mpsc::unbounded_channel;
 
 use crate::runtime::managers::generate_job_id;
-use crate::runtime::{Caller, HandlerContext, Router, Runtime};
+use crate::runtime::{Caller, HandlerContext, Router, Runtime, Touched};
 
 /// Lends plugins the daemon's channels by routing their calls exactly as a
 /// socket client's: same decoding, same account gate, same `changed` events.
@@ -50,6 +50,7 @@ impl RouterHost {
             out,
             caller: Caller::Plugin(plugin.to_string()),
             chain: chain.clone(),
+            touched: Touched::default(),
         };
         let response = self
             .router
@@ -407,6 +408,7 @@ mod tests {
             out,
             caller: Caller::Client,
             chain: CallChain::default(),
+            touched: Touched::default(),
         };
         crate::services::make_router()
             .route(Request::new(channel, payload, None), ctx)

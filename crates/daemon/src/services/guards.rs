@@ -226,28 +226,34 @@ pub(super) fn find_server(
     ctx: &HandlerContext,
     reference: &str,
 ) -> Result<engine::ServerRecord, ErrorInfo> {
-    ctx.runtime
+    let record = ctx
+        .runtime
         .engine()
         .servers()
         .get(reference)
         .ok_or_else(|| ErrorInfo::EntryNotFound {
             entry: EntryKind::Server,
             reference: reference.to_string(),
-        })
+        })?;
+    ctx.touched.add(&record.id);
+    Ok(record)
 }
 
 pub(super) fn find_instance(
     ctx: &HandlerContext,
     reference: &str,
 ) -> Result<engine::InstanceRecord, ErrorInfo> {
-    ctx.runtime
+    let record = ctx
+        .runtime
         .engine()
         .instances()
         .get(reference)
         .ok_or_else(|| ErrorInfo::EntryNotFound {
             entry: EntryKind::Instance,
             reference: reference.to_string(),
-        })
+        })?;
+    ctx.touched.add(&record.id);
+    Ok(record)
 }
 
 /// Resolve a server for a read and refuse unless it is up.

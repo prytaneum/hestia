@@ -2,7 +2,8 @@
 
 use proto::accounts::{
     AccountList, AccountListResult, AccountLoginBegin, AccountLoginBeginResult,
-    AccountLoginComplete, AccountRemove, AccountSwitch,
+    AccountLoginComplete, AccountRemove, AccountSignedInEvent, AccountSignedOutEvent,
+    AccountSwitch,
 };
 use proto::error::ErrorInfo;
 use proto::Empty;
@@ -37,6 +38,10 @@ pub(super) fn register(on: &mut Channels<'_>) {
             .await
             .map_err(crate::runtime::engine_error)?;
         tracing::info!(account = %account.name, "account signed in");
+        ctx.runtime.hub().publish_topic(&AccountSignedInEvent {
+            uuid: account.uuid.clone(),
+            name: account.name.clone(),
+        });
         Ok(account)
     });
 
@@ -65,9 +70,21 @@ pub(super) fn register(on: &mut Channels<'_>) {
     });
 
     on.handle::<AccountRemove, _, _>(|p, ctx| async move {
-        match ctx.runtime.engine().accounts().remove(&p.account) {
+        let accounts = ctx.runtime.engine().accounts();
+        let leaving: Vec<_> = accounts
+            .list()
+            .into_iter()
+            .filter(|a| a.uuid == p.account || a.name == p.account)
+            .collect();
+        match accounts.remove(&p.account) {
             Ok(true) => {
                 tracing::info!(account = %p.account, "account removed");
+                for account in leaving {
+                    ctx.runtime.hub().publish_topic(&AccountSignedOutEvent {
+                        uuid: account.uuid,
+                        name: account.name,
+                    });
+                }
                 Ok(Empty {})
             }
             Ok(false) => Err(ErrorInfo::AccountNotFound {

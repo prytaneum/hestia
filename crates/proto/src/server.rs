@@ -9,7 +9,7 @@ use std::time::Duration;
 use serde::{Deserialize, Serialize};
 
 use crate::content::{ContentFailure, ContentKind};
-use crate::contract::{Contract, Empty};
+use crate::contract::{Contract, Empty, Topic};
 use crate::icon::EntryIcon;
 use crate::job::{Job, JobStarted};
 use crate::minecraft::{ConfigEntry, ProvisionProgress};
@@ -356,4 +356,18 @@ pub struct ServerDone {
     /// continues past them.
     #[serde(default)]
     pub failures: Vec<ContentFailure>,
+}
+
+/// A started server answered a Server List Ping, so it accepts players. Sent once
+/// per start, and again for a server the daemon re-adopts after a restart.
+#[derive(Serialize, Deserialize, Default, Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
+#[serde(default, rename_all = "camelCase")]
+pub struct ServerReadyEvent {
+    /// The server's id.
+    pub id: String,
+}
+impl Topic for ServerReadyEvent {
+    const TOPIC: &'static str = "server.ready";
+    const PLUGIN: Option<Permission> = Some(Permission::EntryRead);
 }

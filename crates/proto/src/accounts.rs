@@ -6,7 +6,7 @@ use std::time::Duration;
 use serde::{Deserialize, Serialize};
 
 use crate::change::Scope;
-use crate::contract::{Contract, Empty};
+use crate::contract::{Contract, Empty, Topic};
 use crate::plugin::Permission;
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -119,4 +119,31 @@ impl Contract for AccountRemove {
     const CHANGES: Option<Scope> = Some(Scope::Accounts);
     type Params = AccountRemoveParams;
     type Result = Empty;
+}
+
+/// An account finished signing in, or signed in again. The event names the
+/// profile only: tokens never leave the daemon.
+#[derive(Serialize, Deserialize, Default, Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
+#[serde(default, rename_all = "camelCase")]
+pub struct AccountSignedInEvent {
+    pub uuid: String,
+    pub name: String,
+}
+impl Topic for AccountSignedInEvent {
+    const TOPIC: &'static str = "account.signed_in";
+    const PLUGIN: Option<Permission> = Some(Permission::AccountRead);
+}
+
+/// An account was signed out and its stored tokens dropped.
+#[derive(Serialize, Deserialize, Default, Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
+#[serde(default, rename_all = "camelCase")]
+pub struct AccountSignedOutEvent {
+    pub uuid: String,
+    pub name: String,
+}
+impl Topic for AccountSignedOutEvent {
+    const TOPIC: &'static str = "account.signed_out";
+    const PLUGIN: Option<Permission> = Some(Permission::AccountRead);
 }

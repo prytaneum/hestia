@@ -331,6 +331,20 @@ mod tests {
     }
 
     #[test]
+    fn sign_in_and_server_ready_need_their_read_permissions() {
+        let who = json!({ "uuid": "u", "name": "Steve" });
+        let accounts = grant(&["account.*"], &[Permission::AccountRead]);
+        assert!(admitted(&accounts, "account.signed_in", who.clone()).is_some());
+        assert!(admitted(&accounts, "account.signed_out", who.clone()).is_some());
+        assert!(admitted(&grant(&["account.*"], &[]), "account.signed_in", who).is_none());
+
+        let ready = json!({ "id": "smp" });
+        let entries = grant(&["server.ready"], &[Permission::EntryRead]);
+        assert!(admitted(&entries, "server.ready", ready.clone()).is_some());
+        assert!(admitted(&grant(&["server.ready"], &[]), "server.ready", ready).is_none());
+    }
+
+    #[test]
     fn process_output_is_never_delivered() {
         let all = grant(
             &["process.*", "process.output"],

@@ -444,7 +444,10 @@ async fn a_successful_mutation_publishes_what_it_changed() {
         .expect("an event within the timeout")
         .expect("the stream is open");
     assert_eq!(event.topic, "changed");
-    assert_eq!(event.payload, serde_json::json!({ "scope": "config" }));
+    assert_eq!(
+        event.payload,
+        serde_json::json!({ "scope": "config", "ids": [] })
+    );
 
     client.daemon().stop(true).await.expect("daemon.stop");
     drop(daemon);

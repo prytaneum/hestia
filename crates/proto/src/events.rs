@@ -49,6 +49,8 @@ const fn access<T: Topic>() -> TopicAccess {
 /// and cuts a plugin state event to its id and state. `plugin.schedule` names none
 /// and is never published to the hub, so only the plugin that declared it hears it.
 pub const TOPICS: &[TopicAccess] = &[
+    access::<crate::accounts::AccountSignedInEvent>(),
+    access::<crate::accounts::AccountSignedOutEvent>(),
     access::<crate::change::ChangedEvent>(),
     access::<crate::job::JobEvent<(), ()>>(),
     access::<crate::net::NetworkStatus>(),
@@ -62,6 +64,7 @@ pub const TOPICS: &[TopicAccess] = &[
     access::<crate::process::ProcessMetricsEvent>(),
     access::<crate::process::ProcessOutputEvent>(),
     access::<crate::process::ProcessStartedEvent>(),
+    access::<crate::server::ServerReadyEvent>(),
 ];
 
 /// The permission a plugin needs for this event, or `None` when no plugin may
