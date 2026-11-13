@@ -35,6 +35,57 @@ pub struct Manifest {
     pub programs: Vec<Program>,
     pub settings: Vec<Setting>,
     pub contributes: Contributions,
+    #[serde(flatten, skip_serializing)]
+    #[cfg_attr(feature = "ts", ts(skip))]
+    pub retired: Retired,
+}
+
+/// Top-level keys of the manifest shape before scoped permissions. Each is
+/// read only to be refused, so a manifest written for that shape fails
+/// validation instead of installing with nothing granted.
+#[derive(Deserialize, Default, Debug, Clone, Copy, PartialEq, Eq)]
+#[serde(default, rename_all = "camelCase")]
+pub struct Retired {
+    network: Option<Seen>,
+    unhashed: Option<Seen>,
+    ipc: Option<Seen>,
+    files: Option<Seen>,
+    launch: Option<Seen>,
+}
+
+impl Retired {
+    fn keys(self) -> impl Iterator<Item = (&'static str, &'static str)> {
+        [
+            (
+                self.network,
+                "network",
+                r#""network:connect" = { hosts = [...] }"#,
+            ),
+            (
+                self.unhashed,
+                "unhashed",
+                r#""network:connect" = { hosts = [...], unhashed = [...] }"#,
+            ),
+            (self.ipc, "ipc", r#""ipc:connect" = { endpoints = [...] }"#),
+            (self.files, "files", r#""entry:read" = { files = [...] }"#),
+            (
+                self.launch,
+                "launch",
+                r#""launch:patch" = { properties = [...] }"#,
+            ),
+        ]
+        .into_iter()
+        .filter_map(|(seen, key, replacement)| seen.map(|_| (key, replacement)))
+    }
+}
+
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Seen;
+
+impl<'de> Deserialize<'de> for Seen {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        serde::de::IgnoredAny::deserialize(deserializer).map(|_| Seen)
+    }
 }
 
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]
@@ -135,6 +186,13 @@ pub enum ManifestError {
     BadWordsArg(String),
     #[error("file `{0}` must be a relative path of plain names, with no `..`, glob or backslash, and may not be `server.properties`")]
     BadEntryFile(String),
+    #[error(
+        "top-level `{key}` is no longer read; declare it under [permissions] as `{replacement}`"
+    )]
+    RetiredKey {
+        key: &'static str,
+        replacement: &'static str,
+    },
 }
 
 fn collect_command_errors(command: &CommandContribution, errors: &mut Vec<ManifestError>) {
@@ -223,6 +281,11 @@ impl Manifest {
     }
 
     fn collect_errors(&self, errors: &mut Vec<ManifestError>) {
+        errors.extend(
+            self.retired
+                .keys()
+                .map(|(key, replacement)| ManifestError::RetiredKey { key, replacement }),
+        );
         if !is_plugin_id(&self.id) {
             errors.push(ManifestError::BadId(self.id.clone()));
         }

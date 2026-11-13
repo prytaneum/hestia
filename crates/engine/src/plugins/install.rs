@@ -817,4 +817,17 @@ args = ["-version"]
         assert!(error.contains("program `git`"), "{error}");
         assert!(error.contains("program `game`"), "{error}");
     }
+
+    #[test]
+    fn a_manifest_in_the_flat_shape_is_refused_with_the_scope_to_use() {
+        let flat = "id = \"old\"\nname = \"Old\"\nversion = \"1.0.0\"\n\
+                    network = [\"example.com\"]\nipc = [\"discord-ipc-*\"]\n\
+                    [launch]\nproperties = [\"a.b\"]\n";
+        let error = parse_manifest(flat).unwrap_err().to_string();
+
+        assert!(error.contains("top-level `network`"), "{error}");
+        assert!(error.contains("\"ipc:connect\" = { endpoints"), "{error}");
+        assert!(error.contains("top-level `launch`"), "{error}");
+        assert!(!error.contains("top-level `files`"), "{error}");
+    }
 }

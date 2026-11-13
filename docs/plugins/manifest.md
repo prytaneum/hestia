@@ -51,7 +51,9 @@ package: no leading `/`, no `\`, no `:`, no `.` or `..` segments.
 with an entry list for each kind of scope the permission takes, or `{}` for none. `{}` is the only spelling of "no
 scope" (`true` and a bare list are refused). Which kinds a permission takes, and whether it needs one, is the table in
 [permissions.md](permissions.md); a kind a permission does not take is `ScopeNotAccepted`, a required one left empty is
-`ScopeRequired`, and a kind that is not one of the names below does not parse.
+`ScopeRequired`, and a kind that is not one of the names below does not parse. The top-level lists of
+the earlier manifest shape (`network`, `unhashed`, `ipc`, `files`, `[launch]`) are refused with `RetiredKey`, which names
+the scope to declare instead.
 
 ```toml
 [permissions]
