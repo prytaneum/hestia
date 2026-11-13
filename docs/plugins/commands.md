@@ -2,8 +2,7 @@
 
 A plugin adds commands to the CLI and the desktop. The manifest's `[[contributes.commands]]` is the schema: the daemon
 checks every call's arguments against it before the plugin runs, so the plugin receives only declared, correctly typed
-arguments. The [`hello`](https://github.com/prytaneum/plugin-examples/tree/main/plugins/hello) example contributes one; the longer handler below is the engine
-test fixture `probe`.
+arguments. The longer handlers below are from the engine test fixture `probe`.
 
 ## Declaring one
 
@@ -19,7 +18,7 @@ kind = "string"
 help = "Who to greet"
 ```
 
-Source: `plugins/hello/plugin.toml`. `hestia hello greet --name Bob` answers `hello, Bob`.
+`hestia hello greet --name Bob` answers `hello, Bob`.
 
 | Key | Meaning |
 |---|---|
@@ -61,45 +60,58 @@ entry is not claimed while the command runs: a command that must exclude other w
 
 ## Writing the handler
 
-`Plugin::run(command, args)` receives the command id and the arguments object, and returns a JSON value. `hestia::args`
-reads the object into a struct and refuses a mismatch with the declaration as `Error::Invalid`. Progress goes through
-`hestia::progress::report(fraction, message)`, and a long command polls `hestia::progress::cancelled()`.
+`Plugin::command(call: Commands)` is routed like a provider or a hook: `call.on("name", handler)` runs `handler` when
+`name` is the command's id, and `finish()` ends the chain. A command id is a runtime string from `plugin.toml`, so it is
+routed by name; hook points, provider operations and events are defined in `proto` and routed by type.
+
+The handler takes the plugin's own struct of the declared arguments and returns any serializable value, which is the
+job's result. The daemon has already checked the arguments against the manifest, so a payload that does not fit the
+struct (`Error::Invalid`) means the struct and the declaration disagree. A command with no arguments takes
+`hestia::proto::Empty`, and `Value` takes the raw object. A command no handler takes answers `unsupported` naming it.
 
 ```rust
-fn run(command: &str, args: Value) -> Result<Value, Error> {
-    match command {
-        "greet" => {
-            let name = args["name"].as_str().unwrap_or("world");
-            Ok(json!(format!("hello, {name}")))
-        }
-        _ => Err(Error::NotFound(format!("unknown command `{command}`"))),
+#[derive(Deserialize)]
+struct Greet {
+    name: String,
+}
+
+impl Plugin for Hello {
+    fn command(call: Commands) -> Ran {
+        call.on("greet", |args: Greet| Ok(format!("hello, {}", args.name)))
+            .finish()
     }
 }
 ```
 
-Source: `plugins/hello/src/lib.rs`. A command that reports progress and honours a cancel:
+Source: `Commands` in `crates/sdk/src/commands.rs` (compiled as a no-run doctest).
+
+A scoped command receives the entry's id as `entry`. Wrap the argument struct in `hestia::commands::Scoped` to get it
+next to the arguments:
 
 ```rust
-fn run(command: &str, args: Value) -> Result<Value, Error> {
-    match command {
-        "echo" => Ok(args),
-        "progress" => {
-            hestia::progress::report(Some(0.5), "halfway");
-            hestia::progress::report(None, "finishing");
-            Ok(json!({ "cancelled": hestia::progress::cancelled() }))
-        }
-        "wait" => {
-            while !hestia::progress::cancelled() {
-                std::thread::sleep(Duration::from_millis(10));
-            }
-            Err(Error::Failed("stopped".into()))
-        }
-        _ => Err(Error::NotFound(format!("unknown command `{command}`"))),
-    }
-}
+call.on("restart", |scoped: Scoped<Greet>| {
+    hestia::log::info(&format!("{} on {}", scoped.args.name, scoped.entry));
+    Ok(())
+})
 ```
 
-Source: `Plugin::run` in `crates/engine/tests/fixture/plugins/probe/src/lib.rs`, with the process arms removed.
+A command that reports progress and honours a cancel:
+
+```rust
+call.on("progress", |_: Empty| {
+    hestia::progress::report(Some(0.5), "halfway");
+    hestia::progress::report(None, "finishing");
+    Ok(json!({ "cancelled": hestia::progress::cancelled() }))
+})
+.on("wait", |_: Empty| -> Result<(), Error> {
+    while !hestia::progress::cancelled() {
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    Err(Error::Failed("stopped".into()))
+})
+```
+
+Source: `Plugin::command` in `crates/engine/tests/fixture/plugins/probe/src/lib.rs`, with the other commands removed.
 
 - `report(Some(0.0..=1.0), message)` is a fraction; `None` leaves it indeterminate. The CLI shows the message inline.
 - A command is a job (`plugin.run`). Its limit is one hour. A cancel only asks: `cancelled()` starts returning `true`,

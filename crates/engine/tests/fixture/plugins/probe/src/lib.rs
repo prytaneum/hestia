@@ -1,14 +1,44 @@
 use std::time::Duration;
 
-use hestia::proto::plugin::PageContext;
+use hestia::pages::{Paged, Pages, Values};
 use hestia::proto::{server::ServerList, Empty};
-use hestia::ui::{self, Action, Effect, Tone, UiNode};
+use hestia::ui::{self, Effect, Tone};
 use hestia::proto::hook::{BeforeContentInstall, BeforeLaunch, BeforeServerStart, LaunchPatch};
 use hestia::proto::instance::InstanceList;
 use hestia::proto::provider::java::Majors;
-use hestia::{json, Error, Intercept, Intercepted, Plugin, Provide, Provided, Value};
+use hestia::{
+    json, Commands, Error, Events, Intercept, Intercepted, Plugin, Provide, Provided, Ran, Value,
+};
+use serde::{Deserialize, Serialize};
 
 struct Probe;
+
+#[derive(Serialize, Deserialize)]
+#[serde(tag = "id", content = "payload", rename_all = "kebab-case")]
+enum Act {
+    Go,
+}
+
+#[derive(Deserialize)]
+struct FailArgs {
+    kind: String,
+}
+
+#[derive(Deserialize)]
+struct Program {
+    program: String,
+    #[serde(default)]
+    args: Vec<String>,
+    #[serde(default)]
+    env: std::collections::BTreeMap<String, String>,
+    #[serde(default, rename = "timeoutMs")]
+    timeout_ms: Option<u64>,
+}
+
+#[derive(Deserialize)]
+struct Id {
+    id: String,
+}
 
 impl Plugin for Probe {
     fn init() -> Result<(), Error> {
@@ -28,13 +58,16 @@ impl Plugin for Probe {
         }
     }
 
-    fn on_event(topic: &str, payload: Value) {
-        let mut seen = hestia::data::load::<Vec<Value>>("events")
-            .ok()
-            .flatten()
-            .unwrap_or_default();
-        seen.push(json!({ "topic": topic, "payload": payload }));
-        let _ = hestia::data::save("events", &seen);
+    fn event(call: Events) {
+        call.glob("*", |topic, payload| {
+            let mut seen = hestia::data::load::<Vec<Value>>("events")
+                .ok()
+                .flatten()
+                .unwrap_or_default();
+            seen.push(json!({ "topic": topic, "payload": payload }));
+            let _ = hestia::data::save("events", &seen);
+        })
+        .finish()
     }
 
     fn on_settings_changed(key: &str) {
@@ -42,33 +75,27 @@ impl Plugin for Probe {
         let _ = hestia::data::save("settings-changed", &json!({ "key": key, "value": value }));
     }
 
-    fn render(page: &str, context: PageContext) -> Result<UiNode, Error> {
-        match page {
-            "overview" => Ok(ui::stack([
-                ui::heading("Overview", 1),
-                ui::text(context.entry.unwrap_or_else(|| "no entry".into())),
-                ui::button("Go", "go"),
-            ])),
-            _ => Err(Error::NotFound(format!("unknown page `{page}`"))),
-        }
-    }
-
-    fn action(
-        page: &str,
-        action: Action,
-        values: Value,
-        _context: PageContext,
-    ) -> Result<Vec<Effect>, Error> {
-        match page {
-            "overview" => Ok(vec![
-                Effect::Toast {
-                    tone: Tone::Success,
-                    text: format!("{} {}", action.id, values),
-                },
-                Effect::Refresh,
-            ]),
-            _ => Err(Error::NotFound(format!("unknown page `{page}`"))),
-        }
+    fn page(call: Pages) -> Paged {
+        call.on(
+            "overview",
+            |context| {
+                Ok(ui::stack([
+                    ui::heading("Overview", 1),
+                    ui::text(context.entry.unwrap_or_else(|| "no entry".into())),
+                    ui::button("Go", Act::Go),
+                ]))
+            },
+            |act: Act, values: Values, _context| match act {
+                Act::Go => Ok(vec![
+                    Effect::Toast {
+                        tone: Tone::Success,
+                        text: format!("go {}", values.parse::<Value>()?),
+                    },
+                    Effect::Refresh,
+                ]),
+            },
+        )
+        .finish()
     }
 
     fn provide(call: Provide) -> Provided {
@@ -106,80 +133,62 @@ impl Plugin for Probe {
         .finish()
     }
 
-    fn run(command: &str, args: Value) -> Result<Value, Error> {
-        match command {
-            "echo" => Ok(args),
-            "fail" => Err(typed(args["kind"].as_str().unwrap_or_default())),
-            "progress" => {
+    fn command(call: Commands) -> Ran {
+        call.on("echo", |args: Value| Ok(args))
+            .on("fail", |args: FailArgs| -> Result<(), Error> {
+                Err(typed(&args.kind))
+            })
+            .on("progress", |_: Empty| {
                 hestia::progress::report(Some(0.5), "halfway");
                 hestia::progress::report(None, "finishing");
                 Ok(json!({ "cancelled": hestia::progress::cancelled() }))
-            }
-            "wait" => {
+            })
+            .on("wait", |_: Empty| -> Result<(), Error> {
                 while !hestia::progress::cancelled() {
                     std::thread::sleep(Duration::from_millis(10));
                 }
                 Err(Error::Failed("stopped".into()))
-            }
-            "stubborn" => loop {
-                std::thread::sleep(Duration::from_millis(10));
-            },
-            "exec" => {
-                let (program, argv) = program_call(&args);
-                let env = env_pairs(&args);
-                let env: Vec<(&str, &str)> = env
+            })
+            .on("stubborn", |_: Empty| -> Result<(), Error> {
+                loop {
+                    std::thread::sleep(Duration::from_millis(10));
+                }
+            })
+            .on("exec", |call: Program| {
+                let env: Vec<(&str, &str)> = call
+                    .env
                     .iter()
                     .map(|(name, value)| (name.as_str(), value.as_str()))
                     .collect();
-                let timeout = Duration::from_millis(args["timeoutMs"].as_u64().unwrap_or(10_000));
-                let output =
-                    hestia::process::exec_with(&program, &refs(&argv), &env, timeout, None)?;
+                let timeout = Duration::from_millis(call.timeout_ms.unwrap_or(10_000));
+                let output = hestia::process::exec_with(
+                    &call.program,
+                    &refs(&call.args),
+                    &env,
+                    timeout,
+                    None,
+                )?;
                 Ok(json!({
                     "status": output.status,
                     "stdout": String::from_utf8_lossy(&output.stdout),
                 }))
-            }
-            "spawn" => {
-                let (program, argv) = program_call(&args);
-                let env = env_pairs(&args);
-                let env: Vec<(&str, &str)> = env
+            })
+            .on("spawn", |call: Program| {
+                let env: Vec<(&str, &str)> = call
+                    .env
                     .iter()
                     .map(|(name, value)| (name.as_str(), value.as_str()))
                     .collect();
-                Ok(json!(hestia::process::spawn(&program, &refs(&argv), &env)?))
-            }
-            "stop" => {
-                hestia::process::stop(args["id"].as_str().unwrap_or_default())?;
-                Ok(json!(null))
-            }
-            "running" => Ok(json!(hestia::process::list()?)),
-            "state" => {
-                let status = hestia::process::status(args["id"].as_str().unwrap_or_default())?;
-                Ok(json!(format!("{:?}", status.state)))
-            }
-            _ => Err(Error::NotFound(format!("unknown command `{command}`"))),
-        }
+                hestia::process::spawn(&call.program, &refs(&call.args), &env)
+            })
+            .on("stop", |call: Id| hestia::process::stop(&call.id))
+            .on("running", |_: Empty| hestia::process::list())
+            .on("state", |call: Id| {
+                let status = hestia::process::status(&call.id)?;
+                Ok(format!("{:?}", status.state))
+            })
+            .finish()
     }
-}
-
-fn program_call(args: &Value) -> (String, Vec<String>) {
-    let program = args["program"].as_str().unwrap_or_default().to_string();
-    let argv = args["args"]
-        .as_array()
-        .into_iter()
-        .flatten()
-        .filter_map(|arg| arg.as_str().map(str::to_string))
-        .collect();
-    (program, argv)
-}
-
-fn env_pairs(args: &Value) -> Vec<(String, String)> {
-    args["env"]
-        .as_object()
-        .into_iter()
-        .flatten()
-        .map(|(name, value)| (name.clone(), value.as_str().unwrap_or_default().into()))
-        .collect()
 }
 
 fn refs(argv: &[String]) -> Vec<&str> {

@@ -1,27 +1,65 @@
-//! Builders for the trees a page returns from [`Plugin::render`](crate::Plugin::render).
+//! Builders for the trees a page returns from [`Pages::on`](crate::pages::Pages::on).
 //! They produce the same [`UiNode`] values the front-ends draw, so anything
 //! the builders do not cover can be written as the enum directly.
+//!
+//! A button or a form carries an action: the plugin's own enum, tagged
+//! `#[serde(tag = "id", content = "payload")]` so it has the wire form of an
+//! [`Action`], which [`Pages::on`](crate::pages::Pages::on) reads back typed.
 //!
 //! ```
 //! use hestia::ui;
 //!
+//! #[derive(serde::Serialize, serde::Deserialize)]
+//! #[serde(tag = "id", content = "payload", rename_all = "kebab-case")]
+//! enum Act {
+//!     Backup,
+//! }
+//!
 //! let page = ui::stack([
 //!     ui::heading("Backups", 1),
 //!     ui::table(["World", "Size"], [ui::row(["smp", "1.2 GB"])]),
-//!     ui::button("Back up now", "backup"),
+//!     ui::button("Back up now", Act::Backup),
 //! ]);
 //! ```
 
 use proto::ui::{Direction, Pair, Submit, TableRow, Variant};
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 pub use proto::ui::{Action, Effect, FormField, Tone, UiNode};
 
-/// A click or submit that carries no payload.
-pub fn action(id: impl Into<String>) -> Action {
-    Action {
-        id: id.into(),
-        payload: Value::Null,
+/// The [`Action`] a button or form sends, written from the plugin's own enum.
+/// It must serialize as an object with an `id` and, optionally, a `payload`,
+/// which `#[serde(tag = "id", content = "payload")]` gives an enum; a value of
+/// any other shape becomes an action no handler can read, so the click answers
+/// [`Error::Invalid`](crate::Error::Invalid).
+///
+/// ```
+/// use hestia::ui;
+///
+/// #[derive(serde::Serialize)]
+/// #[serde(tag = "id", content = "payload", rename_all = "kebab-case")]
+/// enum Act {
+///     Remove(String),
+/// }
+///
+/// let action = ui::action(Act::Remove("smp".into()));
+/// assert_eq!(action.id, "remove");
+/// assert_eq!(action.payload, hestia::json!("smp"));
+/// ```
+pub fn action(action: impl Serialize) -> Action {
+    #[derive(Deserialize)]
+    struct Wire {
+        id: String,
+        #[serde(default)]
+        payload: Value,
+    }
+    match serde_json::to_value(action).and_then(serde_json::from_value::<Wire>) {
+        Ok(Wire { id, payload }) => Action { id, payload },
+        Err(error) => Action {
+            id: format!("invalid action: {error}"),
+            payload: Value::Null,
+        },
     }
 }
 
@@ -113,10 +151,10 @@ pub fn detail<L: Into<String>, V: Into<String>>(pairs: impl IntoIterator<Item = 
     }
 }
 
-pub fn button(label: impl Into<String>, action_id: impl Into<String>) -> UiNode {
+pub fn button(label: impl Into<String>, on_click: impl Serialize) -> UiNode {
     UiNode::Button {
         label: label.into(),
-        action: action(action_id),
+        action: action(on_click),
         variant: Variant::Primary,
     }
 }
@@ -125,14 +163,14 @@ pub fn form(
     id: impl Into<String>,
     fields: impl IntoIterator<Item = FormField>,
     submit_label: impl Into<String>,
-    action_id: impl Into<String>,
+    on_submit: impl Serialize,
 ) -> UiNode {
     UiNode::Form {
         id: id.into(),
         fields: fields.into_iter().collect(),
         submit: Submit {
             label: submit_label.into(),
-            action: action(action_id),
+            action: action(on_submit),
         },
     }
 }
@@ -149,6 +187,22 @@ pub fn progress(fraction: f32) -> UiNode {
 mod tests {
     use super::*;
 
+    #[derive(Serialize)]
+    #[serde(tag = "id", content = "payload")]
+    enum Act {
+        Create,
+    }
+
+    #[test]
+    fn an_action_takes_its_id_and_payload_from_the_enum() {
+        let created = action(Act::Create);
+        assert_eq!(
+            (created.id.as_str(), &created.payload),
+            ("Create", &Value::Null)
+        );
+        assert!(action("plain").id.starts_with("invalid action"));
+    }
+
     #[test]
     fn a_built_page_round_trips_through_the_wire_form() {
         let page = stack([
@@ -162,7 +216,7 @@ mod tests {
                     value: String::new(),
                 }],
                 "Create",
-                "create",
+                Act::Create,
             ),
         ]);
         let wire = serde_json::to_string(&page).unwrap();

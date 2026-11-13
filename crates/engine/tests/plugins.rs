@@ -197,7 +197,10 @@ async fn a_page_renders_a_tree_that_decodes_and_carries_its_context() {
         .plugin
         .render_page(&CallChain::default(), "nope", &PageContext::default())
         .await;
-    assert!(matches!(unknown, Err(CallError::Guest(_))), "{unknown:?}");
+    assert!(
+        matches!(&unknown, Err(CallError::Unsupported(message)) if message.contains("nope")),
+        "{unknown:?}"
+    );
 }
 
 #[tokio::test]
@@ -235,11 +238,10 @@ async fn a_command_runs_and_answers_its_output() {
     assert_eq!(outcome.unwrap(), json!({ "name": "smp" }));
 
     let (unknown, _) = probe.run("nope", json!({}), &Cancel::new(), GRACE).await;
-    let Err(CallError::Guest(error)) = unknown else {
+    let Err(CallError::Unsupported(message)) = unknown else {
         panic!("{unknown:?}");
     };
-    let message = error.to_string();
-    assert!(message.contains("unknown command"), "{message}");
+    assert!(message.contains("nope"), "{message}");
 }
 
 #[tokio::test]

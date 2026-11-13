@@ -8,7 +8,7 @@ an upstream, retry a connection that dropped (Discord starting after Hestia) or 
 **The manifest declares timers; the host delivers a tick as an event.** `[[contributes.schedules]]` entries carry an
 `id` and `every`, in whole seconds. Each tick is a `plugin.schedule` event (`{ id }`) put in that plugin's own inbox and
 nowhere else: it is never published to the hub, so no other plugin and no IPC client hears it, and `plugin.*` globs
-cannot reach it. In the SDK it arrives through `Plugin::on_event`, with `schedule::tick(topic, &payload)` to read the id.
+cannot reach it. In the SDK it arrives through `Plugin::event` as the typed `ScheduleEvent` topic, `call.on::<ScheduleEvent>(…)`.
 This is [0106](0106-the-plugin-api-is-mechanisms-not-features.md)'s shape: no new WIT, no new `Plugin` method, the
 varying part (the schedules) is data in `proto`.
 

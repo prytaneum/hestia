@@ -13,36 +13,41 @@ permissions = ["process:read", "process:spawn"]
 events = ["process.started", "process.exit"]
 ```
 
-Source: `plugins/tunnel-demo/plugin.toml`.
 
 A glob is an exact topic (`job`, `process.exit`) or a prefix with a trailing `.*` (`process.*`). `process.*` matches every
 topic beneath `process.` but not `process` itself. Topics are lowercase letters, digits, `.`, `-` and `_`; `*` alone,
 `server*` and `a.*.b` are refused. The globs are part of the grant the user approves.
 
-The plugin receives events in `Plugin::on_event(topic, payload)`:
+The plugin receives events in `Plugin::event(call: Events)`. Route each topic to a handler with `call.on::<T>(…)`, typed
+by the topic's `proto` type (`T: Topic`, the payload is `T` itself):
 
 ```rust
-impl Plugin for TunnelDemo {
-    fn on_event(topic: &str, payload: Value) {
-        let Some(server) = payload["id"].as_str().filter(|id| id.starts_with(SERVER)) else {
-            return;
-        };
-        let outcome = match topic {
-            "process.started" => up(server),
-            "process.exit" => down(server),
-            _ => Ok(()),
-        };
-        if let Err(error) = outcome {
-            hestia::log::warn(&format!("tunnel for {server}: {error}"));
-        }
+impl Plugin for Watcher {
+    fn event(call: Events) {
+        call.on::<ProcessExitEvent>(|exit| {
+            hestia::log::info(&format!("{} exited", exit.id));
+        })
+        .on::<ScheduleEvent>(|tick| {
+            if tick.id == "poll" {
+                hestia::log::info("polling");
+            }
+        })
+        .glob("server.*", |topic, _payload| {
+            hestia::log::debug(topic);
+        })
+        .finish()
     }
 }
 ```
 
-Source: `plugins/tunnel-demo/src/lib.rs`, with `up` and `down` omitted (see [processes.md](processes.md)).
+Source: `Events` in `crates/sdk/src/events.rs` (a no-run doctest).
 
-`payload` is the topic's JSON, camelCase, as the proto type serializes it. `on_event` returns nothing: an event cannot
-be answered.
+- The first handler that matches takes the event; one no handler takes is ignored.
+- A payload that does not decode as `T` is logged with `hestia::log::warn` and dropped: `event` returns nothing, so an
+  event cannot be answered.
+- `call.glob("server.*", |topic, payload| …)` takes every topic the pattern matches (an exact topic, a prefix such as
+  `server.*`, or `*`), with the topic and the raw JSON payload, camelCase as the proto type serializes it. Put typed
+  handlers before it.
 
 ## Topics and the permission each needs
 
@@ -99,7 +104,7 @@ id = "poll"
 every = 300
 ```
 
-No example plugin declares a schedule; the manifest is written from `proto::plugin::ScheduleContribution`.
+The manifest is written from `proto::plugin::ScheduleContribution`.
 
 - `every` is whole seconds, 30 to 2592000 (30 days). At most 8 schedules per plugin; ids are unique slugs.
 - Each tick is a `plugin.schedule` event `{ "id": "poll" }` pushed into that plugin's own inbox. It is never published to
@@ -109,17 +114,6 @@ No example plugin declares a schedule; the manifest is written from `proto::plug
   replayed, and a tick is dropped while one of the same schedule still waits in the inbox.
 - Timers start and stop with the plugin's event delivery.
 
-The SDK reads a tick with `hestia::schedule::tick(topic, &payload)`, which returns the schedule id, or `None` for any other
-event. This is the doc example in `crates/sdk/src/schedule.rs` (compiled as a no-run doctest):
-
-```rust
-impl Plugin for Poller {
-    fn on_event(topic: &str, payload: Value) {
-        if hestia::schedule::tick(topic, &payload) == Some("poll") {
-            hestia::log::info("polling");
-        }
-    }
-}
-```
+A tick is the `proto::plugin::ScheduleEvent` topic, so it routes like any other event (see the handler above).
 
 A plugin with schedules but no `events` still gets its ticks.

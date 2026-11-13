@@ -245,7 +245,7 @@ and it needs no permission; the schedules are part of the grant and listed when
 the user approves. The timers live in the plugin's `Delivery`, so they start
 and stop with its events. A tick missed while the machine slept is skipped, and a
 tick is dropped while one of the same schedule still waits. In the SDK a tick
-arrives in `Plugin::on_event`; `schedule::tick(topic, &payload)` returns its id
+arrives in `Plugin::event` as the typed `ScheduleEvent` topic, `call.on::<ScheduleEvent>(…)`
 ([0108](../decisions/0108-a-schedule-is-an-event-to-its-own-plugin.md)).
 
 ## Hooks
@@ -605,8 +605,19 @@ drift). Imports: `host` (`call`, `run-job`), `log`, `process`, `progress`,
 `lifecycle`, `commands`, `events`, `settings-changed`, `ui`, `hooks`
 (`intercept`) and `provider` (`invoke`). Every function that can fail returns `plugin-error` ([Errors](#errors)). That list is closed: a new hook point or
 provider kind is data in `proto`, not a new interface. `hestia-sdk` wraps the
-exports in a `Plugin` trait with default methods, and `intercept`/`provide`
-route a request to typed handlers with `.on::<Point>(…)` and `.on::<Op>(…)`.
+exports in a `Plugin` trait whose methods all default to "nothing here", and every
+export routes the same way: the method receives a router value (`Commands`,
+`Events`, `Pages`, `Intercept`, `Provide`) and the plugin chains handlers on it
+before `finish()`. What `proto` defines is routed by type (`Events::on::<T: Topic>`,
+`Intercept::on::<Point>`, `Provide::on::<Op>`) and decodes into the proto
+payload. What the manifest names is routed by its id: `Commands::on("id", |args:
+MyArgs| …)` and `Pages::on("id", render, action)`, where the arguments are the
+plugin's own struct (`Scoped<A>` adds the entry of a scoped command) and a page's
+action is the plugin's own enum, written onto a button or form by the `ui`
+builders and read back typed. A request no handler takes answers `unsupported`
+(commands, pages, providers), adds nothing (hooks) or is ignored (events, which
+cannot be answered); a payload that does not decode is `Error::Invalid`, or for an
+event a `warn` line. The matching makes no host call, so it is tested natively.
 
 `hestia::http` is a small client over `wasi:http`: a `Request` builder, a `Response` with headers and status classes, a
 `Url` builder with percent-encoding, and `Response::error_for_status`, the one place a status becomes a typed `Error`

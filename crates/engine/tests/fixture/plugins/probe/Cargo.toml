@@ -9,5 +9,6 @@ crate-type = ["cdylib"]
 
 [dependencies]
 hestia-sdk = { path = "../../../../../sdk" }
+serde = { version = "1", features = ["derive"] }
 
 [workspace]

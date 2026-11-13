@@ -20,31 +20,32 @@
 //! ```
 
 mod call;
-mod command;
+pub mod commands;
 pub mod data;
 mod error;
+pub mod events;
 pub mod hash;
 pub mod hooks;
 pub mod http;
 pub mod ipc;
 pub mod log;
+pub mod pages;
 pub mod process;
 pub mod progress;
 pub mod provider;
-pub mod schedule;
 pub mod settings;
 pub mod ui;
 
 pub use call::{call, run_job};
-pub use command::args;
+pub use commands::{Commands, Ran};
 pub use error::Error;
+pub use events::Events;
 pub use hooks::{Intercept, Intercepted};
+pub use pages::{Paged, Pages};
 /// The daemon's wire contracts and domain types, the same ones the CLI uses.
 pub use proto;
-use proto::plugin::PageContext;
 pub use provider::{Provide, Provided};
 pub use serde_json::{self, json, Value};
-use ui::{Action, Effect, UiNode};
 
 #[doc(hidden)]
 pub mod bindings {
@@ -84,22 +85,21 @@ pub trait Plugin {
         Ok(())
     }
 
-    /// Runs a command the manifest contributes; `args` is an object of its
-    /// declared arguments, plus `entry` for a scoped command. Read them with
-    /// [`args`]. Report through [`progress`] and return soon after
-    /// [`progress::cancelled`] turns true.
-    fn run(command: &str, args: Value) -> Result<Value, Error> {
-        let _ = args;
-        Err(Error::NotFound(format!("unknown command `{command}`")))
+    /// Runs a command the manifest contributes under `contributes.commands`.
+    /// Route each command to a handler with [`Commands::on`]; see [`commands`].
+    /// A command no handler takes answers `unsupported`.
+    fn command(call: Commands) -> Ran {
+        call.finish()
     }
 
     /// Receives a daemon event matching one of the manifest's `contributes.events`
-    /// that the plugin's permissions allow. Events arrive one at a time and in
+    /// that the plugin's permissions allow. Route each topic to a handler with
+    /// [`Events::on`]; see [`events`]. Events arrive one at a time and in
     /// order, each with a few seconds to finish; a plugin that falls behind loses
     /// the oldest. A tick of one of the manifest's `contributes.schedules` arrives
-    /// here too, as `plugin.schedule`; read it with [`schedule::tick`].
-    fn on_event(topic: &str, payload: Value) {
-        let _ = (topic, payload);
+    /// here too, as the `plugin.schedule` topic.
+    fn event(call: Events) {
+        call.finish()
     }
 
     /// Runs after the user changed or cleared the setting `key`; read the new
@@ -108,23 +108,12 @@ pub trait Plugin {
         let _ = key;
     }
 
-    /// Draws a page the manifest contributes; build the tree with [`ui`]. An
-    /// `entry` page finds the id of its server or instance in `context.entry`.
-    fn render(page: &str, context: PageContext) -> Result<UiNode, Error> {
-        let _ = context;
-        Err(Error::NotFound(format!("unknown page `{page}`")))
-    }
-
-    /// Handles a click or a submit on a page. `values` holds a submitted form's
-    /// fields by name. The effects it returns are applied in order.
-    fn action(
-        page: &str,
-        action: Action,
-        values: Value,
-        context: PageContext,
-    ) -> Result<Vec<Effect>, Error> {
-        let _ = (action, values, context);
-        Err(Error::NotFound(format!("unknown page `{page}`")))
+    /// Draws a page the manifest contributes under `contributes.pages` and
+    /// answers its clicks and submits. Route each page to its handlers with
+    /// [`Pages::on`]; see [`pages`]. A page no handler takes answers
+    /// `unsupported`.
+    fn page(call: Pages) -> Paged {
+        call.finish()
     }
 
     /// Answers a hook point the manifest declares under `contributes.hooks`.
@@ -176,18 +165,14 @@ macro_rules! plugin {
                     ::std::string::String,
                     $crate::bindings::hestia::plugin::types::PluginError,
                 > {
-                    let args = $crate::serde_json::from_str(&args)
-                        .map_err(|error| $crate::Error::Invalid(error.to_string()))?;
-                    <$plugin as $crate::Plugin>::run(&command, args)
-                        .map(|output| output.to_string())
-                        .map_err(::core::convert::Into::into)
+                    <$plugin as $crate::Plugin>::command($crate::Commands::new(command, args))
+                        .into_answer()
                 }
             }
 
             impl $crate::bindings::exports::hestia::plugin::events::Guest for Export {
                 fn on_event(topic: ::std::string::String, payload: ::std::string::String) {
-                    let payload = $crate::serde_json::from_str(&payload).unwrap_or_default();
-                    <$plugin as $crate::Plugin>::on_event(&topic, payload)
+                    <$plugin as $crate::Plugin>::event($crate::Events::new(topic, payload))
                 }
             }
 
@@ -205,11 +190,8 @@ macro_rules! plugin {
                     ::std::string::String,
                     $crate::bindings::hestia::plugin::types::PluginError,
                 > {
-                    let context = $crate::serde_json::from_str(&context)
-                        .map_err(|error| $crate::Error::Invalid(error.to_string()))?;
-                    let tree = <$plugin as $crate::Plugin>::render(&page, context)?;
-                    $crate::serde_json::to_string(&tree)
-                        .map_err(|error| $crate::Error::Failed(error.to_string()).into())
+                    <$plugin as $crate::Plugin>::page($crate::Pages::render(page, context))
+                        .into_answer()
                 }
 
                 fn action(
@@ -221,17 +203,10 @@ macro_rules! plugin {
                     ::std::string::String,
                     $crate::bindings::hestia::plugin::types::PluginError,
                 > {
-                    let invalid = |error: $crate::serde_json::Error| {
-                        $crate::Error::Invalid(error.to_string())
-                    };
-                    let effects = <$plugin as $crate::Plugin>::action(
-                        &page,
-                        $crate::serde_json::from_str(&action).map_err(invalid)?,
-                        $crate::serde_json::from_str(&values).map_err(invalid)?,
-                        $crate::serde_json::from_str(&context).map_err(invalid)?,
-                    )?;
-                    $crate::serde_json::to_string(&effects)
-                        .map_err(|error| $crate::Error::Failed(error.to_string()).into())
+                    <$plugin as $crate::Plugin>::page($crate::Pages::action(
+                        page, action, values, context,
+                    ))
+                    .into_answer()
                 }
             }
 
