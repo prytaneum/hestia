@@ -7,7 +7,7 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
-use proto::plugin::{Manifest, Program};
+use proto::plugin::{Grant, Manifest, Program};
 use sha2::Sha256;
 
 use crate::checksum::digest_file;
@@ -75,17 +75,60 @@ pub fn resolve_on_path(name: &str) -> Option<PathBuf> {
         .find(|candidate| is_executable(candidate))
 }
 
-/// The absolute path each `PATH` program of `manifest` resolves to now, at
-/// approval: the only path that program will ever run from. One not found is
-/// left out, so it cannot run until the plugin is approved again.
-pub fn pin_programs(plugin: &str, manifest: &Manifest) -> BTreeMap<String, PathBuf> {
-    let mut pinned = BTreeMap::new();
-    for program in manifest
+/// Program id to the absolute path its `PATH` name was resolved to.
+pub type Pins = BTreeMap<String, PathBuf>;
+
+/// How a `PATH` name becomes a path; a plugin store holds one so tests need
+/// not read the real `PATH`.
+pub type Resolver = fn(&str) -> Option<PathBuf>;
+
+/// The digest a user approves and a record stores: the grant together with the
+/// path each `PATH` program is pinned to. Preview, install, update and load all
+/// derive it here, so none of them can disagree about what was approved.
+pub fn approval_digest(grant: &Grant, pins: &Pins) -> String {
+    let paths = pins
+        .iter()
+        .map(|(id, path)| (id.clone(), path.to_string_lossy().into_owned()))
+        .collect();
+    grant.approval_digest(&paths)
+}
+
+fn path_programs(manifest: &Manifest) -> impl Iterator<Item = &Program> {
+    manifest
         .programs
         .iter()
         .filter(|p| !p.in_data_dir() && p.java.is_none())
-    {
-        match resolve_on_path(&program.command) {
+}
+
+/// The ids of programs `manifest` declares that `installed` pinned and `fresh`
+/// would pin elsewhere or not at all.
+pub fn changed_pins(installed: &Pins, fresh: &Pins, manifest: &Manifest) -> Vec<String> {
+    path_programs(manifest)
+        .filter_map(|program| {
+            let kept = installed.get(&program.id)?;
+            (fresh.get(&program.id) != Some(kept)).then(|| program.id.clone())
+        })
+        .collect()
+}
+
+/// What an update without a new approval keeps: the installed pins of the
+/// programs it still declares. A program not pinned before stays unpinned.
+pub fn carried_pins(installed: &Pins, manifest: &Manifest) -> Pins {
+    path_programs(manifest)
+        .filter_map(|program| {
+            let kept = installed.get(&program.id)?;
+            Some((program.id.clone(), kept.clone()))
+        })
+        .collect()
+}
+
+/// The absolute path each `PATH` program of `manifest` resolves to now, at
+/// approval: the only path that program will ever run from. One not found is
+/// left out, so it cannot run until the plugin is approved again.
+pub fn pin_programs(plugin: &str, manifest: &Manifest, resolve: Resolver) -> Pins {
+    let mut pinned = BTreeMap::new();
+    for program in path_programs(manifest) {
+        match resolve(&program.command) {
             Some(path) => {
                 tracing::info!(plugin, program = %program.id, path = %path.display(), "program pinned");
                 pinned.insert(program.id.clone(), path);

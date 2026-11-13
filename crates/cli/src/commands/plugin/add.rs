@@ -226,19 +226,31 @@ fn resolve(path: &str) -> Result<String> {
 pub(super) fn show_grant(inspection: &PluginInspection) -> Result<()> {
     let manifest = &inspection.manifest;
     let (heading, grant) = match &inspection.replaces {
-        Some(installed) => (
-            format!(
-                "update '{}' {} → {}",
-                manifest.id, installed.manifest.version, manifest.version
-            ),
-            &inspection.widened,
-        ),
+        Some(installed) => {
+            let mut shown = inspection.widened.clone();
+            shown.programs.extend(
+                inspection
+                    .grant
+                    .programs
+                    .iter()
+                    .filter(|program| inspection.program_paths.contains_key(&program.id))
+                    .cloned(),
+            );
+            (
+                format!(
+                    "update '{}' {} → {}",
+                    manifest.id, installed.manifest.version, manifest.version
+                ),
+                shown,
+            )
+        }
         None => (
             format!("install '{}' {}", manifest.id, manifest.version),
-            &inspection.grant,
+            inspection.grant.clone(),
         ),
     };
     ui::show(View::line(heading))?;
+    let grant = &grant;
     let rows = grant_rows(grant, &inspection.program_paths);
     if rows.is_empty() {
         return ui::show(View::note(match inspection.replaces {

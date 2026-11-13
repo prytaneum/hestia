@@ -11,7 +11,7 @@ use proto::error::ErrorInfo;
 use proto::plugin::{compare_versions, Grant, Manifest, PluginInstallPhase, PluginSource};
 use sha2::{Digest, Sha256};
 
-use super::program::pin_programs;
+use super::program::{approval_digest, carried_pins, changed_pins, pin_programs, Pins};
 use super::remote::Staged;
 use super::store::{
     Approver, PluginRecord, Plugins, Previous, MANIFEST, PACKAGE, PREVIOUS_PACKAGE, STAGING_SUFFIX,
@@ -45,10 +45,12 @@ struct Intake<'a> {
 pub struct Inspection {
     pub manifest: Manifest,
     pub grant: Grant,
+    /// What the user approves: the grant together with `program_paths`, see
+    /// [`approval_digest`].
     pub grant_digest: String,
     pub installed: Option<PluginRecord>,
     /// Where each `PATH` program resolves now; see [`pin_programs`].
-    pub program_paths: BTreeMap<String, PathBuf>,
+    pub program_paths: Pins,
 }
 
 pub(super) enum Source {
@@ -179,10 +181,11 @@ impl Plugins {
             .read_manifest()
             .map_err(|error| invalid(format!("{error:#}")))?;
         let grant = manifest.grant();
+        let program_paths = self.pin(&manifest.id, &manifest);
         Ok(Inspection {
-            grant_digest: grant.digest(),
+            grant_digest: approval_digest(&grant, &program_paths),
             installed: self.get(&manifest.id),
-            program_paths: pin_programs(&manifest.id, &manifest),
+            program_paths,
             manifest,
             grant,
         })
@@ -283,25 +286,30 @@ impl Plugins {
             return Err(invalid("plugin.toml changed while it was read"));
         }
         let grant = manifest.grant();
-        let grant_digest = grant.digest();
-        match intake.replacing {
+        let resolved = self.pin(&id, &manifest);
+        let resolved_digest = approval_digest(&grant, &resolved);
+        let program_paths = match intake.replacing {
             Some(installed) => {
                 self.check_update(installed, &manifest, intake.downloaded)?;
-                if grant.widening_over(&installed.grant) != Grant::default()
-                    && grant_digest != approve
-                {
-                    tracing::warn!(plugin = %id, "update refused: it asks for more than was approved");
+                let moved = changed_pins(&installed.program_paths, &resolved, &manifest);
+                let widened = grant.widening_over(&installed.grant) != Grant::default();
+                if !widened && moved.is_empty() {
+                    carried_pins(&installed.program_paths, &manifest)
+                } else if resolved_digest != approve {
+                    tracing::warn!(plugin = %id, widened, moved = ?moved, "update refused: it asks for more than was approved");
                     bail!(ErrorInfo::PluginUpdateNeedsApproval { id });
+                } else {
+                    resolved
                 }
             }
-            None if grant_digest != approve => {
-                tracing::warn!(plugin = %id, "install refused: the grant is not the one approved");
+            None if resolved_digest != approve => {
+                tracing::warn!(plugin = %id, "install refused: the grant and pins are not the ones approved");
                 bail!(ErrorInfo::PluginApprovalStale);
             }
-            None => {}
-        }
+            None => resolved,
+        };
+        let grant_digest = approval_digest(&grant, &program_paths);
         let (wasm_sha256, theme_sha256) = digest_package(&manifest, &staged, validate)?;
-        let program_paths = pin_programs(&id, &manifest);
         cancel.check()?;
 
         on_phase(PluginInstallPhase::Installing);
@@ -343,6 +351,10 @@ impl Plugins {
         self.save(&record)?;
         tracing::info!(plugin = %id, updated = installed.is_some(), "plugin installed");
         Ok(record)
+    }
+
+    pub(super) fn pin(&self, plugin: &str, manifest: &Manifest) -> Pins {
+        pin_programs(plugin, manifest, self.resolver)
     }
 
     fn check_update(
@@ -409,5 +421,213 @@ impl Plugins {
             return Err(error).context("cannot move the package into place");
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::PathBuf;
+
+    use proto::plugin::PluginSource;
+
+    use super::*;
+    use crate::cancel::Cancel;
+    use crate::plugins::program::Resolver;
+
+    const GIT_A: &str = "/opt/a/git";
+    const GIT_B: &str = "/opt/b/git";
+
+    fn at_a(_: &str) -> Option<PathBuf> {
+        Some(PathBuf::from(GIT_A))
+    }
+
+    fn at_b(_: &str) -> Option<PathBuf> {
+        Some(PathBuf::from(GIT_B))
+    }
+
+    fn nowhere(_: &str) -> Option<PathBuf> {
+        None
+    }
+
+    struct Rig {
+        _home: tempfile::TempDir,
+        folders: tempfile::TempDir,
+        plugins: Plugins,
+    }
+
+    impl Rig {
+        fn new(resolver: Resolver) -> Rig {
+            let home = tempfile::tempdir().unwrap();
+            let mut plugins = Plugins::new(home.path().join("plugins"));
+            plugins.resolver = resolver;
+            Rig {
+                _home: home,
+                folders: tempfile::tempdir().unwrap(),
+                plugins,
+            }
+        }
+
+        fn resolving(&mut self, resolver: Resolver) {
+            self.plugins.resolver = resolver;
+        }
+
+        fn package(&self, version: &str, extra: &str) -> Staged {
+            let dir = self.folders.path().join(version);
+            std::fs::create_dir_all(&dir).unwrap();
+            let manifest = format!(
+                "id = \"demo\"\nname = \"Demo\"\nversion = \"{version}\"\napi = \"^1.0.0\"\nwasm = \"plugin.wasm\"\npermissions = [\"process:spawn\"]\n\n[[programs]]\nid = \"git\"\ncommand = \"git\"\nargs = [\"**\"]\n{extra}"
+            );
+            std::fs::write(dir.join(MANIFEST), manifest).unwrap();
+            std::fs::write(dir.join("plugin.wasm"), version).unwrap();
+            Staged {
+                path: dir,
+                url: "https://repo.example/demo.hplugin".into(),
+                origin: None,
+                warnings: Vec::new(),
+            }
+        }
+
+        fn digest(&self, staged: &Staged) -> String {
+            self.plugins.inspect(&staged.path).unwrap().grant_digest
+        }
+
+        fn install(&self, staged: &Staged) -> PluginRecord {
+            let digest = self.digest(staged);
+            self.plugins
+                .install_downloaded(staged, &digest, &Cancel::new(), &|_| {}, |_| Ok(()))
+                .unwrap()
+        }
+
+        fn update(&self, staged: &Staged, approve: &str) -> Result<Updated> {
+            self.plugins
+                .update(staged, "demo", approve, &Cancel::new(), &|_| {}, |_| Ok(()))
+        }
+    }
+
+    fn refusal(error: anyhow::Error) -> ErrorInfo {
+        error.downcast::<ErrorInfo>().expect("a typed refusal")
+    }
+
+    #[test]
+    fn the_digest_follows_the_pin() {
+        let mut rig = Rig::new(at_a);
+        let staged = rig.package("1.0.0", "");
+        let first = rig.digest(&staged);
+        assert_eq!(first, rig.digest(&staged));
+
+        rig.resolving(at_b);
+        assert_ne!(first, rig.digest(&staged));
+        rig.resolving(nowhere);
+        assert_ne!(first, rig.digest(&staged));
+    }
+
+    #[test]
+    fn an_install_whose_pin_moved_since_the_preview_is_stale() {
+        let mut rig = Rig::new(at_a);
+        let staged = rig.package("1.0.0", "");
+        let previewed = rig.digest(&staged);
+
+        rig.resolving(at_b);
+        let error = rig
+            .plugins
+            .install_downloaded(&staged, &previewed, &Cancel::new(), &|_| {}, |_| Ok(()))
+            .unwrap_err();
+
+        assert!(matches!(refusal(error), ErrorInfo::PluginApprovalStale));
+        assert!(rig.plugins.get("demo").is_none());
+    }
+
+    #[test]
+    fn the_record_digest_covers_its_pins() {
+        let rig = Rig::new(at_a);
+        let record = rig.install(&rig.package("1.0.0", ""));
+
+        assert_eq!(record.program_paths["git"], PathBuf::from(GIT_A));
+        assert_eq!(
+            record.grant_digest,
+            approval_digest(&record.grant, &record.program_paths)
+        );
+        assert_eq!(record.source, PluginSource::Url);
+    }
+
+    #[test]
+    fn an_update_with_the_same_pin_needs_no_approval() {
+        let rig = Rig::new(at_a);
+        let installed = rig.install(&rig.package("1.0.0", ""));
+
+        let updated = rig.update(&rig.package("1.1.0", ""), "").unwrap();
+
+        assert_eq!(updated.record.program_paths, installed.program_paths);
+        assert_eq!(updated.record.grant_digest, installed.grant_digest);
+    }
+
+    #[test]
+    fn an_update_whose_pin_would_move_needs_the_matching_digest() {
+        let mut rig = Rig::new(at_a);
+        rig.install(&rig.package("1.0.0", ""));
+        let next = rig.package("1.1.0", "");
+        rig.resolving(at_b);
+
+        for approve in ["", "stale"] {
+            let error = rig.update(&next, approve).map(|_| ()).unwrap_err();
+            assert!(matches!(
+                refusal(error),
+                ErrorInfo::PluginUpdateNeedsApproval { id } if id == "demo"
+            ));
+        }
+        assert_eq!(
+            rig.plugins.get("demo").unwrap().program_paths["git"],
+            PathBuf::from(GIT_A)
+        );
+
+        let updated = rig.update(&next, &rig.digest(&next)).unwrap();
+        assert_eq!(updated.record.program_paths["git"], PathBuf::from(GIT_B));
+        assert_eq!(
+            updated.record.grant_digest,
+            approval_digest(&updated.record.grant, &updated.record.program_paths)
+        );
+    }
+
+    #[test]
+    fn an_update_whose_program_vanished_from_the_path_needs_approval() {
+        let mut rig = Rig::new(at_a);
+        rig.install(&rig.package("1.0.0", ""));
+        rig.resolving(nowhere);
+
+        let error = rig
+            .update(&rig.package("1.1.0", ""), "")
+            .map(|_| ())
+            .unwrap_err();
+
+        assert!(matches!(
+            refusal(error),
+            ErrorInfo::PluginUpdateNeedsApproval { .. }
+        ));
+    }
+
+    #[test]
+    fn a_program_that_was_not_pinned_stays_unpinned_on_an_unapproved_update() {
+        let mut rig = Rig::new(nowhere);
+        rig.install(&rig.package("1.0.0", ""));
+        rig.resolving(at_a);
+
+        let updated = rig.update(&rig.package("1.1.0", ""), "").unwrap();
+
+        assert!(updated.record.program_paths.is_empty());
+    }
+
+    #[test]
+    fn a_newly_declared_program_is_pinned_under_the_approved_digest() {
+        let rig = Rig::new(at_a);
+        rig.install(&rig.package("1.0.0", ""));
+        let next = rig.package(
+            "1.1.0",
+            "\n[[programs]]\nid = \"curl\"\ncommand = \"curl\"\nargs = [\"**\"]\n",
+        );
+
+        assert!(rig.update(&next, "").is_err());
+        let updated = rig.update(&next, &rig.digest(&next)).unwrap();
+
+        assert_eq!(updated.record.program_paths.len(), 2);
     }
 }

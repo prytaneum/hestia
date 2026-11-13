@@ -5,7 +5,7 @@
  */
 export type PluginDeveloperInfo = { 
 /**
- * Digest of the grant the user approved.
+ * Digest of the grant and program pins the user approved.
  */
 grantDigest: string, 
 /**

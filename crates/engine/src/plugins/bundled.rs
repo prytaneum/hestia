@@ -12,6 +12,7 @@ use proto::plugin::{compare_versions, Grant, PluginSource};
 use serde::{Deserialize, Serialize};
 
 use super::official::is_official_signer_in;
+use super::program::changed_pins;
 use super::remote::{Origin, Staged};
 use super::repos::verify_build;
 use super::repositories::official_url;
@@ -119,6 +120,15 @@ impl Plugins {
                 }
                 if inspection.grant.widening_over(&installed.grant) != Grant::default() {
                     bail!("{version} asks for more than {current} was approved for; update it to approve");
+                }
+                let moved = changed_pins(
+                    &installed.program_paths,
+                    &inspection.program_paths,
+                    &inspection.manifest,
+                );
+                if !moved.is_empty() {
+                    tracing::warn!(plugin = %id, programs = ?moved, "bundled update held: a program would run from a different path");
+                    bail!("{version} would run {} from a different path than {current} was approved for; update it to approve", moved.join(", "));
                 }
                 Outcome::Upgraded
             }
@@ -305,7 +315,10 @@ mod tests {
         assert_eq!(record.source, PluginSource::Repo);
         assert_eq!(record.url, None);
         assert_eq!(record.signer, Some(key_id_of(&official.key()).unwrap()));
-        assert_eq!(record.grant_digest, record.grant.digest());
+        assert_eq!(
+            record.grant_digest,
+            record.grant.approval_digest(&Default::default())
+        );
         assert!(record.enabled);
         assert!(!record.grant.permissions.is_empty());
     }

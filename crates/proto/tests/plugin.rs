@@ -886,7 +886,10 @@ mod manifest {
             ["whitelist.json".to_string()].into()
         );
         assert_eq!(installed.widening_over(&wider).files, Default::default());
-        assert_ne!(wider.digest(), installed.digest());
+        assert_ne!(
+            wider.approval_digest(&Default::default()),
+            installed.approval_digest(&Default::default())
+        );
     }
 
     #[test]
@@ -947,10 +950,10 @@ mod manifest {
         let digests: Vec<String> = widened
             .iter()
             .chain([&hooked])
-            .map(|manifest| manifest.grant().digest())
+            .map(|manifest| manifest.grant().approval_digest(&Default::default()))
             .collect();
         for (index, digest) in digests.iter().enumerate() {
-            assert_ne!(*digest, base.grant().digest());
+            assert_ne!(*digest, base.grant().approval_digest(&Default::default()));
             assert!(!digests[..index].contains(digest));
         }
     }

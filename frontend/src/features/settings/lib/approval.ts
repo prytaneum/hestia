@@ -151,11 +151,24 @@ export function describeGrant(
     .map(([kind, items]) => ({ kind, heading: HEADING[kind](), items }));
 }
 
-/** What an approval covers: the whole grant when new, only the widening on an update. */
+/**
+ * What an approval covers: the whole grant when new; on an update the
+ * widening plus every program with a pinned path, since the digest binds the
+ * pin and an update that only moves it must still show where it now points.
+ */
 export function describeApproval(
   inspection: PluginInspection,
 ): DescribedSection[] {
-  const grant = inspection.replaces ? inspection.widened : inspection.grant;
+  const grant = inspection.replaces
+    ? {
+        ...inspection.widened,
+        programs: inspection.grant.programs.filter(
+          (program) =>
+            inspection.programPaths[program.id] !== undefined ||
+            inspection.widened.programs.some((wide) => wide.id === program.id),
+        ),
+      }
+    : inspection.grant;
   return describeGrant(grant, inspection.unrestricted, inspection.programPaths);
 }
 

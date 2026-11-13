@@ -6,6 +6,7 @@ use anyhow::{bail, Context, Result};
 use proto::plugin::{is_plugin_id, Grant, Manifest, PluginSource};
 use serde::{Deserialize, Serialize};
 
+use super::program::{resolve_on_path, Resolver};
 use crate::reclaim::{self, Reclaimed};
 use crate::registry;
 use crate::schema::Document;
@@ -82,6 +83,7 @@ impl Document for Previous {
 pub struct Plugins {
     pub(super) dir: PathBuf,
     pub(super) writes: Mutex<()>,
+    pub(super) resolver: Resolver,
 }
 
 impl Plugins {
@@ -89,6 +91,7 @@ impl Plugins {
         Plugins {
             dir,
             writes: Mutex::new(()),
+            resolver: resolve_on_path,
         }
     }
 

@@ -754,7 +754,9 @@ impl Plugins {
         let engine = self.engine.clone();
         let id = record.id.clone();
         let package = spawn_blocking(move || engine.plugins().read_package(&id)).await??;
-        if package.manifest.grant().digest() != record.grant_digest {
+        if engine::approval_digest(&package.manifest.grant(), &record.program_paths)
+            != record.grant_digest
+        {
             return Ok(Activation::NeedsApproval);
         }
         let Some(wasm) = package.wasm else {

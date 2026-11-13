@@ -53,7 +53,7 @@ pub use install::Inspection;
 pub use official::{is_official_signer, refuse_official_key};
 pub use patch::LaunchPatch;
 pub use process::owner_of;
-pub use program::{resolve_on_path, target_triple, ManagedJava};
+pub use program::{approval_digest, resolve_on_path, target_triple, ManagedJava};
 pub use providers::{
     unregister as unregister_providers, Contributions, PluginContentProvider, PluginFlavorProvider,
     PluginFormat, PluginJavaProvider,

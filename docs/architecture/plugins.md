@@ -415,7 +415,9 @@ flowchart TD
 - **What you approve is what lands.** A downloaded package is held under
   `tmp/plugins/` by an opaque token (fifteen minutes; `tmp/` is emptied at startup
   besides), so inspect and install see the same file. The install takes the grant
-  digest the user approved and refuses a package whose grant differs.
+  digest the user approved and refuses a package whose grant, or the absolute path any `PATH` program resolves
+  to, differs: the digest covers the grant together with those pins (`Grant::approval_digest`, the one place it is
+  computed; the preview, the install, the stored record and the load check all derive it there).
 - **Limits.** 64 MiB uncompressed per package and 1 MiB for the manifest, enforced
   by the capped extractor. The manifest's `api = "^N.M.P"` must be satisfied by
   the host's `API_VERSION`, or the install is refused instead of failing at
@@ -482,7 +484,10 @@ minisign public key and an optional spare, added by its index URL. It has one sh
   and refuses it unless it is newer and signed by that same key. A grant wider than the
   installed one (compared as a whole `Grant`, not a permission list) needs `approve` to be
   its digest, else the call fails with `plugin_update_needs_approval` before anything
-  changes; an equal or narrower grant applies. The swap renames `package/` to
+  changes; an equal or narrower grant applies. So does an update that would move a pin the installed
+  version holds (a different path, or the program no longer found): without approval the installed pins are kept
+  as they are, so an unattended update is held exactly like a widened one. A program not pinned before stays
+  unpinned until approved. The swap renames `package/` to
   `package.prev/` and writes the replaced record to `plugin.prev.json`, so exactly one
   previous version exists; `data/` is untouched. The new build is loaded beside the running
   one and replaces its slot only once `init` succeeds, so calls in flight finish on the old

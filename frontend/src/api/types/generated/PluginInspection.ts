@@ -10,7 +10,7 @@ import type { PluginInfo } from "./PluginInfo";
 export type PluginInspection = { manifest: Manifest, grant: Grant, 
 /**
  * Hand this back as [`PluginInstallParams::approve`] to approve exactly
- * this grant.
+ * this grant and these `program_paths`.
  */
 grantDigest: string, 
 /**

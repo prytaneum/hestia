@@ -16,7 +16,9 @@ Two kinds of `command`:
 A `command` without a `/` is a name on `PATH`. The host resolves it to an absolute path when the user approves the
 install, shows that path, stores it on the plugin's record, and runs that file and no other. A later `PATH` change cannot
 substitute another binary; if the file disappears the call fails until the plugin is installed again. A relative
-directory on `PATH` is skipped.
+directory on `PATH` is skipped. The path is part of what the user approves: it is covered by the approval digest, so an
+update that would pin a different path (or no longer finds the program) is held until the user approves it again, and an
+unattended update never applies one.
 
 ```toml
 permissions = ["process:read", "process:spawn"]

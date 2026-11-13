@@ -724,9 +724,16 @@ pub struct Grant {
 }
 
 impl Grant {
-    /// Hex sha256 of the canonical JSON.
-    pub fn digest(&self) -> String {
-        let canonical = serde_json::to_vec(self).expect("a grant is plain data");
+    /// What a user approves: hex sha256 of the canonical JSON of the grant
+    /// together with the absolute path each `PATH` program is pinned to
+    /// ([0101](../../../docs/decisions/0101-plugins-spawn-only-declared-programs.md)).
+    /// The only place the digest is computed.
+    pub fn approval_digest(&self, program_paths: &BTreeMap<String, String>) -> String {
+        let canonical = serde_json::to_vec(&serde_json::json!({
+            "grant": self,
+            "programPaths": program_paths,
+        }))
+        .expect("an approval is plain data");
         Sha256::digest(canonical)
             .iter()
             .map(|byte| format!("{byte:02x}"))
@@ -1366,7 +1373,7 @@ pub struct PluginInfo {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
 #[serde(default, rename_all = "camelCase")]
 pub struct PluginDeveloperInfo {
-    /// Digest of the grant the user approved.
+    /// Digest of the grant and program pins the user approved.
     pub grant_digest: String,
     /// Where compiled components are cached; the plugin's own artifact is named
     /// after its `sha256`.
@@ -1587,7 +1594,7 @@ pub struct PluginInspection {
     pub manifest: Manifest,
     pub grant: Grant,
     /// Hand this back as [`PluginInstallParams::approve`] to approve exactly
-    /// this grant.
+    /// this grant and these `program_paths`.
     pub grant_digest: String,
     /// The installed plugin of the same id, which the install would update.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -1681,8 +1688,8 @@ pub struct PluginInstallParams {
     pub path: String,
     /// The token from [`PluginInspection::staged`], instead of `path`.
     pub staged: String,
-    /// The grant digest the user approved; the install refuses a package whose
-    /// own grant digests differently.
+    /// The digest the user approved; the install refuses a package whose
+    /// grant, or whose programs' resolved paths, digest differently.
     pub approve: String,
     /// Run the folder at `path` in place instead of copying it, and reload it
     /// when its component or themes change.

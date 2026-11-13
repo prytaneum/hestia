@@ -10,8 +10,8 @@ path: string,
  */
 staged: string, 
 /**
- * The grant digest the user approved; the install refuses a package whose
- * own grant digests differently.
+ * The digest the user approved; the install refuses a package whose
+ * grant, or whose programs' resolved paths, digest differently.
  */
 approve: string, 
 /**

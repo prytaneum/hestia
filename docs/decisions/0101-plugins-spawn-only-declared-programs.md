@@ -40,6 +40,17 @@ Rejected: any program by name (a grant could not say what it allows), a shell wi
 from anything), trusting the `PATH` at call time, hashing a file the guest can still write, and stopping a plugin's
 processes when the daemon exits (it would contradict 0034 for one kind of workload).
 
+**Amended 2026-11-14: a pin is part of the approval.** The digest the user approves covers the grant *and* the resolved
+path of every `PATH` program (`Grant::approval_digest`), and preview, install, the stored record and the load check all
+derive it through that one function. An install whose pins resolve differently from the preview is refused as stale. An
+update keeps the installed pins unchanged; if re-resolving would pin a different path, or a pinned program is no longer
+found, the update needs the approval digest like a widened grant, so an unattended update is held and the plugin keeps
+running the binary the user approved. A bundled official upgrade is held the same way. The approval dialog and the CLI
+list the pinned path of an update as well as of an install.
+
+Rejected: re-resolving silently on every update (a `PATH` change or a binary planted earlier on `PATH` would swap the
+program with nobody approving it), and hashing the binary now (the lazy-pin work records path and hash together).
+
 **Amended 2026-11-10 (13.09): a program may take as long as its call, and is a tree.** `exec` is no longer capped at five
 minutes: its ceiling is what the current call has left (a flavor `build` or a plugin command has an hour, any other call
 its own shorter deadline), with `timeout-ms` still applying below it. It observes the call's cancel and, on cancel,

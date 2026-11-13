@@ -9,7 +9,7 @@ use proto::error::ErrorInfo;
 use proto::plugin::PluginSource;
 
 use super::install::{digest_package, invalid, Source};
-use super::program::pin_programs;
+use super::program::approval_digest;
 use super::store::{PluginRecord, Plugins, MANIFEST, PACKAGE};
 
 impl Plugins {
@@ -38,14 +38,14 @@ impl Plugins {
             .read_manifest()
             .map_err(|error| invalid(format!("{error:#}")))?;
         let grant = manifest.grant();
-        let grant_digest = grant.digest();
+        let program_paths = self.pin(&manifest.id, &manifest);
+        let grant_digest = approval_digest(&grant, &program_paths);
         if grant_digest != approve {
             tracing::warn!(plugin = %manifest.id, "dev install refused: the grant is not the one approved");
             bail!(ErrorInfo::PluginApprovalStale);
         }
         let (wasm_sha256, theme_sha256) = digest_package(&manifest, &root, validate)?;
 
-        let program_paths = pin_programs(&manifest.id, &manifest);
         let id = manifest.id;
         let installed = self.get(&id);
         let copied = self.plugin_dir(&id)?.join(PACKAGE);
@@ -163,7 +163,7 @@ mod tests {
         toml::from_str::<proto::plugin::Manifest>(manifest)
             .unwrap()
             .grant()
-            .digest()
+            .approval_digest(&Default::default())
     }
 
     fn rewrite(folder: &Path, name: &str, contents: &str, ahead: u64) {
@@ -228,7 +228,10 @@ mod tests {
 
         assert_eq!(record.grant_digest, approved);
         let manifest = fixture.plugins.read_manifest("demo").unwrap();
-        assert_ne!(manifest.grant().digest(), record.grant_digest);
+        assert_ne!(
+            manifest.grant().approval_digest(&Default::default()),
+            record.grant_digest
+        );
     }
 
     #[test]
