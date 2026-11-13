@@ -153,7 +153,25 @@ async fn a_profile_with_one_artifact_off_the_plugins_hosts_is_refused_whole() {
 }
 
 #[tokio::test]
-async fn a_profile_without_a_sha1_is_refused() {
+async fn a_sha256_artifact_is_downloaded_and_verified() {
+    let (engine, _home) = rig(&["127.0.0.1"]).await;
+
+    let record = provision(&engine, "sha256")
+        .await
+        .expect("a sha256 the download matches is accepted");
+    assert!(engine
+        .servers()
+        .data_dir(&record)
+        .join("server.jar")
+        .is_file());
+
+    provision_named(&engine, "wrongsum", "other")
+        .await
+        .expect_err("a sha256 the download does not match fails the provision");
+}
+
+#[tokio::test]
+async fn a_profile_without_a_checksum_is_refused() {
     let (engine, home) = rig(&["127.0.0.1"]).await;
 
     engine

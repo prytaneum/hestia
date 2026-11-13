@@ -14,7 +14,7 @@ use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use async_trait::async_trait;
-use proto::download::HashAlgorithm;
+use proto::download::Checksum;
 use proto::minecraft::{Artifact, GameVersion, ProvisionPhase, ProvisionProgress};
 use proto::plugin::{Grant, Manifest, PluginRunProgress, BUILD_MOUNT, VANILLA_MOUNT};
 use proto::profile::ServerProfile;
@@ -48,7 +48,7 @@ const PROGRESS_STEPS: u64 = 1000;
 enum Refusal {
     #[error("`{0}` is not downloadable from the plugin's network hosts")]
     Host(String),
-    #[error("artifact `{0}` has no well-formed sha1")]
+    #[error("artifact `{0}` has no well-formed sha1 or sha256")]
     Checksum(String),
     #[error("{0}")]
     Path(String),
@@ -65,11 +65,11 @@ fn artifact(grant: &Grant, artifact: &Artifact) -> Result<(), Refusal> {
     if !download_allowed(grant, &artifact.url) {
         return Err(Refusal::Host(artifact.filename.clone()));
     }
-    let sha1 = artifact
+    artifact
         .checksum
         .as_ref()
-        .is_some_and(|sum| sum.algorithm == HashAlgorithm::Sha1 && sum.is_valid());
-    sha1.then_some(())
+        .is_some_and(Checksum::is_valid)
+        .then_some(())
         .ok_or_else(|| Refusal::Checksum(artifact.filename.clone()))
 }
 

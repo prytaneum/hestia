@@ -87,7 +87,7 @@ It leaves the optional operations unhandled, so URL pasting, bulk lookup and fil
 ## Flavors
 
 A flavor decides the code the game runs, so the host vets every profile before acting on it: each artifact must carry a
-sha1 and sit on one of the plugin's `network` hosts, unless the profile names it as built (see `build` below).
+checksum (sha1 or sha256, which the download is verified against) and sit on one of the plugin's `network` hosts, unless the profile names it as built (see `build` below).
 
 | Operation | Args | Reply | Notes |
 |---|---|---|---|
@@ -104,7 +104,7 @@ sha1 and sit on one of the plugin's `network` hosts, unless the profile names it
 ### Building what cannot be downloaded
 
 A flavor that runs a build on the user's machine names the result in its profile: a server's `ServerJar::Built {
-filename }`, or a client `Library` with `built: true` (it needs no URL or sha1, and `path` is where it lands under the
+filename }`, or a client `Library` with `built: true` (it needs no URL or checksum, and `path` is where it lands under the
 shared libraries). The host then calls `build` ([0110](../decisions/0110-a-flavor-builds-in-its-own-area.md)) every time
 the entry is provisioned or launched, so it must be cheap once done: check your own outputs first.
 

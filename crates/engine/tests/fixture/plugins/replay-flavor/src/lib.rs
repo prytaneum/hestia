@@ -1,7 +1,8 @@
 //! A flavor that re-serves a vanilla-shaped profile. The artifacts sit under
 //! the plugin's `base-url` data file, so Hestia downloads them from wherever
 //! the test serves them. Two game versions are deliberately bad profiles:
-//! `foreign` names a host outside the grant, `unsigned` carries no sha1.
+//! `foreign` names a host outside the grant, `unsigned` carries no checksum. `sha256` verifies by sha256 and
+//! `wrongsum` names a sha256 the download does not match.
 //!
 //! Four more exercise `build`. On the server, `built` runs the declared
 //! managed-Java program in `/build` and returns the jar it wrote, `outside`
@@ -27,6 +28,7 @@ const FLAVOR: &str = "replay";
 const JAR_SHA1: &str = "32a22d349740b9065493b697ae61279f4f85aea2";
 const BUILT_JAR: &str = "built.jar";
 const BUILT_LIBRARY: &str = "example/built/1.0/built-1.0.jar";
+const JAR_SHA256: &str = "8b9c02d7974c19e06b56f75b0d9e4f969fa896f722a5679209ce0b9c040caa2c";
 const ASSET_INDEX_SHA1: &str = "62ea787c1f800c091b98678b050453a5ae59d7bc";
 
 struct Replay;
@@ -49,11 +51,24 @@ fn artifact(version: &str, name: &str, sha1: &str) -> Result<Artifact, Error> {
         url,
         filename: name.into(),
         size: 0,
-        checksum: (version != "unsigned").then(|| Checksum {
+        checksum: checksum(version, sha1),
+    })
+}
+
+fn checksum(version: &str, sha1: &str) -> Option<Checksum> {
+    let sha256 = |hex: &str| Checksum {
+        algorithm: HashAlgorithm::Sha256,
+        hex: hex.into(),
+    };
+    match version {
+        "unsigned" => None,
+        "sha256" => Some(sha256(JAR_SHA256)),
+        "wrongsum" => Some(sha256(&"0".repeat(64))),
+        _ => Some(Checksum {
             algorithm: HashAlgorithm::Sha1,
             hex: sha1.into(),
         }),
-    })
+    }
 }
 
 fn info(flavor: &str) -> Result<FlavorDescription, Error> {
@@ -70,7 +85,7 @@ fn info(flavor: &str) -> Result<FlavorDescription, Error> {
 
 fn versions(flavor: &str) -> Result<Vec<GameVersion>, Error> {
     check(flavor)?;
-    Ok(["1.21", "foreign", "unsigned", "built", "ordered", "expand", "outside", "symlink", "empty"]
+    Ok(["1.21", "foreign", "unsigned", "sha256", "wrongsum", "built", "ordered", "expand", "outside", "symlink", "empty"]
         .into_iter()
         .map(|id| GameVersion {
             id: id.into(),
