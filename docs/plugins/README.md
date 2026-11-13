@@ -61,7 +61,10 @@ command reference is in [cli.md](../cli.md#launcher-plugins).
 | [permissions.md](permissions.md) | the permissions, the tiers, declared programs and local endpoints |
 | [commands.md](commands.md) | contributed commands: arguments, scopes, progress, cancel, how the CLI and desktop run them |
 | [http.md](http.md) | outbound HTTP, URLs, status errors and hashes |
-| [events.md](events.md) | subscribing to daemon events, delivery rules and schedules |
+| [events.md](events.md) | subscribing to daemon events, delivery rules, the call budget, schedules and connection events |
+| [ipc.md](ipc.md) | talking to local programs over a socket or pipe, and hearing when they speak |
+| [settings.md](settings.md) | reading and writing the plugin's own settings, secrets included |
+| [data.md](data.md) | the plugin's own files, and updating one atomically |
 | [hooks.md](hooks.md) | adjusting or vetoing a launch, a server start or a content install |
 | [providers.md](providers.md) | adding content sources, flavors, archive formats and Java distributions |
 | [processes.md](processes.md) | running declared programs: `exec` against `spawn`, agents that are downloaded and hashed |

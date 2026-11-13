@@ -58,7 +58,8 @@ flowchart LR
   into a new `Store`, so no call sees another's memory and a trapped or cancelled
   call costs nothing but itself. `lifecycle.init` runs the same way, once on
   enable. State that must last goes in the plugin's `data/` directory; there is no
-  key/value import.
+  key/value import. A read-modify-write of a file is made atomic across overlapping calls by the `data` import's named
+  locks, released with the store ([0118](../decisions/0118-host-pushed-events-and-a-call-budget-instead-of-a-resident-instance.md)).
 - **Compiled-component cache.** `meta/plugins/<wasm-sha256>-<config-hash>.cwasm`,
   beside a `.sha256` of the artifact. A missing, truncated or mismatching file, or
   a failed deserialize, is deleted and recompiled
@@ -259,17 +260,42 @@ receives, once per event, before anything is queued (`events::admit`):
   such as process output, is never delivered;
 - a `job` event goes only to a plugin granted the permission of the channel that
   started the job;
-- `plugin.state` needs no permission but is cut to its id and state.
+- `plugin.state` needs no permission but is cut to its id and state;
+- a topic the host pushes to one plugin (`plugin.schedule`, `ipc.readable`, `ipc.closed`) is never admitted from the hub:
+  `proto::pushed::is_private` lists them, and only the owning plugin's own inbox ever carries them.
+
+`changed` carries `ids`, the stable ids the request resolved. The router hands each request a `Touched` set, the entry
+guards (`find_server`, `find_instance`) and the plugin handlers add to it, and the registrar publishes it with the
+scope after the handler succeeds; empty means the whole scope. The account topics (`account.signed_in`,
+`account.signed_out`, profile only) are published by the accounts handlers, and `server.ready` by a per-start watcher
+(`runtime/ready.rs`) that pings the game port until the server answers.
 
 Each plugin has a bounded inbox of 256 events. When it is full the oldest is
 dropped and a warning is logged at most once a minute, so a slow plugin loses
 history rather than growing the daemon. Delivery stops when the plugin is
 disabled, removed or reloaded.
 
+### Host-pushed events and the call budget
+
+A plugin is a fresh instance per call, so something else has to watch what it cares about. A connection's reader task
+(`plugins/ipc/inbound.rs`) buffers what arrives and pushes `ipc.readable` and `ipc.closed` through the plugin's `Pushed`
+receiver into its `Delivery`, which admits them only for a plugin that subscribes and holds `ipc:connect`. `readable`
+is edge-triggered: it fires on the first bytes that arrive while no `receive` waits and re-arms when the plugin
+receives (or when a receive leaves bytes behind), and `closed` fires once, after the last bytes. The reader works on a
+Unix socket and a Windows named pipe alike, being generic over the stream.
+
+Every host-initiated wake-up spends a token from the plugin's `Budget` (`runtime/plugins/budget.rs`): 30 in a burst,
+one refilled per second, a pure type with the clock passed in. It is checked once, where the inbox is drained
+(`within_budget`): a tick over budget is skipped, an event waits for a token, and the refusal is warned at most once a
+minute and counted in `PluginStats::throttled`. Calls a person made (commands, pages, providers, hooks) never come
+through the inbox and are not budgeted
+([0118](../decisions/0118-host-pushed-events-and-a-call-budget-instead-of-a-resident-instance.md)).
+
 ### Schedules
 
 `contributes.schedules` declares timers: `[[contributes.schedules]]` with an `id`
-and `every`, in seconds (30 s to 30 days, at most 8 per plugin, ids unique). Each
+and `every`, in seconds (1 s to 30 days, at most 8 per plugin, ids unique; the call budget, not the floor, limits how
+often a plugin really runs). Each
 tick is a `plugin.schedule` event `{ id }` pushed straight into that plugin's own
 inbox. It is never published to the hub, so no other plugin or client hears it,
 and it needs no permission; the schedules are part of the grant and listed when
@@ -402,7 +428,10 @@ extension is in a fixed table (the mime comes from it), and the file is at most
 reports a secret only as set or unset; its value leaves the daemon only for the
 plugin that owns it, through the `settings` import. `plugin.settings.*` edits them
 from the CLI (`hestia plugin config`, which prompts for a secret without echo) and
-the desktop, and the plugin's `settings-changed` export is told when one changes.
+the desktop, and the plugin's `settings-changed` export is told when one changes. The plugin may write its own declared
+settings with `settings.set`, which goes through the same `PluginSettings::set` and write lock as the user's, so the value
+is validated and persisted the same way; the clients get a `changed` event for the plugin and its own
+`settings-changed` is not run for its own write, so it cannot loop.
 
 ## Network
 
@@ -447,7 +476,8 @@ runs on a fresh instance, and the plugin names it again by id; at most 8 are
 open, a message is at most 1 MiB, and all close when the plugin is disabled,
 removed, reloaded or taken out of service after repeated traps. This is how a
 plugin talks to a running Discord, or any other local program, speaking its
-protocol itself.
+protocol itself. The host reads each connection itself and tells the plugin when bytes arrive or the peer closes
+([Events](#host-pushed-events-and-the-call-budget)).
 
 ## Spawning programs
 
@@ -632,7 +662,7 @@ are reclaimed at startup.
 `crates/sdk/wit/` is the ABI: one package, `hestia:plugin`, whose version is the
 API version (`proto::plugin::API_VERSION`, `crates/sdk/tests/version.rs` fails on
 drift). Imports: `host` (`call`, `run-job`), `log`, `process`, `progress`,
-`settings`, `ipc` and the `http-client` world over `wasi:http`; exports:
+`settings`, `ipc`, `data` and the `http-client` world over `wasi:http`; exports:
 `lifecycle`, `commands`, `events`, `settings-changed`, `ui`, `hooks`
 (`intercept`) and `provider` (`invoke`). Every function that can fail returns `plugin-error` ([Errors](#errors)). That list is closed: a new hook point or
 provider kind is data in `proto`, not a new interface. `hestia-sdk` wraps the
@@ -698,3 +728,4 @@ plugins the tests build are fixtures
 | [0115](../decisions/0115-a-plugin-error-is-its-own-typed-enum.md) | a plugin error is its own typed enum, mapped to and from `ErrorInfo` by the host |
 | [0116](../decisions/0116-an-official-provider-shadows-the-builtin.md) | an official provider shadows the built-in of the same id; a dev install can register as official |
 | [0117](../decisions/0117-a-grant-is-permission-to-scope.md) | a grant is permission to scope, driven by one table |
+| [0118](../decisions/0118-host-pushed-events-and-a-call-budget-instead-of-a-resident-instance.md) | host-pushed events and a call budget instead of a resident instance |

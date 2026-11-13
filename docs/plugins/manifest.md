@@ -133,7 +133,8 @@ Source: `plugins/discord-presence/plugin.toml`.
 
 A `secret` has no default and is listed only as set or unset; its value leaves the daemon only for this plugin. A
 default that does not fit its kind is refused (`BadSetting`). The plugin reads a value with
-`hestia::settings::get::<T>(key)` and is told of a change through `Plugin::on_settings_changed(key)`.
+`hestia::settings::get::<T>(key)` and is told of a change through `Plugin::on_settings_changed(key)`. It may also write
+its own settings with `hestia::settings::set` ([settings.md](settings.md)).
 
 ## `[contributes]`
 
@@ -184,7 +185,7 @@ lowercase letters, digits, `.`, `-` and `_` (`BadEventPattern`).
 ```toml
 [[contributes.schedules]]
 id = "poll"
-every = 300            # seconds, 30 to 2592000 (30 days); at most 8 schedules
+every = 300            # seconds, 1 to 2592000 (30 days); at most 8 schedules
 ```
 
 The schedule table has no example plugin; its fields are `ScheduleContribution`. `every` outside the range is

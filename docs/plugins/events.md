@@ -62,14 +62,28 @@ even when a glob matches it.
 | `process.exit` | `ProcessExitEvent` `{ id, state, exitCode?, success }` | `process:read` |
 | `process.metrics` | `ProcessMetricsEvent` `{ samples: [{ id, cpuPct, memBytes }] }` | `process:read` |
 | `process.output` | `ProcessOutputEvent` | nothing: never delivered |
-| `changed` | `ChangedEvent` `{ scope }` | the scope's permission, below |
+| `changed` | `ChangedEvent` `{ scope, ids }` | the scope's permission, below |
+| `account.signed_in` | `AccountSignedInEvent` `{ uuid, name }` | `account:read` |
+| `account.signed_out` | `AccountSignedOutEvent` `{ uuid, name }` | `account:read` |
+| `server.ready` | `ServerReadyEvent` `{ id }` | `entry:read` |
+| `ipc.readable` | `IpcReadableEvent` `{ connection }` | `ipc:connect`; only the plugin that owns the connection ([below](#local-connections)) |
+| `ipc.closed` | `IpcClosedEvent` `{ connection }` | `ipc:connect`; only the plugin that owns the connection |
 | `job` | `JobEvent` | the permission of the channel that started the job |
 | `net.state` | `NetworkStatus` | `network:connect` |
 | `plugin.state` | `{ id, state }` | nothing; cut to those two fields |
 | `plugin.schedule` | `ScheduleEvent` `{ id }` | nothing; only to the plugin that declared it ([below](#schedules)) |
 | `plugin.log` | `PluginLogEvent` | nothing: never delivered |
 
-`changed` names only the scope that changed, never what changed in it:
+`changed` names the scope that changed and, in `ids`, the stable ids the call touched, never what changed in them. `ids`
+holds entry ids for `entries` (a server or instance the caller named by display name arrives as its id, and a rename
+lists both the old id and the new one) and plugin ids for `plugins`; it is empty when the call touched nothing
+the daemon could name, which means the whole scope. Always read `ids` as "at least these": refetch the scope when it is
+empty.
+
+The account topics carry the profile only, never a token. `account.signed_in` also fires when an account that needed
+re-authentication signs in again. `server.ready` fires once per start, when the started server answers a Server List Ping
+on its game port, so it accepts players; a server the daemon re-adopts after its own restart announces itself again.
+The daemon gives up after ten minutes without an answer.
 
 | Scope | Needs |
 |---|---|
@@ -89,6 +103,13 @@ added later is closed to plugins until someone classifies it
   memory survives from one event to the next; keep state in `hestia::data`.
 - **Bounded.** Each plugin has an inbox of 256 events. When it is full the oldest is dropped (a warning is logged at most
   once a minute), so a slow plugin loses history rather than growing the daemon.
+- **Budgeted.** The host will not wake a plugin faster than its call budget: a token bucket of 30 calls that refills at
+  one call per second. Every schedule tick and every delivered event spends one token. When the bucket is empty a tick
+  is skipped (it is not queued and not made up later) and an event waits for the next token while the inbox behind it
+  drops its oldest. The log says so at most once a minute, and `plugin.info` counts the wake-ups held back as
+  `throttled`. Calls somebody asked for (a command, a page, a provider operation, a hook) never spend from it. A plugin
+  that must react to something rare is well served; one that wants a call a millisecond should keep the work in the
+  peer, or batch it.
 - **A plugin that keeps timing out stops hearing events.** Three timeouts in a row end delivery until the plugin is loaded
   again (disabled and enabled, or reloaded). Three traps within ten minutes disable the plugin as for any call.
 - **Lifecycle.** Delivery starts when the plugin is loaded enabled and stops when it is disabled, removed or reloaded.
@@ -108,7 +129,9 @@ every = 300
 
 The manifest is written from `proto::plugin::ScheduleContribution`.
 
-- `every` is whole seconds, 30 to 2592000 (30 days). At most 8 schedules per plugin; ids are unique slugs.
+- `every` is whole seconds, 1 to 2592000 (30 days). At most 8 schedules per plugin; ids are unique slugs. The
+  [call budget](#delivery) is what limits how often a plugin really runs, so a short `every` is allowed but a plugin
+  that ticks every second has nothing left for its events.
 - Each tick is a `plugin.schedule` event `{ "id": "poll" }` pushed into that plugin's own inbox. It is never published to
   the hub, so no other plugin or client hears it, a `plugin.*` glob does not reach it and it needs no permission. The
   schedules are part of the grant and listed when the user approves.
@@ -119,3 +142,39 @@ The manifest is written from `proto::plugin::ScheduleContribution`.
 A tick is the `proto::plugin::ScheduleEvent` topic, so it routes like any other event (see the handler above).
 
 A plugin with schedules but no `events` still gets its ticks.
+
+## Local connections
+
+A plugin that holds a connection open with [`hestia::ipc`](ipc.md) is told when something happens on it, so it need
+not poll from a schedule. The host reads each connection itself and pushes two topics into the owning plugin's inbox,
+nowhere else: they are never published to the hub, so no client and no other plugin hears them, and a topic the hub
+claims to carry under these names is refused. The plugin subscribes like to any topic and needs `ipc:connect`:
+
+```toml
+permissions = ["ipc:connect"]
+ipc = ["discord-ipc-*"]
+
+[contributes]
+events = ["ipc.*"]
+```
+
+```rust
+fn event(call: Events) {
+    call.on::<IpcReadableEvent>(|readable| {
+        let connection = hestia::ipc::Connection::resume(readable.connection);
+        let bytes = connection.receive(64 * 1024, Duration::ZERO);
+    })
+    .on::<IpcClosedEvent>(|closed| {
+        hestia::log::info(&format!("connection {} closed", closed.connection));
+    })
+    .finish()
+}
+```
+
+- `ipc.readable` is edge-triggered. It fires once when bytes arrive while no call is waiting in `receive`, and not
+  again until the plugin has called `receive` on that connection, so a chatty peer produces one event, not one per
+  frame. A `receive` that leaves bytes behind (a `max` smaller than what arrived) fires it again. Drain with one large
+  `receive`, or until it returns empty.
+- `ipc.closed` fires once, when the peer closes the connection or it fails. Bytes that arrived first can still be
+  read; the `receive` after them answers `not-found`. It does not fire for a connection the plugin closed itself.
+- The events share the inbox, the one-at-a-time order and the [call budget](#delivery) of every other event.

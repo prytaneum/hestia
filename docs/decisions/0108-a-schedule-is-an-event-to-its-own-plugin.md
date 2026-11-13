@@ -12,7 +12,7 @@ cannot reach it. In the SDK it arrives through `Plugin::event` as the typed `Sch
 This is [0106](0106-the-plugin-api-is-mechanisms-not-features.md)'s shape: no new WIT, no new `Plugin` method, the
 varying part (the schedules) is data in `proto`.
 
-- **Floor and cap.** `every` is 30 s to 30 days, at most 8 schedules per plugin, ids unique slugs; the manifest refuses
+- **Floor and cap.** `every` is 1 s to 30 days (the floor was 30 s until [0118](0118-host-pushed-events-and-a-call-budget-instead-of-a-resident-instance.md) put a call budget in its place), at most 8 schedules per plugin, ids unique slugs; the manifest refuses
   anything else. The schedules are part of the grant, like `events`, so changing one asks for approval again.
 - **No permission.** A tick grants nothing the plugin does not already have: it only runs the plugin's own exports,
   under the same limits as an event, and every host call it makes is gated as usual. The floor and the cap bound the
