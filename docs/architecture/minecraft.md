@@ -69,6 +69,15 @@ placed by the host ([0110](../decisions/0110-a-flavor-builds-in-its-own-area.md)
 [Plugins](plugins.md#provider-surfaces)). The profile types live in
 `proto::profile` so the SDK can build them.
 
+Two pieces the vanilla and modloader flavors use are shared with plugins
+([0118](../decisions/0118-downloads-are-host-side.md)). `minecraft/maven.rs` is the one parser of
+`group:artifact:version[:classifier][@ext]`: the path under a repository, the filename and the URL come from it, and
+a part with a character a Maven name lacks, or made only of dots, does not parse. `minecraft/rules.rs` is the one
+evaluator of Mojang `rules` (the last applicable rule decides, no rules allow, a rule naming `features` is skipped, and
+`os.name` and `os.arch` are compared against the host's `windows`/`osx`/`linux` and `x86`/`x86_64`/`arm64`;
+`os.version` is not evaluated). Vanilla's manifest libraries and arguments, and a plugin's, are filtered at resolve
+time, so a persisted profile is for the machine that resolved it.
+
 ## Profiles — what a launch needs
 
 `resolve()` turns *(flavor, version, optional loader version)* into a

@@ -279,7 +279,7 @@ fn arguments(
 
 /// A maven coordinate's path under the libraries root.
 fn library_path(libraries: &Path, coord: &str) -> Result<PathBuf> {
-    let relative = super::super::meta::maven_path(coord)
+    let relative = crate::minecraft::maven::path(coord)
         .with_context(|| format!("'{coord}' is not a maven coordinate"))?;
     Ok(libraries.join(relative))
 }

@@ -7,7 +7,11 @@
 //!
 //! `onvanilla` answers with what it adds to the vanilla profile instead of a
 //! whole one, and `onvanilla-foreign` adds a library from a host outside the
-//! grant.
+//! grant. Four more addition the declarative forms: `onvanilla-maven` adds a
+//! Maven coordinate with a `.sha1` sidecar, `onvanilla-maven-missing` one whose
+//! sidecar is not there and `onvanilla-maven-bad` a malformed coordinate;
+//! `onvanilla-rules` gates a library and arguments by the machine's os and
+//! `onvanilla-target` echoes the target facts it was asked with.
 //!
 //! Four more exercise `build`. On the server, `built` runs the declared
 //! managed-Java program in `/build` and returns the jar it wrote, `outside`
@@ -23,9 +27,11 @@ use hestia::proto::profile::{
     AssetIndex, FlavorDescription, InstanceProfile, Library, ServerJar, ServerProfile,
 };
 use hestia::proto::provider::flavor::{
-    Build, BuildDone, BuildOutput, BuildQuery, BuildSide, ClientAddition, ClientResolution, Info,
-    ResolveClient, ResolveQuery, ResolveServer, ServerAddition, ServerResolution, Versions,
+    Argument, Build, BuildDone, BuildOutput, BuildQuery, BuildSide, ClientAddition,
+    ClientResolution, Info, LibrarySpec, Maven, ResolveClient, ResolveQuery, ResolveServer,
+    RuledArgs, ServerAddition, ServerResolution, Versions,
 };
+use hestia::proto::rules::{OsRule, Rule, RuleAction};
 use hestia::{Error, Plugin, Provide, Provided};
 use std::time::Duration;
 
@@ -91,7 +97,7 @@ fn info(flavor: &str) -> Result<FlavorDescription, Error> {
 
 fn versions(flavor: &str) -> Result<Vec<GameVersion>, Error> {
     check(flavor)?;
-    Ok(["1.21", "foreign", "unsigned", "generated", "sha256", "wrongsum", "onvanilla", "onvanilla-foreign", "built", "ordered", "expand", "outside", "symlink", "empty"]
+    Ok(["1.21", "foreign", "unsigned", "generated", "sha256", "wrongsum", "onvanilla", "onvanilla-foreign", "onvanilla-maven", "onvanilla-maven-missing", "onvanilla-maven-bad", "onvanilla-rules", "onvanilla-target", "built", "ordered", "expand", "outside", "symlink", "empty"]
         .into_iter()
         .map(|id| GameVersion {
             id: id.into(),
@@ -109,6 +115,82 @@ fn loader_library(version: &str) -> Result<Library, Error> {
     })
 }
 
+fn only_on(os: &str) -> Vec<Rule> {
+    vec![Rule {
+        action: RuleAction::Allow,
+        os: Some(OsRule {
+            name: Some(os.into()),
+            ..OsRule::default()
+        }),
+        features: None,
+    }]
+}
+
+fn maven(coordinate: &str) -> Result<LibrarySpec, Error> {
+    let repository = hestia::data::load::<String>("base-url")?
+        .unwrap_or_else(|| "https://files.example.com".into());
+    Ok(LibrarySpec {
+        maven: Some(Maven {
+            coordinate: coordinate.into(),
+            repository,
+            sha1_sidecar: true,
+        }),
+        ..LibrarySpec::default()
+    })
+}
+
+fn gated_library(version: &str, name: &str, os: &str) -> Result<LibrarySpec, Error> {
+    Ok(LibrarySpec {
+        library: Library {
+            name: name.into(),
+            path: format!("{}.jar", name.replace(':', "/")),
+            artifact: artifact(version, "gated.jar", JAR_SHA1)?,
+            built: false,
+        },
+        rules: only_on(os),
+        ..LibrarySpec::default()
+    })
+}
+
+fn gated_args(flag: &str, os: &str) -> Argument {
+    Argument::Ruled(RuledArgs {
+        value: vec![flag.into()],
+        rules: only_on(os),
+    })
+}
+
+fn addition(version: &str, query: &ResolveQuery) -> Result<ClientAddition, Error> {
+    let target = &query.target;
+    let mut addition = ClientAddition {
+        loader_version: Some("9.9".into()),
+        libraries: vec![loader_library(version)?.into()],
+        main_class: "example.loader.Main".into(),
+        jvm_args: vec!["-Dloader".into()],
+        game_args: vec!["--loader".into()],
+    };
+    match version {
+        "onvanilla-maven" => addition.libraries.push(maven("example:mvn:1.0")?),
+        "onvanilla-maven-missing" => addition.libraries.push(maven("example:nosum:1.0")?),
+        "onvanilla-maven-bad" => addition.libraries.push(maven("example:bad")?),
+        "onvanilla-rules" => {
+            addition
+                .libraries
+                .push(gated_library(version, "example:here:1", &target.os)?);
+            addition
+                .libraries
+                .push(gated_library(version, "example:elsewhere:1", "plan9")?);
+            addition.jvm_args.push(gated_args("-Dhere", &target.os));
+            addition.jvm_args.push(gated_args("-Delsewhere", "plan9"));
+        }
+        "onvanilla-target" => addition.game_args.push(Argument::Plain(format!(
+            "--target={}/{}/{}/{:?}",
+            target.os, target.arch, target.path_separator, target.java_major
+        ))),
+        _ => {}
+    }
+    Ok(addition)
+}
+
 fn resolve_server(flavor: &str, query: ResolveQuery) -> Result<ServerResolution, Error> {
     check(flavor)?;
     let version = query.version.as_str();
@@ -120,7 +202,11 @@ fn resolve_server(flavor: &str, query: ResolveQuery) -> Result<ServerResolution,
                 "loader-server.jar",
                 JAR_SHA1,
             )?)),
-            jvm_args: vec!["-Dloader".into()],
+            jvm_args: vec![
+                "-Dloader".into(),
+                gated_args("-Dhere", &query.target.os),
+                gated_args("-Delsewhere", "plan9"),
+            ],
         }));
     }
     let jar = match version {
@@ -141,13 +227,7 @@ fn resolve_client(flavor: &str, query: ResolveQuery) -> Result<ClientResolution,
     check(flavor)?;
     let version = query.version.as_str();
     if version.starts_with("onvanilla") {
-        return Ok(ClientResolution::OnVanilla(ClientAddition {
-            loader_version: Some("9.9".into()),
-            libraries: vec![loader_library(version)?],
-            main_class: "example.loader.Main".into(),
-            jvm_args: vec!["-Dloader".into()],
-            game_args: vec!["--loader".into()],
-        }));
+        return Ok(ClientResolution::OnVanilla(addition(version, &query)?));
     }
     Ok(ClientResolution::Full(Box::new(InstanceProfile {
         game_version: version.into(),

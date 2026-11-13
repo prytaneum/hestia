@@ -194,7 +194,7 @@ pub fn instance_plan(
     args.push(profile.main_class.clone());
     args.extend(profile.game_args.iter().map(|a| substitute(a, &vars)));
     // The manifest declares these behind feature rules, which resolve to
-    // nothing here (see `meta::rules_allow`), so the pair is appended directly.
+    // nothing here (see `rules::allow`), so the pair is appended directly.
     if let Some(log) = paths.quick_play_log {
         args.push(super::quickplay::ARGUMENT.to_string());
         args.push(log.to_string_lossy().into_owned());

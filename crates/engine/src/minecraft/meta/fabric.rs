@@ -10,7 +10,8 @@ use serde_json::Value;
 use proto::error::Service;
 use proto::provider::Provider;
 
-use super::{fetch_json, filename_of, maven_path};
+use super::{fetch_json, filename_of};
+use crate::minecraft::maven;
 use crate::minecraft::profile::Library;
 
 fn service() -> Service {
@@ -126,7 +127,7 @@ pub fn libraries(profile: &Value) -> Vec<Library> {
     };
     for lib in libs {
         let name = lib.get("name").and_then(Value::as_str).unwrap_or_default();
-        let Some(path) = maven_path(name) else {
+        let Some(path) = maven::path(name) else {
             continue;
         };
         let base = lib

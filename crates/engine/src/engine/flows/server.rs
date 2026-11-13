@@ -183,6 +183,7 @@ impl Engine {
                     meta: &meta_dir(self.data_home()),
                     minecraft_jar: vanilla.as_deref(),
                     built: &built,
+                    java_major: record.profile.java_major,
                     java,
                     cache: Some(&self.cache),
                     processes: self.processes(),

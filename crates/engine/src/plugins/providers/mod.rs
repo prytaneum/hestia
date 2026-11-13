@@ -12,6 +12,7 @@ mod content;
 mod flavor;
 mod format;
 mod java;
+mod normalise;
 
 use std::sync::Arc;
 use std::time::Duration;

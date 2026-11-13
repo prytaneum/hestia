@@ -460,6 +460,7 @@ async fn a_built_client_library_lands_under_the_shared_libraries() {
                 meta: &meta,
                 minecraft_jar: Some(&client_jar),
                 built: &built,
+                java_major: 21,
                 java: std::path::Path::new("java"),
                 cache: None,
                 processes: engine.processes(),
@@ -473,5 +474,148 @@ async fn a_built_client_library_lands_under_the_shared_libraries() {
         std::fs::read(meta.join("libraries/example/built/1.0/built-1.0.jar")).unwrap(),
         b"vanilla client",
         "the guest saw the vanilla jar read-only and built from it"
+    );
+}
+
+fn host_facts() -> (&'static str, &'static str, &'static str) {
+    let os = if cfg!(windows) {
+        "windows"
+    } else if cfg!(target_os = "macos") {
+        "osx"
+    } else {
+        "linux"
+    };
+    let arch = if cfg!(target_arch = "aarch64") {
+        "arm64"
+    } else if cfg!(target_arch = "x86") {
+        "x86"
+    } else {
+        "x86_64"
+    };
+    (os, arch, if cfg!(windows) { ";" } else { ":" })
+}
+
+#[tokio::test]
+async fn a_maven_library_is_completed_by_the_host_and_materialised_at_launch() {
+    let (engine, home) = rig_unhashed(&["127.0.0.1"], &["127.0.0.1"]).await;
+    fixture::account(home.path(), "player");
+
+    let record = engine
+        .create_instance("mavened", FLAVOR, "onvanilla-maven", None, &[])
+        .await
+        .expect("a Maven library resolves");
+
+    let library = record
+        .profile
+        .libraries
+        .iter()
+        .find(|library| library.name == "example:mvn:1.0")
+        .expect("the library is persisted as a plain one");
+    assert_eq!(library.path, "example/mvn/1.0/mvn-1.0.jar");
+    assert!(library
+        .artifact
+        .url
+        .ends_with("/example/mvn/1.0/mvn-1.0.jar"));
+    assert_eq!(library.artifact.filename, "mvn-1.0.jar");
+    assert_eq!(
+        library
+            .artifact
+            .checksum
+            .as_ref()
+            .map(|sum| sum.hex.as_str()),
+        Some(fixture::Files::BODY_SHA1),
+        "the sidecar is the checksum"
+    );
+
+    let (cancel, report) = (Cancel::new(), |_: &ProvisionProgress| {});
+    engine
+        .prepare_instance(launch(&record.id, None), &job(&cancel, &report))
+        .await
+        .expect("prepare");
+    assert_eq!(
+        std::fs::read(
+            home.path()
+                .join("meta/libraries/example/mvn/1.0/mvn-1.0.jar")
+        )
+        .unwrap(),
+        fixture::Files::BODY
+    );
+}
+
+#[tokio::test]
+async fn a_maven_library_whose_sidecar_is_missing_refuses_the_whole_answer() {
+    let (engine, home) = rig(&["127.0.0.1"]).await;
+
+    let error = engine
+        .minecraft()
+        .resolve_instance(FLAVOR, "onvanilla-maven-missing", None, home.path(), None)
+        .await
+        .expect_err("a library with no checksum to verify against");
+    assert!(error.to_string().contains("nosum"), "{error:#}");
+}
+
+#[tokio::test]
+async fn a_sidecar_on_a_host_outside_the_grant_is_not_fetched() {
+    let (engine, home) = rig(&["localhost"]).await;
+
+    let error = engine
+        .minecraft()
+        .resolve_instance(FLAVOR, "onvanilla-maven", None, home.path(), None)
+        .await
+        .expect_err("the repository is not a granted host");
+    assert!(error.to_string().contains("127.0.0.1"), "{error:#}");
+}
+
+#[tokio::test]
+async fn a_malformed_coordinate_refuses_the_whole_answer() {
+    let (engine, home) = rig(&["127.0.0.1"]).await;
+
+    let error = engine
+        .minecraft()
+        .resolve_instance(FLAVOR, "onvanilla-maven-bad", None, home.path(), None)
+        .await
+        .expect_err("`example:bad` is not a coordinate");
+    assert!(error.to_string().contains("example:bad"), "{error:#}");
+}
+
+#[tokio::test]
+async fn libraries_and_arguments_the_rules_disallow_here_never_persist() {
+    let (engine, home) = rig(&["127.0.0.1"]).await;
+
+    let profile = engine
+        .minecraft()
+        .resolve_instance(FLAVOR, "onvanilla-rules", None, home.path(), None)
+        .await
+        .expect("resolve");
+
+    let names: Vec<&str> = profile
+        .libraries
+        .iter()
+        .map(|lib| lib.name.as_str())
+        .collect();
+    assert!(names.contains(&"example:loader:1.0"), "{names:?}");
+    assert!(names.contains(&"example:here:1"), "{names:?}");
+    assert!(!names.contains(&"example:elsewhere:1"), "{names:?}");
+    assert_eq!(profile.jvm_args, ["-Dloader", "-Dhere"]);
+
+    let server = provision(&engine, "onvanilla").await.expect("server");
+    assert_eq!(server.profile.jvm_args, ["-Dloader", "-Dhere"]);
+}
+
+#[tokio::test]
+async fn a_guest_is_told_the_machine_it_resolves_for() {
+    let (engine, home) = rig(&["127.0.0.1"]).await;
+    let (os, arch, separator) = host_facts();
+
+    let profile = engine
+        .minecraft()
+        .resolve_instance(FLAVOR, "onvanilla-target", None, home.path(), None)
+        .await
+        .expect("resolve");
+
+    assert_eq!(
+        profile.game_args.last().map(String::as_str),
+        Some(format!("--target={os}/{arch}/{separator}/None").as_str()),
+        "no Java major is known before vanilla is resolved"
     );
 }

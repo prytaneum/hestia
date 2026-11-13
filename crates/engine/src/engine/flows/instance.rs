@@ -308,6 +308,7 @@ impl Engine {
                     meta: &meta,
                     minecraft_jar: Some(&client_jar),
                     built: &built,
+                    java_major: record.profile.java_major,
                     java: &java,
                     cache: None,
                     processes: self.processes(),

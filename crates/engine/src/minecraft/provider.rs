@@ -45,6 +45,8 @@ pub struct InstallRequest<'a> {
     /// What the profile names as built, which the flavor's build must produce:
     /// the server jar's filename, or the path of each built client library.
     pub built: &'a [String],
+    /// The Java major `java` is for, the profile's.
+    pub java_major: i32,
     pub java: &'a Path,
     pub cache: Option<&'a Cache>,
     pub processes: &'a ProcessSupervisor,

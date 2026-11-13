@@ -88,7 +88,7 @@ It leaves the optional operations unhandled, so URL pasting, bulk lookup and fil
 ## Flavors
 
 A flavor decides the code the game runs, so the host vets every profile before acting on it: each artifact must carry a
-checksum (sha1 or sha256, which the download is verified against) and sit on one of the plugin's `hosts`, unless the profile names it as built (see `build` below).
+checksum (sha1, sha256 or sha512, which the download is verified against) and sit on one of the plugin's `hosts`, unless the profile names it as built (see `build` below).
 
 A host that generates a file on request has no checksum to publish. A profile may mark such an artifact `unhashed: true`
 instead of leaving the checksum out, and the host accepts it only from a host `network:connect` lists in `unhashed` (each also
@@ -99,10 +99,10 @@ in its `hosts`). The list is part of the grant, so the user sees it when approvi
 |---|---|---|---|
 | `info` | none | `FlavorDescription` | asked once, when the plugin is enabled |
 | `versions` | none | `GameVersion[]` | newest first |
-| `loader-versions` | `{ game }` | `string[]` | optional: loader builds, newest first |
-| `resolve-server` | `{ version, loaderVersion? }` | `{ full: ServerProfile }` or `{ onVanilla: ServerAddition }` | |
-| `resolve-client` | `{ version, loaderVersion? }` | `{ full: InstanceProfile }` or `{ onVanilla: ClientAddition }` | a library may be marked `built: true` |
-| `build` | `{ side, version, loaderVersion?, vanillaJar? }` | `{ outputs: [{ path, target }] }` | optional: produces what the profile names as built |
+| `loader-versions` | `{ game, target }` | `string[]` | optional: loader builds, newest first |
+| `resolve-server` | `{ version, loaderVersion?, target }` | `{ full: ServerProfile }` or `{ onVanilla: ServerAddition }` | |
+| `resolve-client` | `{ version, loaderVersion?, target }` | `{ full: InstanceProfile }` or `{ onVanilla: ClientAddition }` | a library may be marked `built: true` |
+| `build` | `{ side, version, loaderVersion?, vanillaJar?, target }` | `{ outputs: [{ path, target }] }` | optional: produces what the profile names as built |
 
 `info` may also give `mrpackKey` (the key a Modrinth pack names the flavor's loader by in its `dependencies`) and
 `prismUid` (the component uid of a Prism or MultiMC instance), so packs and instances of the flavor import and export.
@@ -120,6 +120,39 @@ The guest never reads Mojang's metadata, and needs no Mojang host in `hosts`.
 | `mainClass` | replaces vanilla's when not empty | |
 | `jvmArgs`, `gameArgs` | appended after vanilla's | `jvmArgs` only: the flavor's recommended flags |
 | `jar` | | replaces vanilla's server jar; absent runs vanilla's |
+
+A library in `libraries` may be declared rather than spelled out ([0118](../decisions/0118-downloads-are-host-side.md)):
+
+```rust
+LibrarySpec {
+    maven: Some(Maven {
+        coordinate: "net.example:loader:1.4:natives-linux@jar".into(),
+        repository: "https://maven.example.com/releases".into(),
+        sha1_sidecar: true,
+    }),
+    rules: vec![/* optional */],
+    ..LibrarySpec::default()
+}
+```
+
+The host derives `name`, `path`, the URL and the file name from the coordinate (`group:artifact:version[:classifier][@ext]`,
+extension `jar` by default) and the repository, which must be an http(s) base URL with no query or fragment. With
+`sha1_sidecar` and no `artifact.checksum`, the host fetches `<url>.sha1` (a sha1, optionally followed by a file name),
+verifies the download against it and persists it; the repository host must be in `hosts`, and a missing or malformed
+sidecar refuses the whole answer. A `maven` library must leave `name`, `path`, `artifact.url`, `artifact.filename` and
+`built` unset; a coordinate that does not parse refuses the answer. The explicit form (`name`, `path`, `artifact`) still
+works, and `LibrarySpec::from(library)` makes one. A `full` answer takes plain libraries only.
+
+`rules` on a library, and arguments given as `Argument::Ruled(RuledArgs { value, rules })` in `jvmArgs` and `gameArgs`,
+are Mojang-style: no rules allow it, otherwise the last rule whose `os` (`name`: `windows`, `osx` or `linux`; `arch`:
+`x86`, `x86_64` or `arm64`; `version` is accepted but not evaluated) matches decides, `action` being `allow` or
+`disallow`. A rule naming `features` never applies. The host evaluates them when it resolves, as it does for vanilla's
+own, and drops what they disallow before vetting. Plain strings convert with `.into()`.
+
+Every `resolve-*`, `loader-versions` and `build` query carries `target { os, arch, javaMajor?, pathSeparator }`, the
+host's own, in the same vocabulary as the rules. `javaMajor` is set for `build`, which runs on the profile's Java, and
+absent for a resolve, which has not yet resolved the vanilla profile that decides it. Use it instead of probing; fetch
+tools and installers with [`hestia::download`](downloads.md).
 
 The client, natives, asset index and Java major always come from vanilla. Only the additions are vetted against the
 plugin's hosts and checksums; vanilla's own files are the host's. A flavor whose profile is not a layer over vanilla (a

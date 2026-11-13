@@ -284,6 +284,9 @@ pub struct Files {
 
 impl Files {
     pub const BODY: &'static [u8] = b"PK\x03\x04 not really a jar";
+    /// What a `.sha1` sidecar says of [`Files::BODY`], with the file name
+    /// `sha1sum` appends; a path naming `nosum` has no sidecar.
+    pub const BODY_SHA1: &'static str = "32a22d349740b9065493b697ae61279f4f85aea2";
     /// An index naming no objects: the assets pass has nothing to fetch, but
     /// still has to find and parse one.
     pub const ASSET_INDEX: &'static [u8] = br#"{"objects":{}}"#;
@@ -305,12 +308,18 @@ impl Files {
                     let request = String::from_utf8_lossy(&scratch[..read]).to_string();
                     // An asset index has to parse; everything else is opaque
                     // bytes as far as a materialize is concerned.
-                    let body: &[u8] = match request.contains(".json") {
-                        true => Files::ASSET_INDEX,
-                        false => Files::BODY,
+                    let path = request.split_whitespace().nth(1).unwrap_or("/");
+                    let sidecar = format!("{}  file.jar\n", Files::BODY_SHA1);
+                    let (status, body): (&str, &[u8]) = match path {
+                        path if path.ends_with(".sha1") && path.contains("nosum") => {
+                            ("404 Not Found", b"")
+                        }
+                        path if path.ends_with(".sha1") => ("200 OK", sidecar.as_bytes()),
+                        path if path.contains(".json") => ("200 OK", Files::ASSET_INDEX),
+                        _ => ("200 OK", Files::BODY),
                     };
                     let head = format!(
-                        "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                        "HTTP/1.1 {status}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
                         body.len()
                     );
                     let _ = socket.write_all(head.as_bytes()).await;

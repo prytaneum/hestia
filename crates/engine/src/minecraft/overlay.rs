@@ -3,11 +3,31 @@
 
 use std::collections::HashMap;
 
-use proto::provider::flavor::{ClientAddition, ServerAddition};
+use proto::profile::ServerJar;
 
+use super::maven::Coordinate;
 use super::profile::{InstanceProfile, Library, ServerProfile};
 
-pub(crate) fn client(base: InstanceProfile, addition: ClientAddition) -> InstanceProfile {
+/// What a flavor adds to the client, resolved: libraries complete and
+/// arguments already filtered for this machine.
+#[derive(Debug, Default)]
+pub(crate) struct ClientLayer {
+    pub loader_version: Option<String>,
+    pub libraries: Vec<Library>,
+    pub main_class: String,
+    pub jvm_args: Vec<String>,
+    pub game_args: Vec<String>,
+}
+
+/// What a flavor adds to the server, resolved.
+#[derive(Debug, Default)]
+pub(crate) struct ServerLayer {
+    pub loader_version: Option<String>,
+    pub jar: Option<ServerJar>,
+    pub jvm_args: Vec<String>,
+}
+
+pub(crate) fn client(base: InstanceProfile, addition: ClientLayer) -> InstanceProfile {
     let mut jvm_args = base.jvm_args;
     jvm_args.extend(addition.jvm_args);
     let mut game_args = base.game_args;
@@ -26,7 +46,7 @@ pub(crate) fn client(base: InstanceProfile, addition: ClientAddition) -> Instanc
     }
 }
 
-pub(crate) fn server(base: ServerProfile, addition: ServerAddition) -> ServerProfile {
+pub(crate) fn server(base: ServerProfile, addition: ServerLayer) -> ServerProfile {
     ServerProfile {
         loader_version: addition.loader_version,
         jar: addition.jar.unwrap_or(base.jar),
@@ -62,14 +82,15 @@ pub(crate) fn merge_libraries(base: Vec<Library>, overlay: Vec<Library>) -> Vec<
 /// its identity ignoring version. Falls back to the raw coordinate when it does
 /// not parse, so an unrecognised entry is never merged into an unrelated one.
 fn versionless_key(coord: &str) -> String {
-    let (coord, ext) = coord.split_once('@').unwrap_or((coord, "jar"));
-    let parts: Vec<&str> = coord.split(':').collect();
-    if parts.len() < 3 {
+    let Ok(parsed) = Coordinate::parse(coord) else {
         return coord.to_string();
-    }
-    match parts.get(3) {
-        Some(classifier) => format!("{}:{}:{classifier}@{ext}", parts[0], parts[1]),
-        None => format!("{}:{}@{ext}", parts[0], parts[1]),
+    };
+    match parsed.classifier {
+        Some(classifier) => format!(
+            "{}:{}:{classifier}@{}",
+            parsed.group, parsed.artifact, parsed.extension
+        ),
+        None => format!("{}:{}@{}", parsed.group, parsed.artifact, parsed.extension),
     }
 }
 

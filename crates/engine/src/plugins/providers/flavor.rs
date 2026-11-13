@@ -20,19 +20,21 @@ use proto::profile::ServerProfile;
 use proto::profile::{InstanceProfile, Library, ServerJar, ServerLaunch};
 use proto::provider::flavor;
 use proto::provider::flavor::{
-    self as op, BuildOutput, BuildQuery, ClientAddition, ClientResolution, Flavor, GameQuery,
-    ResolveQuery, ServerAddition, ServerResolution,
+    self as op, BuildOutput, BuildQuery, ClientResolution, Flavor, GameQuery, ResolveQuery,
+    ServerResolution, Target,
 };
 use proto::provider::ProviderOp;
 use proto::Empty;
 use tokio::sync::watch;
 
 use super::build::{self, Expected};
+use super::normalise::{Failure, Normaliser};
 use super::{connect_each, registered, Guest};
 use crate::cancel::Cancelled;
 use crate::engine::Engine;
 use crate::minecraft::materialize::{safe_join, validate_filename, OnProgress};
-use crate::minecraft::overlay;
+use crate::minecraft::overlay::{self, ClientLayer, ServerLayer};
+use crate::minecraft::rules::host_target;
 use crate::minecraft::{
     serves_vanilla, FlavorInfo, FlavorProvider, InstallRequest, ResolveRequest, Side, BOTH_SIDES,
     CLIENT_ONLY, REQUIRED_JAVA_MAJORS, SERVER_ONLY,
@@ -61,6 +63,8 @@ enum Refusal {
     MainClass,
     #[error("the flavor builds on vanilla, which this launcher does not offer")]
     NoVanilla,
+    #[error("{0}")]
+    Declared(String),
 }
 
 fn artifact(policy: &Policy, artifact: &Artifact) -> Result<(), Refusal> {
@@ -105,7 +109,7 @@ fn vet_server(policy: &Policy, profile: &ServerProfile) -> Result<(), Refusal> {
     java(profile.java_major)
 }
 
-fn vet_server_addition(policy: &Policy, addition: &ServerAddition) -> Result<(), Refusal> {
+fn vet_server_addition(policy: &Policy, addition: &ServerLayer) -> Result<(), Refusal> {
     match &addition.jar {
         Some(ServerJar::Download(jar)) => artifact(policy, jar),
         Some(ServerJar::Built { filename }) => {
@@ -115,7 +119,7 @@ fn vet_server_addition(policy: &Policy, addition: &ServerAddition) -> Result<(),
     }
 }
 
-fn vet_client_addition(policy: &Policy, addition: &ClientAddition) -> Result<(), Refusal> {
+fn vet_client_addition(policy: &Policy, addition: &ClientLayer) -> Result<(), Refusal> {
     addition
         .libraries
         .iter()
@@ -248,6 +252,7 @@ impl PluginFlavorProvider {
             version: request.game_version.to_string(),
             loader_version: request.loader_version.map(str::to_string),
             vanilla_jar,
+            target: host_target(Some(request.java_major)),
         };
         tracing::info!(
             flavor = %self.guest.id(),
@@ -340,10 +345,11 @@ impl PluginFlavorProvider {
             .ok_or_else(|| self.refused(op, Refusal::NoVanilla))
     }
 
-    fn resolve_query(request: &ResolveRequest<'_>) -> ResolveQuery {
+    fn resolve_query(request: &ResolveRequest<'_>, target: &Target) -> ResolveQuery {
         ResolveQuery {
             version: request.version.clone(),
             loader_version: request.loader_version.clone(),
+            target: target.clone(),
         }
     }
 }
@@ -360,7 +366,10 @@ impl FlavorProvider for PluginFlavorProvider {
 
     /// A guest without `loader-versions` has no loader builds.
     async fn loader_versions(&self, game: &str) -> Result<Vec<String>> {
-        let query = GameQuery { game: game.into() };
+        let query = GameQuery {
+            game: game.into(),
+            target: host_target(None),
+        };
         Ok(self
             .guest
             .try_ask::<op::LoaderVersions>(&query)
@@ -370,9 +379,10 @@ impl FlavorProvider for PluginFlavorProvider {
 
     async fn resolve_server(&self, request: &ResolveRequest<'_>) -> Result<ServerProfile> {
         let refused = |refusal| self.refused(op::ResolveServer::OP, refusal);
+        let target = host_target(None);
         let mut profile = match self
             .guest
-            .ask::<op::ResolveServer>(&Self::resolve_query(request))
+            .ask::<op::ResolveServer>(&Self::resolve_query(request, &target))
             .await?
         {
             ServerResolution::Full(profile) => {
@@ -380,6 +390,11 @@ impl FlavorProvider for PluginFlavorProvider {
                 *profile
             }
             ServerResolution::OnVanilla(addition) => {
+                let addition = Normaliser {
+                    policy: &self.policy,
+                    target: &target,
+                }
+                .server(addition);
                 vet_server_addition(&self.policy, &addition).map_err(refused)?;
                 let base = self
                     .vanilla(op::ResolveServer::OP)?
@@ -395,9 +410,10 @@ impl FlavorProvider for PluginFlavorProvider {
 
     async fn resolve_client(&self, request: &ResolveRequest<'_>) -> Result<InstanceProfile> {
         let refused = |refusal| self.refused(op::ResolveClient::OP, refusal);
+        let target = host_target(None);
         let mut profile = match self
             .guest
-            .ask::<op::ResolveClient>(&Self::resolve_query(request))
+            .ask::<op::ResolveClient>(&Self::resolve_query(request, &target))
             .await?
         {
             ClientResolution::Full(profile) => {
@@ -405,6 +421,17 @@ impl FlavorProvider for PluginFlavorProvider {
                 *profile
             }
             ClientResolution::OnVanilla(addition) => {
+                let normaliser = Normaliser {
+                    policy: &self.policy,
+                    target: &target,
+                };
+                let addition = match normaliser.client(addition).await {
+                    Ok(addition) => addition,
+                    Err(Failure::Unresolved(why)) => {
+                        return Err(refused(Refusal::Declared(why.to_string())))
+                    }
+                    Err(Failure::Other(error)) => return Err(error),
+                };
                 vet_client_addition(&self.policy, &addition).map_err(refused)?;
                 let base = self
                     .vanilla(op::ResolveClient::OP)?

@@ -8,8 +8,9 @@ use serde_json::Value;
 
 use proto::error::Service;
 
-use super::{fetch_json, host_os, rules_allow};
+use super::fetch_json;
 use crate::minecraft::profile::{AssetIndex, Library, Native};
+use crate::minecraft::rules::{allow_manifest as rules_allow, host_os};
 
 const MANIFEST: &str = "https://piston-meta.mojang.com/mc/game/version_manifest_v2.json";
 
