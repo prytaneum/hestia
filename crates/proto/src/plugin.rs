@@ -1259,6 +1259,20 @@ impl Topic for PluginRolledBackEvent {
     const TOPIC: &'static str = "plugin.rolled_back";
 }
 
+/// Published after the scheduled update check applied an official plugin's
+/// update on its own.
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
+#[serde(rename_all = "camelCase")]
+pub struct PluginAutoUpdatedEvent {
+    pub id: String,
+    pub from: String,
+    pub to: String,
+}
+impl Topic for PluginAutoUpdatedEvent {
+    const TOPIC: &'static str = "plugin.auto_updated";
+}
+
 /// A tick of one of the plugin's own `contributes.schedules`. The daemon puts it
 /// in that plugin's inbox and nowhere else: it is never published to the hub, so
 /// no other plugin or client receives it.

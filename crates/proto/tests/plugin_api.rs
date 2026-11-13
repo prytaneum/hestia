@@ -253,7 +253,7 @@ fn api() -> Api {
     each!(api.topic:
         change::ChangedEvent,
         net::NetworkStatus,
-        plugin::PluginLogEvent, plugin::PluginRolledBackEvent, plugin::PluginStateEvent,
+        plugin::PluginAutoUpdatedEvent, plugin::PluginLogEvent, plugin::PluginRolledBackEvent, plugin::PluginStateEvent,
         plugin::Outdated, plugin::ScheduleEvent,
         process::ProcessExitEvent, process::ProcessMetricsEvent, process::ProcessOutputEvent,
         process::ProcessStartedEvent,

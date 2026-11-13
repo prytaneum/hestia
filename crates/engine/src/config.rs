@@ -38,9 +38,26 @@ pub struct Settings {
     /// Whether the launcher may reach the network at all.
     pub network: NetworkSettings,
     pub java: JavaProviderSettings,
+    /// How installed plugins are kept up to date.
+    pub plugins: PluginPolicy,
     /// Shows and allows the plugin authoring tools: dev installs, their log
     /// stream and the extra diagnostics. Off, the daemon refuses them.
     pub developer: bool,
+}
+
+/// Plugin update policy, keyed `plugins.auto-update`. On, an official plugin
+/// whose update asks for nothing new is applied after each scheduled check;
+/// every other update waits for the user.
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(default, rename_all = "camelCase")]
+pub struct PluginPolicy {
+    pub auto_update: bool,
+}
+
+impl Default for PluginPolicy {
+    fn default() -> Self {
+        PluginPolicy { auto_update: true }
+    }
 }
 
 /// The Java distribution runtimes are installed from, keyed `java.provider`:

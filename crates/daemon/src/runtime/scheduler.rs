@@ -33,8 +33,9 @@ pub fn spawn_task_scheduler(runtime: Arc<Runtime>) {
 }
 
 /// Looks for newer plugin builds a minute after start and every six hours
-/// after, and publishes the list whenever it changes. Unsigned installs are
-/// never asked on this clock.
+/// after, and publishes the list whenever it changes. Official updates that
+/// ask for nothing new are applied first and left off the list. Unsigned
+/// installs are never asked on this clock.
 pub fn spawn_plugin_update_checker(runtime: Arc<Runtime>) {
     tokio::spawn(async move {
         let start = tokio::time::Instant::now() + PLUGIN_UPDATE_FIRST;
@@ -60,6 +61,15 @@ pub fn spawn_plugin_update_checker(runtime: Arc<Runtime>) {
                 offline = outdated.offline,
                 "plugin update check done"
             );
+            let applied = runtime.plugins().auto_update(&outdated, &runtime).await;
+            let outdated = proto::plugin::Outdated {
+                plugins: outdated
+                    .plugins
+                    .into_iter()
+                    .filter(|offer| !applied.contains(&offer.id))
+                    .collect(),
+                ..outdated
+            };
             if last.as_ref() != Some(&outdated.plugins) {
                 runtime.hub().publish_topic(&outdated);
                 last = Some(outdated.plugins);

@@ -5,13 +5,16 @@
 use std::future::Future;
 
 use anyhow::Result;
-use proto::plugin::{compare_versions, Grant, OutdatedPlugin, PluginInstallPhase};
+use proto::net::NetworkState;
+use proto::plugin::{compare_versions, Grant, Outdated, OutdatedPlugin, PluginInstallPhase};
 use proto::repository::IndexedPlugin;
 
 use super::catalogue::{best, pick, Installed, Pick, Source};
+use super::official::is_official_signer_in;
 use super::remote::Staged;
 use super::store::{PluginRecord, Plugins};
 use crate::cancel::Cancel;
+use crate::Engine;
 
 /// The listings of `id` by repositories pinning `signer`, mirrors included.
 pub(crate) fn listings_of<'a>(
@@ -165,6 +168,52 @@ fn offer(source: &Source, plugin: &IndexedPlugin, record: &Installed) -> Option<
     })
 }
 
+/// The offers an unattended update may apply: from an official signer, runnable
+/// here, and asking for nothing beyond what is granted. The offer's `widened`
+/// only knows the index's permission list, so the full grant is checked again
+/// when the package is staged.
+pub fn auto_updatable(
+    outdated: &Outdated,
+    installed: &[Installed],
+    official_keys: &[&str],
+) -> Vec<OutdatedPlugin> {
+    if outdated.offline {
+        return Vec::new();
+    }
+    outdated
+        .plugins
+        .iter()
+        .filter(|offer| offer.api_compatible && offer.widened == Grant::default())
+        .filter(|offer| {
+            installed
+                .iter()
+                .find(|record| record.id == offer.id)
+                .is_some_and(|record| {
+                    is_official_signer_in(record.signer.as_deref(), official_keys)
+                })
+        })
+        .cloned()
+        .collect()
+}
+
+impl Engine {
+    /// What the daemon may apply unattended after a check: nothing when
+    /// `plugins.auto-update` is off or the network is down.
+    pub fn auto_update_candidates(&self, outdated: &Outdated) -> Vec<OutdatedPlugin> {
+        if !self.config().settings().plugins.auto_update {
+            return Vec::new();
+        }
+        if self.network().status().state == NetworkState::Offline {
+            return Vec::new();
+        }
+        auto_updatable(
+            outdated,
+            &self.installed_plugins(),
+            &common::app::official_plugin_pubkeys(),
+        )
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use proto::plugin::{Permission, API_VERSION};
@@ -292,5 +341,84 @@ mod tests {
 
         let widened: Vec<_> = found[0].widened.permissions.iter().collect();
         assert_eq!(widened, [&Permission::EntryWrite]);
+    }
+
+    fn offer(id: &str) -> OutdatedPlugin {
+        OutdatedPlugin {
+            id: id.to_string(),
+            installed: "0.1.0".to_string(),
+            available: "0.2.0".to_string(),
+            api_compatible: true,
+            ..OutdatedPlugin::default()
+        }
+    }
+
+    fn outdated_of(plugins: Vec<OutdatedPlugin>) -> Outdated {
+        Outdated {
+            plugins,
+            ..Outdated::default()
+        }
+    }
+
+    #[test]
+    fn an_official_update_that_asks_for_nothing_is_applied() {
+        let (official, other) = (Signer::new().key(), Signer::new().key());
+        let installed = [installed("aa", "0.1.0", &official)];
+
+        let found = auto_updatable(&outdated_of(vec![offer("aa")]), &installed, &[&official]);
+        assert_eq!(found.len(), 1);
+
+        let found = auto_updatable(&outdated_of(vec![offer("aa")]), &installed, &[&other]);
+        assert!(found.is_empty(), "a third-party plugin waits for the user");
+    }
+
+    #[test]
+    fn a_widened_official_update_is_not_applied() {
+        let official = Signer::new().key();
+        let installed = [installed("aa", "0.1.0", &official)];
+        let mut widened = offer("aa");
+        widened.widened.permissions.insert(Permission::EntryWrite);
+
+        let found = auto_updatable(&outdated_of(vec![widened]), &installed, &[&official]);
+
+        assert!(found.is_empty());
+    }
+
+    #[test]
+    fn an_update_this_build_cannot_run_or_learned_offline_is_not_applied() {
+        let official = Signer::new().key();
+        let installed = [installed("aa", "0.1.0", &official)];
+        let mut incompatible = offer("aa");
+        incompatible.api_compatible = false;
+        let mut offline = outdated_of(vec![offer("aa")]);
+        offline.offline = true;
+
+        assert!(
+            auto_updatable(&outdated_of(vec![incompatible]), &installed, &[&official]).is_empty()
+        );
+        assert!(auto_updatable(&offline, &installed, &[&official]).is_empty());
+    }
+
+    #[test]
+    fn candidates_follow_the_config_switch() {
+        let home = tempfile::tempdir().unwrap();
+        let engine = Engine::new(Some(home.path()));
+        let outdated = outdated_of(vec![offer("aa")]);
+
+        engine
+            .config()
+            .set("plugins.auto-update", serde_json::json!(false))
+            .unwrap();
+
+        assert!(engine.auto_update_candidates(&outdated).is_empty());
+        assert!(!engine.config().settings().plugins.auto_update);
+    }
+
+    #[test]
+    fn auto_update_is_on_by_default() {
+        let home = tempfile::tempdir().unwrap();
+        let engine = Engine::new(Some(home.path()));
+
+        assert!(engine.config().settings().plugins.auto_update);
     }
 }

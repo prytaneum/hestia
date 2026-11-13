@@ -3,6 +3,7 @@
 //! engine's [`PluginRuntime`]; the channels a plugin may call are lent to it by
 //! [`RouterHost`].
 
+mod auto;
 mod dev;
 mod events;
 mod host;

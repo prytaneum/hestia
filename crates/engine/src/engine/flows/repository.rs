@@ -526,7 +526,7 @@ impl Engine {
             .collect()
     }
 
-    fn installed_plugins(&self) -> Vec<Installed> {
+    pub(crate) fn installed_plugins(&self) -> Vec<Installed> {
         let plugins = self.plugins();
         plugins
             .list()
