@@ -418,7 +418,7 @@ flowchart TD
   `needs_approval` or `needs_update` (built for a plugin API this host no longer exposes; the update check still
   lists it, so a compatible build is offered); a daemon in safe mode loads none.
 - **App updates.** An app update that changes the plugin API carries the official plugins with it: it stages compatible
-  builds before downloading, refuses when one has none, and the new daemon installs them before loading any
+  builds before downloading, refuses when one has none or asks for a wider grant than was approved, and the new daemon installs them before loading any
   ([0112](../decisions/0112-the-app-and-official-plugins-update-together.md)).
 
 ### Repositories and trust

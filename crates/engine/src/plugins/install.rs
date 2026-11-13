@@ -75,6 +75,12 @@ impl Source {
     }
 
     pub(super) fn read_manifest(&self) -> Result<Manifest> {
+        let manifest = self.read_declared()?;
+        manifest.validate()?;
+        Ok(manifest)
+    }
+
+    pub(super) fn read_declared(&self) -> Result<Manifest> {
         let text = match self {
             Source::Folder(dir) => read_limited(File::open(dir.join(MANIFEST))?)?,
             Source::Archive(file) => {
@@ -83,7 +89,7 @@ impl Source {
                 read_limited(entry)?
             }
         };
-        parse_manifest(&text)
+        toml::from_str(&text).context("invalid plugin.toml")
     }
 
     fn stage(&self, package: &Path) -> Result<()> {
@@ -160,6 +166,13 @@ fn parse_manifest(text: &str) -> Result<Manifest> {
 }
 
 impl Plugins {
+    /// Blocking. The grant a package asks for, read without asking whether
+    /// this host can run it: an app update checks a build for the next plugin
+    /// API before the host that would run it exists.
+    pub fn declared_grant(&self, path: &Path) -> Result<Grant> {
+        Ok(Source::at(path)?.read_declared()?.grant())
+    }
+
     /// Blocking.
     pub fn inspect(&self, path: &Path) -> Result<Inspection> {
         let manifest = Source::at(path)?

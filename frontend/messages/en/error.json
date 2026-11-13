@@ -75,6 +75,7 @@
       "plugin_approval_stale": "The plugin's permissions changed since you reviewed them.",
       "plugin_update_needs_approval": "'{id}' needs approval for the permissions it asks for before it can update.",
       "update_plugins_incompatible": "This update changes the plugin API (version {api}) and has no build for: {plugins}. Nothing was downloaded.",
+      "update_plugins_need_approval": "This update needs permissions you haven't approved for: {plugins}, and those plugins can't be updated before the app. Nothing was downloaded.",
       "plugin_build_unavailable": "'{id}' can't be installed: {detail}.",
       "plugin_call_failed": "Plugin '{id}' failed: {detail}",
       "plugin_command_invalid": "Plugin '{plugin}' command '{command}': {detail}",

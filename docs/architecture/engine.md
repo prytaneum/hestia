@@ -333,7 +333,8 @@ unpacked by hand has no installer to update through.
 
 When a release's `plugin_api` is one the installed official plugins cannot run on, `Engine::download_update` first stages
 compatible builds of them (`engine/src/engine/flows/handover.rs`, planned by `plugins/handover.rs`) into
-`updates/plugins/<api>/`, or refuses with `update_plugins_incompatible` before downloading anything; the new daemon
+`updates/plugins/<api>/`, or refuses with `update_plugins_incompatible` (no build) or `update_plugins_need_approval` (a wider grant) before
+downloading anything; the new daemon
 installs them at start, before it loads a plugin
 ([0112](../decisions/0112-the-app-and-official-plugins-update-together.md)).
 

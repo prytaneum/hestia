@@ -20,9 +20,21 @@ two cannot drift, and a manifest without the field asks for no coordination. `up
    running one.
 4. If any has no such build, **refuse with `update_plugins_incompatible`** (the API and the plugin ids) before the
    installer is fetched. A launcher that stays on its current version is better than one that cannot create anything.
-5. Otherwise download each package and its signature, check the checksum the index lists and the minisign signature
-   against the official keys, and keep both in `<data home>/updates/plugins/<api>/`.
-6. Download the app artifact.
+5. Download each package and its signature, check the checksum the index lists and the minisign signature against the
+   official keys, and keep both in `<data home>/updates/plugins/<api>/`.
+6. Read the grant each staged package declares and compare it with the one the installed plugin was approved for, with
+   the same `Grant::widening_over` the seed path and `Plugins::update` use. If any asks for more, discard everything
+   staged and **refuse with `update_plugins_need_approval`** (the API and the plugin ids) before the installer is
+   fetched. The package is read without asking whether this host can run it, since it was built for the next API; one
+   whose manifest this host cannot parse counts as asking for more.
+7. Download the app artifact.
+
+**A wider grant is refused up front.** The new daemon will not widen an installed grant without the user
+([0090](0090-a-plugin-update-that-asks-for-more-needs-approval.md) if present), so a staged build that asks for more
+would come up `needs_update` after the restart, with the launcher unable to use that plugin. Refusing before the
+installer is downloaded leaves the user on a working version. The remedy is not yet reachable: the build needs the next
+plugin API, so the running host cannot install it and `plugin update` reports it as needing another API. Until a
+release's plugin builds stay within the approved grants, the update is held and the error says so.
 
 **The new daemon installs the staged builds before it loads any plugin.** At start, `install_staged` seeds from
 `updates/plugins/<its own API_VERSION>/` through the same path as the bundled plugins

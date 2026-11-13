@@ -520,6 +520,13 @@ pub enum ErrorInfo {
         api: String,
         plugins: Vec<String>,
     },
+    /// A release changes the plugin API and the build of an installed official
+    /// plugin for it asks for more than that plugin was approved for, so the
+    /// update was not downloaded.
+    UpdatePluginsNeedApproval {
+        api: String,
+        plugins: Vec<String>,
+    },
     /// A developer-only call while `developer` is off.
     DeveloperModeOff,
     /// No configured repository matches `reference`.
@@ -1014,6 +1021,12 @@ impl fmt::Display for ErrorInfo {
             UpdatePluginsIncompatible { api, plugins } => write!(
                 f,
                 "this release uses plugin API {api}, and no build for it is listed for {}; \
+                 the update was not downloaded",
+                plugins.join(", ")
+            ),
+            UpdatePluginsNeedApproval { plugins, .. } => write!(
+                f,
+                "this release needs permissions you have not approved for {}; \
                  the update was not downloaded",
                 plugins.join(", ")
             ),
