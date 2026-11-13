@@ -4,6 +4,7 @@ import { m } from '@/paraglide/messages.js';
 import type {
   Effect,
   EntryKind,
+  OutdatedPlugin,
   PluginInfo,
   PluginInspection,
   PluginInstallDone,
@@ -141,6 +142,14 @@ export const pluginMutations = {
     mutation<PluginInspection, api.PluginPackage>({
       mutationKey: [...keys.plugins.all, 'inspect'],
       mutationFn: (source) => api.inspect(source),
+    }),
+  /** The one unsigned link install's offer, if its link now serves a newer version; asked on a click, never scheduled. */
+  checkLink: () =>
+    mutation<OutdatedPlugin | null, string>({
+      mutationKey: [...keys.plugins.all, 'check-link'],
+      mutationFn: async (id) =>
+        (await api.outdated(true)).plugins.find((offer) => offer.id === id) ??
+        null,
     }),
   /** A command's output is the plugin's own; text is shown, anything else only confirms. */
   run: () =>

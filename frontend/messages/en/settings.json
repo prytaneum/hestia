@@ -119,6 +119,9 @@
         "installed": "Installed"
       },
       "unreleased_hint": "Version {version} has no build yet.",
+      "check_update": "Check for update",
+      "check_update_no_link": "Plugin has no recorded link to check.",
+      "up_to_date": "{name} is up to date",
       "update": "Update",
       "update_needs_api": "Version {version} needs plugin API {api}.",
       "update_to": "Update to {version}",

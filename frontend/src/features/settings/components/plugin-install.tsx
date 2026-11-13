@@ -6,6 +6,7 @@ import {
   dialog,
   errorMessage,
   type OutdatedPlugin,
+  type PluginInfo,
   type PluginInspection,
 } from '@/api';
 import type { PluginInstallTarget, PluginPackage } from '@/api/plugin';
@@ -57,6 +58,7 @@ export function usePluginInstall() {
   const inspect = useMutation(pluginMutations.inspect());
   const install = useJobMutation(pluginMutations.install());
   const update = useJobMutation(pluginMutations.update());
+  const check = useMutation(pluginMutations.checkLink());
   const [review, setReview] = useState<Candidate | null>(null);
 
   const approve = async (candidate: Candidate) => {
@@ -94,9 +96,11 @@ export function usePluginInstall() {
     }
   };
 
-  const startUpdate = async (offer: OutdatedPlugin) => {
+  const startUpdate = async (offer: OutdatedPlugin, link?: string) => {
     try {
-      const source = { repo: offer.repository, plugin: offer.id };
+      const source: PluginPackage = offer.repository
+        ? { repo: offer.repository, plugin: offer.id }
+        : { url: link ?? '' };
       const inspection = await inspect.mutateAsync(source);
       const candidate = { source, inspection, dev: false, updates: offer.id };
       if (describeApproval(inspection).length === 0)
@@ -111,13 +115,33 @@ export function usePluginInstall() {
     }
   };
 
+  const checkLink = async (plugin: PluginInfo) => {
+    try {
+      const offer = await check.mutateAsync(plugin.manifest.id);
+      if (offer) await startUpdate(offer, plugin.url);
+      else
+        notify.info(
+          m['settings.plugins.up_to_date']({
+            name: plugin.manifest.name || plugin.manifest.id,
+          }),
+        );
+    } catch (error) {
+      notify.error(errorMessage(error));
+    }
+  };
+
   return {
     start,
     update: startUpdate,
+    checkLink,
     review,
     approve,
     dismiss: () => setReview(null),
-    busy: inspect.isPending || install.isPending || update.isPending,
+    busy:
+      inspect.isPending ||
+      install.isPending ||
+      update.isPending ||
+      check.isPending,
   };
 }
 

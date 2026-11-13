@@ -9,7 +9,7 @@ and the desktop shows an Update button on each plugin and a count on the Install
 | Installed from | Checked |
 |---|---|
 | A repository, or a link signed by a known key | Every configured repository pinning the key that signed the install and listing the plugin. One request per repository, shared by every plugin from it. |
-| A link, unsigned | Only on request (`hestia plugin outdated --unsigned`): the file is downloaded again and its version compared. Never on the schedule. |
+| A link, unsigned | Only on request (`hestia plugin outdated --unsigned`, or the Check for update button on the plugin's row in the desktop): the file is downloaded again and its version compared. Never on the schedule. |
 | A file, a folder or a dev folder | Never. |
 | A plugin no configured repository lists any more (obsolete) | Never. |
 

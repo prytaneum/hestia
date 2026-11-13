@@ -55,11 +55,13 @@ export function PluginRow({
   update,
   busy,
   onUpdate,
+  onCheck,
 }: {
   plugin: PluginInfo;
   update?: OutdatedPlugin;
   busy: boolean;
   onUpdate: (offer: OutdatedPlugin) => void;
+  onCheck: () => void;
 }) {
   const enable = useMutation(pluginMutations.enable());
   const disable = useMutation(pluginMutations.disable());
@@ -168,7 +170,7 @@ export function PluginRow({
               <Button
                 variant="outline"
                 size="sm"
-                disabled={busy || !update.apiCompatible || !update.repository}
+                disabled={busy || !update.apiCompatible}
                 title={
                   update.apiCompatible
                     ? undefined
@@ -180,6 +182,21 @@ export function PluginRow({
                 onClick={() => onUpdate(update)}
               >
                 {m['settings.plugins.update_to']({ version: update.available })}
+              </Button>
+            )}
+            {!update && plugin.source === 'url' && !plugin.signer && (
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={busy || !plugin.url}
+                title={
+                  plugin.url
+                    ? undefined
+                    : m['settings.plugins.check_update_no_link']()
+                }
+                onClick={onCheck}
+              >
+                {m['settings.plugins.check_update']()}
               </Button>
             )}
             {plugin.state !== 'needs_approval' && (
