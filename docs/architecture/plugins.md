@@ -216,7 +216,7 @@ Every call between host and plugin fails with one WIT variant, `plugin-error`, i
 | `upstream` (no status) | `Upstream` |
 | `sign-in-required` | `SignInRequired`, `SessionExpired`, `LoginDeclined`, `LoginTimedOut` |
 | `not-configured` | `ConfigKeyUnset` |
-| `missing-requirement` | `MissingRequirement` (with its url); a declared program that is not installed, from `process` (no url) |
+| `missing-requirement` | `MissingRequirement` (with its url); a declared program that is not installed, from `process` (the name and url of its `requires`, or its command and no url) |
 | `busy` | `EntryRunning` and the `*InProgress` kinds, `WorkRunning` |
 | `failed` | everything else: plugin, repository and update kinds, `Io`, `DownloadFailed`, `Internal`, ... |
 
@@ -500,13 +500,24 @@ protocol itself. The host reads each connection itself and tells the plugin when
 
 ## Spawning programs
 
-`process:spawn` runs only the `[[programs]]` the manifest declares: argument
-patterns, an environment name list, and either a `PATH` name pinned to an absolute
-path at approval or a file in `data/` copied to a host-owned `plugins/<id>/bin/`
-and run only after its per-target sha256 matches, or, with `java = <major>` in
-place of `command`, the Hestia-managed runtime of that major, resolved at call
-time (installed when missing) through a `ManagedJava` resolver the daemon lends
-the runtime at load, and never pinned. No shell, working directory `data/` unless
+`process:spawn` runs only the `[[programs]]` the manifest declares. A program is an
+identity (what runs) and its invocations (how it may be called), kept apart
+([0120](../decisions/0120-a-programs-identity-is-separate-from-its-invocations.md)).
+The identity is a `PATH` name pinned to an absolute path and the sha256 of the file
+there at approval, a file in `data/` copied to a host-owned `plugins/<id>/bin/` and
+run only after its per-target sha256 matches, or a Hestia-managed Java (`java` a
+major, a `{ min, max }` range the call picks inside with `java-major`, or `"profile"`,
+the Java of the call's game version, valid only in a call that carries one), resolved
+at call time (installed when missing) through a `ManagedJava` resolver the daemon lends
+the runtime at load, and never pinned. An invocation is argument patterns with the
+environment names and `path` programs it may use; `proto::plugin::Program::matching`
+picks the first one a call fits and `engine/src/plugins/invocation.rs` `select` adds
+the Java major, a pure function a caller that runs programs on the host's behalf
+reuses. A `PATH` program found only after approval never runs: the call fails and
+the plugin is flagged `needs_approval` (`HostCalls::needs_approval`), the state an
+update asking for more lands in. A program not on the computer is `missing-requirement`
+with the name and link of its `requires`. A flavor's `requires` lists programs it
+needs, and the flavor list reports the unmet ones (`Flavor.requires`). No shell, working directory `data/` unless
 `exec` names `cwd`, a guest path under a writable mount of the call (`/data`, or
 `/build` during a flavor's `build`), empty environment plus declared names (and,
 for a program that lists `path`, a `PATH` of only those programs' pinned
@@ -558,8 +569,8 @@ flowchart TD
 - **What you approve is what lands.** A downloaded package is held under
   `tmp/plugins/` by an opaque token (fifteen minutes; `tmp/` is emptied at startup
   besides), so inspect and install see the same file. The install takes the grant
-  digest the user approved and refuses a package whose grant, or the absolute path any `PATH` program resolves
-  to, differs: the digest covers the grant together with those pins (`Grant::approval_digest`, the one place it is
+  digest the user approved and refuses a package whose grant, or the path or file content any `PATH` program
+  resolves to, differs: the digest covers the grant together with those pins (path and sha256) (`Grant::approval_digest`, the one place it is
   computed; the preview, the install, the stored record and the load check all derive it there).
 - **Limits.** 64 MiB uncompressed per package and 1 MiB for the manifest, enforced
   by the capped extractor. The manifest's `api = "^N.M.P"` must be satisfied by
@@ -628,9 +639,9 @@ minisign public key and an optional spare, added by its index URL. It has one sh
   installed one (compared as a whole `Grant`, not a permission list) needs `approve` to be
   its digest, else the call fails with `plugin_update_needs_approval` before anything
   changes; an equal or narrower grant applies. So does an update that would move a pin the installed
-  version holds (a different path, or the program no longer found): without approval the installed pins are kept
+  version holds (a different path, different content at the same path, or the program no longer found): without approval the installed pins are kept
   as they are, so an unattended update is held exactly like a widened one. A program not pinned before stays
-  unpinned until approved. The swap renames `package/` to
+  unpinned until approved; the first call that reaches it once it exists flags the plugin for approval. The swap renames `package/` to
   `package.prev/` and writes the replaced record to `plugin.prev.json`, so exactly one
   previous version exists; `data/` is untouched. The new build is loaded beside the running
   one and replaces its slot only once `init` succeeds, so calls in flight finish on the old
@@ -661,7 +672,7 @@ minisign public key and an optional spare, added by its index URL. It has one sh
 │   ├── repositories.json   the added repositories and their pinned keys
 │   ├── bundled.json        the bundled plugin ids already seeded, so a removed one stays removed
 │   └── <id>/
-│       ├── plugin.json     the record: source, signer, grant, grant digest, who approved it, enabled, pinned program paths
+│       ├── plugin.json     the record: source, signer, grant, grant digest, who approved it, enabled, pinned programs (path and hash)
 │       ├── package/        the extracted package
 │       ├── data/           the plugin's own directory; the only one it can write
 │       ├── bin/            host-owned copies of verified data-directory programs
@@ -749,3 +760,4 @@ plugins the tests build are fixtures
 | [0117](../decisions/0117-a-grant-is-permission-to-scope.md) | a grant is permission to scope, driven by one table |
 | [0118](../decisions/0118-host-pushed-events-and-a-call-budget-instead-of-a-resident-instance.md) | host-pushed events and a call budget instead of a resident instance |
 | [0119](../decisions/0119-downloads-are-host-side.md) | downloads are host-side: a host download call and declarative Maven libraries |
+| [0120](../decisions/0120-a-programs-identity-is-separate-from-its-invocations.md) | a program's identity is separate from its invocations; pins are lazy and approved |

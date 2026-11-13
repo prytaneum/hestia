@@ -3,7 +3,7 @@
 //! a major the call picks, or a data-directory file copied into a host-owned
 //! directory and verified there
 //! ([0101](../../../../docs/decisions/0101-plugins-spawn-only-declared-programs.md),
-//! [0118](../../../../docs/decisions/0118-a-programs-identity-is-separate-from-its-invocations.md)).
+//! [0120](../../../../docs/decisions/0120-a-programs-identity-is-separate-from-its-invocations.md)).
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};

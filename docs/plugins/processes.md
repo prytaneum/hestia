@@ -9,16 +9,96 @@ patterns and environment names it declared, and there is no shell
 
 ## Declaring a program
 
-Two kinds of `command`:
+A `[[programs]]` entry says **what runs** (its identity) and **how it may be called** (its invocations). They are
+separate so that one program serves every way a plugin needs it, instead of one near-identical entry per argument list
+([0120](../decisions/0120-a-programs-identity-is-separate-from-its-invocations.md)).
 
-### PATH programs
+The common case stays short: a program with one way of being called writes `args`, `env` and `path` at the top level.
 
-A `command` without a `/` is a name on `PATH`. The host resolves it to an absolute path when the user approves the
-install, shows that path, stores it on the plugin's record, and runs that file and no other. A later `PATH` change cannot
-substitute another binary; if the file disappears the call fails until the plugin is installed again. A relative
-directory on `PATH` is skipped. The path is part of what the user approves: it is covered by the approval digest, so an
-update that would pin a different path (or no longer finds the program) is held until the user approves it again, and an
-unattended update never applies one.
+```toml
+[[programs]]
+id = "git"
+command = "git"
+args = ["**"]
+requires = { name = "Git", url = "https://git-scm.com/downloads" }
+```
+
+A program with several ways lists them as named `[[programs.invocations]]` and leaves the top level empty:
+
+```toml
+[[programs]]
+id = "buildtools"
+java = { min = 17, max = 21 }
+
+[[programs.invocations]]
+name = "build"
+args = ["-jar", "${data}/BuildTools.jar", "--rev", "*", "--output-dir", "${build}"]
+
+[[programs.invocations]]
+name = "version"
+args = ["-version"]
+```
+
+### Identity
+
+Exactly one of three:
+
+- **A `PATH` command**, `command = "git"`. A name without a `/`. See [pinning](#path-programs-are-pinned).
+- **A managed Java**, `java = ...`: a runtime Hestia manages, installed on first use and never pinned (it belongs to the
+  host). The grant shows it as "Hestia-managed Java 21", "Hestia-managed Java 17-21" or "Hestia-managed Java of the game
+  version". Three forms:
+  - `java = 21`, exactly that major.
+  - `java = { min = 17, max = 21 }`, a range; **the call chooses the major** with `java_major`.
+  - `java = "profile"`, the Java major the host uses for the Minecraft version the call is about. It resolves only in
+    a call that carries a game version (a flavor's `build`); in any other call it is `invalid`. The call names no major.
+- **A data file**, `command = "bin/playit"`: a path with a `/` inside the plugin's `data/`, which must carry a `sha256`
+  per target triple (see [below](#programs-in-data)).
+
+### Invocations
+
+An invocation is a list of argument patterns plus the `env` names and `path` programs it may use. A literal matches
+itself, `*` any one token, a trailing `**` any rest, including none; placeholders `${build}`, `${vanilla}` and `${data}`
+are matched as written and replaced by the host afterwards. A call passes the program id, the arguments and the
+environment; the host runs it through **the first invocation whose patterns match the arguments and which declares
+every environment name the call passes**. None fits is `denied`, and the message names which rule failed (the
+arguments, or an environment variable), never the arguments themselves. An invocation has no id the call passes: the
+name exists so the grant and errors read clearly, and two invocations that overlap on `args` should differ in them.
+
+```rust
+hestia::process::exec_with("buildtools", &["-jar", "${data}/BuildTools.jar", "--rev", "1.21", "--output-dir", "${build}"],
+    &[], Duration::from_secs(1200), Some("/build"), Some(21))?;
+```
+
+The last argument is the Java major, for a program declared with a range: it must lie inside the range (`denied`
+otherwise) and a range program called without one is `invalid`. A program with a single major or `"profile"` takes
+none, and a non-Java program rejects one.
+
+### PATH programs are pinned
+
+When the user approves a plugin, the host resolves each `PATH` program to an absolute path and records **the path and
+the sha256 of the file there**. The approval shows both and the approval digest covers both. The program runs from that
+file and no other, so a later `PATH` change or a binary planted earlier on `PATH` cannot substitute another. A relative
+directory on `PATH` is skipped. At call time the host checks the file is still there and executable; it does not hash
+it again (see [0120](../decisions/0120-a-programs-identity-is-separate-from-its-invocations.md) for why).
+
+An update that would pin a different path, a file with different content, or no longer finds the program is held until
+the user approves it again, and an unattended update never applies one.
+
+A program **not found** when the plugin was approved is recorded as unpinned: the approval screen says so, and it
+cannot run. If the program is installed later and the plugin calls it, the call fails (`denied`, "approve the plugin
+again to pin it"), the program is not run, and the plugin goes to the `needs_approval` state, the same one an update that
+asks for more lands in; installing the plugin again pins it under a new approval. A program not found at call time
+either is `missing-requirement`.
+
+### `missing-requirement` and `requires`
+
+A declared program that is not on this computer fails with `missing-requirement` carrying a name and a link. They come
+from the program's `requires = { name = "Git", url = "https://git-scm.com/downloads" }`, an `https` link; a program
+without one is named by its command and has no link. The declaration grants nothing and is not part of the approval.
+
+A flavor lists the programs it cannot do without in the `requires` of its description (ids of its own `[[programs]]`).
+The host checks them each time it lists flavors, so the create wizard and `hestia server create` show "needs Git, get
+it at ..." before a multi-minute build starts. See [providers.md](providers.md#flavors).
 
 ```toml
 [permissions]
@@ -33,22 +113,6 @@ args = ["*"]
 
 Source: `plugins/tunnel-demo/plugin.toml`. The example uses `sleep` as a stand-in for a real agent such as `tailscale`.
 
-### Managed Java
-
-A program with `java = <major>` instead of a `command` runs on the Java runtime Hestia manages for that major, installed
-on first use. Nothing is pinned at approval, because the runtime belongs to the host, and the grant shows it as
-"Hestia-managed Java 21". Arguments (`-jar`, a jar under `data/`, `-version`) are declared as patterns like any other
-program.
-
-```toml
-[[programs]]
-id = "tool"
-java = 21
-args = ["-jar", "*"]
-```
-
-Source: `crates/engine/tests/fixture/plugins/replay-flavor/plugin.toml`.
-
 ### Programs in `data/`
 
 A `command` with a `/` is a file inside the plugin's `data/` directory and must carry a `sha256` per target triple:
@@ -60,14 +124,13 @@ command = "bin/playit"           # a file inside data/, run from a verified host
 args = ["**"]
 env = ["PLAYIT_SECRET"]          # the only names a call may pass
 [programs.sha256]
-x86_64-unknown-linux-gnu = "…"   # one per target triple the plugin supports
-x86_64-pc-windows-msvc = "…"
+x86_64-unknown-linux-gnu = "..."   # one per target triple the plugin supports
+x86_64-pc-windows-msvc = "..."
 ```
 
-Source: [permissions.md](permissions.md#programs). No example plugin ships a `data/` program. The hash is 64 lowercase hex
-characters; the triple is the Rust target triple of the host (`x86_64-unknown-linux-gnu`, `x86_64-unknown-linux-musl`,
-`x86_64-pc-windows-msvc`, `x86_64-pc-windows-gnu`, `<arch>-apple-darwin`). A host whose triple has no entry refuses the
-program.
+The hash is 64 lowercase hex characters; the triple is the Rust target triple of the host (`x86_64-unknown-linux-gnu`,
+`x86_64-unknown-linux-musl`, `x86_64-pc-windows-msvc`, `x86_64-pc-windows-gnu`, `<arch>-apple-darwin`). A host whose
+triple has no entry refuses the program.
 
 ## Agents that are downloaded and hashed
 
@@ -109,16 +172,17 @@ hestia::process::stop(&agent)?;
 
 Source: the doc example of `crates/sdk/src/process.rs` (a compiled no-run doctest); it declares `tailscale` and `agent`.
 
-`exec_with(program, args, env, timeout, cwd)` is `exec` with declared environment variables and an optional `cwd`.
+`exec_with(program, args, env, timeout, cwd, java_major)` is `exec` with declared environment variables, an optional
+`cwd` and, for a program declared with a Java range, the major to run on. `spawn_on_java` is `spawn` with a major.
 
 An `exec` argument may hold `${build}`, `${vanilla}` or `${data}`; the host replaces each with the host path of that mount
 of the current call, after the argument is checked against the patterns (which match the placeholder as written). A
 placeholder for a mount the call does not have, such as `${build}` outside a flavor's `build`, is `denied`.
 Nothing else in an argument is rewritten.
 
-A program that needs other tools on its `PATH` lists them: `path = ["git"]` names other `PATH` programs of the manifest,
-and the child's `PATH` is exactly their pinned directories, joined with the platform separator. An entry must name
-another `PATH` program, once (`BadProgramPath`). The grant shows it. `spawn` gets the same `PATH`.
+An invocation that needs other tools on its `PATH` lists them: `path = ["git"]` names other `PATH` programs of the
+manifest, and the child's `PATH` is exactly their pinned directories, joined with the platform separator. An entry must
+name another `PATH` program, once (`BadProgramPath`). The grant shows it. `spawn` gets the same `PATH`.
 
 The rest of `hestia::process`:
 
@@ -133,8 +197,8 @@ A process the plugin did not start reads as `Error::NotFound`, so another plugin
 
 Rules for every call:
 
-- A program not declared, arguments outside the patterns, or an environment name not in `env` is
-  `Error::Denied`. Without `process:spawn` every call is denied.
+- A program not declared, arguments no invocation matches, or an environment name the matching invocation does not
+  declare is `Error::Denied`. Without `process:spawn` every call is denied.
 - At most 256 arguments of 32 KiB each, with no NUL.
 - The working directory is `data/`; `exec_in(program, args, timeout, cwd)` (or `exec_with`) runs in another directory, a guest path under a writable mount of the call (`/data`, or `/build` during a flavor's `build`), and anything else is `denied`. The environment starts empty (on Windows only `SystemRoot`).
 - The host logs program ids and exit statuses, never arguments or values: they carry auth keys.

@@ -86,18 +86,24 @@ ignored like any unknown key, granting nothing.
 
 ### `[[programs]]`
 
+A program is an identity (what runs) and one or more invocations (how it may be called). See
+[processes.md](processes.md#declaring-a-program).
+
 | Key | Type | Meaning |
 |---|---|---|
 | `id` | slug | what the SDK's `process` calls name, and what `process:spawn` lists in `programs`; unique |
-| `command` | string | a name on `PATH` (1 to 64 of letters, digits, `.`, `_`, `-`, `+`, not starting with `.` or `-`), or, with a `/`, a file inside `data/`; omitted when `java` is set |
-| `java` | integer, 1 to 99 | instead of `command`: the Java major of the runtime Hestia manages, installed when missing and resolved at call time, never pinned. Exactly one of `command` and `java` (`ProgramCommandOrJava`); no `sha256` |
-| `args` | list of strings | patterns: a literal, `*` for one token, a trailing `**` for the rest; `**` anywhere else is refused |
-| `env` | list of names | the only environment variables a call may pass. `LD_*`, `DYLD_*`, `PATH` and `*JAVA*OPTIONS` are refused (`BadProgramEnv`) |
-| `path` | list of program ids | other `PATH` programs of this manifest whose pinned directories are the program's `PATH`, and nothing else; each must be another `PATH` program, named once (`BadProgramPath`) |
+| `command` | string | identity: a name on `PATH` (1 to 64 of letters, digits, `.`, `_`, `-`, `+`, not starting with `.` or `-`), or, with a `/`, a file inside `data/` |
+| `java` | integer, `{ min, max }` or `"profile"` | identity, instead of `command`: a managed Java of that major, of a major in the range the call picks (1 to 99, `min <= max`), or of the game version's Java; installed when missing and never pinned. Exactly one identity (`ProgramIdentity`, `BadProgramJava`); no `sha256` |
 | `sha256` | table, target triple to hex | required for a `data/` program (`ProgramNeedsHash`): 64 lowercase hex characters per triple |
+| `requires` | `{ name, url }` | what to tell the user when a `PATH` program is missing; `url` is `https` (`BadProgramRequires`) |
+| `args` | list of strings | the one invocation, written at the top level: patterns, a literal, `*` for one token, a trailing `**` for the rest; `**` anywhere else is refused |
+| `env` | list of names | the environment variables that invocation may be passed. `LD_*`, `DYLD_*`, `PATH` and `*JAVA*OPTIONS` are refused (`BadProgramEnv`) |
+| `path` | list of program ids | other `PATH` programs of this manifest whose pinned directories are that invocation's `PATH`, and nothing else; each must be another `PATH` program, named once (`BadProgramPath`) |
+| `[[programs.invocations]]` | tables | several invocations instead of the top-level `args`/`env`/`path`, each with a unique slug `name` and its own `args`, `env`, `path` (`BadProgramInvocations`: mixed with top-level keys, an unnamed or repeated name, more than 16) |
 
 A shell (`sh`, `bash`, `zsh`, `dash`, `fish`, `ksh`, `csh`, `tcsh`, `cmd`, `powershell`, `pwsh`, `wscript`, with or
-without `.exe`) is refused as a command. How programs run is in [processes.md](processes.md).
+without `.exe`) is refused as a command. Every error of every program is reported together. How programs run is in
+[processes.md](processes.md).
 
 ### Launch properties
 

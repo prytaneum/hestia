@@ -2,7 +2,7 @@
 //! environment fit, and the Java major a managed-Java program runs on. A pure
 //! function of the declared program and the call, so whatever runs programs
 //! applies the same rules
-//! ([0118](../../../../docs/decisions/0118-a-programs-identity-is-separate-from-its-invocations.md)).
+//! ([0120](../../../../docs/decisions/0120-a-programs-identity-is-separate-from-its-invocations.md)).
 
 use proto::plugin::{Invocation, InvocationMismatch, JavaChoiceError, Program};
 

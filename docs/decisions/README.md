@@ -50,6 +50,7 @@ the alternative you rejected — that is usually the part nobody can recover lat
 - **0116** — [An official provider shadows the built-in of the same id](0116-an-official-provider-shadows-the-builtin.md)
 - **0117** — [A grant is permission to scope, driven by one table](0117-a-grant-is-permission-to-scope.md)
 - **0118** — [Host-pushed events and a call budget instead of a resident instance](0118-host-pushed-events-and-a-call-budget-instead-of-a-resident-instance.md)
+- **0120** — [A program's identity is separate from its invocations; pins are lazy and approved](0120-a-programs-identity-is-separate-from-its-invocations.md)
 
 ### [Cross-cutting foundations](../architecture/common.md)
 

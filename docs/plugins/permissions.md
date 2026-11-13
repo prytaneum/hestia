@@ -82,9 +82,9 @@ lists the hosts (each also in `hosts`) a flavor's profile may serve a file from 
 
 [[programs]]
 id = "tailscale"
-command = "tailscale"            # a name on PATH, pinned to its absolute path at approval
+command = "tailscale"            # a name on PATH, pinned to its absolute path and hash at approval
 args = ["status", "--json"]      # literal tokens, `*` for one token, a trailing `**` for the rest
-env = []
+requires = { name = "Tailscale", url = "https://tailscale.com/download" }
 
 [[programs]]
 id = "agent"
@@ -92,22 +92,29 @@ command = "bin/playit"           # a file inside data/, run from a verified host
 args = ["**"]
 env = ["PLAYIT_SECRET"]          # the only names a call may pass
 [programs.sha256]
-x86_64-unknown-linux-gnu = "…"   # one per target triple the plugin supports
-x86_64-pc-windows-msvc = "…"
+x86_64-unknown-linux-gnu = "..."   # one per target triple the plugin supports
+x86_64-pc-windows-msvc = "..."
 
 [[programs]]
 id = "tool"
-java = 21                        # instead of `command`: Hestia's managed Java 21, resolved when called
+java = { min = 17, max = 21 }    # managed Java; the call picks the major inside the range
+
+[[programs.invocations]]
+name = "run"
 args = ["-jar", "*"]
 ```
 
-- A `java` program is shown in the grant as "Hestia-managed Java 21". The runtime is host-owned, so nothing is pinned at
-  approval; the arguments, environment and permission rules are the same as for any program.
+- A `java` program is shown in the grant as "Hestia-managed Java 17-21". The runtime is host-owned, so nothing is pinned
+  at approval. The grant entry is the program's whole definition on one line, identity first and then each invocation,
+  so any change to either is a new entry and asks for approval again.
+- A `PATH` program is pinned to a path and the hash of the file there, shown at install. One not found at install is
+  shown as not found and cannot run until the plugin is approved again with it installed
+  ([processes.md](processes.md#path-programs-are-pinned)).
 - The SDK's `hestia::process` runs them. `exec` runs a program to completion, with output cut at 1 MiB per stream. The
   other calls handle long-lived agents: `spawn`, `stop`, `status`, `logs` and `list`.
-- A call naming another program, one defined but not named in `programs`, arguments outside the patterns, or an
-  undeclared environment name is refused with `denied`. The grant holds each named program's whole definition, so a
-  changed pattern, environment name or hash asks for approval again.
+- A call naming another program, one defined but not named in `programs`, arguments no invocation matches, or an
+  environment name the matching invocation does not declare is refused with `denied`. The grant holds each named
+  program's whole definition, so a changed identity, pattern, environment name or hash asks for approval again.
 - There is no shell, the working directory is `data/` unless `exec_in` names another (`/data`, or `/build` during a
   flavor's `build`; anything else is `denied`), and the environment starts empty.
 - A spawned agent is supervised with the owner `plugin:<id>`. Only its plugin can see or stop it, `list()` finds it again

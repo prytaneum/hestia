@@ -106,6 +106,11 @@ in its `hosts`). The list is part of the grant, so the user sees it when approvi
 
 `info` may also give `mrpackKey` (the key a Modrinth pack names the flavor's loader by in its `dependencies`) and
 `prismUid` (the component uid of a Prism or MultiMC instance), so packs and instances of the flavor import and export.
+It may list `requires`, ids of the plugin's own `[[programs]]` the flavor cannot do without (Spigot's BuildTools needs
+`git`). Each must be a program the plugin is granted to run, or the flavor fails to register. The host checks the `PATH`
+ones whenever it lists flavors, so a front-end says "needs Git, get it at ..." before a build starts; the program's
+`requires = { name, url }` supplies the words
+([0120](../decisions/0120-a-programs-identity-is-separate-from-its-invocations.md)).
 
 ### Building on vanilla
 
@@ -199,7 +204,7 @@ wasm = "plugin.wasm"
 [[programs]]
 id = "builder"
 java = 21
-args = ["*"]
+args = ["*", "**"]
 
 [[contributes.providers]]
 kind = "flavor"
