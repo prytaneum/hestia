@@ -376,11 +376,7 @@ impl Plugins {
             grant: inspection.grant,
             grant_digest: inspection.grant_digest,
             replaces,
-            program_paths: inspection
-                .program_paths
-                .into_iter()
-                .map(|(id, path)| (id, path.display().to_string()))
-                .collect(),
+            program_pins: inspection.program_pins,
             staged: package.token().map(str::to_string),
         })
     }
@@ -767,7 +763,7 @@ impl Plugins {
         let engine = self.engine.clone();
         let id = record.id.clone();
         let package = spawn_blocking(move || engine.plugins().read_package(&id)).await??;
-        if engine::approval_digest(&package.manifest.grant(), &record.program_paths)
+        if engine::approval_digest(&package.manifest.grant(), &record.program_pins)
             != record.grant_digest
         {
             return Ok(Activation::NeedsApproval);
@@ -793,6 +789,23 @@ impl Plugins {
         let loaded = Arc::new(loaded);
         let contributions = Contributions::connect(&loaded, &package.manifest, official).await;
         Ok(Activation::Ready(Some(loaded), contributions))
+    }
+
+    /// Takes a plugin out of service because a call reached a `PATH` program its
+    /// approval did not pin, though the program is on this computer now. The
+    /// plugin shows as needing approval, the same state an update asking for
+    /// more lands in, and runs again once the user approves it with the pin.
+    pub fn needs_approval(&self, id: &str, program: &str) {
+        tracing::warn!(plugin = %id, program, "plugin needs approval for a program found after it was approved");
+        self.settle(
+            id,
+            PluginState::NeedsApproval,
+            Some(format!(
+                "`{program}` is on this computer now but was not when the plugin was approved; install the plugin again to approve it"
+            )),
+            None,
+            Contributions::default(),
+        );
     }
 
     /// Loading takes seconds, so a plugin can be disabled, removed or the

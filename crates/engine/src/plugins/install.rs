@@ -45,12 +45,12 @@ struct Intake<'a> {
 pub struct Inspection {
     pub manifest: Manifest,
     pub grant: Grant,
-    /// What the user approves: the grant together with `program_paths`, see
+    /// What the user approves: the grant together with `program_pins`, see
     /// [`approval_digest`].
     pub grant_digest: String,
     pub installed: Option<PluginRecord>,
     /// Where each `PATH` program resolves now; see [`pin_programs`].
-    pub program_paths: Pins,
+    pub program_pins: Pins,
 }
 
 pub(super) enum Source {
@@ -181,11 +181,11 @@ impl Plugins {
             .read_manifest()
             .map_err(|error| invalid(format!("{error:#}")))?;
         let grant = manifest.grant();
-        let program_paths = self.pin(&manifest.id, &manifest);
+        let program_pins = self.pin(&manifest.id, &manifest);
         Ok(Inspection {
-            grant_digest: approval_digest(&grant, &program_paths),
+            grant_digest: approval_digest(&grant, &program_pins),
             installed: self.get(&manifest.id),
-            program_paths,
+            program_pins,
             manifest,
             grant,
         })
@@ -288,14 +288,14 @@ impl Plugins {
         let grant = manifest.grant();
         let resolved = self.pin(&id, &manifest);
         let resolved_digest = approval_digest(&grant, &resolved);
-        let (program_paths, approved_by) = match intake.replacing {
+        let (program_pins, approved_by) = match intake.replacing {
             Some(installed) => {
                 self.check_update(installed, &manifest, intake.downloaded)?;
-                let moved = changed_pins(&installed.program_paths, &resolved, &manifest);
+                let moved = changed_pins(&installed.program_pins, &resolved, &manifest);
                 let widened = grant.widens(&installed.grant);
                 if !widened && moved.is_empty() {
                     (
-                        carried_pins(&installed.program_paths, &manifest),
+                        carried_pins(&installed.program_pins, &manifest),
                         installed.approved_by,
                     )
                 } else if resolved_digest != approve {
@@ -311,7 +311,7 @@ impl Plugins {
             }
             None => (resolved, Approver::User),
         };
-        let grant_digest = approval_digest(&grant, &program_paths);
+        let grant_digest = approval_digest(&grant, &program_pins);
         let (wasm_sha256, theme_sha256) = digest_package(&manifest, &staged, validate)?;
         cancel.check()?;
 
@@ -348,7 +348,7 @@ impl Plugins {
             grant,
             grant_digest,
             approved_by,
-            program_paths,
+            program_pins,
             enabled: installed.as_ref().is_none_or(|record| record.enabled),
             installed_unix: common::now_unix(),
         };
@@ -430,26 +430,36 @@ impl Plugins {
 
 #[cfg(test)]
 mod tests {
-    use std::path::PathBuf;
-
     use proto::plugin::PluginSource;
 
     use super::*;
     use crate::cancel::Cancel;
     use crate::plugins::program::Resolver;
+    use proto::plugin::ProgramPin;
 
     const GIT_A: &str = "/opt/a/git";
     const GIT_B: &str = "/opt/b/git";
 
-    fn at_a(_: &str) -> Option<PathBuf> {
-        Some(PathBuf::from(GIT_A))
+    fn pin(path: &str, content: &str) -> Option<ProgramPin> {
+        Some(ProgramPin {
+            path: path.into(),
+            sha256: hex(&Sha256::digest(content)),
+        })
     }
 
-    fn at_b(_: &str) -> Option<PathBuf> {
-        Some(PathBuf::from(GIT_B))
+    fn at_a(_: &str) -> Option<ProgramPin> {
+        pin(GIT_A, "git 2.43")
     }
 
-    fn nowhere(_: &str) -> Option<PathBuf> {
+    fn at_b(_: &str) -> Option<ProgramPin> {
+        pin(GIT_B, "git 2.43")
+    }
+
+    fn upgraded_at_a(_: &str) -> Option<ProgramPin> {
+        pin(GIT_A, "git 2.50")
+    }
+
+    fn nowhere(_: &str) -> Option<ProgramPin> {
         None
     }
 
@@ -525,6 +535,8 @@ mod tests {
 
         rig.resolving(at_b);
         assert_ne!(first, rig.digest(&staged));
+        rig.resolving(upgraded_at_a);
+        assert_ne!(first, rig.digest(&staged), "the content hash is bound too");
         rig.resolving(nowhere);
         assert_ne!(first, rig.digest(&staged));
     }
@@ -550,10 +562,10 @@ mod tests {
         let rig = Rig::new(at_a);
         let record = rig.install(&rig.package("1.0.0", ""));
 
-        assert_eq!(record.program_paths["git"], PathBuf::from(GIT_A));
+        assert_eq!(record.program_pins["git"], at_a("git").unwrap());
         assert_eq!(
             record.grant_digest,
-            approval_digest(&record.grant, &record.program_paths)
+            approval_digest(&record.grant, &record.program_pins)
         );
         assert_eq!(record.source, PluginSource::Url);
     }
@@ -565,7 +577,7 @@ mod tests {
 
         let updated = rig.update(&rig.package("1.1.0", ""), "").unwrap();
 
-        assert_eq!(updated.record.program_paths, installed.program_paths);
+        assert_eq!(updated.record.program_pins, installed.program_pins);
         assert_eq!(updated.record.grant_digest, installed.grant_digest);
     }
 
@@ -584,15 +596,41 @@ mod tests {
             ));
         }
         assert_eq!(
-            rig.plugins.get("demo").unwrap().program_paths["git"],
-            PathBuf::from(GIT_A)
+            rig.plugins.get("demo").unwrap().program_pins["git"],
+            at_a("git").unwrap()
         );
 
         let updated = rig.update(&next, &rig.digest(&next)).unwrap();
-        assert_eq!(updated.record.program_paths["git"], PathBuf::from(GIT_B));
+        assert_eq!(updated.record.program_pins["git"], at_b("git").unwrap());
         assert_eq!(
             updated.record.grant_digest,
-            approval_digest(&updated.record.grant, &updated.record.program_paths)
+            approval_digest(&updated.record.grant, &updated.record.program_pins)
+        );
+    }
+
+    #[test]
+    fn an_update_whose_binary_changed_at_the_same_path_needs_approval() {
+        let mut rig = Rig::new(at_a);
+        rig.install(&rig.package("1.0.0", ""));
+        let next = rig.package("1.1.0", "");
+        rig.resolving(upgraded_at_a);
+
+        for approve in ["", "stale"] {
+            let error = rig.update(&next, approve).map(|_| ()).unwrap_err();
+            assert!(matches!(
+                refusal(error),
+                ErrorInfo::PluginUpdateNeedsApproval { id } if id == "demo"
+            ));
+        }
+        assert_eq!(
+            rig.plugins.get("demo").unwrap().program_pins["git"],
+            at_a("git").unwrap()
+        );
+
+        let updated = rig.update(&next, &rig.digest(&next)).unwrap();
+        assert_eq!(
+            updated.record.program_pins["git"],
+            upgraded_at_a("git").unwrap()
         );
     }
 
@@ -621,7 +659,7 @@ mod tests {
 
         let updated = rig.update(&rig.package("1.1.0", ""), "").unwrap();
 
-        assert!(updated.record.program_paths.is_empty());
+        assert!(updated.record.program_pins.is_empty());
     }
 
     fn approved_by_official(rig: &Rig) {
@@ -702,6 +740,81 @@ mod tests {
         assert!(rig.update(&next, "").is_err());
         let updated = rig.update(&next, &rig.digest(&next)).unwrap();
 
-        assert_eq!(updated.record.program_paths.len(), 2);
+        assert_eq!(updated.record.program_pins.len(), 2);
+    }
+
+    const SHAPES: &str = r#"
+id = "demo"
+version = "1.0.0"
+api = "^1.0.0"
+wasm = "plugin.wasm"
+
+[permissions]
+"process:spawn" = { programs = ["git", "buildtools", "tool"] }
+
+[[programs]]
+id = "git"
+command = "git"
+args = ["**"]
+requires = { name = "Git", url = "https://git-scm.com/downloads" }
+
+[[programs]]
+id = "buildtools"
+java = { min = 17, max = 21 }
+
+[[programs.invocations]]
+name = "build"
+args = ["-jar", "${data}/BuildTools.jar", "--rev", "*"]
+
+[[programs.invocations]]
+name = "version"
+args = ["-version"]
+
+[[programs]]
+id = "tool"
+command = "bin/tool"
+args = ["--serve"]
+env = ["TOOL_TOKEN"]
+sha256 = { x86_64-unknown-linux-gnu = "0000000000000000000000000000000000000000000000000000000000000000" }
+
+[[programs]]
+id = "game"
+java = "profile"
+args = ["-version"]
+"#;
+
+    #[test]
+    fn a_manifest_declares_each_kind_of_program_identity() {
+        let manifest = parse_manifest(&SHAPES.replace(
+            "programs = [\"git\", \"buildtools\", \"tool\"]",
+            "programs = [\"git\", \"buildtools\", \"tool\", \"game\"]",
+        ))
+        .unwrap();
+        let by_id = |id: &str| manifest.programs.iter().find(|p| p.id == id).unwrap();
+
+        assert!(by_id("git").on_path());
+        assert_eq!(by_id("git").requires.as_ref().unwrap().name, "Git");
+        assert_eq!(by_id("buildtools").invocations().len(), 2);
+        assert!(by_id("tool").in_data_dir());
+        assert_eq!(by_id("tool").invocations()[0].env.len(), 1);
+        assert_eq!(
+            by_id("buildtools").entry(),
+            "buildtools: Hestia-managed Java 17-21 | build: args [\"-jar\",\"${data}/BuildTools.jar\",\"--rev\",\"*\"] | version: args [\"-version\"]"
+        );
+        assert_eq!(
+            by_id("game").identity_label(),
+            "Hestia-managed Java of the game version"
+        );
+    }
+
+    #[test]
+    fn an_invalid_manifest_reports_every_program_error_at_once() {
+        let broken = SHAPES
+            .replace("command = \"git\"", "command = \"sh\"")
+            .replace("java = \"profile\"", "java = { min = 21, max = 17 }");
+        let error = parse_manifest(&broken).unwrap_err().to_string();
+
+        assert!(error.contains("program `git`"), "{error}");
+        assert!(error.contains("program `game`"), "{error}");
     }
 }

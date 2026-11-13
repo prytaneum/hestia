@@ -217,7 +217,8 @@ impl From<ProgramError> for GuestError {
             ProgramError::Denied(message) => GuestError::Denied(message),
             ProgramError::NotFound(message) => GuestError::NotFound(message),
             ProgramError::Invalid(message) => GuestError::Invalid(message),
-            ProgramError::Missing(name) => GuestError::MissingRequirement { name, url: None },
+            ProgramError::Missing { name, url } => GuestError::MissingRequirement { name, url },
+            ProgramError::Unapproved(_) => GuestError::Denied(error.to_string()),
             ProgramError::Failed(message) => GuestError::Failed(message),
         }
     }

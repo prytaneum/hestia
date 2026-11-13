@@ -151,7 +151,8 @@
           "unhashed": "Hosts que podem servir downloads sem checksum"
         },
         "permissions": "Permissões",
-        "pinned": "Programas fixados em um caminho"
+        "pinned": "Programas fixados em um caminho e hash",
+        "unpinned": "{id}: `{command}` não está neste computador, então não pode rodar até você aprovar o plugin de novo com ele instalado"
       },
       "hint": "Plugins estendem o Hestia. Um plugin só recebe o que você aprova ao instalá-lo.",
       "install_file": "Instalar de arquivo",

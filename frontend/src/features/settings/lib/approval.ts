@@ -3,6 +3,8 @@ import type {
   Permission,
   PermissionScope,
   PluginInspection,
+  Program,
+  ProgramPin,
   ScopeKind,
 } from '@/api/types';
 import { m } from '@/paraglide/messages.js';
@@ -110,16 +112,25 @@ const permissionItem = (
 export function describeGrant(
   grant: Grant,
   unrestricted: Permission[],
-  programPaths: Record<string, string> = {},
+  programPins: Record<string, ProgramPin> = {},
+  unpinned: Program[] = [],
 ): DescribedSection[] {
   const full = new Set(unrestricted);
   const held = (Object.keys(grant.permissions) as Permission[]).map((name) =>
     permissionItem(name, grant.permissions[name] ?? {}),
   );
   const isFull = (item: GrantItem) => full.has(item.label as Permission);
-  const pinned = Object.entries(programPaths).map(
-    ([id, path]) => `${id} → ${path}`,
-  );
+  const pinned = [
+    ...Object.entries(programPins).map(
+      ([id, pin]) => `${id} → ${pin.path} (sha256 ${pin.sha256.slice(0, 12)})`,
+    ),
+    ...unpinned.map((program) =>
+      m['settings.plugins.grant.unpinned']({
+        id: program.id,
+        command: program.command,
+      }),
+    ),
+  ];
   const sections: DescribedSection[] = [
     {
       kind: 'full_access',
@@ -153,14 +164,27 @@ export function describeGrant(
 
 /**
  * What an approval covers: the whole grant when new; on an update the
- * widening, plus every pinned program path, since the digest binds the pin and
- * an update that only moves it must still show where it now points.
+ * widening, plus every pinned program (path and content hash), since the digest
+ * binds the pin and an update that only moves it must still show where it now
+ * points, and every `PATH` program not found on this computer, which cannot run
+ * until the plugin is approved again with it installed.
  */
 export function describeApproval(
   inspection: PluginInspection,
 ): DescribedSection[] {
   const grant = inspection.replaces ? inspection.widened : inspection.grant;
-  return describeGrant(grant, inspection.unrestricted, inspection.programPaths);
+  const unpinned = Object.values(inspection.grant.programs).filter(
+    (program) =>
+      program.command !== '' &&
+      !program.command.includes('/') &&
+      !(program.id in inspection.programPins),
+  );
+  return describeGrant(
+    grant,
+    inspection.unrestricted,
+    inspection.programPins,
+    unpinned,
+  );
 }
 
 const scopeLines = (scopes: GrantScope[], indent: string): string[] =>

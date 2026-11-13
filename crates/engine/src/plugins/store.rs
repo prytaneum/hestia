@@ -3,10 +3,10 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
 use anyhow::{bail, Context, Result};
-use proto::plugin::{is_plugin_id, Grant, Manifest, PluginSource};
+use proto::plugin::{is_plugin_id, Grant, Manifest, PluginSource, ProgramPin};
 use serde::{Deserialize, Serialize};
 
-use super::program::{resolve_on_path, Resolver};
+use super::program::{pin_on_path, Resolver};
 use crate::reclaim::{self, Reclaimed};
 use crate::registry;
 use crate::schema::Document;
@@ -62,9 +62,10 @@ pub struct PluginRecord {
     pub grant: Grant,
     pub grant_digest: String,
     pub approved_by: Approver,
-    /// Program id to the absolute path its `PATH` name resolved to when the
-    /// grant was approved; the only path that program ever runs from.
-    pub program_paths: BTreeMap<String, PathBuf>,
+    /// Program id to the path its `PATH` name resolved to when the grant was
+    /// approved and the hash of the file there; the only file that program ever
+    /// runs. A program not found then has no pin and cannot run until approved.
+    pub program_pins: BTreeMap<String, ProgramPin>,
     pub enabled: bool,
     pub installed_unix: i64,
 }
@@ -94,7 +95,7 @@ impl Plugins {
         Plugins {
             dir,
             writes: Arc::default(),
-            resolver: resolve_on_path,
+            resolver: pin_on_path,
         }
     }
 

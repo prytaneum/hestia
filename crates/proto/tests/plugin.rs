@@ -20,10 +20,10 @@ mod manifest {
 
     use proto::error::EntryKind;
     use proto::plugin::{
-        CommandArg, CommandArgKind, CommandContribution, CommandScope, Manifest, ManifestError,
-        PageContribution, PageSlot, Permission, PermissionScope, Program, ProviderContribution,
-        ScheduleContribution, ScopeKind, Setting, SettingKind, ThemeContribution, Tier,
-        MAX_SCHEDULES, MAX_SCHEDULE_SECS,
+        CommandArg, CommandArgKind, CommandContribution, CommandScope, Invocation, JavaChoiceError,
+        JavaProfile, JavaRange, Manifest, ManifestError, PageContribution, PageSlot, Permission,
+        PermissionScope, Program, ProgramJava, ProviderContribution, ScheduleContribution,
+        ScopeKind, Setting, SettingKind, ThemeContribution, Tier, MAX_SCHEDULES, MAX_SCHEDULE_SECS,
     };
 
     fn granting(permissions: &[Permission]) -> BTreeMap<Permission, PermissionScope> {
@@ -558,6 +558,10 @@ mod manifest {
             .any(|host| host == "meta.example.com"));
     }
 
+    fn permits(program: &Program, args: &[String]) -> bool {
+        program.matching(args, &[]).is_ok()
+    }
+
     fn spawning(program: Program) -> Manifest {
         let mut manifest = with_scope(
             valid(),
@@ -625,7 +629,7 @@ mod manifest {
                 vec![Program {
                     id: "jvm".into(),
                     command: String::new(),
-                    java: Some(21),
+                    java: Some(ProgramJava::Major(21)),
                     ..Program::default()
                 }],
             ),
@@ -706,12 +710,12 @@ mod manifest {
     #[test]
     fn a_program_names_exactly_one_of_a_command_and_a_managed_java() {
         let java = |major: u32| Program {
-            java: Some(major),
+            java: Some(ProgramJava::Major(major)),
             args: vec!["-jar".into(), "*".into()],
             ..Program::default()
         };
         assert_eq!(spawning(java(21)).verdict(), Ok(()));
-        assert_eq!(java(21).command_label(), "Hestia-managed Java 21");
+        assert_eq!(java(21).identity_label(), "Hestia-managed Java 21");
 
         let both = Program {
             command: "java".into(),
@@ -722,10 +726,16 @@ mod manifest {
             sha256: [("x86_64-unknown-linux-gnu".to_string(), "0".repeat(64))].into(),
             ..java(21)
         };
-        for program in [both, neither, java(0), java(100)] {
+        for program in [both, neither] {
             assert_eq!(
                 spawning(program).verdict(),
-                Err(ManifestError::ProgramCommandOrJava("agent".into()))
+                Err(ManifestError::ProgramIdentity("agent".into()))
+            );
+        }
+        for program in [java(0), java(100)] {
+            assert_eq!(
+                spawning(program).verdict(),
+                Err(ManifestError::BadProgramJava("agent".into()))
             );
         }
         assert_eq!(
@@ -747,25 +757,290 @@ mod manifest {
         let args =
             |tokens: &[&str]| -> Vec<String> { tokens.iter().map(|t| t.to_string()).collect() };
         let status = path_program("tailscale", &["status", "--json"]);
-        assert!(status.permits(&args(&["status", "--json"])));
-        assert!(!status.permits(&args(&["status"])));
-        assert!(!status.permits(&args(&["status", "--json", "x"])));
-        assert!(!status.permits(&args(&["up", "--json"])));
+        assert!(permits(&status, &args(&["status", "--json"])));
+        assert!(!permits(&status, &args(&["status"])));
+        assert!(!permits(&status, &args(&["status", "--json", "x"])));
+        assert!(!permits(&status, &args(&["up", "--json"])));
 
         let up = path_program("tailscale", &["up", "--authkey", "*"]);
-        assert!(up.permits(&args(&["up", "--authkey", "k"])));
-        assert!(!up.permits(&args(&["up", "--authkey"])));
+        assert!(permits(&up, &args(&["up", "--authkey", "k"])));
+        assert!(!permits(&up, &args(&["up", "--authkey"])));
 
         let install = path_program("gem", &["install", "**"]);
-        assert!(install.permits(&args(&["install"])));
-        assert!(install.permits(&args(&["install", "a", "b"])));
-        assert!(!install.permits(&args(&["uninstall", "a"])));
+        assert!(permits(&install, &args(&["install"])));
+        assert!(permits(&install, &args(&["install", "a", "b"])));
+        assert!(!permits(&install, &args(&["uninstall", "a"])));
 
-        assert!(path_program("x", &[]).permits(&[]));
-        assert!(!path_program("x", &[]).permits(&args(&["a"])));
+        assert!(permits(&path_program("x", &[]), &[]));
+        assert!(!permits(&path_program("x", &[]), &args(&["a"])));
         assert_eq!(
             spawning(path_program("x", &["**", "a"])).verdict(),
             Err(ManifestError::BadProgram("agent".into()))
+        );
+    }
+
+    fn invocation(name: &str, args: &[&str]) -> Invocation {
+        Invocation {
+            name: name.into(),
+            args: args.iter().map(|arg| arg.to_string()).collect(),
+            ..Invocation::default()
+        }
+    }
+
+    fn buildtools(invocations: Vec<Invocation>) -> Program {
+        Program {
+            command: String::new(),
+            java: Some(ProgramJava::Range(JavaRange { min: 17, max: 21 })),
+            invocations,
+            ..Program::default()
+        }
+    }
+
+    #[test]
+    fn a_program_matches_the_invocation_a_call_fits() {
+        let args =
+            |tokens: &[&str]| -> Vec<String> { tokens.iter().map(|t| t.to_string()).collect() };
+        let program = buildtools(vec![
+            invocation("build", &["-jar", "${data}/bt.jar", "--rev", "*"]),
+            Invocation {
+                env: ["TOKEN".to_string()].into(),
+                ..invocation("publish", &["-jar", "${data}/bt.jar", "publish"])
+            },
+        ]);
+        assert_eq!(
+            program
+                .matching(&args(&["-jar", "${data}/bt.jar", "--rev", "1.21"]), &[])
+                .unwrap()
+                .name,
+            "build"
+        );
+        assert_eq!(
+            program
+                .matching(&args(&["-jar", "${data}/bt.jar", "publish"]), &["TOKEN"])
+                .unwrap()
+                .name,
+            "publish"
+        );
+        assert_eq!(
+            program.matching(&args(&["-jar", "${data}/bt.jar", "publish"]), &["OTHER"]),
+            Err(proto::plugin::InvocationMismatch::Env("OTHER".into()))
+        );
+        assert_eq!(
+            program.matching(&args(&["-jar", "x.jar"]), &[]),
+            Err(proto::plugin::InvocationMismatch::Args)
+        );
+        assert_eq!(
+            program.matching(&args(&["-jar", "${data}/bt.jar", "--rev", "1", "x"]), &[]),
+            Err(proto::plugin::InvocationMismatch::Args)
+        );
+    }
+
+    #[test]
+    fn invocations_are_named_once_and_never_mixed_with_top_level_args() {
+        assert_eq!(
+            spawning(buildtools(vec![
+                invocation("build", &["a"]),
+                invocation("run", &["b"])
+            ]))
+            .verdict(),
+            Ok(())
+        );
+        let invalid = |program: Program| {
+            matches!(
+                spawning(program).verdict(),
+                Err(ManifestError::BadProgramInvocations(_))
+            )
+        };
+        assert!(invalid(buildtools(vec![
+            invocation("build", &["a"]),
+            invocation("build", &["b"])
+        ])));
+        assert!(invalid(buildtools(vec![invocation("", &["a"])])));
+        assert!(invalid(buildtools(vec![invocation("Not A Slug", &["a"])])));
+        assert!(invalid(Program {
+            args: vec!["top".into()],
+            ..buildtools(vec![invocation("build", &["a"])])
+        }));
+        assert_eq!(
+            spawning(buildtools(vec![invocation("build", &["**", "x"])])).verdict(),
+            Err(ManifestError::BadProgram("agent".into()))
+        );
+        assert_eq!(
+            spawning(buildtools(vec![Invocation {
+                env: ["LD_PRELOAD".to_string()].into(),
+                ..invocation("build", &[])
+            }]))
+            .verdict(),
+            Err(ManifestError::BadProgramEnv("LD_PRELOAD".into()))
+        );
+    }
+
+    #[test]
+    fn a_java_program_declares_a_major_a_range_or_the_game_profile() {
+        let runtime = |json: &str| serde_json::from_str::<ProgramJava>(json).unwrap();
+        assert_eq!(runtime("21"), ProgramJava::Major(21));
+        assert_eq!(
+            runtime(r#"{"min":17,"max":21}"#),
+            ProgramJava::Range(JavaRange { min: 17, max: 21 })
+        );
+        assert_eq!(
+            runtime(r#""profile""#),
+            ProgramJava::Profile(JavaProfile::Profile)
+        );
+        assert!(serde_json::from_str::<ProgramJava>(r#""latest""#).is_err());
+
+        for bad in [
+            JavaRange { min: 21, max: 17 },
+            JavaRange { min: 0, max: 21 },
+            JavaRange { min: 17, max: 100 },
+        ] {
+            assert_eq!(
+                spawning(Program {
+                    java: Some(ProgramJava::Range(bad)),
+                    command: String::new(),
+                    ..Program::default()
+                })
+                .verdict(),
+                Err(ManifestError::BadProgramJava("agent".into()))
+            );
+        }
+        let profile = Program {
+            java: Some(ProgramJava::Profile(JavaProfile::Profile)),
+            command: String::new(),
+            ..Program::default()
+        };
+        assert_eq!(spawning(profile).verdict(), Ok(()));
+    }
+
+    #[test]
+    fn a_call_chooses_a_java_major_only_inside_what_the_program_declares() {
+        let range = ProgramJava::Range(JavaRange { min: 17, max: 21 });
+        assert_eq!(range.choose(Some(17), None), Ok(17));
+        assert_eq!(range.choose(Some(21), None), Ok(21));
+        assert!(matches!(
+            range.choose(Some(22), None),
+            Err(JavaChoiceError::OutsideRange { asked: 22, .. })
+        ));
+        assert!(matches!(
+            range.choose(Some(8), Some(17)),
+            Err(JavaChoiceError::OutsideRange { asked: 8, .. })
+        ));
+        assert!(matches!(
+            range.choose(None, Some(21)),
+            Err(JavaChoiceError::NeedsMajor { .. })
+        ));
+
+        let fixed = ProgramJava::Major(21);
+        assert_eq!(fixed.choose(None, None), Ok(21));
+        assert_eq!(fixed.choose(Some(21), None), Ok(21));
+        assert!(fixed.choose(Some(17), None).is_err());
+
+        let profile = ProgramJava::Profile(JavaProfile::Profile);
+        assert_eq!(profile.choose(None, Some(21)), Ok(21));
+        assert_eq!(
+            profile.choose(None, None),
+            Err(JavaChoiceError::NoGameVersion)
+        );
+        assert_eq!(
+            profile.choose(Some(21), Some(21)),
+            Err(JavaChoiceError::ProfileTakesNone)
+        );
+    }
+
+    #[test]
+    fn a_requirement_names_the_program_and_where_to_get_it() {
+        let requiring = |name: &str, url: &str| Program {
+            requires: Some(proto::minecraft::Requirement {
+                name: name.into(),
+                url: url.into(),
+            }),
+            ..path_program("git", &[])
+        };
+        assert_eq!(
+            spawning(requiring("Git", "https://git-scm.com/downloads")).verdict(),
+            Ok(())
+        );
+        for (name, url) in [
+            ("", "https://git-scm.com"),
+            ("Git", "http://git-scm.com"),
+            ("Git", "git-scm.com"),
+            ("Git", "https://git scm.com"),
+        ] {
+            assert_eq!(
+                spawning(requiring(name, url)).verdict(),
+                Err(ManifestError::BadProgramRequires("agent".into())),
+                "{name} {url}"
+            );
+        }
+    }
+
+    #[test]
+    fn every_error_of_a_program_is_collected() {
+        let mut manifest = spawning(Program {
+            command: "sh".into(),
+            java: Some(ProgramJava::Major(0)),
+            env: ["PATH".to_string()].into(),
+            invocations: vec![invocation("a", &[])],
+            ..Program::default()
+        });
+        manifest.programs[0].requires = Some(proto::minecraft::Requirement::default());
+        let errors = manifest.validate().unwrap_err().into_vec();
+        for expected in [
+            ManifestError::ProgramIdentity("agent".into()),
+            ManifestError::BadProgramJava("agent".into()),
+            ManifestError::BadProgramInvocations("agent".into()),
+            ManifestError::BadProgramRequires("agent".into()),
+        ] {
+            assert!(errors.contains(&expected), "{expected:?} in {errors:?}");
+        }
+    }
+
+    #[test]
+    fn a_changed_identity_or_invocation_changes_the_entry() {
+        let base = buildtools(vec![invocation("build", &["a"])]);
+        let entry = Program {
+            id: "bt".into(),
+            ..base.clone()
+        }
+        .entry();
+        for changed in [
+            Program {
+                java: Some(ProgramJava::Range(JavaRange { min: 17, max: 25 })),
+                ..base.clone()
+            },
+            Program {
+                java: Some(ProgramJava::Major(17)),
+                ..base.clone()
+            },
+            Program {
+                invocations: vec![invocation("build", &["a", "**"])],
+                ..base.clone()
+            },
+            Program {
+                invocations: vec![invocation("make", &["a"])],
+                ..base.clone()
+            },
+            Program {
+                invocations: vec![invocation("build", &["a"]), invocation("run", &["b"])],
+                ..base.clone()
+            },
+            Program {
+                invocations: vec![Invocation {
+                    env: ["X".to_string()].into(),
+                    ..invocation("build", &["a"])
+                }],
+                ..base.clone()
+            },
+        ] {
+            let changed = Program {
+                id: "bt".into(),
+                ..changed
+            };
+            assert_ne!(changed.entry(), entry, "{changed:?}");
+        }
+        assert_eq!(
+            entry,
+            r#"bt: Hestia-managed Java 17-21 | build: args ["a"]"#
         );
     }
 
@@ -1071,7 +1346,7 @@ mod manifest {
             }),
             spawns(Program {
                 command: String::new(),
-                java: Some(21),
+                java: Some(ProgramJava::Major(21)),
                 ..Program::default()
             }),
             Manifest {

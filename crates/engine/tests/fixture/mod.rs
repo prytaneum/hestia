@@ -35,7 +35,7 @@ fn info(id: &'static str) -> FlavorInfo {
         name: "Fixture".into(),
         summary: "a flavor that exists only in tests".into(),
         loads: Some(ContentKind::Mod),
-        requires: &[],
+        requires: std::borrow::Cow::Borrowed(&[]),
         sides: &[Side::Server, Side::Client],
         mrpack_key: (id == "fabric").then(|| "fabric-loader".into()),
         prism_uid: (id == "fabric").then(|| "net.fabricmc.fabric-loader".into()),

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { Grant, PermissionScope, ScopeKind } from '@/api/types';
+import type { Grant, PermissionScope, Program, ScopeKind } from '@/api/types';
 import { describeGrant } from '@/features/settings/lib';
 
 const ENTRY: Record<ScopeKind, string> = {
@@ -85,11 +85,21 @@ describe('describeGrant', () => {
     expect(shown(sections)).toEqual(['whitelist.json']);
   });
 
-  it('lists the pinned program paths and nothing for an empty grant', () => {
+  it('lists the pinned programs with their hash, and nothing for an empty grant', () => {
     const empty: Grant = { permissions: {}, contributions: {}, programs: {} };
     expect(describeGrant(empty, [])).toEqual([]);
-    expect(shown(describeGrant(empty, [], { git: '/usr/bin/git' }))).toEqual([
-      'git → /usr/bin/git',
+    const pin = { path: '/usr/bin/git', sha256: 'ab'.repeat(32) };
+    expect(shown(describeGrant(empty, [], { git: pin }))).toEqual([
+      'git → /usr/bin/git (sha256 abababababab)',
     ]);
+  });
+
+  it('says which programs were not found, so they are not mistaken for approved', () => {
+    const empty: Grant = { permissions: {}, contributions: {}, programs: {} };
+    const missing = { id: 'git', command: 'git' } as Program;
+    const [section] = describeGrant(empty, [], {}, [missing]);
+    expect(section.kind).toBe('pinned');
+    expect(shown([section])[0]).toContain('git');
+    expect(shown([section])[0]).toContain('not on this computer');
   });
 });

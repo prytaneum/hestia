@@ -10,7 +10,7 @@ impl Engine {
     pub async fn flavors(&self, side: Side) -> Vec<Flavor> {
         let mut flavors = self.minecraft.flavors(side);
         for flavor in &mut flavors {
-            flavor.requires = unmet(self.minecraft.requires(side, &flavor.id)).await;
+            flavor.requires = unmet(&self.minecraft.requires(side, &flavor.id));
         }
         flavors
     }

@@ -1,14 +1,16 @@
 //! Run the programs the manifest declares.
 //!
 //! The plugin needs the `process:spawn` permission and lists every program in
-//! `[[programs]]` with an `id`, a `command` (a name on `PATH`, or a path inside
-//! `data/`, which also needs a `sha256` per target; or `java = <major>` instead
-//! of a command, for the runtime Hestia manages), the `args` patterns it may
-//! be called with (a literal, `*` for one token, a trailing `**` for the rest)
-//! and the `env` names it may be given. A program, argument list or variable
-//! the manifest did not declare is [`Error::Denied`]. There is no
-//! shell: the working directory is `data/` unless [`exec_in`] names another, and
-//! the environment starts empty.
+//! `[[programs]]` with an `id` and an identity: a `command` (a name on `PATH`,
+//! or a path inside `data/`, which also needs a `sha256` per target) or `java`
+//! (a major, a `{ min, max }` range or `"profile"`, for the runtime Hestia
+//! manages). It declares the argument patterns it may be called with (a
+//! literal, `*` for one token, a trailing `**` for the rest) as `args`, or as
+//! several named `[[programs.invocations]]`, and the `env` names each may be
+//! given. A program, argument list or variable the manifest did not declare is
+//! [`Error::Denied`]; one not installed on the computer is
+//! [`Error::MissingRequirement`]. There is no shell: the working directory is
+//! `data/` unless [`exec_in`] names another, and the environment starts empty.
 //!
 //! ```no_run
 //! use std::time::Duration;
@@ -51,7 +53,7 @@ pub struct Status {
 /// may hold `${build}`, `${vanilla}` or `${data}`, replaced by the host path
 /// of that mount of this call.
 pub fn exec(program: &str, args: &[&str], timeout: Duration) -> Result<Output, Error> {
-    exec_with(program, args, &[], timeout, None)
+    exec_with(program, args, &[], timeout, None, None)
 }
 
 /// [`exec`] in `cwd`, a guest path under a writable mount of this call: `/data`,
@@ -63,21 +65,30 @@ pub fn exec_in(
     timeout: Duration,
     cwd: &str,
 ) -> Result<Output, Error> {
-    exec_with(program, args, &[], timeout, Some(cwd))
+    exec_with(program, args, &[], timeout, Some(cwd), None)
 }
 
-/// [`exec`] with `env`, which may only name variables the program declares, and
-/// an optional `cwd` as in [`exec_in`]. The program's `PATH` holds only the
-/// programs its manifest lists in `path`.
+/// [`exec`] with `env`, which may only name variables the program declares, an
+/// optional `cwd` as in [`exec_in`], and `java_major`, the major a program
+/// declared with a Java range runs on (it must lie inside that range). The
+/// program's `PATH` holds only the programs its manifest lists in `path`.
 pub fn exec_with(
     program: &str,
     args: &[&str],
     env: &[(&str, &str)],
     timeout: Duration,
     cwd: Option<&str>,
+    java_major: Option<u32>,
 ) -> Result<Output, Error> {
     let timeout_ms = u32::try_from(timeout.as_millis()).unwrap_or(u32::MAX);
-    let output = host::exec(program, &strings(args), &pairs(env), timeout_ms, cwd)?;
+    let output = host::exec(
+        program,
+        &strings(args),
+        &pairs(env),
+        timeout_ms,
+        cwd,
+        java_major,
+    )?;
     Ok(Output {
         status: output.status,
         stdout: output.stdout,
@@ -89,7 +100,22 @@ pub fn exec_with(
 /// process id, which stays valid after the daemon restarts. `env` may only
 /// name variables the program declares.
 pub fn spawn(program: &str, args: &[&str], env: &[(&str, &str)]) -> Result<String, Error> {
-    Ok(host::spawn(program, &strings(args), &pairs(env))?)
+    spawn_on_java(program, args, env, None)
+}
+
+/// [`spawn`] on `java_major`, for a program declared with a Java range.
+pub fn spawn_on_java(
+    program: &str,
+    args: &[&str],
+    env: &[(&str, &str)],
+    java_major: Option<u32>,
+) -> Result<String, Error> {
+    Ok(host::spawn(
+        program,
+        &strings(args),
+        &pairs(env),
+        java_major,
+    )?)
 }
 
 /// Asks one of the plugin's own processes to stop. A process the plugin did

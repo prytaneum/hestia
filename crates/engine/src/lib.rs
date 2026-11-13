@@ -70,15 +70,16 @@ pub use minecraft::{
 pub use net::Network;
 pub use plugins::{
     approval_digest, command_args, find_command, is_official_signer, key_id_of, owner_of,
-    refuse_official_key, resolve_on_path, revocation, target_triple, unregister_providers,
-    verify_build, verify_index, Approver, BeforeLaunch, BundleRefusal, CallChain, CallContext,
-    CallError, ChainError, CommandRun, Contributions, GuestError, Hook, HookOutcome, Hooks,
-    HostCalls, Inspection, LaunchPatch, Listings, LoadError, LoadedPlugin, ManagedJava, Mount,
-    Origin, Participant, PluginContentProvider, PluginFlavorProvider, PluginFormat,
-    PluginJavaProvider, PluginPackage, PluginRecord, PluginRuntime, PluginSettings, PluginStats,
-    Plugins, Pushed, Remote, RepoError, Roster, Seeded, SettingsError, Staged, UpdateOutcome,
-    UpdateRequest, CANCEL_GRACE, COMMAND_TIMEOUT, EVENT_TIMEOUT, HOOK_TIMEOUT, MAX_ASSET_BYTES,
-    MAX_CHAIN_DEPTH, MAX_DOWNLOAD_BYTES, PROVIDER_TIMEOUT, UI_TIMEOUT,
+    pin_on_path, refuse_official_key, resolve_on_path, revocation, target_triple,
+    unregister_providers, verify_build, verify_index, Approver, BeforeLaunch, BundleRefusal,
+    CallChain, CallContext, CallError, ChainError, CommandRun, Contributions, GuestError, Hook,
+    HookOutcome, Hooks, HostCalls, Inspection, LaunchPatch, Listings, LoadError, LoadedPlugin,
+    ManagedJava, Mount, Origin, Participant, PluginContentProvider, PluginFlavorProvider,
+    PluginFormat, PluginJavaProvider, PluginPackage, PluginRecord, PluginRuntime, PluginSettings,
+    PluginStats, Plugins, Pushed, Remote, RepoError, Resolver, Roster, Seeded, SettingsError,
+    Staged, UpdateOutcome, UpdateRequest, CANCEL_GRACE, COMMAND_TIMEOUT, EVENT_TIMEOUT,
+    HOOK_TIMEOUT, MAX_ASSET_BYTES, MAX_CHAIN_DEPTH, MAX_DOWNLOAD_BYTES, PROVIDER_TIMEOUT,
+    UI_TIMEOUT,
 };
 pub use presence::Presence;
 pub use process::{ExitObserver, ProcessEvents, ProcessSupervisor, StartError};

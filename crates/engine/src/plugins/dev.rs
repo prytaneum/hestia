@@ -41,8 +41,8 @@ impl Plugins {
             .read_manifest()
             .map_err(|error| invalid(format!("{error:#}")))?;
         let grant = manifest.grant();
-        let program_paths = self.pin(&manifest.id, &manifest);
-        let grant_digest = approval_digest(&grant, &program_paths);
+        let program_pins = self.pin(&manifest.id, &manifest);
+        let grant_digest = approval_digest(&grant, &program_pins);
         if grant_digest != approve {
             tracing::warn!(plugin = %manifest.id, "dev install refused: the grant is not the one approved");
             bail!(ErrorInfo::PluginApprovalStale);
@@ -65,7 +65,7 @@ impl Plugins {
             dev_official: official,
             wasm_sha256,
             theme_sha256,
-            program_paths,
+            program_pins,
             grant,
             grant_digest,
             enabled: installed.is_none_or(|record| record.enabled),

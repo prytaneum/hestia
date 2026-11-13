@@ -11,13 +11,13 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use engine::{
-    command_args, CallChain, CallError, Cancel, CommandRun, GuestError, HostCalls, LoadedPlugin,
-    PluginRecord, PluginRuntime, PluginSettings, ProcessSupervisor,
+    command_args, pin_on_path, CallChain, CallError, Cancel, CommandRun, GuestError, HostCalls,
+    LoadedPlugin, PluginRecord, PluginRuntime, PluginSettings, ProcessSupervisor,
 };
 use proto::error::{ErrorInfo, Service};
 use proto::plugin::{
     CommandArg, CommandArgKind, CommandContribution, CommandScope, Grant, PageContext, Permission,
-    PermissionScope, PluginRunProgress, ScopeKind, Setting, SettingKind, Touched,
+    PermissionScope, PluginRunProgress, ProgramPin, ScopeKind, Setting, SettingKind, Touched,
 };
 use proto::ui::{Action, Effect, UiNode};
 use serde_json::{json, Value};
@@ -28,6 +28,7 @@ use crate::fixture::probe;
 
 const CALL_BUDGET: Duration = Duration::from_secs(30);
 
+#[derive(Default)]
 struct ReadChannels {
     setting_changes: Arc<AtomicUsize>,
 }
@@ -119,20 +120,28 @@ impl Probe {
         Probe::load_with(grant, BTreeMap::new())
     }
 
-    fn load_with(grant: Grant, program_paths: BTreeMap<String, PathBuf>) -> Probe {
+    fn load_with(grant: Grant, program_pins: BTreeMap<String, ProgramPin>) -> Probe {
+        let changes = Arc::new(AtomicUsize::new(0));
+        let host = Arc::new(ReadChannels {
+            setting_changes: changes.clone(),
+        });
+        Probe::load_resolving(grant, program_pins, |_| None, host, changes)
+    }
+
+    fn load_resolving(
+        grant: Grant,
+        program_pins: BTreeMap<String, ProgramPin>,
+        resolver: engine::Resolver,
+        host: Arc<dyn HostCalls>,
+        changes: Arc<AtomicUsize>,
+    ) -> Probe {
         let wasm = std::fs::read(probe::component()).unwrap();
         let data = tempfile::tempdir().unwrap();
         let supervisor = Arc::new(ProcessSupervisor::new(data.path().join("processes")));
-        let changes = Arc::new(AtomicUsize::new(0));
-        let runtime = PluginRuntime::new(
-            Arc::new(ReadChannels {
-                setting_changes: changes.clone(),
-            }),
-            data.path().join("cache"),
-            supervisor.clone(),
-        )
-        .unwrap()
-        .with_download_cache(Arc::new(engine::Cache::new(data.path().join("downloads"))));
+        let runtime = PluginRuntime::new(host, data.path().join("cache"), supervisor.clone())
+            .unwrap()
+            .with_resolver(resolver)
+            .with_download_cache(Arc::new(engine::Cache::new(data.path().join("downloads"))));
         let record = PluginRecord {
             id: "probe".into(),
             wasm_sha256: Some(
@@ -142,7 +151,7 @@ impl Probe {
                     .collect(),
             ),
             grant,
-            program_paths,
+            program_pins,
             ..PluginRecord::default()
         };
         let dir = data.path().join("data");
@@ -863,14 +872,60 @@ mod programs {
         }
     }
 
-    fn pinned(programs: &[&Program]) -> BTreeMap<String, PathBuf> {
+    fn pinned(programs: &[&Program]) -> BTreeMap<String, ProgramPin> {
         programs
             .iter()
             .map(|program| {
-                let path = resolve_on_path(&program.command).expect("on PATH");
-                (program.id.clone(), path)
+                let pin = pin_on_path(&program.command).expect("on PATH");
+                (program.id.clone(), pin)
             })
             .collect()
+    }
+
+    struct Flagging {
+        flagged: std::sync::Mutex<Vec<(String, String)>>,
+    }
+
+    #[async_trait]
+    impl HostCalls for Flagging {
+        fn permission(&self, channel: &str) -> Option<Permission> {
+            ReadChannels::default().permission(channel)
+        }
+
+        fn touched(&self, channel: &str, payload: &Value) -> Touched {
+            ReadChannels::default().touched(channel, payload)
+        }
+
+        async fn call(
+            &self,
+            plugin: &str,
+            chain: &CallChain,
+            channel: &str,
+            payload: Value,
+        ) -> Result<Value, ErrorInfo> {
+            ReadChannels::default()
+                .call(plugin, chain, channel, payload)
+                .await
+        }
+
+        async fn run_job(
+            &self,
+            plugin: &str,
+            chain: &CallChain,
+            channel: &str,
+            payload: Value,
+        ) -> Result<Value, ErrorInfo> {
+            ReadChannels::default()
+                .run_job(plugin, chain, channel, payload)
+                .await
+        }
+
+        fn needs_approval(&self, plugin: &str, program: &str) {
+            self.flagged
+                .lock()
+                .unwrap()
+                .push((plugin.into(), program.into()));
+        }
     }
 
     async fn call(probe: &Probe, command: &str, args: Value) -> Result<Value, CallError> {
@@ -886,7 +941,13 @@ mod programs {
 
     #[tokio::test]
     async fn a_declared_program_missing_from_this_machine_is_a_missing_requirement() {
-        let echo = on_path("echo", "echo", &["hello", "*"], &[]);
+        let echo = Program {
+            requires: Some(proto::minecraft::Requirement {
+                name: "Echo".into(),
+                url: "https://example.com/echo".into(),
+            }),
+            ..on_path("echo", "echo", &["hello", "*"], &[])
+        };
         let probe = Probe::load_with(spawning(vec![echo]), BTreeMap::new());
 
         let outcome = call(
@@ -896,11 +957,148 @@ mod programs {
         )
         .await;
 
+        let Err(CallError::Guest(GuestError::MissingRequirement { name, url })) = outcome else {
+            panic!("{outcome:?}");
+        };
+        assert_eq!(name, "Echo");
+        assert_eq!(url.as_deref(), Some("https://example.com/echo"));
+    }
+
+    #[tokio::test]
+    async fn a_program_without_a_declared_requirement_is_named_by_its_command() {
+        let echo = on_path("echo", "echo", &["**"], &[]);
+        let probe = Probe::load_with(spawning(vec![echo]), BTreeMap::new());
+
+        let outcome = call(&probe, "exec", json!({ "program": "echo", "args": [] })).await;
+
         let Err(CallError::Guest(GuestError::MissingRequirement { name, url: None })) = outcome
         else {
             panic!("{outcome:?}");
         };
         assert_eq!(name, "echo");
+    }
+
+    #[tokio::test]
+    async fn a_program_found_only_after_approval_never_runs_and_flags_the_plugin() {
+        let echo = on_path("echo", "echo", &["**"], &[]);
+        let host = Arc::new(Flagging {
+            flagged: Default::default(),
+        });
+        let probe = Probe::load_resolving(
+            spawning(vec![echo]),
+            BTreeMap::new(),
+            pin_on_path,
+            host.clone(),
+            Arc::default(),
+        );
+
+        let outcome = call(&probe, "exec", json!({ "program": "echo", "args": ["hi"] })).await;
+
+        assert!(refused(outcome).contains("approve"));
+        assert_eq!(
+            *host.flagged.lock().unwrap(),
+            [("probe".to_string(), "echo".to_string())]
+        );
+        assert!(probe.supervisor.list().is_empty());
+    }
+
+    #[tokio::test]
+    async fn an_approved_pin_runs_without_flagging_the_plugin() {
+        let echo = on_path("echo", "echo", &["**"], &[]);
+        let host = Arc::new(Flagging {
+            flagged: Default::default(),
+        });
+        let probe = Probe::load_resolving(
+            spawning(vec![echo.clone()]),
+            pinned(&[&echo]),
+            pin_on_path,
+            host.clone(),
+            Arc::default(),
+        );
+
+        let ran = call(&probe, "exec", json!({ "program": "echo", "args": ["hi"] }))
+            .await
+            .unwrap();
+
+        assert_eq!(ran["stdout"], json!("hi\n"));
+        assert!(host.flagged.lock().unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn one_program_runs_under_whichever_of_its_invocations_the_call_fits() {
+        let multi = Program {
+            args: vec![],
+            invocations: vec![
+                proto::plugin::Invocation {
+                    name: "say".into(),
+                    args: vec!["say".into(), "*".into()],
+                    ..Default::default()
+                },
+                proto::plugin::Invocation {
+                    name: "plain".into(),
+                    args: vec!["plain".into()],
+                    ..Default::default()
+                },
+            ],
+            ..on_path("echo", "echo", &[], &[])
+        };
+        let probe = Probe::load_with(spawning(vec![multi.clone()]), pinned(&[&multi]));
+
+        for (args, shown) in [
+            (json!(["say", "a"]), "say a\n"),
+            (json!(["plain"]), "plain\n"),
+        ] {
+            let ran = call(&probe, "exec", json!({ "program": "echo", "args": args }))
+                .await
+                .unwrap();
+            assert_eq!(ran["stdout"], json!(shown));
+        }
+        let outside = call(
+            &probe,
+            "exec",
+            json!({ "program": "echo", "args": ["plain", "x"] }),
+        )
+        .await;
+        assert!(refused(outside).contains("outside"));
+    }
+
+    #[tokio::test]
+    async fn a_java_major_is_chosen_inside_the_declared_range_only() {
+        let tool = Program {
+            command: String::new(),
+            java: Some(proto::plugin::ProgramJava::Range(
+                proto::plugin::JavaRange { min: 17, max: 21 },
+            )),
+            ..on_path("tool", "", &["-version"], &[])
+        };
+        let probe = Probe::load_with(spawning(vec![tool]), BTreeMap::new());
+
+        for major in [8, 22] {
+            let outcome = call(
+                &probe,
+                "exec",
+                json!({ "program": "tool", "args": ["-version"], "javaMajor": major }),
+            )
+            .await;
+            assert!(refused(outcome).contains("outside"), "{major}");
+        }
+        let unnamed = call(
+            &probe,
+            "exec",
+            json!({ "program": "tool", "args": ["-version"] }),
+        )
+        .await;
+        assert!(refused(unnamed).contains("which major"));
+        let inside = call(
+            &probe,
+            "exec",
+            json!({ "program": "tool", "args": ["-version"], "javaMajor": 21 }),
+        )
+        .await;
+        let Err(CallError::Guest(GuestError::Failed(message))) = inside else {
+            panic!("a major inside the range reaches the managed runtimes: {inside:?}");
+        };
+        assert!(message.contains("Java 21"), "{message}");
     }
 
     #[tokio::test]
@@ -1048,8 +1246,14 @@ mod programs {
         let shell = shell(&["mytool"]);
         let mut paths = pinned(&[]);
         paths.extend([
-            ("mytool".to_string(), tool),
-            ("shell".to_string(), resolve_on_path("sh").unwrap()),
+            (
+                "mytool".to_string(),
+                ProgramPin {
+                    path: tool.to_string_lossy().into_owned(),
+                    sha256: sha256_of("true"),
+                },
+            ),
+            ("shell".to_string(), pin_on_path("sh").unwrap()),
         ]);
         let probe = Probe::load_with(spawning(vec![shell, mytool]), paths);
 

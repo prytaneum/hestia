@@ -225,14 +225,21 @@ fn every_case_survives_the_trip_through_the_wire_type() {
 }
 
 #[test]
-fn a_program_that_is_not_installed_is_a_missing_requirement_without_a_url() {
+fn a_program_that_is_not_installed_is_a_missing_requirement_with_its_name_and_url() {
     assert_eq!(
-        GuestError::from(ProgramError::Missing("git".into())),
+        GuestError::from(ProgramError::Missing {
+            name: "Git".into(),
+            url: Some("https://git-scm.com/downloads".into()),
+        }),
         GuestError::MissingRequirement {
-            name: "git".into(),
-            url: None
+            name: "Git".into(),
+            url: Some("https://git-scm.com/downloads".into())
         }
     );
+    assert!(matches!(
+        GuestError::from(ProgramError::Unapproved("git".into())),
+        GuestError::Denied(message) if message.contains("approve")
+    ));
     assert!(matches!(
         GuestError::from(ProgramError::Denied("no".into())),
         GuestError::Denied(_)

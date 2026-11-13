@@ -5,7 +5,7 @@ use sha2::{Digest, Sha256};
 
 use super::permission::{Permission, Tier};
 use super::scope::{PermissionScope, ScopeKind};
-use super::{Program, ScheduleContribution};
+use super::{Program, ProgramPin, ScheduleContribution};
 
 /// Everything a user approves, canonical and sorted: each permission with the
 /// scope it reaches, and what the manifest contributes. Approval, widening and
@@ -31,13 +31,13 @@ pub struct Grant {
 
 impl Grant {
     /// What a user approves: hex sha256 of the canonical JSON of the grant
-    /// together with the absolute path each `PATH` program is pinned to
+    /// together with the path and content hash each `PATH` program is pinned to
     /// ([0101](../../../../docs/decisions/0101-plugins-spawn-only-declared-programs.md)).
     /// The only place the digest is computed.
-    pub fn approval_digest(&self, program_paths: &BTreeMap<String, String>) -> String {
+    pub fn approval_digest(&self, program_pins: &BTreeMap<String, ProgramPin>) -> String {
         let canonical = serde_json::to_vec(&serde_json::json!({
             "grant": self,
-            "programPaths": program_paths,
+            "programPins": program_pins,
         }))
         .expect("an approval is plain data");
         Sha256::digest(canonical)

@@ -11,7 +11,7 @@ path: string,
 staged: string, 
 /**
  * The digest the user approved; the install refuses a package whose
- * grant, or whose programs' resolved paths, digest differently.
+ * grant, or whose programs' resolved pins, digest differently.
  */
 approve: string, 
 /**

@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 
 use anyhow::{bail, Context, Result};
 use client::proto::catalogue::{Availability, CatalogueParams, CataloguePlugin};
-use client::proto::plugin::{Grant, PermissionScope, PluginInspection, Tier};
+use client::proto::plugin::{Grant, PermissionScope, PluginInspection, ProgramPin, Tier};
 
 use super::{browse, store};
 use crate::ui::{self, Spinner, View};
@@ -239,7 +239,8 @@ pub(super) fn show_grant(inspection: &PluginInspection) -> Result<()> {
         ),
     };
     ui::show(View::line(heading))?;
-    let rows = grant_rows(grant, &inspection.program_paths);
+    let mut rows = grant_rows(grant, &inspection.program_pins);
+    rows.extend(unpinned_rows(&inspection.grant, &inspection.program_pins));
     if rows.is_empty() {
         return ui::show(View::note(match inspection.replaces {
             Some(_) => "asks for nothing new",
@@ -254,7 +255,7 @@ pub(super) fn show_grant(inspection: &PluginInspection) -> Result<()> {
 
 fn grant_rows(
     grant: &Grant,
-    program_paths: &BTreeMap<String, String>,
+    program_pins: &BTreeMap<String, ProgramPin>,
 ) -> Vec<(&'static str, String)> {
     let (unrestricted, sandboxed): (Vec<_>, Vec<_>) = grant
         .permissions
@@ -271,12 +272,40 @@ fn grant_rows(
         }
     }
     rows.extend(scope_rows(&grant.contributions));
-    rows.extend(
-        program_paths
-            .iter()
-            .map(|(id, path)| ("Pinned", format!("{id} → {path}"))),
-    );
+    rows.extend(program_pins.iter().map(|(id, pin)| {
+        (
+            "Pinned",
+            format!("{id} → {} (sha256 {})", pin.path, short_hash(&pin.sha256)),
+        )
+    }));
     rows
+}
+
+fn short_hash(sha256: &str) -> &str {
+    sha256.get(..12).unwrap_or(sha256)
+}
+
+/// The `PATH` programs the grant lists that this computer does not have, which
+/// the approval cannot pin: they run only after the plugin is approved again
+/// with the program installed.
+fn unpinned_rows(
+    grant: &Grant,
+    program_pins: &BTreeMap<String, ProgramPin>,
+) -> Vec<(&'static str, String)> {
+    grant
+        .programs
+        .values()
+        .filter(|program| program.on_path() && !program_pins.contains_key(&program.id))
+        .map(|program| {
+            (
+                "Not found",
+                format!(
+                    "{} → `{}` is not on this computer; it cannot run until you approve again with it installed",
+                    program.id, program.command
+                ),
+            )
+        })
+        .collect()
 }
 
 fn scope_rows(scope: &PermissionScope) -> impl Iterator<Item = (&'static str, String)> + '_ {

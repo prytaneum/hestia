@@ -23,7 +23,7 @@ const INFO: FlavorInfo = FlavorInfo {
         "A light, fast-moving mod loader. Usually the first to support a new Minecraft version.",
     ),
     loads: Some(ContentKind::Mod),
-    requires: &[],
+    requires: Cow::Borrowed(&[]),
     sides: BOTH_SIDES,
     mrpack_key: Some(Cow::Borrowed("fabric-loader")),
     prism_uid: Some(Cow::Borrowed("net.fabricmc.fabric-loader")),

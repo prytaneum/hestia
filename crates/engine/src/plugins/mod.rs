@@ -19,6 +19,7 @@ mod http;
 mod imports;
 mod index;
 mod install;
+mod invocation;
 mod ipc;
 mod lock;
 mod official;
@@ -60,7 +61,10 @@ pub use ipc::Pushed;
 pub use official::{is_official_signer, refuse_official_key};
 pub use patch::LaunchPatch;
 pub use process::owner_of;
-pub use program::{approval_digest, resolve_on_path, target_triple, ManagedJava};
+pub use program::{
+    approval_digest, pin_on_path, prerequisites, resolve_on_path, target_triple, ManagedJava,
+    Resolver,
+};
 pub use providers::{
     unregister as unregister_providers, Contributions, PluginContentProvider, PluginFlavorProvider,
     PluginFormat, PluginJavaProvider,

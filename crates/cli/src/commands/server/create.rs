@@ -93,7 +93,8 @@ pub(super) async fn run(client: &Client, args: CreateArgs) -> Result<()> {
         bail!("pass --eula to accept the Minecraft EULA ({EULA_URL})");
     }
     let flavors = mc::fetch_flavors(client, EntryKind::Server).await?;
-    let flavor = mc::pick_flavor(flavors, args.flavor)?;
+    let flavor = mc::pick_flavor(flavors.clone(), args.flavor)?;
+    mc::ensure_requirements(&flavors, &flavor)?;
     let versions = mc::fetch_versions(client, EntryKind::Server, &flavor).await?;
     let version = mc::pick_version(versions, args.version)?;
     let name = args.name.unwrap_or_else(|| format!("{flavor}-{version}"));

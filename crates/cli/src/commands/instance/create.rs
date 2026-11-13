@@ -25,7 +25,8 @@ pub(super) async fn run(
         return run_wizard(client, flavor, version, loader, name, memory).await;
     }
     let flavors = mc::fetch_flavors(client, EntryKind::Instance).await?;
-    let flavor = mc::pick_flavor(flavors, flavor)?;
+    let flavor = mc::pick_flavor(flavors.clone(), flavor)?;
+    mc::ensure_requirements(&flavors, &flavor)?;
     let versions = mc::fetch_versions(client, EntryKind::Instance, &flavor).await?;
     let version = mc::pick_version(versions, version)?;
     let name = name.unwrap_or_else(|| format!("{flavor}-{version}"));

@@ -37,6 +37,8 @@ use crate::roster::{Live, RegisterError, Roster};
 use profile::{InstanceProfile, ServerProfile};
 
 pub use loaders::Loaders;
+#[cfg(test)]
+pub(crate) use provider::unmet_by;
 pub use provider::{accepted_kinds, unmet, InstallRequest, Prerequisite, Side};
 pub use provider::{FlavorInfo, FlavorProvider, Loads, ResolveRequest};
 pub use provider::{BOTH_SIDES, CLIENT_ONLY, SERVER_ONLY};
@@ -123,10 +125,10 @@ impl Minecraft {
     /// What a flavor needs on the machine. Whether it is *there* is a question
     /// about this computer, not about the catalogue — `Engine::flavors`
     /// answers that.
-    pub fn requires(&self, side: Side, flavor: &str) -> &'static [Prerequisite] {
+    pub fn requires(&self, side: Side, flavor: &str) -> Vec<Prerequisite> {
         self.provider(side, flavor)
-            .map(|p| p.info().requires)
-            .unwrap_or(&[])
+            .map(|p| p.info().requires.to_vec())
+            .unwrap_or_default()
     }
 
     /// The content kind a flavor's own loader consumes. An unregistered

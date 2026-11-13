@@ -25,7 +25,7 @@ use super::REQUIRED_JAVA_MAJORS;
 pub(crate) const PREREQUISITES: &[Prerequisite] = if cfg!(windows) {
     &[]
 } else {
-    &[Prerequisite::Git]
+    &[Prerequisite::GIT]
 };
 
 /// What the versions predating the hub's `javaVersions` field (the 1.8 line and
@@ -81,7 +81,7 @@ impl BuildTools {
                 name: Cow::Borrowed("CraftBukkit"),
                 summary: Cow::Borrowed("The plugin server Spigot is built on, without its speed-ups. Pick Spigot unless you need this exactly."),
                 loads: Some(ContentKind::Plugin),
-                requires: PREREQUISITES,
+                requires: Cow::Borrowed(PREREQUISITES),
                 sides: SERVER_ONLY,
                 mrpack_key: None,
                 prism_uid: None,
@@ -97,7 +97,7 @@ impl BuildTools {
                 name: Cow::Borrowed("Spigot"),
                 summary: Cow::Borrowed("The classic plugin server, with the largest plugin library. Nobody may hand it out ready-made, so Hestia builds it here the first time — allow a few minutes."),
                 loads: Some(ContentKind::Plugin),
-                requires: PREREQUISITES,
+                requires: Cow::Borrowed(PREREQUISITES),
                 sides: SERVER_ONLY,
                 mrpack_key: None,
                 prism_uid: None,

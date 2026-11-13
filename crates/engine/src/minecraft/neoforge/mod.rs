@@ -38,7 +38,7 @@ const INFO: FlavorInfo = FlavorInfo {
     name: Cow::Borrowed("NeoForge"),
     summary: Cow::Borrowed("Mod loader for big, content-heavy modpacks. The first launch prepares the game files, so it takes a few minutes."),
     loads: Some(ContentKind::Mod),
-    requires: &[],
+    requires: Cow::Borrowed(&[]),
     sides: BOTH_SIDES,
     mrpack_key: Some(Cow::Borrowed("neoforge")),
     prism_uid: Some(Cow::Borrowed("net.neoforged")),

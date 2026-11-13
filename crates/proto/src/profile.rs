@@ -146,6 +146,10 @@ pub struct FlavorDescription {
     pub loads: Option<ContentKind>,
     pub server: bool,
     pub client: bool,
+    /// Ids of the plugin's own `[[programs]]` the flavor needs on this computer
+    /// before it can build or install. The host checks them when it lists the
+    /// flavor, so a front-end can say what is missing before a build starts.
+    pub requires: Vec<String>,
     /// The key under which a Modrinth pack (`.mrpack`) names this flavor's
     /// loader in its `dependencies`.
     #[serde(skip_serializing_if = "Option::is_none")]

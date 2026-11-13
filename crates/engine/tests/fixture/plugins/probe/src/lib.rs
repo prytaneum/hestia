@@ -34,6 +34,8 @@ struct Program {
     env: std::collections::BTreeMap<String, String>,
     #[serde(default, rename = "timeoutMs")]
     timeout_ms: Option<u64>,
+    #[serde(default, rename = "javaMajor")]
+    java_major: Option<u32>,
 }
 
 #[derive(Deserialize)]
@@ -214,6 +216,7 @@ impl Plugin for Probe {
                     &env,
                     timeout,
                     None,
+                    call.java_major,
                 )?;
                 Ok(json!({
                     "status": output.status,
@@ -226,7 +229,7 @@ impl Plugin for Probe {
                     .iter()
                     .map(|(name, value)| (name.as_str(), value.as_str()))
                     .collect();
-                hestia::process::spawn(&call.program, &refs(&call.args), &env)
+                hestia::process::spawn_on_java(&call.program, &refs(&call.args), &env, call.java_major)
             })
             .on("bump", |call: Bump| {
                 hestia::data::update(&call.name, |count: &mut u32| {

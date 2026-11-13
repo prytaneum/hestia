@@ -122,8 +122,8 @@ impl Plugins {
                     bail!("{version} asks for more than {current} was approved for; update it to approve");
                 }
                 let moved = changed_pins(
-                    &installed.program_paths,
-                    &inspection.program_paths,
+                    &installed.program_pins,
+                    &inspection.program_pins,
                     &inspection.manifest,
                 );
                 if !moved.is_empty() {

@@ -1,16 +1,20 @@
 //! How a declared program becomes a path the host will execute: a `PATH` name
-//! pinned when the grant is approved, or a data-directory file copied into a
-//! host-owned directory and verified there
-//! ([0101](../../../../docs/decisions/0101-plugins-spawn-only-declared-programs.md)).
+//! pinned (path and content hash) when the grant is approved, a managed Java of
+//! a major the call picks, or a data-directory file copied into a host-owned
+//! directory and verified there
+//! ([0101](../../../../docs/decisions/0101-plugins-spawn-only-declared-programs.md),
+//! [0118](../../../../docs/decisions/0118-a-programs-identity-is-separate-from-its-invocations.md)).
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
-use proto::plugin::{Grant, Manifest, Program};
+use proto::minecraft::Requirement;
+use proto::plugin::{Grant, Manifest, Program, ProgramPin};
 use sha2::Sha256;
 
 use crate::checksum::digest_file;
+use crate::minecraft::Prerequisite;
 
 #[cfg(windows)]
 const EXE_SUFFIX: &str = ".exe";
@@ -75,33 +79,41 @@ pub fn resolve_on_path(name: &str) -> Option<PathBuf> {
         .find(|candidate| is_executable(candidate))
 }
 
-/// Program id to the absolute path its `PATH` name was resolved to.
-pub type Pins = BTreeMap<String, PathBuf>;
+/// Program id to where its `PATH` name was resolved and the hash of the file.
+pub type Pins = BTreeMap<String, ProgramPin>;
 
-/// How a `PATH` name becomes a path; a plugin store holds one so tests need
-/// not read the real `PATH`.
-pub type Resolver = fn(&str) -> Option<PathBuf>;
+/// How a `PATH` name becomes a pin; a plugin store holds one so tests need not
+/// read the real `PATH`.
+pub type Resolver = fn(&str) -> Option<ProgramPin>;
+
+/// Resolves `name` on `PATH` and hashes the file found there.
+pub fn pin_on_path(name: &str) -> Option<ProgramPin> {
+    let path = resolve_on_path(name)?;
+    match digest_file::<Sha256>(&path) {
+        Ok(sha256) => Some(ProgramPin {
+            path: path.to_string_lossy().into_owned(),
+            sha256,
+        }),
+        Err(error) => {
+            tracing::warn!(path = %path.display(), %error, "cannot hash a program found on PATH");
+            None
+        }
+    }
+}
 
 /// The digest a user approves and a record stores: the grant together with the
-/// path each `PATH` program is pinned to. Preview, install, update and load all
-/// derive it here, so none of them can disagree about what was approved.
+/// path and hash each `PATH` program is pinned to. Preview, install, update and
+/// load all derive it here, so none of them can disagree about what was approved.
 pub fn approval_digest(grant: &Grant, pins: &Pins) -> String {
-    let paths = pins
-        .iter()
-        .map(|(id, path)| (id.clone(), path.to_string_lossy().into_owned()))
-        .collect();
-    grant.approval_digest(&paths)
+    grant.approval_digest(pins)
 }
 
 fn path_programs(manifest: &Manifest) -> impl Iterator<Item = &Program> {
-    manifest
-        .programs
-        .iter()
-        .filter(|p| !p.in_data_dir() && p.java.is_none())
+    manifest.programs.iter().filter(|p| p.on_path())
 }
 
 /// The ids of programs `manifest` declares that `installed` pinned and `fresh`
-/// would pin elsewhere or not at all.
+/// would pin elsewhere, to a file with other content, or not at all.
 pub fn changed_pins(installed: &Pins, fresh: &Pins, manifest: &Manifest) -> Vec<String> {
     path_programs(manifest)
         .filter_map(|program| {
@@ -122,25 +134,57 @@ pub fn carried_pins(installed: &Pins, manifest: &Manifest) -> Pins {
         .collect()
 }
 
-/// The absolute path each `PATH` program of `manifest` resolves to now, at
-/// approval: the only path that program will ever run from. One not found is
-/// left out, so it cannot run until the plugin is approved again.
+/// The pin each `PATH` program of `manifest` resolves to now, at approval: the
+/// only file that program will ever run. One not found is left out, unpinned:
+/// it cannot run until the plugin is approved again with the program present.
 pub fn pin_programs(plugin: &str, manifest: &Manifest, resolve: Resolver) -> Pins {
     let mut pinned = BTreeMap::new();
     for program in path_programs(manifest) {
         match resolve(&program.command) {
-            Some(path) => {
-                tracing::info!(plugin, program = %program.id, path = %path.display(), "program pinned");
-                pinned.insert(program.id.clone(), path);
+            Some(pin) => {
+                tracing::info!(plugin, program = %program.id, path = %pin.path, "program pinned");
+                pinned.insert(program.id.clone(), pin);
             }
             None => tracing::warn!(
                 plugin,
                 program = %program.id,
-                "program not found on PATH; it cannot run until the plugin is installed again"
+                "program not found on PATH; it cannot run until the plugin is approved again with it installed"
             ),
         }
     }
     pinned
+}
+
+/// What the user is told is missing for `program`: its declared requirement,
+/// or its command when it declares none.
+pub fn requirement_of(program: &Program) -> Requirement {
+    program.requires.clone().unwrap_or_else(|| Requirement {
+        name: program.identity_label(),
+        url: String::new(),
+    })
+}
+
+/// What a flavor that requires the programs `ids` needs on this computer. Only
+/// a `PATH` program can be unmet: a managed Java is installed on demand and a
+/// data file is checked when it is staged, so those name nothing to check. An
+/// id the plugin is not granted to run is an error, since the flavor could
+/// never run it.
+pub fn prerequisites(grant: &Grant, ids: &[String]) -> Result<Vec<Prerequisite>, String> {
+    let mut required = Vec::new();
+    for id in ids {
+        let program = grant.program(id).ok_or_else(|| {
+            format!("requires `{id}`, which is not a program the plugin is granted to run")
+        })?;
+        if program.on_path() {
+            let requirement = requirement_of(program);
+            required.push(Prerequisite {
+                command: program.command.clone().into(),
+                name: requirement.name.into(),
+                url: requirement.url.into(),
+            });
+        }
+    }
+    Ok(required)
 }
 
 /// Whether `path` is a regular file the host may run.
@@ -220,4 +264,80 @@ fn make_executable(path: &Path) -> std::io::Result<()> {
 #[cfg(not(unix))]
 fn make_executable(_path: &Path) -> std::io::Result<()> {
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::BTreeMap;
+
+    use proto::plugin::{Permission, PermissionScope, ProgramJava};
+
+    use super::*;
+    use crate::minecraft::unmet_by;
+
+    fn git() -> Program {
+        Program {
+            id: "git".into(),
+            command: "git".into(),
+            args: vec!["**".into()],
+            requires: Some(Requirement {
+                name: "Git".into(),
+                url: "https://git-scm.com/downloads".into(),
+            }),
+            ..Program::default()
+        }
+    }
+
+    fn granting(programs: Vec<Program>) -> Grant {
+        Grant {
+            permissions: BTreeMap::from([(Permission::ProcessSpawn, PermissionScope::default())]),
+            programs: programs
+                .into_iter()
+                .map(|program| (program.id.clone(), program))
+                .collect(),
+            ..Grant::default()
+        }
+    }
+
+    #[test]
+    fn a_flavor_requires_the_path_programs_it_names() {
+        let java = Program {
+            id: "jvm".into(),
+            command: String::new(),
+            java: Some(ProgramJava::Major(21)),
+            ..Program::default()
+        };
+        let grant = granting(vec![git(), java]);
+
+        let required = prerequisites(&grant, &["git".into(), "jvm".into()]).unwrap();
+
+        assert_eq!(required.len(), 1, "a managed Java is installed on demand");
+        assert_eq!(required[0].command, "git");
+        assert_eq!(required[0].name, "Git");
+        assert_eq!(required[0].url, "https://git-scm.com/downloads");
+        assert!(prerequisites(&grant, &["nope".into()]).is_err());
+        assert!(prerequisites(&Grant::default(), &["git".into()]).is_err());
+    }
+
+    #[test]
+    fn a_requirement_is_met_or_missing_by_what_the_resolver_finds() {
+        let required = prerequisites(&granting(vec![git()]), &["git".into()]).unwrap();
+
+        assert!(unmet_by(&required, |_| true).is_empty());
+        let missing = unmet_by(&required, |_| false);
+        assert_eq!(missing.len(), 1);
+        assert_eq!(missing[0].name, "Git");
+        assert_eq!(missing[0].url, "https://git-scm.com/downloads");
+    }
+
+    #[test]
+    fn a_program_without_a_declared_requirement_is_named_by_its_command() {
+        let bare = Program {
+            requires: None,
+            ..git()
+        };
+        let requirement = requirement_of(&bare);
+        assert_eq!(requirement.name, "git");
+        assert_eq!(requirement.url, "");
+    }
 }

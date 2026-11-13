@@ -18,7 +18,7 @@ const INFO: FlavorInfo = FlavorInfo {
     name: Cow::Borrowed("Vanilla"),
     summary: Cow::Borrowed("Mojang's game, unchanged. Takes datapacks only — no mods or plugins."),
     loads: None,
-    requires: &[],
+    requires: Cow::Borrowed(&[]),
     sides: BOTH_SIDES,
     mrpack_key: None,
     prism_uid: None,

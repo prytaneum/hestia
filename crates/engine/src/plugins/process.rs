@@ -11,14 +11,16 @@ use std::process::Stdio;
 use std::sync::Arc;
 use std::time::Duration;
 
-use proto::plugin::{Grant, Permission, Program};
+use proto::plugin::{Grant, Invocation, Permission, Program};
 use proto::process::{ProcessInfo, ProcessSpec, ProcessState};
 use tokio::io::{AsyncRead, AsyncReadExt};
 use tokio::process::Command;
 use tokio::time::Instant;
 
 use super::context::Mount;
-use super::program::{self, ManagedJava, StageError};
+use super::imports::HostCalls;
+use super::invocation::{self, Call, Selection};
+use super::program::{self, ManagedJava, Pins, Resolver, StageError};
 use crate::cancel::Cancel;
 use crate::process::identity::Tree;
 use crate::process::ProcessSupervisor;
@@ -39,8 +41,10 @@ pub(crate) enum ProgramError {
     NotFound(String),
     #[error("{0}")]
     Invalid(String),
-    #[error("`{0}` is not installed on this computer")]
-    Missing(String),
+    #[error("`{name}` is not installed on this computer")]
+    Missing { name: String, url: Option<String> },
+    #[error("`{0}` was not on this computer when the plugin was approved; approve the plugin again to pin it")]
+    Unapproved(String),
     #[error("{0}")]
     Failed(String),
 }
@@ -57,6 +61,17 @@ pub(crate) struct CallScope<'a> {
     pub mounts: &'a [Mount],
     pub deadline: Instant,
     pub cancel: Option<&'a Cancel>,
+    pub game_java: Option<u32>,
+}
+
+/// What a guest's `exec` asked for.
+pub(crate) struct ExecRequest<'a> {
+    pub program: &'a str,
+    pub args: Vec<String>,
+    pub env: Vec<(String, String)>,
+    pub timeout_ms: u32,
+    pub cwd: Option<PathBuf>,
+    pub java_major: Option<u32>,
 }
 
 /// Kills the child's whole tree when dropped, so a cancelled, timed-out or
@@ -77,8 +92,11 @@ impl Drop for TreeGuard {
 pub(crate) struct Programs {
     pub(crate) plugin: Arc<str>,
     pub(crate) grant: Arc<Grant>,
-    /// Absolute paths of the `PATH` programs, pinned when the grant was approved.
-    pub(crate) resolved: BTreeMap<String, PathBuf>,
+    /// The `PATH` programs, pinned when the grant was approved. A program
+    /// absent here was not found then and runs only after a new approval.
+    pub(crate) pins: Pins,
+    pub(crate) resolver: Resolver,
+    pub(crate) host: Arc<dyn HostCalls>,
     pub(crate) data_dir: PathBuf,
     pub(crate) bin_dir: PathBuf,
     pub(crate) supervisor: Arc<ProcessSupervisor>,
@@ -93,20 +111,25 @@ pub fn owner_of(plugin: &str) -> String {
 impl Programs {
     pub(crate) async fn exec(
         &self,
-        program: &str,
-        args: Vec<String>,
-        env: Vec<(String, String)>,
-        timeout_ms: u32,
-        cwd: Option<PathBuf>,
+        run: ExecRequest<'_>,
         scope: &CallScope<'_>,
     ) -> Result<Output, ProgramError> {
-        let program = self.authorize(program, &args)?;
+        let ExecRequest {
+            program,
+            args,
+            env,
+            timeout_ms,
+            cwd,
+            java_major,
+        } = run;
+        let (program, selection) =
+            self.authorize(program, &args, &env, java_major, scope.game_java)?;
         let args = args
             .iter()
             .map(|arg| expand_mounts(arg, scope.mounts))
             .collect::<Result<Vec<_>, _>>()?;
-        let vars = self.child_env(&program, env)?;
-        let executable = self.executable(&program).await?;
+        let vars = self.child_env(&program, &selection.invocation, env)?;
+        let executable = self.executable(&program, selection.java).await?;
         let remaining = scope.deadline.saturating_duration_since(Instant::now());
         let timeout = Duration::from_millis(u64::from(timeout_ms).max(1)).min(remaining);
         if timeout.is_zero() {
@@ -171,15 +194,16 @@ impl Programs {
         program: &str,
         args: Vec<String>,
         env: Vec<(String, String)>,
+        java_major: Option<u32>,
     ) -> Result<String, ProgramError> {
-        let program = self.authorize(program, &args)?;
-        let vars = self.child_env(&program, env)?;
+        let (program, selection) = self.authorize(program, &args, &env, java_major, None)?;
+        let vars = self.child_env(&program, &selection.invocation, env)?;
         if self.running().len() >= MAX_RUNNING {
             return Err(ProgramError::Failed(format!(
                 "a plugin may keep at most {MAX_RUNNING} processes running"
             )));
         }
-        let executable = self.executable(&program).await?;
+        let executable = self.executable(&program, selection.java).await?;
         let info = self
             .supervisor
             .start(ProcessSpec {
@@ -230,26 +254,18 @@ impl Programs {
         Ok(self.running().into_iter().map(|info| info.id).collect())
     }
 
-    /// The environment `program` runs with: the base, the variables it declares
-    /// (anything else is refused), and a `PATH` of only the pinned directories
-    /// of the programs it lists in `path`.
+    /// The environment `invocation` of `program` runs with: the base, the
+    /// variables it declares (`authorize` refused anything else), and a `PATH`
+    /// of only the pinned directories of the programs it lists in `path`.
     fn child_env(
         &self,
         program: &Program,
+        invocation: &Invocation,
         env: Vec<(String, String)>,
     ) -> Result<BTreeMap<String, String>, ProgramError> {
-        if let Some((name, _)) = env
-            .iter()
-            .find(|(name, value)| !program.env.contains(name) || value.contains('\0'))
-        {
-            return Err(ProgramError::Denied(format!(
-                "`{}` does not declare the environment variable `{name}`",
-                program.id
-            )));
-        }
         let mut vars: BTreeMap<String, String> = base_env().collect();
-        if !program.path.is_empty() {
-            let directories = program
+        if !invocation.path.is_empty() {
+            let directories = invocation
                 .path
                 .iter()
                 .map(|id| {
@@ -274,10 +290,10 @@ impl Programs {
     /// The path the `PATH` program `id` was pinned to at approval, while it is
     /// still executable there.
     fn pinned(&self, id: &str) -> Option<PathBuf> {
-        self.resolved
+        self.pins
             .get(id)
+            .map(|pin| PathBuf::from(&pin.path))
             .filter(|path| program::is_executable(path))
-            .cloned()
     }
 
     /// The pinned program `id` a launch may run through, when this plugin holds
@@ -296,15 +312,26 @@ impl Programs {
         ))
     }
 
-    /// The declared program `id` when `args` fit its patterns. A refusal says
-    /// which rule failed, never what the arguments were.
-    fn authorize(&self, id: &str, args: &[String]) -> Result<Program, ProgramError> {
+    /// The declared program `id` and how this call runs it, when the call fits
+    /// one of its invocations. A refusal says which rule failed, never what the
+    /// arguments were.
+    fn authorize(
+        &self,
+        id: &str,
+        args: &[String],
+        env: &[(String, String)],
+        java_major: Option<u32>,
+        game_java: Option<u32>,
+    ) -> Result<(Program, Selection), ProgramError> {
         self.require_spawn()?;
         if id.contains('\0')
             || args.len() > MAX_ARGS
             || args
                 .iter()
                 .any(|arg| arg.contains('\0') || arg.len() > MAX_TOKEN_BYTES)
+            || env
+                .iter()
+                .any(|(name, value)| name.contains('\0') || value.contains('\0'))
         {
             return Err(ProgramError::Invalid(
                 "a program id and its arguments must be text without NUL, within the size limits"
@@ -315,17 +342,28 @@ impl Programs {
             tracing::warn!(plugin = %self.plugin, program = id, "undeclared program refused");
             ProgramError::Denied(format!("`{id}` is not a program this plugin declares"))
         })?;
-        if !program.permits(args) {
-            tracing::warn!(plugin = %self.plugin, program = id, "arguments outside the declared patterns refused");
-            return Err(ProgramError::Denied(format!(
-                "the arguments are outside what `{id}` declares"
-            )));
-        }
-        Ok(program.clone())
+        let names: Vec<&str> = env.iter().map(|(name, _)| name.as_str()).collect();
+        let selection = invocation::select(
+            program,
+            &Call {
+                args,
+                env: &names,
+                java_major,
+                game_java,
+            },
+        )
+        .inspect_err(|error| {
+            tracing::warn!(plugin = %self.plugin, program = id, %error, "call outside the declared invocations refused");
+        })?;
+        Ok((program.clone(), selection))
     }
 
-    async fn executable(&self, program: &Program) -> Result<PathBuf, ProgramError> {
-        if let Some(major) = program.java {
+    async fn executable(
+        &self,
+        program: &Program,
+        java: Option<u32>,
+    ) -> Result<PathBuf, ProgramError> {
+        if let Some(major) = java {
             return self.java.executable(major).await.map_err(|error| {
                 tracing::warn!(plugin = %self.plugin, program = %program.id, major, error = %format!("{error:#}"), "managed java unavailable");
                 ProgramError::Failed(format!(
@@ -334,16 +372,13 @@ impl Programs {
                 ))
             });
         }
-        if !program.in_data_dir() {
-            return self.pinned(&program.id).ok_or_else(|| {
-                tracing::warn!(plugin = %self.plugin, program = %program.id, "program not found at its pinned path");
-                ProgramError::Missing(program.command.clone())
-            });
+        if program.on_path() {
+            return self.pinned_executable(program);
         }
-        let (data_dir, bin_dir, program) =
+        let (data_dir, bin_dir, owned) =
             (self.data_dir.clone(), self.bin_dir.clone(), program.clone());
         let staged = tokio::task::spawn_blocking(move || {
-            program::stage(&data_dir, &bin_dir, &program, &program::target_triple())
+            program::stage(&data_dir, &bin_dir, &owned, &program::target_triple())
         })
         .await
         .map_err(|error| ProgramError::Failed(error.to_string()))?;
@@ -353,10 +388,30 @@ impl Programs {
                 StageError::HashMismatch | StageError::NoHashForTarget(_) => {
                     ProgramError::Denied(error.to_string())
                 }
-                StageError::Missing(command) => ProgramError::Missing(command.clone()),
+                StageError::Missing(_) => missing(program),
                 StageError::Io(_) => ProgramError::Failed(error.to_string()),
             }
         })
+    }
+
+    /// The file a `PATH` program was approved at. A program the approval did
+    /// not find is never run from a path nobody approved: when it exists now,
+    /// the plugin is flagged for approval so the user can pin it, and the call
+    /// fails.
+    fn pinned_executable(&self, program: &Program) -> Result<PathBuf, ProgramError> {
+        if self.pins.contains_key(&program.id) {
+            return self.pinned(&program.id).ok_or_else(|| {
+                tracing::warn!(plugin = %self.plugin, program = %program.id, "program not found at its pinned path");
+                missing(program)
+            });
+        }
+        if (self.resolver)(&program.command).is_some() {
+            tracing::warn!(plugin = %self.plugin, program = %program.id, "program found after approval; the plugin needs approval to run it");
+            self.host.needs_approval(&self.plugin, &program.id);
+            return Err(ProgramError::Unapproved(program.id.clone()));
+        }
+        tracing::warn!(plugin = %self.plugin, program = %program.id, "program not found on PATH");
+        Err(missing(program))
     }
 
     /// The process `id` when this plugin started it; a stranger's is reported
@@ -378,6 +433,14 @@ impl Programs {
                 info.state == ProcessState::Running && info.owner.as_deref() == Some(owner.as_str())
             })
             .collect()
+    }
+}
+
+fn missing(program: &Program) -> ProgramError {
+    let requirement = program::requirement_of(program);
+    ProgramError::Missing {
+        name: requirement.name,
+        url: Some(requirement.url).filter(|url| !url.is_empty()),
     }
 }
 

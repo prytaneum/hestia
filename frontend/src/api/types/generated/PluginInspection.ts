@@ -3,6 +3,7 @@ import type { Grant } from "./Grant";
 import type { Manifest } from "./Manifest";
 import type { Permission } from "./Permission";
 import type { PluginInfo } from "./PluginInfo";
+import type { ProgramPin } from "./ProgramPin";
 
 /**
  * What installing a package would grant, read without running any of it.
@@ -10,7 +11,7 @@ import type { PluginInfo } from "./PluginInfo";
 export type PluginInspection = { manifest: Manifest, grant: Grant, 
 /**
  * Hand this back as [`PluginInstallParams::approve`] to approve exactly
- * this grant and these `program_paths`.
+ * this grant and these `program_pins`.
  */
 grantDigest: string, 
 /**
@@ -28,10 +29,11 @@ widened: Grant,
  */
 unrestricted: Array<Permission>, 
 /**
- * Program id to the absolute path its `PATH` name resolves to on this
- * computer, the one an install pins; a program not found is absent.
+ * Program id to where its `PATH` name resolves on this computer and the
+ * hash of the file there, which an install pins; a program not found is
+ * absent, and cannot run until the plugin is approved again with it found.
  */
-programPaths: { [key in string]: string }, 
+programPins: { [key in string]: ProgramPin }, 
 /**
  * For a `url` inspection: names the downloaded file. Hand it back as
  * [`PluginInstallParams::staged`] so the install uses that file and does

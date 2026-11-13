@@ -109,8 +109,14 @@ pub enum ManifestError {
     },
     #[error("program `{0}` needs a plain command name or a path inside data/, no shell, and well-formed arguments and hashes")]
     BadProgram(String),
-    #[error("program `{0}` names exactly one of `command` and `java` (a major from 1 to 99), and a `java` program has no hash")]
-    ProgramCommandOrJava(String),
+    #[error("program `{0}` names exactly one identity: a `command`, or `java`, and a `java` program has no hash")]
+    ProgramIdentity(String),
+    #[error("program `{0}` declares `java` as a major, a `{{ min, max }}` range or \"profile\", with majors from 1 to 99")]
+    BadProgramJava(String),
+    #[error("program `{0}` writes `args`, `env` and `path` at the top level or lists named `invocations`, not both, and names each invocation once")]
+    BadProgramInvocations(String),
+    #[error("program `{0}` needs a `requires` with a name and an https url")]
+    BadProgramRequires(String),
     #[error("program `{0}` runs from data/ and must declare a sha256 per target triple")]
     ProgramNeedsHash(String),
     #[error("program environment variable `{0}` is not a valid name, or is one no plugin may set")]
@@ -267,8 +273,7 @@ impl Manifest {
             }
         }
         for program in &self.programs {
-            program.collect_errors(errors);
-            errors.extend(program.validate_path(&self.programs).err());
+            program.collect_errors(&self.programs, errors);
         }
         let contributes = &self.contributes;
         if contributes.schedules.len() > MAX_SCHEDULES {
@@ -467,7 +472,7 @@ pub fn is_plugin_id(id: &str) -> bool {
     is_slug(id, ID_LENGTH)
 }
 
-fn is_slug(value: &str, length: std::ops::RangeInclusive<usize>) -> bool {
+pub(super) fn is_slug(value: &str, length: std::ops::RangeInclusive<usize>) -> bool {
     length.contains(&value.len())
         && !value.starts_with('-')
         && !value.ends_with('-')

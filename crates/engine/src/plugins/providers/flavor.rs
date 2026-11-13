@@ -41,6 +41,7 @@ use crate::minecraft::{
 };
 use crate::plugins::context::{CallContext, Mount};
 use crate::plugins::imports::CommandRun;
+use crate::plugins::prerequisites;
 use crate::plugins::runtime::{LoadedPlugin, CANCEL_GRACE, COMMAND_TIMEOUT};
 use crate::plugins::vouch::Policy;
 
@@ -167,12 +168,14 @@ impl PluginFlavorProvider {
                 return Err(guest.failed("the flavor serves neither side".into()));
             }
         };
+        let requires = prerequisites(guest.plugin().grant(), &described.requires)
+            .map_err(|detail| guest.failed(detail))?;
         let info = FlavorInfo {
             id: Cow::Owned(guest.id().to_string()),
             name: Cow::Owned(described.name),
             summary: Cow::Owned(described.summary),
             loads: described.loads,
-            requires: &[],
+            requires: Cow::Owned(requires),
             sides,
             mrpack_key: described.mrpack_key.map(Cow::Owned),
             prism_uid: described.prism_uid.map(Cow::Owned),
@@ -268,6 +271,7 @@ impl PluginFlavorProvider {
                 grace: CANCEL_GRACE,
             }),
             mounts,
+            game_java: u32::try_from(request.java_major).ok(),
         };
         let call = self
             .guest

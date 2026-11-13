@@ -38,12 +38,22 @@ interface process {
     /// `cwd` is a guest path under a writable mount of this call (`/data`, or
     /// `/build` during a flavor's `build`); `none` runs in `data/`. Any other
     /// directory is `denied`.
-    exec: func(program: string, args: list<string>, env: list<tuple<string, string>>, timeout-ms: u32, cwd: option<string>) -> result<exec-output, plugin-error>;
+    ///
+    /// The program is run through the first of its declared invocations whose
+    /// argument patterns match `args` and which declares every name in `env`;
+    /// none is `denied`. `java-major` picks the major for a program that runs on
+    /// a Hestia-managed Java range, and must lie inside it (`denied` when it
+    /// does not, `invalid` when a range program names none); a program with one
+    /// fixed major accepts only that major or none, and a program that runs on
+    /// the game version's Java takes none. A program not found on this computer
+    /// answers `missing-requirement` with the name and link its manifest gives.
+    exec: func(program: string, args: list<string>, env: list<tuple<string, string>>, timeout-ms: u32, cwd: option<string>, java-major: option<u32>) -> result<exec-output, plugin-error>;
 
     /// Starts a long-lived program under the daemon's supervisor and returns its
     /// process id. The id is persistent: it names the process after the daemon
-    /// restarts, and `list` finds it again.
-    spawn: func(program: string, args: list<string>, env: list<tuple<string, string>>) -> result<string, plugin-error>;
+    /// restarts, and `list` finds it again. Invocation and `java-major` are
+    /// chosen as for `exec`; a spawn is never about a game version.
+    spawn: func(program: string, args: list<string>, env: list<tuple<string, string>>, java-major: option<u32>) -> result<string, plugin-error>;
 
     /// Asks one of the plugin's own processes to stop.
     stop: func(id: string) -> result<_, plugin-error>;

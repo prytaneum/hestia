@@ -72,6 +72,12 @@ impl RouterHost {
 
 #[async_trait]
 impl HostCalls for RouterHost {
+    fn needs_approval(&self, plugin: &str, program: &str) {
+        if let Ok(runtime) = self.runtime() {
+            runtime.plugins().needs_approval(plugin, program);
+        }
+    }
+
     fn dev_log(&self, plugin: &str, level: &str, text: &str) {
         if let Some(runtime) = self
             .runtime()

@@ -15,6 +15,7 @@ use proto::minecraft::{GameVersion, Requirement};
 use crate::cache::Cache;
 use crate::minecraft::materialize::OnProgress;
 use crate::minecraft::profile::{InstanceProfile, ServerProfile};
+use crate::plugins::resolve_on_path;
 use crate::plugins::vouch::Policy;
 use crate::process::ProcessSupervisor;
 
@@ -45,7 +46,8 @@ pub struct InstallRequest<'a> {
     /// What the profile names as built, which the flavor's build must produce:
     /// the server jar's filename, or the path of each built client library.
     pub built: &'a [String],
-    /// The Java major `java` is for, the profile's.
+    /// The Java major `java` is, the profile's: what a plugin flavor's `build`
+    /// is told and what its `profile` programs run on.
     pub java_major: i32,
     pub java: &'a Path,
     pub cache: Option<&'a Cache>,
@@ -92,51 +94,47 @@ pub fn accepted_kinds(side: Side, loads: Loads) -> Vec<ContentKind> {
     kinds
 }
 
-/// A tool a flavor needs on the machine that Hestia cannot install itself.
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub enum Prerequisite {
-    Git,
+/// A tool a flavor needs on the machine that Hestia cannot install itself: a
+/// command on `PATH`, and what to tell the user when it is not there.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Prerequisite {
+    pub command: Cow<'static, str>,
+    pub name: Cow<'static, str>,
+    pub url: Cow<'static, str>,
 }
 
 impl Prerequisite {
-    pub fn name(self) -> &'static str {
-        match self {
-            Prerequisite::Git => "Git",
-        }
-    }
+    pub const GIT: Prerequisite = Prerequisite {
+        command: Cow::Borrowed("git"),
+        name: Cow::Borrowed("Git"),
+        url: Cow::Borrowed("https://git-scm.com/downloads"),
+    };
 
-    pub fn url(self) -> &'static str {
-        match self {
-            Prerequisite::Git => "https://git-scm.com/downloads",
-        }
-    }
-
-    pub async fn installed(self) -> bool {
-        tokio::process::Command::new(match self {
-            Prerequisite::Git => "git",
-        })
-        .arg("--version")
-        .stdin(std::process::Stdio::null())
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
-        .status()
-        .await
-        .is_ok_and(|status| status.success())
+    /// Whether the command resolves on `PATH`.
+    pub fn installed(&self) -> bool {
+        resolve_on_path(&self.command).is_some()
     }
 }
 
 /// Which of `required` are not on this machine, in the shape the wire carries.
-pub async fn unmet(required: &[Prerequisite]) -> Vec<Requirement> {
-    let mut missing = Vec::new();
-    for prerequisite in required {
-        if !prerequisite.installed().await {
-            missing.push(Requirement {
-                name: prerequisite.name().to_string(),
-                url: prerequisite.url().to_string(),
-            });
-        }
-    }
-    missing
+pub fn unmet(required: &[Prerequisite]) -> Vec<Requirement> {
+    unmet_by(required, Prerequisite::installed)
+}
+
+/// [`unmet`] with `installed` deciding whether a prerequisite is there, so a
+/// test need not read the real `PATH`.
+pub fn unmet_by(
+    required: &[Prerequisite],
+    installed: impl Fn(&Prerequisite) -> bool,
+) -> Vec<Requirement> {
+    required
+        .iter()
+        .filter(|prerequisite| !installed(prerequisite))
+        .map(|prerequisite| Requirement {
+            name: prerequisite.name.to_string(),
+            url: prerequisite.url.to_string(),
+        })
+        .collect()
 }
 
 pub struct FlavorInfo {
@@ -149,7 +147,7 @@ pub struct FlavorInfo {
     pub loads: Loads,
     /// Tools this flavor needs on the machine; none for all but a flavor that
     /// builds its own artifacts.
-    pub requires: &'static [Prerequisite],
+    pub requires: Cow<'static, [Prerequisite]>,
     pub sides: &'static [Side],
     /// The key a Modrinth pack (`.mrpack`) names this flavor's loader by in its
     /// `dependencies`; none for a flavor with no loader of its own.

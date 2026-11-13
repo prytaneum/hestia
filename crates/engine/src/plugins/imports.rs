@@ -20,7 +20,7 @@ use super::http::PluginHttp;
 use super::ipc::{Connections, IpcError};
 use super::lock::{Held, LockError, Locks};
 use super::output::PluginLog;
-use super::process::{CallScope, ProgramError, Programs};
+use super::process::{CallScope, ExecRequest, ProgramError, Programs};
 use super::settings::{PluginSettings, SettingsError};
 use crate::cancel::Cancel;
 
@@ -65,6 +65,11 @@ pub trait HostCalls: Send + Sync {
         payload: Value,
     ) -> Result<Value, ErrorInfo>;
 
+    /// A call reached a `PATH` program the plugin's approval did not pin, though
+    /// the program is on this computer now: the plugin needs to be approved
+    /// again to run it. The daemon takes the plugin out of service until then.
+    fn needs_approval(&self, _plugin: &str, _program: &str) {}
+
     /// A line a dev plugin logged, already rate-limited and truncated.
     fn dev_log(&self, _plugin: &str, _level: &str, _text: &str) {}
 
@@ -92,6 +97,7 @@ pub(crate) struct PluginState {
     /// When the call that owns this store runs out of budget.
     pub(crate) deadline: tokio::time::Instant,
     pub(crate) mounts: Vec<Mount>,
+    pub(crate) game_java: Option<u32>,
     pub(crate) wasi: WasiCtx,
     pub(crate) http: WasiHttpCtx,
     pub(crate) http_hooks: PluginHttp,
@@ -326,6 +332,7 @@ impl bindings::hestia::plugin::process::Host for PluginState {
         env: Vec<(String, String)>,
         timeout_ms: u32,
         cwd: Option<String>,
+        java_major: Option<u32>,
     ) -> Result<bindings::hestia::plugin::process::ExecOutput, PluginError> {
         let programs = self.programs.clone();
         let cwd = cwd
@@ -335,9 +342,20 @@ impl bindings::hestia::plugin::process::Host for PluginState {
             mounts: &self.mounts,
             deadline: self.deadline,
             cancel: self.run.as_ref().map(|run| &run.cancel),
+            game_java: self.game_java,
         };
         let output = programs
-            .exec(&program, args, env, timeout_ms, cwd, &scope)
+            .exec(
+                ExecRequest {
+                    program: &program,
+                    args,
+                    env,
+                    timeout_ms,
+                    cwd,
+                    java_major,
+                },
+                &scope,
+            )
             .await?;
         Ok(bindings::hestia::plugin::process::ExecOutput {
             status: output.status,
@@ -351,9 +369,10 @@ impl bindings::hestia::plugin::process::Host for PluginState {
         program: String,
         args: Vec<String>,
         env: Vec<(String, String)>,
+        java_major: Option<u32>,
     ) -> Result<String, PluginError> {
         let programs = self.programs.clone();
-        Ok(programs.spawn(&program, args, env).await?)
+        Ok(programs.spawn(&program, args, env, java_major).await?)
     }
 
     async fn stop(&mut self, id: String) -> Result<(), PluginError> {

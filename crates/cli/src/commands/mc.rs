@@ -6,7 +6,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use anyhow::{bail, Context, Result};
 use clap::Subcommand;
 use client::proto::backup::BackupInfo;
-use client::proto::error::{EntryKind, EntryTarget};
+use client::proto::error::{EntryKind, EntryTarget, ErrorInfo};
 use client::proto::minecraft::{
     ConfigEntry, Flavor, GameVersion, ProvisionPhase, ProvisionProgress, VersionKind,
 };
@@ -278,6 +278,22 @@ pub fn ensure_flavor(flavors: &[Flavor], id: &str) -> Result<()> {
     }
     let ids: Vec<&str> = flavors.iter().map(|f| f.id.as_str()).collect();
     bail!("unknown flavor '{id}' (available: {})", ids.join(", "));
+}
+
+/// Refuse the flavor `id` when this computer lacks something it needs, before
+/// a build that would fail minutes in has started.
+pub fn ensure_requirements(flavors: &[Flavor], id: &str) -> Result<()> {
+    let Some(flavor) = flavors.iter().find(|f| f.id == id) else {
+        return Ok(());
+    };
+    match flavor.requires.first() {
+        Some(requirement) => bail!(ErrorInfo::MissingRequirement {
+            flavor: flavor.id.clone(),
+            name: requirement.name.clone(),
+            url: requirement.url.clone(),
+        }),
+        None => Ok(()),
+    }
 }
 
 /// The first item whose id or name the user's reference names.

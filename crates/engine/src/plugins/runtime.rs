@@ -31,7 +31,7 @@ use super::ipc::{Connections, Pushed};
 use super::lock::{Held, Locks};
 use super::output::{Captured, PluginLog};
 use super::process::Programs;
-use super::program::{ManagedJava, NoManagedJava};
+use super::program::{pin_on_path, ManagedJava, NoManagedJava, Resolver};
 use super::settings::PluginSettings;
 use super::store::PluginRecord;
 use super::vouch::Policy;
@@ -162,6 +162,7 @@ pub struct PluginRuntime {
     processes: Arc<ProcessSupervisor>,
     java: Arc<dyn ManagedJava>,
     downloads: Option<Arc<Cache>>,
+    resolver: Resolver,
     ticker: Arc<Ticker>,
     cache: ComponentCache,
 }
@@ -215,8 +216,16 @@ impl PluginRuntime {
             processes,
             java: Arc::new(NoManagedJava),
             downloads: None,
+            resolver: pin_on_path,
             ticker,
         })
+    }
+
+    /// Replaces how a program's `PATH` name is found when a call reaches one the
+    /// approval did not pin, so a test need not read the real `PATH`.
+    pub fn with_resolver(mut self, resolver: Resolver) -> Self {
+        self.resolver = resolver;
+        self
     }
 
     /// Lends the runtimes Hestia manages to plugins' `java` programs; without
@@ -261,7 +270,9 @@ impl PluginRuntime {
         let programs = Arc::new(Programs {
             plugin: id.clone(),
             grant: grant.clone(),
-            resolved: record.program_paths.clone(),
+            pins: record.program_pins.clone(),
+            resolver: self.resolver,
+            host: self.host.clone(),
             bin_dir: data_dir.with_file_name("bin"),
             data_dir: data_dir.clone(),
             supervisor: self.processes.clone(),
@@ -655,7 +666,13 @@ impl LoadedPlugin {
 
         let control = context.run.map(Arc::new);
         let mut store = self
-            .new_store(chain, control.clone(), context.mounts, deadline)
+            .new_store(
+                chain,
+                control.clone(),
+                context.mounts,
+                context.game_java,
+                deadline,
+            )
             .map_err(|error| CallError::Setup(format!("{error:#}")))?;
         let attempt = async {
             let instance = self.pre.instantiate_async(&mut store).await?;
@@ -712,6 +729,7 @@ impl LoadedPlugin {
         chain: CallChain,
         run: Option<Arc<CommandRun>>,
         extra: Vec<Mount>,
+        game_java: Option<u32>,
         deadline: Instant,
     ) -> wasmtime::Result<Store<PluginState>> {
         let mut mounts = vec![Mount {
@@ -746,6 +764,7 @@ impl LoadedPlugin {
             run,
             deadline,
             mounts,
+            game_java,
             wasi: wasi.build(),
             http: WasiHttpCtx::new(),
             http_hooks: PluginHttp {

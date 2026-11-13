@@ -19,13 +19,17 @@ pub struct Mount {
 pub struct CallContext {
     pub run: Option<CommandRun>,
     pub mounts: Vec<Mount>,
+    /// The Java major the host uses for the Minecraft version this call is
+    /// about; a program declared with `java = "profile"` runs on it, and in a
+    /// call without one such a program is `invalid`.
+    pub game_java: Option<u32>,
 }
 
 impl CallContext {
     pub fn running(run: CommandRun) -> Self {
         CallContext {
             run: Some(run),
-            mounts: Vec::new(),
+            ..CallContext::default()
         }
     }
 }

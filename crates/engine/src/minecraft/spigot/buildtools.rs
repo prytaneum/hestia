@@ -119,11 +119,11 @@ async fn build(
 /// missing, naming where to get it — the launcher cannot install it.
 async fn ensure_prerequisites(product: Product) -> Result<()> {
     for prerequisite in super::PREREQUISITES {
-        if !prerequisite.installed().await {
+        if !prerequisite.installed() {
             bail!(ErrorInfo::MissingRequirement {
                 flavor: product.prefix().to_string(),
-                name: prerequisite.name().to_string(),
-                url: prerequisite.url().to_string(),
+                name: prerequisite.name.to_string(),
+                url: prerequisite.url.to_string(),
             });
         }
     }

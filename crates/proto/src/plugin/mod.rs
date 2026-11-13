@@ -6,7 +6,7 @@
 //! The manifest is parsed from TOML by its callers; this crate stays serde-only
 //! so the CLI's `pack` can validate one without a daemon.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
@@ -21,6 +21,7 @@ use crate::warning::WarningInfo;
 mod grant;
 mod manifest;
 mod permission;
+mod program;
 mod scope;
 
 pub use grant::Grant;
@@ -29,6 +30,10 @@ pub use manifest::{
     ManifestError, ManifestErrors,
 };
 pub use permission::{Permission, Spec, Tier};
+pub use program::{
+    is_program_env, Invocation, InvocationMismatch, JavaChoiceError, JavaProfile, JavaRange,
+    Program, ProgramJava, ProgramPin,
+};
 #[cfg(feature = "suffix")]
 pub use scope::covers_public_suffix;
 pub(crate) use scope::stays_inside;
@@ -320,217 +325,6 @@ impl ScheduleContribution {
 pub const MIN_SCHEDULE_SECS: u64 = 1;
 pub const MAX_SCHEDULE_SECS: u64 = 30 * 24 * 60 * 60;
 pub const MAX_SCHEDULES: usize = 8;
-
-/// A program the plugin may run. `command` is a name resolved on `PATH` or a
-/// path inside the plugin's data directory; `java` instead names a Java major,
-/// run from the runtime Hestia manages. Exactly one of the two is set. `args`
-/// are argument patterns.
-#[derive(Serialize, Deserialize, Default, Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
-#[serde(default, rename_all = "camelCase")]
-pub struct Program {
-    pub id: String,
-    pub command: String,
-    /// The Java major of a Hestia-managed runtime, resolved at call time.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub java: Option<u32>,
-    pub args: Vec<String>,
-    pub env: BTreeSet<String>,
-    /// Ids of other `PATH` programs of the same manifest whose pinned
-    /// directories become the child's `PATH`, and nothing else.
-    pub path: Vec<String>,
-    /// Per target triple; required for a program inside the data directory.
-    pub sha256: BTreeMap<String, String>,
-}
-
-const SHELLS: [&str; 12] = [
-    "sh",
-    "bash",
-    "zsh",
-    "dash",
-    "fish",
-    "ksh",
-    "csh",
-    "tcsh",
-    "cmd",
-    "powershell",
-    "pwsh",
-    "wscript",
-];
-const MAX_JAVA_MAJOR: u32 = 99;
-const ANY_REST: &str = "**";
-const ANY_ONE: &str = "*";
-
-impl Program {
-    /// The entry a grant lists for this program: its whole definition on one
-    /// line, each list as JSON so no argument can pass for another field. Two
-    /// programs that differ anywhere have different entries, which is what makes
-    /// a changed definition widen.
-    pub fn entry(&self) -> String {
-        let mut entry = format!("{}: {}", self.id, self.command_label());
-        let mut field = |name: &str, value: serde_json::Value| {
-            entry.push_str(&format!(" {name} {value}"));
-        };
-        if !self.args.is_empty() {
-            field("args", serde_json::json!(self.args));
-        }
-        if !self.env.is_empty() {
-            field("env", serde_json::json!(self.env));
-        }
-        if !self.path.is_empty() {
-            field("path", serde_json::json!(self.path));
-        }
-        if !self.sha256.is_empty() {
-            field("sha256", serde_json::json!(self.sha256));
-        }
-        entry
-    }
-
-    /// A command with a slash is a path inside the plugin's data directory;
-    /// one without is a name resolved on `PATH` when the grant is approved.
-    pub fn in_data_dir(&self) -> bool {
-        self.command.contains('/')
-    }
-
-    /// The program's command as the grant shows it: the command itself, or the
-    /// managed runtime it names.
-    pub fn command_label(&self) -> String {
-        match self.java {
-            Some(major) => format!("Hestia-managed Java {major}"),
-            None => self.command.clone(),
-        }
-    }
-
-    /// Whether `args` match the declared patterns: a literal token matches
-    /// itself, `*` any one token, and a trailing `**` any rest, including none.
-    pub fn permits(&self, args: &[String]) -> bool {
-        let (fixed, rest) = match self.args.split_last() {
-            Some((last, fixed)) if last == ANY_REST => (fixed, true),
-            _ => (&self.args[..], false),
-        };
-        let length = if rest {
-            args.len() >= fixed.len()
-        } else {
-            args.len() == fixed.len()
-        };
-        length
-            && fixed
-                .iter()
-                .zip(args)
-                .all(|(pattern, arg)| pattern == ANY_ONE || pattern == arg)
-    }
-
-    fn collect_errors(&self, errors: &mut Vec<ManifestError>) {
-        let bad = || ManifestError::BadProgram(self.id.clone());
-        if let Some(major) = self.java {
-            if !self.command.is_empty() || !(1..=MAX_JAVA_MAJOR).contains(&major) {
-                errors.push(ManifestError::ProgramCommandOrJava(self.id.clone()));
-            }
-            if !self.sha256.is_empty() {
-                errors.push(bad());
-            }
-            errors.extend(self.validate_arguments().err());
-            return;
-        }
-        if self.command.is_empty() {
-            errors.push(ManifestError::ProgramCommandOrJava(self.id.clone()));
-            errors.extend(self.validate_arguments().err());
-            return;
-        }
-        let name = self.command.rsplit('/').next().unwrap_or_default();
-        let stem = name
-            .strip_suffix(".exe")
-            .unwrap_or(name)
-            .to_ascii_lowercase();
-        if SHELLS.contains(&stem.as_str()) || self.command.contains('\0') {
-            errors.push(bad());
-        } else if self.in_data_dir() {
-            if !stays_inside(&self.command) {
-                errors.push(bad());
-            }
-            if self.sha256.is_empty() {
-                errors.push(ManifestError::ProgramNeedsHash(self.id.clone()));
-            } else {
-                let hashes_ok = self.sha256.iter().all(|(triple, hash)| {
-                    !triple.is_empty()
-                        && triple
-                            .bytes()
-                            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-'))
-                        && hash.len() == 64
-                        && hash
-                            .bytes()
-                            .all(|byte| matches!(byte, b'0'..=b'9' | b'a'..=b'f'))
-                });
-                if !hashes_ok {
-                    errors.push(bad());
-                }
-            }
-        } else if !(1..=64).contains(&name.len())
-            || name.starts_with(['.', '-'])
-            || !name.bytes().all(|byte| {
-                byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b'-' | b'+')
-            })
-        {
-            errors.push(bad());
-        }
-        errors.extend(self.validate_arguments().err());
-    }
-
-    fn is_path_kind(&self) -> bool {
-        self.java.is_none() && !self.in_data_dir()
-    }
-
-    fn validate_path(&self, declared: &[Program]) -> Result<(), ManifestError> {
-        let mut seen = BTreeSet::new();
-        for id in &self.path {
-            let names_path_program = *id != self.id
-                && declared
-                    .iter()
-                    .any(|other| other.id == *id && other.is_path_kind());
-            if !names_path_program || !seen.insert(id) {
-                return Err(ManifestError::BadProgramPath {
-                    program: self.id.clone(),
-                    entry: id.clone(),
-                });
-            }
-        }
-        Ok(())
-    }
-
-    fn validate_arguments(&self) -> Result<(), ManifestError> {
-        let last = self.args.len().saturating_sub(1);
-        if self
-            .args
-            .iter()
-            .enumerate()
-            .any(|(at, arg)| arg.contains('\0') || (arg == ANY_REST && at != last))
-        {
-            return Err(ManifestError::BadProgram(self.id.clone()));
-        }
-        match self.env.iter().find(|name| !is_program_env(name)) {
-            Some(name) => Err(ManifestError::BadProgramEnv(name.clone())),
-            None => Ok(()),
-        }
-    }
-}
-
-/// Whether `name` may be declared in a program's `env`: a plain variable name
-/// that is not one that loads code or redirects the program's own lookups.
-/// No declaration unlocks a refused one.
-pub fn is_program_env(name: &str) -> bool {
-    let upper = name.to_ascii_uppercase();
-    (1..=128).contains(&name.len())
-        && !name.starts_with(|first: char| first.is_ascii_digit())
-        && name
-            .bytes()
-            .all(|byte| byte.is_ascii_alphanumeric() || byte == b'_')
-        && !upper.starts_with("LD_")
-        && !upper.starts_with("DYLD_")
-        && upper != "PATH"
-        && !upper
-            .find("JAVA")
-            .is_some_and(|at| upper[at..].contains("OPTIONS"))
-}
 
 #[derive(Serialize, Deserialize, Default, Debug, Clone, Copy, PartialEq, Eq)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
@@ -888,7 +682,7 @@ pub struct PluginInspection {
     pub manifest: Manifest,
     pub grant: Grant,
     /// Hand this back as [`PluginInstallParams::approve`] to approve exactly
-    /// this grant and these `program_paths`.
+    /// this grant and these `program_pins`.
     pub grant_digest: String,
     /// The installed plugin of the same id, which the install would update.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -899,9 +693,10 @@ pub struct PluginInspection {
     /// approve (`widened`; the whole grant when new), so a front-end states
     /// full access without a tier table of its own.
     pub unrestricted: Vec<Permission>,
-    /// Program id to the absolute path its `PATH` name resolves to on this
-    /// computer, the one an install pins; a program not found is absent.
-    pub program_paths: BTreeMap<String, String>,
+    /// Program id to where its `PATH` name resolves on this computer and the
+    /// hash of the file there, which an install pins; a program not found is
+    /// absent, and cannot run until the plugin is approved again with it found.
+    pub program_pins: BTreeMap<String, ProgramPin>,
     /// For a `url` inspection: names the downloaded file. Hand it back as
     /// [`PluginInstallParams::staged`] so the install uses that file and does
     /// not download again.
@@ -983,7 +778,7 @@ pub struct PluginInstallParams {
     /// The token from [`PluginInspection::staged`], instead of `path`.
     pub staged: String,
     /// The digest the user approved; the install refuses a package whose
-    /// grant, or whose programs' resolved paths, digest differently.
+    /// grant, or whose programs' resolved pins, digest differently.
     pub approve: String,
     /// Run the folder at `path` in place instead of copying it, and reload it
     /// when its component or themes change.

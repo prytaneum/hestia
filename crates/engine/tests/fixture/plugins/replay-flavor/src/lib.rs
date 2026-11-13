@@ -272,6 +272,7 @@ fn run_builder_with(args: &[&str]) -> Result<(), Error> {
         &[],
         Duration::from_secs(10),
         Some("/build"),
+        None,
     )?;
     match ran.status {
         Some(0) => Ok(()),
