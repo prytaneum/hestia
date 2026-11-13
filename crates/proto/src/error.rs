@@ -622,6 +622,10 @@ pub enum ErrorInfo {
     ConfigKeyUnset {
         key: String,
     },
+    /// A plugin reached a setting its access does not allow.
+    ConfigKeyDenied {
+        key: String,
+    },
     ConfigTypeMismatch {
         key: String,
         expected: ValueKind,
@@ -868,6 +872,7 @@ pub mod code {
     pub const NOT_FOUND: &str = "not_found";
     pub const UNAUTHORIZED: &str = "unauthorized";
     pub const BAD_REQUEST: &str = "bad_request";
+    pub const FORBIDDEN: &str = "forbidden";
 }
 
 impl ErrorInfo {
@@ -893,6 +898,7 @@ impl ErrorInfo {
             SignInRequired | SessionExpired { .. } | LoginDeclined | LoginTimedOut => {
                 code::UNAUTHORIZED
             }
+            ConfigKeyDenied { .. } => code::FORBIDDEN,
             UnknownChannel { .. } => "unknown_channel",
             IncompatibleVersion { .. } => "version_mismatch",
             Offline { .. } | OfflineMode => "offline",
@@ -1062,6 +1068,7 @@ impl fmt::Display for ErrorInfo {
             FileRejected { path, reason } => write!(f, "'{path}' was refused: {reason}"),
             ConfigKeyUnknown { key } => write!(f, "unknown config key '{key}'"),
             ConfigKeyUnset { key } => write!(f, "'{key}' is not set"),
+            ConfigKeyDenied { key } => write!(f, "plugins may not use the setting '{key}'"),
             ConfigTypeMismatch { key, expected } => write!(f, "{key} expects a {expected}"),
             ConfigRejected { key } => write!(f, "invalid value for {key}"),
             ConfigInvalid { key, reason } => write!(f, "invalid value for {key}: {reason}"),

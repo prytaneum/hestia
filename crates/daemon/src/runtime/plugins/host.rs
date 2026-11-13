@@ -209,6 +209,7 @@ fn host_error(info: ErrorInfo) -> HostError {
     match info.code() {
         code::NOT_FOUND => HostError::NotFound(message),
         code::BAD_REQUEST => HostError::Invalid(message),
+        code::FORBIDDEN => HostError::Denied(message),
         _ => HostError::Failed(message),
     }
 }
@@ -408,7 +409,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn a_plugin_cannot_change_a_user_only_setting() {
+    async fn a_plugin_cannot_write_a_setting_that_is_not_readwrite() {
         let harness = harness(crate::services::make_router());
         let attempts = [
             ("developer", json!(true)),
@@ -420,6 +421,8 @@ mod tests {
             ("defaults.jvm_args", json!("-Dx=1")),
             ("defaults", json!({ "memory": "", "jvmArgs": "-Dx=1" })),
             ("java", json!({ "provider": "other" })),
+            ("defaults.memory", json!("2G")),
+            ("no.such.key", json!(true)),
         ];
         for (key, value) in attempts {
             let error = harness
@@ -433,29 +436,92 @@ mod tests {
                 .await
                 .expect_err(key);
             assert!(
-                matches!(&error, HostError::Invalid(message) if message.contains(key)),
+                matches!(&error, HostError::Denied(message) if message.contains(key)),
                 "{key}: {error:?}"
             );
         }
         let settings = harness._runtime.engine().config().settings();
         assert!(!harness._runtime.plugins().developer());
         assert!(settings.defaults.jvm_args.is_empty());
+        assert!(settings.defaults.memory.is_empty());
         assert_ne!(settings.java.provider, "other");
     }
 
     #[tokio::test]
-    async fn a_plugin_can_change_an_ordinary_setting() {
+    async fn a_plugin_cannot_read_a_closed_setting() {
+        let harness = harness(crate::services::make_router());
+        for key in [
+            "home",
+            "developer",
+            "content.curseforge-key",
+            "content",
+            "defaults.jvm-args",
+            "defaults.jvmArgs",
+            "no.such.key",
+        ] {
+            let error = harness
+                .host
+                .call(
+                    "demo",
+                    &CallChain::default(),
+                    "config.get",
+                    json!({ "key": key }),
+                )
+                .await
+                .expect_err(key);
+            assert!(matches!(error, HostError::Denied(_)), "{key}: {error:?}");
+        }
+    }
+
+    #[tokio::test]
+    async fn a_plugin_reads_only_the_readable_keys() {
         let harness = harness(crate::services::make_router());
         harness
             .host
             .call(
                 "demo",
                 &CallChain::default(),
-                "config.set",
-                json!({ "key": "defaults.memory", "value": "2G" }),
+                "config.get",
+                json!({ "key": "defaults.memory" }),
             )
             .await
-            .expect("defaults.memory is the plugin's to set");
+            .expect("defaults.memory is readable");
+
+        let parent = harness
+            .host
+            .call(
+                "demo",
+                &CallChain::default(),
+                "config.get",
+                json!({ "key": "defaults" }),
+            )
+            .await
+            .expect("a parent with a readable key is readable");
+        assert_eq!(parent, json!({ "value": { "memory": "" } }));
+
+        let list = harness
+            .host
+            .call("demo", &CallChain::default(), "config.list", json!({}))
+            .await
+            .expect("config.list is filtered, not refused");
+        let entries = list["entries"].as_object().expect("entries is an object");
+        assert!(entries.contains_key("defaults"));
+        for closed in [
+            "home",
+            "autostart",
+            "developer",
+            "content",
+            "update",
+            "network",
+            "java",
+            "plugins",
+        ] {
+            assert!(!entries.contains_key(closed), "{closed} leaked: {list}");
+        }
+        assert!(!list["entries"]["defaults"]
+            .as_object()
+            .expect("defaults is an object")
+            .contains_key("jvm-args"));
     }
 
     #[tokio::test]

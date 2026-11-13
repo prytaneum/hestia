@@ -65,7 +65,8 @@
       },
       "permission": {
         "account_read": "See the names of signed-in accounts, never their tokens",
-        "config_write": "Change launcher settings; the launcher location, autostart, developer mode, the Java provider and default JVM arguments stay yours",
+        "config_read": "See the few launcher settings that are safe to share, never keys, locations or update settings",
+        "config_write": "Change the few launcher settings that are safe to hand over; everything that decides where data lives, what runs, what updates and what is downloaded stays yours",
         "content_read": "Search and inspect mods, packs and other content",
         "content_write": "Install, update and remove mods, packs and other content",
         "entry_read": "See your servers and instances and their settings",

@@ -118,6 +118,9 @@ and type-mismatched values — **the struct is the validation** — plus a
 `normalize()` pass for value rules a type cannot carry (`defaults.memory` and
 `defaults.jvm-args` reuse the per-entry validation).
 
+What a plugin may do with each setting is a separate table, `proto::config::PLUGIN_ACCESS`; a test in `config.rs` fails
+when a setting is added to `Settings` without an entry there, so a new setting is closed to plugins until someone decides.
+
 Those JVM defaults fall back into any server start or instance launch whose
 record leaves the matching per-entry setting unset (`JavaSettings::or_defaults`).
 Two reserved keys are not stored here at all: `home` routes to the path pointer

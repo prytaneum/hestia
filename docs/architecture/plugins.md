@@ -111,12 +111,16 @@ again. The tiers and the full table are in
   `java`, `network`, `ipc`, `ui`, `launch`, `flavor`, `format`. The domain is the
   channel prefix it opens.
 - **Two tiers.** `Sandboxed`, and `Unrestricted` for the permissions that reach
-  native code (`entry:write`, `config:write`, `content:write`, `process:control`,
+  native code (`entry:write`, `config:write` (kept here although no setting is yet writable by plugins), `content:write`, `process:control`,
   `process:spawn`, `ipc:connect`, `flavor:provide`, `format:provide`, `java:provide`). The install prompt states the latter as full
   access to the computer, and the daemon reports the tier so no front-end keeps a
   table of its own.
+- **Settings are an allowlist.** `config.get`/`config.list` need `config:read` and `config.set` needs
+  `config:write`, but the permission is only the first gate: `proto::config::PLUGIN_ACCESS` marks every setting
+  `none`, `read` or `readwrite` for plugins, an unlisted key is `none`, and a reply is filtered to the readable keys.
+  A test fails a setting the table does not list.
 - **Always closed:** every secret-bearing channel (logs, `server.properties`, the
-  config reads, sign-in and token channels, skins), plus update, daemon lifecycle
+  per-entry config reads, sign-in and token channels, skins), plus update, daemon lifecycle
   and `plugin.*`. The list and the reason for each entry are in 0092.
 - **Where it is enforced.** On a channel call, `Gate::dispatch` asks the host for
   the channel's permission and checks it against the grant before anything is

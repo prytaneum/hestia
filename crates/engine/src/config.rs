@@ -343,3 +343,56 @@ fn kind_of(v: &Value) -> ValueKind {
         Value::Object(_) => ValueKind::Object,
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::collections::BTreeSet;
+
+    use proto::config::{AUTOSTART_KEY, HOME_KEY, PLUGIN_ACCESS};
+
+    use super::*;
+
+    fn leaves(prefix: &str, value: &Value, out: &mut BTreeSet<String>) {
+        match value {
+            Value::Object(map) => {
+                for (name, child) in map {
+                    let key = if prefix.is_empty() {
+                        name.clone()
+                    } else {
+                        format!("{prefix}.{name}")
+                    };
+                    leaves(&key, child, out);
+                }
+            }
+            _ => {
+                out.insert(prefix.to_string());
+            }
+        }
+    }
+
+    #[test]
+    fn every_setting_has_a_decided_plugin_access() {
+        let settings = naming::settings_to_config_keys(
+            serde_json::to_value(Settings::default()).expect("settings serialize"),
+        );
+        let mut schema = BTreeSet::new();
+        leaves("", &settings, &mut schema);
+        schema.extend([HOME_KEY, AUTOSTART_KEY].map(String::from));
+
+        let decided: BTreeSet<String> = PLUGIN_ACCESS
+            .iter()
+            .map(|(key, _)| key.to_string())
+            .collect();
+
+        let undecided: Vec<&String> = schema.difference(&decided).collect();
+        assert!(
+            undecided.is_empty(),
+            "decide the plugin access of these settings in proto::config::PLUGIN_ACCESS: {undecided:?}"
+        );
+        let stale: Vec<&String> = decided.difference(&schema).collect();
+        assert!(
+            stale.is_empty(),
+            "PLUGIN_ACCESS lists settings the schema no longer has: {stale:?}"
+        );
+    }
+}

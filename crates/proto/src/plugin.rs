@@ -128,6 +128,10 @@ pub enum Permission {
     /// Profiles only, never tokens.
     #[serde(rename = "account:read")]
     AccountRead,
+    /// Only the settings [`crate::config::PLUGIN_ACCESS`] marks readable.
+    #[serde(rename = "config:read")]
+    ConfigRead,
+    /// Only the settings [`crate::config::PLUGIN_ACCESS`] marks writable.
     #[serde(rename = "config:write")]
     ConfigWrite,
     #[serde(rename = "java:read")]
@@ -184,6 +188,7 @@ impl Permission {
             | Permission::ProcessRead
             | Permission::ContentRead
             | Permission::AccountRead
+            | Permission::ConfigRead
             | Permission::JavaRead
             | Permission::JavaManage
             | Permission::NetworkConnect
@@ -207,7 +212,8 @@ impl Permission {
             Permission::ContentRead => "Search and inspect mods, packs and other content",
             Permission::ContentWrite => "Install, update and remove mods, packs and other content",
             Permission::AccountRead => "See the names of signed-in accounts, never their tokens",
-            Permission::ConfigWrite => "Change launcher settings; the launcher location, autostart, developer mode, the Java provider and default JVM arguments stay yours",
+            Permission::ConfigRead => "See the few launcher settings that are safe to share, never keys, locations or update settings",
+            Permission::ConfigWrite => "Change the few launcher settings that are safe to hand over; everything that decides where data lives, what runs, what updates and what is downloaded stays yours",
             Permission::JavaRead => "See installed and available Java runtimes",
             Permission::JavaManage => "Install and remove Java runtimes",
             Permission::NetworkConnect => "Connect to the hosts it lists",

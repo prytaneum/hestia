@@ -5,8 +5,8 @@ use std::path::Path;
 
 use engine::ConfigError;
 use proto::config::{
-    plugin_may_write, ConfigGet, ConfigGetResult, ConfigList, ConfigListResult, ConfigSet,
-    AUTOSTART_KEY, DEVELOPER_KEY, HOME_KEY,
+    plugin_may_read, plugin_may_write, plugin_view, ConfigGet, ConfigGetResult, ConfigList,
+    ConfigListResult, ConfigSet, AUTOSTART_KEY, DEVELOPER_KEY, HOME_KEY,
 };
 use proto::error::{ErrorInfo, ValueKind};
 use proto::Empty;
@@ -37,6 +37,11 @@ fn config_err(e: ConfigError) -> ErrorInfo {
 
 pub(super) fn register(on: &mut Channels<'_>) {
     on.handle::<ConfigGet, _, _>(|p, ctx| async move {
+        let plugin = matches!(ctx.caller, Caller::Plugin(_));
+        if plugin && !plugin_may_read(&p.key) {
+            tracing::warn!(key = %p.key, caller = %ctx.caller, "plugin refused a closed setting");
+            return Err(ErrorInfo::ConfigKeyDenied { key: p.key });
+        }
         if p.key == HOME_KEY {
             return Ok(ConfigGetResult {
                 value: json!(ctx.runtime.engine().data_home().display().to_string()),
@@ -47,18 +52,24 @@ pub(super) fn register(on: &mut Channels<'_>) {
                 value: json!(autostart::is_enabled()),
             });
         }
-        ctx.runtime
+        let value = ctx
+            .runtime
             .engine()
             .config()
             .get(&p.key)
-            .map(|value| ConfigGetResult { value })
-            .map_err(config_err)
+            .map_err(config_err)?;
+        let value = if plugin {
+            plugin_view(&p.key, value).ok_or(ErrorInfo::ConfigKeyDenied { key: p.key })?
+        } else {
+            value
+        };
+        Ok(ConfigGetResult { value })
     });
 
     on.handle::<ConfigSet, _, _>(|p, ctx| async move {
         if matches!(ctx.caller, Caller::Plugin(_)) && !plugin_may_write(&p.key) {
-            tracing::warn!(key = %p.key, "plugin refused a user-only setting");
-            return Err(ErrorInfo::ConfigRejected { key: p.key });
+            tracing::warn!(key = %p.key, caller = %ctx.caller, "plugin refused a setting it may not write");
+            return Err(ErrorInfo::ConfigKeyDenied { key: p.key });
         }
         if p.key == HOME_KEY {
             let Value::String(dir) = p.value else {
@@ -118,6 +129,9 @@ pub(super) fn register(on: &mut Channels<'_>) {
                 json!(ctx.runtime.engine().data_home().display().to_string()),
             );
             map.insert(AUTOSTART_KEY.into(), json!(autostart::is_enabled()));
+        }
+        if matches!(ctx.caller, Caller::Plugin(_)) {
+            entries = plugin_view("", entries).unwrap_or_else(|| json!({}));
         }
         Ok(ConfigListResult { entries })
     });

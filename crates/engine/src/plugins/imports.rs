@@ -38,6 +38,8 @@ pub enum HostError {
     #[error("{0}")]
     Invalid(String),
     #[error("{0}")]
+    Denied(String),
+    #[error("{0}")]
     Failed(String),
 }
 
@@ -177,6 +179,7 @@ impl Gate {
             Ok(value) => Ok(value.to_string()),
             Err(HostError::NotFound(message)) => Err(PluginError::NotFound(message)),
             Err(HostError::Invalid(message)) => Err(PluginError::Invalid(message)),
+            Err(HostError::Denied(message)) => Err(PluginError::PermissionDenied(message)),
             Err(HostError::Failed(message)) => Err(PluginError::Failed(message)),
         }
     }

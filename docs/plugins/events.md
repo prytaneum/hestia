@@ -68,7 +68,7 @@ even when a glob matches it.
 |---|---|
 | `entries`, `sync`, `screenshots` | `entry:read` |
 | `accounts` | `account:read` |
-| `config` | `config:write` |
+| `config` | `config:read` |
 | `java` | `java:read` |
 | `skins`, `cache`, `plugins` | nothing: never delivered |
 

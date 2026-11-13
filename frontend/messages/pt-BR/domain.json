@@ -65,7 +65,8 @@
       },
       "permission": {
         "account_read": "Ver os nomes das contas conectadas, nunca os tokens",
-        "config_write": "Alterar as configurações do launcher; o local do launcher, a inicialização automática, o modo desenvolvedor, o provedor de Java e os argumentos padrão da JVM continuam sendo seus",
+        "config_read": "Ver as poucas configurações do launcher que são seguras de compartilhar, nunca chaves, locais ou configurações de atualização",
+        "config_write": "Alterar as poucas configurações do launcher seguras de entregar; tudo o que decide onde ficam os dados, o que executa, o que atualiza e o que é baixado continua sendo seu",
         "content_read": "Buscar e inspecionar mods, pacotes e outros conteúdos",
         "content_write": "Instalar, atualizar e remover mods, pacotes e outros conteúdos",
         "entry_read": "Ver seus servidores e instâncias e as configurações deles",

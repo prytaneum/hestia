@@ -20,7 +20,8 @@ access to the computer.
 | `content:read` | sandboxed | Search and inspect mods, packs and other content |
 | `content:write` | unrestricted | Install, update and remove mods, packs and other content |
 | `account:read` | sandboxed | See the names of signed-in accounts, never their tokens |
-| `config:write` | unrestricted | Change launcher settings; the launcher location, autostart, developer mode, the Java provider and default JVM arguments stay yours |
+| `config:read` | sandboxed | See the few launcher settings that are safe to share, never keys, locations or update settings |
+| `config:write` | unrestricted | Change the few launcher settings that are safe to hand over; everything that decides where data lives, what runs, what updates and what is downloaded stays yours |
 | `java:read` | sandboxed | See installed and available Java runtimes |
 | `java:manage` | sandboxed | Install and remove Java runtimes |
 | `network:connect` | sandboxed | Connect to the hosts it lists in `network` |
@@ -30,6 +31,15 @@ access to the computer.
 | `flavor:provide` | unrestricted | Add game distributions that choose what code the game runs, including its main class and arguments |
 | `format:provide` | unrestricted | Add archive formats that choose the game version, loader and JVM settings of instances you import |
 | `java:provide` | unrestricted | Add Java distributions that choose the runtime binary Hestia executes |
+
+## Settings
+
+A plugin reaches a launcher setting only as far as `proto::config::PLUGIN_ACCESS` allows: each key is `none`, `read` or
+`readwrite` for plugins, and a key missing from the table is `none`. `config.get` of a closed key answers
+permission-denied; `config.list`, or a `config.get` of a parent such as `defaults`, returns only the readable keys.
+`config.set` needs `config:write` and a `readwrite` key; setting a parent needs every key under it to be
+`readwrite`. Keys match in canonical form, so `defaults.jvmArgs` is `defaults.jvm-args`. Nothing is `readwrite` yet.
+The table is checked against the settings schema by a test in `crates/engine/src/config.rs`.
 
 Hook points and provider kinds name the permissions they need in `proto::hook` and `proto::provider`; a manifest that
 declares one without them is refused at `pack` and at install.

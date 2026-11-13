@@ -23,7 +23,7 @@ maps a permission to its channels at a glance:
 | `process` | `read`, `control`, `spawn` | `process.list`/`status` and its topics; stopping, starting and the console; the programs the manifest declares |
 | `content` | `read`, `write` | `content.*`, `modpack.*` |
 | `account` | `read` | profiles only, never tokens |
-| `config` | `read`, `write` | `config.*` |
+| `config` | `read`, `write` | `config.get`/`list` and `config.set`, limited per setting by `proto::config::PLUGIN_ACCESS` |
 | `java` | `read`, `manage` | `java.list`/`releases`; `java.install`/`uninstall` |
 | `network` | `connect` | outbound HTTP to the hosts the manifest lists |
 | `ui` | `css` | a theme's stylesheet |
@@ -33,8 +33,8 @@ Each has a one-line description for the install prompt.
 
 **Two tiers.** `Permission::tier()` is `Sandboxed` or `Unrestricted`. The
 unrestricted permissions each reach native code, because the game runs what they
-write: `entry:write` and `config:write` (per-entry and `defaults.jvm-args` take
-`-javaagent:`; `server.files.write` places jars), `content:write` (`content.add`
+write: `entry:write` and `config:write` (per-entry `jvm-args` take
+`-javaagent:`, and `config:write` stays here although `defaults.jvm-args` is closed to plugins; `server.files.write` places jars), `content:write` (`content.add`
 places jars), `process:control` (the console runs operator commands) and
 `process:spawn` (runs programs). The install prompt states them as full access
 to the computer, the way Deno documents `--allow-run` and `--allow-ffi`.
@@ -50,7 +50,6 @@ therefore part of the plugin API: changing it bumps `API_VERSION`.
 | `process.logs`, `entry.logs`, `process.output` | An old client prints its session id to stdout |
 | `server.properties` | Holds `rcon.password` until it redacts it |
 | `entry.config.get`, `entry.config.list` | A server's config falls through to `server.properties`, which holds `rcon.password`, until these redact `properties::SECRET` |
-| `config.get`, `config.list` | `content.curseforge-key` is returned until it is redacted or leaves core |
 | `account.login.*`, `account.switch`, `account.remove`, `skin.*`, `cape.*` | Sign-in, tokens and the account's own profile |
 | `update.*`, `daemon.stop`, `daemon.status`, `plugin.*` | Self-update, daemon lifecycle and plugin management |
 | `events.subscribe`, `job.list`, `job.cancel`, the `job` and `changed` topics | Another client's subscriptions and jobs; a plugin cancels only what it started |
