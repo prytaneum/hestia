@@ -9,8 +9,8 @@ that release's notes, rendered as markdown.
 
 ## 1.0.0-beta.3
 
-Bedrock servers, every running job in one place, launch progress where you
-press Play, and quieter, clearer notifications.
+Bedrock servers, content updates that find you, every running job in one place,
+launch progress where you press Play, and quieter, clearer notifications.
 
 ### Bedrock servers
 
@@ -35,6 +35,28 @@ press Play, and quieter, clearer notifications.
 - **Settings.** `server.properties` is typed and seeded per edition, so settings
   follow Bedrock's own rules, and Java-only keys such as `memory` and
   `jvm-args` are refused with a reason.
+
+### Content updates
+
+- **Found for you.** The daemon checks for mod, pack and shader updates when it
+  starts, when the network comes back, as an instance launches and when you open
+  an entry's content. The check is batched, so a library of any size costs a
+  handful of requests, and each answer is kept for 30 minutes. A new update
+  lands in the notification bell.
+- **Where you look.** Library cards show how many updates an entry has. The
+  content list shows the version each item can move to, and "Update all" moves
+  them. On the CLI, `instance list` and `server list` gain an UPDATES column,
+  `<kind> list` an UPDATE column, and `hestia updates [--apply]` lists and
+  applies every entry's updates at once. `update --check` asks upstream right
+  away.
+- **Hold.** Keep an item at its version from its menu, or with
+  `<kind> hold|unhold <item>`. "Update all" and auto-update leave it alone.
+  Choosing a version holds the item, and updating it by name lets it go.
+- **Auto-update.** Off by default: Settings → Content, or
+  `config set content.auto-update true`. An instance's updates apply as it
+  launches, and a stopped server's as soon as they are found. Held items and
+  a modpack's own content are left alone, and an item that cannot move is
+  reported on the launch while the game still starts.
 
 ### Jobs and notifications
 
