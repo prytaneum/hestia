@@ -18,9 +18,23 @@ impl Engine {
         self.update.check(self.update_channel()).await
     }
 
+    /// Stages the official plugins a release that changes the plugin API
+    /// needs before downloading it, so an update that would leave one without
+    /// a build is refused before anything is fetched.
     pub async fn download_update(&self, on_progress: &ProgressFn<'_>) -> Result<(PathBuf, String)> {
-        self.update
-            .download(self.update_channel(), on_progress)
-            .await
+        let release = self.update.release(self.update_channel()).await?;
+        if let Some(api) = release.plugin_api.as_deref() {
+            self.stage_official_plugins(api).await?;
+        }
+        let path = self.update.download(&release, on_progress).await?;
+        Ok((path, release.version))
+    }
+
+    pub fn staged_plugins(&self, api: &str) -> PathBuf {
+        self.update.staged_plugins(api)
+    }
+
+    pub fn discard_staged_plugins(&self) {
+        self.update.discard_staged_plugins()
     }
 }

@@ -23,9 +23,9 @@ use engine::{
 };
 use proto::error::ErrorInfo;
 use proto::plugin::{
-    CommandContribution, Manifest, PageContribution, PluginCommand, PluginDeveloperInfo,
-    PluginInfo, PluginInspection, PluginInstallPhase, PluginPage, PluginSource, PluginState,
-    PluginStateEvent, PluginTheme, SettingValue,
+    CommandContribution, Manifest, ManifestError, PageContribution, PluginCommand,
+    PluginDeveloperInfo, PluginInfo, PluginInspection, PluginInstallPhase, PluginPage,
+    PluginSource, PluginState, PluginStateEvent, PluginTheme, SettingValue,
 };
 use tokio::task::{spawn_blocking, JoinSet};
 
@@ -39,6 +39,13 @@ pub use package::Package;
 const INIT_TIMEOUT: Duration = Duration::from_secs(10);
 const SAFE_MODE_NOTE: &str = "not loaded: the daemon is in safe mode";
 const DEVELOPER_OFF_NOTE: &str = "disabled: developer mode was turned off";
+
+fn api_mismatch(error: &anyhow::Error) -> bool {
+    matches!(
+        error.downcast_ref::<ManifestError>(),
+        Some(ManifestError::ApiMismatch { .. })
+    )
+}
 
 struct Slot {
     state: PluginState,
@@ -105,6 +112,23 @@ impl Plugins {
             tracing::debug!("no bundled plugins beside this build");
             return;
         };
+        self.seed_from(dir, "bundled").await;
+    }
+
+    /// Installs the official builds a previous daemon staged for this plugin
+    /// API when it downloaded the app update that brought this one, before
+    /// anything is loaded, then forgets them. A directory staged for another
+    /// API is left alone: that update has not been applied yet.
+    pub async fn install_staged(&self) {
+        let dir = self.engine.staged_plugins(proto::plugin::API_VERSION);
+        if !dir.is_dir() {
+            return;
+        }
+        self.seed_from(dir, "staged").await;
+        self.engine.discard_staged_plugins();
+    }
+
+    async fn seed_from(&self, dir: std::path::PathBuf, source: &'static str) {
         let Some(sandbox) = self.sandbox.get().cloned() else {
             return;
         };
@@ -121,12 +145,13 @@ impl Plugins {
         .await;
         match seeded {
             Ok(seeded) => tracing::info!(
+                source,
                 installed = seeded.installed.len(),
                 upgraded = seeded.upgraded.len(),
                 refused = seeded.refused.len(),
-                "bundled plugins seeded"
+                "official plugins seeded"
             ),
-            Err(error) => tracing::error!(%error, "seeding the bundled plugins failed"),
+            Err(error) => tracing::error!(source, %error, "seeding the official plugins failed"),
         }
     }
 
@@ -605,9 +630,17 @@ impl Plugins {
         let obsolete = listings.obsolete(&record);
         let engine = self.engine.clone();
         let id = record.id.clone();
-        let manifest = spawn_blocking(move || engine.plugins().read_manifest(&id))
-            .await
-            .unwrap_or_else(|error| Err(error.into()));
+        let manifest = spawn_blocking(move || {
+            let plugins = engine.plugins();
+            match plugins.read_manifest(&id) {
+                Err(error) if api_mismatch(&error) => plugins
+                    .read_declared(&id)
+                    .map(|manifest| (manifest, Some(format!("{error:#}")))),
+                read => read.map(|manifest| (manifest, None)),
+            }
+        })
+        .await
+        .unwrap_or_else(|error| Err(error.into()));
         let (state, last_error, stats) = {
             let slots = self.slots.lock().unwrap();
             match slots.get(&record.id) {
@@ -629,7 +662,8 @@ impl Plugins {
             }
         };
         let (manifest, state, last_error) = match manifest {
-            Ok(manifest) => (manifest, state, last_error),
+            Ok((manifest, None)) => (manifest, state, last_error),
+            Ok((manifest, stale)) => (manifest, PluginState::NeedsUpdate, stale),
             Err(error) => (
                 Manifest {
                     id: record.id.clone(),
@@ -698,14 +732,13 @@ impl Plugins {
             }
             Err(error) => {
                 let message = format!("{error:#}");
-                tracing::warn!(plugin = %id, error = %message, "plugin failed to load");
-                self.settle(
-                    &id,
-                    PluginState::Failed,
-                    Some(message),
-                    None,
-                    Contributions::default(),
-                )
+                let state = if api_mismatch(&error) {
+                    PluginState::NeedsUpdate
+                } else {
+                    PluginState::Failed
+                };
+                tracing::warn!(plugin = %id, error = %message, ?state, "plugin failed to load");
+                self.settle(&id, state, Some(message), None, Contributions::default())
             }
         }
     }

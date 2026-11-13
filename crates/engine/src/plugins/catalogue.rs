@@ -4,7 +4,7 @@
 use std::collections::{BTreeMap, HashSet};
 
 use proto::catalogue::{Availability, CataloguePlugin, Lister, RepositoryInfo};
-use proto::plugin::{api_supported, compare_versions, Grant};
+use proto::plugin::{api_supported_by, compare_versions, Grant, API_VERSION};
 use proto::repository::{Build, IndexedPlugin, RepositoryIndex};
 
 use super::index::icon_url;
@@ -85,10 +85,20 @@ impl<'a> Pick<'a> {
 /// The newest build of `plugin` this Hestia can install. A build its own
 /// repository revoked is not a build.
 pub fn pick<'a>(source: &Source, plugin: &'a IndexedPlugin) -> Pick<'a> {
+    pick_for(source, plugin, API_VERSION)
+}
+
+/// [`pick`] for a host exposing plugin API `host`.
+pub fn pick_for<'a>(source: &Source, plugin: &'a IndexedPlugin, host: &str) -> Pick<'a> {
     let live = |build: &&Build| {
         revocation(&source.index, &source.key_id, &plugin.id, &build.version).is_none()
     };
-    let runs = |build: &&Build| build.api.as_deref().is_none_or(api_supported);
+    let runs = |build: &&Build| {
+        build
+            .api
+            .as_deref()
+            .is_none_or(|api| api_supported_by(api, host))
+    };
     let newest = |builds: Vec<&'a Build>| {
         builds
             .into_iter()

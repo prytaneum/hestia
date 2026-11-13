@@ -29,12 +29,12 @@ use crate::plugins::{
 };
 
 const INDEX_CAP: u64 = 8 * 1024 * 1024;
-const SIGNATURE_CAP: u64 = 16 * 1024;
+pub(super) const SIGNATURE_CAP: u64 = 16 * 1024;
 
 /// A configured repository and what is known of it right now.
-struct Synced {
+pub(super) struct Synced {
     entry: RepositoryEntry,
-    source: Option<Source>,
+    pub(super) source: Option<Source>,
     /// Why the index could not be refreshed; `source` is then the cached copy.
     stale: Option<ErrorInfo>,
 }
@@ -434,7 +434,7 @@ impl Engine {
         Ok((bytes, signature))
     }
 
-    fn local_repositories(&self) -> Vec<Synced> {
+    pub(super) fn local_repositories(&self) -> Vec<Synced> {
         self.plugin_repositories()
             .list()
             .into_iter()
@@ -447,7 +447,7 @@ impl Engine {
             .collect()
     }
 
-    async fn sync_repositories(&self, only: Option<&str>) -> Result<Vec<Synced>> {
+    pub(super) async fn sync_repositories(&self, only: Option<&str>) -> Result<Vec<Synced>> {
         let mut entries = self.plugin_repositories().list();
         if let Some(url) = only {
             entries.retain(|entry| entry.url == url);
@@ -532,7 +532,7 @@ impl Engine {
             .list()
             .into_iter()
             .filter_map(|record| {
-                let version = plugins.read_manifest(&record.id).ok()?.version;
+                let version = plugins.read_declared(&record.id).ok()?.version;
                 Some(Installed {
                     id: record.id,
                     version,
@@ -620,7 +620,7 @@ fn describe(choice: &Pick<'_>, plugin: &IndexedPlugin) -> String {
     }
 }
 
-fn file_name(url: &str) -> Result<String> {
+pub(super) fn file_name(url: &str) -> Result<String> {
     reqwest::Url::parse(url)
         .ok()
         .and_then(|url| url.path_segments()?.next_back().map(str::to_string))

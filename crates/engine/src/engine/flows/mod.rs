@@ -9,6 +9,7 @@ mod content;
 mod download;
 pub use content::entry::EntryRef;
 mod flavors;
+mod handover;
 mod icon;
 mod instance;
 

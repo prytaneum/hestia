@@ -134,3 +134,31 @@ fn a_component_the_sandbox_rejects_is_refused_and_not_installed() {
     assert_eq!(seeded.refused.len(), 1);
     assert!(plugins.list().is_empty());
 }
+
+#[test]
+fn a_staged_build_upgrades_the_official_plugin_it_replaces() {
+    let home = tempfile::tempdir().unwrap();
+    let (bundle, staged) = (home.path().join("bundle"), home.path().join("staged"));
+    for dir in [&bundle, &staged] {
+        std::fs::create_dir_all(dir).unwrap();
+    }
+    let official = KeyPair::generate_unencrypted_keypair().unwrap();
+    let wasm = std::fs::read(probe::component()).unwrap();
+    write_bundle(&bundle, &official, "alpha", "1.0.0", &wasm);
+    write_bundle(&staged, &official, "alpha", "1.1.0", &wasm);
+
+    let supervisor = Arc::new(ProcessSupervisor::new(home.path().join("processes")));
+    let runtime =
+        PluginRuntime::new(Arc::new(NoChannels), home.path().join("cache"), supervisor).unwrap();
+    let plugins = Plugins::new(home.path().join("plugins"));
+    let keys = [official.pk.to_base64()];
+    let seed = |dir: &Path| {
+        plugins.seed_bundled(dir, &keys, |wasm| runtime.check(wasm).map_err(Into::into))
+    };
+    seed(&bundle);
+
+    let upgraded = seed(&staged);
+
+    assert_eq!(upgraded.upgraded, ["alpha"]);
+    assert_eq!(plugins.read_manifest("alpha").unwrap().version, "1.1.0");
+}

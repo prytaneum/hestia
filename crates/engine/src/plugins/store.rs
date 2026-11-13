@@ -174,12 +174,20 @@ impl Plugins {
 
     /// Blocking: reads and validates the installed manifest.
     pub fn read_manifest(&self, id: &str) -> Result<Manifest> {
+        let manifest = self.read_declared(id)?;
+        manifest.validate()?;
+        Ok(manifest)
+    }
+
+    /// Blocking: reads the installed manifest without asking whether this
+    /// host can run it, which is how a plugin built for another plugin API
+    /// still says what it is and which version.
+    pub fn read_declared(&self, id: &str) -> Result<Manifest> {
         let path = self.package_dir(id)?.join(MANIFEST);
         let text = std::fs::read_to_string(&path)
             .with_context(|| format!("cannot read {}", path.display()))?;
         let manifest: Manifest =
             toml::from_str(&text).with_context(|| format!("invalid {}", path.display()))?;
-        manifest.validate()?;
         if manifest.id != id {
             bail!("{} declares plugin `{}`", path.display(), manifest.id);
         }

@@ -19,8 +19,8 @@ use super::store::{Approver, Plugins};
 use crate::cancel::Cancel;
 use crate::schema::{self, Document};
 
-const PACKAGE_EXTENSION: &str = "hplugin";
-const SIGNATURE_SUFFIX: &str = ".minisig";
+pub(crate) const PACKAGE_EXTENSION: &str = "hplugin";
+pub(crate) const SIGNATURE_SUFFIX: &str = ".minisig";
 const PACKAGE_LIMIT: u64 = 64 * 1024 * 1024;
 const SIGNATURE_LIMIT: u64 = 16 * 1024;
 
