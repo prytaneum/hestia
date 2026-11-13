@@ -728,6 +728,7 @@ fn artifact_of(f: &Value) -> Artifact {
                 algorithm: HashAlgorithm::Sha1,
                 hex,
             }),
+        unhashed: false,
     }
 }
 

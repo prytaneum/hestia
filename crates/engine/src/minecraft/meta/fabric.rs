@@ -149,6 +149,7 @@ pub fn libraries(profile: &Value) -> Vec<Library> {
                     algorithm: HashAlgorithm::Sha1,
                     hex: sha1,
                 }),
+                unhashed: false,
             },
             path,
             built: false,

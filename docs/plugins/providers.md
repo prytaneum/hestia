@@ -89,6 +89,11 @@ It leaves the optional operations unhandled, so URL pasting, bulk lookup and fil
 A flavor decides the code the game runs, so the host vets every profile before acting on it: each artifact must carry a
 checksum (sha1 or sha256, which the download is verified against) and sit on one of the plugin's `network` hosts, unless the profile names it as built (see `build` below).
 
+A host that generates a file on request has no checksum to publish. A profile may mark such an artifact `unhashed: true`
+instead of leaving the checksum out, and the host accepts it only from a host the manifest lists in `unhashed` (each also
+in `network`). The list is part of the grant, so the user sees it when approving the install or an update that adds one
+([0114](../decisions/0114-an-unhashed-download-is-declared.md)). A missing checksum without the marker is refused.
+
 | Operation | Args | Reply | Notes |
 |---|---|---|---|
 | `info` | none | `FlavorDescription` | asked once, when the plugin is enabled |

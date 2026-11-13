@@ -1,7 +1,8 @@
 //! A flavor that re-serves a vanilla-shaped profile. The artifacts sit under
 //! the plugin's `base-url` data file, so Hestia downloads them from wherever
 //! the test serves them. Two game versions are deliberately bad profiles:
-//! `foreign` names a host outside the grant, `unsigned` carries no checksum. `sha256` verifies by sha256 and
+//! `foreign` names a host outside the grant, `unsigned` carries no checksum and
+//! `generated` says it carries none on purpose. `sha256` verifies by sha256 and
 //! `wrongsum` names a sha256 the download does not match.
 //!
 //! Four more exercise `build`. On the server, `built` runs the declared
@@ -52,6 +53,7 @@ fn artifact(version: &str, name: &str, sha1: &str) -> Result<Artifact, Error> {
         filename: name.into(),
         size: 0,
         checksum: checksum(version, sha1),
+        unhashed: version == "generated",
     })
 }
 
@@ -61,7 +63,7 @@ fn checksum(version: &str, sha1: &str) -> Option<Checksum> {
         hex: hex.into(),
     };
     match version {
-        "unsigned" => None,
+        "unsigned" | "generated" => None,
         "sha256" => Some(sha256(JAR_SHA256)),
         "wrongsum" => Some(sha256(&"0".repeat(64))),
         _ => Some(Checksum {
@@ -85,7 +87,7 @@ fn info(flavor: &str) -> Result<FlavorDescription, Error> {
 
 fn versions(flavor: &str) -> Result<Vec<GameVersion>, Error> {
     check(flavor)?;
-    Ok(["1.21", "foreign", "unsigned", "sha256", "wrongsum", "built", "ordered", "expand", "outside", "symlink", "empty"]
+    Ok(["1.21", "foreign", "unsigned", "generated", "sha256", "wrongsum", "built", "ordered", "expand", "outside", "symlink", "empty"]
         .into_iter()
         .map(|id| GameVersion {
             id: id.into(),

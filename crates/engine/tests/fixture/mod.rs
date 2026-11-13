@@ -52,6 +52,7 @@ impl Flavor {
                 filename: "server.jar".into(),
                 size: 0,
                 checksum: None,
+                unhashed: false,
             }),
         }
     }
@@ -67,6 +68,7 @@ impl Flavor {
                 filename: "client.jar".into(),
                 size: Files::BODY.len() as u64,
                 checksum: None,
+                unhashed: false,
             }),
         }
     }
@@ -258,6 +260,7 @@ pub fn version(project: &str, files: &Files, game: &str, deps: &[&str]) -> Conte
                 filename: format!("{project}.jar"),
                 size: Files::BODY.len() as u64,
                 checksum: None,
+                unhashed: false,
             },
             primary: true,
         }],

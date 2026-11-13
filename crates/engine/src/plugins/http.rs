@@ -6,6 +6,7 @@
 //! through [`guard::client`], whose resolver vets the addresses it connects to,
 //! so a granted name that resolves inside this machine is still refused.
 
+use std::collections::BTreeSet;
 use std::future::Future;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -109,6 +110,16 @@ fn host_matches(entry: &str, host: &str) -> bool {
 /// https (plain http only to a loopback host the grant names, which a test or a
 /// local index serves from).
 pub fn download_allowed(grant: &Grant, url: &str) -> bool {
+    download_on(&grant.network, url)
+}
+
+/// Whether a download from `url` may go without a checksum: it is on a granted
+/// host and that host is one the grant lists as serving unhashed files.
+pub fn unhashed_allowed(grant: &Grant, url: &str) -> bool {
+    download_on(&grant.network, url) && download_on(&grant.unhashed, url)
+}
+
+fn download_on(hosts: &BTreeSet<String>, url: &str) -> bool {
     let Ok(url) = Url::parse(url) else {
         return false;
     };
@@ -121,7 +132,7 @@ pub fn download_allowed(grant: &Grant, url: &str) -> bool {
     let host = host.trim_end_matches('.').to_ascii_lowercase();
     let loopback = matches!(host.as_str(), "localhost" | "127.0.0.1" | "[::1]");
     let secure = url.scheme() == "https" || (url.scheme() == "http" && loopback);
-    secure && grant.network.iter().any(|entry| host_matches(entry, &host))
+    secure && hosts.iter().any(|entry| host_matches(entry, &host))
 }
 
 /// The `wasi:http` hooks of one plugin call.

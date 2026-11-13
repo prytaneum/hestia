@@ -4,6 +4,7 @@ api = "^1.0.0"
 wasm = "plugin.wasm"
 permissions = ["flavor:provide", "network:connect", "process:spawn"]
 network = ["files.example.com"]
+unhashed = ["files.example.com"]
 
 [[programs]]
 id = "builder"

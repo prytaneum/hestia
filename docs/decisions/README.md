@@ -44,6 +44,7 @@ the alternative you rejected — that is usually the part nobody can recover lat
 - **0110** — [A flavor builds in an area of its own, and the host places what it builds](0110-a-flavor-builds-in-its-own-area.md)
 - **0111** — [A plugin repository publishes to its own orphan branch](0111-a-repository-publishes-to-its-own-branch.md)
 - **0112** — [The app and the official plugins update together](0112-the-app-and-official-plugins-update-together.md)
+- **0114** — [An unhashed download is declared, and the user approves the host](0114-an-unhashed-download-is-declared.md)
 
 ### [Cross-cutting foundations](../architecture/common.md)
 

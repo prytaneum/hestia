@@ -266,6 +266,9 @@ Adding a kind is its vocabulary in `proto::provider`, an adapter module beside
 the others, and a line in each of `Contributions::connect`, `register` and
 `unregister`.
 
+A flavor artifact needs a sha1 or sha256 the download is verified against, or the `unhashed` marker from a host the
+manifest lists ([0114](../decisions/0114-an-unhashed-download-is-declared.md)).
+
 A flavor whose profile names something it cannot download implements the optional
 `build` operation ([0110](../decisions/0110-a-flavor-builds-in-its-own-area.md)).
 The adapter calls it from the flavor's `install` step with a per-call context: two
@@ -570,3 +573,4 @@ plugins the tests build are fixtures
 | [0110](../decisions/0110-a-flavor-builds-in-its-own-area.md) | a flavor builds in an area of its own; the host places the outputs |
 | [0111](../decisions/0111-a-repository-publishes-to-its-own-branch.md) | a repository publishes to its own orphan branch |
 | [0112](../decisions/0112-the-app-and-official-plugins-update-together.md) | the app and the official plugins update together |
+| [0114](../decisions/0114-an-unhashed-download-is-declared.md) | an unhashed download is declared, and the host is part of the grant |

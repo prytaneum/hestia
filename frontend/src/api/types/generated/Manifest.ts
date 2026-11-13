@@ -20,6 +20,11 @@ wasm?: string, permissions: Array<Permission>,
  */
 network: Array<string>, 
 /**
+ * The `network` hosts a flavor may serve a download from without a
+ * checksum, because they generate it on request.
+ */
+unhashed: Array<string>, 
+/**
  * Local endpoints `ipc:connect` reaches, as names like `discord-ipc-*`.
  */
 ipc: Array<string>, 

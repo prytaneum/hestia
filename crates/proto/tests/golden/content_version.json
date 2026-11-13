@@ -20,6 +20,7 @@
         "url": "https://cdn.modrinth.com/data/AANobbMI/versions/abcd1234/sodium-0.6.0.jar",
         "filename": "sodium-0.6.0.jar",
         "size": 987654,
+        "unhashed": false,
         "checksum": {
           "algorithm": "sha1",
           "hex": "0123456789abcdef0123456789abcdef01234567"

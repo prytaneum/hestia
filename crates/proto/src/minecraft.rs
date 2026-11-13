@@ -86,6 +86,10 @@ pub struct Artifact {
     pub size: u64,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub checksum: Option<Checksum>,
+    /// Named without a checksum on purpose: the host serves it generated on
+    /// request. A plugin flavor's artifact may say so only from a host its
+    /// manifest lists in `unhashed`.
+    pub unhashed: bool,
 }
 
 /// Whether moving `from` → `to` is a downgrade, judged by their positions in a

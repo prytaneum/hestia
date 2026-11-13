@@ -14,7 +14,6 @@ use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use async_trait::async_trait;
-use proto::download::Checksum;
 use proto::minecraft::{Artifact, GameVersion, ProvisionPhase, ProvisionProgress};
 use proto::plugin::{Grant, Manifest, PluginRunProgress, BUILD_MOUNT, VANILLA_MOUNT};
 use proto::profile::ServerProfile;
@@ -37,7 +36,7 @@ use crate::minecraft::{
     REQUIRED_JAVA_MAJORS, SERVER_ONLY,
 };
 use crate::plugins::context::{CallContext, Mount};
-use crate::plugins::http::download_allowed;
+use crate::plugins::http::{download_allowed, unhashed_allowed};
 use crate::plugins::imports::CommandRun;
 use crate::plugins::runtime::{LoadedPlugin, CANCEL_GRACE, COMMAND_TIMEOUT};
 
@@ -48,7 +47,7 @@ const PROGRESS_STEPS: u64 = 1000;
 enum Refusal {
     #[error("`{0}` is not downloadable from the plugin's network hosts")]
     Host(String),
-    #[error("artifact `{0}` has no well-formed sha1 or sha256")]
+    #[error("artifact `{0}` has no well-formed sha1 or sha256, and is not declared unhashed by a host that may serve one")]
     Checksum(String),
     #[error("{0}")]
     Path(String),
@@ -65,10 +64,11 @@ fn artifact(grant: &Grant, artifact: &Artifact) -> Result<(), Refusal> {
     if !download_allowed(grant, &artifact.url) {
         return Err(Refusal::Host(artifact.filename.clone()));
     }
-    artifact
-        .checksum
-        .as_ref()
-        .is_some_and(Checksum::is_valid)
+    let verified = match &artifact.checksum {
+        Some(checksum) => checksum.is_valid(),
+        None => artifact.unhashed && unhashed_allowed(grant, &artifact.url),
+    };
+    verified
         .then_some(())
         .ok_or_else(|| Refusal::Checksum(artifact.filename.clone()))
 }

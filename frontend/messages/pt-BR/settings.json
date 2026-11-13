@@ -151,7 +151,8 @@
         "schedule_every": "a cada {seconds} s",
         "schedules": "Agendamentos em que ele roda",
         "secret_settings": "Configurações secretas",
-        "themes": "Temas"
+        "themes": "Temas",
+        "unhashed": "Hosts que podem servir downloads sem checksum"
       },
       "hint": "Plugins estendem o Hestia. Um plugin só recebe o que você aprova ao instalá-lo.",
       "install_file": "Instalar de arquivo",

@@ -276,6 +276,7 @@ pub fn parse_index(loaders: &Loaders, index: &Value) -> Result<ResolvedModpack> 
                         algorithm: HashAlgorithm::Sha1,
                         hex: sha1,
                     }),
+                    unhashed: false,
                 },
                 client,
                 server,

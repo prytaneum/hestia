@@ -448,6 +448,25 @@ mod manifest {
         }
     }
 
+    #[test]
+    fn an_unhashed_host_must_be_a_network_host() {
+        let manifest = Manifest {
+            network: vec!["meta.example.com".into()],
+            unhashed: vec!["other.example.com".into()],
+            ..valid()
+        };
+        assert_eq!(
+            manifest.validate(),
+            Err(ManifestError::BadUnhashedHost("other.example.com".into()))
+        );
+        let declared = Manifest {
+            unhashed: vec!["meta.example.com".into()],
+            ..manifest
+        };
+        assert_eq!(declared.validate(), Ok(()));
+        assert!(declared.grant().unhashed.contains("meta.example.com"));
+    }
+
     fn spawning(program: Program) -> Manifest {
         Manifest {
             permissions: vec![Permission::ProcessSpawn],

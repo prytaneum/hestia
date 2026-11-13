@@ -17,6 +17,7 @@ fn load(
     home: &std::path::Path,
     files: &fixture::Files,
     hosts: &[&str],
+    unhashed: &[&str],
     engine: &Arc<engine::Engine>,
 ) -> Arc<LoadedPlugin> {
     let manifest: Manifest = toml::from_str(fixture::replay::MANIFEST).expect("manifest");
@@ -31,6 +32,7 @@ fn load(
     .with_java(engine.clone());
     let mut grant = manifest.grant();
     grant.network = hosts.iter().map(|host| host.to_string()).collect();
+    grant.unhashed = unhashed.iter().map(|host| host.to_string()).collect();
     let record = PluginRecord {
         id: manifest.id.clone(),
         wasm_sha256: Some(
@@ -55,12 +57,19 @@ fn load(
 }
 
 async fn rig(hosts: &[&str]) -> (Arc<engine::Engine>, tempfile::TempDir) {
+    rig_unhashed(hosts, &[]).await
+}
+
+async fn rig_unhashed(
+    hosts: &[&str],
+    unhashed: &[&str],
+) -> (Arc<engine::Engine>, tempfile::TempDir) {
     let home = tempfile::tempdir().expect("temp home");
     let files = fixture::Files::serve().await;
     let engine = Arc::new(fixture::engine(home.path(), vec![], vec![]));
     fixture::java_runtime(home.path(), 21);
     let manifest: Manifest = toml::from_str(fixture::replay::MANIFEST).expect("manifest");
-    let plugin = load(home.path(), &files, hosts, &engine);
+    let plugin = load(home.path(), &files, hosts, unhashed, &engine);
     engine::Contributions::connect(&plugin, &manifest, false)
         .await
         .register(&engine, &manifest.id);
@@ -179,6 +188,24 @@ async fn a_profile_without_a_checksum_is_refused() {
         .resolve_server(FLAVOR, "unsigned", None, home.path(), None)
         .await
         .expect_err("an artifact that cannot be verified is not downloaded");
+}
+
+#[tokio::test]
+async fn an_unhashed_artifact_is_accepted_only_from_a_host_the_grant_lists() {
+    let (declared, _home) = rig_unhashed(&["127.0.0.1"], &["127.0.0.1"]).await;
+    let record = provision(&declared, "generated")
+        .await
+        .expect("a host the plugin declared may serve an unhashed jar");
+    assert!(declared
+        .servers()
+        .data_dir(&record)
+        .join("server.jar")
+        .is_file());
+
+    let (undeclared, _home) = rig(&["127.0.0.1"]).await;
+    provision(&undeclared, "generated")
+        .await
+        .expect_err("the marker alone is not enough");
 }
 
 /// The managed Java the fixture's `builder` program runs: a script that, asked

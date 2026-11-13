@@ -57,6 +57,7 @@ impl Engine {
                             algorithm: HashAlgorithm::Sha1,
                             hex: item.sha1.clone(),
                         }),
+                        unhashed: false,
                     },
                     target: managed.clone(),
                     label: item.title.clone(),

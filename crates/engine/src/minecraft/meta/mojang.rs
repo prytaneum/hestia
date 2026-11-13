@@ -256,6 +256,7 @@ fn artifact_from(obj: &Value) -> Option<Artifact> {
             algorithm: HashAlgorithm::Sha1,
             hex: sha1,
         }),
+        unhashed: false,
     })
 }
 

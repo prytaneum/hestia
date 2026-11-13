@@ -48,6 +48,7 @@ package: no leading `/`, no `\`, no `:`, no `.` or `..` segments.
 |---|---|---|
 | `permissions` | list of permission names | see [permissions.md](permissions.md) |
 | `network` | list of hosts | the hosts `network:connect` reaches: a domain name, or `*.domain` for its subdomains at any depth. An address is refused (`BadNetworkHost`) |
+| `unhashed` | list of hosts | the `network` hosts a flavor may serve a download from without a checksum; each must also be in `network` (`BadUnhashedHost`). Part of the grant, so the approval prompt shows it |
 | `ipc` | list of names | the local endpoints `ipc:connect` reaches, such as `discord-ipc-*`; refused without the permission (`IpcPermissionMissing`) |
 | `files` | list of paths | the files of a server's directory that `entry:read` may read through `server.files.read`, as exact relative paths such as `whitelist.json` or `config/a.json`: no leading `/`, `\`, `:`, `.` or `..` segment, no glob. `server.properties` is refused whatever its case (`BadEntryFile`); refused without `entry:read` (`FilesPermissionMissing`) |
 | `[[programs]]` | tables | the programs `process:spawn` may run; refused without the permission (`ProgramPermissionMissing`) |

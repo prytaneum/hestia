@@ -7,4 +7,4 @@ import type { ScheduleContribution } from "./ScheduleContribution";
  * Everything a user approves, canonical and sorted. Approval, widening and
  * re-approval compare grants, never bare permission lists.
  */
-export type Grant = { permissions: Array<Permission>, network: Array<string>, ipc: Array<string>, files: Array<string>, programs: Array<Program>, launchProperties: Array<string>, hooks: Array<string>, events: Array<string>, schedules: Array<ScheduleContribution>, secretSettings: Array<string>, uiCss: Array<string>, };
+export type Grant = { permissions: Array<Permission>, network: Array<string>, unhashed: Array<string>, ipc: Array<string>, files: Array<string>, programs: Array<Program>, launchProperties: Array<string>, hooks: Array<string>, events: Array<string>, schedules: Array<ScheduleContribution>, secretSettings: Array<string>, uiCss: Array<string>, };

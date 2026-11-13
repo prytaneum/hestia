@@ -240,6 +240,7 @@ export function versionsOf(ref: string): ContentVersion[] {
           filename: `${found.slug}-${number}.jar`,
           size: 412_000,
           checksum: { algorithm: 'sha1', hex: '0'.repeat(40) },
+          unhashed: false,
         },
         primary: true,
       },

@@ -689,6 +689,9 @@ pub struct Manifest {
     pub permissions: Vec<Permission>,
     /// Hosts the `network` permission reaches.
     pub network: Vec<String>,
+    /// The `network` hosts a flavor may serve a download from without a
+    /// checksum, because they generate it on request.
+    pub unhashed: Vec<String>,
     /// Local endpoints `ipc:connect` reaches, as names like `discord-ipc-*`.
     pub ipc: Vec<String>,
     /// Files in a server's directory that `entry:read` may read, as exact
@@ -708,6 +711,7 @@ pub struct Manifest {
 pub struct Grant {
     pub permissions: BTreeSet<Permission>,
     pub network: BTreeSet<String>,
+    pub unhashed: BTreeSet<String>,
     pub ipc: BTreeSet<String>,
     pub files: BTreeSet<String>,
     pub programs: BTreeSet<Program>,
@@ -743,6 +747,7 @@ impl Grant {
         Grant {
             permissions: &self.permissions - &installed.permissions,
             network: &self.network - &installed.network,
+            unhashed: &self.unhashed - &installed.unhashed,
             ipc: &self.ipc - &installed.ipc,
             files: &self.files - &installed.files,
             programs: &self.programs - &installed.programs,
@@ -803,6 +808,8 @@ pub enum ManifestError {
     BadSetting { key: String, detail: String },
     #[error("network host `{0}` must be a domain name or `*.` and a domain, not an address")]
     BadNetworkHost(String),
+    #[error("unhashed host `{0}` must be a host listed in `network`")]
+    BadUnhashedHost(String),
     #[error("provider kind `{0}` is not one this host offers")]
     UnknownProviderKind(String),
     #[error("provider `{provider}` needs the permission `{permission}`")]
@@ -879,6 +886,13 @@ impl Manifest {
         }
         if let Some(host) = self.network.iter().find(|host| !is_network_host(host)) {
             return Err(ManifestError::BadNetworkHost(host.clone()));
+        }
+        if let Some(host) = self
+            .unhashed
+            .iter()
+            .find(|host| !self.network.contains(host))
+        {
+            return Err(ManifestError::BadUnhashedHost(host.clone()));
         }
         if let Some(key) = self
             .launch
@@ -1056,6 +1070,7 @@ impl Manifest {
         Grant {
             permissions: self.permissions.iter().copied().collect(),
             network: self.network.iter().cloned().collect(),
+            unhashed: self.unhashed.iter().cloned().collect(),
             ipc: self.ipc.iter().cloned().collect(),
             files: self.files.iter().cloned().collect(),
             programs: self.programs.iter().cloned().collect(),

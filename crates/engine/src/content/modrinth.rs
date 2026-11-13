@@ -385,6 +385,7 @@ fn parse_version(source: &str, v: &Value) -> ContentVersion {
                                 algorithm: HashAlgorithm::Sha1,
                                 hex: hex.to_string(),
                             }),
+                        unhashed: false,
                     },
                     primary: f.get("primary").and_then(Value::as_bool).unwrap_or(false),
                 })

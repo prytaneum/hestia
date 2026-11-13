@@ -300,6 +300,7 @@ fn grant_rows(
     }));
     let lists = [
         ("Network", &grant.network),
+        ("Unchecked downloads from", &grant.unhashed),
         ("Local endpoints", &grant.ipc),
         ("Entry files", &grant.files),
         ("Launch properties", &grant.launch_properties),

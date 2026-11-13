@@ -4,4 +4,10 @@ import type { Checksum } from "./Checksum";
 /**
  * A single downloadable file, the shared shape for every artifact in a profile.
  */
-export type Artifact = { url: string, filename: string, size: number, checksum?: Checksum, };
+export type Artifact = { url: string, filename: string, size: number, checksum?: Checksum, 
+/**
+ * Named without a checksum on purpose: the host serves it generated on
+ * request. A plugin flavor's artifact may say so only from a host its
+ * manifest lists in `unhashed`.
+ */
+unhashed: boolean, };

@@ -85,6 +85,7 @@ impl FlavorProvider for Fabric {
                 url,
                 size: 0,
                 checksum: None,
+                unhashed: false,
             }),
             launch: ServerLaunch::Jar,
             java_major: mojang::java_major(&base),

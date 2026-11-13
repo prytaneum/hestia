@@ -170,6 +170,7 @@ fn parse_build(value: &Value) -> Option<Build> {
                 algorithm: HashAlgorithm::Sha256,
                 hex: sha256,
             }),
+            unhashed: false,
         },
     })
 }

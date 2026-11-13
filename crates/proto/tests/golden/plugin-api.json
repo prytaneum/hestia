@@ -559,7 +559,7 @@
     "ArchiveEntry": "type ArchiveEntry = { path: string, name: string, directory: boolean, sizeBytes: bigint, referenced: boolean, };",
     "ArchiveFault": "type ArchiveFault = \"not_an_archive\" | \"manifest_missing\" | \"manifest_malformed\" | \"unsafe_path\" | \"format_version\" | \"manifest_type\" | \"no_game_version\" | \"no_components\" | \"file_unpublished\";",
     "ArchiveFormat": "type ArchiveFormat = \"zip\" | \"hestia\" | \"backup\" | { \"provider\": Provider };",
-    "Artifact": "type Artifact = { url: string, filename: string, size: bigint, checksum?: Checksum, };",
+    "Artifact": "type Artifact = { url: string, filename: string, size: bigint, checksum?: Checksum, unhashed: boolean, };",
     "AssetIndex": "type AssetIndex = { id: string, artifact: Artifact, totalSize: bigint, };",
     "BackupDone": "type BackupDone = { backup: BackupInfo, };",
     "BackupInfo": "type BackupInfo = { id: string, kind: BackupKind, createdUnix: bigint, size: bigint, };",
