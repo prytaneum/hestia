@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 
 use super::{ProviderKind, ProviderOp};
 use crate::contract::Empty;
+use crate::java::JavaRelease;
 use crate::plugin::Permission;
 
 pub struct Distribution;
@@ -41,13 +42,14 @@ pub struct JavaBuild {
     pub archive: String,
 }
 
-/// The feature versions the distribution offers.
+/// The feature versions the distribution offers, each flagged when it is a
+/// long-term-support release.
 pub struct Majors;
 impl ProviderOp for Majors {
     type Kind = Distribution;
     const OP: &'static str = "majors";
     type Args = Empty;
-    type Reply = Vec<i32>;
+    type Reply = Vec<JavaRelease>;
 }
 
 /// The build of a feature version for a platform; `None` when there is none.

@@ -545,7 +545,7 @@
     "provider format.land {\"args\":\"BlueprintQuery\",\"reply\":\"Array<FormatCopy>\"}",
     "provider format.read {\"args\":\"ManifestQuery\",\"reply\":\"FormatBlueprint\"}",
     "provider format.write {\"args\":\"BlueprintQuery\",\"reply\":\"FormatWritten\"}",
-    "provider java.majors {\"args\":\"Empty\",\"reply\":\"Array<number>\"}",
+    "provider java.majors {\"args\":\"Empty\",\"reply\":\"Array<JavaRelease>\"}",
     "provider java.resolve {\"args\":\"TargetQuery\",\"reply\":\"JavaBuild | null\"}"
   ],
   "types": {

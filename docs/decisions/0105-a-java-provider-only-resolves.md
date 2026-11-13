@@ -6,7 +6,7 @@ Adoptium was the one hardcoded source of Java runtimes. Other distributions (Zul
 but a runtime is the native binary Hestia executes for every server and game, so a plugin that picks it has full access
 to the computer.
 
-**A provider answers two questions and nothing else.** `majors` lists the feature versions on offer; `resolve` maps
+**A provider answers two questions and nothing else.** `majors` lists the feature versions on offer, each flagged `lts` or not; `resolve` maps
 `{ major, os, arch }` to `{ vendor, version, url, sha256, archive }`, or `null` when there is no build for that platform.
 `Java` keeps the install pipeline as it was: it downloads the URL, checks the sha256, extracts the archive and registers
 the runtime. The guest never downloads or extracts.

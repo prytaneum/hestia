@@ -84,12 +84,9 @@ impl JavaProvider for PluginJavaProvider {
 
     async fn releases(&self) -> Result<Vec<JavaRelease>> {
         let mut majors = self.guest.ask::<op::Majors>(&Empty {}).await?;
-        majors.sort_unstable();
-        majors.dedup();
-        Ok(majors
-            .into_iter()
-            .map(|major| JavaRelease { major, lts: false })
-            .collect())
+        majors.sort_by_key(|release| release.major);
+        majors.dedup_by_key(|release| release.major);
+        Ok(majors)
     }
 
     async fn resolve(&self, major: i32, target: &JavaTarget) -> Result<JavaPackage> {
@@ -117,7 +114,7 @@ impl JavaProvider for PluginJavaProvider {
 pub(super) fn connect(plugin: &Arc<LoadedPlugin>, manifest: &Manifest) -> Vec<PluginJavaProvider> {
     contributed::<Distribution>(manifest)
         .map(|local| PluginJavaProvider {
-            guest: Guest::new::<Distribution>(plugin.clone(), local),
+            guest: Guest::new::<Distribution>(plugin.clone(), manifest, local),
         })
         .collect()
 }

@@ -202,7 +202,7 @@ it and registers it ([0105](../decisions/0105-a-java-provider-only-resolves.md))
 
 | Operation | Args | Reply |
 |---|---|---|
-| `majors` | none | `number[]`: the feature versions on offer |
+| `majors` | none | `{ major, lts }[]`: the feature versions on offer, `lts` marking a long-term-support release |
 | `resolve` | `{ major, os, arch }` | `JavaBuild` or null when there is no build for that platform |
 
 - `os` is `linux`, `windows` or `mac`; `arch` is `x64` or `aarch64`.
@@ -215,7 +215,7 @@ No example exists yet, compiled or published. The SDK shape is the same as the o
 `proto::provider::java::{Majors, Resolve}`:
 
 ```rust
-call.on::<Majors>(|id, _| /* Result<Vec<i32>, Error> */)
+call.on::<Majors>(|id, _| /* Result<Vec<JavaRelease>, Error> */)
     .on::<Resolve>(|id, target| /* Result<Option<JavaBuild>, Error> */)
     .finish()
 ```
@@ -226,4 +226,7 @@ call.on::<Majors>(|id, _| /* Result<Vec<i32>, Error> */)
 
 Return `Error::NotFound` for a provider id the plugin did not declare (the examples' `check` does), `Error::Invalid`
 for arguments it cannot use, and `Error::Failed` for anything else. A failure reaches the user as `PluginCallFailed`
-naming the plugin and the provider, so keep the message free of tokens and secrets.
+naming the plugin and the provider, so keep the message free of tokens and secrets. When the call fails after its
+last `hestia::http` request could not reach the host (a timeout or no route), the host reports it instead as the
+provider's service being offline (`Offline`, naming the plugin's display name), as it does for a built-in provider; a
+refused or answered request stays a plugin failure.
