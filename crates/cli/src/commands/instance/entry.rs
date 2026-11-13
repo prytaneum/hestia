@@ -2,6 +2,7 @@
 //! share.
 
 use anyhow::{bail, Context, Result};
+use client::proto::error::EntryKind;
 use client::proto::instance::{InstanceDetails, InstanceInfo};
 use client::proto::process::{ProcessInfo, ProcessState};
 use client::Client;
@@ -83,6 +84,7 @@ pub(super) async fn list(client: &Client) -> Result<()> {
     if instances.is_empty() {
         return ui::show(View::note("no instances yet (hestia instance create)"));
     }
+    let updates = mc::update_counts(client, EntryKind::Instance).await;
     let rows = instances
         .iter()
         .map(|i| {
@@ -93,6 +95,7 @@ pub(super) async fn list(client: &Client) -> Result<()> {
                 i.loader_version.clone().unwrap_or_else(|| "-".into()),
                 mc::sessions_label(&i.sessions),
                 mc::last_played_label(i.last_played_unix),
+                mc::updates_label(&updates, &i.id),
             ]
         })
         .collect();
@@ -105,6 +108,7 @@ pub(super) async fn list(client: &Client) -> Result<()> {
             "LOADER",
             "STATE",
             "LAST PLAYED",
+            "UPDATES",
         ],
         rows,
     ))

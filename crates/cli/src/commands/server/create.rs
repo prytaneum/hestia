@@ -142,7 +142,7 @@ pub(super) async fn run(client: &Client, args: CreateArgs) -> Result<()> {
     })
     .await?;
     ui::show(View::line(format!("server '{}' created", done.server.name)))?;
-    entry::show_status(&done.server, None)?;
+    entry::show_status(&done.server, None, 0)?;
     ui::show_warnings(&done.warnings)
 }
 
@@ -202,7 +202,7 @@ async fn run_wizard(client: &Client, args: CreateArgs) -> Result<()> {
         None => ui::show(View::note("cancelled")),
         Some(WizardOutcome::Server(done)) => {
             ui::show(View::line(format!("server '{}' created", done.server.name)))?;
-            entry::show_status(&done.server, None)?;
+            entry::show_status(&done.server, None, 0)?;
             ui::show_warnings(&done.warnings)
         }
         Some(WizardOutcome::Instance(_)) => unreachable!("server wizard created an instance"),

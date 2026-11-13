@@ -4,7 +4,8 @@
 use anyhow::{bail, Context, Result};
 use clap::{Args, Subcommand};
 use client::proto::content::{
-    ContentAddItem, ContentAddSpec, ContentDone, ContentFailure, ContentKind, InstalledContent,
+    ContentAddItem, ContentAddSpec, ContentDone, ContentFailure, ContentKind, ContentUpdate,
+    InstalledContent,
 };
 use client::proto::error::{EntryKind, EntryTarget};
 use client::Client;
@@ -39,7 +40,8 @@ pub enum ContentCmd {
         )]
         world: Vec<String>,
     },
-    /// Update platform content to its newest compatible version, or a local item from a --file
+    /// Update platform content to its newest compatible version, or a local item from a --file.
+    /// Without items, held ones are passed by
     Update {
         /// Installed items, or every one of this kind when omitted
         items: Vec<String>,
@@ -69,7 +71,17 @@ pub enum ContentCmd {
         #[arg(long, help = "For a datapack: only in this save world (repeatable)")]
         world: Vec<String>,
     },
-    /// Re-pin an item to a specific published version
+    /// Keep an item at its version: update-all and auto-update pass it by
+    Hold {
+        /// Installed item (project id, slug, filename, or title)
+        item: Option<String>,
+    },
+    /// Let a held item update again
+    Unhold {
+        /// Installed item (project id, slug, filename, or title)
+        item: Option<String>,
+    },
+    /// Re-pin an item to a specific published version (and hold it there)
     SetVersion {
         /// Installed item (project id, slug, filename, or title)
         item: String,
@@ -136,6 +148,8 @@ pub async fn run_entry(
         ContentCmd::Disable { item, world } => {
             set_enabled(client, entry, kind, reference, item, world, false).await
         }
+        ContentCmd::Hold { item } => set_held(client, entry, kind, reference, item, true).await,
+        ContentCmd::Unhold { item } => set_held(client, entry, kind, reference, item, false).await,
         ContentCmd::SetVersion {
             item,
             version,
@@ -324,14 +338,20 @@ pub(super) async fn install_spec(
 
 async fn list(client: &Client, entry: EntryKind, kind: ContentKind, reference: &str) -> Result<()> {
     let EntryInfo { id, name, .. } = resolve_entry(client, entry, reference).await?;
-    let (items, untracked) = client
-        .content()
-        .list(&EntryTarget::new(entry, id), kind)
-        .await?;
+    let target = EntryTarget::new(entry, id);
+    let (items, untracked) = client.content().list(&target, kind).await?;
     if items.is_empty() && untracked.is_empty() {
         return ui::show(View::note(format!("no {} installed", kind_plural(kind))));
     }
     if !items.is_empty() {
+        let updates = match client.content().check_updates(&target, kind, false).await {
+            Ok(updates) => updates,
+            Err(e) => {
+                tracing::debug!(error = %e, "listing without update status");
+                Vec::new()
+            }
+        };
+        let update = |item: &InstalledContent| update_label(item, &updates);
         if kind == ContentKind::DataPack {
             let rows = items
                 .iter()
@@ -339,6 +359,7 @@ async fn list(client: &Client, entry: EntryKind, kind: ContentKind, reference: &
                     vec![
                         i.title.clone(),
                         i.version_number.clone(),
+                        update(i),
                         world_label(i),
                         source_label(i),
                     ]
@@ -346,17 +367,24 @@ async fn list(client: &Client, entry: EntryKind, kind: ContentKind, reference: &
                 .collect();
             ui::show(View::table(
                 format!("{name} {}", kind_plural(kind)),
-                ["NAME", "VERSION", "WORLD", "SOURCE"],
+                ["NAME", "VERSION", "UPDATE", "WORLD", "SOURCE"],
                 rows,
             ))?;
         } else {
             let rows = items
                 .iter()
-                .map(|i| vec![i.title.clone(), i.version_number.clone(), source_label(i)])
+                .map(|i| {
+                    vec![
+                        i.title.clone(),
+                        i.version_number.clone(),
+                        update(i),
+                        source_label(i),
+                    ]
+                })
                 .collect();
             ui::show(View::table(
                 format!("{name} {}", kind_plural(kind)),
-                ["NAME", "VERSION", "SOURCE"],
+                ["NAME", "VERSION", "UPDATE", "SOURCE"],
                 rows,
             ))?;
         }
@@ -373,6 +401,20 @@ async fn list(client: &Client, entry: EntryKind, kind: ContentKind, reference: &
         )))?;
     }
     Ok(())
+}
+
+/// The newer version an item could move to, and whether it is held there.
+fn update_label(item: &InstalledContent, updates: &[ContentUpdate]) -> String {
+    let newer = updates
+        .iter()
+        .find(|u| u.filename == item.filename && u.updatable)
+        .map(|u| u.latest_version_number.as_str());
+    match (newer, item.held) {
+        (Some(version), false) => version.to_string(),
+        (Some(version), true) => format!("{version} (held)"),
+        (None, true) => "held".into(),
+        (None, false) => "-".into(),
+    }
 }
 
 async fn remove(
@@ -407,7 +449,7 @@ async fn remove(
     Ok(())
 }
 
-async fn update(
+pub(crate) async fn update(
     client: &Client,
     entry: EntryKind,
     kind: ContentKind,
@@ -463,7 +505,7 @@ async fn check_updates(
     let EntryInfo { id, name, .. } = resolve_entry(client, entry, reference).await?;
     let updates = client
         .content()
-        .check_updates(&EntryTarget::new(entry, id), kind)
+        .check_updates(&EntryTarget::new(entry, id), kind, true)
         .await?;
     let outdated: Vec<_> = updates.iter().filter(|u| u.updatable).collect();
     if outdated.is_empty() {
@@ -476,12 +518,13 @@ async fn check_updates(
                 u.filename.clone(),
                 u.current_version_number.clone(),
                 u.latest_version_number.clone(),
+                if u.held { "held" } else { "-" }.to_string(),
             ]
         })
         .collect();
     ui::show(View::table(
         format!("{name} {} with updates", kind_plural(kind)),
-        ["FILE", "CURRENT", "LATEST"],
+        ["FILE", "CURRENT", "LATEST", "HELD"],
         rows,
     ))
 }
@@ -515,6 +558,28 @@ async fn set_enabled(
         false => format!("'{name}' ({})", worlds.join(", ")),
     };
     ui::show(View::line(format!("{verb} '{item}' in {where_}")))
+}
+
+async fn set_held(
+    client: &Client,
+    entry: EntryKind,
+    kind: ContentKind,
+    reference: &str,
+    item: Option<String>,
+    held: bool,
+) -> Result<()> {
+    let EntryInfo { id, name, .. } = resolve_entry(client, entry, reference).await?;
+    let target = EntryTarget::new(entry, id);
+    let item = match item {
+        Some(item) => item,
+        None => {
+            let (items, _) = client.content().list(&target, kind).await?;
+            pick_installed(items)?
+        }
+    };
+    client.content().hold(&target, kind, &item, held).await?;
+    let verb = if held { "holding" } else { "released" };
+    ui::show(View::line(format!("{verb} '{item}' in '{name}'")))
 }
 
 async fn set_version(

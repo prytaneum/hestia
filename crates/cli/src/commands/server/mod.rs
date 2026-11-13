@@ -264,7 +264,9 @@ async fn run_action(client: Client, name: String, action: ServerAction) -> Resul
         } else {
             None
         };
-        entry::show_status(&info, ping.as_ref())?;
+        let updates = mc::update_counts(&client, EntryKind::Server).await;
+        let pending = updates.get(&info.id).copied().unwrap_or_default();
+        entry::show_status(&info, ping.as_ref(), pending)?;
         return Ok(ExitStatus::running(running));
     }
     run_unit_action(client, name, action)

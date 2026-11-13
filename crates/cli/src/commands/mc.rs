@@ -1,6 +1,7 @@
 //! Shared helpers for the `server` and `instance` command trees: resolving a
 //! flavor (interactively when not given) and rendering flavor/version lists.
 
+use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use anyhow::{bail, Context, Result};
@@ -124,6 +125,33 @@ fn show_config_entries(
 
 /// One-word state for a managed server/instance from its supervised process
 /// snapshot (absent means it has never been started).
+/// How many content updates the daemon already knows of per entry of `kind`,
+/// keyed by entry id. Empty when it cannot say: a list view must not fail over
+/// one column.
+pub async fn update_counts(client: &Client, kind: EntryKind) -> HashMap<String, usize> {
+    match client.content().available_updates().await {
+        Ok(entries) => entries
+            .into_iter()
+            .filter(|e| e.target.kind == kind)
+            .map(|e| {
+                let count = e.updates.iter().filter(|u| u.updatable).count();
+                (e.target.entry, count)
+            })
+            .collect(),
+        Err(e) => {
+            tracing::debug!(error = %e, "no update counts");
+            HashMap::new()
+        }
+    }
+}
+
+pub fn updates_label(counts: &HashMap<String, usize>, id: &str) -> String {
+    counts
+        .get(id)
+        .filter(|n| **n > 0)
+        .map_or_else(|| "-".into(), usize::to_string)
+}
+
 pub fn process_state_label(process: &Option<ProcessInfo>) -> String {
     match process {
         Some(p) if p.state == ProcessState::Running => format!("running (pid {})", p.pid),

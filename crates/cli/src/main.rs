@@ -172,6 +172,8 @@ enum Command {
     },
     /// The content sources that can serve
     Sources,
+    /// Content updates the daemon has found across every entry
+    Updates(commands::updates::Updates),
     /// Running jobs
     Job {
         #[command(subcommand)]
@@ -341,6 +343,7 @@ async fn dispatch(command: Command) -> anyhow::Result<ExitStatus> {
             .await
         }
         Command::Sources => commands::content::run_sources().await,
+        Command::Updates(args) => commands::updates::run(args).await,
         Command::Cache { cmd } => commands::cache::run(cmd).await,
         Command::Config { cmd } => commands::config::run(cmd).await,
         Command::Screenshot { cmd } => commands::screenshot::run(cmd).await,
