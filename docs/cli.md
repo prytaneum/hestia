@@ -910,17 +910,40 @@ progress). Human messages never mix in; diagnostics stay in `logs/hestia.log`.
 | nothing                     | `null`                                                                                |
 | a plugin command's output   | that output as the plugin returned it (`hestia <plugin> <command> --json`)            |
 
-Table and block values are the strings the terminal shows (sizes and states included); a plugin command's output keeps
-its own types. `warnings` carries what a result reports as degraded, with the tag of its `kind` (the same vocabulary as
-the wire's `WarningInfo`) and the hint for fixing it; a warning a view raises itself has a null `kind` and `hint`.
+Table and block values are typed, not the strings the terminal shows:
+
+| a value that is…                  | in JSON                                                                          |
+|-----------------------------------|----------------------------------------------------------------------------------|
+| a count, a pid, a port            | a number                                                                         |
+| a size                            | a number of bytes (`1288490188`, not `1.2 GB`)                                   |
+| a duration                        | a number of seconds                                                              |
+| a point in time                   | an RFC 3339 string in UTC (`2026-11-15T07:02:53Z`), not `3d ago`                 |
+| a yes/no                          | `true` or `false`                                                                |
+| a state or kind                   | its wire token (`running`, `data_pack`, `release`), not the label shown          |
+| a list (`mods, datapacks`)        | an array of tokens                                                               |
+| nothing (`-`)                     | `null`                                                                           |
+| anything else                     | a string                                                                         |
+
+Where a column's header reads badly as a key (a unit, a marker, an abbreviation), the table names its key: `backup
+list` calls its `AGE` column `created`, and `account list` calls its unnamed marker column `default`. A plugin
+command's output keeps its own types. `warnings` carries what a result reports as degraded, with the tag of its `kind`
+(the same vocabulary as the wire's `WarningInfo`) and the hint for fixing it; a warning a view raises itself has a null
+`kind` and `hint`.
+
+A command that reports the state of one thing is one object with `state` first: `hestia --json daemon status` is
+`{"state": "running", "pid": 4242, "uptime": 93, "network": "online", "home": "…", "log": "…", "safe_mode": false}`,
+and a stopped daemon is `{"state": "stopped"}` (still exit code `3`). `network` is `online`, `offline` or `unknown`,
+`null` when the daemon could not say.
 
 A failure prints one object on **stderr**, with the same exit code as without the flag. `kind` is the daemon's error
 tag (`entry_not_found`, `sign_in_required`, …), `code` its coarse category (`not_found`, `unauthorized`,
 `bad_request`, `forbidden`, `offline`, `handler_error`, …); a refusal made by the CLI itself, such as a missing
-argument, is `local`/`local`:
+argument, is `local`/`local`. `hint` is the next step a person can take, present only when there is one (a signed-out
+account, developer mode off, a content source waiting on a setting, the daemon not running); without `--json` it is
+printed under the error:
 
 ```json
-{"error": {"kind": "entry_not_found", "code": "not_found", "message": "no server 'smp'"}}
+{"error": {"kind": "sign_in_required", "code": "unauthorized", "message": "sign in with a Microsoft account first", "hint": "run `hestia account login`"}}
 ```
 
 `--json` can follow the subcommand or precede it. It never prompts: a command that would ask something fails like it

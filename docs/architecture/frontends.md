@@ -109,13 +109,24 @@ status`, `server <name> status`. Verbs that merely describe stay 0, because
 ## Presentation
 
 Commands **never print directly**. They build a `View` (`Line`, `Note`,
-`Detail`, `Table`, `Warning`, `Empty`, `Json`) and hand it to `ui::show`, which owns all output.
+`Detail`, `Status`, `Table`, `Warning`, `Empty`, `Json`) and hand it to `ui::show`, which owns all output.
 
 `--json` is decided in that one place (`ui/json.rs`): `ui::show` collects every view into one `{data, warnings}`
 document that `main` writes when the command ends, so no command has a JSON branch. A table carries stable column keys
 beside its headers (derived from them, overridable), and `Empty` is a list with nothing in it, which prints a note for
 a person and `[]` for a script. `is_interactive()` is false under `--json`, so every prompt takes its no-terminal
 error and the progress renderers stay silent. The format is in [cli.md](../cli.md#machine-readable-output---json).
+
+A table or detail value is a `Cell` (`ui/cell.rs`) with two faces: the text a person reads and the typed value a
+script gets. A plain string is both; a command that holds a size, a duration, a time, a flag, a state or a list builds
+the cell with the matching constructor (`Cell::bytes`, `seconds`, `time`, `flag`, `token`, `list`, …), so nothing is
+ever parsed back out of display text. A `Status` view is one thing's state line plus its details: two lines for a
+person, one object with a leading `state` for a script.
+
+A failed command prints its error and, when the failure has one, the next step (`ui/failure.rs`). The daemon's
+`ErrorInfo::hint` derives it from the variant, as `WarningInfo::hint` does, so the hint is never sent on the wire; the
+CLI adds the one failure the daemon cannot report, its own being down. The desktop words its own hint from the same tag
+(`error.hint.<kind>`), naming where in the app to go rather than a command.
 
 Interactive surfaces run as **fullscreen sessions** on a small framework:
 
