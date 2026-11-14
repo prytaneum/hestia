@@ -561,6 +561,11 @@ async fn an_imported_profile_is_resolved_for_the_host_not_carried_from_the_expor
         .record;
 
     assert_eq!(imported.name, "copy");
+    assert_eq!(
+        imported.profile.flavor,
+        engine.instances().get(&id).unwrap().profile.flavor,
+        "the archive's short loader name resolves back to the same flavor"
+    );
     assert_eq!(imported.jvm.memory.as_deref(), Some("3G"));
     assert_eq!(imported.playtime_seconds, 3600);
     assert!(

@@ -209,7 +209,7 @@ mod tests {
             jvm: Default::default(),
             sharing: Default::default(),
             profile: InstanceProfile {
-                flavor: "fabric".to_string(),
+                flavor: "fabric.fabric".to_string(),
                 game_version: "1.21.1".to_string(),
                 loader_version: Some("0.16.9".to_string()),
                 java_major: 21,
@@ -263,7 +263,10 @@ mod tests {
         let blueprint = Hestia.read(&mut reader, "").unwrap();
         assert_eq!(blueprint.descriptor.name, "Cozy");
         assert_eq!(blueprint.descriptor.game_version, "1.21.1");
-        assert_eq!(blueprint.descriptor.loader, "fabric");
+        assert_eq!(
+            blueprint.descriptor.loader, "fabric",
+            "the archive names the provider-id, not the plugin's full id"
+        );
         assert_eq!(blueprint.recipe.carried.playtime_seconds, 3600);
         let written = manifest(&mut reader, "").unwrap().record().unwrap();
         assert_eq!(

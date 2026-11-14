@@ -38,6 +38,13 @@ pub fn reference_matches(reference: &str, id: &str, name: &str) -> bool {
     )
 }
 
+/// The provider-id of a provider id: `fabric` of `fabric.fabric`. A plugin id
+/// holds no `.`, so the first one ends the plugin-id; core's own providers have
+/// no plugin-id and are returned whole.
+pub fn provider_id(id: &str) -> &str {
+    id.split_once('.').map_or(id, |(_, provider)| provider)
+}
+
 /// The supervisor key a managed server's process runs under — deterministic,
 /// so every channel (and every front-end) can name a server's process from its
 /// id alone, running or not.

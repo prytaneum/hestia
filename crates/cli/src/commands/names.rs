@@ -7,6 +7,7 @@ use std::collections::BTreeSet;
 
 use anyhow::Result;
 use client::proto::error::EntryKind;
+use client::proto::naming::provider_id;
 use client::Client;
 
 pub struct Names(BTreeSet<String>);
@@ -39,10 +40,6 @@ impl Names {
             _ => id.to_string(),
         }
     }
-}
-
-fn provider_id(id: &str) -> &str {
-    id.split_once('.').map_or(id, |(_, provider)| provider)
 }
 
 #[cfg(test)]

@@ -39,6 +39,9 @@ lists core first, then official plugins, then dev installs, then the rest, so an
 over another plugin's. A flavor that declares no loader of its own is filed under its provider-id (`fabric`), not its
 full id.
 
+**A Hestia archive names its loader by the provider-id** (`fabric`), so it reads the same wherever another plugin
+supplies that flavor; import resolves it as any bare name, and a full id in an archive resolves to exactly itself.
+
 **Front-ends show the short name when it is unambiguous**: the provider-id when exactly one registered provider has it,
 the full id otherwise (`commands/names.rs` in the CLI, `useProviderNamer` in the desktop).
 

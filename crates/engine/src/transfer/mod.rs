@@ -225,10 +225,11 @@ pub(crate) async fn export(
     }
 }
 
-/// The loader an instance profile runs, as an archive describes it: the flavor
-/// *is* the loader's name, and `vanilla` is the absence of one.
+/// The loader an instance profile runs, as an archive describes it: the
+/// flavor's provider-id, so the archive does not depend on which plugin
+/// supplied the flavor, and `vanilla` is the absence of one.
 pub(crate) fn loader_of(profile: &InstanceProfile) -> String {
-    match profile.flavor.as_str() {
+    match proto::naming::provider_id(&profile.flavor) {
         "vanilla" => String::new(),
         flavor => flavor.to_string(),
     }

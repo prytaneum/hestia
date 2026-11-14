@@ -108,7 +108,11 @@ jar, libraries, natives, JVM arguments) was resolved for the exporting OS, so th
 manifest is written without it and import resolves it on the importing host,
 keeping the record's name, Java settings, sharing, playtime and timestamps. That
 needs the version catalogue,
-which falls back to the cached one offline. The **id is not honoured**: an
+which falls back to the cached one offline. The loader is named by the flavor's
+provider-id (`fabric`, not `fabric.fabric`), so an archive does not depend on which
+plugin supplied the flavor; import resolves it like any bare name
+([0133](../decisions/0133-a-provider-has-one-id.md)), and a full id found in an
+archive still means exactly itself. The **id is not honoured**: an
 imported instance is a new entry and gets a fresh one, so the same archive can be
 imported twice.
 
