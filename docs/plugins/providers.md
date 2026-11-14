@@ -108,14 +108,20 @@ in its `hosts`). The list is part of the grant, so the user sees it when approvi
 | Operation | Args | Reply | Notes |
 |---|---|---|---|
 | `info` | none | `FlavorDescription` | asked once, when the plugin is enabled |
-| `versions` | none | `GameVersion[]` | newest first |
+| `versions` | none | `string[]` or `GameVersion[]` | bare ids are typed and ordered by the host against the vanilla catalogue (newest first; an id it does not list is dropped); full entries are kept as given, newest first; at most 4096 |
 | `loader-versions` | `{ game, target }` | `string[]` | optional: loader builds, newest first |
 | `resolve-server` | `{ version, loaderVersion?, target }` | `{ full: ServerProfile }` or `{ onVanilla: ServerAddition }` | |
 | `resolve-client` | `{ version, loaderVersion?, target }` | `{ full: InstanceProfile }` or `{ onVanilla: ClientAddition }` | a library may be marked `built: true` |
 | `build` | `{ side, version, loaderVersion?, vanillaJar?, target }` | `{ fetch, steps, outputs }`, a build plan | optional: the host runs the plan and places what the profile names as built |
 
-`info` may also give `mrpackKey` (the key a Modrinth pack names the flavor's loader by in its `dependencies`) and
-`prismUid` (the component uid of a Prism or MultiMC instance), so packs and instances of the flavor import and export.
+`info` may also declare how the flavor meets the outside ([0127](../decisions/0127-a-flavor-description-declares-its-loader.md)):
+`loader` is the name a content platform gives the flavor's loader (`fabric`, `paper`; absent, the flavor's id) and
+`compatible` further loader names whose content it also runs, so a version published for any of them fits (at most 8).
+`interchange` is an open map `{ format-id: key }` of how each interchange format names the flavor's loader: `mrpack`
+for a Modrinth pack's `dependencies` key, `prism` for a Prism or MultiMC component uid, or the id of a pack format a
+plugin contributes (at most 16). A pack read in a format maps its `loader` through that format's key to a flavor, and an
+export writes the key. Names are lowercase `a-z`, `0-9`, `-`, `_`, `.`; a key longer than 128 characters or holding a
+control character refuses the flavor. A key a launcher flavor already claims stays with it.
 It may list `requires`, ids of the plugin's own `[[programs]]` the flavor cannot do without (Spigot's BuildTools needs
 `git`). Each must be a program the plugin is granted to run, or the flavor fails to register. The host checks the `PATH`
 ones whenever it lists flavors, so a front-end says "needs Git, get it at ..." before a build starts; the program's
@@ -135,6 +141,7 @@ The guest never reads Mojang's metadata, and needs no Mojang host in `hosts`.
 | `mainClass` | replaces vanilla's when not empty | |
 | `jvmArgs`, `gameArgs` | appended after vanilla's | `jvmArgs` only: the flavor's recommended flags |
 | `jar` | | replaces vanilla's server jar; absent runs vanilla's |
+| `javaMajor` | the Java major the client needs, when not vanilla's | the same; either must be a major the launcher can provide (8, 16, 17, 21) or the answer is refused |
 
 A library in `libraries` may be declared rather than spelled out ([0119](../decisions/0119-downloads-are-host-side.md)):
 

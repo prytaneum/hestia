@@ -408,9 +408,12 @@ and a target the profile did not declare, and fails the provision unless every
 built file exists. An output may instead be a directory tree with a `destination` (the server's data directory or
 the libraries root), placed file by file, keeping what exists in the data directory and replacing what a build placed in libraries; a `Library` may be kept off `-cp`
 with `classpath: false`; and a server may launch from an args file with a per-OS alternative the host picks
-([0121](../decisions/0121-a-build-places-trees-and-the-profile-launches-from-an-args-file.md)). A flavor also declares how Modrinth packs and Prism instances
-name its loader (`mrpackKey`, `prismUid`), which the transfer formats read from
-the registered flavors.
+([0121](../decisions/0121-a-build-places-trees-and-the-profile-launches-from-an-args-file.md)). A flavor's description also declares its content-platform `loader` and `compatible` loaders, which content queries
+filter versions by instead of the flavor id, and an open `interchange` map `{ format-id: key }` that the `.mrpack`,
+Prism and plugin pack formats read from the registered flavors to match a loader to a flavor
+([0127](../decisions/0127-a-flavor-description-declares-its-loader.md)). `versions` may answer bare ids, which the
+host types and orders against the vanilla catalogue, and an `onVanilla` answer may override the Java major
+(refused unless the launcher can provide it).
 
 A `build` answers a **plan** `{ fetch, steps, outputs }` ([0124](../decisions/0124-a-build-is-a-plan-the-host-runs.md)),
 which `providers/plan.rs` vets whole before anything runs and then executes. A download goes through the plugin's

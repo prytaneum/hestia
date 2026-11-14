@@ -57,6 +57,7 @@ the alternative you rejected — that is usually the part nobody can recover lat
 - **0124** — [A build is a plan the guest returns and the host runs](0124-a-build-is-a-plan-the-host-runs.md)
 - **0125** — [A pack is one provider kind that replaces `format`, and export formats are an open set](0125-a-pack-is-a-provider-kind-and-export-formats-are-open.md)
 - **0126** — [An ambient channel hands out harmless facts and needs no permission](0126-an-ambient-channel-needs-no-permission.md)
+- **0127** — [A flavor description declares its loader, its interchange keys and, optionally, only version ids](0127-a-flavor-description-declares-its-loader.md)
 
 ### [Cross-cutting foundations](../architecture/common.md)
 
@@ -132,6 +133,7 @@ the alternative you rejected — that is usually the part nobody can recover lat
 - **0088** — [The daemon sequences a version change, its restart and its modpack](0088-the-daemon-sequences-a-version-change.md)
 - **0107** — [An entry's icon lives in the entry's directory, kept by the daemon](0107-an-entry-icon-lives-in-the-entry.md)
 - **0110** — [A flavor builds in an area of its own, and the host places what it builds](0110-a-flavor-builds-in-its-own-area.md)
+- **0127** — [A flavor description declares its loader, its interchange keys and, optionally, only version ids](0127-a-flavor-description-declares-its-loader.md)
 
 ### [Content & modpacks](../architecture/content.md)
 
