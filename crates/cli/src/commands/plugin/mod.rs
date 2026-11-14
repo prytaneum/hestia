@@ -48,13 +48,14 @@ pub enum PluginCmd {
     },
     /// Run a plugin from its folder, reload it on every rebuild and stream its log
     Dev {
-        /// A plugin folder of the repository; the current directory by default
-        dir: Option<std::path::PathBuf>,
+        /// A plugin folder of the repository, the current directory by default;
+        /// several folders of one repository with --once
+        dirs: Vec<std::path::PathBuf>,
         #[arg(short = 'y', long, help = "Approve exactly the permissions shown")]
         yes: bool,
         #[arg(
             long,
-            help = "Build and install it, then return instead of watching for changes"
+            help = "Build and install, then return instead of watching for changes"
         )]
         once: bool,
         #[command(flatten)]
@@ -181,11 +182,11 @@ pub async fn run(cmd: PluginCmd) -> Result<()> {
         PluginCmd::New { id } => new::run(&id),
         PluginCmd::Pack { ids, sign, sdk } => pack::run(&ids, sign.as_deref(), &sdk),
         PluginCmd::Dev {
-            dir,
+            dirs,
             yes,
             once,
             sdk,
-        } => dev::run(dir.as_deref(), dev::Mode { yes, once }, &sdk).await,
+        } => dev::run(&dirs, dev::Mode { yes, once }, &sdk).await,
         PluginCmd::Check { ids, dir, sdk } => check::run(dir.as_deref(), &ids, &sdk),
         PluginCmd::Test { ids, sdk } => test::run(&ids, &sdk),
         PluginCmd::Publish {

@@ -55,8 +55,14 @@ impl Staged {
     }
 }
 
-/// A crate is built and staged; any other folder is already an unpacked package.
-fn prepare(dir: &Path, sdk: Option<Sdk>) -> Result<(PathBuf, Option<Staged>)> {
+/// A crate is built and staged; any other folder is already an unpacked
+/// package. `built` is the metadata of a build that already covered this crate,
+/// so a batch compiles once instead of once per plugin.
+fn prepare(
+    dir: &Path,
+    sdk: Option<Sdk>,
+    built: Option<&Metadata>,
+) -> Result<(PathBuf, Option<Staged>)> {
     if !dir.join(MANIFEST).is_file() {
         bail!(
             "{} has no {MANIFEST}; point at a plugin folder",
@@ -74,9 +80,17 @@ fn prepare(dir: &Path, sdk: Option<Sdk>) -> Result<(PathBuf, Option<Staged>)> {
         .find(|plugin| std::fs::canonicalize(&plugin.path).is_ok_and(|path| path == dir))
         .context("this folder is not one of the repository's plugins")?;
     let (component, package) = if plugin.manifest.wasm.is_some() {
-        let metadata = Metadata::read(repo.root(), sdk.as_ref())?;
+        let read;
+        let metadata = match built {
+            Some(metadata) => metadata,
+            None => {
+                read = Metadata::read(repo.root(), sdk.as_ref())?;
+                let package = read.package_name(&plugin.path)?;
+                cargo::build(repo.root(), &[package], sdk.as_ref())?;
+                &read
+            }
+        };
         let package = metadata.package_name(&plugin.path)?.to_string();
-        cargo::build(repo.root(), &[package.as_str()], sdk.as_ref())?;
         (Some(metadata.component(&plugin.path)?), Some(package))
     } else {
         (None, None)
@@ -102,24 +116,84 @@ pub struct Mode {
     pub once: bool,
 }
 
-pub async fn run(dir: Option<&Path>, mode: Mode, sdk: &SdkOption) -> Result<()> {
-    let Mode { yes, once } = mode;
-    let sdk = Sdk::resolve(sdk)?;
-    let dir = std::fs::canonicalize(dir.unwrap_or(Path::new(".")))
-        .context("cannot resolve the plugin folder")?;
-    let (package, staged) = prepare(&dir, sdk)?;
-    let package = package.to_string_lossy().into_owned();
+fn resolved(dir: &Path) -> Result<PathBuf> {
+    std::fs::canonicalize(dir)
+        .with_context(|| format!("cannot resolve the plugin folder {}", dir.display()))
+}
 
-    let client = connect().await?;
-    let plugins = client.plugin();
-    let inspection = plugins.inspect(&package).await?;
-    show_grant(&inspection)?;
+fn approve(inspection: &client::proto::plugin::PluginInspection, yes: bool) -> Result<()> {
+    show_grant(inspection)?;
     if !yes
         && !ui::confirm("run it in dev mode?", "run", "cancel")
             .context("pass --yes to approve exactly what is shown")?
     {
         bail!("dev run cancelled");
     }
+    Ok(())
+}
+
+/// Installs several plugins of one repository, compiling their crates in a
+/// single cargo run.
+async fn install_all(dirs: &[PathBuf], yes: bool, sdk: Option<Sdk>) -> Result<()> {
+    let dirs = dirs
+        .iter()
+        .map(|dir| resolved(dir))
+        .collect::<Result<Vec<_>>>()?;
+    let crates: Vec<&PathBuf> = dirs
+        .iter()
+        .filter(|dir| dir.join(CRATE_MANIFEST).is_file())
+        .collect();
+    let built = match crates.first() {
+        Some(first) => {
+            let repo = Repository::containing(first).context(
+                "not inside a plugin repository (a Cargo.toml beside a plugins/ folder)",
+            )?;
+            let metadata = Metadata::read(repo.root(), sdk.as_ref())?;
+            let packages = crates
+                .iter()
+                .map(|dir| metadata.package_name(dir))
+                .collect::<Result<Vec<_>>>()?;
+            cargo::build(repo.root(), &packages, sdk.as_ref())?;
+            Some(metadata)
+        }
+        None => None,
+    };
+
+    let client = connect().await?;
+    let plugins = client.plugin();
+    for dir in &dirs {
+        let (package, _) = prepare(dir, sdk.clone(), built.as_ref())?;
+        let package = package.to_string_lossy().into_owned();
+        let inspection = plugins.inspect(&package).await?;
+        approve(&inspection, yes)?;
+        plugins
+            .install_dev(&package, &inspection.grant_digest)
+            .await?;
+        ui::show(View::line(format!(
+            "'{}' installed from {package}",
+            inspection.manifest.id
+        )))?;
+    }
+    Ok(())
+}
+
+pub async fn run(dirs: &[PathBuf], mode: Mode, sdk: &SdkOption) -> Result<()> {
+    let Mode { yes, once } = mode;
+    let sdk = Sdk::resolve(sdk)?;
+    if dirs.len() > 1 {
+        if !once {
+            bail!("several folders are installed, not watched: pass --once, or name one folder");
+        }
+        return install_all(dirs, yes, sdk).await;
+    }
+    let dir = resolved(dirs.first().map_or(Path::new("."), PathBuf::as_path))?;
+    let (package, staged) = prepare(&dir, sdk, None)?;
+    let package = package.to_string_lossy().into_owned();
+
+    let client = connect().await?;
+    let plugins = client.plugin();
+    let inspection = plugins.inspect(&package).await?;
+    approve(&inspection, yes)?;
     let id = inspection.manifest.id.clone();
     let mut events = plugins.follow(&id).await?;
     plugins

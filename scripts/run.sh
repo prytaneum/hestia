@@ -194,19 +194,22 @@ trap 'cleanup; exit 143' TERM HUP PIPE
 # a dev install's providers answer to bare names (`fabric`) when no signed
 # plugin does.
 install_plugins() {
-  local repo="$1" dir id
+  local repo="$1" dir
+  local dirs=()
   [ -d "$repo/plugins" ] || die "no plugins/ in $repo — pass --plugins=<checkout of the plugins repository>"
   repo="$(cd "$repo" && pwd)"
   local sdk="$PWD/crates/sdk"
-  developer_was="$("$hestia" --quiet config get developer 2> /dev/null | tr -d '[:space:]')"
-  "$hestia" --quiet config set developer true
   for dir in "$repo"/plugins/*/; do
     [ -f "$dir/plugin.toml" ] || continue
-    id="$(basename "$dir")"
-    log "installing $id"
-    (cd "$repo" && "$hestia" plugin dev "$dir" --yes --once --sdk "$sdk" > /dev/null)
-    installed+=("$id")
+    dirs+=("$dir")
+    installed+=("$(basename "$dir")")
   done
+  [ "${#dirs[@]}" -gt 0 ] || die "no plugin in $repo/plugins"
+  developer_was="$("$hestia" --quiet config get developer 2> /dev/null | tr -d '[:space:]')"
+  "$hestia" --quiet config set developer true
+  log "building and installing ${#dirs[@]} plugins from $repo"
+  # One call, so the crates compile in a single cargo run.
+  (cd "$repo" && "$hestia" plugin dev "${dirs[@]}" --yes --once --sdk "$sdk" > /dev/null)
   log "${#installed[@]} plugins installed for this run; they are removed when it ends"
 }
 
