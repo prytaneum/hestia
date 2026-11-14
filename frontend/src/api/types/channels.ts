@@ -199,9 +199,6 @@ import type { ServerFilesRemoveParams } from "./generated/ServerFilesRemoveParam
 import type { ServerInfo } from "./generated/ServerInfo";
 import type { ServerModpackInstallParams } from "./generated/ServerModpackInstallParams";
 import type { ServerPingResult } from "./generated/ServerPingResult";
-import type { ServerPlayerKickParams } from "./generated/ServerPlayerKickParams";
-import type { ServerPlayerSetParams } from "./generated/ServerPlayerSetParams";
-import type { ServerPlayersResult } from "./generated/ServerPlayersResult";
 import type { ServerProperty } from "./generated/ServerProperty";
 import type { ServerReadyEvent } from "./generated/ServerReadyEvent";
 import type { ServerRef } from "./generated/ServerRef";
@@ -371,9 +368,6 @@ export interface Channels {
   "server.list": { params: Empty; result: Array<ServerInfo> };
   "server.modpack.install": { params: Partial<ServerModpackInstallParams>; result: JobStarted };
   "server.ping": { params: Partial<ServerRef>; result: ServerPingResult };
-  "server.players": { params: Partial<ServerRef>; result: ServerPlayersResult };
-  "server.players.kick": { params: Partial<ServerPlayerKickParams>; result: Empty };
-  "server.players.set": { params: Partial<ServerPlayerSetParams>; result: Empty };
   "server.properties": { params: Partial<ServerRef>; result: Array<ServerProperty> };
   "server.restart": { params: Partial<ServerRef>; result: ServerStartResult };
   "server.start": { params: Partial<ServerRef>; result: ServerStartResult };

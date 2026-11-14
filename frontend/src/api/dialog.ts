@@ -6,7 +6,7 @@
  */
 import { ask as nativeAsk, open, save } from '@tauri-apps/plugin-dialog';
 
-/** Single-file content is a jar or zip; a `.mrpack` is a modpack, not offered here. */
+/** Single-file content is a jar or zip; a modpack is not offered here. */
 export const CONTENT_EXTENSIONS = ['jar', 'zip'];
 
 const named = (name: string, extensions?: string[]) =>
@@ -52,17 +52,24 @@ export const IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'webp', 'gif'];
 /** Pick one image and return its absolute path, or null when dismissed. */
 export const pickImage = () => pickOne('Images', IMAGE_EXTENSIONS);
 
-/** The archive formats an instance import accepts, by extension. */
-export const ARCHIVE_EXTENSIONS = ['hestia', 'mrpack', 'zip'];
+/**
+ * The archives an import accepts without any plugin: hestia's own and any zip.
+ * A pack format a plugin writes adds its own extension to the list the caller
+ * passes.
+ */
+export const BASE_ARCHIVE_EXTENSIONS = ['hestia', 'zip'];
 
 /** Pick one instance archive to import; empty when dismissed. */
-export async function pickInstanceArchive(): Promise<string[]> {
-  const path = await pickOne('Instance archives', ARCHIVE_EXTENSIONS);
+export async function pickInstanceArchive(
+  extensions: string[],
+): Promise<string[]> {
+  const path = await pickOne('Instance archives', extensions);
   return path ? [path] : [];
 }
 
 /** Pick one modpack file and return its absolute path, or null when dismissed. */
-export const pickPackFile = () => pickOne('Modpacks', ['mrpack', 'zip']);
+export const pickPackFile = (extensions: string[]) =>
+  pickOne('Modpacks', extensions);
 
 /** Pick one folder and return its absolute path, or null when dismissed. */
 export async function pickFolder(): Promise<string | null> {

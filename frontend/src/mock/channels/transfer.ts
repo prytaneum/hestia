@@ -3,12 +3,7 @@
  * file and bringing one back. Both are jobs; `inspect` and `contents` are the
  * cheap reads a dialog runs before either starts.
  */
-import type {
-  ArchiveEntry,
-  ArchiveInfo,
-  ExportFormatInfo,
-  ImportFormat,
-} from '@/api/types';
+import type { ArchiveEntry, ArchiveInfo, ExportFormatInfo } from '@/api/types';
 
 import { jobIdOf, startJob, subjectOf } from '../job';
 import * as entries from '../state/entries';
@@ -66,22 +61,7 @@ const TREE: ArchiveEntry[] = [
   },
 ];
 
-const formatOf = (path: string): ImportFormat => {
-  if (path.endsWith('.hestia')) return 'hestia';
-  if (path.endsWith('.mrpack'))
-    return { provider: { id: 'mrpack', name: 'Modrinth pack' } };
-  if (path.includes('curseforge'))
-    return { provider: { id: 'curseforge', name: 'CurseForge pack' } };
-  return { provider: { id: 'prism', name: 'Prism / MultiMC' } };
-};
-
-const FORMATS: ExportFormatInfo[] = [
-  { format: 'hestia', extension: 'hestia' },
-  {
-    format: { provider: { id: 'mrpack', name: 'Modrinth pack' } },
-    extension: 'mrpack',
-  },
-];
+const FORMATS: ExportFormatInfo[] = [{ format: 'hestia', extension: 'hestia' }];
 
 export const channels: ChannelHandlers = {
   'instance.export.formats': () => FORMATS,
@@ -98,7 +78,7 @@ export const channels: ChannelHandlers = {
       '',
     );
     const info: ArchiveInfo = {
-      format: formatOf(path),
+      format: 'hestia',
       name,
       gameVersion: '1.21.1',
       loader: 'fabric',
@@ -152,7 +132,7 @@ export const channels: ChannelHandlers = {
         { phase: 'content', detail: 'installing content' },
       ],
       done: () => ({
-        format: formatOf(path),
+        format: 'hestia',
         instance: entries.addInstance({
           name,
           flavor: 'fabric',

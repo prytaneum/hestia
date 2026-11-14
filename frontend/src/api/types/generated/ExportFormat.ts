@@ -4,8 +4,7 @@ import type { Provider } from "./Provider";
 /**
  * What an export writes. `Hestia` is hestia's own archive — the instance's
  * record, files and local content, with tracked content downloaded again on
- * import; a `Provider` is a format other launchers read — the Modrinth pack
- * the launcher writes itself, or one a pack provider contributes — and carries
- * only what that format can express. A request names a provider by its `id`.
+ * import; a `Provider` is a format other launchers read, contributed by a pack
+ * provider, and carries only what that format can express. A request names a provider by its `id`.
  */
 export type ExportFormat = "hestia" | { "provider": Provider };

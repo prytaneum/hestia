@@ -25,10 +25,6 @@
     "default_jvm_args": "Default JVM arguments",
     "default_memory": "Default allocated memory",
     "default_memory_hint": "Instances and servers can override this individually.",
-    "discord": {
-      "enabled_description": "Show what you are playing on your Discord profile. Needs the Discord desktop app running on this machine.",
-      "enabled_label": "Discord Rich Presence"
-    },
     "download_cache": "Download cache",
     "general": "General",
     "in_use": "In use",

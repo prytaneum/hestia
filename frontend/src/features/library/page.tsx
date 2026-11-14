@@ -35,6 +35,7 @@ import {
 import { useDropzone } from '@/hooks/use-dropzone';
 import { m } from '@/paraglide/messages.js';
 import { useAccounts } from '@/queries';
+import { useArchiveExtensions } from '@/queries/transfer';
 
 const InstanceIcon = entryIcon('instance');
 const ServerIcon = entryIcon('server');
@@ -75,8 +76,9 @@ export function LibraryPage({
     },
     [signedIn],
   );
+  const archiveExtensions = useArchiveExtensions();
   const { getRootProps } = useDropzone<HTMLDivElement>({
-    accept: dialog.ARCHIVE_EXTENSIONS,
+    accept: archiveExtensions,
     multiple: false,
     disabled: !signedIn,
     label: m['instance.import.drop'](),
@@ -144,7 +146,8 @@ export function LibraryPage({
               <DropdownMenuItem
                 disabled={!signedIn}
                 onClick={async () => {
-                  const [archive] = await dialog.pickInstanceArchive();
+                  const [archive] =
+                    await dialog.pickInstanceArchive(archiveExtensions);
                   if (archive) openImport(archive);
                 }}
               >

@@ -8,8 +8,10 @@ const info = (value: Record<string, unknown>) =>
 describe('warningMessage', () => {
   it('interpolates the variant’s fields into the headline', () => {
     expect(
-      warningMessage(info({ kind: 'export_files_embedded', count: 3 })),
-    ).toBe('3 file(s) had no download to reference and were embedded in the archive.');
+      warningMessage(info({ kind: 'modpack_files_excluded', count: 3 })),
+    ).toBe(
+      '3 client-only mod(s) the pack called server-compatible were not installed.',
+    );
   });
 
   it('labels a token field through the warning vocabulary', () => {

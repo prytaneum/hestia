@@ -138,16 +138,6 @@ export function GeneralTab() {
           </Field>
         </Setting>
 
-        <Setting id="discord">
-          <SwitchRow
-            id="discord-enabled"
-            label={m['settings.discord.enabled_label']()}
-            description={m['settings.discord.enabled_description']()}
-            checked={entries.discord?.enabled ?? true}
-            onChange={(checked) => commit('discord.enabled', checked)}
-          />
-        </Setting>
-
         <Setting id="tutorial">
           <TutorialField />
         </Setting>

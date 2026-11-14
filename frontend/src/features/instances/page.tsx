@@ -1,6 +1,5 @@
 import { PlusIcon } from '@phosphor-icons/react';
 import { useMemo, useState } from 'react';
-import { dialog } from '@/api';
 import { useSearch } from '@/components/app-shell/search-context';
 import { FilterMenu } from '@/components/filter-menu';
 import { Page } from '@/components/page';
@@ -21,6 +20,7 @@ import { useInstanceCards } from '@/features/shared/entry/hooks/use-entry-cards'
 import { useDropzone } from '@/hooks/use-dropzone';
 import { m } from '@/paraglide/messages.js';
 import { useAccounts } from '@/queries';
+import { useArchiveExtensions } from '@/queries/transfer';
 
 export function InstancesPage({
   view,
@@ -44,7 +44,7 @@ export function InstancesPage({
     setImporting(true);
   };
   const { getRootProps } = useDropzone<HTMLDivElement>({
-    accept: dialog.ARCHIVE_EXTENSIONS,
+    accept: useArchiveExtensions(),
     multiple: false,
     disabled: !signedIn,
     label: m['instance.import.drop'](),

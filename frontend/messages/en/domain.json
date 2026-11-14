@@ -17,8 +17,7 @@
       "server": "server"
     },
     "export_format": {
-      "hestia": "hestia archive",
-      "mrpack": "Modrinth pack (.mrpack)"
+      "hestia": "hestia archive"
     },
     "flavor": {
       "requires": "Needs {name} installed on this computer:"

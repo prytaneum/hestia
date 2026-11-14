@@ -33,6 +33,7 @@ import { useMemoryRange } from '@/queries/host';
 import { instanceMutations } from '@/queries/instance';
 import { useJobDisplay, useJobMutation } from '@/queries/jobs';
 import { serverMutations } from '@/queries/server';
+import { useArchiveExtensions } from '@/queries/transfer';
 
 import {
   FlavorOption,
@@ -66,6 +67,7 @@ export function CreateEntryDialog({
   const [step, setStep] = useState<Step>('flavor');
   const [search, setSearch] = useState('');
   const [showSnapshots, setShowSnapshots] = useState(false);
+  const archiveExtensions = useArchiveExtensions();
 
   const flavorsQuery = useQuery(catalogueQueries.flavors(kind));
   const flavors: Flavor[] = useMemo(
@@ -239,8 +241,10 @@ export function CreateEntryDialog({
                       <FileDropButton
                         title={m['instance.import.action']()}
                         hint={m['instance.import.formats']()}
-                        accept={dialog.ARCHIVE_EXTENSIONS}
-                        pick={dialog.pickInstanceArchive}
+                        accept={archiveExtensions}
+                        pick={() =>
+                          dialog.pickInstanceArchive(archiveExtensions)
+                        }
                         onFiles={([archive]) => {
                           onOpenChange(false);
                           onImport(archive);

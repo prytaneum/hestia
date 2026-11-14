@@ -14,7 +14,11 @@ import { Spinner } from '@/components/ui/spinner';
 import { fileName } from '@/lib/path';
 import { m } from '@/paraglide/messages.js';
 import { useJobMutation } from '@/queries/jobs';
-import { transferMutations, transferQueries } from '@/queries/transfer';
+import {
+  transferMutations,
+  transferQueries,
+  useArchiveExtensions,
+} from '@/queries/transfer';
 
 /**
  * Import an instance from an archive. The format is the daemon's to work out —
@@ -47,6 +51,7 @@ export function ImportInstanceDialog({
   }, [open, initialPath]);
 
   const archive = useQuery(transferQueries.archive(path));
+  const archiveExtensions = useArchiveExtensions();
   const run = useJobMutation(transferMutations.import());
 
   // The archive's own name is the default, until the user types over it. A
@@ -83,8 +88,8 @@ export function ImportInstanceDialog({
         <FileDropButton
           title={path ? fileName(path) : m['instance.import.choose']()}
           hint={path || m['instance.import.formats']()}
-          accept={dialog.ARCHIVE_EXTENSIONS}
-          pick={dialog.pickInstanceArchive}
+          accept={archiveExtensions}
+          pick={() => dialog.pickInstanceArchive(archiveExtensions)}
           onFiles={([archive]) => select(archive)}
         />
 

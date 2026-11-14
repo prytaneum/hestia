@@ -36,6 +36,7 @@ import { WarningNotice } from '@/components/warning-notice';
 import { notify } from '@/lib/notify';
 import { m } from '@/paraglide/messages.js';
 import { modpackMutations, modpackQueries, useJobMutation } from '@/queries';
+import { useArchiveExtensions } from '@/queries/transfer';
 import { ProvisionProgressView } from '../components/provision-progress';
 import { ModpackVersionDialog } from '../dialogs';
 import { SideCard } from './cards';
@@ -70,6 +71,7 @@ export function ModpackCard({
     path: string;
     preview: ModpackFilePreview;
   } | null>(null);
+  const archiveExtensions = useArchiveExtensions();
   const check = useQuery(
     modpackQueries.updateCheck(kind, id, (pack.data?.projectId ?? '') !== ''),
   );
@@ -96,7 +98,7 @@ export function ModpackCard({
     });
 
   const updateFromFile = async () => {
-    const path = await dialog.pickPackFile();
+    const path = await dialog.pickPackFile(archiveExtensions);
     if (!path) return;
     try {
       const preview = await queryClient.fetchQuery(

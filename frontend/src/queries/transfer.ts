@@ -7,11 +7,11 @@
  * instance's own footprint, since the archive lands outside the data home as
  * often as not.
  */
-import { queryOptions } from '@tanstack/react-query';
+import { queryOptions, useQuery } from '@tanstack/react-query';
 import { bytes } from '@/lib/format';
 import { parentOf } from '@/lib/path';
 import { m } from '@/paraglide/messages.js';
-import { type ExportDone, type ImportDone, system } from '../api';
+import { dialog, type ExportDone, type ImportDone, system } from '../api';
 import type { ExportInput } from '../api/transfer';
 import * as api from '../api/transfer';
 import { jobMutation, subjectName } from './jobs';
@@ -47,6 +47,17 @@ export const transferQueries = {
       gcTime: 0,
     }),
 };
+
+/** The extensions an archive to import may carry: hestia's, zip, and each one a registered format writes. */
+export function useArchiveExtensions(): string[] {
+  const { data } = useQuery(transferQueries.formats());
+  return [
+    ...new Set([
+      ...dialog.BASE_ARCHIVE_EXTENSIONS,
+      ...(data ?? []).map((format) => format.extension),
+    ]),
+  ];
+}
 
 export const transferMutations = {
   export: (id: string) =>

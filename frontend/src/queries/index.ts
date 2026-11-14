@@ -53,7 +53,6 @@ export {
 } from './metrics';
 export * from './modpack';
 export * from './net';
-export * from './players';
 export * from './prefs';
 export * from './server';
 export * from './skins';

@@ -28,7 +28,6 @@ const formatId = (info: ExportFormatInfo) =>
 const formatLabel = (info: ExportFormatInfo) => {
   const id = formatId(info);
   if (id === 'hestia') return m['domain.export_format.hestia']();
-  if (id === 'mrpack') return m['domain.export_format.mrpack']();
   return info.format === 'hestia' ? id : info.format.provider.name;
 };
 
@@ -129,11 +128,9 @@ export function ExportInstanceDialog({
       description={
         formatKey === 'hestia'
           ? m['instance.export.hint_hestia']()
-          : formatKey === 'mrpack'
-            ? m['instance.export.hint_mrpack']()
-            : m['instance.export.hint_plugin']({
-                name: chosen ? formatLabel(chosen) : formatKey,
-              })
+          : m['instance.export.hint_plugin']({
+              name: chosen ? formatLabel(chosen) : formatKey,
+            })
       }
     >
       <div className="flex items-center gap-2">

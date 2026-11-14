@@ -14,7 +14,6 @@ const settings: Tree = {
   autostart: false,
   developer: false,
   defaults: { memory: '4G', 'jvm-args': '' },
-  discord: { enabled: true },
   instance: { 'multi-session': false },
   modpack: {
     'default-excludes': true,

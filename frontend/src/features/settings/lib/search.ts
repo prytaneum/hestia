@@ -86,15 +86,6 @@ const INDEX: Entry[] = [
     ),
   },
   {
-    id: 'discord',
-    tab: 'general',
-    group: 'general',
-    text: text(
-      m['settings.discord.enabled_label'],
-      m['settings.discord.enabled_description'],
-    ),
-  },
-  {
     id: 'tutorial',
     tab: 'general',
     group: 'general',

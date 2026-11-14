@@ -187,8 +187,6 @@
       "out_of_range": "it must be between {min} and {max}",
       "outside_entry": "it is outside the server's folder",
       "path": "file",
-      "player": "player name",
-      "player_name": "a player name is up to 32 letters, digits, '_' or '.', with no spaces",
       "plugin": "plugin",
       "provider": "{name}",
       "process_id": "process id",

@@ -32,7 +32,6 @@ function sample(options: Options): string {
     jar: 'sodium-fabric-1.21.1.jar',
     png: 'icon.png',
     hestia: 'fabric-playground.hestia',
-    mrpack: 'fabulously-optimized.mrpack',
   };
   return `${PICKED}/${names[extension] ?? `picked.${extension}`}`;
 }
