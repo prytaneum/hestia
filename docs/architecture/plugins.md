@@ -416,6 +416,13 @@ of three slots (`nav`, `entry`, `settings`); `plugin.ui.render` and
 `toast`, `navigate`, `refresh`). The desktop side is described under
 [plugin pages](frontends.md#plugin-pages).
 
+General primitives beyond text and tables ([0123](../decisions/0123-the-ui-vocabulary-grows-by-general-primitives.md)):
+`remote_image` (and its `avatar` shape), `badge`, `tabs`, a `confirm` text on a button, and a `filter` on a table. A remote
+image is never fetched by the webview: the front-end asks `plugin.image`, and `Engine::fetch_plugin_image` fetches it through
+the image proxy under the plugin's `Policy`, so the URL and every redirect hop must be on a host `network:connect` names.
+A page contribution may declare `topics` and `refresh_every`; while it is open the front-end draws it again on such a topic
+(throttled) or interval, and the plugin never receives the event. `PageContext.locale` carries the user's language.
+
 The one exception is the `webview` node: an HTML page from the plugin's `assets/`
 in an opaque-origin, scripts-only iframe, served under its own CSP, that reaches
 the host only through a `postMessage` bridge limited to that plugin's `plugin.run`
@@ -427,6 +434,15 @@ A theme is a stylesheet in `themes/`, declared in `contributes.themes` and gated
 ([0093](../decisions/0093-the-desktop-runs-under-a-csp.md)), by native approval
 dialogs, by an opt-in pick and by a safe mode that loads no plugin CSS
 ([0100](../decisions/0100-themes-are-plugin-css.md)).
+
+### Message catalogs
+
+A package may carry `messages/<locale>.json`, a flat object of texts by key with `{name}` placeholders (at most 256 KiB
+each). `plugins/messages.rs` resolves a locale from the general to the specific (`en`, then the language, then the exact
+locale) and is the one reader for both consumers: `plugin.messages` serves the app, which translates the manifest's own
+texts by convention keys (`page.<id>.title`, `setting.<key>.label|help|placeholder`, `group.<name>`) and falls back to the
+manifest's text, and the guest's `messages.catalog` import serves the text of a page it draws. A locale that is not a plain
+tag is refused, so it cannot name a path.
 
 ## Assets
 
@@ -447,7 +463,8 @@ plugin that owns it, through the `settings` import. `plugin.settings.*` edits th
 from the CLI (`hestia plugin config`, which prompts for a secret without echo) and
 the desktop, and the plugin's `settings-changed` export is told when one changes. The plugin may write its own declared
 settings with `settings.set`, which goes through the same `PluginSettings::set` and write lock as the user's, so the value
-is validated and persisted the same way; the clients get a `changed` event for the plugin and its own
+is validated and persisted the same way; a setting may also declare `min`, `max`, `pattern`, `placeholder`, `group` and an
+https `help_url`, which `Setting::check` enforces for both writers; the clients get a `changed` event for the plugin and its own
 `settings-changed` is not run for its own write, so it cannot loop.
 
 ## Network
@@ -772,3 +789,4 @@ plugins the tests build are fixtures
 | [0120](../decisions/0120-a-programs-identity-is-separate-from-its-invocations.md) | a program's identity is separate from its invocations; pins are lazy and approved |
 | [0121](../decisions/0121-a-build-places-trees-and-the-profile-launches-from-an-args-file.md) | a build places directory trees; a server may launch from an args file per OS; the build area is the plugin's |
 | [0122](../decisions/0122-a-source-declares-its-setting-and-one-vet-checks-every-download.md) | a source declares the setting it needs, and one vet checks every download a plugin names |
+| [0123](../decisions/0123-the-ui-vocabulary-grows-by-general-primitives.md) | the plugin UI grows by general primitives, live pages and message catalogs |

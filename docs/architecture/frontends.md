@@ -338,6 +338,13 @@ A click or submit calls `plugin.ui.action` and applies the returned effects:
 `render` replaces the cached tree, `toast` goes through `notify`, `navigate`
 opens another page of the plugin, and `refresh` refetches.
 
+The render query is keyed by the app's locale, which the page context carries. A page that declares `topics` or
+`refresh_every` is drawn again on such a daemon topic (throttled to twice a second, `useRedrawOnTopics`) or interval. A
+`remote_image` is a `plugin.image` query rendered as a data URL, never a request the webview makes; `tabs` keeps the chosen
+tab in the component, a `confirm` button asks through `ConfirmDialog`, and a `filter` table narrows its rows locally.
+`usePluginText` loads a plugin's catalog (`plugin.messages`) to translate the manifest's page titles and setting labels,
+help and placeholders ([0123](../decisions/0123-the-ui-vocabulary-grows-by-general-primitives.md)).
+
 ### Plugin commands
 
 A plugin's `[[contributes.commands]]` appear where they act, not on a page of
