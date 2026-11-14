@@ -924,6 +924,39 @@ impl ErrorInfo {
             _ => code::BAD_REQUEST,
         }
     }
+
+    /// The next step a person can take, for the few failures that have one a
+    /// message does not already give. Secondary text under the headline, and
+    /// derived from the variant on each side, never carried on the wire: a
+    /// front-end words its own from the same tag.
+    pub fn hint(&self) -> Option<String> {
+        use ErrorInfo::*;
+        let hint = match self {
+            SignInRequired => "run `hestia account login`".to_string(),
+            SessionExpired { .. } => "run `hestia account login` to sign in again".to_string(),
+            DeveloperModeOff => "run `hestia config set developer true`".to_string(),
+            MultiSessionDisabled { .. } => {
+                "run `hestia config set instance.multi-session true`".to_string()
+            }
+            ContentSourceUnavailable {
+                setting: Some(RequiredSetting { plugin, key }),
+                ..
+            } => format!("run `hestia plugin config {plugin} {key} <value>`"),
+            ContentSourceUnavailable { setting: None, .. } => {
+                "open the plugin's settings with `hestia plugin config <plugin>`".to_string()
+            }
+            NoContentSource => "find one with `hestia plugin browse`".to_string(),
+            ProviderUnknown { .. } => {
+                "install a plugin that provides it; `hestia plugin browse` lists them".to_string()
+            }
+            OfflineMode => "run `hestia config set network.offline false`".to_string(),
+            RepositoryExpired { .. } => {
+                "run `hestia plugin repo refresh` once it is reachable".to_string()
+            }
+            _ => return None,
+        };
+        Some(hint)
+    }
 }
 
 impl fmt::Display for ErrorInfo {
@@ -1005,10 +1038,7 @@ impl fmt::Display for ErrorInfo {
             VersionNotFound { reference } => write!(f, "no version matches '{reference}'"),
             TaskNotFound { id } => write!(f, "no scheduled task '{id}'"),
             PluginNotFound { id } => write!(f, "no plugin '{id}' is installed"),
-            DeveloperModeOff => write!(
-                f,
-                "developer mode is off; enable it with: hestia config set developer true"
-            ),
+            DeveloperModeOff => write!(f, "developer mode is off"),
             PluginApprovalStale => write!(
                 f,
                 "the package's permissions changed since you reviewed them"
@@ -1030,7 +1060,7 @@ impl fmt::Display for ErrorInfo {
             RepositoryRefused { detail } => write!(f, "the repository was refused: {detail}"),
             RepositoryExpired { repository } => write!(
                 f,
-                "the index of '{repository}' has expired; refresh it before installing from it"
+                "the index of '{repository}' has expired, so nothing new installs from it"
             ),
             RepositoryOfficial { repository } => {
                 write!(f, "'{repository}' is the official repository and cannot be removed")
@@ -1097,8 +1127,7 @@ impl fmt::Display for ErrorInfo {
             EntryRunning { name, .. } => write!(f, "{name} is running — stop it first"),
             MultiSessionDisabled { name } => write!(
                 f,
-                "{name} is already running — running several sessions at once is off; turn it on \
-                 with 'config set instance.multi-session true'"
+                "{name} is already running — running several sessions at once is off"
             ),
             NotRunning { name, .. } => write!(f, "{name} is not running"),
             StopTimedOut { name } => write!(f, "{name} did not stop in time"),
@@ -1131,7 +1160,7 @@ impl fmt::Display for ErrorInfo {
             SignInRequired => write!(f, "sign in with a Microsoft account first"),
             PluginSignInRequired { plugin } => write!(f, "plugin '{plugin}' needs you to sign in"),
             SessionExpired { reference } => {
-                write!(f, "your sign-in for '{reference}' expired — sign in again")
+                write!(f, "your sign-in for '{reference}' expired")
             }
             LoginDeclined => write!(f, "the sign-in was declined"),
             LoginTimedOut => write!(f, "the sign-in timed out — try again"),
@@ -1189,15 +1218,12 @@ impl fmt::Display for ErrorInfo {
                 actual,
                 expected,
             } => write!(f, "'{title}' is {actual} content, not {expected}"),
-            NoContentSource => f.write_str(
-                "no content source is installed — install a content source plugin to browse content",
-            ),
+            NoContentSource => f.write_str("no content source is installed"),
             ContentSourceUnavailable { source, setting } => match setting {
                 None => write!(f, "the {source} content source is not configured"),
                 Some(RequiredSetting { plugin, key }) => write!(
                     f,
-                    "the {source} content source needs the {key} setting of the {plugin} plugin — \
-                     set it with `hestia plugin config {plugin} {key} <value>`"
+                    "the {source} content source needs the {key} setting of the {plugin} plugin"
                 ),
             },
             ContentDownloadBlocked { title, source } => write!(
