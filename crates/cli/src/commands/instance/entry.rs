@@ -83,7 +83,7 @@ pub(super) fn resolve_session(info: &InstanceInfo, input: &str) -> Result<String
 pub(super) async fn list(client: &Client) -> Result<()> {
     let instances = client.instance().list().await?;
     if instances.is_empty() {
-        return ui::show(View::note("no instances yet (hestia instance create)"));
+        return ui::show(View::empty("no instances yet (hestia instance create)"));
     }
     let names = Names::flavors(client, EntryKind::Instance).await?;
     let rows = instances

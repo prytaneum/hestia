@@ -157,6 +157,7 @@ pub(crate) async fn follow_logs(
     key: &str,
     one_session: bool,
 ) -> Result<()> {
+    ui::json::stream()?;
     let mut events = client.process().subscribe(key).await?;
     loop {
         tokio::select! {

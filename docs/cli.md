@@ -801,7 +801,7 @@ the daemon resolves `<name>` for the plugin.
 hestia hello                     # list the plugin's commands (title, description)
 hestia hello greet --name world  # run one; --name <value>, --flag for a bool, --count 3 for a number
 hestia hello greet --help        # the declared arguments and their help
-hestia hello greet --json        # print the raw JSON output instead of a table or block
+hestia hello greet --json        # print the output as JSON (see Machine-readable output)
 hestia server smp lists add steve alex       # a server-scoped command `lists add` taking bare words
 ```
 
@@ -880,6 +880,7 @@ hestia -vv java list             # …plus the wire: every frame this process se
                                  #   id, size and round-trip time
 hestia -q java list              # errors only on the console
 hestia --home /path/to/dir config get home
+hestia --json server list        # machine-readable output, see below
 hestia --version
 ```
 
@@ -887,6 +888,52 @@ Diagnostics also land in `logs/hestia.log` regardless of the console level.
 `-vv` is specifically for a CLI-versus-daemon disagreement: it shows the conversation from this side, which the daemon's
 own logs cannot. Payloads are never logged — they carry access tokens and RCON passwords — so a frame reports its size,
 not its contents.
+
+## Machine-readable output (`--json`)
+
+`--json` makes any command print one JSON document on stdout (UTF-8, newline-terminated, no colour, no spinners, no
+progress). Human messages never mix in; diagnostics stay in `logs/hestia.log`.
+
+```json
+{"data": <value>, "warnings": [{"kind": "…", "message": "…", "hint": "…"}]}
+```
+
+`data` follows what the command shows:
+
+| the command shows           | `data` is                                                                             |
+|-----------------------------|---------------------------------------------------------------------------------------|
+| a table                     | an array of objects keyed by snake_case column (`GAME VERSION` is `game_version`)     |
+| a list with nothing in it   | `[]`, never a message                                                                 |
+| a key/value block           | one object keyed by snake_case key                                                    |
+| a line or note              | `{"message": "…"}`                                                                    |
+| several of the above        | an array of each, in the order shown                                                  |
+| nothing                     | `null`                                                                                |
+| a plugin command's output   | that output as the plugin returned it (`hestia <plugin> <command> --json`)            |
+
+Table and block values are the strings the terminal shows (sizes and states included); a plugin command's output keeps
+its own types. `warnings` carries what a result reports as degraded, with the tag of its `kind` (the same vocabulary as
+the wire's `WarningInfo`) and the hint for fixing it; a warning a view raises itself has a null `kind` and `hint`.
+
+A failure prints one object on **stderr**, with the same exit code as without the flag. `kind` is the daemon's error
+tag (`entry_not_found`, `sign_in_required`, …), `code` its coarse category (`not_found`, `unauthorized`,
+`bad_request`, `forbidden`, `offline`, `handler_error`, …); a refusal made by the CLI itself, such as a missing
+argument, is `local`/`local`:
+
+```json
+{"error": {"kind": "entry_not_found", "code": "not_found", "message": "no server 'smp'"}}
+```
+
+`--json` can follow the subcommand or precede it. It never prompts: a command that would ask something fails like it
+does without a terminal, naming the argument or flag that answers it. Interactive sessions (`server <name> attach`, the
+resource monitor) refuse it, and the content browser and the paged table fall back to their plain output, so
+`hestia mod search sodium --json` returns the hits.
+
+`hestia logs <name> -f --json` is a stream: newline-delimited JSON, one object per line, flushed as it arrives
+(`{"message": "…"}` per line of output). Its history, printed before following starts, uses the same lines. A stream has
+no `data` envelope.
+
+`hestia <plugin> <command> --json` is the same flag: it is accepted after the plugin command's name and not passed on
+to the plugin.
 
 ## Exit codes
 

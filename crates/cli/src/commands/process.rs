@@ -54,7 +54,7 @@ async fn list() -> Result<()> {
     let client = connect().await?;
     let processes = client.process().list().await?;
     if processes.is_empty() {
-        return ui::show(View::note("nothing is being supervised"));
+        return ui::show(View::empty("nothing is being supervised"));
     }
     let rows = processes
         .iter()

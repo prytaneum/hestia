@@ -11,7 +11,7 @@ use crate::ui::{self, View};
 pub(super) async fn list(client: &Client) -> Result<()> {
     let plays = client.instance().recent().await?;
     if plays.is_empty() {
-        return ui::show(View::note(EMPTY));
+        return ui::show(View::empty(EMPTY));
     }
     let rows = plays
         .iter()

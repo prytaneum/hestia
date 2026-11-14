@@ -20,12 +20,12 @@ pub async fn run(
         plugins.catalogue(CatalogueParams { repo, query }).await?
     };
     if catalogue.repositories.is_empty() {
-        return ui::show(View::note(
+        return ui::show(View::empty(
             "no plugin repositories; add one with `hestia plugin repo add`",
         ));
     }
     if catalogue.plugins.is_empty() {
-        ui::show(View::note("no plugins match"))?;
+        ui::show(View::empty("no plugins match"))?;
     } else {
         ui::show(View::table(
             "Plugins",

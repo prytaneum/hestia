@@ -141,7 +141,7 @@ async fn search_page(client: &Client, query: SearchQuery) -> Result<()> {
         client.content().search(&query).await?
     };
     if result.hits.is_empty() {
-        return ui::show(View::note("no results"));
+        return ui::show(View::empty("no results"));
     }
     let rows = result
         .hits
@@ -185,7 +185,7 @@ fn show_project(project: &ContentProject) -> Result<()> {
 
 fn show_versions(versions: Vec<ContentVersion>) -> Result<()> {
     if versions.is_empty() {
-        return ui::show(View::note("no versions"));
+        return ui::show(View::empty("no versions"));
     }
     let rows = versions
         .iter()

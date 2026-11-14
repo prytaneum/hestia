@@ -50,7 +50,7 @@ pub async fn run(cmd: JavaCmd) -> Result<()> {
         JavaCmd::List => {
             let runtimes = client.java().list().await?;
             if runtimes.is_empty() {
-                return ui::show(View::note("no java runtimes installed"));
+                return ui::show(View::empty("no java runtimes installed"));
             }
             let rows = runtimes
                 .iter()

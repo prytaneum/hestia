@@ -11,7 +11,7 @@ pub async fn run(plugins: client::Plugin<'_>, unsigned: bool) -> Result<()> {
         plugins.outdated(unsigned).await?
     };
     if outdated.plugins.is_empty() {
-        ui::show(View::note("every plugin is up to date"))?;
+        ui::show(View::empty("every plugin is up to date"))?;
     } else {
         ui::show(View::table(
             "Outdated plugins",

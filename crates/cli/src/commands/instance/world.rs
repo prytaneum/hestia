@@ -69,7 +69,7 @@ pub(super) async fn run(client: &Client, instance: &str, cmd: WorldCmd) -> Resul
 pub(super) async fn list(client: &Client, instance: &str) -> Result<()> {
     let worlds = client.instance().worlds(instance).await?;
     if worlds.is_empty() {
-        return ui::show(View::note("no worlds yet — create one in-game first"));
+        return ui::show(View::empty("no worlds yet — create one in-game first"));
     }
     let rows = worlds
         .iter()

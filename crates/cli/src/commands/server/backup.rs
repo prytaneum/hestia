@@ -53,7 +53,7 @@ pub(super) async fn run(client: &Client, server: &str, cmd: BackupCmd) -> Result
             let info = entry::pick_server(client.server().list().await?, Some(server.to_string()))?;
             let backups = client.server().backup_list(&info.id).await?;
             if backups.is_empty() {
-                return ui::show(View::note(format!(
+                return ui::show(View::empty(format!(
                     "no backups yet (hestia server {server} backup create)"
                 )));
             }

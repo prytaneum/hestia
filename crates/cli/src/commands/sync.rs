@@ -224,7 +224,7 @@ async fn packs(client: &Client, cmd: PacksCmd) -> Result<()> {
 async fn list_packs(client: &Client) -> Result<()> {
     let packs = client.sync().packs().await?;
     if packs.is_empty() {
-        return ui::show(View::note(
+        return ui::show(View::empty(
             "no packs shared yet — `hestia sync on resourcepacks` starts from an instance",
         ));
     }
@@ -400,7 +400,7 @@ async fn options(client: &Client, cmd: OptionsCmd) -> Result<()> {
 async fn list_options(client: &Client) -> Result<()> {
     let options = client.sync().options().await?;
     if options.is_empty() {
-        return ui::show(View::note(
+        return ui::show(View::empty(
             "no shared settings yet — they arrive the first time an instance launches",
         ));
     }

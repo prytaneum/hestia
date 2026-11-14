@@ -363,7 +363,7 @@ pub fn confirm_downgrade(kind: EntryKind, name: &str, from: &str, to: &str) -> R
 /// here to describe itself.
 fn show_flavors(flavors: &[Flavor], names: &Names) -> Result<()> {
     if flavors.is_empty() {
-        return ui::show(View::note("no flavors are available"));
+        return ui::show(View::empty("no flavors are available"));
     }
     let rows: Vec<Vec<String>> = flavors
         .iter()
@@ -439,7 +439,7 @@ fn show_versions(flavor: &str, versions: Vec<GameVersion>, all: bool) -> Result<
         .map(|v| vec![v.id.clone(), kind_label(v.kind).to_string()])
         .collect();
     if rows.is_empty() {
-        return ui::show(View::note("no versions available"));
+        return ui::show(View::empty("no versions available"));
     }
     ui::show(View::table(
         format!("{flavor} versions"),

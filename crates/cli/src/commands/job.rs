@@ -23,7 +23,7 @@ pub async fn run(cmd: JobCmd) -> Result<()> {
         JobCmd::List => {
             let jobs = client.jobs().list().await?;
             if jobs.is_empty() {
-                return ui::show(View::note("no running jobs"));
+                return ui::show(View::empty("no running jobs"));
             }
             let rows = jobs
                 .into_iter()

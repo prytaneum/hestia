@@ -35,6 +35,9 @@ pub(crate) async fn restart_attached(client: Client, server: &str, detach: bool)
 /// Attach an interactive console to a running server: its live output above
 /// an input line; Esc detaches without touching the server.
 pub(crate) async fn attach(client: Client, server: &str) -> Result<()> {
+    if ui::json::active() {
+        bail!("attach is an interactive console and does not support --json (use `server logs -f --json` and `server command`)");
+    }
     if !ui::is_interactive() {
         bail!("attach needs an interactive terminal (use `server logs -f` and `server command`)");
     }

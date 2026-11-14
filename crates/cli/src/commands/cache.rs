@@ -29,7 +29,7 @@ pub async fn run(cmd: CacheCmd) -> Result<()> {
         CacheCmd::List => {
             let entries = client.cache().list().await?;
             if entries.is_empty() {
-                return ui::show(View::note("cache is empty"));
+                return ui::show(View::empty("cache is empty"));
             }
             let rows = entries
                 .iter()

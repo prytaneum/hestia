@@ -77,7 +77,7 @@ pub(super) async fn run(client: &Client, server: &str, cmd: FilesCmd) -> Result<
             let path = path.unwrap_or_default();
             let entries = files.list(server, &path).await?;
             if entries.is_empty() {
-                return ui::show(View::note("empty directory"));
+                return ui::show(View::empty("empty directory"));
             }
             ui::show(View::table(
                 if path.is_empty() { "/" } else { path.as_str() },

@@ -35,6 +35,12 @@ struct Cli {
     #[arg(
         long,
         global = true,
+        help = "Print one JSON document on stdout instead of text; errors become JSON on stderr"
+    )]
+    json: bool,
+    #[arg(
+        long,
+        global = true,
         help = "Override Hestia's data directory (else $HESTIA_HOME, else the platform default)"
     )]
     home: Option<String>,
@@ -269,12 +275,21 @@ fn main() -> ExitCode {
         return ExitCode::SUCCESS;
     };
 
+    if cli.json {
+        ui::json::enable();
+    }
     let rt = tokio::runtime::Runtime::new().expect("build tokio runtime");
-    let result = rt.block_on(dispatch(command));
+    let result = rt
+        .block_on(dispatch(command))
+        .and_then(|status| Ok(ui::json::finish().map(|()| status)?));
 
     match result {
         Ok(status) => status.code(),
         Err(e) if is_broken_pipe(&e) => ExitCode::SUCCESS,
+        Err(e) if ui::json::active() => {
+            ui::json::print_error(&e);
+            ExitCode::FAILURE
+        }
         Err(e) => {
             eprintln!("{e:#}");
             ExitCode::FAILURE

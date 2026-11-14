@@ -38,7 +38,7 @@ pub(super) fn running_process(info: &ServerInfo) -> Option<ProcessInfo> {
 pub(super) async fn list(client: &Client) -> Result<()> {
     let servers = client.server().list().await?;
     if servers.is_empty() {
-        return ui::show(View::note("no servers yet (hestia server create)"));
+        return ui::show(View::empty("no servers yet (hestia server create)"));
     }
     let names = Names::flavors(client, EntryKind::Server).await?;
     let rows = servers

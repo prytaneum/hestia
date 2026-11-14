@@ -78,7 +78,7 @@ CLI verb is fine when the architecture says why, and a bug when it does not
 
 ## Connection and flags
 
-Global `--verbose`/`--quiet`/`--home` sit on the root. `--home` is exported as
+Global `--verbose`/`--quiet`/`--json`/`--home` sit on the root. `--home` is exported as
 `$HESTIA_HOME` and only takes effect when `hestia daemon start` spawns the
 daemon — a running daemon keeps its own directory.
 
@@ -109,7 +109,13 @@ status`, `server <name> status`. Verbs that merely describe stay 0, because
 ## Presentation
 
 Commands **never print directly**. They build a `View` (`Line`, `Note`,
-`Detail`, `Table`, `Warning`) and hand it to `ui::show`, which owns all output.
+`Detail`, `Table`, `Warning`, `Empty`, `Json`) and hand it to `ui::show`, which owns all output.
+
+`--json` is decided in that one place (`ui/json.rs`): `ui::show` collects every view into one `{data, warnings}`
+document that `main` writes when the command ends, so no command has a JSON branch. A table carries stable column keys
+beside its headers (derived from them, overridable), and `Empty` is a list with nothing in it, which prints a note for
+a person and `[]` for a script. `is_interactive()` is false under `--json`, so every prompt takes its no-terminal
+error and the progress renderers stay silent. The format is in [cli.md](../cli.md#machine-readable-output---json).
 
 Interactive surfaces run as **fullscreen sessions** on a small framework:
 

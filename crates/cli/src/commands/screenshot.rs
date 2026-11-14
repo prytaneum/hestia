@@ -34,7 +34,7 @@ pub async fn run(cmd: ScreenshotCmd) -> Result<()> {
                 .list(instance.as_deref().unwrap_or_default())
                 .await?;
             if taken.is_empty() {
-                return ui::show(View::note(
+                return ui::show(View::empty(
                     "no screenshots yet — `hestia sync on screenshots` reads every instance's",
                 ));
             }

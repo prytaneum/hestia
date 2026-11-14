@@ -11,6 +11,7 @@
 //! `View`s.
 
 pub(crate) mod components;
+pub(crate) mod json;
 pub(crate) mod markdown;
 pub(crate) mod plugin;
 mod progress;
@@ -32,10 +33,12 @@ pub use session::monitor::MonitorSample;
 pub use view::View;
 
 /// Whether this invocation can run widgets: stdin (keys) and stderr (drawing)
-/// are both terminals. Decided once.
+/// are both terminals, and the output is not `--json`. The terminals are
+/// decided once.
 pub(crate) fn is_interactive() -> bool {
     static MODE: OnceLock<bool> = OnceLock::new();
-    *MODE.get_or_init(|| std::io::stdin().is_terminal() && std::io::stderr().is_terminal())
+    !json::active()
+        && *MODE.get_or_init(|| std::io::stdin().is_terminal() && std::io::stderr().is_terminal())
 }
 
 /// Whether a full session may own the invocation: [`is_interactive`] *and*
@@ -45,7 +48,7 @@ pub(crate) fn is_interactive() -> bool {
 /// ask.
 pub(crate) fn interactive_output() -> bool {
     static MODE: OnceLock<bool> = OnceLock::new();
-    *MODE.get_or_init(|| is_interactive() && std::io::stdout().is_terminal())
+    is_interactive() && *MODE.get_or_init(|| std::io::stdout().is_terminal())
 }
 
 /// Render a view: plainly to stdout, except tables too tall for the terminal,
@@ -59,8 +62,21 @@ pub fn show(view: View) -> Result<()> {
 /// with the hint for fixing it.
 pub fn show_warnings(warnings: &[WarningInfo]) -> Result<()> {
     for warning in warnings {
+        if json::active() {
+            json::warn_info(warning)?;
+            continue;
+        }
         show(View::warning(warning.to_string()))?;
         show(View::note(format!("  {}", warning.hint())))?;
+    }
+    Ok(())
+}
+
+/// An interactive session has no machine form: say so rather than fall back to
+/// the generic missing-terminal error.
+fn refuse_json(session: &str) -> Result<()> {
+    if json::active() {
+        bail!("{session} is interactive and does not support --json");
     }
     Ok(())
 }
@@ -240,6 +256,7 @@ pub fn console(
     events: tokio::sync::mpsc::UnboundedReceiver<ConsoleEvent>,
     link: ConsoleLink,
 ) -> Result<Option<String>> {
+    refuse_json("the console")?;
     if !is_interactive() {
         bail!("no interactive terminal");
     }
@@ -256,6 +273,7 @@ pub fn monitor(
     title: &str,
     samples: tokio::sync::mpsc::UnboundedReceiver<Option<MonitorSample>>,
 ) -> Result<()> {
+    refuse_json("the monitor")?;
     if !is_interactive() {
         bail!("no interactive terminal");
     }

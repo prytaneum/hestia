@@ -263,7 +263,7 @@ fn confirm_remove(id: &str) -> Result<()> {
 
 fn list(plugins: Vec<PluginInfo>) -> Result<()> {
     if plugins.is_empty() {
-        return ui::show(View::note("no plugins installed"));
+        return ui::show(View::empty("no plugins installed"));
     }
     ui::show(View::table(
         "Plugins",

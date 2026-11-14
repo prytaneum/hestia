@@ -91,7 +91,7 @@ fn show_found(found: &RepositoryAdded) -> Result<()> {
 async fn list(plugins: &client::Plugin<'_>) -> Result<()> {
     let repositories = plugins.repo_list().await?;
     if repositories.is_empty() {
-        return ui::show(View::note(
+        return ui::show(View::empty(
             "no plugin repositories; add one with `hestia plugin repo add`",
         ));
     }

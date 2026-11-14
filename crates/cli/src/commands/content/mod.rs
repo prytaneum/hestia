@@ -49,7 +49,7 @@ pub async fn run_sources() -> Result<()> {
     let client = connect().await?;
     let sources = client.content().sources().await?;
     if sources.is_empty() {
-        return ui::show(View::note(
+        return ui::show(View::empty(
             "no content source is installed — install a content source plugin",
         ));
     }

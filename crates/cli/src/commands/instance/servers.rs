@@ -156,7 +156,7 @@ pub(super) async fn run(client: &Client, instance: &str, cmd: ServerCmd) -> Resu
 pub(super) async fn list(client: &Client, instance: &str) -> Result<()> {
     let servers = visible(client.instance().servers(instance).await?);
     if servers.is_empty() {
-        return ui::show(View::note(
+        return ui::show(View::empty(
             "no servers in this instance's list — add one with `server add <name> <address>`",
         ));
     }

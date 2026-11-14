@@ -13,10 +13,14 @@ use super::session::pager::PagerScreen;
 use super::view::View;
 
 pub fn show(view: View) -> Result<()> {
+    if super::json::active() {
+        return Ok(super::json::show(view)?);
+    }
     if let View::Table {
         title,
         headers,
         rows,
+        ..
     } = &view
     {
         if paged(title, headers, rows)? {
@@ -25,10 +29,11 @@ pub fn show(view: View) -> Result<()> {
     }
     match view {
         View::Line(text) => line(&text)?,
-        View::Note(text) => note(&text)?,
+        View::Note(text) | View::Empty(text) => note(&text)?,
         View::Warning(text) => warning(&text)?,
         View::Detail(rows) => detail(&rows)?,
         View::Table { headers, rows, .. } => print_table(&headers, &rows)?,
+        View::Json(value) => line(&format!("{value:#}"))?,
     }
     Ok(())
 }

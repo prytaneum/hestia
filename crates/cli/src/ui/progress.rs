@@ -33,6 +33,14 @@ enum View {
     },
 }
 
+/// One paper-trail line of a redirected run; `--json` has none, its progress is
+/// not part of the document.
+fn trail(line: &str) {
+    if !super::json::active() {
+        eprintln!("{line}");
+    }
+}
+
 /// A background renderer that rewrites the current `View` onto one stderr
 /// line every tick until stopped. Created only when stderr is a terminal.
 struct Animator {
@@ -43,7 +51,7 @@ struct Animator {
 
 impl Animator {
     fn start(initial: View) -> Option<Self> {
-        if !io::stderr().is_terminal() {
+        if super::json::active() || !io::stderr().is_terminal() {
             return None;
         }
         let view = Arc::new(Mutex::new(initial));
@@ -158,7 +166,7 @@ impl Spinner {
         let label = label.into();
         match &self.animator {
             Some(animator) => animator.set(View::Spinner(label)),
-            None => eprintln!("{label}"),
+            None => trail(&label),
         }
     }
 }
@@ -192,7 +200,7 @@ impl ByteReporter {
     fn announce(&self, label: &'static str) {
         let mut last = self.last_label.lock().unwrap();
         if self.animator.is_none() && *last != Some(label) {
-            eprintln!("{label}");
+            trail(label);
         }
         *last = Some(label);
     }
@@ -274,7 +282,7 @@ impl ProvisionReporter {
         let mut last = self.last_detail.lock().unwrap();
         if *last != progress.detail {
             last.clone_from(&progress.detail);
-            eprintln!("  {}", progress.detail);
+            trail(&format!("  {}", progress.detail));
         }
     }
 
@@ -287,7 +295,7 @@ impl ProvisionReporter {
         };
         let Some(animator) = &self.animator else {
             if phase_changed {
-                eprintln!("{}", provision_label(progress.phase));
+                trail(provision_label(progress.phase));
             }
             self.echo_narration(progress);
             return;

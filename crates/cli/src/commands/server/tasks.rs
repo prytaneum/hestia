@@ -49,7 +49,7 @@ pub(super) async fn run(client: &Client, server: &str, cmd: TaskCmd) -> Result<(
         TaskCmd::List => {
             let list = tasks.list(server).await?;
             if list.is_empty() {
-                return ui::show(View::note("no scheduled tasks"));
+                return ui::show(View::empty("no scheduled tasks"));
             }
             ui::show(View::table(
                 "Scheduled tasks",

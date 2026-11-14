@@ -146,7 +146,7 @@ fn joined(ids: &[&str]) -> String {
 
 fn list_commands(plugin: &str, commands: &[&CommandContribution]) -> Result<()> {
     if commands.is_empty() {
-        return ui::show(View::note(format!("'{plugin}' contributes no commands")));
+        return ui::show(View::empty(format!("'{plugin}' contributes no commands")));
     }
     ui::show(View::table(
         format!("{plugin} commands"),
@@ -170,6 +170,9 @@ async fn execute(
         return show_help(plugin, command, scope);
     }
     let (args, json) = parse_args(&command.args, argv)?;
+    if json {
+        ui::json::enable();
+    }
     let spinner = Arc::new(Spinner::start(format!("running {plugin} {}", command.id)));
     let reporter = spinner.clone();
     let done = client
@@ -191,8 +194,8 @@ async fn execute(
         .await;
     drop(spinner);
     let output = done?.output;
-    if json {
-        return ui::show(View::line(format!("{output:#}")));
+    if ui::json::active() {
+        return ui::show(View::json(output));
     }
     if let Ok(tree) = serde_json::from_value::<UiNode>(output.clone()) {
         return views(&tree).into_iter().try_for_each(ui::show);
@@ -230,10 +233,7 @@ fn show_help(plugin: &str, command: &CommandContribution, scope: CommandScope) -
             (flag, format!("{}{required}", arg.help))
         })
         .collect();
-    rows.push((
-        "--json".to_string(),
-        "Print the raw JSON output".to_string(),
-    ));
+    rows.push(("--json".to_string(), "Print the output as JSON".to_string()));
     ui::show(View::detail(rows))
 }
 
@@ -247,7 +247,8 @@ fn kind_label(kind: CommandArgKind) -> &'static str {
     }
 }
 
-/// `--json` is the CLI's own flag and is never passed on. Bare words bind to the
+/// `--json` is the CLI's own global flag, also accepted after the command's
+/// name, and is never passed on. Bare words bind to the
 /// command's `words` argument, which an omitted list leaves absent.
 fn parse_args(declared: &[CommandArg], argv: &[String]) -> Result<(Map<String, Value>, bool)> {
     let mut args = Map::new();

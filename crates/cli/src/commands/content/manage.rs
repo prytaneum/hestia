@@ -340,7 +340,7 @@ async fn list(client: &Client, entry: EntryKind, kind: ContentKind, reference: &
     let names = Names::sources(client).await?;
     let source = |item: &InstalledContent| source_label(item, &unavailable_sources, &names);
     if items.is_empty() && untracked.is_empty() {
-        return ui::show(View::note(format!("no {} installed", kind_plural(kind))));
+        return ui::show(View::empty(format!("no {} installed", kind_plural(kind))));
     }
     if !items.is_empty() {
         if kind == ContentKind::DataPack {

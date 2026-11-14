@@ -42,7 +42,7 @@ pub async fn run(cmd: AccountCmd) -> Result<()> {
         AccountCmd::List => {
             let listing = client.accounts().list().await?;
             if listing.accounts.is_empty() {
-                return ui::show(View::note("no accounts signed in (hestia account login)"));
+                return ui::show(View::empty("no accounts signed in (hestia account login)"));
             }
             let rows = listing
                 .accounts
