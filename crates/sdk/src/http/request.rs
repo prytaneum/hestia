@@ -1,11 +1,15 @@
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
-use super::{encode, transport, Headers, Response};
+#[cfg(target_arch = "wasm32")]
+use super::transport;
+use super::{encode, Headers, Response};
+#[cfg(not(target_arch = "wasm32"))]
+use crate::mock as transport;
 use crate::Error;
 
 /// An HTTP method.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Method {
     Get,
     Head,

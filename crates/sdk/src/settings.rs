@@ -10,12 +10,11 @@
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
-use crate::bindings::hestia::plugin::settings;
 use crate::Error;
 
 /// Reads `key`: what the user set, else the manifest's default, else `None`.
 pub fn get<T: DeserializeOwned>(key: &str) -> Result<Option<T>, Error> {
-    settings::get(key)
+    host_get(key)
         .map(|json| serde_json::from_str(&json).map_err(Error::from))
         .transpose()
 }
@@ -35,7 +34,7 @@ pub fn get<T: DeserializeOwned>(key: &str) -> Result<Option<T>, Error> {
 /// # Ok::<(), hestia::Error>(())
 /// ```
 pub fn set<T: Serialize>(key: &str, value: &T) -> Result<(), Error> {
-    Ok(settings::set(key, &serde_json::to_string(value)?)?)
+    host_set(key, &serde_json::to_string(value)?)
 }
 
 /// Clears `key` back to the manifest's default.
@@ -45,5 +44,25 @@ pub fn set<T: Serialize>(key: &str, value: &T) -> Result<(), Error> {
 /// # Ok::<(), hestia::Error>(())
 /// ```
 pub fn clear(key: &str) -> Result<(), Error> {
-    Ok(settings::set(key, "null")?)
+    host_set(key, "null")
+}
+
+#[cfg(target_arch = "wasm32")]
+fn host_get(key: &str) -> Option<String> {
+    crate::bindings::hestia::plugin::settings::get(key)
+}
+
+#[cfg(target_arch = "wasm32")]
+fn host_set(key: &str, json: &str) -> Result<(), Error> {
+    Ok(crate::bindings::hestia::plugin::settings::set(key, json)?)
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn host_get(key: &str) -> Option<String> {
+    crate::mock::setting_get(key)
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn host_set(key: &str, json: &str) -> Result<(), Error> {
+    crate::mock::setting_set(key, json)
 }

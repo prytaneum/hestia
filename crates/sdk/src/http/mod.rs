@@ -25,6 +25,7 @@
 mod headers;
 mod request;
 mod response;
+#[cfg(target_arch = "wasm32")]
 mod transport;
 mod url;
 

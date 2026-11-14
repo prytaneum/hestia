@@ -1,7 +1,6 @@
 use proto::contract::Contract;
 use proto::job::Job;
 
-use crate::bindings::hestia::plugin::host;
 use crate::Error;
 
 /// Calls a daemon channel through its contract, so the params and the result
@@ -16,7 +15,7 @@ use crate::Error;
 /// # Ok::<(), hestia::Error>(())
 /// ```
 pub fn call<C: Contract>(params: &C::Params) -> Result<C::Result, Error> {
-    let reply = host::call(C::CHANNEL, &serde_json::to_string(params)?)?;
+    let reply = invoke(C::CHANNEL, &serde_json::to_string(params)?, false)?;
     Ok(serde_json::from_str(&reply)?)
 }
 
@@ -35,6 +34,22 @@ pub fn call<C: Contract>(params: &C::Params) -> Result<C::Result, Error> {
 /// # Ok::<(), hestia::Error>(())
 /// ```
 pub fn run_job<C: Job>(params: &C::Params) -> Result<C::Done, Error> {
-    let reply = host::run_job(C::CHANNEL, &serde_json::to_string(params)?)?;
+    let reply = invoke(C::CHANNEL, &serde_json::to_string(params)?, true)?;
     Ok(serde_json::from_str(&reply)?)
+}
+
+#[cfg(target_arch = "wasm32")]
+fn invoke(channel: &'static str, params: &str, job: bool) -> Result<String, Error> {
+    use crate::bindings::hestia::plugin::host;
+
+    Ok(if job {
+        host::run_job(channel, params)?
+    } else {
+        host::call(channel, params)?
+    })
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn invoke(channel: &'static str, params: &str, job: bool) -> Result<String, Error> {
+    crate::mock::call(channel, params, job)
 }

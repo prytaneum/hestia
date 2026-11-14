@@ -32,6 +32,8 @@ pub mod http;
 pub mod ipc;
 pub mod log;
 pub mod messages;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod mock;
 pub mod pages;
 pub mod process;
 pub mod progress;
