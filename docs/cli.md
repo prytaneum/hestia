@@ -758,7 +758,7 @@ Writing one needs no daemon. A plugin lives in a repository: a cargo workspace (
 hestia plugin new <id>           # outside a repository: creates ./<id>/ with the workspace and plugins/<id>/;
                                  #   inside one: adds only plugins/<id>/
 hestia plugin pack [id…]         # from anywhere in the repository: build and write dist/<id>-<version>.hplugin
-hestia plugin check [id…] [--dir <dir>]
+hestia plugin check [id…] [--dir <dir>]   # the repository shape, every manifest, then a type-check of the crates
 hestia plugin test [id…]         # run the plugins' own tests natively, against the SDK's mock host
                                  # validate the repository against the one shape; every plugin's result is listed
 hestia plugin publish --out <dir> --sign <secret key> [--repository <https-url>]
@@ -773,7 +773,7 @@ hestia plugin dev [dir] [-y] [--official]
                                  # run plugins/<id>/ in place, rebuild when its sources change, stream its log;
                                  #   --official registers its providers under bare ids that shadow the built-ins
                                  #   (developer mode only; the grant is approved exactly as without it)
-hestia plugin dev|pack|publish --sdk <dir>
+hestia plugin dev|check|test|pack|publish --sdk <dir>
                                  # build against a local checkout of the hestia-sdk crate (crates/sdk); $HESTIA_SDK is
                                  #   the fallback, the flag wins; no file of the plugin is edited
 ```
@@ -786,7 +786,8 @@ rebuilds once a burst of edits has been quiet for half a second, and reports the
 build leaves the previous one running and the watch going.
 
 `check`, `pack` and `publish` work per plugin. `check` lists each plugin as `ok` or with every problem found (a manifest
-reports all of its mistakes, not the first) and exits non-zero when any selected plugin failed; naming ids narrows it.
+reports all of its mistakes, not the first) and exits non-zero when any selected plugin failed; naming ids narrows it. When every manifest passes it type-checks
+the plugins' crates for `wasm32-wasip2` (`cargo check`), so a code error is found without a full build.
 `pack` and `publish` still need the repository as a whole to follow the shape, but then process every valid plugin and
 report the invalid ones at the end, failing the run. An invalid plugin gets no new build in the index; its previously
 published builds stay listed. A named id that is not under `plugins/` is an error.

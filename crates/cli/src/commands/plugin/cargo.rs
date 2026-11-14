@@ -130,6 +130,23 @@ pub fn build(root: &Path, packages: &[&str], sdk: Option<&Sdk>) -> Result<()> {
     Ok(())
 }
 
+/// Type-checks each named package for the component target without building
+/// it, cargo's own output going to the terminal.
+pub fn check(root: &Path, packages: &[&str], sdk: Option<&Sdk>) -> Result<()> {
+    ensure_target(root)?;
+    let _lock = LockGuard::hold(root, sdk);
+    tracing::info!(?packages, "checking plugin crates");
+    let mut command = cargo(root, sdk);
+    command.args(["check", "--target", TARGET]);
+    for package in packages {
+        command.args(["-p", package]);
+    }
+    if !command.status().map_err(spawn_error)?.success() {
+        bail!("cargo check failed");
+    }
+    Ok(())
+}
+
 /// Runs the native tests of each named package, cargo's own output going to
 /// the terminal.
 pub fn test(root: &Path, packages: &[&str], sdk: Option<&Sdk>) -> Result<()> {

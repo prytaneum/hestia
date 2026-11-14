@@ -40,7 +40,7 @@ hestia plugin add dist/hello-0.1.0.hplugin
   approve the same grant, every permission is still checked, and it is not an official plugin (no automatic approval,
   no updates). It needs developer mode, and turning that off disables the dev plugin. A plugin that ships signed by the
   official key shadows the same way; one that does not is always namespaced and never shadows anything.
-- `--sdk <dir>` (or `HESTIA_SDK`) on `dev`, `pack` and `publish` builds against a local checkout of the SDK crate
+- `--sdk <dir>` (or `HESTIA_SDK`) on `dev`, `check`, `test`, `pack` and `publish` builds against a local checkout of the SDK crate
   (`crates/sdk` of a Hestia checkout) while it is unreleased or changing. Nothing in your plugin is edited, so there is
   no `[patch]` to write or to remember to remove.
 - `pack` builds the component, writes the `api` requirement into the packaged manifest and zips `plugin.toml`, the

@@ -61,13 +61,15 @@ pub enum PluginCmd {
         sdk: sdk::SdkOption,
     },
     /// Check that the repository follows the one shape plugin repositories have,
-    /// and report every plugin's result
+    /// report every plugin's result, and type-check the plugins' code
     Check {
         /// Plugins to check; all of the repository's by default
         ids: Vec<String>,
         /// A folder inside the repository; the current directory by default
         #[arg(long, value_name = "DIR")]
         dir: Option<std::path::PathBuf>,
+        #[command(flatten)]
+        sdk: sdk::SdkOption,
     },
     /// Run the plugins' own tests on this computer, against the SDK's mock host
     Test {
@@ -184,7 +186,7 @@ pub async fn run(cmd: PluginCmd) -> Result<()> {
             official,
             sdk,
         } => dev::run(dir.as_deref(), yes, official, &sdk).await,
-        PluginCmd::Check { ids, dir } => check::run(dir.as_deref(), &ids),
+        PluginCmd::Check { ids, dir, sdk } => check::run(dir.as_deref(), &ids, &sdk),
         PluginCmd::Test { ids, sdk } => test::run(&ids, &sdk),
         PluginCmd::Publish {
             out,

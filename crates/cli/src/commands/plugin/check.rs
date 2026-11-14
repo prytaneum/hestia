@@ -3,7 +3,9 @@ use std::path::Path;
 
 use anyhow::{bail, Context, Result};
 
+use super::cargo::{self, Metadata};
 use super::repo::{store_meta, workspace_list, PluginDir, Repository, StoreMeta, PLUGINS_DIR};
+use super::sdk::{Sdk, SdkOption};
 use crate::ui::{self, View};
 
 const SPEC: &str = "https://github.com/prytaneum/hestia/blob/main/docs/plugins/repository.md";
@@ -99,7 +101,10 @@ impl Inspection {
     }
 }
 
-pub fn run(dir: Option<&Path>, ids: &[String]) -> Result<()> {
+/// Checks the repository's shape and every manifest, then type-checks the
+/// crates of the plugins that passed.
+pub fn run(dir: Option<&Path>, ids: &[String], sdk: &SdkOption) -> Result<()> {
+    let sdk = Sdk::resolve(sdk)?;
     let repo = find(dir)?;
     let inspection = inspect(&repo)?.select(ids)?;
     for check in &inspection.plugins {
@@ -117,11 +122,30 @@ pub fn run(dir: Option<&Path>, ids: &[String]) -> Result<()> {
     if failed > 0 {
         bail!("{failed} of {} plugin(s) failed", inspection.plugins.len());
     }
+    compile(&repo, &inspection, sdk.as_ref())?;
     ui::show(View::line(format!(
         "ok: '{}', {} plugin(s)",
         inspection.meta.name,
         inspection.plugins.len()
     )))
+}
+
+fn compile(repo: &Repository, inspection: &Inspection, sdk: Option<&Sdk>) -> Result<()> {
+    let crates: Vec<&PluginDir> = inspection
+        .plugins
+        .iter()
+        .filter_map(|check| check.plugin.as_ref())
+        .filter(|plugin| plugin.has_crate)
+        .collect();
+    if crates.is_empty() {
+        return Ok(());
+    }
+    let metadata = Metadata::read(repo.root(), sdk)?;
+    let packages = crates
+        .iter()
+        .map(|plugin| metadata.package_name(&plugin.path))
+        .collect::<Result<Vec<_>>>()?;
+    cargo::check(repo.root(), &packages, sdk)
 }
 
 /// Reports every invalid plugin and fails; `action` is what the run could not
