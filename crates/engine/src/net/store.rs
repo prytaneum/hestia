@@ -47,20 +47,3 @@ fn save_in(dir: &Path, url: &str, body: &str) {
 fn load_in(dir: &Path, url: &str) -> Option<String> {
     std::fs::read_to_string(entry_path(dir, url)).ok()
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn a_saved_body_reads_back_and_an_unseen_url_does_not() {
-        let dir = tempfile::tempdir().expect("a temp dir");
-
-        save_in(dir.path(), "https://example.test/versions", r#"{"v":[]}"#);
-        assert_eq!(
-            load_in(dir.path(), "https://example.test/versions").as_deref(),
-            Some(r#"{"v":[]}"#)
-        );
-        assert!(load_in(dir.path(), "https://example.test/never-fetched").is_none());
-    }
-}

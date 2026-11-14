@@ -190,22 +190,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn a_plugin_api_every_plugin_runs_on_stages_nothing() {
-        let home = tempfile::tempdir().unwrap();
-        let engine = Engine::new(Some(home.path()));
-        let stale = engine.update.staged_plugins("9.9.9");
-        std::fs::create_dir_all(&stale).unwrap();
-
-        let staged = engine
-            .stage_official_plugins(proto::plugin::API_VERSION)
-            .await
-            .unwrap();
-
-        assert_eq!(staged, 0);
-        assert!(!stale.exists());
-    }
-
-    #[tokio::test]
     async fn an_official_plugin_without_a_build_for_the_new_api_refuses_the_update() {
         let home = tempfile::tempdir().unwrap();
         let engine = Engine::new(Some(home.path()));

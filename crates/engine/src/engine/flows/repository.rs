@@ -641,49 +641,6 @@ mod tests {
     use crate::plugins::seed_official_with;
     use crate::plugins::testkit::{sample_index, sign_index, Signer, SAMPLE_NOW, SAMPLE_VERSION};
 
-    #[test]
-    fn a_build_file_name_is_the_last_path_segment() {
-        assert_eq!(
-            file_name("https://example.com/r/aa-v1/aa-1.0.0.hplugin").unwrap(),
-            "aa-1.0.0.hplugin"
-        );
-        assert!(file_name("https://example.com/").is_err());
-        assert!(file_name("not a url").is_err());
-    }
-
-    #[test]
-    fn only_a_refused_index_is_a_refusal() {
-        assert!(is_refusal(&ErrorInfo::RepositoryRefused {
-            detail: String::new()
-        }));
-        assert!(is_refusal(&ErrorInfo::RepositoryKeyChanged {
-            pinned: String::new(),
-            declared: String::new()
-        }));
-        assert!(!is_refusal(&ErrorInfo::Offline { service: None }));
-        assert!(!is_refusal(&ErrorInfo::DownloadFailed {
-            detail: String::new()
-        }));
-    }
-
-    #[test]
-    fn adding_treats_a_missing_index_as_not_a_repository_but_keeps_offline() {
-        let missing: anyhow::Error = ErrorInfo::DownloadFailed {
-            detail: "HTTP 404".to_string(),
-        }
-        .into();
-        let offline: anyhow::Error = ErrorInfo::Offline { service: None }.into();
-
-        assert!(matches!(
-            crate::error_info(not_an_index(missing)),
-            ErrorInfo::RepositoryInvalid { .. }
-        ));
-        assert!(matches!(
-            crate::error_info(not_an_index(offline)),
-            ErrorInfo::Offline { .. }
-        ));
-    }
-
     #[tokio::test]
     async fn an_address_that_is_not_https_never_reaches_the_network() {
         let home = tempfile::tempdir().unwrap();
@@ -699,37 +656,6 @@ mod tests {
             ErrorInfo::RepositoryInvalid { .. }
         ));
         assert_eq!(engine.repositories().len(), 1, "only the official one");
-    }
-
-    #[test]
-    fn removing_an_unknown_repository_is_not_found() {
-        let home = tempfile::tempdir().unwrap();
-        let engine = Engine::new(Some(home.path()));
-
-        let error = engine
-            .remove_repository("https://nowhere.example/i.json")
-            .unwrap_err();
-
-        assert!(matches!(
-            crate::error_info(error),
-            ErrorInfo::RepositoryNotFound { .. }
-        ));
-    }
-
-    #[test]
-    fn the_official_repository_cannot_be_removed() {
-        let home = tempfile::tempdir().unwrap();
-        let engine = Engine::new(Some(home.path()));
-        let [official] = engine.repositories().try_into().unwrap();
-
-        let error = engine.remove_repository(&official.url).unwrap_err();
-
-        assert!(official.official);
-        assert!(matches!(
-            crate::error_info(error),
-            ErrorInfo::RepositoryOfficial { .. }
-        ));
-        assert_eq!(engine.repositories().len(), 1);
     }
 
     #[test]

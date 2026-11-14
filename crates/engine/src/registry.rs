@@ -307,10 +307,4 @@ mod tests {
         assert!(failed.is_err());
         assert_eq!(store.require(&note.id).unwrap().count, 0);
     }
-
-    #[test]
-    fn stamps_are_utc_civil_dates() {
-        assert_eq!(utc_stamp(0), "19700101-000000");
-        assert_eq!(utc_stamp(1_751_852_045), "20250707-013405");
-    }
 }

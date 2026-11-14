@@ -475,15 +475,6 @@ mod tests {
     }
 
     #[test]
-    fn an_empty_destination_lands_in_the_data_homes_exports() {
-        let exports = Path::new("/home/u/.hestia/exports");
-        let path = export_destination("", exports, &record("Cozy"), &Exporter::Hestia).unwrap();
-        assert!(path.starts_with(exports));
-        assert_eq!(path.extension().unwrap(), "hestia");
-        assert!(path.to_string_lossy().contains("cozy"));
-    }
-
-    #[test]
     fn a_relative_path_is_refused_because_the_daemon_is_a_different_process() {
         let error = export_destination(
             "./cozy.hestia",

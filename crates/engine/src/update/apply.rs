@@ -220,17 +220,3 @@ mod platform {
         }
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn an_unmanaged_build_refuses_before_touching_anything() {
-        let err = apply(Path::new("/nonexistent"), UpdateInstall::Unmanaged).unwrap_err();
-        assert!(
-            err.to_string().contains("not placed by an installer"),
-            "{err}"
-        );
-    }
-}

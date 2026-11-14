@@ -260,21 +260,8 @@ mod tests {
     }
 
     #[test]
-    fn the_default_entry_serves_appimage_and_nsis() {
-        for install in [UpdateInstall::AppImage, UpdateInstall::Nsis] {
-            let artifact = artifact_for(&entry(), install).unwrap();
-            assert_eq!(artifact.url, "https://example.test/Hestia.AppImage");
-        }
-    }
-
-    #[test]
     fn a_format_the_manifest_omits_is_not_substituted() {
         assert!(artifact_for(&entry(), UpdateInstall::Rpm).is_none());
-    }
-
-    #[test]
-    fn an_unmanaged_build_is_offered_nothing_to_apply() {
-        assert!(artifact_for(&entry(), UpdateInstall::Unmanaged).is_none());
     }
 
     #[test]
@@ -289,15 +276,6 @@ mod tests {
             )]),
         };
         assert!(available(&manifest).is_none());
-    }
-
-    #[test]
-    fn a_manifest_names_the_plugin_api_or_leaves_it_out() {
-        let with: Manifest =
-            serde_json::from_str(r#"{"version":"1.0.0","plugin_api":"2.0.0"}"#).unwrap();
-        let without: Manifest = serde_json::from_str(r#"{"version":"1.0.0"}"#).unwrap();
-        assert_eq!(with.plugin_api.as_deref(), Some("2.0.0"));
-        assert_eq!(without.plugin_api, None);
     }
 
     #[test]

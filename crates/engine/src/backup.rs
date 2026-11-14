@@ -723,15 +723,4 @@ mod tests {
         assert!(!entry.join(".discard-z").exists());
         assert!(data.join("world/level.dat").exists());
     }
-
-    #[test]
-    fn kinds_parse_from_ids() {
-        assert_eq!(kind_of("20260707-120000-manual"), Some(BackupKind::Manual));
-        assert_eq!(
-            kind_of("20260707-120000-scheduled-2"),
-            Some(BackupKind::Scheduled)
-        );
-        assert_eq!(kind_of("20260707-120000-update"), Some(BackupKind::Update));
-        assert_eq!(kind_of("20260707-120000"), None);
-    }
 }

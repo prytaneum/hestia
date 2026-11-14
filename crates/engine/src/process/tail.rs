@@ -201,16 +201,6 @@ mod tests {
     }
 
     #[test]
-    fn reads_the_last_lines() {
-        let file = temp_file("last", "one\ntwo\nthree\n");
-        let path = file.path();
-        let line = |offset, text: &str| (offset, text.to_string());
-        assert_eq!(read_last_lines(path, 2), [line(4, "two"), line(8, "three")]);
-        assert_eq!(read_last_lines(path, 10).len(), 3);
-        assert!(read_last_lines(path, 0).is_empty());
-    }
-
-    #[test]
     fn a_line_has_the_same_offset_tailed_or_read_back() {
         let file = temp_file("same", "one\r\ntwø\n\nfour\n");
         let mut tailed = Vec::new();

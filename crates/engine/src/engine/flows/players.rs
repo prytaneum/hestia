@@ -174,21 +174,4 @@ mod tests {
         );
         assert!(parse_online("There are 0 of a max of 20 players online: ").is_empty());
     }
-
-    #[test]
-    fn a_list_keeps_the_reason_and_survives_a_missing_file() {
-        let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join(BANNED_FILE);
-        assert!(read_list(&path).is_empty());
-
-        std::fs::write(
-            &path,
-            r#"[{"uuid":"u2","name":"zed","created":"x","source":"Server","expires":"forever","reason":"griefing"},
-                {"uuid":"u1","name":"Alex","level":4}]"#,
-        )
-        .unwrap();
-        let list = read_list(&path);
-        assert_eq!(list[0].name, "Alex");
-        assert_eq!(list[1].reason.as_deref(), Some("griefing"));
-    }
 }

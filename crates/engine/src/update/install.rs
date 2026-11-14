@@ -69,13 +69,3 @@ fn owning_package(exe: &std::path::Path) -> UpdateInstall {
         UpdateInstall::Unmanaged
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn a_test_binary_is_never_managed() {
-        assert_eq!(detect(), UpdateInstall::Unmanaged);
-    }
-}

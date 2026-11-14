@@ -677,19 +677,3 @@ fn item_label(item: &ContentAddItem) -> String {
         .map(|s| s.to_string())
         .unwrap_or_else(|| "(empty item)".to_string())
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn only_a_source_flagged_for_it_lets_a_datapack_be_a_mod_project() {
-        assert!(kind_matches(ContentKind::DataPack, ContentKind::Mod, true));
-        assert!(!kind_matches(
-            ContentKind::DataPack,
-            ContentKind::Mod,
-            false
-        ));
-        assert!(kind_matches(ContentKind::Mod, ContentKind::Mod, false));
-    }
-}

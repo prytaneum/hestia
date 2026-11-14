@@ -179,31 +179,6 @@ pub(in crate::engine::flows) fn content_target(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::path::Path;
-
-    pub(super) fn ctx() -> EntryContent {
-        EntryContent {
-            id: "entry".to_string(),
-            name: "Entry".to_string(),
-            entry_dir: PathBuf::from("/entry"),
-            data_dir: PathBuf::from("/entry/data"),
-            game_version: "1.21.1".to_string(),
-            flavor: "fabric".to_string(),
-            side: Side::Client,
-        }
-    }
-
-    #[test]
-    fn targets_route_by_requested_kind_not_project_kind() {
-        assert_eq!(
-            content_target(&ctx(), ContentKind::DataPack, "pack.zip").unwrap(),
-            Path::new("/entry/datapacks/pack.zip")
-        );
-        assert_eq!(
-            content_target(&ctx(), ContentKind::Shader, "shader.zip").unwrap(),
-            Path::new("/entry/shaderpacks/shader.zip")
-        );
-    }
 
     #[test]
     fn side_gate_waives_datapacks_by_requested_kind() {

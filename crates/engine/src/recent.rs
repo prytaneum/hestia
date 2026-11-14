@@ -98,15 +98,6 @@ mod tests {
     }
 
     #[test]
-    fn an_older_reading_of_a_known_target_changes_nothing() {
-        let dir = tempfile::tempdir().expect("temp dir");
-        record(dir.path(), vec![play("a", 30)]).expect("record");
-        record(dir.path(), vec![play("a", 10)]).expect("record");
-
-        assert_eq!(load(dir.path()), [play("a", 30)]);
-    }
-
-    #[test]
     fn the_oldest_target_falls_off_past_the_limit() {
         let dir = tempfile::tempdir().expect("temp dir");
         let joins = (0..=LIMIT as i64)

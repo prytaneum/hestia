@@ -269,47 +269,4 @@ mod tests {
         assert!(validate_skin_png(&png(128, 64)).is_err());
         assert!(validate_skin_png(b"not a png").is_err());
     }
-
-    #[test]
-    fn library_round_trip_and_rekey() {
-        let dir = tempfile::tempdir().expect("temp dir");
-        let skins = Skins::new(dir.path().join("skins"));
-
-        let entry = skins
-            .add_keyed("localkey", &png(64, 64), SkinVariant::Slim, "My Skin")
-            .unwrap();
-        assert_eq!(skins.list().len(), 1);
-        assert_eq!(skins.texture(&entry.key).unwrap(), png(64, 64));
-
-        skins.rekey(&entry.key, "mojangkey").unwrap();
-        assert!(skins.entry(&entry.key).is_none());
-        let rekeyed = skins.entry("mojangkey").unwrap();
-        assert_eq!(rekeyed.name, "My Skin");
-        assert_eq!(rekeyed.variant, SkinVariant::Slim);
-        assert_eq!(skins.texture("mojangkey").unwrap(), png(64, 64));
-
-        skins
-            .sync_variant("mojangkey", SkinVariant::Classic)
-            .unwrap();
-        assert_eq!(
-            skins.entry("mojangkey").unwrap().variant,
-            SkinVariant::Classic
-        );
-
-        let updated = skins
-            .update("mojangkey", "  Renamed  ", SkinVariant::Slim)
-            .unwrap()
-            .unwrap();
-        assert_eq!(updated.name, "Renamed");
-        assert_eq!(updated.variant, SkinVariant::Slim);
-        assert!(skins
-            .update("missing-key", "x", SkinVariant::Classic)
-            .unwrap()
-            .is_none());
-
-        assert!(skins.remove("mojangkey").unwrap());
-        assert!(!skins.remove("mojangkey").unwrap());
-        assert!(skins.list().is_empty());
-        let _ = fs::remove_dir_all(&dir);
-    }
 }

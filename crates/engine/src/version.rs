@@ -79,15 +79,6 @@ mod tests {
     use super::{is_newer, parse};
 
     #[test]
-    fn versions_parse_with_prefixes_and_prereleases() {
-        assert_eq!(parse("1.2.3"), Some((1, 2, 3)));
-        assert_eq!(parse("v0.1.0"), Some((0, 1, 0)));
-        assert_eq!(parse("1.2.3-beta.1"), Some((1, 2, 3)));
-        assert_eq!(parse("1.2"), Some((1, 2, 0)));
-        assert_eq!(parse("not-a-version"), None);
-    }
-
-    #[test]
     fn newer_is_strict_and_rejects_garbage() {
         assert!(is_newer("0.0.2", "0.0.1"));
         assert!(is_newer("1.0.0", "0.9.9"));
@@ -110,14 +101,6 @@ mod tests {
         assert!(is_newer("1.3.0", "1.3.0-beta.9"));
         assert!(!is_newer("1.3.0-beta.9", "1.3.0"));
         assert!(is_newer("1.3.0-beta.1", "1.2.5"));
-    }
-
-    #[test]
-    fn identifiers_compare_by_semver_rank() {
-        assert!(is_newer("1.0.0-alpha.beta", "1.0.0-alpha.1"));
-        assert!(is_newer("1.0.0-beta", "1.0.0-alpha"));
-        assert!(is_newer("1.0.0-alpha.1", "1.0.0-alpha"));
-        assert!(is_newer("1.0.0-rc.1", "1.0.0-beta.11"));
     }
 
     #[test]

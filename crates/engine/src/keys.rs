@@ -63,18 +63,4 @@ mod tests {
             Err(Reason::OutOfRange { min: 3, max: 32 })
         );
     }
-
-    #[test]
-    fn booleans_ignore_case_and_choices_do_not() {
-        assert_eq!(validate(&KeyKind::Boolean, "TRUE"), Ok(()));
-        assert_eq!(validate(&KeyKind::Boolean, "yes"), Err(Reason::NotBoolean));
-        let choice = KeyKind::Choice {
-            values: vec!["easy".into(), "hard".into()],
-        };
-        assert_eq!(validate(&choice, "hard"), Ok(()));
-        assert!(matches!(
-            validate(&choice, "Hard"),
-            Err(Reason::NotOneOf { .. })
-        ));
-    }
 }

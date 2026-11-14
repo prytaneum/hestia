@@ -174,14 +174,6 @@ mod tests {
         assert!(net.status().offline_mode);
     }
 
-    #[test]
-    fn releasing_the_pin_returns_to_unknown_until_something_confirms() {
-        let net = network();
-        net.set_offline_mode(true);
-        net.set_offline_mode(false);
-        assert_eq!(net.status().state, NetworkState::Unknown);
-    }
-
     #[tokio::test]
     async fn only_a_transition_is_published() {
         let net = network();

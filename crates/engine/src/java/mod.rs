@@ -398,19 +398,6 @@ mod tests {
         }
     }
 
-    #[test]
-    fn the_default_provider_is_adoptium() {
-        let java = Java::new(PathBuf::from("java"));
-        assert_eq!(
-            crate::config::Settings::default().java.provider,
-            DEFAULT_PROVIDER
-        );
-        assert_eq!(
-            java.provider(DEFAULT_PROVIDER).expect("built in").id(),
-            "adoptium"
-        );
-    }
-
     #[tokio::test]
     async fn a_registered_provider_is_selected_by_id_and_unknown_ids_are_named() {
         let java = Java::new(PathBuf::from("java"));

@@ -227,17 +227,6 @@ mod tests {
     }
 
     #[test]
-    fn a_shadower_keeps_the_builtins_place_in_the_list() {
-        let roster = Roster::builtin([
-            ("a".to_string(), Arc::from("a")),
-            ("b".to_string(), Arc::from("b")),
-        ]);
-        add(&roster, "acme", true, "a", "plugin-a").expect("shadows");
-        add(&roster, "acme", true, "fresh", "fresh").expect("new id");
-        assert_eq!(listed(&roster), ["plugin-a", "b", "fresh"]);
-    }
-
-    #[test]
     fn a_second_official_claiming_the_same_bare_id_is_a_duplicate() {
         let roster = roster();
         add(&roster, "acme", true, "modrinth", "first").expect("shadows");

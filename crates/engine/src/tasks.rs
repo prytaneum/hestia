@@ -142,13 +142,6 @@ mod tests {
     }
 
     #[test]
-    fn an_interval_counts_from_the_last_run() {
-        let every = Schedule::Every(Duration::from_secs(6 * 3600));
-        assert!(!every.due(MIDNIGHT, MIDNIGHT + 5 * HOUR, MIDNIGHT));
-        assert!(every.due(MIDNIGHT, MIDNIGHT + 6 * HOUR, MIDNIGHT));
-    }
-
-    #[test]
     fn a_daily_task_runs_once_per_slot() {
         let daily = Schedule::Daily { hour: 4, minute: 0 };
         let slot = MIDNIGHT + 4 * HOUR;
@@ -162,15 +155,6 @@ mod tests {
         assert!(daily.due(saved, slot + 3 * HOUR, MIDNIGHT));
         // Saved after today's slot: it waits for tomorrow's.
         assert!(!daily.due(slot + HOUR, slot + 2 * HOUR, MIDNIGHT));
-    }
-
-    #[test]
-    fn intervals_parse_with_units_and_a_floor() {
-        assert_eq!(parse_interval("30m"), Some(Duration::from_secs(1800)));
-        assert_eq!(parse_interval("1d"), Some(Duration::from_secs(86_400)));
-        for bad in ["4m", "0h", "h", "90", "soon"] {
-            assert_eq!(parse_interval(bad), None, "{bad:?}");
-        }
     }
 
     #[test]

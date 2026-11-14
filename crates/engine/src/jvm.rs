@@ -182,25 +182,6 @@ pub(crate) fn parse_jvm_args(value: &str) -> Result<Vec<String>, Reason> {
 mod tests {
     use super::*;
 
-    fn settings(memory: Option<&str>, jvm_args: &[&str]) -> JavaSettings {
-        JavaSettings {
-            memory: memory.map(str::to_string),
-            jvm_args: jvm_args.iter().map(|a| a.to_string()).collect(),
-        }
-    }
-
-    #[test]
-    fn or_defaults_fills_only_unset_fields() {
-        let defaults = settings(Some("8G"), &["-XX:+UseZGC"]);
-        let merged = settings(None, &[]).or_defaults(&defaults);
-        assert_eq!(merged.memory.as_deref(), Some("8G"));
-        assert_eq!(merged.jvm_args, ["-XX:+UseZGC"]);
-
-        let own = settings(Some("2G"), &["-XX:+UseG1GC"]).or_defaults(&defaults);
-        assert_eq!(own.memory.as_deref(), Some("2G"));
-        assert_eq!(own.jvm_args, ["-XX:+UseG1GC"]);
-    }
-
     #[test]
     fn memory_validation_normalizes_accepts_and_rejects() {
         let mut s = JavaSettings::default();

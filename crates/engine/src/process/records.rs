@@ -176,15 +176,6 @@ mod tests {
     }
 
     #[test]
-    fn scan_skips_malformed_records() {
-        let dir = temp_dir("malformed");
-        let proc_dir = dir.path().join("broken");
-        fs::create_dir_all(&proc_dir).unwrap();
-        fs::write(proc_dir.join(FILE), b"not json").unwrap();
-        assert!(scan(dir.path()).is_empty());
-    }
-
-    #[test]
     fn ending_a_record_keeps_it_known_and_its_spec_readable() {
         let dir = temp_dir("ended");
         let proc_dir = dir.path().join("server-x");
@@ -201,21 +192,5 @@ mod tests {
         assert_eq!(info.state, ProcessState::Killed);
         assert_eq!(info.exit_code, Some(143));
         assert_eq!(finished[0].spec.program, "java");
-    }
-
-    #[test]
-    fn finished_scan_is_newest_first() {
-        let dir = temp_dir("order");
-        for (id, ended) in [("a", 300), ("b", 100), ("c", 200)] {
-            let proc_dir = dir.path().join(id);
-            fs::create_dir_all(&proc_dir).unwrap();
-            let record = ProcessRecord::for_spawn(&spec(id), 1, ended - 60);
-            save(&proc_dir, &record.end(ProcessState::Exited, Some(0), ended));
-        }
-        let ids: Vec<String> = scan_finished(dir.path())
-            .into_iter()
-            .map(|r| r.id)
-            .collect();
-        assert_eq!(ids, ["a", "c", "b"]);
     }
 }

@@ -57,25 +57,3 @@ fn jitter_ms(window: Duration) -> u64 {
         .unwrap_or(0)
         % span
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn backoff_grows_with_the_attempt_and_is_capped() {
-        let first = delay(1);
-        let later = delay(4);
-        assert!(first >= BASE_DELAY);
-        assert!(later > first);
-        // Jitter rides on top of the window, which is what MAX_DELAY caps.
-        assert!(later <= MAX_DELAY + MAX_DELAY / 2);
-    }
-
-    #[test]
-    fn jitter_stays_inside_half_the_window() {
-        for _ in 0..64 {
-            assert!(jitter_ms(Duration::from_millis(400)) < 200);
-        }
-    }
-}

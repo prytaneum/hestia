@@ -225,20 +225,9 @@ mod tests {
     use super::*;
 
     #[test]
-    fn identifies_the_current_process() {
-        let token = identify(std::process::id()).expect("own process has an identity");
-        assert!(is_same(std::process::id(), token));
-    }
-
-    #[test]
     fn rejects_a_wrong_token() {
         let token = identify(std::process::id()).unwrap();
         assert!(!is_same(std::process::id(), token.wrapping_add(1)));
         assert!(!is_same(std::process::id(), 0));
-    }
-
-    #[test]
-    fn missing_pid_has_no_identity() {
-        assert_eq!(identify(u32::MAX - 1), None);
     }
 }

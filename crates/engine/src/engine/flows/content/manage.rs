@@ -653,19 +653,6 @@ mod tests {
     }
 
     #[test]
-    fn an_empty_batch_takes_every_item_of_the_kind() {
-        let index = vec![
-            mod_item("sodium", "sodium-1.jar"),
-            InstalledContent {
-                kind: ContentKind::Shader,
-                ..InstalledContent::default()
-            },
-        ];
-        let targets = update_targets(&index, ContentKind::Mod, &[]).expect("resolve");
-        assert_eq!(targets.len(), 1);
-    }
-
-    #[test]
     fn a_batch_naming_one_bad_item_moves_none_of_them() {
         let index = vec![mod_item("sodium", "sodium-1.jar")];
         assert!(

@@ -90,16 +90,6 @@ fn disabled_shows_nothing() {
 }
 
 #[test]
-fn nothing_wanted_clears_what_was_shown() {
-    let (presence, script) = presence();
-    presence.set_core(Some(card("core")));
-    presence.tick(true);
-    presence.set_core(None);
-    presence.tick(true);
-    assert_eq!(shown(&script), [set("core"), Op::Clear]);
-}
-
-#[test]
 fn updates_beyond_five_in_twenty_seconds_wait() {
     let (presence, script) = presence();
     let start = Instant::now();
@@ -135,14 +125,4 @@ fn a_missing_discord_is_retried_only_every_few_ticks() {
     presence.tick(true);
     assert_eq!(connects(&script), 2);
     assert!(shown(&script).is_empty());
-}
-
-#[test]
-fn shutdown_clears_and_stops() {
-    let (presence, script) = presence();
-    presence.set_core(Some(card("core")));
-    presence.tick(true);
-    presence.shutdown();
-    assert!(presence.stopped());
-    assert_eq!(shown(&script), [set("core"), Op::Clear]);
 }

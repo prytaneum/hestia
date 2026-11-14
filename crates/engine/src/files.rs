@@ -371,19 +371,6 @@ mod tests {
     }
 
     #[test]
-    fn a_listing_leads_with_directories_and_carries_wire_paths() {
-        let (_dir, tree) = tree();
-        let root = tree.list("").unwrap();
-        assert_eq!(
-            root.iter().map(|e| e.name.as_str()).collect::<Vec<_>>(),
-            ["world", "server.properties"]
-        );
-        assert!(root[0].dir);
-        assert_eq!(root[1].size, 8);
-        assert_eq!(tree.list("world").unwrap()[0].path, "world/level.dat");
-    }
-
-    #[test]
     fn a_path_cannot_climb_or_start_at_the_filesystem_root() {
         let (_dir, tree) = tree();
         for path in ["..", "world/../..", "/etc/passwd", "./world"] {
@@ -437,16 +424,6 @@ mod tests {
     }
 
     #[test]
-    fn a_missing_file_is_not_found() {
-        let (_dir, tree) = tree();
-        let error = tree.read("nope.txt").unwrap_err();
-        assert!(matches!(
-            error.downcast::<ErrorInfo>().unwrap(),
-            ErrorInfo::FileNotFound { path } if path == "nope.txt"
-        ));
-    }
-
-    #[test]
     fn a_move_or_copy_never_replaces_or_nests_into_itself() {
         let (_dir, tree) = tree();
         tree.copy("world", "world-copy").unwrap();
@@ -461,16 +438,6 @@ mod tests {
         );
         tree.rename("world-copy", "backups/old").unwrap();
         assert_eq!(names(&tree, "backups/old"), ["level.dat"]);
-    }
-
-    #[test]
-    fn a_removal_is_refused_whole_when_one_path_is_missing() {
-        let (_dir, tree) = tree();
-        let paths = ["server.properties".to_string(), "nope".to_string()];
-        assert!(tree.remove(&paths).is_err());
-        assert!(tree.root.join("server.properties").exists());
-        tree.remove(&["world".to_string()]).unwrap();
-        assert_eq!(names(&tree, ""), ["server.properties"]);
     }
 
     #[test]

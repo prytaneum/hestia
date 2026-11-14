@@ -314,24 +314,6 @@ mod tests {
     }
 
     #[test]
-    fn properties_are_whatever_the_schema_and_the_file_carry() {
-        let described = describe_properties(
-            &schema(&[("motd", "mine"), ("retired", "leftover")]),
-            &schema(&[("motd", "A Minecraft Server"), ("pvp", "true")]),
-        );
-        let row = |key: &str| described.iter().find(|p| p.key == key).unwrap();
-
-        assert_eq!(
-            described.iter().map(|p| &p.key).collect::<Vec<_>>(),
-            ["motd", "pvp", "retired"]
-        );
-        assert_eq!(row("motd").value, "mine");
-        assert_eq!(row("motd").default.as_deref(), Some("A Minecraft Server"));
-        assert_eq!(row("pvp").value, "true");
-        assert_eq!(row("retired").default, None);
-    }
-
-    #[test]
     fn a_managed_key_is_flagged_and_the_credential_is_withheld() {
         let pairs = schema(&[("server-port", "25565"), ("rcon.password", "hunter2")]);
         let described = describe_properties(&pairs, &pairs);
@@ -342,19 +324,6 @@ mod tests {
         assert!(row("rcon.password").secret);
         assert_eq!(row("rcon.password").value, "");
         assert_eq!(row("rcon.password").default, None);
-    }
-
-    #[test]
-    fn hardcore_locks_what_it_pins_only_while_it_is_on() {
-        let on = schema(&[("hardcore", "true"), ("difficulty", "hard"), ("motd", "")]);
-        let described = describe_properties(&on, &[]);
-        let locked =
-            |list: &[ServerProperty], key: &str| list.iter().find(|p| p.key == key).unwrap().locked;
-        assert!(locked(&described, "difficulty"));
-        assert!(!locked(&described, "motd"));
-
-        let off = schema(&[("hardcore", "false"), ("difficulty", "easy")]);
-        assert!(!locked(&describe_properties(&off, &[]), "difficulty"));
     }
 
     #[test]

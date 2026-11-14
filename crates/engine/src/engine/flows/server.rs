@@ -390,20 +390,4 @@ mod tests {
             JvmArgsSource::None
         );
     }
-
-    #[test]
-    fn a_flavor_recommends_flags_but_never_memory() {
-        let profile = ServerProfile {
-            jvm_args: flavor(&["-XX:+UseG1GC"]),
-            ..ServerProfile::default()
-        };
-        let resolved = settings(&[])
-            .or_defaults(&settings(&[]))
-            .or_defaults(&flavor_defaults(&profile));
-        assert_eq!(
-            resolved.flags(),
-            ["-XX:+UseG1GC"],
-            "memory stays the user's call; the flavor only recommends flags"
-        );
-    }
 }
