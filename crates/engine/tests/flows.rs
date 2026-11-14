@@ -83,7 +83,10 @@ async fn an_unknown_flavor_is_refused_by_name() {
         .await
         .expect_err("no such flavor");
     assert!(
-        matches!(engine::error_info(refused), ErrorInfo::Internal { .. }),
+        matches!(
+            engine::error_info(refused),
+            ErrorInfo::ProviderUnknown { name, .. } if name == "nosuch"
+        ),
         "an unknown flavor is refused, not resolved against the first one"
     );
     assert!(engine.servers().list().is_empty());
