@@ -9,10 +9,10 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Mutex, MutexGuard};
 
 use client::proto::warning::WarningInfo;
-use client::IpcError;
 use serde_json::{json, Map, Value};
 
 use super::cell::Cell;
+use super::failure;
 use super::view::{key_of, View};
 
 static ACTIVE: AtomicBool = AtomicBool::new(false);
@@ -159,24 +159,25 @@ fn detail_object(rows: &[(String, Cell)]) -> Map<String, Value> {
 /// A daemon failure keeps the `kind` and `code` of its `ErrorInfo`; anything
 /// the CLI itself refused is `local`.
 fn error_value(error: &anyhow::Error) -> Value {
-    let daemon = error.chain().find_map(|cause| match cause.downcast_ref() {
-        Some(IpcError::Daemon { code, info, .. }) => Some((code, info)),
-        _ => None,
-    });
-    let (kind, code) = match daemon {
+    let (kind, code) = match failure::daemon_error(error) {
         Some((code, info)) => (
             info.get("kind").and_then(Value::as_str).unwrap_or(code),
-            code.as_str(),
+            code,
         ),
         None => ("local", "local"),
     };
-    json!({ "error": { "kind": kind, "code": code, "message": format!("{error:#}") } })
+    let mut object = json!({ "kind": kind, "code": code, "message": format!("{error:#}") });
+    if let Some(hint) = failure::hint(error) {
+        object["hint"] = Value::String(hint);
+    }
+    json!({ "error": object })
 }
 
 #[cfg(test)]
 mod tests {
     use anyhow::Context;
     use client::proto::process::ProcessState;
+    use client::IpcError;
 
     use super::*;
 
@@ -293,7 +294,7 @@ mod tests {
     }
 
     #[test]
-    fn a_daemon_failure_keeps_its_kind_and_a_local_one_is_local() {
+    fn a_failure_keeps_its_kind_and_carries_the_hint_of_its_variant() {
         let daemon = anyhow::Error::new(IpcError::Daemon {
             code: "not_found".into(),
             message: "no server 'smp'".into(),
@@ -309,8 +310,36 @@ mod tests {
             json!({ "error": { "kind": "local", "code": "local", "message": "cannot choose: no interactive terminal" } })
         );
         let wrapped = Err::<(), _>(IpcError::ConnectionLost)
-            .context("the daemon is not running")
+            .context("could not ask the daemon")
             .unwrap_err();
         assert_eq!(error_value(&wrapped)["error"]["kind"], "local");
+
+        let signed_out = anyhow::Error::new(IpcError::Daemon {
+            code: "unauthorized".into(),
+            message: "sign in with a Microsoft account first".into(),
+            info: json!({ "kind": "sign_in_required" }),
+        });
+        assert_eq!(
+            error_value(&signed_out),
+            json!({ "error": {
+                "kind": "sign_in_required",
+                "code": "unauthorized",
+                "message": "sign in with a Microsoft account first",
+                "hint": "run `hestia account login`"
+            } })
+        );
+        let down = Err::<(), _>(IpcError::ConnectionLost)
+            .context(failure::DaemonNotRunning)
+            .unwrap_err();
+        assert_eq!(
+            error_value(&down)["error"]["hint"],
+            "start it with `hestia daemon start`"
+        );
+        let unknown = anyhow::Error::new(IpcError::Daemon {
+            code: "not_found".into(),
+            message: "no server 'smp'".into(),
+            info: json!({ "kind": "entry_not_found", "entry": "server", "reference": "smp" }),
+        });
+        assert!(error_value(&unknown)["error"].get("hint").is_none());
     }
 }

@@ -12,6 +12,7 @@
 
 mod cell;
 pub(crate) mod components;
+pub(crate) mod failure;
 pub(crate) mod json;
 pub(crate) mod markdown;
 pub(crate) mod plugin;

@@ -24,20 +24,19 @@ mod wizard;
 use anyhow::{Context, Result};
 use client::Client;
 
+use crate::ui::failure::DaemonNotRunning;
 use crate::ui::Spinner;
 
 /// Connect to a running daemon; never spawns it.
 pub async fn connect() -> Result<Client> {
     let _spinner = Spinner::start("connecting to the daemon");
-    Client::connect()
-        .await
-        .context("the daemon is not running — start it with `hestia daemon start`")
+    Client::connect().await.context(DaemonNotRunning)
 }
 
 /// Probe for a running daemon; callers that treat "not running" as normal
 /// (status, stop) use this.
 pub async fn connect_running() -> Result<Client> {
-    Client::connect().await.context("the daemon is not running")
+    Client::connect().await.context(DaemonNotRunning)
 }
 
 /// Explicitly start the daemon and connect.

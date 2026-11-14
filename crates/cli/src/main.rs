@@ -291,7 +291,7 @@ fn main() -> ExitCode {
             ExitCode::FAILURE
         }
         Err(e) => {
-            eprintln!("{e:#}");
+            ui::failure::print(&e);
             ExitCode::FAILURE
         }
     }
