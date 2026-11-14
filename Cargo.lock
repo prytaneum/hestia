@@ -632,7 +632,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a347dcabdae9c31b0825fd6a8bed285ec9c2acb89c47827126d52fa4f59cece3"
 dependencies = [
  "fnv",
- "uuid 1.29.1",
+ "uuid",
  "web-time",
 ]
 
@@ -1496,21 +1496,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "discord-rich-presence"
-version = "1.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "90c55d69cab17c19677ce3a5f8face993a9e6eaf847fecac3547f3a3ff4a2494"
-dependencies = [
- "log",
- "serde",
- "serde_derive",
- "serde_json",
- "serde_repr",
- "thiserror 2.0.21",
- "uuid 0.8.2",
-]
-
-[[package]]
 name = "dispatch2"
 version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1727,7 +1712,6 @@ dependencies = [
  "async-trait",
  "base64 0.23.1",
  "common",
- "discord-rich-presence",
  "engine",
  "fastnbt",
  "flate2",
@@ -1754,7 +1738,7 @@ dependencies = [
  "tokio",
  "toml 1.2.1+spec-1.1.0",
  "tracing",
- "uuid 1.29.1",
+ "uuid",
  "wasmtime",
  "wasmtime-wasi",
  "wasmtime-wasi-http",
@@ -5193,7 +5177,7 @@ dependencies = [
  "serde",
  "serde_json",
  "url",
- "uuid 1.29.1",
+ "uuid",
 ]
 
 [[package]]
@@ -6057,7 +6041,7 @@ dependencies = [
  "thiserror 2.0.21",
  "time",
  "url",
- "uuid 1.29.1",
+ "uuid",
  "walkdir",
 ]
 
@@ -6287,7 +6271,7 @@ dependencies = [
  "toml 1.2.1+spec-1.1.0",
  "url",
  "urlpattern",
- "uuid 1.29.1",
+ "uuid",
  "walkdir",
 ]
 
@@ -6992,15 +6976,6 @@ checksum = "3a3b425286980a367278453f3b6d28cdcb134b574e5a35824a6ff5eebad50bb6"
 
 [[package]]
 name = "uuid"
-version = "0.8.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bc5cf98d8186244414c848017f0e2676b3fcb46807f6668a97dfe67359a3c4b7"
-dependencies = [
- "getrandom 0.2.17",
-]
-
-[[package]]
-name = "uuid"
 version = "1.29.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4a06f08a856b009bc7bbaf7d3e79808595d032dd19074c0c2ef26e49e03e6bdc"
@@ -7681,7 +7656,7 @@ dependencies = [
  "mac_address",
  "sha2 0.10.9",
  "thiserror 1.0.69",
- "uuid 1.29.1",
+ "uuid",
 ]
 
 [[package]]
@@ -8362,7 +8337,7 @@ dependencies = [
  "tokio",
  "tracing",
  "uds_windows",
- "uuid 1.29.1",
+ "uuid",
  "windows-sys 0.61.2",
  "winnow 1.0.5",
  "zbus_macros",

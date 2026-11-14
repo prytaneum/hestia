@@ -41,7 +41,6 @@ pub const PLUGIN_ACCESS: &[(&str, PluginAccess)] = &[
     ("modpack.exclude-files", Read),
     ("modpack.force-include-files", Read),
     ("modpack.overrides-exclusions", Read),
-    ("discord.enabled", Read),
     ("update.channel", Closed),
     ("network.offline", Closed),
     ("java.provider", Closed),

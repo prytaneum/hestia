@@ -9,7 +9,6 @@ mod managers;
 mod metrics;
 mod network;
 mod plugins;
-mod presence;
 mod ready;
 pub mod router;
 mod scheduler;
@@ -39,7 +38,6 @@ pub use managers::{BackupJob, ContentJob, ExportOrder, JobEntry, Jobs, LaunchOrd
 pub use metrics::spawn_metrics_sampler;
 pub use network::spawn_network_watcher;
 pub use plugins::{Package, Plugins, RouterHost};
-pub use presence::spawn_presence_updater;
 pub use ready::spawn_ready_watcher;
 pub use router::{error_response, require_account, Channels, Router};
 pub use scheduler::{spawn_plugin_update_checker, spawn_task_scheduler};

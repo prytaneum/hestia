@@ -25,7 +25,6 @@ mod keys;
 mod minecraft;
 mod net;
 mod plugins;
-mod presence;
 mod process;
 mod properties;
 mod recent;
@@ -81,7 +80,6 @@ pub use plugins::{
     COMMAND_TIMEOUT, EVENT_TIMEOUT, HOOK_TIMEOUT, MAX_ASSET_BYTES, MAX_CHAIN_DEPTH,
     MAX_DOWNLOAD_BYTES, PROVIDER_TIMEOUT, UI_TIMEOUT,
 };
-pub use presence::Presence;
 pub use process::{ExitObserver, ProcessEvents, ProcessSupervisor, StartError};
 pub use roster::{always_live, Live, RegisterError};
 pub use schema::notices as quarantined;

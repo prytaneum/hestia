@@ -68,14 +68,14 @@ fn a_plugin_sees_only_readable_keys() {
         "defaults": { "memory": "2G", "jvm-args": "-javaagent:x.jar" },
         "network": { "offline": true },
         "update": { "channel": "stable" },
-        "discord": { "enabled": true },
+        "instance": { "multi-session": true },
         "home": "/data",
     });
     assert_eq!(
         plugin_view("", everything),
         Some(json!({
             "defaults": { "memory": "2G" },
-            "discord": { "enabled": true },
+            "instance": { "multi-session": true },
         }))
     );
     assert_eq!(

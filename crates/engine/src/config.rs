@@ -29,8 +29,6 @@ pub struct Settings {
     pub instance: InstanceSettings,
     /// Corrections applied over a modpack's own declarations.
     pub modpack: ModpackSettings,
-    /// What the launcher publishes to a local Discord client.
-    pub discord: DiscordSettings,
     /// Which release feed self-update follows.
     pub update: UpdateSettings,
     /// Whether the launcher may reach the network at all.
@@ -100,21 +98,6 @@ impl Default for UpdateSettings {
         UpdateSettings {
             channel: UpdateChannel::parse(common::app::CHANNEL).unwrap_or_default(),
         }
-    }
-}
-
-/// Discord Rich Presence, keyed `discord.enabled`. On, the daemon publishes
-/// what is being played — and that the launcher is open at all — to whoever can
-/// see the user's Discord profile, so the key exists to switch that off.
-#[derive(Serialize, Deserialize, Debug, Clone)]
-#[serde(default, rename_all = "camelCase")]
-pub struct DiscordSettings {
-    pub enabled: bool,
-}
-
-impl Default for DiscordSettings {
-    fn default() -> Self {
-        DiscordSettings { enabled: true }
     }
 }
 

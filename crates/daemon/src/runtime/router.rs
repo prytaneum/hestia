@@ -286,7 +286,7 @@ mod tests {
         call(
             &runtime,
             "config.set",
-            json!({ "key": "discord.enabled", "value": false }),
+            json!({ "key": "instance.multi-session", "value": false }),
         )
         .await;
 

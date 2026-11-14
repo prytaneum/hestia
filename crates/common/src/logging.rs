@@ -22,11 +22,6 @@ const CRATES: [&str; 7] = [
 
 const FOREIGN_LEVEL: &str = "warn";
 
-/// Foreign targets held below [`FOREIGN_LEVEL`]. `discord_rich_presence` warns
-/// once per failed connect, and no Discord client running is the ordinary case
-/// the presence loop polls through — not a fault worth a line every tick.
-const QUIET_FOREIGN: [&str; 1] = ["discord_rich_presence=error"];
-
 const LATEST_MAX_BYTES: u64 = 20 * 1024 * 1024;
 const LATEST_KEEP_PLAIN: usize = 2;
 const LATEST_KEEP_ARCHIVED: usize = 30;
@@ -285,11 +280,6 @@ fn app_filter(level: LogLevel) -> EnvFilter {
     let mut filter = EnvFilter::new(FOREIGN_LEVEL);
     for target in CRATES {
         if let Ok(directive) = format!("{target}={}", level.as_str()).parse() {
-            filter = filter.add_directive(directive);
-        }
-    }
-    for quiet in QUIET_FOREIGN {
-        if let Ok(directive) = quiet.parse() {
             filter = filter.add_directive(directive);
         }
     }

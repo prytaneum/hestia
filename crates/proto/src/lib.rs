@@ -32,7 +32,6 @@ pub mod naming;
 pub mod net;
 pub mod players;
 pub mod plugin;
-pub mod presence;
 pub mod process;
 pub mod profile;
 pub mod provider;

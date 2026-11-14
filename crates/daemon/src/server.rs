@@ -44,7 +44,6 @@ pub async fn run_daemon(log_path: std::path::PathBuf, safe_mode: bool) -> i32 {
     crate::runtime::spawn_metrics_sampler(runtime.clone());
     crate::runtime::spawn_network_watcher(runtime.clone());
     crate::runtime::spawn_ready_watcher(&runtime);
-    let presence = crate::runtime::spawn_presence_updater(runtime.clone());
     let router = Arc::new(make_router());
     if let Err(error) = runtime
         .plugins()
@@ -69,11 +68,6 @@ pub async fn run_daemon(log_path: std::path::PathBuf, safe_mode: bool) -> i32 {
     }
     runtime.plugins().shutdown();
     runtime.shutdown_workloads().await;
-    // A game session outlives this process, but the presence connection does
-    // not — left alone, Discord keeps showing whatever was published last.
-    if let Some(presence) = presence {
-        let _ = tokio::task::spawn_blocking(move || presence.shutdown()).await;
-    }
     tracing::info!("hestiad stopped");
     0
 }
