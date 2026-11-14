@@ -309,6 +309,9 @@ over https with a well-formed checksum (an empty URL names a file its author wit
 plain relative directory, a pack with no game version, or `resolve` together with `files`, refuses the answer. A `loader`
 that is one of the offered keys is answered to the host as the flavor it maps to.
 
+A file in an override tree that sits directly in a content directory and ends in `.disabled` (`mods/sodium.jar.disabled`)
+is indexed by the host as a disabled content item, whatever the format; a reader needs to do nothing for it.
+
 Three things in a read only dress the install and never refuse it. A `memory` or `jvmArgs` the `memory` and `jvm-args`
 settings would reject is dropped, and the result carries a `pack_setting_dropped` warning. An `icon`, an archive path
 relative to the pack's directory, becomes the new instance's icon when it is a plain path of the archive to an image the

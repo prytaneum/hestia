@@ -368,7 +368,8 @@ file hosted anywhere but Modrinth's CDN — is asked after
 by hash once it is on disk, the same lookup a local-file import makes; where
 several sources publish it, the pack's own wins. A jar in `overrides/mods/` is
 therefore a pool item like any other, in the managed directory rather than
-written straight into `data/`. Only a file no source recognises records as
+written straight into `data/`. A jar kept as `<name>.jar.disabled` there is the same
+item, recorded disabled and kept out of `data/` until it is enabled. Only a file no source recognises records as
 `source: "file"`: installable, just not updatable
 ([0076](../decisions/0076-a-pack-file-is-identified-wherever-it-came-from.md)).
 
