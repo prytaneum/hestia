@@ -27,7 +27,6 @@ export type SettingsGroup =
   | 'plugin-developer'
   | 'java-defaults'
   | 'java-runtimes'
-  | 'content-sources'
   | 'modpack'
   | 'instance-behaviour'
   | 'sync'
@@ -161,12 +160,6 @@ const INDEX: Entry[] = [
       m['settings.java.runtimes_hint'],
       m['settings.java.not_installed'],
     ),
-  },
-  {
-    id: 'curseforge-key',
-    tab: 'content',
-    group: 'content-sources',
-    text: text(m['settings.curseforge_key'], m['settings.curseforge_key_hint']),
   },
   {
     id: 'modpack',

@@ -14,9 +14,6 @@
       "stop_daemon": "Close the window and stop the daemon",
       "tray": "Keep Hestia in the tray"
     },
-    "content_sources": "Content sources",
-    "curseforge_key": "CurseForge API key",
-    "curseforge_key_hint": "CurseForge only answers requests carrying a key, so it is offered as a source once you set one. Get yours from console.curseforge.com.",
     "daemon": {
       "hint": "The background process every front-end talks to. Restarting it stops nothing you have running.",
       "title": "Daemon"
@@ -193,8 +190,6 @@
     },
     "search_empty": "No setting matches “{query}”.",
     "search_placeholder": "Search settings",
-    "source_needs_key": "Needs a key",
-    "source_ready": "Ready",
     "start_at_login": "Start Hestia at login",
     "storage": {
       "hint": "Downloads Hestia can fetch again — safe to reclaim at any time.",

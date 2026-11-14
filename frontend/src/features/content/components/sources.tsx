@@ -27,7 +27,8 @@ export function useSourceOptions(kind: ContentKind | undefined, value: string) {
   // A source carried over from another kind may not catalogue this one; fall
   // back to the default rather than searching a source with nothing to answer.
   const active = list.some((s) => s.id === value) ? value : '';
-  return { list, waiting, active };
+  const none = sources.isSuccess && sources.data.length === 0;
+  return { list, waiting, active, none };
 }
 
 function settingLink(setting: RequiredSetting) {

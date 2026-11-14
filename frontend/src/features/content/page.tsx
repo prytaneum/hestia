@@ -1,4 +1,8 @@
-import { MagnifyingGlassIcon, WarningCircleIcon } from '@phosphor-icons/react';
+import {
+  MagnifyingGlassIcon,
+  PuzzlePieceIcon,
+  WarningCircleIcon,
+} from '@phosphor-icons/react';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import { useCallback, useMemo } from 'react';
@@ -104,6 +108,10 @@ export function BrowsePage({
         <div className="min-h-0 flex-1">
           {offline ? (
             <OfflineState />
+          ) : sources.none ? (
+            <Empty icon={PuzzlePieceIcon}>
+              {m['content.browse.no_source']()}
+            </Empty>
           ) : url ? (
             link.isPending ? (
               <CardGridSkeleton grid={GRID} count={1} card="h-24" />

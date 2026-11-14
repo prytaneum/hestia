@@ -7,6 +7,7 @@
       "by_author": "por {name}",
       "downloads": "{count} downloads",
       "followers": "{count} seguidores",
+      "no_source": "Nenhuma fonte de conteúdo está instalada. Instale um plugin de fonte de conteúdo em Configurações > Plugins para explorar mods, pacotes e shaders.",
       "nothing_matches": "Nada corresponde à sua pesquisa.",
       "project_missing": "Esse projeto não foi encontrado.",
       "source": "Fonte",

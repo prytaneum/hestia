@@ -14,7 +14,7 @@ const ready: ContentSource = {
 };
 const waitingOn = (
   id: string,
-  setting: { plugin?: string; key: string },
+  setting: { plugin: string; key: string },
 ): ContentSource => ({
   id,
   name: id,
@@ -25,19 +25,13 @@ const waitingOn = (
 afterEach(resetQueryCache);
 
 describe('a source waiting on a setting', () => {
-  it('links to the plugin or launcher setting it needs', async () => {
+  it('links to the plugin setting it needs', async () => {
     renderWithProviders(
       <FilterMenu
         groups={[
-          sourceGroup(
-            [ready],
-            '',
-            () => {},
-            [
-              waitingOn('static.index', { plugin: 'static', key: 'api-key' }),
-              waitingOn('curseforge', { key: 'content.curseforge-key' }),
-            ],
-          ),
+          sourceGroup([ready], '', () => {}, [
+            waitingOn('static.index', { plugin: 'static', key: 'api-key' }),
+          ]),
         ]}
       />,
       { route: true },
@@ -49,12 +43,6 @@ describe('a source waiting on a setting', () => {
     const plugin = await screen.findByRole('menuitem', { name: /api-key/ });
     expect(plugin.getAttribute('href')).toBe(
       '/settings?tab=plugins&plugin=static&field=static-api-key',
-    );
-    const launcher = screen.getByRole('menuitem', {
-      name: /content\.curseforge-key/,
-    });
-    expect(launcher.getAttribute('href')).toBe(
-      '/settings?tab=content&field=curseforge-key',
     );
   });
 });

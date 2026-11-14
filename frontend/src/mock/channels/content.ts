@@ -6,7 +6,6 @@
 import type { ContentKind, ContentSource } from '@/api/types';
 
 import * as content from '../state/content';
-import * as settings from '../state/settings';
 import { type ChannelHandlers, num, str } from '../support';
 import { contentChannels } from './entry';
 
@@ -16,21 +15,10 @@ const MODRINTH: ContentSource = {
   kinds: ['mod', 'modpack', 'resource_pack', 'shader', 'data_pack', 'plugin'],
 };
 
-const CURSEFORGE: ContentSource = {
-  id: 'curseforge',
-  name: 'CurseForge',
-  kinds: ['mod', 'modpack', 'resource_pack', 'shader', 'data_pack'],
-};
-
 const ARCHIVE = /\.(jar|zip)$/i;
 
 export const channels: ChannelHandlers = {
-  // CurseForge is offered only once its key resolves — the same gate the
-  // daemon applies, so the settings page's "source needs a key" hint is live.
-  'content.sources': () =>
-    settings.get('content.curseforge-key')
-      ? [MODRINTH, CURSEFORGE]
-      : [MODRINTH],
+  'content.sources': () => [MODRINTH],
 
   'content.search': (p) =>
     content.search(

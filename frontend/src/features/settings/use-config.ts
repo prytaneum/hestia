@@ -16,7 +16,6 @@ interface ConfigEntries {
   autostart?: boolean;
   developer?: boolean;
   defaults?: { memory?: string; 'jvm-args'?: string };
-  content?: { 'curseforge-key'?: string };
   discord?: { enabled?: boolean };
   instance?: { 'multi-session'?: boolean };
   modpack?: ModpackConfig;

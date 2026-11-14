@@ -7,6 +7,7 @@
       "by_author": "by {name}",
       "downloads": "{count} downloads",
       "followers": "{count} followers",
+      "no_source": "No content source is installed. Install a content source plugin from Settings > Plugins to browse mods, packs and shaders.",
       "nothing_matches": "Nothing matches your search.",
       "project_missing": "That project could not be found.",
       "source": "Source",

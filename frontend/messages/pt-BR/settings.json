@@ -14,9 +14,6 @@
       "stop_daemon": "Fechar a janela e parar o daemon",
       "tray": "Manter o Hestia na bandeja"
     },
-    "content_sources": "Fontes de conteúdo",
-    "curseforge_key": "Chave de API do CurseForge",
-    "curseforge_key_hint": "O CurseForge só responde a requisições com uma chave, então ele é oferecido como fonte assim que você definir uma. Obtenha a sua em console.curseforge.com.",
     "daemon": {
       "hint": "O processo em segundo plano com que todo front-end conversa. Reiniciá-lo não encerra nada que esteja rodando.",
       "title": "Daemon"
@@ -193,8 +190,6 @@
     },
     "search_empty": "Nenhuma configuração corresponde a “{query}”.",
     "search_placeholder": "Buscar configurações",
-    "source_needs_key": "Precisa de chave",
-    "source_ready": "Pronta",
     "start_at_login": "Iniciar o Hestia ao fazer login",
     "storage": {
       "hint": "Downloads que o Hestia pode buscar de novo — seguro liberar a qualquer momento.",
