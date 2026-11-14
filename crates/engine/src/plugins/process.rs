@@ -11,10 +11,11 @@ use std::process::Stdio;
 use std::sync::Arc;
 use std::time::Duration;
 
-use proto::plugin::{Grant, Invocation, Permission, Program};
+use proto::plugin::{Grant, Invocation, Permission, PluginRunProgress, Program};
 use proto::process::{ProcessInfo, ProcessSpec, ProcessState};
 use tokio::io::{AsyncRead, AsyncReadExt};
 use tokio::process::Command;
+use tokio::sync::watch;
 use tokio::time::Instant;
 
 use super::context::Mount;
@@ -26,6 +27,7 @@ use crate::process::identity::Tree;
 use crate::process::ProcessSupervisor;
 
 const OUTPUT_CAP: usize = 1024 * 1024;
+const LIVE_LINE_BYTES: usize = 512;
 const CANCEL_POLL: Duration = Duration::from_millis(50);
 const MOUNT_NAMES: [&str; 3] = ["build", "vanilla", "data"];
 const MAX_RUNNING: usize = 8;
@@ -62,16 +64,34 @@ pub(crate) struct CallScope<'a> {
     pub deadline: Instant,
     pub cancel: Option<&'a Cancel>,
     pub game_java: Option<u32>,
+    /// Where the call shows progress, when it has a sink: each line the
+    /// program prints is shown as it arrives.
+    pub progress: Option<&'a watch::Sender<Option<PluginRunProgress>>>,
+}
+
+/// Which program to run and how: what a guest's `exec` and a build plan's step
+/// both name, checked against the same declared invocations.
+pub(crate) struct Invoke<'a> {
+    pub program: &'a str,
+    pub args: Vec<String>,
+    pub env: Vec<(String, String)>,
+    pub java_major: Option<u32>,
 }
 
 /// What a guest's `exec` asked for.
 pub(crate) struct ExecRequest<'a> {
-    pub program: &'a str,
-    pub args: Vec<String>,
-    pub env: Vec<(String, String)>,
+    pub invoke: Invoke<'a>,
     pub timeout_ms: u32,
     pub cwd: Option<PathBuf>,
-    pub java_major: Option<u32>,
+}
+
+/// An authorised call made ready to start: the file to run, the arguments with
+/// their mounts expanded and the environment it runs with.
+pub(crate) struct Prepared {
+    pub program: Program,
+    pub executable: PathBuf,
+    pub args: Vec<String>,
+    pub vars: BTreeMap<String, String>,
 }
 
 /// Kills the child's whole tree when dropped, so a cancelled, timed-out or
@@ -115,21 +135,16 @@ impl Programs {
         scope: &CallScope<'_>,
     ) -> Result<Output, ProgramError> {
         let ExecRequest {
-            program,
-            args,
-            env,
+            invoke,
             timeout_ms,
             cwd,
-            java_major,
         } = run;
-        let (program, selection) =
-            self.authorize(program, &args, &env, java_major, scope.game_java)?;
-        let args = args
-            .iter()
-            .map(|arg| expand_mounts(arg, scope.mounts))
-            .collect::<Result<Vec<_>, _>>()?;
-        let vars = self.child_env(&program, &selection.invocation, env)?;
-        let executable = self.executable(&program, selection.java).await?;
+        let Prepared {
+            program,
+            executable,
+            args,
+            vars,
+        } = self.prepare(invoke, scope.mounts, scope.game_java).await?;
         let remaining = scope.deadline.saturating_duration_since(Instant::now());
         let timeout = Duration::from_millis(u64::from(timeout_ms).max(1)).min(remaining);
         if timeout.is_zero() {
@@ -160,7 +175,13 @@ impl Programs {
             child.stdout.take().expect("stdout is piped"),
             child.stderr.take().expect("stderr is piped"),
         );
-        let finished = async { tokio::join!(child.wait(), capped(stdout), capped(stderr)) };
+        let finished = async {
+            tokio::join!(
+                child.wait(),
+                capped(stdout, scope.progress),
+                capped(stderr, scope.progress)
+            )
+        };
         let (status, stdout, stderr) = tokio::select! {
             finished = finished => finished,
             () = tokio::time::sleep(timeout) => {
@@ -186,6 +207,58 @@ impl Programs {
             status,
             stdout,
             stderr,
+        })
+    }
+
+    /// Whether `invoke` names a declared program, fits one of its invocations
+    /// and refers only to mounts `mounts` has, without resolving or running
+    /// anything.
+    pub(crate) fn vet(
+        &self,
+        invoke: &Invoke<'_>,
+        mounts: &[Mount],
+        game_java: Option<u32>,
+    ) -> Result<(), ProgramError> {
+        self.authorize(
+            invoke.program,
+            &invoke.args,
+            &invoke.env,
+            invoke.java_major,
+            game_java,
+        )?;
+        invoke
+            .args
+            .iter()
+            .try_for_each(|arg| expand_mounts(arg, mounts).map(drop))
+    }
+
+    /// Authorises `invoke`, expands the mounts of the call in its arguments and
+    /// resolves the program to the file that runs.
+    pub(crate) async fn prepare(
+        &self,
+        invoke: Invoke<'_>,
+        mounts: &[Mount],
+        game_java: Option<u32>,
+    ) -> Result<Prepared, ProgramError> {
+        let (program, selection) = self.authorize(
+            invoke.program,
+            &invoke.args,
+            &invoke.env,
+            invoke.java_major,
+            game_java,
+        )?;
+        let args = invoke
+            .args
+            .iter()
+            .map(|arg| expand_mounts(arg, mounts))
+            .collect::<Result<Vec<_>, _>>()?;
+        let vars = self.child_env(&program, &selection.invocation, invoke.env)?;
+        let executable = self.executable(&program, selection.java).await?;
+        Ok(Prepared {
+            program,
+            executable,
+            args,
+            vars,
         })
     }
 
@@ -491,9 +564,14 @@ fn base_env() -> impl Iterator<Item = (String, String)> {
 }
 
 /// Keeps the first [`OUTPUT_CAP`] bytes and drains the rest, so a chatty
-/// program neither fills memory nor blocks on a full pipe.
-async fn capped(mut reader: impl AsyncRead + Unpin) -> Vec<u8> {
+/// program neither fills memory nor blocks on a full pipe. With a `live` sink,
+/// each line is also shown as the call's progress as it arrives.
+async fn capped(
+    mut reader: impl AsyncRead + Unpin,
+    live: Option<&watch::Sender<Option<PluginRunProgress>>>,
+) -> Vec<u8> {
     let mut kept = Vec::new();
+    let mut line = Vec::new();
     let mut chunk = [0u8; 8192];
     loop {
         match reader.read(&mut chunk).await {
@@ -501,7 +579,31 @@ async fn capped(mut reader: impl AsyncRead + Unpin) -> Vec<u8> {
             Ok(read) => {
                 let room = OUTPUT_CAP - kept.len();
                 kept.extend_from_slice(&chunk[..read.min(room)]);
+                if let Some(live) = live {
+                    show_lines(live, &mut line, &chunk[..read]);
+                }
             }
         }
+    }
+}
+
+/// Shows each line completed by `bytes`, keeping the unfinished one in `line`.
+fn show_lines(live: &watch::Sender<Option<PluginRunProgress>>, line: &mut Vec<u8>, bytes: &[u8]) {
+    for &byte in bytes {
+        if byte != b'\n' {
+            if line.len() < LIVE_LINE_BYTES {
+                line.push(byte);
+            }
+            continue;
+        }
+        let text = String::from_utf8_lossy(line);
+        let text = text.trim();
+        if !text.is_empty() {
+            live.send_replace(Some(PluginRunProgress {
+                fraction: None,
+                message: text.to_string(),
+            }));
+        }
+        line.clear();
     }
 }

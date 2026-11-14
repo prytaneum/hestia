@@ -21,7 +21,7 @@ use super::ipc::{Connections, IpcError};
 use super::lock::{Held, LockError, Locks};
 use super::messages::Catalogs;
 use super::output::PluginLog;
-use super::process::{CallScope, ExecRequest, ProgramError, Programs};
+use super::process::{CallScope, ExecRequest, Invoke, ProgramError, Programs};
 use super::settings::{PluginSettings, SettingsError};
 use crate::cancel::Cancel;
 
@@ -369,16 +369,19 @@ impl bindings::hestia::plugin::process::Host for PluginState {
             deadline: self.deadline,
             cancel: self.run.as_ref().map(|run| &run.cancel),
             game_java: self.game_java,
+            progress: self.run.as_ref().map(|run| &run.progress),
         };
         let output = programs
             .exec(
                 ExecRequest {
-                    program: &program,
-                    args,
-                    env,
+                    invoke: Invoke {
+                        program: &program,
+                        args,
+                        env,
+                        java_major,
+                    },
                     timeout_ms,
                     cwd,
-                    java_major,
                 },
                 &scope,
             )

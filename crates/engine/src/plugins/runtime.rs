@@ -374,6 +374,14 @@ impl LoadedPlugin {
         &self.id
     }
 
+    pub(crate) fn programs(&self) -> &Programs {
+        &self.programs
+    }
+
+    pub(crate) fn downloads(&self) -> &Downloads {
+        &self.downloads
+    }
+
     /// True once repeated traps took the plugin out of service; enabling it
     /// again loads a fresh one.
     pub fn is_disabled(&self) -> bool {

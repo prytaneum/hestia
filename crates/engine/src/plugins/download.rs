@@ -52,6 +52,14 @@ impl Downloads {
         }
     }
 
+    /// Whether the grant lets `url` be fetched, for a plan checked before any
+    /// of it runs; `hashed` is whether the body is verified against a checksum.
+    pub(crate) fn vet(&self, url: &str, hashed: bool) -> Result<(), GuestError> {
+        self.policy
+            .vet(url, !hashed)
+            .map_err(|refused| GuestError::Denied(refused.to_string()))
+    }
+
     /// Fetches `url` to `destination` and returns the size written. `destination`
     /// is already resolved to a writable file of the call. With no checksum the
     /// body is unverified, so every hop must be on a host the grant declares as
