@@ -14,6 +14,11 @@
       "payload": "AccountSignedOutEvent",
       "permission": "account:read"
     },
+    "app.info": {
+      "params": "Empty",
+      "permission": "ambient",
+      "result": "AppInfoResult"
+    },
     "changed": {
       "payload": "ChangedEvent",
       "permission": "entry:read"
@@ -138,6 +143,16 @@
       "params": "EntryVersionsParams",
       "permission": "entry:read",
       "result": "Array<GameVersion>"
+    },
+    "health.ping": {
+      "params": "Empty",
+      "permission": "ambient",
+      "result": "PingResult"
+    },
+    "host.info": {
+      "params": "Empty",
+      "permission": "ambient",
+      "result": "HostInfoResult"
     },
     "instance.create": {
       "params": "InstanceCreateParams",
@@ -299,6 +314,11 @@
     "net.state": {
       "payload": "NetworkStatus",
       "permission": "network:connect"
+    },
+    "net.status": {
+      "params": "Empty",
+      "permission": "ambient",
+      "result": "NetworkStatus"
     },
     "process.exit": {
       "payload": "ProcessExitEvent",
@@ -577,7 +597,7 @@
     "provider content.search {\"args\":\"SearchQuery\",\"reply\":\"SearchResult\"}",
     "provider content.versions {\"args\":\"VersionQuery\",\"reply\":\"Array<ContentVersion>\"}",
     "provider content.versions-by-id {\"args\":\"IdQuery\",\"reply\":\"Array<ContentVersion>\"}",
-    "provider flavor.build {\"args\":\"BuildQuery\",\"reply\":\"BuildDone\"}",
+    "provider flavor.build {\"args\":\"BuildQuery\",\"reply\":\"BuildPlan\"}",
     "provider flavor.info {\"args\":\"Empty\",\"reply\":\"FlavorDescription\"}",
     "provider flavor.loader-versions {\"args\":\"GameQuery\",\"reply\":\"Array<string>\"}",
     "provider flavor.resolve-client {\"args\":\"ResolveQuery\",\"reply\":\"ClientResolution\"}",
@@ -595,6 +615,7 @@
     "AccountListResult": "type AccountListResult = { accounts: Array<Account>, defaultUuid: string, };",
     "AccountSignedInEvent": "type AccountSignedInEvent = { uuid: string, name: string, };",
     "AccountSignedOutEvent": "type AccountSignedOutEvent = { uuid: string, name: string, };",
+    "AppInfoResult": "type AppInfoResult = { name: string, version: string, id: string, vendor: string, channel: string, };",
     "ArchiveEntry": "type ArchiveEntry = { path: string, name: string, directory: boolean, sizeBytes: bigint, referenced: boolean, };",
     "ArchiveFault": "type ArchiveFault = \"not_an_archive\" | \"manifest_missing\" | \"manifest_malformed\" | \"unsafe_path\" | \"format_version\" | \"manifest_type\" | \"no_game_version\" | \"no_components\" | \"file_unpublished\";",
     "ArchiveFormat": "type ArchiveFormat = \"zip\" | \"hestia\" | \"backup\" | { \"provider\": Provider };",
@@ -605,10 +626,12 @@
     "BackupDone": "type BackupDone = { backup: BackupInfo, };",
     "BackupInfo": "type BackupInfo = { id: string, kind: BackupKind, createdUnix: bigint, size: bigint, };",
     "BackupKind": "type BackupKind = \"manual\" | \"scheduled\" | \"update\";",
-    "BuildDone": "type BuildDone = { outputs: Array<BuildOutput>, };",
+    "BuildFetch": "type BuildFetch = { url: string, checksum?: Checksum, dest: string, };",
     "BuildOutput": "type BuildOutput = { path: string, target: string, destination?: Destination, };",
+    "BuildPlan": "type BuildPlan = { fetch: Array<BuildFetch>, steps: Array<BuildStep>, outputs: Array<BuildOutput>, };",
     "BuildQuery": "type BuildQuery = { side: BuildSide, version: string, loaderVersion?: string, vanillaJar?: string, target: Target, };",
     "BuildSide": "type BuildSide = \"server\" | \"client\";",
+    "BuildStep": "type BuildStep = { program: string, args: Array<string>, env: { [key in string]: string }, cwd?: string, javaMajor?: number, creates: Array<string>, narrate?: LineFilter, };",
     "ChangedEvent": "type ChangedEvent = { scope: Scope, ids: Array<string>, };",
     "Checksum": "type Checksum = { algorithm: HashAlgorithm, hex: string, };",
     "Claim": "type Claim = { claimed: boolean, };",
@@ -675,6 +698,7 @@
     "GameQuery": "type GameQuery = { game: string, target: Target, };",
     "GameVersion": "type GameVersion = { id: string, kind: VersionKind, stable: boolean, };",
     "HashAlgorithm": "type HashAlgorithm = \"sha1\" | \"sha256\" | \"sha512\";",
+    "HostInfoResult": "type HostInfoResult = { totalMemoryBytes?: bigint, os: string, arch: string, pid: number, pathSeparator: string, };",
     "IconBackground": "type IconBackground = { \"type\": \"color\", value: string, } | { \"type\": \"linear-top-down-gradient\", topColor: string, bottomColor: string, };",
     "IconGenerator": "type IconGenerator = { background: IconBackground, symbol: string, };",
     "IdQuery": "type IdQuery = { ids: Array<string>, };",
@@ -723,6 +747,7 @@
     "LaunchPatch": "type LaunchPatch = { extraJvmArgs: Array<string>, extraGameArgs: Array<string>, wrapper?: string, };",
     "Library": "type Library = { name: string, path: string, artifact: Artifact, built: boolean, classpath: boolean, };",
     "LibrarySpec": "type LibrarySpec = { maven?: Maven, rules: Array<Rule>, name: string, path: string, artifact: Artifact, built: boolean, classpath: boolean, };",
+    "LineFilter": "type LineFilter = { skipPrefixes: Array<string>, };",
     "ManifestDelegate": "type ManifestDelegate = { source: string, manifest: unknown, };",
     "Maven": "type Maven = { coordinate: string, repository: string, sha1Sidecar: boolean, };",
     "ModpackDone": "type ModpackDone = { entry: string, entryName: string, pack: InstalledModpack, failures: Array<ContentFailure>, warnings: Array<WarningInfo>, };",
@@ -750,6 +775,7 @@
     "PackPolicy": "type PackPolicy = \"move\" | \"keep\";",
     "PackRead": "type PackRead = { pack: ResolvedModpack, resolve?: ManifestDelegate, overrides: OverrideTrees, };",
     "PackWritten": "type PackWritten = { members: Array<PackMember>, copies: Array<PackCopy>, warnings: Array<string>, };",
+    "PingResult": "type PingResult = { status: string, pid: number, };",
     "PlayerEntry": "type PlayerEntry = { name: string, uuid: string, reason?: string, };",
     "PlayerList": "type PlayerList = \"whitelist\" | \"ops\" | \"banned\";",
     "PoolItem": "type PoolItem = { path: string, referenceable: boolean, item: InstalledContent, };",
