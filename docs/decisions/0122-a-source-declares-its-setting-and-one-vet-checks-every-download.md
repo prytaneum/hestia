@@ -1,6 +1,6 @@
 # A source declares the setting it needs, and one vet checks every download a plugin names
 
-*Applies to: [Plugins](../architecture/plugins.md#providers), [Content & modpacks](../architecture/content.md#sources), [provider operations](../plugins/providers.md#content-sources)*
+*Applies to: [Plugins](../architecture/plugins.md#provider-surfaces), [Content & modpacks](../architecture/content.md#sources), [provider operations](../plugins/providers.md#content-sources)*
 
 Two things were patched port by port. A source that cannot work until the user sets an API key was hidden from
 `content.sources`, so the UI could not say why it was missing, and a first fix asked the guest an `available` operation

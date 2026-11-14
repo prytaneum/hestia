@@ -1,6 +1,6 @@
 # A flavor description declares its loader, its interchange keys and, optionally, only version ids
 
-*Applies to: [Plugins](../architecture/plugins.md#providers), [Minecraft providers](../architecture/minecraft.md), [provider operations](../plugins/providers.md#flavors)*
+*Applies to: [Plugins](../architecture/plugins.md#provider-surfaces), [Minecraft providers](../architecture/minecraft.md), [provider operations](../plugins/providers.md#flavors)*
 
 A flavor was known to the rest of the launcher by its id alone. A content query filtered by the flavor id as if it were the
 platform's loader name, a pack reader matched a loader to a flavor by the same id, and the `.mrpack` and Prism formats

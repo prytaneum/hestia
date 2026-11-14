@@ -1,6 +1,6 @@
 # A pack is one provider kind that replaces `format`, and export formats are an open set
 
-*Applies to: [Import & export](../architecture/transfer.md#pack-formats-from-plugins), [Plugins](../architecture/plugins.md#providers), [Content & modpacks](../architecture/content.md#modpacks), [provider operations](../plugins/providers.md#pack-formats)*
+*Applies to: [Import & export](../architecture/transfer.md#pack-formats-from-plugins), [Plugins](../architecture/plugins.md#provider-surfaces), [Content & modpacks](../architecture/content.md#modpacks), [provider operations](../plugins/providers.md#pack-formats)*
 
 > Superseded in part: the `.mrpack` reader and writer left core too, so core reads and writes only Hestia's own archive. `.mrpack` (the `mrpack` plugin), CurseForge packs and Prism / MultiMC instances are the official plugins' pack formats, `hestia` is the one reserved id, and `instance.export.formats` lists hestia plus the registered writers. The `pack` kind, the vetting and the refuse-whole rule below stand.
 
