@@ -2,6 +2,14 @@
 
 *Applies to: [Plugins](../architecture/plugins.md#provider-surfaces), [Minecraft providers](../architecture/minecraft.md)*
 
+> Superseded in part by [0124](0124-a-build-is-a-plan-the-host-runs.md): `build` answers a plan the host runs, and the answer of outputs alone below is the old shape, still accepted.
+>
+> Superseded in part by [0121](0121-a-build-places-trees-and-the-profile-launches-from-an-args-file.md): an output may be a directory tree, `ServerLaunch::ArgsFile` is accepted, and the build area is keyed by the plugin (`meta/flavors/<plugin-id>/`), not the flavor.
+>
+> Superseded in part by [0120](0120-a-programs-identity-is-separate-from-its-invocations.md): `java` on a program is one identity form beside a range and `"profile"`, and the call, not a program per major, picks the Java.
+>
+> Superseded in part by [0127](0127-a-flavor-description-declares-its-loader.md): `mrpackKey` and `prismUid` are entries of the open `interchange` map.
+
 Some flavors cannot name a download for everything they run. One patches the client jar by running installer
 processors on Java; another compiles a server nobody may redistribute with a build tool that needs Java and `git`. A
 plugin flavor could only name downloads: the host refused a built server jar, and a library with no URL had nowhere to

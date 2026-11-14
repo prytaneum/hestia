@@ -2,6 +2,12 @@
 
 *Applies to: [Plugins](../architecture/plugins.md), [plugin permissions](../plugins/permissions.md)*
 
+> Superseded in part by [0117](0117-a-grant-is-permission-to-scope.md): the grant is `permission -> scope`, so the endpoints of `ipc:connect` are its `endpoints` scope in `[permissions]`, not an `ipc` list, and the table's last row reads "the grant".
+>
+> Superseded in part by [0118](0118-host-pushed-events-and-a-call-budget-instead-of-a-resident-instance.md): the host reads each connection and pushes `ipc.readable` and `ipc.closed`, so a plugin that holds one is woken by the peer instead of polling `receive` from a schedule.
+>
+> Superseded in part by [0125](0125-a-pack-is-a-provider-kind-and-export-formats-are-open.md): the `archive-format` surface it names as an example is the `pack` kind.
+
 The plugin system exists so users can make Hestia do what they want. It had started to grow the other way: each
 feature planned to move into an official plugin got a surface of its own: a `presence` import for Discord, an
 `archive-format` export for import/export, a `java-provider` export for Adoptium, three WIT exports for three hooks.

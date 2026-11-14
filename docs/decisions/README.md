@@ -58,6 +58,9 @@ the alternative you rejected — that is usually the part nobody can recover lat
 - **0125** — [A pack is one provider kind that replaces `format`, and export formats are an open set](0125-a-pack-is-a-provider-kind-and-export-formats-are-open.md)
 - **0126** — [An ambient channel hands out harmless facts and needs no permission](0126-an-ambient-channel-needs-no-permission.md)
 - **0127** — [A flavor description declares its loader, its interchange keys and, optionally, only version ids](0127-a-flavor-description-declares-its-loader.md)
+- **0129** — [A plugin reaches a setting, a host or a download only by an entry that names it](0129-a-plugin-reaches-only-what-is-listed.md)
+- **0130** — [A plugin's entry access is every entry](0130-a-plugin-reaches-all-entries.md)
+- **0131** — [Plugin tooling builds quickly, builds against a local SDK, and reports every problem](0131-plugin-tooling-reports-everything-and-builds-quickly.md)
 
 ### [Cross-cutting foundations](../architecture/common.md)
 
@@ -65,6 +68,7 @@ the alternative you rejected — that is usually the part nobody can recover lat
 - **0003** — [A crash must survive the process that had no console](0003-crash-reports-survive-the-process.md)
 - **0054** — [Materialised game files live under one `meta/` root](0054-meta-root-for-materialised-files.md)
 - **0102** — [A dev build resolves features once, and keeps debug info out of the binaries](0102-one-feature-resolution-for-dev-builds.md)
+- **0131** — [Plugin tooling builds quickly, builds against a local SDK, and reports every problem](0131-plugin-tooling-reports-everything-and-builds-quickly.md)
 - **0103** — [Example plugins live in their own repository; test plugins are fixtures](0103-example-plugins-live-in-their-own-repository.md)
 
 ### [The engine](../architecture/engine.md)
