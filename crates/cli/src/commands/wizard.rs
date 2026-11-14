@@ -22,6 +22,7 @@ use ratatui::Frame;
 use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
 
 use crate::commands::mc::{flavor_detail, flavor_label, kind_label};
+use crate::commands::names::Names;
 use crate::ui::components::working::draw_working;
 use crate::ui::components::{Picker, PickerItem, SelectList, TextInput};
 use crate::ui::session::{self, Flow, Screen};
@@ -304,7 +305,8 @@ impl WizardScreen {
     }
 
     fn default_name(&self) -> String {
-        format!("{}-{}", self.flavor, self.version)
+        let names = Names::of(self.seed.flavors.iter().map(|f| f.id.clone()));
+        format!("{}-{}", names.show(&self.flavor), self.version)
     }
 
     /// Per-step setup when navigation lands on it.

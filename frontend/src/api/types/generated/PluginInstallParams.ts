@@ -18,9 +18,4 @@ approve: string,
  * Run the folder at `path` in place instead of copying it, and reload it
  * when its component or themes change.
  */
-dev: boolean, 
-/**
- * With `dev`, register the folder's providers as an official plugin's
- * would be: bare ids that may shadow a built-in. Grants are untouched.
- */
-official: boolean, };
+dev: boolean, };

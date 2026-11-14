@@ -48,6 +48,7 @@ import { agoLabel, bytes, uptime } from '@/lib/format';
 import { supportsQuickPlay } from '@/lib/quick-play';
 import { runningSessions } from '@/lib/sessions';
 import { m } from '@/paraglide/messages.js';
+import { useProviderNamer } from '@/queries/catalogue';
 import { useSessionsShown } from '@/queries/config';
 import { entryMutations, entryQueries } from '@/queries/entry';
 import { entryContentQueries } from '@/queries/entry-content';
@@ -113,6 +114,7 @@ function InstanceDetail({
   onContentKindChange,
 }: DetailProps & { instance: Instance }) {
   const id = instance.id;
+  const providerName = useProviderNamer();
   const info = useQuery(instanceQueries.info(id));
   useAutoTour('instance', Boolean(info.data));
   const config = useQuery(entryQueries.config('instance', id));
@@ -164,7 +166,7 @@ function InstanceDetail({
         badges={
           <>
             <Badge variant="secondary" className="uppercase">
-              {instance.flavor}
+              {providerName(instance.flavor)}
             </Badge>
             <Badge variant="outline" className="font-mono">
               {instance.gameVersion}

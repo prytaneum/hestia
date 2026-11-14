@@ -56,7 +56,7 @@ pub(super) async fn run(
         "server '{}' updated to {}",
         done.server.name, done.server.game_version
     )))?;
-    entry::show_status(&done.server, None)?;
+    entry::show_status(client, &done.server, None).await?;
     modpack::show_failures(&done.failures)?;
     ui::show_warnings(&done.warnings)
 }

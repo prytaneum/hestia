@@ -15,6 +15,7 @@ use clap::ValueEnum;
 use client::proto::content::{RequiredSetting, SearchSort};
 
 use crate::commands::connect;
+use crate::commands::names::Names;
 use crate::ui::{self, View};
 
 pub use browse::{run_browse, BrowseCmd};
@@ -52,11 +53,12 @@ pub async fn run_sources() -> Result<()> {
             "no content source is installed — install a content source plugin",
         ));
     }
+    let names = Names::of(sources.iter().map(|s| s.id.clone()));
     let rows = sources
         .into_iter()
         .map(|s| {
             vec![
-                s.id,
+                names.show(&s.id),
                 s.name,
                 s.kinds
                     .iter()

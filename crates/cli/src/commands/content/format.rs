@@ -4,13 +4,19 @@ use client::proto::content::{
     ContentKind, ContentVersion, InstalledContent, ReleaseChannel, SideSupport,
 };
 
+use crate::commands::names::Names;
 use crate::ui::components::{Picker, PickerItem};
 
-pub(super) fn source_label(item: &InstalledContent, unavailable: &[String]) -> String {
+pub(super) fn source_label(
+    item: &InstalledContent,
+    unavailable: &[String],
+    names: &Names,
+) -> String {
+    let source = names.show(&item.source);
     let label = if item.project_id.is_empty() {
-        item.source.clone()
+        source
     } else {
-        format!("{} ({})", item.source, item.version_number)
+        format!("{source} ({})", item.version_number)
     };
     if unavailable.contains(&item.source) {
         format!("{label}, unavailable")

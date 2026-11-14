@@ -11,6 +11,7 @@ pub mod job;
 pub mod lifecycle;
 mod mc;
 pub mod modpack;
+mod names;
 pub mod play;
 pub mod plugin;
 pub mod process;

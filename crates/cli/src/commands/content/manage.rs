@@ -16,6 +16,7 @@ use client::proto::instance::WorldInfo;
 use super::format::{kind_plural, source_label, world_label};
 use super::{session, PAGE};
 use crate::commands::mc;
+use crate::commands::names::Names;
 use crate::ui::{self, ProvisionReporter, View};
 
 /// The per-entry management grammar shared by every installable kind under a
@@ -336,7 +337,8 @@ async fn list(client: &Client, entry: EntryKind, kind: ContentKind, reference: &
         .content()
         .list(&EntryTarget::new(entry, id), kind)
         .await?;
-    let source = |item: &InstalledContent| source_label(item, &unavailable_sources);
+    let names = Names::sources(client).await?;
+    let source = |item: &InstalledContent| source_label(item, &unavailable_sources, &names);
     if items.is_empty() && untracked.is_empty() {
         return ui::show(View::note(format!("no {} installed", kind_plural(kind))));
     }

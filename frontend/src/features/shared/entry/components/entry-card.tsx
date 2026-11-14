@@ -14,6 +14,7 @@ import { LaunchControl } from '@/features/instances/components/launch-control';
 import { layoutMorph, listItem } from '@/lib/motion';
 import { cn } from '@/lib/utils';
 import { m } from '@/paraglide/messages.js';
+import { useProviderNamer } from '@/queries/catalogue';
 import { type Job, useBusyJob } from '@/queries/jobs';
 import type { View } from './collection';
 import { EntryContextMenu } from './entry-menu';
@@ -193,6 +194,7 @@ export function EntryTile({
   view: View;
 }) {
   const job = useBusyJob(entry.kind, entry.id);
+  const providerName = useProviderNamer();
   const status = statusOf(entry);
   const Icon = entryIcon(entry.kind);
   const grid = view === 'grid';
@@ -241,8 +243,8 @@ export function EntryTile({
           </span>
           <span className="mt-0.5 block truncate font-mono text-[11px] text-muted-foreground">
             {grid
-              ? `${entry.flavor} · ${entry.version}`
-              : `${entry.flavor} · ${entry.version} · ${entry.subtitle}`}
+              ? `${providerName(entry.flavor)} · ${entry.version}`
+              : `${providerName(entry.flavor)} · ${entry.version} · ${entry.subtitle}`}
           </span>
         </motion.div>
 

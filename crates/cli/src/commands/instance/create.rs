@@ -9,6 +9,7 @@ use client::Client;
 
 use super::entry;
 use crate::commands::mc;
+use crate::commands::names::Names;
 use crate::commands::wizard::{self, Field, WizardOutcome, WizardSeed};
 use crate::ui::{self, Spinner, View};
 
@@ -25,11 +26,11 @@ pub(super) async fn run(
         return run_wizard(client, flavor, version, loader, name, memory).await;
     }
     let flavors = mc::fetch_flavors(client, EntryKind::Instance).await?;
-    let flavor = mc::pick_flavor(flavors.clone(), flavor)?;
-    mc::ensure_requirements(&flavors, &flavor)?;
+    let names = Names::of(flavors.iter().map(|f| f.id.clone()));
+    let flavor = mc::pick_flavor(flavors, flavor)?;
     let versions = mc::fetch_versions(client, EntryKind::Instance, &flavor).await?;
     let version = mc::pick_version(versions, version)?;
-    let name = name.unwrap_or_else(|| format!("{flavor}-{version}"));
+    let name = name.unwrap_or_else(|| format!("{}-{version}", names.show(&flavor)));
     let config = memory
         .map(|memory| ConfigEntry {
             key: "memory".into(),
@@ -46,7 +47,7 @@ pub(super) async fn run(
             .await?
     };
     ui::show(View::line(format!("instance '{}' created", instance.name)))?;
-    entry::show_info(&instance)
+    entry::show_info(client, &instance).await
 }
 
 /// The interactive path: the fullscreen step wizard, prefilled from whatever
@@ -60,9 +61,6 @@ async fn run_wizard(
     memory: Option<String>,
 ) -> Result<()> {
     let flavors = mc::fetch_flavors(client, EntryKind::Instance).await?;
-    if let Some(flavor) = &flavor {
-        mc::ensure_flavor(&flavors, flavor)?;
-    }
     let seed = WizardSeed {
         kind: EntryKind::Instance,
         flavors,
@@ -78,7 +76,7 @@ async fn run_wizard(
         None => ui::show(View::note("cancelled")),
         Some(WizardOutcome::Instance(instance)) => {
             ui::show(View::line(format!("instance '{}' created", instance.name)))?;
-            entry::show_info(&instance)
+            entry::show_info(client, &instance).await
         }
         Some(WizardOutcome::Server(_)) => unreachable!("instance wizard created a server"),
     }

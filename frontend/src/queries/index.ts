@@ -11,7 +11,7 @@
 export * from './accounts';
 export * from './app';
 export * from './cache';
-export { catalogueQueries } from './catalogue';
+export { catalogueQueries, useProviderNamer } from './catalogue';
 export { invalidate, queryClient } from './client';
 export * from './config';
 export { useConnection } from './connection';

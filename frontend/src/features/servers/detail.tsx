@@ -51,6 +51,7 @@ import {
 } from '@/features/shared/entry/detail';
 import { agoLabel, bytes } from '@/lib/format';
 import { m } from '@/paraglide/messages.js';
+import { useProviderNamer } from '@/queries/catalogue';
 import { entryMutations, entryQueries } from '@/queries/entry';
 import { useBusyJob } from '@/queries/jobs';
 import { serverMutations, serverQueries, useServer } from '@/queries/server';
@@ -126,6 +127,7 @@ function ServerDetail({
   onOpenFile,
 }: DetailProps & { server: Server }) {
   const id = server.id;
+  const providerName = useProviderNamer();
   const info = useQuery(serverQueries.info(id));
   useAutoTour('server', Boolean(info.data));
   const config = useQuery(entryQueries.config('server', id));
@@ -164,7 +166,7 @@ function ServerDetail({
         badges={
           <>
             <Badge variant="secondary" className="uppercase">
-              {server.flavor}
+              {providerName(server.flavor)}
             </Badge>
             <Badge variant="outline" className="font-mono">
               {server.gameVersion}

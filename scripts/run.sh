@@ -190,8 +190,9 @@ trap 'cleanup; exit 143' TERM HUP PIPE
 
 # A run has no plugins unless it asks for them. The official plugins are signed
 # in CI, so a local build has none: `--plugins` installs each one as a dev
-# plugin, read in place from the checkout and registered under the bare ids the
-# signed builds use (`fabric`, not `fabric.fabric`), for this run only.
+# plugin for this run only, read in place from the checkout. In developer mode
+# a dev install's providers answer to bare names (`fabric`) when no signed
+# plugin does.
 install_plugins() {
   local repo="$1" dir id
   [ -d "$repo/plugins" ] || die "no plugins/ in $repo — pass --plugins=<checkout of the plugins repository>"
@@ -203,7 +204,7 @@ install_plugins() {
     [ -f "$dir/plugin.toml" ] || continue
     id="$(basename "$dir")"
     log "installing $id"
-    (cd "$repo" && "$hestia" plugin dev "$dir" --official --yes --once --sdk "$sdk" > /dev/null)
+    (cd "$repo" && "$hestia" plugin dev "$dir" --yes --once --sdk "$sdk" > /dev/null)
     installed+=("$id")
   done
   log "${#installed[@]} plugins installed for this run; they are removed when it ends"

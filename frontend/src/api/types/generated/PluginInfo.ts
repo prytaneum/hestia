@@ -20,11 +20,6 @@ signer?: string,
  */
 official: boolean, 
 /**
- * A dev install registering its providers as an official plugin's would;
- * in effect only while developer mode is on.
- */
-devOfficial: boolean, 
-/**
  * The index URL of the repository it was installed from.
  */
 repository?: string, 

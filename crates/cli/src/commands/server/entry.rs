@@ -6,6 +6,7 @@ use client::proto::server::{JvmArgsSource, ServerDetails, ServerInfo, ServerPing
 use client::Client;
 
 use crate::commands::mc;
+use crate::commands::names::Names;
 use crate::ui::{self, View};
 
 pub(super) fn pick_server(
@@ -38,12 +39,13 @@ pub(super) async fn list(client: &Client) -> Result<()> {
     if servers.is_empty() {
         return ui::show(View::note("no servers yet (hestia server create)"));
     }
+    let names = Names::flavors(client).await?;
     let rows = servers
         .iter()
         .map(|s| {
             vec![
                 s.name.clone(),
-                s.flavor.clone(),
+                names.show(&s.flavor),
                 s.game_version.clone(),
                 s.loader_version.clone().unwrap_or_else(|| "-".into()),
                 address_label(s),
@@ -58,11 +60,16 @@ pub(super) async fn list(client: &Client) -> Result<()> {
     ))
 }
 
-pub(super) fn show_status(info: &ServerInfo, ping: Option<&ServerPingResult>) -> Result<()> {
+pub(super) async fn show_status(
+    client: &Client,
+    info: &ServerInfo,
+    ping: Option<&ServerPingResult>,
+) -> Result<()> {
+    let names = Names::flavors(client).await?;
     let mut rows = vec![
         ("name", info.name.clone()),
         ("id", info.id.clone()),
-        ("flavor", info.flavor.clone()),
+        ("flavor", names.show(&info.flavor)),
         ("version", info.game_version.clone()),
         (
             "loader",
@@ -88,11 +95,12 @@ pub(super) fn show_status(info: &ServerInfo, ping: Option<&ServerPingResult>) ->
     ui::show(View::detail(rows))
 }
 
-pub(super) fn show_info(info: &ServerDetails) -> Result<()> {
+pub(super) async fn show_info(client: &Client, info: &ServerDetails) -> Result<()> {
+    let names = Names::flavors(client).await?;
     ui::show(View::detail([
         ("name", info.name.clone()),
         ("id", info.id.clone()),
-        ("flavor", info.flavor.clone()),
+        ("flavor", names.show(&info.flavor)),
         ("version", info.game_version.clone()),
         (
             "loader",

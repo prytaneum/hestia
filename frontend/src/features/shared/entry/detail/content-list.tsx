@@ -39,6 +39,7 @@ import { ContentVersionDialog } from '@/features/shared/content/dialogs';
 import { kindInfo } from '@/features/shared/content/lib';
 import { cn } from '@/lib/utils';
 import { m } from '@/paraglide/messages.js';
+import { useProviderNamer } from '@/queries/catalogue';
 import { entryContentQueries } from '@/queries/entry-content';
 import { useContent } from '../hooks';
 import {
@@ -167,6 +168,7 @@ function ContentRow({
   onToggle: () => void;
 }) {
   const { handlers, packName, busy } = useContent();
+  const providerName = useProviderNamer();
   const [removing, setRemoving] = useState(false);
   const selecting = checked !== undefined;
   const Icon = contentIcon(item.kind);
@@ -203,7 +205,8 @@ function ContentRow({
           <OriginBadge origin={item.origin} packName={packName} />
         </div>
         <div className="truncate font-mono text-[11px] text-muted-foreground">
-          {contentKindLabel[item.kind]()} · {item.source} · {item.versionNumber}
+          {contentKindLabel[item.kind]()} · {providerName(item.source)} ·{' '}
+          {item.versionNumber}
         </div>
       </div>
     </>

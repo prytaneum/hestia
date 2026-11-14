@@ -233,7 +233,7 @@ async fn run_action(client: Client, name: String, action: ServerAction) -> Resul
         } else {
             None
         };
-        entry::show_status(&info, ping.as_ref())?;
+        entry::show_status(&client, &info, ping.as_ref()).await?;
         return Ok(ExitStatus::running(running));
     }
     run_unit_action(client, name, action)
@@ -249,7 +249,7 @@ async fn run_unit_action(client: Client, name: String, action: ServerAction) -> 
         ServerAction::Status => unreachable!("handled by run_action"),
         ServerAction::Info => {
             let info = client.server().info(&name).await?;
-            entry::show_info(&info)
+            entry::show_info(&client, &info).await
         }
         ServerAction::External(argv) => {
             plugin_run::scoped(&client, CommandScope::Server, &name, argv).await

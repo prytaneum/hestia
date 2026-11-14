@@ -7,6 +7,7 @@ use client::proto::process::{ProcessInfo, ProcessState};
 use client::Client;
 
 use crate::commands::mc;
+use crate::commands::names::Names;
 use crate::ui::{self, View};
 
 pub(super) fn pick_instance(
@@ -83,12 +84,13 @@ pub(super) async fn list(client: &Client) -> Result<()> {
     if instances.is_empty() {
         return ui::show(View::note("no instances yet (hestia instance create)"));
     }
+    let names = Names::flavors(client).await?;
     let rows = instances
         .iter()
         .map(|i| {
             vec![
                 i.name.clone(),
-                i.flavor.clone(),
+                names.show(&i.flavor),
                 i.game_version.clone(),
                 i.loader_version.clone().unwrap_or_else(|| "-".into()),
                 mc::sessions_label(&i.sessions),
@@ -110,11 +112,12 @@ pub(super) async fn list(client: &Client) -> Result<()> {
     ))
 }
 
-pub(super) fn show_info(info: &InstanceInfo) -> Result<()> {
+pub(super) async fn show_info(client: &Client, info: &InstanceInfo) -> Result<()> {
+    let names = Names::flavors(client).await?;
     ui::show(View::detail([
         ("name", info.name.clone()),
         ("id", info.id.clone()),
-        ("flavor", info.flavor.clone()),
+        ("flavor", names.show(&info.flavor)),
         ("version", info.game_version.clone()),
         (
             "loader",
@@ -130,11 +133,16 @@ pub(super) fn show_info(info: &InstanceInfo) -> Result<()> {
 
 /// The `info` command's richer view: the static detail (locations, footprint)
 /// alongside the live sessions.
-pub(super) fn show_detail(info: &InstanceDetails, sessions: &[ProcessInfo]) -> Result<()> {
+pub(super) async fn show_detail(
+    client: &Client,
+    info: &InstanceDetails,
+    sessions: &[ProcessInfo],
+) -> Result<()> {
+    let names = Names::flavors(client).await?;
     ui::show(View::detail([
         ("name", info.name.clone()),
         ("id", info.id.clone()),
-        ("flavor", info.flavor.clone()),
+        ("flavor", names.show(&info.flavor)),
         ("version", info.game_version.clone()),
         (
             "loader",

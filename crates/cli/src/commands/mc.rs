@@ -6,7 +6,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use anyhow::{bail, Context, Result};
 use clap::Subcommand;
 use client::proto::backup::BackupInfo;
-use client::proto::error::{EntryKind, EntryTarget, ErrorInfo};
+use client::proto::error::{EntryKind, EntryTarget};
 use client::proto::minecraft::{
     ConfigEntry, Flavor, GameVersion, ProvisionPhase, ProvisionProgress, VersionKind,
 };
@@ -14,6 +14,7 @@ use client::proto::process::{ProcessInfo, ProcessState};
 use client::Client;
 
 use crate::commands::content::format::kind_plural;
+use crate::commands::names::Names;
 use crate::ui::{self, Spinner, View};
 
 /// The shared `config` grammar for a server/instance: `get`/`set`/`list`,
@@ -272,30 +273,6 @@ pub async fn fetch_versions(
     Ok(client.entry().versions(kind, flavor).await?)
 }
 
-pub fn ensure_flavor(flavors: &[Flavor], id: &str) -> Result<()> {
-    if flavors.iter().any(|f| f.id == id) {
-        return Ok(());
-    }
-    let ids: Vec<&str> = flavors.iter().map(|f| f.id.as_str()).collect();
-    bail!("unknown flavor '{id}' (available: {})", ids.join(", "));
-}
-
-/// Refuse the flavor `id` when this computer lacks something it needs, before
-/// a build that would fail minutes in has started.
-pub fn ensure_requirements(flavors: &[Flavor], id: &str) -> Result<()> {
-    let Some(flavor) = flavors.iter().find(|f| f.id == id) else {
-        return Ok(());
-    };
-    match flavor.requires.first() {
-        Some(requirement) => bail!(ErrorInfo::MissingRequirement {
-            flavor: flavor.id.clone(),
-            name: requirement.name.clone(),
-            url: requirement.url.clone(),
-        }),
-        None => Ok(()),
-    }
-}
-
 /// The first item whose id or name the user's reference names.
 pub fn find_by_reference<T>(
     items: impl IntoIterator<Item = T>,
@@ -313,15 +290,14 @@ pub fn entry_label(name: &str, flavor: &str, game_version: &str) -> String {
     format!("{name} ({flavor} {game_version})")
 }
 
-/// Return the chosen flavor id: validated when `provided`, otherwise picked from
-/// an interactive selector.
+/// Return the flavor name as given, which the daemon resolves, otherwise picked
+/// from an interactive selector.
 pub fn pick_flavor(flavors: Vec<Flavor>, provided: Option<String>) -> Result<String> {
     if flavors.is_empty() {
         bail!("no flavors are available");
     }
-    if let Some(id) = provided {
-        ensure_flavor(&flavors, &id)?;
-        return Ok(id);
+    if let Some(name) = provided {
+        return Ok(name);
     }
     let labels: Vec<String> = flavors.iter().map(flavor_label).collect();
     let details: Vec<String> = flavors.iter().map(flavor_detail).collect();
@@ -385,7 +361,7 @@ pub fn confirm_downgrade(kind: EntryKind, name: &str, from: &str, to: &str) -> R
 /// The non-interactive form of the selector: the available flavors as a table.
 /// Every column comes off the wire, so a flavor the daemon ships needs nothing
 /// here to describe itself.
-fn show_flavors(flavors: &[Flavor]) -> Result<()> {
+fn show_flavors(flavors: &[Flavor], names: &Names) -> Result<()> {
     if flavors.is_empty() {
         return ui::show(View::note("no flavors are available"));
     }
@@ -393,7 +369,7 @@ fn show_flavors(flavors: &[Flavor]) -> Result<()> {
         .iter()
         .map(|f| {
             vec![
-                f.id.clone(),
+                names.show(&f.id),
                 f.name.clone(),
                 accepts_label(f),
                 flavor_detail(f),
@@ -450,7 +426,8 @@ pub async fn list_versions(
 }
 
 pub async fn list_flavors(client: &Client, kind: EntryKind) -> Result<()> {
-    show_flavors(&fetch_flavors(client, kind).await?)
+    let flavors = fetch_flavors(client, kind).await?;
+    show_flavors(&flavors, &Names::flavors(client).await?)
 }
 
 /// Show a version table, releases only unless `all` includes snapshots and old

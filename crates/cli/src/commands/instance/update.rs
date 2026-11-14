@@ -50,7 +50,7 @@ pub(super) async fn run(
         "instance '{}' updated to {} (files download at the next launch)",
         done.instance.name, done.instance.game_version
     )))?;
-    entry::show_info(&done.instance)?;
+    entry::show_info(client, &done.instance).await?;
     modpack::show_failures(&done.failures)?;
     ui::show_warnings(&done.warnings)
 }

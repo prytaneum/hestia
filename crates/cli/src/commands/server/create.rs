@@ -9,6 +9,7 @@ use client::Client;
 
 use super::entry;
 use crate::commands::mc;
+use crate::commands::names::Names;
 use crate::commands::wizard::{self, Field, WizardOutcome, WizardSeed};
 use crate::ui::{self, ProvisionReporter, View};
 
@@ -93,11 +94,13 @@ pub(super) async fn run(client: &Client, args: CreateArgs) -> Result<()> {
         bail!("pass --eula to accept the Minecraft EULA ({EULA_URL})");
     }
     let flavors = mc::fetch_flavors(client, EntryKind::Server).await?;
-    let flavor = mc::pick_flavor(flavors.clone(), args.flavor)?;
-    mc::ensure_requirements(&flavors, &flavor)?;
+    let names = Names::of(flavors.iter().map(|f| f.id.clone()));
+    let flavor = mc::pick_flavor(flavors, args.flavor)?;
     let versions = mc::fetch_versions(client, EntryKind::Server, &flavor).await?;
     let version = mc::pick_version(versions, args.version)?;
-    let name = args.name.unwrap_or_else(|| format!("{flavor}-{version}"));
+    let name = args
+        .name
+        .unwrap_or_else(|| format!("{}-{version}", names.show(&flavor)));
     let config = build_config(
         args.memory,
         [
@@ -125,7 +128,7 @@ pub(super) async fn run(client: &Client, args: CreateArgs) -> Result<()> {
     })
     .await?;
     ui::show(View::line(format!("server '{}' created", done.server.name)))?;
-    entry::show_status(&done.server, None)?;
+    entry::show_status(client, &done.server, None).await?;
     ui::show_warnings(&done.warnings)
 }
 
@@ -133,9 +136,6 @@ pub(super) async fn run(client: &Client, args: CreateArgs) -> Result<()> {
 /// flags were given.
 async fn run_wizard(client: &Client, args: CreateArgs) -> Result<()> {
     let flavors = mc::fetch_flavors(client, EntryKind::Server).await?;
-    if let Some(flavor) = &args.flavor {
-        mc::ensure_flavor(&flavors, flavor)?;
-    }
     let extra = build_config(None, [], args.prop)?;
     let seed = WizardSeed {
         kind: EntryKind::Server,
@@ -182,7 +182,7 @@ async fn run_wizard(client: &Client, args: CreateArgs) -> Result<()> {
         None => ui::show(View::note("cancelled")),
         Some(WizardOutcome::Server(done)) => {
             ui::show(View::line(format!("server '{}' created", done.server.name)))?;
-            entry::show_status(&done.server, None)?;
+            entry::show_status(client, &done.server, None).await?;
             ui::show_warnings(&done.warnings)
         }
         Some(WizardOutcome::Instance(_)) => unreachable!("server wizard created an instance"),

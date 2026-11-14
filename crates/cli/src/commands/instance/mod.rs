@@ -395,7 +395,7 @@ async fn run_action(client: &Client, name: String, action: InstanceAction) -> Re
         InstanceAction::Info => {
             let info = client.instance().info(&name).await?;
             let sessions = entry::fetch(client, &name).await?.sessions;
-            entry::show_detail(&info, &sessions)
+            entry::show_detail(client, &info, &sessions).await
         }
         InstanceAction::Worlds => world::list(client, &name).await,
         InstanceAction::World { cmd } => world::run(client, &name, cmd).await,

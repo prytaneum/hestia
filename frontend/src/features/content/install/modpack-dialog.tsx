@@ -89,7 +89,8 @@ export function ModpackInstallDialog({
   const takes = (e: { flavor: string; gameVersion: string }) =>
     !version ||
     (version.gameVersions.includes(e.gameVersion) &&
-      (e.flavor === 'vanilla' || version.loaders.includes(e.flavor)));
+      (e.flavor === 'vanilla' ||
+        version.loaders.includes(e.flavor.slice(e.flavor.indexOf('.') + 1))));
 
   const entries = [
     ...(instances.data ?? []).map((i) => ({ ...i, kind: 'instance' as const })),
