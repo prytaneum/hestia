@@ -1,5 +1,6 @@
 import { CaretLeftIcon, CaretRightIcon } from '@phosphor-icons/react';
-import { useEffect } from 'react';
+import { useLocation } from '@tanstack/react-router';
+import { useEffect, useRef } from 'react';
 import {
   type ContentKind,
   type ContentProject,
@@ -51,6 +52,15 @@ export function ContentInstallDialog({
   onOpenChange: (open: boolean) => void;
 }) {
   const mode: 'browse' | 'entry' = project ? 'browse' : 'entry';
+  const pathname = useLocation({ select: (location) => location.pathname });
+  const openedAt = useRef(pathname);
+  useEffect(() => {
+    if (!open) {
+      openedAt.current = pathname;
+    } else if (openedAt.current !== pathname) {
+      onOpenChange(false);
+    }
+  }, [open, pathname, onOpenChange]);
   const targets = useTargets();
 
   const [state, dispatch] = useInstallWizard({

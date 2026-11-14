@@ -48,11 +48,13 @@ describe('a source waiting on a setting', () => {
 
     const plugin = await screen.findByRole('menuitem', { name: /api-key/ });
     expect(plugin.getAttribute('href')).toBe(
-      '/settings?tab=plugins&plugin=static',
+      '/settings?tab=plugins&plugin=static&field=static-api-key',
     );
     const launcher = screen.getByRole('menuitem', {
       name: /content\.curseforge-key/,
     });
-    expect(launcher.getAttribute('href')).toBe('/settings?tab=content');
+    expect(launcher.getAttribute('href')).toBe(
+      '/settings?tab=content&field=curseforge-key',
+    );
   });
 });

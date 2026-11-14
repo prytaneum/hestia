@@ -6,13 +6,17 @@ import { SettingsPage } from '@/features/settings/page';
 export const Route = createFileRoute('/_app/settings/')({
   validateSearch: (
     search: Record<string, unknown>,
-  ): { tab?: SettingsTab; plugin?: string } => ({
+  ): { tab?: SettingsTab; plugin?: string; field?: string } => ({
     tab: SETTINGS_TABS.includes(search.tab as SettingsTab)
       ? (search.tab as SettingsTab)
       : undefined,
     plugin:
       typeof search.plugin === 'string' && search.plugin
         ? search.plugin
+        : undefined,
+    field:
+      typeof search.field === 'string' && search.field
+        ? search.field
         : undefined,
   }),
   component: Settings,

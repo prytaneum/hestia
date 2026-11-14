@@ -24,6 +24,8 @@ import {
   settingProblem,
 } from '@/features/plugins/lib';
 import { usePluginText } from '@/features/plugins/text';
+import { pluginFieldId } from '@/features/settings/lib';
+import { useLinkedField } from '@/features/settings/use-linked-field';
 import { useSaveState } from '@/hooks/use-save-state';
 import { m } from '@/paraglide/messages.js';
 import { pluginMutations, pluginQueries } from '@/queries/plugin';
@@ -34,6 +36,7 @@ export function PluginSettings({ plugin }: { plugin: PluginInfo }) {
   const values = useQuery(pluginQueries.settings(id));
   const save = useMutation(pluginMutations.setSetting(id));
   const text = usePluginText([id]);
+  useLinkedField();
   if (settings.length === 0) return null;
 
   const write = (key: string, value: unknown) =>
@@ -55,7 +58,7 @@ export function PluginSettings({ plugin }: { plugin: PluginInfo }) {
             {rows.map((setting) => (
               <SettingRow
                 key={setting.key}
-                htmlFor={`${id}-${setting.key}`}
+                htmlFor={pluginFieldId(id, setting.key)}
                 label={text(
                   id,
                   `setting.${setting.key}.label`,
@@ -79,7 +82,7 @@ export function PluginSettings({ plugin }: { plugin: PluginInfo }) {
                 }
               >
                 <Control
-                  id={`${id}-${setting.key}`}
+                  id={pluginFieldId(id, setting.key)}
                   setting={setting}
                   placeholder={text(
                     id,

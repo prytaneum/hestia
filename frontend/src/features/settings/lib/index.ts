@@ -7,7 +7,7 @@ export {
   type GrantScope,
 } from './approval';
 export { appendDevLog, type DevLogLine } from './dev-log';
-export { settingLocation } from './location';
+export { pluginFieldId, settingLocation } from './location';
 export {
   firstTabWithMatch,
   SETTINGS_TABS,

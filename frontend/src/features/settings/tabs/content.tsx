@@ -9,6 +9,7 @@ import {
   SettingsSection,
 } from '@/features/settings/components';
 import { useConfig } from '@/features/settings/use-config';
+import { useLinkedField } from '@/features/settings/use-linked-field';
 import { m } from '@/paraglide/messages.js';
 import { contentQueries } from '@/queries/content';
 
@@ -59,6 +60,7 @@ function CurseForgeKey({
   onSave: (value: string) => Promise<unknown>;
 }) {
   const sources = useQuery(contentQueries.sources());
+  useLinkedField();
   const ready = (sources.data ?? []).some(
     (s) => s.id === 'curseforge' && !s.requiresSetting,
   );
