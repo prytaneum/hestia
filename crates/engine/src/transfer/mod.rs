@@ -24,12 +24,13 @@
 //! carry. The flow reads the recipe, not the format, so another format costs
 //! the flow nothing.
 //!
-//! A modpack is not an instance format. Whether a zip is one, in which format
-//! and at what root is [`crate::content::pack`]'s single answer; [`detect`]
-//! ranks that candidate beside the instance formats and the modpack flow
-//! receives the archive already open.
+//! A modpack is not an instance format. A `.mrpack` is the launcher's own, read
+//! by [`crate::content::pack`]; every other pack format is a plugin's `pack`
+//! provider ([`crate::plugins::PluginPack`]), which declares the members it
+//! reads and answers what the archive holds. [`detect`] ranks them beside the
+//! instance formats and the modpack flow receives the archive already open.
 //!
-//! Export is the same shape with fewer moving parts: [`ExportFormat`] picks a
+//! Export is the same shape with fewer moving parts: [`Exporter`] picks a
 //! writer, and the rules for what an archive leaves out are shared
 //! ([`exclude`]) so two exporters cannot drift on the question of what an
 //! instance's files actually are.
@@ -39,6 +40,7 @@ pub(crate) mod contents;
 pub(crate) mod exclude;
 pub(crate) mod hestia;
 pub(crate) mod mrpack;
+pub(crate) mod plugin;
 pub(crate) mod pool;
 pub(crate) mod prism;
 
@@ -50,7 +52,7 @@ use proto::content::ResolvedModpack;
 use proto::error::ErrorInfo;
 use proto::provider::Provider;
 use proto::sync::SyncOverrides;
-use proto::transfer::{ExportFormat, ImportFormat};
+use proto::transfer::ImportFormat;
 use proto::warning::WarningInfo;
 
 use crate::cancel::Job;
@@ -60,7 +62,7 @@ use crate::instances::InstanceRecord;
 use crate::jvm::JavaSettings;
 use crate::minecraft::profile::InstanceProfile;
 use crate::minecraft::Loaders;
-use crate::plugins::PluginFormat;
+use crate::plugins::PluginPack;
 use archive::{Reader, Written};
 
 /// What an archive says it is, before anything is written. Shown to whoever is
@@ -143,19 +145,23 @@ pub(crate) trait Format: Send + Sync {
 #[derive(Clone)]
 pub(crate) enum Kind {
     Instance(&'static dyn Format),
-    Pack(pack::Format),
-    Plugin(Arc<PluginFormat>),
+    Mrpack,
+    Plugin(Arc<PluginPack>),
 }
 
 impl Kind {
     pub(crate) fn id(&self) -> ImportFormat {
         match self {
             Kind::Instance(format) => format.id(),
-            Kind::Pack(format) => format.id(),
-            Kind::Plugin(format) => {
-                ImportFormat::Provider(Provider::new(format.id(), &format.info().name))
+            Kind::Mrpack => pack::mrpack_format(),
+            Kind::Plugin(pack) => {
+                ImportFormat::Provider(Provider::new(pack.id(), &pack.info().name))
             }
         }
+    }
+
+    fn is_pack(&self) -> bool {
+        !matches!(self, Kind::Instance(_))
     }
 }
 
@@ -168,51 +174,66 @@ pub(crate) struct Detected {
     pub(crate) prefix: String,
 }
 
-/// Recognise an archive from its member names. Detection is by marker rather
-/// than by extension because every one of these formats is a zip and people
-/// rename them; someone handed an archive should not have to know which
-/// launcher made it.
+/// The formats an archive could be, from its member names alone, shallowest
+/// marker first. Detection is by marker rather than by extension because every
+/// one of these formats is a zip and people rename them; someone handed an
+/// archive should not have to know which launcher made it.
 ///
-/// The **shallowest** marker wins, and the order below only breaks a tie.
 /// Depth has to come first: a pack index a Prism instance happens to ship
 /// inside its `config/` is a file that instance uses, not what the archive is.
-///
-/// `claims_manifest` is the pack module's question about a generic
-/// `manifest.json`, answered by whoever holds the archive open. Plugin formats
-/// rank after the core ones at equal depth, and none can claim hestia's marker.
-pub(crate) fn detect(
-    names: &[String],
-    filename: &str,
-    plugins: &[Arc<PluginFormat>],
-    claims_manifest: impl FnMut(&str) -> bool,
-) -> Result<Detected> {
+/// The order below only breaks a tie, so a plugin's format ranks after the core
+/// ones at equal depth, and none can claim hestia's or the `.mrpack` marker.
+fn candidates(names: &[String], packs: &[Arc<PluginPack>]) -> Vec<Detected> {
     let instance = |format: &'static dyn Format| {
         shallowest(names, format.marker()).map(|prefix| Detected {
             kind: Kind::Instance(format),
             prefix,
         })
     };
-    let pack = pack::locate(names, claims_manifest).map(|(format, root)| Detected {
-        kind: Kind::Pack(format),
-        prefix: root,
+    let mrpack = pack::locate(names).map(|prefix| Detected {
+        kind: Kind::Mrpack,
+        prefix,
     });
-    let mut candidates: Vec<Detected> = [instance(&hestia::Hestia), pack, instance(&prism::Prism)]
+    let mut found: Vec<Detected> = [instance(&hestia::Hestia), mrpack, instance(&prism::Prism)]
         .into_iter()
         .flatten()
         .collect();
-    candidates.extend(plugins.iter().filter_map(|format| {
-        shallowest(names, &format.info().marker).map(|prefix| Detected {
-            kind: Kind::Plugin(format.clone()),
+    found.extend(packs.iter().filter_map(|pack| {
+        pack.root_of(names).map(|prefix| Detected {
+            kind: Kind::Plugin(pack.clone()),
             prefix,
         })
     }));
-    candidates.sort_by_key(|candidate| candidate.prefix.matches('/').count());
-    candidates.into_iter().next().ok_or_else(|| {
-        ErrorInfo::ArchiveUnrecognised {
-            filename: filename.to_string(),
+    found.sort_by_key(|candidate| candidate.prefix.matches('/').count());
+    found
+}
+
+/// Recognise an archive. A plugin's format that holds its declared members is
+/// asked whether it claims the archive before it wins; `packs_only` leaves the
+/// instance formats out, for a caller that installs a modpack.
+pub(crate) async fn detect(
+    names: &[String],
+    filename: &str,
+    packs: &[Arc<PluginPack>],
+    packs_only: bool,
+) -> Result<Detected> {
+    for candidate in candidates(names, packs) {
+        if packs_only && !candidate.kind.is_pack() {
+            continue;
         }
-        .into()
-    })
+        if let Kind::Plugin(pack) = &candidate.kind {
+            let files = PluginPack::files_under(names, &candidate.prefix);
+            if !pack.claims(files).await {
+                tracing::debug!(pack = %pack.id(), "a pack format did not claim the archive");
+                continue;
+            }
+        }
+        return Ok(candidate);
+    }
+    Err(ErrorInfo::ArchiveUnrecognised {
+        filename: filename.to_string(),
+    }
+    .into())
 }
 
 impl From<ResolvedModpack> for Descriptor {
@@ -235,17 +256,45 @@ pub(crate) struct Source<'a> {
     pub(crate) exclude: &'a [String],
 }
 
+/// Who writes an export.
+#[derive(Clone)]
+pub(crate) enum Exporter {
+    Hestia,
+    Mrpack,
+    Plugin(Arc<PluginPack>),
+}
+
+impl Exporter {
+    /// The file extension an export of this format is given.
+    pub(crate) fn extension(&self) -> &str {
+        match self {
+            Exporter::Hestia => "hestia",
+            Exporter::Mrpack => "mrpack",
+            Exporter::Plugin(pack) => &pack.info().extension,
+        }
+    }
+
+    pub(crate) fn id(&self) -> &str {
+        match self {
+            Exporter::Hestia => "hestia",
+            Exporter::Mrpack => pack::MRPACK,
+            Exporter::Plugin(pack) => pack.id(),
+        }
+    }
+}
+
 /// Write an instance out in one of the export formats.
-pub(crate) fn export(
+pub(crate) async fn export(
     source: &Source<'_>,
-    format: ExportFormat,
+    exporter: &Exporter,
     destination: &Path,
     loaders: &Loaders,
     job: &Job<'_>,
 ) -> Result<(Written, Vec<WarningInfo>)> {
-    match format {
-        ExportFormat::Hestia => hestia::export(source, destination, job).map(|w| (w, Vec::new())),
-        ExportFormat::Mrpack => mrpack::export(source, destination, loaders, job),
+    match exporter {
+        Exporter::Hestia => hestia::export(source, destination, job).map(|w| (w, Vec::new())),
+        Exporter::Mrpack => mrpack::export(source, destination, loaders, job),
+        Exporter::Plugin(pack) => plugin::export(source, pack, destination, job).await,
     }
 }
 
@@ -273,95 +322,63 @@ mod tests {
         list.iter().map(|n| n.to_string()).collect()
     }
 
-    #[test]
-    fn each_format_is_recognised_by_its_own_marker() {
-        let hestia = detect(
-            &names(&["hestia.instance.json", "data/options.txt"]),
-            "a",
-            &[],
-            |_| true,
-        )
-        .unwrap();
+    async fn detected(list: &[&str]) -> Detected {
+        detect(&names(list), "a", &[], false).await.unwrap()
+    }
+
+    #[tokio::test]
+    async fn each_format_is_recognised_by_its_own_marker() {
+        let hestia = detected(&["hestia.instance.json", "data/options.txt"]).await;
         assert_eq!(hestia.kind.id(), ImportFormat::Hestia);
         assert!(hestia.prefix.is_empty());
 
-        let mrpack = detect(
-            &names(&["modrinth.index.json", "overrides/config/x"]),
-            "a",
-            &[],
-            |_| true,
-        )
-        .unwrap();
+        let mrpack = detected(&["modrinth.index.json", "overrides/config/x"]).await;
         assert_eq!(provider_id(mrpack.kind.id()), "mrpack");
 
-        let prism = detect(&names(&["instance.cfg", "mmc-pack.json"]), "a", &[], |_| {
-            true
-        })
-        .unwrap();
+        let prism = detected(&["instance.cfg", "mmc-pack.json"]).await;
         assert_eq!(provider_id(prism.kind.id()), "prism");
     }
 
-    #[test]
-    fn a_nested_instance_is_found_and_its_directory_reported() {
-        let detected = detect(
-            &names(&[
-                "My Pack/",
-                "My Pack/instance.cfg",
-                "My Pack/.minecraft/options.txt",
-            ]),
-            "a",
-            &[],
-            |_| true,
-        )
-        .unwrap();
+    #[tokio::test]
+    async fn a_nested_instance_is_found_and_its_directory_reported() {
+        let detected = detected(&[
+            "My Pack/",
+            "My Pack/instance.cfg",
+            "My Pack/.minecraft/options.txt",
+        ])
+        .await;
         assert_eq!(provider_id(detected.kind.id()), "prism");
         assert_eq!(detected.prefix, "My Pack/");
     }
 
-    #[test]
-    fn a_marker_at_the_root_outranks_one_buried_deeper() {
-        let detected = detect(
-            &names(&["instance.cfg", "nested/deeper/instance.cfg"]),
-            "a",
-            &[],
-            |_| true,
-        )
-        .unwrap();
+    #[tokio::test]
+    async fn a_marker_at_the_root_outranks_one_buried_deeper() {
+        let detected = detected(&["instance.cfg", "nested/deeper/instance.cfg"]).await;
         assert_eq!(detected.prefix, "");
     }
 
-    #[test]
-    fn a_pack_index_the_instance_merely_ships_does_not_masquerade_as_the_pack() {
-        let detected = detect(
-            &names(&[
-                "instance.cfg",
-                "mmc-pack.json",
-                "config/modrinth.index.json",
-            ]),
-            "a",
-            &[],
-            |_| true,
-        )
-        .unwrap();
+    #[tokio::test]
+    async fn a_pack_index_the_instance_merely_ships_does_not_masquerade_as_the_pack() {
+        let detected = detected(&[
+            "instance.cfg",
+            "mmc-pack.json",
+            "config/modrinth.index.json",
+        ])
+        .await;
         assert_eq!(provider_id(detected.kind.id()), "prism");
         assert_eq!(detected.prefix, "");
     }
 
-    #[test]
-    fn a_manifest_that_is_not_a_pack_falls_through_to_the_next_candidate() {
-        let archive = names(&["manifest.json", "pack/instance.cfg"]);
-
-        let claimed = detect(&archive, "a", &[], |_| true).unwrap();
-        assert_eq!(provider_id(claimed.kind.id()), "curseforge");
-
-        let disowned = detect(&archive, "a", &[], |_| false).unwrap();
-        assert_eq!(provider_id(disowned.kind.id()), "prism");
+    #[tokio::test]
+    async fn an_archive_no_format_knows_is_unrecognised() {
+        assert!(detect(&names(&["manifest.json"]), "a", &[], false)
+            .await
+            .is_err());
     }
 
-    #[test]
-    fn the_shallowest_pack_marker_wins_whichever_format_it_is() {
-        let archive = names(&["manifest.json", "overrides/config/modrinth.index.json"]);
-        let detected = detect(&archive, "a", &[], |_| true).unwrap();
-        assert_eq!(provider_id(detected.kind.id()), "curseforge");
+    #[tokio::test]
+    async fn a_modpack_install_leaves_the_instance_formats_out() {
+        let archive = names(&["instance.cfg", "mmc-pack.json"]);
+        assert!(detect(&archive, "a", &[], true).await.is_err());
     }
 }

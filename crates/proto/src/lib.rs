@@ -16,7 +16,6 @@ pub mod entry;
 pub mod error;
 pub mod events;
 pub mod files;
-pub mod format;
 pub mod glob;
 pub mod health;
 pub mod hook;

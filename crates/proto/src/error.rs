@@ -703,6 +703,10 @@ pub enum ErrorInfo {
     JavaProviderUnknown {
         id: String,
     },
+    /// No export format is offered under `id`.
+    ExportFormatUnknown {
+        id: String,
+    },
     PluginInstallInProgress {
         id: String,
     },
@@ -1110,6 +1114,7 @@ impl fmt::Display for ErrorInfo {
                 write!(f, "java {major} is already being installed")
             }
             JavaProviderUnknown { id } => write!(f, "no java provider '{id}' is registered"),
+            ExportFormatUnknown { id } => write!(f, "no export format '{id}' is offered"),
             PluginInstallInProgress { id } => write!(f, "'{id}' is already being installed"),
             SignInRequired => write!(f, "sign in with a Microsoft account first"),
             PluginSignInRequired { plugin } => write!(f, "plugin '{plugin}' needs you to sign in"),

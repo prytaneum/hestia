@@ -5,8 +5,9 @@
 use ipc::errors::IpcError;
 use proto::minecraft::ProvisionProgress;
 use proto::transfer::{
-    ArchiveInfo, ArchiveRef, ExportDone, ExportFormat, ImportDone, InstanceExport,
-    InstanceExportParams, InstanceImport, InstanceImportInspect, InstanceImportParams,
+    ArchiveInfo, ArchiveRef, ExportDone, ExportFormat, ExportFormatInfo, ImportDone,
+    InstanceExport, InstanceExportFormats, InstanceExportParams, InstanceImport,
+    InstanceImportInspect, InstanceImportParams,
 };
 
 use crate::session::{job_id, Session};
@@ -22,6 +23,13 @@ impl Transfer<'_> {
             path: path.to_string(),
         };
         self.session.call::<InstanceImportInspect>(&params).await
+    }
+
+    /// The formats an instance can be exported as.
+    pub async fn export_formats(&self) -> Result<Vec<ExportFormatInfo>, IpcError> {
+        self.session
+            .call::<InstanceExportFormats>(&proto::Empty {})
+            .await
     }
 
     /// Write an instance out as an archive, blocking until it is written.

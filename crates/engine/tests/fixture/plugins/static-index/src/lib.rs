@@ -143,7 +143,11 @@ fn resolve_manifest(source: &str, query: PackManifestQuery) -> Result<ResolvedMo
                             url if url.starts_with("https://") => url.to_string(),
                             relative => format!("{}/{relative}", base.trim_end_matches('/')),
                         },
-                        filename: text(entry, "path"),
+                        filename: text(entry, "path")
+                            .rsplit('/')
+                            .next()
+                            .unwrap_or_default()
+                            .to_string(),
                         checksum: entry["sha1"].as_str().map(|hex| Checksum {
                             algorithm: HashAlgorithm::Sha1,
                             hex: hex.to_string(),

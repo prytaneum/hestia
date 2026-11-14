@@ -42,13 +42,15 @@ impl Jobs {
 
         self.run::<InstanceExport, _>(spec, move |engine, reporter| {
             Box::pin(async move {
-                let export = engine.export_instance(
-                    &instance_id,
-                    format,
-                    &destination,
-                    &exclude,
-                    &reporter.job(),
-                )?;
+                let export = engine
+                    .export_instance(
+                        &instance_id,
+                        &format,
+                        &destination,
+                        &exclude,
+                        &reporter.job(),
+                    )
+                    .await?;
                 Ok(ExportDone {
                     path: export.path.to_string_lossy().into_owned(),
                     size_bytes: export.size_bytes,

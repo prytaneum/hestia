@@ -250,8 +250,8 @@ fn api() -> Api {
         sync::SyncPackRemove, sync::SyncPacks, sync::SyncPackSet, sync::SyncSources,
         sync::SyncStatus,
         tasks::ServerTaskList, tasks::ServerTaskRemove, tasks::ServerTaskSave,
-        transfer::InstanceExport, transfer::InstanceExportContents, transfer::InstanceImport,
-        transfer::InstanceImportInspect,
+        transfer::InstanceExport, transfer::InstanceExportContents,
+        transfer::InstanceExportFormats, transfer::InstanceImport, transfer::InstanceImportInspect,
         update::UpdateApply, update::UpdateCheck, update::UpdateDownload,
     );
     each!(api.job:
@@ -281,9 +281,9 @@ fn api() -> Api {
         provider::content::ResolveManifest,
         provider::flavor::Info, provider::flavor::Versions, provider::flavor::LoaderVersions,
         provider::flavor::ResolveServer, provider::flavor::ResolveClient, provider::flavor::Build,
-        provider::format::Info, provider::format::Read, provider::format::Land,
-        provider::format::Write,
         provider::java::Majors, provider::java::Resolve,
+        provider::pack::Info, provider::pack::Claims, provider::pack::Read,
+        provider::pack::Write,
     );
     each!(api.hook_point:
         hook::BeforeLaunch, hook::BeforeServerStart, hook::BeforeContentInstall,

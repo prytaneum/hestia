@@ -287,6 +287,7 @@ impl From<&ErrorInfo> for GuestError {
             | PortUnavailable { .. }
             | NotRunning { .. }
             | JavaProviderUnknown { .. }
+            | ExportFormatUnknown { .. }
             | NotAModpack { .. }
             | ModpackInvalid { .. }
             | ModpackEntryMismatch { .. }

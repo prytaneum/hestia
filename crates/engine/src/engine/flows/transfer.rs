@@ -9,17 +9,16 @@
 //! Nothing here knows which instance formats exist. A format is read into a
 //! [`Blueprint`] whose [`Recipe`] is all the record needs — so adding a format
 //! is a module under `transfer/` and a line in its detection, and this file does
-//! not change. A modpack is the exception: it is handed, already open, to the
-//! modpack flow.
+//! not change. A modpack, whichever pack format read it, is the exception: it is
+//! handed, already open, to the modpack flow.
 
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use proto::content::{ContentFailure, LOCAL_SOURCE};
 use proto::error::{ErrorInfo, Field, Reason};
 use proto::modpack::ModpackTarget;
-use proto::transfer::{ArchiveEntry, ArchiveInfo, ExportFormat, ImportFormat};
+use proto::transfer::{ArchiveEntry, ArchiveInfo, ExportFormat, ExportFormatInfo, ImportFormat};
 use proto::warning::WarningInfo;
 
 use super::pick_name;
@@ -27,31 +26,17 @@ use crate::cancel::Job;
 use crate::content::pack;
 use crate::engine::Engine;
 use crate::instances::InstanceRecord;
-use crate::plugins::{CallChain, PluginFormat};
+use crate::plugins::CallChain;
 use crate::registry;
 use crate::schema;
 use crate::transfer::archive::{self, Reader};
 use crate::transfer::{
-    self, contents, hestia, Blueprint, Carried, Descriptor, Detected, Kind, Recipe, Source, Target,
+    self, contents, hestia, Blueprint, Carried, Descriptor, Detected, Exporter, Kind, Recipe,
+    Source, Target,
 };
-
-/// Who lands an instance archive's files once the instance exists.
-enum Landing {
-    Core(&'static dyn transfer::Format),
-    Plugin(Arc<PluginFormat>, proto::format::FormatBlueprint),
-}
 
 /// Where an export with no destination lands, under the data home.
 const EXPORTS: &str = "exports";
-
-fn detect(reader: &mut Reader, path: &Path, plugins: &[Arc<PluginFormat>]) -> Result<Detected> {
-    transfer::detect(
-        &reader.names(),
-        &archive::filename_of(path),
-        plugins,
-        |root| pack::is_curseforge_pack(reader, root),
-    )
-}
 
 /// Documents set aside since `mark` that belong to this entry — scoped by path
 /// so a concurrent operation's quarantine is not reported as this import's.
@@ -84,31 +69,89 @@ pub struct ImportOutcome {
 }
 
 impl Engine {
-    /// Drops every archive format `owner` registered.
-    pub fn unregister_formats(&self, owner: &str) -> usize {
-        self.formats.unregister(owner)
+    /// Drops every pack format `owner` registered.
+    pub fn unregister_packs(&self, owner: &str) -> usize {
+        self.packs.unregister(owner)
+    }
+
+    /// The formats an instance can be exported as: the launcher's own, and
+    /// every pack format a plugin contributes that can write.
+    pub fn export_formats(&self) -> Vec<ExportFormatInfo> {
+        let own = [
+            (ExportFormat::Hestia, Exporter::Hestia),
+            (ExportFormat::mrpack(), Exporter::Mrpack),
+        ]
+        .into_iter()
+        .map(|(format, exporter)| ExportFormatInfo {
+            format,
+            extension: exporter.extension().to_string(),
+        });
+        let contributed = self
+            .packs
+            .snapshot()
+            .into_iter()
+            .filter(|pack| !pack.info().extension.is_empty())
+            .map(|pack| ExportFormatInfo {
+                format: ExportFormat::Provider(proto::provider::Provider::new(
+                    pack.id(),
+                    &pack.info().name,
+                )),
+                extension: pack.info().extension.clone(),
+            });
+        own.chain(contributed).collect()
+    }
+
+    pub(super) async fn detect_archive(
+        &self,
+        reader: &Reader,
+        path: &Path,
+        packs_only: bool,
+    ) -> Result<Detected> {
+        transfer::detect(
+            &reader.names(),
+            &archive::filename_of(path),
+            &self.packs.snapshot(),
+            packs_only,
+        )
+        .await
+    }
+
+    fn exporter(&self, format: &ExportFormat) -> Result<Exporter> {
+        let unknown = |id: &str| ErrorInfo::ExportFormatUnknown { id: id.to_string() };
+        match format {
+            ExportFormat::Hestia => Ok(Exporter::Hestia),
+            ExportFormat::Provider(provider) if provider.id == pack::MRPACK => Ok(Exporter::Mrpack),
+            ExportFormat::Provider(provider) => self
+                .packs
+                .snapshot()
+                .into_iter()
+                .find(|pack| pack.id() == provider.id && !pack.info().extension.is_empty())
+                .map(Exporter::Plugin)
+                .ok_or_else(|| unknown(&provider.id).into()),
+        }
     }
 
     /// Write an instance out as an archive. `destination` may name a file, name
     /// a directory to write a generated filename into, or be empty for the data
     /// home's own `exports/`.
-    pub fn export_instance(
+    pub async fn export_instance(
         &self,
         reference: &str,
-        format: ExportFormat,
+        format: &ExportFormat,
         destination: &str,
         exclude: &[String],
         job: &Job<'_>,
     ) -> Result<ExportOutcome> {
+        let exporter = self.exporter(format)?;
         let record = self.instances.require(reference)?;
         let entry_dir = self.instances.instance_dir(&record);
         let data_dir = self.instances.data_dir(&record);
         let exports = self.data_home().join(EXPORTS);
-        let destination = export_destination(destination, &exports, &record, format)?;
+        let destination = export_destination(destination, &exports, &record, &exporter)?;
 
         tracing::info!(
             instance = %record.name,
-            format = format.as_str(),
+            format = exporter.id(),
             destination = %destination.display(),
             "exporting an instance"
         );
@@ -120,11 +163,12 @@ impl Engine {
         };
         let (written, warnings) = transfer::export(
             &source,
-            format,
+            &exporter,
             &destination,
             &self.minecraft.loaders(),
             job,
-        )?;
+        )
+        .await?;
         tracing::info!(
             path = %written.path.display(),
             files = written.files,
@@ -154,19 +198,21 @@ impl Engine {
     pub async fn inspect_archive(&self, path: &str) -> Result<ArchiveInfo> {
         let path = daemon_local_path(path)?;
         let mut reader = Reader::open(&path)?;
-        let detected = detect(&mut reader, &path, &self.formats.snapshot())?;
+        let detected = self.detect_archive(&reader, &path, false).await?;
         let format = detected.kind.id();
         let descriptor = match detected.kind {
-            Kind::Plugin(plugin) => {
-                Blueprint::from(&plugin.read(&mut reader, &detected.prefix).await?).descriptor
-            }
+            Kind::Plugin(plugin) => plugin
+                .read(&mut reader, &detected.prefix)
+                .await?
+                .pack
+                .into(),
             Kind::Instance(instance) => {
                 instance
                     .read(&mut reader, &detected.prefix, &self.minecraft.loaders())?
                     .descriptor
             }
-            Kind::Pack(pack_format) => pack::Archive::new(reader, pack_format, detected.prefix)
-                .summary(&self.minecraft.loaders())?
+            Kind::Mrpack => pack::Archive::mrpack(reader, detected.prefix)
+                .index(&self.minecraft.loaders())?
                 .into(),
         };
         let Descriptor {
@@ -196,26 +242,22 @@ impl Engine {
     ) -> Result<ImportOutcome> {
         let path = daemon_local_path(path)?;
         let mut reader = Reader::open(&path)?;
-        let detected = detect(&mut reader, &path, &self.formats.snapshot())?;
+        let detected = self.detect_archive(&reader, &path, false).await?;
         let format = detected.kind.id();
         tracing::info!(path = %path.display(), format = ?format, "importing an instance");
 
-        let (blueprint, landing) = match detected.kind {
-            Kind::Instance(instance) => (
-                instance.read(&mut reader, &detected.prefix, &self.minecraft.loaders())?,
-                Landing::Core(instance),
-            ),
-            Kind::Plugin(plugin) => {
-                let wire = plugin.read(&mut reader, &detected.prefix).await?;
-                (Blueprint::from(&wire), Landing::Plugin(plugin, wire))
-            }
-            Kind::Pack(pack_format) => {
-                let archive = pack::Archive::new(reader, pack_format, detected.prefix);
+        let instance = match detected.kind {
+            Kind::Instance(instance) => instance,
+            kind => {
+                let (archive, resolved) = self
+                    .open_pack(reader, Detected { kind, ..detected })
+                    .await?;
                 return self
-                    .import_pack(archive, &path, name, format, chain, job)
+                    .import_pack(archive, resolved, &path, name, format, chain, job)
                     .await;
             }
         };
+        let blueprint = instance.read(&mut reader, &detected.prefix, &self.minecraft.loaders())?;
         let Blueprint { descriptor, recipe } = blueprint;
         let name = pick_name(name, &descriptor.name);
 
@@ -230,14 +272,7 @@ impl Engine {
             entry_dir: &entry_dir,
             data_dir: &data_dir,
         };
-        let landed = match &landing {
-            Landing::Core(format) => format.land(&mut reader, &detected.prefix, &target, job),
-            Landing::Plugin(format, wire) => {
-                format
-                    .land(&mut reader, &detected.prefix, wire, &target, job)
-                    .await
-            }
-        };
+        let landed = instance.land(&mut reader, &detected.prefix, &target, job);
         let landed = self.unwind_on_failure(&record, landed)?;
         tracing::info!(
             id = %record.id,
@@ -328,16 +363,18 @@ impl Engine {
     /// A pack is not an instance: the modpack install creates the entry, fetches
     /// every file from its source and makes its mods updatable pool items,
     /// reading the archive already open here.
+    #[allow(clippy::too_many_arguments)]
     async fn import_pack(
         &self,
         archive: pack::Archive,
+        resolved: proto::content::ResolvedModpack,
         path: &Path,
         name: &str,
         format: ImportFormat,
         chain: &CallChain,
         job: &Job<'_>,
     ) -> Result<ImportOutcome> {
-        let fetched = self.read_pack(archive, path).await?;
+        let fetched = self.read_pack(archive, resolved, path).await?;
         let outcome = self
             .install_instance_pack(
                 fetched,
@@ -393,14 +430,15 @@ fn export_destination(
     destination: &str,
     exports: &Path,
     record: &InstanceRecord,
-    format: ExportFormat,
+    exporter: &Exporter,
 ) -> Result<PathBuf> {
+    let extension = exporter.extension();
     if destination.trim().is_empty() {
-        return Ok(hestia::default_destination(exports, record, format));
+        return Ok(hestia::default_destination(exports, record, extension));
     }
     let path = daemon_local_path(destination)?;
     match path.is_dir() {
-        true => Ok(hestia::default_destination(&path, record, format)),
+        true => Ok(hestia::default_destination(&path, record, extension)),
         false => Ok(path),
     }
 }
@@ -439,7 +477,7 @@ mod tests {
     #[test]
     fn an_empty_destination_lands_in_the_data_homes_exports() {
         let exports = Path::new("/home/u/.hestia/exports");
-        let path = export_destination("", exports, &record("Cozy"), ExportFormat::Hestia).unwrap();
+        let path = export_destination("", exports, &record("Cozy"), &Exporter::Hestia).unwrap();
         assert!(path.starts_with(exports));
         assert_eq!(path.extension().unwrap(), "hestia");
         assert!(path.to_string_lossy().contains("cozy"));
@@ -451,7 +489,7 @@ mod tests {
             "./cozy.hestia",
             Path::new("/exports"),
             &record("Cozy"),
-            ExportFormat::Hestia,
+            &Exporter::Hestia,
         )
         .unwrap_err();
         assert!(error.to_string().contains("absolute"), "{error}");

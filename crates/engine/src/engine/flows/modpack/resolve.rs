@@ -3,6 +3,7 @@
 
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use anyhow::{bail, Result};
 use proto::content::{
@@ -11,6 +12,7 @@ use proto::content::{
 use proto::error::ErrorInfo;
 use proto::minecraft::{Artifact, ProvisionPhase};
 use proto::modpack::{InstalledModpack, ModpackMove, ModpackRef};
+use proto::provider::pack::PackRead;
 use uuid::Uuid;
 
 use super::super::content::entry::{content_target, EntryContent};
@@ -20,6 +22,9 @@ use crate::cancel::Job;
 use crate::content::{install, pack, LocalFile};
 use crate::engine::Engine;
 use crate::minecraft::{materialize, Side};
+use crate::plugins::PluginPack;
+use crate::transfer::archive::Reader;
+use crate::transfer::{Detected, Kind};
 
 const STAGING: &str = "tmp";
 
@@ -161,7 +166,7 @@ impl Engine {
                 source: version.source.clone(),
             });
         }
-        let mut archive = self
+        let (archive, mut resolved) = self
             .download_pack(&version.source, artifact, job)
             .await
             .map_err(|e| match e.downcast_ref::<ErrorInfo>() {
@@ -171,7 +176,6 @@ impl Engine {
                 .into(),
                 _ => e,
             })?;
-        let mut resolved = self.pack_manifest(&mut archive).await?;
         resolved.source = version.source;
         resolved.project_id = version.project_id;
         resolved.version_id = version.id;
@@ -184,7 +188,7 @@ impl Engine {
         source: &str,
         artifact: &Artifact,
         job: &Job<'_>,
-    ) -> Result<pack::Archive> {
+    ) -> Result<(pack::Archive, ResolvedModpack)> {
         let staged = self
             .pack_staging()
             .join(format!("{}.pack", Uuid::now_v7().simple()));
@@ -199,41 +203,110 @@ impl Engine {
             job,
         )
         .await;
-        let archive = downloaded.and_then(|()| pack::Archive::open(&staged));
+        let opened = match downloaded {
+            Ok(()) => self.open_pack_file(&staged).await,
+            Err(e) => Err(e),
+        };
         if let Err(e) = std::fs::remove_file(&staged) {
             tracing::debug!(path = %staged.display(), error = %e, "no modpack staging file to remove");
         }
-        archive
+        opened
     }
 
     pub(crate) fn pack_staging(&self) -> PathBuf {
         self.data_home().join(STAGING)
     }
 
-    async fn pack_manifest(&self, archive: &mut pack::Archive) -> Result<ResolvedModpack> {
-        Ok(match archive.platform_manifest()? {
-            Some((source, manifest)) => self.content.resolve_manifest(source, &manifest).await?,
-            None => {
-                let mut pack = ResolvedModpack {
+    /// Opens a zip that is a pack and reads what it holds: the launcher's own
+    /// `.mrpack`, or whichever pack format a plugin contributes.
+    pub(crate) async fn open_pack_file(
+        &self,
+        path: &Path,
+    ) -> Result<(pack::Archive, ResolvedModpack)> {
+        let reader = Reader::open(path)?;
+        let detected = self.detect_archive(&reader, path, true).await?;
+        self.open_pack(reader, detected).await
+    }
+
+    /// Reads a detected pack archive. A plugin's pack names its files itself,
+    /// or hands a manifest to the content source that owns it, and the files
+    /// are fetched under the policy of whichever vetted them.
+    pub(crate) async fn open_pack(
+        &self,
+        mut reader: Reader,
+        detected: Detected,
+    ) -> Result<(pack::Archive, ResolvedModpack)> {
+        match detected.kind {
+            Kind::Mrpack => {
+                let mut archive = pack::Archive::mrpack(reader, detected.prefix);
+                let mut resolved = ResolvedModpack {
                     source: LOCAL_SOURCE.to_string(),
                     ..archive.index(&self.minecraft.loaders())?
                 };
-                self.content.recognise_files(&mut pack.files).await;
-                pack
+                self.content.recognise_files(&mut resolved.files).await;
+                Ok((archive, resolved))
             }
-        })
+            Kind::Plugin(plugin) => {
+                let read = plugin.read(&mut reader, &detected.prefix).await?;
+                let trees = read.overrides.clone();
+                let (resolved, policy) = self.resolve_read(&plugin, read).await?;
+                Ok((
+                    pack::Archive::contributed(reader, detected.prefix, trees, policy),
+                    resolved,
+                ))
+            }
+            Kind::Instance(_) => Err(ErrorInfo::ArchiveUnrecognised {
+                filename: String::new(),
+            }
+            .into()),
+        }
+    }
+
+    async fn resolve_read(
+        &self,
+        plugin: &Arc<PluginPack>,
+        read: PackRead,
+    ) -> Result<(ResolvedModpack, Option<Arc<crate::plugins::vouch::Policy>>)> {
+        let Some(delegate) = read.resolve else {
+            let mut resolved = ResolvedModpack {
+                source: LOCAL_SOURCE.to_string(),
+                ..read.pack
+            };
+            self.content.recognise_files(&mut resolved.files).await;
+            return Ok((resolved, Some(plugin.policy())));
+        };
+        let theirs = self
+            .content
+            .resolve_manifest(&delegate.source, &delegate.manifest)
+            .await?;
+        let policy = self.content.download_policy(&theirs.source)?;
+        let own = read.pack;
+        let resolved = ResolvedModpack {
+            source: theirs.source,
+            project_id: theirs.project_id,
+            version_id: theirs.version_id,
+            version_number: first_filled(own.version_number, theirs.version_number),
+            name: first_filled(own.name, theirs.name),
+            summary: first_filled(own.summary, theirs.summary),
+            game_version: first_filled(own.game_version, theirs.game_version),
+            loader: own.loader.or(theirs.loader),
+            loader_version: own.loader_version.or(theirs.loader_version),
+            files: theirs.files,
+        };
+        Ok((resolved, policy))
     }
 
     pub(super) async fn read_pack_file(&self, path: &Path) -> Result<FetchedPack> {
-        self.read_pack(pack::Archive::open(path)?, path).await
+        let (archive, resolved) = self.open_pack_file(path).await?;
+        self.read_pack(archive, resolved, path).await
     }
 
     pub(crate) async fn read_pack(
         &self,
-        mut archive: pack::Archive,
+        archive: pack::Archive,
+        mut resolved: ResolvedModpack,
         path: &Path,
     ) -> Result<FetchedPack> {
-        let mut resolved = self.pack_manifest(&mut archive).await?;
         let project = self.published_pack(path, &mut resolved).await;
         if resolved.name.is_empty() {
             resolved.name = match &project {
@@ -466,6 +539,13 @@ impl Engine {
                 }
             }
         }
+    }
+}
+
+fn first_filled(own: String, theirs: String) -> String {
+    match own.is_empty() {
+        true => theirs,
+        false => own,
     }
 }
 

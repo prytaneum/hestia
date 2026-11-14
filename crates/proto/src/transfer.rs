@@ -16,7 +16,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::content::ContentFailure;
-use crate::contract::Contract;
+use crate::contract::{Contract, Empty};
 use crate::instance::InstanceInfo;
 use crate::job::{Job, JobStarted};
 use crate::minecraft::ProvisionProgress;
@@ -26,40 +26,41 @@ use crate::warning::WarningInfo;
 
 /// What an export writes. `Hestia` is hestia's own archive — the instance's
 /// record, files and local content, with tracked content downloaded again on
-/// import; `Mrpack` is the one other launchers read, and carries only what can
-/// be expressed as a Modrinth pack.
-#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Default)]
+/// import; a `Provider` is a format other launchers read — the Modrinth pack
+/// the launcher writes itself, or one a pack provider contributes — and carries
+/// only what that format can express. A request names a provider by its `id`.
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Default)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
 #[serde(rename_all = "snake_case")]
 pub enum ExportFormat {
     #[default]
     Hestia,
-    Mrpack,
+    Provider(Provider),
 }
 
 impl ExportFormat {
-    /// The file extension an export of this format is given.
-    pub fn extension(self) -> &'static str {
-        match self {
-            ExportFormat::Hestia => "hestia",
-            ExportFormat::Mrpack => "mrpack",
-        }
+    /// The id of the Modrinth pack format, which the launcher writes itself.
+    pub const MRPACK: &'static str = "mrpack";
+
+    pub fn mrpack() -> Self {
+        ExportFormat::Provider(Provider::new(Self::MRPACK, "Modrinth pack"))
     }
 
-    pub fn as_str(self) -> &'static str {
+    pub fn id(&self) -> &str {
         match self {
             ExportFormat::Hestia => "hestia",
-            ExportFormat::Mrpack => "mrpack",
+            ExportFormat::Provider(provider) => &provider.id,
         }
     }
+}
 
-    pub fn parse(value: &str) -> Option<ExportFormat> {
-        match value {
-            "hestia" => Some(ExportFormat::Hestia),
-            "mrpack" | "modrinth" => Some(ExportFormat::Mrpack),
-            _ => None,
-        }
-    }
+/// An export format the daemon offers, and the extension its archive is given.
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Default)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
+#[serde(default, rename_all = "camelCase")]
+pub struct ExportFormatInfo {
+    pub format: ExportFormat,
+    pub extension: String,
 }
 
 /// What an archive turned out to be, recognised from a marker file inside it
@@ -156,6 +157,14 @@ pub struct ArchiveEntry {
     /// A tracked item the archive names instead of carrying: it adds nothing
     /// to `size_bytes` and is downloaded again on import.
     pub referenced: bool,
+}
+
+pub struct InstanceExportFormats;
+impl Contract for InstanceExportFormats {
+    const CHANNEL: &'static str = "instance.export.formats";
+    const PLUGIN: Option<Permission> = Some(Permission::EntryRead);
+    type Params = Empty;
+    type Result = Vec<ExportFormatInfo>;
 }
 
 /// A job. A cancel discards the archive being written — an export is written

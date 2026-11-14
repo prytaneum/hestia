@@ -17,7 +17,7 @@ use crate::plugins::vouch::Policy;
 
 /// A file to fetch to `target`; `label` and `source` name it if its author has
 /// opted out of distribution. `policy` is the one a plugin-named file is
-/// fetched under, `None` for a file the launcher or a pack's own index names.
+/// fetched under, `None` for a file the launcher or a `.mrpack`'s own index names.
 pub(super) struct Download {
     pub artifact: Artifact,
     pub target: PathBuf,

@@ -17,7 +17,7 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
 use proto::error::{ArchiveFault, ArchiveFormat, ErrorInfo};
-use proto::transfer::{ExportFormat, ImportFormat};
+use proto::transfer::ImportFormat;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -140,14 +140,10 @@ fn invalid(reason: ArchiveFault) -> ErrorInfo {
 
 /// The path an export writes to when the caller named none: the instance's
 /// slug and the time it was taken, so repeated exports never collide.
-pub(crate) fn default_destination(
-    dir: &Path,
-    record: &InstanceRecord,
-    format: ExportFormat,
-) -> PathBuf {
+pub(crate) fn default_destination(dir: &Path, record: &InstanceRecord, extension: &str) -> PathBuf {
     let slug = registry::dir_name(&record.id, &record.name);
     let stamp = registry::utc_stamp(common::now_unix());
-    dir.join(format!("{slug}-{stamp}.{}", format.extension()))
+    dir.join(format!("{slug}-{stamp}.{extension}"))
 }
 
 pub(crate) fn export(source: &Source<'_>, destination: &Path, job: &Job<'_>) -> Result<Written> {

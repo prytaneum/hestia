@@ -550,17 +550,13 @@ impl CurseForge {
     }
 }
 
-pub(crate) fn is_pack_manifest(manifest: &Value) -> bool {
-    str_field(manifest, "manifestType") == PACK_MANIFEST
-}
-
 /// Parse a CurseForge `manifest.json` (everything but its file list, which
 /// needs the API to resolve). Rejects a manifest that is not a version-1
 /// Minecraft modpack.
 pub(crate) fn parse_manifest(manifest: &Value) -> Result<ResolvedModpack> {
     let kind = str_field(manifest, "manifestType");
     let version = u64_field(manifest, "manifestVersion");
-    if !is_pack_manifest(manifest) {
+    if str_field(manifest, "manifestType") != PACK_MANIFEST {
         tracing::warn!(kind, "unsupported modpack manifest type");
         return Err(pack::invalid(ArchiveFault::ManifestType));
     }

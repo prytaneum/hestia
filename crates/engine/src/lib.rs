@@ -75,7 +75,7 @@ pub use plugins::{
     CallChain, CallContext, CallError, ChainError, CommandRun, Contributions, GuestError, Hook,
     HookOutcome, Hooks, HostCalls, Inspection, LaunchPatch, Listings, LoadError, LoadedPlugin,
     ManagedJava, MessagesError, Mount, Origin, Participant, PluginContentProvider,
-    PluginFlavorProvider, PluginFormat, PluginJavaProvider, PluginPackage, PluginRecord,
+    PluginFlavorProvider, PluginJavaProvider, PluginPack, PluginPackage, PluginRecord,
     PluginRuntime, PluginSettings, PluginStats, Plugins, Pushed, Remote, RepoError, Resolver,
     Roster, Seeded, SettingsError, Staged, UpdateOutcome, UpdateRequest, CANCEL_GRACE,
     COMMAND_TIMEOUT, EVENT_TIMEOUT, HOOK_TIMEOUT, MAX_ASSET_BYTES, MAX_CHAIN_DEPTH,

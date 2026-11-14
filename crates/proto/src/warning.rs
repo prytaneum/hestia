@@ -113,6 +113,9 @@ pub enum WarningInfo {
     /// The index listed other permissions for the plugin than its package asks
     /// for. The install used the package's own, which the user approved.
     PluginPermissionsDisagree { plugin: String },
+    /// A pack format's export could not carry something faithfully. `detail`
+    /// is the plugin's own operational English, shown as secondary text.
+    PackExportWarned { pack: String, detail: String },
     /// An update failed to load, so the previous version was put back.
     /// `version` is the one that failed.
     PluginUpdateRolledBack {
@@ -191,6 +194,9 @@ impl WarningInfo {
                 "check the permissions shown at install; the repository's listing was wrong or \
                  changed"
                     .to_string()
+            }
+            PackExportWarned { .. } => {
+                "the archive was written; check what it left out before sharing it".to_string()
             }
             PluginUpdateRolledBack { id, .. } => {
                 format!("`{id}` is still at its old version; report the problem to its author")
@@ -286,6 +292,9 @@ impl fmt::Display for WarningInfo {
                 f,
                 "the repository listed other permissions for '{plugin}' than its package asks for"
             ),
+            PackExportWarned { pack, detail } => {
+                write!(f, "the {pack} export is not exact: {detail}")
+            }
             PluginUpdateRolledBack { id, version, error } => write!(
                 f,
                 "the update of '{id}' to {version} failed to load and was rolled back: {error}"

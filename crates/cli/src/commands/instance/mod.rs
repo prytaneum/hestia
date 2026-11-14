@@ -97,7 +97,7 @@ pub enum InstanceCmd {
         )]
         modpack: Option<String>,
     },
-    /// Import an instance from an archive (hestia, .mrpack, CurseForge, or Prism/MultiMC)
+    /// Import an instance from an archive (hestia, .mrpack, Prism/MultiMC, or a format a plugin adds)
     Import {
         /// Path to the archive; its format is detected from what is inside it
         path: PathBuf,
@@ -272,7 +272,7 @@ enum InstanceAction {
         #[arg(
             short,
             long,
-            help = "Archive format: hestia (hestia's own) or mrpack (for other launchers)"
+            help = "Archive format: hestia (hestia's own), mrpack (for other launchers) or one a plugin adds"
         )]
         format: Option<String>,
         #[arg(

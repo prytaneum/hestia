@@ -1,0 +1,91 @@
+//! Exporting an instance through a pack format a plugin contributes. The
+//! guest is handed the instance's description, the game directory's files and
+//! the content pool, and answers the manifests to store and which of those
+//! files to carry; the host vets the answer and does the writing, so a plugin
+//! never opens the instance or the archive.
+
+use std::collections::{HashMap, HashSet};
+use std::path::{Path, PathBuf};
+
+use anyhow::Result;
+use proto::provider::pack::{PackInstance, PoolItem, WriteQuery};
+use proto::warning::WarningInfo;
+
+use super::archive::{self, Member, Writer, Written};
+use super::exclude::Rules;
+use super::{loader_of, pool, Source};
+use crate::cancel::Job;
+use crate::content::install;
+use crate::plugins::PluginPack;
+
+pub(crate) async fn export(
+    source: &Source<'_>,
+    pack: &PluginPack,
+    destination: &Path,
+    job: &Job<'_>,
+) -> Result<(Written, Vec<WarningInfo>)> {
+    let rules = Rules::new(source.entry_dir, source.data_dir, source.exclude);
+    let pooled = pool::exported(source.entry_dir, &rules)?;
+    let in_pool: HashSet<&str> = pooled.iter().map(|item| item.path.as_str()).collect();
+
+    let mut sources: HashMap<String, PathBuf> = HashMap::new();
+    for member in archive::plan(source.data_dir, "", &|relative| {
+        rules.keeps_in_data(relative)
+    }) {
+        if !in_pool.contains(member.name.as_str()) {
+            sources.insert(member.name, member.source);
+        }
+    }
+    let mut files: Vec<String> = sources.keys().cloned().collect();
+    files.sort();
+
+    let profile = &source.record.profile;
+    let query = WriteQuery {
+        instance: PackInstance {
+            name: source.record.name.clone(),
+            game_version: profile.game_version.clone(),
+            loader: loader_of(profile),
+            loader_version: profile.loader_version.clone().unwrap_or_default(),
+        },
+        files,
+        content: pooled
+            .iter()
+            .map(|item| PoolItem {
+                path: item.path.clone(),
+                referenceable: install::referenceable(&item.item),
+                item: item.item.clone(),
+            })
+            .collect(),
+    };
+    let written = pack.write(&query).await?;
+
+    sources.extend(pooled.into_iter().map(|item| (item.path, item.managed)));
+    let copies: Vec<Member> = written
+        .copies
+        .iter()
+        .filter_map(|copy| {
+            Some(Member {
+                name: copy.archive_path.clone(),
+                source: sources.get(&copy.entry_path)?.clone(),
+            })
+        })
+        .collect();
+
+    let mut writer = Writer::create(destination)?;
+    for member in &written.members {
+        writer.add_bytes(&member.path, member.text.as_bytes())?;
+    }
+    writer.add_all(&copies, job)?;
+    let archive = writer.finish()?;
+    tracing::info!(pack = %pack.id(), files = archive.files, "pack exported");
+
+    let warnings = written
+        .warnings
+        .into_iter()
+        .map(|detail| WarningInfo::PackExportWarned {
+            pack: pack.info().name.clone(),
+            detail,
+        })
+        .collect();
+    Ok((archive, warnings))
+}

@@ -270,15 +270,6 @@ impl Reader {
         Ok(bytes)
     }
 
-    /// Writes one member to `target`; the caller has vetted both names.
-    pub(crate) fn copy_member(&mut self, name: &str, target: &Path) -> Result<()> {
-        let index = self
-            .zip
-            .index_for_name(name)
-            .with_context(|| format!("'{name}' is missing from the archive"))?;
-        self.write_entry(index, target, false).map(|_| ())
-    }
-
     pub(crate) fn read_text(&mut self, name: &str) -> Result<String> {
         let bytes = self.read_bytes(name)?;
         String::from_utf8(bytes).with_context(|| format!("'{name}' is not valid UTF-8"))

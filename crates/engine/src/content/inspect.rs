@@ -21,7 +21,7 @@ const MOD_MANIFESTS: [&str; 5] = [
 /// un-installable as single-file content. An unrecognised but valid zip is
 /// `None`.
 pub(crate) fn classify(path: &Path) -> Result<Option<ContentKind>> {
-    let mut reader = Reader::open(path).with_context(|| {
+    let reader = Reader::open(path).with_context(|| {
         format!(
             "'{}' is not a readable .jar or .zip archive",
             file_name(path)
@@ -31,7 +31,7 @@ pub(crate) fn classify(path: &Path) -> Result<Option<ContentKind>> {
     let has = |entry: &str| names.iter().any(|n| n == entry);
     let under = |dir: &str| names.iter().any(|n| n.starts_with(dir));
 
-    if pack::locate(&names, |root| pack::is_curseforge_pack(&mut reader, root)).is_some() {
+    if pack::locate(&names).is_some() {
         bail!(
             "'{}' is a modpack; install it when creating an instance, not as a single file",
             file_name(path)
@@ -135,19 +135,6 @@ mod tests {
 
         let plain = archive("plain-manifest", &["manifest.json"]);
         assert!(matches!(classify(plain.path()), Ok(None)));
-
-        let curse = tempfile::Builder::new()
-            .prefix("hestia-inspect-curse-")
-            .suffix(".zip")
-            .tempfile()
-            .expect("temp file");
-        let mut zip = ZipWriter::new(File::create(curse.path()).unwrap());
-        zip.start_file("manifest.json", SimpleFileOptions::default())
-            .unwrap();
-        zip.write_all(br#"{"manifestType":"minecraftModpack"}"#)
-            .unwrap();
-        zip.finish().unwrap();
-        assert!(classify(curse.path()).is_err());
 
         let junk = tempfile::Builder::new()
             .prefix("hestia-inspect-junk-")

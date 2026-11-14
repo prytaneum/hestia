@@ -8,7 +8,8 @@
 use proto::error::{ErrorInfo, Field};
 use proto::job::JobStarted;
 use proto::transfer::{
-    InstanceExport, InstanceExportContents, InstanceImport, InstanceImportInspect,
+    InstanceExport, InstanceExportContents, InstanceExportFormats, InstanceImport,
+    InstanceImportInspect,
 };
 
 use super::guards::{instance_for, instance_held, Hold, Intent};
@@ -29,6 +30,10 @@ pub(super) fn register(on: &mut Channels<'_>) {
             .jobs()
             .start_export(order, claim, ctx.chain.clone());
         Ok(JobStarted { id })
+    });
+
+    on.handle::<InstanceExportFormats, _, _>(|_, ctx| async move {
+        Ok(ctx.runtime.engine().export_formats())
     });
 
     on.handle::<InstanceExportContents, _, _>(|p, ctx| async move {

@@ -505,23 +505,23 @@ mod manifest {
     }
 
     #[test]
-    fn a_format_needs_format_provide_and_no_hosts() {
+    fn a_pack_needs_pack_provide_and_no_hosts() {
         let mut manifest = valid();
         manifest.contributes.providers.push(ProviderContribution {
-            kind: "format".into(),
-            id: "prism".into(),
+            kind: "pack".into(),
+            id: "cf".into(),
         });
         manifest.permissions = granting(&[Permission::ContentRead]);
         assert_eq!(
             manifest.verdict(),
             Err(ManifestError::ProviderPermissionMissing {
-                provider: "prism".into(),
-                permission: Permission::FormatProvide
+                provider: "cf".into(),
+                permission: Permission::PackProvide
             })
         );
-        manifest.permissions = granting(&[Permission::FormatProvide]);
+        manifest.permissions = granting(&[Permission::PackProvide]);
         assert_eq!(manifest.verdict(), Ok(()));
-        assert_eq!(Permission::FormatProvide.tier(), Tier::Unrestricted);
+        assert_eq!(Permission::PackProvide.tier(), Tier::Unrestricted);
     }
 
     #[test]

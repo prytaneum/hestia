@@ -4,7 +4,7 @@
 
 mod content_source;
 mod flavor;
-mod format;
+mod pack;
 mod plugin_update;
 mod shadow;
 
@@ -917,11 +917,12 @@ async fn an_imported_profile_is_resolved_for_the_host_not_carried_from_the_expor
     let exported = engine
         .export_instance(
             &id,
-            ExportFormat::Hestia,
+            &ExportFormat::Hestia,
             &drops.path().to_string_lossy(),
             &[],
             &job(&cancel, &report),
         )
+        .await
         .expect("the instance exports");
 
     let imported = engine
@@ -982,7 +983,7 @@ async fn with_referenceable_mod(
     (engine, id)
 }
 
-fn export_archive(
+async fn export_archive(
     engine: &engine::Engine,
     id: &str,
     drops: &std::path::Path,
@@ -991,11 +992,12 @@ fn export_archive(
     engine
         .export_instance(
             id,
-            proto::transfer::ExportFormat::Hestia,
+            &proto::transfer::ExportFormat::Hestia,
             &drops.to_string_lossy(),
             &[],
             &job(&cancel, &report),
         )
+        .await
         .expect("the instance exports")
         .path
 }
@@ -1043,7 +1045,7 @@ async fn a_referenceable_item_missing_from_the_archive_is_downloaded_on_import()
     let drops = tempfile::tempdir().expect("temp drops");
     let files = fixture::Files::serve().await;
     let (engine, id) = with_referenceable_mod(home.path(), &files).await;
-    let archive = export_archive(&engine, &id, drops.path());
+    let archive = export_archive(&engine, &id, drops.path()).await;
     let (cancel, report) = (Cancel::new(), |_: &ProvisionProgress| {});
 
     let outcome = engine
@@ -1073,7 +1075,7 @@ async fn a_download_that_does_not_match_its_hash_fails_the_import_and_leaves_no_
     let drops = tempfile::tempdir().expect("temp drops");
     let files = fixture::Files::serve().await;
     let (engine, id) = with_referenceable_mod(home.path(), &files).await;
-    let archive = export_archive(&engine, &id, drops.path());
+    let archive = export_archive(&engine, &id, drops.path()).await;
     let index = archive_member(&archive, "content.json").replace(BODY_SHA1, &"0".repeat(40));
     let tampered = archive_with(&archive, "content.json", Some(index.as_bytes()));
     let (cancel, report) = (Cancel::new(), |_: &ProvisionProgress| {});
@@ -1107,7 +1109,7 @@ async fn an_item_with_neither_bytes_nor_a_download_is_dropped_and_reported() {
     let drops = tempfile::tempdir().expect("temp drops");
     let (engine, id) = with_local_mod(home.path(), drops.path(), "homemade-1.0.jar").await;
     let archive = archive_with(
-        &export_archive(&engine, &id, drops.path()),
+        &export_archive(&engine, &id, drops.path()).await,
         "mods/homemade-1.0.jar",
         None,
     );

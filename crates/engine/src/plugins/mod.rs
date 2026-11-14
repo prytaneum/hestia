@@ -69,7 +69,7 @@ pub use program::{
 };
 pub use providers::{
     build_task_id, unregister as unregister_providers, Contributions, PluginContentProvider,
-    PluginFlavorProvider, PluginFormat, PluginJavaProvider,
+    PluginFlavorProvider, PluginJavaProvider, PluginPack,
 };
 pub use remote::{Origin, Remote, Staged};
 pub use repos::{ensure_fresh, key_id_of, revocation, verify_build, verify_index, RepoError};

@@ -1,11 +1,11 @@
-id = "replay-format"
+id = "replay-pack"
 version = "0.1.0"
 api = "^1.0.0"
 wasm = "plugin.wasm"
 
 [permissions]
-"format:provide" = {}
+"pack:provide" = {}
 
 [[contributes.providers]]
-kind = "format"
+kind = "pack"
 id = "replay"

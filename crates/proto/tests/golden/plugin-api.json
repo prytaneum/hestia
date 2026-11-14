@@ -14,11 +14,6 @@
       "payload": "AccountSignedOutEvent",
       "permission": "account:read"
     },
-    "app.info": {
-      "params": "Empty",
-      "permission": "ambient",
-      "result": "AppInfoResult"
-    },
     "changed": {
       "payload": "ChangedEvent",
       "permission": "entry:read"
@@ -144,16 +139,6 @@
       "permission": "entry:read",
       "result": "Array<GameVersion>"
     },
-    "health.ping": {
-      "params": "Empty",
-      "permission": "ambient",
-      "result": "PingResult"
-    },
-    "host.info": {
-      "params": "Empty",
-      "permission": "ambient",
-      "result": "HostInfoResult"
-    },
     "instance.create": {
       "params": "InstanceCreateParams",
       "permission": "entry:write",
@@ -170,6 +155,11 @@
       "params": "InstanceRef",
       "permission": "entry:read",
       "result": "Array<ArchiveEntry>"
+    },
+    "instance.export.formats": {
+      "params": "Empty",
+      "permission": "entry:read",
+      "result": "Array<ExportFormatInfo>"
     },
     "instance.import": {
       "done": "ImportDone",
@@ -309,11 +299,6 @@
     "net.state": {
       "payload": "NetworkStatus",
       "permission": "network:connect"
-    },
-    "net.status": {
-      "params": "Empty",
-      "permission": "ambient",
-      "result": "NetworkStatus"
     },
     "process.exit": {
       "payload": "ProcessExitEvent",
@@ -592,25 +577,24 @@
     "provider content.search {\"args\":\"SearchQuery\",\"reply\":\"SearchResult\"}",
     "provider content.versions {\"args\":\"VersionQuery\",\"reply\":\"Array<ContentVersion>\"}",
     "provider content.versions-by-id {\"args\":\"IdQuery\",\"reply\":\"Array<ContentVersion>\"}",
-    "provider flavor.build {\"args\":\"BuildQuery\",\"reply\":\"BuildPlan\"}",
+    "provider flavor.build {\"args\":\"BuildQuery\",\"reply\":\"BuildDone\"}",
     "provider flavor.info {\"args\":\"Empty\",\"reply\":\"FlavorDescription\"}",
     "provider flavor.loader-versions {\"args\":\"GameQuery\",\"reply\":\"Array<string>\"}",
     "provider flavor.resolve-client {\"args\":\"ResolveQuery\",\"reply\":\"ClientResolution\"}",
     "provider flavor.resolve-server {\"args\":\"ResolveQuery\",\"reply\":\"ServerResolution\"}",
     "provider flavor.versions {\"args\":\"Empty\",\"reply\":\"Array<GameVersion>\"}",
-    "provider format.info {\"args\":\"Empty\",\"reply\":\"FormatInfo\"}",
-    "provider format.land {\"args\":\"BlueprintQuery\",\"reply\":\"Array<FormatCopy>\"}",
-    "provider format.read {\"args\":\"ManifestQuery\",\"reply\":\"FormatBlueprint\"}",
-    "provider format.write {\"args\":\"BlueprintQuery\",\"reply\":\"FormatWritten\"}",
     "provider java.majors {\"args\":\"Empty\",\"reply\":\"Array<JavaRelease>\"}",
-    "provider java.resolve {\"args\":\"TargetQuery\",\"reply\":\"JavaBuild | null\"}"
+    "provider java.resolve {\"args\":\"TargetQuery\",\"reply\":\"JavaBuild | null\"}",
+    "provider pack.claims {\"args\":\"ClaimQuery\",\"reply\":\"Claim\"}",
+    "provider pack.info {\"args\":\"Empty\",\"reply\":\"PackInfo\"}",
+    "provider pack.read {\"args\":\"ReadQuery\",\"reply\":\"PackRead\"}",
+    "provider pack.write {\"args\":\"WriteQuery\",\"reply\":\"PackWritten\"}"
   ],
   "types": {
     "Account": "type Account = { uuid: string, name: string, needsReauth: boolean, };",
     "AccountListResult": "type AccountListResult = { accounts: Array<Account>, defaultUuid: string, };",
     "AccountSignedInEvent": "type AccountSignedInEvent = { uuid: string, name: string, };",
     "AccountSignedOutEvent": "type AccountSignedOutEvent = { uuid: string, name: string, };",
-    "AppInfoResult": "type AppInfoResult = { name: string, version: string, id: string, vendor: string, channel: string, };",
     "ArchiveEntry": "type ArchiveEntry = { path: string, name: string, directory: boolean, sizeBytes: bigint, referenced: boolean, };",
     "ArchiveFault": "type ArchiveFault = \"not_an_archive\" | \"manifest_missing\" | \"manifest_malformed\" | \"unsafe_path\" | \"format_version\" | \"manifest_type\" | \"no_game_version\" | \"no_components\" | \"file_unpublished\";",
     "ArchiveFormat": "type ArchiveFormat = \"zip\" | \"hestia\" | \"backup\" | { \"provider\": Provider };",
@@ -621,15 +605,14 @@
     "BackupDone": "type BackupDone = { backup: BackupInfo, };",
     "BackupInfo": "type BackupInfo = { id: string, kind: BackupKind, createdUnix: bigint, size: bigint, };",
     "BackupKind": "type BackupKind = \"manual\" | \"scheduled\" | \"update\";",
-    "BlueprintQuery": "type BlueprintQuery = { blueprint: FormatBlueprint, files: Array<string>, };",
-    "BuildFetch": "type BuildFetch = { url: string, checksum?: Checksum, dest: string, };",
+    "BuildDone": "type BuildDone = { outputs: Array<BuildOutput>, };",
     "BuildOutput": "type BuildOutput = { path: string, target: string, destination?: Destination, };",
-    "BuildPlan": "type BuildPlan = { fetch: Array<BuildFetch>, steps: Array<BuildStep>, outputs: Array<BuildOutput>, };",
     "BuildQuery": "type BuildQuery = { side: BuildSide, version: string, loaderVersion?: string, vanillaJar?: string, target: Target, };",
     "BuildSide": "type BuildSide = \"server\" | \"client\";",
-    "BuildStep": "type BuildStep = { program: string, args: Array<string>, env: { [key in string]: string }, cwd?: string, javaMajor?: number, creates: Array<string>, narrate?: LineFilter, };",
     "ChangedEvent": "type ChangedEvent = { scope: Scope, ids: Array<string>, };",
     "Checksum": "type Checksum = { algorithm: HashAlgorithm, hex: string, };",
+    "Claim": "type Claim = { claimed: boolean, };",
+    "ClaimQuery": "type ClaimQuery = { files: Array<string>, };",
     "ClientAddition": "type ClientAddition = { loaderVersion?: string, libraries: Array<LibrarySpec>, mainClass: string, jvmArgs: Array<Argument>, gameArgs: Array<Argument>, };",
     "ClientResolution": "type ClientResolution = { \"full\": InstanceProfile } | { \"onVanilla\": ClientAddition };",
     "ConfigEntry": "type ConfigEntry = { key: string, value: string, };",
@@ -676,9 +659,10 @@
     "EntryStopParams": "type EntryStopParams = { target: EntryTarget, session?: string, };",
     "EntryTarget": "type EntryTarget = { kind: EntryKind, entry: string, };",
     "EntryVersionsParams": "type EntryVersionsParams = { kind: EntryKind, flavor: string, };",
-    "ErrorInfo": "type ErrorInfo = { \"kind\": \"field_required\", field: Field, } | { \"kind\": \"fields_required\", fields: Array<Field>, } | { \"kind\": \"invalid_value\", field: Field, reason: Reason, } | { \"kind\": \"mutually_exclusive\", options: Array<Field>, } | { \"kind\": \"nothing_to_do\", what: Task, } | { \"kind\": \"eula_required\" } | { \"kind\": \"unsupported_operation\", reason: Unsupported, } | { \"kind\": \"content_kind_rejected\", entry: EntryKind, flavor: string, requested: ContentKind, accepts: Array<ContentKind>, } | { \"kind\": \"missing_requirement\", flavor: string, name: string, url: string, } | { \"kind\": \"texture_not_png\" } | { \"kind\": \"texture_size_unsupported\", width: number, height: number, } | { \"kind\": \"icon_not_an_image\" } | { \"kind\": \"icon_too_large\", megabytes: bigint, } | { \"kind\": \"quick_play_unsupported\", version: string, } | { \"kind\": \"entry_not_found\", entry: EntryKind, reference: string, } | { \"kind\": \"process_not_found\", id: string, } | { \"kind\": \"backup_not_found\", reference: string, } | { \"kind\": \"content_not_found\", reference: string, } | { \"kind\": \"skin_not_found\", key: string, } | { \"kind\": \"world_not_found\", world: string, } | { \"kind\": \"server_list_entry_not_found\", reference: string, } | { \"kind\": \"account_not_found\", reference: string, } | { \"kind\": \"version_not_found\", reference: string, } | { \"kind\": \"task_not_found\", id: string, } | { \"kind\": \"plugin_not_found\", id: string, } | { \"kind\": \"plugin_approval_stale\" } | { \"kind\": \"plugin_update_needs_approval\", id: string, } | { \"kind\": \"update_plugins_incompatible\", api: string, plugins: Array<string>, } | { \"kind\": \"update_plugins_need_approval\", api: string, plugins: Array<string>, } | { \"kind\": \"developer_mode_off\" } | { \"kind\": \"repository_not_found\", reference: string, } | { \"kind\": \"repository_invalid\", detail: string, } | { \"kind\": \"repository_key_changed\", pinned: string, declared: string, } | { \"kind\": \"repository_refused\", detail: string, } | { \"kind\": \"repository_expired\", repository: string, } | { \"kind\": \"repository_official\", repository: string, } | { \"kind\": \"plugin_build_unavailable\", id: string, detail: string, } | { \"kind\": \"plugin_invalid\", detail: string, } | { \"kind\": \"plugin_command_invalid\", plugin: string, command: string, detail: string, } | { \"kind\": \"plugin_page_invalid\", plugin: string, page: string, detail: string, } | { \"kind\": \"plugin_unavailable\", id: string, } | { \"kind\": \"plugin_call_failed\", id: string, detail: string, } | { \"kind\": \"plugin_ui_invalid\", plugin: string, page: string, } | { \"kind\": \"plugin_setting_invalid\", plugin: string, key: string, detail: string, } | { \"kind\": \"plugin_vetoed\", plugin: string, hook: string, reason: string, } | { \"kind\": \"file_not_found\", path: string, } | { \"kind\": \"file_rejected\", path: string, reason: FileFault, } | { \"kind\": \"config_key_unknown\", key: string, } | { \"kind\": \"config_key_unset\", key: string, } | { \"kind\": \"config_key_denied\", key: string, } | { \"kind\": \"config_type_mismatch\", key: string, expected: ValueKind, } | { \"kind\": \"config_rejected\", key: string, } | { \"kind\": \"config_invalid\", key: string, reason: Reason, } | { \"kind\": \"hardcore_locked\", key: string, value: string, } | { \"kind\": \"hardcore_requires\", settings: Array<string>, } | { \"kind\": \"already_exists\", entry: EntryKind, name: string, } | { \"kind\": \"port_unavailable\", port: number, } | { \"kind\": \"entry_running\", entry: EntryKind, name: string, } | { \"kind\": \"multi_session_disabled\", name: string, } | { \"kind\": \"not_running\", entry: EntryKind, name: string, } | { \"kind\": \"stop_timed_out\", name: string, } | { \"kind\": \"provisioning\", name: string, } | { \"kind\": \"update_in_progress\", name: string, } | { \"kind\": \"content_in_progress\", name: string, } | { \"kind\": \"backup_in_progress\", name: string, } | { \"kind\": \"export_in_progress\", name: string, } | { \"kind\": \"create_in_progress\" } | { \"kind\": \"work_running\" } | { \"kind\": \"java_install_in_progress\", major: number, } | { \"kind\": \"java_provider_unknown\", id: string, } | { \"kind\": \"plugin_install_in_progress\", id: string, } | { \"kind\": \"sign_in_required\" } | { \"kind\": \"plugin_sign_in_required\", plugin: string, } | { \"kind\": \"session_expired\", reference: string, } | { \"kind\": \"login_declined\" } | { \"kind\": \"login_timed_out\" } | { \"kind\": \"not_a_modpack\", reference: string, } | { \"kind\": \"modpack_invalid\", reason: ArchiveFault, } | { \"kind\": \"modpack_loader_unsupported\", loader: string, } | { \"kind\": \"modpack_entry_mismatch\", entry: EntryKind, flavor: string, gameVersion: string, packFlavor: string, packGameVersion: string, } | { \"kind\": \"modpack_different_pack\", installed: string, given: string, } | { \"kind\": \"modpack_not_installed\", entry: EntryKind, name: string, } | { \"kind\": \"unsupported_content_url\", url: string, } | { \"kind\": \"archive_unrecognised\", filename: string, } | { \"kind\": \"archive_invalid\", format: ArchiveFormat, reason: ArchiveFault, } | { \"kind\": \"archive_unsupported\", loader: string, } | { \"kind\": \"archive_too_new\", format: ArchiveFormat, schema: number, } | { \"kind\": \"content_kind_mismatch\", title: string, actual: ContentKind, expected: ContentKind, } | { \"kind\": \"content_source_unavailable\", source: string, } | { \"kind\": \"content_download_blocked\", title: string, source: string, } | { \"kind\": \"sync_source_required\", unit: SyncUnit, candidates: Array<string>, } | { \"kind\": \"sync_unit_disabled\", unit: SyncUnit, } | { \"kind\": \"unknown_channel\", channel: string, } | { \"kind\": \"malformed_request\", detail: string, } | { \"kind\": \"incompatible_version\", got: bigint, want: bigint, } | { \"kind\": \"elevation_required\", command: string, } | { \"kind\": \"io\", operation: IoOp, detail: string, } | { \"kind\": \"offline\", service: Service | null, } | { \"kind\": \"offline_mode\" } | { \"kind\": \"upstream\", service: Service, detail: string, } | { \"kind\": \"download_failed\", detail: string, } | { \"kind\": \"internal\", detail: string, };",
+    "ErrorInfo": "type ErrorInfo = { \"kind\": \"field_required\", field: Field, } | { \"kind\": \"fields_required\", fields: Array<Field>, } | { \"kind\": \"invalid_value\", field: Field, reason: Reason, } | { \"kind\": \"mutually_exclusive\", options: Array<Field>, } | { \"kind\": \"nothing_to_do\", what: Task, } | { \"kind\": \"eula_required\" } | { \"kind\": \"unsupported_operation\", reason: Unsupported, } | { \"kind\": \"content_kind_rejected\", entry: EntryKind, flavor: string, requested: ContentKind, accepts: Array<ContentKind>, } | { \"kind\": \"missing_requirement\", flavor: string, name: string, url: string, } | { \"kind\": \"texture_not_png\" } | { \"kind\": \"texture_size_unsupported\", width: number, height: number, } | { \"kind\": \"icon_not_an_image\" } | { \"kind\": \"icon_too_large\", megabytes: bigint, } | { \"kind\": \"quick_play_unsupported\", version: string, } | { \"kind\": \"entry_not_found\", entry: EntryKind, reference: string, } | { \"kind\": \"process_not_found\", id: string, } | { \"kind\": \"backup_not_found\", reference: string, } | { \"kind\": \"content_not_found\", reference: string, } | { \"kind\": \"skin_not_found\", key: string, } | { \"kind\": \"world_not_found\", world: string, } | { \"kind\": \"server_list_entry_not_found\", reference: string, } | { \"kind\": \"account_not_found\", reference: string, } | { \"kind\": \"version_not_found\", reference: string, } | { \"kind\": \"task_not_found\", id: string, } | { \"kind\": \"plugin_not_found\", id: string, } | { \"kind\": \"plugin_approval_stale\" } | { \"kind\": \"plugin_update_needs_approval\", id: string, } | { \"kind\": \"update_plugins_incompatible\", api: string, plugins: Array<string>, } | { \"kind\": \"update_plugins_need_approval\", api: string, plugins: Array<string>, } | { \"kind\": \"developer_mode_off\" } | { \"kind\": \"repository_not_found\", reference: string, } | { \"kind\": \"repository_invalid\", detail: string, } | { \"kind\": \"repository_key_changed\", pinned: string, declared: string, } | { \"kind\": \"repository_refused\", detail: string, } | { \"kind\": \"repository_expired\", repository: string, } | { \"kind\": \"repository_official\", repository: string, } | { \"kind\": \"plugin_build_unavailable\", id: string, detail: string, } | { \"kind\": \"plugin_invalid\", detail: string, } | { \"kind\": \"plugin_command_invalid\", plugin: string, command: string, detail: string, } | { \"kind\": \"plugin_page_invalid\", plugin: string, page: string, detail: string, } | { \"kind\": \"plugin_unavailable\", id: string, } | { \"kind\": \"plugin_call_failed\", id: string, detail: string, } | { \"kind\": \"plugin_ui_invalid\", plugin: string, page: string, } | { \"kind\": \"plugin_setting_invalid\", plugin: string, key: string, detail: string, } | { \"kind\": \"plugin_vetoed\", plugin: string, hook: string, reason: string, } | { \"kind\": \"file_not_found\", path: string, } | { \"kind\": \"file_rejected\", path: string, reason: FileFault, } | { \"kind\": \"config_key_unknown\", key: string, } | { \"kind\": \"config_key_unset\", key: string, } | { \"kind\": \"config_key_denied\", key: string, } | { \"kind\": \"config_type_mismatch\", key: string, expected: ValueKind, } | { \"kind\": \"config_rejected\", key: string, } | { \"kind\": \"config_invalid\", key: string, reason: Reason, } | { \"kind\": \"hardcore_locked\", key: string, value: string, } | { \"kind\": \"hardcore_requires\", settings: Array<string>, } | { \"kind\": \"already_exists\", entry: EntryKind, name: string, } | { \"kind\": \"port_unavailable\", port: number, } | { \"kind\": \"entry_running\", entry: EntryKind, name: string, } | { \"kind\": \"multi_session_disabled\", name: string, } | { \"kind\": \"not_running\", entry: EntryKind, name: string, } | { \"kind\": \"stop_timed_out\", name: string, } | { \"kind\": \"provisioning\", name: string, } | { \"kind\": \"update_in_progress\", name: string, } | { \"kind\": \"content_in_progress\", name: string, } | { \"kind\": \"backup_in_progress\", name: string, } | { \"kind\": \"export_in_progress\", name: string, } | { \"kind\": \"create_in_progress\" } | { \"kind\": \"work_running\" } | { \"kind\": \"java_install_in_progress\", major: number, } | { \"kind\": \"java_provider_unknown\", id: string, } | { \"kind\": \"export_format_unknown\", id: string, } | { \"kind\": \"plugin_install_in_progress\", id: string, } | { \"kind\": \"sign_in_required\" } | { \"kind\": \"plugin_sign_in_required\", plugin: string, } | { \"kind\": \"session_expired\", reference: string, } | { \"kind\": \"login_declined\" } | { \"kind\": \"login_timed_out\" } | { \"kind\": \"not_a_modpack\", reference: string, } | { \"kind\": \"modpack_invalid\", reason: ArchiveFault, } | { \"kind\": \"modpack_loader_unsupported\", loader: string, } | { \"kind\": \"modpack_entry_mismatch\", entry: EntryKind, flavor: string, gameVersion: string, packFlavor: string, packGameVersion: string, } | { \"kind\": \"modpack_different_pack\", installed: string, given: string, } | { \"kind\": \"modpack_not_installed\", entry: EntryKind, name: string, } | { \"kind\": \"unsupported_content_url\", url: string, } | { \"kind\": \"archive_unrecognised\", filename: string, } | { \"kind\": \"archive_invalid\", format: ArchiveFormat, reason: ArchiveFault, } | { \"kind\": \"archive_unsupported\", loader: string, } | { \"kind\": \"archive_too_new\", format: ArchiveFormat, schema: number, } | { \"kind\": \"content_kind_mismatch\", title: string, actual: ContentKind, expected: ContentKind, } | { \"kind\": \"content_source_unavailable\", source: string, } | { \"kind\": \"content_download_blocked\", title: string, source: string, } | { \"kind\": \"sync_source_required\", unit: SyncUnit, candidates: Array<string>, } | { \"kind\": \"sync_unit_disabled\", unit: SyncUnit, } | { \"kind\": \"unknown_channel\", channel: string, } | { \"kind\": \"malformed_request\", detail: string, } | { \"kind\": \"incompatible_version\", got: bigint, want: bigint, } | { \"kind\": \"elevation_required\", command: string, } | { \"kind\": \"io\", operation: IoOp, detail: string, } | { \"kind\": \"offline\", service: Service | null, } | { \"kind\": \"offline_mode\" } | { \"kind\": \"upstream\", service: Service, detail: string, } | { \"kind\": \"download_failed\", detail: string, } | { \"kind\": \"internal\", detail: string, };",
     "ExportDone": "type ExportDone = { path: string, sizeBytes: bigint, files: bigint, warnings: Array<WarningInfo>, };",
-    "ExportFormat": "type ExportFormat = \"hestia\" | \"mrpack\";",
+    "ExportFormat": "type ExportFormat = \"hestia\" | { \"provider\": Provider };",
+    "ExportFormatInfo": "type ExportFormatInfo = { format: ExportFormat, extension: string, };",
     "Field": "type Field = \"name\" | \"project\" | \"version\" | \"item\" | \"backup\" | \"command\" | \"program\" | \"url\" | \"path\" | \"flavor\" | \"world\" | \"address\" | \"memory\" | \"jvm_args\" | \"player\" | \"retention\" | \"java_version\" | \"schedule\" | \"order\" | \"realm\" | \"process_id\";",
     "FileEntry": "type FileEntry = { name: string, path: string, dir: boolean, size: bigint, modifiedUnix: bigint, };",
     "FileFault": "type FileFault = \"outside_entry\" | \"already_exists\" | \"not_a_directory\" | \"is_a_directory\" | \"too_large\" | \"not_text\" | \"archive_format\" | \"into_itself\" | \"unsupported_type\";",
@@ -686,17 +670,11 @@
     "Flavor": "type Flavor = { id: string, name: string, summary: string, accepts: Array<ContentKind>, requires: Array<Requirement>, };",
     "FlavorDescription": "type FlavorDescription = { name: string, summary: string, loads?: ContentKind, server: boolean, client: boolean, requires: Array<string>, mrpackKey?: string, prismUid?: string, };",
     "FlavorsResult": "type FlavorsResult = { flavors: Array<Flavor>, rules: Array<KeyRule>, };",
-    "FormatBlueprint": "type FormatBlueprint = { name: string, gameVersion: string, loader: string, loaderVersion: string, memory?: string, jvmArgs: Array<string>, };",
-    "FormatCopy": "type FormatCopy = { archivePath: string, entryPath: string, };",
-    "FormatInfo": "type FormatInfo = { name: string, kind: FormatKind, marker: string, };",
-    "FormatKind": "type FormatKind = \"instance\" | \"pack\";",
-    "FormatWritten": "type FormatWritten = { manifest: Array<number>, mapping: Array<FormatCopy>, };",
     "GalleryImage": "type GalleryImage = { url: string, featured: boolean, title: string, description: string, };",
     "GameMode": "type GameMode = \"survival\" | \"creative\" | \"adventure\" | \"spectator\";",
     "GameQuery": "type GameQuery = { game: string, target: Target, };",
     "GameVersion": "type GameVersion = { id: string, kind: VersionKind, stable: boolean, };",
     "HashAlgorithm": "type HashAlgorithm = \"sha1\" | \"sha256\" | \"sha512\";",
-    "HostInfoResult": "type HostInfoResult = { totalMemoryBytes?: bigint, os: string, arch: string, pid: number, pathSeparator: string, };",
     "IconBackground": "type IconBackground = { \"type\": \"color\", value: string, } | { \"type\": \"linear-top-down-gradient\", topColor: string, bottomColor: string, };",
     "IconGenerator": "type IconGenerator = { background: IconBackground, symbol: string, };",
     "IdQuery": "type IdQuery = { ids: Array<string>, };",
@@ -745,8 +723,7 @@
     "LaunchPatch": "type LaunchPatch = { extraJvmArgs: Array<string>, extraGameArgs: Array<string>, wrapper?: string, };",
     "Library": "type Library = { name: string, path: string, artifact: Artifact, built: boolean, classpath: boolean, };",
     "LibrarySpec": "type LibrarySpec = { maven?: Maven, rules: Array<Rule>, name: string, path: string, artifact: Artifact, built: boolean, classpath: boolean, };",
-    "LineFilter": "type LineFilter = { skipPrefixes: Array<string>, };",
-    "ManifestQuery": "type ManifestQuery = { manifest: string, files: Array<string>, };",
+    "ManifestDelegate": "type ManifestDelegate = { source: string, manifest: unknown, };",
     "Maven": "type Maven = { coordinate: string, repository: string, sha1Sidecar: boolean, };",
     "ModpackDone": "type ModpackDone = { entry: string, entryName: string, pack: InstalledModpack, failures: Array<ContentFailure>, warnings: Array<WarningInfo>, };",
     "ModpackFile": "type ModpackFile = { path: string, artifact: Artifact, client: SideSupport, server: SideSupport, source: string, projectId: string, versionId: string, versionNumber: string, project?: ContentProject, };",
@@ -764,11 +741,18 @@
     "NetworkStatus": "type NetworkStatus = { state: NetworkState, offlineMode: boolean, sinceUnix: bigint, lastOnlineUnix: bigint, };",
     "OsArgsFile": "type OsArgsFile = { os: string, path: string, };",
     "OsRule": "type OsRule = { name?: string, arch?: string, version?: string, };",
+    "OverrideTrees": "type OverrideTrees = { shared: Array<string>, client: Array<string>, server: Array<string>, };",
+    "PackCopy": "type PackCopy = { entryPath: string, archivePath: string, };",
+    "PackInfo": "type PackInfo = { name: string, members: Array<string>, extension: string, };",
+    "PackInstance": "type PackInstance = { name: string, gameVersion: string, loader: string, loaderVersion: string, };",
     "PackManifestQuery": "type PackManifestQuery = { manifest: unknown, };",
+    "PackMember": "type PackMember = { path: string, text: string, };",
     "PackPolicy": "type PackPolicy = \"move\" | \"keep\";",
-    "PingResult": "type PingResult = { status: string, pid: number, };",
+    "PackRead": "type PackRead = { pack: ResolvedModpack, resolve?: ManifestDelegate, overrides: OverrideTrees, };",
+    "PackWritten": "type PackWritten = { members: Array<PackMember>, copies: Array<PackCopy>, warnings: Array<string>, };",
     "PlayerEntry": "type PlayerEntry = { name: string, uuid: string, reason?: string, };",
     "PlayerList": "type PlayerList = \"whitelist\" | \"ops\" | \"banned\";",
+    "PoolItem": "type PoolItem = { path: string, referenceable: boolean, item: InstalledContent, };",
     "ProcessExitEvent": "type ProcessExitEvent = { id: string, state: ProcessState, exitCode?: number, success: boolean, };",
     "ProcessInfo": "type ProcessInfo = { id: string, pid: number, program: string, args: Array<string>, state: ProcessState, exitCode?: number, startedUnix: bigint, owner?: string, };",
     "ProcessMetrics": "type ProcessMetrics = { id: string, cpuPct: number, memBytes: bigint, };",
@@ -782,6 +766,7 @@
     "ProvisionPhase": "type ProvisionPhase = \"resolving\" | \"backup\" | \"java\" | \"server\" | \"client\" | \"libraries\" | \"assets\" | \"content\" | \"overrides\" | \"archive\" | \"extract\";",
     "ProvisionProgress": "type ProvisionProgress = { phase: ProvisionPhase, current: bigint, total: bigint, detail: string, item: bigint, items: bigint, overallCurrent: bigint, overallTotal: bigint, };",
     "QuickPlay": "type QuickPlay = { \"kind\": \"world\", \"target\": string } | { \"kind\": \"server\", \"target\": string } | { \"kind\": \"realm\", \"target\": string };",
+    "ReadQuery": "type ReadQuery = { files: Array<string>, members: { [key in string]: string }, };",
     "Reason": "type Reason = \"not_boolean\" | \"not_whole_number\" | { \"out_of_range\": { min: bigint, max: bigint, } } | { \"not_one_of\": { values: Array<string>, } } | \"memory_format\" | \"memory_exceeds_host\" | \"jvm_args_prefix\" | \"java_major\" | \"absolute_path\" | \"server_address\" | \"list_order\" | \"realm_id\" | \"process_id_charset\" | \"player_name\" | \"schedule_format\";",
     "RecentPlay": "type RecentPlay = { instance: string, instanceName: string, target: QuickPlay, name: string, gameMode: GameMode, playedUnix: bigint, icon: string, };",
     "ReleaseChannel": "type ReleaseChannel = \"release\" | \"beta\" | \"alpha\";",
@@ -871,8 +856,9 @@
     "ValueKind": "type ValueKind = \"null\" | \"boolean\" | \"number\" | \"string\" | \"array\" | \"object\";",
     "VersionKind": "type VersionKind = \"release\" | \"snapshot\" | \"old_beta\" | \"old_alpha\";",
     "VersionQuery": "type VersionQuery = { source: string, project: string, loader?: string, gameVersion?: string, };",
-    "WarningInfo": "type WarningInfo = { \"kind\": \"properties_schema_missing\", name: string, } | { \"kind\": \"sync_unit_unsupported\", instance: string, unit: SyncUnit, requires: string, } | { \"kind\": \"sync_unit_skipped\", unit: SyncUnit, detail: string, } | { \"kind\": \"modpack_overrides_kept\", count: number, paths: Array<string>, } | { \"kind\": \"modpack_files_excluded\", count: number, files: Array<string>, } | { \"kind\": \"export_files_embedded\", count: number, files: Array<string>, } | { \"kind\": \"import_files_untracked\", count: number, files: Array<string>, } | { \"kind\": \"import_content_missing\", count: number, files: Array<string>, } | { \"kind\": \"document_quarantined\", document: string, path: string, detail: string, } | { \"kind\": \"server_list_in_use\", instance: string, sessions: number, } | { \"kind\": \"launched_offline\", account: string, } | { \"kind\": \"session_not_verified\", account: string, } | { \"kind\": \"server_not_restarted\", server: string, detail: string, } | { \"kind\": \"pack_not_moved\", pack: string, version_number: string, pack_game_version: string, target: string, } | { \"kind\": \"plugin_hook_failed\", plugin: string, hook: string, } | { \"kind\": \"launch_arg_dropped\", plugin: string, arg: string, } | { \"kind\": \"repository_stale\", repository: string, detail: string, } | { \"kind\": \"plugin_permissions_disagree\", plugin: string, } | { \"kind\": \"plugin_update_rolled_back\", id: string, version: string, error: string, };",
-    "WorldInfo": "type WorldInfo = { folder: string, name: string, read: boolean, version: string, gameMode: GameMode, difficulty: Difficulty, hardcore: boolean, cheats: boolean, lastPlayedUnix?: bigint, sizeBytes: bigint, icon: string, };"
+    "WarningInfo": "type WarningInfo = { \"kind\": \"properties_schema_missing\", name: string, } | { \"kind\": \"sync_unit_unsupported\", instance: string, unit: SyncUnit, requires: string, } | { \"kind\": \"sync_unit_skipped\", unit: SyncUnit, detail: string, } | { \"kind\": \"modpack_overrides_kept\", count: number, paths: Array<string>, } | { \"kind\": \"modpack_files_excluded\", count: number, files: Array<string>, } | { \"kind\": \"export_files_embedded\", count: number, files: Array<string>, } | { \"kind\": \"import_files_untracked\", count: number, files: Array<string>, } | { \"kind\": \"import_content_missing\", count: number, files: Array<string>, } | { \"kind\": \"document_quarantined\", document: string, path: string, detail: string, } | { \"kind\": \"server_list_in_use\", instance: string, sessions: number, } | { \"kind\": \"launched_offline\", account: string, } | { \"kind\": \"session_not_verified\", account: string, } | { \"kind\": \"server_not_restarted\", server: string, detail: string, } | { \"kind\": \"pack_not_moved\", pack: string, version_number: string, pack_game_version: string, target: string, } | { \"kind\": \"plugin_hook_failed\", plugin: string, hook: string, } | { \"kind\": \"launch_arg_dropped\", plugin: string, arg: string, } | { \"kind\": \"repository_stale\", repository: string, detail: string, } | { \"kind\": \"plugin_permissions_disagree\", plugin: string, } | { \"kind\": \"pack_export_warned\", pack: string, detail: string, } | { \"kind\": \"plugin_update_rolled_back\", id: string, version: string, error: string, };",
+    "WorldInfo": "type WorldInfo = { folder: string, name: string, read: boolean, version: string, gameMode: GameMode, difficulty: Difficulty, hardcore: boolean, cheats: boolean, lastPlayedUnix?: bigint, sizeBytes: bigint, icon: string, };",
+    "WriteQuery": "type WriteQuery = { instance: PackInstance, files: Array<string>, content: Array<PoolItem>, };"
   },
   "wit": {
     "client.wit": "world http-client {\nimport wasi:http/types@0.2.12;\nimport wasi:http/outgoing-handler@0.2.12;\n}",

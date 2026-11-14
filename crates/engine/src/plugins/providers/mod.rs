@@ -10,9 +10,9 @@
 mod build;
 mod content;
 mod flavor;
-mod format;
 mod java;
 mod normalise;
+mod pack;
 mod plan;
 
 use std::sync::Arc;
@@ -26,8 +26,8 @@ use proto::provider::{ProviderKind, ProviderOp};
 
 pub use content::PluginContentProvider;
 pub use flavor::PluginFlavorProvider;
-pub use format::PluginFormat;
 pub use java::PluginJavaProvider;
+pub use pack::PluginPack;
 pub use plan::task_id as build_task_id;
 
 use crate::engine::Engine;
@@ -202,8 +202,8 @@ pub struct Contributions {
     official: bool,
     sources: Vec<PluginContentProvider>,
     flavors: Vec<PluginFlavorProvider>,
-    formats: Vec<PluginFormat>,
     java: Vec<PluginJavaProvider>,
+    packs: Vec<PluginPack>,
 }
 
 impl Contributions {
@@ -214,15 +214,15 @@ impl Contributions {
             official,
             sources: content::connect(plugin, manifest, official).await,
             flavors: flavor::connect(plugin, manifest, official).await,
-            formats: format::connect(plugin, manifest, official).await,
             java: java::connect(plugin, manifest, official),
+            packs: pack::connect(plugin, manifest, official).await,
         }
     }
 
-    /// The archive formats among them, for a caller that drives a format
-    /// itself instead of registering it.
-    pub fn into_formats(self) -> Vec<PluginFormat> {
-        self.formats
+    /// The pack formats among them, for a caller that drives a format itself
+    /// instead of registering it.
+    pub fn into_packs(self) -> Vec<PluginPack> {
+        self.packs
     }
 
     /// Adds every provider to the engine under `owner`.
@@ -230,8 +230,8 @@ impl Contributions {
         let official = self.official;
         content::register(engine, owner, official, self.sources);
         flavor::register(engine, owner, official, self.flavors);
-        format::register(engine, owner, official, self.formats);
         java::register(engine, owner, official, self.java);
+        pack::register(engine, owner, official, self.packs);
     }
 }
 
@@ -239,6 +239,6 @@ impl Contributions {
 pub fn unregister(engine: &Engine, owner: &str) {
     engine.content().unregister(owner);
     engine.minecraft().unregister(owner);
-    engine.unregister_formats(owner);
     engine.java().unregister(owner);
+    engine.unregister_packs(owner);
 }

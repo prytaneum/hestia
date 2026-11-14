@@ -200,7 +200,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "replay-format"
+name = "replay-pack"
 version = "0.1.0"
 dependencies = [
  "hestia-sdk",

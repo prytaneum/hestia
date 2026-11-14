@@ -9,7 +9,7 @@
 use std::path::{Path, PathBuf};
 
 use anyhow::{bail, Context, Result};
-use client::proto::transfer::{ArchiveInfo, ExportFormat, ImportFormat};
+use client::proto::transfer::{ArchiveInfo, ExportFormat, ExportFormatInfo, ImportFormat};
 use client::Client;
 
 use super::entry;
@@ -25,7 +25,7 @@ pub(super) async fn export(
     exclude: Vec<String>,
 ) -> Result<()> {
     let info = entry::pick_instance(client.instance().list().await?, Some(instance))?;
-    let format = parse_format(format.as_deref())?;
+    let format = pick_format(client, format.as_deref()).await?;
     let destination = match output {
         Some(path) => absolute(&path)?.to_string_lossy().into_owned(),
         None => String::new(),
@@ -128,12 +128,30 @@ fn source_of(format: &ImportFormat) -> &str {
     }
 }
 
-fn parse_format(value: Option<&str>) -> Result<ExportFormat> {
+/// The format `value` names by id, extension or name, among those the daemon
+/// offers — a plugin's formats are known to the daemon alone.
+async fn pick_format(client: &Client, value: Option<&str>) -> Result<ExportFormat> {
     let Some(value) = value else {
         return Ok(ExportFormat::default());
     };
-    ExportFormat::parse(&value.to_ascii_lowercase())
-        .with_context(|| format!("unknown export format '{value}' (hestia, mrpack)"))
+    let wanted = value.to_ascii_lowercase();
+    let offered = client.transfer().export_formats().await?;
+    let named = |info: &&ExportFormatInfo| {
+        let name = match &info.format {
+            ExportFormat::Hestia => "hestia",
+            ExportFormat::Provider(provider) => provider.name.as_str(),
+        };
+        [info.format.id(), info.extension.as_str(), name]
+            .iter()
+            .any(|candidate| candidate.eq_ignore_ascii_case(&wanted))
+    };
+    match offered.iter().find(named) {
+        Some(info) => Ok(info.format.clone()),
+        None => {
+            let ids: Vec<&str> = offered.iter().map(|info| info.format.id()).collect();
+            anyhow::bail!("unknown export format '{value}' ({})", ids.join(", "))
+        }
+    }
 }
 
 /// Resolve against this process's working directory, since the daemon's own is

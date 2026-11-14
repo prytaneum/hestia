@@ -1,5 +1,5 @@
 //! Providers: what fills one of the launcher's open registries (content
-//! sources, flavors, archive formats, Java distributions), whether built in or
+//! sources, flavors, pack formats, Java distributions), whether built in or
 //! contributed by a plugin.
 //!
 //! [`Provider`] is the open form of a name a provider owns. Core vocabulary
@@ -16,8 +16,8 @@
 
 pub mod content;
 pub mod flavor;
-pub mod format;
 pub mod java;
+pub mod pack;
 
 use std::fmt;
 
@@ -87,8 +87,8 @@ const fn spec<K: ProviderKind>() -> KindSpec {
 pub const KINDS: &[KindSpec] = &[
     spec::<content::Source>(),
     spec::<flavor::Flavor>(),
-    spec::<format::Format>(),
     spec::<java::Distribution>(),
+    spec::<pack::Pack>(),
 ];
 
 /// The kind named `kind`, if this host offers it.

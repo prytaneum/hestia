@@ -51,14 +51,14 @@ pub enum Permission {
     /// arguments the game runs with and so bypasses the launch-arg allowlist.
     #[serde(rename = "flavor:provide")]
     FlavorProvide,
-    /// Contribute an archive format, whose blueprint chooses the game version,
-    /// loader and JVM settings of the instance the user will run.
-    #[serde(rename = "format:provide")]
-    FormatProvide,
     /// Contribute a Java distribution, which picks the runtime binary Hestia
     /// executes for every server and game.
     #[serde(rename = "java:provide")]
     JavaProvide,
+    /// Contribute a pack format, whose answer chooses the game version, loader
+    /// and files of the instance the user will run.
+    #[serde(rename = "pack:provide")]
+    PackProvide,
 }
 
 /// How far a permission reaches. An unrestricted one can run native code, so
@@ -109,8 +109,8 @@ impl Permission {
         Permission::LaunchPatch,
         Permission::IpcConnect,
         Permission::FlavorProvide,
-        Permission::FormatProvide,
         Permission::JavaProvide,
+        Permission::PackProvide,
     ];
 
     pub const fn spec(self) -> Spec {
@@ -135,8 +135,8 @@ impl Permission {
             Permission::LaunchPatch => spec(SANDBOXED, &[Properties], false),
             Permission::IpcConnect => spec(UNRESTRICTED, &[Endpoints], true),
             Permission::FlavorProvide => spec(UNRESTRICTED, &[], false),
-            Permission::FormatProvide => spec(UNRESTRICTED, &[], false),
             Permission::JavaProvide => spec(UNRESTRICTED, &[], false),
+            Permission::PackProvide => spec(UNRESTRICTED, &[], false),
         }
     }
 
@@ -174,11 +174,11 @@ impl Permission {
             Permission::FlavorProvide => {
                 "Add game distributions that choose what code the game runs, including its main class and arguments"
             }
-            Permission::FormatProvide => {
-                "Add archive formats that choose the game version, loader and JVM settings of instances you import"
-            }
             Permission::JavaProvide => {
                 "Add Java distributions that choose the runtime binary Hestia executes"
+            }
+            Permission::PackProvide => {
+                "Add pack formats that choose the game version, loader and files of instances you import"
             }
         }
     }

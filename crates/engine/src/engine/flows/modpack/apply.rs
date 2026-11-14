@@ -4,6 +4,7 @@
 
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
+use std::sync::Arc;
 
 use anyhow::Result;
 use proto::content::{
@@ -23,6 +24,7 @@ use crate::content::pool::Pool;
 use crate::content::{exclude, install, modpack, pack, record};
 use crate::engine::Engine;
 use crate::minecraft::{materialize, Side};
+use crate::plugins::vouch::Policy;
 use crate::plugins::CallChain;
 
 impl Engine {
@@ -76,12 +78,13 @@ impl Engine {
         }
 
         let patterns = exclude::OverridePatterns::new(&settings.overrides_exclusions);
+        let policy = archive.policy();
         let (mut supplied, mut failures, mut vetted) = self
-            .fetch_pack_content(ctx, &managed, resolved, chain, job)
+            .fetch_pack_content(ctx, &managed, resolved, &policy, chain, job)
             .await;
         warnings.append(&mut vetted);
         let mut overrides = self
-            .fetch_loose_files(ctx, &loose, previous.as_ref(), &patterns, job)
+            .fetch_loose_files(ctx, &loose, previous.as_ref(), &patterns, &policy, job)
             .await;
         let mut kept: Vec<String> = Vec::new();
 
@@ -226,6 +229,7 @@ impl Engine {
         ctx: &EntryContent,
         files: &[(ContentKind, &ModpackFile)],
         resolved: &ResolvedModpack,
+        policy: &Option<Arc<Policy>>,
         chain: &CallChain,
         job: &Job<'_>,
     ) -> (Vec<Supplied>, Vec<ContentFailure>, Vec<WarningInfo>) {
@@ -281,7 +285,7 @@ impl Engine {
                     target: content_target(ctx, pending.kind, &file.artifact.filename)?,
                     label: label.clone(),
                     source: resolved.source.clone(),
-                    policy: None,
+                    policy: policy.clone(),
                 })
             });
             match planned {
@@ -323,6 +327,7 @@ impl Engine {
         files: &[&ModpackFile],
         previous: Option<&InstalledModpack>,
         patterns: &exclude::OverridePatterns,
+        policy: &Option<Arc<Policy>>,
         job: &Job<'_>,
     ) -> Vec<ModpackOverride> {
         let ownership = Ownership::of(previous);
@@ -352,7 +357,7 @@ impl Engine {
                     target,
                     label: file.path.clone(),
                     source: String::new(),
-                    policy: None,
+                    policy: policy.clone(),
                 };
                 (file, download)
             })
