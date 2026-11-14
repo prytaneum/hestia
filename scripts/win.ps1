@@ -13,7 +13,7 @@
 # cargo target. Bare `run` is pure PowerShell and needs only cargo.
 #
 #   scripts\win.ps1                                         # the verbs it found
-#   scripts\win.ps1 run      [--desktop] [--plugins] [hestia args...]   # PS subshell / desktop / one-shot CLI
+#   scripts\win.ps1 run      [--shell|--desktop|--daemon] [--plugins] [--release] [hestia args...]
 #   scripts\win.ps1 build    [cli|daemon|desktop|all] [cargo flags...]
 #   scripts\win.ps1 package  [all|bundle|portable]
 param(

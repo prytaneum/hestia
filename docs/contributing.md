@@ -506,12 +506,17 @@ own features and compiles a second wasmtime and Cranelift into `target/`. Narrow
 so a shell in one terminal and the desktop in another show one state:
 
 ```bash
-scripts/run.sh                  # a subshell with hestia and hestiad on PATH, daemon running
-scripts/run.sh server list      # one `hestia` command, then back to your shell
+scripts/run.sh --shell          # a subshell with hestia and hestiad on PATH, daemon running (the default)
 scripts/run.sh --desktop        # the desktop app, with frontend hot reload
+scripts/run.sh --daemon         # hestiad in the foreground, logging to the terminal
+scripts/run.sh server list      # one `hestia` command, then back to your shell
 scripts/run.sh --plugins        # install the official plugins from ../hestia-plugins
-scripts/run.sh --plugins --desktop
+scripts/run.sh --release --desktop   # the optimised app, as a release runs, on its own data
+scripts/run.sh --help
 ```
+
+`--release` runs the optimised build with its data in `target/release/data` and its own daemon endpoint, so trying a
+release locally cannot reach an installed Hestia or `~/.hestia`; `--home=DIR` points any form at another data directory.
 
 Debug builds keep their data in `target/debug/data` and scope their daemon endpoint to it, so none of this touches an
 installed Hestia. The script starts the dev daemon when a form needs one, restarts a running one when the build
