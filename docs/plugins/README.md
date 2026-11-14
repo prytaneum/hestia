@@ -74,6 +74,7 @@ command reference is in [cli.md](../cli.md#launcher-plugins).
 | [themes.md](themes.md) | restyling the app with a stylesheet |
 | [repository.md](repository.md) | the one shape of a plugin repository, its index and its keys |
 | [updates.md](updates.md) | how installed plugins are checked for newer builds, and what is never checked |
+| [testing.md](testing.md) | unit-testing plugin code on your machine with the SDK's mock host |
 | [publishing.md](publishing.md) | `check`, `pack` and `index` from CI, on GitHub or any host |
 | [other-languages.md](other-languages.md) | writing a plugin without the Rust SDK |
 
