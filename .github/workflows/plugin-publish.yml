@@ -15,6 +15,9 @@ on:
       HESTIA_SIGNING_KEY:
         description: The unencrypted minisign secret key written by `hestia plugin keygen --unencrypted`; while unset, nothing is published
         required: false
+      HESTIA_SETTING_DEFAULTS:
+        description: Newline-separated HESTIA_SETTING_<ID>_<KEY>=value lines, the setting defaults packed into the plugins; each value is masked in the logs
+        required: false
 
 env:
   CARGO_TERM_COLOR: always
@@ -72,6 +75,24 @@ jobs:
         run: |
           install -m 600 /dev/null "$RUNNER_TEMP/hestia.key"
           printf '%s\n' "$HESTIA_SIGNING_KEY" > "$RUNNER_TEMP/hestia.key"
+      - name: Export the setting defaults
+        env:
+          HESTIA_SETTING_DEFAULTS: ${{ secrets.HESTIA_SETTING_DEFAULTS }}
+        run: |
+          while IFS= read -r line || [ -n "$line" ]; do
+            line="${line%$'\r'}"
+            name="${line%%=*}"
+            value="${line#*=}"
+            if [ "$name" = "$line" ] || [ -z "$value" ]; then
+              continue
+            fi
+            if ! [[ "$name" =~ ^HESTIA_SETTING_[A-Z0-9_]+$ ]]; then
+              echo "::warning::skipped a line that names no HESTIA_SETTING_ variable"
+              continue
+            fi
+            echo "::add-mask::$value"
+            printf '%s=%s\n' "$name" "$value" >> "$GITHUB_ENV"
+          done <<< "$HESTIA_SETTING_DEFAULTS"
       - name: Publish
         run: hestia plugin publish --out "$RUNNER_TEMP/repo-branch" --sign "$RUNNER_TEMP/hestia.key" --repository "https://github.com/${{ github.repository }}"
       - name: Commit and push

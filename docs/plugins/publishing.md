@@ -52,8 +52,9 @@ stop until the workflow runs again.
 
 A setting the users of your builds should not have to fill in, such as an API key your project holds, takes a default
 at pack time. Set `HESTIA_SETTING_<ID>_<KEY>` (the plugin id and the setting key in upper case, every other character
-as `_`: `HESTIA_SETTING_CURSEFORGE_API_KEY`) in the environment of `hestia plugin pack` or `publish`, on GitHub as a
-repository secret passed to the workflow. The value is checked like one a user would store and written into the
+as `_`: `HESTIA_SETTING_CURSEFORGE_API_KEY`) in the environment of `hestia plugin pack` or `publish`. On GitHub, put
+the lines `HESTIA_SETTING_<ID>_<KEY>=value`, one per setting, in a repository secret named `HESTIA_SETTING_DEFAULTS`
+and pass it to the publish workflow beside `HESTIA_SIGNING_KEY`; a line naming any other variable is skipped. The value is checked like one a user would store and written into the
 package as `defaults.json`; a user's own value wins over it. It is in the package, so anyone who installs the plugin
 can read it: it keeps a key out of your repository, it does not keep it secret.
 
