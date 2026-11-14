@@ -18,7 +18,10 @@
 
 use std::collections::BTreeMap;
 
+#[cfg(target_arch = "wasm32")]
 use crate::bindings::hestia::plugin::messages as host;
+#[cfg(not(target_arch = "wasm32"))]
+use crate::mock::messages as host;
 use crate::Error;
 
 /// One locale's catalog.

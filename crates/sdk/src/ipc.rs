@@ -29,7 +29,10 @@
 
 use std::time::Duration;
 
+#[cfg(target_arch = "wasm32")]
 use crate::bindings::hestia::plugin::ipc as host;
+#[cfg(not(target_arch = "wasm32"))]
+use crate::mock::ipc as host;
 use crate::Error;
 
 /// One of the plugin's open connections.

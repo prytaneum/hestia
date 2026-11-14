@@ -4,8 +4,9 @@
 //! The mock replaces only the transport underneath [`call`](crate::call),
 //! [`run_job`](crate::run_job), [`http`](crate::http),
 //! [`settings`](crate::settings), [`process`](crate::process),
-//! [`download`](crate::download) and [`data`](crate::data); the functions a
-//! plugin calls are the ones it ships with. It exists on every target but `wasm32`, so nothing is switched on
+//! [`download`](crate::download), [`data`](crate::data), [`ipc`](crate::ipc)
+//! and [`messages`](crate::messages); the functions a plugin calls are the ones
+//! it ships with. It exists on every target but `wasm32`, so nothing is switched on
 //! and a plugin's own tests need no feature.
 //!
 //! Each test owns its mock: [`install`] binds a fresh one to the current thread
@@ -91,6 +92,11 @@ struct State {
     files: HashMap<String, Result<u64, PluginError>>,
     downloads: Vec<Download>,
     data: HashMap<String, Vec<u8>>,
+    endpoints: HashMap<String, Vec<u8>>,
+    connections: Vec<(String, String)>,
+    opened: usize,
+    sent: Vec<(String, Vec<u8>)>,
+    catalogs: HashMap<String, String>,
 }
 
 /// A program the plugin ran or started.
@@ -255,6 +261,46 @@ impl Mock {
     pub fn data_value(&self, key: &str) -> Option<Value> {
         with_state(|state| state.data.get(key).cloned())
             .and_then(|bytes| serde_json::from_slice(&bytes).ok())
+    }
+
+    /// Makes `endpoint` something [`ipc::open`](crate::ipc::open) can connect
+    /// to; any other endpoint is [`Error::NotFound`], as when nothing listens.
+    pub fn endpoint(&self, endpoint: &str) {
+        with_state(|state| {
+            state.endpoints.entry(endpoint.to_owned()).or_default();
+        });
+    }
+
+    /// Queues `bytes` for the plugin to [`receive`](crate::ipc::Connection::receive)
+    /// from `endpoint`, which this also makes connectable.
+    pub fn incoming(&self, endpoint: &str, bytes: &[u8]) {
+        with_state(|state| {
+            state
+                .endpoints
+                .entry(endpoint.to_owned())
+                .or_default()
+                .extend_from_slice(bytes)
+        });
+    }
+
+    /// Every write the plugin sent to `endpoint`, in order.
+    pub fn sent(&self, endpoint: &str) -> Vec<Vec<u8>> {
+        with_state(|state| {
+            state
+                .sent
+                .iter()
+                .filter(|(to, _)| to == endpoint)
+                .map(|(_, bytes)| bytes.clone())
+                .collect()
+        })
+    }
+
+    /// The message catalog the host serves for `locale`; a locale nobody
+    /// scripted has an empty one.
+    pub fn messages(&self, locale: &str, entries: &[(&str, &str)]) {
+        let catalog: HashMap<&str, &str> = entries.iter().copied().collect();
+        let json = serde_json::to_string(&catalog).expect("a catalog encodes");
+        with_state(|state| state.catalogs.insert(locale.to_owned(), json));
     }
 
     /// Every call and job so far, in order.
@@ -477,5 +523,87 @@ pub(crate) mod progress {
 
     pub fn cancelled() -> bool {
         false
+    }
+}
+
+pub(crate) mod ipc {
+    use super::with_state;
+    use crate::bindings::hestia::plugin::types::PluginError;
+    use crate::Error;
+
+    fn closed(connection: &str) -> PluginError {
+        Error::NotFound(format!("mock host: no open connection `{connection}`")).into()
+    }
+
+    pub(crate) fn open(endpoint: &str) -> Result<String, PluginError> {
+        with_state(|state| {
+            if !state.endpoints.contains_key(endpoint) {
+                return Err(Error::NotFound(format!(
+                    "mock host: nothing listens on endpoint `{endpoint}`"
+                ))
+                .into());
+            }
+            state.opened += 1;
+            let id = format!("conn-{}", state.opened);
+            state.connections.push((id.clone(), endpoint.to_owned()));
+            Ok(id)
+        })
+    }
+
+    fn endpoint_of(state: &super::State, connection: &str) -> Result<String, PluginError> {
+        state
+            .connections
+            .iter()
+            .find(|(id, _)| id == connection)
+            .map(|(_, endpoint)| endpoint.clone())
+            .ok_or_else(|| closed(connection))
+    }
+
+    pub(crate) fn send(connection: &str, bytes: &[u8]) -> Result<(), PluginError> {
+        with_state(|state| {
+            let endpoint = endpoint_of(state, connection)?;
+            state.sent.push((endpoint, bytes.to_vec()));
+            Ok(())
+        })
+    }
+
+    pub(crate) fn receive(
+        connection: &str,
+        max: u32,
+        _timeout_ms: u32,
+    ) -> Result<Vec<u8>, PluginError> {
+        with_state(|state| {
+            let endpoint = endpoint_of(state, connection)?;
+            let waiting = state.endpoints.entry(endpoint).or_default();
+            let take = waiting.len().min(max as usize);
+            Ok(waiting.drain(..take).collect())
+        })
+    }
+
+    pub(crate) fn close(connection: &str) -> Result<(), PluginError> {
+        with_state(|state| {
+            endpoint_of(state, connection)?;
+            state.connections.retain(|(id, _)| id != connection);
+            Ok(())
+        })
+    }
+
+    pub(crate) fn list() -> Result<Vec<String>, PluginError> {
+        with_state(|state| Ok(state.connections.iter().map(|(id, _)| id.clone()).collect()))
+    }
+}
+
+pub(crate) mod messages {
+    use super::with_state;
+    use crate::bindings::hestia::plugin::types::PluginError;
+
+    pub(crate) fn catalog(locale: &str) -> Result<String, PluginError> {
+        with_state(|state| {
+            Ok(state
+                .catalogs
+                .get(locale)
+                .cloned()
+                .unwrap_or_else(|| "{}".to_owned()))
+        })
     }
 }

@@ -108,3 +108,32 @@ fn a_plugin_fetches_a_tool_runs_it_and_records_the_run() {
     hestia::process::stop(&agent).unwrap();
     assert!(hestia::process::list().unwrap().is_empty());
 }
+
+#[test]
+fn a_plugin_talks_to_a_local_program_in_the_users_language() {
+    let mock = hestia::mock::install();
+    mock.incoming("chat-ipc-0", b"ready");
+    mock.messages("pt-BR", &[("greeting", "Ola {name}")]);
+
+    assert!(matches!(
+        hestia::ipc::open("chat-ipc-9"),
+        Err(Error::NotFound(ref m)) if m.contains("chat-ipc-9")
+    ));
+    let chat = hestia::ipc::open("chat-ipc-0").unwrap();
+    let greeting = hestia::messages::Messages::load(Some("pt-BR"))
+        .unwrap()
+        .format("greeting", &[("name", "Ana")]);
+    chat.send(greeting.as_bytes()).unwrap();
+
+    assert_eq!(
+        chat.receive(4096, Duration::from_millis(1)).unwrap(),
+        b"ready"
+    );
+    assert!(chat
+        .receive(4096, Duration::from_millis(1))
+        .unwrap()
+        .is_empty());
+    assert_eq!(mock.sent("chat-ipc-0"), [b"Ola Ana".to_vec()]);
+    chat.close().unwrap();
+    assert!(hestia::ipc::connections().unwrap().is_empty());
+}

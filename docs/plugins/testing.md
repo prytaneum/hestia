@@ -65,6 +65,10 @@ it, so tests running in parallel never see each other's answers.
 | `mock.file(url, size)` | serves that exact URL to `download::download`; `mock.fail_download` fails it |
 | `mock.data(key, &value)` | saves a value under a data key, as an earlier call would have |
 | `mock.data_value(key)` | what is saved under the key now |
+| `mock.endpoint(name)` | makes that endpoint connectable by `ipc::open`; any other is `Error::NotFound` |
+| `mock.incoming(endpoint, bytes)` | queues bytes for `Connection::receive` on that endpoint, and makes it connectable |
+| `mock.sent(endpoint)` | every write the plugin sent to that endpoint |
+| `mock.messages(locale, entries)` | the catalog `Messages::load` gets for that locale; empty for any other |
 | `mock.runs()` | every program run or spawned, with its args, env, cwd and Java major |
 | `mock.downloads()` | every download asked for, with its URL, destination and digest |
 | `mock.calls()` | every call and job made, with its channel, params and whether it was a job |
@@ -75,14 +79,11 @@ An answer stays until you script it again. A call, job, request, program run or 
 for an empty one. A setting or data key you did not script reads as unset. `process::spawn` always succeeds and returns
 an id (`mock-1`, `mock-2`, ...) that `status`, `stop` and `list` then track. Nothing touches the disk: data values live
 in the mock, and a download writes no file at its destination. `hestia::log` and `progress::report` do nothing, and
-`progress::cancelled` is always false. `ipc` and `messages` are not mocked.
+`progress::cancelled` is always false.
 
-`--sdk` covers `dev`, `pack` and `publish`. To run `cargo test` or `cargo clippy` against a local SDK checkout, pass the
-patch on the command line, after the subcommand, instead of writing one into `Cargo.toml`:
-
-```bash
-cargo test --config 'patch."https://github.com/prytaneum/hestia".hestia-sdk.path="/path/to/hestia/crates/sdk"'
-``` Calling an SDK function with no mock installed panics.
+`hestia plugin test [id…]` runs the tests of the repository's plugins, all of them or the ones named. With `--sdk <dir>`
+(or `HESTIA_SDK`) it runs them against a local checkout of the SDK crate, as `dev`, `pack` and `publish` build against
+one, without a `[patch]` in `Cargo.toml`. Calling an SDK function with no mock installed panics.
 
 ## What it does not do
 
