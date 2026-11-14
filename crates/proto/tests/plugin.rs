@@ -78,6 +78,24 @@ mod manifest {
     }
 
     #[test]
+    fn a_retired_top_level_key_is_refused_naming_its_replacement() {
+        let manifest: Manifest = serde_json::from_value(serde_json::json!({
+            "id": "tunnel",
+            "version": "1.2.3",
+            "api": "^1.0.0",
+            "wasm": "plugin.wasm",
+            "network": ["a.example.com"],
+        }))
+        .unwrap();
+        assert!(manifest.grant().permissions.is_empty());
+        assert!(matches!(
+            manifest.verdict(),
+            Err(ManifestError::RetiredKey { key: "network", replacement })
+                if replacement.contains("network:connect")
+        ));
+    }
+
+    #[test]
     fn a_theme_only_package_needs_no_api() {
         let mut theme = valid();
         theme.api = None;
