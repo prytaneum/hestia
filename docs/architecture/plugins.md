@@ -21,7 +21,7 @@ what a third party could use.
   [plugins/paths.md](../plugins/paths.md) covers what a guest sees of the filesystem.
 - Why it is built this way: decisions
   [0091](../decisions/0091-plugins-are-wasm-components.md) to
-  [0131](../decisions/0131-plugin-tooling-reports-everything-and-builds-quickly.md),
+  [0132](../decisions/0132-a-distributor-ships-setting-defaults-in-the-package.md),
   listed [below](#decisions).
 
 ## Where the pieces are
@@ -825,3 +825,4 @@ plugins the tests build are fixtures
 | [0129](../decisions/0129-a-plugin-reaches-only-what-is-listed.md) | a plugin reaches a setting, a host or a download only by an entry that names it |
 | [0130](../decisions/0130-a-plugin-reaches-all-entries.md) | a plugin's entry access is every entry |
 | [0131](../decisions/0131-plugin-tooling-reports-everything-and-builds-quickly.md) | plugin tooling builds quickly, builds against a local SDK and reports every problem |
+| [0132](../decisions/0132-a-distributor-ships-setting-defaults-in-the-package.md) | a distributor ships a setting's default inside the package |

@@ -399,7 +399,43 @@ pub fn is_locale_tag(tag: &str) -> bool {
         })
 }
 
+/// The package file holding the values a distributor ships for the plugin's
+/// settings, by key: used where the user has set none, ahead of the manifest's
+/// own default.
+pub const SETTING_DEFAULTS: &str = "defaults.json";
+
+/// The environment variable `pack` and `publish` read a distributor's value
+/// for the setting `key` of the plugin `id` from.
+pub fn setting_default_var(id: &str, key: &str) -> String {
+    let shout = |text: &str| -> String {
+        text.chars()
+            .map(|c| match c.is_ascii_alphanumeric() {
+                true => c.to_ascii_uppercase(),
+                false => '_',
+            })
+            .collect()
+    };
+    format!("HESTIA_SETTING_{}_{}", shout(id), shout(key))
+}
+
 impl Setting {
+    /// The value `text` stands for when it comes from somewhere untyped, such
+    /// as an environment variable; `None` when the kind cannot read it.
+    pub fn parse(&self, text: &str) -> Option<serde_json::Value> {
+        use serde_json::Value;
+        match self.kind {
+            SettingKind::String | SettingKind::Secret | SettingKind::Select => {
+                Some(Value::String(text.to_string()))
+            }
+            SettingKind::Number => text
+                .trim()
+                .parse::<serde_json::Number>()
+                .ok()
+                .map(Value::Number),
+            SettingKind::Bool => text.trim().parse::<bool>().ok().map(Value::Bool),
+        }
+    }
+
     /// Why `value` cannot be this setting's value, if it cannot.
     pub fn check(&self, value: &serde_json::Value) -> Result<(), String> {
         use serde_json::Value;

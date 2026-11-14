@@ -48,6 +48,15 @@ The weekly run changes nothing but the signature and `expires`. GitHub disables 
 workflows after 60 days without activity, so a repository nobody touches goes stale: its index expires and new installs
 stop until the workflow runs again.
 
+## Setting defaults
+
+A setting the users of your builds should not have to fill in, such as an API key your project holds, takes a default
+at pack time. Set `HESTIA_SETTING_<ID>_<KEY>` (the plugin id and the setting key in upper case, every other character
+as `_`: `HESTIA_SETTING_CURSEFORGE_API_KEY`) in the environment of `hestia plugin pack` or `publish`, on GitHub as a
+repository secret passed to the workflow. The value is checked like one a user would store and written into the
+package as `defaults.json`; a user's own value wins over it. It is in the package, so anyone who installs the plugin
+can read it: it keeps a key out of your repository, it does not keep it secret.
+
 ## On any other host
 
 Do the same from your CI, with the `hestia` CLI and the Rust `wasm32-wasip2` target installed: run `hestia plugin

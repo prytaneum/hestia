@@ -137,7 +137,41 @@ pub(super) fn package_files(
         collect(&plugin.path, bundled, &mut files)?;
     }
     check_themes(&manifest, &files)?;
+    if let Some(defaults) = distributed(&manifest, |var| std::env::var(var).ok())? {
+        files.push((proto::plugin::SETTING_DEFAULTS.to_string(), defaults));
+    }
     Ok((manifest, files))
+}
+
+/// The distributor's values for the plugin's settings, read from the
+/// environment so none is ever committed; `None` when no variable is set. A
+/// value its setting would refuse is an error that names the variable only.
+fn distributed(
+    manifest: &proto::plugin::Manifest,
+    lookup: impl Fn(&str) -> Option<String>,
+) -> Result<Option<Vec<u8>>> {
+    let mut values = serde_json::Map::new();
+    for setting in &manifest.settings {
+        let var = proto::plugin::setting_default_var(&manifest.id, &setting.key);
+        let Some(text) = lookup(&var).filter(|text| !text.is_empty()) else {
+            continue;
+        };
+        let value = setting
+            .parse(&text)
+            .with_context(|| format!("${var} is not a value of setting `{}`", setting.key))?;
+        if let Err(reason) = setting.check(&value) {
+            bail!(
+                "${var} is not usable for setting `{}`: {reason}",
+                setting.key
+            );
+        }
+        tracing::info!(plugin = %manifest.id, setting = %setting.key, "packing a distributed setting default");
+        values.insert(setting.key.clone(), value);
+    }
+    match values.is_empty() {
+        true => Ok(None),
+        false => Ok(Some(serde_json::to_vec(&values)?)),
+    }
 }
 
 /// Writes `<dist>/<id>-<version>.hplugin`.
@@ -292,6 +326,42 @@ mod tests {
         assert!(entry_exists(&archive, "plugin.wasm"));
         assert_eq!(entry(&archive, "assets/icon.txt").unwrap(), "icon");
         assert_eq!(entry(&archive, "themes/dark.css").unwrap(), "body{}");
+    }
+
+    #[test]
+    fn a_distributors_value_is_packed_from_its_variable_and_a_bad_one_is_refused() {
+        let manifest: proto::plugin::Manifest = toml::from_str(
+            "id = \"cf-source\"\nname = \"CF\"\nversion = \"0.1.0\"\n\n[[settings]]\nkey = \"api-key\"\nkind = \"secret\"\n\n[[settings]]\nkey = \"limit\"\nkind = \"number\"\n",
+        )
+        .unwrap();
+        let env = |pairs: &'static [(&'static str, &'static str)]| {
+            move |var: &str| {
+                pairs
+                    .iter()
+                    .find(|(name, _)| *name == var)
+                    .map(|(_, value)| value.to_string())
+            }
+        };
+
+        assert!(distributed(&manifest, env(&[])).unwrap().is_none());
+        let packed = distributed(
+            &manifest,
+            env(&[
+                ("HESTIA_SETTING_CF_SOURCE_API_KEY", "k"),
+                ("HESTIA_SETTING_CF_SOURCE_LIMIT", "5"),
+            ]),
+        )
+        .unwrap()
+        .unwrap();
+        assert_eq!(packed, br#"{"api-key":"k","limit":5}"#);
+
+        let refused = distributed(
+            &manifest,
+            env(&[("HESTIA_SETTING_CF_SOURCE_LIMIT", "s3cret")]),
+        )
+        .unwrap_err()
+        .to_string();
+        assert!(refused.contains("HESTIA_SETTING_CF_SOURCE_LIMIT") && !refused.contains("s3cret"));
     }
 
     #[test]

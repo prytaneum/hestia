@@ -152,6 +152,11 @@ default that does not fit its kind is refused (`BadSetting`). The plugin reads a
 `hestia::settings::get::<T>(key)` and is told of a change through `Plugin::on_settings_changed(key)`. It may also write
 its own settings with `hestia::settings::set` ([settings.md](settings.md)).
 
+A value resolves to what the user stored, else the default the distributor shipped in the package, else `default`. The
+distributor's one is supplied when the plugin is packed, from `HESTIA_SETTING_<ID>_<KEY>`, so it is never in the
+manifest; a `secret` may have one ([publishing.md](publishing.md#setting-defaults),
+[0132](../decisions/0132-a-distributor-ships-setting-defaults-in-the-package.md)).
+
 ## `[contributes]`
 
 What the plugin adds. Every contribution id is 1 to 40 lowercase letters, digits or dashes and unique within its list.

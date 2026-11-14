@@ -1,9 +1,10 @@
 use std::collections::BTreeMap;
-use std::path::PathBuf;
+use std::io::Read;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
 use anyhow::Result;
-use proto::plugin::{Setting, SettingKind, SettingValue};
+use proto::plugin::{Setting, SettingKind, SettingValue, SETTING_DEFAULTS};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -11,6 +12,7 @@ use super::store::Plugins;
 use crate::schema::{self, Document};
 
 const FILE: &str = "settings.json";
+const DEFAULTS_LIMIT: u64 = 64 * 1024;
 
 #[derive(Serialize, Deserialize, Default)]
 #[serde(default, rename_all = "camelCase")]
@@ -40,6 +42,7 @@ pub enum SettingsError {
 pub struct PluginSettings {
     path: PathBuf,
     declared: Vec<Setting>,
+    distributed: BTreeMap<String, Value>,
     writes: Arc<Mutex<()>>,
 }
 
@@ -48,8 +51,43 @@ impl PluginSettings {
         PluginSettings {
             path,
             declared,
+            distributed: BTreeMap::new(),
             writes: Arc::default(),
         }
+    }
+
+    /// Takes the values the package ships for its settings from `package`. A
+    /// value for an undeclared key, or one its setting would refuse from the
+    /// user, is dropped: the file is the distributor's word, checked like any.
+    pub fn with_distributed(mut self, package: &Path) -> Self {
+        let shipped = std::fs::File::open(package.join(SETTING_DEFAULTS))
+            .ok()
+            .and_then(|file| {
+                serde_json::from_reader::<_, BTreeMap<String, Value>>(file.take(DEFAULTS_LIMIT))
+                    .ok()
+            })
+            .unwrap_or_default();
+        self.distributed = shipped
+            .into_iter()
+            .filter(|(key, value)| {
+                let usable = self
+                    .declared
+                    .iter()
+                    .find(|setting| setting.key == *key)
+                    .is_some_and(|setting| setting.check(value).is_ok());
+                if !usable {
+                    tracing::warn!(setting = %key, "a distributed setting default is not usable");
+                }
+                usable
+            })
+            .collect();
+        self
+    }
+
+    fn fallback<'a>(&'a self, setting: &'a Setting) -> Option<&'a Value> {
+        self.distributed
+            .get(&setting.key)
+            .or(setting.default.as_ref())
     }
 
     /// Serialises this plugin's writes with the lock other writers of the same
@@ -78,7 +116,7 @@ impl PluginSettings {
                     set: own.is_some(),
                     value: match setting.kind {
                         SettingKind::Secret => None,
-                        _ => own.or(setting.default.as_ref()).cloned(),
+                        _ => own.or(self.fallback(setting)).cloned(),
                     },
                 }
             })
@@ -90,7 +128,7 @@ impl PluginSettings {
         let setting = self.declared.iter().find(|setting| setting.key == key)?;
         self.stored()
             .remove(key)
-            .or_else(|| setting.default.clone())
+            .or_else(|| self.fallback(setting).cloned())
     }
 
     /// Whether `key` holds a value a source can work with: declared, and
@@ -139,6 +177,7 @@ impl Plugins {
         let declared = self.read_manifest(id)?.settings;
         Ok(
             PluginSettings::new(self.plugin_dir(id)?.join(FILE), declared)
+                .with_distributed(&self.package_dir(id)?)
                 .sharing(self.writes.clone()),
         )
     }
@@ -185,6 +224,27 @@ mod tests {
         assert!(listed[0].set && listed[0].value.is_none());
         assert!(!serde_json::to_string(&listed).unwrap().contains("hunter2"));
         assert_eq!(settings.get("api-key"), Some(json!("hunter2")));
+    }
+
+    #[test]
+    fn a_distributed_default_serves_until_the_user_sets_a_value_and_is_never_listed() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join(SETTING_DEFAULTS),
+            r#"{"api-key":"shipped","limit":"many","ghost":1}"#,
+        )
+        .unwrap();
+        let settings = settings(&dir).with_distributed(dir.path());
+
+        assert_eq!(settings.get("api-key"), Some(json!("shipped")));
+        assert!(settings.is_filled("api-key"));
+        assert_eq!(settings.get("limit"), Some(json!(10)));
+        let listed = settings.list();
+        assert!(!listed[0].set && listed[0].value.is_none());
+        assert!(!serde_json::to_string(&listed).unwrap().contains("shipped"));
+
+        settings.set("api-key", json!("mine")).unwrap();
+        assert_eq!(settings.get("api-key"), Some(json!("mine")));
     }
 
     #[test]

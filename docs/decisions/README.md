@@ -61,6 +61,7 @@ the alternative you rejected — that is usually the part nobody can recover lat
 - **0129** — [A plugin reaches a setting, a host or a download only by an entry that names it](0129-a-plugin-reaches-only-what-is-listed.md)
 - **0130** — [A plugin's entry access is every entry](0130-a-plugin-reaches-all-entries.md)
 - **0131** — [Plugin tooling builds quickly, builds against a local SDK, and reports every problem](0131-plugin-tooling-reports-everything-and-builds-quickly.md)
+- **0132** — [A distributor ships a setting's default inside the package](0132-a-distributor-ships-setting-defaults-in-the-package.md)
 
 ### [Cross-cutting foundations](../architecture/common.md)
 
