@@ -2,7 +2,22 @@
 
 use std::sync::OnceLock;
 
+use proto::host::HostInfoResult;
 use sysinfo::{MemoryRefreshKind, System};
+
+/// The facts about this machine a caller may always be told: operating system,
+/// architecture and path separator in the vocabulary a plugin is queried with,
+/// and the daemon's process id.
+pub fn info() -> HostInfoResult {
+    let target = crate::minecraft::rules::host_target(None);
+    HostInfoResult {
+        total_memory_bytes: total_memory(),
+        os: target.os,
+        arch: target.arch,
+        pid: std::process::id(),
+        path_separator: target.path_separator,
+    }
+}
 
 /// Installed physical memory in bytes, or `None` where the platform reports
 /// none — the signal to skip any limit derived from it.

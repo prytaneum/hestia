@@ -47,6 +47,10 @@ impl HostCalls for ReadChannels {
         .then_some(Permission::EntryRead)
     }
 
+    fn ambient(&self, channel: &str) -> bool {
+        channel == "host.info"
+    }
+
     fn touched(&self, channel: &str, payload: &Value) -> Touched {
         match channel {
             "server.files.read" => {
@@ -65,6 +69,9 @@ impl HostCalls for ReadChannels {
     ) -> Result<Value, ErrorInfo> {
         match channel {
             "instance.list" => Err(ErrorInfo::Offline { service: None }),
+            "host.info" => {
+                Ok(json!({ "os": "testos", "arch": "x86_64", "pid": 7, "pathSeparator": ":" }))
+            }
             _ => Ok(json!([])),
         }
     }
@@ -470,6 +477,20 @@ async fn a_channel_outside_the_grant_answers_permission_denied_and_the_plugin_st
 
     probe.set_mode("idle");
     probe.init().await.unwrap();
+}
+
+#[tokio::test]
+async fn a_plugin_with_no_permissions_reads_the_ambient_facts_and_nothing_else() {
+    let probe = Probe::load(&[]);
+    probe.set_mode("host-info");
+    probe.init().await.unwrap();
+
+    probe.set_mode("list-servers");
+    let denied = probe.init().await;
+    assert!(
+        matches!(&denied, Err(CallError::Guest(GuestError::Denied(_)))),
+        "{denied:?}"
+    );
 }
 
 async fn http_refusal(probe: &Probe, url: &str) -> String {

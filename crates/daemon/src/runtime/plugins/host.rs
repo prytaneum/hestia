@@ -107,6 +107,10 @@ impl HostCalls for RouterHost {
             .map(|access| access.permission)
     }
 
+    fn ambient(&self, channel: &str) -> bool {
+        self.router.plugin_ambient(channel)
+    }
+
     fn touched(&self, channel: &str, payload: &Value) -> Touched {
         self.router
             .plugin_access(channel)

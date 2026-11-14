@@ -95,6 +95,14 @@ impl Api {
         C::Result: TS + 'static,
     {
         self.list::<C>("Contract");
+        if C::AMBIENT {
+            let entry = json!({
+                "permission": "ambient",
+                "params": self.types.root::<C::Params>(),
+                "result": self.types.root::<C::Result>(),
+            });
+            self.channels.insert(C::CHANNEL.to_string(), entry);
+        }
         if let Some(permission) = C::PLUGIN {
             let mut entry = json!({
                 "permission": permission.to_string(),

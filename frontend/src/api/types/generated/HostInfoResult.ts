@@ -5,4 +5,20 @@ export type HostInfoResult = {
  * Installed physical memory, absent where the platform reports none. The
  * ceiling the daemon enforces on a `memory` setting.
  */
-totalMemoryBytes?: number, };
+totalMemoryBytes?: number, 
+/**
+ * `windows`, `osx` or `linux`: the vocabulary of a rule's `os.name`.
+ */
+os: string, 
+/**
+ * `x86`, `x86_64` or `arm64`: the vocabulary of a rule's `os.arch`.
+ */
+arch: string, 
+/**
+ * The daemon's process id.
+ */
+pid: number, 
+/**
+ * What joins the entries of a classpath or `PATH`: `:` or `;`.
+ */
+pathSeparator: string, };

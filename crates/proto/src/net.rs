@@ -44,6 +44,7 @@ pub struct NetworkStatus {
 pub struct NetStatus;
 impl Contract for NetStatus {
     const CHANNEL: &'static str = "net.status";
+    const AMBIENT: bool = true;
     type Params = Empty;
     type Result = NetworkStatus;
 }

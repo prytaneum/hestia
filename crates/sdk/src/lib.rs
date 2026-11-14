@@ -27,6 +27,7 @@ mod error;
 pub mod events;
 pub mod hash;
 pub mod hooks;
+pub mod host;
 pub mod http;
 pub mod ipc;
 pub mod log;

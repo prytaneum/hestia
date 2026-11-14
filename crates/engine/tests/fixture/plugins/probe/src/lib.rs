@@ -90,6 +90,14 @@ impl Plugin for Probe {
                 std::hint::black_box(&hoard);
                 Ok(())
             }
+            Some("host-info") => {
+                let host = hestia::host::info()?;
+                if host.os == "testos" && host.pid == 7 {
+                    Ok(())
+                } else {
+                    Err(Error::Invalid(format!("unexpected facts: {host:?}")))
+                }
+            }
             Some("list-instances") => hestia::call::<InstanceList>(&Empty {}).map(drop),
             Some(mode) if mode.starts_with("read ") => hestia::call::<ServerFilesRead>(
                 &ServerFileParams {

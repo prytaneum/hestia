@@ -43,6 +43,14 @@ pub trait HostCalls: Send + Sync {
     /// The permission `channel` needs, or `None` when plugins may not reach it.
     fn permission(&self, channel: &str) -> Option<Permission>;
 
+    /// Whether any plugin may call `channel` with no permission, because its
+    /// whole result is a harmless fact. Such a channel names no permission and
+    /// is never part of a grant.
+    fn ambient(&self, channel: &str) -> bool {
+        let _ = channel;
+        false
+    }
+
     /// What a call to `channel` with `payload` touches, for the narrowing its
     /// contract declares; [`Touched::Unscoped`] when it declares none.
     fn touched(&self, channel: &str, payload: &Value) -> Touched;
@@ -145,6 +153,11 @@ impl WasiHttpView for PluginState {
     }
 }
 
+fn parse(payload: &str) -> Result<Value, PluginError> {
+    serde_json::from_str(payload)
+        .map_err(|error| PluginError::Invalid(format!("payload is not JSON: {error}")))
+}
+
 enum Dispatch {
     Call,
     RunJob,
@@ -158,6 +171,9 @@ impl Gate {
         payload: &str,
     ) -> Result<String, PluginError> {
         let Some(needed) = self.host.permission(channel) else {
+            if self.host.ambient(channel) {
+                return self.forward(kind, channel, parse(payload)?).await;
+            }
             self.log
                 .line(Level::WARN, &format!("reached closed channel `{channel}`"));
             return Err(PluginError::Denied(format!(
@@ -173,8 +189,7 @@ impl Gate {
                 "channel `{channel}` needs the `{needed}` permission"
             )));
         }
-        let payload: Value = serde_json::from_str(payload)
-            .map_err(|error| PluginError::Invalid(format!("payload is not JSON: {error}")))?;
+        let payload = parse(payload)?;
         match self.host.touched(channel, &payload) {
             Touched::Unscoped => {}
             Touched::Malformed => {
@@ -199,6 +214,15 @@ impl Gate {
                 }
             }
         }
+        self.forward(kind, channel, payload).await
+    }
+
+    async fn forward(
+        &self,
+        kind: Dispatch,
+        channel: &str,
+        payload: Value,
+    ) -> Result<String, PluginError> {
         let reply = match kind {
             Dispatch::Call => {
                 self.host

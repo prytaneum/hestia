@@ -14,6 +14,11 @@
       "payload": "AccountSignedOutEvent",
       "permission": "account:read"
     },
+    "app.info": {
+      "params": "Empty",
+      "permission": "ambient",
+      "result": "AppInfoResult"
+    },
     "changed": {
       "payload": "ChangedEvent",
       "permission": "entry:read"
@@ -138,6 +143,16 @@
       "params": "EntryVersionsParams",
       "permission": "entry:read",
       "result": "Array<GameVersion>"
+    },
+    "health.ping": {
+      "params": "Empty",
+      "permission": "ambient",
+      "result": "PingResult"
+    },
+    "host.info": {
+      "params": "Empty",
+      "permission": "ambient",
+      "result": "HostInfoResult"
     },
     "instance.create": {
       "params": "InstanceCreateParams",
@@ -294,6 +309,11 @@
     "net.state": {
       "payload": "NetworkStatus",
       "permission": "network:connect"
+    },
+    "net.status": {
+      "params": "Empty",
+      "permission": "ambient",
+      "result": "NetworkStatus"
     },
     "process.exit": {
       "payload": "ProcessExitEvent",
@@ -590,6 +610,7 @@
     "AccountListResult": "type AccountListResult = { accounts: Array<Account>, defaultUuid: string, };",
     "AccountSignedInEvent": "type AccountSignedInEvent = { uuid: string, name: string, };",
     "AccountSignedOutEvent": "type AccountSignedOutEvent = { uuid: string, name: string, };",
+    "AppInfoResult": "type AppInfoResult = { name: string, version: string, id: string, vendor: string, channel: string, };",
     "ArchiveEntry": "type ArchiveEntry = { path: string, name: string, directory: boolean, sizeBytes: bigint, referenced: boolean, };",
     "ArchiveFault": "type ArchiveFault = \"not_an_archive\" | \"manifest_missing\" | \"manifest_malformed\" | \"unsafe_path\" | \"format_version\" | \"manifest_type\" | \"no_game_version\" | \"no_components\" | \"file_unpublished\";",
     "ArchiveFormat": "type ArchiveFormat = \"zip\" | \"hestia\" | \"backup\" | { \"provider\": Provider };",
@@ -673,6 +694,7 @@
     "GameQuery": "type GameQuery = { game: string, target: Target, };",
     "GameVersion": "type GameVersion = { id: string, kind: VersionKind, stable: boolean, };",
     "HashAlgorithm": "type HashAlgorithm = \"sha1\" | \"sha256\" | \"sha512\";",
+    "HostInfoResult": "type HostInfoResult = { totalMemoryBytes?: bigint, os: string, arch: string, pid: number, pathSeparator: string, };",
     "IconBackground": "type IconBackground = { \"type\": \"color\", value: string, } | { \"type\": \"linear-top-down-gradient\", topColor: string, bottomColor: string, };",
     "IconGenerator": "type IconGenerator = { background: IconBackground, symbol: string, };",
     "IdQuery": "type IdQuery = { ids: Array<string>, };",
@@ -741,6 +763,7 @@
     "OsRule": "type OsRule = { name?: string, arch?: string, version?: string, };",
     "PackManifestQuery": "type PackManifestQuery = { manifest: unknown, };",
     "PackPolicy": "type PackPolicy = \"move\" | \"keep\";",
+    "PingResult": "type PingResult = { status: string, pid: number, };",
     "PlayerEntry": "type PlayerEntry = { name: string, uuid: string, reason?: string, };",
     "PlayerList": "type PlayerList = \"whitelist\" | \"ops\" | \"banned\";",
     "ProcessExitEvent": "type ProcessExitEvent = { id: string, state: ProcessState, exitCode?: number, success: boolean, };",

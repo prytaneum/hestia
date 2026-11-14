@@ -3,7 +3,7 @@
 //! so the caller always gets a well-formed `Response` back.
 
 use std::any::TypeId;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
@@ -68,6 +68,7 @@ pub struct PluginAccess {
 pub struct Router {
     handlers: HashMap<String, Handler>,
     plugin_access: HashMap<String, PluginAccess>,
+    ambient: HashSet<String>,
 }
 
 impl Router {
@@ -78,6 +79,11 @@ impl Router {
     /// `None` for a channel a plugin may not reach, including an unknown one.
     pub fn plugin_access(&self, channel: &str) -> Option<PluginAccess> {
         self.plugin_access.get(channel).copied()
+    }
+
+    /// Whether any plugin may call `channel` with no permission.
+    pub fn plugin_ambient(&self, channel: &str) -> bool {
+        self.ambient.contains(channel)
     }
 
     pub async fn route(&self, request: Request, ctx: HandlerContext) -> Response {
@@ -146,6 +152,14 @@ impl<'r> Channels<'r> {
         F: Fn(C::Params, HandlerContext) -> Fut + Send + Sync + Clone + 'static,
         Fut: Future<Output = ServiceResult<C::Result>> + Send + 'static,
     {
+        assert!(
+            !(C::AMBIENT && C::PLUGIN.is_some()),
+            "`{}` is both ambient and behind a permission",
+            C::CHANNEL
+        );
+        if C::AMBIENT {
+            self.router.ambient.insert(C::CHANNEL.to_string());
+        }
         if let Some(permission) = C::PLUGIN {
             self.router.plugin_access.insert(
                 C::CHANNEL.to_string(),
@@ -307,5 +321,17 @@ mod tests {
         ] {
             assert!(!requires_account(channel), "{channel} should be open");
         }
+    }
+
+    #[test]
+    fn an_ambient_channel_is_open_to_plugins_without_a_permission() {
+        let router = crate::services::make_router();
+        for channel in ["app.info", "health.ping", "host.info", "net.status"] {
+            assert!(router.plugin_ambient(channel), "{channel}");
+            assert!(router.plugin_access(channel).is_none(), "{channel}");
+        }
+        assert!(!router.plugin_ambient("server.list"));
+        assert!(!router.plugin_ambient("daemon.status"));
+        assert!(router.plugin_access("server.list").is_some());
     }
 }

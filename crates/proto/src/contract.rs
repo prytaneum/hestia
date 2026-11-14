@@ -32,6 +32,12 @@ pub trait Contract {
     /// channel unreachable from plugins, so a new contract is closed until it is
     /// classified ([0092](../../docs/decisions/0092-a-contract-names-the-permission-a-plugin-needs.md)).
     const PLUGIN: Option<Permission> = None;
+    /// Any plugin may call this channel with no permission: its whole result is
+    /// a harmless fact about the app or the machine, never a path under the
+    /// user's home, an account, an entry, a setting or a secret. Exclusive with
+    /// [`Self::PLUGIN`], and never part of a grant
+    /// ([0126](../../docs/decisions/0126-an-ambient-channel-needs-no-permission.md)).
+    const AMBIENT: bool = false;
     /// The scope kind of [`Self::PLUGIN`] that narrows this channel for a
     /// plugin, with [`Self::touches`] naming what a call reaches. The plugin
     /// gate refuses a call whose touched entries the caller's scope does not

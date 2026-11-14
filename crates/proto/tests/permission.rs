@@ -83,14 +83,23 @@ const DENIED: &[&str] = &[
     "cache.list",
     "cache.clear",
     "image.fetch",
-    // No permission fits
+];
+
+/// Channels any plugin may call with no permission, each with why its whole
+/// result is harmless. Growing this list is a decision, so it is pinned here.
+const AMBIENT: &[&str] = &[
+    // Name, version, id, vendor and release channel of this build
     "app.info",
+    // Operating system, architecture, path separator, daemon pid and installed memory
     "host.info",
+    // Liveness and the daemon pid
     "health.ping",
+    // Whether upstream is reachable, and since when
     "net.status",
 ];
 
-/// Every literal channel or topic in `src`, with whether its impl names a permission.
+/// Every literal channel or topic in `src`, with whether its impl is classified:
+/// it names a permission or is ambient.
 fn declared() -> Vec<(String, bool)> {
     let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
     let mut found = Vec::new();
@@ -120,12 +129,39 @@ fn declared() -> Vec<(String, bool)> {
             if let Some(name) = name {
                 found.push((name.to_string(), false));
                 current = Some(found.len() - 1);
-            } else if line.contains("const PLUGIN: Option<Permission> = Some(") {
+            } else if line.contains("const PLUGIN: Option<Permission> = Some(")
+                || line.trim() == "const AMBIENT: bool = true;"
+            {
                 if let Some(index) = current {
                     found[index].1 = true;
                 }
             } else if line.starts_with('}') {
                 current = None;
+            }
+        }
+    }
+    found
+}
+
+/// The channels whose impl marks `AMBIENT = true`.
+fn declared_ambient() -> BTreeSet<String> {
+    let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+    let mut found = BTreeSet::new();
+    for entry in fs::read_dir(&dir).unwrap() {
+        let path = entry.unwrap().path();
+        if path.extension().and_then(|e| e.to_str()) != Some("rs") {
+            continue;
+        }
+        let mut channel = None;
+        for line in fs::read_to_string(&path).unwrap().lines() {
+            if let Some(name) = line
+                .trim()
+                .strip_prefix("const CHANNEL: &'static str = \"")
+                .and_then(|rest| rest.strip_suffix("\";"))
+            {
+                channel = Some(name.to_string());
+            } else if line.trim() == "const AMBIENT: bool = true;" {
+                found.extend(channel.clone());
             }
         }
     }
@@ -161,6 +197,60 @@ fn every_unclassified_channel_is_explicitly_denied() {
     assert!(
         stale.is_empty(),
         "DENIED names no declared channel: {stale:?}"
+    );
+}
+
+#[test]
+fn the_ambient_channels_are_exactly_the_pinned_list() {
+    let declared = declared();
+    let ambient: BTreeSet<&str> = AMBIENT.iter().copied().collect();
+    let classified: BTreeSet<&str> = declared
+        .iter()
+        .filter(|(_, classified)| *classified)
+        .map(|(name, _)| name.as_str())
+        .collect();
+    for channel in &ambient {
+        assert!(
+            classified.contains(channel),
+            "AMBIENT names an unclassified or missing channel: {channel}"
+        );
+    }
+
+    use proto::app::AppInfo;
+    use proto::health::Ping;
+    use proto::host::HostInfo;
+    use proto::net::NetStatus;
+    let marked = [
+        (AppInfo::CHANNEL, AppInfo::AMBIENT, AppInfo::PLUGIN),
+        (Ping::CHANNEL, Ping::AMBIENT, Ping::PLUGIN),
+        (HostInfo::CHANNEL, HostInfo::AMBIENT, HostInfo::PLUGIN),
+        (NetStatus::CHANNEL, NetStatus::AMBIENT, NetStatus::PLUGIN),
+    ];
+    let marked_names: BTreeSet<&str> = marked.iter().map(|(name, _, _)| *name).collect();
+    assert_eq!(marked_names, ambient);
+    for (name, is_ambient, permission) in marked {
+        assert!(is_ambient, "{name} is listed ambient but not marked");
+        assert!(permission.is_none(), "{name} is ambient and permissioned");
+    }
+
+    let by_source: BTreeSet<String> = declared_ambient();
+    let by_source: BTreeSet<&str> = by_source.iter().map(String::as_str).collect();
+    assert_eq!(by_source, ambient, "an `AMBIENT = true` impl is not pinned");
+}
+
+#[test]
+fn an_ambient_channel_is_never_part_of_a_grant() {
+    use proto::plugin::{Grant, Permission};
+
+    assert!(serde_json::from_str::<Permission>("\"ambient\"").is_err());
+    for permission in Permission::ALL {
+        assert_ne!(permission.to_string(), "ambient");
+    }
+    let nothing = Grant::default();
+    assert!(nothing.permissions.is_empty());
+    assert_eq!(
+        nothing.approval_digest(&Default::default()),
+        Grant::default().approval_digest(&Default::default())
     );
 }
 
