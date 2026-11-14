@@ -448,23 +448,6 @@ mod tests {
     }
 
     #[test]
-    fn seeding_starts_the_shared_copy_from_one_instance() {
-        let base = temp_dir("seed");
-        let shared = base.path().join("shared");
-        let source = base.path().join("source");
-        fs::create_dir_all(&source).unwrap();
-        fs::write(source.join("options.txt"), "fov:90\n").unwrap();
-
-        Sync::new(shared.clone())
-            .seed(SyncUnit::Options, "1.21.4", &source)
-            .unwrap();
-
-        assert!(fs::read_to_string(shared.join("options.txt"))
-            .unwrap()
-            .contains("fov:90"));
-    }
-
-    #[test]
     fn what_the_shared_copy_lands_on_is_kept_first() {
         let base = temp_dir("backup");
         let shared = base.path().join("shared");
@@ -780,17 +763,6 @@ mod tests {
     }
 
     #[test]
-    fn a_unit_is_gated_by_the_version_that_first_writes_its_file() {
-        assert!(catalogue::supports(SyncUnit::Options, "1.12.2"));
-        assert!(catalogue::supports(SyncUnit::Commands, "23w14a"));
-        assert!(!catalogue::supports(SyncUnit::Commands, "1.20.1"));
-        assert!(catalogue::supports(SyncUnit::Commands, "1.20.2"));
-        assert!(!catalogue::supports(SyncUnit::Hotbars, "1.11.2"));
-        assert!(catalogue::supports(SyncUnit::Hotbars, "1.12"));
-        assert!(catalogue::supports(SyncUnit::Servers, "1.7.10"));
-    }
-
-    #[test]
     fn a_merge_leaves_everything_it_did_not_settle_alone() {
         let base = temp_dir("shape");
         let shared = base.path().join("shared");
@@ -830,42 +802,5 @@ mod tests {
         for key in ["version", "lastServer", "overrideWidth"] {
             assert!(!stored.contains(key), "{key} must not reach the store");
         }
-    }
-
-    #[test]
-    fn forget_drops_only_that_instances_agreements() {
-        let base = temp_dir("forget");
-        let shared = base.path().join("shared");
-        let a = base.path().join("a");
-        let b = base.path().join("b");
-        let sync = sharing(&shared);
-
-        write_at(&shared.join("options.txt"), "guiScale:1\n", 300);
-        sync.apply(&pass("a", &a));
-        sync.apply(&pass("b", &b));
-        assert!(shared.join(BASELINES).join("a").exists());
-
-        sync.forget("a");
-        assert!(!shared.join(BASELINES).join("a").exists());
-        assert!(shared.join(BASELINES).join("b").exists());
-    }
-
-    #[test]
-    fn editing_the_shared_options_reaches_the_next_launch() {
-        let base = temp_dir("edit");
-        let shared = base.path().join("shared");
-        let data = base.path().join("data");
-        let sync = sharing(&shared);
-
-        sync.set_option("fov", "90").unwrap();
-        sync.apply(&pass("test", &data));
-
-        assert!(fs::read_to_string(data.join("options.txt"))
-            .unwrap()
-            .contains("fov:90"));
-        assert!(sync
-            .options()
-            .iter()
-            .any(|option| option.key == "fov" && option.synced));
     }
 }

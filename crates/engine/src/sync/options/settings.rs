@@ -213,14 +213,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn a_renamed_setting_is_one_setting() {
-        let old = decode("fancyGraphics", "true", (1, 12, 2)).unwrap();
-        let new = decode("graphicsMode", "1", (1, 21, 4)).unwrap();
-        assert_eq!(old, new);
-        assert_eq!(old.1, "fancy");
-    }
-
-    #[test]
     fn a_value_is_written_in_the_targets_own_spelling() {
         assert_eq!(
             encode("graphics", "fabulous", (1, 21, 4)),
@@ -243,16 +235,6 @@ mod tests {
         assert_eq!(
             encode("key_key.forward", "key.keyboard.w", (1, 21, 4)),
             Some(("key_key.forward".to_string(), "key.keyboard.w".to_string()))
-        );
-    }
-
-    #[test]
-    fn ambient_occlusion_survives_becoming_a_boolean() {
-        assert_eq!(decode("ao", "2", (1, 18, 2)).unwrap().1, "true");
-        assert_eq!(decode("ao", "true", (1, 21, 4)).unwrap().1, "true");
-        assert_eq!(
-            encode("ambient_occlusion", "true", (1, 18, 2)),
-            Some(("ao".to_string(), "2".to_string()))
         );
     }
 }

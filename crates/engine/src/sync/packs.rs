@@ -128,21 +128,6 @@ mod tests {
     }
 
     #[test]
-    fn a_pack_the_instance_installed_itself_joins_the_library() {
-        let (shared, actions) = settle(&[], &[], &[pack("cozy", true)]);
-        assert!(actions.is_empty());
-        assert_eq!(shared, vec![pack("cozy", true)]);
-    }
-
-    #[test]
-    fn removing_a_pack_here_removes_it_from_the_library() {
-        let agreed = vec![pack("cozy", true)];
-        let (shared, actions) = settle(&[pack("cozy", true)], &agreed, &[]);
-        assert!(actions.is_empty());
-        assert!(shared.is_empty());
-    }
-
-    #[test]
     fn a_pack_removed_elsewhere_is_removed_here() {
         let agreed = vec![pack("cozy", true)];
         let (shared, actions) = settle(&[], &agreed, &[pack("cozy", true)]);

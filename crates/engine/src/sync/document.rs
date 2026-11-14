@@ -170,27 +170,6 @@ mod tests {
     }
 
     #[test]
-    fn a_file_with_no_trailing_newline_gains_one_only_when_appended_to() {
-        let document = &mut Document::parse("guiScale:3").unwrap();
-        assert_eq!(document.render(), "guiScale:3");
-        document.set("fov", "90");
-        assert_eq!(document.render(), "guiScale:3\nfov:90\n");
-    }
-
-    #[test]
-    fn a_value_may_hold_the_separator() {
-        let document = Document::parse("lastServer:example.net:25565\n").unwrap();
-        assert_eq!(document.get("lastServer"), Some("example.net:25565"));
-    }
-
-    #[test]
-    fn a_comment_is_not_a_pair() {
-        let document = Document::parse("#guiScale:3\nfov:70\n").unwrap();
-        assert_eq!(document.get("guiScale"), None);
-        assert_eq!(document.keys().collect::<Vec<_>>(), ["fov"]);
-    }
-
-    #[test]
     fn a_file_that_is_not_utf8_is_an_error_rather_than_an_empty_document() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("options.txt");

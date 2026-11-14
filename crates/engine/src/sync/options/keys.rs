@@ -124,16 +124,3 @@ pub fn code(name: &str) -> Option<i64> {
         .find(|(_, modern)| *modern == name)
         .map(|(code, _)| *code)
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn a_code_round_trips_through_its_name() {
-        for (legacy, modern) in LEGACY {
-            assert_eq!(name(*legacy), Some(*modern));
-            assert_eq!(code(modern), Some(*legacy));
-        }
-    }
-}

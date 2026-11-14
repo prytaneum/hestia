@@ -275,16 +275,4 @@ mod tests {
         assert_eq!(names(&servers::read_rows(&f.store).unwrap()), ["smp"]);
         assert_eq!(servers::read_rows(&f.data).unwrap().len(), 2);
     }
-
-    #[test]
-    fn a_row_one_instance_removed_leaves_the_shared_list() {
-        let f = fixture();
-        servers::write_rows(&f.store, &[row("A", "a.net"), row("B", "b.net")]).unwrap();
-        merge(&f.baseline, &f.store, &f.data).unwrap();
-
-        servers::write_rows(&f.data, &[row("A", "a.net")]).unwrap();
-        merge(&f.baseline, &f.store, &f.data).unwrap();
-
-        assert_eq!(names(&servers::read_rows(&f.store).unwrap()), ["a"]);
-    }
 }

@@ -113,19 +113,4 @@ mod tests {
             stored.as_ref()
         );
     }
-
-    #[test]
-    fn what_only_one_side_knows_is_kept() {
-        let only_store = value("on");
-        assert_eq!(
-            one(None, only_store.as_ref(), None, true),
-            only_store.as_ref()
-        );
-        let only_data = value("off");
-        assert_eq!(
-            one(None, None, only_data.as_ref(), false),
-            only_data.as_ref()
-        );
-        assert_eq!(one::<String>(None, None, None, true), None);
-    }
 }

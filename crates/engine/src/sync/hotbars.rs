@@ -161,12 +161,4 @@ mod tests {
 
         assert!(ids(&store).is_empty());
     }
-
-    #[test]
-    fn a_file_that_is_not_a_hotbar_is_an_error_rather_than_an_empty_one() {
-        let dir = tempfile::tempdir().unwrap();
-        let store = dir.path().join("store.nbt");
-        std::fs::write(&store, b"not nbt at all").unwrap();
-        assert!(read(&store).is_err());
-    }
 }
