@@ -83,27 +83,32 @@ to your account.
 
 ## What it supports
 
-| Area          | What works                                                         |
-|:--------------|:-------------------------------------------------------------------|
-| **Instances** | Vanilla · Fabric · NeoForge                                        |
-| **Servers**   | Vanilla · Fabric · NeoForge · Paper · Folia · Spigot · CraftBukkit |
-| **Content**   | Modrinth · CurseForge (official plugins) · a page URL · a local file |
-| **Import**    | Hestia archives · other formats through plugins                    |
-| **Export**    | Hestia archives · other formats through plugins                    |
-| **Plugins**   | WASM components: commands · pages · themes · hooks · providers     |
+| Area          | What works                                                                      |
+|:--------------|:--------------------------------------------------------------------------------|
+| **Instances** | Vanilla · Fabric · NeoForge *(Fabric and NeoForge: official plugins)*           |
+| **Servers**   | Vanilla · Fabric · NeoForge · Paper · Folia · Spigot · CraftBukkit *(all but Vanilla: official plugins)* |
+| **Content**   | Modrinth · CurseForge *(official plugins)* · a page URL · a local file          |
+| **Import**    | Hestia archives · `.mrpack` · Prism / MultiMC · CurseForge packs *(all but Hestia's: official plugins)* |
+| **Export**    | Hestia archives · `.mrpack` *(`.mrpack`: an official plugin)*                   |
+| **Java**      | Eclipse Temurin from Adoptium *(official plugin)*                               |
+| **Plugins**   | WASM components: commands · pages · themes · hooks · providers                  |
 
-Vanilla is built in; the other flavors and the Java distribution come from official plugins. NeoForge builds its game
+Vanilla and Hestia's own archive are the only things built into the launcher; the rest comes from the
+[official plugins](docs/plugins/official.md), which the installers bundle and keep up to date. NeoForge builds its game
 jar locally from the installer, and Spigot/CraftBukkit compile on your machine with SpigotMC's BuildTools (needs `git`)
-— so a first create on those takes a few minutes. Modrinth and CurseForge are official plugins; CurseForge needs an
-API key (`hestia plugin config curseforge`), and isn't offered until one is set.
+— so a first create on those takes a few minutes. CurseForge needs an API key (`hestia plugin config curseforge
+api-key`) and isn't offered until one is set. Without the official plugins Hestia runs vanilla only and has no content
+source or Java download.
 
 A few more things it does: several concurrent sessions of one instance, starting straight into a world or onto a server,
 in-place version changes both ways (downgrades warn, and a server is backed up first), game settings and multiplayer
-lists shared across instances, a system tray, and self-update.
+lists shared across instances, a system tray, and self-update. Two more official plugins show what you are playing on
+Discord and add a server's player lists (online, whitelist, operators, bans).
 
 Plugins extend the launcher itself: sandboxed WASM components that add commands, pages and themes, adjust a launch,
-and supply content sources, flavors, archive formats and Java distributions, with only the permissions you approve at
-install. Writing one is covered in [docs/plugins/](docs/plugins/README.md).
+and supply content sources, flavors, pack formats and Java distributions, with only the permissions you approve at
+install. Writing one is covered in [docs/plugins/](docs/plugins/README.md); the ones Hestia ships are listed in
+[docs/plugins/official.md](docs/plugins/official.md).
 
 Old versions are covered too: a pre-1.19 client's LWJGL natives are unpacked from their classifier jars, and an asset
 index that predates the hashed store is mirrored to the named tree those clients read.
