@@ -38,8 +38,10 @@ hestia account logout <name|uuid>
 
 ## Java runtimes
 
-Eclipse Temurin via the Adoptium API unless the `java.provider` setting (or `--provider`) names another provider, which
-a plugin contributes under `java:provide`.
+Runtimes are downloaded from the Java provider named by the `java.provider` setting (default `adoptium`) or `--provider`.
+No provider is built in: a plugin contributes one under `java:provide` (the official `adoptium` plugin offers Eclipse
+Temurin). Without one, `java install` and any create or launch that needs a runtime not yet on disk fail saying a Java
+distribution plugin is needed.
 
 ```bash
 hestia java releases             # release lines the provider ships
@@ -60,7 +62,7 @@ hestia server create             # the fullscreen wizard — flavor →
                                  #   snapshots in) → name → settings
                                  #   (skippable) → confirm (EULA); Esc steps
                                  #   back. Arguments prefill it, so `server
-                                 #   create fabric` opens at the version step;
+                                 #   create vanilla` opens at the version step;
                                  #   it opens whenever flavor, version, name or
                                  #   the EULA is missing and stdin and stderr
                                  #   are terminals
@@ -148,29 +150,21 @@ hestia server smp restart        # stop, then start again
 hestia server smp rename cozy    # rename (stopped): rewrites the display name;
                                  #   the id, directory, ports and data stay put
 hestia server smp remove         # delete the server (its jar, world and all)
-hestia server smp mod add <slug> # a modloader server (fabric) takes mods
-hestia server smp plugin add <slug>     # a paper/folia/spigot/bukkit server takes plugins
+hestia server smp mod add <slug> # a modloader server takes mods
+hestia server smp plugin add <slug>     # a plugin-platform server takes plugins
 hestia server smp datapack add <slug>   # datapacks install into the server's world
 hestia server smp datapack add --file ./pack.zip   # any kind imports a local file
 ```
 
-What a server takes depends on its flavor: mods on `fabric`/`neoforge`, plugins on `paper`/`folia`/`spigot`/`bukkit`,
-datapacks on any of them, and nothing else on `vanilla` — `server flavors` prints the set per flavor rather than leaving
-you to remember it. A `neoforge` create builds its game jar locally, so it takes a few minutes and cannot derive a
-property schema (`server config set` accepts any key on one). Asking for the wrong kind is refused naming what that
-server does take.
+What a server takes depends on its flavor: `vanilla` takes datapacks only, and a flavor a plugin provides (a modloader,
+a plugin platform) adds the mods or plugins its loader consumes — `server flavors` prints the set per flavor rather than
+leaving you to remember it. Asking for the wrong kind is refused naming what that server does take.
 
-`spigot` and `bukkit` are compiled on this machine at create — nobody may redistribute either jar, so SpigotMC's
-BuildTools builds it here. Budget several minutes and a few hundred megabytes for the first one, and have `git`
-installed (the create refuses up front when it is missing; Windows needs nothing, BuildTools brings its own). One build
-produces both, so a later
-`spigot` or `bukkit` server on the same game version is immediate.
-
-`paper` and `folia` publish many builds per game version, so a build number is the flavor's *loader version* —
-`hestia server versions paper` lists the game versions and `--loader-version <build>` pins one; omitted, create takes
-the newest stable build. Both start with the JVM flags PaperMC recommends for that version unless the entry or
-`defaults.jvm-args` sets its own; `server <name>
-info` reports the effective flags and where they came from.
+Only `vanilla` is built in; the other distributions come from plugins (the official ones offer `fabric`, `neoforge`,
+`paper`, `folia`, `spigot` and `bukkit`). A flavor with several builds per game version uses the build number as its
+*loader version*: `--loader-version <build>` pins one, and omitted, create takes the flavor's newest. A flavor may
+recommend JVM flags, used unless the entry or `defaults.jvm-args` sets its own; `server <name> info` reports the
+effective flags and where they came from.
 
 ## Instances
 
@@ -181,7 +175,7 @@ hestia instance create           # the fullscreen wizard — flavor →
                                  #   version → name → memory → confirm;
                                  #   arguments prefill it, and it opens
                                  #   whenever flavor, version or name is missing
-hestia instance create fabric 1.21.1 -n modded --memory 4G
+hestia instance create vanilla 1.21.1 -n play --memory 4G
 hestia instance list             # managed instances and their state
 hestia instance versions [flavor] # game versions a flavor offers
 hestia instance flavors          # the available flavors

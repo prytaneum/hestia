@@ -9,30 +9,25 @@ consumes its answers.
 
 It holds no state of its own, but it does write regenerable files under `meta/`:
 the catalogue readers keep the last good copy of each response in
-`meta/catalogue/` (the offline fallback), and resolving a NeoForge client fetches
-its installer to `meta/neoforge/<build>.jar`, which the install hook then finds on
-disk instead of downloading again. `ResolveRequest` carries the `meta` root and
-the cache for that.
+`meta/catalogue/` (the offline fallback). `ResolveRequest` carries the `meta` root
+and the cache for a flavor that keeps what it resolves from.
 
 ## Flavors
 
 A *flavor* is a distribution of Minecraft. There is one registry; a flavor
 declares which sides it serves, and a lookup for the other side fails as an
-unknown flavor.
+unknown flavor. Vanilla is the only built-in; every other distribution comes
+from a plugin. The official plugins `fabric`, `neoforge`, `paper` (Paper and
+Folia) and `spigot` (Spigot and CraftBukkit) register under their bare ids.
 
 | Flavor | Server | Client | Loads | Notes |
 |---|:--:|:--:|---|---|
-| `vanilla` | ✓ | ✓ | — | Mojang's own |
-| `fabric` | ✓ | ✓ | mods | loader version pinnable |
-| `neoforge` | ✓ | ✓ | mods | game jar built locally from the installer |
-| `paper` | ✓ | | plugins | ships tuned JVM flags per version |
-| `folia` | ✓ | | plugins | regionised; plugins filtered strictly as `folia` |
-| `spigot` | ✓ | | plugins | compiled on your machine with BuildTools |
-| `bukkit` | ✓ | | plugins | likewise (CraftBukkit) |
+| `vanilla` | ✓ | ✓ | — | Mojang's own, built in |
 
-The registry is runtime-mutable: `Minecraft::register(owner, provider)` and
-`unregister(owner)`, with the same ownership rules as content sources (built-ins
-are `builtin` and permanent; any other id reads `<owner>.<id>`).
+The registry is runtime-mutable: `Minecraft::register(owner, official, live, provider)`
+and `unregister(owner)`, with the same ownership rules as content sources (the
+built-in is permanent; any other id reads `<owner>.<id>`, except an official
+plugin's, which may take a bare id).
 
 A provider names itself in one `FlavorInfo` (`id`, `name`, `summary`, the
 content its loader consumes as `loads`, the prerequisites it needs on this
@@ -45,14 +40,14 @@ change alone:
 - **A flavor describes itself on the wire.** `Flavor` carries the `summary` a
   picker renders and the `accepts` set an entry of it would have — no front-end
   keeps a table ([0008](../decisions/0008-flavor-declares-accepted-content.md)).
-- **A flavor states what it needs before you commit to it.** Spigot and
-  CraftBukkit need `git`; the catalogue resolves missing prerequisites at build
-  time, each with a name you would recognise and where to get it
-  ([0006](../decisions/0006-flavor-states-its-requirements.md)).
+- **A flavor states what it needs before you commit to it.** A flavor that
+  builds on this machine can need a program such as `git`; the catalogue
+  resolves missing prerequisites at build time, each with a name you would
+  recognise and where to get it ([0006](../decisions/0006-flavor-states-its-requirements.md)).
 
-Adding a flavor is one impl plus one registry line. The content flows never
-change, because what an entry accepts is composed from the provider's `loads`
-plus what the side reads for itself.
+Adding a flavor is a plugin. The content flows never change, because what an
+entry accepts is composed from the provider's `loads` plus what the side reads
+for itself.
 
 A plugin adds one as a `flavor` provider (`proto::provider::flavor`, asked through
 `provider.invoke`), wrapped in a
@@ -69,7 +64,7 @@ places ([0110](../decisions/0110-a-flavor-builds-in-its-own-area.md),
 [0124](../decisions/0124-a-build-is-a-plan-the-host-runs.md), [Plugins](plugins.md#provider-surfaces)). The profile types live in
 `proto::profile` so the SDK can build them.
 
-Two pieces the vanilla and modloader flavors use are shared with plugins
+Two pieces the vanilla flavor uses are shared with plugins
 ([0119](../decisions/0119-downloads-are-host-side.md)). `minecraft/maven.rs` is the one parser of
 `group:artifact:version[:classifier][@ext]`: the path under a repository, the filename and the URL come from it, and
 a part with a character a Maven name lacks, or made only of dots, does not parse. `minecraft/rules.rs` is the one
@@ -92,7 +87,7 @@ client.
 ```mermaid
 flowchart LR
     REQ["flavor + version<br/>+ loader version?"] --> RES["resolve()"]
-    META["minecraft/meta/<br/>mojang · fabric · paper · spigot · neoforge"] --> RES
+    META["minecraft/meta/<br/>mojang"] --> RES
     RES --> PROF["ServerProfile / InstanceProfile"]
     PROF --> INST["install hook<br/><i>only if the jar must be built</i>"]
     PROF --> MAT["materialize<br/><i>ensure files on disk</i>"]
@@ -100,8 +95,8 @@ flowchart LR
     MAT --> PLAN["launch → LaunchPlan<br/>program · args · cwd"]
 ```
 
-Manifest parsing lives in `minecraft/meta/` — one module per upstream, each
-deserializing that API's own JSON shape rather than pretending it is ours.
+Manifest parsing lives in `minecraft/meta/` — Mojang's piston-meta, deserialized
+in its own JSON shape rather than pretending it is ours.
 
 **Mojang's manifest is the ordering ground truth.** Whether one version is newer
 than another — which decides whether an update is a downgrade — is judged by
@@ -165,62 +160,29 @@ list (`servers.dat`, uncompressed NBT the running game rewrites on exit, keeping
 tags Hestia does not know). **`quickplay.rs`** reads the Quick Play log a 1.20+
 client writes, which names the world, server or Realm a session last joined.
 
-## Flavors that build their own jar
+## Flavors that build their own jar (plugin-provided)
 
-Two flavors cannot simply download the thing they run, so providers grew an
-**`install` hook** rather than the launch flows branching on a flavor name. It is
-idempotent on the built jar's presence, and each step is a cancellation
-checkpoint.
+A flavor cannot always download the thing it runs (a NeoForge client's patched
+jar, a Spigot server nobody may redistribute), so providers have an **`install`
+hook** rather than the launch flows branching on a flavor name. It is idempotent
+on the built jar's presence, and each step is a cancellation checkpoint. Core
+implements none: a plugin flavor's `build` operation returns a plan the host runs
+in an area of its own, and the official `neoforge` and `spigot` plugins use it
+([0004](../decisions/0004-neoforge-builds-its-own-jar.md),
+[0007](../decisions/0007-spigot-is-compiled-locally.md) record the original
+in-core design).
 
-### NeoForge
-
-NeoForge publishes no metadata service and no patched jar. Everything comes out
-of its installer jar on `maven.neoforged.net`, read in-process with the `zip`
-crate: `version.json` is the launch profile, `install_profile.json` names a chain
-of ten small Java tools, and running that chain locally produces the jar the
-loader actually runs. A first create or launch therefore takes a few minutes.
-
-The catalogue needs no service either — a NeoForge version *is* its game version
-plus a build number, under two schemes split by Minecraft's move to calendar
-versioning, with semver build metadata outranking that arithmetic. The 1.20.1
-line is a separate maven artifact and a second catalogue source rather than a
-parsing case. A NeoForge **server** has no launchable jar at all: it runs from a
-generated argument file naming its module path
-([0004](../decisions/0004-neoforge-builds-its-own-jar.md)).
-
-### Spigot and CraftBukkit
-
-Mojang's takedown means neither jar legally exists as a download. SpigotMC
-publishes **BuildTools**, which clones the upstream repositories, decompiles the
-vanilla server, applies the patch sets and compiles the result on your machine —
-so a first create takes several minutes and needs `git` installed.
-
-One build serves both flavors and every entry on that version: the work tree is
-shared (`meta/spigot/`, outputs under `jars/<version>/`) and the jar is copied
-into each entry's `data/`. The build runs as a **supervised workload**, so its
-output is readable live, a cancel reaches the whole tree, and two creates racing
-on one version join the same build ([0007](../decisions/0007-spigot-is-compiled-locally.md)).
-
-### Paper and Folia
-
-One self-contained jar per build, so a profile is the vanilla shape with the jar
-swapped. PaperMC publishes many builds per game version, and a build number goes
-in `loader_version` — the same slot Fabric's loader builds already use — rather
-than growing a parallel concept. Unpinned resolves to the newest `STABLE` build,
-falling back to the newest of any channel so a freshly released game version is
-never uninstallable ([0005](../decisions/0005-paper-build-is-a-loader-version.md)).
-
-Paper also publishes a tuned G1GC flag set per version, which the profile
-carries. Those flags are the **last** fallback, beneath the entry's own
-`jvm-args` and the launcher-wide `defaults.jvm-args` — and `server info` names
-which layer supplied the flags a process is actually running with
+A flavor may recommend JVM flags in its profile. Those flags are the **last**
+fallback, beneath the entry's own `jvm-args` and the launcher-wide
+`defaults.jvm-args` — and `server info` names which layer supplied the flags a
+process is actually running with
 ([0009](../decisions/0009-flavor-recommends-jvm-flags.md)).
 
 ## Decisions
 
-- [0004 — NeoForge's game jar is built, not downloaded](../decisions/0004-neoforge-builds-its-own-jar.md)
-- [0005 — A Paper build is a loader version, and Mojang orders the catalogue](../decisions/0005-paper-build-is-a-loader-version.md)
+- [0004 — NeoForge's game jar is built, not downloaded](../decisions/0004-neoforge-builds-its-own-jar.md) (now the `neoforge` plugin)
+- [0005 — A Paper build is a loader version, and Mojang orders the catalogue](../decisions/0005-paper-build-is-a-loader-version.md) (now the `paper` plugin)
 - [0006 — A flavor states what it needs, before the user commits to it](../decisions/0006-flavor-states-its-requirements.md)
-- [0007 — Spigot and CraftBukkit are compiled here](../decisions/0007-spigot-is-compiled-locally.md)
+- [0007 — Spigot and CraftBukkit are compiled here](../decisions/0007-spigot-is-compiled-locally.md) (now the `spigot` plugin)
 - [0008 — What an entry takes is a property of its flavor](../decisions/0008-flavor-declares-accepted-content.md)
 - [0009 — A flavor may recommend JVM flags; the user still outranks it](../decisions/0009-flavor-recommends-jvm-flags.md)

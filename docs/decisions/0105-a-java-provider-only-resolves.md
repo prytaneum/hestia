@@ -2,6 +2,8 @@
 
 *Applies to: [The engine](../architecture/engine.md#java-runtimes)*
 
+> Superseded in part: Adoptium is no longer built in; the official `adoptium` plugin provides it under the same id, and with no distribution registered an install fails with `JavaProviderUnknown`.
+
 Adoptium was the one hardcoded source of Java runtimes. Other distributions (Zulu, Corretto, GraalVM) should be plugins,
 but a runtime is the native binary Hestia executes for every server and game, so a plugin that picks it has full access
 to the computer.

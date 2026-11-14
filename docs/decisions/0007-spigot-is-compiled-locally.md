@@ -2,6 +2,8 @@
 
 *Applies to: [Minecraft providers](../architecture/minecraft.md)*
 
+> Superseded by the official `spigot` plugin: core no longer carries the Spigot and CraftBukkit providers or the BuildTools runner. The plugin runs BuildTools as a declared program in a flavor `build` plan ([0124](0124-a-build-is-a-plan-the-host-runs.md)). The reasoning below holds for why they are compiled here.
+
 Mojang's takedown means neither jar legally exists as a download: SpigotMC
 publishes **BuildTools**, which clones the four upstream repositories,
 decompiles the vanilla server, applies the CraftBukkit and Spigot patch sets and

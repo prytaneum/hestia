@@ -122,7 +122,7 @@ flowchart TD
     REG --> PORT["claim game port"]
     PORT --> JAVA["ensure Java runtime"]
     JAVA --> FETCH["download files"]
-    FETCH --> INSTALL["run the flavor's install hook<br/><i>NeoForge · Spigot only</i>"]
+    FETCH --> INSTALL["run the flavor's install hook<br/><i>a flavor that builds its jar only</i>"]
     INSTALL --> SCHEMA["derive schema.properties<br/><i>throwaway run</i>"]
     SCHEMA --> PROPS["write data/server.properties"]
     PROPS --> CFG["apply create-time config"]

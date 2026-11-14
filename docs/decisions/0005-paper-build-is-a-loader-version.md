@@ -2,6 +2,8 @@
 
 *Applies to: [Minecraft providers](../architecture/minecraft.md)*
 
+> Superseded by the official `paper` plugin: core no longer carries the Paper and Folia providers. The rule that a build number is the flavor's loader version holds in the plugin.
+
 Paper and Folia are one self-contained jar per build, so a profile is the
 vanilla shape with the jar swapped — the interesting parts are what the PaperMC
 API does *not* say. It publishes many builds per game version, and a server

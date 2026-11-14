@@ -161,7 +161,6 @@ real directory.
 ├── plugins/<id>/        one directory per plugin: package/, data/, plugin.json
 ├── meta/                materialised game files — regenerable
 │   ├── versions/ libraries/ assets/ natives/
-│   ├── spigot/          the shared BuildTools work tree
 │   └── plugins/         compiled plugin components
 ├── cache/               content-addressed download cache
 ├── processes/           supervisor records + captured logs
@@ -197,8 +196,8 @@ least one front-end.
 **Working:** the workspace and its enforced dependency graph · logging, identity
 and path resolution · the wire protocol and typed SDK · config, cache and
 downloads · Java runtime management · Microsoft sign-in with token rotation ·
-skin and cape management · the process supervisor · the provider layer (vanilla,
-fabric, neoforge on both sides; paper, folia, spigot, bukkit for servers) ·
+skin and cape management · the process supervisor · the provider layer (vanilla built in; other
+flavors and Java distributions come from plugins) ·
 server management with an RCON console · instance management with concurrent
 sessions · joining a world, a listed server or a Realm straight from a launch,
 and going back to whichever was played lately · in-place
@@ -271,7 +270,7 @@ their unpacked natives and their pre-hash asset layout.
 |---|---|
 | `crates/proto/tests/` | `wire` and `golden` — the envelope and contract encodings, so a wire change is caught |
 | `crates/engine/tests/` | one `integration` binary: `store` (config/cache/java/server/instance persistence), `auth_oracle` (the sign-in state machine), `process` (tree termination), `flows` (provisioning and content install against fixture providers, over `Engine::over`) |
-| `crates/engine/src/**` | unit tests beside the code: archive detection and round trips, the Prism component mapping, the export ignore rules, launch-plan assembly (including the quick-play target and its version gate), document schema stamping and quarantine, the `servers.dat` round trip, server-address parsing, the Log4Shell-safe session config, sync reconciliation and its per-key merge, Modrinth and CurseForge mapping, pack-format detection and `.mrpack`/URL parsing, version picking, JVM-args precedence, PaperMC build parsing |
+| `crates/engine/src/**` | unit tests beside the code: archive detection and round trips, the Prism component mapping, the export ignore rules, launch-plan assembly (including the quick-play target and its version gate), document schema stamping and quarantine, the `servers.dat` round trip, server-address parsing, the Log4Shell-safe session config, sync reconciliation and its per-key merge, Modrinth and CurseForge mapping, pack-format detection and `.mrpack`/URL parsing, version picking, JVM-args precedence |
 | `crates/engine/tests/plugins.rs`, `flows/content_source.rs`, `flows/flavor.rs` | plugin load, install and sandbox limits against component fixtures; a plugin-provided content source and flavor through the real flows |
 | `crates/engine/src/plugins/**` | unit tests beside the code: the runtime's limits and traps, hooks and the launch-patch allowlist, host matching for `wasi:http`, asset path rules, index and build signatures, the catalogue, held downloads |
 | `crates/proto/tests/{permission,plugin_api,plugin}.rs` | every contract's `PLUGIN` classification and the denied list, the snapshotted plugin API against the WIT files, and manifest validation |

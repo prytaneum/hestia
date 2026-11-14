@@ -230,10 +230,11 @@ request; a missing or damaged blob behind an entry is a miss and refetches.
 beside a `runtime.json` record. Listing scans the directory — the disk is the
 registry.
 
-A `JavaProvider` resolves a build: `java::adoptium` (Eclipse Temurin, id `adoptium`) is built in, and a plugin may
-contribute more under `java:provide` (`<plugin>.<id>`), registered in the same roster as content sources and flavors.
-The `java.provider` setting names the default and `install` takes a provider id; an unregistered id is
-`JavaProviderUnknown`. A provider only resolves: the host validates the build (https on the plugin's hosts, a sha256, a
+A `JavaProvider` resolves a build. None is built in: a plugin contributes one under `java:provide` (`<plugin>.<id>`;
+the official `adoptium` plugin, Eclipse Temurin, takes the bare id `adoptium`), registered in the same roster as content
+sources and flavors. The `java.provider` setting names the default (`adoptium`) and `install` takes a provider id; an
+unregistered id is `JavaProviderUnknown`, which says a Java distribution plugin is needed. A runtime already on disk is
+used without any provider, so only an install or a launch needing a missing major reaches the roster. A provider only resolves: the host validates the build (https on the plugin's hosts, a sha256, a
 `tar.gz` or `zip` archive) and does everything after ([0105](../decisions/0105-a-java-provider-only-resolves.md)).
 `install()` runs a blocking pipeline:
 
@@ -250,8 +251,7 @@ events live in the daemon's `Jobs::start_java_install`.
 ## Process supervision
 
 `ProcessSupervisor` owns every process Hestia starts: Minecraft servers, game
-sessions, NeoForge's processor chain, the `server.properties` schema run, a
-Spigot build. It lives in the engine — not the daemon — because its directory is
+sessions, a plugin flavor's build programs, the `server.properties` schema run. It lives in the engine — not the daemon — because its directory is
 engine-owned like every other registry, and because engine flows that shell out
 must not spawn bare children
 ([0033](../decisions/0033-supervision-is-engine-state.md)).

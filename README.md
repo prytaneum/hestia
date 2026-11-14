@@ -92,9 +92,10 @@ to your account.
 | **Export**    | Hestia archives · `.mrpack`                                        |
 | **Plugins**   | WASM components: commands · pages · themes · hooks · providers     |
 
-NeoForge builds its game jar locally from the installer, and Spigot/CraftBukkit compile on your machine with SpigotMC's
-BuildTools (needs `git`) — so a first create on those takes a few minutes. Modrinth and CurseForge are official
-plugins; CurseForge needs an API key (`hestia plugin config curseforge`), and isn't offered until one is set.
+Vanilla is built in; the other flavors and the Java distribution come from official plugins. NeoForge builds its game
+jar locally from the installer, and Spigot/CraftBukkit compile on your machine with SpigotMC's BuildTools (needs `git`)
+— so a first create on those takes a few minutes. Modrinth and CurseForge are official plugins; CurseForge needs an
+API key (`hestia plugin config curseforge`), and isn't offered until one is set.
 
 A few more things it does: several concurrent sessions of one instance, starting straight into a world or onto a server,
 in-place version changes both ways (downgrades warn, and a server is backed up first), game settings and multiplayer

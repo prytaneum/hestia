@@ -2,6 +2,8 @@
 
 *Applies to: [Minecraft providers](../architecture/minecraft.md)*
 
+> Superseded by the official `neoforge` plugin: core no longer carries the NeoForge provider or its processor runner. The plugin builds the jar through a flavor `build` plan ([0124](0124-a-build-is-a-plan-the-host-runs.md)). The reasoning below holds for how the jar is produced.
+
 NeoForge publishes no metadata service and no patched jar. Everything comes out
 of its installer jar on `maven.neoforged.net`, read in-process with the `zip`
 crate as a `.mrpack` index is: `version.json` is the launch profile,
