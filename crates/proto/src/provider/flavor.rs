@@ -10,10 +10,13 @@
 //! host resolves all of it before vetting, so what persists is always the plain
 //! [`Library`].
 
+use std::collections::BTreeMap;
+
 use serde::{Deserialize, Serialize};
 
 use super::{ProviderKind, ProviderOp};
 use crate::contract::Empty;
+use crate::download::Checksum;
 use crate::minecraft::GameVersion;
 use crate::plugin::Permission;
 use crate::profile::{FlavorDescription, InstanceProfile, Library, ServerJar, ServerProfile};
@@ -123,10 +126,70 @@ pub struct BuildOutput {
     pub destination: Option<Destination>,
 }
 
+/// A file the host downloads into the build area before any step runs, through
+/// the same guarded, verified and cached transfer as the `download` import.
+/// `dest` is a guest path under `/build`; the host creates its directories.
+#[derive(Serialize, Deserialize, Default, Debug, Clone)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
+#[serde(default, rename_all = "camelCase")]
+pub struct BuildFetch {
+    pub url: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub checksum: Option<Checksum>,
+    pub dest: String,
+}
+
+/// Which lines of a step's output are narrated as progress: every line that is
+/// not blank and does not start, once trimmed, with one of `skip_prefixes`.
+/// The rest stay in the process log. A step without a filter narrates nothing.
 #[derive(Serialize, Deserialize, Default, Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
 #[serde(default, rename_all = "camelCase")]
-pub struct BuildDone {
+pub struct LineFilter {
+    pub skip_prefixes: Vec<String>,
+}
+
+impl LineFilter {
+    pub fn narrates(&self, line: &str) -> bool {
+        let line = line.trim();
+        !line.is_empty()
+            && !self
+                .skip_prefixes
+                .iter()
+                .any(|prefix| line.starts_with(prefix.as_str()))
+    }
+}
+
+/// One program the host runs for a build. `program` is one of the plugin's
+/// declared `[[programs]]`, and `args`, `env` and `java_major` must fit one of
+/// its invocations exactly as for the `process` import; an argument may hold
+/// `${build}` or `${vanilla}`. `cwd` is a guest path under `/build` and `creates`
+/// lists guest paths under `/build`: when every one exists the step is skipped.
+#[derive(Serialize, Deserialize, Default, Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
+#[serde(default, rename_all = "camelCase")]
+pub struct BuildStep {
+    pub program: String,
+    pub args: Vec<String>,
+    pub env: BTreeMap<String, String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cwd: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub java_major: Option<u32>,
+    pub creates: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub narrate: Option<LineFilter>,
+}
+
+/// What a `build` answers: what to download, the programs to run in order, and
+/// what they produce. The host vets all of it before anything runs. A guest
+/// that did the work itself, with `process.exec`, answers only `outputs`.
+#[derive(Serialize, Deserialize, Default, Debug, Clone)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
+#[serde(default, rename_all = "camelCase")]
+pub struct BuildPlan {
+    pub fetch: Vec<BuildFetch>,
+    pub steps: Vec<BuildStep>,
     pub outputs: Vec<BuildOutput>,
 }
 
@@ -297,14 +360,14 @@ impl ProviderOp for ResolveClient {
 }
 
 /// Builds what the profile names but cannot download. Optional: unsupported
-/// means the flavor has nothing to build. Idempotent and cheap once done, since
-/// a client install runs on every launch: the guest checks its own outputs
-/// under `/build` first. The guest writes only there; the host places each
-/// output.
+/// means the flavor has nothing to build. The guest answers a [`BuildPlan`] the
+/// host runs; a client install asks on every launch, so a plan whose steps
+/// `creates` their results costs nothing once built. Whatever runs writes only
+/// under `/build`; the host places each output.
 pub struct Build;
 impl ProviderOp for Build {
     type Kind = Flavor;
     const OP: &'static str = "build";
     type Args = BuildQuery;
-    type Reply = BuildDone;
+    type Reply = BuildPlan;
 }

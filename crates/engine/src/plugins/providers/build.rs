@@ -153,14 +153,10 @@ fn place_tree(
     let base = roots
         .of(destination)
         .ok_or_else(|| Fault::Destination(output.path.clone()))?;
-    let target = Path::new(&output.target);
-    if target.is_absolute()
-        || target
-            .components()
-            .any(|part| !matches!(part, Component::Normal(_)))
-    {
+    if !plain_relative(&output.target) {
         return Err(Fault::Relative(output.target.clone()));
     }
+    let target = Path::new(&output.target);
     let source = source_directory(build_dir, root, &output.path)?;
     let copy: Copy = match destination {
         Destination::Entry => copy_new,
@@ -175,6 +171,41 @@ fn place_tree(
     })
 }
 
+/// The plain path beneath the build area that the guest path `guest` names; an
+/// output is never the area itself.
+fn output_relative(guest: &str) -> Option<&Path> {
+    let relative = Path::new(guest).strip_prefix(BUILD_MOUNT).ok()?;
+    (!relative.as_os_str().is_empty()
+        && relative
+            .components()
+            .all(|part| matches!(part, Component::Normal(_))))
+    .then_some(relative)
+}
+
+/// Checks the shape of every output before anything runs: a path under the
+/// build area and, for a tree, a plain relative target. What exists, and what
+/// the profile built, is checked as each is placed. Returns the first refused
+/// path.
+pub(super) fn vet_outputs(outputs: &[BuildOutput]) -> Result<(), String> {
+    for output in outputs {
+        if output_relative(&output.path).is_none() {
+            return Err(output.path.clone());
+        }
+        if output.destination.is_some() && !plain_relative(&output.target) {
+            return Err(output.target.clone());
+        }
+    }
+    Ok(())
+}
+
+fn plain_relative(target: &str) -> bool {
+    let target = Path::new(target);
+    !target.is_absolute()
+        && target
+            .components()
+            .all(|part| matches!(part, Component::Normal(_)))
+}
+
 /// The entry the guest path `guest` names under the build area, as a canonical
 /// path inside `root`, with its metadata.
 fn source_entry(
@@ -182,17 +213,7 @@ fn source_entry(
     root: &Path,
     guest: &str,
 ) -> Result<(PathBuf, std::fs::Metadata), Fault> {
-    let outside = || Fault::Outside(guest.to_string());
-    let relative = Path::new(guest)
-        .strip_prefix(BUILD_MOUNT)
-        .map_err(|_| outside())?;
-    if relative.as_os_str().is_empty()
-        || relative
-            .components()
-            .any(|part| !matches!(part, Component::Normal(_)))
-    {
-        return Err(outside());
-    }
+    let relative = output_relative(guest).ok_or_else(|| Fault::Outside(guest.to_string()))?;
     let path = build_dir.join(relative);
     let metadata =
         std::fs::symlink_metadata(&path).map_err(|_| Fault::Absent(guest.to_string()))?;

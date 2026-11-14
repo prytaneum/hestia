@@ -6,12 +6,17 @@ wasm = "plugin.wasm"
 [permissions]
 "flavor:provide" = {}
 "network:connect" = { hosts = ["files.example.com"], unhashed = ["files.example.com"] }
-"process:spawn" = { programs = ["builder"] }
+"process:spawn" = { programs = ["builder", "strict"] }
 
 [[programs]]
 id = "builder"
 java = 21
 args = ["*", "**"]
+
+[[programs]]
+id = "strict"
+java = 21
+args = ["only"]
 
 [[contributes.providers]]
 kind = "flavor"

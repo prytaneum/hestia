@@ -20,6 +20,16 @@
 //! into the build area as a built library. Every other version has nothing to
 //! build.
 //!
+//! Build plans, on the server (`live` is the imperative form: it runs the step
+//! itself with `exec`, and its output must reach progress as it prints): `plan` runs one declared step, `plan-narrate` one
+//! whose output is filtered into progress, `plan-steps` two of which the first
+//! `creates` a marker, `plan-slow` two of which the first outlasts a cancel,
+//! `plan-fetch` has the host download a file the step then copies. The `refused-*` versions
+//! are plans the host must refuse before running anything: an undeclared
+//! program, arguments no invocation fits, an undeclared environment variable,
+//! a `cwd`, `creates`, download destination or output outside `/build`, and a
+//! `${data}` mount.
+//!
 //! Tree outputs: on the server, `tree` writes a directory into the data
 //! directory and one into the libraries root, and launches from an args file
 //! with a Windows alternative; `badargs` names an args file that leaves the data
@@ -35,7 +45,7 @@ use hestia::proto::profile::{
     ServerLaunch, ServerProfile,
 };
 use hestia::proto::provider::flavor::{
-    Argument, Build, BuildDone, BuildOutput, BuildQuery, BuildSide, ClientAddition,
+    Argument, Build, BuildFetch, BuildOutput, BuildPlan, BuildStep, LineFilter, BuildQuery, BuildSide, ClientAddition,
     ClientResolution, Destination, Info, LibrarySpec, Maven, ResolveClient, ResolveQuery, ResolveServer,
     RuledArgs, ServerAddition, ServerResolution, Versions,
 };
@@ -105,7 +115,7 @@ fn info(flavor: &str) -> Result<FlavorDescription, Error> {
 
 fn versions(flavor: &str) -> Result<Vec<GameVersion>, Error> {
     check(flavor)?;
-    Ok(["1.21", "foreign", "unsigned", "generated", "sha256", "wrongsum", "onvanilla", "onvanilla-foreign", "onvanilla-maven", "onvanilla-maven-missing", "onvanilla-maven-bad", "onvanilla-rules", "onvanilla-target", "built", "ordered", "expand", "outside", "symlink", "empty", "tree", "badargs", "tree-entry"]
+    Ok(["1.21", "foreign", "unsigned", "generated", "sha256", "wrongsum", "onvanilla", "onvanilla-foreign", "onvanilla-maven", "onvanilla-maven-missing", "onvanilla-maven-bad", "onvanilla-rules", "onvanilla-target", "built", "ordered", "expand", "outside", "symlink", "empty", "tree", "badargs", "tree-entry", "live", "plan", "plan-narrate", "plan-steps", "plan-slow", "plan-fetch", "refused-program", "refused-args", "refused-env", "refused-cwd", "refused-creates", "refused-dest", "refused-output", "refused-mount"]
         .into_iter()
         .map(|id| GameVersion {
             id: id.into(),
@@ -218,7 +228,10 @@ fn resolve_server(flavor: &str, query: ResolveQuery) -> Result<ServerResolution,
         }));
     }
     let jar = match version {
-        "built" | "ordered" | "expand" | "outside" | "symlink" | "empty" => ServerJar::Built {
+        "built" | "ordered" | "expand" | "outside" | "symlink" | "empty" | "live" | "plan" | "plan-narrate"
+        | "plan-steps" | "plan-slow" | "plan-fetch" | "refused-program" | "refused-args"
+        | "refused-env" | "refused-cwd" | "refused-creates" | "refused-dest" | "refused-output"
+        | "refused-mount" => ServerJar::Built {
             filename: BUILT_JAR.into(),
         },
         _ => ServerJar::Download(artifact(version, "server.jar", JAR_SHA1)?),
@@ -274,13 +287,14 @@ fn resolve_client(flavor: &str, query: ResolveQuery) -> Result<ClientResolution,
     })))
 }
 
-fn produced(path: &str, target: &str) -> BuildDone {
-    BuildDone {
+fn produced(path: &str, target: &str) -> BuildPlan {
+    BuildPlan {
         outputs: vec![BuildOutput {
             path: path.into(),
             target: target.into(),
             destination: None,
         }],
+        ..BuildPlan::default()
     }
 }
 
@@ -320,8 +334,96 @@ fn run_builder_with(args: &[&str]) -> Result<(), Error> {
     }
 }
 
-fn build(flavor: &str, query: BuildQuery) -> Result<BuildDone, Error> {
+fn step(args: &[&str]) -> BuildStep {
+    BuildStep {
+        program: "builder".into(),
+        args: args.iter().map(|arg| arg.to_string()).collect(),
+        ..BuildStep::default()
+    }
+}
+
+fn planned(steps: Vec<BuildStep>) -> BuildPlan {
+    BuildPlan {
+        steps,
+        ..produced("/build/built.jar", BUILT_JAR)
+    }
+}
+
+fn plan(version: &str, base: &str) -> Option<BuildPlan> {
+    let creating = |args: &[&str], created: &str| BuildStep {
+        creates: vec![created.into()],
+        ..step(args)
+    };
+    Some(match version {
+        "plan" => planned(vec![creating(&["build"], "/build/built.jar")]),
+        "plan-narrate" => planned(vec![BuildStep {
+            narrate: Some(LineFilter {
+                skip_prefixes: vec!["[".into()],
+            }),
+            ..step(&["narrate"])
+        }]),
+        "plan-steps" => planned(vec![
+            creating(&["count"], "/build/marker"),
+            step(&["build"]),
+        ]),
+        "plan-slow" => planned(vec![step(&["slow"]), creating(&["second"], "/build/second")]),
+        "plan-fetch" => BuildPlan {
+            fetch: vec![BuildFetch {
+                url: format!("{}/server.jar", base.trim_end_matches('/')),
+                checksum: Some(Checksum {
+                    algorithm: HashAlgorithm::Sha1,
+                    hex: JAR_SHA1.into(),
+                }),
+                dest: "/build/dl/tool.jar".into(),
+            }],
+            ..planned(vec![step(&["copy"])])
+        },
+        "refused-program" => planned(vec![BuildStep {
+            program: "ghost".into(),
+            ..step(&["x"])
+        }]),
+        "refused-args" => planned(vec![BuildStep {
+            program: "strict".into(),
+            ..step(&["other"])
+        }]),
+        "refused-env" => planned(vec![BuildStep {
+            env: [("EVIL".to_string(), "1".to_string())].into(),
+            ..step(&["build"])
+        }]),
+        "refused-cwd" => planned(vec![BuildStep {
+            cwd: Some("/build/../etc".into()),
+            ..step(&["build"])
+        }]),
+        "refused-creates" => planned(vec![creating(&["build"], "/build/../escaped")]),
+        "refused-dest" => BuildPlan {
+            fetch: vec![BuildFetch {
+                url: format!("{}/server.jar", base.trim_end_matches('/')),
+                checksum: Some(Checksum {
+                    algorithm: HashAlgorithm::Sha1,
+                    hex: JAR_SHA1.into(),
+                }),
+                dest: "/data/tool.jar".into(),
+            }],
+            ..planned(vec![step(&["build"])])
+        },
+        "refused-output" => BuildPlan {
+            steps: vec![step(&["build"])],
+            ..produced("/build/../escaped.jar", BUILT_JAR)
+        },
+        "refused-mount" => planned(vec![step(&["expand", "${data}/x"])]),
+        _ => return None,
+    })
+}
+
+fn build(flavor: &str, query: BuildQuery) -> Result<BuildPlan, Error> {
     check(flavor)?;
+    if query.side == BuildSide::Server {
+        let base = hestia::data::load::<String>("base-url")?
+            .unwrap_or_else(|| "https://files.example.com".into());
+        if let Some(planned) = plan(&query.version, &base) {
+            return Ok(planned);
+        }
+    }
     match (query.side, query.version.as_str()) {
         (BuildSide::Server, "built") => {
             run_builder("build")?;
@@ -343,30 +445,37 @@ fn build(flavor: &str, query: BuildQuery) -> Result<BuildDone, Error> {
             run_builder("symlink")?;
             Ok(produced("/build/link.jar", BUILT_JAR))
         }
-        (BuildSide::Server, "empty") => Ok(BuildDone::default()),
+        (BuildSide::Server, "empty") => Ok(BuildPlan::default()),
+        (BuildSide::Server, "live") => {
+            run_builder("narrate")?;
+            Ok(produced("/build/built.jar", BUILT_JAR))
+        }
         (BuildSide::Server, "tree") => {
             write_tree(&[
                 ("/build/entry/tree/unix_args.txt", "unix"),
                 ("/build/entry/tree/win_args.txt", "win"),
                 ("/build/libs/example/loader/1.0/loader-1.0.jar", "loader"),
             ])?;
-            Ok(BuildDone {
+            Ok(BuildPlan {
                 outputs: vec![
                     tree("/build/entry", "", Destination::Entry),
                     tree("/build/libs", "", Destination::Libraries),
                 ],
+                ..BuildPlan::default()
             })
         }
         (BuildSide::Client, "tree") => {
             write_tree(&[("/build/libs/example/built/1.0/built-1.0.jar", "off")])?;
-            Ok(BuildDone {
+            Ok(BuildPlan {
                 outputs: vec![tree("/build/libs", "", Destination::Libraries)],
+                ..BuildPlan::default()
             })
         }
         (BuildSide::Client, "tree-entry") => {
             write_tree(&[("/build/entry/a.txt", "a")])?;
-            Ok(BuildDone {
+            Ok(BuildPlan {
                 outputs: vec![tree("/build/entry", "", Destination::Entry)],
+                ..BuildPlan::default()
             })
         }
         (BuildSide::Client, "built") => {

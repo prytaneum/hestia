@@ -13,6 +13,7 @@ mod flavor;
 mod format;
 mod java;
 mod normalise;
+mod plan;
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -27,6 +28,7 @@ pub use content::PluginContentProvider;
 pub use flavor::PluginFlavorProvider;
 pub use format::PluginFormat;
 pub use java::PluginJavaProvider;
+pub use plan::task_id as build_task_id;
 
 use crate::engine::Engine;
 use crate::plugins::chain::CallChain;

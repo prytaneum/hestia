@@ -14,8 +14,8 @@ use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use async_trait::async_trait;
-use proto::minecraft::{Artifact, GameVersion, ProvisionPhase, ProvisionProgress};
-use proto::plugin::{Manifest, PluginRunProgress, BUILD_MOUNT, VANILLA_MOUNT};
+use proto::minecraft::{Artifact, GameVersion, ProvisionPhase};
+use proto::plugin::{Manifest, BUILD_MOUNT, VANILLA_MOUNT};
 use proto::profile::ServerProfile;
 use proto::profile::{InstanceProfile, Library, ServerJar, ServerLaunch};
 use proto::provider::flavor;
@@ -29,6 +29,7 @@ use tokio::sync::watch;
 
 use super::build::{self, Expected, Roots};
 use super::normalise::{Failure, Normaliser};
+use super::plan;
 use super::{connect_each, registered, Guest};
 use crate::cancel::Cancelled;
 use crate::engine::Engine;
@@ -44,8 +45,6 @@ use crate::plugins::imports::CommandRun;
 use crate::plugins::prerequisites;
 use crate::plugins::runtime::{LoadedPlugin, CANCEL_GRACE, COMMAND_TIMEOUT};
 use crate::plugins::vouch::{Policy, Refused};
-
-const PROGRESS_STEPS: u64 = 1000;
 
 /// Why a guest's profile was refused.
 #[derive(Debug, thiserror::Error)]
@@ -203,8 +202,10 @@ impl PluginFlavorProvider {
         Ok(staged)
     }
 
-    /// Runs the guest's `build` in its area and returns what it produced; none
-    /// when the guest has nothing to build.
+    /// Asks the guest for its `build` plan, vets it, and runs it in the area:
+    /// the host's downloads, then its steps under the supervisor. Returns what
+    /// the build produced for the host to place; none when the guest has nothing
+    /// to build.
     async fn build(
         &self,
         side: Side,
@@ -213,7 +214,7 @@ impl PluginFlavorProvider {
     ) -> Result<Vec<BuildOutput>> {
         let area = self.area(request.meta);
         let mut mounts = vec![Mount {
-            host: area,
+            host: area.clone(),
             guest: BUILD_MOUNT,
             writable: true,
         }];
@@ -253,40 +254,48 @@ impl PluginFlavorProvider {
             version = request.game_version,
             "building"
         );
-        let (progress, mut reports) = watch::channel(None);
+        let phase = phase_of(side);
+        let game_java = u32::try_from(request.java_major).ok();
+        let (progress, reports) = watch::channel(None);
         let context = CallContext {
             run: Some(CommandRun {
                 cancel: on.cancel().clone(),
                 progress,
                 grace: CANCEL_GRACE,
             }),
-            mounts,
-            game_java: u32::try_from(request.java_major).ok(),
+            mounts: mounts.clone(),
+            game_java,
         };
         let call = self
             .guest
             .try_ask_within::<op::Build>(&query, COMMAND_TIMEOUT, context);
-        tokio::pin!(call);
-        let reply = loop {
-            tokio::select! {
-                reply = &mut call => break reply,
-                Ok(()) = reports.changed() => {
-                    let latest = reports.borrow_and_update().clone();
-                    if let Some(latest) = latest {
-                        on.report(&provision_progress(side, &latest));
-                    }
-                }
-            }
-        };
-        match reply {
-            Ok(Some(done)) => Ok(done.outputs),
+        let plan = match plan::relay(reports, call, on, phase).await {
+            Ok(Some(plan)) => plan,
             Ok(None) => {
                 self.builds.store(false, Ordering::Relaxed);
-                Ok(Vec::new())
+                return Ok(Vec::new());
             }
-            Err(_) if on.is_cancelled() => Err(Cancelled.into()),
-            Err(error) => Err(error),
-        }
+            Err(_) if on.is_cancelled() => return Err(Cancelled.into()),
+            Err(error) => return Err(error),
+        };
+        plan::vet(self.guest.plugin(), &plan, &mounts, game_java).map_err(|fault| {
+            tracing::warn!(flavor = %self.guest.id(), %fault, "build plan refused");
+            self.guest.failed(format!("build plan refused: {fault}"))
+        })?;
+        plan::execute(
+            &plan::Run {
+                guest: &self.guest,
+                area: &area,
+                mounts: &mounts,
+                game_java,
+                version: request.game_version,
+                phase,
+                on,
+            },
+            &plan,
+        )
+        .await?;
+        Ok(plan.outputs)
     }
 
     /// Copies the outputs to where the profile named them and fails unless every
@@ -462,18 +471,10 @@ impl FlavorProvider for PluginFlavorProvider {
     }
 }
 
-fn provision_progress(side: Side, reported: &PluginRunProgress) -> ProvisionProgress {
-    ProvisionProgress {
-        phase: match side {
-            Side::Client => ProvisionPhase::Libraries,
-            Side::Server => ProvisionPhase::Server,
-        },
-        current: reported
-            .fraction
-            .map_or(0, |fraction| (fraction * PROGRESS_STEPS as f32) as u64),
-        total: reported.fraction.map_or(0, |_| PROGRESS_STEPS),
-        detail: reported.message.clone(),
-        ..ProvisionProgress::default()
+fn phase_of(side: Side) -> ProvisionPhase {
+    match side {
+        Side::Client => ProvisionPhase::Libraries,
+        Side::Server => ProvisionPhase::Server,
     }
 }
 

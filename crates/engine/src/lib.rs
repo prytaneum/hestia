@@ -69,8 +69,8 @@ pub use minecraft::{
 };
 pub use net::Network;
 pub use plugins::{
-    approval_digest, command_args, find_command, is_official_signer, key_id_of, owner_of,
-    pin_on_path, refuse_official_key, resolve_on_path, revocation, target_triple,
+    approval_digest, build_task_id, command_args, find_command, is_official_signer, key_id_of,
+    owner_of, pin_on_path, refuse_official_key, resolve_on_path, revocation, target_triple,
     unregister_providers, verify_build, verify_index, Approver, BeforeLaunch, BundleRefusal,
     CallChain, CallContext, CallError, ChainError, CommandRun, Contributions, GuestError, Hook,
     HookOutcome, Hooks, HostCalls, Inspection, LaunchPatch, Listings, LoadError, LoadedPlugin,

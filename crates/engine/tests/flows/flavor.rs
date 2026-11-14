@@ -20,6 +20,7 @@ fn load(
     hosts: &[&str],
     unhashed: &[&str],
     engine: &Arc<engine::Engine>,
+    processes: &Arc<engine::ProcessSupervisor>,
 ) -> Arc<LoadedPlugin> {
     let manifest: Manifest = toml::from_str(fixture::replay::MANIFEST).expect("manifest");
     manifest.validate().expect("a valid manifest");
@@ -27,7 +28,7 @@ fn load(
     let runtime = PluginRuntime::new(
         Arc::new(NoHost),
         home.join("plugin-cache"),
-        Arc::new(engine::ProcessSupervisor::new(home.join("processes"))),
+        processes.clone(),
     )
     .expect("runtime")
     .with_java(engine.clone());
@@ -68,6 +69,18 @@ async fn rig_unhashed(
     hosts: &[&str],
     unhashed: &[&str],
 ) -> (Arc<engine::Engine>, tempfile::TempDir) {
+    let (engine, home, _) = rig_supervised(hosts, unhashed).await;
+    (engine, home)
+}
+
+async fn rig_supervised(
+    hosts: &[&str],
+    unhashed: &[&str],
+) -> (
+    Arc<engine::Engine>,
+    tempfile::TempDir,
+    Arc<engine::ProcessSupervisor>,
+) {
     let home = tempfile::tempdir().expect("temp home");
     let files = fixture::Files::serve().await;
     let engine = Arc::new(fixture::engine(
@@ -77,11 +90,14 @@ async fn rig_unhashed(
     ));
     fixture::java_runtime(home.path(), 21);
     let manifest: Manifest = toml::from_str(fixture::replay::MANIFEST).expect("manifest");
-    let plugin = load(home.path(), &files, hosts, unhashed, &engine);
+    let processes = Arc::new(engine::ProcessSupervisor::new(
+        home.path().join("processes"),
+    ));
+    let plugin = load(home.path(), &files, hosts, unhashed, &engine, &processes);
     engine::Contributions::connect(&plugin, &manifest, false)
         .await
         .register(&engine, &manifest.id);
-    (engine, home)
+    (engine, home, processes)
 }
 
 fn server(version: &str) -> ServerCreateSpec {
@@ -286,7 +302,7 @@ fn builder_java(home: &std::path::Path) {
     let java = home.join("java/fixture-21/bin/java");
     std::fs::write(
         &java,
-        "#!/bin/sh\ncase \"$1\" in\nbuild) printf 'built jar' > built.jar;;\nexpand) printf '%s' \"$2\" > built.jar;;\nordered) echo start >> order.log; sleep 1; printf 'built jar' > built.jar; echo end >> order.log;;\nsymlink) ln -sf /etc/passwd link.jar;;\nesac\nexit 0\n",
+        "#!/bin/sh\ncase \"$1\" in\nbuild) printf 'built jar' > built.jar;;\nexpand) printf '%s' \"$2\" > built.jar;;\nordered) echo start >> order.log; sleep 1; printf 'built jar' > built.jar; echo end >> order.log;;\nsymlink) ln -sf /etc/passwd link.jar;;\ncount) echo run >> count.log; touch marker;;\nnarrate) echo \"Compiling thing\"; echo \"[INFO] noise\"; sleep 2; printf 'built jar' > built.jar;;\nslow) sleep 5; touch first;;\nsecond) touch second;;\ncopy) cp dl/tool.jar built.jar;;\nesac\nexit 0\n",
     )
     .expect("builder java");
     std::fs::set_permissions(&java, std::fs::Permissions::from_mode(0o755)).expect("executable");
@@ -407,7 +423,7 @@ async fn an_output_outside_the_build_area_is_refused() {
     let detail = refusal(provision(&engine, "outside").await.expect_err("refused"));
 
     assert!(
-        detail.contains("not a file under the build area"),
+        detail.contains("not a path under the build area"),
         "{detail}"
     );
     assert!(engine.servers().list().is_empty());
@@ -730,4 +746,193 @@ async fn a_guest_is_told_the_machine_it_resolves_for() {
         Some(format!("--target={os}/{arch}/{separator}/None").as_str()),
         "no Java major is known before vanilla is resolved"
     );
+}
+
+fn area(home: &std::path::Path) -> std::path::PathBuf {
+    home.join("meta/flavors").join(PLUGIN)
+}
+
+async fn provision_seen(
+    engine: &engine::Engine,
+    version: &str,
+    cancel: &Cancel,
+) -> (anyhow::Result<engine::ServerRecord>, Vec<String>) {
+    let seen = std::sync::Mutex::new(Vec::new());
+    let report = |progress: &ProvisionProgress| seen.lock().unwrap().push(progress.detail.clone());
+    let outcome = engine
+        .provision_server(server(version), &job(cancel, &report))
+        .await
+        .map(|(record, _)| record);
+    let details = seen.lock().unwrap().clone();
+    (outcome, details)
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn a_plan_runs_under_the_supervisor_and_the_host_places_its_output() {
+    let (engine, home, processes) = rig_supervised(&["127.0.0.1"], &[]).await;
+    builder_java(home.path());
+
+    let record = provision(&engine, "plan").await.expect("provision");
+
+    let data = engine.servers().data_dir(&record);
+    assert_eq!(std::fs::read(data.join("built.jar")).unwrap(), b"built jar");
+    let steps: Vec<_> = processes
+        .list()
+        .into_iter()
+        .filter(|info| info.id.starts_with("build-replay-flavor-plan-0-"))
+        .collect();
+    assert_eq!(steps.len(), 1, "the step ran as one supervised task");
+    assert_eq!(steps[0].owner.as_deref(), Some("plugin:replay-flavor"));
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn a_step_narrates_only_the_lines_its_filter_lets_through() {
+    let (engine, home) = rig(&["127.0.0.1"]).await;
+    builder_java(home.path());
+
+    let (outcome, details) = provision_seen(&engine, "plan-narrate", &Cancel::new()).await;
+
+    outcome.expect("provision");
+    assert!(
+        details.iter().any(|line| line == "Compiling thing"),
+        "{details:?}"
+    );
+    assert!(
+        details.iter().all(|line| !line.contains("noise")),
+        "{details:?}"
+    );
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn a_guests_own_exec_shows_its_output_as_it_prints() {
+    let (engine, home) = rig(&["127.0.0.1"]).await;
+    builder_java(home.path());
+
+    let (outcome, details) = provision_seen(&engine, "live", &Cancel::new()).await;
+
+    outcome.expect("provision");
+    assert!(
+        details.iter().any(|line| line == "[INFO] noise"),
+        "{details:?}"
+    );
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn a_step_whose_result_exists_is_skipped_and_racing_builds_run_it_once() {
+    let (engine, home) = rig(&["127.0.0.1"]).await;
+    builder_java(home.path());
+
+    let (first, second) = tokio::join!(
+        provision_named(&engine, "plan-steps", "one"),
+        provision_named(&engine, "plan-steps", "two")
+    );
+    first.expect("first provision");
+    second.expect("second provision");
+    provision_named(&engine, "plan-steps", "three")
+        .await
+        .expect("a later provision");
+
+    let log = std::fs::read_to_string(area(home.path()).join("count.log")).unwrap();
+    assert_eq!(log, "run\n", "the counting step ran once for three creates");
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn a_build_joins_the_step_already_running_under_its_task_id() {
+    let (engine, home, processes) = rig_supervised(&["127.0.0.1"], &[]).await;
+    builder_java(home.path());
+    let area = area(home.path());
+    std::fs::create_dir_all(&area).unwrap();
+    let counting = proto::provider::flavor::BuildStep {
+        program: "builder".into(),
+        args: vec!["count".into()],
+        creates: vec!["/build/marker".into()],
+        ..Default::default()
+    };
+    processes
+        .start(proto::process::ProcessSpec {
+            id: engine::build_task_id(PLUGIN, "plan-steps", 0, &counting),
+            program: "/bin/sh".into(),
+            args: vec![
+                "-c".into(),
+                "echo run >> count.log; sleep 1; touch marker".into(),
+            ],
+            cwd: Some(area.clone()),
+            ..Default::default()
+        })
+        .await
+        .expect("a build already running");
+
+    provision(&engine, "plan-steps").await.expect("provision");
+
+    let log = std::fs::read_to_string(area.join("count.log")).unwrap();
+    assert_eq!(
+        log, "run\n",
+        "joined the running step instead of starting another"
+    );
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn cancelling_stops_the_running_step_and_starts_no_later_one() {
+    let (engine, home) = rig(&["127.0.0.1"]).await;
+    builder_java(home.path());
+    let cancel = Cancel::new();
+
+    let ((outcome, _), ()) = tokio::join!(provision_seen(&engine, "plan-slow", &cancel), async {
+        tokio::time::sleep(std::time::Duration::from_millis(600)).await;
+        cancel.cancel();
+    });
+
+    assert!(engine::is_cancelled(&outcome.expect_err("cancelled")));
+    assert!(!area(home.path()).join("second").exists());
+    assert!(!area(home.path()).join("first").exists());
+    assert!(engine.servers().list().is_empty());
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn the_host_downloads_what_a_plan_fetches_before_its_steps_run() {
+    let (engine, home) = rig(&["127.0.0.1"]).await;
+    builder_java(home.path());
+
+    let record = provision(&engine, "plan-fetch").await.expect("provision");
+
+    let fetched = std::fs::read(area(home.path()).join("dl/tool.jar")).unwrap();
+    assert!(!fetched.is_empty());
+    assert_eq!(
+        std::fs::read(engine.servers().data_dir(&record).join("built.jar")).unwrap(),
+        fetched
+    );
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn a_plan_naming_anything_undeclared_or_outside_the_area_is_refused_before_it_runs() {
+    let (engine, home) = rig(&["127.0.0.1"]).await;
+    builder_java(home.path());
+
+    for (version, reason) in [
+        ("refused-program", "is not a program this plugin declares"),
+        ("refused-args", "outside what `strict` declares"),
+        ("refused-env", "does not declare the environment variable"),
+        ("refused-cwd", "is not a path under the build area"),
+        ("refused-creates", "is not a path under the build area"),
+        ("refused-dest", "is not a path under the build area"),
+        ("refused-output", "is not a path under the build area"),
+        ("refused-mount", "has no `data` directory"),
+    ] {
+        let detail = refusal(provision(&engine, version).await.expect_err(version));
+        assert!(detail.contains("build plan refused"), "{version}: {detail}");
+        assert!(detail.contains(reason), "{version}: {detail}");
+    }
+
+    let area = area(home.path());
+    assert!(!area.join("built.jar").exists(), "no step ran");
+    assert!(!home.path().join("escaped").exists());
+    assert!(engine.servers().list().is_empty());
 }
