@@ -55,6 +55,7 @@ the alternative you rejected — that is usually the part nobody can recover lat
 - **0122** — [A source declares the setting it needs, and one vet checks every download a plugin names](0122-a-source-declares-its-setting-and-one-vet-checks-every-download.md)
 - **0123** — [The plugin UI grows by general primitives, live pages and message catalogs](0123-the-ui-vocabulary-grows-by-general-primitives.md)
 - **0124** — [A build is a plan the guest returns and the host runs](0124-a-build-is-a-plan-the-host-runs.md)
+- **0125** — [A pack is one provider kind that replaces `format`, and export formats are an open set](0125-a-pack-is-a-provider-kind-and-export-formats-are-open.md)
 - **0126** — [An ambient channel hands out harmless facts and needs no permission](0126-an-ambient-channel-needs-no-permission.md)
 
 ### [Cross-cutting foundations](../architecture/common.md)
@@ -157,6 +158,7 @@ the alternative you rejected — that is usually the part nobody can recover lat
 - **0057** — [An archive format is a module, not a branch — and the launcher matches on the recipe](0057-an-archive-format-is-a-module.md)
 - **0081** — [The archive carries the instance's identity and references](0081-the-archive-carries-identity-and-references.md)
 - **0104** — [An archive-format plugin maps files; the host copies them](0104-an-archive-format-plugin-maps-files-the-host-copies.md)
+- **0125** — [A pack is one provider kind that replaces `format`, and export formats are an open set](0125-a-pack-is-a-provider-kind-and-export-formats-are-open.md)
 
 ### [Front-ends](../architecture/frontends.md)
 

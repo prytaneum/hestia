@@ -290,21 +290,17 @@ validates every path before the first write and hashes only when asked; the
 install flow receives the archive already open, whether it came from a download
 or from `instance import`.
 
-**A pack archive knows its own format.** CurseForge modpacks arrive as a zip like
-Modrinth's, but with a `manifest.json` that *names* its single overrides tree
-instead of `.mrpack`'s fixed `overrides/` + `client-overrides/` +
-`server-overrides/`, and with a file list of project/file ids rather than URLs.
-Only the second difference needed the platform: `pack.rs` detects which format a
-zip is (the shallowest marker, an `.mrpack` index beating a manifest at the same
-depth, and a `manifest.json` counting only when its `manifestType` is a modpack)
-and answers with that format's override trees, so the install flow
-extracts either without being told where the archive came from — while the
-id-based file list stays in `curseforge.rs`, since resolving those ids into
-downloads *is* an API call. A CurseForge pack installed from a **local file**
-goes the same way round: the archive hands its manifest to the platform it names
-(`ContentProvider::resolve_manifest`), so it installs whenever CurseForge can
-serve and is refused as `ContentSourceUnavailable` — naming the key to set —
-when it cannot.
+**A pack archive knows its own format.** `pack.rs` reads the launcher's own `.mrpack`
+(its index, and its fixed `overrides/` + `client-overrides/` + `server-overrides/`
+trees) and holds the `Archive` the install flow extracts from. Any other pack
+format is a plugin's `pack` provider ([0125](../decisions/0125-a-pack-is-a-provider-kind-and-export-formats-are-open.md)): it hands the
+`Archive` the override trees it names, so the flow extracts either without being
+told where the archive came from. A pack that names its files by id rather than
+URL (CurseForge's) delegates its manifest to the content source that owns it
+(`ContentProvider::resolve_manifest`), so it installs whenever that source can
+serve and is refused as `ContentSourceUnavailable` — naming the setting to set —
+when it cannot. The files are fetched under the policy of whoever vetted them, a
+plugin's grant for a plugin-named file and none for the `.mrpack`'s own index.
 
 **A pack from a source goes through the downloader.** The version the flow picks
 already carries the archive's artifact, so it is fetched like any other file: into

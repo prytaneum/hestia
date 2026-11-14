@@ -25,10 +25,10 @@ id = "index"
 |---|---|---|---|
 | `content` | `content:read`, `network:connect` | the content source registry | `info`, `parse-url`, `recognise-file-url`, `search`, `project`, `projects`, `versions`, `versions-by-id`, `identify`, `resolve-manifest` |
 | `flavor` | `flavor:provide`, `network:connect` | the flavor registry | `info`, `versions`, `loader-versions`, `resolve-server`, `resolve-client`, `build` |
-| `format` | `format:provide` | the archive formats import detection ranks | `info`, `read`, `land`, `write` |
 | `java` | `java:provide`, `network:connect` | the Java provider roster | `majors`, `resolve` |
+| `pack` | `pack:provide` | the pack formats import detection ranks and export offers | `info`, `claims`, `read`, `write` |
 
-`flavor:provide`, `format:provide` and `java:provide` are unrestricted: the install states them as full access to the
+`flavor:provide`, `pack:provide` and `java:provide` are unrestricted: the install states them as full access to the
 computer ([permissions.md](permissions.md)).
 
 ## Answering operations
@@ -39,14 +39,15 @@ decodes the arguments and encodes the reply. The handler also gets the provider'
 several. An operation no handler takes answers `unsupported`.
 
 - **Optional** operations fall back when `unsupported`: `parse-url` and `recognise-file-url` read as no match,
-  `projects` asks `project` for each, `versions-by-id`, `identify` and `loader-versions` find nothing, and
-  `resolve-manifest` fails the import naming the source.
+  `projects` asks `project` for each, `versions-by-id`, `identify` and `loader-versions` find nothing,
+  `resolve-manifest` fails the import naming the source, `claims` claims the archive, and a pack's `write` fails the
+  export naming the plugin.
 - **Required** operations fail the call as `PluginCallFailed`, naming the plugin.
 - Each call has a 30 s timeout. A reply that does not decode fails the call.
 - The host stamps the plugin's id on everything returned and vets it at the edge; a result that fails the checks below
   is refused whole.
 
-Operation names and payloads are `proto::provider::{content,flavor,format,java}` in `crates/proto/src/provider/`; the
+Operation names and payloads are `proto::provider::{content,flavor,java,pack}` in `crates/proto/src/provider/`; the
 TypeScript mirrors are in `frontend/src/api/types/` ([other-languages.md](other-languages.md#calling-the-host-without-rust)).
 
 ## Content sources
@@ -244,39 +245,45 @@ impl Plugin for Replay {
 }
 ```
 
-## Archive formats
+## Pack formats
 
-A format reads and writes an instance archive. The host owns the archive: the guest is handed the manifest text and the
-member names, and answers with data. A manifest that is not UTF-8 text is refused before the guest is asked. The only
-permission is `format:provide`, and it needs no network.
+A pack format reads, and optionally writes, an archive that carries a game version, a loader and files. The host owns
+the archive: the guest is handed member names and the text of the members it declared, and answers with data. The only
+permission is `pack:provide`. A pack that names its own files needs `network:connect` with the hosts they live on; one
+that delegates its files to a content source needs none.
 
 | Operation | Args | Reply | Notes |
 |---|---|---|---|
-| `info` | none | `FormatInfo` (`name`, `kind`, `marker`) | `marker` is the archive member whose presence identifies the format; `kind` is `instance` or `pack` |
-| `read` | `{ manifest, files }` | `FormatBlueprint` | the instance the manifest describes |
-| `land` | `{ blueprint, files }` | `FormatCopy[]` | which archive members go where, on import |
-| `write` | `{ blueprint, files }` | `FormatWritten` | the manifest bytes and the files to put in the archive, on export |
+| `info` | none | `PackInfo` (`name`, `members`, `extension`) | `members` are the archive members it reads, as names or globs (`*` matches within one path segment); `extension` is empty for a format that cannot write |
+| `claims` | `{ files }` | `{ claimed }` | optional; asked once an archive holds every declared member, with the names relative to the pack's directory. Unsupported claims it |
+| `read` | `{ files, members }` | `PackRead` | the pack (`name`, `gameVersion`, `loader`, `loaderVersion`, `files`), its `overrides` trees per side, and optionally `resolve { source, manifest }` |
+| `write` | `{ instance, files, content }` | `PackWritten` | manifests to store, `{ entryPath, archivePath }` copies, and warnings in English |
 
-A `FormatCopy` is `{ archivePath, entryPath }`. One path that escapes the instance, or names a member not in `files`,
-refuses the answer.
+`read` is vetted whole: a file path that is absolute, empty or leaves the entry, a file whose URL is not on a granted host
+over https with a well-formed checksum (an empty URL names a file its author withholds), an override tree that is not a
+plain relative directory, a pack with no game version, or `resolve` together with `files`, refuses the answer.
+`resolve.source` names a content source whose `resolve-manifest` returns the files; the pack's own name, game version and
+loader win over the source's. A member a guest declares must be UTF-8 text of at most 8 MiB.
+`write` may copy only paths of its query (`files` and each `content` item's `path`), writes no archive path twice, and
+may add the content items it can refer to by download instead of copying.
 
-No published example exists. The fixture
-[`replay-format`](../../crates/engine/tests/fixture/plugins/replay-format/src/lib.rs) identifies an archive by
-`replay.cfg`, reads `key=value` lines, and lands `files/<path>` members. Its handlers:
+The fixture
+[`replay-pack`](../../crates/engine/tests/fixture/plugins/replay-pack/src/lib.rs) identifies an archive by
+`replay.json`, answers it verbatim, and exports every file with one warning. Its handlers:
 
 ```rust
 impl Plugin for Replay {
     fn provide(call: Provide) -> Provided {
-        call.on::<Info>(|format, _| info(format))
+        call.on::<Info>(|pack, _| info(pack))
+            .on::<Claims>(claims)
             .on::<Read>(read)
-            .on::<Land>(land)
             .on::<Write>(write)
             .finish()
     }
 }
 ```
 
-with `"format:provide" = {}` under `[permissions]` and `kind = "format"` in its `plugin.toml`.
+with `"pack:provide" = {}` under `[permissions]` and `kind = "pack"` in its `plugin.toml`.
 
 ## Java distributions
 

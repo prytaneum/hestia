@@ -136,11 +136,11 @@ and an update that widens it asks again. The tiers and the full table are in
   forces every contract to be permissioned, ambient or denied, and pins the ambient
   list ([0126](../decisions/0126-an-ambient-channel-needs-no-permission.md)).
 - **`domain:action` names**: `entry`, `process`, `content`, `account`, `config`,
-  `java`, `network`, `ipc`, `ui`, `launch`, `flavor`, `format`. The domain is the
+  `java`, `network`, `ipc`, `ui`, `launch`, `flavor`, `pack`. The domain is the
   channel prefix it opens.
 - **Two tiers.** `Sandboxed`, and `Unrestricted` for the permissions that reach
   native code (`entry:write`, `config:write` (kept here although no setting is yet writable by plugins), `content:write`, `process:control`,
-  `process:spawn`, `ipc:connect`, `flavor:provide`, `format:provide`, `java:provide`). The install prompt states the latter as full
+  `process:spawn`, `ipc:connect`, `flavor:provide`, `pack:provide`, `java:provide`). The install prompt states the latter as full
   access to the computer, and the daemon reports the tier so no front-end keeps a
   table of its own.
 - **Settings are an allowlist.** `config.get`/`config.list` need `config:read` and `config.set` needs
@@ -370,8 +370,8 @@ a bare id already held by a plugin is a `Duplicate`. Shadowing and unshadowing a
 |---|---|---|---|
 | `content` | `content:read`, `network:connect` and a host | the content source registry | [Content & modpacks](content.md#sources) |
 | `flavor` | `flavor:provide`, `network:connect` and a host | the flavor registry | [Minecraft providers](minecraft.md) |
-| `format` | `format:provide` | the archive formats import detection ranks | [Import & export](transfer.md) |
 | `java` | `java:provide`, `network:connect` and a host | the Java provider roster | [The engine](engine.md) |
+| `pack` | `pack:provide` | the pack formats import detection ranks and export offers | [Import & export](transfer.md#pack-formats-from-plugins) |
 
 Adding a kind is its vocabulary in `proto::provider`, an adapter module beside
 the others, and a line in each of `Contributions::connect`, `register` and
@@ -812,4 +812,5 @@ plugins the tests build are fixtures
 | [0122](../decisions/0122-a-source-declares-its-setting-and-one-vet-checks-every-download.md) | a source declares the setting it needs, and one vet checks every download a plugin names |
 | [0123](../decisions/0123-the-ui-vocabulary-grows-by-general-primitives.md) | the plugin UI grows by general primitives, live pages and message catalogs |
 | [0124](../decisions/0124-a-build-is-a-plan-the-host-runs.md) | a build is a plan the guest returns and the host runs under the supervisor |
+| [0125](../decisions/0125-a-pack-is-a-provider-kind-and-export-formats-are-open.md) | a pack is one provider kind that replaces `format`, and export formats are an open set |
 | [0126](../decisions/0126-an-ambient-channel-needs-no-permission.md) | an ambient channel hands out harmless facts and needs no permission |

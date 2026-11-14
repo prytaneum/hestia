@@ -34,8 +34,8 @@ access to the computer.
 | `launch:patch` | sandboxed | `properties` | Adjust launch settings from an allowlist when a game or server starts; a wrapper program also needs `process:spawn` |
 | `ipc:connect` | unrestricted | `endpoints` (required) | Talk to the programs running on this computer that it lists (below) |
 | `flavor:provide` | unrestricted | none | Add game distributions that choose what code the game runs, including its main class and arguments |
-| `format:provide` | unrestricted | none | Add archive formats that choose the game version, loader and JVM settings of instances you import |
 | `java:provide` | unrestricted | none | Add Java distributions that choose the runtime binary Hestia executes |
+| `pack:provide` | unrestricted | none | Add pack formats that choose the game version, loader and files of instances you import |
 
 A permission takes only the scope kinds in its row, and a scope marked required may not be empty; the manifest is
 refused otherwise (`ScopeNotAccepted`, `ScopeRequired`). The table is `Permission::spec`; the entry rules are in

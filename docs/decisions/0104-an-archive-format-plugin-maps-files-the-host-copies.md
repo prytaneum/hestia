@@ -2,6 +2,8 @@
 
 *Applies to: [Import & export](../architecture/transfer.md), [plugin permissions](../plugins/permissions.md)*
 
+> Superseded by [0125](0125-a-pack-is-a-provider-kind-and-export-formats-are-open.md): the `format` kind and its `format:provide` permission are replaced by the `pack` kind and `pack:provide`, and export is reachable. The principle below — the host owns every archive, vets every path and refuses a bad answer whole — carries over unchanged.
+
 Prism/MultiMC, `.mrpack` and CurseForge archives are modules behind `transfer::Format` ([0057](0057-an-archive-format-is-a-module.md)).
 A plugin needs the same seam, but a format reads a zip the user chose and writes into an instance they will run, so the
 guest must not hold either.

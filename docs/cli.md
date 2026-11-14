@@ -232,7 +232,8 @@ hestia instance modded export --format mrpack -o ~/cozy.mrpack
 hestia instance modded export --exclude data/saves   # leave a path out (repeatable)
 ```
 
-Two formats out:
+Two formats out, and a plugin may add more (`--format` takes an id, extension or name the daemon offers, and an
+unknown one lists them):
 
 | `--format` | Carries | Use it for |
 |---|---|---|
@@ -249,7 +250,7 @@ Import takes a file and works out the rest:
 hestia instance import ~/cozy.hestia             # a hestia archive
 hestia instance import ~/Downloads/pack.mrpack   # a Modrinth pack
 hestia instance import ~/prism-export.zip        # a Prism/MultiMC instance
-hestia instance import ~/Downloads/pack.zip      # a CurseForge pack (needs the CurseForge source)
+hestia instance import ~/Downloads/pack.zip      # a pack in a format a plugin adds, such as CurseForge's
 hestia instance import ~/cozy.hestia -n "Copy"   # name it something else
 ```
 
