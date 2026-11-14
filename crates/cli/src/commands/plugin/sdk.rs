@@ -172,7 +172,7 @@ mod tests {
     }
 
     #[test]
-    fn a_registry_dependency_is_patched_under_crates_io() {
+    fn a_registry_or_git_dependency_is_patched_under_its_source() {
         assert_eq!(
             patch("/work/hestia/crates/sdk", &["crates-io"]),
             [
@@ -180,10 +180,6 @@ mod tests {
                 "patch.crates-io.hestia-sdk.path=\"/work/hestia/crates/sdk\""
             ]
         );
-    }
-
-    #[test]
-    fn a_git_dependency_is_patched_under_its_url() {
         assert_eq!(
             patch("/sdk", &["https://github.com/prytaneum/hestia"]),
             [
@@ -194,15 +190,13 @@ mod tests {
     }
 
     #[test]
-    fn a_windows_path_is_escaped_for_toml() {
-        let dir = r"C:\Users\me\hestia\crates\sdk";
-        assert_eq!(patched_path(&patch(dir, &["crates-io"]), "crates-io"), dir);
-    }
-
-    #[test]
-    fn a_path_with_spaces_and_quotes_survives_the_round_trip() {
-        let dir = r#"/home/me/my "sdk" copy/crates/sdk"#;
-        assert_eq!(patched_path(&patch(dir, &["crates-io"]), "crates-io"), dir);
+    fn a_windows_path_and_one_with_quotes_survive_the_toml_round_trip() {
+        for dir in [
+            r"C:\Users\me\hestia\crates\sdk",
+            r#"/home/me/my "sdk" copy/crates/sdk"#,
+        ] {
+            assert_eq!(patched_path(&patch(dir, &["crates-io"]), "crates-io"), dir);
+        }
     }
 
     #[test]

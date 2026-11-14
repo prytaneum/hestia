@@ -408,10 +408,7 @@ mod tests {
             Value::Object(args),
             json!({"name": "world", "count": 3, "loud": true})
         );
-    }
 
-    #[test]
-    fn json_is_the_cli_flag_and_a_bool_takes_an_explicit_value() {
         let (args, json) =
             parse_args(&declared(), &argv(&["--name=a", "--loud=false", "--json"])).unwrap();
         assert!(json);
@@ -427,23 +424,16 @@ mod tests {
     }
 
     #[test]
-    fn a_missing_required_argument_is_named() {
-        let error = parse_args(&declared(), &argv(&["--loud"])).unwrap_err();
-        assert!(error.to_string().contains("--name"));
-    }
-
-    #[test]
-    fn an_unknown_argument_lists_the_declared_ones() {
+    fn a_bad_argument_is_refused_naming_what_would_be_right() {
         let error = parse_args(&declared(), &argv(&["--nope", "x"])).unwrap_err();
         let message = error.to_string();
         assert!(message.contains("--nope"));
         assert!(message.contains("--name, --count, --loud"));
         let error = parse_args(&[], &argv(&["--nope"])).unwrap_err();
         assert!(error.to_string().contains("takes none"));
-    }
 
-    #[test]
-    fn a_value_flag_without_a_value_and_a_stray_word_are_refused() {
+        let error = parse_args(&declared(), &argv(&["--loud"])).unwrap_err();
+        assert!(error.to_string().contains("--name"));
         assert!(parse_args(&declared(), &argv(&["--name"])).is_err());
         assert!(parse_args(&declared(), &argv(&["stray"])).is_err());
     }

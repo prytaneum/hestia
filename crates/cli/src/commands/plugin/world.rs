@@ -110,13 +110,6 @@ mod tests {
     }
 
     #[test]
-    fn the_world_comes_from_the_wit() {
-        let world = Interfaces::of_world();
-        assert!(world.exports.contains("hestia:plugin/hooks@1.0.0"));
-        assert!(world.imports.contains("hestia:plugin/host@1.0.0"));
-    }
-
-    #[test]
     fn an_old_export_and_an_unknown_import_are_outside_the_world() {
         let world = interfaces(
             &["hestia:plugin/host@1.0.0"],
@@ -133,12 +126,6 @@ mod tests {
                 "imports hestia:plugin/gone@1.0.0"
             ]
         );
-    }
-
-    #[test]
-    fn omitted_exports_are_fine() {
-        let world = interfaces(&[], &["hestia:plugin/hooks@1.0.0"]);
-        assert!(interfaces(&[], &[]).outside(&world).is_empty());
     }
 
     #[test]

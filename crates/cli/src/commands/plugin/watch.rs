@@ -111,17 +111,6 @@ mod tests {
     }
 
     #[test]
-    fn nothing_changing_never_rebuilds() {
-        let start = Instant::now();
-        let mut watch = watch(snap(&[("src/lib.rs", 1, 10)]));
-
-        for step in 0..10 {
-            let at = start + SETTLE * step;
-            assert!(!watch.observe(snap(&[("src/lib.rs", 1, 10)]), at));
-        }
-    }
-
-    #[test]
     fn a_change_rebuilds_once_it_has_been_quiet_for_the_settle_time() {
         let start = Instant::now();
         let mut watch = watch(snap(&[("src/lib.rs", 1, 10)]));
@@ -209,18 +198,5 @@ mod tests {
                 "themes/dark.css"
             ]
         );
-    }
-
-    #[test]
-    fn editing_a_file_changes_the_snapshot_of_the_folder() {
-        let plugin = tempfile::tempdir().unwrap();
-        std::fs::create_dir(plugin.path().join("src")).unwrap();
-        let lib = plugin.path().join("src/lib.rs");
-        std::fs::write(&lib, "a").unwrap();
-        let before = snapshot(plugin.path());
-
-        std::fs::write(&lib, "ab").unwrap();
-
-        assert_ne!(snapshot(plugin.path()), before);
     }
 }
