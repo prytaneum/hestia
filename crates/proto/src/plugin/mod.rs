@@ -382,7 +382,9 @@ pub struct Setting {
 }
 
 const SETTING_TEXT_LIMIT: usize = 4096;
+#[cfg(feature = "pattern")]
 const SETTING_PATTERN_LIMIT: usize = 256;
+#[cfg(feature = "pattern")]
 const SETTING_PATTERN_SIZE: usize = 64 * 1024;
 
 /// `en`, `pt-BR`, `zh-Hant-TW`: a language and optional subtags, which also
