@@ -23,7 +23,10 @@
 
 use std::time::Duration;
 
+#[cfg(target_arch = "wasm32")]
 use crate::bindings::hestia::plugin::process as host;
+#[cfg(not(target_arch = "wasm32"))]
+use crate::mock::process as host;
 use crate::Error;
 
 /// What a finished program left behind. Each stream is cut at 1 MiB.

@@ -21,15 +21,12 @@
 //! # Ok::<(), hestia::Error>(())
 //! ```
 
-use std::fs::{self, File};
-use std::io::{ErrorKind, Write};
 use std::path::{Path, PathBuf};
 
 use proto::plugin::DATA_MOUNT;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
-use crate::bindings::hestia::plugin::data as host;
 use crate::Error;
 
 const KEY_LENGTH: std::ops::RangeInclusive<usize> = 1..=64;
@@ -41,10 +38,10 @@ const KEY_LENGTH: std::ops::RangeInclusive<usize> = 1..=64;
 /// # Ok::<(), hestia::Error>(())
 /// ```
 pub fn load<T: DeserializeOwned>(key: &str) -> Result<Option<T>, Error> {
-    match fs::read(path(key)?) {
-        Ok(bytes) => Ok(Some(serde_json::from_slice(&bytes)?)),
-        Err(error) if error.kind() == ErrorKind::NotFound => Ok(None),
-        Err(error) => Err(error.into()),
+    let target = path(key)?;
+    match store::read(key, &target)? {
+        Some(bytes) => Ok(Some(serde_json::from_slice(&bytes)?)),
+        None => Ok(None),
     }
 }
 
@@ -57,17 +54,7 @@ pub fn load<T: DeserializeOwned>(key: &str) -> Result<Option<T>, Error> {
 /// ```
 pub fn save<T: Serialize>(key: &str, value: &T) -> Result<(), Error> {
     let target = path(key)?;
-    let bytes = serde_json::to_vec(value)?;
-    let (staged, mut file) = stage(&target)?;
-    let written = file.write_all(&bytes).and_then(|()| file.sync_all());
-    drop(file);
-    match written.and_then(|()| fs::rename(&staged, &target)) {
-        Ok(()) => Ok(()),
-        Err(error) => {
-            let _ = fs::remove_file(&staged);
-            Err(error.into())
-        }
-    }
+    store::write(key, &target, serde_json::to_vec(value)?)
 }
 
 /// Reads the value under `key` (or its default), lets `change` edit it, and
@@ -100,7 +87,7 @@ where
     T: Serialize + DeserializeOwned + Default,
 {
     path(key)?;
-    host::lock(key)?;
+    store::lock(key)?;
     let _held = Held(key);
     let mut value = load::<T>(key)?.unwrap_or_default();
     let result = change(&mut value);
@@ -112,7 +99,7 @@ struct Held<'a>(&'a str);
 
 impl Drop for Held<'_> {
     fn drop(&mut self) {
-        let _ = host::unlock(self.0);
+        store::unlock(self.0);
     }
 }
 
@@ -129,16 +116,77 @@ fn path(key: &str) -> Result<PathBuf, Error> {
     Ok(Path::new(DATA_MOUNT).join(format!("{key}.json")))
 }
 
-/// A fresh temp file beside `target`. Concurrent saves of one key each take
-/// their own, so their bytes never interleave.
-fn stage(target: &Path) -> Result<(PathBuf, File), Error> {
-    for attempt in 0u32.. {
-        let staged = target.with_extension(format!("json.{attempt}.part"));
-        match File::create_new(&staged) {
-            Ok(file) => return Ok((staged, file)),
-            Err(error) if error.kind() == ErrorKind::AlreadyExists => continue,
-            Err(error) => return Err(error.into()),
+#[cfg(target_arch = "wasm32")]
+mod store {
+    use std::fs::{self, File};
+    use std::io::{ErrorKind, Write};
+    use std::path::{Path, PathBuf};
+
+    use crate::bindings::hestia::plugin::data as host;
+    use crate::Error;
+
+    pub(super) fn read(_key: &str, target: &Path) -> Result<Option<Vec<u8>>, Error> {
+        match fs::read(target) {
+            Ok(bytes) => Ok(Some(bytes)),
+            Err(error) if error.kind() == ErrorKind::NotFound => Ok(None),
+            Err(error) => Err(error.into()),
         }
     }
-    unreachable!("a directory cannot hold every staging name")
+
+    pub(super) fn write(_key: &str, target: &Path, bytes: Vec<u8>) -> Result<(), Error> {
+        let (staged, mut file) = stage(target)?;
+        let written = file.write_all(&bytes).and_then(|()| file.sync_all());
+        drop(file);
+        match written.and_then(|()| fs::rename(&staged, target)) {
+            Ok(()) => Ok(()),
+            Err(error) => {
+                let _ = fs::remove_file(&staged);
+                Err(error.into())
+            }
+        }
+    }
+
+    pub(super) fn lock(key: &str) -> Result<(), Error> {
+        Ok(host::lock(key)?)
+    }
+
+    pub(super) fn unlock(key: &str) {
+        let _ = host::unlock(key);
+    }
+
+    /// A fresh temp file beside `target`. Concurrent saves of one key each take
+    /// their own, so their bytes never interleave.
+    fn stage(target: &Path) -> Result<(PathBuf, File), Error> {
+        for attempt in 0u32.. {
+            let staged = target.with_extension(format!("json.{attempt}.part"));
+            match File::create_new(&staged) {
+                Ok(file) => return Ok((staged, file)),
+                Err(error) if error.kind() == ErrorKind::AlreadyExists => continue,
+                Err(error) => return Err(error.into()),
+            }
+        }
+        unreachable!("a directory cannot hold every staging name")
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+mod store {
+    use std::path::Path;
+
+    use crate::Error;
+
+    pub(super) fn read(key: &str, _target: &Path) -> Result<Option<Vec<u8>>, Error> {
+        Ok(crate::mock::data::read(key))
+    }
+
+    pub(super) fn write(key: &str, _target: &Path, bytes: Vec<u8>) -> Result<(), Error> {
+        crate::mock::data::write(key, bytes);
+        Ok(())
+    }
+
+    pub(super) fn lock(_key: &str) -> Result<(), Error> {
+        Ok(())
+    }
+
+    pub(super) fn unlock(_key: &str) {}
 }

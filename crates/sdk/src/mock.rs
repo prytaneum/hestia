@@ -2,9 +2,10 @@
 //! on the native target: no daemon, no WebAssembly, no component to build.
 //!
 //! The mock replaces only the transport underneath [`call`](crate::call),
-//! [`run_job`](crate::run_job), [`http`](crate::http) and
-//! [`settings`](crate::settings); the functions a plugin calls are the ones it
-//! ships with. It exists on every target but `wasm32`, so nothing is switched on
+//! [`run_job`](crate::run_job), [`http`](crate::http),
+//! [`settings`](crate::settings), [`process`](crate::process),
+//! [`download`](crate::download) and [`data`](crate::data); the functions a
+//! plugin calls are the ones it ships with. It exists on every target but `wasm32`, so nothing is switched on
 //! and a plugin's own tests need no feature.
 //!
 //! Each test owns its mock: [`install`] binds a fresh one to the current thread
@@ -49,9 +50,13 @@
 //! );
 //! ```
 //!
-//! A call, job or request nobody scripted fails with [`Error::Failed`] naming
-//! the channel or the method and URL, so a missing answer is never mistaken for
-//! an empty one. A setting nobody scripted reads as unset, as in the host.
+//! A call, job, request, program run or download nobody scripted fails with
+//! [`Error::Failed`] naming the channel, the method and URL, the program or the
+//! URL, so a missing answer is never mistaken for an empty one. A setting or a
+//! data key nobody scripted reads as unset, as in the host.
+//!
+//! Nothing touches the disk: [`data`](crate::data) values live in the mock, and
+//! a download writes no file at its destination.
 
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -64,6 +69,7 @@ use serde_json::Value;
 
 use crate::bindings::hestia::plugin::types::PluginError;
 use crate::http::{Headers, Method, Response};
+use crate::process::Output;
 use crate::Error;
 
 thread_local! {
@@ -77,6 +83,36 @@ struct State {
     settings: HashMap<String, Value>,
     calls: Vec<Call>,
     requests: Vec<SentRequest>,
+    outputs: HashMap<String, Result<Output, PluginError>>,
+    runs: Vec<Run>,
+    spawned: Vec<String>,
+    running: Vec<String>,
+    logs: HashMap<String, Vec<String>>,
+    files: HashMap<String, Result<u64, PluginError>>,
+    downloads: Vec<Download>,
+    data: HashMap<String, Vec<u8>>,
+}
+
+/// A program the plugin ran or started.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Run {
+    pub program: String,
+    pub args: Vec<String>,
+    pub env: Vec<(String, String)>,
+    pub cwd: Option<String>,
+    pub java_major: Option<u32>,
+    /// Started with [`spawn`](crate::process::spawn) rather than run to
+    /// completion with [`exec`](crate::process::exec).
+    pub spawned: bool,
+}
+
+/// A download the plugin asked for.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Download {
+    pub url: String,
+    pub dest: String,
+    /// The digest the file had to match, as hex; `None` for an unhashed one.
+    pub digest: Option<String>,
 }
 
 /// A call or job the plugin made, with the params it sent.
@@ -172,6 +208,55 @@ impl Mock {
         with_state(|state| state.settings.get(key).cloned())
     }
 
+    /// Finishes every [`exec`](crate::process::exec) of `program` with `output`.
+    pub fn exec(&self, program: &str, output: Output) {
+        with_state(|state| state.outputs.insert(program.to_owned(), Ok(output)));
+    }
+
+    /// Fails every [`exec`](crate::process::exec) of `program` with `error`.
+    pub fn fail_exec(&self, program: &str, error: Error) {
+        with_state(|state| state.outputs.insert(program.to_owned(), Err(error.into())));
+    }
+
+    /// The captured output lines of the spawned process `id`.
+    pub fn process_logs(&self, id: &str, lines: &[&str]) {
+        let lines = lines.iter().map(|line| line.to_string()).collect();
+        with_state(|state| state.logs.insert(id.to_owned(), lines));
+    }
+
+    /// Every program run or started so far, in order.
+    pub fn runs(&self) -> Vec<Run> {
+        with_state(|state| state.runs.clone())
+    }
+
+    /// Serves exactly `url` as a file of `size` bytes that matches whatever
+    /// digest the plugin expects.
+    pub fn file(&self, url: &str, size: u64) {
+        with_state(|state| state.files.insert(url.to_owned(), Ok(size)));
+    }
+
+    /// Fails the download of exactly `url` with `error`.
+    pub fn fail_download(&self, url: &str, error: Error) {
+        with_state(|state| state.files.insert(url.to_owned(), Err(error.into())));
+    }
+
+    /// Every download asked for so far, in order.
+    pub fn downloads(&self) -> Vec<Download> {
+        with_state(|state| state.downloads.clone())
+    }
+
+    /// Saves `value` under the data key `key`, as an earlier call would have.
+    pub fn data<T: Serialize>(&self, key: &str, value: &T) {
+        let bytes = serde_json::to_vec(value).expect("a data value encodes");
+        with_state(|state| state.data.insert(key.to_owned(), bytes));
+    }
+
+    /// What is saved under the data key `key` now.
+    pub fn data_value(&self, key: &str) -> Option<Value> {
+        with_state(|state| state.data.get(key).cloned())
+            .and_then(|bytes| serde_json::from_slice(&bytes).ok())
+    }
+
     /// Every call and job so far, in order.
     pub fn calls(&self) -> Vec<Call> {
         with_state(|state| state.calls.clone())
@@ -231,4 +316,150 @@ pub(crate) fn setting_set(key: &str, json: &str) -> Result<(), Error> {
         }
     });
     Ok(())
+}
+
+pub(crate) mod process {
+    use super::{with_state, Run};
+    use crate::bindings::hestia::plugin::types::PluginError;
+    use crate::Error;
+
+    pub(crate) use crate::bindings::hestia::plugin::process::{ExecOutput, ProcessStatus, State};
+
+    pub(crate) fn exec(
+        program: &str,
+        args: &[String],
+        env: &[(String, String)],
+        _timeout_ms: u32,
+        cwd: Option<&str>,
+        java_major: Option<u32>,
+    ) -> Result<ExecOutput, PluginError> {
+        with_state(|state| {
+            state.runs.push(Run {
+                program: program.to_owned(),
+                args: args.to_vec(),
+                env: env.to_vec(),
+                cwd: cwd.map(str::to_owned),
+                java_major,
+                spawned: false,
+            });
+            match state.outputs.get(program) {
+                Some(output) => output.clone().map(|output| ExecOutput {
+                    status: output.status,
+                    stdout: output.stdout,
+                    stderr: output.stderr,
+                }),
+                None => Err(Error::Failed(format!(
+                    "mock host: no output scripted for program `{program}`"
+                ))
+                .into()),
+            }
+        })
+    }
+
+    pub(crate) fn spawn(
+        program: &str,
+        args: &[String],
+        env: &[(String, String)],
+        java_major: Option<u32>,
+    ) -> Result<String, PluginError> {
+        with_state(|state| {
+            state.runs.push(Run {
+                program: program.to_owned(),
+                args: args.to_vec(),
+                env: env.to_vec(),
+                cwd: None,
+                java_major,
+                spawned: true,
+            });
+            let id = format!("mock-{}", state.spawned.len() + 1);
+            state.spawned.push(id.clone());
+            state.running.push(id.clone());
+            Ok(id)
+        })
+    }
+
+    fn unknown(id: &str) -> PluginError {
+        Error::NotFound(format!("mock host: the plugin started no process `{id}`")).into()
+    }
+
+    pub(crate) fn stop(id: &str) -> Result<(), PluginError> {
+        with_state(|state| {
+            if !state.spawned.iter().any(|known| known == id) {
+                return Err(unknown(id));
+            }
+            state.running.retain(|running| running != id);
+            Ok(())
+        })
+    }
+
+    pub(crate) fn status(id: &str) -> Result<ProcessStatus, PluginError> {
+        with_state(|state| {
+            if !state.spawned.iter().any(|known| known == id) {
+                return Err(unknown(id));
+            }
+            Ok(match state.running.iter().any(|running| running == id) {
+                true => ProcessStatus {
+                    state: State::Running,
+                    exit_code: None,
+                },
+                false => ProcessStatus {
+                    state: State::Exited,
+                    exit_code: Some(0),
+                },
+            })
+        })
+    }
+
+    pub(crate) fn logs(id: &str, tail: u32) -> Result<Vec<String>, PluginError> {
+        with_state(|state| {
+            if !state.spawned.iter().any(|known| known == id) {
+                return Err(unknown(id));
+            }
+            let lines = state.logs.get(id).cloned().unwrap_or_default();
+            let skip = lines.len().saturating_sub(tail as usize);
+            Ok(lines.into_iter().skip(skip).collect())
+        })
+    }
+
+    pub(crate) fn list() -> Result<Vec<String>, PluginError> {
+        with_state(|state| Ok(state.running.clone()))
+    }
+}
+
+pub(crate) mod download {
+    use super::{with_state, Download};
+    use crate::bindings::hestia::plugin::types::PluginError;
+    use crate::Error;
+
+    pub(crate) use crate::bindings::hestia::plugin::download::{Algorithm, Checksum, Outcome};
+
+    pub(crate) fn download(
+        url: &str,
+        expect: Option<&Checksum>,
+        dest: &str,
+    ) -> Result<Outcome, PluginError> {
+        with_state(|state| {
+            state.downloads.push(Download {
+                url: url.to_owned(),
+                dest: dest.to_owned(),
+                digest: expect.map(|checksum| checksum.hex.clone()),
+            });
+            match state.files.get(url) {
+                Some(size) => size.clone().map(|size| Outcome { size }),
+                None => Err(Error::Failed(format!("mock host: no file scripted for {url}")).into()),
+            }
+        })
+    }
+}
+
+pub(crate) mod data {
+    use super::with_state;
+
+    pub(crate) fn read(key: &str) -> Option<Vec<u8>> {
+        with_state(|state| state.data.get(key).cloned())
+    }
+
+    pub(crate) fn write(key: &str, bytes: Vec<u8>) {
+        with_state(|state| state.data.insert(key.to_owned(), bytes));
+    }
 }

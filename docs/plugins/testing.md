@@ -60,12 +60,21 @@ it, so tests running in parallel never see each other's answers.
 | `mock.refuse(method, url, error)` | fails that request, such as `Error::Offline(None)` or `Error::Denied(..)` |
 | `mock.setting(key, &value)` | sets a setting, as the user would |
 | `mock.setting_value(key)` | the setting's value now, including what the plugin wrote with `settings::set` |
+| `mock.exec(program, output)` | finishes every `process::exec` of that program with `output`; `mock.fail_exec` fails it |
+| `mock.process_logs(id, lines)` | the captured lines `process::logs` returns for a spawned process |
+| `mock.file(url, size)` | serves that exact URL to `download::download`; `mock.fail_download` fails it |
+| `mock.data(key, &value)` | saves a value under a data key, as an earlier call would have |
+| `mock.data_value(key)` | what is saved under the key now |
+| `mock.runs()` | every program run or spawned, with its args, env, cwd and Java major |
+| `mock.downloads()` | every download asked for, with its URL, destination and digest |
 | `mock.calls()` | every call and job made, with its channel, params and whether it was a job |
 | `mock.requests()` | every request sent, with method, URL, headers and body |
 
-An answer stays until you script it again. A call, job or request you did not script fails with `Error::Failed` naming
-the channel, or the method and URL, so a missing answer is never mistaken for an empty one. A setting you did not script
-reads as unset. Calling an SDK function with no mock installed panics.
+An answer stays until you script it again. A call, job, request, program run or download you did not script fails with
+`Error::Failed` naming the channel, the method and URL, the program or the URL, so a missing answer is never mistaken
+for an empty one. A setting or data key you did not script reads as unset. `process::spawn` always succeeds and returns
+an id (`mock-1`, `mock-2`, ...) that `status`, `stop` and `list` then track. Nothing touches the disk: data values live
+in the mock, and a download writes no file at its destination. Calling an SDK function with no mock installed panics.
 
 ## What it does not do
 

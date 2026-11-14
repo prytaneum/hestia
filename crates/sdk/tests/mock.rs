@@ -1,4 +1,8 @@
+use std::time::Duration;
+
+use hestia::download::Expect;
 use hestia::http::Request;
+use hestia::process::Output;
 use hestia::proto::java::{JavaInstall, JavaInstallDone, JavaInstallParams, JavaRuntime};
 use hestia::proto::server::ServerList;
 use hestia::proto::Empty;
@@ -10,6 +14,17 @@ fn unscripted_calls_fail_naming_what_was_asked() {
 
     let call = hestia::call::<ServerList>(&Empty {}).unwrap_err();
     assert!(matches!(call, Error::Failed(ref m) if m.contains("server.list")));
+
+    let run = hestia::process::exec("git", &["--version"], Duration::from_secs(5)).unwrap_err();
+    assert!(matches!(run, Error::Failed(ref m) if m.contains("git")));
+
+    let fetch = hestia::download::download(
+        "https://files.example.com/tool.jar",
+        Expect::Unhashed,
+        "/data/tool.jar",
+    )
+    .unwrap_err();
+    assert!(matches!(fetch, Error::Failed(ref m) if m.contains("files.example.com/tool.jar")));
 
     let request = Request::get("https://api.example.com/v1")
         .send()
@@ -45,4 +60,49 @@ fn a_plugin_installs_a_runtime_and_remembers_a_token() {
     );
     hestia::settings::clear("token").unwrap();
     assert_eq!(hestia::settings::get::<String>("token").unwrap(), None);
+}
+
+#[test]
+fn a_plugin_fetches_a_tool_runs_it_and_records_the_run() {
+    let mock = hestia::mock::install();
+    mock.file("https://files.example.com/tool.jar", 42);
+    mock.exec(
+        "java",
+        Output {
+            status: Some(0),
+            stdout: b"built".to_vec(),
+            stderr: Vec::new(),
+        },
+    );
+
+    let file = hestia::download::download(
+        "https://files.example.com/tool.jar",
+        Expect::Sha1("da39a3ee5e6b4b0d3255bfef95601890afd80709"),
+        "/data/tool.jar",
+    )
+    .unwrap();
+    let output =
+        hestia::process::exec("java", &["-jar", "/data/tool.jar"], Duration::from_secs(60))
+            .unwrap();
+    let builds = hestia::data::update("builds", |count: &mut u32| {
+        *count += 1;
+        *count
+    })
+    .unwrap();
+
+    assert_eq!(
+        (file.size, output.stdout.as_slice(), builds),
+        (42, &b"built"[..], 1)
+    );
+    assert_eq!(mock.downloads()[0].dest, "/data/tool.jar");
+    assert_eq!(mock.runs()[0].args, ["-jar", "/data/tool.jar"]);
+    assert_eq!(mock.data_value("builds"), Some(1.into()));
+
+    let agent = hestia::process::spawn("agent", &[], &[]).unwrap();
+    assert_eq!(
+        hestia::process::list().unwrap(),
+        std::slice::from_ref(&agent)
+    );
+    hestia::process::stop(&agent).unwrap();
+    assert!(hestia::process::list().unwrap().is_empty());
 }
