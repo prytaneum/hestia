@@ -4,24 +4,40 @@
 //! the files it lists, and only from hosts the plugin was granted.
 
 use std::collections::HashMap;
+use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+use std::time::Duration;
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use async_trait::async_trait;
 use proto::content::{
-    ContentKind, ContentProject, ContentVersion, SearchQuery, SearchResult, SourceFileRef,
-    SourceInfo, VersionQuery,
+    ContentKind, ContentProject, ContentVersion, ModpackFile, RequiredSetting, ResolvedModpack,
+    SearchQuery, SearchResult, SourceFileRef, SourceInfo, VersionQuery,
 };
+use proto::error::ArchiveFault;
 use proto::minecraft::Artifact;
 use proto::plugin::Manifest;
-use proto::provider::content::{self as op, IdQuery, ProjectQuery, Sha1Query, Source, UrlQuery};
+use proto::provider::content::{
+    self as op, IdQuery, IdentifyFile, IdentifyQuery, PackManifestQuery, ProjectQuery, Source,
+    UrlQuery,
+};
 use proto::Empty;
+use serde_json::Value;
 
 use super::{connect_each, registered, Guest};
+use crate::content::pack;
 use crate::content::provider::{ContentProvider, LocalFile, UrlRef};
 use crate::engine::Engine;
+use crate::plugins::context::{CallContext, Mount};
 use crate::plugins::runtime::LoadedPlugin;
 use crate::plugins::vouch::Policy;
+
+/// Where the files being identified appear to the guest, for that call only.
+const IDENTIFY_MOUNT: &str = "/files";
+
+/// Hashing every mod of a pack is guest compute, not a lookup.
+const IDENTIFY_TIMEOUT: Duration = Duration::from_secs(120);
 
 /// A source a plugin contributes, registered as `<plugin>.<id>`, or bare when official.
 pub struct PluginContentProvider {
@@ -31,9 +47,15 @@ pub struct PluginContentProvider {
 }
 
 impl PluginContentProvider {
-    /// Asks the guest to describe its source.
+    /// Asks the guest to describe its source. A source that waits on a setting
+    /// the plugin does not declare could never serve, so it is refused.
     async fn connect(guest: Guest) -> Result<Self> {
         let info = guest.ask::<op::Info>(&Empty {}).await?;
+        if let Some(key) = &info.requires_setting {
+            if !guest.plugin().settings().declares(key) {
+                return Err(guest.failed(format!("it requires the undeclared setting `{key}`")));
+            }
+        }
         let policy = Arc::new(Policy::new(guest.plugin().grant()));
         Ok(PluginContentProvider {
             guest,
@@ -67,10 +89,29 @@ impl PluginContentProvider {
     }
 
     fn downloadable(&self, artifact: &Artifact) -> bool {
-        match artifact.checksum {
-            Some(_) => self.policy.permits(&artifact.url, false),
-            None => artifact.unhashed && self.policy.permits(&artifact.url, true),
+        self.policy.vet_artifact(artifact).is_ok()
+    }
+
+    /// A pack file's path stays inside the entry; its URL is empty when its
+    /// author withholds it, which the download reports by name, and otherwise
+    /// held to the same rule as any file the source names.
+    fn vet_pack_file(&self, file: &mut ModpackFile) -> Result<()> {
+        if !pack::is_safe_path(&file.path) {
+            tracing::warn!(source = %self.guest.id(), path = %file.path, "a pack file escapes its directory");
+            return Err(pack::invalid(ArchiveFault::UnsafePath));
         }
+        if !file.artifact.url.is_empty() {
+            self.policy.vet_artifact(&file.artifact).map_err(|refused| {
+                tracing::warn!(source = %self.guest.id(), path = %file.path, %refused, "a pack file was refused");
+                self.guest
+                    .failed(format!("the pack file `{}`: {refused}", file.path))
+            })?;
+        }
+        file.source = self.guest.id().to_string();
+        if let Some(project) = file.project.take() {
+            file.project = Some(self.project_of(project));
+        }
+        Ok(())
     }
 
     fn versions_of(&self, versions: Vec<ContentVersion>) -> Vec<ContentVersion> {
@@ -96,7 +137,16 @@ impl ContentProvider for PluginContentProvider {
     }
 
     fn available(&self) -> bool {
-        !self.guest.plugin().is_disabled()
+        !self.guest.plugin().is_disabled() && self.missing_setting().is_none()
+    }
+
+    fn missing_setting(&self) -> Option<RequiredSetting> {
+        let key = self.info.requires_setting.as_ref()?;
+        let plugin = self.guest.plugin();
+        (!plugin.is_disabled() && !plugin.settings().is_filled(key)).then(|| RequiredSetting {
+            plugin: Some(plugin.id().to_string()),
+            key: key.clone(),
+        })
     }
 
     async fn parse_url(&self, url: &str) -> Option<UrlRef> {
@@ -190,13 +240,39 @@ impl ContentProvider for PluginContentProvider {
         Ok(self.versions_of(found))
     }
 
+    /// Only the files being identified are lent to the guest: staged as links
+    /// (copies across filesystems) in a directory of their own, mounted
+    /// read-only for this call, and removed after it.
     async fn identify(&self, files: &[LocalFile]) -> Result<HashMap<String, ContentVersion>> {
-        let query = Sha1Query {
-            sha1s: files.iter().map(|file| file.sha1.clone()).collect(),
+        if files.is_empty() {
+            return Ok(HashMap::new());
+        }
+        let scratch = self.guest.plugin().scratch_dir().to_path_buf();
+        let paths: Vec<_> = files.iter().map(|file| file.path.clone()).collect();
+        let staged = tokio::task::spawn_blocking(move || stage(&scratch, &paths))
+            .await
+            .context("staging the files panicked")??;
+        let query = IdentifyQuery {
+            files: files
+                .iter()
+                .enumerate()
+                .map(|(index, file)| IdentifyFile {
+                    sha1: file.sha1.clone(),
+                    path: format!("{IDENTIFY_MOUNT}/{index}"),
+                })
+                .collect(),
+        };
+        let context = CallContext {
+            mounts: vec![Mount {
+                host: staged.path().to_path_buf(),
+                guest: IDENTIFY_MOUNT,
+                writable: false,
+            }],
+            ..CallContext::default()
         };
         let found = self
             .guest
-            .try_ask::<op::Identify>(&query)
+            .try_ask_within::<op::Identify>(&query, IDENTIFY_TIMEOUT, context)
             .await?
             .unwrap_or_default();
         Ok(found
@@ -204,6 +280,60 @@ impl ContentProvider for PluginContentProvider {
             .filter_map(|(sha1, version)| Some((sha1, self.version_of(version)?)))
             .collect())
     }
+
+    async fn resolve_manifest(&self, manifest: &Value) -> Result<ResolvedModpack> {
+        let query = PackManifestQuery {
+            manifest: manifest.clone(),
+        };
+        let mut pack = self
+            .guest
+            .try_ask::<op::ResolveManifest>(&query)
+            .await?
+            .with_context(|| format!("{} has no pack manifest of its own", self.info.name))?;
+        pack.source = self.guest.id().to_string();
+        for file in &mut pack.files {
+            self.vet_pack_file(file)?;
+        }
+        Ok(pack)
+    }
+}
+
+/// A staging directory that is removed when it goes out of scope.
+struct Staged(PathBuf);
+
+impl Staged {
+    fn path(&self) -> &Path {
+        &self.0
+    }
+}
+
+impl Drop for Staged {
+    fn drop(&mut self) {
+        if let Err(error) = std::fs::remove_dir_all(&self.0) {
+            tracing::warn!(dir = %self.0.display(), %error, "cannot remove an identify staging directory");
+        }
+    }
+}
+
+/// Links `paths` into a fresh directory under `scratch`, as `0`, `1`, … in the
+/// order given; a file that cannot be linked is copied.
+fn stage(scratch: &Path, paths: &[PathBuf]) -> Result<Staged> {
+    static STAGINGS: AtomicU64 = AtomicU64::new(0);
+    let dir = scratch.join(format!(
+        ".identify-{}-{}",
+        std::process::id(),
+        STAGINGS.fetch_add(1, Ordering::Relaxed)
+    ));
+    std::fs::create_dir_all(&dir).context("cannot create a staging directory")?;
+    let staged = Staged(dir);
+    for (index, path) in paths.iter().enumerate() {
+        let target = staged.path().join(index.to_string());
+        if std::fs::hard_link(path, &target).is_err() {
+            std::fs::copy(path, &target)
+                .with_context(|| format!("cannot stage {}", path.display()))?;
+        }
+    }
+    Ok(staged)
 }
 
 pub(super) async fn connect(

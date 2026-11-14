@@ -93,6 +93,21 @@ impl PluginSettings {
             .or_else(|| setting.default.clone())
     }
 
+    /// Whether `key` holds a value a source can work with: declared, and
+    /// neither unset nor an empty or blank string.
+    pub fn is_filled(&self, key: &str) -> bool {
+        match self.get(key) {
+            None | Some(Value::Null) => false,
+            Some(Value::String(text)) => !text.trim().is_empty(),
+            Some(_) => true,
+        }
+    }
+
+    /// Whether `key` is one of the plugin's declared settings.
+    pub fn declares(&self, key: &str) -> bool {
+        self.declared.iter().any(|setting| setting.key == key)
+    }
+
     /// Stores `value` for `key` after checking it against the declared kind;
     /// `null` clears the key. The user's write and the plugin's own go through
     /// here alike.

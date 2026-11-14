@@ -69,10 +69,10 @@ pub enum ReleaseChannel {
     Alpha,
 }
 
-/// A source platform (modrinth, curseforge) — the first selector level. Only
-/// sources that can actually serve requests are listed (a platform whose API
-/// key is unset is not), and `kinds` is what this one catalogues, so a
-/// front-end offers it for those kinds alone.
+/// A source platform (modrinth, curseforge) — the first selector level. A
+/// source that is registered but cannot serve yet is listed too, with the
+/// setting it waits on in `requires_setting`; a front-end offers the others, and
+/// `kinds` is what this one catalogues, so it is offered for those kinds alone.
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
 #[serde(default, rename_all = "camelCase")]
@@ -80,6 +80,21 @@ pub struct ContentSource {
     pub id: String,
     pub name: String,
     pub kinds: Vec<ContentKind>,
+    /// The setting the user has not set yet, which is why the source does not
+    /// serve; absent once it can.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub requires_setting: Option<RequiredSetting>,
+}
+
+/// A setting a source cannot serve without. `plugin` names the plugin whose
+/// setting it is; absent, it is a key of the launcher's own config.
+#[derive(Serialize, Deserialize, Default, Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
+#[serde(default, rename_all = "camelCase")]
+pub struct RequiredSetting {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub plugin: Option<String>,
+    pub key: String,
 }
 
 /// What a plugin's content source says of itself: the `info` of the
@@ -93,6 +108,11 @@ pub struct SourceInfo {
     /// Whether the source has no datapack project type, so a datapack is a
     /// `Mod` project whose versions carry the `datapack` loader.
     pub datapacks_as_mods: bool,
+    /// The key of one of the plugin's own settings that must be set before the
+    /// source serves; the host keeps the source out of use, and says which
+    /// setting is missing, until it is.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub requires_setting: Option<String>,
 }
 
 /// A project (and optionally a version) a plugin's source recognised in a page

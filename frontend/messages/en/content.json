@@ -10,6 +10,7 @@
       "nothing_matches": "Nothing matches your search.",
       "project_missing": "That project could not be found.",
       "source": "Source",
+      "source_needs_setting": "{name} (needs the {setting} setting)",
       "subtitle": "Discover mods, packs and shaders"
     },
     "drop": "Drop to add to {name}",

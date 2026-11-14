@@ -12,7 +12,7 @@ mod session;
 
 use anyhow::Result;
 use clap::ValueEnum;
-use client::proto::content::SearchSort;
+use client::proto::content::{RequiredSetting, SearchSort};
 
 use crate::commands::connect;
 use crate::ui::{self, View};
@@ -43,8 +43,7 @@ impl From<SortArg> for SearchSort {
     }
 }
 
-/// `hestia sources`. Only sources that can serve are listed — a platform
-/// needing an API key it has not been given is not one of them.
+/// `hestia sources`. A source waiting on a setting is listed with the setting.
 pub async fn run_sources() -> Result<()> {
     let client = connect().await?;
     let sources = client.content().sources().await?;
@@ -62,12 +61,22 @@ pub async fn run_sources() -> Result<()> {
                     .map(|k| format::kind_plural(*k))
                     .collect::<Vec<_>>()
                     .join(", "),
+                match s.requires_setting {
+                    None => "ready".to_string(),
+                    Some(RequiredSetting {
+                        plugin: Some(plugin),
+                        key,
+                    }) => format!("needs plugin setting {key} of {plugin}"),
+                    Some(RequiredSetting { plugin: None, key }) => {
+                        format!("needs config {key}")
+                    }
+                },
             ]
         })
         .collect::<Vec<_>>();
     ui::show(View::table(
         "content sources",
-        ["ID", "NAME", "SERVES"],
+        ["ID", "NAME", "SERVES", "STATUS"],
         rows,
     ))
 }

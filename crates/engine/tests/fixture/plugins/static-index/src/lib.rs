@@ -2,12 +2,17 @@
 //! Files in the index name a path relative to the plugin's `base-url` data
 //! file, so the plugin needs no network of its own: Hestia downloads them.
 
+use std::collections::HashMap;
+
 use hestia::proto::content::{
-    ContentKind, ContentProject, ContentVersion, SearchQuery, SearchResult, SourceInfo,
-    VersionQuery,
+    ContentKind, ContentProject, ContentVersion, ModpackFile, ResolvedModpack, SearchQuery,
+    SearchResult, SourceInfo, VersionQuery,
 };
+use hestia::proto::download::{Checksum, HashAlgorithm};
+use hestia::proto::minecraft::Artifact;
 use hestia::proto::provider::content::{
-    IdQuery, Info, Project, ProjectQuery, Search, Versions, VersionsById,
+    IdQuery, Identify, IdentifyQuery, Info, PackManifestQuery, Project, ProjectQuery,
+    ResolveManifest, Search, Versions, VersionsById,
 };
 use hestia::serde_json::{self, Value};
 use hestia::{Error, Plugin, Provide, Provided};
@@ -47,6 +52,7 @@ fn info(source: &str) -> Result<SourceInfo, Error> {
     Ok(SourceInfo {
         name: "Static index".into(),
         kinds: vec![ContentKind::Mod],
+        requires_setting: hestia::data::load::<String>("requires-setting")?,
         ..SourceInfo::default()
     })
 }
@@ -89,6 +95,74 @@ fn versions_by_id(source: &str, query: IdQuery) -> Result<Vec<ContentVersion>, E
         .collect())
 }
 
+/// A file is the version whose filename is the file's text. The version's name
+/// reports what the guest saw of the mount, so a test can tell it is read-only
+/// and holds nothing but the files asked about.
+fn identify(source: &str, query: IdentifyQuery) -> Result<HashMap<String, ContentVersion>, Error> {
+    check(source)?;
+    let known = versions()?;
+    let listed = std::fs::read_dir("/files").map(Iterator::count).unwrap_or(0);
+    let mut found = HashMap::new();
+    for file in query.files {
+        let text = std::fs::read_to_string(&file.path)
+            .map_err(|error| Error::Failed(format!("cannot read {}: {error}", file.path)))?;
+        let writable = std::fs::OpenOptions::new()
+            .write(true)
+            .open(&file.path)
+            .is_ok();
+        let escaped = std::fs::read_to_string("/files/../data/base-url.json").is_ok();
+        let Some(mut version) = known
+            .iter()
+            .find(|version| version.files[0].artifact.filename == text.trim())
+            .cloned()
+        else {
+            continue;
+        };
+        version.name = format!("writable={writable} escaped={escaped} listed={listed}");
+        found.insert(file.sha1, version);
+    }
+    Ok(found)
+}
+
+/// `{ name, files: [{ path, url, sha1? }] }` into a pack whose relative URLs sit
+/// under the base URL; a file with no `sha1` is listed unverified.
+fn resolve_manifest(source: &str, query: PackManifestQuery) -> Result<ResolvedModpack, Error> {
+    check(source)?;
+    let base = hestia::data::load::<String>("base-url")?.unwrap_or_else(|| DEFAULT_BASE.into());
+    let text = |value: &Value, key: &str| value[key].as_str().unwrap_or_default().to_string();
+    let files = query.manifest["files"]
+        .as_array()
+        .map(|entries| {
+            entries
+                .iter()
+                .map(|entry| ModpackFile {
+                    path: text(entry, "path"),
+                    artifact: Artifact {
+                        url: match text(entry, "url").as_str() {
+                            "" => String::new(),
+                            url if url.starts_with("https://") => url.to_string(),
+                            relative => format!("{}/{relative}", base.trim_end_matches('/')),
+                        },
+                        filename: text(entry, "path"),
+                        checksum: entry["sha1"].as_str().map(|hex| Checksum {
+                            algorithm: HashAlgorithm::Sha1,
+                            hex: hex.to_string(),
+                        }),
+                        ..Artifact::default()
+                    },
+                    ..ModpackFile::default()
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+    Ok(ResolvedModpack {
+        name: text(&query.manifest, "name"),
+        game_version: "1.21".into(),
+        files,
+        ..ResolvedModpack::default()
+    })
+}
+
 impl Plugin for StaticIndex {
     fn provide(call: Provide) -> Provided {
         call.on::<Info>(|source, _| info(source))
@@ -96,6 +170,8 @@ impl Plugin for StaticIndex {
             .on::<Project>(project)
             .on::<Versions>(project_versions)
             .on::<VersionsById>(versions_by_id)
+            .on::<Identify>(identify)
+            .on::<ResolveManifest>(resolve_manifest)
             .finish()
     }
 }

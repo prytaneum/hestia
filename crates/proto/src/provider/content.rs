@@ -8,8 +8,8 @@ use serde::{Deserialize, Serialize};
 
 use super::{ProviderKind, ProviderOp};
 use crate::content::{
-    ContentKind, ContentProject, ContentVersion, SearchQuery, SearchResult, SourceFileRef,
-    SourceInfo, SourceUrl, VersionQuery,
+    ContentKind, ContentProject, ContentVersion, ResolvedModpack, SearchQuery, SearchResult,
+    SourceFileRef, SourceInfo, SourceUrl, VersionQuery,
 };
 use crate::contract::Empty;
 use crate::plugin::Permission;
@@ -47,12 +47,31 @@ pub struct IdQuery {
     pub ids: Vec<String>,
 }
 
-/// Local files by their sha1.
+/// A local file being identified: its sha1, and where the guest can read it
+/// during the call, read-only.
 #[derive(Serialize, Deserialize, Default, Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
 #[serde(default, rename_all = "camelCase")]
-pub struct Sha1Query {
-    pub sha1s: Vec<String>,
+pub struct IdentifyFile {
+    pub sha1: String,
+    pub path: String,
+}
+
+/// The local files to identify.
+#[derive(Serialize, Deserialize, Default, Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
+#[serde(default, rename_all = "camelCase")]
+pub struct IdentifyQuery {
+    pub files: Vec<IdentifyFile>,
+}
+
+/// A pack manifest, as the pack's archive carries it.
+#[derive(Serialize, Deserialize, Default, Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
+#[serde(default, rename_all = "camelCase")]
+pub struct PackManifestQuery {
+    #[cfg_attr(feature = "ts", ts(type = "unknown"))]
+    pub manifest: serde_json::Value,
 }
 
 /// Describes the source. Asked once, when the plugin is enabled.
@@ -128,12 +147,28 @@ impl ProviderOp for VersionsById {
     type Reply = Vec<ContentVersion>;
 }
 
-/// The version each file is a release of, keyed by the file's sha1. Optional:
-/// unsupported reads as none identified.
+/// The version each file is a release of, keyed by the file's sha1. During the
+/// call, and only then, every file is mounted read-only at its `path`, so the
+/// guest can compute the hash its source indexes by. Optional: unsupported
+/// reads as none identified.
 pub struct Identify;
 impl ProviderOp for Identify {
     type Kind = Source;
     const OP: &'static str = "identify";
-    type Args = Sha1Query;
+    type Args = IdentifyQuery;
     type Reply = HashMap<String, ContentVersion>;
+}
+
+/// Resolves a pack manifest the source owns into the files it names, with the
+/// game version and loader it targets. A file is held to the same rule as any
+/// download the source names: its path stays inside the entry, and its URL is
+/// on one of the plugin's network hosts and verified by a checksum, or empty
+/// for a file its author withholds. Optional: unsupported fails the import with
+/// the source named.
+pub struct ResolveManifest;
+impl ProviderOp for ResolveManifest {
+    type Kind = Source;
+    const OP: &'static str = "resolve-manifest";
+    type Args = PackManifestQuery;
+    type Reply = ResolvedModpack;
 }

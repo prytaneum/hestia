@@ -28,6 +28,7 @@ export type { InstalledContent } from "./generated/InstalledContent";
 export type { ModpackFile } from "./generated/ModpackFile";
 export type { ProjectParams } from "./generated/ProjectParams";
 export type { ReleaseChannel } from "./generated/ReleaseChannel";
+export type { RequiredSetting } from "./generated/RequiredSetting";
 export type { ResolveUrlParams } from "./generated/ResolveUrlParams";
 export type { ResolvedModpack } from "./generated/ResolvedModpack";
 export type { ResolvedUrl } from "./generated/ResolvedUrl";

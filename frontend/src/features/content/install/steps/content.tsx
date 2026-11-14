@@ -99,7 +99,12 @@ export function ContentStep({
             trailing={
               <FilterMenu
                 groups={[
-                  sourceGroup(sources.list, sources.active, onSourceChange),
+                  sourceGroup(
+                    sources.list,
+                    sources.active,
+                    onSourceChange,
+                    sources.waiting,
+                  ),
                 ]}
               />
             }

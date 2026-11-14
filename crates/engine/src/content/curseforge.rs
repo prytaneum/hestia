@@ -14,8 +14,8 @@ use anyhow::{bail, Context, Result};
 use async_trait::async_trait;
 use proto::content::{
     ContentDependency, ContentFile, ContentKind, ContentProject, ContentVersion, DependencyKind,
-    GalleryImage, ModpackFile, ReleaseChannel, ResolvedModpack, SearchQuery, SearchResult,
-    SearchSort, SideSupport, VersionQuery,
+    GalleryImage, ModpackFile, ReleaseChannel, RequiredSetting, ResolvedModpack, SearchQuery,
+    SearchResult, SearchSort, SideSupport, VersionQuery,
 };
 use proto::download::{Checksum, HashAlgorithm};
 use proto::error::{ArchiveFault, ErrorInfo, Service};
@@ -124,6 +124,13 @@ impl ContentProvider for CurseForge {
 
     fn available(&self) -> bool {
         !self.key().is_empty()
+    }
+
+    fn missing_setting(&self) -> Option<RequiredSetting> {
+        (!self.available()).then(|| RequiredSetting {
+            plugin: None,
+            key: "content.curseforge-key".into(),
+        })
     }
 
     fn configure(&self, settings: &ContentSettings) {

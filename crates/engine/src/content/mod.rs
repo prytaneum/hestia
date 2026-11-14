@@ -278,17 +278,21 @@ impl Content {
         }
     }
 
-    /// The sources that can actually serve a request — a platform whose API key
-    /// is unset is registered but not offered.
+    /// The sources that can serve a request, and the ones that wait on a
+    /// setting, which say which — a platform whose API key is unset is listed,
+    /// not offered.
     pub fn sources(&self) -> Vec<ContentSource> {
         self.providers
             .snapshot()
             .iter()
-            .filter(|p| p.available())
-            .map(|p| ContentSource {
-                id: p.id().to_string(),
-                name: p.name().to_string(),
-                kinds: p.kinds(),
+            .filter_map(|p| {
+                let requires_setting = p.missing_setting();
+                (p.available() || requires_setting.is_some()).then(|| ContentSource {
+                    id: p.id().to_string(),
+                    name: p.name().to_string(),
+                    kinds: p.kinds(),
+                    requires_setting,
+                })
             })
             .collect()
     }

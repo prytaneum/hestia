@@ -85,8 +85,11 @@ export function BrowsePage({
       actions={
         <FilterMenu
           groups={[
-            sourceGroup(sources.list, sources.active, (next) =>
-              onSourceChange?.(next),
+            sourceGroup(
+              sources.list,
+              sources.active,
+              (next) => onSourceChange?.(next),
+              sources.waiting,
             ),
           ]}
         />

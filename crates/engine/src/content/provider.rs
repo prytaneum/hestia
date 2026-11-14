@@ -10,8 +10,8 @@ use std::sync::Arc;
 use anyhow::{bail, Result};
 use async_trait::async_trait;
 use proto::content::{
-    ContentKind, ContentProject, ContentVersion, ResolvedModpack, SearchQuery, SourceFileRef,
-    VersionQuery,
+    ContentKind, ContentProject, ContentVersion, RequiredSetting, ResolvedModpack, SearchQuery,
+    SourceFileRef, VersionQuery,
 };
 
 use serde_json::Value;
@@ -53,6 +53,11 @@ pub trait ContentProvider: Send + Sync {
     /// Whether it can serve as configured — an unset API key, today.
     fn available(&self) -> bool {
         true
+    }
+    /// The setting whose being unset is why [`ContentProvider::available`] is
+    /// false, for a front-end to say and link; `None` for any other reason.
+    fn missing_setting(&self) -> Option<RequiredSetting> {
+        None
     }
     /// Called at startup and after every `config set`, so a key takes effect on
     /// the running daemon.

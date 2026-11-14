@@ -1,5 +1,5 @@
 use std::collections::VecDeque;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -630,6 +630,16 @@ impl LoadedPlugin {
     /// holds `process:spawn` and the file is still there.
     pub fn pinned_program(&self, id: &str) -> Option<PathBuf> {
         self.programs.wrapper(id)
+    }
+
+    /// A directory beside the plugin's `data/`, on the same filesystem, for
+    /// what the host stages for one call.
+    pub(crate) fn scratch_dir(&self) -> &Path {
+        self.data_dir.parent().unwrap_or(&self.data_dir)
+    }
+
+    pub(crate) fn settings(&self) -> &PluginSettings {
+        &self.settings
     }
 
     /// What the user approved for this plugin.

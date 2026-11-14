@@ -59,7 +59,9 @@ function CurseForgeKey({
   onSave: (value: string) => Promise<unknown>;
 }) {
   const sources = useQuery(contentQueries.sources());
-  const ready = (sources.data ?? []).some((s) => s.id === 'curseforge');
+  const ready = (sources.data ?? []).some(
+    (s) => s.id === 'curseforge' && !s.requiresSetting,
+  );
   return (
     <Field>
       <FieldLabel htmlFor="curseforge-key" className="gap-2">

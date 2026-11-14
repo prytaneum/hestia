@@ -10,4 +10,10 @@ export type SourceInfo = { name: string, kinds: Array<ContentKind>,
  * Whether the source has no datapack project type, so a datapack is a
  * `Mod` project whose versions carry the `datapack` loader.
  */
-datapacksAsMods: boolean, };
+datapacksAsMods: boolean, 
+/**
+ * The key of one of the plugin's own settings that must be set before the
+ * source serves; the host keeps the source out of use, and says which
+ * setting is missing, until it is.
+ */
+requiresSetting?: string, };
