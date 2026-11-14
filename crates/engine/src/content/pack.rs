@@ -19,10 +19,12 @@ use proto::minecraft::{Artifact, ConfigEntry, ProvisionPhase};
 use proto::provider::pack::OverrideTrees;
 use proto::provider::Provider;
 use proto::transfer::ImportFormat;
+use proto::warning::WarningInfo;
 use serde_json::{Map, Value};
 
 use super::json::{parse_side, str_field};
 use crate::cancel::Job;
+use crate::icon;
 use crate::minecraft::Loaders;
 use crate::plugins::vouch::Policy;
 use crate::transfer::archive::{Extracted, Reader};
@@ -85,6 +87,23 @@ pub(crate) struct Archive {
     /// The vetted JVM settings the pack asks for, as `config` entries, for the
     /// instance an install creates.
     config: Vec<ConfigEntry>,
+    /// The format's name, for what is reported about its pack.
+    format: String,
+    /// The image the pack named, as an archive member under `root`.
+    icon: Option<String>,
+    /// What reading the pack dropped, to be reported with the install.
+    warnings: Vec<WarningInfo>,
+}
+
+/// What a pack format a plugin contributes hands the install beside the pack
+/// itself.
+pub(crate) struct Contributed {
+    pub(crate) trees: OverrideTrees,
+    pub(crate) policy: Option<Arc<Policy>>,
+    pub(crate) config: Vec<ConfigEntry>,
+    pub(crate) format: String,
+    pub(crate) icon: Option<String>,
+    pub(crate) warnings: Vec<WarningInfo>,
 }
 
 impl Archive {
@@ -99,23 +118,41 @@ impl Archive {
             },
             policy: None,
             config: Vec::new(),
+            format: String::new(),
+            icon: None,
+            warnings: Vec::new(),
         }
     }
 
-    pub(crate) fn contributed(
-        reader: Reader,
-        root: String,
-        trees: OverrideTrees,
-        policy: Option<Arc<Policy>>,
-        config: Vec<ConfigEntry>,
-    ) -> Self {
+    pub(crate) fn contributed(reader: Reader, root: String, contributed: Contributed) -> Self {
         Archive {
             reader,
             root,
-            trees,
-            policy,
-            config,
+            trees: contributed.trees,
+            policy: contributed.policy,
+            config: contributed.config,
+            format: contributed.format,
+            icon: contributed.icon,
+            warnings: contributed.warnings,
         }
+    }
+
+    pub(crate) fn take_warnings(&mut self) -> Vec<WarningInfo> {
+        std::mem::take(&mut self.warnings)
+    }
+
+    pub(crate) fn icon_dropped(&self, error: &anyhow::Error) -> WarningInfo {
+        WarningInfo::PackIconDropped {
+            pack: self.format.clone(),
+            detail: format!("{error:#}"),
+        }
+    }
+
+    /// The bytes of the image the pack named, read under the size an entry's
+    /// icon may be; `None` when it named none.
+    pub(crate) fn icon_image(&mut self) -> Option<Result<Vec<u8>>> {
+        let member = format!("{}{}", self.root, self.icon.as_deref()?);
+        Some(self.reader.read_at_most(&member, icon::MAX_BYTES))
     }
 
     pub(crate) fn config(&self) -> &[ConfigEntry] {

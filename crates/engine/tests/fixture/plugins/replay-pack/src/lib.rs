@@ -2,9 +2,12 @@
 //! verbatim: the manifest names the files, the override trees and, optionally,
 //! a content source to resolve a manifest through, and optionally its `memory`
 //! and `jvmArgs`, so a test scripts every
-//! answer a pack can give. An archive holding `replay.skip` is not claimed. An
-//! export names every file of the instance, plus one the export does not hold
-//! when the instance is called `escape`.
+//! answer a pack can give. An archive holding `replay.skip`, or whose
+//! `replay.json` says `"decline": true`, is not claimed. A manifest naming a
+//! `loader` or an `icon` has them answered, and one with `"echoLoaders": true`
+//! is named for the loader keys the host offered. An export names every file of
+//! the instance, plus one the export does not hold when the instance is called
+//! `escape`, and stores what the host said of the content pool in `pool.json`.
 
 use hestia::proto::content::{ModpackFile, ResolvedModpack};
 use hestia::proto::download::{Checksum, HashAlgorithm};
@@ -39,8 +42,13 @@ fn info(pack: &str) -> Result<PackInfo, Error> {
 
 fn claims(pack: &str, query: ClaimQuery) -> Result<Claim, Error> {
     check(pack)?;
+    let declined = query
+        .members
+        .get(MARKER)
+        .and_then(|text| serde_json::from_str::<Value>(text).ok())
+        .is_some_and(|manifest| manifest["decline"] == true);
     Ok(Claim {
-        claimed: !query.files.iter().any(|file| file == "replay.skip"),
+        claimed: !declined && !query.files.iter().any(|file| file == "replay.skip"),
     })
 }
 
@@ -90,10 +98,15 @@ fn read(pack: &str, query: ReadQuery) -> Result<PackRead, Error> {
         .map(|entries| entries.iter().map(file).collect())
         .unwrap_or_default();
     let trees = &manifest["trees"];
+    let name = match manifest["echoLoaders"] == true {
+        true => query.loaders.join(","),
+        false => text(&manifest, "name"),
+    };
     Ok(PackRead {
         pack: ResolvedModpack {
-            name: text(&manifest, "name"),
+            name,
             game_version: text(&manifest, "gameVersion"),
+            loader: manifest["loader"].as_str().map(str::to_string),
             files,
             ..ResolvedModpack::default()
         },
@@ -108,6 +121,7 @@ fn read(pack: &str, query: ReadQuery) -> Result<PackRead, Error> {
         },
         memory: manifest["memory"].as_str().map(str::to_string),
         jvm_args: manifest["jvmArgs"].as_str().map(str::to_string),
+        icon: manifest["icon"].as_str().map(str::to_string),
     })
 }
 
@@ -128,11 +142,29 @@ fn write(pack: &str, query: WriteQuery) -> Result<PackWritten, Error> {
             archive_path: "overrides/passwd".into(),
         });
     }
+    let pool: Vec<Value> = query
+        .content
+        .iter()
+        .map(|item| {
+            serde_json::json!({
+                "path": item.path,
+                "referenceable": item.referenceable,
+                "size": item.size,
+                "sha512": item.sha512,
+            })
+        })
+        .collect();
     Ok(PackWritten {
-        members: vec![PackMember {
-            path: MARKER.into(),
-            text: format!("{{\"name\":\"{}\"}}", query.instance.name),
-        }],
+        members: vec![
+            PackMember {
+                path: MARKER.into(),
+                text: format!("{{\"name\":\"{}\"}}", query.instance.name),
+            },
+            PackMember {
+                path: "pool.json".into(),
+                text: Value::Array(pool).to_string(),
+            },
+        ],
         copies,
         warnings: vec!["replay keeps no references to content".into()],
     })

@@ -103,12 +103,12 @@ impl Engine {
 
     pub(super) async fn detect_archive(
         &self,
-        reader: &Reader,
+        reader: &mut Reader,
         path: &Path,
         packs_only: bool,
     ) -> Result<Detected> {
         transfer::detect(
-            &reader.names(),
+            reader,
             &archive::filename_of(path),
             &self.packs.snapshot(),
             packs_only,
@@ -198,12 +198,13 @@ impl Engine {
     pub async fn inspect_archive(&self, path: &str) -> Result<ArchiveInfo> {
         let path = daemon_local_path(path)?;
         let mut reader = Reader::open(&path)?;
-        let detected = self.detect_archive(&reader, &path, false).await?;
+        let detected = self.detect_archive(&mut reader, &path, false).await?;
         let format = detected.kind.id();
         let descriptor = match detected.kind {
             Kind::Plugin(plugin) => plugin
-                .read(&mut reader, &detected.prefix)
+                .read(&mut reader, &detected.prefix, &self.minecraft.loaders())
                 .await?
+                .read
                 .pack
                 .into(),
             Kind::Instance(instance) => {
@@ -242,7 +243,7 @@ impl Engine {
     ) -> Result<ImportOutcome> {
         let path = daemon_local_path(path)?;
         let mut reader = Reader::open(&path)?;
-        let detected = self.detect_archive(&reader, &path, false).await?;
+        let detected = self.detect_archive(&mut reader, &path, false).await?;
         let format = detected.kind.id();
         tracing::info!(path = %path.display(), format = ?format, "importing an instance");
 

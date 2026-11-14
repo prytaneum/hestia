@@ -48,6 +48,12 @@ impl Engine {
         }
     }
 
+    /// An icon only dresses the entry, so the caller reports one that cannot be
+    /// taken rather than failing the install.
+    pub(super) fn adopt_pack_icon(&self, entry: EntryRef<'_>, image: &[u8]) -> Result<()> {
+        icon::write(&self.entry_dir(entry)?, image, None).map(|_| ())
+    }
+
     fn entry_dir(&self, entry: EntryRef<'_>) -> Result<PathBuf> {
         Ok(match entry {
             EntryRef::Server(reference) => {

@@ -209,21 +209,21 @@ fn candidates(names: &[String], packs: &[Arc<PluginPack>]) -> Vec<Detected> {
 }
 
 /// Recognise an archive. A plugin's format that holds its declared members is
-/// asked whether it claims the archive before it wins; `packs_only` leaves the
-/// instance formats out, for a caller that installs a modpack.
+/// asked whether it claims the archive, given the text of those members, before
+/// it wins; `packs_only` leaves the instance formats out, for a caller that
+/// installs a modpack.
 pub(crate) async fn detect(
-    names: &[String],
+    reader: &mut Reader,
     filename: &str,
     packs: &[Arc<PluginPack>],
     packs_only: bool,
 ) -> Result<Detected> {
-    for candidate in candidates(names, packs) {
+    for candidate in candidates(&reader.names(), packs) {
         if packs_only && !candidate.kind.is_pack() {
             continue;
         }
         if let Kind::Plugin(pack) = &candidate.kind {
-            let files = PluginPack::files_under(names, &candidate.prefix);
-            if !pack.claims(files).await {
+            if !pack.claims(reader, &candidate.prefix).await {
                 tracing::debug!(pack = %pack.id(), "a pack format did not claim the archive");
                 continue;
             }
@@ -318,12 +318,25 @@ mod tests {
         }
     }
 
-    fn names(list: &[&str]) -> Vec<String> {
-        list.iter().map(|n| n.to_string()).collect()
+    fn reader_of(list: &[&str]) -> (tempfile::TempDir, Reader) {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("a.zip");
+        let mut zip = zip::ZipWriter::new(std::fs::File::create(&path).unwrap());
+        let options = zip::write::SimpleFileOptions::default();
+        for name in list {
+            match name.ends_with('/') {
+                true => zip.add_directory(*name, options).unwrap(),
+                false => zip.start_file(*name, options).unwrap(),
+            }
+        }
+        zip.finish().unwrap();
+        let reader = Reader::open(&path).unwrap();
+        (dir, reader)
     }
 
     async fn detected(list: &[&str]) -> Detected {
-        detect(&names(list), "a", &[], false).await.unwrap()
+        let (_dir, mut reader) = reader_of(list);
+        detect(&mut reader, "a", &[], false).await.unwrap()
     }
 
     #[tokio::test]
@@ -365,7 +378,7 @@ mod tests {
 
     #[tokio::test]
     async fn a_modpack_install_leaves_the_instance_formats_out() {
-        let archive = names(&["instance.cfg", "mmc-pack.json"]);
-        assert!(detect(&archive, "a", &[], true).await.is_err());
+        let (_dir, mut reader) = reader_of(&["instance.cfg", "mmc-pack.json"]);
+        assert!(detect(&mut reader, "a", &[], true).await.is_err());
     }
 }

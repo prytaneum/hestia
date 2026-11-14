@@ -5,4 +5,10 @@
  * all relative to the directory the pack starts at. A declared member that is
  * not UTF-8 text refuses the archive before the guest is asked.
  */
-export type ReadQuery = { files: Array<string>, members: { [key in string]: string }, };
+export type ReadQuery = { files: Array<string>, members: { [key in string]: string }, 
+/**
+ * The loader keys the registered flavors declare for this format in their
+ * `interchange` map, so a reader can pick the component or dependency a
+ * flavor actually claims. Keys only: which flavor owns one is the host's.
+ */
+loaders: Array<string>, };

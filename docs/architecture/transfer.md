@@ -188,18 +188,22 @@ unindexed, as a folder pack does.
 
 A plugin contributes a pack format with `kind = "pack"` and the `pack:provide` permission. It answers the
 `proto::provider::pack` operations `info` (name, the members it reads as names or globs, and the extension it writes),
-`claims` (an optional probe over the member names), `read` and `write`. `PluginPack`
+`claims` (an optional probe over the member names and the text of the declared members), `read` and `write`. `PluginPack`
 (`plugins/providers/pack.rs`) registers as `<plugin>.<id>` on the engine, and `detect` ranks it beside the core
 formats by the depth of the shallowest directory holding every declared member, core first on a tie; a plugin cannot
 claim hestia's marker or the `.mrpack` index.
 
-`read` is handed the member names and the text of the declared members only, and answers the pack — name, game version,
-loader, files — plus the override trees each side takes, optionally delegating the file list to a content source's
-`resolve-manifest`. The modpack flow then installs it like an `.mrpack`: it creates the entry, fetches the files and
+`read` is handed the member names, the text of the declared members and the loader keys its format has flavors for, and
+answers the pack — name, game version, loader, files — plus the override trees each side takes, optionally delegating
+the file list to a content source's `resolve-manifest`, and optionally the instance's `memory`, `jvmArgs` and `icon`.
+The host maps the loader key to its flavor, so an inspect and an import show the same loader. A `memory` or `jvmArgs`
+the settings reject, or an icon that is not a plain archive path to an image of at most 10 MiB, is dropped and reported
+on the result (`PackSettingDropped`, `PackIconDropped`) instead of failing the import. The modpack flow then installs it like an `.mrpack`: it creates the entry, fetches the files and
 extracts the trees. Every file goes through `Policy::vet_artifact` and is fetched under the vetting policy
 ([0122](../decisions/0122-a-source-declares-its-setting-and-one-vet-checks-every-download.md)); every path and tree is
 checked to stay inside the entry, and one refused entry refuses the whole answer. `write` is handed the instance, the
-game directory's files and the content pool, and names the manifests to store and the instance files to copy; the host
+game directory's files and the content pool (each referenceable item with its size and SHA-512, hashed in one read),
+and names the manifests to store and the instance files to copy; the host
 checks each copy against what the export holds and does the writing, reporting the guest's warnings as
 `PackExportWarned`. See [0125](../decisions/0125-a-pack-is-a-provider-kind-and-export-formats-are-open.md).
 

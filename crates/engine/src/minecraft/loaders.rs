@@ -65,6 +65,18 @@ impl Loaders {
             .and_then(|entry| entry.key(format))
     }
 
+    /// Every loader key the format `format` has a flavor for, in the roster's
+    /// order and without repeats.
+    pub fn keys_of(&self, format: &str) -> Vec<String> {
+        let mut keys: Vec<String> = Vec::new();
+        for key in self.0.iter().filter_map(|entry| entry.key(format)) {
+            if !keys.iter().any(|known| known == key) {
+                keys.push(key.to_string());
+            }
+        }
+        keys
+    }
+
     /// The flavor the format `format` means by the loader `key`.
     pub fn flavor_of(&self, format: &str, key: &str) -> Option<&str> {
         self.0

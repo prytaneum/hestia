@@ -70,11 +70,11 @@ impl Engine {
     /// Errors when `path` is a modpack in a core or plugin format, which a
     /// single-file import must not take for content.
     pub(super) async fn refuse_pack_file(&self, path: &Path) -> Result<()> {
-        let Ok(reader) = Reader::open(path) else {
+        let Ok(mut reader) = Reader::open(path) else {
             return Ok(());
         };
         let packs = self.packs().snapshot();
-        match transfer::detect(&reader.names(), &file_name(path), &packs, true).await {
+        match transfer::detect(&mut reader, &file_name(path), &packs, true).await {
             Ok(_) => Err(modpack_refusal(path)),
             Err(_) => Ok(()),
         }

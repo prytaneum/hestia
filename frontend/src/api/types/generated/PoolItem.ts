@@ -14,4 +14,13 @@ path: string,
  * Whether it names a download and a checksum, so a manifest can refer to
  * it instead of carrying it.
  */
-referenceable: boolean, item: InstalledContent, };
+referenceable: boolean, 
+/**
+ * The file's size in bytes. Zero unless `referenceable`.
+ */
+size: number, 
+/**
+ * The file's SHA-512 as lowercase hex, beside the SHA-1 `item` carries.
+ * Empty unless `referenceable`.
+ */
+sha512: string, item: InstalledContent, };

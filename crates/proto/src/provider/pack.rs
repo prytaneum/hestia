@@ -80,13 +80,17 @@ fn segment_matches(pattern: &str, name: &str) -> bool {
     rest.is_empty()
 }
 
-/// The member names of an archive, relative to the directory the pack would
-/// start at.
+/// The member names of an archive and the text of the members the format
+/// declared, relative to the directory the pack would start at, so a format can
+/// look inside before it claims. A declared member that is not UTF-8 text, is
+/// over the size bound or would pass the total bound is left out of `members`,
+/// and the archive is not refused for it.
 #[derive(Serialize, Deserialize, Default, Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
 #[serde(default, rename_all = "camelCase")]
 pub struct ClaimQuery {
     pub files: Vec<String>,
+    pub members: BTreeMap<String, String>,
 }
 
 #[derive(Serialize, Deserialize, Default, Debug, Clone, PartialEq, Eq)]
@@ -105,6 +109,10 @@ pub struct Claim {
 pub struct ReadQuery {
     pub files: Vec<String>,
     pub members: BTreeMap<String, String>,
+    /// The loader keys the registered flavors declare for this format in their
+    /// `interchange` map, so a reader can pick the component or dependency a
+    /// flavor actually claims. Keys only: which flavor owns one is the host's.
+    pub loaders: Vec<String>,
 }
 
 /// A manifest a content source resolves into the pack's files.
@@ -146,13 +154,21 @@ pub struct PackRead {
     pub resolve: Option<ManifestDelegate>,
     pub overrides: OverrideTrees,
     /// The pack's own memory, in the form the `memory` setting takes. Applied
-    /// only to an instance the install creates.
+    /// only to an instance the install creates; one the setting rejects is
+    /// dropped with a warning.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub memory: Option<String>,
     /// The pack's own extra JVM flags, in the form the `jvm-args` setting
-    /// takes. Applied only to an instance the install creates.
+    /// takes. Applied only to an instance the install creates; flags the setting
+    /// rejects are dropped with a warning.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub jvm_args: Option<String>,
+    /// An image of the pack's own, as a path inside the archive relative to the
+    /// directory the pack starts at. Applied only to an instance the install
+    /// creates, held to the rules an imported launcher icon is: a path that
+    /// stays inside the pack, an image the launcher can show, at most 10 MiB.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub icon: Option<String>,
 }
 
 /// The instance an export writes.
@@ -178,6 +194,11 @@ pub struct PoolItem {
     /// Whether it names a download and a checksum, so a manifest can refer to
     /// it instead of carrying it.
     pub referenceable: bool,
+    /// The file's size in bytes. Zero unless `referenceable`.
+    pub size: u64,
+    /// The file's SHA-512 as lowercase hex, beside the SHA-1 `item` carries.
+    /// Empty unless `referenceable`.
+    pub sha512: String,
     pub item: InstalledContent,
 }
 

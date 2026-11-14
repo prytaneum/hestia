@@ -116,6 +116,18 @@ pub enum WarningInfo {
     /// A pack format's export could not carry something faithfully. `detail`
     /// is the plugin's own operational English, shown as secondary text.
     PackExportWarned { pack: String, detail: String },
+    /// A pack's own `memory` or `jvm-args` was one the launcher's setting
+    /// rejects, so the instance the pack created has the default instead.
+    /// `setting` is the setting's key; `detail` is operational English, shown
+    /// as secondary text.
+    PackSettingDropped {
+        pack: String,
+        setting: String,
+        detail: String,
+    },
+    /// The icon a pack named could not be used, so the instance has none of its
+    /// own. `detail` is operational English, shown as secondary text.
+    PackIconDropped { pack: String, detail: String },
     /// An update failed to load, so the previous version was put back.
     /// `version` is the one that failed.
     PluginUpdateRolledBack {
@@ -197,6 +209,13 @@ impl WarningInfo {
             }
             PackExportWarned { .. } => {
                 "the archive was written; check what it left out before sharing it".to_string()
+            }
+            PackSettingDropped { setting, .. } => {
+                format!("the instance runs on the default; set `{setting}` yourself if you want it")
+            }
+            PackIconDropped { .. } => {
+                "the instance imported without it; pick an icon in the instance's settings"
+                    .to_string()
             }
             PluginUpdateRolledBack { id, .. } => {
                 format!("`{id}` is still at its old version; report the problem to its author")
@@ -294,6 +313,14 @@ impl fmt::Display for WarningInfo {
             ),
             PackExportWarned { pack, detail } => {
                 write!(f, "the {pack} export is not exact: {detail}")
+            }
+            PackSettingDropped {
+                pack,
+                setting,
+                detail,
+            } => write!(f, "the {pack} pack's {setting} was not used: {detail}"),
+            PackIconDropped { pack, detail } => {
+                write!(f, "the {pack} pack's icon was not used: {detail}")
             }
             PluginUpdateRolledBack { id, version, error } => write!(
                 f,

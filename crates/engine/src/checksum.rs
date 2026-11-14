@@ -52,15 +52,22 @@ pub(crate) fn hex(bytes: &[u8]) -> String {
 /// the digest because an `.mrpack` index names its files by SHA-512, which the
 /// wire's `HashAlgorithm` does not carry.
 pub(crate) fn digest_file<D: Digest>(path: &Path) -> io::Result<String> {
+    digest_sized::<D>(path).map(|(_, digest)| digest)
+}
+
+/// The file's length and digest from one read of it, for a caller that names both.
+pub(crate) fn digest_sized<D: Digest>(path: &Path) -> io::Result<(u64, String)> {
     let mut file = File::open(path)?;
     let mut hasher = D::new();
     let mut buf = [0u8; 64 * 1024];
+    let mut size = 0u64;
     loop {
         let n = file.read(&mut buf)?;
         if n == 0 {
             break;
         }
+        size += n as u64;
         hasher.update(&buf[..n]);
     }
-    Ok(hex(&hasher.finalize()))
+    Ok((size, hex(&hasher.finalize())))
 }

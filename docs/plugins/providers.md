@@ -300,15 +300,21 @@ that delegates its files to a content source needs none.
 | Operation | Args | Reply | Notes |
 |---|---|---|---|
 | `info` | none | `PackInfo` (`name`, `members`, `extension`) | `members` are the archive members it reads, as names or globs (`*` matches within one path segment); `extension` is empty for a format that cannot write |
-| `claims` | `{ files }` | `{ claimed }` | optional; asked once an archive holds every declared member, with the names relative to the pack's directory. Unsupported claims it |
-| `read` | `{ files, members }` | `PackRead` | the pack (`name`, `gameVersion`, `loader`, `loaderVersion`, `files`), its `overrides` trees per side, optionally `resolve { source, manifest }`, and optionally `memory` and `jvmArgs` |
-| `write` | `{ instance, files, content }` | `PackWritten` | manifests to store, `{ entryPath, archivePath }` copies, and warnings in English |
+| `claims` | `{ files, members }` | `{ claimed }` | optional; asked once an archive holds every declared member, with the names relative to the pack's directory and the text of the declared members, so a format can look inside before it claims. A member that is not UTF-8, is over 8 MiB or would pass 16 MiB in total is left out of `members`, not refused. Unsupported claims it |
+| `read` | `{ files, members, loaders }` | `PackRead` | the pack (`name`, `gameVersion`, `loader`, `loaderVersion`, `files`), its `overrides` trees per side, optionally `resolve { source, manifest }`, and optionally `memory`, `jvmArgs` and `icon`. `loaders` are the keys registered flavors declare for this format's id in their `interchange` map (keys only), so a reader can pick the component or dependency a flavor actually claims |
+| `write` | `{ instance, files, content }` | `PackWritten` | manifests to store, `{ entryPath, archivePath }` copies, and warnings in English. Each `content` item names its `path`, whether it is `referenceable`, and, when it is, its `size` in bytes and `sha512` (hex) beside the SHA-1 in `item`; both are zero or empty otherwise |
 
 `read` is vetted whole: a file path that is absolute, empty or leaves the entry, a file whose URL is not on a granted host
 over https with a well-formed checksum (an empty URL names a file its author withholds), an override tree that is not a
-plain relative directory, a pack with no game version, `resolve` together with `files`, or a `memory` or `jvmArgs` the
-`memory` and `jvm-args` settings would reject, refuses the answer. `memory` and `jvmArgs` are applied to the instance an
-install creates and to nothing else: an existing instance, an update and a server keep their own.
+plain relative directory, a pack with no game version, or `resolve` together with `files`, refuses the answer. A `loader`
+that is one of the offered keys is answered to the host as the flavor it maps to.
+
+Three things in a read only dress the install and never refuse it. A `memory` or `jvmArgs` the `memory` and `jvm-args`
+settings would reject is dropped, and the result carries a `pack_setting_dropped` warning. An `icon`, an archive path
+relative to the pack's directory, becomes the new instance's icon when it is a plain path of the archive to an image the
+launcher can show (PNG, JPEG, WebP or GIF) of at most 10 MiB, the rules an imported launcher icon is held to; otherwise
+it is dropped with a `pack_icon_dropped` warning. `memory`, `jvmArgs` and `icon` apply to the instance an install
+creates and to nothing else: an existing instance, an update and a server keep their own.
 `resolve.source` names a content source whose `resolve-manifest` returns the files; the pack's own name, game version and
 loader win over the source's. A member a guest declares must be UTF-8 text of at most 8 MiB.
 `write` may copy only paths of its query (`files` and each `content` item's `path`), writes no archive path twice, and

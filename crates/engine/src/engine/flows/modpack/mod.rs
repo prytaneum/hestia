@@ -151,7 +151,7 @@ impl Engine {
             ModpackTarget::Existing { entry } => entry.clone(),
         };
 
-        let outcome = self
+        let mut outcome = self
             .apply_to(
                 EntryRef::Instance(&entry),
                 &resolved,
@@ -162,9 +162,10 @@ impl Engine {
             )
             .await;
         if let ModpackTarget::Create { .. } = target {
-            match &outcome {
+            match &mut outcome {
                 Ok(done) => {
-                    self.inherit_pack_icon(EntryRef::Instance(&entry), &done.pack.icon_url)
+                    done.warnings.extend(archive.take_warnings());
+                    self.dress_created_instance(&entry, &mut archive, done)
                         .await
                 }
                 // A create that could not be filled leaves nothing, exactly as a
@@ -175,6 +176,30 @@ impl Engine {
             }
         }
         outcome
+    }
+
+    /// Gives the instance a pack created the icon the pack carries, else the one
+    /// its source published.
+    async fn dress_created_instance(
+        &self,
+        entry: &str,
+        archive: &mut pack::Archive,
+        done: &mut ModpackOutcome,
+    ) {
+        let target = EntryRef::Instance(entry);
+        let carried = archive.icon_image().map(|image| {
+            image
+                .and_then(|image| self.adopt_pack_icon(target, &image))
+                .map_err(|error| archive.icon_dropped(&error))
+        });
+        match carried {
+            Some(Ok(())) => {}
+            Some(Err(warning)) => {
+                tracing::warn!(%warning, "the pack's icon was not taken");
+                done.warnings.push(warning);
+            }
+            None => self.inherit_pack_icon(target, &done.pack.icon_url).await,
+        }
     }
 
     /// Install a pack into a new or existing server. A pack is client-shaped by

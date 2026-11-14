@@ -220,8 +220,8 @@ impl Engine {
         &self,
         path: &Path,
     ) -> Result<(pack::Archive, ResolvedModpack)> {
-        let reader = Reader::open(path)?;
-        let detected = self.detect_archive(&reader, path, true).await?;
+        let mut reader = Reader::open(path)?;
+        let detected = self.detect_archive(&mut reader, path, true).await?;
         self.open_pack(reader, detected).await
     }
 
@@ -244,8 +244,11 @@ impl Engine {
                 Ok((archive, resolved))
             }
             Kind::Plugin(plugin) => {
-                let read = plugin.read(&mut reader, &detected.prefix).await?;
+                let loaders = self.minecraft.loaders();
+                let vetted = plugin.read(&mut reader, &detected.prefix, &loaders).await?;
+                let (read, warnings) = (vetted.read, vetted.warnings);
                 let trees = read.overrides.clone();
+                let icon = read.icon.clone();
                 let config = [(MEMORY_KEY, &read.memory), (JVM_ARGS_KEY, &read.jvm_args)]
                     .into_iter()
                     .filter_map(|(key, value)| {
@@ -255,17 +258,17 @@ impl Engine {
                         })
                     })
                     .collect();
-                let (mut resolved, policy) = self.resolve_read(&plugin, read).await?;
-                let loaders = self.minecraft.loaders();
-                if let Some(flavor) = resolved
-                    .loader
-                    .as_deref()
-                    .and_then(|key| loaders.flavor_of(plugin.id(), key))
-                {
-                    resolved.loader = Some(flavor.to_string());
-                }
+                let (resolved, policy) = self.resolve_read(&plugin, read).await?;
+                let contributed = pack::Contributed {
+                    trees,
+                    policy,
+                    config,
+                    format: plugin.info().name.clone(),
+                    icon,
+                    warnings,
+                };
                 Ok((
-                    pack::Archive::contributed(reader, detected.prefix, trees, policy, config),
+                    pack::Archive::contributed(reader, detected.prefix, contributed),
                     resolved,
                 ))
             }

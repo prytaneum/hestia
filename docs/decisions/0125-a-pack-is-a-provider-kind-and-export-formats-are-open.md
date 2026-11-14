@@ -67,7 +67,26 @@ version, loader and one override tree, and delegates its manifest to its own sou
 - **Handing the guest the archive or an extraction directory.** A hostile archive and a plugin would share a filesystem;
   declared members as text is all a manifest reader needs.
 - **Applying a read's JVM settings to an existing instance.** A read may carry `memory` and `jvmArgs`, the two settings
-  Prism's importer carried. They are vetted by the rules the `memory` and `jvm-args` settings use, so an invalid value
-  refuses the read whole, and they ride on the opened archive to the install, which passes them as the `config` of the
-  instance it creates. An install into an existing instance, a pack update and a server install ignore them: a pack does
-  not overwrite what the user tuned.
+  Prism's importer carried. They are vetted by the rules the `memory` and `jvm-args` settings use (an invalid value is
+  dropped with a warning, see the addendum), and they ride on the opened archive to the install, which passes them as
+  the `config` of the instance it creates. An install into an existing instance, a pack update and a server install
+  ignore them: a pack does not overwrite what the user tuned.
+
+## Addendum, 2026-11-14: five gaps the ported formats exposed
+
+Porting `.mrpack`, Prism and CurseForge onto the kind showed what a format could not say, and each closure is a general
+field, not a format's name:
+
+- **`PoolItem` carries `size` and `sha512`** for a referenceable file, hashed by the host in the one read, so a manifest
+  that names a file by those can be written without the guest reading the pool.
+- **`ClaimQuery` carries the text of the declared members**, under the read path's per-member bound and a total bound,
+  so a format can look inside (a CurseForge `manifest.json` against any other) before it claims. A member that is not
+  UTF-8 or would pass a bound is left out; the archive is not refused for it, since a claim only decides.
+- **`ReadQuery` carries the loader keys** the registered flavors declare for the format's id, so a reader picks the
+  component a flavor claims, as the Prism importer did. Keys only: which flavor owns one is the host's, and the loader a
+  read answers is mapped to its flavor on inspect as on import.
+- **`PackRead` may name an `icon`**, an archive path held to what an imported launcher icon is held to.
+- **An invalid `memory`, `jvmArgs` or icon is dropped with a warning** on the result
+  ([0026](0026-degraded-outcomes-ride-on-the-result.md)) instead of refusing the read, as the Prism importer did: a flag
+  the launcher rejects is not worth losing the instance over. This replaces the whole-read refusal above for those
+  three; every path, URL and tree is still refused whole.

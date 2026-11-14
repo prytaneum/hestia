@@ -97,9 +97,7 @@ fn index_entry(
     if !install::referenceable(item) {
         return Ok(None);
     }
-    let size = std::fs::metadata(managed)
-        .with_context(|| format!("cannot stat {}", managed.display()))?
-        .len();
+    let (size, sha512) = sha512_file(managed)?;
     // A disabled item is exported as optional rather than dropped: whoever
     // installs the pack should get the same choice, not a silently shorter mod
     // list. Prism's own exporter makes the same call for a `.disabled` file.
@@ -109,7 +107,7 @@ fn index_entry(
     };
     Ok(Some(json!({
         "path": path,
-        "hashes": { "sha1": item.sha1, "sha512": sha512_file(managed)? },
+        "hashes": { "sha1": item.sha1, "sha512": sha512 },
         "env": env,
         "downloads": [item.url],
         "fileSize": size,
@@ -147,10 +145,11 @@ fn embedded_warning(members: &[Member]) -> Vec<WarningInfo> {
     }
 }
 
-/// The pack format names its files by SHA-512 beside the SHA-1 hestia stores,
-/// so this is hashed on demand rather than kept — it is wanted once, at export.
-fn sha512_file(path: &Path) -> Result<String> {
-    checksum::digest_file::<sha2::Sha512>(path)
+/// A file's size and SHA-512, in one read. Pack formats name their files by
+/// SHA-512 beside the SHA-1 hestia stores, so it is hashed on demand rather
+/// than kept — it is wanted once, at export.
+pub(super) fn sha512_file(path: &Path) -> Result<(u64, String)> {
+    checksum::digest_sized::<sha2::Sha512>(path)
         .with_context(|| format!("cannot hash {}", path.display()))
 }
 

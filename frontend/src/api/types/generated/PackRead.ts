@@ -17,11 +17,20 @@ export type PackRead = {
 pack: ResolvedModpack, resolve?: ManifestDelegate, overrides: OverrideTrees, 
 /**
  * The pack's own memory, in the form the `memory` setting takes. Applied
- * only to an instance the install creates.
+ * only to an instance the install creates; one the setting rejects is
+ * dropped with a warning.
  */
 memory?: string, 
 /**
  * The pack's own extra JVM flags, in the form the `jvm-args` setting
- * takes. Applied only to an instance the install creates.
+ * takes. Applied only to an instance the install creates; flags the setting
+ * rejects are dropped with a warning.
  */
-jvmArgs?: string, };
+jvmArgs?: string, 
+/**
+ * An image of the pack's own, as a path inside the archive relative to the
+ * directory the pack starts at. Applied only to an instance the install
+ * creates, held to the rules an imported launcher icon is: a path that
+ * stays inside the pack, an image the launcher can show, at most 10 MiB.
+ */
+icon?: string, };

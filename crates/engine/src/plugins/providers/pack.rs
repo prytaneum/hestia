@@ -18,12 +18,14 @@ use proto::provider::pack::{
     self as op, is_member_pattern, member_matches, ClaimQuery, Pack, PackInfo, PackRead,
     PackWritten, ReadQuery, WriteQuery,
 };
+use proto::warning::WarningInfo;
 use proto::Empty;
 
 use super::{connect_each, registered, Guest};
 use crate::content::pack::{is_safe_path, INDEX};
 use crate::engine::Engine;
 use crate::jvm::{JavaSettings, JVM_ARGS_KEY, MEMORY_KEY};
+use crate::minecraft::Loaders;
 use crate::plugins::runtime::LoadedPlugin;
 use crate::plugins::vouch::{Policy, Refused};
 use crate::transfer::archive::Reader;
@@ -32,6 +34,7 @@ use crate::transfer::hestia;
 const MAX_MEMBER_BYTES: usize = 8 * 1024 * 1024;
 const MAX_DECLARED_MEMBERS: usize = 8;
 const MAX_READ_MEMBERS: usize = 32;
+const MAX_CLAIM_BYTES: usize = 16 * 1024 * 1024;
 const MAX_FILES: usize = 50_000;
 const MAX_TREES: usize = 8;
 const MAX_WRITTEN_MEMBERS: usize = 64;
@@ -63,22 +66,26 @@ enum Refusal {
     TooMany(&'static str),
     #[error("`{0}` is over {MAX_MEMBER_BYTES} bytes")]
     Oversized(String),
-    #[error("the `{key}` setting: {reason}")]
-    Setting { key: &'static str, reason: String },
 }
 
-/// A directory of the archive, relative to the pack's root: plain segments
-/// only, so it cannot name the root itself, a parent or a drive.
-fn is_tree(dir: &str) -> bool {
-    is_safe_path(dir)
-        && !dir.contains('\\')
-        && dir.split('/').all(|segment| !segment.is_empty())
-        && Path::new(dir)
+/// A guest's answer after vetting, with what the host dropped from it.
+pub(crate) struct Vetted {
+    pub(crate) read: PackRead,
+    pub(crate) warnings: Vec<WarningInfo>,
+}
+
+/// A path of the archive, relative to the pack's root: plain segments only,
+/// so it cannot name the root itself, a parent or a drive.
+fn is_plain(path: &str) -> bool {
+    is_safe_path(path)
+        && !path.contains('\\')
+        && path.split('/').all(|segment| !segment.is_empty())
+        && Path::new(path)
             .components()
             .all(|part| matches!(part, Component::Normal(_)))
 }
 
-fn vet_read(policy: &Policy, mut read: PackRead) -> Result<PackRead, Refusal> {
+fn vet_read(policy: &Policy, pack: &str, mut read: PackRead) -> Result<Vetted, Refusal> {
     if read.pack.files.len() > MAX_FILES {
         return Err(Refusal::TooMany("files"));
     }
@@ -95,7 +102,7 @@ fn vet_read(policy: &Policy, mut read: PackRead) -> Result<PackRead, Refusal> {
         if side.len() > MAX_TREES {
             return Err(Refusal::TooMany("override trees"));
         }
-        if let Some(bad) = side.iter().find(|dir| !is_tree(dir)) {
+        if let Some(bad) = side.iter().find(|dir| !is_plain(dir)) {
             return Err(Refusal::Tree(bad.clone()));
         }
     }
@@ -119,6 +126,7 @@ fn vet_read(policy: &Policy, mut read: PackRead) -> Result<PackRead, Refusal> {
             ..ModpackFile::default()
         };
     }
+    let mut warnings = Vec::new();
     let mut jvm = JavaSettings::default();
     for (key, value) in [
         (MEMORY_KEY, &mut read.memory),
@@ -128,16 +136,48 @@ fn vet_read(policy: &Policy, mut read: PackRead) -> Result<PackRead, Refusal> {
             *value = None;
             continue;
         };
-        jvm.set(key, text).map_err(|error| Refusal::Setting {
-            key,
-            reason: format!("{error:#}"),
-        })?;
-        *value = jvm.get(key).flatten();
+        match jvm.set(key, text) {
+            Ok(_) => *value = jvm.get(key).flatten(),
+            Err(error) => {
+                tracing::warn!(pack, setting = key, error = %format!("{error:#}"), "dropping a pack's setting");
+                warnings.push(WarningInfo::PackSettingDropped {
+                    pack: pack.to_string(),
+                    setting: key.to_string(),
+                    detail: truncated(&format!("{error:#}")),
+                });
+                *value = None;
+            }
+        }
     }
     read.pack.source.clear();
     read.pack.project_id.clear();
     read.pack.version_id.clear();
-    Ok(read)
+    Ok(Vetted { read, warnings })
+}
+
+fn truncated(text: &str) -> String {
+    text.chars().take(MAX_WARNING_CHARS).collect()
+}
+
+/// An icon only dresses the instance, so one that is not a plain path of the
+/// archive is dropped, with the reason, rather than refusing the read.
+fn vet_icon(vetted: &mut Vetted, pack: &str, files: &[String]) {
+    let Some(icon) = vetted.read.icon.take() else {
+        return;
+    };
+    let problem = match (is_plain(&icon), files.contains(&icon)) {
+        (false, _) => format!("`{}` is not a path inside the pack", truncated(&icon)),
+        (true, false) => format!("`{icon}` is not a file of the archive"),
+        (true, true) => {
+            vetted.read.icon = Some(icon);
+            return;
+        }
+    };
+    tracing::warn!(pack, %problem, "dropping a pack's icon");
+    vetted.warnings.push(WarningInfo::PackIconDropped {
+        pack: pack.to_string(),
+        detail: problem,
+    });
 }
 
 fn vet_write(held: &HashSet<&str>, written: &mut PackWritten) -> Result<(), Refusal> {
@@ -293,13 +333,53 @@ impl PluginPack {
             .collect()
     }
 
-    /// Whether the guest accepts an archive that holds the declared members. A
-    /// guest that does not implement `claims` accepts it; one that fails is
-    /// passed over, so a broken detector cannot block another format.
-    pub(crate) async fn claims(&self, files: Vec<String>) -> bool {
+    /// The archive members a pattern the format declared matches.
+    fn declared<'a>(&'a self, files: &'a [String]) -> impl Iterator<Item = &'a String> {
+        files.iter().filter(|file| {
+            self.info
+                .members
+                .iter()
+                .any(|pattern| member_matches(pattern, file))
+        })
+    }
+
+    /// The text of the declared members a claim may look inside: one that is
+    /// not UTF-8, is over the member bound or would pass the total bound is
+    /// left out rather than refusing the archive.
+    fn claim_members(
+        &self,
+        reader: &mut Reader,
+        root: &str,
+        files: &[String],
+    ) -> BTreeMap<String, String> {
+        let mut members = BTreeMap::new();
+        let mut total = 0;
+        for file in self.declared(files).take(MAX_READ_MEMBERS) {
+            let budget = MAX_MEMBER_BYTES.min(MAX_CLAIM_BYTES - total);
+            let text = reader
+                .read_capped(&format!("{root}{file}"), budget)
+                .ok()
+                .and_then(|bytes| String::from_utf8(bytes).ok());
+            let Some(text) = text else {
+                tracing::debug!(pack = %self.id(), member = %file, "a member is not offered to the claim");
+                continue;
+            };
+            total += text.len();
+            members.insert(file.clone(), text);
+        }
+        members
+    }
+
+    /// Whether the guest accepts an archive that holds the declared members,
+    /// given the text of those members. A guest that does not implement
+    /// `claims` accepts it; one that fails is passed over, so a broken
+    /// detector cannot block another format.
+    pub(crate) async fn claims(&self, reader: &mut Reader, root: &str) -> bool {
+        let files = Self::files_under(&reader.names(), root);
+        let members = self.claim_members(reader, root, &files);
         match self
             .guest
-            .try_ask::<op::Claims>(&ClaimQuery { files })
+            .try_ask::<op::Claims>(&ClaimQuery { files, members })
             .await
         {
             Ok(answer) => answer.is_none_or(|claim| claim.claimed),
@@ -315,21 +395,18 @@ impl PluginPack {
         self.guest.failed(format!("answer refused: {refusal}"))
     }
 
-    /// Hands the guest the member names and the text of the declared members,
-    /// and returns what it says the archive holds.
-    pub(crate) async fn read(&self, reader: &mut Reader, root: &str) -> Result<PackRead> {
-        let names = reader.names();
-        let files = Self::files_under(&names, root);
+    /// Hands the guest the member names, the text of the declared members and
+    /// the loader keys its format has flavors for, and returns what it says
+    /// the archive holds. The loader comes back as the flavor its key maps to.
+    pub(crate) async fn read(
+        &self,
+        reader: &mut Reader,
+        root: &str,
+        loaders: &Loaders,
+    ) -> Result<Vetted> {
+        let files = Self::files_under(&reader.names(), root);
         let mut members = BTreeMap::new();
-        for file in &files {
-            if !self
-                .info
-                .members
-                .iter()
-                .any(|pattern| member_matches(pattern, file))
-            {
-                continue;
-            }
+        for file in self.declared(&files) {
             if members.len() >= MAX_READ_MEMBERS {
                 return Err(self.refused(Refusal::TooMany("matching members")));
             }
@@ -346,11 +423,24 @@ impl PluginPack {
             let text = String::from_utf8(bytes).map_err(|_| malformed())?;
             members.insert(file.clone(), text);
         }
-        let read = self
-            .guest
-            .ask::<op::Read>(&ReadQuery { files, members })
-            .await?;
-        vet_read(&self.policy, read).map_err(|refusal| self.refused(refusal))
+        let query = ReadQuery {
+            loaders: loaders.keys_of(self.id()),
+            files,
+            members,
+        };
+        let read = self.guest.ask::<op::Read>(&query).await?;
+        let mut vetted = vet_read(&self.policy, &self.info.name, read)
+            .map_err(|refusal| self.refused(refusal))?;
+        vet_icon(&mut vetted, &self.info.name, &query.files);
+        let pack = &mut vetted.read.pack;
+        if let Some(flavor) = pack
+            .loader
+            .as_deref()
+            .and_then(|key| loaders.flavor_of(self.id(), key))
+        {
+            pack.loader = Some(flavor.to_string());
+        }
+        Ok(vetted)
     }
 
     /// Asks the guest to write an export. `held` is every path of the
@@ -491,13 +581,14 @@ mod tests {
     fn a_read_keeps_the_hosts_identity_and_drops_the_guests() {
         let vetted = vet_read(
             &policy(&["cdn.example"]),
+            "pack",
             read_of(vec![file("mods/a.jar", "https://cdn.example/a.jar", SHA1)]),
         )
         .expect("a vetted answer");
-        let kept = &vetted.pack.files[0];
+        let kept = &vetted.read.pack.files[0];
         assert!(kept.source.is_empty() && kept.project_id.is_empty());
         assert_eq!(kept.server, SideSupport::Unsupported);
-        assert!(vetted.pack.source.is_empty());
+        assert!(vetted.read.pack.source.is_empty());
     }
 
     #[test]
@@ -505,6 +596,7 @@ mod tests {
         for path in ["../evil.jar", "/etc/passwd", "mods/../../x", ""] {
             let refused = vet_read(
                 &policy(&["cdn.example"]),
+                "pack",
                 read_of(vec![
                     file("mods/ok.jar", "https://cdn.example/ok.jar", SHA1),
                     file(path, "https://cdn.example/a.jar", SHA1),
@@ -519,6 +611,7 @@ mod tests {
         let vet = |url: &str, sha1: &str| {
             vet_read(
                 &policy(&["cdn.example"]),
+                "pack",
                 read_of(vec![file("mods/a.jar", url, sha1)]),
             )
         };
@@ -565,7 +658,7 @@ mod tests {
                 shared: vec![dir.into()],
                 ..OverrideTrees::default()
             };
-            vet_read(&policy(&[]), read)
+            vet_read(&policy(&[]), "pack", read)
         };
         for good in ["overrides", ".minecraft", "a/b"] {
             assert!(with(good).is_ok(), "{good}");
@@ -585,7 +678,7 @@ mod tests {
             ..ManifestDelegate::default()
         });
         assert!(matches!(
-            vet_read(&policy(&[]), read),
+            vet_read(&policy(&[]), "pack", read),
             Err(Refusal::Both(_))
         ));
     }

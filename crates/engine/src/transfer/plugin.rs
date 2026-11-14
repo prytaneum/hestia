@@ -13,11 +13,27 @@ use proto::warning::WarningInfo;
 
 use super::archive::{self, Member, Writer, Written};
 use super::exclude::Rules;
-use super::{loader_of, pool, Source};
+use super::pool::Pooled;
+use super::{loader_of, mrpack, pool, Source};
 use crate::cancel::Job;
 use crate::content::install;
 use crate::minecraft::Loaders;
 use crate::plugins::PluginPack;
+
+fn pool_item(pooled: &Pooled) -> Result<PoolItem> {
+    let referenceable = install::referenceable(&pooled.item);
+    let (size, sha512) = match referenceable {
+        true => mrpack::sha512_file(&pooled.managed)?,
+        false => (0, String::new()),
+    };
+    Ok(PoolItem {
+        path: pooled.path.clone(),
+        referenceable,
+        size,
+        sha512,
+        item: pooled.item.clone(),
+    })
+}
 
 pub(crate) async fn export(
     source: &Source<'_>,
@@ -53,14 +69,7 @@ pub(crate) async fn export(
             loader_version: profile.loader_version.clone().unwrap_or_default(),
         },
         files,
-        content: pooled
-            .iter()
-            .map(|item| PoolItem {
-                path: item.path.clone(),
-                referenceable: install::referenceable(&item.item),
-                item: item.item.clone(),
-            })
-            .collect(),
+        content: pooled.iter().map(pool_item).collect::<Result<Vec<_>>>()?,
     };
     let written = pack.write(&query).await?;
 

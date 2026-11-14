@@ -52,6 +52,7 @@ fn info(id: &'static str) -> FlavorInfo {
             true => std::borrow::Cow::Owned(vec![
                 ("mrpack".into(), "fabric-loader".into()),
                 ("prism".into(), "net.fabricmc.fabric-loader".into()),
+                ("replay-pack.replay".into(), "replay-fabric".into()),
             ]),
             false => std::borrow::Cow::Borrowed(&[]),
         },
