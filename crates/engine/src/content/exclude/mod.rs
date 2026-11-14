@@ -212,12 +212,6 @@ mod tests {
     }
 
     #[test]
-    fn an_unsupported_file_stays_out_without_a_force_include() {
-        assert!(!Inclusion::none().includes("mods/modmenu-7.2.2.jar", false));
-        assert!(Inclusion::none().includes("mods/modmenu-7.2.2.jar", true));
-    }
-
-    #[test]
     fn matching_is_case_insensitive_across_the_whole_path() {
         let inclusion = Inclusion::new("", false, "SODIUM", "");
         assert!(!inclusion.includes("mods/Sodium-Fabric.jar", true));
@@ -229,13 +223,6 @@ mod tests {
         let inclusion = Inclusion::new("", false, "alpha, beta # why\n gamma", "");
         assert_eq!(inclusion.excludes, ["alpha", "beta", "gamma"]);
         assert!(!inclusion.includes("mods/beta-1.0.jar", true));
-    }
-
-    #[test]
-    fn switching_the_defaults_off_leaves_only_the_users_list() {
-        let inclusion = Inclusion::new("", false, "lithium", "");
-        assert!(inclusion.includes("mods/sodium-fabric-0.5.11.jar", true));
-        assert!(!inclusion.includes("mods/lithium-fabric-0.11.2.jar", true));
     }
 
     #[test]

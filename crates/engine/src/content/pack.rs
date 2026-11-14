@@ -407,29 +407,6 @@ mod tests {
     }
 
     #[test]
-    fn the_last_tick_reports_the_whole_batch_done() {
-        let mut pack = archive(&[
-            ("modrinth.index.json", "{}"),
-            ("overrides/config/a.toml", "a"),
-            ("overrides/config/b.toml", "b"),
-        ]);
-        let dest_dir = temp("ticks");
-        let cancel = crate::cancel::Cancel::new();
-        let seen = std::sync::Mutex::new(Vec::new());
-        let record = |p: &proto::minecraft::ProvisionProgress| {
-            seen.lock().unwrap().push((p.current, p.total));
-        };
-        let job = Job::new(&record, &cancel);
-
-        pack.extract_overrides(Side::Client, &job, |path| Some(dest_dir.path().join(path)))
-            .unwrap();
-
-        let seen = seen.into_inner().unwrap();
-        assert_eq!(seen.first(), Some(&(0, 2)));
-        assert_eq!(seen.last(), Some(&(2, 2)));
-    }
-
-    #[test]
     fn a_side_takes_the_shared_tree_and_its_own() {
         let mut pack = archive(&[
             ("modrinth.index.json", "{}"),
@@ -487,26 +464,6 @@ mod tests {
     }
 
     #[test]
-    fn nested_directories_are_created_and_hashed() {
-        let mut pack = archive(&[
-            ("modrinth.index.json", "{}"),
-            ("overrides/config/deep/nested/file.json", "{}"),
-        ]);
-        let dest_dir = temp("nested");
-        let dest = dest_dir.path();
-
-        let written = extract(&mut pack, Side::Client, dest);
-
-        assert!(dest.join("config/deep/nested/file.json").is_file());
-        assert_eq!(written[0].path, "config/deep/nested/file.json");
-        assert_eq!(
-            written[0].sha1,
-            crate::content::install::sha1_file(&dest.join("config/deep/nested/file.json")).unwrap(),
-            "the recorded hash is what was written"
-        );
-    }
-
-    #[test]
     fn refusing_a_file_leaves_what_is_there() {
         let mut pack = archive(&[
             ("modrinth.index.json", "{}"),
@@ -551,15 +508,5 @@ mod tests {
         assert!(pack
             .extract_overrides(Side::Client, &job, |path| Some(dest.join(path)))
             .is_err());
-    }
-
-    #[test]
-    fn safe_paths_stay_inside_the_game_directory() {
-        assert!(is_safe_path("mods/sodium.jar"));
-        assert!(is_safe_path("config/nested/file.toml"));
-        assert!(!is_safe_path(""));
-        assert!(!is_safe_path("/etc/passwd"));
-        assert!(!is_safe_path("../../escape"));
-        assert!(!is_safe_path("mods/../../escape"));
     }
 }

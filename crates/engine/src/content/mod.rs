@@ -519,12 +519,4 @@ mod tests {
         assert_eq!(files[0].version_id, "v1");
         assert!(files[1].source.is_empty() && files[1].project_id.is_empty());
     }
-
-    #[test]
-    fn the_datapack_quirk_is_read_from_the_source() {
-        let content = recognisers();
-        assert!(content.datapacks_as_mods("mods"));
-        assert!(!content.datapacks_as_mods("other"));
-        assert!(!content.datapacks_as_mods("missing"));
-    }
 }

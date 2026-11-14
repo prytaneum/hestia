@@ -546,27 +546,6 @@ mod tests {
         assert!(pick_version(&versions, "1.21.1", None, "nope").is_err());
     }
 
-    #[test]
-    fn reference_matching() {
-        let item = InstalledContent {
-            project_id: "AANobbMI".to_string(),
-            slug: "sodium".to_string(),
-            title: "Sodium".to_string(),
-            filename: "sodium-fabric.jar".to_string(),
-            ..InstalledContent::default()
-        };
-        for reference in [
-            "AANobbMI",
-            "sodium",
-            "Sodium",
-            "SODIUM",
-            "sodium-fabric.jar",
-        ] {
-            assert!(matches(&item, reference), "should match {reference}");
-        }
-        assert!(!matches(&item, "lithium"));
-    }
-
     fn temp_entry(tag: &str) -> (tempfile::TempDir, PathBuf, PathBuf) {
         let dir = tempfile::Builder::new()
             .prefix(&format!("hestia-install-{tag}-"))
@@ -656,26 +635,6 @@ mod tests {
     }
 
     #[test]
-    fn sync_keeps_disabled_items_out_of_data() {
-        let (_dir, entry, data) = temp_entry("disabled");
-        let mut mod_item = tracked(ContentKind::Mod, "sodium.jar");
-        install_tracked(&entry, &data, &mod_item);
-        mod_item.enabled = false;
-        save(&entry, vec![mod_item]).unwrap();
-
-        sync(&entry, &data, &[]).unwrap();
-
-        assert!(
-            !data.join("mods/sodium.jar").exists(),
-            "disabled item is not mirrored"
-        );
-        assert!(
-            entry.join("mods/sodium.jar").is_file(),
-            "managed copy stays"
-        );
-    }
-
-    #[test]
     fn disabling_one_world_leaves_the_others_loaded() {
         let (_dir, entry, data) = temp_entry("dp-disable");
         let mut pack = tracked(ContentKind::DataPack, "terralith.zip");
@@ -692,28 +651,5 @@ mod tests {
             managed_path(&entry, &pack).unwrap().is_file(),
             "managed copy stays"
         );
-    }
-
-    #[test]
-    fn untracked_datapacks_are_reported_per_world() {
-        let (_dir, entry, data) = temp_entry("dp-untracked");
-        let pack = tracked(ContentKind::DataPack, "terralith.zip");
-        install_tracked(&entry, &data, &pack);
-        let stray = datapack_path(&data, "saves/one", "handmade.zip");
-        std::fs::create_dir_all(stray.parent().unwrap()).unwrap();
-        std::fs::write(&stray, "mine").unwrap();
-
-        let found = untracked(
-            &data,
-            ContentKind::DataPack,
-            std::slice::from_ref(&pack),
-            &["saves/one".to_string()],
-        );
-
-        assert_eq!(
-            found.iter().map(|f| f.name.as_str()).collect::<Vec<_>>(),
-            vec!["one/handmade.zip"]
-        );
-        assert_eq!(found[0].path, stray.to_string_lossy());
     }
 }

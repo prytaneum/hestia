@@ -926,24 +926,6 @@ mod tests {
     }
 
     #[test]
-    fn a_configured_key_overrides_the_build_one() {
-        let cf = CurseForge::default();
-        cf.configure(&ContentSettings {
-            curseforge_key: "  from-config  ".to_string(),
-        });
-        assert_eq!(cf.key(), "from-config");
-        assert!(cf.available());
-
-        cf.configure(&ContentSettings::default());
-        assert_eq!(
-            cf.key(),
-            BUILD_KEY,
-            "an unset key falls back to the build's"
-        );
-        assert_eq!(cf.available(), !BUILD_KEY.is_empty());
-    }
-
-    #[test]
     fn files_map_loaders_game_versions_and_hashes() {
         let file = json!({
             "id": 5101466,

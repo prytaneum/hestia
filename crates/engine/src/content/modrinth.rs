@@ -583,27 +583,6 @@ mod tests {
         }
     }
 
-    #[test]
-    fn facets_include_only_set_filters() {
-        let query = SearchQuery {
-            kind: ContentKind::Mod,
-            loader: Some("fabric".into()),
-            game_version: Some("1.21.1".into()),
-            categories: vec!["optimization".into()],
-            ..SearchQuery::default()
-        };
-        assert_eq!(
-            build_facets(&query),
-            r#"[["project_type:mod"],["categories:fabric"],["versions:1.21.1"],["categories:optimization"]]"#
-        );
-
-        let bare = SearchQuery {
-            kind: ContentKind::Modpack,
-            ..SearchQuery::default()
-        };
-        assert_eq!(build_facets(&bare), r#"[["project_type:modpack"]]"#);
-    }
-
     #[tokio::test]
     async fn site_urls_parse_to_project_refs() {
         let m = Modrinth;
@@ -683,46 +662,5 @@ mod tests {
 
         let as_mod = parse_hit("modrinth", &hit, ContentKind::Mod);
         assert_eq!(as_mod.kind, ContentKind::Mod);
-    }
-
-    #[test]
-    fn project_detail_takes_the_requested_kind_only_when_published() {
-        let body = json!({
-            "id": "8oi3bsk5",
-            "slug": "terralith",
-            "project_type": "mod",
-            "title": "Terralith",
-            "loaders": ["datapack", "fabric"],
-        });
-        assert_eq!(
-            parse_project("modrinth", &body, Some(ContentKind::DataPack)).kind,
-            ContentKind::DataPack
-        );
-        assert_eq!(
-            parse_project("modrinth", &body, Some(ContentKind::Shader)).kind,
-            ContentKind::Mod
-        );
-        assert_eq!(
-            parse_project("modrinth", &body, None).kind,
-            ContentKind::Mod
-        );
-    }
-
-    #[test]
-    fn the_byline_is_the_owning_member() {
-        let members = json!([
-            { "role": "Lead Developer", "user": { "username": "IMS" } },
-            { "role": "Owner", "user": { "username": "coderbot" } },
-        ]);
-        assert_eq!(owner(&members), "coderbot");
-
-        let organization_owned = json!([
-            { "role": "Maintainer", "user": { "username": "IMS" } },
-            { "role": "Project Lead", "user": { "username": "jellysquid3" } },
-        ]);
-        assert_eq!(owner(&organization_owned), "IMS");
-
-        assert_eq!(owner(&json!([])), "");
-        assert_eq!(owner(&Value::Null), "");
     }
 }

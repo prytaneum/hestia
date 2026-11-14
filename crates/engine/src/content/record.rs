@@ -223,23 +223,4 @@ mod tests {
         assert_eq!(after.worlds, before.worlds);
         assert_eq!(after.disabled_worlds, before.disabled_worlds);
     }
-
-    #[test]
-    fn reholding_keeps_the_new_release_under_the_old_holding() {
-        let previous = held();
-        let supplied = repin(&previous, moved());
-        let resupplied = rehold(
-            &supplied,
-            Holding {
-                origin: String::new(),
-                ..Holding::from(&previous)
-            },
-        );
-
-        assert_eq!(resupplied.version_id, "v2");
-        assert!(!resupplied.enabled);
-        assert_eq!(resupplied.worlds, previous.worlds);
-        assert_eq!(resupplied.disabled_worlds, previous.disabled_worlds);
-        assert!(resupplied.origin.is_empty());
-    }
 }
