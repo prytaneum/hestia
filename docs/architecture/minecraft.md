@@ -83,7 +83,7 @@ time, so a persisted profile is for the machine that resolved it.
 `resolve()` turns *(flavor, version, optional loader version)* into a
 **`ServerProfile`** or **`InstanceProfile`**. A server profile names its jar
 (`Download(artifact)`, or `Built { filename }` when the install hook produces it),
-how it launches (`Jar`, or `ArgsFile` for a flavor whose install generates one, with a file per OS),
+how it launches (`Jar`, or `ArgsFile` for a flavor whose install generates one, with a file per OS; a flavor layered over vanilla may name it too),
 the required Java major and the flavor's recommended JVM args. An instance
 profile carries the client jar, libraries, asset index and arguments. The
 profiles are engine types, stored on the entry records; no channel hands one to a

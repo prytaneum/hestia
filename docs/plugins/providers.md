@@ -165,6 +165,7 @@ The guest never reads Mojang's metadata, and needs no Mojang host in `hosts`.
 | `mainClass` | replaces vanilla's when not empty | |
 | `jvmArgs`, `gameArgs` | appended after vanilla's | `jvmArgs` only: the flavor's recommended flags |
 | `jar` | | replaces vanilla's server jar; absent runs vanilla's |
+| `launch` | | `ServerLaunch::ArgsFile { path, alternatives }` replaces how the server starts, as in a `full` profile; absent keeps vanilla's. Every path it names must stay inside the data directory or the answer is refused |
 | `javaMajor` | the Java major the client needs, when not vanilla's | the same; either must be a major the launcher can provide (8, 16, 17, 21) or the answer is refused |
 
 A library in `libraries` may be declared rather than spelled out ([0119](../decisions/0119-downloads-are-host-side.md)):
@@ -224,7 +225,7 @@ The host checks all of it first (each step must fit an invocation of a declared 
 `creates`, `dest` and every output must lie under `/build`, and `${data}` is not available), downloads `fetch`, then
 runs the steps in order under the supervisor. A step whose `creates` all exist is skipped; `narrate: { skipPrefixes }`
 shows every other line of its output as progress; a cancel stops the build between steps. A build still running under
-the same plugin, version and step is joined rather than started twice.
+the same plugin, version and step is joined rather than started twice. A plan lists at most 64 steps and 512 downloads.
 
 A plan answers one more thing than files: where they go. An output is a file under `/build`, named by the profile's
 built server jar or built library, or a directory tree with a `destination` (`entry`, the server's data directory, which

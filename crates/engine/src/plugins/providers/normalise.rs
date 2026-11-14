@@ -85,6 +85,7 @@ impl Normaliser<'_> {
         ServerLayer {
             loader_version: addition.loader_version,
             jar: addition.jar,
+            launch: addition.launch,
             jvm_args: self.arguments(addition.jvm_args),
             java_major: addition.java_major,
         }

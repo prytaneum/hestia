@@ -30,6 +30,8 @@
 //! a `cwd`, `creates`, download destination or output outside `/build`, and a
 //! `${data}` mount.
 //!
+//! `onvanilla-tree` and `onvanilla-badargs` add a launch from an args file
+//! (inside the data directory, and out of it) to the vanilla server.
 //! Tree outputs: on the server, `tree` writes a directory into the data
 //! directory and one into the libraries root, and launches from an args file
 //! with a Windows alternative; `badargs` names an args file that leaves the data
@@ -135,7 +137,7 @@ fn versions(flavor: &str) -> Result<VersionList, Error> {
             ["1.20.1", "not-in-vanilla", "1.21"].map(String::from).into(),
         ));
     }
-    Ok(VersionList::Listed(["1.21", "foreign", "unsigned", "generated", "sha256", "wrongsum", "onvanilla", "onvanilla-foreign", "onvanilla-maven", "onvanilla-maven-missing", "onvanilla-maven-bad", "onvanilla-rules", "onvanilla-target", "built", "ordered", "expand", "outside", "symlink", "empty", "tree", "badargs", "tree-entry", "live", "plan", "plan-narrate", "plan-steps", "plan-slow", "plan-fetch", "refused-program", "refused-args", "refused-env", "refused-cwd", "refused-creates", "refused-dest", "refused-output", "refused-mount"]
+    Ok(VersionList::Listed(["1.21", "foreign", "unsigned", "generated", "sha256", "wrongsum", "onvanilla", "onvanilla-foreign", "onvanilla-maven", "onvanilla-maven-missing", "onvanilla-maven-bad", "onvanilla-rules", "onvanilla-target", "built", "ordered", "expand", "outside", "symlink", "empty", "tree", "badargs", "onvanilla-tree", "onvanilla-badargs", "tree-entry", "live", "plan", "plan-narrate", "plan-steps", "plan-slow", "plan-fetch", "refused-program", "refused-args", "refused-env", "refused-cwd", "refused-creates", "refused-dest", "refused-output", "refused-mount"]
         .into_iter()
         .map(|id| GameVersion {
             id: id.into(),
@@ -239,9 +241,22 @@ fn resolve_server(flavor: &str, query: ResolveQuery) -> Result<ServerResolution,
             ..ServerAddition::default()
         }));
     }
+    let args = |path: &str| ArgsFile {
+        path: format!("{path}/unix_args.txt"),
+        alternatives: vec![OsArgsFile {
+            os: "windows".into(),
+            path: format!("{path}/win_args.txt"),
+        }],
+    };
     if version.starts_with("onvanilla") {
+        let launch = match version {
+            "onvanilla-tree" => Some(ServerLaunch::ArgsFile(args("tree"))),
+            "onvanilla-badargs" => Some(ServerLaunch::ArgsFile(args("../escape"))),
+            _ => None,
+        };
         return Ok(ServerResolution::OnVanilla(ServerAddition {
             loader_version: Some("9.9".into()),
+            launch,
             jar: Some(ServerJar::Download(artifact(
                 version,
                 "loader-server.jar",
@@ -263,13 +278,6 @@ fn resolve_server(flavor: &str, query: ResolveQuery) -> Result<ServerResolution,
             filename: BUILT_JAR.into(),
         },
         _ => ServerJar::Download(artifact(version, "server.jar", JAR_SHA1)?),
-    };
-    let args = |path: &str| ArgsFile {
-        path: format!("{path}/unix_args.txt"),
-        alternatives: vec![OsArgsFile {
-            os: "windows".into(),
-            path: format!("{path}/win_args.txt"),
-        }],
     };
     let launch = match version {
         "tree" => ServerLaunch::ArgsFile(args("tree")),
@@ -478,7 +486,7 @@ fn build(flavor: &str, query: BuildQuery) -> Result<BuildPlan, Error> {
             run_builder("narrate")?;
             Ok(produced("/build/built.jar", BUILT_JAR))
         }
-        (BuildSide::Server, "tree") => {
+        (BuildSide::Server, "tree" | "onvanilla-tree") => {
             write_tree(&[
                 ("/build/entry/tree/unix_args.txt", "unix"),
                 ("/build/entry/tree/win_args.txt", "win"),

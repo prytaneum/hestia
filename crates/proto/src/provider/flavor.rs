@@ -19,7 +19,9 @@ use crate::contract::Empty;
 use crate::download::Checksum;
 use crate::minecraft::GameVersion;
 use crate::plugin::Permission;
-use crate::profile::{FlavorDescription, InstanceProfile, Library, ServerJar, ServerProfile};
+use crate::profile::{
+    FlavorDescription, InstanceProfile, Library, ServerJar, ServerLaunch, ServerProfile,
+};
 use crate::rules::Rule;
 
 pub struct Flavor;
@@ -286,6 +288,8 @@ pub struct ClientAddition {
 /// What a flavor adds to the vanilla server of the requested game version. The
 /// host takes the Java major from vanilla unless `java_major` overrides it; `jar`
 /// replaces vanilla's server jar and is absent for a flavor that runs it unchanged.
+/// `launch` replaces how the server starts (an args file, say) and is absent to
+/// keep vanilla's; it is vetted as a full profile's launch is.
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
 #[serde(default, rename_all = "camelCase")]
@@ -294,6 +298,8 @@ pub struct ServerAddition {
     pub loader_version: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub jar: Option<ServerJar>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub launch: Option<ServerLaunch>,
     pub jvm_args: Vec<Argument>,
     /// The Java major the server needs when it is not the vanilla version's;
     /// it must be one the launcher can provide.

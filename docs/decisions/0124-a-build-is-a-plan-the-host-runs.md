@@ -59,3 +59,7 @@ Not taken:
   backtrack.
 - **Releasing the area lock to let same-version builds overlap.** The saving is a second wait on the same result; the
   risk is two builds in one tree.
+
+**Addendum, 2026-11-14: a plan may list 512 downloads.** The cap was 64, which a loader whose installer needs a hundred
+libraries could not fit once the host, not the guest, did the downloading. It is 512; the step cap, every other bound
+and each download's vetting (host, checksum, destination under `/build`) are unchanged.

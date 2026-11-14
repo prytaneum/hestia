@@ -28,7 +28,7 @@ use crate::plugins::runtime::{LoadedPlugin, CANCEL_GRACE, COMMAND_TIMEOUT};
 use crate::process::Task;
 
 const MAX_STEPS: usize = 64;
-const MAX_FETCHES: usize = 64;
+const MAX_FETCHES: usize = 512;
 const MAX_PREFIXES: usize = 32;
 const MAX_PREFIX_BYTES: usize = 128;
 const PROGRESS_STEPS: u64 = 1000;

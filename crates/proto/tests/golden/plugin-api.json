@@ -808,7 +808,7 @@
     "SearchQuery": "type SearchQuery = { source: string, kind: ContentKind, query: string, loaders: Array<string>, gameVersion?: string, categories: Array<string>, sort: SearchSort, limit: number, offset: number, };",
     "SearchResult": "type SearchResult = { hits: Array<ContentProject>, offset: number, limit: number, total: number, };",
     "SearchSort": "type SearchSort = \"relevance\" | \"downloads\" | \"follows\" | \"newest\" | \"updated\";",
-    "ServerAddition": "type ServerAddition = { loaderVersion?: string, jar?: ServerJar, jvmArgs: Array<Argument>, javaMajor?: number, };",
+    "ServerAddition": "type ServerAddition = { loaderVersion?: string, jar?: ServerJar, launch?: ServerLaunch, jvmArgs: Array<Argument>, javaMajor?: number, };",
     "ServerBackupCreateParams": "type ServerBackupCreateParams = { server: string, id: string, };",
     "ServerBackupRef": "type ServerBackupRef = { server: string, backup: string, };",
     "ServerBackupRestoreParams": "type ServerBackupRestoreParams = { server: string, backup: string, id: string, };",

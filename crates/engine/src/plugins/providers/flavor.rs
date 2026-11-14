@@ -159,16 +159,22 @@ fn vet_server(policy: &Policy, profile: &ServerProfile) -> Result<(), Refusal> {
             validate_filename(filename).map_err(|e| Refusal::Path(e.to_string()))?
         }
     }
-    if let ServerLaunch::ArgsFile(file) = &profile.launch {
+    launch(&profile.launch)?;
+    java(profile.java_major)
+}
+
+fn launch(launch: &ServerLaunch) -> Result<(), Refusal> {
+    if let ServerLaunch::ArgsFile(file) = launch {
         for path in file.paths() {
             safe_join(Path::new(""), path).map_err(|e| Refusal::Path(e.to_string()))?;
         }
     }
-    java(profile.java_major)
+    Ok(())
 }
 
 fn vet_server_addition(policy: &Policy, addition: &ServerLayer) -> Result<(), Refusal> {
     addition.java_major.map(java).transpose()?;
+    addition.launch.as_ref().map(launch).transpose()?;
     match &addition.jar {
         Some(ServerJar::Download(jar)) => artifact(policy, jar),
         Some(ServerJar::Built { filename }) => {

@@ -538,12 +538,38 @@ async fn a_server_built_as_trees_is_placed_and_launches_from_the_args_file_of_th
 }
 
 #[tokio::test]
+async fn an_addition_over_vanilla_may_launch_from_an_args_file() {
+    let (engine, _home) = rig(&["127.0.0.1"]).await;
+
+    let record = provision(&engine, "onvanilla-tree")
+        .await
+        .expect("provision");
+
+    let proto::profile::ServerLaunch::ArgsFile(args) = &record.profile.launch else {
+        panic!("the addition names the launch");
+    };
+    assert_eq!(args.for_os("linux"), "tree/unix_args.txt");
+    assert_eq!(record.profile.loader_version.as_deref(), Some("9.9"));
+    assert_eq!(
+        std::fs::read(
+            engine
+                .servers()
+                .data_dir(&record)
+                .join("tree/unix_args.txt")
+        )
+        .unwrap(),
+        b"unix"
+    );
+}
+
+#[tokio::test]
 async fn an_args_file_that_leaves_the_data_directory_is_refused() {
     let (engine, _home) = rig(&["127.0.0.1"]).await;
 
-    let detail = refusal(provision(&engine, "badargs").await.expect_err("refused"));
-
-    assert!(detail.contains("refused profile"), "{detail}");
+    for version in ["badargs", "onvanilla-badargs"] {
+        let detail = refusal(provision(&engine, version).await.expect_err("refused"));
+        assert!(detail.contains("refused"), "{detail}");
+    }
     assert!(engine.servers().list().is_empty());
 }
 

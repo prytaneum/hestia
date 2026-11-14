@@ -19,7 +19,7 @@ game version and layers the addition over it (`minecraft/overlay.rs`):
 - the main class is the addition's when it names one;
 - JVM and game arguments follow vanilla's;
 - the client jar, natives, asset index and Java major are vanilla's, and so is the server's Java major; a server addition's
-  `jar` replaces vanilla's.
+  `jar` replaces vanilla's, and its `launch` (2026-11-14, [0121](0121-a-build-places-trees-and-the-profile-launches-from-an-args-file.md)) replaces vanilla's jar launch, vetted as a full profile's is.
 
 **Only the addition is vetted.** Its libraries and jar pass the same host, filename and checksum rules as a full profile.
 Vanilla's own artifacts are the host's, from Mojang, and are not checked against the plugin's hosts.

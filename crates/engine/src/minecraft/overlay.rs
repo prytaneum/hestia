@@ -3,7 +3,7 @@
 
 use std::collections::HashMap;
 
-use proto::profile::ServerJar;
+use proto::profile::{ServerJar, ServerLaunch};
 
 use super::maven::Coordinate;
 use super::profile::{InstanceProfile, Library, ServerProfile};
@@ -25,6 +25,7 @@ pub(crate) struct ClientLayer {
 pub(crate) struct ServerLayer {
     pub loader_version: Option<String>,
     pub jar: Option<ServerJar>,
+    pub launch: Option<ServerLaunch>,
     pub jvm_args: Vec<String>,
     pub java_major: Option<i32>,
 }
@@ -53,6 +54,7 @@ pub(crate) fn server(base: ServerProfile, addition: ServerLayer) -> ServerProfil
     ServerProfile {
         loader_version: addition.loader_version,
         jar: addition.jar.unwrap_or(base.jar),
+        launch: addition.launch.unwrap_or(base.launch),
         jvm_args: addition.jvm_args,
         java_major: addition.java_major.unwrap_or(base.java_major),
         ..base
