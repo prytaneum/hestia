@@ -6,6 +6,7 @@ use std::sync::Arc;
 
 use engine::{LoadedPlugin, PluginRecord, PluginRuntime};
 use proto::plugin::{Manifest, Permission, PermissionScope, ScopeKind};
+use proto::process::ProcessState;
 use sha2::{Digest, Sha256};
 
 use super::launch_hooks::NoHost;
@@ -861,16 +862,25 @@ async fn a_build_joins_the_step_already_running_under_its_task_id() {
 #[cfg(unix)]
 #[tokio::test]
 async fn cancelling_stops_the_running_step_and_starts_no_later_one() {
-    let (engine, home) = rig(&["127.0.0.1"]).await;
+    let (engine, home, processes) = rig_supervised(&["127.0.0.1"], &[]).await;
     builder_java(home.path());
     let cancel = Cancel::new();
+    let running = || {
+        processes
+            .list()
+            .iter()
+            .any(|info| info.state == ProcessState::Running)
+    };
 
     let ((outcome, _), ()) = tokio::join!(provision_seen(&engine, "plan-slow", &cancel), async {
-        tokio::time::sleep(std::time::Duration::from_millis(600)).await;
+        while !running() {
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
         cancel.cancel();
     });
 
     assert!(engine::is_cancelled(&outcome.expect_err("cancelled")));
+    assert!(!running(), "the cancelled step is still running");
     assert!(!area(home.path()).join("second").exists());
     assert!(!area(home.path()).join("first").exists());
     assert!(engine.servers().list().is_empty());

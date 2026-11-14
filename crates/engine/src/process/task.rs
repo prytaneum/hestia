@@ -88,7 +88,8 @@ impl Outcome {
 impl ProcessSupervisor {
     /// Run `task` to completion, relaying whatever it narrates as progress.
     /// Cancelling stops it through the supervisor, so the tools it spawned go
-    /// with it.
+    /// with it, and returns only once it has exited: a cancelled job leaves no
+    /// process still writing to the tree a retry would reuse.
     pub async fn run(&self, task: Task<'_>, job: &Job<'_>) -> Result<Outcome> {
         let already_running = self
             .status(&task.id)
@@ -116,7 +117,9 @@ impl ProcessSupervisor {
         let mut narration = String::new();
         loop {
             if job.is_cancelled() {
-                self.stop(&task.id);
+                if !self.stop_and_wait(std::slice::from_ref(&task.id)).await {
+                    tracing::warn!(id = %task.id, "a cancelled task is still running");
+                }
                 job.check()?;
             }
             if task
