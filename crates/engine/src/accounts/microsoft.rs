@@ -127,44 +127,11 @@ fn proof_jwk(key: &ProofKey) -> Value {
     json!({ "kty": "EC", "x": key.x(), "y": key.y(), "crv": "P-256", "alg": "ES256", "use": "sig" })
 }
 
-fn days_from_civil(mut year: i64, month: u32, day: u32) -> i64 {
-    year -= (month <= 2) as i64;
-    let era = (if year >= 0 { year } else { year - 399 }) / 400;
-    let yoe = year - era * 400;
-    let doy =
-        (153 * (if month > 2 { month - 3 } else { month + 9 }) as i64 + 2) / 5 + day as i64 - 1;
-    let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
-    era * 146097 + doe - 719468
-}
-
-// Parse an RFC 1123 HTTP date ("Wed, 21 Oct 2015 07:28:00 GMT") to unix seconds.
-fn parse_http_date(value: &str) -> Option<i64> {
-    let rest = value.split_once(", ").map(|(_, r)| r).unwrap_or(value);
-    let parts: Vec<&str> = rest.split_whitespace().collect();
-    if parts.len() < 4 {
-        return None;
-    }
-    let day: u32 = parts[0].parse().ok()?;
-    const MONTHS: [&str; 12] = [
-        "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
-    ];
-    let month = MONTHS.iter().position(|m| *m == parts[1])? as u32 + 1;
-    let year: i64 = parts[2].parse().ok()?;
-    let time: Vec<&str> = parts[3].split(':').collect();
-    if time.len() != 3 {
-        return None;
-    }
-    let hour: i64 = time[0].parse().ok()?;
-    let minute: i64 = time[1].parse().ok()?;
-    let second: i64 = time[2].parse().ok()?;
-    Some(days_from_civil(year, month, day) * 86400 + hour * 3600 + minute * 60 + second)
-}
-
 fn server_clock_offset(headers: &HeaderMap) -> i64 {
     let Some(date) = headers.get("date").and_then(|v| v.to_str().ok()) else {
         return 0;
     };
-    let Some(server_time) = parse_http_date(date) else {
+    let Some(server_time) = common::http_date_unix(date) else {
         return 0;
     };
     let offset = server_time - common::now_unix();

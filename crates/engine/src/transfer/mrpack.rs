@@ -26,7 +26,6 @@ use crate::content::install;
 use crate::content::pack::INDEX;
 use crate::minecraft::profile::InstanceProfile;
 use crate::minecraft::Loaders;
-use crate::registry;
 
 /// The load directories whose files a pack can name. `overrides/` members under
 /// one of these are content the pack ships rather than configuration, which is
@@ -52,7 +51,7 @@ pub(crate) fn export(
     let index = serde_json::to_vec_pretty(&json!({
         "formatVersion": 1,
         "game": "minecraft",
-        "versionId": registry::utc_stamp(common::now_unix()),
+        "versionId": common::utc_stamp(common::now_unix()),
         "name": source.record.name,
         "files": files,
         "dependencies": dependencies(&source.record.profile, loaders),

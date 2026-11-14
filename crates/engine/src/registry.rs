@@ -14,34 +14,6 @@ use uuid::Uuid;
 
 use crate::schema::{self, Document};
 
-/// `YYYYMMDD-HHMMSS` in UTC (Howard Hinnant's civil-from-days algorithm; no
-/// date-time dependency for one format). What names a backup archive and an
-/// exported instance — anything the disk registry sorts by time.
-pub(crate) fn utc_stamp(unix: i64) -> String {
-    let days = unix.div_euclid(86400);
-    let secs = unix.rem_euclid(86400);
-    let (year, month, day) = civil_from_days(days);
-    format!(
-        "{year:04}{month:02}{day:02}-{:02}{:02}{:02}",
-        secs / 3600,
-        (secs % 3600) / 60,
-        secs % 60
-    )
-}
-
-fn civil_from_days(days: i64) -> (i64, u32, u32) {
-    let z = days + 719_468;
-    let era = z.div_euclid(146_097);
-    let doe = z.rem_euclid(146_097);
-    let yoe = (doe - doe / 1460 + doe / 36_524 - doe / 146_096) / 365;
-    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
-    let mp = (5 * doy + 2) / 153;
-    let day = (doy - (153 * mp + 2) / 5 + 1) as u32;
-    let month = if mp < 10 { mp + 3 } else { mp - 9 } as u32;
-    let year = yoe + era * 400 + i64::from(month <= 2);
-    (year, month, day)
-}
-
 /// A stable, opaque entry id (UUIDv7 hex): the entry's internal key — process
 /// key, port/in-flight claims, process records — never a path component, so a
 /// rename never touches it. Stays `[0-9a-f]`, never `_` (the `<id>_<seq>`

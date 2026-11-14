@@ -142,7 +142,7 @@ fn invalid(reason: ArchiveFault) -> ErrorInfo {
 /// slug and the time it was taken, so repeated exports never collide.
 pub(crate) fn default_destination(dir: &Path, record: &InstanceRecord, extension: &str) -> PathBuf {
     let slug = registry::dir_name(&record.id, &record.name);
-    let stamp = registry::utc_stamp(common::now_unix());
+    let stamp = common::utc_stamp(common::now_unix());
     dir.join(format!("{slug}-{stamp}.{extension}"))
 }
 

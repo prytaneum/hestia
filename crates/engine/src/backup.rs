@@ -472,7 +472,7 @@ fn allocate_id(entry_dir: &Path, kind: BackupKind) -> String {
     let taken: HashSet<String> = list(entry_dir).into_iter().map(|b| b.id).collect();
     let base = format!(
         "{}-{}",
-        crate::registry::utc_stamp(common::now_unix()),
+        common::utc_stamp(common::now_unix()),
         kind.as_str()
     );
     if !taken.contains(&base) {
