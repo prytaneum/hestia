@@ -226,6 +226,8 @@ The host checks all of it first (each step must fit an invocation of a declared 
 runs the steps in order under the supervisor. A step whose `creates` all exist is skipped; `narrate: { skipPrefixes }`
 shows every other line of its output as progress; a cancel stops the build between steps. A build still running under
 the same plugin, version and step is joined rather than started twice. A plan lists at most 64 steps and 512 downloads.
+The downloads run a few at a time, in no promised order, and the first failure stops the rest; the steps start only once
+every download is in place.
 
 A plan answers one more thing than files: where they go. An output is a file under `/build`, named by the profile's
 built server jar or built library, or a directory tree with a `destination` (`entry`, the server's data directory, which

@@ -9,6 +9,7 @@ use std::future::Future;
 use std::path::{Component, Path, PathBuf};
 
 use anyhow::{bail, Context};
+use futures_util::StreamExt;
 use proto::minecraft::{ProvisionPhase, ProvisionProgress};
 use proto::plugin::{PluginRunProgress, BUILD_MOUNT};
 use proto::provider::flavor::{BuildFetch, BuildPlan, BuildStep};
@@ -29,6 +30,7 @@ use crate::process::Task;
 
 const MAX_STEPS: usize = 64;
 const MAX_FETCHES: usize = 512;
+const CONCURRENT_FETCHES: usize = 8;
 const MAX_PREFIXES: usize = 32;
 const MAX_PREFIX_BYTES: usize = 128;
 const PROGRESS_STEPS: u64 = 1000;
@@ -187,10 +189,7 @@ impl Run<'_> {
 pub(super) async fn execute(run: &Run<'_>, plan: &BuildPlan) -> anyhow::Result<()> {
     let needed = plan.steps.is_empty() || plan.steps.iter().any(|step| !run.satisfied(step));
     if needed {
-        for (index, fetch) in plan.fetch.iter().enumerate() {
-            run.on.check()?;
-            download(run, index, fetch).await?;
-        }
+        fetch_all(run, &plan.fetch).await?;
     }
     let total = plan.steps.len() as u64;
     for (index, step) in plan.steps.iter().enumerate() {
@@ -205,12 +204,40 @@ pub(super) async fn execute(run: &Run<'_>, plan: &BuildPlan) -> anyhow::Result<(
     Ok(())
 }
 
+/// Downloads what the plan fetches, a few files at a time, stopping at the
+/// first failure. The directories are made first, one after the other, so two
+/// downloads into one new directory never race to create it. Progress is the
+/// count of finished files: several running at once have no single fraction.
+async fn fetch_all(run: &Run<'_>, fetches: &[BuildFetch]) -> anyhow::Result<()> {
+    for fetch in fetches {
+        place_parents(run.area, &under_area(&fetch.dest)?)
+            .map_err(|error| run.failed(error.to_string()))?;
+    }
+    let total = fetches.len() as u64;
+    let mut pending = Vec::with_capacity(fetches.len());
+    for (index, fetch) in fetches.iter().enumerate() {
+        pending.push(download(run, index, fetch));
+    }
+    let mut downloads = futures_util::stream::iter(pending).buffer_unordered(CONCURRENT_FETCHES);
+    let mut done = 0;
+    while let Some(outcome) = downloads.next().await {
+        outcome?;
+        done += 1;
+        run.on.report(&ProvisionProgress {
+            phase: run.phase,
+            current: done,
+            total,
+            ..ProvisionProgress::default()
+        });
+    }
+    Ok(())
+}
+
 async fn download(run: &Run<'_>, index: usize, fetch: &BuildFetch) -> anyhow::Result<()> {
+    run.on.check()?;
     let plugin = run.guest.plugin();
-    let rel = under_area(&fetch.dest)?;
-    let destination = run.area.join(&rel);
-    place_parents(run.area, &rel).map_err(|error| run.failed(error.to_string()))?;
-    let (progress, reports) = watch::channel(None);
+    let destination = run.area.join(under_area(&fetch.dest)?);
+    let (progress, _reports) = watch::channel(None);
     let command = CommandRun {
         cancel: run.on.cancel().clone(),
         progress,
@@ -224,18 +251,15 @@ async fn download(run: &Run<'_>, index: usize, fetch: &BuildFetch) -> anyhow::Re
         plugin
             .downloads()
             .fetch(&fetch.url, fetch.checksum.clone(), &destination, &scope);
-    relay(reports, transfer, run.on, run.phase)
-        .await
-        .map(drop)
-        .map_err(|error| {
-            tracing::warn!(
-                plugin = plugin.id(),
-                index,
-                kind = error.kind(),
-                "build download failed"
-            );
-            run.stopped(run.failed(format!("download {}: {error}", index + 1)))
-        })
+    transfer.await.map(drop).map_err(|error| {
+        tracing::warn!(
+            plugin = plugin.id(),
+            index,
+            kind = error.kind(),
+            "build download failed"
+        );
+        run.stopped(run.failed(format!("download {}: {error}", index + 1)))
+    })
 }
 
 /// Creates the directories of `rel` beneath `area`, refusing to pass through a
