@@ -2,6 +2,8 @@
 
 *Applies to: [Import & export](../architecture/transfer.md#the-hestia-archive)*
 
+> Superseded in part: core has no `.mrpack` export (`mrpack::index_entry` is gone); the official `mrpack` plugin writes it, using the same referenceable-content rule from the pool it is handed ([0125](0125-a-pack-is-a-provider-kind-and-export-formats-are-open.md)). The hestia archive described below is unchanged.
+
 A `.hestia` archive exported on Windows did not launch on Linux:
 `UnsatisfiedLinkError: Failed to locate library: liblwjgl.so`. The manifest
 carried the full `InstanceRecord`, including its resolved `InstanceProfile`, and

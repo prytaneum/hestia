@@ -2,6 +2,8 @@
 
 *Applies to: [Content & modpacks](../architecture/content.md#modpacks)*
 
+> Superseded in part: core no longer reads `.mrpack`, CurseForge or Prism archives, nor carries a Modrinth or CurseForge source. The official `mrpack`, `curseforge-pack` and `prism` plugins read the formats ([0125](0125-a-pack-is-a-provider-kind-and-export-formats-are-open.md)), and the official `modrinth` and `curseforge` plugins recognise the URLs and hashes. The rule that a pack's files are identified wherever they came from, by URL, then by hash, holds in the modpack flow.
+
 A pack's mods were tracked only when two things lined up: the pack came from a
 source, and the file was named by the index with that source's own CDN URL.
 Everything else landed anonymous. A `.mrpack` read off disk has source `file`,

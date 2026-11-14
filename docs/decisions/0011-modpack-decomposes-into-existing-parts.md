@@ -2,6 +2,8 @@
 
 *Applies to: [Content & modpacks](../architecture/content.md)*
 
+> Superseded in part: core parses no pack index. The official `mrpack`, `curseforge-pack` and `prism` plugins read the formats and hand the modpack flow the trees and files they name ([0125](0125-a-pack-is-a-provider-kind-and-export-formats-are-open.md)); the decomposition below is the flow's, and stands.
+
 Installing a pack could have been a store of its own — a `modpack/` tree, its
 own mirror, its own update logic. It is not, because a pack decomposes cleanly
 into things this codebase already has:

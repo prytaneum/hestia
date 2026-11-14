@@ -6,9 +6,9 @@ was made — what changed, what it replaced, and what was rejected. The
 describe *why it is that*.
 
 Each entry is one decision, numbered in the order it was written down, and links
-back to the subsystem page it explains. The numbering stays contiguous: a
-superseded decision is rewritten in place, and one whose feature is removed is
-deleted with the rest renumbered behind it, so the list never has holes in it.
+back to the subsystem page it explains. The numbering stays contiguous and a decision is never deleted. One that a later change overtakes keeps its text under a
+`> Superseded …` line that says what replaced it and what still holds. A feature that moved from the launcher to an
+[official plugin](../plugins/official.md) is marked this way, since the reasoning outlives the code.
 
 **Adding one:** when you make a call that a future reader would otherwise have to
 reverse-engineer, add a file here (`NNNN-kebab-title.md`, next number free), open

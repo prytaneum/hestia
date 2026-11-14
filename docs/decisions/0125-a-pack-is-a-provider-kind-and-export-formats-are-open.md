@@ -2,6 +2,8 @@
 
 *Applies to: [Import & export](../architecture/transfer.md#pack-formats-from-plugins), [Plugins](../architecture/plugins.md#providers), [Content & modpacks](../architecture/content.md#modpacks), [provider operations](../plugins/providers.md#pack-formats)*
 
+> Superseded in part: the `.mrpack` reader and writer left core too, so core reads and writes only Hestia's own archive. `.mrpack` (the `mrpack` plugin), CurseForge packs and Prism / MultiMC instances are the official plugins' pack formats, `hestia` is the one reserved id, and `instance.export.formats` lists hestia plus the registered writers. The `pack` kind, the vetting and the refuse-whole rule below stand.
+
 Three things stood between the CurseForge pack and a plugin. The `format` provider kind ([0104](0104-an-archive-format-plugin-maps-files-the-host-copies.md))
 was instance-only and carried one manifest text, so it could not say "these are the files, here is the tree that
 overlays them"; `ExportFormat` was a closed wire enum, so a plugin's writer could never be reached from

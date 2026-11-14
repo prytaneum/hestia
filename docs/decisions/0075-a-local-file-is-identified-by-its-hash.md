@@ -2,6 +2,8 @@
 
 *Applies to: [Content & modpacks](../architecture/content.md#local-files-are-inspected-not-trusted)*
 
+> Superseded in part: the Modrinth (sha1) and CurseForge (fingerprint) lookups described below are the official `modrinth` and `curseforge` plugins' `identify` operation, not core code. Core hands each registered source the files and records the answer, as below.
+
 A jar imported from disk used to be recorded with no provenance — source
 `file`, no project, no version — so it could never update, showed as a bare
 filename, and had to be embedded whole in an `.mrpack` export. Most such jars

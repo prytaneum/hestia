@@ -2,6 +2,8 @@
 
 *Applies to: [Minecraft providers](../architecture/minecraft.md)*
 
+> Superseded in part: the Paper, Folia, Spigot, CraftBukkit, Fabric and NeoForge flavors it names are the official `paper`, `spigot`, `fabric` and `neoforge` plugins now; core has only `vanilla`. The rule that a flavor declares what it accepts, and that no front-end keeps a table, stands for every flavor.
+
 Two guards used to hard-code the answer: one refused anything but mods and
 datapacks on a server, the other refused mods on vanilla *by name*. Paper breaks
 both — it loads plugins, which are neither. The rule is now composed from two
