@@ -34,9 +34,10 @@ hestia plugin add dist/hello-0.1.0.hplugin
   file is enough; a build that fails is reported and the previous build keeps running. A manifest that asks for more
   than you approved leaves the plugin at `needs approval`; run `dev` again.
 - `dev --official` registers the plugin's providers the way an official plugin's are: under the bare id instead of
-  `<plugin>.<id>`, so a provider whose id equals a core one (`modrinth`, `fabric`, `adoptium`, ...) **shadows** it. Use it
-  to test a port of a core feature before it is signed. The listing then shows one entry for the id, the plugin's; stop
-  `dev` or disable the plugin and the core one answers again at once. It changes only the name and the shadowing: you
+  `<plugin>.<id>`, so a provider whose id equals a built-in one **shadows** it (core's only built-in provider is the
+  vanilla flavor). Use it to test a plugin under the id it will have once signed. The listing then shows one entry for
+  the id, the plugin's; stop `dev` or disable the plugin and the built-in answers again at once. It changes only the
+  name and the shadowing: you
   approve the same grant, every permission is still checked, and it is not an official plugin (no automatic approval,
   no updates). It needs developer mode, and turning that off disables the dev plugin. A plugin that ships signed by the
   official key shadows the same way; one that does not is always namespaced and never shadows anything.
@@ -57,6 +58,7 @@ command reference is in [cli.md](../cli.md#launcher-plugins).
 
 | Page | Covers |
 |---|---|
+| [official.md](official.md) | the twelve plugins Hestia ships: what each provides, its permissions and settings, how they arrive |
 | [manifest.md](manifest.md) | every `plugin.toml` field and what validation refuses |
 | [permissions.md](permissions.md) | the permissions, the tiers, declared programs and local endpoints |
 | [commands.md](commands.md) | contributed commands: arguments, scopes, progress, cancel, how the CLI and desktop run them |
@@ -76,7 +78,7 @@ command reference is in [cli.md](../cli.md#launcher-plugins).
 | [repository.md](repository.md) | the one shape of a plugin repository, its index and its keys |
 | [updates.md](updates.md) | how installed plugins are checked for newer builds, and what is never checked |
 | [testing.md](testing.md) | unit-testing plugin code on your machine with the SDK's mock host |
-| [publishing.md](publishing.md) | `check`, `pack` and `index` from CI, on GitHub or any host |
+| [publishing.md](publishing.md) | `check`, `pack` and `publish` from CI, on GitHub or any host |
 | [other-languages.md](other-languages.md) | writing a plugin without the Rust SDK |
 
 ## Examples
