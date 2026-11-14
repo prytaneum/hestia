@@ -45,5 +45,9 @@ reqwest = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }
 
+[target.'cfg(target_os = "linux")'.dependencies]
+# Already in the graph through wry; named here to reach the WebKit context.
+webkit2gtk = { version = "2.0.2", features = ["v2_34"] }
+
 [dev-dependencies]
 tempfile.workspace = true

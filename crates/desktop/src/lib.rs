@@ -1,6 +1,7 @@
 mod assets;
 mod bridge;
 mod commands;
+mod origin;
 mod proxy;
 
 use bridge::Bridge;
@@ -76,6 +77,9 @@ pub fn run() {
             if is_quit_signal(&std::env::args().collect::<Vec<_>>()) {
                 app.handle().exit(0);
                 return Ok(());
+            }
+            if let Some(main) = app.get_webview_window("main") {
+                origin::trust_dev_page(&main);
             }
             commands::splash::arm(app.handle().clone());
             // A file the app was *launched* with arrives before the webview
