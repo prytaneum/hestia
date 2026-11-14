@@ -6,7 +6,7 @@ use client::proto::process::ProcessState;
 use client::Client;
 
 use crate::exit::ExitStatus;
-use crate::ui::{self, View};
+use crate::ui::{self, Cell, View};
 
 #[derive(Subcommand)]
 pub enum DaemonCmd {
@@ -48,22 +48,31 @@ pub async fn run(cmd: DaemonCmd) -> Result<ExitStatus> {
             return match super::connect_running().await {
                 Ok(client) => {
                     let s = client.daemon().status().await?;
-                    ui::show(View::line("running"))?;
-                    ui::show(View::detail([
-                        ("pid", s.pid.to_string()),
-                        ("uptime", format!("{}s", s.uptime_seconds)),
-                        ("network", network_line(client.net().status().await.ok())),
-                        ("home", s.home.display().to_string()),
-                        ("log", s.log.display().to_string()),
-                    ]))?;
-                    if s.safe_mode {
+                    ui::show(View::status(
+                        "running",
+                        [
+                            ("pid", Cell::count(s.pid)),
+                            (
+                                "uptime",
+                                Cell::seconds(
+                                    s.uptime_seconds.max(0) as u64,
+                                    format!("{}s", s.uptime_seconds),
+                                ),
+                            ),
+                            ("network", network_cell(client.net().status().await.ok())),
+                            ("home", s.home.display().to_string().into()),
+                            ("log", s.log.display().to_string().into()),
+                            ("safe mode", Cell::json_only(s.safe_mode)),
+                        ],
+                    ))?;
+                    if s.safe_mode && !ui::json::active() {
                         ui::show(View::note(SAFE_MODE_NOTICE))?;
                     }
                     ui::show_warnings(&s.quarantined)?;
                     Ok(ExitStatus::Active)
                 }
                 Err(_) => {
-                    ui::show(View::line("stopped"))?;
+                    ui::show(View::status("stopped", Vec::<(&str, Cell)>::new()))?;
                     Ok(ExitStatus::Inactive)
                 }
             }
@@ -179,17 +188,16 @@ fn summarize(running: &[String]) -> String {
     }
 }
 
-fn network_line(status: Option<client::proto::net::NetworkStatus>) -> String {
+fn network_cell(status: Option<client::proto::net::NetworkStatus>) -> Cell {
     use client::proto::net::NetworkState;
     let Some(status) = status else {
-        return "unknown".to_string();
+        return Cell::absent("unknown");
     };
-    match status.state {
-        NetworkState::Online => "online".to_string(),
-        NetworkState::Offline if status.offline_mode => {
-            "offline (pinned by network.offline)".to_string()
-        }
-        NetworkState::Offline => "offline — upstream is unreachable".to_string(),
-        NetworkState::Unknown => "checking".to_string(),
-    }
+    let text = match status.state {
+        NetworkState::Online => "online",
+        NetworkState::Offline if status.offline_mode => "offline (pinned by network.offline)",
+        NetworkState::Offline => "offline — upstream is unreachable",
+        NetworkState::Unknown => "checking",
+    };
+    Cell::token(text, &status.state)
 }

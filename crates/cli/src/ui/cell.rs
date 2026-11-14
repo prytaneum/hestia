@@ -90,6 +90,15 @@ impl Cell {
         Cell::new(text, Value::Null)
     }
 
+    /// A value only `--json` carries; the text rendering leaves it out.
+    pub fn json_only(value: impl Serialize) -> Cell {
+        Cell {
+            text: String::new(),
+            value: serde_json::to_value(value).unwrap_or(Value::Null),
+            shown: false,
+        }
+    }
+
     /// Any serializable value, shown as `text`, for what no other constructor
     /// fits (a pair of numbers, a small object).
     pub fn typed(text: impl Into<String>, value: impl Serialize) -> Cell {

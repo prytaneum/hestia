@@ -14,6 +14,12 @@ pub enum View {
     Warning(String),
     /// A key/value block, keys aligned.
     Detail(Vec<(String, Cell)>),
+    /// One thing's state followed by its details: a line and a block for a
+    /// person, one object with a leading `state` under `--json`.
+    Status {
+        state: String,
+        rows: Vec<(String, Cell)>,
+    },
     /// A titled table; long tables page interactively on a terminal. `keys` name
     /// the columns for `--json`, one per header.
     Table {
@@ -68,6 +74,16 @@ impl View {
 
     pub fn detail<K: Into<String>, V: Into<Cell>>(rows: impl IntoIterator<Item = (K, V)>) -> View {
         View::Detail(rows_of(rows))
+    }
+
+    pub fn status<K: Into<String>, V: Into<Cell>>(
+        state: impl Into<String>,
+        rows: impl IntoIterator<Item = (K, V)>,
+    ) -> View {
+        View::Status {
+            state: state.into(),
+            rows: rows_of(rows),
+        }
     }
 
     pub fn table<C: Into<Cell>>(

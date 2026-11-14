@@ -128,6 +128,12 @@ fn view_value(view: &View) -> Value {
     match view {
         View::Line(text) | View::Note(text) | View::Warning(text) => json!({ "message": text }),
         View::Detail(rows) => Value::Object(detail_object(rows)),
+        View::Status { state, rows } => {
+            let mut object = Map::new();
+            object.insert("state".into(), Value::String(state.clone()));
+            object.extend(detail_object(rows));
+            Value::Object(object)
+        }
         View::Table { keys, rows, .. } => Value::Array(
             rows.iter()
                 .map(|row| {
@@ -239,6 +245,23 @@ mod tests {
             rendered(vec![detail])["data"],
             json!({ "max_memory": "4G" })
         );
+        let running = View::status(
+            "running",
+            [
+                ("pid", Cell::count(7u32)),
+                ("safe mode", Cell::json_only(false)),
+            ],
+        );
+        let stopped = View::status("stopped", Vec::<(&str, Cell)>::new());
+        assert_eq!(
+            rendered(vec![running])["data"],
+            json!({ "state": "running", "pid": 7, "safe_mode": false })
+        );
+        assert_eq!(
+            rendered(vec![stopped])["data"],
+            json!({ "state": "stopped" })
+        );
+        assert!(!Cell::json_only(false).is_shown());
         assert_eq!(
             rendered(vec![View::line("done")])["data"],
             json!({ "message": "done" })

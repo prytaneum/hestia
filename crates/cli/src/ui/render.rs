@@ -22,6 +22,10 @@ pub fn show(view: View) -> Result<()> {
         View::Note(text) | View::Empty(text) => note(&text)?,
         View::Warning(text) => warning(&text)?,
         View::Detail(rows) => detail(&rows)?,
+        View::Status { state, rows } => {
+            line(&state)?;
+            detail(&rows)?;
+        }
         View::Table {
             title,
             headers,
