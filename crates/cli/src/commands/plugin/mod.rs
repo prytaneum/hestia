@@ -17,6 +17,7 @@ pub(crate) mod run;
 mod sdk;
 mod sign;
 mod store;
+mod test;
 mod update;
 mod watch;
 mod world;
@@ -67,6 +68,13 @@ pub enum PluginCmd {
         /// A folder inside the repository; the current directory by default
         #[arg(long, value_name = "DIR")]
         dir: Option<std::path::PathBuf>,
+    },
+    /// Run the plugins' own tests on this computer, against the SDK's mock host
+    Test {
+        /// Plugins to test; all of the repository's by default
+        ids: Vec<String>,
+        #[command(flatten)]
+        sdk: sdk::SdkOption,
     },
     /// Build unpublished versions into <out>/packages and sign <out>/plugins.json
     Publish {
@@ -177,6 +185,7 @@ pub async fn run(cmd: PluginCmd) -> Result<()> {
             sdk,
         } => dev::run(dir.as_deref(), yes, official, &sdk).await,
         PluginCmd::Check { ids, dir } => check::run(dir.as_deref(), &ids),
+        PluginCmd::Test { ids, sdk } => test::run(&ids, &sdk),
         PluginCmd::Publish {
             out,
             sign,

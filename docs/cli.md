@@ -759,6 +759,7 @@ hestia plugin new <id>           # outside a repository: creates ./<id>/ with th
                                  #   inside one: adds only plugins/<id>/
 hestia plugin pack [id…]         # from anywhere in the repository: build and write dist/<id>-<version>.hplugin
 hestia plugin check [id…] [--dir <dir>]
+hestia plugin test [id…]         # run the plugins' own tests natively, against the SDK's mock host
                                  # validate the repository against the one shape; every plugin's result is listed
 hestia plugin publish --out <dir> --sign <secret key> [--repository <https-url>]
                                  # build the versions with no package in <dir>/packages yet, then write and sign

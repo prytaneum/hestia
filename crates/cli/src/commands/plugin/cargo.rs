@@ -130,6 +130,22 @@ pub fn build(root: &Path, packages: &[&str], sdk: Option<&Sdk>) -> Result<()> {
     Ok(())
 }
 
+/// Runs the native tests of each named package, cargo's own output going to
+/// the terminal.
+pub fn test(root: &Path, packages: &[&str], sdk: Option<&Sdk>) -> Result<()> {
+    let _lock = LockGuard::hold(root, sdk);
+    tracing::info!(?packages, "testing plugin crates");
+    let mut command = cargo(root, sdk);
+    command.arg("test");
+    for package in packages {
+        command.args(["-p", package]);
+    }
+    if !command.status().map_err(spawn_error)?.success() {
+        bail!("cargo test failed");
+    }
+    Ok(())
+}
+
 /// Like [`build`], but cargo's diagnostics come back in the error instead of
 /// reaching the terminal.
 pub fn build_captured(root: &Path, packages: &[&str], sdk: Option<&Sdk>) -> Result<()> {
