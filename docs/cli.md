@@ -443,11 +443,10 @@ hestia logs modded -f            # follow its captured output fullscreen (the
 
 ## Content discovery
 
-Modrinth and CurseForge; installs are per-entry (above). Every browse verb
-takes `-S/--source` and defaults to the first configured source — CurseForge
-needs an API key before it serves anything (see [Configuration](#configuration)),
-and `hestia sources` lists every source with the kinds it catalogues and whether it
-is ready or needs a setting.
+Sources are plugins — Modrinth and CurseForge are official plugins — and with none installed there is nothing to
+browse; installs are per-entry (above). Every browse verb takes `-S/--source` and defaults to the first source that can
+serve — CurseForge needs an API key, set with `hestia plugin config curseforge <key> <value>`. `hestia sources` lists
+every source with the kinds it catalogues and whether it is ready or needs a setting.
 
 ```bash
 hestia mod search                # bare, on a terminal: the fullscreen browser
@@ -469,9 +468,8 @@ hestia sources                   # the sources that can serve, and what each has
 
 A pack pins its own loader and game version, so installing one *builds* the entry it wants. The one argument takes any
 of the three ways to name a pack — an existing path is a `.mrpack`, a scheme is a URL, anything else is a project on the
-source (`-S`); omit it on a terminal and a searchable picker opens over live search results. A CurseForge pack installs
-from a file too, but only with the CurseForge source configured: its manifest names its mods by id, which only
-CurseForge can resolve.
+source (`-S`); omit it on a terminal and a searchable picker opens over live search results. A pack whose manifest names
+its mods by id (CurseForge's) installs from a file only with the source that can resolve those ids installed.
 
 ```bash
 hestia modpack install fabulously-optimized     # → a new instance
@@ -609,7 +607,6 @@ hestia config get autostart      # true if the daemon starts at login
 hestia config set autostart true # register the daemon to start at login
 hestia config set instance.multi-session true # allow an instance to run several sessions
 hestia config set discord.enabled false       # stop publishing Discord presence
-hestia config set content.curseforge-key <key> # unlock the CurseForge source
 hestia config set network.offline true        # stop reaching the network at all
 hestia config set plugins.auto-update false   # stop applying official plugin updates unattended
 hestia config set developer true              # show the plugin authoring tools (see Launcher plugins)
@@ -631,11 +628,6 @@ While `discord.enabled` is on, a running Discord client is told which instance i
 version, and how long the session has run — and that the launcher is open at all, as an idle presence, since the daemon
 is resident. It needs the Discord *desktop* client on the same machine (presence is local IPC, which Discord in a
 browser does not expose); with none running, nothing is published and nothing is retried until one appears.
-
-CurseForge's API refuses every request without a key, so that source is offered only once one resolves: this setting,
-else a key the distributor baked into the build. Get one from the
-[CurseForge developer console](https://console.curseforge.com/) — it is stored in plain text in `config.json`, like every
-other setting. Nothing else changes when it is unset; `hestia sources` shows CurseForge as needing the key.
 
 The data directory is resolved as: `--home` → `$HESTIA_HOME` → a persisted pointer (`config set home`) → the platform
 default (`~/.hestia`, or

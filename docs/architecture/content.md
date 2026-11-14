@@ -10,7 +10,7 @@ Three layers, deliberately separate:
 
 ```mermaid
 flowchart TD
-    SRC["<b>sources</b> — content/<br/>search · project · versions · resolve<br/><i>Modrinth · CurseForge; the trait is the seam</i>"]
+    SRC["<b>sources</b> — content/<br/>search · project · versions · resolve<br/><i>plugin-provided (Modrinth, CurseForge: official plugins); the trait is the seam</i>"]
     INST["<b>install</b> — content/install.rs<br/>managed dir + content.json provenance + data/ mirror"]
     PACK["<b>modpacks</b> — content/pack · modpack · transfer/mrpack<br/>the archive format, and which files a pack owns"]
 
@@ -23,15 +23,20 @@ flowchart TD
 `ContentProvider` is the trait: search with pagination, project detail, version
 resolution filtered by loader and game version, modpack resolution, URL
 recognition, the kinds a source catalogues, and whether it is configured enough
-to serve. `modrinth` and `curseforge` are the shipped sources — adding one is a
-new impl plus one line in `Content::new`, the same shape as the flavor registry.
-Stateless but for the API keys `configure()` hands down.
+to serve. Core ships no source: `modrinth` and `curseforge` are official plugins
+([0116](../decisions/0116-an-official-provider-shadows-the-builtin.md)), and a
+fresh Hestia with none installed has an empty source list. Stateless.
 
 The registry is runtime-mutable: `Content::register(owner, official, provider)`
-adds a source and `unregister(owner)` removes everything that owner added. The
-built-ins belong to `builtin` and are never removed; any other source's id must
-read `<owner>.<id>` (only a plugin signed by the official key may take a bare
-id), so it cannot shadow one.
+adds a source and `unregister(owner)` removes everything that owner added. A
+source's id must read `<owner>.<id>`; only a plugin signed by the official key
+may take a bare id (`modrinth`, `curseforge`).
+
+With no source registered every content channel still answers: `content.sources`
+is empty, and a search, lookup or install that names no source fails
+`NoContentSource` (one that names an id nobody registered fails
+`ContentSourceUnknown`). The CLI says no source is installed and the desktop's
+browse page shows an empty state pointing at Settings > Plugins.
 
 A plugin adds a source with `contributes.providers = [{ kind = "content", id }]`
 and answers the operations of `proto::provider::content` through `provider.invoke`
@@ -62,34 +67,17 @@ pasted `modrinth.com/mod/…` or `curseforge.com/minecraft/…` link installs ex
 like a slug. A source that has no datapack project type (Modrinth) says so with
 `datapacks_as_mods`, and a datapack request then accepts its `Mod` projects.
 
-> **A second source pays for the trait — and it is only offered when it can
-> serve.** CurseForge is the impl the `ContentProvider` seam was written for, and
-> it arrived carrying every asymmetry a normalized trait exists to absorb: it
-> keys projects by *class* rather than project type (no plugins — the API stopped
-> serving class 5, so Hestia does not list a kind that returns nothing), models
-> only modloaders (so a datapack's files name no loader at all, and the version
-> pick's `datapack` pseudo-loader is stamped on from the class the request already
-> named), publishes no per-project side support, has no created-at ordering (so
-> "newest" and "recently updated" both resolve to `LastUpdated`), and wraps every
-> response in `data`. None of that reaches the rest of the engine — the flows, the
-> CLI and the desktop drive both sources through one vocabulary.
+> **A source is only offered when it can serve.** An API key makes
+> *availability* a property of a source rather than a constant (the CurseForge
+> plugin declares one). The trait has `available()`: `content.sources` lists the
+> sources that can serve and those waiting on a plugin setting (with
+> `requiresSetting` naming the plugin and key), and `content.*` refuses a
+> named-but-unconfigured one with `ContentSourceUnavailable` (carrying the same
+> `RequiredSetting`, so the desktop links to where it is edited and the CLI says
+> how to set it, rather than the "unknown source" a filtered registry would have
+> to claim). A secret is never logged.
 >
-> The API key makes *availability* a property of a source rather than a constant.
-> CurseForge refuses every request without an `x-api-key`, so the trait grew
-> `available()` and `configure()`: `content.sources` lists the sources that can
-> serve and those waiting on a setting (with `requiresSetting` naming it),
-> `content.*` refuses a named-but-unconfigured one with
-> `ContentSourceUnavailable` (carrying the same `RequiredSetting`, so the desktop
-> links to where it is edited and the CLI says how to set it, rather than the "unknown
-> source" a filtered registry would have to claim), and a pasted
-> `curseforge.com` URL still parses — it is recognised, then refused for the
-> reason that is actionable. Resolution is the `content.curseforge-key` setting
-> alone; no key is baked into a build. It is re-applied on every
-> `config set` (`Engine::set_config`, the reason that wrapper exists), so a key
-> takes effect on the running daemon. The key is never logged — only whether one
-> resolved.
->
-> Two shapes had to change for it. A `ContentSource` now carries the `kinds` it
+> Two shapes follow from several sources. A `ContentSource` now carries the `kinds` it
 > catalogues, because "which sources can I browse mods on" is a daemon fact and a
 > front-end must not keep its own table (the same no-drift rule `accepts` follows
 > on the entry views). And a `ContentAddItem` may name its **own** source,
@@ -97,9 +85,9 @@ like a slug. A source that has no datapack project type (Modrinth) says so with
 > and a spec-wide source would have forced the front-end to split a batch it has
 > no other reason to split — a URL item already resolved its own source this way.
 
-> **A blocked file fails its item, and nothing else.** CurseForge lets an author
-> opt out of third-party distribution; the API then lists the file with a null
-> download URL. The `ContentDownloadBlocked` refusal says so and names the source,
+> **A blocked file fails its item, and nothing else.** A platform may let an
+> author opt out of third-party distribution (CurseForge does); the API then lists
+> the file with a null download URL. The `ContentDownloadBlocked` refusal says so and names the source,
 > the rest of the batch installs, and local-file import is the documented way
 > through — Hestia deliberately does not reconstruct the CDN path to download it
 > anyway. The check lives in the one download step every flow shares

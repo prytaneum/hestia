@@ -361,7 +361,7 @@ which breaks EGL init against a newer host Mesa — a blank window. Tauri expose
 [`scripts/package.sh`](../scripts/package.sh) drops it from the `.AppDir` the bundler leaves behind and repacks the
 image around the original's runtime.
 
-**The CurseForge key is not part of a build.** The core source works once a user sets `content.curseforge-key`. The
+**The CurseForge key is not part of a build.** Core has no CurseForge source and no `content.curseforge-key`. The
 official CurseForge plugin ships a key as a setting default packed into its package
 ([0132](decisions/0132-a-distributor-ships-setting-defaults-in-the-package.md)), supplied by the plugins repository's
 publish workflow.

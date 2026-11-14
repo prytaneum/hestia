@@ -87,14 +87,14 @@ to your account.
 |:--------------|:-------------------------------------------------------------------|
 | **Instances** | Vanilla · Fabric · NeoForge                                        |
 | **Servers**   | Vanilla · Fabric · NeoForge · Paper · Folia · Spigot · CraftBukkit |
-| **Content**   | Modrinth · CurseForge · a page URL · a local file                  |
+| **Content**   | Modrinth · CurseForge (official plugins) · a page URL · a local file |
 | **Import**    | Hestia archives · `.mrpack` · Prism / MultiMC instances            |
 | **Export**    | Hestia archives · `.mrpack`                                        |
 | **Plugins**   | WASM components: commands · pages · themes · hooks · providers     |
 
 NeoForge builds its game jar locally from the installer, and Spigot/CraftBukkit compile on your machine with SpigotMC's
-BuildTools (needs `git`) — so a first create on those takes a few minutes. CurseForge needs an API key
-(`hestia config set content.curseforge-key`); the source isn't offered until one resolves.
+BuildTools (needs `git`) — so a first create on those takes a few minutes. Modrinth and CurseForge are official
+plugins; CurseForge needs an API key (`hestia plugin config curseforge`), and isn't offered until one is set.
 
 A few more things it does: several concurrent sessions of one instance, starting straight into a world or onto a server,
 in-place version changes both ways (downgrades warn, and a server is backed up first), game settings and multiplayer

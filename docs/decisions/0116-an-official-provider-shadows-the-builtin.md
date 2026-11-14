@@ -2,6 +2,8 @@
 
 *Applies to: [Plugins](../architecture/plugins.md), [Plugin author guide](../plugins/README.md)*
 
+> Superseded in part for content sources: core has no built-in Modrinth or CurseForge, so an official plugin's bare `modrinth` or `curseforge` id shadows nothing there; only an official owner may still register a bare id.
+
 Core features are ported into official plugins one at a time (adoptium, modrinth, fabric, paper, ...), and core keeps
 each until a later cleanup. [0099](0099-official-plugins-are-signed.md) lets an official plugin register a bare id, but
 the roster refused it as a `Duplicate` of the built-in, so a port could not be exercised incrementally, and a dev

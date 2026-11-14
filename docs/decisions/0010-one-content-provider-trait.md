@@ -2,6 +2,8 @@
 
 *Applies to: [Content & modpacks](../architecture/content.md)*
 
+> Superseded in part: core no longer ships a Modrinth or CurseForge impl and `Content::new` registers nothing. Both are official plugins behind the same trait; the trait and the normalized `proto::content` types stand.
+
 Prism Launcher drives Modrinth and CurseForge through a strategy-pattern
 `ResourceAPI` whose results are platform-agnostic structs, so its UI never
 special-cases a platform; Hestia adopts the same shape (`ContentProvider` +
