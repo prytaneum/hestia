@@ -83,10 +83,8 @@ like a slug. A source that has no datapack project type (Modrinth) says so with
 > links to where it is edited and the CLI says how to set it, rather than the "unknown
 > source" a filtered registry would have to claim), and a pasted
 > `curseforge.com` URL still parses — it is recognised, then refused for the
-> reason that is actionable. Resolution is the `content.curseforge-key` setting,
-> else a key a distributor baked in at build time
-> (`HESTIA_CURSEFORGE_API_KEY`), so official builds can ship one while a source
-> build simply has none and the source stays hidden. It is re-applied on every
+> reason that is actionable. Resolution is the `content.curseforge-key` setting
+> alone; no key is baked into a build. It is re-applied on every
 > `config set` (`Engine::set_config`, the reason that wrapper exists), so a key
 > takes effect on the running daemon. The key is never logged — only whether one
 > resolved.

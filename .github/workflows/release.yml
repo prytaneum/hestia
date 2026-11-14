@@ -109,17 +109,6 @@ jobs:
           fi
           echo "::warning::no feed credentials — this beta ships as a download only, and no installed copy will be offered it."
 
-      # Not fatal: without it the CurseForge source stays hidden until a user
-      # sets `content.curseforge-key` themselves.
-      - name: The CurseForge key is configured
-        if: github.ref_type == 'tag'
-        env:
-          CURSEFORGE_API_KEY: ${{ secrets.CURSEFORGE_API_KEY }}
-        run: |
-          if [ -z "${CURSEFORGE_API_KEY:-}" ]; then
-            echo "::warning::the CURSEFORGE_API_KEY secret is not set; this release ships without a CurseForge key. See docs/packaging.md."
-          fi
-
   # ci.yml runs on branch pushes, not tags; without this a tag publishes code
   # that fmt, clippy and the test suites never saw.
   gate:
@@ -179,13 +168,9 @@ jobs:
         with:
           tool: tauri-cli@2.11.4
 
-      # engine/build.rs re-runs on a changed HESTIA_CURSEFORGE_API_KEY, so a
-      # warm cache still bakes in the current value. The key ends up inside a
-      # public binary and is extractable — see docs/packaging.md.
       - name: Build the ${{ matrix.part }} artifacts
         shell: bash
         env:
-          HESTIA_CURSEFORGE_API_KEY: ${{ secrets.CURSEFORGE_API_KEY }}
           HESTIA_CHANNEL: ${{ needs.preflight.outputs.channel }}
         run: scripts/package.sh ${{ matrix.part }}
 

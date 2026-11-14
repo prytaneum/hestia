@@ -43,13 +43,6 @@ const NAME: &str = "CurseForge";
 /// CurseForge's own id for Minecraft; every catalogue call is scoped to it.
 const GAME: u32 = 432;
 
-/// Baked in by a distributor, empty in a plain `cargo build`; the
-/// `content.curseforge-key` setting overrides it without a rebuild.
-const BUILD_KEY: &str = match option_env!("HESTIA_CURSEFORGE_API_KEY") {
-    Some(key) => key,
-    None => "",
-};
-
 /// The API pages at 50 and refuses a window past 10 000 results.
 const PAGE: u32 = 50;
 const MAX_INDEX: u32 = 10_000;
@@ -107,7 +100,7 @@ pub struct CurseForge {
 impl Default for CurseForge {
     fn default() -> Self {
         CurseForge {
-            key: RwLock::new(BUILD_KEY.to_string()),
+            key: RwLock::new(String::new()),
         }
     }
 }
@@ -138,10 +131,7 @@ impl ContentProvider for CurseForge {
     }
 
     fn configure(&self, settings: &ContentSettings) {
-        let key = match settings.curseforge_key.trim() {
-            "" => BUILD_KEY,
-            configured => configured,
-        };
+        let key = settings.curseforge_key.trim();
         let mut current = self.key.write().unwrap();
         if *current != key {
             tracing::info!(

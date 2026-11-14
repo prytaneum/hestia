@@ -361,17 +361,10 @@ which breaks EGL init against a newer host Mesa — a blank window. Tauri expose
 [`scripts/package.sh`](../scripts/package.sh) drops it from the `.AppDir` the bundler leaves behind and repacks the
 image around the original's runtime.
 
-**`HESTIA_CURSEFORGE_API_KEY`** is read at compile time by the `engine` crate: a distributor that has registered for a
-[CurseForge key](https://console.curseforge.com/) sets it in the build environment and the CurseForge content source
-works out of the box. Built without it, the source stays hidden until a user sets `content.curseforge-key` themselves,
-which overrides the baked-in key either way. It is baked into the binary, so it is extractable — do not use a key you
-are not willing to distribute.
-
-Releases take it from the `CURSEFORGE_API_KEY` repository secret, which
-[`release.yml`](../.github/workflows/release.yml) passes into the build as that variable. Only `hestiad` links `engine`,
-so the key rides in the daemon sidecar and nowhere else. `engine/build.rs` declares
-`rerun-if-env-changed`, so a warm CI cache still recompiles against the current value rather than shipping a stale one.
-A tagged release without the secret warns rather than fails.
+**The CurseForge key is not part of a build.** The core source works once a user sets `content.curseforge-key`. The
+official CurseForge plugin ships a key as a setting default packed into its package
+([0132](decisions/0132-a-distributor-ships-setting-defaults-in-the-package.md)), supplied by the plugins repository's
+publish workflow.
 
 ## CI
 
