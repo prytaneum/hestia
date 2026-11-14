@@ -196,10 +196,10 @@ pub fn init_logging(console_level: LogLevel, file: Option<FileLog>) -> LogGuard 
         }
     }
 
-    let global = if firehose {
-        EnvFilter::new("trace")
-    } else {
-        app_filter(console_level.max(file.as_ref().map_or(LogLevel::Off, |f| f.level)))
+    let global = match env_override() {
+        Some(spec) => EnvFilter::new(spec),
+        None if firehose => EnvFilter::new("trace"),
+        None => app_filter(console_level.max(file.as_ref().map_or(LogLevel::Off, |f| f.level))),
     };
     tracing_subscriber::registry()
         .with(global)

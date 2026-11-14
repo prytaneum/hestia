@@ -70,6 +70,7 @@ async fn spawn_daemon_at(
         .env("HESTIA_HOME", &home)
         .env("HESTIA_NO_TRAY", "1")
         .env("HESTIA_NO_PRESENCE", "1")
+        .env("HESTIA_LOG", "info")
         .spawn()
         .expect("spawn hestiad");
 
