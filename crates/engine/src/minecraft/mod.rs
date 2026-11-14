@@ -1,18 +1,15 @@
 //! Minecraft provider aggregate: the flavor registry and the
 //! flavors/versions/resolve entry points over it, each taking the side. It holds
 //! no state of its own, but the catalogue readers keep regenerable copies of
-//! what they fetch under `meta/`, and NeoForge keeps the installer it resolves from.
+//! what they fetch under `meta/`.
 
-mod fabric;
 pub(crate) mod launch;
 mod loaders;
 pub(crate) mod log4j;
 pub(crate) mod materialize;
 pub(crate) mod maven;
 mod meta;
-mod neoforge;
 pub(crate) mod overlay;
-mod paper;
 pub(crate) mod ping;
 pub(crate) mod plan;
 pub mod profile;
@@ -21,7 +18,6 @@ pub(crate) mod quickplay;
 pub(crate) mod rcon;
 pub(crate) mod rules;
 pub(crate) mod servers;
-mod spigot;
 mod vanilla;
 pub(crate) use vanilla::serves as serves_vanilla;
 pub(crate) mod world;
@@ -53,15 +49,7 @@ pub struct Minecraft {
 
 impl Default for Minecraft {
     fn default() -> Self {
-        Self::with_providers(vec![
-            Box::new(vanilla::Vanilla),
-            Box::new(fabric::Fabric),
-            Box::new(paper::PaperProject::paper()),
-            Box::new(paper::PaperProject::folia()),
-            Box::new(spigot::BuildTools::spigot()),
-            Box::new(spigot::BuildTools::bukkit()),
-            Box::new(neoforge::NeoForge),
-        ])
+        Self::with_providers(vec![Box::new(vanilla::Vanilla)])
     }
 }
 

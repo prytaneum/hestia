@@ -1,12 +1,8 @@
-//! Upstream metadata clients shared by the flavor providers: Mojang's
-//! piston-meta catalogue and the Fabric Meta API. Fetch + parse only; the
-//! providers assemble the results into launch profiles.
+//! Upstream metadata client for the vanilla provider: Mojang's piston-meta
+//! catalogue. Fetch + parse only; the provider assembles the results into
+//! launch profiles.
 
-pub mod fabric;
 pub mod mojang;
-pub mod neoforge;
-pub mod paper;
-pub mod spigot;
 
 use anyhow::{Context, Result};
 use proto::error::Service;
@@ -38,8 +34,4 @@ async fn fetch_text(service: Service, url: &str) -> Result<String> {
         },
         Err(error) => Err(error),
     }
-}
-
-fn filename_of(path: &str) -> String {
-    path.rsplit('/').next().unwrap_or(path).to_string()
 }

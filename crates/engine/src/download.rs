@@ -38,11 +38,6 @@ pub type ProgressFn<'a> = dyn Fn(&DownloadProgress) -> Result<()> + Send + Sync 
 /// The policy an artifact is fetched under, by its URL: `None` for a core one.
 pub type PolicyFor<'a> = &'a (dyn Fn(&str) -> Option<Arc<Policy>> + Send + Sync);
 
-/// A [`PolicyFor`] for files the launcher itself names.
-pub fn core(_url: &str) -> Option<Arc<Policy>> {
-    None
-}
-
 pub struct Downloader<'a> {
     cache: Option<&'a Cache>,
     untrusted_limit: Option<u64>,

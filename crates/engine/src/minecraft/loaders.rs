@@ -8,8 +8,6 @@ use std::sync::Arc;
 
 use super::provider::FlavorProvider;
 
-pub(crate) use crate::content::pack::MRPACK;
-
 /// The id of the Prism and MultiMC instance format.
 pub(crate) const PRISM: &str = "prism";
 

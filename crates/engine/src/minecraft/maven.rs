@@ -1,6 +1,6 @@
 //! The one parser of a Maven coordinate, `group:artifact:version[:classifier][@ext]`,
-//! and the repository layout it names. Core flavors and a plugin's libraries
-//! derive their paths and URLs from it.
+//! and the repository layout it names. A plugin's libraries derive their paths
+//! and URLs from it.
 
 use std::fmt;
 
@@ -103,13 +103,6 @@ impl fmt::Display for Coordinate {
     }
 }
 
-/// The repository-relative path of `coordinate`, or none when it does not parse.
-pub fn path(coordinate: &str) -> Option<String> {
-    Coordinate::parse(coordinate)
-        .ok()
-        .map(|parsed| parsed.path())
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -161,7 +154,6 @@ mod tests {
             "a:b:${v}",
         ] {
             assert!(Coordinate::parse(bad).is_err(), "{bad:?}");
-            assert_eq!(path(bad), None);
         }
     }
 }
