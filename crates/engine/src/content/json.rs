@@ -23,6 +23,14 @@ pub(super) fn non_empty(opt: &Option<String>) -> Option<&str> {
     opt.as_deref().filter(|s| !s.is_empty())
 }
 
+pub(super) fn named(names: &[String]) -> Vec<&str> {
+    names
+        .iter()
+        .map(String::as_str)
+        .filter(|name| !name.is_empty())
+        .collect()
+}
+
 pub(super) fn parse_side(s: &str) -> SideSupport {
     match s {
         "required" => SideSupport::Required,

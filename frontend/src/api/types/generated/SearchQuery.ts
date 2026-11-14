@@ -6,4 +6,8 @@ import type { SearchSort } from "./SearchSort";
  * A paginated search over a source. `source` empty selects the default source;
  * `limit` is clamped to `1..=100` by the provider.
  */
-export type SearchQuery = { source: string, kind: ContentKind, query: string, loader?: string, gameVersion?: string, categories: Array<string>, sort: SearchSort, limit: number, offset: number, };
+export type SearchQuery = { source: string, kind: ContentKind, query: string, 
+/**
+ * Loader names a hit may be built for, any of them; empty filters none.
+ */
+loaders: Array<string>, gameVersion?: string, categories: Array<string>, sort: SearchSort, limit: number, offset: number, };

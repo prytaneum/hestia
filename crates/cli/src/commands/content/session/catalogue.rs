@@ -127,7 +127,7 @@ impl Catalogue {
             query: VersionQuery {
                 source: project.source.clone(),
                 project: project.id.clone(),
-                loader: base.loader.clone(),
+                loaders: base.loaders.clone(),
                 game_version: base.game_version.clone(),
             },
         });

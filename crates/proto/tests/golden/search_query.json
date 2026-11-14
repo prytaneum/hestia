@@ -2,7 +2,9 @@
   "source": "modrinth",
   "kind": "mod",
   "query": "sodium",
-  "loader": "fabric",
+  "loaders": [
+    "fabric"
+  ],
   "gameVersion": "1.21.1",
   "categories": [
     "optimization"

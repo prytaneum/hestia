@@ -170,10 +170,7 @@ impl Engine {
             .versions(&VersionQuery {
                 source: source.to_string(),
                 project: project.to_string(),
-                loader: match loaders.as_slice() {
-                    [only] => Some(only.clone()),
-                    _ => None,
-                },
+                loaders: loaders.clone(),
                 game_version: Some(ctx.game_version.clone()),
             })
             .await?;

@@ -148,16 +148,26 @@ impl Minecraft {
             .unwrap_or_else(|_| vec![flavor.to_string()])
     }
 
-    /// The loader name a content platform knows `flavor` by; a name that is no
-    /// flavor's id is already a loader and answers itself.
-    pub fn declared_loader(&self, flavor: &str) -> String {
-        self.flavors
-            .snapshot()
-            .iter()
-            .map(|p| p.info())
-            .find(|info| info.id == flavor)
-            .map(|info| info.loader_name().to_string())
-            .unwrap_or_else(|| flavor.to_string())
+    /// The loader names a content platform files content under for each of
+    /// `names`: a flavor's id widens to its declared loader and the ones it is
+    /// compatible with, and a name that is no flavor's id is already a loader.
+    pub fn declared_loaders(&self, names: &[String]) -> Vec<String> {
+        let snapshot = self.flavors.snapshot();
+        let mut loaders: Vec<String> = Vec::new();
+        for name in names.iter().filter(|name| !name.is_empty()) {
+            let declared = snapshot
+                .iter()
+                .map(|p| p.info())
+                .find(|info| info.id == name.as_str())
+                .map(|info| info.loader_names())
+                .unwrap_or_else(|| vec![name.clone()]);
+            for loader in declared {
+                if !loaders.contains(&loader) {
+                    loaders.push(loader);
+                }
+            }
+        }
+        loaders
     }
 
     /// The flavor a content platform's loader name stands for on `side`: the

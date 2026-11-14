@@ -251,7 +251,8 @@ pub struct SearchQuery {
     pub source: String,
     pub kind: ContentKind,
     pub query: String,
-    pub loader: Option<String>,
+    /// Loader names a hit may be built for, any of them; empty filters none.
+    pub loaders: Vec<String>,
     pub game_version: Option<String>,
     pub categories: Vec<String>,
     pub sort: SearchSort,
@@ -270,14 +271,15 @@ pub struct SearchResult {
     pub total: u32,
 }
 
-/// The versions of a project, optionally filtered by loader and game version.
+/// The versions of a project, optionally filtered by game version and by loader:
+/// a version built for any of `loaders` matches, and empty filters none.
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
 #[serde(default, rename_all = "camelCase")]
 pub struct VersionQuery {
     pub source: String,
     pub project: String,
-    pub loader: Option<String>,
+    pub loaders: Vec<String>,
     pub game_version: Option<String>,
 }
 

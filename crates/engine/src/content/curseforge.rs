@@ -211,7 +211,7 @@ impl ContentProvider for CurseForge {
             params.push(("sortField", field.to_string()));
             params.push(("sortOrder", "desc".to_string()));
         }
-        if let Some(loader) = query.loader.as_deref().and_then(loader_type) {
+        if let Some(loader) = loader_types(&query.loaders).first() {
             params.push(("modLoaderType", loader.to_string()));
         }
         if let Some(game) = non_empty(&query.game_version) {
@@ -263,7 +263,7 @@ impl ContentProvider for CurseForge {
         if let Some(game) = non_empty(&query.game_version) {
             params.push(("gameVersion", game.to_string()));
         }
-        if let Some(loader) = query.loader.as_deref().and_then(loader_type) {
+        if let [loader] = loader_types(&query.loaders).as_slice() {
             params.push(("modLoaderType", loader.to_string()));
         }
 
@@ -288,7 +288,7 @@ impl ContentProvider for CurseForge {
 
         // CurseForge types datapacks by class, so their files name no loader
         // for the `datapack` pseudo-loader a version pick filters on.
-        if query.loader.as_deref() == Some("datapack") {
+        if query.loaders.iter().any(|loader| loader == "datapack") {
             for version in &mut versions {
                 version.loaders.push("datapack".to_string());
             }
@@ -793,6 +793,16 @@ fn loader_type(loader: &str) -> Option<u32> {
         .iter()
         .find(|(name, _)| name.eq_ignore_ascii_case(loader))
         .map(|(_, id)| *id)
+}
+
+/// The types of the loaders CurseForge models, in the order asked. Its search
+/// and file listings filter by one type, so a search takes the first (the
+/// flavor's own) and a file listing filters only when there is exactly one.
+fn loader_types(loaders: &[String]) -> Vec<u32> {
+    loaders
+        .iter()
+        .filter_map(|loader| loader_type(loader))
+        .collect()
 }
 
 /// `ModsSearchSortField`: no field means relevance, and there is no created-at

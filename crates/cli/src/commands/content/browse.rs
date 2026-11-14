@@ -88,7 +88,7 @@ pub async fn run_browse(kind: ContentKind, cmd: BrowseCmd) -> Result<()> {
                 source: source.unwrap_or_default(),
                 kind,
                 query: query.unwrap_or_default(),
-                loader,
+                loaders: loader.into_iter().collect(),
                 game_version,
                 categories: category,
                 sort: sort.into(),
@@ -124,7 +124,7 @@ pub async fn run_browse(kind: ContentKind, cmd: BrowseCmd) -> Result<()> {
                     .versions(&VersionQuery {
                         source: source.unwrap_or_default(),
                         project,
-                        loader,
+                        loaders: loader.into_iter().collect(),
                         game_version,
                     })
                     .await?

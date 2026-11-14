@@ -59,10 +59,10 @@ A source describes what exists; the host downloads the files. The permissions ar
 | `info` | none | `SourceInfo` | asked once, when the plugin is enabled |
 | `parse-url` | `{ url }` | `SourceUrl` or null | optional: a page URL on the source's site |
 | `recognise-file-url` | `{ url }` | `SourceFileRef` or null | optional: the project and version behind a download URL |
-| `search` | `SearchQuery` | `SearchResult` | |
+| `search` | `SearchQuery` | `SearchResult` | `loaders` names every loader a hit may be built for: match any of them, none when empty |
 | `project` | `{ project, kind? }` | `ContentProject` | by id or slug |
 | `projects` | `{ ids }` | `ContentProject[]` | optional |
-| `versions` | `VersionQuery` | `ContentVersion[]` | a file whose URL is not on a granted host is dropped |
+| `versions` | `VersionQuery` | `ContentVersion[]` | `loaders` as for `search`; a file whose URL is not on a granted host is dropped |
 | `versions-by-id` | `{ ids }` | `ContentVersion[]` | optional |
 | `identify` | `{ files: [{ sha1, path }] }` | map of sha1 to `ContentVersion` | optional; the files are mounted read-only at `path` for the call |
 | `resolve-manifest` | `{ manifest }` | `ResolvedModpack` | optional: a pack manifest the source owns; each file is vetted like any download |

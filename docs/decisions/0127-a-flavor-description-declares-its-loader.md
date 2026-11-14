@@ -14,9 +14,15 @@ pack format a plugin contributes. Reading a pack asks the format's id for the fl
 for the key of the entry's flavor. The built-in flavors declare through the same fields.
 
 **The host uses them where it used the id.** Picking a content version accepts a version carrying any of the loader and
-its compatible names; a source query that names a single loader carries the declared one, and a client that sends a
-flavor id as the loader is answered with that flavor's declared name. A pack's loader resolves to the flavor of that
-id first, else to the flavor declaring it.
+its compatible names. A source query carries the same list: `SearchQuery.loaders` and `VersionQuery.loaders` name every
+loader a hit may be built for, and a client that sends a flavor id is answered with that flavor's declared loader and
+its compatible names, the flavor's own first. So browsing a Paper server shows what was published for `paper`, `spigot`
+or `bukkit`, the same set an install then picks from. A source that can filter by one loader only (CurseForge) searches
+by the first and lists a project's files unfiltered when there are several, leaving the pick to the host. A pack's
+loader resolves to the flavor of that id first, else to the flavor declaring it.
+
+**The built-in flavors declare what they run.** Paper runs Spigot and Bukkit plugins and Spigot runs Bukkit plugins.
+Folia declares none: a plugin that never claimed Folia support breaks on its regionised scheduler.
 
 **`versions` may be bare ids.** The reply is a list of ids or a list of complete versions, never a mix. Bare ids are
 typed and ordered by the vanilla catalogue the host already holds; an id the catalogue does not list is dropped, since
@@ -31,7 +37,6 @@ list at most 4096 entries of at most 64 characters. A flavor that breaks one is 
 flavor already claimed stays with it, and the roster lists the launcher's own flavors first, so a plugin flavor cannot
 capture the loader of another.
 
-**Rejected.** Compatible loaders on the wire queries (`SearchQuery.loader`, `VersionQuery.loader` stay single): the
-provider contract and both front-ends would change, so browsing filters by the declared loader and compatible names
-apply to the host's own version picking. Mixing bare ids and complete entries in one list: it would need a merge order
+**Rejected.** A single loader on the wire queries, with compatible names applied only to the host's own version
+picking: browsing then hid content an install would have accepted. Mixing bare ids and complete entries in one list: it would need a merge order
 the guest could abuse.

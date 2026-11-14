@@ -32,7 +32,7 @@ import { VersionOption } from './version-option';
  */
 export function ContentVersionDialog({
   item,
-  loader,
+  loaders,
   gameVersion,
   matches,
   matchesLoading,
@@ -41,7 +41,7 @@ export function ContentVersionDialog({
 }: {
   /** The installed item being re-pinned, or `null` when closed. */
   item: InstalledContent | null;
-  loader?: string;
+  loaders: string[];
   gameVersion?: string;
   matches: ContentMatch[];
   matchesLoading: boolean;
@@ -77,7 +77,7 @@ export function ContentVersionDialog({
     contentQueries.versions({
       source: active?.source ?? '',
       project: active?.project ?? '',
-      loader,
+      loaders,
       gameVersion,
     }),
   );

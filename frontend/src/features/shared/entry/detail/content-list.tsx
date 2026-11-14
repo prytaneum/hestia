@@ -42,7 +42,7 @@ import { m } from '@/paraglide/messages.js';
 import { entryContentQueries } from '@/queries/entry-content';
 import { useContent } from '../hooks';
 import {
-  kindLoader,
+  kindLoaders,
   packWorlds,
   parseOrigin,
   rowKey,
@@ -107,7 +107,7 @@ export function ContentListResult({
       </div>
       <ContentVersionDialog
         item={changing}
-        loader={changing ? kindLoader(changing.kind, entry.flavor) : undefined}
+        loaders={changing ? kindLoaders(changing.kind, entry.flavor) : []}
         gameVersion={entry.gameVersion || undefined}
         matches={matches.data ?? []}
         matchesLoading={matches.isLoading}

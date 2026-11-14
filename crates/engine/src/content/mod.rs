@@ -348,7 +348,7 @@ impl Content {
         tracing::info!(
             source = provider.id(),
             project = %query.project,
-            loader = ?query.loader,
+            loaders = ?query.loaders,
             game_version = ?query.game_version,
             "content versions lookup"
         );

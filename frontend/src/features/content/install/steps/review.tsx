@@ -266,8 +266,7 @@ function ReviewItemRow({
     ...contentQueries.versions({
       source: project.source,
       project: projectRef(project),
-      loader:
-        project.kind === 'mod' ? (target?.flavor ?? undefined) : undefined,
+      loaders: project.kind === 'mod' && target?.flavor ? [target.flavor] : [],
       gameVersion: target?.gameVersion || undefined,
     }),
     enabled: projectRef(project).length > 0,

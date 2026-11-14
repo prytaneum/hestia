@@ -16,9 +16,9 @@ use proto::download::{Checksum, HashAlgorithm};
 use proto::error::Service;
 use proto::minecraft::Artifact;
 use proto::provider::Provider;
-use serde_json::Value;
+use serde_json::{json, Value};
 
-use super::json::{non_empty, parse_side, str_field, u64_field};
+use super::json::{named, non_empty, parse_side, str_field, u64_field};
 use super::provider::{ContentProvider, LocalFile, UrlRef};
 
 const API: &str = "https://api.modrinth.com/v2";
@@ -224,7 +224,7 @@ impl ContentProvider for Modrinth {
         let mut out = HashMap::with_capacity(files.len());
         for chunk in files.chunks(HASH_LIMIT) {
             let hashes: Vec<&str> = chunk.iter().map(|f| f.sha1.as_str()).collect();
-            let body = serde_json::json!({ "hashes": hashes, "algorithm": "sha1" });
+            let body = json!({ "hashes": hashes, "algorithm": "sha1" });
             let found = post_json(&format!("{API}/version_files"), &body).await?;
             if let Some(map) = found.as_object() {
                 out.extend(
@@ -238,11 +238,12 @@ impl ContentProvider for Modrinth {
 
     async fn versions(&self, query: &VersionQuery) -> Result<Vec<ContentVersion>> {
         let mut params: Vec<(&str, String)> = Vec::new();
-        if let Some(loader) = non_empty(&query.loader) {
-            params.push(("loaders", json_array(loader)));
+        let loaders = named(&query.loaders);
+        if !loaders.is_empty() {
+            params.push(("loaders", json!(loaders).to_string()));
         }
         if let Some(game) = non_empty(&query.game_version) {
-            params.push(("game_versions", json_array(game)));
+            params.push(("game_versions", json!([game]).to_string()));
         }
         let arr = get_json(&format!("{API}/project/{}/version", query.project), &params).await?;
         Ok(arr
@@ -422,14 +423,20 @@ fn parse_version(source: &str, v: &Value) -> ContentVersion {
     }
 }
 
-/// Modrinth facets are a JSON array of single-element arrays (each AND'd). The
-/// loader is expressed as a `categories:` facet, as Modrinth does. Only set
-/// filters are included.
+/// Modrinth facets are a JSON array of arrays: the outer ones are AND'd, the
+/// entries of one are OR'd. The loaders are one group of `categories:` facets,
+/// as Modrinth does. Only set filters are included.
 fn build_facets(query: &SearchQuery) -> String {
     let mut facets: Vec<Vec<String>> =
         vec![vec![format!("project_type:{}", project_type(query.kind))]];
-    if let Some(loader) = non_empty(&query.loader) {
-        facets.push(vec![format!("categories:{loader}")]);
+    let loaders = named(&query.loaders);
+    if !loaders.is_empty() {
+        facets.push(
+            loaders
+                .iter()
+                .map(|loader| format!("categories:{loader}"))
+                .collect(),
+        );
     }
     if let Some(game) = non_empty(&query.game_version) {
         facets.push(vec![format!("versions:{game}")]);
@@ -529,10 +536,6 @@ fn str_array(v: &Value, key: &str) -> Vec<String> {
                 .collect()
         })
         .unwrap_or_default()
-}
-
-fn json_array(value: &str) -> String {
-    serde_json::to_string(&[value]).unwrap_or_default()
 }
 
 async fn get_json(url: &str, query: &[(&str, String)]) -> Result<Value> {

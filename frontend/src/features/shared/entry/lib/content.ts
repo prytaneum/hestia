@@ -97,15 +97,12 @@ export const worldEnabled = (item: InstalledContent, world: string): boolean =>
   item.enabled && !item.disabledWorlds.map(worldName).includes(world);
 
 /** The loader filter a kind's version lookup needs, given the entry's flavor. */
-export const kindLoader = (
-  kind: ContentKind,
-  flavor: string,
-): string | undefined =>
+export const kindLoaders = (kind: ContentKind, flavor: string): string[] =>
   kind === 'mod' || kind === 'plugin'
-    ? flavor
+    ? [flavor]
     : kind === 'data_pack'
-      ? 'datapack'
-      : undefined;
+      ? ['datapack']
+      : [];
 
 /** One call's worth of work: the wire takes a batch of items of one kind. */
 export interface ContentBatch {

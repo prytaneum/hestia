@@ -8,7 +8,7 @@ export {
   filterContent,
   filterUntracked,
   installedRef,
-  kindLoader,
+  kindLoaders,
   packWorlds,
   parseOrigin,
   rowKey,

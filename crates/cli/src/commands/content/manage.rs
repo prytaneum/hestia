@@ -235,7 +235,10 @@ async fn add_session(
     let base = SearchQuery {
         kind,
         source,
-        loader: matches!(kind, ContentKind::Mod | ContentKind::Plugin).then(|| info.flavor.clone()),
+        loaders: match kind {
+            ContentKind::Mod | ContentKind::Plugin => vec![info.flavor.clone()],
+            _ => Vec::new(),
+        },
         game_version: Some(info.game_version.clone()),
         limit: PAGE,
         ..SearchQuery::default()

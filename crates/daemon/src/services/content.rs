@@ -30,9 +30,7 @@ fn register_sources(on: &mut Channels<'_>) {
 
     on.handle::<ContentSearch, _, _>(|mut q, ctx| async move {
         let engine = ctx.runtime.engine();
-        q.loader = q
-            .loader
-            .map(|loader| engine.minecraft().declared_loader(&loader));
+        q.loaders = engine.minecraft().declared_loaders(&q.loaders);
         engine
             .content()
             .search(&q)
@@ -73,9 +71,7 @@ fn register_sources(on: &mut Channels<'_>) {
             });
         }
         let engine = ctx.runtime.engine();
-        q.loader = q
-            .loader
-            .map(|loader| engine.minecraft().declared_loader(&loader));
+        q.loaders = engine.minecraft().declared_loaders(&q.loaders);
         let versions = engine
             .content()
             .versions(&q)

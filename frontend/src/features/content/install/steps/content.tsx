@@ -80,7 +80,7 @@ export function ContentStep({
       kind: activeKind,
       query: search.trim(),
       source: sources.active,
-      loader: activeKind === 'mod' ? target.flavor : undefined,
+      loaders: activeKind === 'mod' ? [target.flavor] : [],
       gameVersion: target.gameVersion || undefined,
       limit: 30,
     }),

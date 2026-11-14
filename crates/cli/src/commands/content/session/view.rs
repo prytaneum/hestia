@@ -30,9 +30,7 @@ impl ContentSession {
             return error.clone();
         }
         let mut parts = Vec::new();
-        if let Some(loader) = &self.base.loader {
-            parts.push(loader.clone());
-        }
+        parts.extend(self.base.loaders.iter().cloned());
         if let Some(game) = &self.base.game_version {
             parts.push(game.clone());
         }
