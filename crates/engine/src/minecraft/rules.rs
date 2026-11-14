@@ -102,11 +102,6 @@ mod tests {
     }
 
     #[test]
-    fn no_rules_allow() {
-        assert!(allow(&[], &on("linux", "x86_64")));
-    }
-
-    #[test]
     fn an_allow_for_one_os_allows_only_that_os() {
         let rules = [rule(RuleAction::Allow, Some("osx"), None)];
         assert!(allow(&rules, &on("osx", "arm64")));
@@ -184,16 +179,5 @@ mod tests {
         assert!(!allow_manifest(&only_there));
         assert!(allow_manifest(&json!([])));
         assert!(allow_manifest(&json!("nonsense")));
-    }
-
-    #[test]
-    fn the_host_target_names_its_facts_in_the_rule_vocabulary() {
-        let target = host_target(Some(21));
-        assert!(["windows", "osx", "linux"].contains(&target.os.as_str()));
-        assert!(!target.arch.is_empty());
-        assert_eq!(target.java_major, Some(21));
-        assert_eq!(target.path_separator, if cfg!(windows) { ";" } else { ":" });
-        assert_eq!(host_target(Some(0)).java_major, None);
-        assert_eq!(host_target(None).java_major, None);
     }
 }

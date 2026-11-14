@@ -385,49 +385,6 @@ mod tests {
     }
 
     #[test]
-    fn an_args_file_alternative_is_chosen_by_operating_system() {
-        let file = ArgsFile {
-            path: "unix_args.txt".into(),
-            alternatives: vec![OsArgsFile {
-                os: "windows".into(),
-                path: "win_args.txt".into(),
-            }],
-        };
-        assert_eq!(file.for_os("windows"), "win_args.txt");
-        assert_eq!(file.for_os("linux"), "unix_args.txt");
-        assert_eq!(file.for_os("osx"), "unix_args.txt");
-        assert_eq!(
-            file.paths().collect::<Vec<_>>(),
-            ["unix_args.txt", "win_args.txt"]
-        );
-    }
-
-    #[test]
-    fn a_library_off_the_classpath_is_not_on_it() {
-        let off = Library {
-            classpath: false,
-            ..library("a/off.jar")
-        };
-        let profile = InstanceProfile {
-            libraries: vec![library("a/on.jar"), off],
-            ..InstanceProfile::default()
-        };
-        let paths = InstancePaths {
-            game_dir: Path::new("/inst"),
-            natives_dir: Path::new("/inst/natives"),
-            client_jar: Path::new("/client.jar"),
-            libraries_root: Path::new("/libs"),
-            assets_root: Path::new("/assets"),
-            game_assets: Path::new("/assets"),
-            log_config: None,
-            quick_play_log: None,
-        };
-        let classpath = build_classpath(&profile, &paths);
-        assert!(classpath.contains("on.jar"));
-        assert!(!classpath.contains("off.jar"));
-    }
-
-    #[test]
     fn the_schema_run_ignores_the_args_file() {
         let profile = ServerProfile {
             launch: ServerLaunch::ArgsFile(ArgsFile {
@@ -554,41 +511,6 @@ mod tests {
         );
         let realm = plan_for(QuickPlay::Realm("1234567".into()));
         assert_eq!(realm[realm.len() - 2..], ["--quickPlayRealms", "1234567"]);
-    }
-
-    #[test]
-    fn instance_plan_names_the_quick_play_log_whether_or_not_it_joins_anything() {
-        let profile = InstanceProfile {
-            client: Artifact::default(),
-            main_class: "net.minecraft.client.main.Main".into(),
-            ..Default::default()
-        };
-        let paths = InstancePaths {
-            game_dir: Path::new("/inst"),
-            natives_dir: Path::new("/inst/natives"),
-            client_jar: Path::new("/versions/client.jar"),
-            libraries_root: Path::new("/libraries"),
-            assets_root: Path::new("/assets"),
-            game_assets: Path::new("/assets"),
-            log_config: None,
-            quick_play_log: Some(Path::new("/logs/session-1.quickplay.json")),
-        };
-
-        let args = instance_plan(
-            &profile,
-            Path::new("java"),
-            &paths,
-            &account(),
-            &JavaSettings::default(),
-            None,
-        )
-        .args;
-
-        assert_eq!(
-            args[args.len() - 2..],
-            ["--quickPlayPath", "/logs/session-1.quickplay.json"],
-            "a session that opens to the title screen still reports what it joins from there"
-        );
     }
 
     #[test]

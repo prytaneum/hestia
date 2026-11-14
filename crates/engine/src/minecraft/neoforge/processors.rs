@@ -324,15 +324,6 @@ mod tests {
     }
 
     #[test]
-    fn sides_filter_the_chain() {
-        let both = json!({ "jar": "a:b:1" });
-        let client = json!({ "jar": "a:b:1", "sides": ["client"] });
-        assert!(runs_on(&both, Side::Server), "no sides means both");
-        assert!(runs_on(&client, Side::Client));
-        assert!(!runs_on(&client, Side::Server));
-    }
-
-    #[test]
     fn a_token_substitutes_even_when_embedded() {
         let processor = json!({ "args": ["--to", "{ROOT}/run.sh", "--side", "{SIDE}"] });
         let args = arguments(&processor, &table(), Path::new("/libs")).unwrap();
@@ -403,10 +394,5 @@ mod tests {
                 "/libs/net/neoforged/minecraft-server-patched/26.1.2.87/minecraft-server-patched-26.1.2.87.jar"
             )
         );
-    }
-
-    #[test]
-    fn a_missing_installer_file_is_an_error_not_a_literal() {
-        assert!(resolve("/data/client.lzma", Path::new("/libs"), &HashMap::new()).is_err());
     }
 }

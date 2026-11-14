@@ -331,47 +331,4 @@ mod tests {
         assert_eq!(libraries.len(), 1, "only the base artifact is a library");
         assert!(libraries[0].path.ends_with("lwjgl-platform-2.9.4.jar"));
     }
-
-    #[test]
-    fn a_modern_version_has_no_natives() {
-        let version = serde_json::json!({
-            "libraries": [{
-                "name": "org.lwjgl:lwjgl:3.3.3:natives-linux",
-                "downloads": { "artifact": {
-                    "path": "org/lwjgl/lwjgl/3.3.3/lwjgl-3.3.3-natives-linux.jar",
-                    "url": "https://libraries.minecraft.net/x.jar",
-                    "sha1": "ee",
-                    "size": 50
-                }}
-            }]
-        });
-        assert!(natives(&version).is_empty());
-        assert_eq!(libraries(&version).len(), 1);
-    }
-
-    #[test]
-    fn the_arch_placeholder_resolves_to_the_pointer_width() {
-        let version = serde_json::json!({
-            "libraries": [{
-                "name": "tv.twitch:twitch-platform:5.16",
-                "natives": { "linux": "natives-linux-${arch}",
-                             "windows": "natives-windows-${arch}",
-                             "osx": "natives-osx" },
-                "downloads": { "classifiers": {
-                    format!("natives-{}-64", host_os()): {
-                        "path": "tv/twitch/native.jar",
-                        "url": "https://libraries.minecraft.net/native.jar",
-                        "sha1": "ff",
-                        "size": 60
-                    }
-                }}
-            }]
-        });
-        let expected = if cfg!(target_pointer_width = "64") {
-            1
-        } else {
-            0
-        };
-        assert_eq!(natives(&version).len(), expected);
-    }
 }

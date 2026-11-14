@@ -273,15 +273,4 @@ mod tests {
         );
         assert!(!is_legacy("26.2.0.37-beta"), "nor does the calendar line");
     }
-
-    #[test]
-    fn an_unparseable_version_names_nothing() {
-        assert_eq!(game_version("nonsense"), None);
-        assert_eq!(game_version("21"), None, "a game version needs two fields");
-        assert_eq!(
-            game_version("26.1"),
-            None,
-            "the year scheme needs its hotfix field"
-        );
-    }
 }

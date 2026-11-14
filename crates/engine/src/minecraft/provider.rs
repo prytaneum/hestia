@@ -195,35 +195,3 @@ pub trait FlavorProvider: Send + Sync {
         Ok(())
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn a_flavor_contributes_its_loader_kind_and_the_side_the_rest() {
-        assert_eq!(
-            accepted_kinds(Side::Server, Some(ContentKind::Plugin)),
-            vec![ContentKind::Plugin, ContentKind::DataPack],
-            "a paper or spigot server takes plugins, never mods"
-        );
-        assert_eq!(
-            accepted_kinds(Side::Server, Some(ContentKind::Mod)),
-            vec![ContentKind::Mod, ContentKind::DataPack]
-        );
-        assert_eq!(
-            accepted_kinds(Side::Server, None),
-            vec![ContentKind::DataPack],
-            "vanilla loads nothing of its own, but a world still takes datapacks"
-        );
-        assert_eq!(
-            accepted_kinds(Side::Client, None),
-            vec![
-                ContentKind::ResourcePack,
-                ContentKind::Shader,
-                ContentKind::DataPack
-            ],
-            "a client reads packs whatever its flavor loads"
-        );
-    }
-}

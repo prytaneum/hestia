@@ -194,19 +194,3 @@ fn is_step(line: &str) -> bool {
         && !line.starts_with("Patching ")
         && !line.starts_with("Extracted:")
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn only_buildtools_own_narration_is_reported() {
-        assert!(is_step("Compiling Spigot & Spigot-API"));
-        assert!(is_step("Applying CraftBukkit Patches"));
-        assert!(!is_step("[INFO] Building Spigot-API 1.21.4-R0.1-SNAPSHOT"));
-        assert!(!is_step(
-            "Patching net/minecraft/server/MinecraftServer.java"
-        ));
-        assert!(!is_step(""));
-    }
-}

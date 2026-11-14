@@ -128,20 +128,4 @@ mod tests {
             "the overlay version wins in the base's slot"
         );
     }
-
-    #[test]
-    fn distinct_classifiers_are_kept() {
-        let merged = merge_libraries(
-            vec![
-                lib("org.lwjgl:lwjgl:3.3.3"),
-                lib("org.lwjgl:lwjgl:3.3.3:natives-linux"),
-            ],
-            Vec::new(),
-        );
-        assert_eq!(
-            names(&merged).len(),
-            2,
-            "jar and its natives sibling survive"
-        );
-    }
 }

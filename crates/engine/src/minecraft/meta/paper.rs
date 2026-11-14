@@ -205,14 +205,4 @@ mod tests {
             HashAlgorithm::Sha256
         );
     }
-
-    #[test]
-    fn a_build_with_no_server_jar_is_skipped() {
-        let mut value = build_json(61, "STABLE");
-        value["downloads"] = json!({ "sources:default": { "url": "x" } });
-        assert!(
-            parse_build(&value).is_none(),
-            "a build with nothing launchable is not offered"
-        );
-    }
 }

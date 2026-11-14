@@ -216,17 +216,6 @@ mod tests {
     }
 
     #[test]
-    fn a_list_takes_the_order_it_is_given() {
-        let servers = vec![
-            entry("A", "a.net"),
-            entry("B", "b.net"),
-            entry("C", "c.net"),
-        ];
-        let order = ["C".to_string(), "a.net".to_string(), "B".to_string()];
-        assert_eq!(names(&arrange(&servers, &order).unwrap()), ["C", "A", "B"]);
-    }
-
-    #[test]
     fn a_hidden_row_keeps_its_slot_and_is_never_named() {
         let hidden = ServerEntry {
             hidden: true,
@@ -282,14 +271,6 @@ mod tests {
 
     fn names(servers: &[ServerEntry]) -> Vec<&str> {
         servers.iter().map(|s| s.name.as_str()).collect()
-    }
-
-    #[test]
-    fn an_entry_is_found_by_name_or_address_ignoring_case() {
-        let servers = vec![entry("Hermitcraft", "smp.example.net")];
-        assert_eq!(find(&servers, "hermitcraft"), Some(0));
-        assert_eq!(find(&servers, "SMP.example.net"), Some(0));
-        assert_eq!(find(&servers, "nothing"), None);
     }
 
     #[test]

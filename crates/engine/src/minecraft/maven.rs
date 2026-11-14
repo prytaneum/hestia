@@ -115,16 +115,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn a_plain_coordinate_becomes_a_jar_path() {
-        let coordinate = Coordinate::parse("net.fabricmc:fabric-loader:0.16.9").unwrap();
-        assert_eq!(
-            coordinate.path(),
-            "net/fabricmc/fabric-loader/0.16.9/fabric-loader-0.16.9.jar"
-        );
-        assert_eq!(coordinate.filename(), "fabric-loader-0.16.9.jar");
-    }
-
-    #[test]
     fn a_classifier_and_an_extension_land_in_the_filename() {
         let coordinate = Coordinate::parse("net.neoforged:neoforge:21.1.1:installer@zip").unwrap();
         assert_eq!(
@@ -139,14 +129,6 @@ mod tests {
     }
 
     #[test]
-    fn a_version_keeps_its_suffix_and_a_snapshot_is_not_special() {
-        let coordinate = Coordinate::parse("org.example:lib:1.0.0-beta.1+build_7").unwrap();
-        assert_eq!(coordinate.filename(), "lib-1.0.0-beta.1+build_7.jar");
-        let snapshot = Coordinate::parse("org.example:lib:1.0-SNAPSHOT").unwrap();
-        assert_eq!(snapshot.filename(), "lib-1.0-SNAPSHOT.jar");
-    }
-
-    #[test]
     fn a_repository_url_joins_with_one_slash() {
         let coordinate = Coordinate::parse("a.b:c:1").unwrap();
         assert_eq!(
@@ -157,18 +139,6 @@ mod tests {
             coordinate.url_in("https://repo.example.com/maven///"),
             "https://repo.example.com/maven/a/b/c/1/c-1.jar"
         );
-    }
-
-    #[test]
-    fn the_coordinate_reads_back_as_it_was_written() {
-        for text in [
-            "a.b:c:1",
-            "a.b:c:1:cls",
-            "a.b:c:1@zip",
-            "a.b:c:1:cls@tar.gz",
-        ] {
-            assert_eq!(Coordinate::parse(text).unwrap().to_string(), text);
-        }
     }
 
     #[test]

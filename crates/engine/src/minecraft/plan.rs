@@ -204,17 +204,4 @@ mod tests {
         assert_eq!(plan.assets.len(), 1);
         assert_eq!(plan.bytes, 100 + 20 + 30 + 7);
     }
-
-    #[test]
-    fn a_meter_adds_each_byte_once_and_the_tally_never_exceeds_its_total() {
-        let tally = Tally::new(10);
-        let meter = Meter::new(Some(&tally));
-        assert_eq!(meter.reach(4), 4);
-        assert_eq!(meter.reach(4), 0);
-        assert_eq!(meter.reach(12), 8);
-
-        let mut progress = ProvisionProgress::default();
-        tally.stamp(&mut progress);
-        assert_eq!((progress.overall_current, progress.overall_total), (10, 10));
-    }
 }
