@@ -47,7 +47,7 @@ Examples:
 scripts/run.sh                    # subshell: hestia + hestiad on PATH, dev daemon running
 scripts/run.sh java list          # one hestia command (builds first)
 scripts/run.sh --desktop          # desktop app with frontend hot reload
-scripts/run.sh --plugins          # install the official plugins from ../hestia-plugins
+scripts/run.sh --plugins --desktop   # the same, with the official plugins for this run
 scripts/run.sh --help
 
 scripts/build.sh cli --release

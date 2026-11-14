@@ -510,7 +510,7 @@ scripts/run.sh --shell          # a subshell with hestia and hestiad on PATH, da
 scripts/run.sh --desktop        # the desktop app, with frontend hot reload
 scripts/run.sh --daemon         # hestiad in the foreground, logging to the terminal
 scripts/run.sh server list      # one `hestia` command, then back to your shell
-scripts/run.sh --plugins        # install the official plugins from ../hestia-plugins
+scripts/run.sh --plugins --desktop   # the same, with the official plugins from ../hestia-plugins
 scripts/run.sh --release --desktop   # the optimised app, as a release runs, on its own data
 scripts/run.sh --help
 ```
@@ -523,11 +523,17 @@ installed Hestia. The script starts the dev daemon when a form needs one, restar
 produced a new `hestiad`, and on leaving the subshell stops only a daemon it started. The `hestia` CLI itself still
 never starts a daemon behind your back: `hestia daemon status|start|stop|restart` manages it.
 
-Core ships only vanilla, so a dev build needs the plugins to do much. `--plugins[=DIR]` builds every plugin of a
-checkout of the [plugins repository](https://github.com/prytaneum/plugins) (`$HESTIA_PLUGINS_REPO`, else
-`../hestia-plugins`) against this checkout's SDK and installs each as a dev plugin
-(`hestia plugin dev <dir> --official --once`), registered under the ids the signed builds use. They stay installed in
-the dev data home; run it again after changing a plugin or the SDK.
+A run has no plugins unless it asks for them, so by default you get core alone: vanilla, Hestia archives, no content
+source. `--plugins[=DIR]` adds the official ones for that run: it builds every plugin of a checkout of the
+[plugins repository](https://github.com/prytaneum/plugins) (`$HESTIA_PLUGINS_REPO`, else `../hestia-plugins`) against
+this checkout's SDK, installs each as a dev plugin (`hestia plugin dev <dir> --official --once`) registered under the
+ids the signed builds use, and removes them again when the run ends, so the next plain run is clean.
+
+Each plugin is compiled twice, both cached. `plugin dev` runs `cargo build --release --target wasm32-wasip2` for the
+plugin's crate in the plugins checkout, with `hestia-sdk` patched to this checkout on cargo's command line, and stages
+`plugin.toml`, the component and its assets into `<plugins checkout>/dist/dev/<id>/`, which the daemon reads in place.
+The daemon then compiles the component to native code with wasmtime and keeps the result under
+`<data home>/meta/plugins/`, keyed by the component's hash. A second run with nothing changed rebuilds nothing.
 
 The desktop app needs the system webview (WebKitGTK on Linux, WebView2 on Windows), [Bun](https://bun.sh/) and
 `cargo install tauri-cli --version '^2'`; `--desktop` installs the frontend's dependencies on first use.

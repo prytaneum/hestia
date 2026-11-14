@@ -23,8 +23,10 @@ what to run (one of):
   --daemon          the daemon in the foreground; Ctrl-C stops it
 
 options:
-  --plugins[=DIR]   first install every plugin of a checkout of the plugins
-                    repository (default: $HESTIA_PLUGINS_REPO, else ../hestia-plugins)
+  --plugins[=DIR]   run with the official plugins: every plugin of a checkout of
+                    the plugins repository (default: $HESTIA_PLUGINS_REPO, else
+                    ../hestia-plugins) is installed for this run and removed
+                    when it ends. Without it a run has no plugins
   --release         run the optimised build, as a release would be: `--release
                     --desktop` is the app without hot reload. Its data goes to
                     target/release/data, never ~/.hestia
@@ -126,39 +128,49 @@ ensure_daemon() {
 
 # Nothing below `exec`s: bash does not run an EXIT trap across exec. The signals
 # matter as much as EXIT: `run.sh … | head` dies of SIGPIPE, and an untrapped
-# one skips EXIT entirely. Only a daemon this run started is stopped, so leaving
-# a shell never takes the daemon away from a desktop that is using it.
+# one skips EXIT entirely. A run leaves things as it found them: the plugins it
+# installed are removed, and only a daemon it started is stopped, so leaving a
+# shell never takes the daemon away from a desktop that is using it.
+installed=()
+developer_was=""
 cleanup() {
+  local id
+  for id in ${installed[@]+"${installed[@]}"}; do
+    "$hestia" --quiet plugin remove "$id" --yes > /dev/null 2>&1 || true
+  done
+  installed=()
+  if [ "$developer_was" = false ]; then
+    "$hestia" --quiet config set developer false > /dev/null 2>&1 || true
+    developer_was=""
+  fi
   [ "$started_here" -eq 1 ] || return 0
+  started_here=0
   "$hestia" --quiet daemon stop --keep > /dev/null 2>&1 || true
 }
 trap cleanup EXIT
 trap 'cleanup; exit 130' INT
 trap 'cleanup; exit 143' TERM HUP PIPE
 
-# The official plugins are signed in CI, so a local build has none. A dev
-# install registers each one's providers under the bare ids the signed builds
-# use (`fabric`, not `fabric.fabric`), read in place from the checkout.
+# A run has no plugins unless it asks for them. The official plugins are signed
+# in CI, so a local build has none: `--plugins` installs each one as a dev
+# plugin, read in place from the checkout and registered under the bare ids the
+# signed builds use (`fabric`, not `fabric.fabric`), for this run only.
 install_plugins() {
-  local repo="$1" dir
+  local repo="$1" dir id
   [ -d "$repo/plugins" ] || die "no plugins/ in $repo — pass --plugins=<checkout of the plugins repository>"
   repo="$(cd "$repo" && pwd)"
   local sdk="$PWD/crates/sdk"
+  developer_was="$("$hestia" --quiet config get developer 2> /dev/null | tr -d '[:space:]')"
   "$hestia" --quiet config set developer true
   for dir in "$repo"/plugins/*/; do
     [ -f "$dir/plugin.toml" ] || continue
-    log "installing $(basename "$dir")"
+    id="$(basename "$dir")"
+    log "installing $id"
     (cd "$repo" && "$hestia" plugin dev "$dir" --official --yes --once --sdk "$sdk" > /dev/null)
+    installed+=("$id")
   done
-  "$hestia" plugin list
+  log "${#installed[@]} plugins installed for this run; they are removed when it ends"
 }
-
-if [ -n "$plugins" ]; then
-  ensure_daemon
-  # Plugins outlive this run: they are the point of it.
-  started_here=0
-  install_plugins "$plugins"
-fi
 
 if [ "$what" = daemon ]; then
   if daemon_running; then
@@ -171,9 +183,29 @@ if [ "$what" = daemon ]; then
     daemon_running && die "the dev daemon did not stop; see \`hestia daemon status\`"
   fi
   log "hestiad in the foreground; Ctrl-C stops it"
-  started_here=0
-  "$bindir/hestiad" serve
-  exit $?
+  # Its own session, so the terminal's Ctrl-C reaches this script alone: the
+  # plugins of this run are removed while the daemon is still there to ask.
+  if command -v setsid > /dev/null 2>&1; then
+    setsid "$bindir/hestiad" serve &
+  else
+    "$bindir/hestiad" serve &
+  fi
+  daemon_pid=$!
+  started_here=1
+  if [ -n "$plugins" ]; then
+    for _ in $(seq 100); do
+      daemon_running && break
+      sleep 0.1
+    done
+    install_plugins "$plugins"
+  fi
+  wait "$daemon_pid" || true
+  exit 0
+fi
+
+if [ -n "$plugins" ]; then
+  ensure_daemon
+  install_plugins "$plugins"
 fi
 
 if [ "$what" = desktop ]; then
@@ -196,11 +228,6 @@ if [ "$#" -gt 0 ]; then
   started_here=0
   "$hestia" "$@"
   exit $?
-fi
-
-if [ -n "$plugins" ] && [ -z "$what" ]; then
-  log "the dev daemon keeps running; \`scripts/run.sh daemon stop\` stops it"
-  exit 0
 fi
 
 ensure_daemon
