@@ -21,6 +21,14 @@ use proto::content::{
 
 use proto::minecraft::{Artifact, GameVersion};
 
+/// One compiled-component cache for the whole test binary, kept across runs so
+/// each fixture is compiled once rather than once per test.
+pub fn plugin_cache() -> std::path::PathBuf {
+    let dir = std::path::Path::new(env!("CARGO_TARGET_TMPDIR")).join("plugin-cache");
+    std::fs::create_dir_all(&dir).expect("plugin cache dir");
+    dir
+}
+
 /// A flavor that resolves to a profile naming `artifact`, or fails when it is
 /// `None` — the two halves of what a provider can do to a create.
 pub struct Flavor {

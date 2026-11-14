@@ -1773,7 +1773,7 @@ mod launch_hooks {
         let wasm = std::fs::read(fixture::probe::component()).expect("probe component");
         let runtime = PluginRuntime::new(
             Arc::new(NoHost),
-            home.join("plugin-cache"),
+            fixture::plugin_cache(),
             Arc::new(engine::ProcessSupervisor::new(home.join("processes"))),
         )
         .expect("runtime");

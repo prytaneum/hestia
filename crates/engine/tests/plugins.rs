@@ -24,7 +24,7 @@ use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 use tokio::sync::watch;
 
-use crate::fixture::probe;
+use crate::fixture::{self, probe};
 
 const CALL_BUDGET: Duration = Duration::from_secs(30);
 
@@ -145,7 +145,7 @@ impl Probe {
         let wasm = std::fs::read(probe::component()).unwrap();
         let data = tempfile::tempdir().unwrap();
         let supervisor = Arc::new(ProcessSupervisor::new(data.path().join("processes")));
-        let runtime = PluginRuntime::new(host, data.path().join("cache"), supervisor.clone())
+        let runtime = PluginRuntime::new(host, fixture::plugin_cache(), supervisor.clone())
             .unwrap()
             .with_resolver(resolver)
             .with_download_cache(Arc::new(engine::Cache::new(data.path().join("downloads"))));

@@ -25,13 +25,9 @@ fn load(
     let manifest: Manifest = toml::from_str(fixture::replay::MANIFEST).expect("manifest");
     manifest.validate().expect("a valid manifest");
     let wasm = std::fs::read(fixture::replay::component()).expect("replay-flavor component");
-    let runtime = PluginRuntime::new(
-        Arc::new(NoHost),
-        home.join("plugin-cache"),
-        processes.clone(),
-    )
-    .expect("runtime")
-    .with_java(engine.clone());
+    let runtime = PluginRuntime::new(Arc::new(NoHost), fixture::plugin_cache(), processes.clone())
+        .expect("runtime")
+        .with_java(engine.clone());
     let mut grant = manifest.grant();
     let mut network = PermissionScope::of(ScopeKind::Hosts, hosts.iter().copied());
     network.extend(ScopeKind::Unhashed, unhashed.iter().copied());

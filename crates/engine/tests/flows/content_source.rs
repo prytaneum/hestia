@@ -38,7 +38,7 @@ pub(super) fn load(
     let wasm = std::fs::read(fixture::index::component()).expect("static-index component");
     let runtime = PluginRuntime::new(
         Arc::new(NoHost),
-        home.join("plugin-cache"),
+        fixture::plugin_cache(),
         Arc::new(engine::ProcessSupervisor::new(home.join("processes"))),
     )
     .expect("runtime");

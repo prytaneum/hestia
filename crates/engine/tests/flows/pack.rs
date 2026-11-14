@@ -47,7 +47,7 @@ async fn contributions(home: &Path, hosts: &[&str]) -> (Manifest, engine::Contri
     let wasm = std::fs::read(fixture::pack::component()).expect("replay-pack component");
     let runtime = PluginRuntime::new(
         Arc::new(NoHost),
-        home.join("plugin-cache"),
+        fixture::plugin_cache(),
         Arc::new(engine::ProcessSupervisor::new(home.join("processes"))),
     )
     .expect("runtime");

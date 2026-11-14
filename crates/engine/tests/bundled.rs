@@ -14,7 +14,7 @@ use proto::repository::build_comment;
 use serde_json::Value;
 use zip::write::SimpleFileOptions;
 
-use crate::fixture::probe;
+use crate::fixture::{self, probe};
 
 struct NoChannels;
 
@@ -84,7 +84,7 @@ fn a_fresh_data_home_gets_every_bundled_plugin_and_a_removed_one_stays_removed()
 
     let supervisor = Arc::new(ProcessSupervisor::new(home.path().join("processes")));
     let runtime =
-        PluginRuntime::new(Arc::new(NoChannels), home.path().join("cache"), supervisor).unwrap();
+        PluginRuntime::new(Arc::new(NoChannels), fixture::plugin_cache(), supervisor).unwrap();
     let plugins = Plugins::new(home.path().join("plugins"));
     let keys = [official.pk.to_base64()];
     let seed = || {
@@ -127,7 +127,7 @@ fn a_component_the_sandbox_rejects_is_refused_and_not_installed() {
 
     let supervisor = Arc::new(ProcessSupervisor::new(home.path().join("processes")));
     let runtime =
-        PluginRuntime::new(Arc::new(NoChannels), home.path().join("cache"), supervisor).unwrap();
+        PluginRuntime::new(Arc::new(NoChannels), fixture::plugin_cache(), supervisor).unwrap();
     let plugins = Plugins::new(home.path().join("plugins"));
 
     let seeded = plugins.seed_bundled(&bundle, &[official.pk.to_base64()], |wasm| {
@@ -152,7 +152,7 @@ fn a_staged_build_upgrades_the_official_plugin_it_replaces() {
 
     let supervisor = Arc::new(ProcessSupervisor::new(home.path().join("processes")));
     let runtime =
-        PluginRuntime::new(Arc::new(NoChannels), home.path().join("cache"), supervisor).unwrap();
+        PluginRuntime::new(Arc::new(NoChannels), fixture::plugin_cache(), supervisor).unwrap();
     let plugins = Plugins::new(home.path().join("plugins"));
     let keys = [official.pk.to_base64()];
     let seed = |dir: &Path| {
