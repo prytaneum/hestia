@@ -557,6 +557,19 @@ mod tests {
     }
 
     #[test]
+    fn the_record_digest_covers_its_pins() {
+        let rig = Rig::new(at_a);
+        let record = rig.install(&rig.package("1.0.0", ""));
+
+        assert_eq!(record.program_pins["git"], at_a("git").unwrap());
+        assert_eq!(
+            record.grant_digest,
+            approval_digest(&record.grant, &record.program_pins)
+        );
+        assert_eq!(record.source, PluginSource::Url);
+    }
+
+    #[test]
     fn an_update_with_the_same_pin_needs_no_approval() {
         let rig = Rig::new(at_a);
         let installed = rig.install(&rig.package("1.0.0", ""));
