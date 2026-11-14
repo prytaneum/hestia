@@ -844,7 +844,7 @@
     "ServerTaskRemoveParams": "type ServerTaskRemoveParams = { server: string, id: string, };",
     "ServerTaskSaveParams": "type ServerTaskSaveParams = { server: string, task: ServerTask, };",
     "ServerUpdateParams": "type ServerUpdateParams = { server: string, version: string, loaderVersion?: string, allowDowngrade: boolean, restart: boolean, pack: PackPolicy, id: string, };",
-    "Service": "type Service = \"adoptium\" | \"mojang\" | \"microsoft\" | \"xbox\" | \"release\" | { \"provider\": Provider };",
+    "Service": "type Service = \"mojang\" | \"microsoft\" | \"xbox\" | \"release\" | { \"provider\": Provider };",
     "SharedPack": "type SharedPack = { kind: ContentKind, source: string, project: string, title: string, filename: string, enabled: boolean, };",
     "SideSupport": "type SideSupport = \"required\" | \"optional\" | \"unsupported\" | \"unknown\";",
     "SourceFileRef": "type SourceFileRef = { project: string, version: string, };",
