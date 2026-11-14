@@ -162,7 +162,11 @@ fn place_tree(
         return Err(Fault::Relative(output.target.clone()));
     }
     let source = source_directory(build_dir, root, &output.path)?;
-    copy_tree(&source, &base.join(target), &output.path).map_err(|fault| match fault {
+    let copy: Copy = match destination {
+        Destination::Entry => copy_new,
+        Destination::Libraries => copy_into,
+    };
+    copy_tree(&source, &base.join(target), &output.path, copy).map_err(|fault| match fault {
         TreeFault::Refused(fault) => fault,
         TreeFault::Io(source) => Fault::Io {
             target: output.target.clone(),
@@ -233,11 +237,14 @@ impl From<std::io::Error> for TreeFault {
     }
 }
 
-/// Copies `source` into `destination` file by file. A symlink or a special file
-/// anywhere in the tree refuses the whole output; a file already at its place
-/// is left as it is, so placing a tree twice, or over a directory that holds
-/// the user's own files, changes nothing that exists.
-fn copy_tree(source: &Path, destination: &Path, guest: &str) -> Result<(), TreeFault> {
+type Copy = fn(&Path, &Path) -> std::io::Result<()>;
+
+/// Copies `source` into `destination` file by file with `copy`. A symlink or a
+/// special file anywhere in the tree refuses the whole output. The entry
+/// directory holds the user's own files, so a file already there is kept
+/// ([`copy_new`]); the libraries root is the host's, so a rebuilt file replaces
+/// the one placed before ([`copy_into`]).
+fn copy_tree(source: &Path, destination: &Path, guest: &str, copy: Copy) -> Result<(), TreeFault> {
     std::fs::create_dir_all(destination)?;
     for entry in std::fs::read_dir(source)? {
         let entry = entry?;
@@ -246,9 +253,9 @@ fn copy_tree(source: &Path, destination: &Path, guest: &str) -> Result<(), TreeF
         if kind.is_symlink() {
             return Err(TreeFault::Refused(Fault::Escapes(guest.to_string())));
         } else if kind.is_dir() {
-            copy_tree(&entry.path(), &into, guest)?;
+            copy_tree(&entry.path(), &into, guest, copy)?;
         } else if kind.is_file() {
-            copy_new(&entry.path(), &into)?;
+            copy(&entry.path(), &into)?;
         } else {
             return Err(TreeFault::Refused(Fault::Special(guest.to_string())));
         }
@@ -458,7 +465,7 @@ mod tests {
     }
 
     #[test]
-    fn a_tree_never_replaces_a_file_that_exists() {
+    fn a_tree_never_replaces_a_file_of_the_entry() {
         let area = area();
         write(area.build.join("out/server.properties"), "built");
         write(area.build.join("out/fresh.txt"), "built");
@@ -480,6 +487,27 @@ mod tests {
         assert_eq!(
             std::fs::read(area.served.join("fresh.txt")).unwrap(),
             b"built"
+        );
+    }
+
+    #[test]
+    fn a_rebuilt_tree_replaces_what_it_placed_in_libraries() {
+        let area = area();
+        let placed = || {
+            place(
+                &area.build,
+                &[tree("/build/out", "", Destination::Libraries)],
+                &[],
+                &roots(&area),
+            )
+        };
+        write(area.build.join("out/loader.jar"), "first");
+        placed().unwrap();
+        write(area.build.join("out/loader.jar"), "rebuilt");
+        placed().unwrap();
+        assert_eq!(
+            std::fs::read(area.served.join("libraries/loader.jar")).unwrap(),
+            b"rebuilt"
         );
     }
 

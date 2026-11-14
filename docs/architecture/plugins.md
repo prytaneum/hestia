@@ -399,7 +399,7 @@ cancel, under the one-hour command timeout. The guest writes only under `/build`
 `Library` marked `built` under `meta/libraries/`), refusing a symlink, an escape
 and a target the profile did not declare, and fails the provision unless every
 built file exists. An output may instead be a directory tree with a `destination` (the server's data directory or
-the libraries root), placed file by file without replacing anything that exists; a `Library` may be kept off `-cp`
+the libraries root), placed file by file, keeping what exists in the data directory and replacing what a build placed in libraries; a `Library` may be kept off `-cp`
 with `classpath: false`; and a server may launch from an args file with a per-OS alternative the host picks
 ([0121](../decisions/0121-a-build-places-trees-and-the-profile-launches-from-an-args-file.md)). A flavor also declares how Modrinth packs and Prism instances
 name its loader (`mrpackKey`, `prismUid`), which the transfer formats read from

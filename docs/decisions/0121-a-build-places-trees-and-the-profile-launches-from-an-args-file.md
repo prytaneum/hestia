@@ -10,9 +10,10 @@ args-file launch, so such a flavor could not be written.
 **An output may be a directory.** `BuildOutput` gains an optional `destination` (`entry` or `libraries`). Without one it
 is the file of 0110. With one, `path` is a directory under `/build` and `target` the relative path under that
 destination it is placed at (empty for the root). `entry` is the server's data directory; a client has none, so a tree
-aimed at it is refused. The host copies a tree file by file, staged and renamed, never replaces a file that exists
-(so the user's `server.properties` or world survives a build aimed at the data directory, and placing twice changes
-nothing), and refuses the whole output for a symlink or special file inside it, a target that is not a plain relative
+aimed at it is refused. The host copies a tree file by file, staged and renamed. In `entry` it never replaces
+a file that exists, so the user's `server.properties` or world survives a build aimed at the data directory. In
+`libraries`, which is the host's and regenerable, a rebuilt file replaces the one placed before (decided by length, as
+for a single built file). It refuses the whole output for a symlink or special file inside it, a target that is not a plain relative
 path, or a source outside the build area.
 
 **A library says whether it is on the classpath.** `Library.classpath` defaults to true. One set false is still
@@ -30,6 +31,7 @@ Not taken:
 
 - **A `flavor` destination.** The build area is already where the guest works; placing a tree there is a copy onto
   itself. Added when a use appears.
-- **Replacing existing files in a tree.** A data directory holds the user's files, and libraries are named by version.
+- **Replacing existing files in the entry directory.** It holds the user's files.
+- **Never replacing anywhere.** A rebuilt libraries tree would keep stale files until cleaned by hand.
 - **Checking the args file exists after install.** The launch fails naming it; a check needs the launch in the install
   request.
