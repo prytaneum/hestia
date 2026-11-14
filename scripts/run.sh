@@ -118,25 +118,50 @@ daemon_running() { "$hestia" --quiet daemon status > /dev/null 2>&1; }
 
 # A running daemon is the old build in memory: restart it, but only when this
 # build actually produced a new one.
-started_here=0
 if [ "$bindir/hestiad" -nt "$before" ] && daemon_running; then
   log "restarting the dev daemon onto this build"
   "$hestia" --quiet daemon restart
 fi
 rm -f "$before"
 
+# The shell, the desktop and the foreground daemon are sessions on one daemon,
+# opened in any order. Each leaves a file named by its pid here, and `daemon`
+# marks a daemon that a run of this script started, which the last session to
+# leave stops. A daemon started some other way is never stopped.
+sessions="$bindir/run-sessions"
+mkdir -p "$sessions"
+session=""
+foreground=0
+
 ensure_daemon() {
   daemon_running && return 0
   log "starting the dev daemon"
   "$hestia" --quiet daemon start
-  started_here=1
+  : > "$sessions/daemon"
+}
+
+join() {
+  session="$sessions/$$"
+  : > "$session"
+}
+
+others_remain() {
+  local file pid
+  for file in "$sessions"/*; do
+    pid="$(basename "$file")"
+    case "$pid" in daemon | '*') continue ;; esac
+    if kill -0 "$pid" 2> /dev/null; then
+      return 0
+    fi
+    rm -f "$file"
+  done
+  return 1
 }
 
 # Nothing below `exec`s: bash does not run an EXIT trap across exec. The signals
 # matter as much as EXIT: `run.sh … | head` dies of SIGPIPE, and an untrapped
 # one skips EXIT entirely. A run leaves things as it found them: the plugins it
-# installed are removed, and only a daemon it started is stopped, so leaving a
-# shell never takes the daemon away from a desktop that is using it.
+# installed are removed, and the daemon is stopped only by the last session.
 installed=()
 developer_was=""
 cleanup() {
@@ -149,8 +174,14 @@ cleanup() {
     "$hestia" --quiet config set developer false > /dev/null 2>&1 || true
     developer_was=""
   fi
-  [ "$started_here" -eq 1 ] || return 0
-  started_here=0
+  [ -n "$session" ] || return 0
+  rm -f "$session"
+  session=""
+  if [ "$foreground" -eq 0 ]; then
+    others_remain && return 0
+    [ -e "$sessions/daemon" ] || return 0
+  fi
+  rm -f "$sessions/daemon"
   "$hestia" --quiet daemon stop --keep > /dev/null 2>&1 || true
 }
 trap cleanup EXIT
@@ -197,7 +228,8 @@ if [ "$what" = daemon ]; then
     "$bindir/hestiad" serve &
   fi
   daemon_pid=$!
-  started_here=1
+  join
+  foreground=1
   if [ -n "$plugins" ]; then
     for _ in $(seq 100); do
       daemon_running && break
@@ -215,6 +247,9 @@ if [ -n "$plugins" ]; then
 fi
 
 if [ "$what" = desktop ]; then
+  # Started here rather than by the app, so the last session to leave stops it.
+  ensure_daemon
+  join
   [ -d frontend/node_modules ] || (cd frontend && bun install)
   if [ "$mode" = release ]; then
     scripts/sidecars.sh --ensure
@@ -231,11 +266,11 @@ if [ "$#" -gt 0 ]; then
   # A one-shot leaves the daemon up: one-shots are run back to back against it.
   # `run.sh daemon …` is the exception, since it manages the daemon itself.
   [ "$1" = daemon ] || ensure_daemon
-  started_here=0
   "$hestia" "$@"
   exit $?
 fi
 
 ensure_daemon
+join
 log "hestia + hestiad on PATH ($bindir), daemon running. Ctrl-D or 'exit' to leave."
 "${SHELL:-bash}" -i
