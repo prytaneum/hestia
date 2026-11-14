@@ -1480,22 +1480,13 @@ async fn java_releases_in_mode(
     network: &[&str],
     mode: &str,
 ) -> Result<Vec<proto::java::JavaRelease>, anyhow::Error> {
-    let (engine, _home, _data) = register_java_probe_in_mode(network, mode, false).await;
+    let (engine, _home, _data) = register_java_probe_in_mode(network, mode).await;
     engine.java().releases("probe.reach").await
-}
-
-async fn register_java_probe(
-    network: &[&str],
-    url: &str,
-    official: bool,
-) -> (engine::Engine, tempfile::TempDir, tempfile::TempDir) {
-    register_java_probe_in_mode(network, &format!("get {url}"), official).await
 }
 
 async fn register_java_probe_in_mode(
     network: &[&str],
     mode: &str,
-    official: bool,
 ) -> (engine::Engine, tempfile::TempDir, tempfile::TempDir) {
     let probe = Probe::load_with_network(&[Permission::NetworkConnect], network);
     probe.set_mode(mode);
@@ -1519,23 +1510,10 @@ async fn register_java_probe_in_mode(
     };
     let home = tempfile::tempdir().unwrap();
     let engine = crate::fixture::engine(home.path(), vec![], vec![]);
-    engine::Contributions::connect(&Arc::new(plugin), &manifest, official)
+    engine::Contributions::connect(&Arc::new(plugin), &manifest, engine::Standing::Community)
         .await
         .register(&engine, "probe");
     (engine, home, data)
-}
-
-#[tokio::test]
-async fn an_official_provider_registers_bare_and_a_third_party_one_stays_prefixed() {
-    let (official, _home, _data) =
-        register_java_probe(&["example.com"], "https://example.com/", true).await;
-    assert!(official.java().provider("reach").is_ok());
-    assert!(official.java().provider("probe.reach").is_err());
-
-    let (third_party, _home, _data) =
-        register_java_probe(&["example.com"], "https://example.com/", false).await;
-    assert!(third_party.java().provider("probe.reach").is_ok());
-    assert!(third_party.java().provider("reach").is_err());
 }
 
 #[tokio::test]

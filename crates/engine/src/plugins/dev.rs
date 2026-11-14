@@ -16,14 +16,12 @@ impl Plugins {
     /// Blocking. Like [`Self::install`] for a folder, except the folder is not
     /// copied: the record points at it, and the hashes it holds are refreshed by
     /// [`Self::refresh_dev`]. A folder inside the plugins directory is refused,
-    /// since that is where installed packages live. `official` only records that
-    /// the providers may register as an official plugin's; the grant is
-    /// approved exactly as for any install.
+    /// since that is where installed packages live. The grant is approved
+    /// exactly as for any install.
     pub fn install_dev(
         &self,
         path: &Path,
         approve: &str,
-        official: bool,
         validate: impl FnOnce(&[u8]) -> Result<()>,
     ) -> Result<PluginRecord> {
         let root = std::fs::canonicalize(path)
@@ -62,7 +60,6 @@ impl Plugins {
             id: id.clone(),
             source: PluginSource::Dev,
             dev_path: Some(root),
-            dev_official: official,
             wasm_sha256,
             theme_sha256,
             program_pins,
@@ -73,7 +70,7 @@ impl Plugins {
             ..PluginRecord::default()
         };
         self.save(&record)?;
-        tracing::info!(plugin = %id, official, "dev plugin installed");
+        tracing::info!(plugin = %id, "dev plugin installed");
         Ok(record)
     }
 
@@ -184,12 +181,7 @@ mod tests {
     fn install(fixture: &Fixture) -> PluginRecord {
         fixture
             .plugins
-            .install_dev(
-                fixture.folder.path(),
-                &digest_of(MANIFEST_TEXT),
-                false,
-                |_| Ok(()),
-            )
+            .install_dev(fixture.folder.path(), &digest_of(MANIFEST_TEXT), |_| Ok(()))
             .unwrap()
     }
 
@@ -227,50 +219,6 @@ mod tests {
         );
     }
 
-    fn install_official(fixture: &Fixture, approve: &str) -> Result<PluginRecord> {
-        fixture
-            .plugins
-            .install_dev(fixture.folder.path(), approve, true, |_| Ok(()))
-    }
-
-    #[test]
-    fn marking_a_dev_install_official_changes_nothing_it_is_approved_for() {
-        let fixture = fixture();
-        let plain = install(&fixture);
-
-        let marked = install_official(&fixture, &digest_of(MANIFEST_TEXT)).unwrap();
-
-        assert!(marked.dev_official);
-        assert_eq!(marked.grant_digest, plain.grant_digest);
-        assert_eq!(marked.grant, plain.grant);
-        assert_eq!(marked.approved_by, plain.approved_by);
-        assert_eq!(marked.signer, None);
-        assert!(fixture.plugins.get("demo").unwrap().dev_official);
-    }
-
-    #[test]
-    fn an_official_dev_install_still_needs_the_approved_digest() {
-        let fixture = fixture();
-
-        let error = install_official(&fixture, "").unwrap_err();
-
-        assert!(matches!(
-            error.downcast_ref::<ErrorInfo>(),
-            Some(ErrorInfo::PluginApprovalStale)
-        ));
-        assert!(fixture.plugins.get("demo").is_none());
-    }
-
-    #[test]
-    fn a_refresh_keeps_the_official_mark_and_a_reinstall_can_clear_it() {
-        let fixture = fixture();
-        install_official(&fixture, &digest_of(MANIFEST_TEXT)).unwrap();
-        rewrite(fixture.folder.path(), "plugin.wasm", "two", 60);
-
-        assert!(fixture.plugins.refresh_dev("demo").unwrap().dev_official);
-        assert!(!install(&fixture).dev_official);
-    }
-
     #[test]
     fn a_dev_folder_inside_the_plugins_directory_is_refused() {
         let fixture = fixture();
@@ -281,7 +229,7 @@ mod tests {
 
         let error = fixture
             .plugins
-            .install_dev(&inside, &digest_of(MANIFEST_TEXT), false, |_| Ok(()))
+            .install_dev(&inside, &digest_of(MANIFEST_TEXT), |_| Ok(()))
             .unwrap_err();
 
         assert!(format!("{error:#}").contains("inside the plugins directory"));

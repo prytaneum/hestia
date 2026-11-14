@@ -25,7 +25,7 @@ use proto::content::{
 };
 
 use crate::plugins::vouch::Policy;
-use crate::roster::{Live, RegisterError, Roster};
+use crate::roster::{RegisterError, Roster, Standing};
 use proto::error::ErrorInfo;
 use provider::ContentProvider;
 pub(crate) use provider::{LocalFile, UrlRef};
@@ -152,18 +152,26 @@ impl Content {
         }
     }
 
-    /// Add `owner`'s source. Its id must read `<owner>.<id>`, unless `official`
-    /// (signed by the official plugins key), which may take a bare id and so
-    /// shadow the built-in of that id.
+    /// Add `owner`'s source, whose id must read `<owner>.<id>`.
     pub fn register(
         &self,
         owner: &str,
-        official: bool,
-        live: Live,
+        standing: Standing,
         provider: Arc<dyn ContentProvider>,
     ) -> Result<(), RegisterError> {
         self.providers
-            .register(owner, official, live, provider.id(), provider.clone())
+            .register(owner, standing, provider.id(), provider.clone())
+    }
+
+    /// The full id of the source `name` means, for what is stored.
+    pub fn canonical(&self, name: &str) -> Result<String> {
+        self.resolve(name).map(|(id, _)| id)
+    }
+
+    /// [`Content::canonical`] for a name to compare: one that means no source
+    /// (empty, local, or unregistered) stays as given.
+    pub(crate) fn named(&self, name: &str) -> String {
+        self.canonical(name).unwrap_or_else(|_| name.to_string())
     }
 
     /// Remove every source `owner` registered. Content already installed from
@@ -175,12 +183,11 @@ impl Content {
     /// The sources `items` were installed from that no registered provider
     /// answers to any more, sorted. A local-file import has no source to lose.
     pub fn missing_sources(&self, items: &[InstalledContent]) -> Vec<String> {
-        let providers = self.providers.snapshot();
         items
             .iter()
             .map(|item| item.source.as_str())
             .filter(|source| *source != LOCAL_SOURCE)
-            .filter(|source| !providers.iter().any(|p| p.id() == *source))
+            .filter(|source| self.resolve(source).is_err())
             .collect::<BTreeSet<_>>()
             .into_iter()
             .map(str::to_string)
@@ -401,6 +408,19 @@ impl Content {
         self.provider(id).is_ok_and(|p| p.datapacks_as_mods())
     }
 
+    fn resolve(&self, name: &str) -> Result<(String, Arc<dyn ContentProvider>)> {
+        self.providers
+            .resolve(name, |_| true)
+            .map_err(|unresolved| {
+                unresolved.into_error(name, || {
+                    ErrorInfo::ContentSourceUnknown {
+                        id: name.to_string(),
+                    }
+                    .into()
+                })
+            })
+    }
+
     /// The provider for `id`; an empty id selects the default — the first
     /// source that can serve. A source that is registered but unconfigured is
     /// refused by name rather than reported unknown, since the difference is
@@ -420,10 +440,7 @@ impl Content {
             }
             .into());
         }
-        let provider = providers
-            .into_iter()
-            .find(|p| p.id() == id)
-            .ok_or_else(|| ErrorInfo::ContentSourceUnknown { id: id.to_string() })?;
+        let (_, provider) = self.resolve(id)?;
         if !provider.available() {
             return Err(ErrorInfo::ContentSourceUnavailable {
                 source: provider.id().to_string(),

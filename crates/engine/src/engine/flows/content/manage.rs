@@ -238,7 +238,9 @@ impl Engine {
             source,
         } = repin;
         let item = installed_item(&install::load(&ctx.entry_dir), kind, reference)?;
-        if item.source == source {
+        let source = self.content.named(source);
+        let source = source.as_str();
+        if self.content.named(&item.source) == source {
             return self
                 .repin_content(ctx, kind, reference, pin, chain, on_progress)
                 .await;

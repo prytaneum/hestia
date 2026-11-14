@@ -28,6 +28,7 @@ use crate::jvm::{JavaSettings, JVM_ARGS_KEY, MEMORY_KEY};
 use crate::minecraft::Loaders;
 use crate::plugins::runtime::LoadedPlugin;
 use crate::plugins::vouch::{Policy, Refused};
+use crate::roster::Standing;
 use crate::transfer::archive::Reader;
 use crate::transfer::hestia;
 
@@ -41,9 +42,6 @@ const MAX_WRITTEN_MEMBERS: usize = 64;
 const MAX_WARNINGS: usize = 32;
 const MAX_WARNING_CHARS: usize = 512;
 const MAX_EXTENSION_CHARS: usize = 16;
-
-/// The id the launcher's own format answers to.
-const RESERVED: &[&str] = &["hestia"];
 
 /// Why a guest's answer was refused.
 #[derive(Debug, thiserror::Error)]
@@ -250,8 +248,7 @@ fn root_of(names: &[String], patterns: &[String]) -> Option<String> {
         .min_by_key(|root| (root.matches('/').count(), root.clone()))
 }
 
-/// A pack format a plugin contributes, registered as `<plugin>.<id>`, or bare
-/// when official.
+/// A pack format a plugin contributes, registered as `<plugin>.<id>`.
 pub struct PluginPack {
     guest: Guest,
     info: PackInfo,
@@ -262,11 +259,6 @@ impl PluginPack {
     /// Asks the guest to describe its format and refuses one the host could not
     /// tell apart from its own formats.
     async fn connect(guest: Guest) -> Result<Self> {
-        if RESERVED.contains(&guest.local.as_str()) || RESERVED.contains(&guest.id()) {
-            return Err(
-                guest.failed("that id belongs to a format the launcher writes itself".into())
-            );
-        }
         let info = guest.ask::<op::Info>(&Empty {}).await?;
         if info.members.is_empty() || info.members.len() > MAX_DECLARED_MEMBERS {
             return Err(guest.failed(format!(
@@ -462,21 +454,16 @@ impl PluginPack {
     }
 }
 
-pub(super) async fn connect(
-    plugin: &Arc<LoadedPlugin>,
-    manifest: &Manifest,
-    official: bool,
-) -> Vec<PluginPack> {
-    connect_each::<Pack, _, _, _>(plugin, manifest, official, PluginPack::connect).await
+pub(super) async fn connect(plugin: &Arc<LoadedPlugin>, manifest: &Manifest) -> Vec<PluginPack> {
+    connect_each::<Pack, _, _, _>(plugin, manifest, PluginPack::connect).await
 }
 
-pub(super) fn register(engine: &Engine, owner: &str, official: bool, packs: Vec<PluginPack>) {
+pub(super) fn register(engine: &Engine, owner: &str, standing: Standing, packs: Vec<PluginPack>) {
     for pack in packs {
         let id = pack.id().to_string();
-        let live = pack.guest.live();
         let outcome = engine
             .packs()
-            .register(owner, official, live, &id, Arc::new(pack));
+            .register(owner, standing, &id, Arc::new(pack));
         registered(owner, "pack", &id, outcome);
     }
 }

@@ -340,7 +340,6 @@ impl Plugins {
             },
             url: intake.downloaded.map(|staged| staged.url.clone()),
             dev_path: None,
-            dev_official: false,
             signer: origin.map(|origin| origin.signer.clone()),
             repository: origin.map(|origin| origin.repository.clone()),
             wasm_sha256,

@@ -91,7 +91,7 @@ async fn rig_supervised(
         home.path().join("processes"),
     ));
     let plugin = load(home.path(), &files, hosts, unhashed, &engine, &processes);
-    engine::Contributions::connect(&plugin, &manifest, false)
+    engine::Contributions::connect(&plugin, &manifest, engine::Standing::Community)
         .await
         .register(&engine, &manifest.id);
     (engine, home, processes)

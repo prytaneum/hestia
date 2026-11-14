@@ -81,7 +81,7 @@ pub use plugins::{
     MAX_DOWNLOAD_BYTES, PROVIDER_TIMEOUT, UI_TIMEOUT,
 };
 pub use process::{ExitObserver, ProcessEvents, ProcessSupervisor, StartError};
-pub use roster::{always_live, Live, RegisterError};
+pub use roster::{RegisterError, Standing};
 pub use schema::notices as quarantined;
 pub use servers::{RconConfig, ServerPhase, ServerRecord, Servers};
 pub use skins::Skins;

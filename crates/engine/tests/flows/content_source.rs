@@ -34,7 +34,21 @@ pub(super) fn load(
     files: &fixture::Files,
     hosts: &[&str],
 ) -> (Arc<LoadedPlugin>, Manifest) {
-    let manifest = manifest();
+    load_as(&manifest().id, home, files, hosts)
+}
+
+/// The `static-index` component installed as plugin `id`, so several plugins
+/// can contribute a source of the same provider id.
+pub(super) fn load_as(
+    id: &str,
+    home: &std::path::Path,
+    files: &fixture::Files,
+    hosts: &[&str],
+) -> (Arc<LoadedPlugin>, Manifest) {
+    let manifest = Manifest {
+        id: id.to_string(),
+        ..manifest()
+    };
     let wasm = std::fs::read(fixture::index::component()).expect("static-index component");
     let runtime = PluginRuntime::new(
         Arc::new(NoHost),
@@ -58,14 +72,14 @@ pub(super) fn load(
         grant,
         ..PluginRecord::default()
     };
-    let data = home.join("static-index-data");
+    let data = home.join(format!("{id}-data"));
     std::fs::create_dir_all(&data).expect("data dir");
     std::fs::write(
         data.join("base-url.json"),
         serde_json::to_string(&files.url("files")).unwrap(),
     )
     .expect("base url");
-    let settings = PluginSettings::new(home.join(SETTINGS_FILE), declared());
+    let settings = PluginSettings::new(home.join(format!("{id}-settings.json")), declared());
     let plugin = runtime.load(&record, &wasm, data, settings).expect("load");
     (Arc::new(plugin), manifest)
 }
@@ -98,7 +112,7 @@ async fn rig_requiring(
         )
         .expect("requires-setting");
     }
-    engine::Contributions::connect(&plugin, &manifest, false)
+    engine::Contributions::connect(&plugin, &manifest, engine::Standing::Community)
         .await
         .register(&engine, &manifest.id);
     (engine, id, home)

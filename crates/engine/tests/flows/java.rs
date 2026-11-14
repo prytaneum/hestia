@@ -41,7 +41,7 @@ async fn rig() -> (engine::Engine, tempfile::TempDir) {
     let settings = PluginSettings::new(home.path().join("replay-java-settings.json"), Vec::new());
     let plugin = Arc::new(runtime.load(&record, &wasm, data, settings).expect("load"));
     let engine = fixture::engine(home.path(), vec![], vec![]);
-    engine::Contributions::connect(&plugin, &manifest, false)
+    engine::Contributions::connect(&plugin, &manifest, engine::Standing::Community)
         .await
         .register(&engine, &manifest.id);
     (engine, home)

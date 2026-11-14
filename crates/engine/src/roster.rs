@@ -1,22 +1,29 @@
-//! The runtime-mutable provider list shared by the content and Minecraft
-//! aggregates. Every provider has an owner: the built-ins are `builtin` and are
-//! never removed, a plugin's are its plugin id and leave with it. An official
-//! plugin's provider may take a built-in's id, and the built-in is then the
-//! fallback: it answers again the moment the plugin's provider leaves or
-//! stops being live.
+//! The runtime-mutable provider list shared by the content, Minecraft, Java and
+//! pack aggregates. Every provider has an owner: the built-ins are `builtin`
+//! and are never removed, a plugin's are registered as `<plugin-id>.<id>` and
+//! leave with it
+//! ([0133](../../../docs/decisions/0133-a-provider-has-one-id.md)).
+//!
+//! A caller may name a provider by its full id or by a bare name, and
+//! [`Roster::resolve`] is the one place a bare name becomes a provider.
 
 use std::sync::{Arc, RwLock};
 
+use proto::error::ErrorInfo;
+
 pub(crate) const BUILTIN_OWNER: &str = "builtin";
 
-/// Whether a registered provider can still answer. A provider that shadows a
-/// built-in is passed over while this is false, so a plugin disabled after
-/// repeated traps hands its id back to the built-in without being unregistered.
-pub type Live = Arc<dyn Fn() -> bool + Send + Sync>;
-
-/// A [`Live`] that never lapses.
-pub fn always_live() -> Live {
-    Arc::new(|| true)
+/// How far a plugin's providers are trusted to answer a bare name. Registration
+/// order within a standing is first come.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub enum Standing {
+    /// Signed by the official plugins key.
+    Official,
+    /// A developer-mode install, which stands in for an official plugin only
+    /// where none provides the name.
+    Developer,
+    #[default]
+    Community,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -29,16 +36,58 @@ pub enum RegisterError {
     Duplicate(String),
 }
 
+/// Why a name matched no single provider.
+#[derive(Debug)]
+pub(crate) enum Unresolved {
+    Unknown,
+    Ambiguous(Vec<String>),
+}
+
+impl Unresolved {
+    /// The typed failure for `name`; `unknown` builds the kind's own answer
+    /// for a name nobody provides.
+    pub(crate) fn into_error(
+        self,
+        name: &str,
+        unknown: impl FnOnce() -> anyhow::Error,
+    ) -> anyhow::Error {
+        match self {
+            Unresolved::Unknown => unknown(),
+            Unresolved::Ambiguous(candidates) => ErrorInfo::ProviderAmbiguous {
+                name: name.to_string(),
+                candidates,
+            }
+            .into(),
+        }
+    }
+}
+
 struct Entry<T: ?Sized> {
     owner: String,
     id: String,
     item: Arc<T>,
-    live: Live,
+    standing: Option<Standing>,
 }
 
 impl<T: ?Sized> Entry<T> {
     fn builtin(&self) -> bool {
         self.owner == BUILTIN_OWNER
+    }
+
+    fn local(&self) -> &str {
+        self.id
+            .strip_prefix(self.owner.as_str())
+            .and_then(|rest| rest.strip_prefix('.'))
+            .unwrap_or(&self.id)
+    }
+
+    fn rank(&self) -> u8 {
+        match self.standing {
+            None => 0,
+            Some(Standing::Official) => 1,
+            Some(Standing::Developer) => 2,
+            Some(Standing::Community) => 3,
+        }
     }
 }
 
@@ -54,7 +103,7 @@ impl<T: ?Sized> Roster<T> {
                 owner: BUILTIN_OWNER.to_string(),
                 id,
                 item,
-                live: always_live(),
+                standing: None,
             })
             .collect();
         Roster {
@@ -62,17 +111,12 @@ impl<T: ?Sized> Roster<T> {
         }
     }
 
-    /// `id` must be `<owner>.<local>`, so a plugin's provider cannot take a
-    /// built-in's id. An `official` owner
-    /// ([0099](../../../docs/decisions/0099-official-plugins-are-signed.md))
-    /// may register a bare id, and one that equals a built-in's shadows it
-    /// ([0116](../../../docs/decisions/0116-an-official-provider-shadows-the-builtin.md));
-    /// a bare id another plugin already holds is a duplicate.
+    /// `id` must be `<owner>.<local>`, so no plugin can take a built-in's id or
+    /// another plugin's.
     pub(crate) fn register(
         &self,
         owner: &str,
-        official: bool,
-        live: Live,
+        standing: Standing,
         id: &str,
         item: Arc<T>,
     ) -> Result<(), RegisterError> {
@@ -83,28 +127,21 @@ impl<T: ?Sized> Roster<T> {
             .strip_prefix(owner)
             .and_then(|rest| rest.strip_prefix('.'))
             .is_some_and(|local| !local.is_empty());
-        if !namespaced && !official {
+        if !namespaced {
             return Err(RegisterError::NotNamespaced {
                 owner: owner.to_string(),
                 id: id.to_string(),
             });
         }
         let mut entries = self.entries.write().unwrap_or_else(|e| e.into_inner());
-        let mut shadows = false;
-        for existing in entries.iter().filter(|e| e.id == id) {
-            if !existing.builtin() || !official || namespaced {
-                return Err(RegisterError::Duplicate(id.to_string()));
-            }
-            shadows = true;
-        }
-        if shadows {
-            tracing::info!(plugin = owner, provider = %id, "official provider shadows the built-in");
+        if entries.iter().any(|e| e.id == id) {
+            return Err(RegisterError::Duplicate(id.to_string()));
         }
         entries.push(Entry {
             owner: owner.to_string(),
             id: id.to_string(),
             item,
-            live,
+            standing: Some(standing),
         });
         Ok(())
     }
@@ -116,161 +153,149 @@ impl<T: ?Sized> Roster<T> {
         }
         let mut entries = self.entries.write().unwrap_or_else(|e| e.into_inner());
         let before = entries.len();
-        let (dropped, kept): (Vec<_>, Vec<_>) = std::mem::take(&mut *entries)
-            .into_iter()
-            .partition(|e| e.owner == owner);
-        *entries = kept;
-        for entry in &dropped {
-            if entries.iter().any(|e| e.id == entry.id) {
-                tracing::info!(plugin = owner, provider = %entry.id, "built-in provider restored");
-            }
-        }
+        entries.retain(|e| e.owner != owner);
         before - entries.len()
     }
 
-    /// A copy of the list with one provider per id, so a caller can await on a
-    /// provider without holding the lock. A live shadower stands where the
-    /// built-in it shadows was listed.
+    /// A copy of the list, so a caller can await on a provider without holding
+    /// the lock: the built-ins first, then the official plugins', the
+    /// developer installs' and the rest, each in registration order.
     pub(crate) fn snapshot(&self) -> Vec<Arc<T>> {
         let entries = self.entries.read().unwrap_or_else(|e| e.into_inner());
-        entries
-            .iter()
-            .filter_map(|entry| {
-                let rival =
-                    |other: &&Entry<T>| other.id == entry.id && other.builtin() != entry.builtin();
-                if entry.builtin() {
-                    let shadower = entries.iter().filter(rival).find(|e| (e.live)());
-                    Some(shadower.unwrap_or(entry).item.clone())
-                } else if entries.iter().any(|e| rival(&e)) {
-                    None
-                } else {
-                    Some(entry.item.clone())
-                }
-            })
-            .collect()
+        let mut ranked: Vec<&Entry<T>> = entries.iter().collect();
+        ranked.sort_by_key(|e| e.rank());
+        ranked.into_iter().map(|e| e.item.clone()).collect()
+    }
+
+    /// The provider `name` means among those `accepts` admits, with its full
+    /// id. A full id means exactly itself. A bare name means, in order: the
+    /// built-in of that name; the one official plugin's provider of that
+    /// provider-id, or failing any, the one developer install's; the only
+    /// provider of that provider-id.
+    pub(crate) fn resolve(
+        &self,
+        name: &str,
+        accepts: impl Fn(&T) -> bool,
+    ) -> Result<(String, Arc<T>), Unresolved> {
+        let entries = self.entries.read().unwrap_or_else(|e| e.into_inner());
+        let candidates: Vec<&Entry<T>> = entries.iter().filter(|e| accepts(&e.item)).collect();
+        let hit = |e: &Entry<T>| (e.id.clone(), e.item.clone());
+        if let Some(exact) = candidates.iter().find(|e| e.id == name) {
+            return Ok(hit(exact));
+        }
+        let named: Vec<&Entry<T>> = candidates
+            .into_iter()
+            .filter(|e| !e.builtin() && e.local() == name)
+            .collect();
+        let standing = |wanted: Standing| -> Vec<&Entry<T>> {
+            named
+                .iter()
+                .copied()
+                .filter(|e| e.standing == Some(wanted))
+                .collect()
+        };
+        let pool = [Standing::Official, Standing::Developer]
+            .into_iter()
+            .map(standing)
+            .find(|pool| !pool.is_empty())
+            .unwrap_or(named);
+        match pool.as_slice() {
+            [] => Err(Unresolved::Unknown),
+            [only] => Ok(hit(only)),
+            _ => Err(Unresolved::Ambiguous(
+                pool.iter().map(|e| e.id.clone()).collect(),
+            )),
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use std::sync::atomic::{AtomicBool, Ordering};
-
     use super::*;
 
     fn roster() -> Roster<str> {
-        Roster::builtin([("modrinth".to_string(), Arc::from("modrinth"))])
+        Roster::builtin([("vanilla".to_string(), Arc::from("core"))])
     }
 
-    fn listed(roster: &Roster<str>) -> Vec<String> {
-        roster.snapshot().iter().map(|s| s.to_string()).collect()
+    fn add(roster: &Roster<str>, owner: &str, standing: Standing, local: &str) {
+        let id = format!("{owner}.{local}");
+        roster
+            .register(owner, standing, &id, Arc::from(id.as_str()))
+            .expect("registers");
     }
 
-    fn add(
-        roster: &Roster<str>,
-        owner: &str,
-        official: bool,
-        id: &str,
-        item: &str,
-    ) -> Result<(), RegisterError> {
-        roster.register(owner, official, always_live(), id, Arc::from(item))
+    fn found(roster: &Roster<str>, name: &str) -> Option<String> {
+        roster.resolve(name, |_| true).ok().map(|(id, _)| id)
     }
 
     #[test]
-    fn a_plugin_entry_is_listed_until_its_owner_unregisters() {
+    fn a_plugin_is_registered_under_its_own_namespace_only() {
         let roster = roster();
-        add(&roster, "acme", false, "acme.hangar", "acme.hangar").expect("namespaced");
-        assert_eq!(listed(&roster), ["modrinth", "acme.hangar"]);
-
-        assert_eq!(roster.unregister("acme"), 1);
-        assert_eq!(listed(&roster), ["modrinth"]);
-    }
-
-    #[test]
-    fn a_builtin_can_be_neither_removed_nor_shadowed_by_a_plugin_that_is_not_official() {
-        let roster = roster();
-        assert_eq!(roster.unregister(BUILTIN_OWNER), 0);
+        for refused in ["vanilla", "other.x", "acme.", "acme"] {
+            assert!(matches!(
+                roster.register("acme", Standing::Official, refused, Arc::from("x")),
+                Err(RegisterError::NotNamespaced { .. })
+            ));
+        }
         assert!(matches!(
-            add(&roster, "acme", false, "modrinth", "evil"),
-            Err(RegisterError::NotNamespaced { .. })
-        ));
-        assert!(matches!(
-            add(&roster, BUILTIN_OWNER, true, "builtin.x", "evil"),
+            roster.register(
+                BUILTIN_OWNER,
+                Standing::Official,
+                "builtin.x",
+                Arc::from("x")
+            ),
             Err(RegisterError::ReservedOwner(_))
         ));
-        add(&roster, "acme", false, "acme.x", "one").expect("first");
+        add(&roster, "acme", Standing::Community, "x");
         assert!(matches!(
-            add(&roster, "acme", false, "acme.x", "two"),
+            roster.register("acme", Standing::Community, "acme.x", Arc::from("y")),
             Err(RegisterError::Duplicate(_))
         ));
-        assert_eq!(listed(&roster), ["modrinth", "one"]);
-    }
-
-    #[test]
-    fn only_an_official_owner_registers_a_bare_id() {
-        let roster = roster();
-        assert!(matches!(
-            add(&roster, "acme", false, "hangar", "one"),
-            Err(RegisterError::NotNamespaced { .. })
-        ));
-        add(&roster, "acme", true, "hangar", "two").expect("official");
-        assert_eq!(listed(&roster), ["modrinth", "two"]);
-    }
-
-    #[test]
-    fn an_official_provider_shadows_the_builtin_until_it_leaves() {
-        let roster = roster();
-        add(&roster, "acme", true, "modrinth", "plugin").expect("shadows");
-        assert_eq!(listed(&roster), ["plugin"]);
-
+        assert_eq!(roster.unregister(BUILTIN_OWNER), 0);
         assert_eq!(roster.unregister("acme"), 1);
-        assert_eq!(listed(&roster), ["modrinth"]);
+        assert_eq!(roster.snapshot().len(), 1);
     }
 
     #[test]
-    fn a_second_official_claiming_the_same_bare_id_is_a_duplicate() {
+    fn a_bare_name_is_core_then_official_then_developer_then_the_only_one() {
         let roster = roster();
-        add(&roster, "acme", true, "modrinth", "first").expect("shadows");
-        assert!(matches!(
-            add(&roster, "other", true, "modrinth", "second"),
-            Err(RegisterError::Duplicate(_))
-        ));
-        add(&roster, "acme", true, "hangar", "new").expect("new id");
-        assert!(matches!(
-            add(&roster, "other", true, "hangar", "again"),
-            Err(RegisterError::Duplicate(_))
-        ));
-        assert_eq!(listed(&roster), ["first", "new"]);
+        add(&roster, "acme", Standing::Community, "vanilla");
+        add(&roster, "acme", Standing::Community, "solo");
+        add(&roster, "dev", Standing::Developer, "tool");
+        add(&roster, "acme", Standing::Community, "tool");
+        add(&roster, "hestia", Standing::Official, "tool");
+
+        assert_eq!(found(&roster, "vanilla").as_deref(), Some("vanilla"));
+        assert_eq!(found(&roster, "solo").as_deref(), Some("acme.solo"));
+        assert_eq!(found(&roster, "tool").as_deref(), Some("hestia.tool"));
+        assert_eq!(found(&roster, "acme.tool").as_deref(), Some("acme.tool"));
+        assert_eq!(found(&roster, "dev.tool").as_deref(), Some("dev.tool"));
+        assert_eq!(found(&roster, "nope"), None);
+
+        roster.unregister("hestia");
+        assert_eq!(found(&roster, "tool").as_deref(), Some("dev.tool"));
     }
 
     #[test]
-    fn a_namespaced_id_never_collides_with_a_builtin_even_for_an_official_owner() {
-        let roster = Roster::builtin([("acme.x".to_string(), Arc::from("builtin"))]);
-        assert!(matches!(
-            add(&roster, "acme", true, "acme.x", "plugin"),
-            Err(RegisterError::Duplicate(_))
-        ));
-    }
-
-    #[test]
-    fn a_shadower_that_is_no_longer_live_hands_the_id_back() {
+    fn two_providers_of_one_name_with_no_standing_between_them_are_ambiguous() {
         let roster = roster();
-        let live = Arc::new(AtomicBool::new(true));
-        let flag = live.clone();
-        roster
-            .register(
-                "acme",
-                true,
-                Arc::new(move || flag.load(Ordering::Relaxed)),
-                "modrinth",
-                Arc::from("plugin"),
-            )
-            .expect("shadows");
-        assert_eq!(listed(&roster), ["plugin"]);
+        add(&roster, "acme", Standing::Community, "hangar");
+        add(&roster, "beta", Standing::Community, "hangar");
+        match roster.resolve("hangar", |_| true) {
+            Err(Unresolved::Ambiguous(ids)) => {
+                assert_eq!(ids, ["acme.hangar", "beta.hangar"])
+            }
+            other => panic!("expected ambiguity, got {:?}", other.map(|(id, _)| id)),
+        }
+    }
 
-        live.store(false, Ordering::Relaxed);
-        assert_eq!(listed(&roster), ["modrinth"]);
-
-        live.store(true, Ordering::Relaxed);
-        assert_eq!(listed(&roster), ["plugin"]);
+    #[test]
+    fn the_snapshot_lists_core_then_official_then_the_rest() {
+        let roster = roster();
+        add(&roster, "acme", Standing::Community, "a");
+        add(&roster, "dev", Standing::Developer, "b");
+        add(&roster, "hestia", Standing::Official, "c");
+        let listed: Vec<String> = roster.snapshot().iter().map(|s| s.to_string()).collect();
+        assert_eq!(listed, ["core", "hestia.c", "dev.b", "acme.a"]);
     }
 }

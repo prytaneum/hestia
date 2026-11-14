@@ -94,21 +94,16 @@ fn prepare(dir: &Path, sdk: Option<Sdk>) -> Result<(PathBuf, Option<Staged>)> {
     Ok((out, Some(staged)))
 }
 
-/// How a dev run behaves: whether the grant is approved without asking,
-/// whether the providers register under bare ids, and whether the command
-/// returns once the plugin is installed instead of watching its sources.
+/// How a dev run behaves: whether the grant is approved without asking, and
+/// whether the command returns once the plugin is installed instead of
+/// watching its sources.
 pub struct Mode {
     pub yes: bool,
-    pub official: bool,
     pub once: bool,
 }
 
 pub async fn run(dir: Option<&Path>, mode: Mode, sdk: &SdkOption) -> Result<()> {
-    let Mode {
-        yes,
-        official,
-        once,
-    } = mode;
+    let Mode { yes, once } = mode;
     let sdk = Sdk::resolve(sdk)?;
     let dir = std::fs::canonicalize(dir.unwrap_or(Path::new(".")))
         .context("cannot resolve the plugin folder")?;
@@ -128,7 +123,7 @@ pub async fn run(dir: Option<&Path>, mode: Mode, sdk: &SdkOption) -> Result<()> 
     let id = inspection.manifest.id.clone();
     let mut events = plugins.follow(&id).await?;
     plugins
-        .install_dev(&package, &inspection.grant_digest, official)
+        .install_dev(&package, &inspection.grant_digest)
         .await?;
     if once {
         return ui::show(View::line(format!(

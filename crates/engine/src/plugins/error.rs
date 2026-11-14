@@ -288,6 +288,7 @@ impl From<&ErrorInfo> for GuestError {
             | NotRunning { .. }
             | JavaProviderUnknown { .. }
             | ExportFormatUnknown { .. }
+            | ProviderAmbiguous { .. }
             | NotAModpack { .. }
             | ModpackInvalid { .. }
             | ModpackEntryMismatch { .. }

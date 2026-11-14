@@ -114,11 +114,11 @@ impl Engine {
             ExportFormat::Hestia => Ok(Exporter::Hestia),
             ExportFormat::Provider(provider) => self
                 .packs
-                .snapshot()
-                .into_iter()
-                .find(|pack| pack.id() == provider.id && !pack.info().extension.is_empty())
-                .map(Exporter::Plugin)
-                .ok_or_else(|| unknown(&provider.id).into()),
+                .resolve(&provider.id, |pack| !pack.info().extension.is_empty())
+                .map(|(_, pack)| Exporter::Plugin(pack))
+                .map_err(|unresolved| {
+                    unresolved.into_error(&provider.id, || unknown(&provider.id).into())
+                }),
         }
     }
 

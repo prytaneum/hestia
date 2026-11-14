@@ -32,6 +32,7 @@ use crate::engine::Engine;
 use crate::plugins::context::{CallContext, Mount};
 use crate::plugins::runtime::LoadedPlugin;
 use crate::plugins::vouch::Policy;
+use crate::roster::Standing;
 
 /// Where the files being identified appear to the guest, for that call only.
 const IDENTIFY_MOUNT: &str = "/files";
@@ -39,7 +40,7 @@ const IDENTIFY_MOUNT: &str = "/files";
 /// Hashing every mod of a pack is guest compute, not a lookup.
 const IDENTIFY_TIMEOUT: Duration = Duration::from_secs(120);
 
-/// A source a plugin contributes, registered as `<plugin>.<id>`, or bare when official.
+/// A source a plugin contributes, registered as `<plugin>.<id>`.
 pub struct PluginContentProvider {
     guest: Guest,
     info: SourceInfo,
@@ -339,24 +340,19 @@ fn stage(scratch: &Path, paths: &[PathBuf]) -> Result<Staged> {
 pub(super) async fn connect(
     plugin: &Arc<LoadedPlugin>,
     manifest: &Manifest,
-    official: bool,
 ) -> Vec<PluginContentProvider> {
-    connect_each::<Source, _, _, _>(plugin, manifest, official, PluginContentProvider::connect)
-        .await
+    connect_each::<Source, _, _, _>(plugin, manifest, PluginContentProvider::connect).await
 }
 
 pub(super) fn register(
     engine: &Engine,
     owner: &str,
-    official: bool,
+    standing: Standing,
     sources: Vec<PluginContentProvider>,
 ) {
     for source in sources {
         let id = source.guest.id().to_string();
-        let live = source.guest.live();
-        let outcome = engine
-            .content()
-            .register(owner, official, live, Arc::new(source));
+        let outcome = engine.content().register(owner, standing, Arc::new(source));
         registered(owner, "content", &id, outcome);
     }
 }

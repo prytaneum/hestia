@@ -200,19 +200,16 @@ impl Plugin<'_> {
     }
 
     /// Runs the folder at `path` in place and reloads it when it changes;
-    /// `approve` is the grant digest from [`Self::inspect`]; `official`
-    /// registers its providers as an official plugin's would be.
+    /// `approve` is the grant digest from [`Self::inspect`].
     pub async fn install_dev(
         &self,
         path: &str,
         approve: &str,
-        official: bool,
     ) -> Result<PluginInstallDone, IpcError> {
         let params = PluginInstallParams {
             path: path.to_string(),
             approve: approve.to_string(),
             dev: true,
-            official,
             ..PluginInstallParams::default()
         };
         self.run_install(params, |_| {}).await

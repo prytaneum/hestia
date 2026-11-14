@@ -20,7 +20,7 @@ use anyhow::Context;
 use engine::{
     is_official_signer, unregister_providers, Cache, CallChain, Cancel, Contributions, Engine,
     HostCalls, Listings, LoadedPlugin, MessagesError, PluginRecord, PluginRuntime, PluginStats,
-    Roster, SettingsError, EVENT_TIMEOUT,
+    Roster, SettingsError, Standing, EVENT_TIMEOUT,
 };
 use proto::error::ErrorInfo;
 use proto::plugin::{
@@ -228,11 +228,17 @@ impl Plugins {
         self.engine.config().settings().developer
     }
 
-    /// Whether a dev install's providers register as an official plugin's: the
-    /// record asks for it and developer mode is on. Reaches provider
-    /// registration only; no approval or update path consults it.
-    fn dev_official(&self, record: &PluginRecord) -> bool {
-        record.source == PluginSource::Dev && record.dev_official && self.developer()
+    /// How the plugin ranks when a provider is looked up by its bare name. A
+    /// dev install stands in for an official plugin there and nowhere else;
+    /// turning developer mode off disables dev installs.
+    fn standing(record: &PluginRecord) -> Standing {
+        if is_official_signer(record.signer.as_deref()) {
+            Standing::Official
+        } else if record.source == PluginSource::Dev {
+            Standing::Developer
+        } else {
+            Standing::Community
+        }
     }
 
     /// The refusal every developer-only call answers while the mode is off.
@@ -400,10 +406,7 @@ impl Plugins {
                 .engine
                 .plugins()
                 .install(path, approve, cancel, on_phase, validate)?,
-            Package::Dev { path, official } => self
-                .engine
-                .plugins()
-                .install_dev(path, approve, *official, validate)?,
+            Package::Dev { path } => self.engine.plugins().install_dev(path, approve, validate)?,
             Package::Downloaded { staged, .. } => self
                 .engine
                 .plugins()
@@ -719,7 +722,6 @@ impl Plugins {
                 Some(format!("{error:#}")),
             ),
         };
-        let dev_official = self.dev_official(&record);
         let developer = self.developer().then(|| PluginDeveloperInfo {
             grant_digest: record.grant_digest.clone(),
             cache_dir: self.engine.plugin_cache_dir().display().to_string(),
@@ -736,7 +738,6 @@ impl Plugins {
             source: record.source,
             url: record.url,
             official: is_official_signer(record.signer.as_deref()),
-            dev_official,
             signer: record.signer,
             repository: record.repository,
             obsolete,
@@ -810,7 +811,7 @@ impl Plugins {
             .cloned()
             .context("the plugin runtime is not running")?;
         let data_dir = self.engine.plugins().data_dir(&record.id)?;
-        let official = is_official_signer(record.signer.as_deref()) || self.dev_official(record);
+        let standing = Self::standing(record);
         let record = record.clone();
         let engine = self.engine.clone();
         let loaded = spawn_blocking(move || {
@@ -820,7 +821,7 @@ impl Plugins {
         .await??;
         loaded.init(&CallChain::default(), INIT_TIMEOUT).await?;
         let loaded = Arc::new(loaded);
-        let contributions = Contributions::connect(&loaded, &package.manifest, official).await;
+        let contributions = Contributions::connect(&loaded, &package.manifest, standing).await;
         Ok(Activation::Ready(Some(loaded), contributions))
     }
 
@@ -1029,65 +1030,6 @@ mod tests {
             .unwrap();
         assert_eq!(plugins.require_developer(), Ok(()));
         assert_eq!(plugins.require_developer_to_follow("demo"), Ok(()));
-    }
-
-    #[tokio::test]
-    async fn a_dev_install_registers_as_official_only_while_the_mode_is_on() {
-        let home = tempfile::tempdir().unwrap();
-        let (plugins, engine) = plugins_over(home.path());
-        let marked = PluginRecord {
-            id: "demo".into(),
-            source: PluginSource::Dev,
-            dev_official: true,
-            enabled: true,
-            ..PluginRecord::default()
-        };
-        let unmarked = PluginRecord {
-            dev_official: false,
-            ..marked.clone()
-        };
-        let installed = PluginRecord {
-            source: PluginSource::Folder,
-            ..marked.clone()
-        };
-        engine.plugins().save(&marked).unwrap();
-
-        assert!(!plugins.dev_official(&marked));
-        assert!(!plugins.info("demo").await.unwrap().official);
-        assert!(!plugins.info("demo").await.unwrap().dev_official);
-
-        engine
-            .set_config("developer", serde_json::json!(true))
-            .unwrap();
-        assert!(plugins.dev_official(&marked));
-        assert!(plugins.info("demo").await.unwrap().dev_official);
-        assert!(!plugins.info("demo").await.unwrap().official);
-        assert!(!plugins.dev_official(&unmarked));
-        assert!(!plugins.dev_official(&installed));
-    }
-
-    #[test]
-    fn only_a_dev_install_may_ask_to_register_as_official() {
-        let home = tempfile::tempdir().unwrap();
-        let engine = Engine::new(Some(home.path()));
-        let request = proto::plugin::PluginInstallParams {
-            path: "/some/folder".into(),
-            official: true,
-            ..Default::default()
-        };
-
-        assert!(matches!(
-            Package::held(&engine, &request),
-            Err(ErrorInfo::PluginInvalid { .. })
-        ));
-        let dev = proto::plugin::PluginInstallParams {
-            dev: true,
-            ..request
-        };
-        assert!(matches!(
-            Package::held(&engine, &dev),
-            Ok(Package::Dev { official: true, .. })
-        ));
     }
 
     #[tokio::test]

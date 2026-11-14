@@ -25,11 +25,11 @@ pub(crate) mod world;
 use std::path::Path;
 use std::sync::Arc;
 
-use anyhow::{Context, Result};
+use anyhow::Result;
 use proto::minecraft::{Flavor, GameVersion};
 
 use crate::cache::Cache;
-use crate::roster::{Live, RegisterError, Roster};
+use crate::roster::{RegisterError, Roster, Standing};
 use profile::{InstanceProfile, ServerProfile};
 
 pub use loaders::Loaders;
@@ -68,17 +68,15 @@ impl Minecraft {
         }
     }
 
-    /// Add `owner`'s flavor. Its id must read `<owner>.<id>`, unless `official`, which may
-    /// shadow the built-in of a bare id.
+    /// Add `owner`'s flavor, whose id must read `<owner>.<id>`.
     pub fn register(
         &self,
         owner: &str,
-        official: bool,
-        live: Live,
+        standing: Standing,
         provider: Arc<dyn FlavorProvider>,
     ) -> Result<(), RegisterError> {
         let id = provider.info().id.to_string();
-        self.flavors.register(owner, official, live, &id, provider)
+        self.flavors.register(owner, standing, &id, provider)
     }
 
     /// Remove every flavor `owner` registered. An entry already created from
@@ -139,15 +137,13 @@ impl Minecraft {
     /// `names`: a flavor's id widens to its declared loader and the ones it is
     /// compatible with, and a name that is no flavor's id is already a loader.
     pub fn declared_loaders(&self, names: &[String]) -> Vec<String> {
-        let snapshot = self.flavors.snapshot();
         let mut loaders: Vec<String> = Vec::new();
         for name in names.iter().filter(|name| !name.is_empty()) {
-            let declared = snapshot
-                .iter()
-                .map(|p| p.info())
-                .find(|info| info.id == name.as_str())
-                .map(|info| info.loader_names())
-                .unwrap_or_else(|| vec![name.clone()]);
+            let declared = self
+                .flavors
+                .resolve(name, |_| true)
+                .map(|(_, p)| p.info().loader_names())
+                .unwrap_or_else(|_| vec![name.clone()]);
             for loader in declared {
                 if !loaders.contains(&loader) {
                     loaders.push(loader);
@@ -160,17 +156,21 @@ impl Minecraft {
     /// The flavor a content platform's loader name stands for on `side`: the
     /// flavor of that id when there is one, else one declaring that loader.
     pub fn flavor_of_loader(&self, side: Side, loader: &str) -> Option<String> {
-        let snapshot = self.flavors.snapshot();
-        let infos: Vec<_> = snapshot
+        if let Ok(id) = self.canonical(side, loader) {
+            return Some(id);
+        }
+        self.flavors
+            .snapshot()
             .iter()
             .map(|p| p.info())
             .filter(|info| info.sides.contains(&side))
-            .collect();
-        infos
-            .iter()
-            .find(|info| info.id == loader)
-            .or_else(|| infos.iter().find(|info| info.loader_name() == loader))
+            .find(|info| info.loader_name() == loader)
             .map(|info| info.id.to_string())
+    }
+
+    /// The full id of the flavor `name` means on `side`, for what is stored.
+    pub fn canonical(&self, side: Side, name: &str) -> Result<String> {
+        self.resolve(side, name).map(|(id, _)| id)
     }
 
     pub async fn versions(&self, side: Side, flavor: &str) -> Result<Vec<GameVersion>> {
@@ -250,10 +250,16 @@ impl Minecraft {
     }
 
     pub(crate) fn provider(&self, side: Side, flavor: &str) -> Result<Arc<dyn FlavorProvider>> {
+        self.resolve(side, flavor).map(|(_, provider)| provider)
+    }
+
+    fn resolve(&self, side: Side, name: &str) -> Result<(String, Arc<dyn FlavorProvider>)> {
         self.flavors
-            .snapshot()
-            .into_iter()
-            .find(|p| p.info().id == flavor && p.info().sides.contains(&side))
-            .with_context(|| format!("unknown {} flavor: {flavor}", side.noun()))
+            .resolve(name, |p| p.info().sides.contains(&side))
+            .map_err(|unresolved| {
+                unresolved.into_error(name, || {
+                    anyhow::anyhow!("unknown {} flavor: {name}", side.noun())
+                })
+            })
     }
 }

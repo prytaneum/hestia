@@ -15,7 +15,6 @@ pub enum Package {
     /// A folder run in place, never copied.
     Dev {
         path: PathBuf,
-        official: bool,
     },
     Downloaded {
         token: String,
@@ -49,11 +48,6 @@ impl Package {
     }
 
     pub fn held(engine: &Engine, request: &PluginInstallParams) -> ServiceResult<Package> {
-        if request.official && !request.dev {
-            return Err(ErrorInfo::PluginInvalid {
-                detail: "only a dev install can register as official".to_string(),
-            });
-        }
         if request.dev {
             if !request.staged.is_empty() {
                 return Err(ErrorInfo::PluginInvalid {
@@ -62,7 +56,6 @@ impl Package {
             }
             return Ok(Package::Dev {
                 path: PathBuf::from(&request.path),
-                official: request.official,
             });
         }
         if request.staged.is_empty() {

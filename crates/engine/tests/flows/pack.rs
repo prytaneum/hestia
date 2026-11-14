@@ -57,7 +57,8 @@ async fn contributions(home: &Path, hosts: &[&str]) -> (Manifest, engine::Contri
     let settings = engine::PluginSettings::new(home.join("replay-pack-settings.json"), Vec::new());
     let record = plugin_record(&manifest, &wasm, hosts);
     let plugin = Arc::new(runtime.load(&record, &wasm, data, settings).expect("load"));
-    let connected = engine::Contributions::connect(&plugin, &manifest, false).await;
+    let connected =
+        engine::Contributions::connect(&plugin, &manifest, engine::Standing::Community).await;
     (manifest, connected)
 }
 
@@ -73,7 +74,7 @@ async fn rig(home: &Path, files: &fixture::Files) -> engine::Engine {
     let (manifest, connected) = contributions(home, &["127.0.0.1"]).await;
     connected.register(&engine, &manifest.id);
     let (plugin, index) = content_source::load(home, files, &["127.0.0.1"]);
-    engine::Contributions::connect(&plugin, &index, false)
+    engine::Contributions::connect(&plugin, &index, engine::Standing::Community)
         .await
         .register(&engine, &index.id);
     engine

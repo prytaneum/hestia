@@ -700,6 +700,12 @@ pub enum ErrorInfo {
     ExportFormatUnknown {
         id: String,
     },
+    /// A bare provider name that several plugins provide and no official one
+    /// settles; `candidates` are the full ids to choose from.
+    ProviderAmbiguous {
+        name: String,
+        candidates: Vec<String>,
+    },
     PluginInstallInProgress {
         id: String,
     },
@@ -1119,6 +1125,11 @@ impl fmt::Display for ErrorInfo {
                 "no java provider '{id}' is registered; a Java distribution plugin is needed"
             ),
             ExportFormatUnknown { id } => write!(f, "no export format '{id}' is offered"),
+            ProviderAmbiguous { name, candidates } => write!(
+                f,
+                "'{name}' is provided by more than one plugin; use one of: {}",
+                candidates.join(", ")
+            ),
             PluginInstallInProgress { id } => write!(f, "'{id}' is already being installed"),
             SignInRequired => write!(f, "sign in with a Microsoft account first"),
             PluginSignInRequired { plugin } => write!(f, "plugin '{plugin}' needs you to sign in"),

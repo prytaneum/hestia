@@ -20,6 +20,7 @@ use crate::engine::Engine;
 use crate::java::{JavaPackage, JavaProvider, JavaTarget};
 use crate::plugins::runtime::LoadedPlugin;
 use crate::plugins::vouch::{Policy, Refused};
+use crate::roster::Standing;
 
 /// Why a guest's build was refused.
 #[derive(Debug, PartialEq, Eq, thiserror::Error)]
@@ -72,7 +73,7 @@ fn vet(policy: &Arc<Policy>, major: i32, build: JavaBuild) -> Result<JavaPackage
     })
 }
 
-/// A Java provider a plugin contributes, registered as `<plugin>.<id>`, or bare when official.
+/// A Java provider a plugin contributes, registered as `<plugin>.<id>`.
 pub struct PluginJavaProvider {
     guest: Guest,
     policy: Arc<Policy>,
@@ -113,14 +114,10 @@ impl JavaProvider for PluginJavaProvider {
 
 /// Nothing is asked of the guest until a build is resolved, so none can fail
 /// to connect.
-pub(super) fn connect(
-    plugin: &Arc<LoadedPlugin>,
-    manifest: &Manifest,
-    official: bool,
-) -> Vec<PluginJavaProvider> {
+pub(super) fn connect(plugin: &Arc<LoadedPlugin>, manifest: &Manifest) -> Vec<PluginJavaProvider> {
     contributed::<Distribution>(manifest)
         .map(|local| PluginJavaProvider {
-            guest: Guest::new::<Distribution>(plugin.clone(), manifest, local, official),
+            guest: Guest::new::<Distribution>(plugin.clone(), manifest, local),
             policy: Arc::new(Policy::new(plugin.grant())),
         })
         .collect()
@@ -129,15 +126,12 @@ pub(super) fn connect(
 pub(super) fn register(
     engine: &Engine,
     owner: &str,
-    official: bool,
+    standing: Standing,
     providers: Vec<PluginJavaProvider>,
 ) {
     for provider in providers {
         let id = provider.guest.id().to_string();
-        let live = provider.guest.live();
-        let outcome = engine
-            .java()
-            .register(owner, official, live, Arc::new(provider));
+        let outcome = engine.java().register(owner, standing, Arc::new(provider));
         registered(owner, "java", &id, outcome);
     }
 }

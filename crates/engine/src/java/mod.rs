@@ -14,13 +14,13 @@ use serde::{Deserialize, Serialize};
 
 use crate::download::Downloader;
 use crate::minecraft::materialize;
-use crate::roster::{Live, RegisterError, Roster};
+use crate::roster::{RegisterError, Roster, Standing};
 
 pub use platform::JavaTarget;
 pub use provider::{JavaPackage, JavaProvider};
 
-/// The id the official Adoptium plugin registers under; no distribution is
-/// built in, so this names a provider that exists only while that plugin does.
+/// The bare name of the official Adoptium plugin's provider; no distribution
+/// is built in, so this names a provider that exists only while that plugin does.
 pub const DEFAULT_PROVIDER: &str = "adoptium";
 
 const RUNTIME_RECORD: &str = "runtime.json";
@@ -52,27 +52,30 @@ impl Java {
     pub fn register(
         &self,
         owner: &str,
-        official: bool,
-        live: Live,
+        standing: Standing,
         provider: Arc<dyn JavaProvider>,
     ) -> Result<(), RegisterError> {
         let id = provider.id().to_string();
-        self.providers
-            .register(owner, official, live, &id, provider)
+        self.providers.register(owner, standing, &id, provider)
     }
 
     pub fn unregister(&self, owner: &str) -> usize {
         self.providers.unregister(owner)
     }
 
-    /// The provider registered as `id`; a typed error naming it when none is.
-    pub fn provider(&self, id: &str) -> Result<Arc<dyn JavaProvider>> {
+    /// The provider `name` means; a typed error naming it when none or
+    /// several do.
+    pub fn provider(&self, name: &str) -> Result<Arc<dyn JavaProvider>> {
         self.providers
-            .snapshot()
-            .into_iter()
-            .find(|p| p.id() == id)
-            .ok_or_else(|| {
-                proto::error::ErrorInfo::JavaProviderUnknown { id: id.to_string() }.into()
+            .resolve(name, |_| true)
+            .map(|(_, provider)| provider)
+            .map_err(|unresolved| {
+                unresolved.into_error(name, || {
+                    proto::error::ErrorInfo::JavaProviderUnknown {
+                        id: name.to_string(),
+                    }
+                    .into()
+                })
             })
     }
 
@@ -376,7 +379,6 @@ fn to_forward_slashes(path: &Path) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::roster::always_live;
     use async_trait::async_trait;
 
     struct Stub;
@@ -402,11 +404,12 @@ mod tests {
     #[tokio::test]
     async fn a_registered_provider_is_selected_by_id_and_unknown_ids_are_named() {
         let java = Java::new(PathBuf::from("java"));
-        java.register("acme", false, always_live(), Arc::new(Stub))
+        java.register("acme", Standing::Community, Arc::new(Stub))
             .expect("namespaced");
 
         let releases = java.releases("acme.zulu").await.expect("stub releases");
         assert_eq!(releases[0].major, 21);
+        assert!(java.provider("zulu").is_ok());
 
         let error = java.releases("nope").await.expect_err("unknown");
         assert!(matches!(

@@ -110,9 +110,11 @@ impl Engine {
         }
 
         let mut items = Vec::new();
-        let tracked_from = |item: &ContentAddItem| match item.source.is_empty() {
-            true => spec.source.clone(),
-            false => item.source.clone(),
+        let tracked_from = |item: &ContentAddItem| {
+            self.content.named(match item.source.is_empty() {
+                true => &spec.source,
+                false => &item.source,
+            })
         };
         // An untracked import is looked up too: a match is not recorded, but it
         // lends its icon to an archive that carries none.

@@ -46,6 +46,7 @@ use crate::plugins::imports::CommandRun;
 use crate::plugins::prerequisites;
 use crate::plugins::runtime::{LoadedPlugin, CANCEL_GRACE, COMMAND_TIMEOUT};
 use crate::plugins::vouch::{Policy, Refused};
+use crate::roster::Standing;
 
 const MAX_VERSIONS: usize = 4096;
 const MAX_VERSION_ID_CHARS: usize = 64;
@@ -208,7 +209,7 @@ fn vet_client(policy: &Policy, profile: &InstanceProfile) -> Result<(), Refusal>
     java(profile.java_major)
 }
 
-/// A flavor a plugin contributes, registered as `<plugin>.<id>`, or bare when official.
+/// A flavor a plugin contributes, registered as `<plugin>.<id>`.
 pub struct PluginFlavorProvider {
     guest: Guest,
     info: FlavorInfo,
@@ -243,7 +244,9 @@ impl PluginFlavorProvider {
             loads: described.loads,
             requires: Cow::Owned(requires),
             sides,
-            loader: declared.loader.map(Cow::Owned),
+            loader: Some(Cow::Owned(
+                declared.loader.unwrap_or_else(|| guest.local.clone()),
+            )),
             compatible: Cow::Owned(declared.compatible.into_iter().map(Cow::Owned).collect()),
             interchange: Cow::Owned(
                 declared
@@ -608,24 +611,22 @@ fn phase_of(side: Side) -> ProvisionPhase {
 pub(super) async fn connect(
     plugin: &Arc<LoadedPlugin>,
     manifest: &Manifest,
-    official: bool,
 ) -> Vec<PluginFlavorProvider> {
-    connect_each::<Flavor, _, _, _>(plugin, manifest, official, PluginFlavorProvider::connect).await
+    connect_each::<Flavor, _, _, _>(plugin, manifest, PluginFlavorProvider::connect).await
 }
 
 pub(super) fn register(
     engine: &Engine,
     owner: &str,
-    official: bool,
+    standing: Standing,
     flavors: Vec<PluginFlavorProvider>,
 ) {
     for mut flavor in flavors {
         flavor.vanilla = engine.minecraft().vanilla();
         let id = flavor.info.id.to_string();
-        let live = flavor.guest.live();
         let outcome = engine
             .minecraft()
-            .register(owner, official, live, Arc::new(flavor));
+            .register(owner, standing, Arc::new(flavor));
         registered(owner, "flavor", &id, outcome);
     }
 }

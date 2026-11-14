@@ -34,11 +34,10 @@ use crate::engine::Engine;
 use crate::plugins::chain::CallChain;
 use crate::plugins::context::CallContext;
 use crate::plugins::runtime::{CallError, LoadedPlugin, ProviderCall, PROVIDER_TIMEOUT};
-use crate::roster::Live;
+use crate::roster::Standing;
 
 /// The guest end of one contributed provider: the plugin and the id its
-/// manifest gives the provider. Registered as `<plugin>.<id>`, or as the bare
-/// `<id>` when the plugin is official.
+/// manifest gives the provider, registered as `<plugin>.<id>`.
 pub(super) struct Guest {
     plugin: Arc<LoadedPlugin>,
     kind: &'static str,
@@ -48,17 +47,8 @@ pub(super) struct Guest {
 }
 
 impl Guest {
-    fn new<K: ProviderKind>(
-        plugin: Arc<LoadedPlugin>,
-        manifest: &Manifest,
-        local: &str,
-        official: bool,
-    ) -> Self {
-        let id = if official {
-            local.to_string()
-        } else {
-            format!("{}.{local}", plugin.id())
-        };
+    fn new<K: ProviderKind>(plugin: Arc<LoadedPlugin>, manifest: &Manifest, local: &str) -> Self {
+        let id = format!("{}.{local}", plugin.id());
         let name = if manifest.name.is_empty() {
             &manifest.id
         } else {
@@ -71,13 +61,6 @@ impl Guest {
             local: local.to_string(),
             plugin,
         }
-    }
-
-    /// Whether the plugin can still answer; false once it is disabled after
-    /// repeated traps.
-    fn live(&self) -> Live {
-        let plugin = self.plugin.clone();
-        Arc::new(move || !plugin.is_disabled())
     }
 
     /// The id the provider is registered under.
@@ -163,7 +146,6 @@ fn contributed<K: ProviderKind>(manifest: &Manifest) -> impl Iterator<Item = &st
 async fn connect_each<K: ProviderKind, T, F, Fut>(
     plugin: &Arc<LoadedPlugin>,
     manifest: &Manifest,
-    official: bool,
     connect: F,
 ) -> Vec<T>
 where
@@ -172,7 +154,7 @@ where
 {
     let mut connected = Vec::new();
     for local in contributed::<K>(manifest) {
-        match connect(Guest::new::<K>(plugin.clone(), manifest, local, official)).await {
+        match connect(Guest::new::<K>(plugin.clone(), manifest, local)).await {
             Ok(provider) => connected.push(provider),
             Err(error) => tracing::warn!(
                 plugin = plugin.id(),
@@ -199,7 +181,7 @@ fn registered(owner: &str, kind: &str, id: &str, outcome: Result<(), impl std::f
 /// What one enabled plugin adds to the engine's registries.
 #[derive(Default)]
 pub struct Contributions {
-    official: bool,
+    standing: Standing,
     sources: Vec<PluginContentProvider>,
     flavors: Vec<PluginFlavorProvider>,
     java: Vec<PluginJavaProvider>,
@@ -207,15 +189,19 @@ pub struct Contributions {
 }
 
 impl Contributions {
-    /// Connects every provider `manifest` contributes. `official` is whether
-    /// the plugin's key is the official one, which alone may take bare ids.
-    pub async fn connect(plugin: &Arc<LoadedPlugin>, manifest: &Manifest, official: bool) -> Self {
+    /// Connects every provider `manifest` contributes. `standing` is how the
+    /// plugin ranks when a bare name is looked up.
+    pub async fn connect(
+        plugin: &Arc<LoadedPlugin>,
+        manifest: &Manifest,
+        standing: Standing,
+    ) -> Self {
         Contributions {
-            official,
-            sources: content::connect(plugin, manifest, official).await,
-            flavors: flavor::connect(plugin, manifest, official).await,
-            java: java::connect(plugin, manifest, official),
-            packs: pack::connect(plugin, manifest, official).await,
+            standing,
+            sources: content::connect(plugin, manifest).await,
+            flavors: flavor::connect(plugin, manifest).await,
+            java: java::connect(plugin, manifest),
+            packs: pack::connect(plugin, manifest).await,
         }
     }
 
@@ -227,11 +213,10 @@ impl Contributions {
 
     /// Adds every provider to the engine under `owner`.
     pub fn register(self, engine: &Engine, owner: &str) {
-        let official = self.official;
-        content::register(engine, owner, official, self.sources);
-        flavor::register(engine, owner, official, self.flavors);
-        java::register(engine, owner, official, self.java);
-        pack::register(engine, owner, official, self.packs);
+        content::register(engine, owner, self.standing, self.sources);
+        flavor::register(engine, owner, self.standing, self.flavors);
+        java::register(engine, owner, self.standing, self.java);
+        pack::register(engine, owner, self.standing, self.packs);
     }
 }
 
