@@ -161,7 +161,7 @@ mod tests {
     fn a_component_built_from_the_current_sdk_passes() {
         let manifest = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("../engine/tests/fixture/plugins/probe/Cargo.toml");
-        let target = tempfile::tempdir().unwrap();
+        let target = std::path::Path::new(env!("OUT_DIR")).join("probe-target");
         let status = std::process::Command::new(env!("CARGO"))
             .args([
                 "build",
@@ -172,11 +172,11 @@ mod tests {
             ])
             .arg(&manifest)
             .arg("--target-dir")
-            .arg(target.path())
+            .arg(&target)
             .status()
             .unwrap();
         assert!(status.success(), "is the wasm32-wasip2 target installed?");
-        let wasm = std::fs::read(target.path().join("wasm32-wasip2/release/probe.wasm")).unwrap();
+        let wasm = std::fs::read(target.join("wasm32-wasip2/release/probe.wasm")).unwrap();
 
         assert!(Interfaces::of_component(&wasm)
             .unwrap()
