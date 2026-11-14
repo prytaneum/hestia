@@ -2,7 +2,12 @@ import { ArrowClockwiseIcon, PuzzlePieceIcon } from '@phosphor-icons/react';
 import { useQuery } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 
-import { type Availability, type CataloguePlugin, errorMessage } from '@/api';
+import {
+  type Availability,
+  type CataloguePlugin,
+  errorHint,
+  errorMessage,
+} from '@/api';
 import { FilterMenu } from '@/components/filter-menu';
 import { SearchInput } from '@/components/search-input';
 import { Bone } from '@/components/skeleton';
@@ -73,9 +78,12 @@ export function PluginBrowse() {
   if (catalogue.isPending) return <Bone className="h-32" />;
   if (catalogue.isError)
     return (
-      <p className="text-xs text-destructive">
-        {errorMessage(catalogue.error)}
-      </p>
+      <div className="space-y-1 text-xs">
+        <p className="text-destructive">{errorMessage(catalogue.error)}</p>
+        {errorHint(catalogue.error) && (
+          <p className="text-muted-foreground">{errorHint(catalogue.error)}</p>
+        )}
+      </div>
     );
   if (repositories.length === 0)
     return (

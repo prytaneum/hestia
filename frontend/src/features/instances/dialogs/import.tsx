@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 
 import type { ImportFormat } from '@/api';
-import { dialog, errorMessage } from '@/api';
+import { dialog, errorHint, errorMessage } from '@/api';
 import { AppDialog, DialogBody, DialogFooter } from '@/components/dialog';
 import { FileDropButton } from '@/components/file-drop-button';
 import { Badge } from '@/components/ui/badge';
@@ -101,10 +101,17 @@ export function ImportInstanceDialog({
         )}
 
         {unreadable && (
-          <p className="flex items-start gap-2 text-destructive text-sm">
-            <WarningIcon className="mt-0.5 size-4 shrink-0" />
-            {errorMessage(archive.error)}
-          </p>
+          <div className="space-y-1 text-sm">
+            <p className="flex items-start gap-2 text-destructive">
+              <WarningIcon className="mt-0.5 size-4 shrink-0" />
+              {errorMessage(archive.error)}
+            </p>
+            {errorHint(archive.error) && (
+              <p className="pl-6 text-muted-foreground">
+                {errorHint(archive.error)}
+              </p>
+            )}
+          </div>
         )}
 
         {archive.data && !archive.isFetching && (

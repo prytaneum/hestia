@@ -1,5 +1,6 @@
 import { toast } from 'sonner';
 import {
+  errorHint,
   errorMessage,
   JobCancelled,
   JobInterrupted,
@@ -133,12 +134,22 @@ export const notify = {
     if (error instanceof JobCancelled || error instanceof JobInterrupted) {
       return;
     }
-    const message = errorMessage(error);
-    return show('error', title ?? message, {
+    const description = [title ? errorMessage(error) : '', errorHint(error)]
+      .filter(Boolean)
+      .join(' ');
+    return show('error', title ?? errorMessage(error), {
       id,
-      description: title ? message : undefined,
+      description: description || undefined,
       action,
       quiet,
+    });
+  },
+
+  /** An error with the next step the daemon names for it, when there is one. */
+  fail(error: unknown, options?: NotifyOptions) {
+    return show('error', errorMessage(error), {
+      ...options,
+      description: errorHint(error) || options?.description,
     });
   },
 

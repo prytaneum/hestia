@@ -78,8 +78,20 @@ export function errorMessageFromInfo(info: ErrorInfo): string {
   return msg[`error.kind.${info.kind}`]?.(interpolations(info)) ?? '';
 }
 
+/** The localized next step for a structured daemon error; empty when the variant has none. */
+export function errorHintFromInfo(info: ErrorInfo): string {
+  return msg[`error.hint.${info.kind}`]?.(interpolations(info)) ?? '';
+}
+
 function codeFallback(code: string): string {
   return msg[`error.code.${code}`]?.() ?? '';
+}
+
+/** The localized next step for any error; empty unless it is a daemon error that has one. */
+export function errorHint(error: unknown): string {
+  return error instanceof HestiaError && error.info
+    ? errorHintFromInfo(error.info)
+    : '';
 }
 
 /** The localized, user-facing string for any daemon or transport error. */

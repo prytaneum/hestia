@@ -7,7 +7,7 @@ import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 import { useCallback, useMemo } from 'react';
 
-import { type ContentKind, errorMessage } from '@/api';
+import { type ContentKind, errorHint, errorMessage } from '@/api';
 import { useSearch } from '@/components/app-shell/search-context';
 import { Empty } from '@/components/empty';
 import { FilterMenu } from '@/components/filter-menu';
@@ -126,6 +126,7 @@ export function BrowsePage({
               <Empty
                 icon={WarningCircleIcon}
                 tone="destructive"
+                description={errorHint(link.error) || undefined}
                 action={<SourceSettingLink error={link.error} />}
               >
                 {errorMessage(link.error)}

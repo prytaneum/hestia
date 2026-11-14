@@ -2,7 +2,7 @@ import { ArrowClockwiseIcon, TrashIcon } from '@phosphor-icons/react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useCallback, useState } from 'react';
 
-import { errorMessage, type RepositoryAdded, type RepositoryInfo } from '@/api';
+import type { RepositoryAdded, RepositoryInfo } from '@/api';
 import { ExternalLink } from '@/components/external-link';
 import { Bone } from '@/components/skeleton';
 import { Badge } from '@/components/ui/badge';
@@ -36,7 +36,7 @@ export function RepositoryList() {
           notify.info(m['settings.plugins.repos.already']());
         else setFound(result);
       } catch (error) {
-        notify.error(errorMessage(error));
+        notify.fail(error);
       }
     },
     [lookUpRepository],
@@ -56,7 +56,7 @@ export function RepositoryList() {
       setFound(null);
       setAddress('');
     } catch (error) {
-      notify.error(errorMessage(error));
+      notify.fail(error);
     }
   };
 
@@ -65,7 +65,7 @@ export function RepositoryList() {
       const result = await refresh.mutateAsync(undefined);
       notify.warnings(result.warnings, { id: 'plugin-repos-refresh' });
     } catch (error) {
-      notify.error(errorMessage(error));
+      notify.fail(error);
     }
   };
 

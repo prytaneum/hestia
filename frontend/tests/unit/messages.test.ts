@@ -22,6 +22,7 @@ const DYNAMIC_PREFIXES = [
   'error.kind.',
   'error.code.',
   'error.token.',
+  'error.hint.',
   'warning.kind.',
   'warning.hint.',
   'warning.token.',

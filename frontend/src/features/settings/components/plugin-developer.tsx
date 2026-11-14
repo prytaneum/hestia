@@ -2,7 +2,7 @@ import { ArrowClockwiseIcon, FolderOpenIcon } from '@phosphor-icons/react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 
-import { dialog, errorMessage, onTopic, type PluginInfo } from '@/api';
+import { dialog, onTopic, type PluginInfo } from '@/api';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Field, FieldDescription } from '@/components/ui/field';
@@ -99,7 +99,7 @@ function DevPluginRow({ plugin }: { plugin: PluginInfo }) {
       await disable.mutateAsync(id);
       await enable.mutateAsync(id);
     } catch (error) {
-      notify.error(errorMessage(error));
+      notify.fail(error);
     }
   };
   const { developer } = plugin;

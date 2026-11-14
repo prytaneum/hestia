@@ -6,6 +6,7 @@ import {
   type ContentKind,
   type ContentProject,
   dialog,
+  errorHint,
   errorMessage,
   type ResolvedUrl,
 } from '@/api';
@@ -190,6 +191,9 @@ function LinkResult({
     return (
       <div className="flex flex-col items-center gap-2 px-1 py-8 text-center text-xs text-destructive">
         <p>{errorMessage(query.error)}</p>
+        {errorHint(query.error) && (
+          <p className="text-muted-foreground">{errorHint(query.error)}</p>
+        )}
         <SourceSettingLink error={query.error} />
       </div>
     );

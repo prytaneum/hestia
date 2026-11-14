@@ -4,7 +4,6 @@ import { useState } from 'react';
 
 import {
   dialog,
-  errorMessage,
   type OutdatedPlugin,
   type PluginInfo,
   type PluginInspection,
@@ -92,7 +91,7 @@ export function usePluginInstall() {
       if (approvalDialog(inspection).complete) await approve(candidate);
       else setReview(candidate);
     } catch (error) {
-      notify.error(errorMessage(error));
+      notify.fail(error);
     }
   };
 
@@ -111,7 +110,7 @@ export function usePluginInstall() {
       else if (approvalDialog(inspection).complete) await approve(candidate);
       else setReview(candidate);
     } catch (error) {
-      notify.error(errorMessage(error));
+      notify.fail(error);
     }
   };
 
@@ -126,7 +125,7 @@ export function usePluginInstall() {
           }),
         );
     } catch (error) {
-      notify.error(errorMessage(error));
+      notify.fail(error);
     }
   };
 

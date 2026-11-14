@@ -9,7 +9,12 @@ export * as cache from './cache';
 export * as config from './config';
 export type { ContentAddInput } from './content';
 export * as content from './content';
-export { errorMessage, errorMessageFromInfo } from './core/errors';
+export {
+  errorHint,
+  errorHintFromInfo,
+  errorMessage,
+  errorMessageFromInfo,
+} from './core/errors';
 export {
   type ConnectionState,
   type DaemonEvent,
