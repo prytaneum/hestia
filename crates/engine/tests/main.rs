@@ -3,6 +3,7 @@
 
 mod auth_oracle;
 mod bundled;
+mod docs;
 mod fixture;
 mod flows;
 mod official;

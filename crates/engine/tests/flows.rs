@@ -4,6 +4,7 @@
 
 mod content_source;
 mod flavor;
+mod java;
 mod pack;
 mod plugin_update;
 mod shadow;

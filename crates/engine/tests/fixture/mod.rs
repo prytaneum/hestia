@@ -3,6 +3,7 @@
 //! driven without reaching Mojang, Modrinth or a JDK mirror.
 
 pub mod index;
+pub mod java;
 pub mod pack;
 pub mod probe;
 pub mod replay;
