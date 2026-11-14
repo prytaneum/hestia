@@ -7,7 +7,6 @@ pub(crate) mod exclude;
 pub(crate) mod icon;
 pub(crate) mod inspect;
 pub(crate) mod install;
-mod json;
 pub(crate) mod modpack;
 pub(crate) mod pack;
 pub(crate) mod pool;

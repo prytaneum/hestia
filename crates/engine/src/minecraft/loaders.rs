@@ -8,9 +8,6 @@ use std::sync::Arc;
 
 use super::provider::FlavorProvider;
 
-/// The id of the Prism and MultiMC instance format.
-pub(crate) const PRISM: &str = "prism";
-
 #[derive(Debug, Clone)]
 struct Entry {
     flavor: String,
