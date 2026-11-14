@@ -13,7 +13,6 @@ mod create;
 mod entry;
 mod files;
 pub(crate) mod lifecycle;
-mod players;
 mod tasks;
 mod update;
 
@@ -131,11 +130,6 @@ enum ServerAction {
     Files {
         #[command(subcommand)]
         cmd: files::FilesCmd,
-    },
-    /// See who is online and manage the whitelist, operators and bans
-    Players {
-        #[command(subcommand)]
-        cmd: players::PlayersCmd,
     },
     /// Restart the server or send it a command on a schedule
     Task {
@@ -272,7 +266,6 @@ async fn run_unit_action(client: Client, name: String, action: ServerAction) -> 
         }
         ServerAction::Backup { cmd } => backup::run(&client, &name, cmd).await,
         ServerAction::Files { cmd } => files::run(&client, &name, cmd).await,
-        ServerAction::Players { cmd } => players::run(&client, &name, cmd).await,
         ServerAction::Task { cmd } => tasks::run(&client, &name, cmd).await,
         ServerAction::Mod { cmd } => {
             content::run_entry(&client, EntryKind::Server, ContentKind::Mod, &name, cmd).await

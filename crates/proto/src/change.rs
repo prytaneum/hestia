@@ -22,7 +22,7 @@ use crate::plugin::Permission;
 #[serde(rename_all = "snake_case")]
 pub enum Scope {
     /// Servers and instances: their records and everything kept beside them
-    /// (settings, content, backups, tasks, players).
+    /// (settings, content, backups, tasks).
     Entries,
     Accounts,
     Skins,

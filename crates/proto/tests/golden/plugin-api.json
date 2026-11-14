@@ -466,21 +466,6 @@
       "permission": "entry:read",
       "result": "ServerPingResult"
     },
-    "server.players": {
-      "params": "ServerRef",
-      "permission": "entry:read",
-      "result": "ServerPlayersResult"
-    },
-    "server.players.kick": {
-      "params": "ServerPlayerKickParams",
-      "permission": "entry:write",
-      "result": "Empty"
-    },
-    "server.players.set": {
-      "params": "ServerPlayerSetParams",
-      "permission": "entry:write",
-      "result": "Empty"
-    },
     "server.ready": {
       "payload": "ServerReadyEvent",
       "permission": "entry:read"
@@ -681,7 +666,7 @@
     "ExportDone": "type ExportDone = { path: string, sizeBytes: bigint, files: bigint, warnings: Array<WarningInfo>, };",
     "ExportFormat": "type ExportFormat = \"hestia\" | { \"provider\": Provider };",
     "ExportFormatInfo": "type ExportFormatInfo = { format: ExportFormat, extension: string, };",
-    "Field": "type Field = \"name\" | \"project\" | \"version\" | \"item\" | \"backup\" | \"command\" | \"program\" | \"url\" | \"path\" | \"flavor\" | \"world\" | \"address\" | \"memory\" | \"jvm_args\" | \"player\" | \"retention\" | \"java_version\" | \"schedule\" | \"order\" | \"realm\" | \"process_id\";",
+    "Field": "type Field = \"name\" | \"project\" | \"version\" | \"item\" | \"backup\" | \"command\" | \"program\" | \"url\" | \"path\" | \"flavor\" | \"world\" | \"address\" | \"memory\" | \"jvm_args\" | \"retention\" | \"java_version\" | \"schedule\" | \"order\" | \"realm\" | \"process_id\";",
     "FileEntry": "type FileEntry = { name: string, path: string, dir: boolean, size: bigint, modifiedUnix: bigint, };",
     "FileFault": "type FileFault = \"outside_entry\" | \"already_exists\" | \"not_a_directory\" | \"is_a_directory\" | \"too_large\" | \"not_text\" | \"archive_format\" | \"into_itself\" | \"unsupported_type\";",
     "FileReadResult": "type FileReadResult = { content: string, };",
@@ -770,8 +755,6 @@
     "PackPolicy": "type PackPolicy = \"move\" | \"keep\";",
     "PackRead": "type PackRead = { pack: ResolvedModpack, resolve?: ManifestDelegate, overrides: OverrideTrees, memory?: string, jvmArgs?: string, icon?: string, };",
     "PackWritten": "type PackWritten = { members: Array<PackMember>, copies: Array<PackCopy>, warnings: Array<string>, };",
-    "PlayerEntry": "type PlayerEntry = { name: string, uuid: string, reason?: string, };",
-    "PlayerList": "type PlayerList = \"whitelist\" | \"ops\" | \"banned\";",
     "PoolItem": "type PoolItem = { path: string, referenceable: boolean, size: bigint, sha512: string, item: InstalledContent, };",
     "ProcessExitEvent": "type ProcessExitEvent = { id: string, state: ProcessState, exitCode?: number, success: boolean, };",
     "ProcessInfo": "type ProcessInfo = { id: string, pid: number, program: string, args: Array<string>, state: ProcessState, exitCode?: number, startedUnix: bigint, owner?: string, };",
@@ -787,7 +770,7 @@
     "ProvisionProgress": "type ProvisionProgress = { phase: ProvisionPhase, current: bigint, total: bigint, detail: string, item: bigint, items: bigint, overallCurrent: bigint, overallTotal: bigint, };",
     "QuickPlay": "type QuickPlay = { \"kind\": \"world\", \"target\": string } | { \"kind\": \"server\", \"target\": string } | { \"kind\": \"realm\", \"target\": string };",
     "ReadQuery": "type ReadQuery = { files: Array<string>, members: { [key in string]: string }, loaders: Array<string>, };",
-    "Reason": "type Reason = \"not_boolean\" | \"not_whole_number\" | { \"out_of_range\": { min: bigint, max: bigint, } } | { \"not_one_of\": { values: Array<string>, } } | \"memory_format\" | \"memory_exceeds_host\" | \"jvm_args_prefix\" | \"java_major\" | \"absolute_path\" | \"server_address\" | \"list_order\" | \"realm_id\" | \"process_id_charset\" | \"player_name\" | \"schedule_format\";",
+    "Reason": "type Reason = \"not_boolean\" | \"not_whole_number\" | { \"out_of_range\": { min: bigint, max: bigint, } } | { \"not_one_of\": { values: Array<string>, } } | \"memory_format\" | \"memory_exceeds_host\" | \"jvm_args_prefix\" | \"java_major\" | \"absolute_path\" | \"server_address\" | \"list_order\" | \"realm_id\" | \"process_id_charset\" | \"schedule_format\";",
     "RecentPlay": "type RecentPlay = { instance: string, instanceName: string, target: QuickPlay, name: string, gameMode: GameMode, playedUnix: bigint, icon: string, };",
     "ReleaseChannel": "type ReleaseChannel = \"release\" | \"beta\" | \"alpha\";",
     "Replace": "type Replace = { \"kind\": \"all\" } | { \"kind\": \"one\", \"session\": string };",
@@ -832,9 +815,6 @@
     "ServerLaunch": "type ServerLaunch = \"jar\" | { \"argsFile\": ArgsFile };",
     "ServerModpackInstallParams": "type ServerModpackInstallParams = { target: ModpackTarget, eula: boolean, port?: number, id: string, source: string, project: string, version: string, url: string, path: string, };",
     "ServerPingResult": "type ServerPingResult = { playersOnline: number, playersMax: number, motd: string, version: string, favicon: string, };",
-    "ServerPlayerKickParams": "type ServerPlayerKickParams = { server: string, player: string, };",
-    "ServerPlayerSetParams": "type ServerPlayerSetParams = { server: string, player: string, list: PlayerList, listed: boolean, };",
-    "ServerPlayersResult": "type ServerPlayersResult = { online: Array<PlayerEntry>, whitelist: Array<PlayerEntry>, ops: Array<PlayerEntry>, banned: Array<PlayerEntry>, };",
     "ServerProfile": "type ServerProfile = { flavor: string, gameVersion: string, loaderVersion?: string, jar: ServerJar, launch: ServerLaunch, javaMajor: number, jvmArgs: Array<string>, };",
     "ServerReadyEvent": "type ServerReadyEvent = { id: string, };",
     "ServerRef": "type ServerRef = { server: string, };",
@@ -877,7 +857,7 @@
     "VersionKind": "type VersionKind = \"release\" | \"snapshot\" | \"old_beta\" | \"old_alpha\";",
     "VersionList": "type VersionList = Array<string> | Array<GameVersion>;",
     "VersionQuery": "type VersionQuery = { source: string, project: string, loaders: Array<string>, gameVersion?: string, };",
-    "WarningInfo": "type WarningInfo = { \"kind\": \"properties_schema_missing\", name: string, } | { \"kind\": \"sync_unit_unsupported\", instance: string, unit: SyncUnit, requires: string, } | { \"kind\": \"sync_unit_skipped\", unit: SyncUnit, detail: string, } | { \"kind\": \"modpack_overrides_kept\", count: number, paths: Array<string>, } | { \"kind\": \"modpack_files_excluded\", count: number, files: Array<string>, } | { \"kind\": \"export_files_embedded\", count: number, files: Array<string>, } | { \"kind\": \"import_files_untracked\", count: number, files: Array<string>, } | { \"kind\": \"import_content_missing\", count: number, files: Array<string>, } | { \"kind\": \"document_quarantined\", document: string, path: string, detail: string, } | { \"kind\": \"server_list_in_use\", instance: string, sessions: number, } | { \"kind\": \"launched_offline\", account: string, } | { \"kind\": \"session_not_verified\", account: string, } | { \"kind\": \"server_not_restarted\", server: string, detail: string, } | { \"kind\": \"pack_not_moved\", pack: string, version_number: string, pack_game_version: string, target: string, } | { \"kind\": \"plugin_hook_failed\", plugin: string, hook: string, } | { \"kind\": \"launch_arg_dropped\", plugin: string, arg: string, } | { \"kind\": \"repository_stale\", repository: string, detail: string, } | { \"kind\": \"plugin_permissions_disagree\", plugin: string, } | { \"kind\": \"pack_export_warned\", pack: string, detail: string, } | { \"kind\": \"pack_setting_dropped\", pack: string, setting: string, detail: string, } | { \"kind\": \"pack_icon_dropped\", pack: string, detail: string, } | { \"kind\": \"plugin_update_rolled_back\", id: string, version: string, error: string, };",
+    "WarningInfo": "type WarningInfo = { \"kind\": \"properties_schema_missing\", name: string, } | { \"kind\": \"sync_unit_unsupported\", instance: string, unit: SyncUnit, requires: string, } | { \"kind\": \"sync_unit_skipped\", unit: SyncUnit, detail: string, } | { \"kind\": \"modpack_overrides_kept\", count: number, paths: Array<string>, } | { \"kind\": \"modpack_files_excluded\", count: number, files: Array<string>, } | { \"kind\": \"import_content_missing\", count: number, files: Array<string>, } | { \"kind\": \"document_quarantined\", document: string, path: string, detail: string, } | { \"kind\": \"server_list_in_use\", instance: string, sessions: number, } | { \"kind\": \"launched_offline\", account: string, } | { \"kind\": \"session_not_verified\", account: string, } | { \"kind\": \"server_not_restarted\", server: string, detail: string, } | { \"kind\": \"pack_not_moved\", pack: string, version_number: string, pack_game_version: string, target: string, } | { \"kind\": \"plugin_hook_failed\", plugin: string, hook: string, } | { \"kind\": \"launch_arg_dropped\", plugin: string, arg: string, } | { \"kind\": \"repository_stale\", repository: string, detail: string, } | { \"kind\": \"plugin_permissions_disagree\", plugin: string, } | { \"kind\": \"pack_export_warned\", pack: string, detail: string, } | { \"kind\": \"pack_setting_dropped\", pack: string, setting: string, detail: string, } | { \"kind\": \"pack_icon_dropped\", pack: string, detail: string, } | { \"kind\": \"plugin_update_rolled_back\", id: string, version: string, error: string, };",
     "WorldInfo": "type WorldInfo = { folder: string, name: string, read: boolean, version: string, gameMode: GameMode, difficulty: Difficulty, hardcore: boolean, cheats: boolean, lastPlayedUnix?: bigint, sizeBytes: bigint, icon: string, };",
     "WriteQuery": "type WriteQuery = { instance: PackInstance, files: Array<string>, content: Array<PoolItem>, };"
   },

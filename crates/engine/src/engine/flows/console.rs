@@ -47,10 +47,8 @@ impl Engine {
             .iter()
             .any(|argument| found.arguments.contains(*argument))
         {
-            let online = self.online_players(&id).await?;
-            found
-                .literals
-                .extend(online.into_iter().map(|player| player.name));
+            let reply = self.consoles.command(&id, &rcon, "list uuids").await?;
+            found.literals.extend(online_names(&reply));
         }
         let partial = typed.partial.to_lowercase();
         let slash = match typed.slash && typed.words.is_empty() {
@@ -74,5 +72,44 @@ impl Engine {
             .rcon
             .context("this server has no console yet (restart it to enable one)")?;
         Ok((record.id, rcon))
+    }
+}
+
+/// The names out of a `list uuids` reply. Every version puts them after the
+/// first colon, comma-separated — on the same line or the next — each as
+/// `Name (uuid)`; a server too old to know the argument answers with bare names.
+fn online_names(reply: &str) -> Vec<String> {
+    let Some((_, players)) = reply.split_once(':') else {
+        return Vec::new();
+    };
+    players
+        .split([',', '\n'])
+        .map(str::trim)
+        .filter(|player| !player.is_empty())
+        .map(|player| {
+            player
+                .strip_suffix(')')
+                .and_then(|rest| rest.rsplit_once(" ("))
+                .map_or(player, |(name, _)| name)
+                .to_string()
+        })
+        .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_online_players_are_read_from_either_reply_shape() {
+        assert_eq!(
+            online_names("There are 2 of a max of 20 players online: Alex (u1), Steve (u2)"),
+            ["Alex", "Steve"]
+        );
+        assert_eq!(
+            online_names("There are 2/20 players online:\nAlex, Steve"),
+            ["Alex", "Steve"]
+        );
+        assert!(online_names("There are 0 of a max of 20 players online: ").is_empty());
     }
 }

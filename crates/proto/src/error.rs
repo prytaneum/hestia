@@ -75,7 +75,6 @@ pub enum Field {
     Address,
     Memory,
     JvmArgs,
-    Player,
     Retention,
     JavaVersion,
     Schedule,
@@ -106,7 +105,6 @@ impl fmt::Display for Field {
             Field::Address => "a server address",
             Field::Memory => "memory",
             Field::JvmArgs => "jvm arguments",
-            Field::Player => "a player name",
             Field::Order => "a list order",
             Field::Realm => "a realm",
             Field::Retention => "a retention count",
@@ -135,7 +133,6 @@ pub enum Reason {
     ListOrder,
     RealmId,
     ProcessIdCharset,
-    PlayerName,
     ScheduleFormat,
 }
 
@@ -163,9 +160,6 @@ impl fmt::Display for Reason {
             Reason::RealmId => f.write_str("a realm is named by its numeric id"),
             Reason::ProcessIdCharset => {
                 f.write_str("a process id may only contain letters, digits, '-', '_' and '.'")
-            }
-            Reason::PlayerName => {
-                f.write_str("a player name is up to 32 letters, digits, '_' or '.', with no spaces")
             }
             Reason::ScheduleFormat => f.write_str(
                 "a schedule is an interval of at least 5m (30m, 6h, 1d) or a daily time (04:30)",
@@ -1167,8 +1161,8 @@ impl fmt::Display for ErrorInfo {
             }
             ArchiveUnrecognised { filename } => write!(
                 f,
-                "'{filename}' is not an instance hestia can import — it carries no hestia, \
-                 Modrinth, CurseForge or Prism manifest"
+                "'{filename}' is not an instance hestia can import — it carries no hestia \
+                 manifest and no installed pack format reads it"
             ),
             ArchiveInvalid { format, reason } => {
                 write!(f, "this {format} archive could not be read: {reason}")
