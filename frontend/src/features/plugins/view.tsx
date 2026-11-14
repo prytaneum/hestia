@@ -1,9 +1,14 @@
 import { WarningCircleIcon } from '@phosphor-icons/react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  type QueryKey,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 
-import { errorMessage } from '@/api';
+import { errorMessage, onDaemonEvent } from '@/api';
 import type { Action, Effect } from '@/api/types/ui';
 import { Empty } from '@/components/empty';
 import { Bone } from '@/components/skeleton';
@@ -11,8 +16,39 @@ import { notify } from '@/lib/notify';
 import { m } from '@/paraglide/messages.js';
 import { pluginMutations, pluginQueries } from '@/queries/plugin';
 
+import { topicMatches } from './lib';
 import { ViewCtx } from './view/context';
 import { UiView } from './view/render';
+
+const REDRAW_THROTTLE_MS = 500;
+
+/** Draws the page again when a topic it names is published, at most twice a second however busy the topic. */
+function useRedrawOnTopics(queryKey: QueryKey, topics: string[] = []) {
+  const queryClient = useQueryClient();
+  const names = topics.join(' ');
+  useEffect(() => {
+    if (!names) return;
+    const patterns = names.split(' ');
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let off: (() => void) | undefined;
+    let stopped = false;
+    void onDaemonEvent((event) => {
+      if (timer || !patterns.some((p) => topicMatches(p, event.topic))) return;
+      timer = setTimeout(() => {
+        timer = undefined;
+        void queryClient.invalidateQueries({ queryKey });
+      }, REDRAW_THROTTLE_MS);
+    }).then((unsubscribe) => {
+      if (stopped) unsubscribe();
+      else off = unsubscribe;
+    });
+    return () => {
+      stopped = true;
+      off?.();
+      clearTimeout(timer);
+    };
+  }, [names, queryClient, queryKey]);
+}
 
 const TOAST = {
   success: notify.success,
@@ -36,7 +72,16 @@ export function PluginView({
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const render = pluginQueries.render(plugin, page, entry);
-  const tree = useQuery(render);
+  const contribution = useQuery(pluginQueries.pages()).data?.find(
+    (found) => found.plugin === plugin && found.page.id === page,
+  )?.page;
+  const tree = useQuery({
+    ...render,
+    refetchInterval: contribution?.refreshEvery
+      ? contribution.refreshEvery * 1000
+      : false,
+  });
+  useRedrawOnTopics(render.queryKey, contribution?.topics);
   const action = useMutation(pluginMutations.uiAction());
 
   const view = useMemo(() => {

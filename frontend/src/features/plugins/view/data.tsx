@@ -1,5 +1,10 @@
+import { useState } from 'react';
+
 import type { UiNode } from '@/api/types/ui';
 import { Button } from '@/components/ui/button';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import { Input } from '@/components/ui/input';
+import { m } from '@/paraglide/messages.js';
 
 import { PluginIcon } from '../icon';
 import { useView } from './context';
@@ -7,44 +12,63 @@ import { UiView } from './render';
 
 type Node<T extends UiNode['type']> = Extract<UiNode, { type: T }>;
 
-export function Table({ columns, rows, rowAction }: Node<'table'>) {
+export function Table({ columns, rows, rowAction, filter }: Node<'table'>) {
   const { run, pending } = useView();
+  const [query, setQuery] = useState('');
+  const needle = query.trim().toLowerCase();
+  const shown = needle
+    ? rows.filter((row) =>
+        row.cells.some((cell) => cell.toLowerCase().includes(needle)),
+      )
+    : rows;
   return (
-    <div className="max-w-full overflow-x-auto border border-border">
-      <table className="w-full text-left text-xs">
-        <thead className="border-b border-border bg-muted/40 text-muted-foreground">
-          <tr>
-            {columns.map((column, i) => (
-              // biome-ignore lint/suspicious/noArrayIndexKey: columns carry no id
-              <th key={i} className="px-3 py-2 font-medium">
-                {column}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-border">
-          {rows.map((row, r) => (
-            <tr
-              // biome-ignore lint/suspicious/noArrayIndexKey: rows carry no id
-              key={r}
-              className={rowAction ? 'cursor-pointer hover:bg-muted/50' : ''}
-              aria-disabled={pending || undefined}
-              onClick={
-                rowAction
-                  ? () => void run({ id: rowAction, payload: row.payload })
-                  : undefined
-              }
-            >
-              {row.cells.map((cell, c) => (
-                // biome-ignore lint/suspicious/noArrayIndexKey: cells carry no id
-                <td key={c} className="px-3 py-2">
-                  {cell}
-                </td>
+    <div className="space-y-2">
+      {filter && (
+        <Input
+          type="search"
+          className="max-w-xs"
+          placeholder={m['plugins.filter']()}
+          aria-label={m['plugins.filter']()}
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+        />
+      )}
+      <div className="max-w-full overflow-x-auto border border-border">
+        <table className="w-full text-left text-xs">
+          <thead className="border-b border-border bg-muted/40 text-muted-foreground">
+            <tr>
+              {columns.map((column, i) => (
+                // biome-ignore lint/suspicious/noArrayIndexKey: columns carry no id
+                <th key={i} className="px-3 py-2 font-medium">
+                  {column}
+                </th>
               ))}
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody className="divide-y divide-border">
+            {shown.map((row, r) => (
+              <tr
+                // biome-ignore lint/suspicious/noArrayIndexKey: rows carry no id
+                key={r}
+                className={rowAction ? 'cursor-pointer hover:bg-muted/50' : ''}
+                aria-disabled={pending || undefined}
+                onClick={
+                  rowAction
+                    ? () => void run({ id: rowAction, payload: row.payload })
+                    : undefined
+                }
+              >
+                {row.cells.map((cell, c) => (
+                  // biome-ignore lint/suspicious/noArrayIndexKey: cells carry no id
+                  <td key={c} className="px-3 py-2">
+                    {cell}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
@@ -109,8 +133,28 @@ const VARIANT = {
   danger: 'destructive',
 } as const;
 
-export function ActionButton({ label, action, variant }: Node<'button'>) {
+export function ActionButton({
+  label,
+  action,
+  variant,
+  confirm,
+}: Node<'button'>) {
   const { run, pending } = useView();
+  if (confirm) {
+    return (
+      <ConfirmDialog
+        trigger={
+          <Button variant={VARIANT[variant]} disabled={pending}>
+            {label}
+          </Button>
+        }
+        title={label}
+        description={confirm}
+        destructive={variant === 'danger'}
+        onConfirm={() => void run(action)}
+      />
+    );
+  }
   return (
     <Button
       variant={VARIANT[variant]}

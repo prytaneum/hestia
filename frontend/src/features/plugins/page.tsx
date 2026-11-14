@@ -6,11 +6,13 @@ import { Page } from '@/components/page';
 import { m } from '@/paraglide/messages.js';
 import { pluginQueries } from '@/queries/plugin';
 
+import { usePluginText } from './text';
 import { PluginView } from './view';
 
 /** A nav-slot page, full width under the app's usual page header. */
 export function PluginPage({ plugin, page }: { plugin: string; page: string }) {
   const pages = useQuery(pluginQueries.pages());
+  const text = usePluginText([plugin]);
   const found = pages.data?.find(
     (contribution) =>
       contribution.plugin === plugin && contribution.page.id === page,
@@ -24,7 +26,12 @@ export function PluginPage({ plugin, page }: { plugin: string; page: string }) {
     );
   }
   return (
-    <Page title={found?.page.title ?? page} loading={pages.isPending}>
+    <Page
+      title={
+        found ? text(plugin, `page.${page}.title`, found.page.title) : page
+      }
+      loading={pages.isPending}
+    >
       <PluginView plugin={plugin} page={page} />
     </Page>
   );

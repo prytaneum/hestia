@@ -4,7 +4,17 @@ import { m } from '@/paraglide/messages.js';
 
 import { ActionButton, Detail, List, Table } from './data';
 import { UiForm } from './form';
-import { Heading, Image, Markup, Meter, Notice, Text } from './layout';
+import {
+  Heading,
+  Image,
+  Markup,
+  Meter,
+  Notice,
+  PluginBadge,
+  RemoteImage,
+  Text,
+} from './layout';
+import { UiTabs } from './tabs';
 import { Webview } from './webview';
 
 /** Draws one node of a plugin tree with the app's own components; a node it does not know is shown as a notice. */
@@ -34,6 +44,12 @@ export function UiView({ node }: { node: UiNode }) {
       return <Markup source={node.source} />;
     case 'image':
       return <Image src={node.src} alt={node.alt} />;
+    case 'remote_image':
+      return <RemoteImage url={node.url} alt={node.alt} shape={node.shape} />;
+    case 'badge':
+      return <PluginBadge text={node.text} tone={node.tone} />;
+    case 'tabs':
+      return <UiTabs {...node} />;
     case 'table':
       return <Table {...node} />;
     case 'list':

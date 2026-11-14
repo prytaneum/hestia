@@ -1,9 +1,13 @@
-import type { Tone } from '@/api/types/ui';
+import { useQuery } from '@tanstack/react-query';
+
+import type { ImageShape, Tone } from '@/api/types/ui';
 import { Markdown } from '@/components/markdown';
+import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Notice as WarningBox } from '@/components/warning-notice';
 import { pluginAsset } from '@/lib/plugin-asset';
 import { cn } from '@/lib/utils';
+import { pluginQueries } from '@/queries/plugin';
 
 import { useView } from './context';
 
@@ -55,6 +59,55 @@ export function Image({ src, alt }: { src: string; alt: string }) {
       className="h-auto max-w-full"
     />
   );
+}
+
+/** From a host the plugin's grant names: the daemon fetches it and refuses any other, so the webview never contacts the host. */
+export function RemoteImage({
+  url,
+  alt,
+  shape,
+}: {
+  url: string;
+  alt: string;
+  shape: ImageShape;
+}) {
+  const { plugin } = useView();
+  const image = useQuery(pluginQueries.image(plugin, url));
+  const avatar = shape === 'avatar';
+  const size = avatar ? 'size-8 rounded-full' : 'max-w-full';
+  if (!image.data) {
+    return (
+      <span
+        role="img"
+        aria-label={alt}
+        className={cn('inline-block bg-muted', avatar ? size : 'h-16 w-16')}
+      />
+    );
+  }
+  return (
+    <img
+      src={`data:${image.data.mime};base64,${image.data.bytes}`}
+      alt={alt}
+      className={cn(
+        'inline-block object-cover',
+        size,
+        avatar && '[image-rendering:pixelated]',
+      )}
+    />
+  );
+}
+
+const BADGE: Record<Tone, string> = {
+  neutral: 'bg-secondary text-secondary-foreground',
+  muted: 'border-border text-muted-foreground',
+  info: 'bg-primary/10 text-foreground',
+  success: 'bg-emerald-500/15 text-emerald-500',
+  warning: 'bg-amber/15 text-amber',
+  error: 'bg-destructive/10 text-destructive',
+};
+
+export function PluginBadge({ text, tone }: { text: string; tone: Tone }) {
+  return <Badge className={BADGE[tone]}>{text}</Badge>;
 }
 
 export function Markup({ source }: { source: string }) {

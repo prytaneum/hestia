@@ -174,8 +174,19 @@ export const keys = {
     commands: () => [...keys.plugins.all, 'commands'] as const,
     themes: () => [...keys.plugins.all, 'themes'] as const,
     settings: (id: string) => [...keys.plugins.all, 'settings', id] as const,
-    render: (plugin: string, page: string, entry?: string) =>
-      [...keys.plugins.all, 'render', plugin, page, entry ?? null] as const,
+    render: (plugin: string, page: string, entry?: string, locale?: string) =>
+      [
+        ...keys.plugins.all,
+        'render',
+        plugin,
+        page,
+        entry ?? null,
+        locale ?? null,
+      ] as const,
+    image: (plugin: string, url: string) =>
+      [...keys.plugins.all, 'image', plugin, url] as const,
+    messages: (plugin: string, locale: string) =>
+      [...keys.plugins.all, 'messages', plugin, locale] as const,
   },
   update: {
     all: ['update'] as const,

@@ -8,6 +8,7 @@ import type {
   RepositoryInfo,
   RepositoryRefreshed,
 } from './types/catalogue';
+import type { ImageFetchResult } from './types/image';
 import type {
   Outdated,
   PluginCommand,
@@ -47,6 +48,20 @@ export function run(
   job: JobRun,
 ): Promise<PluginRunDone> {
   return runJob('plugin.run', params, job);
+}
+
+/** An image a page names, fetched by the daemon from a host the plugin's grant allows. */
+export function image(plugin: string, url: string): Promise<ImageFetchResult> {
+  return call('plugin.image', { plugin, url });
+}
+
+/** The plugin's catalog for `locale`, the nearest language's texts over English. */
+export async function messages(
+  plugin: string,
+  locale: string,
+): Promise<Record<string, string>> {
+  const { messages } = await call('plugin.messages', { plugin, locale });
+  return messages;
 }
 
 export function render(params: PluginUiRenderParams): Promise<UiNode> {

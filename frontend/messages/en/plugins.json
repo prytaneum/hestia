@@ -4,6 +4,7 @@
       "done": "{title} finished",
       "run": "Run"
     },
+    "filter": "Filter",
     "load_failed": "This plugin page could not be loaded",
     "missing": "This plugin page is not available",
     "pick": "Choose one",

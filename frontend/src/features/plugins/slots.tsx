@@ -9,6 +9,7 @@ import { pluginQueries } from '@/queries/plugin';
 
 import { PluginIcon } from './icon';
 import { pluginTab } from './lib';
+import { usePluginText } from './text';
 import { PluginView } from './view';
 
 function usePluginPages(slot: PageSlot, kind?: EntryKind): PluginPage[] {
@@ -29,6 +30,7 @@ export function pagePath(plugin: string, page: string): string {
 /** The nav slot: one sidebar item per contributed page, after the built-in ones. */
 export function usePluginNav(): NavItem[] {
   const pages = usePluginPages('nav');
+  const text = usePluginText(pages.map(({ plugin }) => plugin));
   return useMemo(
     () =>
       pages.map(({ plugin, page }) => {
@@ -36,21 +38,27 @@ export function usePluginNav(): NavItem[] {
         return {
           to,
           match: [to],
-          label: () => page.title,
+          label: () => text(plugin, `page.${page.id}.title`, page.title),
           icon: (props) => (
             <PluginIcon plugin={plugin} icon={page.icon} {...props} />
           ),
         };
       }),
-    [pages],
+    [pages, text],
   );
 }
 
 /** The entry slot's tab triggers, for a server or instance detail's tab list. */
 export function PluginTabTriggers({ kind }: { kind: EntryKind }) {
-  return usePluginPages('entry', kind).map((contribution) => (
+  const pages = usePluginPages('entry', kind);
+  const text = usePluginText(pages.map(({ plugin }) => plugin));
+  return pages.map((contribution) => (
     <TabsTrigger key={pluginTab(contribution)} value={pluginTab(contribution)}>
-      {contribution.page.title}
+      {text(
+        contribution.plugin,
+        `page.${contribution.page.id}.title`,
+        contribution.page.title,
+      )}
     </TabsTrigger>
   ));
 }
@@ -80,8 +88,12 @@ export function PluginTabContents({
 /** The settings slot: a section per contributed page. */
 export function PluginSettingsSections() {
   const pages = usePluginPages('settings');
+  const text = usePluginText(pages.map(({ plugin }) => plugin));
   return pages.map(({ plugin, page }) => (
-    <SettingGroup key={`${plugin}/${page.id}`} legend={page.title}>
+    <SettingGroup
+      key={`${plugin}/${page.id}`}
+      legend={text(plugin, `page.${page.id}.title`, page.title)}
+    >
       <PluginView plugin={plugin} page={page.id} />
     </SettingGroup>
   ));

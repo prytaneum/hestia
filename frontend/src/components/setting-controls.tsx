@@ -135,6 +135,9 @@ export function SavedInput({
   disabled,
   trailing,
   confirm,
+  min,
+  max,
+  invalid,
 }: {
   id: string;
   value: string;
@@ -146,12 +149,17 @@ export function SavedInput({
   /** Sits at the end of a row: a fixed width, with Save appearing before it. */
   trailing?: boolean;
   confirm?: { title: string; description: string };
+  min?: number;
+  max?: number;
+  /** Why the typed text cannot be saved, when it cannot: shown beside the field, and Save is held back. */
+  invalid?: (text: string) => string | undefined;
 }) {
   const [draft, setDraft] = useState<string | null>(null);
   const [seenValue, setSeenValue] = useState(value);
   const { state, run } = useSaveState();
   const current = draft ?? value;
-  const dirty = current.trim() !== value;
+  const problem = invalid?.(current.trim());
+  const dirty = current.trim() !== value && !problem;
 
   if (value !== seenValue) {
     setSeenValue(value);
@@ -178,6 +186,9 @@ export function SavedInput({
           mono && 'font-mono',
         )}
         placeholder={placeholder}
+        min={min}
+        max={max}
+        aria-invalid={problem ? true : undefined}
         value={current}
         disabled={disabled}
         onChange={(e) => setDraft(e.target.value)}
@@ -185,6 +196,11 @@ export function SavedInput({
           if (e.key === 'Enter' && dirty && !confirm) save();
         }}
       />
+      {problem && (
+        <span role="alert" className="text-[11px] text-destructive">
+          {problem}
+        </span>
+      )}
       <SaveStatus state={state} />
       {(dirty || state !== 'idle') &&
         (confirm ? (

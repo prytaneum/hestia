@@ -1,6 +1,8 @@
 /** `plugin.*` — query/mutation factories, consumed through useQuery/useMutation. */
+
 import { queryOptions } from '@tanstack/react-query';
 import { m } from '@/paraglide/messages.js';
+import { getLocale } from '@/paraglide/runtime.js';
 import type {
   Effect,
   EntryKind,
@@ -81,12 +83,32 @@ export const pluginQueries = {
       queryKey: keys.plugins.settings(id),
       queryFn: () => api.settings(id),
     }),
-  render: (plugin: string, page: string, entry?: string) =>
-    queryOptions({
-      queryKey: keys.plugins.render(plugin, page, entry),
+  render: (plugin: string, page: string, entry?: string) => {
+    const locale = getLocale();
+    return queryOptions({
+      queryKey: keys.plugins.render(plugin, page, entry, locale),
       queryFn: () =>
-        api.render({ plugin, page, context: entry ? { entry } : {} }),
+        api.render({
+          plugin,
+          page,
+          context: entry ? { entry, locale } : { locale },
+        }),
       retry: false,
+    });
+  },
+  /** Fetched by the daemon from a host the plugin's grant names; a refusal is final for the session. */
+  image: (plugin: string, url: string) =>
+    queryOptions({
+      queryKey: keys.plugins.image(plugin, url),
+      queryFn: () => api.image(plugin, url),
+      staleTime: Number.POSITIVE_INFINITY,
+      retry: false,
+    }),
+  messages: (plugin: string, locale: string) =>
+    queryOptions({
+      queryKey: keys.plugins.messages(plugin, locale),
+      queryFn: () => api.messages(plugin, locale),
+      staleTime: CATALOG_STALE_MS,
     }),
 };
 

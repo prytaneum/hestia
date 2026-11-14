@@ -2,6 +2,7 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 
 import type { PluginInfo, Setting, SettingValue } from '@/api';
+import { ExternalLink } from '@/components/external-link';
 import { SaveButton, SaveStatus } from '@/components/save-button';
 import {
   SavedInput,
@@ -17,6 +18,12 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
+import {
+  groupSettings,
+  type SettingProblem,
+  settingProblem,
+} from '@/features/plugins/lib';
+import { usePluginText } from '@/features/plugins/text';
 import { useSaveState } from '@/hooks/use-save-state';
 import { m } from '@/paraglide/messages.js';
 import { pluginMutations, pluginQueries } from '@/queries/plugin';
@@ -26,6 +33,7 @@ export function PluginSettings({ plugin }: { plugin: PluginInfo }) {
   const { id, settings } = plugin.manifest;
   const values = useQuery(pluginQueries.settings(id));
   const save = useMutation(pluginMutations.setSetting(id));
+  const text = usePluginText([id]);
   if (settings.length === 0) return null;
 
   const write = (key: string, value: unknown) =>
@@ -36,35 +44,81 @@ export function PluginSettings({ plugin }: { plugin: PluginInfo }) {
       <div className="font-medium text-xs">
         {m['settings.plugins.settings.title']()}
       </div>
-      <SettingList>
-        {settings.map((setting) => (
-          <SettingRow
-            key={setting.key}
-            htmlFor={`${id}-${setting.key}`}
-            label={setting.label || setting.key}
-            description={setting.help || undefined}
-          >
-            <Control
-              id={`${id}-${setting.key}`}
-              setting={setting}
-              current={values.data?.find((v) => v.key === setting.key)}
-              onSave={(value) => write(setting.key, value)}
-            />
-          </SettingRow>
-        ))}
-      </SettingList>
+      {groupSettings(settings).map(([group, rows]) => (
+        <div key={group} className="space-y-1.5">
+          {group && (
+            <div className="text-[11px] text-muted-foreground">
+              {text(id, `group.${group}`, group)}
+            </div>
+          )}
+          <SettingList>
+            {rows.map((setting) => (
+              <SettingRow
+                key={setting.key}
+                htmlFor={`${id}-${setting.key}`}
+                label={text(
+                  id,
+                  `setting.${setting.key}.label`,
+                  setting.label || setting.key,
+                )}
+                description={
+                  <>
+                    {text(id, `setting.${setting.key}.help`, setting.help)}
+                    {setting.helpUrl && (
+                      <>
+                        {setting.help && ' '}
+                        <ExternalLink
+                          href={setting.helpUrl}
+                          className="underline underline-offset-2"
+                        >
+                          {m['settings.plugins.settings.help_link']()}
+                        </ExternalLink>
+                      </>
+                    )}
+                  </>
+                }
+              >
+                <Control
+                  id={`${id}-${setting.key}`}
+                  setting={setting}
+                  placeholder={text(
+                    id,
+                    `setting.${setting.key}.placeholder`,
+                    setting.placeholder,
+                  )}
+                  current={values.data?.find((v) => v.key === setting.key)}
+                  onSave={(value) => write(setting.key, value)}
+                />
+              </SettingRow>
+            ))}
+          </SettingList>
+        </div>
+      ))}
     </div>
   );
+}
+
+function problemText(problem: SettingProblem): string {
+  switch (problem.kind) {
+    case 'min':
+      return m['settings.plugins.settings.problem.min']({ min: problem.min });
+    case 'max':
+      return m['settings.plugins.settings.problem.max']({ max: problem.max });
+    case 'pattern':
+      return m['settings.plugins.settings.problem.pattern']();
+  }
 }
 
 function Control({
   id,
   setting,
+  placeholder,
   current,
   onSave,
 }: {
   id: string;
   setting: Setting;
+  placeholder?: string;
   current?: SettingValue;
   onSave: (value: unknown) => Promise<unknown>;
 }) {
@@ -98,7 +152,12 @@ function Control({
       );
     case 'secret':
       return (
-        <SecretInput id={id} isSet={current?.set === true} onSave={onSave} />
+        <SecretInput
+          id={id}
+          isSet={current?.set === true}
+          placeholder={placeholder}
+          onSave={onSave}
+        />
       );
     case 'number':
       return (
@@ -106,6 +165,13 @@ function Control({
           id={id}
           type="number"
           trailing
+          placeholder={placeholder}
+          min={setting.min}
+          max={setting.max}
+          invalid={(text) => {
+            const problem = settingProblem(setting, text);
+            return problem ? problemText(problem) : undefined;
+          }}
           value={value === undefined ? '' : String(value)}
           onSave={(text) => onSave(text === '' ? null : Number(text))}
         />
@@ -115,6 +181,11 @@ function Control({
         <SavedInput
           id={id}
           trailing
+          placeholder={placeholder}
+          invalid={(text) => {
+            const problem = settingProblem(setting, text);
+            return problem ? problemText(problem) : undefined;
+          }}
           value={typeof value === 'string' ? value : ''}
           onSave={(text) => onSave(text === '' ? null : text)}
         />
@@ -126,10 +197,12 @@ function Control({
 function SecretInput({
   id,
   isSet,
+  placeholder,
   onSave,
 }: {
   id: string;
   isSet: boolean;
+  placeholder?: string;
   onSave: (value: unknown) => Promise<unknown>;
 }) {
   const [draft, setDraft] = useState('');
@@ -150,7 +223,7 @@ function SecretInput({
         placeholder={
           isSet
             ? m['settings.plugins.settings.secret_set']()
-            : m['settings.plugins.settings.secret_unset']()
+            : placeholder || m['settings.plugins.settings.secret_unset']()
         }
         value={draft}
         onChange={(e) => setDraft(e.target.value)}

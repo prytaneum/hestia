@@ -167,6 +167,12 @@
       "review_hint": "This list is too long for the approval dialog. Read it here, then continue.",
       "review_title": "Review {name} {version}",
       "settings": {
+        "help_link": "Learn more",
+        "problem": {
+          "max": "At most {max}",
+          "min": "At least {min}",
+          "pattern": "Not in the expected format"
+        },
         "secret_set": "Set. Type to replace",
         "secret_unset": "Not set",
         "title": "Settings"

@@ -132,6 +132,8 @@ const plugins: PluginInfo[] = [
         label: 'Access key',
         help: 'Used to sign uploads.',
         options: [],
+        placeholder: '',
+        group: '',
       },
       {
         key: 'keep',
@@ -140,6 +142,8 @@ const plugins: PluginInfo[] = [
         label: 'Backups to keep',
         help: '',
         options: [],
+        placeholder: '',
+        group: '',
       },
       {
         key: 'verbose',
@@ -148,6 +152,8 @@ const plugins: PluginInfo[] = [
         label: 'Log every upload',
         help: '',
         options: [],
+        placeholder: '',
+        group: '',
       },
       {
         key: 'region',
@@ -156,6 +162,8 @@ const plugins: PluginInfo[] = [
         label: 'Region',
         help: '',
         options: ['eu', 'us'],
+        placeholder: '',
+        group: '',
       },
     ],
     description:
@@ -234,7 +242,14 @@ const setState = (id: string, state: PluginState): PluginInfo => {
 const pages: PluginPage[] = [
   {
     plugin: 'hello',
-    page: { id: 'greeter', title: 'Greeter', icon: 'plugin', slot: 'nav' },
+    page: {
+      id: 'greeter',
+      title: 'Greeter',
+      icon: 'plugin',
+      slot: 'nav',
+      topics: ['server.*'],
+      refreshEvery: 30,
+    },
   },
   {
     plugin: 'hello',
@@ -244,9 +259,13 @@ const pages: PluginPage[] = [
       icon: 'server',
       slot: 'entry',
       kind: 'server',
+      topics: [],
     },
   },
 ];
+
+const PIXEL =
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
 
 const greeter = {
   type: 'stack',
@@ -254,6 +273,52 @@ const greeter = {
   children: [
     { type: 'heading', text: 'Hello', level: 1 },
     { type: 'markdown', source: 'Say **hi** to the daemon.' },
+    {
+      type: 'stack',
+      direction: 'horizontal',
+      children: [
+        {
+          type: 'remote_image',
+          url: 'https://mc-heads.net/avatar/hestia',
+          alt: 'hestia',
+          shape: 'avatar',
+        },
+        { type: 'badge', text: 'Online', tone: 'success' },
+      ],
+    },
+    {
+      type: 'tabs',
+      tabs: [
+        {
+          id: 'players',
+          label: 'Players',
+          children: [
+            {
+              type: 'table',
+              columns: ['Name', 'Rank'],
+              filter: true,
+              rows: [
+                { cells: ['hestia', 'owner'], payload: null },
+                { cells: ['kodo', 'member'], payload: null },
+              ],
+            },
+          ],
+        },
+        {
+          id: 'danger',
+          label: 'Danger',
+          children: [
+            {
+              type: 'button',
+              label: 'Reset',
+              action: { id: 'reset', payload: null },
+              variant: 'danger',
+              confirm: 'Reset every counter?',
+            },
+          ],
+        },
+      ],
+    },
     {
       type: 'form',
       id: 'greet',
@@ -268,6 +333,8 @@ export const channels: ChannelHandlers = {
   'plugin.commands': () => [],
   'plugin.themes': () => [],
   'plugin.ui.render': () => greeter,
+  'plugin.image': () => ({ mime: 'image/png', bytes: PIXEL }),
+  'plugin.messages': () => ({ messages: {} }),
   'plugin.ui.action': () => [
     { type: 'toast', tone: 'success', text: 'Hello from the mock plugin' },
   ],

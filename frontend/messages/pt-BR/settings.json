@@ -167,6 +167,12 @@
       "review_hint": "Esta lista é longa demais para o diálogo de aprovação. Leia aqui e depois continue.",
       "review_title": "Revisar {name} {version}",
       "settings": {
+        "help_link": "Saiba mais",
+        "problem": {
+          "max": "No máximo {max}",
+          "min": "No mínimo {min}",
+          "pattern": "Fora do formato esperado"
+        },
         "secret_set": "Definido. Digite para substituir",
         "secret_unset": "Não definido",
         "title": "Configurações"
