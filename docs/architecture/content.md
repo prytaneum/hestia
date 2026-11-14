@@ -79,7 +79,8 @@ like a slug. A source that has no datapack project type (Modrinth) says so with
 > `available()` and `configure()`: `content.sources` lists the sources that can
 > serve and those waiting on a setting (with `requiresSetting` naming it),
 > `content.*` refuses a named-but-unconfigured one with
-> `ContentSourceUnavailable` (naming what to set, rather than the "unknown
+> `ContentSourceUnavailable` (carrying the same `RequiredSetting`, so the desktop
+> links to where it is edited and the CLI says how to set it, rather than the "unknown
 > source" a filtered registry would have to claim), and a pasted
 > `curseforge.com` URL still parses — it is recognised, then refused for the
 > reason that is actionable. Resolution is the `content.curseforge-key` setting,

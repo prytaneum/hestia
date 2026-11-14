@@ -13,7 +13,7 @@ The host, not the guest, decides: the source serves while that setting holds a v
 reads the settings file when asked, so a change made by the user or by the plugin takes effect at once with no refresh
 and no guest call. A key the plugin does not declare refuses the source at connect. `content.sources` lists a source that
 waits on a setting, with `requiresSetting { plugin?, key }`, so a front-end can say which setting is missing; one
-that is disabled is not listed. A call that names it is still refused as `ContentSourceUnavailable`. The built-in
+that is disabled is not listed. A call that names it is still refused as `ContentSourceUnavailable`, which carries the same `setting` so a front-end can link to it. The built-in
 CurseForge reports its config key through the same field.
 
 **One vet.** `Policy::vet_artifact` is the rule for every file a plugin names: https on a granted host, and a
