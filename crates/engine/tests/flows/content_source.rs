@@ -228,7 +228,7 @@ async fn with_no_source_installed_a_request_fails_typed() {
         .expect_err("not installed");
     assert!(matches!(
         engine::error_info(named),
-        ErrorInfo::ContentSourceUnknown { id } if id == "modrinth"
+        ErrorInfo::ProviderUnknown { name, .. } if name == "modrinth"
     ));
 }
 

@@ -411,14 +411,7 @@ impl Content {
     fn resolve(&self, name: &str) -> Result<(String, Arc<dyn ContentProvider>)> {
         self.providers
             .resolve(name, |_| true)
-            .map_err(|unresolved| {
-                unresolved.into_error(name, || {
-                    ErrorInfo::ContentSourceUnknown {
-                        id: name.to_string(),
-                    }
-                    .into()
-                })
-            })
+            .map_err(|unresolved| unresolved.into_error(name))
     }
 
     /// The provider for `id`; an empty id selects the default — the first

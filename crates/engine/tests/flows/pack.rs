@@ -450,7 +450,7 @@ async fn an_export_goes_through_the_format_and_carries_its_warnings() {
         .expect("an unknown format");
     assert!(matches!(
         engine::error_info(unknown),
-        ErrorInfo::ExportFormatUnknown { .. }
+        ErrorInfo::ProviderUnknown { .. }
     ));
 }
 

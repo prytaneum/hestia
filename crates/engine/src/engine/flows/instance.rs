@@ -131,6 +131,7 @@ impl Engine {
         loader_version: Option<String>,
         config: &[ConfigEntry],
     ) -> Result<InstanceRecord> {
+        self.ensure_flavor_ready(Side::Client, flavor)?;
         let profile = self
             .minecraft
             .resolve_instance(

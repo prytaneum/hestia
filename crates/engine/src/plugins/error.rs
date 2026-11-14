@@ -286,8 +286,7 @@ impl From<&ErrorInfo> for GuestError {
             | AlreadyExists { .. }
             | PortUnavailable { .. }
             | NotRunning { .. }
-            | JavaProviderUnknown { .. }
-            | ExportFormatUnknown { .. }
+            | ProviderUnknown { .. }
             | ProviderAmbiguous { .. }
             | NotAModpack { .. }
             | ModpackInvalid { .. }
@@ -367,7 +366,6 @@ impl From<&ErrorInfo> for GuestError {
             | PluginVetoed { .. }
             | StopTimedOut { .. }
             | NoContentSource
-            | ContentSourceUnknown { .. }
             | ContentSourceUnavailable { .. }
             | ContentDownloadBlocked { .. }
             | Io { .. }

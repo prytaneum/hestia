@@ -162,6 +162,6 @@ async fn a_bare_name_two_unofficial_plugins_share_is_ambiguous_and_names_both() 
     );
     assert!(matches!(
         engine::error_info(rig.resolved("nope").unwrap_err()),
-        ErrorInfo::ContentSourceUnknown { .. }
+        ErrorInfo::ProviderUnknown { available, .. } if available == ["acme-index.index", "beta-index.index"]
     ));
 }

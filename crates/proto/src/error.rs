@@ -691,14 +691,12 @@ pub enum ErrorInfo {
     JavaInstallInProgress {
         major: i32,
     },
-    /// No Java provider is registered under `id`: no installed Java distribution
-    /// plugin offers it.
-    JavaProviderUnknown {
-        id: String,
-    },
-    /// No export format is offered under `id`.
-    ExportFormatUnknown {
-        id: String,
+    /// No provider of the kind asked for (flavor, content source, pack format,
+    /// Java distribution) is called `name`; `available` are the full ids that
+    /// are.
+    ProviderUnknown {
+        name: String,
+        available: Vec<String>,
     },
     /// A bare provider name that several plugins provide and no official one
     /// settles; `candidates` are the full ids to choose from.
@@ -793,10 +791,6 @@ pub enum ErrorInfo {
     /// No content source is registered, so a request that names none has none
     /// to default to.
     NoContentSource,
-    /// No content source is registered under `id`.
-    ContentSourceUnknown {
-        id: String,
-    },
     /// A registered source that cannot serve requests as configured. `setting`
     /// names the one it waits on, so a front-end can point at where to set it.
     ContentSourceUnavailable {
@@ -1120,11 +1114,14 @@ impl fmt::Display for ErrorInfo {
             JavaInstallInProgress { major } => {
                 write!(f, "java {major} is already being installed")
             }
-            JavaProviderUnknown { id } => write!(
+            ProviderUnknown { name, available } if available.is_empty() => {
+                write!(f, "nothing called '{name}' is installed")
+            }
+            ProviderUnknown { name, available } => write!(
                 f,
-                "no java provider '{id}' is registered; a Java distribution plugin is needed"
+                "nothing called '{name}' is installed; choose one of: {}",
+                available.join(", ")
             ),
-            ExportFormatUnknown { id } => write!(f, "no export format '{id}' is offered"),
             ProviderAmbiguous { name, candidates } => write!(
                 f,
                 "'{name}' is provided by more than one plugin; use one of: {}",
@@ -1195,7 +1192,6 @@ impl fmt::Display for ErrorInfo {
             NoContentSource => f.write_str(
                 "no content source is installed — install a content source plugin to browse content",
             ),
-            ContentSourceUnknown { id } => write!(f, "no content source '{id}' is installed"),
             ContentSourceUnavailable { source, setting } => match setting {
                 None => write!(f, "the {source} content source is not configured"),
                 Some(RequiredSetting { plugin, key }) => write!(

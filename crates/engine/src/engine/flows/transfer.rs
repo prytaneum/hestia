@@ -109,16 +109,13 @@ impl Engine {
     }
 
     fn exporter(&self, format: &ExportFormat) -> Result<Exporter> {
-        let unknown = |id: &str| ErrorInfo::ExportFormatUnknown { id: id.to_string() };
         match format {
             ExportFormat::Hestia => Ok(Exporter::Hestia),
             ExportFormat::Provider(provider) => self
                 .packs
                 .resolve(&provider.id, |pack| !pack.info().extension.is_empty())
                 .map(|(_, pack)| Exporter::Plugin(pack))
-                .map_err(|unresolved| {
-                    unresolved.into_error(&provider.id, || unknown(&provider.id).into())
-                }),
+                .map_err(|unresolved| unresolved.into_error(&provider.id)),
         }
     }
 

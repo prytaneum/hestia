@@ -256,10 +256,6 @@ impl Minecraft {
     fn resolve(&self, side: Side, name: &str) -> Result<(String, Arc<dyn FlavorProvider>)> {
         self.flavors
             .resolve(name, |p| p.info().sides.contains(&side))
-            .map_err(|unresolved| {
-                unresolved.into_error(name, || {
-                    anyhow::anyhow!("unknown {} flavor: {name}", side.noun())
-                })
-            })
+            .map_err(|unresolved| unresolved.into_error(name))
     }
 }

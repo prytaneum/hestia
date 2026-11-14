@@ -36,6 +36,7 @@ impl Engine {
         if !spec.eula {
             anyhow::bail!(proto::error::ErrorInfo::EulaRequired);
         }
+        self.ensure_flavor_ready(Side::Server, &spec.flavor)?;
         on_progress.report(&phase_progress(ProvisionPhase::Resolving));
         let profile = self
             .minecraft

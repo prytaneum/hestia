@@ -69,14 +69,7 @@ impl Java {
         self.providers
             .resolve(name, |_| true)
             .map(|(_, provider)| provider)
-            .map_err(|unresolved| {
-                unresolved.into_error(name, || {
-                    proto::error::ErrorInfo::JavaProviderUnknown {
-                        id: name.to_string(),
-                    }
-                    .into()
-                })
-            })
+            .map_err(|unresolved| unresolved.into_error(name))
     }
 
     pub fn dir(&self) -> &Path {
@@ -414,7 +407,8 @@ mod tests {
         let error = java.releases("nope").await.expect_err("unknown");
         assert!(matches!(
             error.downcast_ref::<proto::error::ErrorInfo>(),
-            Some(proto::error::ErrorInfo::JavaProviderUnknown { id }) if id == "nope"
+            Some(proto::error::ErrorInfo::ProviderUnknown { name, available })
+                if name == "nope" && available == &["acme.zulu"]
         ));
 
         assert_eq!(java.unregister("acme"), 1);

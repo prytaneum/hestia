@@ -39,20 +39,19 @@ pub enum RegisterError {
 /// Why a name matched no single provider.
 #[derive(Debug)]
 pub(crate) enum Unresolved {
-    Unknown,
+    Unknown(Vec<String>),
     Ambiguous(Vec<String>),
 }
 
 impl Unresolved {
-    /// The typed failure for `name`; `unknown` builds the kind's own answer
-    /// for a name nobody provides.
-    pub(crate) fn into_error(
-        self,
-        name: &str,
-        unknown: impl FnOnce() -> anyhow::Error,
-    ) -> anyhow::Error {
+    /// The typed failure for `name`, listing the full ids to choose from.
+    pub(crate) fn into_error(self, name: &str) -> anyhow::Error {
         match self {
-            Unresolved::Unknown => unknown(),
+            Unresolved::Unknown(available) => ErrorInfo::ProviderUnknown {
+                name: name.to_string(),
+                available,
+            }
+            .into(),
             Unresolved::Ambiguous(candidates) => ErrorInfo::ProviderAmbiguous {
                 name: name.to_string(),
                 candidates,
@@ -184,7 +183,8 @@ impl<T: ?Sized> Roster<T> {
             return Ok(hit(exact));
         }
         let named: Vec<&Entry<T>> = candidates
-            .into_iter()
+            .iter()
+            .copied()
             .filter(|e| !e.builtin() && e.local() == name)
             .collect();
         let standing = |wanted: Standing| -> Vec<&Entry<T>> {
@@ -200,7 +200,9 @@ impl<T: ?Sized> Roster<T> {
             .find(|pool| !pool.is_empty())
             .unwrap_or(named);
         match pool.as_slice() {
-            [] => Err(Unresolved::Unknown),
+            [] => Err(Unresolved::Unknown(
+                candidates.iter().map(|e| e.id.clone()).collect(),
+            )),
             [only] => Ok(hit(only)),
             _ => Err(Unresolved::Ambiguous(
                 pool.iter().map(|e| e.id.clone()).collect(),
