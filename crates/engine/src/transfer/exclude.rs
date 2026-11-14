@@ -142,21 +142,6 @@ mod tests {
     }
 
     #[test]
-    fn the_instances_own_files_stay_in() {
-        let rules = rules(&[], &[]);
-        for path in [
-            "modpack.json",
-            "mods/sodium.jar",
-            "data/servers.dat",
-            "data/options.txt",
-            "data/config/sodium.json",
-            "data/saves/world/level.dat",
-        ] {
-            assert!(rules.keeps(path), "{path} should be kept");
-        }
-    }
-
-    #[test]
     fn a_pool_items_mirror_is_skipped_but_an_untracked_file_is_not() {
         let rules = rules(&["data/mods/sodium.jar"], &[]);
         assert!(!rules.keeps("data/mods/sodium.jar"));

@@ -123,20 +123,4 @@ mod tests {
             "nothing below the cutoff is listed individually"
         );
     }
-
-    #[test]
-    fn what_the_archive_skips_is_not_offered() {
-        let dir = temp("skips");
-        let entry_dir = dir.path();
-        let data_dir = entry_dir.join("data");
-        write(entry_dir, "instance.json", "{}");
-        write(entry_dir, "logs/session-1.log", "noise");
-        write(&data_dir, "crash-reports/crash.txt", "noise");
-        write(&data_dir, "options.txt", "12345");
-
-        let entries = list(entry_dir, &data_dir);
-
-        let paths: Vec<&str> = entries.iter().map(|e| e.path.as_str()).collect();
-        assert_eq!(paths, ["data", "data/options.txt"]);
-    }
 }

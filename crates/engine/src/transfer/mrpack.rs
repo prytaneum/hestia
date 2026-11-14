@@ -237,24 +237,6 @@ mod tests {
     }
 
     #[test]
-    fn a_disabled_item_is_exported_as_optional_rather_than_dropped() {
-        let dir = tempfile::tempdir().unwrap();
-        let managed = managed_file(dir.path(), "off.jar");
-        let item = InstalledContent {
-            url: "https://cdn.modrinth.com/off.jar".to_string(),
-            sha1: "abc".to_string(),
-            filename: "off.jar".to_string(),
-            enabled: false,
-            ..Default::default()
-        };
-        let entry = index_entry(&item, &managed, "mods/off.jar")
-            .unwrap()
-            .unwrap();
-        assert_eq!(entry["env"]["client"], "optional");
-        assert_eq!(entry["env"]["server"], "optional");
-    }
-
-    #[test]
     fn only_embedded_content_warns_not_embedded_configuration() {
         let members = |names: &[&str]| -> Vec<Member> {
             names

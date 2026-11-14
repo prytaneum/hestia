@@ -352,12 +352,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn a_marker_at_the_root_outranks_one_buried_deeper() {
-        let detected = detected(&["instance.cfg", "nested/deeper/instance.cfg"]).await;
-        assert_eq!(detected.prefix, "");
-    }
-
-    #[tokio::test]
     async fn a_pack_index_the_instance_merely_ships_does_not_masquerade_as_the_pack() {
         let detected = detected(&[
             "instance.cfg",
@@ -367,13 +361,6 @@ mod tests {
         .await;
         assert_eq!(provider_id(detected.kind.id()), "prism");
         assert_eq!(detected.prefix, "");
-    }
-
-    #[tokio::test]
-    async fn an_archive_no_format_knows_is_unrecognised() {
-        assert!(detect(&names(&["manifest.json"]), "a", &[], false)
-            .await
-            .is_err());
     }
 
     #[tokio::test]

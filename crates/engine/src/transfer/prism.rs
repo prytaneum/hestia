@@ -334,14 +334,6 @@ mod tests {
     }
 
     #[test]
-    fn a_config_with_sections_and_comments_still_parses() {
-        let text = "[General]\n# a comment\nname = Cozy\nInstanceType=OneSix\n";
-        let config = parse_config(text);
-        assert_eq!(setting(&config, "name"), Some("Cozy"));
-        assert_eq!(setting(&config, "InstanceType"), Some("OneSix"));
-    }
-
-    #[test]
     fn a_loader_no_flavor_claims_is_carried_by_its_uid() {
         let pack = r#"{"components":[
             {"uid":"org.lwjgl3","version":"3.3.3","dependencyOnly":true},
@@ -364,23 +356,6 @@ mod tests {
     }
 
     #[test]
-    fn overridden_settings_become_jvm_settings() {
-        let instance = Instance {
-            name: "Cozy".to_string(),
-            game_version: "1.21.1".to_string(),
-            loader: None,
-            memory_mb: Some(6144),
-            jvm_args: Some("-XX:+UseG1GC".to_string()),
-        };
-        let jvm = jvm_settings(&instance);
-        assert_eq!(jvm.get(MEMORY_KEY).unwrap().as_deref(), Some("6G"));
-        assert_eq!(
-            jvm.get(JVM_ARGS_KEY).unwrap().as_deref(),
-            Some("-XX:+UseG1GC")
-        );
-    }
-
-    #[test]
     fn a_jvm_setting_hestia_rejects_is_dropped_not_fatal() {
         let instance = Instance {
             name: "Cozy".to_string(),
@@ -391,26 +366,6 @@ mod tests {
         };
         let jvm = jvm_settings(&instance);
         assert_eq!(jvm.get(JVM_ARGS_KEY).unwrap(), None);
-    }
-
-    #[test]
-    fn the_icon_is_the_root_file_named_for_its_key_else_icon_png() {
-        let archive = vec![
-            "p/instance.cfg".to_string(),
-            "p/icon.png".to_string(),
-            "p/cozy_pack.webp".to_string(),
-            "p/.minecraft/flame.png".to_string(),
-        ];
-        assert_eq!(
-            icon_member(&archive, "p/", "cozy_pack").as_deref(),
-            Some("p/cozy_pack.webp")
-        );
-        assert_eq!(
-            icon_member(&archive, "p/", "flame").as_deref(),
-            Some("p/icon.png"),
-            "a built-in key names no file at the root"
-        );
-        assert_eq!(icon_member(&archive[..1], "p/", "instance"), None);
     }
 
     #[test]

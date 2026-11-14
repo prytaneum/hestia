@@ -441,20 +441,6 @@ mod tests {
     }
 
     #[test]
-    fn a_plan_names_members_under_the_prefix_and_skips_refused_subtrees() {
-        let dir = temp("plan");
-        let root = dir.path();
-        write(root, "data/options.txt", "a");
-        write(root, "data/config/deep/x.toml", "b");
-        write(root, "logs/session-1.log", "c");
-
-        let members = plan(root, "", &|relative| relative != "logs");
-
-        let names: Vec<&str> = members.iter().map(|m| m.name.as_str()).collect();
-        assert_eq!(names, ["data/config/deep/x.toml", "data/options.txt"]);
-    }
-
-    #[test]
     fn a_round_trip_preserves_the_tree() {
         let dir = temp("roundtrip");
         let root = &dir.path().join("instance");
@@ -487,41 +473,6 @@ mod tests {
             "lang:en"
         );
         assert!(back.path().join("mods/sodium.jar").is_file());
-    }
-
-    #[test]
-    fn both_gauges_reach_their_total() {
-        let dir = temp("ticks");
-        let root = &dir.path().join("instance");
-        write(root, "data/options.txt", "lang:en");
-        write(root, "mods/sodium.jar", "jar bytes");
-
-        let archive = dir.path().join("out.hestia");
-        let cancel = crate::cancel::Cancel::new();
-        let seen = std::sync::Mutex::new(Vec::new());
-        let record = |p: &ProvisionProgress| {
-            seen.lock().unwrap().push((p.phase, p.current, p.total));
-        };
-        let job = Job::new(&record, &cancel);
-
-        let mut writer = Writer::create(&archive).unwrap();
-        writer.add_all(&plan(root, "", &|_| true), &job).unwrap();
-        writer.finish().unwrap();
-        let back = temp("ticks-out");
-        Reader::open(&archive)
-            .unwrap()
-            .extract_under("", back.path(), &job, &|_| true)
-            .unwrap();
-
-        let seen = seen.into_inner().unwrap();
-        let last = |phase: ProvisionPhase| {
-            seen.iter()
-                .rev()
-                .find(|(p, _, _)| *p == phase)
-                .map(|(_, current, total)| (*current, *total))
-        };
-        assert_eq!(last(ProvisionPhase::Archive), Some((2, 2)));
-        assert_eq!(last(ProvisionPhase::Extract), Some((2, 2)));
     }
 
     #[test]

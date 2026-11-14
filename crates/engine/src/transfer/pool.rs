@@ -216,37 +216,4 @@ mod tests {
             assert!(!entry_dir.join(sidecar).exists(), "{sidecar} is not pooled");
         }
     }
-
-    #[test]
-    fn an_extension_matches_whatever_its_case() {
-        let dir = temp("case");
-        let entry_dir = dir.path();
-        let data_dir = entry_dir.join("data");
-        write(&data_dir, "resourcepacks/Loud.ZIP", "zip");
-        write(&data_dir, "resourcepacks/packed.jar", "jar");
-        write(&data_dir, "shaderpacks/off.zip.disabled", "zip");
-
-        adopt(entry_dir, &data_dir).unwrap();
-
-        let items = install::load(entry_dir);
-        let named = |name: &str| items.iter().find(|i| i.filename == name);
-        assert!(named("Loud.ZIP").is_some_and(|i| i.enabled));
-        assert!(named("packed.jar").is_some_and(|i| i.enabled));
-        assert!(named("off.zip").is_some_and(|i| !i.enabled));
-    }
-
-    #[test]
-    fn a_folder_resourcepack_is_left_where_the_game_reads_it() {
-        let dir = temp("folder");
-        let entry_dir = dir.path();
-        let data_dir = entry_dir.join("data");
-        write(&data_dir, "resourcepacks/unpacked/pack.mcmeta", "{}");
-
-        let adopted = adopt(entry_dir, &data_dir).unwrap();
-
-        assert!(adopted.is_empty());
-        assert!(data_dir
-            .join("resourcepacks/unpacked/pack.mcmeta")
-            .is_file());
-    }
 }

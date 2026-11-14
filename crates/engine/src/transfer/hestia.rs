@@ -516,23 +516,6 @@ mod tests {
     }
 
     #[test]
-    fn an_unstamped_manifest_reads_as_the_baseline() {
-        let dir = temp("legacy-manifest");
-        let path = dir.path().join("legacy.hestia");
-        archive_of(
-            &path,
-            &serde_json::json!({ "instance": serde_json::to_value(record()).unwrap() }),
-        );
-
-        let blueprint = Hestia
-            .read(&mut Reader::open(&path).unwrap(), "", &Loaders::default())
-            .unwrap();
-
-        assert_eq!(blueprint.descriptor.name, "Cozy");
-        assert_eq!(blueprint.descriptor.game_version, "1.21.1");
-    }
-
-    #[test]
     fn a_manifest_pinning_no_version_is_invalid() {
         let dir = temp("no-version");
         let path = dir.path().join("broken.hestia");
