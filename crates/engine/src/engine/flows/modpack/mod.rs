@@ -99,6 +99,7 @@ struct Supplied {
     sha1: String,
     url: String,
     identity: Option<FileIdentity>,
+    enabled: bool,
 }
 
 impl Supplied {

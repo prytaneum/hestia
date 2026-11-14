@@ -72,6 +72,10 @@ pub(crate) fn is_content_file(kind: ContentKind, filename: &str) -> bool {
         })
 }
 
+/// How another launcher keeps a turned-off file in a load directory: the
+/// content name with this suffix, which the game does not load.
+pub(crate) const DISABLED_SUFFIX: &str = ".disabled";
+
 /// Where a datapack loads from: `data/<world>/datapacks/<file>`. A pack is
 /// mirrored into one such dir per target world, from the same managed copy the
 /// other kinds keep.

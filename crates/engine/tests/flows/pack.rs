@@ -929,3 +929,38 @@ async fn a_pack_no_source_published_updates_from_a_newer_file() {
     mods.sort_unstable();
     assert_eq!(mods, ["kept.jar", "new.jar"]);
 }
+
+#[tokio::test]
+async fn a_disabled_file_in_an_override_tree_is_a_disabled_pool_item_that_can_be_enabled() {
+    let (home, drops) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
+    let engine = rig(home.path(), &fixture::Files::serve().await).await;
+    let mut manifest = replay(json!([]));
+    manifest["trees"] = json!({ "shared": ["overrides"] });
+    let extra = [
+        ("overrides/mods/sodium.jar.disabled", &b"sodium"[..]),
+        ("overrides/mods/lithium.jar", &b"lithium"[..]),
+        ("overrides/config/notes.txt.disabled", &b"notes"[..]),
+    ];
+    let imported = import(&engine, &archive_of(drops.path(), manifest, &extra))
+        .await
+        .expect("the pack imports");
+    let entry = EntryRef::Instance(&imported.record.id);
+    let data = data_of(&engine, &imported);
+
+    let (items, _) = engine.entry_content(entry, ContentKind::Mod).unwrap();
+    let state = |name: &str| items.iter().find(|item| item.filename == name);
+    assert!(!state("sodium.jar").expect("listed").enabled);
+    assert!(state("lithium.jar").expect("listed").enabled);
+    assert!(!data.join("mods/sodium.jar").exists());
+    assert!(!data.join("mods/sodium.jar.disabled").exists());
+    assert!(
+        data.join("config/notes.txt.disabled").is_file(),
+        "a disabled file outside the pool stays a plain file"
+    );
+
+    let matched = engine
+        .enable_entry_content(entry, ContentKind::Mod, "sodium.jar", true, &[])
+        .unwrap();
+    assert_eq!(matched, 1);
+    assert!(data.join("mods/sodium.jar").is_file());
+}

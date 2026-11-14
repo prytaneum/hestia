@@ -91,14 +91,13 @@ impl Engine {
         job.check()?;
         let ownership = Ownership::of(previous.as_ref());
         let data_dir = ctx.data_dir.clone();
-        let pooled = |path: &str| managed_kind(path).filter(|kind| accepts.contains(kind));
         let written = archive.extract_overrides(side, job, |path| {
             if patterns.excludes(path) {
                 return None;
             }
             // Pool content like an index file, so it goes where the mirror reads.
-            if let Some(kind) = pooled(path) {
-                return content_target(ctx, kind, filename(path)).ok();
+            if let Some((kind, name, _)) = pooled_override(path, &accepts) {
+                return content_target(ctx, kind, name).ok();
             }
             let writable = ownership.writable(&data_dir, path, &data_dir.join(path));
             if !writable {
@@ -107,9 +106,9 @@ impl Engine {
             writable.then(|| data_dir.join(path))
         })?;
         for file in written {
-            match pooled(&file.path) {
-                Some(kind) => {
-                    let filename = filename(&file.path).to_string();
+            match pooled_override(&file.path, &accepts) {
+                Some((kind, name, enabled)) => {
+                    let filename = name.to_string();
                     let artifact = Artifact {
                         filename: filename.clone(),
                         ..Artifact::default()
@@ -139,6 +138,7 @@ impl Engine {
                         sha1: file.sha1,
                         url: String::new(),
                         identity: None,
+                        enabled,
                     });
                 }
                 None => overrides.push(ModpackOverride {
@@ -244,6 +244,7 @@ impl Engine {
                     sha1: String::new(),
                     url: file.artifact.url.clone(),
                     identity: FileIdentity::of(file),
+                    enabled: true,
                 };
                 (pending, *file)
             })
@@ -474,6 +475,7 @@ fn pack_item(file: Supplied, entry_dir: &Path) -> InstalledContent {
         sha1,
         url,
         identity,
+        enabled,
     } = file;
     let (project, release) = match identity {
         Some(identity) => (
@@ -512,7 +514,30 @@ fn pack_item(file: Supplied, entry_dir: &Path) -> InstalledContent {
             },
         ),
     };
-    record::assemble(project, release, record::Holding::fresh(&[]))
+    record::assemble(
+        project,
+        release,
+        record::Holding {
+            enabled,
+            ..record::Holding::fresh(&[])
+        },
+    )
+}
+
+/// An override that belongs in the pool: its kind, its content filename and
+/// whether it is enabled. A file kept as `<name>.disabled` is the same content,
+/// turned off.
+fn pooled_override<'a>(
+    path: &'a str,
+    accepts: &[ContentKind],
+) -> Option<(ContentKind, &'a str, bool)> {
+    let (content, enabled) = match path.strip_suffix(install::DISABLED_SUFFIX) {
+        Some(stem) => (stem, false),
+        None => (path, true),
+    };
+    managed_kind(content)
+        .filter(|kind| accepts.contains(kind))
+        .map(|kind| (kind, filename(content), enabled))
 }
 
 /// The kind a pack file's path names, when it is exactly one of the managed
