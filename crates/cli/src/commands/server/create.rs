@@ -18,7 +18,7 @@ const EULA_URL: &str = "https://aka.ms/MinecraftEULA";
 /// create-time settings list.
 #[derive(clap::Args)]
 pub struct CreateArgs {
-    /// Flavor id (e.g. vanilla, fabric)
+    /// Flavor id (see the `flavors` subcommand)
     flavor: Option<String>,
     /// Game version (e.g. 1.21.1)
     version: Option<String>,

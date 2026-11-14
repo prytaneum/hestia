@@ -73,7 +73,7 @@ impl Join {
 pub enum InstanceCmd {
     /// Create an instance (prompts for anything omitted; files download at first launch)
     Create {
-        /// Flavor id (e.g. vanilla, fabric)
+        /// Flavor id (see the `flavors` subcommand)
         flavor: Option<String>,
         /// Game version (e.g. 1.21.1)
         version: Option<String>,
@@ -115,7 +115,7 @@ pub enum InstanceCmd {
     Recent,
     /// Game versions a flavor offers (prompts for the flavor when omitted)
     Versions {
-        /// Flavor id (e.g. vanilla, fabric)
+        /// Flavor id (see the `flavors` subcommand)
         flavor: Option<String>,
         #[arg(long, help = "Include snapshots and old versions")]
         all: bool,

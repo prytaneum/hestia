@@ -49,7 +49,7 @@ pub enum ServerCmd {
     List,
     /// Game versions a flavor offers (prompts for the flavor when omitted)
     Versions {
-        /// Flavor id (e.g. vanilla, fabric)
+        /// Flavor id (see the `flavors` subcommand)
         flavor: Option<String>,
         #[arg(long, help = "Include snapshots and old versions")]
         all: bool,
@@ -58,7 +58,7 @@ pub enum ServerCmd {
     Flavors,
     /// Loader builds a flavor offers for a version (modloaders only)
     Loaders {
-        /// Flavor id (e.g. fabric); prompts when omitted
+        /// Flavor id; prompts when omitted
         flavor: Option<String>,
         /// Game version the loaders must support; prompts when omitted
         version: Option<String>,
