@@ -64,9 +64,9 @@ Each artifact must carry a sha1 and sit on one of the plugin's network hosts,
 every path must stay relative, the Java major must be one the launcher knows,
 and the jar must be a download or named as built. One refusal fails the whole
 resolve. A plugin flavor builds what its profile names as built through the
-optional `build` operation, run from the `install` hook in an area of its own and
-placed by the host ([0110](../decisions/0110-a-flavor-builds-in-its-own-area.md),
-[Plugins](plugins.md#provider-surfaces)). The profile types live in
+optional `build` operation, whose plan the host runs from the `install` hook in an area of its own and
+places ([0110](../decisions/0110-a-flavor-builds-in-its-own-area.md),
+[0124](../decisions/0124-a-build-is-a-plan-the-host-runs.md), [Plugins](plugins.md#provider-surfaces)). The profile types live in
 `proto::profile` so the SDK can build them.
 
 Two pieces the vanilla and modloader flavors use are shared with plugins

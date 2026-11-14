@@ -111,7 +111,7 @@ in its `hosts`). The list is part of the grant, so the user sees it when approvi
 | `loader-versions` | `{ game, target }` | `string[]` | optional: loader builds, newest first |
 | `resolve-server` | `{ version, loaderVersion?, target }` | `{ full: ServerProfile }` or `{ onVanilla: ServerAddition }` | |
 | `resolve-client` | `{ version, loaderVersion?, target }` | `{ full: InstanceProfile }` or `{ onVanilla: ClientAddition }` | a library may be marked `built: true` |
-| `build` | `{ side, version, loaderVersion?, vanillaJar?, target }` | `{ outputs: [{ path, target }] }` | optional: produces what the profile names as built |
+| `build` | `{ side, version, loaderVersion?, vanillaJar?, target }` | `{ fetch, steps, outputs }`, a build plan | optional: the host runs the plan and places what the profile names as built |
 
 `info` may also give `mrpackKey` (the key a Modrinth pack names the flavor's loader by in its `dependencies`) and
 `prismUid` (the component uid of a Prism or MultiMC instance), so packs and instances of the flavor import and export.
@@ -186,8 +186,17 @@ During that call, and only that call, the guest has two more mounts beside `/dat
 | `/build` | read-write | the plugin's own area, `meta/flavors/<plugin-id>/`, shared by every entry and flavor of the plugin |
 | `/vanilla` | read-only | a copy of the side's vanilla jar, alone; `vanillaJar` is that jar's guest path, absent when the side has none |
 
-Run tools with `hestia::process::exec_in(program, args, timeout, "/build")`, declare them in `[[programs]]` (a Java tool
-as `java = 21`, run on a Hestia-managed runtime), and answer with the files to keep: `path` is a file under `/build`,
+`build` answers a plan the host runs ([0124](../decisions/0124-a-build-is-a-plan-the-host-runs.md)):
+`{ fetch: [{ url, checksum?, dest }], steps: [{ program, args, env, cwd?, javaMajor?, creates, narrate? }], outputs }`.
+The host checks all of it first (each step must fit an invocation of a declared program exactly as for `exec`, `cwd`,
+`creates`, `dest` and every output must lie under `/build`, and `${data}` is not available), downloads `fetch`, then
+runs the steps in order under the supervisor. A step whose `creates` all exist is skipped; `narrate: { skipPrefixes }`
+shows every other line of its output as progress; a cancel stops the build between steps. A build still running under
+the same plugin, version and step is joined rather than started twice.
+
+Or run tools yourself with `hestia::process::exec_in(program, args, timeout, "/build")` (its output shows as progress as
+it prints), declare them in `[[programs]]` (a Java tool
+as `java = 21`, run on a Hestia-managed runtime), and answer with only the files to keep: `path` is a file under `/build`,
 `target` is the filename of the profile's built server jar or the `path` of one of its built libraries. The host copies
 each output into place, refuses a symlink, a path outside `/build` and a target the profile did not name, and fails the
 provision when a built file is still missing. A server that launches from an args file is not supported yet.

@@ -395,7 +395,7 @@ refuses the whole answer. The queries that carry a `target` (`os`, `arch`, `java
 `loader-versions` and `build`) are filled by the host from the same vocabulary, so a guest never probes the platform.
 
 A flavor whose profile names something it cannot download implements the optional
-`build` operation ([0110](../decisions/0110-a-flavor-builds-in-its-own-area.md)).
+`build` operation ([0110](../decisions/0110-a-flavor-builds-in-its-own-area.md)). Its answer is a plan the host runs ([0124](../decisions/0124-a-build-is-a-plan-the-host-runs.md)), described below.
 The adapter calls it from the flavor's `install` step with a per-call context: two
 extra preopens beside `/data`, `/build` (read-write, `meta/flavors/<plugin-id>/`)
 and `/vanilla` (read-only, a host-owned copy of the side's vanilla jar and nothing else), and a
@@ -411,6 +411,20 @@ with `classpath: false`; and a server may launch from an args file with a per-OS
 ([0121](../decisions/0121-a-build-places-trees-and-the-profile-launches-from-an-args-file.md)). A flavor also declares how Modrinth packs and Prism instances
 name its loader (`mrpackKey`, `prismUid`), which the transfer formats read from
 the registered flavors.
+
+A `build` answers a **plan** `{ fetch, steps, outputs }` ([0124](../decisions/0124-a-build-is-a-plan-the-host-runs.md)),
+which `providers/plan.rs` vets whole before anything runs and then executes. A download goes through the plugin's
+`Downloads` (the grant's `Policy`, checksum, cache) into the build area; a step goes through `Programs::vet` and
+`Programs::prepare`, the checks and the environment a guest's own `exec` gets, so a program, its arguments, its
+environment names and its Java major must fit a declared invocation, and an argument may name only the `${build}` and
+`${vanilla}` mounts. `cwd`, `creates`, download destinations and outputs must be plain paths under `/build`. Each step
+then runs as a `crate::process::Task` under the process supervisor, owned by `plugin:<id>`, with the cleared environment
+the invocation allows; its task id (`engine::build_task_id`) names the plugin, game version, step and a hash of the
+step, so a still-running identical step is joined. The step's `narrate` filter (`skipPrefixes`) picks the lines shown as
+progress, cancel is checked before each download and step and stops the running one, and a step whose `creates` all exist
+is skipped. Builds of one plugin still serialize on its area lock, so a second create of the same version finds its
+results present and only places its own outputs. A guest may instead run programs itself with `exec`, whose output now
+reaches the call's progress as it prints.
 
 ## Declarative UI and themes
 
@@ -797,4 +811,5 @@ plugins the tests build are fixtures
 | [0121](../decisions/0121-a-build-places-trees-and-the-profile-launches-from-an-args-file.md) | a build places directory trees; a server may launch from an args file per OS; the build area is the plugin's |
 | [0122](../decisions/0122-a-source-declares-its-setting-and-one-vet-checks-every-download.md) | a source declares the setting it needs, and one vet checks every download a plugin names |
 | [0123](../decisions/0123-the-ui-vocabulary-grows-by-general-primitives.md) | the plugin UI grows by general primitives, live pages and message catalogs |
+| [0124](../decisions/0124-a-build-is-a-plan-the-host-runs.md) | a build is a plan the guest returns and the host runs under the supervisor |
 | [0126](../decisions/0126-an-ambient-channel-needs-no-permission.md) | an ambient channel hands out harmless facts and needs no permission |
