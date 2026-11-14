@@ -114,6 +114,8 @@ contract; the daemon then publishes `changed` after it succeeds, and the desktop
 
 A contract a plugin may call sets `const PLUGIN: Option<Permission> = Some(Permission::…)`; one it must never reach goes
 on `DENIED` in `crates/proto/tests/permission.rs` ([0092](decisions/0092-a-contract-names-the-permission-a-plugin-needs.md)).
+A contract whose whole result is a harmless fact sets `const AMBIENT: bool = true` instead and goes on that test's
+`AMBIENT` list ([0126](decisions/0126-an-ambient-channel-needs-no-permission.md)).
 A plugin channel that is narrower than its permission names the scope kind that narrows it
 (`const NARROWED_BY: Option<ScopeKind> = Some(ScopeKind::Files)`) and a `touches(&Params) -> Vec<String>` that returns
 the entries one call reaches; the plugin gate checks them against the caller's grant, so no handler checks a grant by

@@ -54,6 +54,7 @@ the alternative you rejected — that is usually the part nobody can recover lat
 - **0121** — [A build places trees, and a server may launch from an args file](0121-a-build-places-trees-and-the-profile-launches-from-an-args-file.md)
 - **0122** — [A source declares the setting it needs, and one vet checks every download a plugin names](0122-a-source-declares-its-setting-and-one-vet-checks-every-download.md)
 - **0123** — [The plugin UI grows by general primitives, live pages and message catalogs](0123-the-ui-vocabulary-grows-by-general-primitives.md)
+- **0126** — [An ambient channel hands out harmless facts and needs no permission](0126-an-ambient-channel-needs-no-permission.md)
 
 ### [Cross-cutting foundations](../architecture/common.md)
 

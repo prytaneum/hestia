@@ -128,6 +128,13 @@ and an update that widens it asks again. The tiers and the full table are in
   later is unreachable until someone classifies it, and `crates/proto/tests/permission.rs`
   fails a contract that is neither classified nor on its denied list
   ([0092](../decisions/0092-a-contract-names-the-permission-a-plugin-needs.md)).
+- **An ambient contract names none.** `Contract::AMBIENT` marks a channel whose whole
+  result is a harmless fact (`app.info`, `host.info`, `health.ping`, `net.status`).
+  Any plugin may call it: the router lists it apart from the permissioned channels,
+  `HostCalls::ambient` lets the gate forward it, and it is no `Permission`, so it
+  is in no grant, no digest and no approval prompt. The `permission.rs` test still
+  forces every contract to be permissioned, ambient or denied, and pins the ambient
+  list ([0126](../decisions/0126-an-ambient-channel-needs-no-permission.md)).
 - **`domain:action` names**: `entry`, `process`, `content`, `account`, `config`,
   `java`, `network`, `ipc`, `ui`, `launch`, `flavor`, `format`. The domain is the
   channel prefix it opens.
@@ -790,3 +797,4 @@ plugins the tests build are fixtures
 | [0121](../decisions/0121-a-build-places-trees-and-the-profile-launches-from-an-args-file.md) | a build places directory trees; a server may launch from an args file per OS; the build area is the plugin's |
 | [0122](../decisions/0122-a-source-declares-its-setting-and-one-vet-checks-every-download.md) | a source declares the setting it needs, and one vet checks every download a plugin names |
 | [0123](../decisions/0123-the-ui-vocabulary-grows-by-general-primitives.md) | the plugin UI grows by general primitives, live pages and message catalogs |
+| [0126](../decisions/0126-an-ambient-channel-needs-no-permission.md) | an ambient channel hands out harmless facts and needs no permission |

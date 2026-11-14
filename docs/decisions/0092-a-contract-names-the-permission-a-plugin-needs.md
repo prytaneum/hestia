@@ -56,7 +56,9 @@ therefore part of the plugin API: changing it bumps `API_VERSION`.
 | `update.*`, `daemon.stop`, `daemon.status`, `plugin.*` | Self-update, daemon lifecycle and plugin management |
 | `events.subscribe`, `job.list`, `job.cancel`, the `job` and `changed` topics | Another client's subscriptions and jobs; a plugin cancels only what it started |
 | `content.inspect`, `instance.import.inspect`, `minecraft.ping`, `cache.*` | Reach a path, an address or the whole cache outside any grant |
-| `app.info`, `host.info`, `health.ping`, `net.status`, `net.state` | No permission fits; opened when a plugin needs one |
+
+`app.info`, `host.info`, `health.ping` and `net.status` were on this list for want of a permission that fits; they are
+now ambient and need none ([0126](0126-an-ambient-channel-needs-no-permission.md)).
 
 **`server.files.read` is `entry:read` for a plugin, narrowed to its manifest.**
 The game directory holds `rcon.password`, and redacting one key leaves every
