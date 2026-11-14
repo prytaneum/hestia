@@ -101,7 +101,7 @@ impl BuildTools {
                 requires: Cow::Borrowed(PREREQUISITES),
                 sides: SERVER_ONLY,
                 loader: None,
-                compatible: Cow::Borrowed(&[]),
+                compatible: Cow::Borrowed(&[Cow::Borrowed("bukkit")]),
                 interchange: Cow::Borrowed(&[]),
             },
             product: Product::Spigot,

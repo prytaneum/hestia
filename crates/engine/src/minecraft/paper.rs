@@ -88,7 +88,7 @@ impl PaperProject {
                 requires: Cow::Borrowed(&[]),
                 sides: SERVER_ONLY,
                 loader: None,
-                compatible: Cow::Borrowed(&[]),
+                compatible: Cow::Borrowed(&[Cow::Borrowed("spigot"), Cow::Borrowed("bukkit")]),
                 interchange: Cow::Borrowed(&[]),
             },
         }
