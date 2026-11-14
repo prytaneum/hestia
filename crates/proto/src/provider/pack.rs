@@ -145,6 +145,14 @@ pub struct PackRead {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub resolve: Option<ManifestDelegate>,
     pub overrides: OverrideTrees,
+    /// The pack's own memory, in the form the `memory` setting takes. Applied
+    /// only to an instance the install creates.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub memory: Option<String>,
+    /// The pack's own extra JVM flags, in the form the `jvm-args` setting
+    /// takes. Applied only to an instance the install creates.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub jvm_args: Option<String>,
 }
 
 /// The instance an export writes.

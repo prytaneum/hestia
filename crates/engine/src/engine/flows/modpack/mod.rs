@@ -143,7 +143,7 @@ impl Engine {
                     &flavor,
                     &resolved.game_version,
                     resolved.loader_version.clone(),
-                    &[],
+                    archive.config(),
                 )
                 .await?
                 .id

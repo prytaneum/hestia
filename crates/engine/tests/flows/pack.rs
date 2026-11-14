@@ -408,6 +408,61 @@ async fn an_export_naming_a_file_it_does_not_hold_is_refused() {
 }
 
 #[tokio::test]
+async fn a_reads_jvm_settings_apply_to_the_instance_the_import_creates() {
+    let (home, drops) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
+    let engine = rig(home.path(), &fixture::Files::serve().await).await;
+    let manifest = json!({
+        "name": "Tuned",
+        "gameVersion": "1.21",
+        "memory": "2048m",
+        "jvmArgs": "-XX:+UseG1GC",
+    });
+
+    let outcome = import(&engine, &archive(drops.path(), manifest, &[]))
+        .await
+        .expect("the pack imports");
+
+    let id = &outcome.record.id;
+    assert_eq!(
+        engine
+            .instances()
+            .config_get(id, "memory")
+            .unwrap()
+            .as_deref(),
+        Some("2G")
+    );
+    assert_eq!(
+        engine
+            .instances()
+            .config_get(id, "jvm-args")
+            .unwrap()
+            .as_deref(),
+        Some("-XX:+UseG1GC")
+    );
+}
+
+#[tokio::test]
+async fn a_read_with_an_invalid_jvm_setting_is_refused_whole() {
+    let (home, drops) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
+    let engine = rig(home.path(), &fixture::Files::serve().await).await;
+    for (case, extra) in [
+        ("memory", json!({ "memory": "lots" })),
+        ("jvm args", json!({ "jvmArgs": "not-a-flag" })),
+    ] {
+        let mut manifest = json!({ "name": "Bad", "gameVersion": "1.21" });
+        manifest
+            .as_object_mut()
+            .unwrap()
+            .extend(extra.as_object().unwrap().clone());
+        import(&engine, &archive(drops.path(), manifest, &[]))
+            .await
+            .err()
+            .unwrap_or_else(|| panic!("an invalid {case} is refused"));
+    }
+    assert!(engine.instances().list().is_empty());
+}
+
+#[tokio::test]
 async fn a_pack_in_a_plugins_format_is_refused_by_the_single_file_importer() {
     let (home, drops) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
     let engine = rig(home.path(), &fixture::Files::serve().await).await;

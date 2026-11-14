@@ -23,6 +23,7 @@ use proto::Empty;
 use super::{connect_each, registered, Guest};
 use crate::content::pack::{is_safe_path, INDEX};
 use crate::engine::Engine;
+use crate::jvm::{JavaSettings, JVM_ARGS_KEY, MEMORY_KEY};
 use crate::plugins::runtime::LoadedPlugin;
 use crate::plugins::vouch::{Policy, Refused};
 use crate::transfer::archive::Reader;
@@ -62,6 +63,8 @@ enum Refusal {
     TooMany(&'static str),
     #[error("`{0}` is over {MAX_MEMBER_BYTES} bytes")]
     Oversized(String),
+    #[error("the `{key}` setting: {reason}")]
+    Setting { key: &'static str, reason: String },
 }
 
 /// A directory of the archive, relative to the pack's root: plain segments
@@ -115,6 +118,21 @@ fn vet_read(policy: &Policy, mut read: PackRead) -> Result<PackRead, Refusal> {
             server: file.server,
             ..ModpackFile::default()
         };
+    }
+    let mut jvm = JavaSettings::default();
+    for (key, value) in [
+        (MEMORY_KEY, &mut read.memory),
+        (JVM_ARGS_KEY, &mut read.jvm_args),
+    ] {
+        let Some(text) = value.as_deref().filter(|text| !text.trim().is_empty()) else {
+            *value = None;
+            continue;
+        };
+        jvm.set(key, text).map_err(|error| Refusal::Setting {
+            key,
+            reason: format!("{error:#}"),
+        })?;
+        *value = jvm.get(key).flatten();
     }
     read.pack.source.clear();
     read.pack.project_id.clear();

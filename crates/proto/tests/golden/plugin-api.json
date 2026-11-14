@@ -768,7 +768,7 @@
     "PackManifestQuery": "type PackManifestQuery = { manifest: unknown, };",
     "PackMember": "type PackMember = { path: string, text: string, };",
     "PackPolicy": "type PackPolicy = \"move\" | \"keep\";",
-    "PackRead": "type PackRead = { pack: ResolvedModpack, resolve?: ManifestDelegate, overrides: OverrideTrees, };",
+    "PackRead": "type PackRead = { pack: ResolvedModpack, resolve?: ManifestDelegate, overrides: OverrideTrees, memory?: string, jvmArgs?: string, };",
     "PackWritten": "type PackWritten = { members: Array<PackMember>, copies: Array<PackCopy>, warnings: Array<string>, };",
     "PlayerEntry": "type PlayerEntry = { name: string, uuid: string, reason?: string, };",
     "PlayerList": "type PlayerList = \"whitelist\" | \"ops\" | \"banned\";",

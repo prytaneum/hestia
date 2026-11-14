@@ -14,4 +14,14 @@ export type PackRead = {
  * `projectId` and `versionId` are the host's to set, and so is the
  * identity of each file. With `resolve` set, `files` must be empty.
  */
-pack: ResolvedModpack, resolve?: ManifestDelegate, overrides: OverrideTrees, };
+pack: ResolvedModpack, resolve?: ManifestDelegate, overrides: OverrideTrees, 
+/**
+ * The pack's own memory, in the form the `memory` setting takes. Applied
+ * only to an instance the install creates.
+ */
+memory?: string, 
+/**
+ * The pack's own extra JVM flags, in the form the `jvm-args` setting
+ * takes. Applied only to an instance the install creates.
+ */
+jvmArgs?: string, };

@@ -1,6 +1,7 @@
 //! A pack format identified by `replay.json`, whose members it answers almost
 //! verbatim: the manifest names the files, the override trees and, optionally,
-//! a content source to resolve a manifest through, so a test scripts every
+//! a content source to resolve a manifest through, and optionally its `memory`
+//! and `jvmArgs`, so a test scripts every
 //! answer a pack can give. An archive holding `replay.skip` is not claimed. An
 //! export names every file of the instance, plus one the export does not hold
 //! when the instance is called `escape`.
@@ -105,6 +106,8 @@ fn read(pack: &str, query: ReadQuery) -> Result<PackRead, Error> {
             client: list(&trees["client"]),
             server: list(&trees["server"]),
         },
+        memory: manifest["memory"].as_str().map(str::to_string),
+        jvm_args: manifest["jvmArgs"].as_str().map(str::to_string),
     })
 }
 

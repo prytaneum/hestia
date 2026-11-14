@@ -10,7 +10,7 @@ use proto::content::{
     ContentKind, ContentProject, ContentVersion, ResolvedModpack, VersionQuery, LOCAL_SOURCE,
 };
 use proto::error::ErrorInfo;
-use proto::minecraft::{Artifact, ProvisionPhase};
+use proto::minecraft::{Artifact, ConfigEntry, ProvisionPhase};
 use proto::modpack::{InstalledModpack, ModpackMove, ModpackRef};
 use proto::provider::pack::PackRead;
 use uuid::Uuid;
@@ -21,6 +21,7 @@ use super::{pack_display_name, same_pack, FileIdentity, Supplied};
 use crate::cancel::Job;
 use crate::content::{install, pack, LocalFile};
 use crate::engine::Engine;
+use crate::jvm::{JVM_ARGS_KEY, MEMORY_KEY};
 use crate::minecraft::{materialize, Side};
 use crate::plugins::PluginPack;
 use crate::transfer::archive::Reader;
@@ -249,9 +250,18 @@ impl Engine {
             Kind::Plugin(plugin) => {
                 let read = plugin.read(&mut reader, &detected.prefix).await?;
                 let trees = read.overrides.clone();
+                let config = [(MEMORY_KEY, &read.memory), (JVM_ARGS_KEY, &read.jvm_args)]
+                    .into_iter()
+                    .filter_map(|(key, value)| {
+                        value.as_ref().map(|value| ConfigEntry {
+                            key: key.to_string(),
+                            value: value.clone(),
+                        })
+                    })
+                    .collect();
                 let (resolved, policy) = self.resolve_read(&plugin, read).await?;
                 Ok((
-                    pack::Archive::contributed(reader, detected.prefix, trees, policy),
+                    pack::Archive::contributed(reader, detected.prefix, trees, policy, config),
                     resolved,
                 ))
             }

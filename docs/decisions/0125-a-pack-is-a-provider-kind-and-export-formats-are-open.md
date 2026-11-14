@@ -66,6 +66,8 @@ version, loader and one override tree, and delegates its manifest to its own sou
   and registration. The unreleased plugin API breaks instead ([0091](0091-plugins-are-wasm-components.md)).
 - **Handing the guest the archive or an extraction directory.** A hostile archive and a plugin would share a filesystem;
   declared members as text is all a manifest reader needs.
-- **Per-instance JVM settings in a read.** Prism's memory and JVM arguments rode on `FormatBlueprint`; a pack read has
-  nowhere to put them, and the modpack flow applies none. A format that carries them needs the install flow to take
-  them first.
+- **Applying a read's JVM settings to an existing instance.** A read may carry `memory` and `jvmArgs`, the two settings
+  Prism's importer carried. They are vetted by the rules the `memory` and `jvm-args` settings use, so an invalid value
+  refuses the read whole, and they ride on the opened archive to the install, which passes them as the `config` of the
+  instance it creates. An install into an existing instance, a pack update and a server install ignore them: a pack does
+  not overwrite what the user tuned.

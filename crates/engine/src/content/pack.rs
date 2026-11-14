@@ -15,7 +15,7 @@ use anyhow::Result;
 use proto::content::{ModpackFile, ResolvedModpack, SideSupport};
 use proto::download::{Checksum, HashAlgorithm};
 use proto::error::ArchiveFault;
-use proto::minecraft::{Artifact, ProvisionPhase};
+use proto::minecraft::{Artifact, ConfigEntry, ProvisionPhase};
 use proto::provider::pack::OverrideTrees;
 use proto::provider::Provider;
 use proto::transfer::ImportFormat;
@@ -82,6 +82,9 @@ pub(crate) struct Archive {
     /// What the files the pack names are fetched under: a plugin's grant, or
     /// none for the launcher's own `.mrpack`.
     policy: Option<Arc<Policy>>,
+    /// The vetted JVM settings the pack asks for, as `config` entries, for the
+    /// instance an install creates.
+    config: Vec<ConfigEntry>,
 }
 
 impl Archive {
@@ -95,6 +98,7 @@ impl Archive {
                 server: vec!["server-overrides".to_string()],
             },
             policy: None,
+            config: Vec::new(),
         }
     }
 
@@ -103,13 +107,19 @@ impl Archive {
         root: String,
         trees: OverrideTrees,
         policy: Option<Arc<Policy>>,
+        config: Vec<ConfigEntry>,
     ) -> Self {
         Archive {
             reader,
             root,
             trees,
             policy,
+            config,
         }
+    }
+
+    pub(crate) fn config(&self) -> &[ConfigEntry] {
+        &self.config
     }
 
     pub(crate) fn policy(&self) -> Option<Arc<Policy>> {
