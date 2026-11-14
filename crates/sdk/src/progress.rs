@@ -9,4 +9,7 @@
 //! }
 //! ```
 
+#[cfg(target_arch = "wasm32")]
 pub use crate::bindings::hestia::plugin::progress::{cancelled, report};
+#[cfg(not(target_arch = "wasm32"))]
+pub use crate::mock::progress::{cancelled, report};

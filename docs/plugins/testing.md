@@ -74,7 +74,15 @@ An answer stays until you script it again. A call, job, request, program run or 
 `Error::Failed` naming the channel, the method and URL, the program or the URL, so a missing answer is never mistaken
 for an empty one. A setting or data key you did not script reads as unset. `process::spawn` always succeeds and returns
 an id (`mock-1`, `mock-2`, ...) that `status`, `stop` and `list` then track. Nothing touches the disk: data values live
-in the mock, and a download writes no file at its destination. Calling an SDK function with no mock installed panics.
+in the mock, and a download writes no file at its destination. `hestia::log` and `progress::report` do nothing, and
+`progress::cancelled` is always false. `ipc` and `messages` are not mocked.
+
+`--sdk` covers `dev`, `pack` and `publish`. To run `cargo test` or `cargo clippy` against a local SDK checkout, pass the
+patch on the command line, after the subcommand, instead of writing one into `Cargo.toml`:
+
+```bash
+cargo test --config 'patch."https://github.com/prytaneum/hestia".hestia-sdk.path="/path/to/hestia/crates/sdk"'
+``` Calling an SDK function with no mock installed panics.
 
 ## What it does not do
 

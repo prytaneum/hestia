@@ -84,6 +84,8 @@ fn a_plugin_fetches_a_tool_runs_it_and_records_the_run() {
     let output =
         hestia::process::exec("java", &["-jar", "/data/tool.jar"], Duration::from_secs(60))
             .unwrap();
+    hestia::log::info("built");
+    hestia::progress::report(Some(1.0), "done");
     let builds = hestia::data::update("builds", |count: &mut u32| {
         *count += 1;
         *count

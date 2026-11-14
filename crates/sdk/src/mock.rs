@@ -463,3 +463,19 @@ pub(crate) mod data {
         with_state(|state| state.data.insert(key.to_owned(), bytes));
     }
 }
+
+pub(crate) mod log {
+    pub fn trace(_message: &str) {}
+    pub fn debug(_message: &str) {}
+    pub fn info(_message: &str) {}
+    pub fn warn(_message: &str) {}
+    pub fn error(_message: &str) {}
+}
+
+pub(crate) mod progress {
+    pub fn report(_fraction: Option<f32>, _message: &str) {}
+
+    pub fn cancelled() -> bool {
+        false
+    }
+}

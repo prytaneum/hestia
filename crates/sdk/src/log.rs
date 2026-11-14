@@ -6,4 +6,7 @@
 //! hestia::log::warn(&format!("retrying in {}s", 5));
 //! ```
 
+#[cfg(target_arch = "wasm32")]
 pub use crate::bindings::hestia::plugin::log::{debug, error, info, trace, warn};
+#[cfg(not(target_arch = "wasm32"))]
+pub use crate::mock::log::{debug, error, info, trace, warn};
