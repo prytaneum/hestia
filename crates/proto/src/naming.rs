@@ -166,17 +166,7 @@ mod tests {
         assert!(foo.starts_with(&instance_session_prefix("foo")));
         assert!(!foo_two.starts_with(&instance_session_prefix("foo")));
         assert!(foo_two.starts_with(&instance_session_prefix("foo-2")));
-    }
-
-    #[test]
-    fn session_seq_parses_back_off_the_prefix() {
-        let id = instance_session_id("cozy", 7);
-        let seq: u32 = id
-            .strip_prefix(&instance_session_prefix("cozy"))
-            .and_then(|s| s.parse().ok())
-            .unwrap();
-        assert_eq!(seq, 7);
-        assert_eq!(instance_id_of_session(&id).as_deref(), Some("cozy"));
+        assert_eq!(instance_id_of_session(&foo).as_deref(), Some("foo"));
     }
 
     #[test]

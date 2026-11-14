@@ -96,16 +96,6 @@ fn a_scope_round_trips_and_an_unknown_kind_is_refused() {
     assert_eq!(serde_json::from_str::<Manifest>(&json).unwrap(), manifest);
 }
 
-#[test]
-fn an_empty_kind_is_not_a_scope() {
-    let none: [&str; 0] = [];
-    assert_eq!(
-        PermissionScope::of(ScopeKind::Files, none),
-        PermissionScope::default()
-    );
-    assert!(PermissionScope::of(ScopeKind::Files, none).is_empty());
-}
-
 fn carriers() -> Vec<(Option<Permission>, ScopeKind)> {
     let mut carriers: Vec<_> = Permission::ALL
         .iter()

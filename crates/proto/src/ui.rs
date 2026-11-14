@@ -379,12 +379,8 @@ mod tests {
     }
 
     #[test]
-    fn a_webview_under_assets_is_accepted() {
-        assert_eq!(webview("assets/chart/index.html", 300).validate(), Ok(()));
-    }
-
-    #[test]
     fn a_webview_src_that_escapes_or_is_not_html_is_refused() {
+        assert_eq!(webview("assets/chart/index.html", 300).validate(), Ok(()));
         for src in [
             "",
             "assets/",

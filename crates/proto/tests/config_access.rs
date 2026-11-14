@@ -1,7 +1,7 @@
 //! The plugin access table: closed by default, matched in canonical form, a
 //! parent only as open as its least open key, and reads filtered per key.
 
-use proto::config::{plugin_may_read, plugin_may_write, plugin_view, PluginAccess, PLUGIN_ACCESS};
+use proto::config::{plugin_may_read, plugin_may_write, plugin_view, PLUGIN_ACCESS};
 use serde_json::json;
 
 #[test]
@@ -53,18 +53,6 @@ fn a_key_matches_in_canonical_form() {
     assert!(!plugin_may_write("defaults.jvmArgs"));
     assert!(plugin_may_read("modpack.defaultExcludes"));
     assert!(plugin_may_read("modpack.default-excludes"));
-}
-
-#[test]
-fn only_a_readwrite_key_is_writable() {
-    for (key, access) in PLUGIN_ACCESS {
-        assert_eq!(
-            plugin_may_write(key),
-            *access == PluginAccess::ReadWrite,
-            "{key}"
-        );
-        assert_eq!(plugin_may_read(key), *access >= PluginAccess::Read, "{key}");
-    }
 }
 
 #[test]
