@@ -13,6 +13,12 @@ impl Daemon<'_> {
             .await
     }
 
+    pub async fn ready(&self) -> Result<proto::daemon::DaemonReadyResult, IpcError> {
+        self.session
+            .call::<proto::daemon::DaemonReady>(&proto::Empty {})
+            .await
+    }
+
     /// Without `stop_processes` the supervised workloads keep running and the
     /// next daemon re-adopts them.
     pub async fn stop(

@@ -581,3 +581,36 @@ async fn a_plugin_component_runs_its_init_on_install_and_on_enable() {
     );
     assert!(greeting.exists(), "enabling runs init again");
 }
+
+#[tokio::test]
+async fn a_restarted_daemon_is_ready_only_once_its_plugins_have_loaded() {
+    let home = temp_home();
+    let path = home.path().to_path_buf();
+    let (mut daemon, client) = spawn_daemon_at(path.clone(), None).await;
+    let package = tempfile::tempdir().unwrap();
+    std::fs::write(
+        package.path().join("plugin.toml"),
+        format!("id = \"hello\"\nversion = \"0.1.0\"\napi = \"^{API_VERSION}\"\nwasm = \"plugin.wasm\"\n"),
+    )
+    .unwrap();
+    std::fs::copy(hello_component(), package.path().join("plugin.wasm")).unwrap();
+    let source = package.path().to_str().unwrap();
+    let inspection = client.plugin().inspect(source).await.unwrap();
+    client
+        .plugin()
+        .install(source, &inspection.grant_digest, |_| {})
+        .await
+        .unwrap();
+
+    client.daemon().stop(false).await.unwrap();
+    drop(client);
+    daemon.wait_exit();
+    let greeting = path.join("plugins/hello/data/greeting.json");
+    std::fs::remove_file(&greeting).unwrap();
+
+    let (_daemon, client) = spawn_daemon_at(path, None).await;
+    assert!(client.daemon().ready().await.unwrap().plugins_settled);
+    assert!(greeting.exists(), "ready means the plugin's init has run");
+    let plugins = client.plugin().list().await.unwrap();
+    assert_eq!(plugins[0].state, PluginState::Enabled);
+}

@@ -208,7 +208,7 @@ fn api() -> Api {
         content::EntryContentAdd, content::EntryContentCheckUpdates, content::EntryContentEnable,
         content::EntryContentList, content::EntryContentMatches, content::EntryContentRemove,
         content::EntryContentSetVersion, content::EntryContentUpdate,
-        daemon::DaemonStatus, daemon::DaemonStop,
+        daemon::DaemonReady, daemon::DaemonStatus, daemon::DaemonStop,
         entry::EntryConfigGet, entry::EntryConfigList, entry::EntryConfigSet, entry::EntryFlavors,
         entry::EntryLoaders, entry::EntryLogs, entry::EntryRemove, entry::EntryRename,
         entry::EntryStop, entry::EntryVersions,

@@ -54,6 +54,16 @@ channel drained by a writer task — which is why a streaming channel like
 The loop runs under `tokio::select!` against a stop request (`daemon.stop`) and
 an OS signal (SIGTERM / Ctrl-C).
 
+Listening is not ready. The daemon accepts at once, while a startup task installs
+staged and bundled plugins and loads every enabled one. A daemon is **ready** when
+that task has settled, every enabled plugin loaded or failed, which `daemon.ready`
+answers; `Client::start` and so `hestia daemon start|restart` and the desktop's start
+wait on it, so a command run right after never sees a half-registered provider
+list. The wait is bounded at 30 s: past it `daemon.ready` answers
+`pluginsSettled: false`, the slow plugin keeps loading and a warning is logged.
+A call that needs no plugin never waits, and safe mode, which loads none, settles
+at once.
+
 Once listening, it spawns the tray helper: best-effort, detached, skipped on a
 headless session or under `HESTIA_NO_TRAY=1`
 ([0051](../decisions/0051-the-daemon-spawns-the-tray.md)).

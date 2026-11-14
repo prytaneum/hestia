@@ -35,6 +35,7 @@ const DENIED: &[&str] = &[
     // Daemon lifecycle, self-update and plugin management
     "daemon.stop",
     "daemon.status",
+    "daemon.ready",
     "update.check",
     "update.download",
     "update.apply",

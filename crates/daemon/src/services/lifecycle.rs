@@ -1,13 +1,21 @@
 //! Liveness, identity, daemon lifecycle, and the event subscription channel.
 
 use proto::app::{AppInfo, AppInfoResult};
-use proto::daemon::{DaemonStatus, DaemonStatusResult, DaemonStop, DaemonStopResult};
+use std::time::Duration;
+
+use proto::daemon::{
+    DaemonReady, DaemonReadyResult, DaemonStatus, DaemonStatusResult, DaemonStop, DaemonStopResult,
+};
 use proto::events::{EventsSubscribe, EventsSubscribeResult};
 use proto::health::{Ping, PingResult};
 use proto::job::{JobCancel, JobCancelResult, JobList};
 use proto::Empty;
 
 use crate::runtime::Channels;
+
+/// Past a plugin's own init bound (10 s) plus its compile, and inside
+/// `DaemonReady::TIMEOUT`.
+const STARTUP_BOUND: Duration = Duration::from_secs(30);
 
 pub(super) fn register(on: &mut Channels<'_>) {
     on.handle::<Ping, _, _>(|_: Empty, _ctx| async move {
@@ -24,6 +32,12 @@ pub(super) fn register(on: &mut Channels<'_>) {
             id: common::app::ID.into(),
             vendor: common::app::VENDOR.into(),
             channel: common::app::CHANNEL.into(),
+        })
+    });
+
+    on.handle::<DaemonReady, _, _>(|_: Empty, ctx| async move {
+        Ok(DaemonReadyResult {
+            plugins_settled: ctx.runtime.plugins().await_startup(STARTUP_BOUND).await,
         })
     });
 

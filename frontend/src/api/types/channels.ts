@@ -39,6 +39,7 @@ import type { ContentProject } from "./generated/ContentProject";
 import type { ContentSource } from "./generated/ContentSource";
 import type { ContentUpdate } from "./generated/ContentUpdate";
 import type { ContentVersion } from "./generated/ContentVersion";
+import type { DaemonReadyResult } from "./generated/DaemonReadyResult";
 import type { DaemonStatusResult } from "./generated/DaemonStatusResult";
 import type { DaemonStopParams } from "./generated/DaemonStopParams";
 import type { DaemonStopResult } from "./generated/DaemonStopResult";
@@ -266,6 +267,7 @@ export interface Channels {
   "content.sources": { params: Empty; result: Array<ContentSource> };
   "content.update": { params: Omit<Partial<EntryContentUpdateParams>, "target"> & { "target"?: Partial<EntryTarget> }; result: JobStarted };
   "content.versions": { params: Partial<VersionQuery>; result: Array<ContentVersion> };
+  "daemon.ready": { params: Empty; result: DaemonReadyResult };
   "daemon.status": { params: Empty; result: DaemonStatusResult };
   "daemon.stop": { params: Partial<DaemonStopParams>; result: DaemonStopResult };
   "entry.config.get": { params: Omit<Partial<EntryConfigGetParams>, "target"> & { "target"?: Partial<EntryTarget> }; result: EntryConfigValue };
@@ -452,6 +454,7 @@ export const TIMEOUTS: Partial<Record<keyof Channels, number>> = {
   "cape.equip": 30000,
   "content.check_updates": 120000,
   "content.matches": 120000,
+  "daemon.ready": 40000,
   "image.fetch": 30000,
   "instance.create": 60000,
   "modpack.check_update": 120000,

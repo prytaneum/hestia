@@ -68,15 +68,19 @@ impl Client {
     /// A daemon that is already running keeps the mode it started in.
     pub async fn start_with(safe_mode: bool) -> Result<Client, IpcError> {
         let endpoint = ipc::endpoint::default_endpoint();
-        if let Ok(conn) = ipc::connect(&endpoint).await {
-            return Ok(Client::over(conn));
-        }
-        tracing::debug!(endpoint = %endpoint.display(), "daemon not running; starting it");
-        spawn::spawn_daemon(safe_mode)?;
-        match spawn::connect_with_retry(&endpoint).await {
-            Some(conn) => Ok(Client::over(conn)),
-            None => Err(IpcError::ConnectionLost),
-        }
+        let conn = match ipc::connect(&endpoint).await {
+            Ok(conn) => conn,
+            Err(_) => {
+                tracing::debug!(endpoint = %endpoint.display(), "daemon not running; starting it");
+                spawn::spawn_daemon(safe_mode)?;
+                spawn::connect_with_retry(&endpoint)
+                    .await
+                    .ok_or(IpcError::ConnectionLost)?
+            }
+        };
+        let client = Client::over(conn);
+        client.daemon().ready().await?;
+        Ok(client)
     }
 
     /// Connect to a daemon listening on `endpoint` (no auto-spawn).

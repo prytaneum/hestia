@@ -1,4 +1,5 @@
 use std::path::PathBuf;
+use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 
@@ -58,4 +59,23 @@ impl Contract for DaemonStop {
     const CHANNEL: &'static str = "daemon.stop";
     type Params = DaemonStopParams;
     type Result = DaemonStopResult;
+}
+
+#[derive(Serialize, Deserialize, Default, Debug, Clone)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
+#[serde(default, rename_all = "camelCase")]
+pub struct DaemonReadyResult {
+    /// False when the wait ran out with a plugin still loading; the daemon is
+    /// serving either way.
+    pub plugins_settled: bool,
+}
+
+/// Answers once startup activation has settled: every enabled plugin has loaded
+/// or failed, or the daemon's bound on waiting for the slow ones has passed.
+pub struct DaemonReady;
+impl Contract for DaemonReady {
+    const CHANNEL: &'static str = "daemon.ready";
+    type Params = Empty;
+    type Result = DaemonReadyResult;
+    const TIMEOUT: Duration = Duration::from_secs(40);
 }

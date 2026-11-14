@@ -28,6 +28,7 @@ use proto::plugin::{
     PluginDeveloperInfo, PluginInfo, PluginInspection, PluginInstallPhase, PluginPage,
     PluginSource, PluginState, PluginStateEvent, PluginTheme, SettingValue,
 };
+use tokio::sync::watch;
 use tokio::task::{spawn_blocking, JoinSet};
 
 use super::EventHub;
@@ -72,6 +73,7 @@ pub struct Plugins {
     slots: Mutex<HashMap<String, Slot>>,
     shutting_down: AtomicBool,
     safe_mode: bool,
+    startup_settled: watch::Sender<bool>,
 }
 
 impl Plugins {
@@ -84,7 +86,33 @@ impl Plugins {
             host: OnceLock::new(),
             slots: Mutex::new(HashMap::new()),
             shutting_down: AtomicBool::new(false),
+            startup_settled: watch::channel(false).0,
         }
+    }
+
+    /// Installs what is staged or bundled, then loads every enabled plugin, and
+    /// opens the gate [`Plugins::await_startup`] waits on, whatever came of it.
+    pub async fn start(self: &Arc<Self>) {
+        self.install_staged().await;
+        self.seed_bundled().await;
+        self.load_enabled().await;
+        self.startup_settled.send_replace(true);
+    }
+
+    /// Waits for [`Plugins::start`] to finish, for at most `bound`. Past it the
+    /// slow plugin keeps loading and this answers false.
+    pub async fn await_startup(&self, bound: Duration) -> bool {
+        let mut settled = self.startup_settled.subscribe();
+        let done = tokio::time::timeout(bound, settled.wait_for(|settled| *settled))
+            .await
+            .is_ok();
+        if !done {
+            tracing::warn!(
+                bound_secs = bound.as_secs(),
+                "a plugin is still loading; reporting ready without it"
+            );
+        }
+        done
     }
 
     /// No third-party plugin loads this run.
