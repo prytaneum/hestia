@@ -29,8 +29,7 @@ two cannot drift, and a manifest without the field asks for no coordination. `up
    whose manifest this host cannot parse counts as asking for more.
 7. Download the app artifact.
 
-**A wider grant is refused up front.** The new daemon will not widen an installed grant without the user
-([0090](0090-a-plugin-update-that-asks-for-more-needs-approval.md) if present), so a staged build that asks for more
+**A wider grant is refused up front.** The new daemon will not widen an installed grant without the user, so a staged build that asks for more
 would come up `needs_update` after the restart, with the launcher unable to use that plugin. Refusing before the
 installer is downloaded leaves the user on a working version. The remedy is not yet reachable: the build needs the next
 plugin API, so the running host cannot install it and `plugin update` reports it as needing another API. Until a
