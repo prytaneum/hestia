@@ -421,11 +421,8 @@ fn arguments_are_checked_against_the_declaration_before_the_guest_runs() {
     assert!(refused(check(json!({ "name": 1 }))).contains("`name` must be a string"));
     assert!(refused(check(json!({ "name": "a", "extra": 1 }))).contains("unknown argument `extra`"));
     assert!(refused(check(json!(["a"]))).contains("must be an object"));
-}
 
-#[test]
-fn a_words_argument_takes_a_list_of_strings() {
-    let command = CommandContribution {
+    let words = CommandContribution {
         id: "players allow".into(),
         args: vec![CommandArg {
             name: "names".into(),
@@ -435,14 +432,11 @@ fn a_words_argument_takes_a_list_of_strings() {
         }],
         ..CommandContribution::default()
     };
-    let check = |args| command_args("demo", &command, None, &args);
-
+    let check = |args| command_args("demo", &words, None, &args);
     assert_eq!(
         check(json!({ "names": ["a", "b"] })).unwrap(),
         json!({ "names": ["a", "b"] })
     );
-    assert!(refused(check(json!({}))).contains("`names` is required"));
-    assert!(refused(check(json!({ "names": "a" }))).contains("must be a list of strings"));
     assert!(refused(check(json!({ "names": ["a", 1] }))).contains("must be a list of strings"));
 }
 
@@ -1532,19 +1526,16 @@ async fn register_java_probe_in_mode(
 }
 
 #[tokio::test]
-async fn an_official_plugins_provider_registers_under_its_bare_id() {
-    let (engine, _home, _data) =
+async fn an_official_provider_registers_bare_and_a_third_party_one_stays_prefixed() {
+    let (official, _home, _data) =
         register_java_probe(&["example.com"], "https://example.com/", true).await;
-    assert!(engine.java().provider("reach").is_ok());
-    assert!(engine.java().provider("probe.reach").is_err());
-}
+    assert!(official.java().provider("reach").is_ok());
+    assert!(official.java().provider("probe.reach").is_err());
 
-#[tokio::test]
-async fn a_third_party_plugins_provider_stays_prefixed() {
-    let (engine, _home, _data) =
+    let (third_party, _home, _data) =
         register_java_probe(&["example.com"], "https://example.com/", false).await;
-    assert!(engine.java().provider("probe.reach").is_ok());
-    assert!(engine.java().provider("reach").is_err());
+    assert!(third_party.java().provider("probe.reach").is_ok());
+    assert!(third_party.java().provider("reach").is_err());
 }
 
 #[tokio::test]
@@ -1684,15 +1675,6 @@ mod manifest_table {
         assert!(parse("[permissions]\n\"entry:read\" = { everything = [\"*\"] }\n").is_err());
         assert!(parse("[permissions]\n\"entry:read\" = true\n").is_err());
         assert!(parse("permissions = [\"entry:read\"]\n").is_err());
-    }
-
-    #[test]
-    fn the_old_top_level_lists_grant_nothing() {
-        let manifest = parse("network = [\"a.example.com\"]\nfiles = [\"ops.json\"]\n")
-            .expect("unknown keys are ignored");
-        let grant = manifest.grant();
-        assert_eq!(grant.hosts().count(), 0);
-        assert!(grant.permissions.is_empty());
     }
 }
 

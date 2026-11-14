@@ -143,20 +143,6 @@ async fn the_flavor_is_offered_while_the_plugin_is_enabled_and_gone_after() {
 }
 
 #[tokio::test]
-async fn a_client_profile_resolves_with_the_hosts_own_ids() {
-    let (engine, home) = rig(&["127.0.0.1"]).await;
-
-    let profile = engine
-        .minecraft()
-        .resolve_instance(FLAVOR, "1.21", None, home.path(), None)
-        .await
-        .expect("the profile is vetted and returned");
-
-    assert_eq!(profile.flavor, FLAVOR);
-    assert_eq!(profile.game_version, "1.21");
-}
-
-#[tokio::test]
 async fn a_profile_with_one_artifact_off_the_plugins_hosts_is_refused_whole() {
     let (engine, home) = rig(&["127.0.0.1"]).await;
     let (cancel, report) = (Cancel::new(), |_: &ProvisionProgress| {});

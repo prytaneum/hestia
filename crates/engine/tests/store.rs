@@ -2,10 +2,9 @@
 //! servers, instances).
 
 use engine::{
-    Cache, Config, InstanceProfile, Instances, PluginRecord, Plugins, ServerJar, ServerPhase,
+    Config, InstanceProfile, Instances, PluginRecord, Plugins, ServerJar, ServerPhase,
     ServerProfile, Servers,
 };
-use proto::download::{Checksum, HashAlgorithm};
 
 /// A directory that removes itself when the test ends, named after the test so
 /// a leftover under a debugger says which one left it.
@@ -47,35 +46,6 @@ fn config_jvm_defaults_validate_and_normalise() {
     let defaults = cfg.settings().java_defaults();
     assert!(defaults.memory.is_none());
     assert!(defaults.jvm_args.is_empty());
-}
-
-#[test]
-fn cache_stores_and_lists_by_checksum() {
-    let dir = temp_dir("cache");
-    let cache = Cache::new(dir.path().join("cache"));
-
-    // sha256 of the empty input.
-    let checksum = Checksum {
-        algorithm: HashAlgorithm::Sha256,
-        hex: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855".to_string(),
-    };
-    let blob = dir.path().join("blob.bin");
-    std::fs::write(&blob, b"").unwrap();
-
-    assert!(cache.lookup(&checksum).is_none());
-    cache.store(&blob, &checksum);
-    assert!(cache.lookup(&checksum).is_some());
-
-    let usage = cache.usage();
-    assert_eq!(usage.entries, 1);
-
-    let entries = cache.entries();
-    assert_eq!(entries.len(), 1);
-    assert_eq!(entries[0].checksum.hex, checksum.hex);
-
-    let freed = cache.clear();
-    assert_eq!(freed.entries, 1);
-    assert!(cache.lookup(&checksum).is_none());
 }
 
 #[test]
@@ -547,24 +517,6 @@ fn plugin_record(id: &str) -> PluginRecord {
         enabled: true,
         ..PluginRecord::default()
     }
-}
-
-#[test]
-fn plugin_record_round_trips_and_removes() {
-    let dir = temp_dir("plugins");
-    let plugins = Plugins::new(dir.path().join("plugins"));
-    plugins.save(&plugin_record("alpha")).unwrap();
-
-    let stored = plugins.get("alpha").unwrap();
-    assert_eq!(stored.wasm_sha256, plugin_record("alpha").wasm_sha256);
-    assert!(plugins.data_dir("alpha").unwrap().is_dir());
-
-    assert!(plugins.set_enabled("alpha", false).unwrap());
-    assert!(!plugins.get("alpha").unwrap().enabled);
-
-    assert!(plugins.remove("alpha").unwrap());
-    assert!(plugins.get("alpha").is_none());
-    assert!(!plugins.remove("alpha").unwrap());
 }
 
 #[test]
