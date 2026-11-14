@@ -406,3 +406,40 @@ async fn an_export_naming_a_file_it_does_not_hold_is_refused() {
     assert!(error.to_string().contains("refused"), "{error}");
     assert!(!destination.exists(), "no archive is left behind");
 }
+
+#[tokio::test]
+async fn a_pack_in_a_plugins_format_is_refused_by_the_single_file_importer() {
+    let (home, drops) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
+    let engine = rig(home.path(), &fixture::Files::serve().await).await;
+    let record = engine
+        .create_instance("modded", "vanilla", "1.21", None, &[])
+        .await
+        .expect("create the instance");
+    let path = archive(drops.path(), replay(json!([])), &[]);
+    let spec = ContentAddSpec {
+        kind: ContentKind::Mod,
+        items: vec![ContentAddItem {
+            path: path.to_string_lossy().into_owned(),
+            ..ContentAddItem::default()
+        }],
+        ..ContentAddSpec::default()
+    };
+    let (cancel, report) = (Cancel::new(), |_: &ProvisionProgress| {});
+
+    let done = engine
+        .add_entry_content(
+            EntryRef::Instance(&record.id),
+            &spec,
+            &CallChain::default(),
+            &job(&cancel, &report),
+        )
+        .await
+        .expect("the batch runs");
+
+    assert!(done.items.is_empty(), "{:?}", done.items);
+    assert_eq!(done.failures.len(), 1, "{:?}", done.failures);
+
+    let inspected = engine.inspect_content_file(&path.to_string_lossy()).await;
+    assert!(!inspected.valid);
+    assert!(inspected.reason.contains("modpack"), "{}", inspected.reason);
+}

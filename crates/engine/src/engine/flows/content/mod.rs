@@ -16,7 +16,8 @@ use std::path::Path;
 
 use anyhow::{bail, Result};
 use proto::content::{
-    ContentAddSpec, ContentDone, ContentKind, ContentMatch, InstalledContent, UntrackedFile,
+    ContentAddSpec, ContentDone, ContentInspectResult, ContentKind, ContentMatch, InstalledContent,
+    UntrackedFile,
 };
 
 pub(in crate::engine::flows) use self::add::artifact_context;
@@ -25,11 +26,13 @@ use self::entry::EntryContent;
 pub(in crate::engine) use self::entry::EntryRef;
 use self::manage::{list_content, remove_content, set_enabled, update_from_file};
 use super::phase_progress;
+use crate::content::inspect::modpack_refusal;
 use crate::content::install;
 use crate::engine::{Engine, Repin};
 use crate::minecraft::materialize::OnProgress;
 use crate::minecraft::Side;
 use crate::plugins::CallChain;
+use crate::transfer::{self, archive::Reader};
 
 impl Engine {
     /// Install a batch of content into an entry — each item a platform project,
@@ -46,6 +49,35 @@ impl Engine {
         let ctx = self.content_ctx(entry)?;
         self.ensure_accepts(&ctx, spec.kind)?;
         self.add_content(&ctx, spec, chain, on_progress).await
+    }
+
+    /// Classify a local file for import, refusing a pack in any registered
+    /// plugin format the way core refuses an `.mrpack`.
+    pub async fn inspect_content_file(&self, path: &str) -> ContentInspectResult {
+        let mut result = self.content().inspect(path).await;
+        if result.valid {
+            if let Err(refused) = self.refuse_pack_file(Path::new(path)).await {
+                result = ContentInspectResult {
+                    filename: result.filename,
+                    reason: format!("{refused:#}"),
+                    ..ContentInspectResult::default()
+                };
+            }
+        }
+        result
+    }
+
+    /// Errors when `path` is a modpack in a core or plugin format, which a
+    /// single-file import must not take for content.
+    pub(super) async fn refuse_pack_file(&self, path: &Path) -> Result<()> {
+        let Ok(reader) = Reader::open(path) else {
+            return Ok(());
+        };
+        let packs = self.packs().snapshot();
+        match transfer::detect(&reader.names(), &file_name(path), &packs, true).await {
+            Ok(_) => Err(modpack_refusal(path)),
+            Err(_) => Ok(()),
+        }
     }
 
     /// An entry's installed items of one kind, plus untracked filenames found
@@ -93,6 +125,7 @@ impl Engine {
         chain: &CallChain,
     ) -> Result<ContentDone> {
         let ctx = self.content_ctx(entry)?;
+        self.refuse_pack_file(path).await?;
         let sha1 = install::sha1_file(path).ok();
         let context = local_context(&ctx, kind, None, &file_name(path), sha1.as_deref());
         let warnings = self.vet_install(&context, chain).await?;

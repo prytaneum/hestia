@@ -2,7 +2,7 @@
 
 use std::path::Path;
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result};
 use proto::content::ContentKind;
 
 use super::pack;
@@ -32,10 +32,7 @@ pub(crate) fn classify(path: &Path) -> Result<Option<ContentKind>> {
     let under = |dir: &str| names.iter().any(|n| n.starts_with(dir));
 
     if pack::locate(&names).is_some() {
-        bail!(
-            "'{}' is a modpack; install it when creating an instance, not as a single file",
-            file_name(path)
-        );
+        return Err(modpack_refusal(path));
     }
     if MOD_MANIFESTS.iter().any(|m| has(m)) {
         return Ok(Some(ContentKind::Mod));
@@ -52,6 +49,13 @@ pub(crate) fn classify(path: &Path) -> Result<Option<ContentKind>> {
         return Ok(Some(ContentKind::Shader));
     }
     Ok(None)
+}
+
+pub(crate) fn modpack_refusal(path: &Path) -> anyhow::Error {
+    anyhow::anyhow!(
+        "'{}' is a modpack; install it when creating an instance, not as a single file",
+        file_name(path)
+    )
 }
 
 fn file_name(path: &Path) -> std::borrow::Cow<'_, str> {

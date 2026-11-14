@@ -143,6 +143,10 @@ impl Engine {
                     "the chosen source does not recognise this file; importing it untracked"
                 );
             }
+            if let Err(refused) = self.refuse_pack_file(Path::new(&item.path)).await {
+                failures.push(failure(&item.path, "", crate::error_info(refused)));
+                continue;
+            }
             let filename = local_filename(item, known);
             let context = local_context(
                 ctx,

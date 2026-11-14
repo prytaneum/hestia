@@ -83,7 +83,7 @@ fn register_sources(on: &mut Channels<'_>) {
         if p.path.is_empty() {
             return Err(ErrorInfo::FieldRequired { field: Field::Path });
         }
-        Ok(ctx.runtime.engine().content().inspect(&p.path).await)
+        Ok(ctx.runtime.engine().inspect_content_file(&p.path).await)
     });
 }
 
