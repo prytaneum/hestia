@@ -16,7 +16,7 @@ use client::proto::content::{RequiredSetting, SearchSort};
 
 use crate::commands::connect;
 use crate::commands::names::Names;
-use crate::ui::{self, View};
+use crate::ui::{self, Cell, View};
 
 pub use browse::{run_browse, BrowseCmd};
 pub use manage::{run_entry, ContentCmd};
@@ -58,18 +58,22 @@ pub async fn run_sources() -> Result<()> {
         .into_iter()
         .map(|s| {
             vec![
-                names.show(&s.id),
-                s.name,
-                s.kinds
-                    .iter()
-                    .map(|k| format::kind_plural(*k))
-                    .collect::<Vec<_>>()
-                    .join(", "),
+                names.show(&s.id).into(),
+                s.name.into(),
+                Cell::list(
+                    s.kinds
+                        .iter()
+                        .map(|k| format::kind_plural(*k))
+                        .collect::<Vec<_>>()
+                        .join(", "),
+                    &s.kinds,
+                ),
                 match s.requires_setting {
-                    None => "ready".to_string(),
-                    Some(RequiredSetting { plugin, key }) => {
-                        format!("needs plugin setting {key} of {plugin}")
-                    }
+                    None => Cell::token("ready", &"ready"),
+                    Some(RequiredSetting { plugin, key }) => Cell::token(
+                        format!("needs plugin setting {key} of {plugin}"),
+                        &"needs_setting",
+                    ),
                 },
             ]
         })

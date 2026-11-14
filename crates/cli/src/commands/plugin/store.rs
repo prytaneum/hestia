@@ -4,7 +4,7 @@ use anyhow::{bail, Context, Result};
 use clap::Subcommand;
 use client::proto::catalogue::{RepositoryAdded, RepositoryInfo};
 
-use crate::ui::{self, Spinner, View};
+use crate::ui::{self, Cell, Spinner, View};
 
 #[derive(Subcommand)]
 pub enum StoreCmd {
@@ -79,12 +79,12 @@ pub async fn add(plugins: &client::Plugin<'_>, url: &str, yes: bool) -> Result<R
 fn show_found(found: &RepositoryAdded) -> Result<()> {
     let repository = &found.repository;
     ui::show(View::detail([
-        ("Name", repository.name.clone()),
-        ("Label", repository.label.clone()),
-        ("Website", repository.website.clone()),
-        ("Key id", repository.key_id.clone()),
-        ("Plugins", repository.plugins.to_string()),
-        ("Index", repository.url.clone()),
+        ("Name", Cell::from(repository.name.clone())),
+        ("Label", repository.label.clone().into()),
+        ("Website", repository.website.clone().into()),
+        ("Key id", repository.key_id.clone().into()),
+        ("Plugins", Cell::count(repository.plugins)),
+        ("Index", repository.url.clone().into()),
     ]))
 }
 
@@ -100,7 +100,15 @@ async fn list(plugins: &client::Plugin<'_>) -> Result<()> {
         ["LABEL", "NAME", "KEY ID", "PLUGINS", "WEBSITE"],
         repositories
             .into_iter()
-            .map(|r| vec![r.label, r.name, r.key_id, r.plugins.to_string(), r.website])
+            .map(|r| {
+                vec![
+                    r.label.into(),
+                    r.name.into(),
+                    r.key_id.into(),
+                    Cell::count(r.plugins),
+                    r.website.into(),
+                ]
+            })
             .collect(),
     ))
 }

@@ -7,7 +7,7 @@ use client::proto::instance::{QuickPlay, WorldInfo};
 use client::Client;
 
 use crate::commands::mc;
-use crate::ui::{self, View};
+use crate::ui::{self, Cell, View};
 
 #[derive(Subcommand)]
 pub enum WorldCmd {
@@ -75,12 +75,12 @@ pub(super) async fn list(client: &Client, instance: &str) -> Result<()> {
         .iter()
         .map(|world| {
             vec![
-                world.name.clone(),
-                world.folder.clone(),
-                world.version.clone(),
-                mode_label(world),
-                mc::last_played_label(world.last_played_unix),
-                ui::human_bytes(world.size_bytes),
+                world.name.clone().into(),
+                world.folder.clone().into(),
+                world.version.clone().into(),
+                mode_cell(world),
+                mc::last_played_cell(world.last_played_unix),
+                Cell::bytes(world.size_bytes),
             ]
         })
         .collect();
@@ -91,10 +91,11 @@ pub(super) async fn list(client: &Client, instance: &str) -> Result<()> {
     ))
 }
 
-/// The world's game mode, with the flags that change how it plays.
-fn mode_label(world: &WorldInfo) -> String {
+/// The world's game mode, with the flags that change how it plays. `--json`
+/// carries the mode's own token, null for a world that could not be read.
+fn mode_cell(world: &WorldInfo) -> Cell {
     if !world.read {
-        return "unreadable".into();
+        return Cell::absent("unreadable");
     }
     let mut label = world.game_mode.to_string();
     if world.hardcore {
@@ -105,7 +106,7 @@ fn mode_label(world: &WorldInfo) -> String {
     if world.cheats {
         label.push_str(" +cheats");
     }
-    label
+    Cell::token(label, &world.game_mode)
 }
 
 /// A world is named by its folder on the wire, but recognised by its in-game

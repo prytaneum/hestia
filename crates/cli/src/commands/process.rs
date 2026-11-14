@@ -15,7 +15,7 @@ use client::Client;
 
 use crate::commands::connect;
 use crate::exit::ExitStatus;
-use crate::ui::{self, MonitorSample, View};
+use crate::ui::{self, Cell, MonitorSample, View};
 
 #[derive(Subcommand)]
 pub enum ProcessCmd {
@@ -60,10 +60,10 @@ async fn list() -> Result<()> {
         .iter()
         .map(|p| {
             vec![
-                p.id.clone(),
-                state_label(p),
-                p.pid.to_string(),
-                p.program.clone(),
+                p.id.clone().into(),
+                state_cell(p),
+                Cell::count(p.pid),
+                p.program.clone().into(),
             ]
         })
         .collect();
@@ -79,15 +79,12 @@ async fn status(id: &str) -> Result<ExitStatus> {
     let client = connect().await?;
     let info = client.process().status(id).await?;
     ui::show(View::detail([
-        ("id", info.id.clone()),
-        ("state", state_label(&info)),
-        ("pid", info.pid.to_string()),
-        ("program", info.program.clone()),
-        ("args", info.args.join(" ")),
-        (
-            "started",
-            crate::commands::mc::last_played_label(Some(info.started_unix)),
-        ),
+        ("id", Cell::from(info.id.clone())),
+        ("state", state_cell(&info)),
+        ("pid", Cell::count(info.pid)),
+        ("program", Cell::from(info.program.clone())),
+        ("args", Cell::list(info.args.join(" "), &info.args)),
+        ("started", crate::commands::mc::age_cell(info.started_unix)),
     ]))?;
     Ok(ExitStatus::running(info.state == ProcessState::Running))
 }
@@ -112,12 +109,13 @@ async fn stop(id: &str) -> Result<()> {
 
 /// The exit code is part of a terminal state's story — an adopted process
 /// reports none, which is a known gap, not a missing value.
-fn state_label(info: &ProcessInfo) -> String {
+fn state_cell(info: &ProcessInfo) -> Cell {
     let state = info.state.to_string();
-    match info.exit_code {
+    let text = match info.exit_code {
         Some(code) if info.state != ProcessState::Running => format!("{state} ({code})"),
         _ => state,
-    }
+    };
+    Cell::token(text, &info.state)
 }
 
 /// Run the fullscreen resource monitor over one process, filtering the daemon's

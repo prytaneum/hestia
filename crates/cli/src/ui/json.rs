@@ -12,6 +12,7 @@ use client::proto::warning::WarningInfo;
 use client::IpcError;
 use serde_json::{json, Map, Value};
 
+use super::cell::Cell;
 use super::view::{key_of, View};
 
 static ACTIVE: AtomicBool = AtomicBool::new(false);
@@ -126,17 +127,13 @@ fn warning_value(kind: Option<String>, message: &str, hint: Option<String>) -> V
 fn view_value(view: &View) -> Value {
     match view {
         View::Line(text) | View::Note(text) | View::Warning(text) => json!({ "message": text }),
-        View::Detail(rows) => Value::Object(
-            rows.iter()
-                .map(|(key, value)| (key_of(key), Value::String(value.clone())))
-                .collect(),
-        ),
+        View::Detail(rows) => Value::Object(detail_object(rows)),
         View::Table { keys, rows, .. } => Value::Array(
             rows.iter()
                 .map(|row| {
                     keys.iter()
                         .zip(row)
-                        .map(|(key, cell)| (key.clone(), Value::String(cell.clone())))
+                        .map(|(key, cell)| (key.clone(), cell.value().clone()))
                         .collect::<Map<_, _>>()
                         .into()
                 })
@@ -145,6 +142,12 @@ fn view_value(view: &View) -> Value {
         View::Empty(_) => json!([]),
         View::Json(value) => value.clone(),
     }
+}
+
+fn detail_object(rows: &[(String, Cell)]) -> Map<String, Value> {
+    rows.iter()
+        .map(|(key, cell)| (key_of(key), cell.value().clone()))
+        .collect()
 }
 
 /// A daemon failure keeps the `kind` and `code` of its `ErrorInfo`; anything
@@ -167,6 +170,7 @@ fn error_value(error: &anyhow::Error) -> Value {
 #[cfg(test)]
 mod tests {
     use anyhow::Context;
+    use client::proto::process::ProcessState;
 
     use super::*;
 
@@ -175,16 +179,57 @@ mod tests {
     }
 
     #[test]
-    fn a_table_is_an_array_keyed_by_snake_case_columns() {
+    fn a_table_is_an_array_keyed_by_snake_case_columns_of_typed_values() {
         let table = View::table(
             "Servers",
-            ["NAME", "GAME VERSION"],
-            vec![vec!["smp".into(), "1.21".into()]],
-        );
+            [
+                "NAME",
+                "GAME VERSION",
+                "PID",
+                "SIZE",
+                "UPTIME",
+                "AGE",
+                "ON",
+                "STATE",
+                "TAKES",
+                "LOADER",
+            ],
+            vec![vec![
+                Cell::from("smp"),
+                "1.21".into(),
+                Cell::count(112751u32),
+                Cell::bytes(1_200_000_000),
+                Cell::seconds(90, "1m"),
+                Cell::time(1_700_000_000, "3d ago"),
+                Cell::flag(true, "yes"),
+                Cell::token("stopped (1)", &ProcessState::Exited),
+                Cell::list("mods, datapacks", ["mod", "data_pack"]),
+                Cell::absent("-"),
+            ]],
+        )
+        .keyed([
+            "name", "version", "pid", "size", "uptime", "created", "on", "state", "takes", "loader",
+        ]);
         assert_eq!(
             rendered(vec![table]),
-            json!({ "data": [{ "name": "smp", "game_version": "1.21" }], "warnings": [] })
+            json!({
+                "data": [{
+                    "name": "smp",
+                    "version": "1.21",
+                    "pid": 112751,
+                    "size": 1_200_000_000u64,
+                    "uptime": 90,
+                    "created": "2023-11-14T22:13:20Z",
+                    "on": true,
+                    "state": "exited",
+                    "takes": ["mod", "data_pack"],
+                    "loader": null
+                }],
+                "warnings": []
+            })
         );
+        let size = Cell::bytes(1_200_000_000);
+        assert_eq!((size.text(), Cell::from("a").text()), ("1.2 GB", "a"));
     }
 
     #[test]

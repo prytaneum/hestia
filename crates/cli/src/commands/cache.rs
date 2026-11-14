@@ -3,7 +3,7 @@
 use anyhow::Result;
 use clap::Subcommand;
 
-use crate::ui::{self, View};
+use crate::ui::{self, Cell, View};
 
 #[derive(Subcommand)]
 pub enum CacheCmd {
@@ -21,9 +21,9 @@ pub async fn run(cmd: CacheCmd) -> Result<()> {
         CacheCmd::Info => {
             let info = client.cache().info().await?;
             ui::show(View::detail([
-                ("location", info.path.display().to_string()),
-                ("entries", info.usage.entries.to_string()),
-                ("size", ui::human_bytes(info.usage.bytes)),
+                ("location", Cell::from(info.path.display().to_string())),
+                ("entries", Cell::count(info.usage.entries)),
+                ("size", Cell::bytes(info.usage.bytes)),
             ]))?;
         }
         CacheCmd::List => {
@@ -35,8 +35,12 @@ pub async fn run(cmd: CacheCmd) -> Result<()> {
                 .iter()
                 .map(|e| {
                     vec![
-                        format!("{}:{}", e.checksum.algorithm.as_str(), e.checksum.hex),
-                        ui::human_bytes(e.size),
+                        Cell::from(format!(
+                            "{}:{}",
+                            e.checksum.algorithm.as_str(),
+                            e.checksum.hex
+                        )),
+                        Cell::bytes(e.size),
                     ]
                 })
                 .collect();

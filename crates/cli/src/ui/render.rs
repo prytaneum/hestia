@@ -8,6 +8,7 @@ use std::io::{self, IsTerminal};
 use anyhow::Result;
 use ratatui::crossterm::style::Stylize;
 
+use super::cell::Cell;
 use super::session;
 use super::session::pager::PagerScreen;
 use super::view::View;
@@ -16,23 +17,25 @@ pub fn show(view: View) -> Result<()> {
     if super::json::active() {
         return Ok(super::json::show(view)?);
     }
-    if let View::Table {
-        title,
-        headers,
-        rows,
-        ..
-    } = &view
-    {
-        if paged(title, headers, rows)? {
-            return Ok(());
-        }
-    }
     match view {
         View::Line(text) => line(&text)?,
         View::Note(text) | View::Empty(text) => note(&text)?,
         View::Warning(text) => warning(&text)?,
         View::Detail(rows) => detail(&rows)?,
-        View::Table { headers, rows, .. } => print_table(&headers, &rows)?,
+        View::Table {
+            title,
+            headers,
+            rows,
+            ..
+        } => {
+            let rows: Vec<Vec<String>> = rows
+                .iter()
+                .map(|row| row.iter().map(|cell| cell.text().to_string()).collect())
+                .collect();
+            if !paged(&title, &headers, &rows)? {
+                print_table(&headers, &rows)?;
+            }
+        }
         View::Json(value) => line(&format!("{value:#}"))?,
     }
     Ok(())
@@ -84,9 +87,11 @@ fn warning(text: &str) -> io::Result<()> {
     }
 }
 
-fn detail(rows: &[(String, String)]) -> io::Result<()> {
+fn detail(rows: &[(String, Cell)]) -> io::Result<()> {
+    let rows: Vec<_> = rows.iter().filter(|(_, cell)| cell.is_shown()).collect();
     let width = rows.iter().map(|(k, _)| k.len()).max().unwrap_or(0);
-    for (key, value) in rows {
+    for (key, cell) in rows {
+        let value = cell.text();
         let label = format!("{key:width$}");
         match stdout_is_tty() {
             true => line(&format!("{}  {value}", label.dark_grey()))?,

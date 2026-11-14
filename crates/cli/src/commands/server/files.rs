@@ -9,7 +9,7 @@ use anyhow::{bail, Context, Result};
 use clap::Subcommand;
 use client::Client;
 
-use crate::ui::{self, View};
+use crate::ui::{self, Cell, View};
 
 #[cfg(windows)]
 const FALLBACK_EDITOR: &str = "notepad";
@@ -85,8 +85,8 @@ pub(super) async fn run(client: &Client, server: &str, cmd: FilesCmd) -> Result<
                 entries
                     .into_iter()
                     .map(|entry| match entry.dir {
-                        true => vec![format!("{}/", entry.name), String::new()],
-                        false => vec![entry.name, ui::human_bytes(entry.size)],
+                        true => vec![format!("{}/", entry.name).into(), Cell::absent("")],
+                        false => vec![entry.name.into(), Cell::bytes(entry.size)],
                     })
                     .collect(),
             ))

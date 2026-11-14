@@ -10,6 +10,7 @@
 //! The future TUI (bare `hestia`) is one more `session::Screen` over the same
 //! `View`s.
 
+mod cell;
 pub(crate) mod components;
 pub(crate) mod json;
 pub(crate) mod markdown;
@@ -25,6 +26,7 @@ use std::sync::OnceLock;
 use anyhow::{anyhow, bail, Result};
 use client::proto::warning::WarningInfo;
 
+pub use cell::Cell;
 pub use components::PickerItem;
 pub use progress::{ByteReporter, ProvisionReporter, Spinner};
 pub use render::human_bytes;

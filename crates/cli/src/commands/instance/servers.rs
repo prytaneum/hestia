@@ -11,7 +11,7 @@ use client::proto::instance::{QuickPlay, ServerEntry};
 use client::Client;
 use futures_util::stream::{self, StreamExt};
 
-use crate::ui::{self, View};
+use crate::ui::{self, Cell, View};
 
 /// How many entries are pinged at once when listing. The list is short and each
 /// ping has its own timeout, so a handful of connections keeps a stale entry
@@ -167,18 +167,17 @@ pub(super) async fn list(client: &Client, instance: &str) -> Result<()> {
         .enumerate()
         .map(|(index, (server, status))| {
             vec![
-                (index + 1).to_string(),
-                server.name.clone(),
-                server.address.clone(),
-                status.unwrap_or_else(|| "offline".to_string()),
+                Cell::count(index as u64 + 1),
+                server.name.clone().into(),
+                server.address.clone().into(),
+                status.unwrap_or_else(|| "offline".to_string()).into(),
             ]
         })
         .collect();
-    ui::show(View::table(
-        "Servers",
-        ["#", "NAME", "ADDRESS", "STATUS"],
-        rows,
-    ))
+    ui::show(
+        View::table("Servers", ["#", "NAME", "ADDRESS", "STATUS"], rows)
+            .keyed(["position", "name", "address", "status"]),
+    )
 }
 
 /// The list's order with `server` lifted to `position`, counting from 1. The

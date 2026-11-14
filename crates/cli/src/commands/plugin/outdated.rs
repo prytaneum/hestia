@@ -3,7 +3,7 @@
 use anyhow::Result;
 use client::proto::plugin::OutdatedPlugin;
 
-use crate::ui::{self, Spinner, View};
+use crate::ui::{self, Cell, Spinner, View};
 
 pub async fn run(plugins: client::Plugin<'_>, unsigned: bool) -> Result<()> {
     let outdated = {
@@ -27,17 +27,17 @@ pub async fn run(plugins: client::Plugin<'_>, unsigned: bool) -> Result<()> {
     ui::show_warnings(&outdated.warnings)
 }
 
-fn row(plugin: &OutdatedPlugin) -> Vec<String> {
+fn row(plugin: &OutdatedPlugin) -> Vec<Cell> {
     let status = match (&plugin.requires, plugin.api_compatible) {
-        (Some(api), false) => format!("needs plugin API {api}"),
-        (None, false) => "needs another plugin API".to_string(),
-        _ if plugin.widened.permissions.is_empty() => "ready".to_string(),
-        _ => "asks for more access".to_string(),
+        (Some(api), false) => Cell::token(format!("needs plugin API {api}"), &"needs_api"),
+        (None, false) => Cell::token("needs another plugin API", &"needs_api"),
+        _ if plugin.widened.permissions.is_empty() => Cell::token("ready", &"ready"),
+        _ => Cell::token("asks for more access", &"needs_approval"),
     };
     vec![
-        plugin.id.clone(),
-        plugin.installed.clone(),
-        plugin.available.clone(),
+        plugin.id.clone().into(),
+        plugin.installed.clone().into(),
+        plugin.available.clone().into(),
         status,
     ]
 }

@@ -13,11 +13,11 @@ use client::Client;
 use client::proto::content::SearchQuery;
 use client::proto::instance::WorldInfo;
 
-use super::format::{kind_plural, source_label, world_label};
+use super::format::{kind_plural, source_label, world_cell, world_label};
 use super::{session, PAGE};
 use crate::commands::mc;
 use crate::commands::names::Names;
-use crate::ui::{self, ProvisionReporter, View};
+use crate::ui::{self, Cell, ProvisionReporter, View};
 
 /// The per-entry management grammar shared by every installable kind under a
 /// server or instance. The entry is fixed by the enclosing `server <name>` /
@@ -348,10 +348,10 @@ async fn list(client: &Client, entry: EntryKind, kind: ContentKind, reference: &
                 .iter()
                 .map(|i| {
                     vec![
-                        i.title.clone(),
-                        i.version_number.clone(),
-                        world_label(i),
-                        source(i),
+                        Cell::from(i.title.clone()),
+                        i.version_number.clone().into(),
+                        world_cell(i),
+                        source(i).into(),
                     ]
                 })
                 .collect();

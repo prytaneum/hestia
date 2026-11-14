@@ -4,7 +4,7 @@ use anyhow::{anyhow, bail, Context, Result};
 use client::proto::plugin::{Setting, SettingKind, SettingValue};
 use serde_json::Value;
 
-use crate::ui::{self, View};
+use crate::ui::{self, Cell, View};
 
 pub async fn run(
     plugins: client::Plugin<'_>,
@@ -55,9 +55,9 @@ fn list(declared: &[Setting], current: Vec<SettingValue>) -> Result<()> {
             .zip(&current)
             .map(|(setting, current)| {
                 vec![
-                    setting.key.clone(),
-                    show(setting, current),
-                    setting.label.clone(),
+                    setting.key.clone().into(),
+                    value_cell(setting, current),
+                    setting.label.clone().into(),
                 ]
             })
             .collect(),
@@ -68,6 +68,15 @@ fn label(setting: &Setting) -> String {
     match setting.label.is_empty() {
         true => setting.key.clone(),
         false => setting.label.clone(),
+    }
+}
+
+/// `--json` never carries a secret: its value is whether it is set.
+fn value_cell(setting: &Setting, current: &SettingValue) -> Cell {
+    match (&current.value, setting.kind) {
+        (_, SettingKind::Secret) => Cell::flag(current.set, show(setting, current)),
+        (Some(value), _) => Cell::raw(value.clone()),
+        (None, _) => Cell::absent(show(setting, current)),
     }
 }
 

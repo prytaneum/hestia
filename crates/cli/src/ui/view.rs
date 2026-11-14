@@ -2,6 +2,8 @@
 //! to `ui::show`; the renderer decides how to present them (ratatui on a
 //! terminal, plain text when piped). The future TUI consumes the same `View`s.
 
+use super::cell::Cell;
+
 pub enum View {
     /// A primary line of output.
     Line(String),
@@ -11,14 +13,14 @@ pub enum View {
     /// heavier than a `Note`: the command worked, but not the way the user asked.
     Warning(String),
     /// A key/value block, keys aligned.
-    Detail(Vec<(String, String)>),
+    Detail(Vec<(String, Cell)>),
     /// A titled table; long tables page interactively on a terminal. `keys` name
     /// the columns for `--json`, one per header.
     Table {
         title: String,
         headers: Vec<String>,
         keys: Vec<String>,
-        rows: Vec<Vec<String>>,
+        rows: Vec<Vec<Cell>>,
     },
     /// A list with nothing in it: the note a person reads, and `[]` under
     /// `--json`, so a script never has to tell an empty list from a message.
@@ -39,6 +41,14 @@ pub fn key_of(label: &str) -> String {
         .join("_")
 }
 
+fn rows_of<K: Into<String>, V: Into<Cell>>(
+    rows: impl IntoIterator<Item = (K, V)>,
+) -> Vec<(String, Cell)> {
+    rows.into_iter()
+        .map(|(k, v)| (k.into(), v.into()))
+        .collect()
+}
+
 impl View {
     pub fn line(text: impl Into<String>) -> View {
         View::Line(text.into())
@@ -56,28 +66,34 @@ impl View {
         View::Warning(text.into())
     }
 
-    pub fn detail<K: Into<String>, V: Into<String>>(
-        rows: impl IntoIterator<Item = (K, V)>,
-    ) -> View {
-        View::Detail(
-            rows.into_iter()
-                .map(|(k, v)| (k.into(), v.into()))
-                .collect(),
-        )
+    pub fn detail<K: Into<String>, V: Into<Cell>>(rows: impl IntoIterator<Item = (K, V)>) -> View {
+        View::Detail(rows_of(rows))
     }
 
-    pub fn table(
+    pub fn table<C: Into<Cell>>(
         title: impl Into<String>,
         headers: impl IntoIterator<Item = impl Into<String>>,
-        rows: Vec<Vec<String>>,
+        rows: Vec<Vec<C>>,
     ) -> View {
         let headers: Vec<String> = headers.into_iter().map(Into::into).collect();
         View::Table {
             title: title.into(),
             keys: headers.iter().map(|header| key_of(header)).collect(),
             headers,
-            rows,
+            rows: rows
+                .into_iter()
+                .map(|row| row.into_iter().map(Into::into).collect())
+                .collect(),
         }
+    }
+
+    /// Name a table's `--json` keys where the snake_case of its headers would
+    /// read badly to a script; the displayed headers stay as they are.
+    pub fn keyed<'a>(mut self, names: impl IntoIterator<Item = &'a str>) -> View {
+        if let View::Table { keys, .. } = &mut self {
+            *keys = names.into_iter().map(str::to_owned).collect();
+        }
+        self
     }
 
     pub fn json(value: serde_json::Value) -> View {

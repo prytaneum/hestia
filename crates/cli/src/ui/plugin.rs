@@ -174,6 +174,7 @@ mod tests {
     use serde_json::json;
 
     use super::*;
+    use crate::ui::Cell;
 
     fn text(text: &str, tone: Tone) -> UiNode {
         UiNode::Text {
@@ -228,7 +229,7 @@ mod tests {
         };
         assert!(
             matches!(&views(&table)[0], View::Table { headers, rows, .. }
-            if headers == &["A"] && rows == &[vec!["1".to_string()]])
+            if headers == &["A"] && rows == &[vec![Cell::from("1")]])
         );
         let list = UiNode::List {
             items: vec![ListItem {
@@ -239,7 +240,7 @@ mod tests {
             }],
         };
         assert!(matches!(&views(&list)[0], View::Table { rows, .. }
-            if rows == &[vec!["t".to_string(), "s".to_string()]]));
+            if rows == &[vec![Cell::from("t"), Cell::from("s")]]));
         let detail = UiNode::Detail {
             pairs: vec![Pair {
                 label: "k".into(),
@@ -247,7 +248,7 @@ mod tests {
             }],
         };
         assert!(matches!(&views(&detail)[0], View::Detail(rows)
-            if rows == &[("k".to_string(), "v".to_string())]));
+            if rows == &[("k".to_string(), Cell::from("v"))]));
     }
 
     #[test]

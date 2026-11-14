@@ -7,7 +7,7 @@ use clap::Subcommand;
 use client::proto::accounts::{Account, LoginMethod};
 use client::Client;
 
-use crate::ui::{self, Spinner, View};
+use crate::ui::{self, Cell, Spinner, View};
 
 #[derive(Subcommand)]
 pub enum AccountCmd {
@@ -48,15 +48,18 @@ pub async fn run(cmd: AccountCmd) -> Result<()> {
                 .accounts
                 .iter()
                 .map(|a| {
-                    let marker = if a.uuid == listing.default_uuid {
-                        "*"
-                    } else {
-                        ""
-                    };
-                    vec![marker.to_string(), a.name.clone(), a.uuid.clone()]
+                    let default = a.uuid == listing.default_uuid;
+                    vec![
+                        Cell::flag(default, if default { "*" } else { "" }),
+                        a.name.clone().into(),
+                        a.uuid.clone().into(),
+                    ]
                 })
                 .collect();
-            ui::show(View::table("accounts", ["", "NAME", "UUID"], rows))?;
+            ui::show(
+                View::table("accounts", ["", "NAME", "UUID"], rows)
+                    .keyed(["default", "name", "uuid"]),
+            )?;
         }
         AccountCmd::Switch { account } => {
             let reference = match account {

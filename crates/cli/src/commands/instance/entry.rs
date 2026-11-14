@@ -9,7 +9,7 @@ use client::Client;
 
 use crate::commands::mc;
 use crate::commands::names::Names;
-use crate::ui::{self, View};
+use crate::ui::{self, Cell, View};
 
 pub(super) fn pick_instance(
     instances: Vec<InstanceInfo>,
@@ -90,12 +90,12 @@ pub(super) async fn list(client: &Client) -> Result<()> {
         .iter()
         .map(|i| {
             vec![
-                i.name.clone(),
-                names.show(&i.flavor),
-                i.game_version.clone(),
-                i.loader_version.clone().unwrap_or_else(|| "-".into()),
-                mc::sessions_label(&i.sessions),
-                mc::last_played_label(i.last_played_unix),
+                i.name.clone().into(),
+                names.show(&i.flavor).into(),
+                i.game_version.clone().into(),
+                Cell::maybe(i.loader_version.clone(), "-"),
+                mc::sessions_cell(&i.sessions),
+                mc::last_played_cell(i.last_played_unix),
             ]
         })
         .collect();
@@ -116,18 +116,15 @@ pub(super) async fn list(client: &Client) -> Result<()> {
 pub(super) async fn show_info(client: &Client, info: &InstanceInfo) -> Result<()> {
     let names = Names::flavors(client, EntryKind::Instance).await?;
     ui::show(View::detail([
-        ("name", info.name.clone()),
-        ("id", info.id.clone()),
-        ("flavor", names.show(&info.flavor)),
-        ("version", info.game_version.clone()),
-        (
-            "loader",
-            info.loader_version.clone().unwrap_or_else(|| "-".into()),
-        ),
-        ("java", info.java_major.to_string()),
-        ("state", mc::sessions_label(&info.sessions)),
-        ("last played", mc::last_played_label(info.last_played_unix)),
-        ("playtime", mc::playtime_label(info.playtime_seconds)),
+        ("name", Cell::from(info.name.clone())),
+        ("id", info.id.clone().into()),
+        ("flavor", names.show(&info.flavor).into()),
+        ("version", info.game_version.clone().into()),
+        ("loader", Cell::maybe(info.loader_version.clone(), "-")),
+        ("java", Cell::count(info.java_major)),
+        ("state", mc::sessions_cell(&info.sessions)),
+        ("last played", mc::last_played_cell(info.last_played_unix)),
+        ("playtime", mc::playtime_cell(info.playtime_seconds)),
     ]))?;
     show_sessions(&info.sessions)
 }
@@ -141,21 +138,18 @@ pub(super) async fn show_detail(
 ) -> Result<()> {
     let names = Names::flavors(client, EntryKind::Instance).await?;
     ui::show(View::detail([
-        ("name", info.name.clone()),
-        ("id", info.id.clone()),
-        ("flavor", names.show(&info.flavor)),
-        ("version", info.game_version.clone()),
-        (
-            "loader",
-            info.loader_version.clone().unwrap_or_else(|| "-".into()),
-        ),
-        ("java", info.java_major.to_string()),
-        ("state", mc::sessions_label(sessions)),
-        ("last played", mc::last_played_label(info.last_played_unix)),
-        ("playtime", mc::playtime_label(info.playtime_seconds)),
-        ("disk", ui::human_bytes(info.disk_bytes)),
-        ("folder", info.entry_dir.clone()),
-        ("data", info.data_dir.clone()),
+        ("name", Cell::from(info.name.clone())),
+        ("id", info.id.clone().into()),
+        ("flavor", names.show(&info.flavor).into()),
+        ("version", info.game_version.clone().into()),
+        ("loader", Cell::maybe(info.loader_version.clone(), "-")),
+        ("java", Cell::count(info.java_major)),
+        ("state", mc::sessions_cell(sessions)),
+        ("last played", mc::last_played_cell(info.last_played_unix)),
+        ("playtime", mc::playtime_cell(info.playtime_seconds)),
+        ("disk", Cell::bytes(info.disk_bytes)),
+        ("folder", info.entry_dir.clone().into()),
+        ("data", info.data_dir.clone().into()),
     ]))?;
     show_sessions(sessions)
 }
@@ -166,9 +160,9 @@ fn show_sessions(sessions: &[ProcessInfo]) -> Result<()> {
             .iter()
             .map(|s| {
                 vec![
-                    session_handle(s).to_string(),
-                    s.pid.to_string(),
-                    s.state.to_string(),
+                    Cell::from(session_handle(s)),
+                    Cell::count(s.pid),
+                    Cell::token(s.state.to_string(), &s.state),
                 ]
             })
             .collect();

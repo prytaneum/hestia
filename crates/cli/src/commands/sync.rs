@@ -5,7 +5,7 @@ use clap::{Subcommand, ValueEnum};
 use client::proto::sync::{InstanceSyncStatus, SyncConfig, SyncUnit, UnitState};
 use client::Client;
 
-use crate::ui::{self, View};
+use crate::ui::{self, Cell, View};
 
 #[derive(Subcommand)]
 pub enum SyncCmd {
@@ -138,15 +138,10 @@ pub async fn instance_action(client: &Client, id: &str, cmd: SyncAction) -> Resu
         SyncAction::Share { key } => pin_key(client, id, key, true).await?,
     };
 
-    let rows: Vec<Vec<String>> = status
+    let rows: Vec<Vec<Cell>> = status
         .units
         .iter()
-        .map(|unit| {
-            vec![
-                unit_name(unit.unit).to_string(),
-                state_label(unit.state).to_string(),
-            ]
-        })
+        .map(|unit| vec![unit_cell(unit.unit), state_cell(unit.state)])
         .collect();
     ui::show(View::table(
         format!("{} — shared settings", status.name),
@@ -232,21 +227,28 @@ async fn list_packs(client: &Client) -> Result<()> {
         .into_iter()
         .map(|pack| {
             vec![
-                pack.title,
-                pack.kind.to_string(),
-                pack.source,
-                match pack.enabled {
-                    true => "loaded".to_string(),
-                    false => "not loaded".to_string(),
-                },
+                pack.title.into(),
+                Cell::token(pack.kind.to_string(), &pack.kind),
+                pack.source.into(),
+                Cell::flag(
+                    pack.enabled,
+                    if pack.enabled { "loaded" } else { "not loaded" },
+                ),
             ]
         })
         .collect();
-    ui::show(View::table(
-        "Shared packs",
-        ["PACK", "KIND", "FROM", ""],
-        rows,
-    ))
+    ui::show(
+        View::table("Shared packs", ["PACK", "KIND", "FROM", ""], rows)
+            .keyed(["pack", "kind", "from", "loaded"]),
+    )
+}
+
+fn unit_cell(unit: SyncUnit) -> Cell {
+    Cell::token(unit_name(unit), &unit)
+}
+
+fn state_cell(state: UnitState) -> Cell {
+    Cell::token(state_label(state), &state)
 }
 
 fn unit_name(unit: SyncUnit) -> &'static str {
@@ -274,7 +276,7 @@ async fn status(client: &Client) -> Result<()> {
     let config = client.sync().get().await?;
     ui::show(View::detail([(
         "shared store",
-        config.shared_dir.display().to_string(),
+        Cell::from(config.shared_dir.display().to_string()),
     )]))?;
     render_units(&config)?;
     if config.units.iter().all(|unit| !unit.enabled) {
@@ -302,33 +304,35 @@ fn render_units(config: &SyncConfig) -> Result<()> {
         .iter()
         .map(|unit| {
             vec![
-                unit_name(unit.unit).to_string(),
-                match unit.enabled {
-                    true => "shared".to_string(),
-                    false => "not shared".to_string(),
-                },
-                unit.seeded_from.clone(),
+                unit_cell(unit.unit),
+                Cell::flag(
+                    unit.enabled,
+                    if unit.enabled { "shared" } else { "not shared" },
+                ),
+                unit.seeded_from.clone().into(),
             ]
         })
         .collect();
-    ui::show(View::table(
-        "Shared",
-        ["WHAT", "SHARING", "STARTED FROM"],
-        rows,
-    ))
+    ui::show(
+        View::table("Shared", ["WHAT", "SHARING", "STARTED FROM"], rows).keyed([
+            "what",
+            "shared",
+            "started_from",
+        ]),
+    )
 }
 
 fn render_instances(instances: Vec<InstanceSyncStatus>) -> Result<()> {
     if instances.is_empty() {
         return Ok(());
     }
-    let mut rows: Vec<Vec<String>> = Vec::new();
+    let mut rows: Vec<Vec<Cell>> = Vec::new();
     for instance in instances {
         for unit in instance.units.iter().filter(|u| u.state != UnitState::Off) {
             rows.push(vec![
-                instance.name.clone(),
-                unit_name(unit.unit).to_string(),
-                state_label(unit.state).to_string(),
+                instance.name.clone().into(),
+                unit_cell(unit.unit),
+                state_cell(unit.state),
             ]);
         }
     }
@@ -408,16 +412,22 @@ async fn list_options(client: &Client) -> Result<()> {
         .into_iter()
         .map(|option| {
             vec![
-                option.key,
-                option.value,
-                match option.synced {
-                    true => "shared".to_string(),
-                    false => "per-instance".to_string(),
-                },
+                option.key.into(),
+                option.value.into(),
+                Cell::flag(
+                    option.synced,
+                    if option.synced {
+                        "shared"
+                    } else {
+                        "per-instance"
+                    },
+                ),
             ]
         })
         .collect();
-    ui::show(View::table("Shared options", ["KEY", "VALUE", ""], rows))
+    ui::show(
+        View::table("Shared options", ["KEY", "VALUE", ""], rows).keyed(["key", "value", "shared"]),
+    )
 }
 
 async fn set_shared(client: &Client, key: &str, shared: bool) -> Result<()> {

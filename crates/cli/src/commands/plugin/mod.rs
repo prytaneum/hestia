@@ -25,9 +25,10 @@ mod world;
 use anyhow::{bail, Context, Result};
 use clap::Subcommand;
 use client::proto::plugin::{PluginInfo, PluginSource, PluginState};
+use serde_json::json;
 
 use crate::commands::connect;
-use crate::ui::{self, View};
+use crate::ui::{self, Cell, View};
 
 #[derive(Subcommand)]
 pub enum PluginCmd {
@@ -272,19 +273,22 @@ fn list(plugins: Vec<PluginInfo>) -> Result<()> {
             .into_iter()
             .map(|p| {
                 vec![
-                    p.manifest.id,
+                    p.manifest.id.into(),
                     if p.official {
-                        format!("{} (official)", p.manifest.name)
+                        format!("{} (official)", p.manifest.name).into()
                     } else {
-                        p.manifest.name
+                        p.manifest.name.into()
                     },
-                    p.manifest.version,
-                    state_label(p.state).to_string(),
-                    if p.obsolete {
-                        format!("{} (obsolete)", source_label(p.source))
-                    } else {
-                        source_label(p.source).to_string()
-                    },
+                    p.manifest.version.into(),
+                    Cell::token(state_label(p.state), &p.state),
+                    Cell::token(
+                        if p.obsolete {
+                            format!("{} (obsolete)", source_label(p.source))
+                        } else {
+                            source_label(p.source).to_string()
+                        },
+                        &p.source,
+                    ),
                 ]
             })
             .collect(),
@@ -293,33 +297,48 @@ fn list(plugins: Vec<PluginInfo>) -> Result<()> {
 
 fn info(plugin: &PluginInfo) -> Result<()> {
     let manifest = &plugin.manifest;
-    let mut rows = vec![
-        ("ID", manifest.id.clone()),
-        ("Name", manifest.name.clone()),
-        ("Version", manifest.version.clone()),
-        ("State", state_label(plugin.state).to_string()),
-        ("Source", source_label(plugin.source).to_string()),
+    let mut rows: Vec<(&str, Cell)> = vec![
+        ("ID", manifest.id.clone().into()),
+        ("Name", manifest.name.clone().into()),
+        ("Version", manifest.version.clone().into()),
+        (
+            "State",
+            Cell::token(state_label(plugin.state), &plugin.state),
+        ),
+        (
+            "Source",
+            Cell::token(source_label(plugin.source), &plugin.source),
+        ),
     ];
     if let Some(signer) = &plugin.signer {
-        rows.push(("Signer", signer.clone()));
+        rows.push(("Signer", signer.clone().into()));
     }
     if plugin.official {
-        rows.push(("Official", "signed by the official plugins key".to_string()));
+        rows.push((
+            "Official",
+            Cell::flag(true, "signed by the official plugins key"),
+        ));
     }
     if let Some(repository) = &plugin.repository {
-        rows.push(("Repository", repository.clone()));
+        rows.push(("Repository", repository.clone().into()));
     }
     if plugin.obsolete {
         rows.push((
             "Obsolete",
-            "no repository you added lists it any more; it gets no updates".to_string(),
+            Cell::flag(
+                true,
+                "no repository you added lists it any more; it gets no updates",
+            ),
         ));
     }
     if !manifest.description.is_empty() {
-        rows.push(("Description", manifest.description.clone()));
+        rows.push(("Description", manifest.description.clone().into()));
     }
     if !manifest.authors.is_empty() {
-        rows.push(("Authors", manifest.authors.join(", ")));
+        rows.push((
+            "Authors",
+            Cell::list(manifest.authors.join(", "), &manifest.authors),
+        ));
     }
     let permissions: Vec<String> = plugin
         .grant
@@ -329,30 +348,42 @@ fn info(plugin: &PluginInfo) -> Result<()> {
         .collect();
     rows.push((
         "Permissions",
-        if permissions.is_empty() {
-            "none".to_string()
-        } else {
-            permissions.join(", ")
-        },
+        Cell::list(
+            if permissions.is_empty() {
+                "none".to_string()
+            } else {
+                permissions.join(", ")
+            },
+            &permissions,
+        ),
     ));
     if let Some(error) = &plugin.last_error {
-        rows.push(("Last error", error.clone()));
+        rows.push(("Last error", error.clone().into()));
     }
     if let Some(bytes) = plugin.data_bytes {
-        rows.push(("Data", ui::human_bytes(bytes)));
+        rows.push(("Data", Cell::bytes(bytes)));
     }
     if let Some(developer) = &plugin.developer {
-        rows.push(("Grant digest", developer.grant_digest.clone()));
-        rows.push(("Component cache", developer.cache_dir.clone()));
+        rows.push(("Grant digest", developer.grant_digest.clone().into()));
+        rows.push(("Component cache", developer.cache_dir.clone().into()));
         if developer.error_chain.len() > 1 {
-            rows.push(("Error chain", developer.error_chain.join("\n  caused by: ")));
+            rows.push((
+                "Error chain",
+                Cell::list(
+                    developer.error_chain.join("\n  caused by: "),
+                    &developer.error_chain,
+                ),
+            ));
         }
     }
     rows.push((
         "Calls",
-        format!(
-            "{} ({} traps, {} timeouts)",
-            plugin.calls, plugin.traps, plugin.timeouts
+        Cell::typed(
+            format!(
+                "{} ({} traps, {} timeouts)",
+                plugin.calls, plugin.traps, plugin.timeouts
+            ),
+            json!({ "calls": plugin.calls, "traps": plugin.traps, "timeouts": plugin.timeouts }),
         ),
     ));
     ui::show(View::detail(rows))

@@ -375,6 +375,7 @@ mod tests {
     use serde_json::json;
 
     use super::*;
+    use crate::ui::Cell;
 
     fn arg(name: &str, kind: CommandArgKind, required: bool) -> CommandArg {
         CommandArg {
@@ -481,7 +482,7 @@ mod tests {
         assert!(matches!(
             render(&json!([{"id": "a", "n": 1}, {"id": "b"}])),
             View::Table { headers, rows, .. }
-                if headers == ["id", "n"] && rows[1] == ["b", ""]
+                if headers == ["id", "n"] && rows[1] == [Cell::from("b"), Cell::from("")]
         ));
         assert!(matches!(render(&json!("hi")), View::Line(text) if text == "hi"));
         assert!(matches!(render(&json!([1, 2])), View::Line(_)));

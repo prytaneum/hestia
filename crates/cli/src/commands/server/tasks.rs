@@ -7,7 +7,7 @@ use clap::Subcommand;
 use client::proto::tasks::{ServerTask, TaskAction};
 use client::Client;
 
-use crate::ui::{self, View};
+use crate::ui::{self, Cell, View};
 
 #[derive(Subcommand)]
 pub enum TaskCmd {
@@ -51,27 +51,30 @@ pub(super) async fn run(client: &Client, server: &str, cmd: TaskCmd) -> Result<(
             if list.is_empty() {
                 return ui::show(View::empty("no scheduled tasks"));
             }
-            ui::show(View::table(
-                "Scheduled tasks",
-                ["ID", "SCHEDULE", "DOES", "STATE"],
-                list.into_iter()
-                    .map(|task| {
-                        vec![
-                            short(&task.id).to_string(),
-                            task.schedule,
-                            match task.action {
-                                TaskAction::Restart => "restart".to_string(),
-                                TaskAction::Command => task.command,
-                                TaskAction::Backup => "backup".to_string(),
-                            },
-                            match task.enabled {
-                                true => "on".to_string(),
-                                false => "paused".to_string(),
-                            },
-                        ]
-                    })
-                    .collect(),
-            ))
+            ui::show(
+                View::table(
+                    "Scheduled tasks",
+                    ["ID", "SCHEDULE", "DOES", "STATE"],
+                    list.into_iter()
+                        .map(|task| {
+                            vec![
+                                Cell::from(short(&task.id)),
+                                task.schedule.into(),
+                                match task.action {
+                                    TaskAction::Restart => "restart".into(),
+                                    TaskAction::Command => task.command.into(),
+                                    TaskAction::Backup => "backup".into(),
+                                },
+                                Cell::flag(
+                                    task.enabled,
+                                    if task.enabled { "on" } else { "paused" },
+                                ),
+                            ]
+                        })
+                        .collect(),
+                )
+                .keyed(["id", "schedule", "does", "enabled"]),
+            )
         }
         TaskCmd::Restart { schedule } => {
             let task = new_task(TaskAction::Restart, schedule, String::new());

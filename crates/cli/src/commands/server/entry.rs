@@ -5,10 +5,11 @@ use client::proto::error::EntryKind;
 use client::proto::process::{ProcessInfo, ProcessState};
 use client::proto::server::{JvmArgsSource, ServerDetails, ServerInfo, ServerPingResult};
 use client::Client;
+use serde_json::json;
 
 use crate::commands::mc;
 use crate::commands::names::Names;
-use crate::ui::{self, View};
+use crate::ui::{self, Cell, View};
 
 pub(super) fn pick_server(
     servers: Vec<ServerInfo>,
@@ -45,12 +46,12 @@ pub(super) async fn list(client: &Client) -> Result<()> {
         .iter()
         .map(|s| {
             vec![
-                s.name.clone(),
-                names.show(&s.flavor),
-                s.game_version.clone(),
-                s.loader_version.clone().unwrap_or_else(|| "-".into()),
-                address_label(s),
-                state_label(s),
+                s.name.clone().into(),
+                names.show(&s.flavor).into(),
+                s.game_version.clone().into(),
+                Cell::maybe(s.loader_version.clone(), "-"),
+                address_label(s).into(),
+                state_cell(s),
             ]
         })
         .collect();
@@ -68,29 +69,32 @@ pub(super) async fn show_status(
 ) -> Result<()> {
     let names = Names::flavors(client, EntryKind::Server).await?;
     let mut rows = vec![
-        ("name", info.name.clone()),
-        ("id", info.id.clone()),
-        ("flavor", names.show(&info.flavor)),
-        ("version", info.game_version.clone()),
-        (
-            "loader",
-            info.loader_version.clone().unwrap_or_else(|| "-".into()),
-        ),
-        ("java", info.java_major.to_string()),
-        ("address", address_label(info)),
+        ("name", Cell::from(info.name.clone())),
+        ("id", info.id.clone().into()),
+        ("flavor", names.show(&info.flavor).into()),
+        ("version", info.game_version.clone().into()),
+        ("loader", Cell::maybe(info.loader_version.clone(), "-")),
+        ("java", Cell::count(info.java_major)),
+        ("address", address_label(info).into()),
         (
             "console",
-            if info.console { "yes" } else { "on next start" }.into(),
+            Cell::flag(
+                info.console,
+                if info.console { "yes" } else { "on next start" },
+            ),
         ),
-        ("state", state_label(info)),
+        ("state", state_cell(info)),
     ];
     if let Some(ping) = ping {
         rows.push((
             "players",
-            format!("{}/{}", ping.players_online, ping.players_max),
+            Cell::typed(
+                format!("{}/{}", ping.players_online, ping.players_max),
+                json!({ "online": ping.players_online, "max": ping.players_max }),
+            ),
         ));
         if !ping.motd.is_empty() {
-            rows.push(("motd", ping.motd.clone()));
+            rows.push(("motd", ping.motd.clone().into()));
         }
     }
     ui::show(View::detail(rows))
@@ -99,20 +103,17 @@ pub(super) async fn show_status(
 pub(super) async fn show_info(client: &Client, info: &ServerDetails) -> Result<()> {
     let names = Names::flavors(client, EntryKind::Server).await?;
     ui::show(View::detail([
-        ("name", info.name.clone()),
-        ("id", info.id.clone()),
-        ("flavor", names.show(&info.flavor)),
-        ("version", info.game_version.clone()),
-        (
-            "loader",
-            info.loader_version.clone().unwrap_or_else(|| "-".into()),
-        ),
-        ("java", info.java_major.to_string()),
-        ("address", format!("localhost:{}", info.game_port)),
-        ("disk", ui::human_bytes(info.disk_bytes)),
-        ("jvm args", jvm_args_label(info)),
-        ("folder", info.entry_dir.clone()),
-        ("data", info.data_dir.clone()),
+        ("name", Cell::from(info.name.clone())),
+        ("id", info.id.clone().into()),
+        ("flavor", names.show(&info.flavor).into()),
+        ("version", info.game_version.clone().into()),
+        ("loader", Cell::maybe(info.loader_version.clone(), "-")),
+        ("java", Cell::count(info.java_major)),
+        ("address", format!("localhost:{}", info.game_port).into()),
+        ("disk", Cell::bytes(info.disk_bytes)),
+        ("jvm args", jvm_args_cell(info)),
+        ("folder", info.entry_dir.clone().into()),
+        ("data", info.data_dir.clone().into()),
     ]))?;
     ui::show_warnings(&info.warnings)
 }
@@ -121,23 +122,26 @@ pub(super) async fn show_info(client: &Client, info: &ServerDetails) -> Result<(
 /// own recommendation is the one source the user never typed, so saying which
 /// layer won is the point — `config get jvm-args` answers for the setting, this
 /// answers for the launch.
-fn jvm_args_label(info: &ServerDetails) -> String {
+fn jvm_args_cell(info: &ServerDetails) -> Cell {
     let source = match info.jvm_args_source {
-        JvmArgsSource::None => return "-".into(),
+        JvmArgsSource::None => return Cell::absent("-"),
         JvmArgsSource::Entry => "set here",
         JvmArgsSource::Defaults => "from defaults.jvm-args",
         JvmArgsSource::Flavor => "recommended by the flavor",
     };
-    format!("{} ({source})", info.jvm_args.join(" "))
+    Cell::typed(
+        format!("{} ({source})", info.jvm_args.join(" ")),
+        json!({ "args": info.jvm_args, "source": info.jvm_args_source }),
+    )
 }
 
 fn address_label(info: &ServerInfo) -> String {
     format!("localhost:{}", info.game_port)
 }
 
-fn state_label(info: &ServerInfo) -> String {
+fn state_cell(info: &ServerInfo) -> Cell {
     if !info.ready {
-        return "provisioning".into();
+        return Cell::token("provisioning", &"provisioning");
     }
-    mc::process_state_label(&info.process)
+    mc::process_state_cell(&info.process)
 }

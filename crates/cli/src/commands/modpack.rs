@@ -24,7 +24,7 @@ use client::Client;
 use super::content::BrowseCmd;
 use super::{connect, content, mc};
 use crate::ui::components::PickerItem;
-use crate::ui::{self, ProvisionReporter, Spinner, View};
+use crate::ui::{self, Cell, ProvisionReporter, Spinner, View};
 
 /// `hestia modpack <search|info|versions|install>`. The first three are the
 /// shared browse grammar every content kind has; `install` is the modpack-only
@@ -461,12 +461,12 @@ fn show_pack(pack: &InstalledModpack) -> Result<()> {
         },
     };
     ui::show(View::detail([
-        ("modpack", pack.name.clone()),
-        ("version", pack.version_number.clone()),
-        ("game", pack.game_version.clone()),
-        ("loader", loader),
-        ("source", pack.source.clone()),
-        ("content", pack.files.len().to_string()),
-        ("pack files", pack.overrides.len().to_string()),
+        ("modpack", Cell::from(pack.name.clone())),
+        ("version", pack.version_number.clone().into()),
+        ("game", pack.game_version.clone().into()),
+        ("loader", loader.into()),
+        ("source", pack.source.clone().into()),
+        ("content", Cell::count(pack.files.len() as u64)),
+        ("pack files", Cell::count(pack.overrides.len() as u64)),
     ]))
 }

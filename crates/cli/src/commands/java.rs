@@ -6,7 +6,7 @@ use anyhow::Result;
 use clap::Subcommand;
 use client::proto::java::JavaInstallPhase;
 
-use crate::ui::{self, ByteReporter, Spinner, View};
+use crate::ui::{self, ByteReporter, Cell, Spinner, View};
 
 #[derive(Subcommand)]
 pub enum JavaCmd {
@@ -40,12 +40,12 @@ pub async fn run(cmd: JavaCmd) -> Result<()> {
                 .iter()
                 .map(|r| {
                     vec![
-                        r.major.to_string(),
-                        if r.lts { "LTS".into() } else { String::new() },
+                        Cell::count(r.major),
+                        Cell::flag(r.lts, if r.lts { "LTS" } else { "" }),
                     ]
                 })
                 .collect();
-            ui::show(View::table("java", ["MAJOR", "TYPE"], rows))?;
+            ui::show(View::table("java", ["MAJOR", "TYPE"], rows).keyed(["major", "lts"]))?;
         }
         JavaCmd::List => {
             let runtimes = client.java().list().await?;
@@ -56,10 +56,10 @@ pub async fn run(cmd: JavaCmd) -> Result<()> {
                 .iter()
                 .map(|r| {
                     vec![
-                        r.major.to_string(),
-                        r.vendor.clone(),
-                        r.release_name.clone(),
-                        r.home.display().to_string(),
+                        Cell::count(r.major),
+                        r.vendor.clone().into(),
+                        r.release_name.clone().into(),
+                        r.home.display().to_string().into(),
                     ]
                 })
                 .collect();

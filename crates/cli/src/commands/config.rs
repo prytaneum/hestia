@@ -5,7 +5,7 @@ use clap::Subcommand;
 use proto::config::HOME_KEY;
 use serde_json::Value;
 
-use crate::ui::{self, View};
+use crate::ui::{self, Cell, View};
 
 #[derive(Subcommand)]
 pub enum ConfigCmd {
@@ -50,7 +50,7 @@ pub async fn run(cmd: ConfigCmd) -> Result<()> {
 }
 
 /// Flatten a settings tree into KEY/VALUE rows, sub-objects as dotted paths.
-fn flatten(node: &Value, prefix: &str, rows: &mut Vec<Vec<String>>) {
+fn flatten(node: &Value, prefix: &str, rows: &mut Vec<Vec<Cell>>) {
     if let Value::Object(map) = node {
         for (key, value) in map {
             let path = if prefix.is_empty() {
@@ -62,9 +62,5 @@ fn flatten(node: &Value, prefix: &str, rows: &mut Vec<Vec<String>>) {
         }
         return;
     }
-    let rendered = match node {
-        Value::String(s) => s.clone(),
-        other => other.to_string(),
-    };
-    rows.push(vec![prefix.to_string(), rendered]);
+    rows.push(vec![prefix.to_string().into(), Cell::raw(node.clone())]);
 }

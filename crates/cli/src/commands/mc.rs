@@ -15,7 +15,7 @@ use client::Client;
 
 use crate::commands::content::format::kind_plural;
 use crate::commands::names::Names;
-use crate::ui::{self, Spinner, View};
+use crate::ui::{self, Cell, Spinner, View};
 
 /// The shared `config` grammar for a server/instance: `get`/`set`/`list`,
 /// mirroring `hestia config`.
@@ -121,26 +121,30 @@ fn show_config_entries(
     ui::show(View::table(title, ["KEY", "VALUE"], rows))
 }
 
-/// One-word state for a managed server/instance from its supervised process
-/// snapshot (absent means it has never been started).
-pub fn process_state_label(process: &Option<ProcessInfo>) -> String {
+/// State of a managed server/instance from its supervised process snapshot
+/// (absent means it has never been started). `--json` carries the process's
+/// own state token, `stopped` when there is none.
+pub fn process_state_cell(process: &Option<ProcessInfo>) -> Cell {
     match process {
-        Some(p) if p.state == ProcessState::Running => format!("running (pid {})", p.pid),
-        Some(_) | None => "stopped".to_string(),
+        Some(p) if p.state == ProcessState::Running => {
+            Cell::token(format!("running (pid {})", p.pid), &p.state)
+        }
+        Some(p) => Cell::token("stopped", &p.state),
+        None => Cell::token("stopped", &"stopped"),
     }
 }
 
 /// State for an instance, which may have several concurrent sessions: the count
-/// of running ones, or `stopped`.
-pub fn sessions_label(sessions: &[ProcessInfo]) -> String {
+/// of running ones, or `stopped`. `--json` carries `running` or `stopped`.
+pub fn sessions_cell(sessions: &[ProcessInfo]) -> Cell {
     let running = sessions
         .iter()
         .filter(|p| p.state == ProcessState::Running)
         .count();
     match running {
-        0 => "stopped".to_string(),
-        1 => "running".to_string(),
-        n => format!("running ({n} sessions)"),
+        0 => Cell::token("stopped", &"stopped"),
+        1 => Cell::token("running", &"running"),
+        n => Cell::token(format!("running ({n} sessions)"), &"running"),
     }
 }
 
@@ -150,14 +154,17 @@ pub fn show_backups(title: impl Into<String>, backups: Vec<BackupInfo>) -> Resul
         .iter()
         .map(|b| {
             vec![
-                b.id.clone(),
-                b.kind.as_str().to_string(),
-                ui::human_bytes(b.size),
-                age_label(b.created_unix),
+                b.id.clone().into(),
+                Cell::token(b.kind.as_str(), &b.kind),
+                Cell::bytes(b.size),
+                age_cell(b.created_unix),
             ]
         })
         .collect();
-    ui::show(View::table(title, ["ID", "KIND", "SIZE", "AGE"], rows))
+    ui::show(
+        View::table(title, ["ID", "KIND", "SIZE", "AGE"], rows)
+            .keyed(["id", "kind", "size", "created"]),
+    )
 }
 
 /// Return the chosen backup: validated when `provided`, otherwise picked from
@@ -239,13 +246,21 @@ pub fn age_label(created_unix: i64) -> String {
     }
 }
 
-/// "how long ago" for an optional last-played stamp; `-` when never played.
-pub fn last_played_label(last_played_unix: Option<i64>) -> String {
-    last_played_unix.map_or_else(|| "-".to_string(), age_label)
+pub fn age_cell(unix: i64) -> Cell {
+    Cell::time(unix, age_label(unix))
+}
+
+/// "how long ago" for an optional stamp; `-` and null when there is none.
+pub fn last_played_cell(last_played_unix: Option<i64>) -> Cell {
+    last_played_unix.map_or_else(|| Cell::absent("-"), age_cell)
+}
+
+pub fn playtime_cell(seconds: i64) -> Cell {
+    Cell::seconds(seconds.max(0) as u64, playtime_label(seconds))
 }
 
 /// Compact cumulative-duration label, e.g. `3h 20m`, `12m`, `-` when zero.
-pub fn playtime_label(seconds: i64) -> String {
+fn playtime_label(seconds: i64) -> String {
     let seconds = seconds.max(0);
     if seconds == 0 {
         return "-".to_string();
@@ -365,14 +380,14 @@ fn show_flavors(flavors: &[Flavor], names: &Names) -> Result<()> {
     if flavors.is_empty() {
         return ui::show(View::empty("no flavors are available"));
     }
-    let rows: Vec<Vec<String>> = flavors
+    let rows: Vec<Vec<Cell>> = flavors
         .iter()
         .map(|f| {
             vec![
-                names.show(&f.id),
-                f.name.clone(),
-                accepts_label(f),
-                flavor_detail(f),
+                names.show(&f.id).into(),
+                f.name.clone().into(),
+                Cell::list(accepts_label(f), &f.accepts),
+                flavor_detail(f).into(),
             ]
         })
         .collect();
@@ -433,10 +448,15 @@ pub async fn list_flavors(client: &Client, kind: EntryKind) -> Result<()> {
 /// Show a version table, releases only unless `all` includes snapshots and old
 /// versions. Long lists page on a terminal and dump plainly when piped.
 fn show_versions(flavor: &str, versions: Vec<GameVersion>, all: bool) -> Result<()> {
-    let rows: Vec<Vec<String>> = versions
+    let rows: Vec<Vec<Cell>> = versions
         .iter()
         .filter(|v| all || v.kind == VersionKind::Release)
-        .map(|v| vec![v.id.clone(), kind_label(v.kind).to_string()])
+        .map(|v| {
+            vec![
+                v.id.clone().into(),
+                Cell::token(kind_label(v.kind), &v.kind),
+            ]
+        })
         .collect();
     if rows.is_empty() {
         return ui::show(View::empty("no versions available"));

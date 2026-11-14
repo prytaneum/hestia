@@ -9,10 +9,10 @@ use client::proto::content::{
 };
 use client::Client;
 
-use super::format::{channel_label, compact, side_label, truncate};
+use super::format::{channel_cell, compact_cell, side_cell, truncate};
 use super::{session, SortArg, PAGE};
 use crate::commands::connect;
-use crate::ui::{self, Spinner, View};
+use crate::ui::{self, Cell, Spinner, View};
 
 /// The browse grammar shared by every content kind (`mod`, `modpack`,
 /// resourcepack, shader, datapack).
@@ -148,10 +148,10 @@ async fn search_page(client: &Client, query: SearchQuery) -> Result<()> {
         .iter()
         .map(|h| {
             vec![
-                h.title.clone(),
-                h.slug.clone(),
-                compact(h.downloads),
-                truncate(&h.description, 60),
+                Cell::from(h.title.clone()),
+                h.slug.clone().into(),
+                compact_cell(h.downloads),
+                truncate(&h.description, 60).into(),
             ]
         })
         .collect();
@@ -170,16 +170,19 @@ async fn search_page(client: &Client, query: SearchQuery) -> Result<()> {
 
 fn show_project(project: &ContentProject) -> Result<()> {
     ui::show(View::detail([
-        ("title", project.title.clone()),
-        ("slug", project.slug.clone()),
-        ("id", project.id.clone()),
-        ("source", project.source.clone()),
-        ("downloads", compact(project.downloads)),
-        ("follows", compact(project.follows)),
-        ("client", side_label(project.client_side)),
-        ("server", side_label(project.server_side)),
-        ("categories", project.categories.join(", ")),
-        ("description", project.description.clone()),
+        ("title", Cell::from(project.title.clone())),
+        ("slug", project.slug.clone().into()),
+        ("id", project.id.clone().into()),
+        ("source", project.source.clone().into()),
+        ("downloads", compact_cell(project.downloads)),
+        ("follows", compact_cell(project.follows)),
+        ("client", side_cell(project.client_side)),
+        ("server", side_cell(project.server_side)),
+        (
+            "categories",
+            Cell::list(project.categories.join(", "), &project.categories),
+        ),
+        ("description", project.description.clone().into()),
     ]))
 }
 
@@ -191,10 +194,10 @@ fn show_versions(versions: Vec<ContentVersion>) -> Result<()> {
         .iter()
         .map(|v| {
             vec![
-                v.version_number.clone(),
-                channel_label(v.channel).to_string(),
-                v.game_versions.join(", "),
-                v.loaders.join(", "),
+                Cell::from(v.version_number.clone()),
+                channel_cell(v.channel),
+                Cell::list(v.game_versions.join(", "), &v.game_versions),
+                Cell::list(v.loaders.join(", "), &v.loaders),
             ]
         })
         .collect();

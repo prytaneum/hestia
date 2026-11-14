@@ -3,8 +3,8 @@
 use anyhow::Result;
 use clap::Subcommand;
 
-use crate::commands::mc::age_label;
-use crate::ui::{self, View};
+use crate::commands::mc::age_cell;
+use crate::ui::{self, Cell, View};
 
 #[derive(Subcommand)]
 pub enum ScreenshotCmd {
@@ -42,10 +42,10 @@ pub async fn run(cmd: ScreenshotCmd) -> Result<()> {
                 .into_iter()
                 .map(|shot| {
                     vec![
-                        age_label(shot.taken_unix),
-                        shot.instance_name,
-                        shot.file,
-                        ui::human_bytes(shot.bytes),
+                        age_cell(shot.taken_unix),
+                        shot.instance_name.into(),
+                        shot.file.into(),
+                        Cell::bytes(shot.bytes),
                     ]
                 })
                 .collect();

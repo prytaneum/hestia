@@ -6,7 +6,7 @@ use client::proto::instance::{QuickPlay, RecentPlay};
 use client::Client;
 
 use crate::commands::mc;
-use crate::ui::{self, View};
+use crate::ui::{self, Cell, View};
 
 pub(super) async fn list(client: &Client) -> Result<()> {
     let plays = client.instance().recent().await?;
@@ -17,12 +17,12 @@ pub(super) async fn list(client: &Client) -> Result<()> {
         .iter()
         .map(|play| {
             vec![
-                play.name.clone(),
-                kind_label(&play.target).to_string(),
-                target(&play.target).to_string(),
-                play.instance_name.clone(),
-                play.game_mode.to_string(),
-                mc::last_played_label(Some(play.played_unix)),
+                play.name.clone().into(),
+                kind_label(&play.target).into(),
+                target(&play.target).into(),
+                play.instance_name.clone().into(),
+                Cell::token(play.game_mode.to_string(), &play.game_mode),
+                mc::age_cell(play.played_unix),
             ]
         })
         .collect();

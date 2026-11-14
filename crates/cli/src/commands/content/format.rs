@@ -6,6 +6,7 @@ use client::proto::content::{
 
 use crate::commands::names::Names;
 use crate::ui::components::{Picker, PickerItem};
+use crate::ui::Cell;
 
 pub(super) fn source_label(
     item: &InstalledContent,
@@ -99,6 +100,28 @@ pub(super) fn world_label(item: &InstalledContent) -> String {
             .collect::<Vec<_>>()
             .join(", "),
     }
+}
+
+/// `--json` carries the folder names, an empty list for `all` (the wire's own
+/// meaning), and null for content with no world.
+pub(super) fn world_cell(item: &InstalledContent) -> Cell {
+    if item.kind != ContentKind::DataPack {
+        return Cell::absent(world_label(item));
+    }
+    let names: Vec<&str> = item.worlds.iter().filter_map(|w| world_name(w)).collect();
+    Cell::list(world_label(item), names)
+}
+
+pub(super) fn side_cell(side: SideSupport) -> Cell {
+    Cell::token(side_label(side), &side)
+}
+
+pub(super) fn channel_cell(channel: ReleaseChannel) -> Cell {
+    Cell::token(channel_label(channel), &channel)
+}
+
+pub(crate) fn compact_cell(n: u64) -> Cell {
+    Cell::typed(compact(n), n)
 }
 
 /// Build a searchable version picker over a project's versions, paired with the

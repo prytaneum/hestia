@@ -4,7 +4,7 @@ use anyhow::Result;
 use client::proto::catalogue::{Availability, CatalogueParams, CataloguePlugin};
 
 use super::store;
-use crate::ui::{self, Spinner, View};
+use crate::ui::{self, Cell, Spinner, View};
 
 pub async fn run(
     plugins: client::Plugin<'_>,
@@ -36,15 +36,19 @@ pub async fn run(
     ui::show_warnings(&catalogue.warnings)
 }
 
-fn row(plugin: &CataloguePlugin) -> Vec<String> {
+fn row(plugin: &CataloguePlugin) -> Vec<Cell> {
     let stores: Vec<&str> = plugin.listed_by.iter().map(|l| l.label.as_str()).collect();
+    let state = match &plugin.installed {
+        Some(_) => Cell::token(status(plugin), &"installed"),
+        None => Cell::token(status(plugin), &plugin.availability),
+    };
     vec![
-        plugin.id.clone(),
-        plugin.name.clone(),
-        plugin.version.clone(),
-        stores.join(", "),
-        plugin.key_id.clone(),
-        status(plugin),
+        plugin.id.clone().into(),
+        plugin.name.clone().into(),
+        plugin.version.clone().into(),
+        Cell::list(stores.join(", "), &stores),
+        plugin.key_id.clone().into(),
+        state,
     ]
 }
 

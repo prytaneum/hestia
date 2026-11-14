@@ -3,8 +3,8 @@
 use anyhow::Result;
 use clap::Subcommand;
 
-use crate::commands::mc::age_label;
-use crate::ui::{self, View};
+use crate::commands::mc::age_cell;
+use crate::ui::{self, Cell, View};
 
 #[derive(Subcommand)]
 pub enum JobCmd {
@@ -33,14 +33,15 @@ pub async fn run(cmd: JobCmd) -> Result<()> {
                         .as_ref()
                         .and_then(|p| p.get("phase"))
                         .and_then(|p| p.as_str())
-                        .unwrap_or("-")
-                        .to_string();
-                    let entry = job.subject.map_or_else(|| "-".to_string(), |s| s.id);
+                        .map_or_else(|| Cell::absent("-"), Cell::from);
+                    let entry = job
+                        .subject
+                        .map_or_else(|| Cell::absent("-"), |s| Cell::from(s.id));
                     vec![
-                        job.id,
-                        job.channel,
+                        job.id.into(),
+                        job.channel.into(),
                         entry,
-                        age_label(job.started_unix as i64),
+                        age_cell(job.started_unix as i64),
                         stage,
                     ]
                 })
