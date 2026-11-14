@@ -78,6 +78,11 @@ hestia server flavors            # the available flavors, what each takes, and
                                  #   a line on what it is — all from the daemon
 ```
 
+A provider (flavor, content source, pack format, Java distribution) is `<plugin>.<id>` (`fabric.fabric`). Anywhere one
+is named, the bare `fabric` works too: core's own, else the official plugin's, else the only one with that name; two
+plugins sharing a name make it ambiguous and the error lists the full ids. Listings show the bare name while it is
+unambiguous ([0133](decisions/0133-a-provider-has-one-id.md)).
+
 Everything that acts on one server is entry-first — `hestia server <name> <action>`:
 
 ```bash
@@ -737,11 +742,9 @@ hestia plugin keygen [--out <dir>] [--unencrypted]
                                  #   `key` in [workspace.metadata.hestia]; never overwrites a key; --unencrypted for a CI secret
 hestia plugin pack --sign <secret key>   # also write <package>.minisig (the key must match the repository's declared one)
                                  # pack and publish refuse a component built against another WIT (`cargo update -p hestia-sdk`)
-hestia plugin dev [dir] [-y] [--official] [--once]
-                                 # run plugins/<id>/ in place, rebuild when its sources change, stream its log;
-                                 #   --official registers its providers under bare ids that shadow the built-ins
-                                 #   (developer mode only; the grant is approved exactly as without it);
-                                 #   --once builds and installs it, then returns instead of watching
+hestia plugin dev [dir] [-y] [--once]
+                                 # run plugins/<id>/ in place, rebuild when its sources change, stream its log
+                                 #   (developer mode only); --once builds and installs it, then returns instead of watching
 hestia plugin dev|check|test|pack|publish --sdk <dir>
                                  # build against a local checkout of the hestia-sdk crate (crates/sdk); $HESTIA_SDK is
                                  #   the fallback, the flag wins; no file of the plugin is edited

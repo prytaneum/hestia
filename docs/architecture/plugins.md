@@ -359,19 +359,15 @@ documented fallback in the host (`projects` asks `project` for each,
 fails the call. A source's `info` may name a `requires-setting`; the host keeps
 the source out of use until that setting of the plugin holds a value, and lists
 it with the missing key ([0122](../decisions/0122-a-source-declares-its-setting-and-one-vet-checks-every-download.md)). `Contributions` connects, registers and unregisters every kind
-in one place, so the daemon never names a kind. Ids read `<plugin>.<id>`; a
-plugin signed by the official key registers its providers under the bare `<id>` instead (`adoptium`, not
-`adoptium.adoptium`). The concrete providers of every kind but vanilla are [official plugins](../plugins/official.md), so
-the bare ids are theirs. `Contributions::connect` takes the flag, so
-the id a guest carries, the `Service::Provider` it reports and the registered id are the same string. Registration
-refuses a duplicate id, with one exception: an official plugin's bare id may equal a built-in's, and then it
-**shadows** it (core's only built-in provider is the vanilla flavor, so no official plugin shadows one today) ([0116](../decisions/0116-an-official-provider-shadows-the-builtin.md)). `Roster` keeps both entries and
-`snapshot()` yields one per id: the live shadower, standing where the built-in was listed, else the built-in. The
-built-in is the fallback in the one sense the registry can give: it answers again as soon as the plugin is unregistered
-(disabled, removed, failed to load) or its `LoadedPlugin` is disabled after repeated traps (each registration carries a
-`Live` check), with no restart. A guest's `unsupported` answer for an optional operation still takes the host's generic
-default, not the built-in's implementation. A non-official plugin's bare id stays refused, and a second official claiming
-a bare id already held by a plugin is a `Duplicate`. Shadowing and unshadowing are logged at `info`.
+in one place, so the daemon never names a kind. Every id reads `<plugin>.<id>`, whoever signed the plugin
+([0133](../decisions/0133-a-provider-has-one-id.md)): the id a guest carries, the `Service::Provider` it reports and the
+registered id are the same string, and registration refuses a duplicate or an id outside the owner's namespace, so no
+plugin can take a core provider's id. A bare name is a lookup shorthand that `Roster::resolve` answers for every kind and
+every place a name comes in: core's own provider of that name, else the one official plugin's, else the only provider
+with that provider-id, else `ProviderUnknown` or `ProviderAmbiguous`, which list full ids. What core stores and sends is
+the full id. `Contributions::connect` takes the plugin's `Standing` (official, developer, community), which is only the
+tie-break in that order; a dev install in developer mode counts as official there only where no signed official plugin
+has the name. The concrete providers of every kind but vanilla are [official plugins](../plugins/official.md).
 
 | Kind | Needs | Registers into | Page |
 |---|---|---|---|
@@ -615,13 +611,9 @@ flowchart TD
   `plugin.log` stream (a subscription filtered to a dev plugin, and its publication) and the extra `PluginInfo.developer`
   diagnostics (grant digest, component cache directory, error chain). The daemon refuses them with
   `ErrorInfo::DeveloperModeOff`, whatever the client; the CLI additionally hides the authoring verbs. Setting the key to
-  false disables every dev plugin, which also ends its reload poll, with the reason as its last error. A dev install may
-  also be marked **official for registration only** (`plugin dev --official`, `PluginInstallParams.official`,
-  `PluginRecord.devOfficial`, shown as `PluginInfo.devOfficial`): while developer mode is on, its providers register
-  under bare ids and may shadow built-ins, so a port can be tested before it is signed. The one read of the flag is
-  `Plugins::dev_official` in the daemon, consulted where `Contributions::connect` takes `official`; the grant, approval
-  digest, permission checks, `PluginInfo.official` (derived from the signer, so false), bundled install and auto-update
-  never see it. A dev install has no signer and cannot be updated, so the real official key's privileges are out of reach. Installing from a
+  false disables every dev plugin, which also ends its reload poll, with the reason as its last error. A dev install is a plugin like any other: its providers are `<plugin>.<id>`, with no flag to say otherwise; in
+  developer mode it only ranks as official for the bare-name shorthand, where no signed official plugin has the name
+  ([0133](../decisions/0133-a-provider-has-one-id.md)). Installing from a
   file, link or repository, enable, disable, remove and settings are never gated.
 - **What you approve is what lands.** A downloaded package is held under
   `tmp/plugins/` by an opaque token (fifteen minutes; `tmp/` is emptied at startup
@@ -711,7 +703,7 @@ minisign public key and an optional spare, added by its index URL. It has one sh
   keygen`, `pack --sign` and the index signing use the signing crate in `cli`.
 - **Official.** A plugin is official when its recorded signer is one of
   `common::app::official_plugin_pubkeys()` (a current key and an offline spare); the flag is derived on every read, and
-  only a plugin so signed may take a bare provider id. A repository whose index
+  such a plugin wins the tie-break for a bare provider name. A repository whose index
   names an official key is refused at `repo.add`
   ([0099](../decisions/0099-official-plugins-are-signed.md)). A debug build reads
   `HESTIA_OFFICIAL_PLUGIN_PUBKEY` for local runs.
@@ -813,7 +805,8 @@ plugins the tests build are fixtures
 | [0113](../decisions/0113-a-flavor-builds-on-the-vanilla-profile.md) | a flavor builds on the vanilla profile; the host merges it |
 | [0114](../decisions/0114-an-unhashed-download-is-declared.md) | an unhashed download is declared, and the host is part of the grant |
 | [0115](../decisions/0115-a-plugin-error-is-its-own-typed-enum.md) | a plugin error is its own typed enum, mapped to and from `ErrorInfo` by the host |
-| [0116](../decisions/0116-an-official-provider-shadows-the-builtin.md) | an official provider shadows the built-in of the same id; a dev install can register as official |
+| [0116](../decisions/0116-an-official-provider-shadows-the-builtin.md) | superseded by 0133: an official provider shadowed the built-in of the same id |
+| [0133](../decisions/0133-a-provider-has-one-id.md) | a provider has one id, `<plugin>.<id>`; a bare name is a shorthand resolved in one place |
 | [0117](../decisions/0117-a-grant-is-permission-to-scope.md) | a grant is permission to scope, driven by one table |
 | [0118](../decisions/0118-host-pushed-events-and-a-call-budget-instead-of-a-resident-instance.md) | host-pushed events and a call budget instead of a resident instance |
 | [0119](../decisions/0119-downloads-are-host-side.md) | downloads are host-side: a host download call and declarative Maven libraries |

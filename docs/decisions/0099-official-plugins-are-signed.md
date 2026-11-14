@@ -2,6 +2,8 @@
 
 *Applies to: [Front-ends](../architecture/frontends.md), [repository spec](../plugins/repository.md)*
 
+> Superseded in part by [0133](0133-a-provider-has-one-id.md): the "Bare provider ids are for official plugins" rule is gone; "official" decides trust, and only the tie-break of a bare name.
+
 Official plugins replace core features and may register bare provider ids, so Hestia must know which key is its own. A
 signature alone is not enough: [0097](0097-trust-follows-the-repository-key.md) makes every repository sign with its own
 key.

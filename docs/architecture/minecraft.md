@@ -18,16 +18,16 @@ A *flavor* is a distribution of Minecraft. There is one registry; a flavor
 declares which sides it serves, and a lookup for the other side fails as an
 unknown flavor. Vanilla is the only built-in; every other distribution comes
 from a plugin. The official plugins `fabric`, `neoforge`, `paper` (Paper and
-Folia) and `spigot` (Spigot and CraftBukkit) register under their bare ids.
+Folia) and `spigot` (Spigot and CraftBukkit) register as `fabric.fabric`, `paper.paper` and so on; `fabric` alone is
+the shorthand the roster resolves ([0133](../decisions/0133-a-provider-has-one-id.md)).
 
 | Flavor | Server | Client | Loads | Notes |
 |---|:--:|:--:|---|---|
 | `vanilla` | ✓ | ✓ | — | Mojang's own, built in |
 
-The registry is runtime-mutable: `Minecraft::register(owner, official, live, provider)`
+The registry is runtime-mutable: `Minecraft::register(owner, standing, provider)`
 and `unregister(owner)`, with the same ownership rules as content sources (the
-built-in is permanent; any other id reads `<owner>.<id>`, except an official
-plugin's, which may take a bare id).
+built-in is permanent; any other id reads `<owner>.<id>`).
 
 A provider names itself in one `FlavorInfo` (`id`, `name`, `summary`, the
 content its loader consumes as `loads`, the prerequisites it needs on this

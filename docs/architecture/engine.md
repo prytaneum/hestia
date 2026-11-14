@@ -231,9 +231,9 @@ beside a `runtime.json` record. Listing scans the directory — the disk is the
 registry.
 
 A `JavaProvider` resolves a build. None is built in: a plugin contributes one under `java:provide` (`<plugin>.<id>`;
-the official `adoptium` plugin, Eclipse Temurin, takes the bare id `adoptium`), registered in the same roster as content
-sources and flavors. The `java.provider` setting names the default (`adoptium`) and `install` takes a provider id; an
-unregistered id is `JavaProviderUnknown`, which says a Java distribution plugin is needed. A runtime already on disk is
+the official `adoptium` plugin, Eclipse Temurin, is `adoptium.adoptium`), registered in the same roster as content
+sources and flavors. The `java.provider` setting names the default (`adoptium`, a shorthand the roster resolves) and
+`install` takes a provider name; one nobody provides is `ProviderUnknown`, listing what is installed. A runtime already on disk is
 used without any provider, so only an install or a launch needing a missing major reaches the roster. A provider only resolves: the host validates the build (https on the plugin's hosts, a sha256, a
 `tar.gz` or `zip` archive) and does everything after ([0105](../decisions/0105-a-java-provider-only-resolves.md)).
 `install()` runs a blocking pipeline:

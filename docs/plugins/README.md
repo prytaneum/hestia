@@ -33,14 +33,10 @@ hestia plugin add dist/hello-0.1.0.hplugin
   then watches `src/`, `Cargo.toml`, `plugin.toml`, `assets/` and `themes/` and rebuilds when they change, so saving a
   file is enough; a build that fails is reported and the previous build keeps running. A manifest that asks for more
   than you approved leaves the plugin at `needs approval`; run `dev` again.
-- `dev --official` registers the plugin's providers the way an official plugin's are: under the bare id instead of
-  `<plugin>.<id>`, so a provider whose id equals a built-in one **shadows** it (core's only built-in provider is the
-  vanilla flavor). Use it to test a plugin under the id it will have once signed. The listing then shows one entry for
-  the id, the plugin's; stop `dev` or disable the plugin and the built-in answers again at once. It changes only the
-  name and the shadowing: you
-  approve the same grant, every permission is still checked, and it is not an official plugin (no automatic approval,
-  no updates). It needs developer mode, and turning that off disables the dev plugin. A plugin that ships signed by the
-  official key shadows the same way; one that does not is always namespaced and never shadows anything.
+- A dev plugin is a plugin like any other: its providers are `<plugin>.<id>`, you approve the same grant, every
+  permission is checked, and it gets no automatic approval and no updates. The bare name of one of its providers
+  (`fabric` for `fabric.fabric`) resolves to it while developer mode is on, unless a signed official plugin provides
+  that name. Developer mode is required, and turning it off disables the dev plugin.
 - `--sdk <dir>` (or `HESTIA_SDK`) on `dev`, `check`, `test`, `pack` and `publish` builds against a local checkout of the SDK crate
   (`crates/sdk` of a Hestia checkout) while it is unreleased or changing. Nothing in your plugin is edited, so there is
   no `[patch]` to write or to remember to remove.

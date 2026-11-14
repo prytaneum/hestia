@@ -520,13 +520,16 @@ release locally cannot reach an installed Hestia or `~/.hestia`; `--home=DIR` po
 
 Debug builds keep their data in `target/debug/data` and scope their daemon endpoint to it, so none of this touches an
 installed Hestia. The script starts the dev daemon when a form needs one, restarts a running one when the build
-produced a new `hestiad`, and on leaving the subshell stops only a daemon it started. The `hestia` CLI itself still
+produced a new `hestiad`. The shell, the desktop and the foreground daemon can be opened in any order, in separate
+terminals; a daemon the script started is stopped when the last of them leaves. The `hestia` CLI itself still
 never starts a daemon behind your back: `hestia daemon status|start|stop|restart` manages it.
 
 A run has no plugins unless it asks for them, so by default you get core alone: vanilla, Hestia archives, no content
 source. `--plugins=DIR` adds plugins for that run, and the directory is always named: it builds every plugin of `DIR`,
-a checkout of the [plugins repository](https://github.com/prytaneum/plugins), against this checkout's SDK, installs each as a dev plugin (`hestia plugin dev <dir> --official --once`) registered under the
-ids the signed builds use, and removes them again when the run ends, so the next plain run is clean.
+a checkout of the [plugins repository](https://github.com/prytaneum/plugins), against this checkout's SDK, installs
+each as a dev plugin (`hestia plugin dev <dir> --once`) under the same ids as the signed builds (`fabric.fabric`), and
+removes them again when the run ends, so the next plain run is clean. In developer mode the bare `fabric` resolves to
+them.
 
 Each plugin is compiled twice, both cached. `plugin dev` runs `cargo build --release --target wasm32-wasip2` for the
 plugin's crate in the plugins checkout, with `hestia-sdk` patched to this checkout on cargo's command line, and stages

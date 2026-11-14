@@ -29,8 +29,9 @@ waits on the setting.
 ## How they reach you
 
 They are signed by Hestia's own key, which is what makes a plugin official
-([0099](../decisions/0099-official-plugins-are-signed.md)): only an official plugin registers a provider under its bare
-id (`modrinth`, not `modrinth.modrinth`). Every installer carries them, pinned in `plugins.lock`, and the daemon installs
+([0099](../decisions/0099-official-plugins-are-signed.md)): their providers are `modrinth.modrinth` like any plugin's,
+and the bare `modrinth` is the shorthand that resolves to them before another plugin's of that name
+([0133](../decisions/0133-a-provider-has-one-id.md)). Every installer carries them, pinned in `plugins.lock`, and the daemon installs
 the ones that are missing on its first start with their grant already approved, since you approved the installer that
 carries them ([packaging.md](../packaging.md#the-bundled-official-plugins)). One you remove stays removed. The official
 repository is preconfigured and cannot be removed; installed official plugins are updated from it, unattended when the

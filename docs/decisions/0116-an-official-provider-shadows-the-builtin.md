@@ -2,6 +2,8 @@
 
 *Applies to: [Plugins](../architecture/plugins.md), [Plugin author guide](../plugins/README.md)*
 
+> Superseded by [0133](0133-a-provider-has-one-id.md): there is no shadowing, no bare registration and no `devOfficial`.
+>
 > Superseded in part for content sources: core has no built-in Modrinth or CurseForge, so an official plugin's bare `modrinth` or `curseforge` id shadows nothing there; only an official owner may still register a bare id.
 
 Core features are ported into official plugins one at a time (adoptium, modrinth, fabric, paper, ...), and core keeps

@@ -15,8 +15,10 @@ kind = "content"
 id = "index"
 ```
 
-- The registry id is `<plugin>.<id>` (`static-index.index`). A plugin signed by the official key registers under the
-  bare `<id>` instead; an id already taken, by a built-in or another plugin, is refused.
+- The registry id is always `<plugin>.<id>` (`static-index.index`), whoever signed the plugin, and what Hestia stores
+  and shows is that id. Users may type the bare `<id>` where a provider is named: it means core's provider of that
+  name, else the one official plugin's, else the only provider with that id, and is refused as ambiguous when two
+  plugins share it ([0133](../decisions/0133-a-provider-has-one-id.md)). A plugin can never take a core provider's id.
 - A kind needs the permissions in the table below. A manifest that declares a kind without them is refused at `pack` and
   at install. `network:connect` always needs at least one entry in its `hosts`.
 - The guest only names files; the host downloads them, and only from the plugin's `hosts`.

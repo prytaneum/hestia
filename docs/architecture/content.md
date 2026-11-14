@@ -24,13 +24,14 @@ flowchart TD
 resolution filtered by loader and game version, modpack resolution, URL
 recognition, the kinds a source catalogues, and whether it is configured enough
 to serve. Core ships no source: `modrinth` and `curseforge` are official plugins
-([0116](../decisions/0116-an-official-provider-shadows-the-builtin.md)), and a
+([0133](../decisions/0133-a-provider-has-one-id.md)), and a
 fresh Hestia with none installed has an empty source list. Stateless.
 
-The registry is runtime-mutable: `Content::register(owner, official, provider)`
+The registry is runtime-mutable: `Content::register(owner, standing, provider)`
 adds a source and `unregister(owner)` removes everything that owner added. A
-source's id must read `<owner>.<id>`; only a plugin signed by the official key
-may take a bare id (`modrinth`, `curseforge`).
+source's id always reads `<owner>.<id>`; a bare name (`modrinth`) is resolved by
+the roster ([0133](../decisions/0133-a-provider-has-one-id.md)), which also stores and
+reports the full id (`modrinth.modrinth`) of the source that served.
 
 With no source registered every content channel still answers: `content.sources`
 is empty, and a search, lookup or install that names no source fails
