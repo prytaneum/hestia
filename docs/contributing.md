@@ -510,7 +510,7 @@ scripts/run.sh --shell          # a subshell with hestia and hestiad on PATH, da
 scripts/run.sh --desktop        # the desktop app, with frontend hot reload
 scripts/run.sh --daemon         # hestiad in the foreground, logging to the terminal
 scripts/run.sh server list      # one `hestia` command, then back to your shell
-scripts/run.sh --plugins --desktop   # the same, with the official plugins from ../hestia-plugins
+scripts/run.sh --plugins=../hestia-plugins --desktop   # the same, with the plugins of that checkout
 scripts/run.sh --release --desktop   # the optimised app, as a release runs, on its own data
 scripts/run.sh --help
 ```
@@ -524,9 +524,8 @@ produced a new `hestiad`, and on leaving the subshell stops only a daemon it sta
 never starts a daemon behind your back: `hestia daemon status|start|stop|restart` manages it.
 
 A run has no plugins unless it asks for them, so by default you get core alone: vanilla, Hestia archives, no content
-source. `--plugins[=DIR]` adds the official ones for that run: it builds every plugin of a checkout of the
-[plugins repository](https://github.com/prytaneum/plugins) (`$HESTIA_PLUGINS_REPO`, else `../hestia-plugins`) against
-this checkout's SDK, installs each as a dev plugin (`hestia plugin dev <dir> --official --once`) registered under the
+source. `--plugins=DIR` adds plugins for that run, and the directory is always named: it builds every plugin of `DIR`,
+a checkout of the [plugins repository](https://github.com/prytaneum/plugins), against this checkout's SDK, installs each as a dev plugin (`hestia plugin dev <dir> --official --once`) registered under the
 ids the signed builds use, and removes them again when the run ends, so the next plain run is clean.
 
 Each plugin is compiled twice, both cached. `plugin dev` runs `cargo build --release --target wasm32-wasip2` for the

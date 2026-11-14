@@ -23,10 +23,9 @@ what to run (one of):
   --daemon          the daemon in the foreground; Ctrl-C stops it
 
 options:
-  --plugins[=DIR]   run with the official plugins: every plugin of a checkout of
-                    the plugins repository (default: $HESTIA_PLUGINS_REPO, else
-                    ../hestia-plugins) is installed for this run and removed
-                    when it ends. Without it a run has no plugins
+  --plugins=DIR     run with plugins: every plugin of DIR, a checkout of a plugins
+                    repository, is installed for this run and removed when it
+                    ends. Without it a run has no plugins
   --release         run the optimised build, as a release would be: `--release
                     --desktop` is the app without hot reload. Its data goes to
                     target/release/data, never ~/.hestia
@@ -34,7 +33,10 @@ options:
                     the build against your real data)
   -h, --help        show this
 
-Options combine with what to run: `scripts/run.sh --release --plugins --desktop`.
+Options combine with what to run: `scripts/run.sh --plugins=../plugins --desktop`.
+Runs share one daemon: with the desktop open, `scripts/run.sh` in another
+terminal is a shell on the same state, and leaving it leaves the desktop's
+daemon running.
 A flag of hestia's own goes after `--`: `scripts/run.sh -- --quiet daemon status`.
 EOF
 }
@@ -74,8 +76,12 @@ while [ "$#" -gt 0 ]; do
     --desktop) pick desktop; shift ;;
     --daemon) pick daemon; shift ;;
     --home=*) home="${1#--home=}"; shift ;;
-    --plugins) plugins="${HESTIA_PLUGINS_REPO:-../hestia-plugins}"; shift ;;
-    --plugins=*) plugins="${1#--plugins=}"; shift ;;
+    --plugins) die "--plugins needs the checkout to take them from: --plugins=<plugins repository>" ;;
+    --plugins=*)
+      plugins="${1#--plugins=}"
+      [ -n "$plugins" ] || die "--plugins= names no directory"
+      shift
+      ;;
     -h | --help) usage; exit 0 ;;
     --) shift; break ;;
     --*) usage >&2; die "unknown flag $1 (hestia's own flags go after \`--\`)" ;;
