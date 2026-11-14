@@ -54,7 +54,7 @@ bun run dev                 # browser, against the fixture daemon in src/mock
 ```
 
 `generate:messages` comes first: the app imports from `src/paraglide/`, which is compiled from `messages/` and never
-committed, so a typecheck or build before it fails on unresolved imports. For the real thing, `scripts/dev.sh --desktop`
+committed, so a typecheck or build before it fails on unresolved imports. For the real thing, `scripts/run.sh --desktop`
 from the repo root runs the Tauri shell against a live daemon.
 
 ## Checks

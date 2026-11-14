@@ -1,37 +1,164 @@
 #!/usr/bin/env bash
-# Build then run a binary. Usage:
-#   scripts/run.sh cli [args...]         # the hestia CLI
-#   scripts/run.sh daemon [args...]      # hestiad
-#   scripts/run.sh desktop               # the Tauri shell against the Vite dev server
-#   scripts/run.sh --release daemon serve   # run the release build instead of debug
+#
+# run.sh — the one way to run a development build.
+#
+# Every form builds first and talks to the same dev daemon, so a shell in one
+# terminal and the desktop in another are two views of one state. A daemon that
+# is already running is restarted onto the new build. Debug builds keep their
+# data in target/debug/data and never touch ~/.hestia.
 . "$(dirname "$0")/lib/common.sh"
 
-profile=""
-rest=()
-for arg in "$@"; do
-  case "$arg" in
-    --release) profile="--release" ;;
-    *) rest+=("$arg") ;;
+usage() {
+  cat << 'EOF'
+usage: scripts/run.sh [flags] [hestia args...]
+
+  scripts/run.sh                  a subshell with hestia + hestiad on PATH
+  scripts/run.sh <hestia args>    run `hestia <args>` once, e.g. `run.sh server list`
+  scripts/run.sh --desktop        the desktop app, with frontend hot reload
+
+flags:
+  --desktop         run the desktop app instead of a shell
+  --plugins[=DIR]   first install every plugin of a checkout of the plugins
+                    repository (default: $HESTIA_PLUGINS_REPO, else ../hestia-plugins)
+  --release         use release binaries instead of debug
+  -h, --help        show this
+
+Flags combine: `scripts/run.sh --plugins --desktop`. A flag of hestia's own
+goes after `--`: `scripts/run.sh -- --quiet daemon status`.
+EOF
+}
+
+# An installed hestia must not answer for the dev build: drop PATH entries
+# that carry one.
+strip_installed_hestia() {
+  local kept="" dir
+  local IFS=':'
+  for dir in $PATH; do
+    if [ -e "$dir/hestia" ] || [ -e "$dir/hestia.exe" ] ||
+      [ -e "$dir/hestiad" ] || [ -e "$dir/hestiad.exe" ]; then
+      log "ignoring installed hestia in $dir" >&2
+      continue
+    fi
+    kept="${kept:+$kept:}$dir"
+  done
+  printf '%s' "$kept"
+}
+PATH="$(strip_installed_hestia)"
+
+mode=debug
+flags=()
+desktop=0
+plugins=""
+
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --release) mode=release; flags=(--release); shift ;;
+    --desktop) desktop=1; shift ;;
+    --plugins) plugins="${HESTIA_PLUGINS_REPO:-../hestia-plugins}"; shift ;;
+    --plugins=*) plugins="${1#--plugins=}"; shift ;;
+    -h | --help) usage; exit 0 ;;
+    --) shift; break ;;
+    --*) usage >&2; die "unknown flag $1 (hestia's own flags go after \`--\`)" ;;
+    *) break ;;
   esac
 done
-set -- "${rest[@]}"
 
-target="${1:-cli}"
-shift || true
+# A debug build scopes its endpoint to its own data directory, so every debug
+# binary agrees on one daemon with nothing set. A release build is not
+# contained: without its own endpoint it would reach the installed daemon. On
+# Windows the endpoint is a named pipe, supplied by win.ps1.
+if [ "$mode" = release ]; then
+  export HESTIA_SOCK="${HESTIA_SOCK:-${XDG_RUNTIME_DIR:-/tmp}/hestiad-dev-$(id -u).sock}"
+fi
 
-case "$target" in
-  cli)     cargo run $profile --bin hestia -- "$@" ;;
-  daemon)  cargo build $profile
-           cargo run $profile --bin hestiad -- "$@" ;;
-  desktop)
-    if [ -n "$profile" ]; then
-      scripts/sidecars.sh --ensure
-      (cd crates/desktop && cargo tauri build --no-bundle)
-      exec ./target/release/hestia-desktop
-    else
-      scripts/sidecars.sh --ensure --debug
-      (cd crates/desktop && cargo tauri dev)
-    fi
-    ;;
-  *) die "usage: $0 [--release] [cli|daemon|desktop] [args]" ;;
-esac
+bindir="$PWD/target/$mode"
+hestia="$bindir/hestia"
+before="$(mktemp)"
+log "building ($mode)"
+cargo build "${flags[@]}"
+export PATH="$bindir:$PATH" HESTIA_DEV=1
+
+daemon_running() { "$hestia" --quiet daemon status > /dev/null 2>&1; }
+
+# A running daemon is the old build in memory: restart it, but only when this
+# build actually produced a new one.
+started_here=0
+if [ "$bindir/hestiad" -nt "$before" ] && daemon_running; then
+  log "restarting the dev daemon onto this build"
+  "$hestia" --quiet daemon restart
+fi
+rm -f "$before"
+
+ensure_daemon() {
+  daemon_running && return 0
+  log "starting the dev daemon"
+  "$hestia" --quiet daemon start
+  started_here=1
+}
+
+# Nothing below `exec`s: bash does not run an EXIT trap across exec. The signals
+# matter as much as EXIT: `run.sh … | head` dies of SIGPIPE, and an untrapped
+# one skips EXIT entirely. Only a daemon this run started is stopped, so leaving
+# a shell never takes the daemon away from a desktop that is using it.
+cleanup() {
+  [ "$started_here" -eq 1 ] || return 0
+  "$hestia" --quiet daemon stop --keep > /dev/null 2>&1 || true
+}
+trap cleanup EXIT
+trap 'cleanup; exit 130' INT
+trap 'cleanup; exit 143' TERM HUP PIPE
+
+# The official plugins are signed in CI, so a local build has none. A dev
+# install registers each one's providers under the bare ids the signed builds
+# use (`fabric`, not `fabric.fabric`), read in place from the checkout.
+install_plugins() {
+  local repo="$1" dir
+  [ -d "$repo/plugins" ] || die "no plugins/ in $repo — pass --plugins=<checkout of the plugins repository>"
+  repo="$(cd "$repo" && pwd)"
+  local sdk="$PWD/crates/sdk"
+  "$hestia" --quiet config set developer true
+  for dir in "$repo"/plugins/*/; do
+    [ -f "$dir/plugin.toml" ] || continue
+    log "installing $(basename "$dir")"
+    (cd "$repo" && "$hestia" plugin dev "$dir" --official --yes --once --sdk "$sdk" > /dev/null)
+  done
+  "$hestia" plugin list
+}
+
+if [ -n "$plugins" ]; then
+  ensure_daemon
+  # Plugins outlive this run: they are the point of it.
+  started_here=0
+  install_plugins "$plugins"
+fi
+
+if [ "$desktop" -eq 1 ]; then
+  [ -d frontend/node_modules ] || (cd frontend && bun install)
+  if [ "$mode" = release ]; then
+    scripts/sidecars.sh --ensure
+    (cd crates/desktop && cargo tauri build --no-bundle)
+    ./target/release/hestia-desktop
+  else
+    scripts/sidecars.sh --ensure --debug
+    (cd crates/desktop && cargo tauri dev)
+  fi
+  exit $?
+fi
+
+if [ "$#" -gt 0 ]; then
+  # A one-shot leaves the daemon up: one-shots are run back to back against it.
+  # `run.sh daemon …` is the exception, since it manages the daemon itself.
+  [ "$1" = daemon ] || ensure_daemon
+  started_here=0
+  "$hestia" "$@"
+  exit $?
+fi
+
+if [ -n "$plugins" ]; then
+  log "the dev daemon keeps running; \`scripts/run.sh daemon stop\` stops it"
+  exit 0
+fi
+
+ensure_daemon
+log "hestia + hestiad on PATH ($bindir), daemon running. Ctrl-D or 'exit' to leave."
+"${SHELL:-bash}" -i

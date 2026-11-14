@@ -20,8 +20,7 @@ having.
 | Verb            | What it does                                                        |
 |-----------------|---------------------------------------------------------------------|
 | `build.sh`      | `cargo build` a target (`cli`, `daemon`, `desktop`, or `all`)        |
-| `run.sh`        | build then run (`cli`, `daemon`, or `desktop` against the Vite dev server) |
-| `dev.sh`        | dev subshell with `hestia`/`hestiad` on PATH; one-shot CLI; `--desktop` HMR |
+| `run.sh`        | run a development build: a subshell, one `hestia` command, or the desktop (`--desktop`); `--plugins` installs the official plugins; all forms share one dev daemon |
 | `clean.sh`      | `cargo clean` plus the frontend `dist`/`node_modules` and Tauri `gen` |
 | `sidecars.sh`   | build + stage `hestia`/`hestiad`/`tray` as Tauri sidecars for bundling |
 | `package.sh`    | release artifacts: Tauri installers + portable archive (`all`/`bundle`/`portable`) |
@@ -45,15 +44,15 @@ A verb starts with one line, and everything after it can assume the repo root:
 Examples:
 
 ```bash
+scripts/run.sh                    # subshell: hestia + hestiad on PATH, dev daemon running
+scripts/run.sh java list          # one hestia command (builds first)
+scripts/run.sh --desktop          # desktop app with frontend hot reload
+scripts/run.sh --plugins          # install the official plugins from ../hestia-plugins
+scripts/run.sh --help
+
 scripts/build.sh cli --release
-scripts/run.sh daemon serve
-scripts/run.sh desktop            # Tauri shell + Vite HMR
 scripts/package.sh                # sidecars + Tauri bundles + portable archive
 scripts/package.sh portable       # portable .tar.gz only
-
-scripts/dev.sh                    # subshell: hestia + hestiad on PATH
-scripts/dev.sh java list          # one-shot CLI (builds first)
-scripts/dev.sh --desktop          # desktop shell with frontend HMR
 
 eval "$(scripts/update.sh --env)"  # point this shell at the local feed
 scripts/update.sh --serve         # fake release feed on 127.0.0.1:8788
@@ -69,7 +68,7 @@ neither.
 ```bash
 scripts/update.sh --serve &
 eval "$(scripts/update.sh --env)"
-scripts/dev.sh
+scripts/run.sh
 hestia update --yes
 ```
 
@@ -85,7 +84,7 @@ shape that needs no root:
 
 ```bash
 printf 'old\n' > /tmp/Hestia.AppImage && chmod +x /tmp/Hestia.AppImage
-APPIMAGE=/tmp/Hestia.AppImage scripts/dev.sh
+APPIMAGE=/tmp/Hestia.AppImage scripts/run.sh
 hestia update --yes
 cat /tmp/Hestia.AppImage      # replaced, and still 0755
 ```

@@ -502,19 +502,30 @@ Run these at the root without `-p`: every member but `desktop` is a default memb
 own features and compiles a second wasmtime and Cranelift into `target/`. Narrow a test run by name instead
 (`cargo test plugins::`) ([0102](decisions/0102-one-feature-resolution-for-dev-builds.md)).
 
-Iterate interactively with `scripts/dev.sh` — it opens a subshell with `hestia`
-and `hestiad` on `PATH` (debug builds keep data in `target/<profile>/data`), or
-`scripts/dev.sh java list` for a one-shot. The daemon is never auto-spawned — start it with `hestia daemon start` (or
-login autostart); commands error pointing there when it is down. `hestia daemon status|start|stop|restart`
-manages it explicitly.
-
-The desktop app needs the system webview (WebKitGTK on Linux, WebView2 on Windows)
-and the Bun-built frontend:
+`scripts/run.sh` is the one way to run a development build. Every form builds first and talks to the same dev daemon,
+so a shell in one terminal and the desktop in another show one state:
 
 ```bash
-(cd frontend && bun install && bun run build)
-scripts/dev.sh --desktop        # Tauri shell with frontend HMR
+scripts/run.sh                  # a subshell with hestia and hestiad on PATH, daemon running
+scripts/run.sh server list      # one `hestia` command, then back to your shell
+scripts/run.sh --desktop        # the desktop app, with frontend hot reload
+scripts/run.sh --plugins        # install the official plugins from ../hestia-plugins
+scripts/run.sh --plugins --desktop
 ```
+
+Debug builds keep their data in `target/debug/data` and scope their daemon endpoint to it, so none of this touches an
+installed Hestia. The script starts the dev daemon when a form needs one, restarts a running one when the build
+produced a new `hestiad`, and on leaving the subshell stops only a daemon it started. The `hestia` CLI itself still
+never starts a daemon behind your back: `hestia daemon status|start|stop|restart` manages it.
+
+Core ships only vanilla, so a dev build needs the plugins to do much. `--plugins[=DIR]` builds every plugin of a
+checkout of the [plugins repository](https://github.com/prytaneum/plugins) (`$HESTIA_PLUGINS_REPO`, else
+`../hestia-plugins`) against this checkout's SDK and installs each as a dev plugin
+(`hestia plugin dev <dir> --official --once`), registered under the ids the signed builds use. They stay installed in
+the dev data home; run it again after changing a plugin or the SDK.
+
+The desktop app needs the system webview (WebKitGTK on Linux, WebView2 on Windows), [Bun](https://bun.sh/) and
+`cargo install tauri-cli --version '^2'`; `--desktop` installs the frontend's dependencies on first use.
 
 The frontend's own checks — the same ones CI's `frontend` job runs, in this order:
 

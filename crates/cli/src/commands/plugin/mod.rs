@@ -57,6 +57,11 @@ pub enum PluginCmd {
             help = "Register its providers as an official plugin's: bare ids that shadow the built-ins"
         )]
         official: bool,
+        #[arg(
+            long,
+            help = "Build and install it, then return instead of watching for changes"
+        )]
+        once: bool,
         #[command(flatten)]
         sdk: sdk::SdkOption,
     },
@@ -184,8 +189,20 @@ pub async fn run(cmd: PluginCmd) -> Result<()> {
             dir,
             yes,
             official,
+            once,
             sdk,
-        } => dev::run(dir.as_deref(), yes, official, &sdk).await,
+        } => {
+            dev::run(
+                dir.as_deref(),
+                dev::Mode {
+                    yes,
+                    official,
+                    once,
+                },
+                &sdk,
+            )
+            .await
+        }
         PluginCmd::Check { ids, dir, sdk } => check::run(dir.as_deref(), &ids, &sdk),
         PluginCmd::Test { ids, sdk } => test::run(&ids, &sdk),
         PluginCmd::Publish {

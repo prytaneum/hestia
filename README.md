@@ -145,8 +145,8 @@ cargo install tauri-cli --version '^2'
 (cd crates/desktop && cargo tauri build)
 ```
 
-`scripts/` wraps all of it — `scripts/build.sh`, `scripts/run.sh`,
-`scripts/package.sh`. See [docs/packaging.md](docs/packaging.md).
+`scripts/` wraps all of it — `scripts/run.sh` runs a development build (a shell, one command, or the desktop with
+`--desktop`), `scripts/build.sh` builds, `scripts/package.sh` packages. See [docs/packaging.md](docs/packaging.md).
 
 </details>
 

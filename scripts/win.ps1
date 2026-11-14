@@ -5,17 +5,16 @@
 # needs nothing here — the verbs are discovered, never listed. Two things
 # PowerShell owns natively rather than delegating to Git Bash: stopping every
 # running hestiad before a build (a live hestiad.exe hard-locks the .exe cargo
-# is about to overwrite), and the interactive `dev` subshell — bare
-# `win.ps1 dev` drops you into PowerShell, not `bash -i`.
+# is about to overwrite), and the interactive subshell — bare `win.ps1 run`
+# drops you into PowerShell, not `bash -i`.
 #
 # Requires Git for Windows (bash.exe) for the forwarded verbs. WSL's bash is
 # intentionally skipped: it runs a Linux userland that can't see the Windows
-# cargo target. Bare `dev` is pure PowerShell and needs only cargo.
+# cargo target. Bare `run` is pure PowerShell and needs only cargo.
 #
 #   scripts\win.ps1                                         # the verbs it found
-#   scripts\win.ps1 dev      [--desktop] [hestia args...]   # PS subshell / one-shot CLI
+#   scripts\win.ps1 run      [--desktop] [--plugins] [hestia args...]   # PS subshell / desktop / one-shot CLI
 #   scripts\win.ps1 build    [cli|daemon|desktop|all] [cargo flags...]
-#   scripts\win.ps1 run      <cli|daemon|desktop> [args...]
 #   scripts\win.ps1 package  [all|bundle|portable]
 param(
   [Parameter(Position = 0)][string]$Command,
@@ -67,20 +66,23 @@ if (-not $Command -or -not $scripts.ContainsKey($Command)) {
 # A build (and the dev loop, which builds on entry) must not race a running
 # daemon: stop every instance first so the overwrite succeeds and the next
 # spawn is the new binary.
-if ($Command -eq "build" -or $Command -eq "dev") { Stop-Hestia }
+if ($Command -eq "build" -or $Command -eq "run") { Stop-Hestia }
 
-# The Windows half of dev.sh's isolation: pin the dev-only daemon endpoint (a
-# named pipe rather than dev.sh's unix socket path), and drop mise's PATH
-# snapshot so its prompt hook in the dev subshell re-baselines from the
-# stripped PATH instead of resurrecting the installed hestia.
-if ($Command -eq "dev") {
-  if (-not $env:HESTIA_SOCK) { $env:HESTIA_SOCK = '\\.\pipe\hestia-hestiad-dev' }
+# The Windows half of run.sh's isolation. A debug build scopes its own endpoint;
+# a release build is not contained, so it gets a dev-only one (a named pipe
+# rather than run.sh's unix socket path). Also drop mise's PATH snapshot so its
+# prompt hook in the dev subshell re-baselines from the stripped PATH instead of
+# resurrecting the installed hestia.
+if ($Command -eq "run") {
+  if (($Rest -contains '--release') -and -not $env:HESTIA_SOCK) {
+    $env:HESTIA_SOCK = '\\.\pipe\hestia-hestiad-dev'
+  }
   Get-ChildItem Env:__MISE_* -ErrorAction SilentlyContinue |
     ForEach-Object { Remove-Item "Env:$($_.Name)" }
 
-  # Bare `dev` is the interactive loop: build, then open a PowerShell subshell
-  # with the dev binaries on PATH. Forms with args (--desktop, one-shot CLI)
-  # keep forwarding to dev.sh, which owns the Tauri/one-shot logic.
+  # Bare `run` is the interactive loop: build, then open a PowerShell subshell
+  # with the dev binaries on PATH. Forms with args (--desktop, --plugins, a
+  # one-shot CLI) forward to run.sh, which owns that logic.
   if (-not $Rest) {
     Write-Host "Building daemon + tray + CLI (debug)"
     cargo build -p daemon -p tray -p cli

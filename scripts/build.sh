@@ -9,21 +9,6 @@
 target="${1:-all}"
 shift || true
 
-# A running hestiad holds the previous build in memory; stop every instance so
-# the next client auto-spawns the freshly built daemon. SIGTERM is the daemon's
-# graceful stop, so any supervised workloads keep running. This is the POSIX
-# path — on Windows, win.ps1 stops the daemon natively before invoking us (Git
-# Bash has no pkill, and a live hestiad.exe would hard-lock the overwrite).
-stop_hestia() {
-  pkill -TERM -x hestiad 2>/dev/null || true
-  for _ in {1..20}; do
-    command -v pgrep >/dev/null 2>&1 || return 0
-    pgrep -x hestiad >/dev/null 2>&1 || return 0
-    sleep 0.25
-  done
-}
-stop_hestia
-
 # The staged sidecars must match the requested profile: a debug build bundles
 # debug sidecars (dev data under target/debug/data), a --release one the release
 # set. sidecars.sh defaults to release, so forward the profile explicitly.

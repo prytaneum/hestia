@@ -5,7 +5,7 @@
 #
 # Release is the default (what installers ship). `--debug` stages debug builds
 # instead: the daemon's `debug_assertions` then keep dev data under target/debug/data
-# rather than the real ~/.hestia — used by `scripts/dev.sh --desktop`.
+# rather than the real ~/.hestia — used by `scripts/run.sh --desktop`.
 #
 # Tauri's externalBin requires each binary to carry the target-triple suffix
 # (e.g. hestiad-x86_64-unknown-linux-gnu); the installer strips it on install.

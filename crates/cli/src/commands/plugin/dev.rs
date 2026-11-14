@@ -94,7 +94,21 @@ fn prepare(dir: &Path, sdk: Option<Sdk>) -> Result<(PathBuf, Option<Staged>)> {
     Ok((out, Some(staged)))
 }
 
-pub async fn run(dir: Option<&Path>, yes: bool, official: bool, sdk: &SdkOption) -> Result<()> {
+/// How a dev run behaves: whether the grant is approved without asking,
+/// whether the providers register under bare ids, and whether the command
+/// returns once the plugin is installed instead of watching its sources.
+pub struct Mode {
+    pub yes: bool,
+    pub official: bool,
+    pub once: bool,
+}
+
+pub async fn run(dir: Option<&Path>, mode: Mode, sdk: &SdkOption) -> Result<()> {
+    let Mode {
+        yes,
+        official,
+        once,
+    } = mode;
     let sdk = Sdk::resolve(sdk)?;
     let dir = std::fs::canonicalize(dir.unwrap_or(Path::new(".")))
         .context("cannot resolve the plugin folder")?;
@@ -116,6 +130,11 @@ pub async fn run(dir: Option<&Path>, yes: bool, official: bool, sdk: &SdkOption)
     plugins
         .install_dev(&package, &inspection.grant_digest, official)
         .await?;
+    if once {
+        return ui::show(View::line(format!(
+            "'{id}' installed from {package}; `hestia plugin dev` again rebuilds it"
+        )));
+    }
     let watching = if staged.is_some() {
         "rebuilds when its sources change and "
     } else {

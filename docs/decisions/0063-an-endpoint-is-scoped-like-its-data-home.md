@@ -27,6 +27,7 @@ bug one step further out. Rejected too: having each front-end export
 This puts a `ipc → common` arrow in the graph. `ipc` stays free of anything
 launcher-specific; it reads one function that answers "which install is this",
 and `common` depends on no workspace crate, so nothing about the layering
-changes. `scripts/dev.sh` keeps setting `HESTIA_SOCK` — it also builds
-`--release`, which is not a contained build and would otherwise land on the
-session's endpoint.
+changes. `scripts/run.sh` sets `HESTIA_SOCK` only for `--release`, which is not
+a contained build and would otherwise land on the session's endpoint; a debug
+run relies on the scope, so the script's shell, its desktop and a bare
+`target/debug/hestia` all reach one daemon.
