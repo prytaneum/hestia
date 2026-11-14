@@ -341,8 +341,11 @@ calls the guest with the 30 s provider timeout, and maps a guest failure to
 `PluginCallFailed` naming the plugin. A guest answers `unsupported` for an
 operation it does not implement; an optional operation then takes its
 documented fallback in the host (`projects` asks `project` for each,
-`versions-by-id`, `identify` and `loader-versions` find nothing), a required one
-fails the call. `Contributions` connects, registers and unregisters every kind
+`versions-by-id`, `identify` and `loader-versions` find nothing, and
+`resolve-manifest` fails the import naming the source), a required one
+fails the call. A source's `info` may name a `requires-setting`; the host keeps
+the source out of use until that setting of the plugin holds a value, and lists
+it with the missing key ([0122](../decisions/0122-a-source-declares-its-setting-and-one-vet-checks-every-download.md)). `Contributions` connects, registers and unregisters every kind
 in one place, so the daemon never names a kind. Ids read `<plugin>.<id>`; a
 plugin signed by the official key registers its providers under the bare `<id>` instead (`adoptium`, not
 `adoptium.adoptium`), which is how it replaces a core provider of that name. `Contributions::connect` takes the flag, so
@@ -465,9 +468,12 @@ provider, never with the URL: `ContentProvider::download_policy`, `FlavorProvide
 policy fetches through the same guard client over https only, with redirects walked by hand: every hop is checked
 against the grant again, and a download with no checksum must sit on an unhashed host on every hop. A refusal fails the
 download as `DownloadFailed` naming the reason. A plugin flavor's profile persists, so its policy is asked again at
-every launch; files on Mojang's own hosts (the vanilla layer it builds on) stay under the core policy. A plugin content
-file with no checksum must say `unhashed` and sit on an unhashed host, as a flavor artifact does. Files a pack's own
-index names are not plugin-supplied and keep the core client.
+every launch; files on Mojang's own hosts (the vanilla layer it builds on) stay under the core policy. One rule decides
+whether a file a plugin names may be fetched, `Policy::vet_artifact`: a granted https host, and a well-formed checksum or
+`unhashed` from an unhashed host. A flavor artifact, a content file, a Java build and a pack file resolved by a source's
+`resolve-manifest` all go through it (a pack file's empty URL is a file its author withholds). Files a pack's own
+index names are not plugin-supplied and keep the core client. `identify` lends the guest the local files read-only, for
+that call, at `/files/<n>` ([0122](../decisions/0122-a-source-declares-its-setting-and-one-vet-checks-every-download.md)).
 
 A guest fetches a file through the `download` import, which is the same path with the guest as the caller
 ([0119](../decisions/0119-downloads-are-host-side.md)): `download.rs` vets the URL under the plugin's `Policy`, resolves
@@ -765,3 +771,4 @@ plugins the tests build are fixtures
 | [0119](../decisions/0119-downloads-are-host-side.md) | downloads are host-side: a host download call and declarative Maven libraries |
 | [0120](../decisions/0120-a-programs-identity-is-separate-from-its-invocations.md) | a program's identity is separate from its invocations; pins are lazy and approved |
 | [0121](../decisions/0121-a-build-places-trees-and-the-profile-launches-from-an-args-file.md) | a build places directory trees; a server may launch from an args file per OS; the build area is the plugin's |
+| [0122](../decisions/0122-a-source-declares-its-setting-and-one-vet-checks-every-download.md) | a source declares the setting it needs, and one vet checks every download a plugin names |

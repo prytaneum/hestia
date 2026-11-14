@@ -23,7 +23,7 @@ id = "index"
 
 | Kind | Permissions | Registers into | Operations |
 |---|---|---|---|
-| `content` | `content:read`, `network:connect` | the content source registry | `info`, `parse-url`, `recognise-file-url`, `search`, `project`, `projects`, `versions`, `versions-by-id`, `identify` |
+| `content` | `content:read`, `network:connect` | the content source registry | `info`, `parse-url`, `recognise-file-url`, `search`, `project`, `projects`, `versions`, `versions-by-id`, `identify`, `resolve-manifest` |
 | `flavor` | `flavor:provide`, `network:connect` | the flavor registry | `info`, `versions`, `loader-versions`, `resolve-server`, `resolve-client`, `build` |
 | `format` | `format:provide` | the archive formats import detection ranks | `info`, `read`, `land`, `write` |
 | `java` | `java:provide`, `network:connect` | the Java provider roster | `majors`, `resolve` |
@@ -39,7 +39,8 @@ decodes the arguments and encodes the reply. The handler also gets the provider'
 several. An operation no handler takes answers `unsupported`.
 
 - **Optional** operations fall back when `unsupported`: `parse-url` and `recognise-file-url` read as no match,
-  `projects` asks `project` for each, `versions-by-id`, `identify` and `loader-versions` find nothing.
+  `projects` asks `project` for each, `versions-by-id`, `identify` and `loader-versions` find nothing, and
+  `resolve-manifest` fails the import naming the source.
 - **Required** operations fail the call as `PluginCallFailed`, naming the plugin.
 - Each call has a 30 s timeout. A reply that does not decode fails the call.
 - The host stamps the plugin's id on everything returned and vets it at the edge; a result that fails the checks below
@@ -62,7 +63,15 @@ A source describes what exists; the host downloads the files. The permissions ar
 | `projects` | `{ ids }` | `ContentProject[]` | optional |
 | `versions` | `VersionQuery` | `ContentVersion[]` | a file whose URL is not on a granted host is dropped |
 | `versions-by-id` | `{ ids }` | `ContentVersion[]` | optional |
-| `identify` | `{ sha1s }` | map of sha1 to `ContentVersion` | optional |
+| `identify` | `{ files: [{ sha1, path }] }` | map of sha1 to `ContentVersion` | optional; the files are mounted read-only at `path` for the call |
+| `resolve-manifest` | `{ manifest }` | `ResolvedModpack` | optional: a pack manifest the source owns; each file is vetted like any download |
+
+### Serving only when configured
+
+A source that cannot work until the user has set something, such as an API key, names that setting in `info`:
+`requires_setting: Some("api-key".into())`, a key of the plugin's own `[[settings]]` (a key the plugin does not declare
+refuses the source). The host keeps the source out of use, and tells the UI which setting is missing, until the setting
+holds a value; there is nothing to refresh. Send the key to the API with `hestia::http::Request::header`.
 
 Example: [`static-index`](https://github.com/prytaneum/plugin-examples/tree/main/plugins/static-index), a source
 that serves a JSON index compiled into the component. File URLs in the index are relative to a `base-url` data file, so

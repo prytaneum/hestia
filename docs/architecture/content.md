@@ -76,8 +76,9 @@ like a slug. A source that has no datapack project type (Modrinth) says so with
 >
 > The API key makes *availability* a property of a source rather than a constant.
 > CurseForge refuses every request without an `x-api-key`, so the trait grew
-> `available()` and `configure()`: `content.sources` lists only sources that can
-> serve, `content.*` refuses a named-but-unconfigured one with
+> `available()` and `configure()`: `content.sources` lists the sources that can
+> serve and those waiting on a setting (with `requiresSetting` naming it),
+> `content.*` refuses a named-but-unconfigured one with
 > `ContentSourceUnavailable` (naming what to set, rather than the "unknown
 > source" a filtered registry would have to claim), and a pasted
 > `curseforge.com` URL still parses — it is recognised, then refused for the

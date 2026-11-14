@@ -445,8 +445,8 @@ hestia logs modded -f            # follow its captured output fullscreen (the
 Modrinth and CurseForge; installs are per-entry (above). Every browse verb
 takes `-S/--source` and defaults to the first configured source — CurseForge
 needs an API key before it serves anything (see [Configuration](#configuration)),
-and `hestia sources` lists only the sources that can, with the kinds each one
-catalogues.
+and `hestia sources` lists every source with the kinds it catalogues and whether it
+is ready or needs a setting.
 
 ```bash
 hestia mod search                # bare, on a terminal: the fullscreen browser
@@ -634,7 +634,7 @@ browser does not expose); with none running, nothing is published and nothing is
 CurseForge's API refuses every request without a key, so that source is offered only once one resolves: this setting,
 else a key the distributor baked into the build. Get one from the
 [CurseForge developer console](https://console.curseforge.com/) — it is stored in plain text in `config.json`, like every
-other setting. Nothing else changes when it is unset; `hestia sources` simply does not list CurseForge.
+other setting. Nothing else changes when it is unset; `hestia sources` shows CurseForge as needing the key.
 
 The data directory is resolved as: `--home` → `$HESTIA_HOME` → a persisted pointer (`config set home`) → the platform
 default (`~/.hestia`, or

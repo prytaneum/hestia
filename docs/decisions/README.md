@@ -52,6 +52,7 @@ the alternative you rejected — that is usually the part nobody can recover lat
 - **0118** — [Host-pushed events and a call budget instead of a resident instance](0118-host-pushed-events-and-a-call-budget-instead-of-a-resident-instance.md)
 - **0120** — [A program's identity is separate from its invocations; pins are lazy and approved](0120-a-programs-identity-is-separate-from-its-invocations.md)
 - **0121** — [A build places trees, and a server may launch from an args file](0121-a-build-places-trees-and-the-profile-launches-from-an-args-file.md)
+- **0122** — [A source declares the setting it needs, and one vet checks every download a plugin names](0122-a-source-declares-its-setting-and-one-vet-checks-every-download.md)
 
 ### [Cross-cutting foundations](../architecture/common.md)
 
