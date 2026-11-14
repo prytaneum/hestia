@@ -161,6 +161,7 @@ real directory.
 ├── plugins/<id>/        one directory per plugin: package/, data/, plugin.json
 ├── meta/                materialised game files — regenerable
 │   ├── versions/ libraries/ assets/ natives/
+│   ├── flavors/<plugin>/ a plugin flavor's build area
 │   └── plugins/         compiled plugin components
 ├── cache/               content-addressed download cache
 ├── processes/           supervisor records + captured logs
@@ -179,12 +180,12 @@ obvious unit to reclaim ([0054](decisions/0054-meta-root-for-materialised-files.
 | [Cross-cutting foundations](architecture/common.md) | app identity, logging, crash reports, path resolution |
 | [The engine](architecture/engine.md) | the aggregate root, config, cache, downloads, Java, the process supervisor, self-update |
 | [The daemon](architecture/daemon.md) | the serve loop, router, runtime, job managers, service registrars, autostart |
-| [Minecraft providers](architecture/minecraft.md) | flavors, version catalogues, profile resolution, materialize, launch plans, RCON |
+| [Minecraft providers](architecture/minecraft.md) | the flavor registry (vanilla only in core), version catalogues, profile resolution, materialize, launch plans, RCON |
 | [Servers & instances](architecture/entries.md) | entry stores, directory layout, provisioning, ports, backups, sync, worlds |
-| [Content & modpacks](architecture/content.md) | content sources, the managed-dir install model, datapacks, modpacks |
-| [Import & export](architecture/transfer.md) | archive formats, detection, what an archive carries, importing another launcher's instance |
+| [Content & modpacks](architecture/content.md) | the content source seam, the managed-dir install model, datapacks, modpacks |
+| [Import & export](architecture/transfer.md) | hestia's archive, pack-format detection, what an archive carries |
 | [Accounts & skins](architecture/accounts.md) | Microsoft sign-in, token rotation, the skin library |
-| [Plugins](architecture/plugins.md) | the WASM sandbox, permissions and host calls, events and hooks, providers, install and trust, the SDK |
+| [Plugins](architecture/plugins.md) | the WASM sandbox, permissions and host calls, events and hooks, providers, install and trust, the SDK; [the official plugins](plugins/official.md) are listed in the guide |
 | [Front-ends](architecture/frontends.md) | CLI grammar and presentation, the desktop bridge and query layer, the tray |
 
 ## Project status
@@ -196,16 +197,18 @@ least one front-end.
 **Working:** the workspace and its enforced dependency graph · logging, identity
 and path resolution · the wire protocol and typed SDK · config, cache and
 downloads · Java runtime management · Microsoft sign-in with token rotation ·
-skin and cape management · the process supervisor · the provider layer (vanilla built in; other
-flavors and Java distributions come from plugins) ·
+skin and cape management · the process supervisor · the provider layer (vanilla built in; every
+other flavor, content source, pack format and Java distribution comes from a plugin) ·
 server management with an RCON console · instance management with concurrent
 sessions · joining a world, a listed server or a Realm straight from a launch,
 and going back to whichever was played lately · in-place
 version updates both ways · server backups, on demand and
-scheduled · content install and management from Modrinth, CurseForge, a URL or a
+scheduled · content install and management from a content source plugin, a URL or a
 local file · modpacks into a new or existing entry · instance import and export
 (hestia's own archive; other formats are plugins') · shared instance settings (`sync`) ·
-plugins (sandboxed WASM components with permissions, hooks, content and flavor providers, pages, themes, signed repositories) ·
+plugins (sandboxed WASM components with permissions, hooks, content, flavor, pack and Java providers, commands, pages, themes, signed repositories) ·
+the [official plugins](plugins/official.md) that carry Modrinth, CurseForge, the other flavors, the other pack
+formats, Adoptium, Discord presence and the players page, bundled with the installers ·
 self-update and
 the announcement feed · network reachability as a first-class state, with
 offline launch and cached version catalogues · the legacy client era, both its
@@ -269,9 +272,10 @@ their unpacked natives and their pre-hash asset layout.
 | Where | What it pins |
 |---|---|
 | `crates/proto/tests/` | `wire` and `golden` — the envelope and contract encodings, so a wire change is caught |
-| `crates/engine/tests/` | one `integration` binary: `store` (config/cache/java/server/instance persistence), `auth_oracle` (the sign-in state machine), `process` (tree termination), `flows` (provisioning and content install against fixture providers, over `Engine::over`) |
-| `crates/engine/src/**` | unit tests beside the code: archive detection and round trips, the export ignore rules, launch-plan assembly (including the quick-play target and its version gate), document schema stamping and quarantine, the `servers.dat` round trip, server-address parsing, the Log4Shell-safe session config, sync reconciliation and its per-key merge, URL parsing, version picking, JVM-args precedence |
-| `crates/engine/tests/plugins.rs`, `flows/content_source.rs`, `flows/flavor.rs` | plugin load, install and sandbox limits against component fixtures; a plugin-provided content source and flavor through the real flows |
+| `crates/engine/tests/` | one `integration` binary: `store` (config/cache/java/server/instance persistence), `auth_oracle` (the sign-in state machine), `process` (tree termination), `flows` (provisioning, content install, pack import and export and Java install against fixture plugin providers, over `Engine::over`), `bundled` (seeding the plugins an installer carries) |
+| `crates/engine/src/**` | unit tests beside the code: archive detection and round trips, the export ignore rules, launch-plan assembly (including the quick-play target and its version gate), document schema stamping and quarantine, the `servers.dat` round trip, server-address parsing, the Log4Shell-safe session config, sync reconciliation and its per-key merge, version picking, JVM-args precedence |
+| `crates/engine/tests/plugins.rs`, `flows/{content_source,flavor,pack,java}.rs` | plugin load, install and sandbox limits against component fixtures; a plugin-provided content source, flavor, pack format and Java distribution through the real flows |
+| `crates/engine/tests/official.rs` | the live official index verifies against the compiled keys (ignored by default; the scheduled `official-index` job runs it) |
 | `crates/engine/src/plugins/**` | unit tests beside the code: the runtime's limits and traps, hooks and the launch-patch allowlist, host matching for `wasi:http`, asset path rules, index and build signatures, the catalogue, held downloads |
 | `crates/proto/tests/{permission,plugin_api,plugin}.rs` | every contract's `PLUGIN` classification and the denied list, the snapshotted plugin API against the WIT files, and manifest validation |
 | `crates/sdk/tests/` | the SDK version equals the WIT package version |

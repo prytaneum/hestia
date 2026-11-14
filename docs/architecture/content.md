@@ -63,9 +63,9 @@ this boundary, so a front-end never sees a platform's raw shape
 ([0010](../decisions/0010-one-content-provider-trait.md)).
 
 A provider also recognises its own site's project and version page URLs, so a
-pasted `modrinth.com/mod/…` or `curseforge.com/minecraft/…` link installs exactly
-like a slug. A source that has no datapack project type (Modrinth) says so with
-`datapacks_as_mods`, and a datapack request then accepts its `Mod` projects.
+pasted project link installs exactly like a slug. A source that has no datapack
+project type says so with `datapacks_as_mods`, and a datapack request then accepts
+its `Mod` projects.
 
 > **A source is only offered when it can serve.** An API key makes
 > *availability* a property of a source rather than a constant (the CurseForge
@@ -86,14 +86,14 @@ like a slug. A source that has no datapack project type (Modrinth) says so with
 > no other reason to split — a URL item already resolved its own source this way.
 
 > **A blocked file fails its item, and nothing else.** A platform may let an
-> author opt out of third-party distribution (CurseForge does); the API then lists
-> the file with a null download URL. The `ContentDownloadBlocked` refusal says so and names the source,
+> author opt out of third-party distribution; the source then lists the file with
+> no download URL. The `ContentDownloadBlocked` refusal says so and names the source,
 > the rest of the batch installs, and local-file import is the documented way
-> through — Hestia deliberately does not reconstruct the CDN path to download it
+> through — Hestia deliberately does not reconstruct a CDN path to download it
 > anyway. The check lives in the one download step every flow shares
 > (`flows/download.rs`) rather than the provider, because an artifact with no URL
 > is unusable whoever produced it — and a blocked file is routine in a pack: a
-> CurseForge pack listing one still installs, minus that file, naming it.
+> pack listing one still installs, minus that file, naming it.
 
 ## What an entry accepts
 
@@ -102,8 +102,8 @@ loader consumes, and what the **side** reads for itself.
 
 | | mods | plugins | resourcepacks | shaders | datapacks |
 |---|:--:|:--:|:--:|:--:|:--:|
-| server on a modloader (fabric, neoforge) | ✓ | | | | ✓ |
-| server on a platform (paper, folia, spigot, bukkit) | | ✓ | | | ✓ |
+| server on a modloader flavor | ✓ | | | | ✓ |
+| server on a plugin-platform flavor | | ✓ | | | ✓ |
 | vanilla server | | | | | ✓ |
 | instance on a modloader | ✓ | | ✓ | ✓ | ✓ |
 | vanilla instance | | | ✓ | ✓ | ✓ |
@@ -216,8 +216,8 @@ installs where you asked
 ([0015](../decisions/0015-local-imports-are-inspected.md)).
 
 A local file is also **identified**. `ContentProvider::identify` hands each
-source the files and gets back the version each one is — Modrinth by sha1,
-CurseForge by its own fingerprint — and a recognised file is recorded as that
+source the files and gets back the version each one is — however that platform
+recognises a file — and a recognised file is recorded as that
 release rather than as source `file`, so it updates and exports like anything
 installed from a source. The bytes installed are still the local ones, its
 dependencies are not resolved, and a lookup that fails (offline, unknown file)
@@ -353,18 +353,18 @@ refused as `ModpackDifferentPack` unless `allowOtherPack` says it is meant.
 before a job starts, so a front-end asks once instead of failing a job to find
 out ([0078](../decisions/0078-a-pack-updates-from-a-file.md)).
 
-**A resolved pack file carries its identity.** A CurseForge manifest names each
-file by project and file id, and resolving it already fetches the file and
+**A resolved pack file carries its identity.** A pack that names its files by id
+delegates to the source that owns them, and resolving already fetches the file and
 project records, so every `ModpackFile` leaves the resolve with its source, ids,
-version number and project. A pack that names files by URL and hash alone (a `.mrpack`'s index, say);
-each file URL is put to every source (`ContentProvider::recognise_file_url`; a
-Modrinth CDN URL carries both ids), and the source that answers is recorded. `hydrate` then
-asks only for what is still missing (a Modrinth file's version number and
-project), in one bulk call per source. Best-effort: a pack still installs when
-the catalogue is unreachable, it just reads less well.
+version number and project. A pack that names files by URL and hash alone has
+each file URL put to every source (`ContentProvider::recognise_file_url`), and the
+source that answers is recorded. `hydrate` then asks only for what is still
+missing (a file's version number and project), in one bulk call per source.
+Best-effort: a pack still installs when the catalogue is unreachable, it just
+reads less well.
 
-What the pack does not identify — a jar shipped in an override tree, an index
-file hosted anywhere but Modrinth's CDN — is asked after
+What the pack does not identify — a jar shipped in an override tree, a file
+hosted where no source recognises the URL — is asked after
 by hash once it is on disk, the same lookup a local-file import makes; where
 several sources publish it, the pack's own wins. A jar in `overrides/mods/` is
 therefore a pool item like any other, in the managed directory rather than
@@ -381,12 +381,12 @@ correction is server-side only — applied to an instance it would strip out
 precisely the mods the pack was installed for
 ([0012](../decisions/0012-pack-server-declarations-are-corrected.md)).
 
-For a CurseForge pack the correction is not a refinement but the *only* signal:
-the API publishes no per-project side support, so every required file reads as
-wanted by both sides and the exclude table is what tells a server's mods from a
-client's. The table's per-pack rules are keyed by the pack's slug, which is
-Modrinth's — a CurseForge edition of the same pack matches the global rules but
-not its per-pack entry, so `modpack.exclude-files` is the way to correct one.
+Where a pack's platform publishes no per-project side support, the correction is
+not a refinement but the *only* signal: every required file reads as wanted by
+both sides and the exclude table is what tells a server's mods from a client's.
+The table's per-pack rules are keyed by the pack's source project slug, so a pack
+from another platform matches the global rules but not its per-pack entry, and
+`modpack.exclude-files` is the way to correct one.
 
 **What a pack cannot do:** be installed into an entry whose flavor or game
 version differs from what it pins, or pin a loader with no Hestia flavor. An

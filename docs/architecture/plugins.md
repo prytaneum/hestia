@@ -15,6 +15,9 @@ operations, contracts and topics are data in `proto`. A new one changes neither
 the ABI nor the daemon, and a port of a core feature to a plugin may use only
 what a third party could use.
 
+- Core ships the mechanisms and the vanilla flavor; Modrinth, CurseForge, every other flavor, the Adoptium Java
+  distribution, the `.mrpack`, CurseForge and Prism pack formats, Discord presence and the players page are
+  [official plugins](../plugins/official.md), signed by Hestia's key and bundled with the installers.
 - Writing one? [plugins/publishing.md](../plugins/publishing.md),
   [plugins/repository.md](../plugins/repository.md) and
   [plugins/permissions.md](../plugins/permissions.md) are the author guides;
@@ -358,10 +361,11 @@ the source out of use until that setting of the plugin holds a value, and lists
 it with the missing key ([0122](../decisions/0122-a-source-declares-its-setting-and-one-vet-checks-every-download.md)). `Contributions` connects, registers and unregisters every kind
 in one place, so the daemon never names a kind. Ids read `<plugin>.<id>`; a
 plugin signed by the official key registers its providers under the bare `<id>` instead (`adoptium`, not
-`adoptium.adoptium`), which is how it replaces a core provider of that name. `Contributions::connect` takes the flag, so
+`adoptium.adoptium`). The concrete providers of every kind but vanilla are [official plugins](../plugins/official.md), so
+the bare ids are theirs. `Contributions::connect` takes the flag, so
 the id a guest carries, the `Service::Provider` it reports and the registered id are the same string. Registration
 refuses a duplicate id, with one exception: an official plugin's bare id may equal a built-in's, and then it
-**shadows** it ([0116](../decisions/0116-an-official-provider-shadows-the-builtin.md)). `Roster` keeps both entries and
+**shadows** it (core's only built-in provider is the vanilla flavor, so no official plugin shadows one today) ([0116](../decisions/0116-an-official-provider-shadows-the-builtin.md)). `Roster` keeps both entries and
 `snapshot()` yields one per id: the live shadower, standing where the built-in was listed, else the built-in. The
 built-in is the fallback in the one sense the registry can give: it answers again as soon as the plugin is unregistered
 (disabled, removed, failed to load) or its `LoadedPlugin` is disabled after repeated traps (each registration carries a
@@ -547,7 +551,7 @@ it allows. The host keeps each connection open across calls, since every call
 runs on a fresh instance, and the plugin names it again by id; at most 8 are
 open, a message is at most 1 MiB, and all close when the plugin is disabled,
 removed, reloaded or taken out of service after repeated traps. This is how a
-plugin talks to a running Discord, or any other local program, speaking its
+plugin talks to a running Discord (the official `discord` plugin does), or any other local program, speaking its
 protocol itself. The host reads each connection itself and tells the plugin when bytes arrive or the peer closes
 ([Events](#host-pushed-events-and-the-call-budget)).
 
