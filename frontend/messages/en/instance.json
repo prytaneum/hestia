@@ -32,6 +32,7 @@
       "hint_hestia": "Settings, configuration, worlds and local files. Mods and packs from Modrinth or CurseForge are downloaded again on import.",
       "referenced": "downloads on import",
       "hint_mrpack": "A pack other launchers can read. Its mods travel as links to where they came from, so anything installed from a file is embedded instead.",
+      "hint_plugin": "Written by a plugin as {name}. Whatever it could not carry is reported when it finishes.",
       "selected": "{selected} of {total}",
       "empty": "This instance has no files to export yet.",
       "done": "Exported “{name}”",
@@ -43,7 +44,7 @@
       "description": "Pick an archive and hestia works out what it is.",
       "done": "Imported “{name}”",
       "drop": "Drop to import this instance",
-      "formats": "hestia archive, Modrinth or CurseForge pack, or a Prism/MultiMC instance",
+      "formats": "hestia archive, Modrinth pack, a Prism/MultiMC instance, or a format a plugin adds",
       "reading": "Reading the archive…",
       "title": "Import an instance"
     },

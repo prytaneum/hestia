@@ -4,6 +4,7 @@ export type { ArchiveInfo } from "./generated/ArchiveInfo";
 export type { ArchiveRef } from "./generated/ArchiveRef";
 export type { ExportDone } from "./generated/ExportDone";
 export type { ExportFormat } from "./generated/ExportFormat";
+export type { ExportFormatInfo } from "./generated/ExportFormatInfo";
 export type { ImportDone } from "./generated/ImportDone";
 export type { ImportFormat } from "./generated/ImportFormat";
 export type { InstanceExportParams } from "./generated/InstanceExportParams";

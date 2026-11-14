@@ -75,6 +75,7 @@ import type { EntryVersionsParams } from "./generated/EntryVersionsParams";
 import type { EventsSubscribeParams } from "./generated/EventsSubscribeParams";
 import type { EventsSubscribeResult } from "./generated/EventsSubscribeResult";
 import type { ExportDone } from "./generated/ExportDone";
+import type { ExportFormatInfo } from "./generated/ExportFormatInfo";
 import type { FileEntry } from "./generated/FileEntry";
 import type { FileReadResult } from "./generated/FileReadResult";
 import type { FlavorsResult } from "./generated/FlavorsResult";
@@ -288,6 +289,7 @@ export interface Channels {
   "instance.create": { params: Omit<Partial<InstanceCreateParams>, "config"> & { "config"?: Array<Partial<ConfigEntry>> }; result: InstanceInfo };
   "instance.export": { params: Partial<InstanceExportParams>; result: JobStarted };
   "instance.export.contents": { params: Partial<InstanceRef>; result: Array<ArchiveEntry> };
+  "instance.export.formats": { params: Empty; result: Array<ExportFormatInfo> };
   "instance.import": { params: Partial<InstanceImportParams>; result: JobStarted };
   "instance.import.inspect": { params: Partial<ArchiveRef>; result: ArchiveInfo };
   "instance.info": { params: Partial<InstanceRef>; result: InstanceDetails };

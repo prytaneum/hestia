@@ -18,6 +18,12 @@ import { jobMutation, subjectName } from './jobs';
 import { FOOTPRINT, keys } from './keys';
 
 export const transferQueries = {
+  /** What an instance can be exported as; a plugin may add one at any time. */
+  formats: () =>
+    queryOptions({
+      queryKey: keys.transfer.formats(),
+      queryFn: () => api.exportFormats(),
+    }),
   /**
    * The tree an export's exclusions are picked out of. Always fetched fresh:
    * it is a directory walk whose whole value is being current, and it is only

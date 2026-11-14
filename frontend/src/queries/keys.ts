@@ -113,6 +113,7 @@ export const keys = {
   // happens before there is an instance to key against.
   transfer: {
     all: ['transfer'] as const,
+    formats: () => ['transfer', 'formats'] as const,
     archive: (path: string) => ['transfer', 'archive', path] as const,
   },
   instances: {

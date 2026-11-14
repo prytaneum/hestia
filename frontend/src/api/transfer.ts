@@ -15,8 +15,14 @@ import type {
   ArchiveInfo,
   ExportDone,
   ExportFormat,
+  ExportFormatInfo,
   ImportDone,
 } from './types/transfer';
+
+/** The formats an instance can be exported as, including a plugin's. */
+export function exportFormats(): Promise<ExportFormatInfo[]> {
+  return call('instance.export.formats');
+}
 
 /** What an export of this instance would carry, sorted by path. */
 export function contents(instance: string): Promise<ArchiveEntry[]> {

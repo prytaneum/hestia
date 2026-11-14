@@ -60,8 +60,8 @@ const PERMISSION_TEXT: Record<Permission, () => string> = {
   'launch:patch': m['domain.plugin.permission.launch_patch'],
   'ipc:connect': m['domain.plugin.permission.ipc_connect'],
   'flavor:provide': m['domain.plugin.permission.flavor_provide'],
-  'format:provide': m['domain.plugin.permission.format_provide'],
   'java:provide': m['domain.plugin.permission.java_provide'],
+  'pack:provide': m['domain.plugin.permission.pack_provide'],
 };
 
 const HEADING: Record<GrantSectionKind, () => string> = {

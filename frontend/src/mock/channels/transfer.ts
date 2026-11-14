@@ -3,7 +3,12 @@
  * file and bringing one back. Both are jobs; `inspect` and `contents` are the
  * cheap reads a dialog runs before either starts.
  */
-import type { ArchiveEntry, ArchiveInfo, ImportFormat } from '@/api/types';
+import type {
+  ArchiveEntry,
+  ArchiveInfo,
+  ExportFormatInfo,
+  ImportFormat,
+} from '@/api/types';
 
 import { jobIdOf, startJob, subjectOf } from '../job';
 import * as entries from '../state/entries';
@@ -70,7 +75,17 @@ const formatOf = (path: string): ImportFormat => {
   return { provider: { id: 'prism', name: 'Prism / MultiMC' } };
 };
 
+const FORMATS: ExportFormatInfo[] = [
+  { format: 'hestia', extension: 'hestia' },
+  {
+    format: { provider: { id: 'mrpack', name: 'Modrinth pack' } },
+    extension: 'mrpack',
+  },
+];
+
 export const channels: ChannelHandlers = {
+  'instance.export.formats': () => FORMATS,
+
   'instance.export.contents': (p) => {
     entries.findInstance(str(p, 'instance'));
     return TREE;
@@ -97,11 +112,13 @@ export const channels: ChannelHandlers = {
 
   'instance.export': (p) => {
     const instance = entries.findInstance(str(p, 'instance'));
-    const format = str(p, 'format', 'hestia');
+    const format = FORMATS.find(
+      (info) => JSON.stringify(info.format) === JSON.stringify(p.format),
+    );
     const destination = str(
       p,
       'destination',
-      `${entries.HOME}/exports/${instance.id}.${format}`,
+      `${entries.HOME}/exports/${instance.id}.${format?.extension ?? 'hestia'}`,
     );
     const excluded = Array.isArray(p.exclude) ? p.exclude.length : 0;
     return startJob({

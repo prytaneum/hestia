@@ -2,7 +2,7 @@ import { CaretRightIcon } from '@phosphor-icons/react';
 import { useQuery } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 
-import type { ArchiveEntry, ExportFormat } from '@/api';
+import type { ArchiveEntry, ExportFormatInfo } from '@/api';
 import { dialog } from '@/api';
 import { AppDialog, DialogFooter } from '@/components/dialog';
 import { Bone } from '@/components/skeleton';
@@ -22,13 +22,15 @@ import { transferMutations, transferQueries } from '@/queries/transfer';
 
 import { buildTree, excludedRoots, selectedBytes, type TreeNode } from '../lib';
 
-const FORMATS: ExportFormat[] = ['hestia', 'mrpack'];
+const formatId = (info: ExportFormatInfo) =>
+  info.format === 'hestia' ? 'hestia' : info.format.provider.id;
 
-const formatOptions = () =>
-  FORMATS.map((value) => ({
-    value,
-    label: m[`domain.export_format.${value}`](),
-  }));
+const formatLabel = (info: ExportFormatInfo) => {
+  const id = formatId(info);
+  if (id === 'hestia') return m['domain.export_format.hestia']();
+  if (id === 'mrpack') return m['domain.export_format.mrpack']();
+  return info.format === 'hestia' ? id : info.format.provider.name;
+};
 
 /**
  * Export one instance to an archive. The tree is what the daemon says the
@@ -51,8 +53,18 @@ export function ExportInstanceDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
-  const [format, setFormat] = useState<ExportFormat>('hestia');
-  const formats = formatOptions();
+  const [formatKey, setFormatKey] = useState('hestia');
+  const available = useQuery({ ...transferQueries.formats(), enabled: open });
+  const formats = useMemo(
+    () =>
+      (available.data ?? []).map((info) => ({
+        value: formatId(info),
+        label: formatLabel(info),
+        info,
+      })),
+    [available.data],
+  );
+  const chosen = formats.find((option) => option.value === formatKey)?.info;
   const [excluded, setExcluded] = useState<Set<string>>(new Set());
   const [expanded, setExpanded] = useState<Set<string>>(new Set(['data']));
 
@@ -93,14 +105,19 @@ export function ExportInstanceDialog({
   };
 
   const start = async () => {
-    const extension = format === 'hestia' ? 'hestia' : 'mrpack';
+    if (!chosen) return;
+    const extension = chosen.extension;
     const destination = await dialog.pickExportPath(
       `${name}.${extension}`,
       extension,
     );
     if (!destination) return;
     onOpenChange(false);
-    run.mutate({ format, destination, exclude: excludedRoots(excluded) });
+    run.mutate({
+      format: chosen.format,
+      destination,
+      exclude: excludedRoots(excluded),
+    });
   };
 
   return (
@@ -110,9 +127,13 @@ export function ExportInstanceDialog({
       size="lg"
       title={m['instance.export.title']({ name })}
       description={
-        format === 'hestia'
+        formatKey === 'hestia'
           ? m['instance.export.hint_hestia']()
-          : m['instance.export.hint_mrpack']()
+          : formatKey === 'mrpack'
+            ? m['instance.export.hint_mrpack']()
+            : m['instance.export.hint_plugin']({
+                name: chosen ? formatLabel(chosen) : formatKey,
+              })
       }
     >
       <div className="flex items-center gap-2">
@@ -121,8 +142,8 @@ export function ExportInstanceDialog({
         </span>
         <Select
           items={formats}
-          value={format}
-          onValueChange={(value) => setFormat(value as ExportFormat)}
+          value={formatKey}
+          onValueChange={(value) => setFormatKey(value as string)}
         >
           <SelectTrigger className="w-44" size="sm">
             <SelectValue />
@@ -182,7 +203,7 @@ export function ExportInstanceDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             {m['app.action.cancel']()}
           </Button>
-          <Button onClick={start} disabled={contents.isPending}>
+          <Button onClick={start} disabled={contents.isPending || !chosen}>
             {m['app.action.export']()}
           </Button>
         </div>
