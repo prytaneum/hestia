@@ -132,7 +132,8 @@ hestia server smp attach         # interactive console: live logs, type to send
                                  #   commands, Esc detaches (alias: console).
                                  #   Tab/Shift-Tab cycle the server's own
                                  #   completions, Ctrl-L clears the view
-hestia server smp command say hi # one-shot console command (alias: cmd)hestia server smp logs -n 50     # captured output (-f streams plainly
+hestia server smp command say hi # one-shot console command (alias: cmd)
+hestia server smp logs -n 50     # captured output (-f streams plainly
                                  #   until Ctrl-C; the server keeps running).
                                  #   -f follows the *server*: it works on a
                                  #   stopped one and rides through a restart
@@ -349,8 +350,8 @@ open the same world). Servers stay single — a world has one writer, so `--sess
 
 ### Content on an instance
 
-Mods, resource packs, shaders, and datapacks install per entry. Every kind takes a project slug/id, a source page URL,
-or a local `--file` — or, with no item on a terminal, opens the **fullscreen install session**: a boxed search bar over
+Mods, resource packs, shaders, and datapacks install per entry, from a content source plugin or a local file. Every kind
+takes a project slug/id, a source page URL, or a local `--file` — or, with no item on a terminal, opens the **fullscreen install session**: a boxed search bar over
 live results with a detail pane, space checks any number of items,
 `v` pins a version, Enter reviews the batch, and one confirm installs them all as a single job (failures report per
 item; the rest proceed):
@@ -364,7 +365,7 @@ hestia instance modded mod add https://modrinth.com/mod/lithium  # a page URL
 hestia instance modded mod add jei -S curseforge     # from another source (a
                                  #   page URL names its own, so -S is for slugs)
 hestia instance modded mod add --file ./my-mod.jar   # import a local file; one
-                                 #   Modrinth or CurseForge published is tracked
+                                 #   a source recognises is tracked
 hestia instance modded mod update my-mod.jar --file ./my-mod-1.1.jar   # a
                                  #   local item takes a new build; enabled,
                                  #   disabled and its worlds carry over
@@ -425,7 +426,7 @@ hestia logs modded -f            # follow its captured output fullscreen (the
 
 Sources are plugins — Modrinth and CurseForge are official plugins — and with none installed there is nothing to
 browse; installs are per-entry (above). Every browse verb takes `-S/--source` and defaults to the first source that can
-serve — CurseForge needs an API key, set with `hestia plugin config curseforge <key> <value>`. `hestia sources` lists
+serve — CurseForge needs an API key, set with `hestia plugin config curseforge api-key` (prompted for, without echo). `hestia sources` lists
 every source with the kinds it catalogues and whether it is ready or needs a setting.
 
 ```bash
@@ -710,7 +711,7 @@ reason as its error. `browse` works offline from the
 last good copies.
 
 Developer mode (`hestia config set developer true`, default off) gates the authoring tools. Off, the verbs below
-(`new`, `pack`, `dev`, `check`, `keygen`, `index`) are hidden from help and refuse with `developer mode is off; enable it
+(`new`, `pack`, `dev`, `check`, `keygen`, `publish`) are hidden from help and refuse with `developer mode is off; enable it
 with: hestia config set developer true`; the daemon also refuses a dev install and the `plugin.log` stream on its own.
 On, `hestia plugin info` adds the grant digest, the component cache directory and the last error's cause chain. The CLI
 reads the setting from the daemon only for `plugin` and help invocations; a daemon that is down reads as off.
@@ -809,6 +810,26 @@ listing them). Built-in verbs always win: a plugin id that is a top-level comman
 built-in verb of that scope, are refused at install.
 
 A command whose output is a plugin UI tree (rather than plain JSON) renders like a page, minus the actions.
+
+### Commands from official plugins
+
+The `players` plugin ([official plugins](plugins/official.md)) is the one official plugin that adds commands. Core has
+no whitelist, operator or ban verbs. With it enabled, a server answers:
+
+```bash
+hestia server smp players list           # who is online, and the whitelist, operator and ban lists (alias: ls)
+hestia server smp players allow steve alex      # add to the whitelist
+hestia server smp players disallow steve        # remove from the whitelist
+hestia server smp players op steve              # make operators
+hestia server smp players deop steve            # take operator status away
+hestia server smp players ban steve             # ban
+hestia server smp players pardon steve          # lift a ban
+hestia server smp players kick steve            # disconnect online players
+```
+
+Every other official plugin contributes a provider (a source, flavor, pack format or Java distribution) or reacts to
+events, so it adds no verb of its own: its providers show up in `hestia sources`, `server flavors`, `instance import`
+and `java install`, and its settings in `hestia plugin config <id>`.
 
 ### Plugin pages
 
