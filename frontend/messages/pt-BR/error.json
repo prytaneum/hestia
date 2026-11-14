@@ -58,7 +58,7 @@
       "io": "Uma operação de arquivo falhou ({operation}): {detail}",
       "java_install_in_progress": "O Java {major} já está sendo instalado.",
       "export_format_unknown": "Nenhum formato de exportação chamado {id} é oferecido.",
-      "java_provider_unknown": "Nenhum provedor de Java chamado {id} está registrado.",
+      "java_provider_unknown": "Nenhum provedor de Java chamado {id} está registrado. Instale um plugin de distribuição de Java.",
       "login_declined": "O login foi recusado.",
       "login_timed_out": "O login expirou — tente novamente.",
       "malformed_request": "Requisição malformada: {detail}",
@@ -124,7 +124,6 @@
     "token": {
       "absolute_path": "o caminho precisa ser absoluto",
       "address": "um endereço de servidor",
-      "adoptium": "Adoptium",
       "already_exists": "já existe algo com esse nome",
       "archive_format": "não é um arquivo .zip ou .tar.gz",
       "array": "uma lista",

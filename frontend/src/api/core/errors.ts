@@ -2,7 +2,7 @@
  * Localizes a daemon error. The structured `ErrorInfo` is rendered
  * **generically**: `error.kind.<kind>` is the message template and the variant's
  * fields are its interpolation params, with token-enum fields (server, memory,
- * adoptium, …) resolved through the shared `TOKEN_TABLES`. A coarse
+ * mojang, …) resolved through the shared `TOKEN_TABLES`. A coarse
  * `error.code.*` message is the fallback, then the raw message.
  *
  * There is deliberately no per-variant `switch`: adding an `ErrorInfo` variant

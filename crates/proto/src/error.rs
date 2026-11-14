@@ -331,7 +331,6 @@ impl fmt::Display for ValueKind {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
 #[serde(rename_all = "snake_case")]
 pub enum Service {
-    Adoptium,
     Mojang,
     Microsoft,
     Xbox,
@@ -344,7 +343,6 @@ pub enum Service {
 impl fmt::Display for Service {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(match self {
-            Service::Adoptium => "Adoptium",
             Service::Mojang => "Mojang",
             Service::Microsoft => "Microsoft",
             Service::Xbox => "Xbox",
@@ -699,7 +697,8 @@ pub enum ErrorInfo {
     JavaInstallInProgress {
         major: i32,
     },
-    /// No Java provider is registered under `id`.
+    /// No Java provider is registered under `id`: no installed Java distribution
+    /// plugin offers it.
     JavaProviderUnknown {
         id: String,
     },
@@ -1121,7 +1120,10 @@ impl fmt::Display for ErrorInfo {
             JavaInstallInProgress { major } => {
                 write!(f, "java {major} is already being installed")
             }
-            JavaProviderUnknown { id } => write!(f, "no java provider '{id}' is registered"),
+            JavaProviderUnknown { id } => write!(
+                f,
+                "no java provider '{id}' is registered; a Java distribution plugin is needed"
+            ),
             ExportFormatUnknown { id } => write!(f, "no export format '{id}' is offered"),
             PluginInstallInProgress { id } => write!(f, "'{id}' is already being installed"),
             SignInRequired => write!(f, "sign in with a Microsoft account first"),

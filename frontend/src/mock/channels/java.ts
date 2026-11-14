@@ -1,5 +1,5 @@
 /**
- * `java.*` — the installed runtimes and the Adoptium releases they come from.
+ * `java.*` — the installed runtimes and the releases a Java distribution plugin offers.
  * An install is a job with its own progress shape (install phases rather than
  * provisioning steps), so it runs the plan directly.
  */

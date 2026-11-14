@@ -58,7 +58,7 @@
       "io": "A file operation failed ({operation}): {detail}",
       "java_install_in_progress": "Java {major} is already being installed.",
       "export_format_unknown": "No export format named {id} is offered.",
-      "java_provider_unknown": "No Java provider named {id} is registered.",
+      "java_provider_unknown": "No Java provider named {id} is registered. Install a Java distribution plugin.",
       "login_declined": "The sign-in was declined.",
       "login_timed_out": "The sign-in timed out — try again.",
       "malformed_request": "Malformed request: {detail}",
@@ -124,7 +124,6 @@
     "token": {
       "absolute_path": "the path must be absolute",
       "address": "a server address",
-      "adoptium": "Adoptium",
       "already_exists": "something with that name already exists",
       "archive_format": "it is not a .zip or .tar.gz archive",
       "array": "a list",

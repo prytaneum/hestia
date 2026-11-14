@@ -27,7 +27,7 @@ pub struct JavaPackage {
 
 #[async_trait]
 pub trait JavaProvider: Send + Sync {
-    /// The id the provider is selected by: bare for a built-in, `<plugin>.<id>` otherwise.
+    /// The id the provider is selected by: bare only for an official plugin's, `<plugin>.<id>` otherwise.
     fn id(&self) -> &str;
 
     /// The feature versions on offer, ascending.

@@ -1,11 +1,12 @@
-//! Host platform mapping (Adoptium's vocabulary) and locating the java binary
+//! Host platform mapping (the vocabulary a Java provider resolves by) and locating the java binary
 //! inside an extracted archive.
 
 use std::path::{Path, PathBuf};
 
 use anyhow::{bail, Result};
 
-/// Adoptium's platform vocabulary: os and architecture.
+/// The platform a Java build is resolved for: os (`windows`, `mac`, `linux`) and
+/// architecture (`x64`, `aarch64`).
 pub struct JavaTarget {
     pub os: String,
     pub arch: String,

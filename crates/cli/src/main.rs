@@ -52,7 +52,7 @@ enum Command {
         #[command(subcommand)]
         cmd: commands::account::AccountCmd,
     },
-    /// Java runtimes (Eclipse Temurin via the Adoptium API)
+    /// Java runtimes (installed from a Java distribution plugin)
     Java {
         #[command(subcommand)]
         cmd: commands::java::JavaCmd,

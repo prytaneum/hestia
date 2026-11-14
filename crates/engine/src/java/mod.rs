@@ -2,7 +2,6 @@
 //! `<dir>/<vendor>-<major>/` beside a `runtime.json` record, and listing scans
 //! that directory — the disk is the registry.
 
-mod adoptium;
 mod platform;
 mod provider;
 
@@ -17,9 +16,12 @@ use crate::download::Downloader;
 use crate::minecraft::materialize;
 use crate::roster::{Live, RegisterError, Roster};
 
-pub use adoptium::ID as DEFAULT_PROVIDER;
 pub use platform::JavaTarget;
 pub use provider::{JavaPackage, JavaProvider};
+
+/// The id the official Adoptium plugin registers under; no distribution is
+/// built in, so this names a provider that exists only while that plugin does.
+pub const DEFAULT_PROVIDER: &str = "adoptium";
 
 const RUNTIME_RECORD: &str = "runtime.json";
 /// An install extracts here and is renamed into place, so a runtime is only ever
@@ -40,10 +42,9 @@ pub struct Java {
 
 impl Java {
     pub fn new(dir: PathBuf) -> Self {
-        let adoptium: Arc<dyn JavaProvider> = Arc::new(adoptium::Adoptium);
         Java {
             dir,
-            providers: Roster::builtin([(adoptium.id().to_string(), adoptium)]),
+            providers: Roster::builtin([]),
         }
     }
 
