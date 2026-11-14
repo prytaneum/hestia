@@ -83,8 +83,9 @@ impl BuildTools {
                 loads: Some(ContentKind::Plugin),
                 requires: Cow::Borrowed(PREREQUISITES),
                 sides: SERVER_ONLY,
-                mrpack_key: None,
-                prism_uid: None,
+                loader: None,
+                compatible: Cow::Borrowed(&[]),
+                interchange: Cow::Borrowed(&[]),
             },
             product: Product::Bukkit,
         }
@@ -99,8 +100,9 @@ impl BuildTools {
                 loads: Some(ContentKind::Plugin),
                 requires: Cow::Borrowed(PREREQUISITES),
                 sides: SERVER_ONLY,
-                mrpack_key: None,
-                prism_uid: None,
+                loader: None,
+                compatible: Cow::Borrowed(&[]),
+                interchange: Cow::Borrowed(&[]),
             },
             product: Product::Spigot,
         }

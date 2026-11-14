@@ -8,4 +8,9 @@ import type { LibrarySpec } from "./LibrarySpec";
  * replaces a vanilla one of the same Maven coordinate, the arguments follow
  * vanilla's, and a non-empty `main_class` replaces vanilla's.
  */
-export type ClientAddition = { loaderVersion?: string, libraries: Array<LibrarySpec>, mainClass: string, jvmArgs: Array<Argument>, gameArgs: Array<Argument>, };
+export type ClientAddition = { loaderVersion?: string, libraries: Array<LibrarySpec>, mainClass: string, jvmArgs: Array<Argument>, gameArgs: Array<Argument>, 
+/**
+ * The Java major the client needs when it is not the vanilla version's;
+ * it must be one the launcher can provide.
+ */
+javaMajor?: number, };

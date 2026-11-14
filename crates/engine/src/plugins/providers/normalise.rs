@@ -77,6 +77,7 @@ impl Normaliser<'_> {
             main_class: addition.main_class,
             jvm_args: self.arguments(addition.jvm_args),
             game_args: self.arguments(addition.game_args),
+            java_major: addition.java_major,
         })
     }
 
@@ -85,6 +86,7 @@ impl Normaliser<'_> {
             loader_version: addition.loader_version,
             jar: addition.jar,
             jvm_args: self.arguments(addition.jvm_args),
+            java_major: addition.java_major,
         }
     }
 

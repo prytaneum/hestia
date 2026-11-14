@@ -21,3 +21,11 @@ args = ["only"]
 [[contributes.providers]]
 kind = "flavor"
 id = "replay"
+
+[[contributes.providers]]
+kind = "flavor"
+id = "bare"
+
+[[contributes.providers]]
+kind = "flavor"
+id = "malformed"

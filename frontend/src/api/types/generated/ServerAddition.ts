@@ -4,7 +4,12 @@ import type { ServerJar } from "./ServerJar";
 
 /**
  * What a flavor adds to the vanilla server of the requested game version. The
- * host takes the Java major from vanilla; `jar` replaces vanilla's server jar
- * and is absent for a flavor that runs it unchanged.
+ * host takes the Java major from vanilla unless `java_major` overrides it; `jar`
+ * replaces vanilla's server jar and is absent for a flavor that runs it unchanged.
  */
-export type ServerAddition = { loaderVersion?: string, jar?: ServerJar, jvmArgs: Array<Argument>, };
+export type ServerAddition = { loaderVersion?: string, jar?: ServerJar, jvmArgs: Array<Argument>, 
+/**
+ * The Java major the server needs when it is not the vanilla version's;
+ * it must be one the launcher can provide.
+ */
+javaMajor?: number, };

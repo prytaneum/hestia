@@ -54,7 +54,7 @@ pub(crate) struct Instance {
 pub(crate) struct Prism;
 
 pub(crate) fn provider() -> Provider {
-    Provider::new("prism", "Prism / MultiMC")
+    Provider::new(crate::minecraft::PRISM, "Prism / MultiMC")
 }
 
 impl Format for Prism {
@@ -246,7 +246,7 @@ pub(crate) fn read(config_text: &str, pack_text: &str, loaders: &Loaders) -> Res
             .to_string();
         if uid == MINECRAFT {
             game_version = version;
-        } else if let Some(flavor) = loaders.flavor_of_prism_uid(uid) {
+        } else if let Some(flavor) = loaders.flavor_of(crate::minecraft::PRISM, uid) {
             loader = Some((flavor.to_string(), version));
         } else if loader.is_none() {
             unclaimed = Some((uid.to_string(), version));

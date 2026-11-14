@@ -37,6 +37,7 @@ use crate::roster::{Live, RegisterError, Roster};
 use profile::{InstanceProfile, ServerProfile};
 
 pub use loaders::Loaders;
+pub(crate) use loaders::PRISM;
 pub use provider::{accepted_kinds, unmet, InstallRequest, Prerequisite, Side};
 pub use provider::{FlavorInfo, FlavorProvider, Loads, ResolveRequest};
 pub use provider::{BOTH_SIDES, CLIENT_ONLY, SERVER_ONLY};
@@ -136,6 +137,43 @@ impl Minecraft {
         self.provider(side, flavor)
             .ok()
             .and_then(|p| p.info().loads)
+    }
+
+    /// The loader names a content version may carry to run on `flavor`, its own
+    /// first. An unregistered flavor — a record written by a build that had one
+    /// we no longer ship — is filtered by its id.
+    pub fn content_loaders(&self, side: Side, flavor: &str) -> Vec<String> {
+        self.provider(side, flavor)
+            .map(|p| p.info().loader_names())
+            .unwrap_or_else(|_| vec![flavor.to_string()])
+    }
+
+    /// The loader name a content platform knows `flavor` by; a name that is no
+    /// flavor's id is already a loader and answers itself.
+    pub fn declared_loader(&self, flavor: &str) -> String {
+        self.flavors
+            .snapshot()
+            .iter()
+            .map(|p| p.info())
+            .find(|info| info.id == flavor)
+            .map(|info| info.loader_name().to_string())
+            .unwrap_or_else(|| flavor.to_string())
+    }
+
+    /// The flavor a content platform's loader name stands for on `side`: the
+    /// flavor of that id when there is one, else one declaring that loader.
+    pub fn flavor_of_loader(&self, side: Side, loader: &str) -> Option<String> {
+        let snapshot = self.flavors.snapshot();
+        let infos: Vec<_> = snapshot
+            .iter()
+            .map(|p| p.info())
+            .filter(|info| info.sides.contains(&side))
+            .collect();
+        infos
+            .iter()
+            .find(|info| info.id == loader)
+            .or_else(|| infos.iter().find(|info| info.loader_name() == loader))
+            .map(|info| info.id.to_string())
     }
 
     pub async fn versions(&self, side: Side, flavor: &str) -> Result<Vec<GameVersion>> {

@@ -20,8 +20,9 @@ const INFO: FlavorInfo = FlavorInfo {
     loads: None,
     requires: Cow::Borrowed(&[]),
     sides: BOTH_SIDES,
-    mrpack_key: None,
-    prism_uid: None,
+    loader: None,
+    compatible: Cow::Borrowed(&[]),
+    interchange: Cow::Borrowed(&[]),
 };
 
 const HOSTS: [&str; 5] = [

@@ -121,7 +121,7 @@ fn index_entry(
 fn dependencies(profile: &InstanceProfile, loaders: &Loaders) -> serde_json::Value {
     let mut deps = serde_json::Map::new();
     deps.insert("minecraft".to_string(), json!(profile.game_version));
-    let key = loaders.mrpack_key(&profile.flavor);
+    let key = loaders.key_of(crate::content::pack::MRPACK, &profile.flavor);
     if let (Some(key), Some(version)) = (key, profile.loader_version.as_ref()) {
         deps.insert(key.to_string(), json!(version));
     }

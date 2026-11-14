@@ -16,12 +16,14 @@ use super::exclude::Rules;
 use super::{loader_of, pool, Source};
 use crate::cancel::Job;
 use crate::content::install;
+use crate::minecraft::Loaders;
 use crate::plugins::PluginPack;
 
 pub(crate) async fn export(
     source: &Source<'_>,
     pack: &PluginPack,
     destination: &Path,
+    loaders: &Loaders,
     job: &Job<'_>,
 ) -> Result<(Written, Vec<WarningInfo>)> {
     let rules = Rules::new(source.entry_dir, source.data_dir, source.exclude);
@@ -44,7 +46,10 @@ pub(crate) async fn export(
         instance: PackInstance {
             name: source.record.name.clone(),
             game_version: profile.game_version.clone(),
-            loader: loader_of(profile),
+            loader: loaders
+                .key_of(pack.id(), &profile.flavor)
+                .map(str::to_string)
+                .unwrap_or_else(|| loader_of(profile)),
             loader_version: profile.loader_version.clone().unwrap_or_default(),
         },
         files,

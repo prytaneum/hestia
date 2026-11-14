@@ -17,12 +17,19 @@ loads?: ContentKind, server: boolean, client: boolean,
  */
 requires: Array<string>, 
 /**
- * The key under which a Modrinth pack (`.mrpack`) names this flavor's
- * loader in its `dependencies`.
+ * The name a content platform gives this flavor's loader (`fabric`,
+ * `paper`), which content queries filter by. Absent, the flavor's id.
  */
-mrpackKey?: string, 
+loader?: string, 
 /**
- * The component uid under which a Prism or MultiMC instance names this
- * flavor's loader.
+ * Further loader names whose content the flavor also runs, such as `spigot`
+ * for a flavor built on it; a version published for any of them fits.
  */
-prismUid?: string, };
+compatible: Array<string>, 
+/**
+ * How each interchange format names this flavor's loader, as
+ * `{ format-id: key }`: `mrpack` for a Modrinth pack's `dependencies` key,
+ * `prism` for a Prism or MultiMC component uid, or the id of a pack format
+ * a plugin contributes. A format reads a pack's loader through its key.
+ */
+interchange: { [key in string]: string }, };

@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 use crate::content::ContentKind;
 use crate::minecraft::Artifact;
 use serde::{Deserialize, Serialize};
@@ -204,12 +206,16 @@ pub struct FlavorDescription {
     /// before it can build or install. The host checks them when it lists the
     /// flavor, so a front-end can say what is missing before a build starts.
     pub requires: Vec<String>,
-    /// The key under which a Modrinth pack (`.mrpack`) names this flavor's
-    /// loader in its `dependencies`.
+    /// The name a content platform gives this flavor's loader (`fabric`,
+    /// `paper`), which content queries filter by. Absent, the flavor's id.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub mrpack_key: Option<String>,
-    /// The component uid under which a Prism or MultiMC instance names this
-    /// flavor's loader.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub prism_uid: Option<String>,
+    pub loader: Option<String>,
+    /// Further loader names whose content the flavor also runs, such as `spigot`
+    /// for a flavor built on it; a version published for any of them fits.
+    pub compatible: Vec<String>,
+    /// How each interchange format names this flavor's loader, as
+    /// `{ format-id: key }`: `mrpack` for a Modrinth pack's `dependencies` key,
+    /// `prism` for a Prism or MultiMC component uid, or the id of a pack format
+    /// a plugin contributes. A format reads a pack's loader through its key.
+    pub interchange: BTreeMap<String, String>,
 }

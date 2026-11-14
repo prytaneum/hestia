@@ -271,7 +271,7 @@ fn find_loader(deps: &Map<String, Value>, loaders: &Loaders) -> Option<(String, 
         .filter(|(key, _)| key.as_str() != MINECRAFT_DEPENDENCY)
         .find_map(|(key, version)| {
             let flavor = loaders
-                .flavor_of_mrpack_key(key)
+                .flavor_of(MRPACK, key)
                 .unwrap_or_else(|| key.strip_suffix("-loader").unwrap_or(key));
             Some((flavor.to_string(), version.as_str()?.to_string()))
         })

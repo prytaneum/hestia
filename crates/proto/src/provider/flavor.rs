@@ -277,11 +277,15 @@ pub struct ClientAddition {
     pub main_class: String,
     pub jvm_args: Vec<Argument>,
     pub game_args: Vec<Argument>,
+    /// The Java major the client needs when it is not the vanilla version's;
+    /// it must be one the launcher can provide.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub java_major: Option<i32>,
 }
 
 /// What a flavor adds to the vanilla server of the requested game version. The
-/// host takes the Java major from vanilla; `jar` replaces vanilla's server jar
-/// and is absent for a flavor that runs it unchanged.
+/// host takes the Java major from vanilla unless `java_major` overrides it; `jar`
+/// replaces vanilla's server jar and is absent for a flavor that runs it unchanged.
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
 #[serde(default, rename_all = "camelCase")]
@@ -291,6 +295,10 @@ pub struct ServerAddition {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub jar: Option<ServerJar>,
     pub jvm_args: Vec<Argument>,
+    /// The Java major the server needs when it is not the vanilla version's;
+    /// it must be one the launcher can provide.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub java_major: Option<i32>,
 }
 
 /// A client profile in full, or built on the vanilla one.
@@ -311,6 +319,23 @@ pub enum ServerResolution {
     OnVanilla(ServerAddition),
 }
 
+/// The game versions a flavor supports: bare ids, which the host types and
+/// orders against the vanilla catalogue (newest first, a version vanilla does
+/// not list is dropped), or complete entries in the order the guest gives them.
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
+#[serde(untagged)]
+pub enum VersionList {
+    Ids(Vec<String>),
+    Listed(Vec<GameVersion>),
+}
+
+impl Default for VersionList {
+    fn default() -> Self {
+        VersionList::Ids(Vec::new())
+    }
+}
+
 /// Describes the flavor. Asked once, when the plugin is enabled.
 pub struct Info;
 impl ProviderOp for Info {
@@ -326,7 +351,7 @@ impl ProviderOp for Versions {
     type Kind = Flavor;
     const OP: &'static str = "versions";
     type Args = Empty;
-    type Reply = Vec<GameVersion>;
+    type Reply = VersionList;
 }
 
 /// The loader builds for a game version, newest first. Optional: unsupported

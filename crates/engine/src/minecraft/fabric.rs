@@ -9,6 +9,7 @@ use async_trait::async_trait;
 use proto::content::ContentKind;
 use proto::minecraft::{Artifact, GameVersion, VersionKind};
 
+use super::loaders::{MRPACK, PRISM};
 use super::meta::{fabric, mojang};
 use super::overlay;
 use super::profile::{InstanceProfile, ServerJar, ServerLaunch, ServerProfile};
@@ -25,8 +26,15 @@ const INFO: FlavorInfo = FlavorInfo {
     loads: Some(ContentKind::Mod),
     requires: Cow::Borrowed(&[]),
     sides: BOTH_SIDES,
-    mrpack_key: Some(Cow::Borrowed("fabric-loader")),
-    prism_uid: Some(Cow::Borrowed("net.fabricmc.fabric-loader")),
+    loader: None,
+    compatible: Cow::Borrowed(&[]),
+    interchange: Cow::Borrowed(&[
+        (Cow::Borrowed(MRPACK), Cow::Borrowed("fabric-loader")),
+        (
+            Cow::Borrowed(PRISM),
+            Cow::Borrowed("net.fabricmc.fabric-loader"),
+        ),
+    ]),
 };
 
 async fn game_versions() -> Result<Vec<GameVersion>> {

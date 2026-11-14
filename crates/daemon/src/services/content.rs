@@ -28,9 +28,12 @@ fn register_sources(on: &mut Channels<'_>) {
         Ok(ctx.runtime.engine().content().sources())
     });
 
-    on.handle::<ContentSearch, _, _>(|q, ctx| async move {
-        ctx.runtime
-            .engine()
+    on.handle::<ContentSearch, _, _>(|mut q, ctx| async move {
+        let engine = ctx.runtime.engine();
+        q.loader = q
+            .loader
+            .map(|loader| engine.minecraft().declared_loader(&loader));
+        engine
             .content()
             .search(&q)
             .await
@@ -63,15 +66,17 @@ fn register_sources(on: &mut Channels<'_>) {
             .map_err(crate::runtime::engine_error)
     });
 
-    on.handle::<ContentVersions, _, _>(|q, ctx| async move {
+    on.handle::<ContentVersions, _, _>(|mut q, ctx| async move {
         if q.project.is_empty() {
             return Err(ErrorInfo::FieldRequired {
                 field: Field::Project,
             });
         }
-        let versions = ctx
-            .runtime
-            .engine()
+        let engine = ctx.runtime.engine();
+        q.loader = q
+            .loader
+            .map(|loader| engine.minecraft().declared_loader(&loader));
+        let versions = engine
             .content()
             .versions(&q)
             .await

@@ -1,60 +1,75 @@
 //! How the interchange formats name a flavor's loader. A Modrinth pack keys its
-//! `dependencies` by a loader key and a Prism instance lists a loader as a
-//! component uid; each registered flavor declares its own, so the formats read
-//! the registry instead of keeping a table that a new flavor would have to edit.
+//! `dependencies` by a loader key, a Prism instance lists a loader as a
+//! component uid, and a plugin's pack format names it its own way; each
+//! registered flavor declares the key per format id, so the formats read the
+//! registry instead of keeping a table that a new flavor would have to edit.
 
 use std::sync::Arc;
 
 use super::provider::FlavorProvider;
 
+pub(crate) use crate::content::pack::MRPACK;
+
+/// The id of the Prism and MultiMC instance format.
+pub(crate) const PRISM: &str = "prism";
+
 #[derive(Debug, Clone)]
 struct Entry {
     flavor: String,
-    mrpack_key: Option<String>,
-    prism_uid: Option<String>,
+    keys: Vec<(String, String)>,
 }
 
-/// The loader names of the flavors registered when it was taken.
+impl Entry {
+    fn key(&self, format: &str) -> Option<&str> {
+        self.keys
+            .iter()
+            .find(|(id, _)| id == format)
+            .map(|(_, key)| key.as_str())
+    }
+}
+
+/// The interchange keys of the flavors registered when it was taken.
 #[derive(Debug, Clone, Default)]
 pub struct Loaders(Vec<Entry>);
 
 impl Loaders {
+    /// A key one flavor already claimed stays with it: the roster lists the
+    /// launcher's own flavors first, so a plugin's flavor cannot take over the
+    /// loader of one it did not replace.
     pub(super) fn of(flavors: &[Arc<dyn FlavorProvider>]) -> Self {
-        Loaders(
-            flavors
+        let mut claimed: Vec<(String, String)> = Vec::new();
+        let mut entries = Vec::new();
+        for info in flavors.iter().map(|provider| provider.info()) {
+            let keys: Vec<(String, String)> = info
+                .interchange
                 .iter()
-                .map(|provider| provider.info())
-                .filter(|info| info.mrpack_key.is_some() || info.prism_uid.is_some())
-                .map(|info| Entry {
+                .map(|(format, key)| (format.to_string(), key.to_string()))
+                .filter(|claim| !claimed.contains(claim))
+                .collect();
+            claimed.extend(keys.iter().cloned());
+            if !keys.is_empty() {
+                entries.push(Entry {
                     flavor: info.id.to_string(),
-                    mrpack_key: info.mrpack_key.as_deref().map(str::to_string),
-                    prism_uid: info.prism_uid.as_deref().map(str::to_string),
-                })
-                .collect(),
-        )
+                    keys,
+                });
+            }
+        }
+        Loaders(entries)
     }
 
-    /// The key a pack names `flavor`'s loader by.
-    pub fn mrpack_key(&self, flavor: &str) -> Option<&str> {
+    /// The key the format `format` names `flavor`'s loader by.
+    pub fn key_of(&self, format: &str, flavor: &str) -> Option<&str> {
         self.0
             .iter()
             .find(|entry| entry.flavor == flavor)
-            .and_then(|entry| entry.mrpack_key.as_deref())
+            .and_then(|entry| entry.key(format))
     }
 
-    /// The flavor a pack dependency `key` names.
-    pub fn flavor_of_mrpack_key(&self, key: &str) -> Option<&str> {
+    /// The flavor the format `format` means by the loader `key`.
+    pub fn flavor_of(&self, format: &str, key: &str) -> Option<&str> {
         self.0
             .iter()
-            .find(|entry| entry.mrpack_key.as_deref() == Some(key))
-            .map(|entry| entry.flavor.as_str())
-    }
-
-    /// The flavor a Prism component `uid` names.
-    pub fn flavor_of_prism_uid(&self, uid: &str) -> Option<&str> {
-        self.0
-            .iter()
-            .find(|entry| entry.prism_uid.as_deref() == Some(uid))
+            .find(|entry| entry.key(format) == Some(key))
             .map(|entry| entry.flavor.as_str())
     }
 }

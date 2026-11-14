@@ -21,6 +21,7 @@ use async_trait::async_trait;
 use proto::content::ContentKind;
 use proto::minecraft::GameVersion;
 
+use super::loaders::{MRPACK, PRISM};
 use super::materialize::{self, OnProgress};
 use super::meta::{mojang, neoforge};
 use super::plan;
@@ -42,8 +43,12 @@ const INFO: FlavorInfo = FlavorInfo {
     loads: Some(ContentKind::Mod),
     requires: Cow::Borrowed(&[]),
     sides: BOTH_SIDES,
-    mrpack_key: Some(Cow::Borrowed("neoforge")),
-    prism_uid: Some(Cow::Borrowed("net.neoforged")),
+    loader: None,
+    compatible: Cow::Borrowed(&[]),
+    interchange: Cow::Borrowed(&[
+        (Cow::Borrowed(MRPACK), Cow::Borrowed("neoforge")),
+        (Cow::Borrowed(PRISM), Cow::Borrowed("net.neoforged")),
+    ]),
 };
 
 /// The game versions NeoForge builds exist for, newest first and typed by

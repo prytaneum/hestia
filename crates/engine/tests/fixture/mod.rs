@@ -45,8 +45,15 @@ fn info(id: &'static str) -> FlavorInfo {
         loads: Some(ContentKind::Mod),
         requires: std::borrow::Cow::Borrowed(&[]),
         sides: &[Side::Server, Side::Client],
-        mrpack_key: (id == "fabric").then(|| "fabric-loader".into()),
-        prism_uid: (id == "fabric").then(|| "net.fabricmc.fabric-loader".into()),
+        loader: None,
+        compatible: std::borrow::Cow::Borrowed(&[]),
+        interchange: match id == "fabric" {
+            true => std::borrow::Cow::Owned(vec![
+                ("mrpack".into(), "fabric-loader".into()),
+                ("prism".into(), "net.fabricmc.fabric-loader".into()),
+            ]),
+            false => std::borrow::Cow::Borrowed(&[]),
+        },
     }
 }
 

@@ -87,8 +87,9 @@ impl PaperProject {
                 loads: Some(ContentKind::Plugin),
                 requires: Cow::Borrowed(&[]),
                 sides: SERVER_ONLY,
-                mrpack_key: None,
-                prism_uid: None,
+                loader: None,
+                compatible: Cow::Borrowed(&[]),
+                interchange: Cow::Borrowed(&[]),
             },
         }
     }
@@ -105,8 +106,9 @@ impl PaperProject {
                 loads: Some(ContentKind::Plugin),
                 requires: Cow::Borrowed(&[]),
                 sides: SERVER_ONLY,
-                mrpack_key: None,
-                prism_uid: None,
+                loader: None,
+                compatible: Cow::Borrowed(&[]),
+                interchange: Cow::Borrowed(&[]),
             },
         }
     }

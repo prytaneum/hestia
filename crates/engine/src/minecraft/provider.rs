@@ -149,11 +149,31 @@ pub struct FlavorInfo {
     /// builds its own artifacts.
     pub requires: Cow<'static, [Prerequisite]>,
     pub sides: &'static [Side],
-    /// The key a Modrinth pack (`.mrpack`) names this flavor's loader by in its
-    /// `dependencies`; none for a flavor with no loader of its own.
-    pub mrpack_key: Option<Cow<'static, str>>,
-    /// The component uid a Prism or MultiMC instance names this flavor's loader by.
-    pub prism_uid: Option<Cow<'static, str>>,
+    /// The name a content platform gives this flavor's loader; none for the
+    /// flavor's own id.
+    pub loader: Option<Cow<'static, str>>,
+    /// Further loader names whose content this flavor also runs.
+    pub compatible: Cow<'static, [Cow<'static, str>]>,
+    /// How each interchange format names this flavor's loader, by format id.
+    pub interchange: Interchange,
+}
+
+pub type Interchange = Cow<'static, [(Cow<'static, str>, Cow<'static, str>)]>;
+
+impl FlavorInfo {
+    /// The loader name content queries filter this flavor by.
+    pub fn loader_name(&self) -> &str {
+        self.loader.as_deref().unwrap_or(&self.id)
+    }
+
+    /// Every loader name a content version may carry and still run here, the
+    /// flavor's own first.
+    pub fn loader_names(&self) -> Vec<String> {
+        std::iter::once(self.loader_name())
+            .chain(self.compatible.iter().map(|name| name.as_ref()))
+            .map(str::to_string)
+            .collect()
+    }
 }
 
 pub const BOTH_SIDES: &[Side] = &[Side::Server, Side::Client];

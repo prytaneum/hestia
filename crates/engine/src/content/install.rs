@@ -317,7 +317,7 @@ pub(crate) fn matches(item: &InstalledContent, reference: &str) -> bool {
 pub(crate) fn pick_version<'a>(
     versions: &'a [ContentVersion],
     game_version: &str,
-    loader: Option<&str>,
+    loaders: &[String],
     pin: &str,
 ) -> Result<&'a ContentVersion> {
     if !pin.is_empty() {
@@ -330,20 +330,23 @@ pub(crate) fn pick_version<'a>(
                 })
             });
     }
-    pick_update(versions, game_version, loader, "")
+    pick_update(versions, game_version, loaders, "")
 }
 
 /// Answers the installed version itself when it is ahead of the pick, so an update never moves back.
 pub(crate) fn pick_update<'a>(
     versions: &'a [ContentVersion],
     game_version: &str,
-    loader: Option<&str>,
+    loaders: &[String],
     installed: &str,
 ) -> Result<&'a ContentVersion> {
-    pick_newest(versions, |v| fits(v, game_version, loader), installed).with_context(|| {
+    pick_newest(versions, |v| fits(v, game_version, loaders), installed).with_context(|| {
         format!(
             "no compatible version for {game_version}{}",
-            loader.map(|l| format!(" ({l})")).unwrap_or_default()
+            match loaders.is_empty() {
+                true => String::new(),
+                false => format!(" ({})", loaders.join(", ")),
+            }
         )
     })
 }
@@ -367,9 +370,11 @@ pub(crate) fn pick_newest<'a>(
     Some(ahead.unwrap_or(newest))
 }
 
-fn fits(version: &ContentVersion, game_version: &str, loader: Option<&str>) -> bool {
+/// Whether the version targets `game_version` and carries any of `loaders`;
+/// no loaders accepts every version.
+fn fits(version: &ContentVersion, game_version: &str, loaders: &[String]) -> bool {
     version.game_versions.iter().any(|g| g == game_version)
-        && loader.is_none_or(|l| version.loaders.iter().any(|x| x == l))
+        && (loaders.is_empty() || loaders.iter().any(|l| version.loaders.contains(l)))
 }
 
 pub(crate) fn primary_file(version: &ContentVersion) -> Result<&ContentFile> {
@@ -477,6 +482,10 @@ mod tests {
         }
     }
 
+    fn fabric() -> [String; 1] {
+        ["fabric".to_string()]
+    }
+
     #[test]
     fn pick_prefers_newest_compatible_release() {
         let versions = vec![
@@ -484,7 +493,7 @@ mod tests {
             version("v2", "2.0", ReleaseChannel::Release, &["1.21.1"]),
             version("v1", "1.0", ReleaseChannel::Release, &["1.20.4"]),
         ];
-        let picked = pick_version(&versions, "1.21.1", Some("fabric"), "").unwrap();
+        let picked = pick_version(&versions, "1.21.1", &fabric(), "").unwrap();
         assert_eq!(picked.id, "v2");
     }
 
@@ -494,7 +503,7 @@ mod tests {
             version("v2", "2.0-beta", ReleaseChannel::Beta, &["1.21.1"]),
             version("v1", "1.0", ReleaseChannel::Release, &["1.20.4"]),
         ];
-        let picked = pick_version(&versions, "1.21.1", Some("fabric"), "").unwrap();
+        let picked = pick_version(&versions, "1.21.1", &fabric(), "").unwrap();
         assert_eq!(picked.id, "v2");
     }
 
@@ -504,9 +513,9 @@ mod tests {
             version("v3", "3.0-beta", ReleaseChannel::Beta, &["1.21.1"]),
             version("v2", "2.0", ReleaseChannel::Release, &["1.21.1"]),
         ];
-        let kept = pick_update(&versions, "1.21.1", Some("fabric"), "v3").unwrap();
+        let kept = pick_update(&versions, "1.21.1", &fabric(), "v3").unwrap();
         assert_eq!(kept.id, "v3");
-        let moved = pick_update(&versions, "1.21.1", Some("fabric"), "v1").unwrap();
+        let moved = pick_update(&versions, "1.21.1", &fabric(), "v1").unwrap();
         assert_eq!(moved.id, "v2");
     }
 
@@ -516,7 +525,7 @@ mod tests {
             version("v3", "3.0", ReleaseChannel::Release, &["1.21.4"]),
             version("v2", "2.0", ReleaseChannel::Release, &["1.21.1"]),
         ];
-        let picked = pick_update(&versions, "1.21.1", Some("fabric"), "v3").unwrap();
+        let picked = pick_update(&versions, "1.21.1", &fabric(), "v3").unwrap();
         assert_eq!(picked.id, "v2");
     }
 
@@ -525,8 +534,8 @@ mod tests {
         let mut other = version("v2", "2.0", ReleaseChannel::Release, &["1.21.1"]);
         other.loaders = vec!["forge".to_string()];
         let versions = vec![other];
-        assert!(pick_version(&versions, "1.21.1", Some("fabric"), "").is_err());
-        assert!(pick_version(&versions, "1.21.1", None, "").is_ok());
+        assert!(pick_version(&versions, "1.21.1", &fabric(), "").is_err());
+        assert!(pick_version(&versions, "1.21.1", &[], "").is_ok());
     }
 
     #[test]
@@ -536,14 +545,14 @@ mod tests {
             version("v1", "1.0", ReleaseChannel::Release, &["1.20.4"]),
         ];
         assert_eq!(
-            pick_version(&versions, "1.21.1", None, "v1").unwrap().id,
+            pick_version(&versions, "1.21.1", &[], "v1").unwrap().id,
             "v1"
         );
         assert_eq!(
-            pick_version(&versions, "1.21.1", None, "2.0").unwrap().id,
+            pick_version(&versions, "1.21.1", &[], "2.0").unwrap().id,
             "v2"
         );
-        assert!(pick_version(&versions, "1.21.1", None, "nope").is_err());
+        assert!(pick_version(&versions, "1.21.1", &[], "nope").is_err());
     }
 
     fn temp_entry(tag: &str) -> (tempfile::TempDir, PathBuf, PathBuf) {

@@ -47,13 +47,15 @@ use hestia::proto::profile::{
 use hestia::proto::provider::flavor::{
     Argument, Build, BuildFetch, BuildOutput, BuildPlan, BuildStep, LineFilter, BuildQuery, BuildSide, ClientAddition,
     ClientResolution, Destination, Info, LibrarySpec, Maven, ResolveClient, ResolveQuery, ResolveServer,
-    RuledArgs, ServerAddition, ServerResolution, Versions,
+    RuledArgs, ServerAddition, ServerResolution, VersionList, Versions,
 };
 use hestia::proto::rules::{OsRule, Rule, RuleAction};
 use hestia::{Error, Plugin, Provide, Provided};
 use std::time::Duration;
 
 const FLAVOR: &str = "replay";
+const BARE: &str = "bare";
+const MALFORMED: &str = "malformed";
 const JAR_SHA1: &str = "32a22d349740b9065493b697ae61279f4f85aea2";
 const BUILT_JAR: &str = "built.jar";
 const BUILT_LIBRARY: &str = "example/built/1.0/built-1.0.jar";
@@ -64,7 +66,7 @@ struct Replay;
 
 fn check(flavor: &str) -> Result<(), Error> {
     match flavor {
-        FLAVOR => Ok(()),
+        FLAVOR | BARE | MALFORMED => Ok(()),
         other => Err(Error::NotFound(format!("unknown flavor `{other}`"))),
     }
 }
@@ -103,25 +105,43 @@ fn checksum(version: &str, sha1: &str) -> Option<Checksum> {
 
 fn info(flavor: &str) -> Result<FlavorDescription, Error> {
     check(flavor)?;
+    let declares = match flavor {
+        BARE => FlavorDescription {
+            loader: Some("bare-loader".into()),
+            compatible: vec!["replay-compat".into()],
+            interchange: [("replay-pack".to_string(), "bare-key".to_string())].into(),
+            ..FlavorDescription::default()
+        },
+        MALFORMED => FlavorDescription {
+            loader: Some("Not A Loader!".into()),
+            ..FlavorDescription::default()
+        },
+        _ => FlavorDescription::default(),
+    };
     Ok(FlavorDescription {
         name: "Replay".into(),
         summary: "Vanilla, re-served by a plugin.".into(),
         loads: None,
         server: true,
         client: true,
-        ..FlavorDescription::default()
+        ..declares
     })
 }
 
-fn versions(flavor: &str) -> Result<Vec<GameVersion>, Error> {
+fn versions(flavor: &str) -> Result<VersionList, Error> {
     check(flavor)?;
-    Ok(["1.21", "foreign", "unsigned", "generated", "sha256", "wrongsum", "onvanilla", "onvanilla-foreign", "onvanilla-maven", "onvanilla-maven-missing", "onvanilla-maven-bad", "onvanilla-rules", "onvanilla-target", "built", "ordered", "expand", "outside", "symlink", "empty", "tree", "badargs", "tree-entry", "live", "plan", "plan-narrate", "plan-steps", "plan-slow", "plan-fetch", "refused-program", "refused-args", "refused-env", "refused-cwd", "refused-creates", "refused-dest", "refused-output", "refused-mount"]
+    if flavor == BARE {
+        return Ok(VersionList::Ids(
+            ["1.20.1", "not-in-vanilla", "1.21"].map(String::from).into(),
+        ));
+    }
+    Ok(VersionList::Listed(["1.21", "foreign", "unsigned", "generated", "sha256", "wrongsum", "onvanilla", "onvanilla-foreign", "onvanilla-maven", "onvanilla-maven-missing", "onvanilla-maven-bad", "onvanilla-rules", "onvanilla-target", "built", "ordered", "expand", "outside", "symlink", "empty", "tree", "badargs", "tree-entry", "live", "plan", "plan-narrate", "plan-steps", "plan-slow", "plan-fetch", "refused-program", "refused-args", "refused-env", "refused-cwd", "refused-creates", "refused-dest", "refused-output", "refused-mount"]
         .into_iter()
         .map(|id| GameVersion {
             id: id.into(),
             ..GameVersion::default()
         })
-        .collect())
+        .collect()))
 }
 
 fn loader_library(version: &str) -> Result<Library, Error> {
@@ -185,6 +205,7 @@ fn addition(version: &str, query: &ResolveQuery) -> Result<ClientAddition, Error
         main_class: "example.loader.Main".into(),
         jvm_args: vec!["-Dloader".into()],
         game_args: vec!["--loader".into()],
+        java_major: None,
     };
     match version {
         "onvanilla-maven" => addition.libraries.push(maven("example:mvn:1.0")?),
@@ -212,6 +233,12 @@ fn addition(version: &str, query: &ResolveQuery) -> Result<ClientAddition, Error
 fn resolve_server(flavor: &str, query: ResolveQuery) -> Result<ServerResolution, Error> {
     check(flavor)?;
     let version = query.version.as_str();
+    if flavor == BARE {
+        return Ok(ServerResolution::OnVanilla(ServerAddition {
+            java_major: Some(if version == "1.21" { 17 } else { 7 }),
+            ..ServerAddition::default()
+        }));
+    }
     if version.starts_with("onvanilla") {
         return Ok(ServerResolution::OnVanilla(ServerAddition {
             loader_version: Some("9.9".into()),
@@ -225,6 +252,7 @@ fn resolve_server(flavor: &str, query: ResolveQuery) -> Result<ServerResolution,
                 gated_args("-Dhere", &query.target.os),
                 gated_args("-Delsewhere", "plan9"),
             ],
+            java_major: None,
         }));
     }
     let jar = match version {

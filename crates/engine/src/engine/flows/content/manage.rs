@@ -12,7 +12,7 @@ use proto::minecraft::ProvisionPhase;
 
 use super::super::batch::gather_ordered;
 use super::add::{failure, file_name, import_file, release_context, release_of};
-use super::entry::{content_loader, EntryContent};
+use super::entry::EntryContent;
 use super::phase_progress;
 use crate::content::pool::Pool;
 use crate::content::{install, record, Identified, LocalFile};
@@ -164,21 +164,22 @@ impl Engine {
         installed: &str,
         pin: &str,
     ) -> Result<ContentVersion> {
-        let loader = content_loader(kind, &ctx.flavor);
+        let loaders = self.content_loaders(kind, ctx);
         let versions = self
             .content
             .versions(&VersionQuery {
                 source: source.to_string(),
                 project: project.to_string(),
-                loader: loader.clone(),
+                loader: match loaders.as_slice() {
+                    [only] => Some(only.clone()),
+                    _ => None,
+                },
                 game_version: Some(ctx.game_version.clone()),
             })
             .await?;
         match pin.is_empty() {
-            true => {
-                install::pick_update(&versions, &ctx.game_version, loader.as_deref(), installed)
-            }
-            false => install::pick_version(&versions, &ctx.game_version, loader.as_deref(), pin),
+            true => install::pick_update(&versions, &ctx.game_version, &loaders, installed),
+            false => install::pick_version(&versions, &ctx.game_version, &loaders, pin),
         }
         .cloned()
     }

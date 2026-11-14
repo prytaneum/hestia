@@ -17,6 +17,7 @@ pub(crate) struct ClientLayer {
     pub main_class: String,
     pub jvm_args: Vec<String>,
     pub game_args: Vec<String>,
+    pub java_major: Option<i32>,
 }
 
 /// What a flavor adds to the server, resolved.
@@ -25,6 +26,7 @@ pub(crate) struct ServerLayer {
     pub loader_version: Option<String>,
     pub jar: Option<ServerJar>,
     pub jvm_args: Vec<String>,
+    pub java_major: Option<i32>,
 }
 
 pub(crate) fn client(base: InstanceProfile, addition: ClientLayer) -> InstanceProfile {
@@ -42,6 +44,7 @@ pub(crate) fn client(base: InstanceProfile, addition: ClientLayer) -> InstancePr
         },
         jvm_args,
         game_args,
+        java_major: addition.java_major.unwrap_or(base.java_major),
         ..base
     }
 }
@@ -51,6 +54,7 @@ pub(crate) fn server(base: ServerProfile, addition: ServerLayer) -> ServerProfil
         loader_version: addition.loader_version,
         jar: addition.jar.unwrap_or(base.jar),
         jvm_args: addition.jvm_args,
+        java_major: addition.java_major.unwrap_or(base.java_major),
         ..base
     }
 }

@@ -8,6 +8,7 @@
 //! which works in an area of its own; [`super::build`] places the outputs.
 
 use std::borrow::Cow;
+use std::collections::HashSet;
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -16,12 +17,12 @@ use anyhow::{Context, Result};
 use async_trait::async_trait;
 use proto::minecraft::{Artifact, GameVersion, ProvisionPhase};
 use proto::plugin::{Manifest, BUILD_MOUNT, VANILLA_MOUNT};
-use proto::profile::ServerProfile;
+use proto::profile::{FlavorDescription, ServerProfile};
 use proto::profile::{InstanceProfile, Library, ServerJar, ServerLaunch};
 use proto::provider::flavor;
 use proto::provider::flavor::{
     self as op, BuildOutput, BuildQuery, ClientResolution, Flavor, GameQuery, ResolveQuery,
-    ServerResolution, Target,
+    ServerResolution, Target, VersionList,
 };
 use proto::provider::ProviderOp;
 use proto::Empty;
@@ -45,6 +46,74 @@ use crate::plugins::imports::CommandRun;
 use crate::plugins::prerequisites;
 use crate::plugins::runtime::{LoadedPlugin, CANCEL_GRACE, COMMAND_TIMEOUT};
 use crate::plugins::vouch::{Policy, Refused};
+
+const MAX_VERSIONS: usize = 4096;
+const MAX_VERSION_ID_CHARS: usize = 64;
+const MAX_NAME_CHARS: usize = 64;
+const MAX_COMPATIBLE: usize = 8;
+const MAX_INTERCHANGE: usize = 16;
+const MAX_INTERCHANGE_KEY_CHARS: usize = 128;
+
+/// A loader name or a format id: lowercase letters, digits and `-_.`, as a
+/// content platform and a plugin id spell them.
+fn is_name(name: &str) -> bool {
+    !name.is_empty()
+        && name.len() <= MAX_NAME_CHARS
+        && name.bytes().all(|b| {
+            b.is_ascii_lowercase() || b.is_ascii_digit() || matches!(b, b'-' | b'_' | b'.')
+        })
+}
+
+fn is_version_id(id: &str) -> bool {
+    !id.is_empty() && id.len() <= MAX_VERSION_ID_CHARS && !id.chars().any(char::is_control)
+}
+
+/// What a flavor declares about its loader, vetted: the content-platform name,
+/// the further loaders it runs, and its key in each interchange format.
+struct Declared {
+    loader: Option<String>,
+    compatible: Vec<String>,
+    interchange: Vec<(String, String)>,
+}
+
+fn declared(description: &FlavorDescription) -> Result<Declared, String> {
+    if let Some(loader) = description.loader.as_deref().filter(|l| !is_name(l)) {
+        return Err(format!("`{loader}` is not a usable loader name"));
+    }
+    if description.compatible.len() > MAX_COMPATIBLE {
+        return Err(format!(
+            "it names more than {MAX_COMPATIBLE} compatible loaders"
+        ));
+    }
+    if let Some(bad) = description.compatible.iter().find(|l| !is_name(l)) {
+        return Err(format!("`{bad}` is not a usable loader name"));
+    }
+    if description.interchange.len() > MAX_INTERCHANGE {
+        return Err(format!(
+            "it names more than {MAX_INTERCHANGE} interchange keys"
+        ));
+    }
+    for (format, key) in &description.interchange {
+        if !is_name(format) {
+            return Err(format!("`{format}` is not a usable format id"));
+        }
+        if key.is_empty()
+            || key.len() > MAX_INTERCHANGE_KEY_CHARS
+            || key.chars().any(char::is_control)
+        {
+            return Err(format!("the `{format}` interchange key is not usable"));
+        }
+    }
+    Ok(Declared {
+        loader: description.loader.clone(),
+        compatible: description.compatible.clone(),
+        interchange: description
+            .interchange
+            .iter()
+            .map(|(format, key)| (format.clone(), key.clone()))
+            .collect(),
+    })
+}
 
 /// Why a guest's profile was refused.
 #[derive(Debug, thiserror::Error)]
@@ -99,6 +168,7 @@ fn vet_server(policy: &Policy, profile: &ServerProfile) -> Result<(), Refusal> {
 }
 
 fn vet_server_addition(policy: &Policy, addition: &ServerLayer) -> Result<(), Refusal> {
+    addition.java_major.map(java).transpose()?;
     match &addition.jar {
         Some(ServerJar::Download(jar)) => artifact(policy, jar),
         Some(ServerJar::Built { filename }) => {
@@ -109,6 +179,7 @@ fn vet_server_addition(policy: &Policy, addition: &ServerLayer) -> Result<(), Re
 }
 
 fn vet_client_addition(policy: &Policy, addition: &ClientLayer) -> Result<(), Refusal> {
+    addition.java_major.map(java).transpose()?;
     addition
         .libraries
         .iter()
@@ -158,6 +229,7 @@ impl PluginFlavorProvider {
         };
         let requires = prerequisites(guest.plugin().grant(), &described.requires)
             .map_err(|detail| guest.failed(detail))?;
+        let declared = declared(&described).map_err(|detail| guest.failed(detail))?;
         let info = FlavorInfo {
             id: Cow::Owned(guest.id().to_string()),
             name: Cow::Owned(described.name),
@@ -165,8 +237,15 @@ impl PluginFlavorProvider {
             loads: described.loads,
             requires: Cow::Owned(requires),
             sides,
-            mrpack_key: described.mrpack_key.map(Cow::Owned),
-            prism_uid: described.prism_uid.map(Cow::Owned),
+            loader: declared.loader.map(Cow::Owned),
+            compatible: Cow::Owned(declared.compatible.into_iter().map(Cow::Owned).collect()),
+            interchange: Cow::Owned(
+                declared
+                    .interchange
+                    .into_iter()
+                    .map(|(format, key)| (Cow::Owned(format), Cow::Owned(key)))
+                    .collect(),
+            ),
         };
         let policy = Arc::new(Policy::new(guest.plugin().grant()));
         Ok(PluginFlavorProvider {
@@ -340,6 +419,15 @@ impl PluginFlavorProvider {
             })
     }
 
+    fn bounded(&self, count: usize) -> Result<()> {
+        match count > MAX_VERSIONS {
+            true => Err(self
+                .guest
+                .failed(format!("it lists more than {MAX_VERSIONS} versions"))),
+            false => Ok(()),
+        }
+    }
+
     fn refused(&self, op: &str, refusal: Refusal) -> anyhow::Error {
         tracing::warn!(flavor = %self.guest.id(), op, %refusal, "flavor profile refused");
         self.guest
@@ -368,7 +456,40 @@ impl FlavorProvider for PluginFlavorProvider {
     }
 
     async fn versions(&self) -> Result<Vec<GameVersion>> {
-        self.guest.ask::<op::Versions>(&Empty {}).await
+        match self.guest.ask::<op::Versions>(&Empty {}).await? {
+            VersionList::Listed(versions) => {
+                self.bounded(versions.len())?;
+                match versions.iter().find(|v| !is_version_id(&v.id)) {
+                    Some(bad) => Err(self
+                        .guest
+                        .failed(format!("`{}` is not a version id", bad.id))),
+                    None => Ok(versions),
+                }
+            }
+            VersionList::Ids(ids) => {
+                self.bounded(ids.len())?;
+                if let Some(bad) = ids.iter().find(|id| !is_version_id(id)) {
+                    return Err(self.guest.failed(format!("`{bad}` is not a version id")));
+                }
+                let wanted: HashSet<&str> = ids.iter().map(String::as_str).collect();
+                let typed: Vec<GameVersion> = self
+                    .vanilla(op::Versions::OP)?
+                    .versions()
+                    .await?
+                    .into_iter()
+                    .filter(|version| wanted.contains(version.id.as_str()))
+                    .collect();
+                let dropped = wanted.len() - typed.len();
+                if dropped > 0 {
+                    tracing::warn!(
+                        flavor = %self.guest.id(),
+                        dropped,
+                        "versions the vanilla catalogue does not list were dropped"
+                    );
+                }
+                Ok(typed)
+            }
+        }
     }
 
     /// A guest without `loader-versions` has no loader builds.

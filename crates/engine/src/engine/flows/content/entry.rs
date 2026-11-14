@@ -84,6 +84,23 @@ impl Engine {
         accepted_kinds(ctx.side, self.minecraft().loads(ctx.side, &ctx.flavor))
     }
 
+    /// The loader names a kind's versions are filtered by: those the entry's
+    /// flavor declares for whatever it loads (a mod on fabric, a plugin on
+    /// paper), and the `datapack` pseudo-loader for datapacks — Modrinth types
+    /// datapacks as mods carrying that loader, so the filter is what selects the
+    /// datapack file over a jar. A flavor says which other loaders it runs;
+    /// Folia, for one, never claims `paper`, because a plugin that never
+    /// claimed Folia support deadlocks on its regionised scheduler.
+    pub(super) fn content_loaders(&self, kind: ContentKind, ctx: &EntryContent) -> Vec<String> {
+        match kind {
+            ContentKind::Mod | ContentKind::Plugin => {
+                self.minecraft().content_loaders(ctx.side, &ctx.flavor)
+            }
+            ContentKind::DataPack => vec!["datapack".to_string()],
+            _ => Vec::new(),
+        }
+    }
+
     /// What a server of this flavor can take. Published on the entry views so a
     /// front-end renders the daemon's answer instead of keeping its own copy of
     /// the flavor table — the same no-drift rule the wire contracts follow.
@@ -93,21 +110,6 @@ impl Engine {
 
     pub fn instance_accepts(&self, flavor: &str) -> Vec<ContentKind> {
         accepted_kinds(Side::Client, self.minecraft().loads(Side::Client, flavor))
-    }
-}
-
-/// The loader filter a kind's version lookup needs: the entry's own loader for
-/// whatever its flavor loads (a mod on fabric, a plugin on paper — Modrinth
-/// names both by the flavor), and the `datapack` pseudo-loader for datapacks —
-/// Modrinth types datapacks as mods carrying that loader, so the filter is what
-/// selects the datapack file over a jar. Folia is filtered as `folia`, not
-/// widened to `paper`: a plugin that never claimed Folia support deadlocks on
-/// its regionised scheduler.
-pub(super) fn content_loader(kind: ContentKind, flavor: &str) -> Option<String> {
-    match kind {
-        ContentKind::Mod | ContentKind::Plugin => Some(flavor.to_string()),
-        ContentKind::DataPack => Some("datapack".to_string()),
-        _ => None,
     }
 }
 

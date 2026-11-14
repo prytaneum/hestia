@@ -294,7 +294,7 @@ pub(crate) async fn export(
     match exporter {
         Exporter::Hestia => hestia::export(source, destination, job).map(|w| (w, Vec::new())),
         Exporter::Mrpack => mrpack::export(source, destination, loaders, job),
-        Exporter::Plugin(pack) => plugin::export(source, pack, destination, job).await,
+        Exporter::Plugin(pack) => plugin::export(source, pack, destination, loaders, job).await,
     }
 }
 

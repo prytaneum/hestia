@@ -138,7 +138,7 @@ async fn the_flavor_is_offered_while_the_plugin_is_enabled_and_gone_after() {
         offered(&engine).expect("registered on enable").name,
         "Replay"
     );
-    assert_eq!(engine.minecraft().unregister("replay-flavor"), 1);
+    assert_eq!(engine.minecraft().unregister("replay-flavor"), 2);
     assert!(offered(&engine).is_none(), "unregistered on disable");
 }
 
@@ -917,4 +917,61 @@ async fn a_plan_naming_anything_undeclared_or_outside_the_area_is_refused_before
     assert!(!area.join("built.jar").exists(), "no step ran");
     assert!(!home.path().join("escaped").exists());
     assert!(engine.servers().list().is_empty());
+}
+
+#[tokio::test]
+async fn a_flavor_declares_its_loader_and_leaves_its_versions_to_the_host() {
+    let (engine, home) = rig(&["127.0.0.1"]).await;
+    let bare = "replay-flavor.bare";
+    let minecraft = engine.minecraft();
+
+    let versions = minecraft
+        .versions(engine::Side::Server, bare)
+        .await
+        .expect("bare ids are typed against the vanilla catalogue");
+    let ids: Vec<_> = versions.iter().map(|v| v.id.as_str()).collect();
+    assert_eq!(
+        ids,
+        ["1.21", "1.20.1"],
+        "ordered as vanilla orders them, the unlisted one dropped"
+    );
+
+    assert_eq!(
+        minecraft.content_loaders(engine::Side::Server, bare),
+        ["bare-loader", "replay-compat"]
+    );
+    assert_eq!(
+        minecraft
+            .flavor_of_loader(engine::Side::Server, "bare-loader")
+            .as_deref(),
+        Some(bare)
+    );
+    assert_eq!(
+        minecraft.loaders().flavor_of("replay-pack", "bare-key"),
+        Some(bare)
+    );
+
+    let profile = minecraft
+        .resolve_server(bare, "1.21", None, home.path(), None)
+        .await
+        .expect("a supported Java major overrides vanilla's");
+    assert_eq!(profile.java_major, 17);
+    minecraft
+        .resolve_server(bare, "1.20.1", None, home.path(), None)
+        .await
+        .expect_err("a Java major the launcher cannot provide is refused");
+}
+
+#[tokio::test]
+async fn a_flavor_declaring_an_unusable_loader_name_is_not_registered() {
+    let (engine, _home) = rig(&["127.0.0.1"]).await;
+
+    let offered = engine.minecraft().flavors(engine::Side::Server);
+
+    assert!(offered
+        .iter()
+        .any(|flavor| flavor.id == "replay-flavor.bare"));
+    assert!(!offered
+        .iter()
+        .any(|flavor| flavor.id == "replay-flavor.malformed"));
 }
