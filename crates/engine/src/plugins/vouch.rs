@@ -8,6 +8,7 @@ use std::sync::OnceLock;
 use std::time::Duration;
 
 use proto::error::ErrorInfo;
+use proto::minecraft::Artifact;
 use proto::plugin::{Grant, Permission, ScopeKind};
 use reqwest::header::LOCATION;
 use reqwest::{Response, Url};
@@ -26,6 +27,8 @@ pub enum Refused {
     Destination(Refusal),
     #[error("`{0}` is not a host the plugin declared as serving unhashed files")]
     Unhashed(String),
+    #[error("`{0}` names no well-formed checksum and is not declared unhashed by a host that may serve one")]
+    Unverified(String),
     #[error("the redirect target is not a valid URL")]
     BadRedirect,
     #[error("too many redirects")]
@@ -72,6 +75,18 @@ impl Policy {
     pub fn vet(&self, url: &str, unhashed: bool) -> Result<(), Refused> {
         let url = Url::parse(url).map_err(|_| Refused::Destination(Refusal::BadUrl))?;
         self.check(&url, unhashed)
+    }
+
+    /// Whether the engine may fetch `artifact`: its URL is on a granted host
+    /// over https, and its body is verified, by a well-formed checksum or by
+    /// being declared unhashed from a host the grant allows that of.
+    pub fn vet_artifact(&self, artifact: &Artifact) -> Result<(), Refused> {
+        self.vet(&artifact.url, false)?;
+        match &artifact.checksum {
+            Some(checksum) if checksum.is_valid() => Ok(()),
+            None if artifact.unhashed => self.vet(&artifact.url, true),
+            _ => Err(Refused::Unverified(artifact.filename.clone())),
+        }
     }
 
     fn check(&self, url: &Url, unhashed: bool) -> Result<(), Refused> {

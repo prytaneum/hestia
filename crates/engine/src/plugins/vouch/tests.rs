@@ -1,4 +1,6 @@
+use proto::download::{Checksum, HashAlgorithm};
 use proto::error::ErrorInfo;
+use proto::minecraft::Artifact;
 use proto::plugin::{Grant, Permission, PermissionScope, ScopeKind};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
@@ -160,4 +162,70 @@ fn unhashed_needs_the_host_in_both_lists() {
     assert!(policy.permits("https://files.example.com/a.jar", true));
     assert!(!policy.permits("https://other.example.com/a.jar", true));
     assert!(policy.permits("https://other.example.com/a.jar", false));
+}
+
+fn artifact(url: &str, checksum: Option<(HashAlgorithm, &str)>) -> Artifact {
+    Artifact {
+        url: url.into(),
+        filename: "a.jar".into(),
+        checksum: checksum.map(|(algorithm, hex)| Checksum {
+            algorithm,
+            hex: hex.into(),
+        }),
+        ..Artifact::default()
+    }
+}
+
+#[test]
+fn an_artifact_needs_a_granted_host_and_a_well_formed_checksum() {
+    use HashAlgorithm::{Sha1, Sha256};
+
+    let policy = Policy::build(&grant(&["cdn.example.com"], &[]), false);
+    let sha1 = "a".repeat(40);
+    let url = "https://cdn.example.com/a.jar";
+
+    assert!(policy
+        .vet_artifact(&artifact(url, Some((Sha1, &sha1))))
+        .is_ok());
+    assert!(policy
+        .vet_artifact(&artifact(url, Some((Sha256, &"b".repeat(64)))))
+        .is_ok());
+    for malformed in [
+        (Sha1, "abc"),
+        (Sha1, &"z".repeat(40)[..]),
+        (Sha256, &sha1[..]),
+    ] {
+        assert!(
+            matches!(
+                policy.vet_artifact(&artifact(url, Some(malformed))),
+                Err(Refused::Unverified(_))
+            ),
+            "{malformed:?}"
+        );
+    }
+    assert!(matches!(
+        policy.vet_artifact(&artifact(url, None)),
+        Err(Refused::Unverified(_))
+    ));
+    assert!(matches!(
+        policy.vet_artifact(&artifact(
+            "https://evil.example.org/a.jar",
+            Some((Sha1, &sha1))
+        )),
+        Err(Refused::Destination(Refusal::HostNotGranted(_)))
+    ));
+}
+
+#[test]
+fn an_unhashed_artifact_needs_a_host_declared_for_it() {
+    let declared = Policy::build(&grant(&["meta.example.com"], &["meta.example.com"]), false);
+    let plain = Policy::build(&grant(&["meta.example.com"], &[]), false);
+    let mut generated = artifact("https://meta.example.com/jar", None);
+    generated.unhashed = true;
+
+    assert!(declared.vet_artifact(&generated).is_ok());
+    assert!(matches!(
+        plain.vet_artifact(&generated),
+        Err(Refused::Unhashed(_))
+    ));
 }

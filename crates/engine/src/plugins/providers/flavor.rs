@@ -43,17 +43,15 @@ use crate::plugins::context::{CallContext, Mount};
 use crate::plugins::imports::CommandRun;
 use crate::plugins::prerequisites;
 use crate::plugins::runtime::{LoadedPlugin, CANCEL_GRACE, COMMAND_TIMEOUT};
-use crate::plugins::vouch::Policy;
+use crate::plugins::vouch::{Policy, Refused};
 
 const PROGRESS_STEPS: u64 = 1000;
 
 /// Why a guest's profile was refused.
 #[derive(Debug, thiserror::Error)]
 enum Refusal {
-    #[error("`{0}` is not downloadable from the plugin's network hosts")]
-    Host(String),
-    #[error("artifact `{0}` has no well-formed sha1 or sha256, and is not declared unhashed by a host that may serve one")]
-    Checksum(String),
+    #[error(transparent)]
+    Download(#[from] Refused),
     #[error("{0}")]
     Path(String),
     #[error("Java {0} is not a major this launcher knows")]
@@ -68,16 +66,7 @@ enum Refusal {
 
 fn artifact(policy: &Policy, artifact: &Artifact) -> Result<(), Refusal> {
     validate_filename(&artifact.filename).map_err(|e| Refusal::Path(e.to_string()))?;
-    if !policy.permits(&artifact.url, false) {
-        return Err(Refusal::Host(artifact.filename.clone()));
-    }
-    let verified = match &artifact.checksum {
-        Some(checksum) => checksum.is_valid(),
-        None => artifact.unhashed && policy.permits(&artifact.url, true),
-    };
-    verified
-        .then_some(())
-        .ok_or_else(|| Refusal::Checksum(artifact.filename.clone()))
+    Ok(policy.vet_artifact(artifact)?)
 }
 
 fn library(policy: &Policy, library: &Library) -> Result<(), Refusal> {

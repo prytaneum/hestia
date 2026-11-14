@@ -10,6 +10,7 @@ use anyhow::Result;
 use async_trait::async_trait;
 use proto::download::{Checksum, HashAlgorithm};
 use proto::java::JavaRelease;
+use proto::minecraft::Artifact;
 use proto::plugin::Manifest;
 use proto::provider::java::{self as op, Distribution, JavaBuild, TargetQuery};
 use proto::Empty;
@@ -18,15 +19,13 @@ use super::{contributed, registered, Guest};
 use crate::engine::Engine;
 use crate::java::{JavaPackage, JavaProvider, JavaTarget};
 use crate::plugins::runtime::LoadedPlugin;
-use crate::plugins::vouch::Policy;
+use crate::plugins::vouch::{Policy, Refused};
 
 /// Why a guest's build was refused.
 #[derive(Debug, PartialEq, Eq, thiserror::Error)]
 enum Refusal {
-    #[error("`{0}` is not downloadable from the plugin's network hosts")]
-    Host(String),
-    #[error("the build has no well-formed sha256")]
-    Checksum,
+    #[error(transparent)]
+    Download(#[from] Refused),
     #[error("`{0}` is not an archive kind Hestia extracts (tar.gz or zip)")]
     Archive(String),
     #[error("the vendor `{0}` is not a plain name")]
@@ -47,21 +46,22 @@ fn vet(policy: &Arc<Policy>, major: i32, build: JavaBuild) -> Result<JavaPackage
     if build.version.trim().is_empty() {
         return Err(Refusal::Version);
     }
-    if !policy.permits(&build.url, false) {
-        return Err(Refusal::Host(build.url));
-    }
     let checksum = Checksum {
         algorithm: HashAlgorithm::Sha256,
         hex: build.sha256,
     };
-    if !checksum.is_valid() {
-        return Err(Refusal::Checksum);
-    }
+    let archive_name = format!("{}-{major}.{}", build.vendor, build.archive);
+    policy.vet_artifact(&Artifact {
+        url: build.url.clone(),
+        filename: archive_name.clone(),
+        checksum: Some(checksum.clone()),
+        ..Artifact::default()
+    })?;
     if !matches!(build.archive.as_str(), "tar.gz" | "zip") {
         return Err(Refusal::Archive(build.archive));
     }
     Ok(JavaPackage {
-        archive_name: format!("{}-{major}.{}", build.vendor, build.archive),
+        archive_name,
         vendor: build.vendor,
         major,
         release_name: build.version,
@@ -185,7 +185,10 @@ mod tests {
             url: "https://evil.example.com/zulu.tar.gz".into(),
             ..build()
         };
-        assert!(matches!(vet(&policy(), 21, off), Err(Refusal::Host(_))));
+        assert!(matches!(
+            vet(&policy(), 21, off),
+            Err(Refusal::Download(Refused::Destination(_)))
+        ));
     }
 
     #[test]
@@ -194,7 +197,10 @@ mod tests {
             url: "http://api.azul.com/zulu.tar.gz".into(),
             ..build()
         };
-        assert!(matches!(vet(&policy(), 21, http), Err(Refusal::Host(_))));
+        assert!(matches!(
+            vet(&policy(), 21, http),
+            Err(Refusal::Download(Refused::Destination(_)))
+        ));
     }
 
     #[test]
@@ -204,7 +210,12 @@ mod tests {
                 sha256: sha.into(),
                 ..build()
             };
-            assert_eq!(vet(&policy(), 21, bad).err(), Some(Refusal::Checksum));
+            assert_eq!(
+                vet(&policy(), 21, bad).err(),
+                Some(Refusal::Download(Refused::Unverified(
+                    "zulu-21.tar.gz".into()
+                )))
+            );
         }
     }
 
