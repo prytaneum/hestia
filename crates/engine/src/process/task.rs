@@ -1,6 +1,7 @@
 //! Running a program to completion under the supervisor — what every
 //! provisioning step that shells out uses, so none of them spawns a bare child.
 
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
@@ -18,9 +19,9 @@ const MAX_DETAIL: usize = 160;
 const NARRATION_WINDOW: usize = 400;
 
 /// What to do with an output line: show it as progress, or keep it in the log.
-pub type Narrator = fn(&str) -> bool;
+pub type Narrator<'a> = &'a (dyn Fn(&str) -> bool + Sync);
 
-pub fn silent(_line: &str) -> bool {
+fn silent(_line: &str) -> bool {
     false
 }
 
@@ -32,9 +33,43 @@ pub struct Task<'a> {
     pub args: Vec<String>,
     pub cwd: PathBuf,
     pub phase: ProvisionPhase,
-    pub narrates: Narrator,
+    pub narrates: Narrator<'a>,
     /// Killed and treated as finished once this elapses.
     pub deadline: Option<Duration>,
+    pub env: BTreeMap<String, String>,
+    /// Start from `env` alone instead of the daemon's environment.
+    pub clear_env: bool,
+    /// Who the process belongs to, such as `plugin:<id>`.
+    pub owner: Option<String>,
+    /// Where this task sits in a sequence, shown as its progress; `(0, 0)` for a
+    /// task on its own.
+    pub position: (u64, u64),
+}
+
+impl<'a> Task<'a> {
+    /// A task that narrates nothing, runs without a time limit in the daemon's
+    /// environment and belongs to no one.
+    pub fn new(
+        id: String,
+        program: &'a Path,
+        args: Vec<String>,
+        cwd: PathBuf,
+        phase: ProvisionPhase,
+    ) -> Self {
+        Task {
+            id,
+            program,
+            args,
+            cwd,
+            phase,
+            narrates: &silent,
+            deadline: None,
+            env: BTreeMap::new(),
+            clear_env: false,
+            owner: None,
+            position: (0, 0),
+        }
+    }
 }
 
 /// How a task ended, for the callers that read a result off disk rather than
@@ -64,9 +99,10 @@ impl ProcessSupervisor {
                 program: task.program.to_string_lossy().into_owned(),
                 args: task.args.clone(),
                 cwd: Some(task.cwd.clone()),
-                env: Default::default(),
+                env: task.env.clone(),
+                clear_env: task.clear_env,
+                owner: task.owner.clone(),
                 log: LogSource::Capture,
-                ..ProcessSpec::default()
             })
             .await
             .map_err(|e| anyhow::anyhow!("cannot run {}: {e:?}", task.program.display()))?;
@@ -106,6 +142,8 @@ impl ProcessSupervisor {
                 if !narration.is_empty() {
                     job.report(&ProvisionProgress {
                         phase: task.phase,
+                        current: task.position.0,
+                        total: task.position.1,
                         detail: narration.clone(),
                         ..ProvisionProgress::default()
                     });

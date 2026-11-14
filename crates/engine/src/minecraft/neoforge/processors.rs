@@ -22,7 +22,7 @@ use std::path::{Path, PathBuf};
 use anyhow::{bail, Context, Result};
 use proto::minecraft::{ProvisionPhase, ProvisionProgress};
 
-use crate::process::{self, ProcessSupervisor, Task};
+use crate::process::{ProcessSupervisor, Task};
 use serde_json::Value;
 
 use super::super::launch::CLASSPATH_SEPARATOR;
@@ -134,15 +134,13 @@ pub async fn run(
         let outcome = ctx
             .processes
             .run(
-                Task {
-                    id: format!("install-neoforge-{}-{index}", side_key(ctx.side)),
-                    program: ctx.java,
-                    args: command,
-                    cwd: ctx.root.to_path_buf(),
-                    phase: ProvisionPhase::Libraries,
-                    narrates: process::silent,
-                    deadline: None,
-                },
+                Task::new(
+                    format!("install-neoforge-{}-{index}", side_key(ctx.side)),
+                    ctx.java,
+                    command,
+                    ctx.root.to_path_buf(),
+                    ProvisionPhase::Libraries,
+                ),
                 on_progress,
             )
             .await

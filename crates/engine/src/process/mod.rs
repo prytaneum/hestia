@@ -123,7 +123,7 @@ enum Watched {
     Adopted { pid: u32, token: u64 },
 }
 
-pub use task::{silent, Outcome, Task};
+pub use task::{Outcome, Task};
 
 /// Notified once when a supervised process terminally exits, with its final info.
 pub type ExitObserver = Arc<dyn Fn(&ProcessInfo) + Send + Sync>;

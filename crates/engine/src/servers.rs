@@ -357,13 +357,14 @@ impl Servers {
         let outcome = processes
             .run(
                 Task {
-                    id: format!("schema-{}", record.id),
-                    program: &plan.program,
-                    args: plan.args.clone(),
-                    cwd: plan.cwd.clone(),
-                    phase: ProvisionPhase::Server,
-                    narrates: crate::process::silent,
                     deadline: Some(GENERATE_TIMEOUT),
+                    ..Task::new(
+                        format!("schema-{}", record.id),
+                        &plan.program,
+                        plan.args.clone(),
+                        plan.cwd.clone(),
+                        ProvisionPhase::Server,
+                    )
                 },
                 job,
             )

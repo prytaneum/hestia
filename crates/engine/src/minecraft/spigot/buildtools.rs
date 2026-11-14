@@ -151,27 +151,28 @@ async fn run(
         .processes
         .run(
             Task {
-                id: build_id(version),
-                program: request.java,
-                args: vec![
-                    "-jar".into(),
-                    tools.to_string_lossy().into_owned(),
-                    "--rev".into(),
-                    version.to_string(),
-                    "--output-dir".into(),
-                    jars.to_string_lossy().into_owned(),
-                    // Both, always: the run costs the same and it leaves the
-                    // other flavor on this version free.
-                    "--compile".into(),
-                    "CRAFTBUKKIT".into(),
-                    "--compile".into(),
-                    "SPIGOT".into(),
-                    "--nogui".into(),
-                ],
-                cwd: work.to_path_buf(),
-                phase: ProvisionPhase::Server,
-                narrates: is_step,
-                deadline: None,
+                narrates: &is_step,
+                ..Task::new(
+                    build_id(version),
+                    request.java,
+                    vec![
+                        "-jar".into(),
+                        tools.to_string_lossy().into_owned(),
+                        "--rev".into(),
+                        version.to_string(),
+                        "--output-dir".into(),
+                        jars.to_string_lossy().into_owned(),
+                        // Both, always: the run costs the same and it leaves the
+                        // other flavor on this version free.
+                        "--compile".into(),
+                        "CRAFTBUKKIT".into(),
+                        "--compile".into(),
+                        "SPIGOT".into(),
+                        "--nogui".into(),
+                    ],
+                    work.to_path_buf(),
+                    ProvisionPhase::Server,
+                )
             },
             on_progress,
         )
