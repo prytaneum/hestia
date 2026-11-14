@@ -17,8 +17,8 @@ for the key of the entry's flavor. The built-in flavors declare through the same
 its compatible names. A source query carries the same list: `SearchQuery.loaders` and `VersionQuery.loaders` name every
 loader a hit may be built for, and a client that sends a flavor id is answered with that flavor's declared loader and
 its compatible names, the flavor's own first. So browsing a Paper server shows what was published for `paper`, `spigot`
-or `bukkit`, the same set an install then picks from. A source that can filter by one loader only (CurseForge) searches
-by the first and lists a project's files unfiltered when there are several, leaving the pick to the host. A pack's
+or `bukkit`, the same set an install then picks from. CurseForge searches by the list, and lists a project's files
+unfiltered when there are several, since that listing filters by one loader only; the pick is the host's. A pack's
 loader resolves to the flavor of that id first, else to the flavor declaring it.
 
 **The built-in flavors declare what they run.** Paper runs Spigot and Bukkit plugins and Spigot runs Bukkit plugins.

@@ -75,6 +75,9 @@ const CLASSES: [(ContentKind, u64); 5] = [
 /// class instead (a datapack, a world) has no entry here.
 const LOADERS: [(&str, u32); 4] = [("forge", 1), ("fabric", 4), ("quilt", 5), ("neoforge", 6)];
 
+/// The most `modLoaderTypes` one search accepts.
+const MAX_LOADER_TYPES: usize = 5;
+
 /// A file's `gameVersions` mixes these with Minecraft versions and side
 /// markers; anything else carrying a dot is taken for a game version.
 const LOADER_NAMES: [&str; 6] = [
@@ -211,8 +214,13 @@ impl ContentProvider for CurseForge {
             params.push(("sortField", field.to_string()));
             params.push(("sortOrder", "desc".to_string()));
         }
-        if let Some(loader) = loader_types(&query.loaders).first() {
-            params.push(("modLoaderType", loader.to_string()));
+        match loader_types(&query.loaders).as_slice() {
+            [] => {}
+            [loader] => params.push(("modLoaderType", loader.to_string())),
+            loaders => params.push((
+                "modLoaderTypes",
+                json!(loaders[..loaders.len().min(MAX_LOADER_TYPES)]).to_string(),
+            )),
         }
         if let Some(game) = non_empty(&query.game_version) {
             params.push(("gameVersion", game.to_string()));
@@ -795,9 +803,9 @@ fn loader_type(loader: &str) -> Option<u32> {
         .map(|(_, id)| *id)
 }
 
-/// The types of the loaders CurseForge models, in the order asked. Its search
-/// and file listings filter by one type, so a search takes the first (the
-/// flavor's own) and a file listing filters only when there is exactly one.
+/// The types of the loaders CurseForge models, in the order asked. A search
+/// takes a list of them; a file listing filters by one type only, so it
+/// filters when there is exactly one.
 fn loader_types(loaders: &[String]) -> Vec<u32> {
     loaders
         .iter()
