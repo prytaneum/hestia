@@ -76,9 +76,9 @@ fn a_daemon_failure_reaches_the_plugin_as_the_case_it_is() {
     ));
     assert_eq!(
         down(ErrorInfo::ConfigKeyUnset {
-            key: "content.curseforge-key".into()
+            key: "update.channel".into()
         }),
-        GuestError::NotConfigured("content.curseforge-key".into())
+        GuestError::NotConfigured("update.channel".into())
     );
     assert_eq!(
         down(ErrorInfo::MissingRequirement {

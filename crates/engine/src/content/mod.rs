@@ -1,18 +1,14 @@
-//! Third-party content provider aggregate: the source registry (Modrinth and
-//! CurseForge behind one trait) and the search/project/versions/modpack entry
+//! Third-party content provider aggregate: the source registry (every source is
+//! a plugin's, behind one trait) and the search/project/versions/modpack entry
 //! points over it. Stateless — every result is fetched upstream — so it needs no
-//! data directory, exactly like the `minecraft` aggregate. The only state is the
-//! per-source configuration `configure()` hands down, since CurseForge serves
-//! nothing without an API key.
+//! data directory, exactly like the `minecraft` aggregate.
 
-pub(crate) mod curseforge;
 pub(crate) mod exclude;
 pub(crate) mod icon;
 pub(crate) mod inspect;
 pub(crate) mod install;
 mod json;
 pub(crate) mod modpack;
-mod modrinth;
 pub(crate) mod pack;
 pub(crate) mod pool;
 pub(crate) mod provider;
@@ -22,16 +18,16 @@ use std::collections::{BTreeSet, HashMap};
 use std::path::Path;
 use std::sync::Arc;
 
-use anyhow::{Context, Result};
+use anyhow::Result;
 use proto::content::{
     ContentFile, ContentInspectResult, ContentKind, ContentMatch, ContentProject, ContentSource,
     ContentVersion, InstalledContent, ModpackFile, ResolvedModpack, ResolvedUrl, SearchQuery,
     SearchResult, VersionQuery, LOCAL_SOURCE,
 };
 
-use crate::config::ContentSettings;
 use crate::plugins::vouch::Policy;
 use crate::roster::{Live, RegisterError, Roster};
+use proto::error::ErrorInfo;
 use provider::ContentProvider;
 pub(crate) use provider::{LocalFile, UrlRef};
 
@@ -137,10 +133,7 @@ pub struct Content {
 
 impl Default for Content {
     fn default() -> Self {
-        Self::with_providers(vec![
-            Box::new(modrinth::Modrinth),
-            Box::new(curseforge::CurseForge::default()),
-        ])
+        Self::with_providers(Vec::new())
     }
 }
 
@@ -193,14 +186,6 @@ impl Content {
             .into_iter()
             .map(str::to_string)
             .collect()
-    }
-
-    /// Hand each source the settings it needs. Called at startup and after
-    /// every `config set`, so a key takes effect on the running daemon.
-    pub fn configure(&self, settings: &ContentSettings) {
-        for provider in self.providers.snapshot() {
-            provider.configure(settings);
-        }
     }
 
     /// A failed source is logged, not returned: a lookup must not stop an import.
@@ -330,7 +315,7 @@ impl Content {
     /// pins, for a version page).
     pub async fn resolve_url(&self, url: &str) -> Result<ResolvedUrl> {
         let (source, reference) = self.parse_url(url).await.ok_or_else(|| {
-            anyhow::Error::from(proto::error::ErrorInfo::UnsupportedContentUrl {
+            anyhow::Error::from(ErrorInfo::UnsupportedContentUrl {
                 url: url.to_string(),
             })
         })?;
@@ -424,17 +409,24 @@ impl Content {
     fn provider(&self, id: &str) -> Result<Arc<dyn ContentProvider>> {
         let providers = self.providers.snapshot();
         if id.is_empty() {
-            return providers
-                .into_iter()
-                .find(|p| p.available())
-                .context("no content source is configured");
+            if let Some(ready) = providers.iter().find(|p| p.available()) {
+                return Ok(ready.clone());
+            }
+            return Err(match providers.first() {
+                Some(waiting) => ErrorInfo::ContentSourceUnavailable {
+                    source: waiting.id().to_string(),
+                    setting: waiting.missing_setting(),
+                },
+                None => ErrorInfo::NoContentSource,
+            }
+            .into());
         }
         let provider = providers
             .into_iter()
             .find(|p| p.id() == id)
-            .with_context(|| format!("unknown content source: {id}"))?;
+            .ok_or_else(|| ErrorInfo::ContentSourceUnknown { id: id.to_string() })?;
         if !provider.available() {
-            return Err(proto::error::ErrorInfo::ContentSourceUnavailable {
+            return Err(ErrorInfo::ContentSourceUnavailable {
                 source: provider.id().to_string(),
                 setting: provider.missing_setting(),
             }

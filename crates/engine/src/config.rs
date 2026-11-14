@@ -25,8 +25,6 @@ pub struct Settings {
     /// JVM defaults applied to any server or instance whose record leaves the
     /// matching per-entry setting unset.
     pub defaults: JvmDefaults,
-    /// Credentials for the content sources that need one.
-    pub content: ContentSettings,
     /// What an instance is allowed to do beyond the safe default.
     pub instance: InstanceSettings,
     /// Corrections applied over a modpack's own declarations.
@@ -168,14 +166,6 @@ pub struct JvmDefaults {
     pub jvm_args: String,
 }
 
-/// Per-source credentials, keyed `content.curseforge-key`. CurseForge is
-/// offered only once a key resolves — this, else the build-time one.
-#[derive(Serialize, Deserialize, Default, Debug, Clone)]
-#[serde(default, rename_all = "camelCase")]
-pub struct ContentSettings {
-    pub curseforge_key: String,
-}
-
 impl Document for Settings {
     const NAME: &'static str = "config.json";
 }
@@ -193,7 +183,6 @@ impl Settings {
         self.defaults.jvm_args = parse_jvm_args(&self.defaults.jvm_args)
             .map_err(invalid("defaults.jvm-args"))?
             .join(" ");
-        self.content.curseforge_key = self.content.curseforge_key.trim().to_string();
         self.java.provider = self.java.provider.trim().to_string();
         if self.java.provider.is_empty() {
             self.java.provider = crate::java::DEFAULT_PROVIDER.to_string();

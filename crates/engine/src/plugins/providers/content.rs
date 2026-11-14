@@ -144,7 +144,7 @@ impl ContentProvider for PluginContentProvider {
         let key = self.info.requires_setting.as_ref()?;
         let plugin = self.guest.plugin();
         (!plugin.is_disabled() && !plugin.settings().is_filled(key)).then(|| RequiredSetting {
-            plugin: Some(plugin.id().to_string()),
+            plugin: plugin.id().to_string(),
             key: key.clone(),
         })
     }

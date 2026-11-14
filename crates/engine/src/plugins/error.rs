@@ -365,6 +365,8 @@ impl From<&ErrorInfo> for GuestError {
             | PluginUiInvalid { .. }
             | PluginVetoed { .. }
             | StopTimedOut { .. }
+            | NoContentSource
+            | ContentSourceUnknown { .. }
             | ContentSourceUnavailable { .. }
             | ContentDownloadBlocked { .. }
             | Io { .. }

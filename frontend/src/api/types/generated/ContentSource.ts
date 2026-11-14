@@ -3,7 +3,7 @@ import type { ContentKind } from "./ContentKind";
 import type { RequiredSetting } from "./RequiredSetting";
 
 /**
- * A source platform (modrinth, curseforge) — the first selector level. A
+ * A source platform a plugin provides — the first selector level. A
  * source that is registered but cannot serve yet is listed too, with the
  * setting it waits on in `requires_setting`; a front-end offers the others, and
  * `kinds` is what this one catalogues, so it is offered for those kinds alone.

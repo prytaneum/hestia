@@ -223,7 +223,6 @@ impl Engine {
 
     fn apply_settings(&self) {
         let settings = self.config.settings();
-        self.content.configure(&settings.content);
         crate::net::network().set_offline_mode(settings.network.offline);
     }
 

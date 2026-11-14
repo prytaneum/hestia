@@ -505,7 +505,7 @@ mod tests {
         for key in [
             "home",
             "developer",
-            "content.curseforge-key",
+            "update.channel",
             "content",
             "defaults.jvm-args",
             "defaults.jvmArgs",

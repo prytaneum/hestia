@@ -20,7 +20,6 @@ fn reserved_and_sensitive_keys_stay_closed() {
         "autostart",
         "developer",
         "defaults.jvm-args",
-        "content.curseforge-key",
         "update.channel",
         "network.offline",
         "java.provider",
@@ -67,7 +66,7 @@ fn a_parent_is_writable_only_when_every_key_under_it_is() {
 fn a_plugin_sees_only_readable_keys() {
     let everything = json!({
         "defaults": { "memory": "2G", "jvm-args": "-javaagent:x.jar" },
-        "content": { "curseforge-key": "secret" },
+        "network": { "offline": true },
         "update": { "channel": "stable" },
         "discord": { "enabled": true },
         "home": "/data",
@@ -88,9 +87,6 @@ fn a_plugin_sees_only_readable_keys() {
         Some(json!("2G"))
     );
     assert_eq!(plugin_view("defaults.jvm-args", json!("-x")), None);
-    assert_eq!(
-        plugin_view("content", json!({ "curseforgeKey": "s" })),
-        None
-    );
+    assert_eq!(plugin_view("network", json!({ "offline": true })), None);
     assert_eq!(plugin_view("", json!({ "home": "/data" })), None);
 }

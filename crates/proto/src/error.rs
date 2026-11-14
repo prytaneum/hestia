@@ -791,6 +791,13 @@ pub enum ErrorInfo {
         actual: ContentKind,
         expected: ContentKind,
     },
+    /// No content source is registered, so a request that names none has none
+    /// to default to.
+    NoContentSource,
+    /// No content source is registered under `id`.
+    ContentSourceUnknown {
+        id: String,
+    },
     /// A registered source that cannot serve requests as configured. `setting`
     /// names the one it waits on, so a front-end can point at where to set it.
     ContentSourceUnavailable {
@@ -1178,20 +1185,16 @@ impl fmt::Display for ErrorInfo {
                 actual,
                 expected,
             } => write!(f, "'{title}' is {actual} content, not {expected}"),
+            NoContentSource => f.write_str(
+                "no content source is installed — install a content source plugin to browse content",
+            ),
+            ContentSourceUnknown { id } => write!(f, "no content source '{id}' is installed"),
             ContentSourceUnavailable { source, setting } => match setting {
                 None => write!(f, "the {source} content source is not configured"),
-                Some(RequiredSetting {
-                    plugin: Some(plugin),
-                    key,
-                }) => write!(
+                Some(RequiredSetting { plugin, key }) => write!(
                     f,
                     "the {source} content source needs the {key} setting of the {plugin} plugin — \
                      set it with `hestia plugin config {plugin} {key} <value>`"
-                ),
-                Some(RequiredSetting { plugin: None, key }) => write!(
-                    f,
-                    "the {source} content source needs the {key} setting — \
-                     set it with `hestia config set {key} <value>`"
                 ),
             },
             ContentDownloadBlocked { title, source } => write!(

@@ -48,7 +48,9 @@ pub async fn run_sources() -> Result<()> {
     let client = connect().await?;
     let sources = client.content().sources().await?;
     if sources.is_empty() {
-        return ui::show(View::note("no content source is configured"));
+        return ui::show(View::note(
+            "no content source is installed — install a content source plugin",
+        ));
     }
     let rows = sources
         .into_iter()
@@ -63,12 +65,8 @@ pub async fn run_sources() -> Result<()> {
                     .join(", "),
                 match s.requires_setting {
                     None => "ready".to_string(),
-                    Some(RequiredSetting {
-                        plugin: Some(plugin),
-                        key,
-                    }) => format!("needs plugin setting {key} of {plugin}"),
-                    Some(RequiredSetting { plugin: None, key }) => {
-                        format!("needs config {key}")
+                    Some(RequiredSetting { plugin, key }) => {
+                        format!("needs plugin setting {key} of {plugin}")
                     }
                 },
             ]

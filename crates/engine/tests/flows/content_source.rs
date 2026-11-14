@@ -198,6 +198,27 @@ fn listed(engine: &engine::Engine) -> Option<proto::content::ContentSource> {
 }
 
 #[tokio::test]
+async fn with_no_source_installed_a_request_fails_typed() {
+    let content = engine::Content::new();
+    assert!(content.sources().is_empty());
+
+    let query = proto::content::SearchQuery::default();
+    let default = content.search(&query).await.expect_err("no default");
+    assert!(matches!(
+        engine::error_info(default),
+        ErrorInfo::NoContentSource
+    ));
+    let named = content
+        .project("modrinth", "sodium", None)
+        .await
+        .expect_err("not installed");
+    assert!(matches!(
+        engine::error_info(named),
+        ErrorInfo::ContentSourceUnknown { id } if id == "modrinth"
+    ));
+}
+
+#[tokio::test]
 async fn a_source_waiting_on_a_setting_says_which_until_it_is_set() {
     let (engine, _id, home) = rig_requiring(&["127.0.0.1"], Some("api-key")).await;
 
@@ -205,7 +226,7 @@ async fn a_source_waiting_on_a_setting_says_which_until_it_is_set() {
     assert_eq!(
         waiting.requires_setting,
         Some(RequiredSetting {
-            plugin: Some("static-index".into()),
+            plugin: "static-index".into(),
             key: "api-key".into(),
         })
     );
@@ -218,16 +239,6 @@ async fn a_source_waiting_on_a_setting_says_which_until_it_is_set() {
         engine::error_info(refused),
         ErrorInfo::ContentSourceUnavailable { source, setting }
             if source == SOURCE && setting == waiting.requires_setting
-    ));
-
-    let builtin = engine::Content::new()
-        .project("curseforge", "jei", None)
-        .await
-        .expect_err("a built-in source without its key refuses calls");
-    assert!(matches!(
-        engine::error_info(builtin),
-        ErrorInfo::ContentSourceUnavailable { setting: Some(RequiredSetting { plugin: None, key }), .. }
-            if key == "content.curseforge-key"
     ));
 
     let settings = PluginSettings::new(home.path().join(SETTINGS_FILE), declared());

@@ -1,7 +1,6 @@
 //! The content-provider seam. A source platform implements the trait — listing,
 //! searching, and resolving projects and their versions — and the `Content`
-//! aggregate holds a boxed registry of each. Adding a platform is a new impl plus
-//! one line in `Content::new`.
+//! aggregate holds a registry of each. A platform is a plugin's content source.
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -17,7 +16,6 @@ use proto::content::{
 use serde_json::Value;
 
 use super::install;
-use crate::config::ContentSettings;
 use crate::plugins::vouch::Policy;
 
 /// A project reference recognised in a platform's own site URL, optionally
@@ -50,7 +48,7 @@ pub trait ContentProvider: Send + Sync {
     fn name(&self) -> &str;
     /// What this platform catalogues; a front-end offers it for those alone.
     fn kinds(&self) -> Vec<ContentKind>;
-    /// Whether it can serve as configured — an unset API key, today.
+    /// Whether it can serve as configured — a required plugin setting is set.
     fn available(&self) -> bool {
         true
     }
@@ -59,9 +57,6 @@ pub trait ContentProvider: Send + Sync {
     fn missing_setting(&self) -> Option<RequiredSetting> {
         None
     }
-    /// Called at startup and after every `config set`, so a key takes effect on
-    /// the running daemon.
-    fn configure(&self, _settings: &ContentSettings) {}
     /// Recognise a project/version page URL on this platform's site.
     async fn parse_url(&self, url: &str) -> Option<UrlRef>;
     /// Recognise the project and version behind the URL of a file this

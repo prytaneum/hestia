@@ -69,7 +69,7 @@ pub enum ReleaseChannel {
     Alpha,
 }
 
-/// A source platform (modrinth, curseforge) — the first selector level. A
+/// A source platform a plugin provides — the first selector level. A
 /// source that is registered but cannot serve yet is listed too, with the
 /// setting it waits on in `requires_setting`; a front-end offers the others, and
 /// `kinds` is what this one catalogues, so it is offered for those kinds alone.
@@ -86,14 +86,12 @@ pub struct ContentSource {
     pub requires_setting: Option<RequiredSetting>,
 }
 
-/// A setting a source cannot serve without. `plugin` names the plugin whose
-/// setting it is; absent, it is a key of the launcher's own config.
+/// A setting a source cannot serve without: `key` of the plugin `plugin`.
 #[derive(Serialize, Deserialize, Default, Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
 #[serde(default, rename_all = "camelCase")]
 pub struct RequiredSetting {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub plugin: Option<String>,
+    pub plugin: String,
     pub key: String,
 }
 
