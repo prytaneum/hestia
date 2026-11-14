@@ -79,6 +79,8 @@ const DENIED: &[&str] = &[
     "entry.icon.set",
     "instance.import.inspect",
     "minecraft.ping",
+    // The daemon pid, which a plugin is never handed
+    "health.ping",
     "cache.info",
     "cache.list",
     "cache.clear",
@@ -90,10 +92,8 @@ const DENIED: &[&str] = &[
 const AMBIENT: &[&str] = &[
     // Name, version, id, vendor and release channel of this build
     "app.info",
-    // Operating system, architecture, path separator, daemon pid and installed memory
+    // Operating system, architecture, path separator and installed memory
     "host.info",
-    // Liveness and the daemon pid
-    "health.ping",
     // Whether upstream is reachable, and since when
     "net.status",
 ];
@@ -217,12 +217,10 @@ fn the_ambient_channels_are_exactly_the_pinned_list() {
     }
 
     use proto::app::AppInfo;
-    use proto::health::Ping;
     use proto::host::HostInfo;
     use proto::net::NetStatus;
     let marked = [
         (AppInfo::CHANNEL, AppInfo::AMBIENT, AppInfo::PLUGIN),
-        (Ping::CHANNEL, Ping::AMBIENT, Ping::PLUGIN),
         (HostInfo::CHANNEL, HostInfo::AMBIENT, HostInfo::PLUGIN),
         (NetStatus::CHANNEL, NetStatus::AMBIENT, NetStatus::PLUGIN),
     ];
@@ -246,12 +244,7 @@ fn an_ambient_channel_is_never_part_of_a_grant() {
     for permission in Permission::ALL {
         assert_ne!(permission.to_string(), "ambient");
     }
-    let nothing = Grant::default();
-    assert!(nothing.permissions.is_empty());
-    assert_eq!(
-        nothing.approval_digest(&Default::default()),
-        Grant::default().approval_digest(&Default::default())
-    );
+    assert!(Grant::default().permissions.is_empty());
 }
 
 #[test]

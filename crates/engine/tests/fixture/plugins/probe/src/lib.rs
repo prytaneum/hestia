@@ -92,7 +92,7 @@ impl Plugin for Probe {
             }
             Some("host-info") => {
                 let host = hestia::host::info()?;
-                if host.os == "testos" && host.pid == 7 {
+                if host.os == "testos" {
                     Ok(())
                 } else {
                     Err(Error::Invalid(format!("unexpected facts: {host:?}")))

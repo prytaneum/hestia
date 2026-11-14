@@ -8,7 +8,6 @@ export const channels: ChannelHandlers = {
     totalMemoryBytes: 16 * 1024 ** 3,
     os: 'linux',
     arch: 'x86_64',
-    pid: 4242,
     pathSeparator: ':',
   }),
 };

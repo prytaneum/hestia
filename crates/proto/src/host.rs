@@ -18,8 +18,6 @@ pub struct HostInfoResult {
     pub os: String,
     /// `x86`, `x86_64` or `arm64`: the vocabulary of a rule's `os.arch`.
     pub arch: String,
-    /// The daemon's process id.
-    pub pid: u32,
     /// What joins the entries of a classpath or `PATH`: `:` or `;`.
     pub path_separator: String,
 }

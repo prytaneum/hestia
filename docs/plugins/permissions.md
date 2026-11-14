@@ -6,7 +6,7 @@ asks for more (a permission, or one more entry in a scope) asks again
 ([0117](../decisions/0117-a-grant-is-permission-to-scope.md)). A daemon channel a
 plugin may call names the permission it needs on its contract; a channel that names none is closed to plugins
 ([0092](../decisions/0092-a-contract-names-the-permission-a-plugin-needs.md)), except the few **ambient** channels that
-hand out only harmless facts (`app.info`, `host.info`, `health.ping`, `net.status`). Those need no permission, are never
+hand out only harmless facts (`app.info`, `host.info`, `net.status`). Those need no permission, are never
 listed in a grant, and so never appear in an approval prompt
 ([0126](../decisions/0126-an-ambient-channel-needs-no-permission.md)).
 

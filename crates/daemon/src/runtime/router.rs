@@ -326,7 +326,7 @@ mod tests {
     #[test]
     fn an_ambient_channel_is_open_to_plugins_without_a_permission() {
         let router = crate::services::make_router();
-        for channel in ["app.info", "health.ping", "host.info", "net.status"] {
+        for channel in ["app.info", "host.info", "net.status"] {
             assert!(router.plugin_ambient(channel), "{channel}");
             assert!(router.plugin_access(channel).is_none(), "{channel}");
         }

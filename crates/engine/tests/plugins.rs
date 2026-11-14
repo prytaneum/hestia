@@ -69,9 +69,7 @@ impl HostCalls for ReadChannels {
     ) -> Result<Value, ErrorInfo> {
         match channel {
             "instance.list" => Err(ErrorInfo::Offline { service: None }),
-            "host.info" => {
-                Ok(json!({ "os": "testos", "arch": "x86_64", "pid": 7, "pathSeparator": ":" }))
-            }
+            "host.info" => Ok(json!({ "os": "testos", "arch": "x86_64", "pathSeparator": ":" })),
             _ => Ok(json!([])),
         }
     }

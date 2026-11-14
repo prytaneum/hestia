@@ -13,7 +13,6 @@ pub struct PingResult {
 pub struct Ping;
 impl Contract for Ping {
     const CHANNEL: &'static str = "health.ping";
-    const AMBIENT: bool = true;
     type Params = Empty;
     type Result = PingResult;
 }

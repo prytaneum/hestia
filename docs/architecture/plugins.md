@@ -129,7 +129,7 @@ and an update that widens it asks again. The tiers and the full table are in
   fails a contract that is neither classified nor on its denied list
   ([0092](../decisions/0092-a-contract-names-the-permission-a-plugin-needs.md)).
 - **An ambient contract names none.** `Contract::AMBIENT` marks a channel whose whole
-  result is a harmless fact (`app.info`, `host.info`, `health.ping`, `net.status`).
+  result is a harmless fact (`app.info`, `host.info`, `net.status`).
   Any plugin may call it: the router lists it apart from the permissioned channels,
   `HostCalls::ambient` lets the gate forward it, and it is no `Permission`, so it
   is in no grant, no digest and no approval prompt. The `permission.rs` test still

@@ -18,20 +18,19 @@ handler registers.
 call; a job channel is never ambient, so `host.run-job` still refuses it.
 
 **What qualifies.** The channel's *whole* result is harmless facts about the app or the machine: nothing under the
-user's home, no account identity, no entry, no config value, no token, and no path. Four channels:
+user's home, no account identity, no entry, no config value, no token, and no path. Three channels:
 
 | Channel | Why it is harmless |
 |---|---|
 | `app.info` | name, version, id, vendor and release channel of this build |
-| `host.info` | operating system and architecture (the vocabulary a flavor's `Target` already carries), classpath separator, the daemon's pid and installed memory |
-| `health.ping` | liveness and the daemon's pid |
+| `host.info` | operating system and architecture (the vocabulary a flavor's `Target` already carries), classpath separator and installed memory |
 | `net.status` | whether upstream is reachable and since when |
 
-Left out: `daemon.status` (the data home and log paths), `plugin.*`, `account.*`, `cache.info` and every list of entries.
+Left out: `health.ping`, which answers the daemon's pid and is denied; no plugin is handed a pid. Also `daemon.status` (the data home and log paths), `plugin.*`, `account.*`, `cache.info` and every list of entries.
 The `net.state` topic stays behind `network:connect`: a topic is admitted through `Permission`, and the polled
 `net.status` carries the same readout.
 
-**`host.info` grows.** It answers `os`, `arch`, `pid` and `pathSeparator` beside `totalMemoryBytes`, filled from the same
+**`host.info` grows.** It answers `os`, `arch` and `pathSeparator` beside `totalMemoryBytes`, filled from the same
 host facts a flavor query carries so the two cannot disagree. `pathSeparator` is what joins a classpath or `PATH`
 (`:` or `;`), the meaning it has in `Target`; a file separator follows from `os`. The SDK wraps it as `hestia::host::info()`.
 

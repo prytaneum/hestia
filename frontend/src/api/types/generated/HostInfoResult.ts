@@ -15,10 +15,6 @@ os: string,
  */
 arch: string, 
 /**
- * The daemon's process id.
- */
-pid: number, 
-/**
  * What joins the entries of a classpath or `PATH`: `:` or `;`.
  */
 pathSeparator: string, };

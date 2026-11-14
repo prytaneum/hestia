@@ -144,11 +144,6 @@
       "permission": "entry:read",
       "result": "Array<GameVersion>"
     },
-    "health.ping": {
-      "params": "Empty",
-      "permission": "ambient",
-      "result": "PingResult"
-    },
     "host.info": {
       "params": "Empty",
       "permission": "ambient",
@@ -698,7 +693,7 @@
     "GameQuery": "type GameQuery = { game: string, target: Target, };",
     "GameVersion": "type GameVersion = { id: string, kind: VersionKind, stable: boolean, };",
     "HashAlgorithm": "type HashAlgorithm = \"sha1\" | \"sha256\" | \"sha512\";",
-    "HostInfoResult": "type HostInfoResult = { totalMemoryBytes?: bigint, os: string, arch: string, pid: number, pathSeparator: string, };",
+    "HostInfoResult": "type HostInfoResult = { totalMemoryBytes?: bigint, os: string, arch: string, pathSeparator: string, };",
     "IconBackground": "type IconBackground = { \"type\": \"color\", value: string, } | { \"type\": \"linear-top-down-gradient\", topColor: string, bottomColor: string, };",
     "IconGenerator": "type IconGenerator = { background: IconBackground, symbol: string, };",
     "IdQuery": "type IdQuery = { ids: Array<string>, };",
@@ -775,7 +770,6 @@
     "PackPolicy": "type PackPolicy = \"move\" | \"keep\";",
     "PackRead": "type PackRead = { pack: ResolvedModpack, resolve?: ManifestDelegate, overrides: OverrideTrees, };",
     "PackWritten": "type PackWritten = { members: Array<PackMember>, copies: Array<PackCopy>, warnings: Array<string>, };",
-    "PingResult": "type PingResult = { status: string, pid: number, };",
     "PlayerEntry": "type PlayerEntry = { name: string, uuid: string, reason?: string, };",
     "PlayerList": "type PlayerList = \"whitelist\" | \"ops\" | \"banned\";",
     "PoolItem": "type PoolItem = { path: string, referenceable: boolean, item: InstalledContent, };",
