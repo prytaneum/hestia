@@ -13,13 +13,13 @@
 use std::path::Path;
 
 use anyhow::{Context, Result};
-use proto::content::{ContentKind, InstalledContent};
+use proto::content::InstalledContent;
 use proto::warning::WarningInfo;
 use serde_json::json;
 
 use super::archive::{self, Member, Writer, Written};
 use super::exclude::Rules;
-use super::Source;
+use super::{pool, Source};
 use crate::cancel::Job;
 use crate::checksum;
 use crate::content::install;
@@ -67,36 +67,19 @@ pub(crate) fn export(
 }
 
 /// Split the content pool into what the index can reference and what has to
-/// travel inside the archive. A pool item the caller excluded is in neither:
-/// an exclusion names an entry-relative path, and it has to mean the same
-/// thing whichever format is being written.
+/// travel inside the archive.
 fn partition_pool(
     entry_dir: &Path,
     rules: &Rules,
 ) -> Result<(Vec<serde_json::Value>, Vec<Member>)> {
     let mut files = Vec::new();
     let mut embedded = Vec::new();
-    for item in &install::load(entry_dir) {
-        // A datapack lives inside a world, not in a load directory the pack
-        // format can name; it travels with `saves/` in the overrides instead.
-        if item.kind == ContentKind::DataPack {
-            continue;
-        }
-        let Ok(managed) = install::managed_path(entry_dir, item) else {
-            continue;
-        };
-        if !managed.is_file() {
-            continue;
-        }
-        let path = format!("{}/{}", install::kind_dir(item.kind)?, item.filename);
-        if !rules.keeps(&path) {
-            continue;
-        }
-        match index_entry(item, &managed, &path)? {
+    for pooled in pool::exported(entry_dir, rules)? {
+        match index_entry(&pooled.item, &pooled.managed, &pooled.path)? {
             Some(entry) => files.push(entry),
             None => embedded.push(Member {
-                name: format!("overrides/{path}"),
-                source: managed,
+                name: format!("overrides/{}", pooled.path),
+                source: pooled.managed,
             }),
         }
     }
