@@ -216,7 +216,18 @@ async fn a_source_waiting_on_a_setting_says_which_until_it_is_set() {
         .expect_err("an unconfigured source refuses calls");
     assert!(matches!(
         engine::error_info(refused),
-        ErrorInfo::ContentSourceUnavailable { .. }
+        ErrorInfo::ContentSourceUnavailable { source, setting }
+            if source == SOURCE && setting == waiting.requires_setting
+    ));
+
+    let builtin = engine::Content::new()
+        .project("curseforge", "jei", None)
+        .await
+        .expect_err("a built-in source without its key refuses calls");
+    assert!(matches!(
+        engine::error_info(builtin),
+        ErrorInfo::ContentSourceUnavailable { setting: Some(RequiredSetting { plugin: None, key }), .. }
+            if key == "content.curseforge-key"
     ));
 
     let settings = PluginSettings::new(home.path().join(SETTINGS_FILE), declared());

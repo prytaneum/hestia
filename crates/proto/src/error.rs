@@ -14,7 +14,7 @@ use std::fmt;
 
 use serde::{Deserialize, Serialize};
 
-use crate::content::ContentKind;
+use crate::content::{ContentKind, RequiredSetting};
 use crate::provider::Provider;
 
 /// A launcher entry that resolves by reference.
@@ -791,10 +791,11 @@ pub enum ErrorInfo {
         actual: ContentKind,
         expected: ContentKind,
     },
-    /// A registered source that cannot serve requests as configured — today,
-    /// a platform whose API key is unset.
+    /// A registered source that cannot serve requests as configured. `setting`
+    /// names the one it waits on, so a front-end can point at where to set it.
     ContentSourceUnavailable {
         source: String,
+        setting: Option<RequiredSetting>,
     },
     /// The source lists the file but publishes no download for it: CurseForge
     /// lets an author opt out of third-party distribution. Nothing to retry —
@@ -1177,9 +1178,22 @@ impl fmt::Display for ErrorInfo {
                 actual,
                 expected,
             } => write!(f, "'{title}' is {actual} content, not {expected}"),
-            ContentSourceUnavailable { source } => {
-                write!(f, "the {source} content source is not configured")
-            }
+            ContentSourceUnavailable { source, setting } => match setting {
+                None => write!(f, "the {source} content source is not configured"),
+                Some(RequiredSetting {
+                    plugin: Some(plugin),
+                    key,
+                }) => write!(
+                    f,
+                    "the {source} content source needs the {key} setting of the {plugin} plugin — \
+                     set it with `hestia plugin config {plugin} {key} <value>`"
+                ),
+                Some(RequiredSetting { plugin: None, key }) => write!(
+                    f,
+                    "the {source} content source needs the {key} setting — \
+                     set it with `hestia config set {key} <value>`"
+                ),
+            },
             ContentDownloadBlocked { title, source } => write!(
                 f,
                 "'{title}' cannot be downloaded through the {source} API — \

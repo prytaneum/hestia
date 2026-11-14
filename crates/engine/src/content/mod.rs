@@ -436,6 +436,7 @@ impl Content {
         if !provider.available() {
             return Err(proto::error::ErrorInfo::ContentSourceUnavailable {
                 source: provider.id().to_string(),
+                setting: provider.missing_setting(),
             }
             .into());
         }

@@ -32,6 +32,7 @@ use super::provider::{ContentProvider, LocalFile, UrlRef};
 const API: &str = "https://api.curseforge.com/v1";
 const SITE: &str = "curseforge.com";
 pub(crate) const ID: &str = "curseforge";
+const KEY_SETTING: &str = "content.curseforge-key";
 
 fn service() -> Service {
     Service::Provider(Provider::new(ID, "CurseForge"))
@@ -129,7 +130,7 @@ impl ContentProvider for CurseForge {
     fn missing_setting(&self) -> Option<RequiredSetting> {
         (!self.available()).then(|| RequiredSetting {
             plugin: None,
-            key: "content.curseforge-key".into(),
+            key: KEY_SETTING.into(),
         })
     }
 
@@ -350,6 +351,13 @@ impl ContentProvider for CurseForge {
 }
 
 impl CurseForge {
+    fn unavailable(&self) -> ErrorInfo {
+        ErrorInfo::ContentSourceUnavailable {
+            source: ID.to_string(),
+            setting: self.missing_setting(),
+        }
+    }
+
     fn key(&self) -> String {
         self.key.read().unwrap().clone()
     }
@@ -357,9 +365,7 @@ impl CurseForge {
     async fn get(&self, path: &str, query: &[(&str, String)]) -> Result<Value> {
         let key = self.key();
         if key.is_empty() {
-            bail!(ErrorInfo::ContentSourceUnavailable {
-                source: ID.to_string()
-            });
+            bail!(self.unavailable());
         }
         let url = format!("{API}{path}");
         tracing::debug!(url, "curseforge GET");
@@ -377,9 +383,7 @@ impl CurseForge {
     async fn post(&self, path: &str, body: Value) -> Result<Value> {
         let key = self.key();
         if key.is_empty() {
-            bail!(ErrorInfo::ContentSourceUnavailable {
-                source: ID.to_string()
-            });
+            bail!(self.unavailable());
         }
         let url = format!("{API}{path}");
         tracing::debug!(url, "curseforge POST");
