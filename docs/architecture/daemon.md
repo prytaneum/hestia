@@ -26,7 +26,6 @@ flowchart TB
         MGRS["managers — off-thread jobs"]
         SCHED["scheduler — backups"]
         METR["metrics sampler"]
-        PRES["discord presence"]
     end
 
     SVC["services/ — one registrar per domain"]
@@ -151,7 +150,6 @@ same `server-<id>` / `instance-<id>` form.
 |---|---|---|
 | `scheduler.rs` | every minute | run each **running** server's due **scheduled tasks** — a restart (stop, wait for exit, start through the same `start_server` a client's start uses), a console command, or a backup (a `Backup` job archiving as `scheduled`, then pruning the scheduled archives beyond the task's retention; a stopped server's world cannot change, so it is never re-archived). A task is stamped before it runs, so a failure waits for its next slot instead of retrying every minute, and it takes the entry's claim first, so none runs while a backup or version change owns the tree |
 | `metrics.rs` | every 2 s | sample CPU and memory for supervised processes, normalising CPU by logical core count so a multi-threaded JVM reports a share of the machine rather than 800% |
-| `presence.rs` | every 5 s, on its own thread | decide the core Discord card — the newest running session, else idle — and tick the engine's presence service, which owns the connection, sends only when the shown card changed, and caps updates at 5 per 20 s. Gated on `discord.enabled` and skipped entirely under `HESTIA_NO_PRESENCE=1`; a missing Discord client is polled for at a sixth of the rate ([0059](../decisions/0059-discord-presence-is-a-daemon-loop.md)) |
 
 `event_hub.rs` fans events out to subscribed connections, filtered by id, and
 unsubscribes them on disconnect.
@@ -185,7 +183,6 @@ is purely a compile-time one that keeps `make_router()` from becoming a
 | `server` | `server.create\|update\|list\|status\|info\|start\|restart\|command\|ping`, `server.properties` |
 | `files` | `server.files.list\|read\|write\|mkdir\|move\|copy\|remove\|import\|compress\|extract` |
 | `tasks` | `server.task.list\|save\|remove` — stored on the server record; the scheduler loop runs them |
-| `players` | `server.players`, `server.players.set\|kick` — the lists are read from the server's own files; a change is a console command, so it needs the server running |
 | `instance` | `instance.create\|update\|list\|info\|recent\|launch`, `instance.worlds`, `instance.servers` and its edits |
 | `backup` | `server.backup.create\|list\|restore\|remove` |
 | `content` | `content.sources\|search\|project\|versions\|inspect\|resolve_url`, and the per-entry `content.add\|list\|remove\|update\|enable\|check_updates\|matches\|set_version`, each aimed by an `EntryTarget` |

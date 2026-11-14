@@ -2,6 +2,8 @@
 
 *Applies to: [Import & export](../architecture/transfer.md)*
 
+> Superseded in part by [0125](0125-a-pack-is-a-provider-kind-and-export-formats-are-open.md): `.mrpack` and Prism/MultiMC are no longer modules of the launcher — they and CurseForge are the official plugins' pack formats, and `transfer::Format` and its registry are gone. Hestia's own archive is the only format left in core, read and landed directly. The principle below — a format is a module beside the others, and the launcher matches on the recipe, not the format — carries over to the `pack` provider kind.
+
 Instances needed a way in and out: a file you can hand someone, keep a copy of,
 or carry to another machine — and, since instances have no backups, the only
 thing standing between a person and losing their worlds. Three formats had to

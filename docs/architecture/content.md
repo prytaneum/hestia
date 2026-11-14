@@ -12,7 +12,7 @@ Three layers, deliberately separate:
 flowchart TD
     SRC["<b>sources</b> — content/<br/>search · project · versions · resolve<br/><i>plugin-provided (Modrinth, CurseForge: official plugins); the trait is the seam</i>"]
     INST["<b>install</b> — content/install.rs<br/>managed dir + content.json provenance + data/ mirror"]
-    PACK["<b>modpacks</b> — content/pack · modpack · transfer/mrpack<br/>the archive format, and which files a pack owns"]
+    PACK["<b>modpacks</b> — content/pack · modpack<br/>the opened archive, and which files a pack owns"]
 
     SRC --> INST
     PACK --> INST
@@ -268,26 +268,24 @@ integrated server ([0016](../decisions/0016-datapacks-are-world-of-record.md)).
 ## Modpacks
 
 A pack installs into a new or existing server or instance from a project, a page
-URL, or a local `.mrpack`. `pack.rs` owns the *formats* (whether a zip is a pack,
-which format and at what root, the `.mrpack` manifest, and which override trees to
-extract for either format), deliberately apart from the platform that serves them
-— a pack picked off disk has no source and is read the same way. The zip itself is
+URL, or a local pack file. `pack.rs` owns the opened `Archive` (its root and which
+override trees to extract), deliberately apart from the platform that serves the
+pack and from the format that read it — a pack picked off disk has no source and
+is read the same way. The zip itself is
 read by the one reader import and export share (`transfer/archive.rs`), which
 validates every path before the first write and hashes only when asked; the
 install flow receives the archive already open, whether it came from a download
 or from `instance import`.
 
-**A pack archive knows its own format.** `pack.rs` reads the launcher's own `.mrpack`
-(its index, and its fixed `overrides/` + `client-overrides/` + `server-overrides/`
-trees) and holds the `Archive` the install flow extracts from. Any other pack
-format is a plugin's `pack` provider ([0125](../decisions/0125-a-pack-is-a-provider-kind-and-export-formats-are-open.md)): it hands the
-`Archive` the override trees it names, so the flow extracts either without being
-told where the archive came from. A pack that names its files by id rather than
-URL (CurseForge's) delegates its manifest to the content source that owns it
-(`ContentProvider::resolve_manifest`), so it installs whenever that source can
-serve and is refused as `ContentSourceUnavailable` — naming the setting to set —
-when it cannot. The files are fetched under the policy of whoever vetted them, a
-plugin's grant for a plugin-named file and none for the `.mrpack`'s own index.
+**A pack archive is read by a plugin.** The launcher reads no pack format itself:
+every format is a plugin's `pack` provider ([0125](../decisions/0125-a-pack-is-a-provider-kind-and-export-formats-are-open.md)), which hands the
+`Archive` the install flow extracts from the override trees it names, so the flow
+extracts any of them without being told where the archive came from. A pack that
+names its files by id rather than URL delegates its manifest to the content
+source that owns it (`ContentProvider::resolve_manifest`), so it installs whenever
+that source can serve and is refused as `ContentSourceUnavailable` — naming the
+setting to set — when it cannot. The files are fetched under the policy of whoever
+vetted them: the plugin's grant for a file it names, the source's for a delegated one.
 
 **A pack from a source goes through the downloader.** The version the flow picks
 already carries the archive's artifact, so it is fetched like any other file: into
@@ -302,7 +300,7 @@ belongs:
 
 ```mermaid
 flowchart TD
-    PACK["a .mrpack"]
+    PACK["a pack archive"]
     PACK --> A["loader + game version"]
     PACK --> B["files under a managed load dir<br/><i>from the index or an override tree</i>"]
     PACK --> C["the rest of overrides/ and everything else"]
@@ -358,7 +356,7 @@ out ([0078](../decisions/0078-a-pack-updates-from-a-file.md)).
 **A resolved pack file carries its identity.** A CurseForge manifest names each
 file by project and file id, and resolving it already fetches the file and
 project records, so every `ModpackFile` leaves the resolve with its source, ids,
-version number and project. A `.mrpack` index names files by URL and hash alone;
+version number and project. A pack that names files by URL and hash alone (a `.mrpack`'s index, say);
 each file URL is put to every source (`ContentProvider::recognise_file_url`; a
 Modrinth CDN URL carries both ids), and the source that answers is recorded. `hydrate` then
 asks only for what is still missing (a Modrinth file's version number and

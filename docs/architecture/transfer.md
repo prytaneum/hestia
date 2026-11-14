@@ -7,14 +7,14 @@ on a schedule under its own entry root; an instance is something you play,
 share, and carry between machines, so its archive is one portable file you write
 deliberately.
 
-Four formats come in, two go out, and a plugin may add more of both.
+One format is built in, and plugins add the rest: `.mrpack`, Prism / MultiMC and CurseForge packs are the official
+plugins' formats, not the launcher's. Without a pack plugin, import and export handle hestia's own archive only, and a
+foreign archive is refused as unrecognised.
 
 | Format | Marker | In | Out | What it is |
 |---|---|---|---|---|
 | **hestia** | `hestia.instance.json` | ✅ | ✅ | the entry directory minus content a source can serve again, + the instance's record — the profile is resolved on the importing host |
-| **`.mrpack`** | `modrinth.index.json` | ✅ | ✅ | Modrinth's pack format: mods as *references*, everything else in `overrides/` |
-| **Prism / MultiMC** | `instance.cfg` | ✅ | — | another launcher's instance directory (`mmc-pack.json` + `.minecraft/`) |
-| **a plugin's pack** | what the plugin declares | ✅ | ✅ | any format a `pack` provider reads and writes — CurseForge's, say — see [below](#pack-formats-from-plugins) |
+| **a plugin's pack** | what the plugin declares | ✅ | ✅ | any format a `pack` provider reads and writes — see [below](#pack-formats-from-plugins) |
 
 ## Detection, not declaration
 
@@ -23,9 +23,9 @@ formats is a zip and people rename them, so the format is decided by the **marke
 file inside**, following Prism's own approach — someone handed an archive should
 not have to know which launcher made it.
 
-The **shallowest** marker wins, and the order hestia, pack, Prism only breaks a
-tie. Depth has to come first: a pack index a Prism instance happens to ship
-inside its `config/` is a file that instance *uses*, not what the archive *is*.
+The **shallowest** marker wins, and hestia's own only breaks a tie ahead of a
+plugin's. Depth has to come first: a manifest an archive happens to ship inside
+its `config/` is a file it *uses*, not what the archive *is*.
 
 One marker is not specific enough to settle it by presence: any archive may
 carry a `manifest.json`. So a plugin's pack that holds its declared members is
@@ -33,8 +33,7 @@ also asked `claims`, and counts only when the guest says yes
 ([0076](../decisions/0076-a-pack-file-is-identified-wherever-it-came-from.md),
 [0125](../decisions/0125-a-pack-is-a-provider-kind-and-export-formats-are-open.md)).
 
-The pack formats are not instance formats: the `.mrpack` is `content::pack`'s,
-every other pack is a plugin's, and detection ranks them beside hestia and Prism.
+Every pack format is a plugin's, and detection ranks them beside hestia's own.
 A pack is then handed, already open, to the modpack flow.
 
 ## The seam
@@ -42,33 +41,22 @@ A pack is then handed, already open, to the modpack flow.
 ```mermaid
 flowchart TD
     FILE([an archive]) --> DETECT{detect by marker}
-    DETECT --> FMT["<b>Format</b><br/>marker · read · land"]
-    DETECT --> PACK["<b>pack</b><br/>.mrpack · a plugin's pack provider"]
-    FMT --> BP["<b>Blueprint</b><br/>descriptor + recipe"]
-    BP --> RR["Recipe<br/><i>a loader to look up, and the identity<br/>some formats carry</i>"]
-    RR --> CREATE[["the flow registers the instance"]]
+    DETECT --> HESTIA["<b>hestia</b><br/>read · land"]
+    DETECT --> PACK["<b>pack</b><br/>a plugin's pack provider"]
+    HESTIA --> BP["<b>Blueprint</b><br/>descriptor + recipe"]
+    BP --> CREATE[["the flow registers the instance"]]
     PACK --> MODPACK[["modpack install → creates its own entry"]]
-    CREATE --> LAND["<b>Format::land</b><br/>files onto disk"]
+    CREATE --> LAND["<b>Hestia::land</b><br/>files onto disk"]
 
     classDef seam fill:#eef,stroke:#88a
-    class FMT,BP seam
+    class HESTIA,BP seam
 ```
 
-An instance format answers three questions and nothing else: **which archives
-are mine** (a marker), **what does this one say it is** (parse a manifest into a
-[`Blueprint`]), and **where do the files go** (given an instance that now
-exists). It never creates the instance — that is the launcher's job, and the
-blueprint's `Recipe` carries what the launcher needs to build it: one resolve path
-for every format, with the instance's identity riding along when the archive has
-one. Another format costs the flow nothing.
-
-### Adding a format
-
-One module under `crates/engine/src/transfer/` and one line in `candidates`
-(`transfer/mod.rs`) — the same shape as adding a content platform
-([0010](../decisions/0010-one-content-provider-trait.md)). An ATLauncher importer
-would implement `Format`, return a `Recipe`, and reuse `transfer::pool::adopt`
-for the loose jars its game directory arrives with.
+Hestia's archive is read into a [`Blueprint`] — a descriptor and a `Recipe` that
+carries the identity the archive keeps — and landed onto an instance the launcher
+has already registered; it never creates the instance itself. Any other format is a
+`pack` provider and goes through the modpack flow, so a new format is a plugin and
+costs core nothing ([0125](../decisions/0125-a-pack-is-a-provider-kind-and-export-formats-are-open.md)).
 
 ## What an archive carries
 
@@ -143,55 +131,15 @@ The marker is deliberately not called `instance.json` — a marker is a claim ab
 what an archive *is*, so it has to be specific enough that finding it inside
 someone else's zip means something.
 
-## The `.mrpack` export
-
-A lossy projection, by nature: a pack names its mods by URL and hash, so only
-pool items hestia knows the origin of survive as references. A local-file import
-has no URL to write and rides along inside the archive instead, with a
-`ExportFilesEmbedded` warning saying so — the export installs correctly either
-way, it is just no longer a pack Modrinth would accept for publishing.
-
-Each referenced file carries `sha1` (what the pool stores) **and** `sha512`
-(what the format wants), hashed at export. A disabled item is exported as
-`optional` rather than dropped, so whoever installs the pack gets the same
-choice rather than a silently shorter mod list.
-
-## Importing another launcher's instance
-
-A Prism/MultiMC instance names a game version and a loader in `mmc-pack.json`
-rather than resolving them, so the import resolves them exactly as
-`instance create` does — and an archive pinning a loader hestia has no flavor for
-is refused **by name** (`ArchiveUnsupported`), never silently installed as
-vanilla. `instance.cfg` contributes the display name and, where that instance
-overrode its launcher's defaults, its memory and JVM arguments. Its icon comes
-too: the image `iconKey` names at the instance root, or `icon.png`, the lookup
-Prism itself makes; one that is not an image or is too large is skipped, since an
-icon only dresses the instance
-([0107](../decisions/0107-an-entry-icon-lives-in-the-entry.md)).
-
-Its `.minecraft/` becomes `data/`, and the loose jars in it are **adopted into
-the content pool** (`transfer/pool.rs`): moved to the managed directory, indexed,
-and mirrored back. They arrive with no provenance, so the flow then asks the
-sources about them by hash — the lookup a local-file import makes — and records
-each recognised jar as that release. `ImportFilesUntracked` names only what no
-source publishes, the files that can never be updated. A
-`.disabled` suffix becomes hestia's `enabled` flag, which is the same fact
-spelled the way this launcher spells it.
-
-Only an archive the kind loads is adopted — a `.jar` in `mods/`, a `.zip` or
-`.jar` in `resourcepacks/` and `shaderpacks/`, whatever its case. A load
-directory also holds what mods write beside a pack (Iris's `<pack>.zip.txt`
-options, a Respackopts `<pack>.zip.rpo`, a patcher's log); those stay in `data/`
-unindexed, as a folder pack does.
-
 ## Pack formats from plugins
 
-A plugin contributes a pack format with `kind = "pack"` and the `pack:provide` permission. It answers the
+A plugin contributes a pack format with `kind = "pack"` and the `pack:provide` permission — the official plugins do
+this for `.mrpack`, Prism / MultiMC and CurseForge. It answers the
 `proto::provider::pack` operations `info` (name, the members it reads as names or globs, and the extension it writes),
 `claims` (an optional probe over the member names and the text of the declared members), `read` and `write`. `PluginPack`
-(`plugins/providers/pack.rs`) registers as `<plugin>.<id>` on the engine, and `detect` ranks it beside the core
-formats by the depth of the shallowest directory holding every declared member, core first on a tie; a plugin cannot
-claim hestia's marker or the `.mrpack` index.
+(`plugins/providers/pack.rs`) registers as `<plugin>.<id>` on the engine, and `detect` ranks it beside hestia's own
+format by the depth of the shallowest directory holding every declared member, hestia's first on a tie; a plugin cannot
+claim hestia's marker or the id `hestia`. Every other id, `mrpack` included, is the plugin's to take.
 
 `read` is handed the member names, the text of the declared members and the loader keys its format has flavors for, and
 answers the pack — name, game version, loader, files — plus the override trees each side takes, optionally delegating
@@ -207,8 +155,9 @@ and names the manifests to store and the instance files to copy; the host
 checks each copy against what the export holds and does the writing, reporting the guest's warnings as
 `PackExportWarned`. See [0125](../decisions/0125-a-pack-is-a-provider-kind-and-export-formats-are-open.md).
 
-`instance.export.formats` lists every format an export can use — hestia, the launcher's `mrpack` and each registered
-pack that writes — and `ExportFormat` carries a provider the way `ImportFormat` does.
+`instance.export.formats` lists every format an export can use — hestia and each registered pack that writes — and
+`ExportFormat` carries a provider the way `ImportFormat` does. The front-ends build their format lists, file pickers
+and drop zones from it, so with no pack plugin they offer hestia's archive only.
 
 ## An import is a create
 
@@ -237,7 +186,8 @@ already up — and opens the import dialog on it.
 
 ## Related decisions
 
-- [0057 — An archive format is a module, not a branch](../decisions/0057-an-archive-format-is-a-module.md)
+- [0057 — An archive format is a module, not a branch](../decisions/0057-an-archive-format-is-a-module.md) (superseded
+  for the built-in formats by [0125](../decisions/0125-a-pack-is-a-provider-kind-and-export-formats-are-open.md))
 - [0104 — An archive-format plugin maps files; the host copies them](../decisions/0104-an-archive-format-plugin-maps-files-the-host-copies.md)
 - [0125 — A pack is one provider kind that replaces `format`, and export formats are an open set](../decisions/0125-a-pack-is-a-provider-kind-and-export-formats-are-open.md)
 - [0081 — The archive carries the instance's identity and references](../decisions/0081-the-archive-carries-identity-and-references.md)

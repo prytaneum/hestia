@@ -126,13 +126,6 @@ hestia server smp task command 6h say Restarting soon  # a console command on
 hestia server smp task list      # ids, schedules, and whether each is paused
 hestia server smp task disable|enable|remove <id>  # tasks only run while the
                                  #   server is up
-hestia server smp players list   # who is online, and the whitelist, operator
-                                 #   and ban lists (the lists read from a
-                                 #   stopped server too)
-hestia server smp players allow|disallow <name>…  # the whitelist
-hestia server smp players op|deop <name>…
-hestia server smp players ban|pardon|kick <name>…  # every change goes through
-                                 #   the console, so the server must be running
 hestia server smp start          # immediate spawn, then attaches the console
                                  #   (-d/--detach returns immediately)
 hestia server smp attach         # interactive console: live logs, type to send
@@ -222,36 +215,29 @@ schedule, an instance is written out on purpose.
 hestia instance modded export                    # → <data home>/exports/<slug>-<stamp>.hestia
 hestia instance modded export -o ~/share         # a directory: the name is generated inside it
 hestia instance modded export -o ~/cozy.hestia   # or name the file yourself
-hestia instance modded export --format mrpack -o ~/cozy.mrpack
 hestia instance modded export --exclude data/saves   # leave a path out (repeatable)
 ```
 
-Two formats out, and a plugin may add more (`--format` takes an id, extension or name the daemon offers, and an
-unknown one lists them):
+Hestia's own archive is the one format built in; a pack plugin adds more (`--format` takes an id, extension or name the
+daemon offers, and an unknown one lists them):
 
 | `--format` | Carries | Use it for |
 |---|---|---|
-| `hestia` (default) | settings, configs, worlds and local-only files; mods and packs from Modrinth or CurseForge are left out and downloaded on import | keeping a copy, or moving it to another machine, whichever OS it came from |
-| `mrpack` | mods as links to where they came from, everything else in `overrides/` | sharing with someone on another launcher |
-
-An `.mrpack` can only reference content hestia knows the origin of. A local file that no source recognised has no
-download to point at, so it is embedded in the archive instead and the export says so — it still installs, it is just no longer a
-pack Modrinth would publish.
+| `hestia` (default) | settings, configs, worlds and local-only files; mods and packs from a content source are left out and downloaded on import | keeping a copy, or moving it to another machine, whichever OS it came from |
+| a plugin's | whatever that format can express | sharing with someone on another launcher |
 
 Import takes a file and works out the rest:
 
 ```bash
 hestia instance import ~/cozy.hestia             # a hestia archive
-hestia instance import ~/Downloads/pack.mrpack   # a Modrinth pack
-hestia instance import ~/prism-export.zip        # a Prism/MultiMC instance
-hestia instance import ~/Downloads/pack.zip      # a pack in a format a plugin adds, such as CurseForge's
+hestia instance import ~/Downloads/pack.zip      # a pack in a format a plugin adds
 hestia instance import ~/cozy.hestia -n "Copy"   # name it something else
 ```
 
-The format is detected from what is **inside** the file, not its extension — all three are zips, and people rename them.
-The command prints what it found before it starts. A Prism/MultiMC instance brings its game directory, its memory and
-JVM settings, and its mods (which arrive with no source, so they cannot be updated in place until you reinstall them);
-an archive pinning a loader hestia has no flavor for is refused by name rather than silently installed as vanilla.
+The format is detected from what is **inside** the file, not its extension — they are all zips, and people rename them.
+The command prints what it found before it starts. With no pack plugin installed, an archive that is not hestia's is
+refused as unrecognised. An archive pinning a loader hestia has no flavor for is refused by name rather than silently
+installed as vanilla.
 
 An export needs the instance **stopped**, and refuses while a content or modpack job is touching it. Paths are resolved
 against your shell's working directory, then sent as absolute — the daemon is a separate process and does not share it.
@@ -461,15 +447,16 @@ hestia sources                   # the sources that can serve, and what each has
 ## Modpacks
 
 A pack pins its own loader and game version, so installing one *builds* the entry it wants. The one argument takes any
-of the three ways to name a pack — an existing path is a `.mrpack`, a scheme is a URL, anything else is a project on the
-source (`-S`); omit it on a terminal and a searchable picker opens over live search results. A pack whose manifest names
-its mods by id (CurseForge's) installs from a file only with the source that can resolve those ids installed.
+of the three ways to name a pack — an existing path is a pack file (read by a pack plugin), a scheme is a URL, anything
+else is a project on the source (`-S`); omit it on a terminal and a searchable picker opens over live search results.
+A pack whose manifest names its mods by id (CurseForge's) installs from a file only with the source that can resolve
+those ids installed.
 
 ```bash
 hestia modpack install fabulously-optimized     # → a new instance
 hestia modpack install                          # pick one interactively
 hestia modpack install fabulously-optimized --name cozy
-hestia modpack install ./pack.mrpack            # a local .mrpack
+hestia modpack install ./pack.zip               # a local pack file
 hestia modpack install https://modrinth.com/modpack/…/version/6.2.1
 hestia modpack install all-the-mods-10 -S curseforge   # from another source
 hestia modpack install <pack> --server --eula   # → a new server instead
@@ -486,7 +473,7 @@ hestia instance cozy modpack status     # which pack, which version
 hestia instance cozy modpack update --check   # is there a newer one?
 hestia instance cozy modpack update     # → the newest published version
 hestia instance cozy modpack update 6.3.0 --downgrade
-hestia instance cozy modpack update ./cozy-2.0.mrpack   # from a pack file
+hestia instance cozy modpack update ./cozy-2.0.zip   # from a pack file
 hestia instance cozy modpack remove     # asks: keep its content, or remove it all
 hestia instance cozy modpack remove --keep    # forget the pack, keep every mod and file
 hestia instance cozy modpack remove --all     # delete them, except files you have edited
@@ -600,7 +587,6 @@ hestia config set home <dir>     # persist the data dir (empty reverts) and rest
 hestia config get autostart      # true if the daemon starts at login
 hestia config set autostart true # register the daemon to start at login
 hestia config set instance.multi-session true # allow an instance to run several sessions
-hestia config set discord.enabled false       # stop publishing Discord presence
 hestia config set network.offline true        # stop reaching the network at all
 hestia config set plugins.auto-update false   # stop applying official plugin updates unattended
 hestia config set developer true              # show the plugin authoring tools (see Launcher plugins)
@@ -617,11 +603,6 @@ requests the daemon actually makes, so the line never disagrees with what a comm
 check (every six hours), when the update asks for nothing beyond what is already granted. It is skipped while the
 network is offline, and logged at info. Third-party plugins, and official updates that widen the grant, only appear in
 `hestia plugin outdated` until you update them.
-
-While `discord.enabled` is on, a running Discord client is told which instance is being played, its flavor and game
-version, and how long the session has run — and that the launcher is open at all, as an idle presence, since the daemon
-is resident. It needs the Discord *desktop* client on the same machine (presence is local IPC, which Discord in a
-browser does not expose); with none running, nothing is published and nothing is retried until one appears.
 
 The data directory is resolved as: `--home` → `$HESTIA_HOME` → a persisted pointer (`config set home`) → the platform
 default (`~/.hestia`, or

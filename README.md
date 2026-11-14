@@ -88,8 +88,8 @@ to your account.
 | **Instances** | Vanilla · Fabric · NeoForge                                        |
 | **Servers**   | Vanilla · Fabric · NeoForge · Paper · Folia · Spigot · CraftBukkit |
 | **Content**   | Modrinth · CurseForge (official plugins) · a page URL · a local file |
-| **Import**    | Hestia archives · `.mrpack` · Prism / MultiMC instances            |
-| **Export**    | Hestia archives · `.mrpack`                                        |
+| **Import**    | Hestia archives · other formats through plugins                    |
+| **Export**    | Hestia archives · other formats through plugins                    |
 | **Plugins**   | WASM components: commands · pages · themes · hooks · providers     |
 
 Vanilla is built in; the other flavors and the Java distribution come from official plugins. NeoForge builds its game

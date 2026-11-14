@@ -2,6 +2,8 @@
 
 *Applies to: [The daemon](../architecture/daemon.md)*
 
+> Superseded: Rich Presence is no longer part of the launcher. The official `discord` plugin publishes it over the `ipc:connect` permission, from process events, and the daemon loop, the engine's presence service and the `discord.enabled` setting are gone. The reasoning below for why presence is not a front-end concern still stands.
+
 Rich Presence is a thing a launcher shows about the user, so the obvious home is
 the front-end the user is looking at — the Tauri shell, where the equivalent
 feature lives in Modrinth's launcher. It is the wrong home here, and for a
