@@ -64,7 +64,7 @@ independently filtered sinks:
 |---|---|---|
 | console (stderr) | as requested | gated while a fullscreen CLI surface owns the terminal |
 | `latest.log` | Hestia's crates at the file's level, dependencies at warnings | the log you read |
-| `debug/latest.log` | every target at trace, dependencies included | the firehose you reconstruct a bug from — resident binaries only (`hestiad`, `desktop`) |
+| `debug/latest.log` | every target at trace, dependencies included, except the WASM compiler (`cranelift`, `regalloc2`, `wasmtime`) at info | the firehose you reconstruct a bug from — resident binaries only (`hestiad`, `desktop`) |
 
 `HESTIA_LOG` overrides every computed directive. Rotation is `flexi_logger`'s:
 `latest.log` rolls on the day or 20 MB into dated `YYYY-MM-DD.log.gz` archives

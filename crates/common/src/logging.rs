@@ -12,6 +12,9 @@ use tracing_subscriber::{EnvFilter, Layer};
 use crate::time::LocalTime;
 
 const ENV_FILTER: &str = "HESTIA_LOG";
+/// Everything at trace except the WASM compiler, which logs every instruction
+/// it lowers: a plugin compile at trace takes tens of seconds and floods the file.
+const FIREHOSE_FILTER: &str = "trace,cranelift=info,regalloc2=info,wasmtime=info";
 
 const CRATES: [&str; 7] = [
     "hestia", "desktop", "common", "client", "engine", "ipc", "proto",
@@ -198,7 +201,7 @@ pub fn init_logging(console_level: LogLevel, file: Option<FileLog>) -> LogGuard 
 
     let global = match env_override() {
         Some(spec) => EnvFilter::new(spec),
-        None if firehose => EnvFilter::new("trace"),
+        None if firehose => EnvFilter::new(FIREHOSE_FILTER),
         None => app_filter(console_level.max(file.as_ref().map_or(LogLevel::Off, |f| f.level))),
     };
     tracing_subscriber::registry()
