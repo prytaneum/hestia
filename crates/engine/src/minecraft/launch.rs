@@ -8,6 +8,7 @@ use std::path::{Path, PathBuf};
 use proto::instance::QuickPlay;
 
 use super::profile::{InstanceProfile, ServerLaunch, ServerProfile};
+use super::rules::host_os;
 use crate::jvm::JavaSettings;
 
 // Mojang's rule vocabulary spells the classpath separator per-OS; keep ours in
@@ -123,7 +124,7 @@ fn server_invocation(
         ServerLaunch::ArgsFile(file) => {
             // The file names its libraries relative to the launch directory, so it
             // is passed relative too and never resolved against `artifacts`.
-            args.push(format!("@{file}"));
+            args.push(format!("@{}", file.for_os(host_os())));
         }
         ServerLaunch::Jar => {
             args.push("-jar".to_string());
@@ -218,7 +219,7 @@ pub fn instance_plan(
 
 fn build_classpath(profile: &InstanceProfile, paths: &InstancePaths<'_>) -> String {
     let mut entries: Vec<String> = Vec::new();
-    for library in &profile.libraries {
+    for library in profile.libraries.iter().filter(|library| library.classpath) {
         push_unique(&mut entries, join_str(paths.libraries_root, &library.path));
     }
     entries.push(paths.client_jar.to_string_lossy().into_owned());
@@ -301,7 +302,7 @@ fn push_unique(entries: &mut Vec<String>, entry: String) {
 mod tests {
     use proto::minecraft::Artifact;
 
-    use super::super::profile::{AssetIndex, Library, ServerJar};
+    use super::super::profile::{ArgsFile, AssetIndex, Library, OsArgsFile, ServerJar};
     use super::*;
 
     fn account() -> LaunchAccount {
@@ -357,9 +358,13 @@ mod tests {
     #[test]
     fn an_args_file_replaces_the_jar_invocation() {
         let profile = ServerProfile {
-            launch: ServerLaunch::ArgsFile(
-                "libraries/net/neoforged/neoforge/21.1.244/unix_args.txt".into(),
-            ),
+            launch: ServerLaunch::ArgsFile(ArgsFile {
+                path: "libraries/net/neoforged/neoforge/21.1.244/unix_args.txt".into(),
+                alternatives: vec![OsArgsFile {
+                    os: "plan9".into(),
+                    path: "libraries/net/neoforged/neoforge/21.1.244/plan9_args.txt".into(),
+                }],
+            }),
             jar: server_jar("server.jar"),
             ..ServerProfile::default()
         };
@@ -380,11 +385,58 @@ mod tests {
     }
 
     #[test]
+    fn an_args_file_alternative_is_chosen_by_operating_system() {
+        let file = ArgsFile {
+            path: "unix_args.txt".into(),
+            alternatives: vec![OsArgsFile {
+                os: "windows".into(),
+                path: "win_args.txt".into(),
+            }],
+        };
+        assert_eq!(file.for_os("windows"), "win_args.txt");
+        assert_eq!(file.for_os("linux"), "unix_args.txt");
+        assert_eq!(file.for_os("osx"), "unix_args.txt");
+        assert_eq!(
+            file.paths().collect::<Vec<_>>(),
+            ["unix_args.txt", "win_args.txt"]
+        );
+    }
+
+    #[test]
+    fn a_library_off_the_classpath_is_not_on_it() {
+        let off = Library {
+            classpath: false,
+            ..library("a/off.jar")
+        };
+        let profile = InstanceProfile {
+            libraries: vec![library("a/on.jar"), off],
+            ..InstanceProfile::default()
+        };
+        let paths = InstancePaths {
+            game_dir: Path::new("/inst"),
+            natives_dir: Path::new("/inst/natives"),
+            client_jar: Path::new("/client.jar"),
+            libraries_root: Path::new("/libs"),
+            assets_root: Path::new("/assets"),
+            game_assets: Path::new("/assets"),
+            log_config: None,
+            quick_play_log: None,
+        };
+        let classpath = build_classpath(&profile, &paths);
+        assert!(classpath.contains("on.jar"));
+        assert!(!classpath.contains("off.jar"));
+    }
+
+    #[test]
     fn the_schema_run_ignores_the_args_file() {
         let profile = ServerProfile {
-            launch: ServerLaunch::ArgsFile(
-                "libraries/net/neoforged/neoforge/21.1.244/unix_args.txt".into(),
-            ),
+            launch: ServerLaunch::ArgsFile(ArgsFile {
+                path: "libraries/net/neoforged/neoforge/21.1.244/unix_args.txt".into(),
+                alternatives: vec![OsArgsFile {
+                    os: "plan9".into(),
+                    path: "libraries/net/neoforged/neoforge/21.1.244/plan9_args.txt".into(),
+                }],
+            }),
             jar: server_jar("server.jar"),
             ..ServerProfile::default()
         };

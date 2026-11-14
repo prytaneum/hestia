@@ -92,15 +92,35 @@ pub struct BuildQuery {
     pub target: Target,
 }
 
-/// One file a build produced: `path` is a guest path under `/build`, `target`
-/// what it becomes. For a server, the filename of the profile's built jar; for a
-/// client, the `path` of one of the profile's built libraries.
-#[derive(Serialize, Deserialize, Default, Debug, Clone, PartialEq, Eq)]
+/// A place the host puts a directory tree a build produced.
+#[derive(Serialize, Deserialize, Default, Debug, Clone, Copy, PartialEq, Eq)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
+#[serde(rename_all = "snake_case")]
+pub enum Destination {
+    /// The server's data directory. A client has none.
+    #[default]
+    Entry,
+    /// The shared libraries root, in Maven layout.
+    Libraries,
+}
+
+/// One thing a build produced: `path` is a guest path under `/build`.
+///
+/// Without a `destination` it is a file, and `target` is what it becomes: for a
+/// server, the filename of the profile's built jar; for a client, the `path` of
+/// one of the profile's built libraries.
+///
+/// With one it is a directory, and `target` is the relative path under that
+/// destination the tree is placed at (empty for its root). The host places a
+/// tree file by file and never replaces one that already exists.
+#[derive(Serialize, Deserialize, Default, Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
 #[serde(default, rename_all = "camelCase")]
 pub struct BuildOutput {
     pub path: String,
     pub target: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub destination: Option<Destination>,
 }
 
 #[derive(Serialize, Deserialize, Default, Debug, Clone, PartialEq, Eq)]

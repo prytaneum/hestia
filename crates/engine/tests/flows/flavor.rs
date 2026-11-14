@@ -12,6 +12,7 @@ use super::launch_hooks::NoHost;
 use super::*;
 
 const FLAVOR: &str = "replay-flavor.replay";
+const PLUGIN: &str = "replay-flavor";
 
 fn load(
     home: &std::path::Path,
@@ -334,7 +335,7 @@ async fn a_built_server_jar_is_produced_in_the_build_area_and_placed_in_the_serv
     assert!(
         home.path()
             .join("meta/flavors")
-            .join(FLAVOR)
+            .join(PLUGIN)
             .join("built.jar")
             .is_file(),
         "the program ran in the flavor's own build area"
@@ -354,7 +355,7 @@ async fn a_build_argument_names_the_host_path_of_the_build_area() {
     let record = provision(&engine, "expand").await.expect("provision");
 
     let data = engine.servers().data_dir(&record);
-    let area = home.path().join("meta/flavors").join(FLAVOR);
+    let area = home.path().join("meta/flavors").join(PLUGIN);
     assert_eq!(
         std::fs::read_to_string(data.join("built.jar")).unwrap(),
         format!("{}/x", area.display())
@@ -377,7 +378,7 @@ async fn two_builds_of_one_flavor_run_one_after_the_other() {
     let log = std::fs::read_to_string(
         home.path()
             .join("meta/flavors")
-            .join(FLAVOR)
+            .join(PLUGIN)
             .join("order.log"),
     )
     .unwrap();
@@ -475,6 +476,117 @@ async fn a_built_client_library_lands_under_the_shared_libraries() {
         b"vanilla client",
         "the guest saw the vanilla jar read-only and built from it"
     );
+}
+
+async fn install_client(
+    engine: &engine::Engine,
+    home: &std::path::Path,
+    version: &str,
+    built: &[String],
+) -> anyhow::Result<()> {
+    let meta = home.join("meta");
+    let client_jar = meta.join("versions").join(version).join("client.jar");
+    std::fs::create_dir_all(client_jar.parent().unwrap()).unwrap();
+    std::fs::write(&client_jar, b"vanilla client").unwrap();
+    let (cancel, report) = (Cancel::new(), |_: &ProvisionProgress| {});
+    engine
+        .minecraft()
+        .install(
+            engine::Side::Client,
+            FLAVOR,
+            &engine::InstallRequest {
+                game_version: version,
+                loader_version: None,
+                root: &meta,
+                meta: &meta,
+                minecraft_jar: Some(&client_jar),
+                built,
+                java_major: 21,
+                java: std::path::Path::new("java"),
+                cache: None,
+                processes: engine.processes(),
+            },
+            &job(&cancel, &report),
+        )
+        .await
+}
+
+#[tokio::test]
+async fn a_server_built_as_trees_is_placed_and_launches_from_the_args_file_of_this_os() {
+    let (engine, home) = rig(&["127.0.0.1"]).await;
+
+    let record = provision(&engine, "tree").await.expect("provision");
+
+    let data = engine.servers().data_dir(&record);
+    assert_eq!(
+        std::fs::read(data.join("tree/unix_args.txt")).unwrap(),
+        b"unix"
+    );
+    assert_eq!(
+        std::fs::read(
+            home.path()
+                .join("meta/libraries/example/loader/1.0/loader-1.0.jar")
+        )
+        .unwrap(),
+        b"loader",
+        "a tree aimed at the libraries root lands there, not in the server"
+    );
+    let proto::profile::ServerLaunch::ArgsFile(args) = &record.profile.launch else {
+        panic!("the profile launches from an args file");
+    };
+    assert_eq!(args.for_os("windows"), "tree/win_args.txt");
+    assert_eq!(args.for_os("linux"), "tree/unix_args.txt");
+}
+
+#[tokio::test]
+async fn an_args_file_that_leaves_the_data_directory_is_refused() {
+    let (engine, _home) = rig(&["127.0.0.1"]).await;
+
+    let detail = refusal(provision(&engine, "badargs").await.expect_err("refused"));
+
+    assert!(detail.contains("refused profile"), "{detail}");
+    assert!(engine.servers().list().is_empty());
+}
+
+#[tokio::test]
+async fn a_library_off_the_classpath_is_kept_off_it_and_still_placed() {
+    let (engine, home) = rig(&["127.0.0.1"]).await;
+
+    let profile = engine
+        .minecraft()
+        .resolve_instance(FLAVOR, "tree", None, home.path(), None)
+        .await
+        .expect("resolve");
+    let built = profile
+        .built()
+        .into_iter()
+        .map(String::from)
+        .collect::<Vec<_>>();
+    assert_eq!(built.len(), 1);
+    assert!(
+        !profile.libraries[0].classpath,
+        "the flag the guest set survives vetting"
+    );
+
+    install_client(&engine, home.path(), "tree", &built)
+        .await
+        .expect("install");
+
+    assert_eq!(
+        std::fs::read(home.path().join("meta/libraries").join(&built[0])).unwrap(),
+        b"off"
+    );
+}
+
+#[tokio::test]
+async fn a_client_has_no_data_directory_to_place_a_tree_in() {
+    let (engine, home) = rig(&["127.0.0.1"]).await;
+
+    let error = install_client(&engine, home.path(), "tree-entry", &[])
+        .await
+        .expect_err("refused");
+
+    assert!(refusal(error).contains("no destination"));
 }
 
 fn host_facts() -> (&'static str, &'static str, &'static str) {

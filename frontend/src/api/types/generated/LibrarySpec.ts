@@ -15,4 +15,9 @@ export type LibrarySpec = { maven?: Maven, rules: Array<Rule>, name: string, pat
  * artifact names nothing to fetch, and the file must exist once the build
  * has run.
  */
-built: boolean, };
+built: boolean, 
+/**
+ * Whether the library is on the game's `-cp`. One that is not is still
+ * materialised, for a loader that finds it by path.
+ */
+classpath: boolean, };

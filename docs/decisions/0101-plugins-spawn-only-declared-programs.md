@@ -64,7 +64,7 @@ kill-on-close job object on Windows), never only the direct child. `exec` also t
 `PATH` programs of the same manifest, and the child's `PATH` is built solely from their pinned directories (so the grant
 shows what it can reach, and `spawn` gets the same). An `exec` argument may contain `${build}`, `${vanilla}` or `${data}`,
 replaced after the pattern check by the host path of that mount of the call, so a grant stays host-independent; a mount
-the call lacks is refused. A flavor build also holds an exclusive file lock on `meta/flavors/<id>/.lock`
+the call lacks is refused. A flavor build also holds an exclusive file lock on `meta/flavors/<plugin-id>/.lock`
 ([0110](0110-a-flavor-builds-in-its-own-area.md)).
 
 Rejected: a larger fixed cap (a BuildTools run has no honest bound), signalling only the child (a grandchild keeps

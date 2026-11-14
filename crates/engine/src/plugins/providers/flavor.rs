@@ -27,7 +27,7 @@ use proto::provider::ProviderOp;
 use proto::Empty;
 use tokio::sync::watch;
 
-use super::build::{self, Expected};
+use super::build::{self, Expected, Roots};
 use super::normalise::{Failure, Normaliser};
 use super::{connect_each, registered, Guest};
 use crate::cancel::Cancelled;
@@ -56,8 +56,6 @@ enum Refusal {
     Checksum(String),
     #[error("{0}")]
     Path(String),
-    #[error("the plugin cannot launch from an args file")]
-    ArgsFile,
     #[error("Java {0} is not a major this launcher knows")]
     Java(i32),
     #[error("the profile names no main class")]
@@ -104,8 +102,10 @@ fn vet_server(policy: &Policy, profile: &ServerProfile) -> Result<(), Refusal> {
             validate_filename(filename).map_err(|e| Refusal::Path(e.to_string()))?
         }
     }
-    if !matches!(profile.launch, ServerLaunch::Jar) {
-        return Err(Refusal::ArgsFile);
+    if let ServerLaunch::ArgsFile(file) = &profile.launch {
+        for path in file.paths() {
+            safe_join(Path::new(""), path).map_err(|e| Refusal::Path(e.to_string()))?;
+        }
     }
     java(profile.java_major)
 }
@@ -190,9 +190,10 @@ impl PluginFlavorProvider {
         })
     }
 
-    /// The directory this flavor builds in, shared by every build of it.
+    /// The directory this plugin builds in, shared by every build of every
+    /// flavor it contributes.
     fn area(&self, meta: &Path) -> std::path::PathBuf {
-        meta.join("flavors").join(self.guest.id())
+        meta.join("flavors").join(self.guest.plugin().id())
     }
 
     /// A copy of the vanilla jar in a host-owned directory of its own, so the
@@ -206,7 +207,7 @@ impl PluginFlavorProvider {
         let staged = meta
             .join("flavors")
             .join(".vanilla")
-            .join(self.guest.id())
+            .join(self.guest.plugin().id())
             .join(name);
         build::copy_into(jar, &staged)
             .with_context(|| format!("cannot stage {}", jar.display()))?;
@@ -329,7 +330,11 @@ impl PluginFlavorProvider {
             })
             .collect::<Result<Vec<_>>>()?;
         let area = self.area(request.meta);
-        tokio::task::spawn_blocking(move || build::place(&area, &outputs, &expected))
+        let roots = Roots {
+            entry: matches!(side, Side::Server).then(|| request.root.to_path_buf()),
+            libraries,
+        };
+        tokio::task::spawn_blocking(move || build::place(&area, &outputs, &expected, &roots))
             .await?
             .map_err(|fault| {
                 tracing::warn!(flavor = %self.guest.id(), %fault, "build outputs refused");

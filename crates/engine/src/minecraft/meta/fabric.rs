@@ -153,7 +153,7 @@ pub fn libraries(profile: &Value) -> Vec<Library> {
                 unhashed: false,
             },
             path,
-            built: false,
+            ..Library::default()
         });
     }
     out

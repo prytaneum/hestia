@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 /// A classpath dependency, resolved to its download and its path under the
 /// libraries root (Maven layout).
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
-#[derive(Serialize, Deserialize, Default, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(default, rename_all = "camelCase")]
 pub struct Library {
     pub name: String,
@@ -15,6 +15,21 @@ pub struct Library {
     /// artifact names nothing to fetch, and the file must exist once the build
     /// has run.
     pub built: bool,
+    /// Whether the library is on the game's `-cp`. One that is not is still
+    /// materialised, for a loader that finds it by path.
+    pub classpath: bool,
+}
+
+impl Default for Library {
+    fn default() -> Self {
+        Library {
+            name: String::new(),
+            path: String::new(),
+            artifact: Artifact::default(),
+            built: false,
+            classpath: true,
+        }
+    }
 }
 
 /// A library the game loads through `java.library.path` rather than the
@@ -65,14 +80,53 @@ impl Default for ServerJar {
     }
 }
 
+/// The argument file a server launches from, with the files other operating
+/// systems use in its place. Every path is relative to the data directory: the
+/// file names its libraries relatively.
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
+#[derive(Serialize, Deserialize, Default, Debug, Clone, PartialEq, Eq)]
+#[serde(default, rename_all = "camelCase")]
+pub struct ArgsFile {
+    pub path: String,
+    pub alternatives: Vec<OsArgsFile>,
+}
+
+/// The argument file for one operating system, named as a rule's `os.name`
+/// (`windows`, `osx` or `linux`).
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
+#[derive(Serialize, Deserialize, Default, Debug, Clone, PartialEq, Eq)]
+#[serde(default, rename_all = "camelCase")]
+pub struct OsArgsFile {
+    pub os: String,
+    pub path: String,
+}
+
+impl ArgsFile {
+    /// The file to launch from on `os`: its alternative, else the default.
+    pub fn for_os(&self, os: &str) -> &str {
+        self.alternatives
+            .iter()
+            .find(|alternative| alternative.os == os)
+            .map_or(self.path.as_str(), |alternative| alternative.path.as_str())
+    }
+
+    /// Every file the profile may launch from.
+    pub fn paths(&self) -> impl Iterator<Item = &str> {
+        std::iter::once(self.path.as_str()).chain(
+            self.alternatives
+                .iter()
+                .map(|alternative| alternative.path.as_str()),
+        )
+    }
+}
+
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub enum ServerLaunch {
     #[default]
     Jar,
-    /// Relative to the data directory: the file names its libraries relatively.
-    ArgsFile(String),
+    ArgsFile(ArgsFile),
 }
 
 /// The resolved launch profile for a Minecraft *server*.

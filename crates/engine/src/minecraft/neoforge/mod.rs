@@ -24,7 +24,9 @@ use proto::minecraft::GameVersion;
 use super::materialize::{self, OnProgress};
 use super::meta::{mojang, neoforge};
 use super::plan;
-use super::profile::{InstanceProfile, ServerJar, ServerLaunch, ServerProfile};
+use super::profile::{
+    ArgsFile, InstanceProfile, OsArgsFile, ServerJar, ServerLaunch, ServerProfile,
+};
 use super::provider::{
     FlavorInfo, FlavorProvider, InstallRequest, ResolveRequest, Side, BOTH_SIDES,
 };
@@ -192,16 +194,20 @@ async fn run_install(
 /// The arg file the server-side install generates, relative to the directory
 /// the server launches from. Its contents name every library relatively, so the
 /// path is stated the same way.
-pub(crate) fn server_args_file(loader: &str) -> String {
-    let name = if cfg!(windows) {
-        "win_args.txt"
-    } else {
-        "unix_args.txt"
+pub(crate) fn server_args_file(loader: &str) -> ArgsFile {
+    let in_loader = |name: &str| {
+        format!(
+            "libraries/net/neoforged/{}/{loader}/{name}",
+            neoforge::artifact(loader)
+        )
     };
-    format!(
-        "libraries/net/neoforged/{}/{loader}/{name}",
-        neoforge::artifact(loader)
-    )
+    ArgsFile {
+        path: in_loader("unix_args.txt"),
+        alternatives: vec![OsArgsFile {
+            os: "windows".into(),
+            path: in_loader("win_args.txt"),
+        }],
+    }
 }
 
 pub struct NeoForge;

@@ -51,6 +51,7 @@ the alternative you rejected — that is usually the part nobody can recover lat
 - **0117** — [A grant is permission to scope, driven by one table](0117-a-grant-is-permission-to-scope.md)
 - **0118** — [Host-pushed events and a call budget instead of a resident instance](0118-host-pushed-events-and-a-call-budget-instead-of-a-resident-instance.md)
 - **0120** — [A program's identity is separate from its invocations; pins are lazy and approved](0120-a-programs-identity-is-separate-from-its-invocations.md)
+- **0121** — [A build places trees, and a server may launch from an args file](0121-a-build-places-trees-and-the-profile-launches-from-an-args-file.md)
 
 ### [Cross-cutting foundations](../architecture/common.md)
 

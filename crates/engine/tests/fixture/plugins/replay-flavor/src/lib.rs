@@ -19,16 +19,24 @@
 //! produces nothing. On the client, `built` copies the vanilla jar it is shown
 //! into the build area as a built library. Every other version has nothing to
 //! build.
+//!
+//! Tree outputs: on the server, `tree` writes a directory into the data
+//! directory and one into the libraries root, and launches from an args file
+//! with a Windows alternative; `badargs` names an args file that leaves the data
+//! directory. On the client, `tree` builds a library that is off the classpath
+//! into the libraries root and `tree-entry` aims a tree at a data directory a
+//! client does not have.
 
 use hestia::proto::content::ContentKind;
 use hestia::proto::download::{Checksum, HashAlgorithm};
 use hestia::proto::minecraft::{Artifact, GameVersion};
 use hestia::proto::profile::{
-    AssetIndex, FlavorDescription, InstanceProfile, Library, ServerJar, ServerProfile,
+    ArgsFile, AssetIndex, FlavorDescription, InstanceProfile, Library, OsArgsFile, ServerJar,
+    ServerLaunch, ServerProfile,
 };
 use hestia::proto::provider::flavor::{
     Argument, Build, BuildDone, BuildOutput, BuildQuery, BuildSide, ClientAddition,
-    ClientResolution, Info, LibrarySpec, Maven, ResolveClient, ResolveQuery, ResolveServer,
+    ClientResolution, Destination, Info, LibrarySpec, Maven, ResolveClient, ResolveQuery, ResolveServer,
     RuledArgs, ServerAddition, ServerResolution, Versions,
 };
 use hestia::proto::rules::{OsRule, Rule, RuleAction};
@@ -97,7 +105,7 @@ fn info(flavor: &str) -> Result<FlavorDescription, Error> {
 
 fn versions(flavor: &str) -> Result<Vec<GameVersion>, Error> {
     check(flavor)?;
-    Ok(["1.21", "foreign", "unsigned", "generated", "sha256", "wrongsum", "onvanilla", "onvanilla-foreign", "onvanilla-maven", "onvanilla-maven-missing", "onvanilla-maven-bad", "onvanilla-rules", "onvanilla-target", "built", "ordered", "expand", "outside", "symlink", "empty"]
+    Ok(["1.21", "foreign", "unsigned", "generated", "sha256", "wrongsum", "onvanilla", "onvanilla-foreign", "onvanilla-maven", "onvanilla-maven-missing", "onvanilla-maven-bad", "onvanilla-rules", "onvanilla-target", "built", "ordered", "expand", "outside", "symlink", "empty", "tree", "badargs", "tree-entry"]
         .into_iter()
         .map(|id| GameVersion {
             id: id.into(),
@@ -111,7 +119,7 @@ fn loader_library(version: &str) -> Result<Library, Error> {
         name: "example:loader:1.0".into(),
         path: "example/loader/1.0/loader-1.0.jar".into(),
         artifact: artifact(version, "loader.jar", JAR_SHA1)?,
-        built: false,
+        ..Library::default()
     })
 }
 
@@ -145,7 +153,7 @@ fn gated_library(version: &str, name: &str, os: &str) -> Result<LibrarySpec, Err
             name: name.into(),
             path: format!("{}.jar", name.replace(':', "/")),
             artifact: artifact(version, "gated.jar", JAR_SHA1)?,
-            built: false,
+            ..Library::default()
         },
         rules: only_on(os),
         ..LibrarySpec::default()
@@ -215,9 +223,22 @@ fn resolve_server(flavor: &str, query: ResolveQuery) -> Result<ServerResolution,
         },
         _ => ServerJar::Download(artifact(version, "server.jar", JAR_SHA1)?),
     };
+    let args = |path: &str| ArgsFile {
+        path: format!("{path}/unix_args.txt"),
+        alternatives: vec![OsArgsFile {
+            os: "windows".into(),
+            path: format!("{path}/win_args.txt"),
+        }],
+    };
+    let launch = match version {
+        "tree" => ServerLaunch::ArgsFile(args("tree")),
+        "badargs" => ServerLaunch::ArgsFile(args("../escape")),
+        _ => ServerLaunch::Jar,
+    };
     Ok(ServerResolution::Full(Box::new(ServerProfile {
         game_version: version.into(),
         jar,
+        launch,
         java_major: 21,
         ..ServerProfile::default()
     })))
@@ -232,11 +253,12 @@ fn resolve_client(flavor: &str, query: ResolveQuery) -> Result<ClientResolution,
     Ok(ClientResolution::Full(Box::new(InstanceProfile {
         game_version: version.into(),
         client: artifact(version, "client.jar", JAR_SHA1)?,
-        libraries: (version == "built")
+        libraries: matches!(version, "built" | "tree")
             .then(|| Library {
                 name: "example:built:1.0".into(),
                 path: BUILT_LIBRARY.into(),
                 built: true,
+                classpath: version != "tree",
                 ..Library::default()
             })
             .into_iter()
@@ -257,8 +279,26 @@ fn produced(path: &str, target: &str) -> BuildDone {
         outputs: vec![BuildOutput {
             path: path.into(),
             target: target.into(),
+            destination: None,
         }],
     }
+}
+
+fn tree(path: &str, target: &str, destination: Destination) -> BuildOutput {
+    BuildOutput {
+        path: path.into(),
+        target: target.into(),
+        destination: Some(destination),
+    }
+}
+
+fn write_tree(files: &[(&str, &str)]) -> Result<(), Error> {
+    for (path, contents) in files {
+        let path = std::path::Path::new(path);
+        std::fs::create_dir_all(path.parent().expect("a file path"))?;
+        std::fs::write(path, contents)?;
+    }
+    Ok(())
 }
 
 fn run_builder(mode: &str) -> Result<(), Error> {
@@ -304,6 +344,31 @@ fn build(flavor: &str, query: BuildQuery) -> Result<BuildDone, Error> {
             Ok(produced("/build/link.jar", BUILT_JAR))
         }
         (BuildSide::Server, "empty") => Ok(BuildDone::default()),
+        (BuildSide::Server, "tree") => {
+            write_tree(&[
+                ("/build/entry/tree/unix_args.txt", "unix"),
+                ("/build/entry/tree/win_args.txt", "win"),
+                ("/build/libs/example/loader/1.0/loader-1.0.jar", "loader"),
+            ])?;
+            Ok(BuildDone {
+                outputs: vec![
+                    tree("/build/entry", "", Destination::Entry),
+                    tree("/build/libs", "", Destination::Libraries),
+                ],
+            })
+        }
+        (BuildSide::Client, "tree") => {
+            write_tree(&[("/build/libs/example/built/1.0/built-1.0.jar", "off")])?;
+            Ok(BuildDone {
+                outputs: vec![tree("/build/libs", "", Destination::Libraries)],
+            })
+        }
+        (BuildSide::Client, "tree-entry") => {
+            write_tree(&[("/build/entry/a.txt", "a")])?;
+            Ok(BuildDone {
+                outputs: vec![tree("/build/entry", "", Destination::Entry)],
+            })
+        }
         (BuildSide::Client, "built") => {
             let vanilla = query
                 .vanilla_jar

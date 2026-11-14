@@ -174,7 +174,7 @@ During that call, and only that call, the guest has two more mounts beside `/dat
 
 | Mount | Access | What |
 |---|---|---|
-| `/build` | read-write | the flavor's own area, `meta/flavors/<flavor-id>/`, shared by every entry of the flavor |
+| `/build` | read-write | the plugin's own area, `meta/flavors/<plugin-id>/`, shared by every entry and flavor of the plugin |
 | `/vanilla` | read-only | a copy of the side's vanilla jar, alone; `vanillaJar` is that jar's guest path, absent when the side has none |
 
 Run tools with `hestia::process::exec_in(program, args, timeout, "/build")`, declare them in `[[programs]]` (a Java tool

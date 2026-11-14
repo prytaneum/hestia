@@ -387,7 +387,7 @@ refuses the whole answer. The queries that carry a `target` (`os`, `arch`, `java
 A flavor whose profile names something it cannot download implements the optional
 `build` operation ([0110](../decisions/0110-a-flavor-builds-in-its-own-area.md)).
 The adapter calls it from the flavor's `install` step with a per-call context: two
-extra preopens beside `/data`, `/build` (read-write, `meta/flavors/<flavor-id>/`)
+extra preopens beside `/data`, `/build` (read-write, `meta/flavors/<plugin-id>/`)
 and `/vanilla` (read-only, a host-owned copy of the side's vanilla jar and nothing else), and a
 progress and cancel sink that maps onto `ProvisionProgress` and the provision's
 cancel, under the one-hour command timeout. The guest writes only under `/build`;
@@ -395,7 +395,10 @@ cancel, under the one-hour command timeout. The guest writes only under `/build`
 `ServerJar::Built` filename in the server's data directory, or the path of a
 `Library` marked `built` under `meta/libraries/`), refusing a symlink, an escape
 and a target the profile did not declare, and fails the provision unless every
-built file exists. A flavor also declares how Modrinth packs and Prism instances
+built file exists. An output may instead be a directory tree with a `destination` (the server's data directory or
+the libraries root), placed file by file without replacing anything that exists; a `Library` may be kept off `-cp`
+with `classpath: false`; and a server may launch from an args file with a per-OS alternative the host picks
+([0121](../decisions/0121-a-build-places-trees-and-the-profile-launches-from-an-args-file.md)). A flavor also declares how Modrinth packs and Prism instances
 name its loader (`mrpackKey`, `prismUid`), which the transfer formats read from
 the registered flavors.
 
@@ -525,7 +528,7 @@ directories). `exec` runs under the current call's remaining budget, observes it
 cancel, kills the child's whole process tree on cancel, timeout or drop, and
 replaces `${build}`, `${vanilla}` and `${data}` in an argument with the host path
 of that mount of the call. A flavor `build` also holds an exclusive lock on
-`meta/flavors/<id>/.lock`. A spawned agent is supervised under the owner
+`meta/flavors/<plugin-id>/.lock`. A spawned agent is supervised under the owner
 `plugin:<id>`, visible and stoppable only by its plugin, and stopped when the
 plugin is disabled or removed
 ([0101](../decisions/0101-plugins-spawn-only-declared-programs.md)). The SDK's
@@ -678,7 +681,7 @@ minisign public key and an optional spare, added by its index URL. It has one sh
 │       ├── bin/            host-owned copies of verified data-directory programs
 │       └── settings.json   setting values, owner-only; may hold secrets
 ├── meta/plugins/           compiled components (.cwasm) — regenerable
-├── meta/flavors/<id>/      a flavor's build area, `/build` during its `build` — regenerable
+├── meta/flavors/<id>/      a plugin's build area, `/build` during its `build` — regenerable
 ├── updates/plugins/<api>/  official builds staged for the app update that brings that plugin API
 └── tmp/plugins/            packages fetched from a link, held until installed
 ```
@@ -761,3 +764,4 @@ plugins the tests build are fixtures
 | [0118](../decisions/0118-host-pushed-events-and-a-call-budget-instead-of-a-resident-instance.md) | host-pushed events and a call budget instead of a resident instance |
 | [0119](../decisions/0119-downloads-are-host-side.md) | downloads are host-side: a host download call and declarative Maven libraries |
 | [0120](../decisions/0120-a-programs-identity-is-separate-from-its-invocations.md) | a program's identity is separate from its invocations; pins are lazy and approved |
+| [0121](../decisions/0121-a-build-places-trees-and-the-profile-launches-from-an-args-file.md) | a build places directory trees; a server may launch from an args file per OS; the build area is the plugin's |
