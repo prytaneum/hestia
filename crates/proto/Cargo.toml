@@ -14,13 +14,16 @@ thiserror = { workspace = true }
 # The public suffix list, for refusing a network wildcard that would cover one.
 # Host-side only: the plugin SDK builds `proto` without default features.
 psl = { workspace = true, optional = true }
+# Setting patterns, host-side only like `psl`.
+regex = { workspace = true, optional = true }
 # TypeScript codegen for the wire error surface; feature-gated so it never
 # enters production builds. Regenerate with `scripts/gen-types.sh`.
 ts-rs = { workspace = true, optional = true }
 
 [features]
-default = ["suffix"]
+default = ["suffix", "pattern"]
 suffix = ["dep:psl"]
+pattern = ["dep:regex"]
 ts = ["dep:ts-rs"]
 
 [[test]]

@@ -22,7 +22,7 @@
 //! ]);
 //! ```
 
-use proto::ui::{Direction, Pair, Submit, TableRow, Variant};
+use proto::ui::{Direction, ImageShape, Pair, Submit, Tab, TableRow, Variant};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -113,6 +113,53 @@ pub fn image(src: impl Into<String>, alt: impl Into<String>) -> UiNode {
     }
 }
 
+/// A picture from `url`, an `https` address on a host the plugin's
+/// `network:connect` grant names. The daemon fetches it; a host the grant does
+/// not name shows no picture.
+pub fn remote_image(url: impl Into<String>, alt: impl Into<String>) -> UiNode {
+    UiNode::RemoteImage {
+        url: url.into(),
+        alt: alt.into(),
+        shape: ImageShape::Natural,
+    }
+}
+
+/// A small round picture, like a player head; the same fetch rules as
+/// [`remote_image`].
+pub fn avatar(url: impl Into<String>, alt: impl Into<String>) -> UiNode {
+    UiNode::RemoteImage {
+        url: url.into(),
+        alt: alt.into(),
+        shape: ImageShape::Avatar,
+    }
+}
+
+pub fn badge(tone: Tone, text: impl Into<String>) -> UiNode {
+    UiNode::Badge {
+        text: text.into(),
+        tone,
+    }
+}
+
+/// One tab of [`tabs`]; `id` is unique among them.
+pub fn tab(
+    id: impl Into<String>,
+    label: impl Into<String>,
+    children: impl IntoIterator<Item = UiNode>,
+) -> Tab {
+    Tab {
+        id: id.into(),
+        label: label.into(),
+        children: children.into_iter().collect(),
+    }
+}
+
+pub fn tabs(tabs: impl IntoIterator<Item = Tab>) -> UiNode {
+    UiNode::Tabs {
+        tabs: tabs.into_iter().collect(),
+    }
+}
+
 /// `src` is an `.html` file under the plugin's `assets/`; `height` is in pixels.
 pub fn webview(src: impl Into<String>, height: u32) -> UiNode {
     UiNode::Webview {
@@ -135,6 +182,21 @@ pub fn table<S: Into<String>>(
     UiNode::Table {
         columns: columns.into_iter().map(Into::into).collect(),
         rows: rows.into_iter().collect(),
+        filter: false,
+        row_action: None,
+    }
+}
+
+/// A [`table`] with a search box above it that hides the rows whose cells do
+/// not contain what was typed.
+pub fn filtered_table<S: Into<String>>(
+    columns: impl IntoIterator<Item = S>,
+    rows: impl IntoIterator<Item = TableRow>,
+) -> UiNode {
+    UiNode::Table {
+        columns: columns.into_iter().map(Into::into).collect(),
+        rows: rows.into_iter().collect(),
+        filter: true,
         row_action: None,
     }
 }
@@ -156,6 +218,22 @@ pub fn button(label: impl Into<String>, on_click: impl Serialize) -> UiNode {
         label: label.into(),
         action: action(on_click),
         variant: Variant::Primary,
+        confirm: None,
+    }
+}
+
+/// A [`button`] that asks `prompt` before its action is sent, for what cannot
+/// be undone.
+pub fn button_confirming(
+    label: impl Into<String>,
+    on_click: impl Serialize,
+    prompt: impl Into<String>,
+) -> UiNode {
+    UiNode::Button {
+        label: label.into(),
+        action: action(on_click),
+        variant: Variant::Danger,
+        confirm: Some(prompt.into()),
     }
 }
 

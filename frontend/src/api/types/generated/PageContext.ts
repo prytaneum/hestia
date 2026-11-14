@@ -4,4 +4,9 @@
  * Where a page is drawn. An `entry` page receives the server or instance it
  * sits on; the daemon replaces the reference with the entry's id.
  */
-export type PageContext = { entry?: string, };
+export type PageContext = { entry?: string, 
+/**
+ * The language the user reads, a tag like `pt-BR` (see [`is_locale_tag`]);
+ * absent for a client with none. The host drops a malformed one.
+ */
+locale?: string, };

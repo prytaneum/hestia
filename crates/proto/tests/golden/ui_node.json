@@ -12,7 +12,28 @@
       "rows": [
         { "cells": ["world", "12 MB"], "payload": { "id": "w1" } }
       ],
+      "filter": true,
       "rowAction": "open"
+    },
+    { "type": "remote_image", "url": "https://example.com/a.png", "alt": "A", "shape": "avatar" },
+    { "type": "badge", "text": "Online", "tone": "success" },
+    {
+      "type": "tabs",
+      "tabs": [
+        {
+          "id": "one",
+          "label": "One",
+          "children": [
+            {
+              "type": "button",
+              "label": "Delete",
+              "action": { "id": "delete", "payload": null },
+              "variant": "danger",
+              "confirm": "Delete it?"
+            }
+          ]
+        }
+      ]
     },
     {
       "type": "list",

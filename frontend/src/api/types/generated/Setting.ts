@@ -9,4 +9,28 @@ default: unknown, label: string, help: string,
 /**
  * The choices of a `select`.
  */
-options: Array<string>, };
+options: Array<string>, 
+/**
+ * The least a `number` may be.
+ */
+min?: number, 
+/**
+ * The most a `number` may be.
+ */
+max?: number, 
+/**
+ * A regular expression the whole of a `string` must match.
+ */
+pattern?: string, 
+/**
+ * Shown in an empty field.
+ */
+placeholder: string, 
+/**
+ * The heading the setting is listed under; settings without one come first.
+ */
+group: string, 
+/**
+ * An `https` page that explains the setting.
+ */
+helpUrl?: string, };

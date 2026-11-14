@@ -1,0 +1,13 @@
+package hestia:plugin@1.0.0;
+
+/// The plugin's own message catalogs: `messages/<locale>.json` in its package,
+/// one flat object of keys to texts per language.
+interface messages {
+    use types.{json, plugin-error};
+
+    /// The catalog for `locale` (a tag such as `pt-BR`) as a JSON object of
+    /// text by key: the `en` file, overlaid by the language's, overlaid by the
+    /// exact locale's. An object with no keys when the plugin ships none;
+    /// `invalid` for a malformed locale.
+    catalog: func(locale: string) -> result<json, plugin-error>;
+}

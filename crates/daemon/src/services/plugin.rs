@@ -3,13 +3,14 @@
 use proto::catalogue::{
     PluginCatalogue, PluginRepoAdd, PluginRepoList, PluginRepoRefresh, PluginRepoRemove,
 };
-use proto::error::{EntryKind, ErrorInfo};
+use proto::error::{EntryKind, ErrorInfo, Field};
 use proto::job::{JobStarted, JobSubject};
 use proto::plugin::{
-    CommandScope, PageContext, PageContribution, PageSlot, PluginAsset, PluginCommands,
-    PluginDisable, PluginEnable, PluginGet, PluginInspect, PluginInstall, PluginList,
-    PluginOutdated, PluginPages, PluginRemove, PluginRun, PluginSettingsGet, PluginSettingsSet,
-    PluginThemes, PluginUiAction, PluginUiRender, PluginUpdate,
+    is_locale_tag, CommandScope, PageContext, PageContribution, PageSlot, PluginAsset,
+    PluginCommands, PluginDisable, PluginEnable, PluginGet, PluginImage, PluginInspect,
+    PluginInstall, PluginList, PluginMessages, PluginMessagesResult, PluginOutdated, PluginPages,
+    PluginRemove, PluginRun, PluginSettingsGet, PluginSettingsSet, PluginThemes, PluginUiAction,
+    PluginUiRender, PluginUpdate,
 };
 use proto::Empty;
 
@@ -166,6 +167,18 @@ pub(super) fn register(on: &mut Channels<'_>) {
             .map_err(crate::runtime::engine_error)
     });
 
+    on.handle::<PluginImage, _, _>(|p, ctx| async move {
+        if p.url.is_empty() {
+            return Err(ErrorInfo::FieldRequired { field: Field::Url });
+        }
+        ctx.runtime.plugins().image(&p.plugin, &p.url).await
+    });
+
+    on.handle::<PluginMessages, _, _>(|p, ctx| async move {
+        let messages = ctx.runtime.plugins().messages(&p.plugin, &p.locale).await?;
+        Ok(PluginMessagesResult { messages })
+    });
+
     on.handle::<PluginPages, _, _>(|_: Empty, ctx| async move {
         Ok(ctx.runtime.plugins().pages().await)
     });
@@ -240,8 +253,15 @@ fn page_context(
     page: &PageContribution,
     context: PageContext,
 ) -> Result<PageContext, ErrorInfo> {
+    let locale = context.locale.filter(|tag| is_locale_tag(tag)).or_else(|| {
+        tracing::debug!(%plugin, "page context locale dropped");
+        None
+    });
     if page.slot != PageSlot::Entry {
-        return Ok(PageContext::default());
+        return Ok(PageContext {
+            entry: None,
+            locale,
+        });
     }
     let reference = context.entry.ok_or_else(|| ErrorInfo::PluginPageInvalid {
         plugin: plugin.to_string(),
@@ -252,5 +272,8 @@ fn page_context(
         EntryKind::Server => server_for(ctx, &reference, Intent::Read)?.id,
         EntryKind::Instance => instance_for(ctx, &reference, Intent::Read)?.id,
     };
-    Ok(PageContext { entry: Some(id) })
+    Ok(PageContext {
+        entry: Some(id),
+        locale,
+    })
 }

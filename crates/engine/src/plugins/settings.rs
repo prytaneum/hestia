@@ -221,6 +221,41 @@ mod tests {
         ));
     }
 
+    #[test]
+    fn a_value_outside_the_constraints_is_refused() {
+        let dir = tempfile::tempdir().unwrap();
+        let settings = PluginSettings::new(
+            dir.path().join(FILE),
+            vec![
+                Setting {
+                    key: "port".into(),
+                    kind: SettingKind::Number,
+                    min: Some(1.0),
+                    max: Some(65535.0),
+                    ..Setting::default()
+                },
+                Setting {
+                    key: "name".into(),
+                    pattern: Some("[a-z]+".into()),
+                    ..Setting::default()
+                },
+            ],
+        );
+        settings.set("port", json!(8080)).unwrap();
+        settings.set("name", json!("hestia")).unwrap();
+        for (key, value) in [
+            ("port", json!(0)),
+            ("port", json!(70000)),
+            ("name", json!("Hestia 1")),
+        ] {
+            assert!(
+                matches!(settings.set(key, value), Err(SettingsError::Invalid(_))),
+                "{key}"
+            );
+        }
+        assert_eq!(settings.get("port"), Some(json!(8080)));
+    }
+
     #[cfg(unix)]
     #[test]
     fn the_file_is_owner_only() {

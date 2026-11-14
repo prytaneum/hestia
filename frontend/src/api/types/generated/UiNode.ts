@@ -2,9 +2,11 @@
 import type { Action } from "./Action";
 import type { Direction } from "./Direction";
 import type { FormField } from "./FormField";
+import type { ImageShape } from "./ImageShape";
 import type { ListItem } from "./ListItem";
 import type { Pair } from "./Pair";
 import type { Submit } from "./Submit";
+import type { Tab } from "./Tab";
 import type { TableRow } from "./TableRow";
 import type { Tone } from "./Tone";
 import type { Variant } from "./Variant";
@@ -20,11 +22,24 @@ level: number, } | { "type": "text", text: string, tone: Tone, } | { "type": "ma
 /**
  * A path inside the plugin's own assets, relative to its root.
  */
-src: string, alt: string, } | { "type": "table", columns: Array<string>, rows: Array<TableRow>, 
+src: string, alt: string, } | { "type": "remote_image", 
+/**
+ * An `https` URL.
+ */
+url: string, alt: string, shape: ImageShape, } | { "type": "badge", text: string, tone: Tone, } | { "type": "tabs", tabs: Array<Tab>, } | { "type": "table", columns: Array<string>, rows: Array<TableRow>, 
+/**
+ * Shows a search box that hides the rows whose cells do not contain
+ * what was typed.
+ */
+filter: boolean, 
 /**
  * The action id sent, with the row's payload, when a row is chosen.
  */
-rowAction?: string, } | { "type": "list", items: Array<ListItem>, } | { "type": "detail", pairs: Array<Pair>, } | { "type": "form", id: string, fields: Array<FormField>, submit: Submit, } | { "type": "button", label: string, action: Action, variant: Variant, } | { "type": "notice", tone: Tone, text: string, } | { "type": "progress", 
+rowAction?: string, } | { "type": "list", items: Array<ListItem>, } | { "type": "detail", pairs: Array<Pair>, } | { "type": "form", id: string, fields: Array<FormField>, submit: Submit, } | { "type": "button", label: string, action: Action, variant: Variant, 
+/**
+ * Asks the user to confirm with this text before the action is sent.
+ */
+confirm?: string, } | { "type": "notice", tone: Tone, text: string, } | { "type": "progress", 
 /**
  * 0 to 1; absent when the length of the work is unknown.
  */

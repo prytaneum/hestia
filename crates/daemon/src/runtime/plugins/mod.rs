@@ -19,8 +19,8 @@ use std::time::Duration;
 use anyhow::Context;
 use engine::{
     is_official_signer, unregister_providers, Cache, CallChain, Cancel, Contributions, Engine,
-    HostCalls, Listings, LoadedPlugin, PluginRecord, PluginRuntime, PluginStats, Roster,
-    SettingsError, EVENT_TIMEOUT,
+    HostCalls, Listings, LoadedPlugin, MessagesError, PluginRecord, PluginRuntime, PluginStats,
+    Roster, SettingsError, EVENT_TIMEOUT,
 };
 use proto::error::ErrorInfo;
 use proto::plugin::{
@@ -446,6 +446,39 @@ impl Plugins {
             .await
             .map_err(|error| internal(error.into()))?
             .map_err(internal)
+    }
+
+    /// The plugin's message catalog for `locale`.
+    pub async fn messages(
+        &self,
+        id: &str,
+        locale: &str,
+    ) -> ServiceResult<std::collections::BTreeMap<String, String>> {
+        self.record(id)?;
+        let engine = self.engine.clone();
+        let (plugin, locale) = (id.to_string(), locale.to_string());
+        spawn_blocking(move || engine.plugins().messages(&plugin, &locale))
+            .await
+            .map_err(|error| internal(error.into()))?
+            .map_err(|error| match error {
+                MessagesError::Store(error) => internal(error),
+                bad @ MessagesError::BadLocale(_) => ErrorInfo::MalformedRequest {
+                    detail: bad.to_string(),
+                },
+            })
+    }
+
+    /// A remote image for one of `id`'s pages, from a host its grant names.
+    pub async fn image(
+        &self,
+        id: &str,
+        url: &str,
+    ) -> ServiceResult<proto::image::ImageFetchResult> {
+        let loaded = self.running(id)?;
+        self.engine
+            .fetch_plugin_image(loaded.grant(), url)
+            .await
+            .map_err(crate::runtime::engine_error)
     }
 
     /// Stores a setting, then tells the plugin if it is running. A guest that

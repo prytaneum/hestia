@@ -30,6 +30,7 @@ pub mod hooks;
 pub mod http;
 pub mod ipc;
 pub mod log;
+pub mod messages;
 pub mod pages;
 pub mod process;
 pub mod progress;

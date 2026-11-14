@@ -56,7 +56,10 @@ pub async fn open(client: &Client, plugin: &PluginInfo, page: &str, argv: &[Stri
     let session = Session {
         client,
         plugin: id,
-        context: PageContext { entry },
+        context: PageContext {
+            entry,
+            locale: None,
+        },
     };
     let mut page = page.to_string();
     let mut tree = session.render(&page).await?;
@@ -86,6 +89,11 @@ pub async fn open(client: &Client, plugin: &PluginInfo, page: &str, argv: &[Stri
                 }
             }
         };
+        if let (false, Some(prompt)) = (is_scripted, &choice.confirm) {
+            if !ui::confirm(prompt, "yes", "no")? {
+                continue;
+            }
+        }
         let values = if is_scripted {
             scripted_values(client, &choice.fields, &options.values).await?
         } else {

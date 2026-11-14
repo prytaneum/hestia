@@ -8,10 +8,11 @@ use super::scope::{stays_inside, PermissionScope, ScopeKind};
 use super::{
     CommandArgKind, CommandContribution, CommandScope, Contributions, PageSlot, Program, Setting,
     SettingKind, API_VERSION, CONTRIBUTION_ID_LENGTH, ENTRY_ARG, ID_LENGTH, MAX_COMMAND_WORDS,
-    MAX_SCHEDULES, MAX_SCHEDULE_SECS, MIN_SCHEDULE_SECS, RESERVED_IDS,
+    MAX_PAGE_REFRESH_SECS, MAX_PAGE_TOPICS, MAX_SCHEDULES, MAX_SCHEDULE_SECS,
+    MIN_PAGE_REFRESH_SECS, MIN_SCHEDULE_SECS, RESERVED_IDS,
 };
 
-#[derive(Serialize, Deserialize, Default, Debug, Clone, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Default, Debug, Clone, PartialEq)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
 #[serde(default, rename_all = "camelCase")]
 pub struct Manifest {
@@ -96,6 +97,12 @@ pub enum ManifestError {
     ReservedId(String),
     #[error("version `{0}` is not a semantic version")]
     BadVersion(String),
+    #[error("page `{0}` names a topic that is not a topic glob, or more than {MAX_PAGE_TOPICS}")]
+    BadPageTopics(String),
+    #[error(
+        "page `{0}` refreshes every {MIN_PAGE_REFRESH_SECS} to {MAX_PAGE_REFRESH_SECS} seconds"
+    )]
+    BadPageRefresh(String),
     #[error("api `{0}` is not a caret requirement like ^1.0.0")]
     BadApi(String),
     #[error("api `{required}` is not satisfied by host API {host}")]
@@ -315,6 +322,19 @@ impl Manifest {
                     errors.push(ManifestError::PathEscapes(icon.to_string()));
                 }
             }
+            if page.topics.len() > MAX_PAGE_TOPICS
+                || page
+                    .topics
+                    .iter()
+                    .any(|topic| !crate::glob::is_topic_glob(topic))
+            {
+                errors.push(ManifestError::BadPageTopics(page.id.clone()));
+            }
+            if page.refresh_every.is_some_and(|secs| {
+                !(MIN_PAGE_REFRESH_SECS..=MAX_PAGE_REFRESH_SECS).contains(&secs)
+            }) {
+                errors.push(ManifestError::BadPageRefresh(page.id.clone()));
+            }
             if page.slot == PageSlot::Entry && page.kind.is_none() {
                 errors.push(ManifestError::PageNeedsKind(page.id.clone()));
             }
@@ -327,6 +347,30 @@ impl Manifest {
             };
             if setting.kind == SettingKind::Select && setting.options.is_empty() {
                 errors.push(bad("a select needs options"));
+            }
+            let numeric = setting.kind == SettingKind::Number;
+            let textual = matches!(setting.kind, SettingKind::String | SettingKind::Secret);
+            if (setting.min.is_some() || setting.max.is_some()) && !numeric {
+                errors.push(bad("`min` and `max` belong to a number"));
+            }
+            if let (Some(min), Some(max)) = (setting.min, setting.max) {
+                if min > max {
+                    errors.push(bad("`min` is above `max`"));
+                }
+            }
+            if setting.pattern.is_some() && !textual {
+                errors.push(bad("`pattern` belongs to a string or secret"));
+            }
+            #[cfg(feature = "pattern")]
+            if let Err(detail) = setting.compiled_pattern() {
+                errors.push(bad(&format!("pattern {detail}")));
+            }
+            if setting.help_url.as_deref().is_some_and(|url| {
+                !url.get(..8)
+                    .is_some_and(|scheme| scheme.eq_ignore_ascii_case("https://"))
+                    || url.len() == 8
+            }) {
+                errors.push(bad("`help_url` must be an https URL"));
             }
             if setting.kind == SettingKind::Secret && setting.default.is_some() {
                 errors.push(bad("a secret has no default"));

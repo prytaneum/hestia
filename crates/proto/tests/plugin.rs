@@ -23,7 +23,8 @@ mod manifest {
         CommandArg, CommandArgKind, CommandContribution, CommandScope, Invocation, JavaChoiceError,
         JavaProfile, JavaRange, Manifest, ManifestError, PageContribution, PageSlot, Permission,
         PermissionScope, Program, ProgramJava, ProviderContribution, ScheduleContribution,
-        ScopeKind, Setting, SettingKind, ThemeContribution, Tier, MAX_SCHEDULES, MAX_SCHEDULE_SECS,
+        ScopeKind, Setting, SettingKind, ThemeContribution, Tier, MAX_PAGE_REFRESH_SECS,
+        MAX_PAGE_TOPICS, MAX_SCHEDULES, MAX_SCHEDULE_SECS, MIN_PAGE_REFRESH_SECS,
     };
 
     fn granting(permissions: &[Permission]) -> BTreeMap<Permission, PermissionScope> {
@@ -266,8 +267,124 @@ mod manifest {
             icon: icon.map(str::to_string),
             slot,
             kind,
+            ..PageContribution::default()
         });
         manifest
+    }
+
+    #[test]
+    fn a_live_page_names_topic_globs_and_a_bounded_refresh() {
+        let mut manifest = paged(PageSlot::Nav, None, None);
+        let page = &mut manifest.contributes.pages[0];
+        page.topics = vec!["server.*".into(), "process.exit".into()];
+        page.refresh_every = Some(MIN_PAGE_REFRESH_SECS);
+        assert_eq!(manifest.verdict(), Ok(()));
+
+        let page = &mut manifest.contributes.pages[0];
+        page.topics = vec!["server*".into()];
+        assert_eq!(
+            manifest.verdict(),
+            Err(ManifestError::BadPageTopics("overview".into()))
+        );
+        let page = &mut manifest.contributes.pages[0];
+        page.topics = vec!["job".into(); MAX_PAGE_TOPICS + 1];
+        assert!(manifest.verdict().is_err());
+
+        for secs in [0, MIN_PAGE_REFRESH_SECS - 1, MAX_PAGE_REFRESH_SECS + 1] {
+            let page = &mut manifest.contributes.pages[0];
+            page.topics.clear();
+            page.refresh_every = Some(secs);
+            assert_eq!(
+                manifest.verdict(),
+                Err(ManifestError::BadPageRefresh("overview".into())),
+                "{secs}"
+            );
+        }
+    }
+
+    fn with_setting(setting: Setting) -> Manifest {
+        let mut manifest = valid();
+        manifest.settings = vec![Setting {
+            key: "k".into(),
+            ..setting
+        }];
+        manifest
+    }
+
+    #[test]
+    fn setting_constraints_belong_to_their_kind_and_are_well_formed() {
+        let number = |min, max| Setting {
+            kind: SettingKind::Number,
+            min,
+            max,
+            ..Setting::default()
+        };
+        assert_eq!(with_setting(number(Some(1.0), Some(5.0))).verdict(), Ok(()));
+        assert!(matches!(
+            with_setting(number(Some(5.0), Some(1.0))).verdict(),
+            Err(ManifestError::BadSetting { .. })
+        ));
+        let text = |pattern: &str| Setting {
+            pattern: Some(pattern.into()),
+            ..Setting::default()
+        };
+        assert_eq!(with_setting(text("[a-z]+")).verdict(), Ok(()));
+        for bad in [
+            text("(unclosed"),
+            Setting {
+                kind: SettingKind::Bool,
+                pattern: Some("a".into()),
+                ..Setting::default()
+            },
+            Setting {
+                min: Some(1.0),
+                ..Setting::default()
+            },
+            Setting {
+                help_url: Some("http://example.com".into()),
+                ..Setting::default()
+            },
+            Setting {
+                help_url: Some("https://".into()),
+                ..Setting::default()
+            },
+        ] {
+            assert!(
+                matches!(
+                    with_setting(bad).verdict(),
+                    Err(ManifestError::BadSetting { .. })
+                ),
+                "a bad setting passed"
+            );
+        }
+        let with_url = Setting {
+            help_url: Some("https://example.com/help".into()),
+            ..Setting::default()
+        };
+        assert_eq!(with_setting(with_url).verdict(), Ok(()));
+    }
+
+    #[test]
+    fn a_setting_value_is_held_to_its_constraints() {
+        use serde_json::json;
+        let number = Setting {
+            kind: SettingKind::Number,
+            min: Some(1.0),
+            max: Some(5.0),
+            ..Setting::default()
+        };
+        assert!(number.check(&json!(3)).is_ok());
+        assert!(number.check(&json!(5)).is_ok());
+        assert!(number.check(&json!(0)).is_err());
+        assert!(number.check(&json!(5.5)).is_err());
+        let text = Setting {
+            pattern: Some("[a-z]{2,4}".into()),
+            ..Setting::default()
+        };
+        assert!(text.check(&json!("abc")).is_ok());
+        for bad in ["a", "abcde", "ABC", "abc!", "xabc\n"] {
+            assert!(text.check(&json!(bad)).is_err(), "{bad}");
+        }
     }
 
     #[test]

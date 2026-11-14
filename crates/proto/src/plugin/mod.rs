@@ -235,7 +235,19 @@ pub struct PageContribution {
     /// The kind of entry an `entry` page appears on.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub kind: Option<EntryKind>,
+    /// Topic globs such as `server.*`: while the page is open, a front-end
+    /// asks the plugin to draw it again whenever one of these topics is
+    /// published. The plugin is never sent the event.
+    pub topics: Vec<String>,
+    /// Seconds between redraws while the page is open, from
+    /// [`MIN_PAGE_REFRESH_SECS`] to [`MAX_PAGE_REFRESH_SECS`].
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub refresh_every: Option<u64>,
 }
+
+pub const MIN_PAGE_REFRESH_SECS: u64 = 5;
+pub const MAX_PAGE_REFRESH_SECS: u64 = 3600;
+pub const MAX_PAGE_TOPICS: usize = 8;
 
 /// Where a contributed page appears.
 #[derive(Serialize, Deserialize, Default, Debug, Clone, Copy, PartialEq, Eq)]
@@ -338,7 +350,7 @@ pub enum SettingKind {
     Secret,
 }
 
-#[derive(Serialize, Deserialize, Default, Debug, Clone, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Default, Debug, Clone, PartialEq)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
 #[serde(default, rename_all = "camelCase")]
 pub struct Setting {
@@ -351,9 +363,39 @@ pub struct Setting {
     pub help: String,
     /// The choices of a `select`.
     pub options: Vec<String>,
+    /// The least a `number` may be.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub min: Option<f64>,
+    /// The most a `number` may be.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max: Option<f64>,
+    /// A regular expression the whole of a `string` must match.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pattern: Option<String>,
+    /// Shown in an empty field.
+    pub placeholder: String,
+    /// The heading the setting is listed under; settings without one come first.
+    pub group: String,
+    /// An `https` page that explains the setting.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub help_url: Option<String>,
 }
 
 const SETTING_TEXT_LIMIT: usize = 4096;
+const SETTING_PATTERN_LIMIT: usize = 256;
+const SETTING_PATTERN_SIZE: usize = 64 * 1024;
+
+/// `en`, `pt-BR`, `zh-Hant-TW`: a language and optional subtags, which also
+/// keeps a locale from naming a path.
+pub fn is_locale_tag(tag: &str) -> bool {
+    let mut parts = tag.split('-');
+    let language = parts.next().unwrap_or_default();
+    (2..=3).contains(&language.len())
+        && language.bytes().all(|b| b.is_ascii_alphabetic())
+        && parts.all(|part| {
+            (1..=8).contains(&part.len()) && part.bytes().all(|b| b.is_ascii_alphanumeric())
+        })
+}
 
 impl Setting {
     /// Why `value` cannot be this setting's value, if it cannot.
@@ -364,9 +406,18 @@ impl Setting {
                 if text.len() > SETTING_TEXT_LIMIT {
                     return Err(format!("longer than {SETTING_TEXT_LIMIT} bytes"));
                 }
-                Ok(())
+                self.check_pattern(text)
             }
-            (SettingKind::Number, Value::Number(_)) | (SettingKind::Bool, Value::Bool(_)) => Ok(()),
+            (SettingKind::Number, Value::Number(number)) => {
+                let value = number.as_f64().unwrap_or(f64::NAN);
+                match (self.min, self.max) {
+                    (Some(min), _) if value < min => Err(format!("must be at least {min}")),
+                    (_, Some(max)) if value > max => Err(format!("must be at most {max}")),
+                    _ if value.is_nan() => Err("must be a number".into()),
+                    _ => Ok(()),
+                }
+            }
+            (SettingKind::Bool, Value::Bool(_)) => Ok(()),
             (SettingKind::Select, Value::String(choice)) => {
                 if self.options.contains(choice) {
                     Ok(())
@@ -380,6 +431,42 @@ impl Setting {
             (SettingKind::Number, _) => Err("must be a number".into()),
             (SettingKind::Bool, _) => Err("must be true or false".into()),
         }
+    }
+}
+
+impl Setting {
+    /// The compiled `pattern`, anchored to the whole value. Needs the host-side
+    /// `pattern` feature: a build without it (the plugin SDK) cannot check one.
+    #[cfg(feature = "pattern")]
+    pub fn compiled_pattern(&self) -> Result<Option<regex::Regex>, String> {
+        let Some(pattern) = &self.pattern else {
+            return Ok(None);
+        };
+        if pattern.len() > SETTING_PATTERN_LIMIT {
+            return Err(format!("longer than {SETTING_PATTERN_LIMIT} bytes"));
+        }
+        regex::RegexBuilder::new(&format!("^(?:{pattern})$"))
+            .size_limit(SETTING_PATTERN_SIZE)
+            .build()
+            .map(Some)
+            .map_err(|error| error.to_string())
+    }
+
+    #[cfg(feature = "pattern")]
+    fn check_pattern(&self, text: &str) -> Result<(), String> {
+        match self.compiled_pattern() {
+            Ok(Some(pattern)) if !pattern.is_match(text) => Err(format!(
+                "must match {}",
+                self.pattern.as_deref().unwrap_or_default()
+            )),
+            Ok(_) => Ok(()),
+            Err(error) => Err(format!("has a bad pattern: {error}")),
+        }
+    }
+
+    #[cfg(not(feature = "pattern"))]
+    fn check_pattern(&self, _text: &str) -> Result<(), String> {
+        Ok(())
     }
 }
 
@@ -648,6 +735,52 @@ impl Contract for PluginAsset {
     const CHANNEL: &'static str = "plugin.asset";
     type Params = PluginAssetParams;
     type Result = PluginAssetResult;
+}
+
+#[derive(Serialize, Deserialize, Default, Debug, Clone)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
+#[serde(default, rename_all = "camelCase")]
+pub struct PluginImageParams {
+    pub plugin: String,
+    pub url: String,
+}
+
+/// An image a plugin's page names with `remote_image`, fetched by the daemon
+/// like `image.fetch` but only from a host the plugin's `network:connect`
+/// grant names, on every redirect hop. Refused for a plugin that is not running.
+pub struct PluginImage;
+impl Contract for PluginImage {
+    const CHANNEL: &'static str = "plugin.image";
+    const TIMEOUT: Duration = Duration::from_secs(30);
+    type Params = PluginImageParams;
+    type Result = crate::image::ImageFetchResult;
+}
+
+#[derive(Serialize, Deserialize, Default, Debug, Clone)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
+#[serde(default, rename_all = "camelCase")]
+pub struct PluginMessagesParams {
+    pub plugin: String,
+    /// A tag like `pt-BR`; see [`is_locale_tag`].
+    pub locale: String,
+}
+
+#[derive(Serialize, Deserialize, Default, Debug, Clone)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
+#[serde(default, rename_all = "camelCase")]
+pub struct PluginMessagesResult {
+    /// Text by key.
+    pub messages: std::collections::BTreeMap<String, String>,
+}
+
+/// A plugin's message catalog for a locale: the English file, overlaid by the
+/// language's, overlaid by the exact locale's, so a key the locale lacks reads
+/// in the nearest language that has it. Empty when the plugin ships none.
+pub struct PluginMessages;
+impl Contract for PluginMessages {
+    const CHANNEL: &'static str = "plugin.messages";
+    type Params = PluginMessagesParams;
+    type Result = PluginMessagesResult;
 }
 
 pub struct PluginRemove;
@@ -1006,6 +1139,10 @@ impl Contract for PluginThemes {
 pub struct PageContext {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub entry: Option<String>,
+    /// The language the user reads, a tag like `pt-BR` (see [`is_locale_tag`]);
+    /// absent for a client with none. The host drops a malformed one.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub locale: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]

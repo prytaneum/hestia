@@ -57,6 +57,8 @@ const DENIED: &[&str] = &[
     "plugin.updates",
     "plugin.run",
     "plugin.asset",
+    "plugin.image",
+    "plugin.messages",
     "plugin.pages",
     "plugin.commands",
     "plugin.themes",
@@ -197,6 +199,8 @@ fn secret_bearing_and_privileged_channels_stay_closed() {
         (PluginDisable::CHANNEL, PluginDisable::PLUGIN),
         (PluginRemove::CHANNEL, PluginRemove::PLUGIN),
         (PluginAsset::CHANNEL, PluginAsset::PLUGIN),
+        (PluginImage::CHANNEL, PluginImage::PLUGIN),
+        (PluginMessages::CHANNEL, PluginMessages::PLUGIN),
         (PluginThemes::CHANNEL, PluginThemes::PLUGIN),
         (
             <ProcessOutputEvent as Topic>::TOPIC,

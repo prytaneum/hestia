@@ -4502,6 +4502,7 @@ name = "proto"
 version = "1.0.0-beta.3"
 dependencies = [
  "psl",
+ "regex",
  "serde",
  "serde_json",
  "sha2 0.11.1",

@@ -71,6 +71,12 @@ struct Setting {
 }
 
 #[derive(Deserialize)]
+struct Message {
+    locale: String,
+    key: String,
+}
+
+#[derive(Deserialize)]
 struct Endpoint {
     endpoint: String,
 }
@@ -246,6 +252,10 @@ impl Plugin for Probe {
             })
             .on("set-setting", |call: Setting| {
                 hestia::settings::set(&call.key, &call.value)
+            })
+            .on("message", |call: Message| {
+                let messages = hestia::messages::Messages::load(Some(&call.locale))?;
+                Ok(messages.get(&call.key).to_string())
             })
             .on("ipc-open", |call: Endpoint| {
                 Ok(hestia::ipc::open(&call.endpoint)?.id().to_string())

@@ -15,6 +15,8 @@ pub struct Choice {
     pub label: String,
     pub action: Action,
     pub fields: Vec<FormField>,
+    /// What to ask before the action is sent.
+    pub confirm: Option<String>,
 }
 
 pub fn views(node: &UiNode) -> Vec<View> {
@@ -45,7 +47,14 @@ fn push_views(node: &UiNode, out: &mut Vec<View>) {
                 .collect();
             out.push(View::line(lines.join("\n")));
         }
-        UiNode::Image { alt, .. } => out.push(View::note(alt)),
+        UiNode::Image { alt, .. } | UiNode::RemoteImage { alt, .. } => out.push(View::note(alt)),
+        UiNode::Badge { text, .. } => out.push(View::note(format!("[{text}]"))),
+        UiNode::Tabs { tabs } => {
+            for tab in tabs {
+                out.push(View::line(&tab.label));
+                tab.children.iter().for_each(|c| push_views(c, out));
+            }
+        }
         UiNode::Webview { .. } => out.push(View::note("[web content: open in the desktop app]")),
         UiNode::Table { columns, rows, .. } => out.push(View::table(
             "",
@@ -109,15 +118,26 @@ fn bar(fraction: Option<f32>, label: &Option<String>) -> String {
 fn push_choices(node: &UiNode, out: &mut Vec<Choice>) {
     match node {
         UiNode::Stack { children, .. } => children.iter().for_each(|c| push_choices(c, out)),
-        UiNode::Button { label, action, .. } => out.push(Choice {
+        UiNode::Tabs { tabs } => tabs
+            .iter()
+            .flat_map(|tab| &tab.children)
+            .for_each(|c| push_choices(c, out)),
+        UiNode::Button {
+            label,
+            action,
+            confirm,
+            ..
+        } => out.push(Choice {
             label: label.clone(),
             action: action.clone(),
             fields: Vec::new(),
+            confirm: confirm.clone(),
         }),
         UiNode::Form { fields, submit, .. } => out.push(Choice {
             label: submit.label.clone(),
             action: submit.action.clone(),
             fields: fields.clone(),
+            confirm: None,
         }),
         UiNode::Table {
             rows,
@@ -130,6 +150,7 @@ fn push_choices(node: &UiNode, out: &mut Vec<Choice>) {
                 payload: row.payload.clone(),
             },
             fields: Vec::new(),
+            confirm: None,
         })),
         UiNode::List { items } => items.iter().for_each(|item| push_item_choices(item, out)),
         _ => {}
@@ -169,6 +190,7 @@ mod tests {
                 payload: json!(null),
             },
             variant: Variant::Primary,
+            confirm: None,
         }
     }
 
@@ -196,6 +218,7 @@ mod tests {
     #[test]
     fn tables_lists_and_details_map_to_their_views() {
         let table = UiNode::Table {
+            filter: false,
             columns: vec!["A".into()],
             rows: vec![TableRow {
                 cells: vec!["1".into()],
@@ -326,6 +349,7 @@ mod tests {
             children: vec![
                 button("Refresh", "refresh"),
                 UiNode::Table {
+                    filter: false,
                     columns: vec!["A".into()],
                     rows: vec![TableRow {
                         cells: vec!["x".into(), "y".into()],

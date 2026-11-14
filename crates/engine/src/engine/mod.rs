@@ -246,6 +246,22 @@ impl Engine {
         })
     }
 
+    /// [`fetch_image`](Engine::fetch_image) for a URL a plugin named: only from
+    /// hosts its grant names, on every redirect hop.
+    pub async fn fetch_plugin_image(
+        &self,
+        grant: &proto::plugin::Grant,
+        url: &str,
+    ) -> anyhow::Result<proto::image::ImageFetchResult> {
+        use base64::Engine as _;
+        let policy = crate::plugins::vouch::Policy::new(grant);
+        let image = self.images.fetch_vouched(url, &policy).await?;
+        Ok(proto::image::ImageFetchResult {
+            mime: image.mime,
+            bytes: base64::engine::general_purpose::STANDARD.encode(image.bytes),
+        })
+    }
+
     pub fn java(&self) -> &Java {
         &self.java
     }

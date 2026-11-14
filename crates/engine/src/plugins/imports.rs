@@ -19,6 +19,7 @@ use super::error::GuestError;
 use super::http::PluginHttp;
 use super::ipc::{Connections, IpcError};
 use super::lock::{Held, LockError, Locks};
+use super::messages::Catalogs;
 use super::output::PluginLog;
 use super::process::{CallScope, ExecRequest, ProgramError, Programs};
 use super::settings::{PluginSettings, SettingsError};
@@ -112,6 +113,7 @@ pub(crate) struct PluginState {
     /// The locks this call took; dropping the store releases them.
     pub(crate) held: Held,
     pub(crate) downloads: Arc<Downloads>,
+    pub(crate) catalogs: Arc<Catalogs>,
 }
 
 /// What a `host.call` is checked against. Apart from [`PluginState`] so an
@@ -453,6 +455,18 @@ impl From<bindings::hestia::plugin::download::Checksum> for Checksum {
             },
             hex: checksum.hex,
         }
+    }
+}
+
+impl bindings::hestia::plugin::messages::Host for PluginState {
+    async fn catalog(&mut self, locale: String) -> Result<String, PluginError> {
+        let catalogs = self.catalogs.clone();
+        let resolved = tokio::task::spawn_blocking(move || catalogs.resolve(&locale))
+            .await
+            .map_err(|error| PluginError::Failed(format!("cannot read the catalog: {error}")))?
+            .map_err(|error| PluginError::Invalid(error.to_string()))?;
+        serde_json::to_string(&resolved)
+            .map_err(|error| PluginError::Failed(format!("cannot encode the catalog: {error}")))
     }
 }
 

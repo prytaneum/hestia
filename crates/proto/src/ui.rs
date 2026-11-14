@@ -41,6 +41,28 @@ pub enum Variant {
     Danger,
 }
 
+/// How a remote image is drawn.
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
+#[serde(rename_all = "snake_case")]
+pub enum ImageShape {
+    #[default]
+    Natural,
+    /// A small round picture, like a player head.
+    Avatar,
+}
+
+/// One page of a [`UiNode::Tabs`]: a label and the nodes shown while it is chosen.
+#[derive(Serialize, Deserialize, Default, Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
+#[serde(default, rename_all = "camelCase")]
+pub struct Tab {
+    /// Unique among the tabs of one node; the front-end keeps the chosen id.
+    pub id: String,
+    pub label: String,
+    pub children: Vec<UiNode>,
+}
+
 /// What a click or a submit sends back to the plugin: the `id` it declared and
 /// the `payload` it attached. A form adds its field values separately.
 #[derive(Serialize, Deserialize, Default, Debug, Clone, PartialEq)]
@@ -197,9 +219,30 @@ pub enum UiNode {
         src: String,
         alt: String,
     },
+    /// An image from a host the plugin's `network:connect` grant names. The
+    /// daemon fetches it, so the webview never contacts the host.
+    RemoteImage {
+        /// An `https` URL.
+        url: String,
+        alt: String,
+        #[serde(default)]
+        shape: ImageShape,
+    },
+    Badge {
+        text: String,
+        #[serde(default)]
+        tone: Tone,
+    },
+    Tabs {
+        tabs: Vec<Tab>,
+    },
     Table {
         columns: Vec<String>,
         rows: Vec<TableRow>,
+        /// Shows a search box that hides the rows whose cells do not contain
+        /// what was typed.
+        #[serde(default)]
+        filter: bool,
         /// The action id sent, with the row's payload, when a row is chosen.
         #[serde(skip_serializing_if = "Option::is_none")]
         row_action: Option<String>,
@@ -220,6 +263,9 @@ pub enum UiNode {
         action: Action,
         #[serde(default)]
         variant: Variant,
+        /// Asks the user to confirm with this text before the action is sent.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        confirm: Option<String>,
     },
     Notice {
         #[serde(default)]
@@ -246,6 +292,12 @@ pub enum UiNode {
 /// The tallest frame a plugin may ask for.
 pub const MAX_WEBVIEW_HEIGHT: u32 = 2000;
 
+/// The longest URL a remote image may name.
+pub const MAX_IMAGE_URL: usize = 2048;
+
+/// The most tabs one node may hold.
+pub const MAX_TABS: usize = 12;
+
 /// Why a tree or an effect is refused before a front-end draws it.
 #[derive(thiserror::Error, Debug, PartialEq, Eq)]
 pub enum UiError {
@@ -253,6 +305,10 @@ pub enum UiError {
     WebviewSrc(String),
     #[error("webview height {0} must be 1 to {MAX_WEBVIEW_HEIGHT}")]
     WebviewHeight(u32),
+    #[error("remote image url {0:?} must be an https URL of at most {MAX_IMAGE_URL} bytes")]
+    ImageUrl(String),
+    #[error("tabs need 1 to {MAX_TABS} tabs, each with its own non-empty id")]
+    Tabs,
 }
 
 impl UiNode {
@@ -264,6 +320,27 @@ impl UiNode {
                 .iter()
                 .flat_map(|item| &item.actions)
                 .try_for_each(UiNode::validate),
+            UiNode::RemoteImage { url, .. } => {
+                let https = url
+                    .get(..8)
+                    .is_some_and(|scheme| scheme.eq_ignore_ascii_case("https://"));
+                if !https || url.len() > MAX_IMAGE_URL || url.len() == 8 {
+                    return Err(UiError::ImageUrl(url.clone()));
+                }
+                Ok(())
+            }
+            UiNode::Tabs { tabs } => {
+                let mut seen = std::collections::HashSet::new();
+                let distinct = tabs
+                    .iter()
+                    .all(|tab| !tab.id.is_empty() && seen.insert(tab.id.as_str()));
+                if tabs.is_empty() || tabs.len() > MAX_TABS || !distinct {
+                    return Err(UiError::Tabs);
+                }
+                tabs.iter()
+                    .flat_map(|tab| &tab.children)
+                    .try_for_each(UiNode::validate)
+            }
             UiNode::Webview { src, height } => {
                 let under_assets = src
                     .strip_prefix("assets/")
@@ -333,6 +410,52 @@ mod tests {
         assert!(webview("assets/a.html", MAX_WEBVIEW_HEIGHT + 1)
             .validate()
             .is_err());
+    }
+
+    #[test]
+    fn a_remote_image_must_name_an_https_url() {
+        let image = |url: &str| UiNode::RemoteImage {
+            url: url.into(),
+            alt: String::new(),
+            shape: ImageShape::Avatar,
+        };
+        assert_eq!(image("https://example.com/a.png").validate(), Ok(()));
+        assert_eq!(image("HTTPS://example.com/a.png").validate(), Ok(()));
+        for url in [
+            "",
+            "https://",
+            "http://example.com/a.png",
+            "data:image/png;base64,AA",
+            "assets/a.png",
+        ] {
+            assert!(image(url).validate().is_err(), "{url}");
+        }
+        let long = format!("https://example.com/{}", "a".repeat(MAX_IMAGE_URL));
+        assert!(image(&long).validate().is_err());
+    }
+
+    #[test]
+    fn tabs_need_distinct_ids_and_validate_their_children() {
+        let tab = |id: &str, children| Tab {
+            id: id.into(),
+            label: id.into(),
+            children,
+        };
+        let ok = UiNode::Tabs {
+            tabs: vec![tab("a", vec![]), tab("b", vec![])],
+        };
+        assert_eq!(ok.validate(), Ok(()));
+        for tabs in [
+            vec![],
+            vec![tab("a", vec![]), tab("a", vec![])],
+            vec![tab("", vec![])],
+            vec![tab("a", vec![webview("../x.html", 10)])],
+            (0..=MAX_TABS)
+                .map(|i| tab(&i.to_string(), vec![]))
+                .collect(),
+        ] {
+            assert!(UiNode::Tabs { tabs }.validate().is_err());
+        }
     }
 
     #[test]

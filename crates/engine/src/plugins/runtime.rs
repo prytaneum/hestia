@@ -29,11 +29,12 @@ use super::imports::bindings::{self, hestia::plugin::types::PluginError};
 use super::imports::{CommandRun, Gate, HostCalls, PluginState};
 use super::ipc::{Connections, Pushed};
 use super::lock::{Held, Locks};
+use super::messages::Catalogs;
 use super::output::{Captured, PluginLog};
 use super::process::Programs;
 use super::program::{pin_on_path, ManagedJava, NoManagedJava, Resolver};
 use super::settings::PluginSettings;
-use super::store::PluginRecord;
+use super::store::{PluginRecord, PACKAGE};
 use super::vouch::Policy;
 use crate::cache::Cache;
 use crate::checksum::hex;
@@ -284,6 +285,7 @@ impl PluginRuntime {
             ipc,
             locks: Arc::default(),
             downloads,
+            catalogs: Arc::new(Catalogs::of_package(&data_dir.with_file_name(PACKAGE))),
             id,
             engine: self.engine.clone(),
             pre,
@@ -352,6 +354,7 @@ pub struct LoadedPlugin {
     ipc: Arc<Connections>,
     locks: Arc<Locks>,
     downloads: Arc<Downloads>,
+    catalogs: Arc<Catalogs>,
     data_dir: PathBuf,
     settings: Arc<PluginSettings>,
     log: Arc<PluginLog>,
@@ -791,6 +794,7 @@ impl LoadedPlugin {
             locks: self.locks.clone(),
             held: Held::default(),
             downloads: self.downloads.clone(),
+            catalogs: self.catalogs.clone(),
             gate: Arc::new(Gate {
                 plugin: self.id.clone(),
                 host: self.host.clone(),

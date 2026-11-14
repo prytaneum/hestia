@@ -68,6 +68,7 @@ discord-rich-presence = "1.1.0"
 tempfile = "3.24.0"
 wasmparser = { version = "0.261.0", default-features = false, features = ["std", "component-model"] }
 psl = "2.1.253"
+regex = "1.13.1"
 wit-parser = { version = "0.261.0", default-features = false, features = ["std"] }
 wasm-encoder = { version = "0.261.0", default-features = false, features = ["std", "component-model"] }
 wasmtime = { version = "50.0.1", default-features = false, features = ["std", "runtime", "cranelift", "component-model", "async", "pooling-allocator"] }

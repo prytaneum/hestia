@@ -10,4 +10,15 @@ icon?: string, slot: PageSlot,
 /**
  * The kind of entry an `entry` page appears on.
  */
-kind?: EntryKind, };
+kind?: EntryKind, 
+/**
+ * Topic globs such as `server.*`: while the page is open, a front-end
+ * asks the plugin to draw it again whenever one of these topics is
+ * published. The plugin is never sent the event.
+ */
+topics: Array<string>, 
+/**
+ * Seconds between redraws while the page is open, from
+ * [`MIN_PAGE_REFRESH_SECS`] to [`MAX_PAGE_REFRESH_SECS`].
+ */
+refreshEvery?: number, };

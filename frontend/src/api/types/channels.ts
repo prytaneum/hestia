@@ -128,12 +128,15 @@ import type { PluginAssetParams } from "./generated/PluginAssetParams";
 import type { PluginAssetResult } from "./generated/PluginAssetResult";
 import type { PluginAutoUpdatedEvent } from "./generated/PluginAutoUpdatedEvent";
 import type { PluginCommand } from "./generated/PluginCommand";
+import type { PluginImageParams } from "./generated/PluginImageParams";
 import type { PluginInfo } from "./generated/PluginInfo";
 import type { PluginInspection } from "./generated/PluginInspection";
 import type { PluginInstallDone } from "./generated/PluginInstallDone";
 import type { PluginInstallParams } from "./generated/PluginInstallParams";
 import type { PluginInstallProgress } from "./generated/PluginInstallProgress";
 import type { PluginLogEvent } from "./generated/PluginLogEvent";
+import type { PluginMessagesParams } from "./generated/PluginMessagesParams";
+import type { PluginMessagesResult } from "./generated/PluginMessagesResult";
 import type { PluginPackageRef } from "./generated/PluginPackageRef";
 import type { PluginPage } from "./generated/PluginPage";
 import type { PluginRef } from "./generated/PluginRef";
@@ -318,10 +321,12 @@ export interface Channels {
   "plugin.commands": { params: Empty; result: Array<PluginCommand> };
   "plugin.disable": { params: Partial<PluginRef>; result: PluginInfo };
   "plugin.enable": { params: Partial<PluginRef>; result: PluginInfo };
+  "plugin.image": { params: Partial<PluginImageParams>; result: ImageFetchResult };
   "plugin.info": { params: Partial<PluginRef>; result: PluginInfo };
   "plugin.inspect": { params: Partial<PluginPackageRef>; result: PluginInspection };
   "plugin.install": { params: Partial<PluginInstallParams>; result: JobStarted };
   "plugin.list": { params: Empty; result: Array<PluginInfo> };
+  "plugin.messages": { params: Partial<PluginMessagesParams>; result: PluginMessagesResult };
   "plugin.outdated": { params: Partial<OutdatedParams>; result: Outdated };
   "plugin.pages": { params: Empty; result: Array<PluginPage> };
   "plugin.remove": { params: Partial<PluginRef>; result: Empty };
@@ -457,6 +462,7 @@ export const TIMEOUTS: Partial<Record<keyof Channels, number>> = {
   "modpack.preview_update": 120000,
   "plugin.catalogue": 120000,
   "plugin.enable": 60000,
+  "plugin.image": 30000,
   "plugin.inspect": 120000,
   "plugin.outdated": 120000,
   "plugin.repo.add": 60000,

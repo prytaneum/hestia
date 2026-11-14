@@ -220,10 +220,44 @@ impl Probe {
 const GRACE: Duration = Duration::from_millis(300);
 
 #[tokio::test]
+async fn a_plugin_reads_its_catalog_in_the_users_language() {
+    let probe = Probe::load(&[]);
+    let messages = probe.data.path().join("package/messages");
+    std::fs::create_dir_all(&messages).unwrap();
+    std::fs::write(messages.join("en.json"), r#"{"hi":"Hello","bye":"Bye"}"#).unwrap();
+    std::fs::write(messages.join("pt-BR.json"), r#"{"hi":"Ola"}"#).unwrap();
+    let ask = |locale: &'static str, key: &'static str| {
+        let probe = &probe;
+        async move {
+            probe
+                .run(
+                    "message",
+                    json!({ "locale": locale, "key": key }),
+                    &Cancel::new(),
+                    GRACE,
+                )
+                .await
+                .0
+        }
+    };
+
+    assert_eq!(ask("pt-BR", "hi").await.unwrap(), json!("Ola"));
+    assert_eq!(ask("pt-BR", "bye").await.unwrap(), json!("Bye"));
+    assert_eq!(ask("fr", "hi").await.unwrap(), json!("Hello"));
+    assert_eq!(ask("en", "missing").await.unwrap(), json!("missing"));
+    let bad = ask("../x", "hi").await;
+    assert!(
+        matches!(bad, Err(CallError::Guest(GuestError::Invalid(_)))),
+        "{bad:?}"
+    );
+}
+
+#[tokio::test]
 async fn a_page_renders_a_tree_that_decodes_and_carries_its_context() {
     let probe = Probe::load(&[]);
     let context = PageContext {
         entry: Some("srv-1".into()),
+        ..PageContext::default()
     };
 
     let tree = probe
