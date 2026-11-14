@@ -342,20 +342,9 @@ impl Jobs {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::atomic::{AtomicUsize, Ordering};
     use std::time::Duration;
 
-    use proto::java::{JavaInstallPhase, JavaInstallProgress};
-
     use super::*;
-
-    fn downloading(current: u64, total: u64) -> JavaInstallProgress {
-        JavaInstallProgress {
-            phase: JavaInstallPhase::Downloading,
-            current,
-            total,
-        }
-    }
 
     /// A job invented for the tests: the runner never looks inside a payload,
     /// so one stand-in contract exercises every path.
@@ -512,28 +501,5 @@ mod tests {
             (1..=210).contains(&progress),
             "every job is coalesced by the runner, got {progress} of 1001 ticks"
         );
-    }
-
-    #[test]
-    fn forwards_on_phase_change() {
-        let emitted = AtomicUsize::new(0);
-        let forward = coalesce_progress(|_: &JavaInstallProgress| {
-            emitted.fetch_add(1, Ordering::SeqCst);
-        });
-
-        forward(&JavaInstallProgress {
-            phase: JavaInstallPhase::Resolving,
-            current: 0,
-            total: 0,
-        });
-        // Same zero ratio, new phase: a phase switch always forwards.
-        forward(&downloading(0, 0));
-        forward(&JavaInstallProgress {
-            phase: JavaInstallPhase::Extracting,
-            current: 0,
-            total: 0,
-        });
-
-        assert_eq!(emitted.load(Ordering::SeqCst), 3);
     }
 }

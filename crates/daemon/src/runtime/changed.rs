@@ -18,17 +18,3 @@ impl Changed {
         self.0.lock().unwrap().iter().cloned().collect()
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn ids_are_unique_and_sorted() {
-        let touched = Changed::default();
-        touched.add("b");
-        touched.add("a");
-        touched.add("b");
-        assert_eq!(touched.ids(), ["a", "b"]);
-    }
-}

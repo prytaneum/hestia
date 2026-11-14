@@ -296,7 +296,7 @@ mod tests {
     }
 
     #[test]
-    fn gates_instance_and_sync_channels() {
+    fn only_instance_and_sync_channels_are_gated_on_an_account() {
         for channel in [
             "instance.launch",
             "instance.list",
@@ -306,10 +306,6 @@ mod tests {
         ] {
             assert!(requires_account(channel), "{channel} should be gated");
         }
-    }
-
-    #[test]
-    fn leaves_other_channels_open() {
         for channel in [
             "account.list",
             "server.start",

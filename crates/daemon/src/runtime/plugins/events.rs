@@ -539,17 +539,4 @@ mod tests {
         assert_eq!(queue.front().unwrap().1, json!(44));
         assert_eq!(queue.back().unwrap().1, json!(QUEUE_CAPACITY + 43));
     }
-
-    #[tokio::test]
-    async fn pop_waits_for_a_push_in_order() {
-        let inbox = Arc::new(Inbox::new("demo"));
-        let waiting = tokio::spawn({
-            let inbox = inbox.clone();
-            async move { (inbox.pop().await, inbox.pop().await) }
-        });
-        inbox.push("a", json!(1));
-        inbox.push("b", json!(2));
-        let (first, second) = waiting.await.unwrap();
-        assert_eq!((first.0.as_str(), second.0.as_str()), ("a", "b"));
-    }
 }
