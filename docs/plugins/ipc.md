@@ -7,11 +7,11 @@ plugin reaches a running Discord, or any local program, speaking that program's 
 ## Granting an endpoint
 
 ```toml
-permissions = ["ipc:connect"]
-ipc = ["discord-ipc-*"]
+[permissions]
+"ipc:connect" = { endpoints = ["discord-ipc-*"] }
 ```
 
-`ipc:connect` is an unrestricted permission, and `open` refuses a name the manifest's `ipc` list does not grant. An entry
+`ipc:connect` is an unrestricted permission that needs its `endpoints` scope, and `open` refuses a name the scope does not grant. An entry
 is a relative name whose last segment may end in `*`; a bare `*` is refused. See [permissions.md](permissions.md).
 
 ## Using a connection

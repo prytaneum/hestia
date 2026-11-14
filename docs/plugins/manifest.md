@@ -2,8 +2,7 @@
 
 `plugin.toml` sits at the root of the plugin's folder and, packed, at the root of the `.hplugin`. The types are
 `proto::plugin::Manifest` and its parts (`crates/proto/src/plugin/`); `Manifest::validate` is what `pack`, `dev` and
-install run, and each refusal below is one of its `ManifestError`s. Keys are camelCase; none of the current ones has a
-second word. An unknown key is ignored.
+install run, and each refusal below is one of its `ManifestError`s. Keys are camelCase (`helpUrl`, `refreshEvery`). An unknown key is ignored.
 
 ```toml
 id = "tunnel-demo"
@@ -138,6 +137,15 @@ Source: `plugins/discord-presence/plugin.toml`.
 | `default` | a value of that kind | used while the user has set nothing |
 | `label`, `help` | string | shown in the app and `hestia plugin config` |
 | `options` | list of strings | the choices of a `select`; it must not be empty |
+| `min`, `max` | number | the bounds of a `number`, with `min` not above `max` |
+| `pattern` | string | a regular expression the whole of a `string` or `secret` must match, at most 256 bytes |
+| `placeholder` | string | shown in an empty field |
+| `group` | string | the heading the setting is listed under; settings with none come first |
+| `helpUrl` | string | an `https` page that explains the setting |
+
+The constraints are checked for the user's writes and the plugin's own (`Setting::check`), and a manifest that puts one
+on the wrong kind, a `min` above `max`, a pattern that does not compile or a default that fails its own constraints is
+refused (`BadSetting`, naming the key).
 
 A `secret` has no default and is listed only as set or unset; its value leaves the daemon only for this plugin. A
 default that does not fit its kind is refused (`BadSetting`). The plugin reads a value with
@@ -229,7 +237,9 @@ kind = "server"           # required when slot = "entry": server or instance
 
 The `dashboard` example declares a `nav` and an `entry` page; the fields are `PageContribution`. The icon names are listed in
 [ui.md](ui.md#declaring-a-page). An `entry` page without a `kind` is
-`PageNeedsKind`. An icon path is checked like any package path.
+`PageNeedsKind`. An icon path is checked like any package path. A page may also declare `topics`, a list of at most 8
+topic globs, and `refreshEvery`, 5 to 3600 seconds, to be drawn again while it is open ([ui.md](ui.md#live-pages));
+anything else is `BadPageTopics` or `BadPageRefresh`.
 
 ### Themes
 

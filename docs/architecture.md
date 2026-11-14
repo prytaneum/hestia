@@ -276,7 +276,8 @@ their unpacked natives and their pre-hash asset layout.
 | `crates/engine/src/plugins/**` | unit tests beside the code: the runtime's limits and traps, hooks and the launch-patch allowlist, host matching for `wasi:http`, asset path rules, index and build signatures, the catalogue, held downloads |
 | `crates/proto/tests/{permission,plugin_api,plugin}.rs` | every contract's `PLUGIN` classification and the denied list, the snapshotted plugin API against the WIT files, and manifest validation |
 | `crates/sdk/tests/` | the SDK version equals the WIT package version |
-| `crates/*/tests/fixture/plugins/` | the plugins the tests build into components (`probe`, `static-index`, `replay-flavor`, `hello`) |
+| `crates/*/tests/fixture/plugins/` | the plugins the tests build into components (`probe`, `static-index`, `replay-flavor`, `replay-pack`, `replay-java`, `hello`) |
+| `crates/engine/tests/docs.rs` | the plugin guide's tagged excerpts are lines of the fixture they name, and every provider kind has one |
 | `crates/client/tests/` | the SDK against a scripted daemon over an in-memory duplex: contract marshalling, typed failures, timeouts, a version mismatch, and every way a job settles |
 | `crates/daemon/tests/e2e.rs` | a client-to-daemon round trip over a real socket |
 | `frontend/tests/` | the message catalogue (locale coverage, placeholder parity, no dead or missing keys), the export dialog's tree/exclusion conversions, and the quick-play version gate |

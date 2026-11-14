@@ -2,7 +2,7 @@
 
 A plugin is a **WASM component the daemon runs in a sandbox**. It can call the
 daemon's channels, hear its events, adjust or refuse an operation at a hook
-point, fill an open registry (content sources, flavors, archive formats, Java
+point, fill an open registry (content sources, flavors, pack formats, Java
 distributions), add commands, pages, settings and themes, and reach the network,
 declared programs and local endpoints, but only through what the user granted
 at install. The runtime lives in the engine ([`crates/engine/src/plugins/`](engine.md));
@@ -17,10 +17,11 @@ what a third party could use.
 
 - Writing one? [plugins/publishing.md](../plugins/publishing.md),
   [plugins/repository.md](../plugins/repository.md) and
-  [plugins/permissions.md](../plugins/permissions.md) are the author guides.
+  [plugins/permissions.md](../plugins/permissions.md) are the author guides;
+  [plugins/paths.md](../plugins/paths.md) covers what a guest sees of the filesystem.
 - Why it is built this way: decisions
   [0091](../decisions/0091-plugins-are-wasm-components.md) to
-  [0106](../decisions/0106-the-plugin-api-is-mechanisms-not-features.md),
+  [0131](../decisions/0131-plugin-tooling-reports-everything-and-builds-quickly.md),
   listed [below](#decisions).
 
 ## Where the pieces are
@@ -87,7 +88,8 @@ flowchart LR
 - **Traps.** Three traps inside ten minutes disable the plugin until it is
   enabled again (`CallError::Disabled`).
 - **The filesystem.** WASI sees one preopened directory, `data/`, mounted at
-  `/data`. TCP, UDP and name lookup are off; the environment is empty.
+  `/data`, plus `/build`, `/vanilla` and `/files` for the calls that are lent them
+  ([plugins/paths.md](../plugins/paths.md)). TCP, UDP and name lookup are off; the environment is empty.
 - **Output.** stdout and stderr are captured into the plugin's log, rate-limited
   and truncated; a dev plugin streams it to `hestia plugin dev`.
 
@@ -146,7 +148,8 @@ and an update that widens it asks again. The tiers and the full table are in
 - **Settings are an allowlist.** `config.get`/`config.list` need `config:read` and `config.set` needs
   `config:write`, but the permission is only the first gate: `proto::config::PLUGIN_ACCESS` marks every setting
   `none`, `read` or `readwrite` for plugins, an unlisted key is `none`, and a reply is filtered to the readable keys.
-  A test fails a setting the table does not list.
+  A test fails a setting the table does not list
+  ([0129](../decisions/0129-a-plugin-reaches-only-what-is-listed.md)).
 - **Always closed:** every secret-bearing channel (logs, `server.properties`, the
   per-entry config reads, sign-in and token channels, skins), plus update, daemon lifecycle
   and `plugin.*`. The list and the reason for each entry are in 0092.
@@ -208,7 +211,7 @@ provider) takes the same chain.
 ### Errors
 
 Every call between host and plugin fails with one WIT variant, `plugin-error`, in both directions
-([0115](decisions/0115-a-plugin-error-is-its-own-typed-enum.md)); its Rust mirror is `GuestError`
+([0115](../decisions/0115-a-plugin-error-is-its-own-typed-enum.md)); its Rust mirror is `GuestError`
 (`engine/src/plugins/error.rs`), and that file is the only place the two sides are translated.
 
 *Host to plugin* (`From<&ErrorInfo> for GuestError`, an exhaustive match): a daemon failure reaches the plugin as
@@ -250,7 +253,7 @@ longest one; a `words` argument takes the bare words after it.
 permission's scope: the contract names `ScopeKind::Files` and the path it reads, the
 gate does the rest, and the list is part of the `Grant`, so it is shown at install
 and widens an update
-([0092](decisions/0092-a-contract-names-the-permission-a-plugin-needs.md),
+([0092](../decisions/0092-a-contract-names-the-permission-a-plugin-needs.md),
 [0117](../decisions/0117-a-grant-is-permission-to-scope.md)).
 
 ## Events
@@ -497,7 +500,8 @@ https `help_url`, which `Setting::check` enforces for both writers; the clients 
 linked for everyone and each request is decided in `http.rs`: https only, no
 credentials in the URL, no IP literal, the host must match a granted entry (an
 exact host, or `*.domain` for the names one label below it; a wildcard over a
-public suffix such as `*.github.io` fails manifest validation), and the daemon must be
+public suffix such as `*.github.io` fails manifest validation,
+  [0129](../decisions/0129-a-plugin-reaches-only-what-is-listed.md)), and the daemon must be
 online. Dialling goes through the shared guard client, whose resolver refuses
 addresses that point inside the machine, so a granted name cannot reach the local
 network. A request has a 30 s timeout and a 32 MiB body cap.
@@ -817,3 +821,7 @@ plugins the tests build are fixtures
 | [0124](../decisions/0124-a-build-is-a-plan-the-host-runs.md) | a build is a plan the guest returns and the host runs under the supervisor |
 | [0125](../decisions/0125-a-pack-is-a-provider-kind-and-export-formats-are-open.md) | a pack is one provider kind that replaces `format`, and export formats are an open set |
 | [0126](../decisions/0126-an-ambient-channel-needs-no-permission.md) | an ambient channel hands out harmless facts and needs no permission |
+| [0127](../decisions/0127-a-flavor-description-declares-its-loader.md) | a flavor description declares its loader, its interchange keys and, optionally, only version ids |
+| [0129](../decisions/0129-a-plugin-reaches-only-what-is-listed.md) | a plugin reaches a setting, a host or a download only by an entry that names it |
+| [0130](../decisions/0130-a-plugin-reaches-all-entries.md) | a plugin's entry access is every entry |
+| [0131](../decisions/0131-plugin-tooling-reports-everything-and-builds-quickly.md) | plugin tooling builds quickly, builds against a local SDK and reports every problem |

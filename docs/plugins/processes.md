@@ -137,9 +137,9 @@ triple has no entry refuses the program.
 A package holds the manifest, the component, `assets/` and `themes/`, and nothing is copied into `data/` at install, so
 an agent that is not on `PATH` is fetched at run time into `data/`. The host copies the file before it trusts it:
 
-1. The plugin downloads the agent with `hestia::http::get` (needs `network:connect` and the download host in its `hosts`;
-   the body is at most 32 MiB; redirects are not followed, so request the final URL) and writes it under
-   `proto::plugin::DATA_MOUNT` (`/data`) with `std::fs`, at the path the manifest's `command` names. On Windows the same
+1. The plugin fetches the agent with [`hestia::download`](downloads.md) (needs `network:connect` and the download host in
+   its `hosts`; the daemon transfers, checks and caches the file, and nothing is followed past the granted hosts) into a
+   directory that exists under `proto::plugin::DATA_MOUNT` (`/data`), at the path the manifest's `command` names. On Windows the same
    name with `.exe` is tried too.
 2. On the first `exec` or `spawn`, the host copies the file into `plugins/<id>/bin/<program id>`, a directory the plugin
    cannot write, hashes the copy against the `sha256` for this host's triple, sets the exec bit and renames it into
@@ -150,7 +150,7 @@ an agent that is not on `PATH` is fetched at run time into `data/`. The host cop
 
 The hash is in the manifest, so the plugin can run exactly the build it declared: publishing a new agent version means
 shipping a new plugin version with the new hashes, which asks the user to approve again. No example plugin downloads an
-agent; the SDK has `hestia::http` for the download and `hestia::hash::file` to check it, but no one-call helper.
+agent; `hestia::download` fetches it and `hestia::hash::file` can check it again.
 
 ## `exec` and `spawn`
 

@@ -1,7 +1,7 @@
 # Providers
 
-A provider fills one of the launcher's open registries: a content source, a flavor (a game distribution), an archive
-format or a Java distribution. A plugin declares each one in the manifest, and the host asks it questions as the user
+A provider fills one of the launcher's open registries: a content source, a flavor (a game distribution), a pack format
+or a Java distribution. A plugin declares each one in the manifest, and the host asks it questions as the user
 searches, creates, imports or installs. The design is in
 [architecture/plugins.md](../architecture/plugins.md#provider-surfaces); the reasoning for the shape is [0106](../decisions/0106-the-plugin-api-is-mechanisms-not-features.md).
 
@@ -21,12 +21,17 @@ id = "index"
   at install. `network:connect` always needs at least one entry in its `hosts`.
 - The guest only names files; the host downloads them, and only from the plugin's `hosts`.
 
-| Kind | Permissions | Registers into | Operations |
-|---|---|---|---|
-| `content` | `content:read`, `network:connect` | the content source registry | `info`, `parse-url`, `recognise-file-url`, `search`, `project`, `projects`, `versions`, `versions-by-id`, `identify`, `resolve-manifest` |
-| `flavor` | `flavor:provide`, `network:connect` | the flavor registry | `info`, `versions`, `loader-versions`, `resolve-server`, `resolve-client`, `build` |
-| `java` | `java:provide`, `network:connect` | the Java provider roster | `majors`, `resolve` |
-| `pack` | `pack:provide` | the pack formats import detection ranks and export offers | `info`, `claims`, `read`, `write` |
+| Kind | Permissions | Registers into | Operations | Compiled example |
+|---|---|---|---|---|
+| `content` | `content:read`, `network:connect` | the content source registry | `info`, `parse-url`, `recognise-file-url`, `search`, `project`, `projects`, `versions`, `versions-by-id`, `identify`, `resolve-manifest` | [`static-index`](#content-sources) |
+| `flavor` | `flavor:provide`, `network:connect` | the flavor registry | `info`, `versions`, `loader-versions`, `resolve-server`, `resolve-client`, `build` | [`replay-flavor`](#flavors) |
+| `java` | `java:provide`, `network:connect` | the Java provider roster | `majors`, `resolve` | [`replay-java`](#java-distributions) |
+| `pack` | `pack:provide` | the pack formats import detection ranks and export offers | `info`, `claims`, `read`, `write` | [`replay-pack`](#pack-formats) |
+
+Every kind has an example in this page that is compiled and run by the engine's tests, from
+`crates/engine/tests/fixture/plugins/`. Each excerpt is tagged with the file it comes from, and a test fails when a
+line of one is not a line of that file, so the examples cannot drift from code that builds
+([the fixture build](#compiled-examples)).
 
 `flavor:provide`, `pack:provide` and `java:provide` are unrestricted: the install states them as full access to the
 computer ([permissions.md](permissions.md)).
@@ -74,11 +79,28 @@ A source that cannot work until the user has set something, such as an API key, 
 refuses the source). The host keeps the source out of use, and tells the UI which setting is missing, until the setting
 holds a value; there is nothing to refresh. Send the key to the API with `hestia::http::Request::header`.
 
-Example: [`static-index`](https://github.com/prytaneum/plugin-examples/tree/main/plugins/static-index), a source
-that serves a JSON index compiled into the component. File URLs in the index are relative to a `base-url` data file, so
-Hestia does the downloading. Excerpt of `plugins/static-index/src/lib.rs`:
+The fixture [`static-index`](../../crates/engine/tests/fixture/plugins/static-index/src/lib.rs) is a source that serves a
+JSON index compiled into the component. File URLs in the index are relative to a `base-url` data file, so Hestia does
+the downloading. Its whole manifest:
 
-```rust
+```toml fixture=crates/engine/tests/fixture/plugins/static-index/plugin.toml
+id = "static-index"
+version = "0.1.0"
+api = "^1.0.0"
+wasm = "plugin.wasm"
+
+[permissions]
+"content:read" = {}
+"network:connect" = { hosts = ["index.example.com"] }
+
+[[contributes.providers]]
+kind = "content"
+id = "index"
+```
+
+and the routing of its handlers, where each `.on` is typed by `proto::provider::content`:
+
+```rust fixture=crates/engine/tests/fixture/plugins/static-index/src/lib.rs
 impl Plugin for StaticIndex {
     fn provide(call: Provide) -> Provided {
         call.on::<Info>(|source, _| info(source))
@@ -86,6 +108,8 @@ impl Plugin for StaticIndex {
             .on::<Project>(project)
             .on::<Versions>(project_versions)
             .on::<VersionsById>(versions_by_id)
+            .on::<Identify>(identify)
+            .on::<ResolveManifest>(resolve_manifest)
             .finish()
     }
 }
@@ -93,7 +117,7 @@ impl Plugin for StaticIndex {
 hestia::plugin!(StaticIndex);
 ```
 
-It leaves the optional operations unhandled, so URL pasting, bulk lookup and file identification fall back as above.
+It leaves `parse-url`, `recognise-file-url` and `projects` unhandled, so URL pasting and bulk lookup fall back as above.
 
 ## Flavors
 
@@ -187,7 +211,7 @@ filename }`, or a client `Library` with `built: true` (it needs no URL or checks
 shared libraries). The host then calls `build` ([0110](../decisions/0110-a-flavor-builds-in-its-own-area.md)) every time
 the entry is provisioned or launched, so it must be cheap once done: check your own outputs first.
 
-During that call, and only that call, the guest has two more mounts beside `/data`:
+During that call, and only that call, the guest has two more mounts beside `/data` ([paths.md](paths.md)):
 
 | Mount | Access | What |
 |---|---|---|
@@ -202,44 +226,53 @@ runs the steps in order under the supervisor. A step whose `creates` all exist i
 shows every other line of its output as progress; a cancel stops the build between steps. A build still running under
 the same plugin, version and step is joined rather than started twice.
 
+A plan answers one more thing than files: where they go. An output is a file under `/build`, named by the profile's
+built server jar or built library, or a directory tree with a `destination` (`entry`, the server's data directory, which
+keeps a file that already exists, or `libraries`, the shared libraries root) and the relative `target` it is placed at
+([0121](../decisions/0121-a-build-places-trees-and-the-profile-launches-from-an-args-file.md)). A `Library` with
+`classpath: false` is materialised and kept off `-cp`, and a server profile may launch from an args file,
+`ServerLaunch::ArgsFile { path, alternatives }`, where each alternative names the file for one `os` of a rule's
+vocabulary and the host picks the one for the machine.
+
 Or run tools yourself with `hestia::process::exec_in(program, args, timeout, "/build")` (its output shows as progress as
-it prints), declare them in `[[programs]]` (a Java tool
-as `java = 21`, run on a Hestia-managed runtime), and answer with only the files to keep: `path` is a file under `/build`,
-`target` is the filename of the profile's built server jar or the `path` of one of its built libraries. The host copies
-each output into place, refuses a symlink, a path outside `/build` and a target the profile did not name, and fails the
-provision when a built file is still missing. A server that launches from an args file is not supported yet.
+it prints), declare them in `[[programs]]` (a Java tool as `java = 21`, run on a Hestia-managed runtime), and answer
+with only the outputs: `path` is a file under `/build` and `target` is the filename of the profile's built server jar or
+the `path` of one of its built libraries. The host copies each output into place, refuses a symlink, a path outside
+`/build` and a target the profile did not name, and fails the provision when a built file is still missing.
 `hestia::progress::report` and `cancelled` reach the provision's progress and cancel while `build` runs. Return
 `unsupported` (answer nothing) for a version with nothing to build.
 
-No published example exists. The test fixture
-[`replay-flavor`](../../crates/engine/tests/fixture/plugins/replay-flavor/src/lib.rs) is the compiled reference: it
-re-serves a vanilla-shaped profile, includes two deliberately bad versions the host must refuse, and has `build`
-versions that run a declared managed-Java program in `/build`. Its
-manifest, `crates/engine/tests/fixture/plugins/replay-flavor/plugin.toml`:
+The fixture [`replay-flavor`](../../crates/engine/tests/fixture/plugins/replay-flavor/src/lib.rs) is the compiled
+reference. It re-serves a vanilla-shaped profile and has one `build` version for each thing a build can do, and others
+the host must refuse, so its source is longer than a flavor needs. It also declares two more programs and two more
+providers for those tests; the manifest below leaves them out.
 
-```toml
+```toml fixture=crates/engine/tests/fixture/plugins/replay-flavor/plugin.toml
 id = "replay-flavor"
 version = "0.1.0"
 api = "^1.0.0"
 wasm = "plugin.wasm"
+
 [permissions]
 "flavor:provide" = {}
 "network:connect" = { hosts = ["files.example.com"], unhashed = ["files.example.com"] }
-"process:spawn" = { programs = ["builder"] }
+"process:spawn" = { programs = ["builder", "strict"] }
 
 [[programs]]
 id = "builder"
 java = 21
 args = ["*", "**"]
 
+...
+
 [[contributes.providers]]
 kind = "flavor"
 id = "replay"
 ```
 
-and its handlers, from `src/lib.rs`:
+and its routing, where `build` answers a plan and the other four operations a profile:
 
-```rust
+```rust fixture=crates/engine/tests/fixture/plugins/replay-flavor/src/lib.rs
 impl Plugin for Replay {
     fn provide(call: Provide) -> Provided {
         call.on::<Info>(|flavor, _| info(flavor))
@@ -250,6 +283,8 @@ impl Plugin for Replay {
             .finish()
     }
 }
+
+hestia::plugin!(Replay);
 ```
 
 ## Pack formats
@@ -276,11 +311,26 @@ loader win over the source's. A member a guest declares must be UTF-8 text of at
 `write` may copy only paths of its query (`files` and each `content` item's `path`), writes no archive path twice, and
 may add the content items it can refer to by download instead of copying.
 
-The fixture
-[`replay-pack`](../../crates/engine/tests/fixture/plugins/replay-pack/src/lib.rs) identifies an archive by
-`replay.json`, answers it verbatim, and exports every file with one warning. Its handlers:
+The fixture [`replay-pack`](../../crates/engine/tests/fixture/plugins/replay-pack/src/lib.rs) identifies an archive by
+`replay.json`, answers it verbatim, and exports every file with one warning. Its whole manifest:
 
-```rust
+```toml fixture=crates/engine/tests/fixture/plugins/replay-pack/plugin.toml
+id = "replay-pack"
+version = "0.1.0"
+api = "^1.0.0"
+wasm = "plugin.wasm"
+
+[permissions]
+"pack:provide" = {}
+
+[[contributes.providers]]
+kind = "pack"
+id = "replay"
+```
+
+and its routing:
+
+```rust fixture=crates/engine/tests/fixture/plugins/replay-pack/src/lib.rs
 impl Plugin for Replay {
     fn provide(call: Provide) -> Provided {
         call.on::<Info>(|pack, _| info(pack))
@@ -290,9 +340,9 @@ impl Plugin for Replay {
             .finish()
     }
 }
-```
 
-with `"pack:provide" = {}` under `[permissions]` and `kind = "pack"` in its `plugin.toml`.
+hestia::plugin!(Replay);
+```
 
 ## Java distributions
 
@@ -310,16 +360,90 @@ it and registers it ([0105](../decisions/0105-a-java-provider-only-resolves.md))
   names the install directory.
 - The user picks it with the `java.provider` setting or `hestia java install --provider <plugin>.<id>`.
 
-No example exists yet, compiled or published. The SDK shape is the same as the others, typed by
-`proto::provider::java::{Majors, Resolve}`:
+The fixture [`replay-java`](../../crates/engine/tests/fixture/plugins/replay-java/src/lib.rs) offers Java 17 and 21 and
+names a build for each. It serves 21 from its granted host and, to show the refusal, 17 from one outside the grant. Its
+whole manifest:
 
-```rust
-call.on::<Majors>(|id, _| /* Result<Vec<JavaRelease>, Error> */)
-    .on::<Resolve>(|id, target| /* Result<Option<JavaBuild>, Error> */)
-    .finish()
+```toml fixture=crates/engine/tests/fixture/plugins/replay-java/plugin.toml
+id = "replay-java"
+version = "0.1.0"
+api = "^1.0.0"
+wasm = "plugin.wasm"
+
+[permissions]
+"java:provide" = {}
+"network:connect" = { hosts = ["downloads.example.com"] }
+
+[[contributes.providers]]
+kind = "java"
+id = "replay"
 ```
 
-(a signature sketch, not a compiled sample).
+its answers, typed by `proto::provider::java`:
+
+```rust fixture=crates/engine/tests/fixture/plugins/replay-java/src/lib.rs
+fn majors(distribution: &str) -> Result<Vec<JavaRelease>, Error> {
+    check(distribution)?;
+    Ok(vec![
+        JavaRelease {
+            major: 17,
+            lts: true,
+        },
+        JavaRelease {
+            major: 21,
+            lts: true,
+        },
+    ])
+}
+
+fn resolve(distribution: &str, target: TargetQuery) -> Result<Option<JavaBuild>, Error> {
+    check(distribution)?;
+    let host = match target.major {
+        21 => "downloads.example.com",
+        17 => "mirror.example.org",
+        _ => return Ok(None),
+    };
+    let archive = if target.os == "windows" {
+        "zip"
+    } else {
+        "tar.gz"
+    };
+    Ok(Some(JavaBuild {
+        vendor: "replay".into(),
+        version: format!("{}.0.1", target.major),
+        url: format!("https://{host}/replay-{}.{archive}", target.major),
+        sha256: SHA256.into(),
+        archive: archive.into(),
+    }))
+}
+```
+
+and its routing:
+
+```rust fixture=crates/engine/tests/fixture/plugins/replay-java/src/lib.rs
+impl Plugin for Replay {
+    fn provide(call: Provide) -> Provided {
+        call.on::<Majors>(|distribution, _| majors(distribution))
+            .on::<Resolve>(resolve)
+            .finish()
+    }
+}
+
+hestia::plugin!(Replay);
+```
+
+Asking for 21 gives the host a package it downloads; asking for 17 fails the call as `resolve returned a refused build`,
+and asking for a version with no build answers `null`, which fails it naming the platform.
+
+## Compiled examples
+
+The fixtures are plugins of their own under `crates/engine/tests/fixture/plugins/`, each a Rust crate that depends on
+the SDK by path. The engine's tests build every one once into a kept directory under the target directory
+(`crates/engine/tests/fixture/`), so a warm `cargo test` does not compile them again, and load it through the same
+runtime and registries a daemon uses. `crates/engine/tests/docs.rs` reads this guide: each fenced block tagged
+`fixture=<path>` must be lines of that file in order (a line of `...` stands for lines left out), and every kind in
+`proto::provider::KINDS` must have a tagged Rust excerpt from a plugin that declares it. Adding a provider kind
+therefore fails that test until this page has an example of it.
 
 ## Errors
 

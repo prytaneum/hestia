@@ -73,6 +73,7 @@ even when a glob matches it.
 | `plugin.state` | `{ id, state }` | nothing; cut to those two fields |
 | `plugin.schedule` | `ScheduleEvent` `{ id }` | nothing; only to the plugin that declared it ([below](#schedules)) |
 | `plugin.log` | `PluginLogEvent` | nothing: never delivered |
+| `plugin.updates`, `plugin.auto_updated`, `plugin.rolled_back` | `Outdated`, `PluginAutoUpdatedEvent`, `PluginRolledBackEvent` | nothing: never delivered |
 
 `changed` names the scope that changed and, in `ids`, the stable ids the call touched, never what changed in them. `ids`
 holds entry ids for `entries` (a server or instance the caller named by display name arrives as its id, and a rename
@@ -151,8 +152,8 @@ nowhere else: they are never published to the hub, so no client and no other plu
 claims to carry under these names is refused. The plugin subscribes like to any topic and needs `ipc:connect`:
 
 ```toml
-permissions = ["ipc:connect"]
-ipc = ["discord-ipc-*"]
+[permissions]
+"ipc:connect" = { endpoints = ["discord-ipc-*"] }
 
 [contributes]
 events = ["ipc.*"]

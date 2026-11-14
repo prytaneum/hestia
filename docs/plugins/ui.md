@@ -28,6 +28,31 @@ An `icon` containing `/` or `.` is a path inside the package and must stay insid
 A manifest with an `entry` page and no `kind` is refused. A page id that is also one of the plugin's command ids is a
 command on the CLI.
 
+### Live pages
+
+A page can ask to be drawn again while it is open, so it never goes stale and the plugin needs no schedule for it:
+
+```toml
+[[contributes.pages]]
+id = "overview"
+title = "Overview"
+topics = ["server.*", "process.exit"]   # at most 8 topic globs
+refreshEvery = 30                       # seconds, 5 to 3600
+```
+
+While the page is open the front-end calls `render` again whenever one of the topics is published (throttled) or the
+interval passes. The plugin is never sent the event, so `topics` needs no permission and is not part of the grant; the
+page's `render` reads what it needs through its own calls, which are gated as usual.
+
+### Language
+
+`PageContext.locale` is the language of the app. A package may carry `messages/<locale>.json`, a flat object of texts by
+key with `{name}` placeholders (at most 256 KiB each), and `hestia::messages::Messages::load(locale)` reads the best
+match, from the exact locale to its language to `en`. `format("key", &[("name", "value")])` fills the placeholders, and
+a missing key reads as the key itself. The app translates the manifest's own texts from the same file by convention:
+`page.<id>.title`, `setting.<key>.label`, `setting.<key>.help`, `setting.<key>.placeholder` and `group.<name>`, and shows
+the manifest's text when a key is missing.
+
 ## Rendering and actions
 
 `Plugin::page(call: Pages)` carries a page, routed like commands: `call.on(page, render, action)` handles one page id with
@@ -88,7 +113,7 @@ Source: `crates/proto/tests/golden/ui_effects.json`, a pinned encoding.
 
 ## Nodes
 
-Twelve node types make the vocabulary. Each JSON sample below is the wire form, copied from the pinned fixture
+Sixteen node types make the vocabulary. Each JSON sample below is the wire form, copied from the pinned fixture
 `crates/proto/tests/golden/ui_node.json`. A node's `type` is `snake_case`, its other fields `camelCase`. A node that
 sets a field to its default may omit it: `direction`, `tone` and `variant` default to `vertical`, `neutral` and
 `primary`. Tones are `neutral`, `muted`, `info`, `success`, `warning`, `error`.
@@ -132,15 +157,44 @@ Rendered without raw HTML: embedded markup shows as text. The CLI prints it as f
 { "type": "image", "src": "assets/logo.png", "alt": "Logo" }
 ```
 
+### remote_image
+
+An image from the web, for what a plugin cannot ship, such as a player's head. `url` is `https` and at most 2048 bytes,
+and its host (and every redirect hop) must be one `network:connect` grants. The daemon fetches it, so the app never
+contacts the host. `shape` is `natural` (the default) or `avatar`, a small round picture.
+
+```json
+{ "type": "remote_image", "url": "https://example.com/a.png", "alt": "A", "shape": "avatar" }
+```
+
+### badge
+
+A short label with a tone, for a status.
+
+```json
+{ "type": "badge", "text": "Online", "tone": "success" }
+```
+
+### tabs
+
+One to 12 tabs, each with an `id` unique among them, a `label` and its own children; the front-end keeps the chosen
+tab.
+
+```json
+{ "type": "tabs", "tabs": [ { "id": "one", "label": "One", "children": [ { "type": "text", "text": "Hello" } ] } ] }
+```
+
 ### table
 
-Cells are strings. When `rowAction` is set, choosing a row sends that action id with the row's `payload`.
+Cells are strings. When `rowAction` is set, choosing a row sends that action id with the row's `payload`. With
+`filter: true` the table shows a search box that hides the rows whose cells do not contain what was typed.
 
 ```json
 {
   "type": "table",
   "columns": ["Name", "Size"],
   "rows": [ { "cells": ["world", "12 MB"], "payload": { "id": "w1" } } ],
+  "filter": true,
   "rowAction": "open"
 }
 ```
@@ -200,10 +254,15 @@ asked. Field types:
 
 ### button
 
-`variant` is `primary`, `secondary` or `danger`.
+`variant` is `primary`, `secondary` or `danger`. A `confirm` text makes the front-end ask the user before the action is
+sent, for what cannot be undone.
 
 ```json
 { "type": "button", "label": "Run", "action": { "id": "run", "payload": null }, "variant": "secondary" }
+```
+
+```json
+{ "type": "button", "label": "Delete", "action": { "id": "delete", "payload": null }, "variant": "danger", "confirm": "Delete it?" }
 ```
 
 ### notice
@@ -234,7 +293,8 @@ An HTML page from your `assets/` in a sandboxed frame, for what the nodes above 
 
 `hestia::ui` has builders for the common nodes and re-exports the types, so anything a builder does not cover is the
 enum written out. Builders exist for `stack`, `row_of` (a horizontal stack), `heading`, `text`, `markdown`, `notice`,
-`image`, `table` with `row`, `detail`, `button`, `form`, `progress` and `webview`. `list`, a table's `row_action`, a progress
+`image`, `remote_image`, `avatar`, `badge`, `tabs` with `tab`, `table` with `row` (and `filtered_table`), `detail`,
+`button` (and `button_confirming`), `form`, `progress` and `webview`. `list`, a table's `row_action`, a progress
 `label`, a button `variant` and a text `tone` have none; build `UiNode::List { .. }` and the others directly.
 
 From the SDK's doctest, `crates/sdk/src/ui.rs`:
@@ -331,7 +391,8 @@ fn save(values: Values, context: PageContext) -> Result<Vec<Effect>, Error> {
 | `stack`, `heading`, `text` | layout and text components | lines; `muted` prints as a note, `warning` and `error` as warnings |
 | `markdown`, `image` | the shared markdown component without raw HTML; package images by URL | formatted text; the `alt` text |
 | `table`, `list`, `detail` | data components | tables and a key/value block |
-| `form`, `button` | inputs and buttons | an action menu entry; a form prompts field by field |
+| `form`, `button` | inputs and buttons; a `confirm` asks first | an action menu entry, asking a `confirm` first; a form prompts field by field |
+| `remote_image`, `badge`, `tabs` | the image through the daemon, round for `avatar`; a pill; a tab strip | the `alt` text; `[text]`; each tab's label, then its children |
 | `notice` | an inline notice | a note; `warning` and `error` as warnings |
 | `progress` | a bar | a text bar |
 | `webview` | a sandboxed frame ([0109](../decisions/0109-plugin-webviews-are-opaque-iframes.md)) | a note |

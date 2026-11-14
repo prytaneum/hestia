@@ -2,7 +2,7 @@
 
 A plugin is a WASM component the daemon runs in a sandbox. It can call the daemon's channels, hear its events, adjust or
 refuse an operation at a hook point, add commands, pages, settings and themes, fill an open registry (content sources,
-flavors, archive formats, Java distributions), and reach the network, declared programs and local endpoints, but only
+flavors, pack formats, Java distributions), and reach the network, declared programs and local endpoints, but only
 through what the user approved at install. The design is in [architecture/plugins.md](../architecture/plugins.md); this
 guide is for the author.
 
@@ -67,8 +67,9 @@ command reference is in [cli.md](../cli.md#launcher-plugins).
 | [settings.md](settings.md) | reading and writing the plugin's own settings, secrets included |
 | [data.md](data.md) | the plugin's own files, and updating one atomically |
 | [hooks.md](hooks.md) | adjusting or vetoing a launch, a server start or a content install |
-| [providers.md](providers.md) | adding content sources, flavors, archive formats and Java distributions |
+| [providers.md](providers.md) | adding content sources, flavors, pack formats and Java distributions, with a compiled example of each |
 | [processes.md](processes.md) | running declared programs: `exec` against `spawn`, agents that are downloaded and hashed |
+| [paths.md](paths.md) | what a guest sees as its filesystem: the mounts, their access, and how a path is checked |
 | [ui.md](ui.md) | pages built from `UiNode` trees, with an example of every node |
 | [webview.md](webview.md) | the sandboxed `webview` node and its `postMessage` bridge, with a helper to copy |
 | [themes.md](themes.md) | restyling the app with a stylesheet |
@@ -82,8 +83,9 @@ command reference is in [cli.md](../cli.md#launcher-plugins).
 
 Example plugins live in [prytaneum/plugin-examples](https://github.com/prytaneum/plugin-examples)
 ([0103](../decisions/0103-example-plugins-live-in-their-own-repository.md)): `hello`, `static-index`, `tunnel-demo`,
-`launch-flags`, `dashboard`, `discord-presence` and the `theme-ember-night` theme. Every Rust sample in this guide names the file it comes from. A
-feature with no compiled example is documented from its manifest and the SDK signature only, and says so.
+`launch-flags`, `dashboard`, `discord-presence` and the `theme-ember-night` theme. Every Rust sample in this guide names the file it comes from, and the provider examples in
+[providers.md](providers.md) are compiled by the engine's tests. A feature with no compiled example is documented from its
+manifest and the SDK signature only, and says so.
 
 ## Licensing
 

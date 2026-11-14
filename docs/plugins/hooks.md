@@ -137,7 +137,7 @@ server start: every one is dropped with a warning, since a server has no window.
 
 `wrapper` names one of the plugin's own `[[programs]]`; the host runs the game or server command through it, such as
 `gamemoderun` or `mangohud`. It needs `process:spawn` and a program whose `command` is a name on `PATH`, run by the
-absolute path pinned at approval ([processes.md](processes.md#path-programs)). An unknown program, a program in `data/`,
+absolute path pinned at approval ([processes.md](processes.md#path-programs-are-pinned)). An unknown program, a program in `data/`,
 a missing permission or a file that vanished drops the wrapper with the same `LaunchArgDropped` warning. Wrappers nest;
 the first plugin in id order is the outermost.
 
