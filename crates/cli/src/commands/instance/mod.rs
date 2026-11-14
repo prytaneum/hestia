@@ -87,17 +87,17 @@ pub enum InstanceCmd {
         name: Option<String>,
         #[arg(long, help = "Set -Xms and -Xmx together (e.g. 4G, 2048M)")]
         memory: Option<String>,
-        /// Build the instance from a modpack — a slug, a URL, or a .mrpack
-        /// path. The pack names the flavor and version, so neither they nor --memory
+        /// Build the instance from a modpack — a slug, a URL, or a pack
+        /// file path. The pack names the flavor and version, so neither they nor --memory
         /// can be combined with it.
         #[arg(
             long,
             conflicts_with_all = ["flavor", "version", "loader", "memory"],
-            help = "Build from a modpack (slug, URL, or .mrpack path)"
+            help = "Build from a modpack (slug, URL, or pack file path)"
         )]
         modpack: Option<String>,
     },
-    /// Import an instance from an archive (hestia, .mrpack, Prism/MultiMC, or a format a plugin adds)
+    /// Import an instance from an archive (hestia, or a format a plugin adds)
     Import {
         /// Path to the archive; its format is detected from what is inside it
         path: PathBuf,
@@ -272,7 +272,7 @@ enum InstanceAction {
         #[arg(
             short,
             long,
-            help = "Archive format: hestia (hestia's own), mrpack (for other launchers) or one a plugin adds"
+            help = "Archive format: hestia (hestia's own) or one a plugin adds"
         )]
         format: Option<String>,
         #[arg(

@@ -17,18 +17,16 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
 use proto::error::{ArchiveFault, ArchiveFormat, ErrorInfo};
-use proto::transfer::ImportFormat;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use super::archive::{self, Reader, Writer, Written};
 use super::exclude::Rules;
-use super::{Blueprint, Carried, Descriptor, Format, Landed, Recipe, Source, Target};
+use super::{Blueprint, Carried, Descriptor, Recipe, Source, Target};
 use crate::cancel::Job;
 use crate::content::install;
 use crate::instances::InstanceRecord;
 use crate::minecraft::profile::InstanceProfile;
-use crate::minecraft::Loaders;
 use crate::registry;
 use crate::schema::{self, Document};
 
@@ -60,16 +58,9 @@ impl Manifest {
 
 pub(crate) struct Hestia;
 
-impl Format for Hestia {
-    fn id(&self) -> ImportFormat {
-        ImportFormat::Hestia
-    }
-
-    fn marker(&self) -> &'static str {
-        MANIFEST
-    }
-
-    fn read(&self, reader: &mut Reader, prefix: &str, _loaders: &Loaders) -> Result<Blueprint> {
+impl Hestia {
+    /// Parse the archive's manifest. Reads only — nothing exists on disk yet.
+    pub(crate) fn read(&self, reader: &mut Reader, prefix: &str) -> Result<Blueprint> {
         let record = manifest(reader, prefix)?.record()?;
         if record.profile.game_version.is_empty() {
             return Err(invalid(ArchiveFault::NoGameVersion).into());
@@ -84,34 +75,31 @@ impl Format for Hestia {
         };
         let recipe = Recipe {
             jvm: record.jvm,
-            carried: Some(Carried {
+            carried: Carried {
                 created_unix: record.created_unix,
                 last_played_unix: record.last_played_unix,
                 playtime_seconds: record.playtime_seconds,
                 sharing: record.sharing,
-            }),
+            },
         };
         Ok(Blueprint { descriptor, recipe })
     }
 
-    fn land(
+    /// Put the archive's files into the instance that now exists; the number written.
+    pub(crate) fn land(
         &self,
         reader: &mut Reader,
         prefix: &str,
         target: &Target<'_>,
         job: &Job<'_>,
-    ) -> Result<Landed> {
+    ) -> Result<u64> {
         // The record is registered before this runs, so a member named like it
         // would replace it; exports never carry one.
-        let files = reader.extract_under(prefix, target.entry_dir, job, &|relative| {
+        reader.extract_under(prefix, target.entry_dir, job, &|relative| {
             if relative == InstanceRecord::NAME {
                 tracing::debug!(member = relative, "skipping a record the importer owns");
             }
             relative != MANIFEST && relative != InstanceRecord::NAME
-        })?;
-        Ok(Landed {
-            files,
-            adopted: Vec::new(),
         })
     }
 }
@@ -272,15 +260,11 @@ mod tests {
         .unwrap();
 
         let mut reader = Reader::open(&archive_path).unwrap();
-        let blueprint = Hestia.read(&mut reader, "", &Loaders::default()).unwrap();
+        let blueprint = Hestia.read(&mut reader, "").unwrap();
         assert_eq!(blueprint.descriptor.name, "Cozy");
         assert_eq!(blueprint.descriptor.game_version, "1.21.1");
         assert_eq!(blueprint.descriptor.loader, "fabric");
-        let carried = blueprint
-            .recipe
-            .carried
-            .expect("hestia carries an identity");
-        assert_eq!(carried.playtime_seconds, 3600);
+        assert_eq!(blueprint.recipe.carried.playtime_seconds, 3600);
         let written = manifest(&mut reader, "").unwrap().record().unwrap();
         assert_eq!(
             written.profile.java_major, 0,
@@ -290,7 +274,6 @@ mod tests {
         let restored = temp("restored");
         let target = Target {
             entry_dir: restored.path(),
-            data_dir: &restored.path().join("data"),
         };
         Hestia.land(&mut reader, "", &target, &job).unwrap();
 
@@ -362,7 +345,6 @@ mod tests {
         let restored = temp("referenced-restored");
         let target = Target {
             entry_dir: restored.path(),
-            data_dir: &restored.path().join("data"),
         };
         let mut reader = Reader::open(&archive_path).unwrap();
         Hestia.land(&mut reader, "", &target, &job).unwrap();
@@ -411,7 +393,6 @@ mod tests {
             let restored = temp("excluded-restored");
             let target = Target {
                 entry_dir: restored.path(),
-                data_dir: &restored.path().join("data"),
             };
             let mut reader = Reader::open(&archive_path).unwrap();
             Hestia.land(&mut reader, "", &target, &job).unwrap();
@@ -445,7 +426,6 @@ mod tests {
         std::fs::write(restored.path().join(InstanceRecord::NAME), "registered").unwrap();
         let target = Target {
             entry_dir: restored.path(),
-            data_dir: &restored.path().join("data"),
         };
         let cancel = crate::cancel::Cancel::new();
         Hestia
@@ -474,7 +454,7 @@ mod tests {
     }
 
     fn read_error(path: &Path) -> ErrorInfo {
-        match Hestia.read(&mut Reader::open(path).unwrap(), "", &Loaders::default()) {
+        match Hestia.read(&mut Reader::open(path).unwrap(), "") {
             Ok(_) => panic!("the archive was accepted"),
             Err(e) => e.downcast::<ErrorInfo>().expect("a typed archive error"),
         }

@@ -33,7 +33,6 @@ use crate::roster::{Live, RegisterError, Roster};
 use profile::{InstanceProfile, ServerProfile};
 
 pub use loaders::Loaders;
-pub(crate) use loaders::PRISM;
 pub use provider::{accepted_kinds, unmet, InstallRequest, Prerequisite, Side};
 pub use provider::{FlavorInfo, FlavorProvider, Loads, ResolveRequest};
 pub use provider::{BOTH_SIDES, CLIENT_ONLY, SERVER_ONLY};

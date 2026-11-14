@@ -40,7 +40,7 @@ pub enum ModpackCmd {
 
 #[derive(clap::Args, Default)]
 pub struct InstallArgs {
-    /// Project slug or id, a modrinth.com URL, or a path to a .mrpack file
+    /// Project slug or id, a source's page URL, or a path to a pack file
     /// (searches interactively when omitted)
     pub pack: Option<String>,
     #[arg(short = 'V', long, help = "Pin a pack version (id or number)")]
@@ -342,7 +342,7 @@ async fn remove(client: &Client, entry: &EntryTarget, keep_content: bool) -> Res
 }
 
 /// Turn what the caller gave into a reference the daemon takes. A path that
-/// exists is a local `.mrpack`, anything with a scheme is a URL, and the rest
+/// exists is a local pack file, anything with a scheme is a URL, and the rest
 /// is a project on the chosen source — so the one positional argument covers
 /// all three without the caller picking a flag for it.
 async fn pack_ref(client: &Client, args: &InstallArgs) -> Result<ModpackRef> {
@@ -384,7 +384,7 @@ async fn pack_ref(client: &Client, args: &InstallArgs) -> Result<ModpackRef> {
 /// says whether it is the one you meant.
 async fn search_for_pack(client: &Client, source: &str) -> Result<String> {
     if !ui::interactive_output() {
-        bail!("name a modpack to install (a slug, a URL, or a .mrpack path)");
+        bail!("name a modpack to install (a slug, a URL, or a pack file path)");
     }
     let query = ui::input("search modpacks", "")?;
     let hits = {

@@ -52,16 +52,6 @@ pub enum WarningInfo {
     /// wrong routinely. Named individually: which mod was dropped is exactly
     /// what someone debugging a pack needs, and the list is short.
     ModpackFilesExcluded { count: u32, files: Vec<String> },
-    /// Pool items an `.mrpack` export could not name as downloads — a local
-    /// import, or a file from a source the pack format cannot reference — so
-    /// they were embedded in the archive instead. The export is complete and
-    /// installs correctly; it is only no longer a pack Modrinth would accept
-    /// for publishing.
-    ExportFilesEmbedded { count: u32, files: Vec<String> },
-    /// Content an import took from the archive's own bytes rather than from a
-    /// source: it is installed and loads, but carries no provenance, so it can
-    /// never be updated in place.
-    ImportFilesUntracked { count: u32, files: Vec<String> },
     /// Tracked content the archive neither carried nor named a download for, so
     /// its record was dropped: the instance imports with the content list it
     /// actually has.
@@ -163,14 +153,6 @@ impl WarningInfo {
                  installs one anyway, and `modpack.default-excludes false` trusts the pack"
                     .to_string()
             }
-            ExportFilesEmbedded { .. } => {
-                "nothing to do unless you mean to publish the pack — reinstall those files from a \
-                 source first if you do"
-                    .to_string()
-            }
-            ImportFilesUntracked { .. } => {
-                "reinstall them from a source (`mod add <name>`) to make them updatable".to_string()
-            }
             ImportContentMissing { .. } => {
                 "install them again from a source (`mod add <name>`) if you still want them"
                     .to_string()
@@ -254,14 +236,6 @@ impl fmt::Display for WarningInfo {
             ModpackFilesExcluded { count, .. } => write!(
                 f,
                 "{count} client-only mod(s) the pack called server-compatible were not installed"
-            ),
-            ExportFilesEmbedded { count, .. } => write!(
-                f,
-                "{count} file(s) had no download to reference and were embedded in the archive"
-            ),
-            ImportFilesUntracked { count, .. } => write!(
-                f,
-                "{count} file(s) came from the archive itself, so they cannot be updated"
             ),
             ImportContentMissing { count, .. } => write!(
                 f,

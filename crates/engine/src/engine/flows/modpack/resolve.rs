@@ -101,7 +101,7 @@ impl Engine {
     }
 
     /// Resolve a pack reference — a project, a source page URL, or a local
-    /// `.mrpack` — into everything installing needs.
+    /// pack file — into everything installing needs.
     pub(super) async fn fetch_pack(
         &self,
         reference: &ModpackRef,
@@ -214,8 +214,8 @@ impl Engine {
         self.data_home().join(STAGING)
     }
 
-    /// Opens a zip that is a pack and reads what it holds: the launcher's own
-    /// `.mrpack`, or whichever pack format a plugin contributes.
+    /// Opens a zip that is a pack and reads what it holds, through whichever
+    /// pack format a plugin contributes.
     pub(crate) async fn open_pack_file(
         &self,
         path: &Path,
@@ -234,15 +234,6 @@ impl Engine {
         detected: Detected,
     ) -> Result<(pack::Archive, ResolvedModpack)> {
         match detected.kind {
-            Kind::Mrpack => {
-                let mut archive = pack::Archive::mrpack(reader, detected.prefix);
-                let mut resolved = ResolvedModpack {
-                    source: LOCAL_SOURCE.to_string(),
-                    ..archive.index(&self.minecraft.loaders())?
-                };
-                self.content.recognise_files(&mut resolved.files).await;
-                Ok((archive, resolved))
-            }
             Kind::Plugin(plugin) => {
                 let loaders = self.minecraft.loaders();
                 let vetted = plugin.read(&mut reader, &detected.prefix, &loaders).await?;
@@ -272,7 +263,7 @@ impl Engine {
                     resolved,
                 ))
             }
-            Kind::Instance(_) => Err(ErrorInfo::ArchiveUnrecognised {
+            Kind::Hestia => Err(ErrorInfo::ArchiveUnrecognised {
                 filename: String::new(),
             }
             .into()),

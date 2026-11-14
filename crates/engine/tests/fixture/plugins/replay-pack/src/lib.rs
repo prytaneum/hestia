@@ -105,6 +105,7 @@ fn read(pack: &str, query: ReadQuery) -> Result<PackRead, Error> {
     Ok(PackRead {
         pack: ResolvedModpack {
             name,
+            version_number: text(&manifest, "versionId"),
             game_version: text(&manifest, "gameVersion"),
             loader: manifest["loader"].as_str().map(str::to_string),
             files,

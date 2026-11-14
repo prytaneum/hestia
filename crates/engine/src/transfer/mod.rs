@@ -7,42 +7,22 @@
 //! instance is something you play, share, and move between machines, so its
 //! archive is one portable file that says what it is.
 //!
-//! # Adding a format
+//! Hestia's own archive is the only instance format. Every other format is a
+//! plugin's `pack` provider ([`crate::plugins::PluginPack`]), which declares the
+//! members it reads and answers what the archive holds. [`detect`] ranks them
+//! beside hestia's own and the modpack flow receives a pack archive already
+//! open.
 //!
-//! One module beside this one and one line in [`detect`]. A format answers
-//! three questions and nothing else:
-//!
-//! 1. **which archives are mine** — a [`Format::marker`] file, matched by name;
-//! 2. **what does this one say it is** — [`Format::read`], which parses the
-//!    archive's own manifest into a [`Blueprint`];
-//! 3. **where do the files go** — [`Format::land`], given an instance that now
-//!    exists on disk.
-//!
-//! What a format never does is create the instance. That is the launcher's
-//! job, and the [`Recipe`] a blueprint carries is everything it needs: a loader
-//! to resolve with the descriptor's game version, and the identity some formats
-//! carry. The flow reads the recipe, not the format, so another format costs
-//! the flow nothing.
-//!
-//! A modpack is not an instance format. A `.mrpack` is the launcher's own, read
-//! by [`crate::content::pack`]; every other pack format is a plugin's `pack`
-//! provider ([`crate::plugins::PluginPack`]), which declares the members it
-//! reads and answers what the archive holds. [`detect`] ranks them beside the
-//! instance formats and the modpack flow receives the archive already open.
-//!
-//! Export is the same shape with fewer moving parts: [`Exporter`] picks a
-//! writer, and the rules for what an archive leaves out are shared
-//! ([`exclude`]) so two exporters cannot drift on the question of what an
-//! instance's files actually are.
+//! Export is the same shape: [`Exporter`] picks a writer, and the rules for
+//! what an archive leaves out are shared ([`exclude`]) so two exporters cannot
+//! drift on the question of what an instance's files actually are.
 
 pub(crate) mod archive;
 pub(crate) mod contents;
 pub(crate) mod exclude;
 pub(crate) mod hestia;
-pub(crate) mod mrpack;
 pub(crate) mod plugin;
 pub(crate) mod pool;
-pub(crate) mod prism;
 
 use std::path::Path;
 use std::sync::Arc;
@@ -56,7 +36,6 @@ use proto::transfer::ImportFormat;
 use proto::warning::WarningInfo;
 
 use crate::cancel::Job;
-use crate::content::pack;
 use crate::content::pack::shallowest;
 use crate::instances::InstanceRecord;
 use crate::jvm::JavaSettings;
@@ -79,14 +58,11 @@ pub(crate) struct Descriptor {
 /// How the launcher brings an archive's instance into existence: the game
 /// version and loader resolve exactly as `instance create` resolves them.
 pub(crate) struct Recipe {
-    /// Per-instance Java settings the archive carried, where its launcher
-    /// stored any.
     pub(crate) jvm: JavaSettings,
-    pub(crate) carried: Option<Carried>,
+    pub(crate) carried: Carried,
 }
 
-/// The identity of an instance that travels with its archive; hestia's own
-/// export is the only format that has one.
+/// The identity of an instance that travels with its archive.
 pub(crate) struct Carried {
     pub(crate) created_unix: i64,
     pub(crate) last_played_unix: Option<i64>,
@@ -100,60 +76,22 @@ pub(crate) struct Blueprint {
     pub(crate) recipe: Recipe,
 }
 
-/// Where a landing puts files. Both directories exist by the time a format is
+/// Where a landing puts files. The directory exists by the time a format is
 /// asked to land, because the instance has already been registered.
 pub(crate) struct Target<'a> {
     pub(crate) entry_dir: &'a Path,
-    pub(crate) data_dir: &'a Path,
-}
-
-/// What a landing produced.
-#[derive(Default)]
-pub(crate) struct Landed {
-    pub(crate) files: u64,
-    /// Filenames of pool items taken from the archive's own bytes.
-    pub(crate) adopted: Vec<String>,
-}
-
-/// One archive format hestia can read. Implementations are stateless — they
-/// are consulted through a `&'static` in [`formats`] — and know nothing about
-/// the engine: an import is a parse and a file copy, and everything that needs
-/// the launcher is expressed as the [`Recipe`] the blueprint carries.
-pub(crate) trait Format: Send + Sync {
-    /// What this format is called on the wire.
-    fn id(&self) -> ImportFormat;
-
-    /// The archive-relative file whose presence identifies this format. Marker
-    /// names must be specific: finding one inside somebody else's archive has
-    /// to mean the archive *is* this, which is why hestia's own is
-    /// `hestia.instance.json` rather than `instance.json`.
-    fn marker(&self) -> &'static str;
-
-    /// Parse the archive's manifest. Reads only — nothing exists on disk yet.
-    fn read(&self, reader: &mut Reader, prefix: &str, loaders: &Loaders) -> Result<Blueprint>;
-
-    /// Put the archive's files into the instance that now exists.
-    fn land(
-        &self,
-        reader: &mut Reader,
-        prefix: &str,
-        target: &Target<'_>,
-        job: &Job<'_>,
-    ) -> Result<Landed>;
 }
 
 #[derive(Clone)]
 pub(crate) enum Kind {
-    Instance(&'static dyn Format),
-    Mrpack,
+    Hestia,
     Plugin(Arc<PluginPack>),
 }
 
 impl Kind {
     pub(crate) fn id(&self) -> ImportFormat {
         match self {
-            Kind::Instance(format) => format.id(),
-            Kind::Mrpack => pack::mrpack_format(),
+            Kind::Hestia => ImportFormat::Hestia,
             Kind::Plugin(pack) => {
                 ImportFormat::Provider(Provider::new(pack.id(), &pack.info().name))
             }
@@ -161,7 +99,7 @@ impl Kind {
     }
 
     fn is_pack(&self) -> bool {
-        !matches!(self, Kind::Instance(_))
+        matches!(self, Kind::Plugin(_))
     }
 }
 
@@ -179,24 +117,17 @@ pub(crate) struct Detected {
 /// one of these formats is a zip and people rename them; someone handed an
 /// archive should not have to know which launcher made it.
 ///
-/// Depth has to come first: a pack index a Prism instance happens to ship
-/// inside its `config/` is a file that instance uses, not what the archive is.
-/// The order below only breaks a tie, so a plugin's format ranks after the core
-/// ones at equal depth, and none can claim hestia's or the `.mrpack` marker.
+/// Depth has to come first: a manifest an archive happens to ship inside a
+/// config directory is a file it uses, not what the archive is. The order below
+/// only breaks a tie, so a plugin's format ranks after hestia's at equal depth,
+/// and none can claim hestia's marker.
 fn candidates(names: &[String], packs: &[Arc<PluginPack>]) -> Vec<Detected> {
-    let instance = |format: &'static dyn Format| {
-        shallowest(names, format.marker()).map(|prefix| Detected {
-            kind: Kind::Instance(format),
+    let mut found: Vec<Detected> = shallowest(names, hestia::MANIFEST)
+        .map(|prefix| Detected {
+            kind: Kind::Hestia,
             prefix,
         })
-    };
-    let mrpack = pack::locate(names).map(|prefix| Detected {
-        kind: Kind::Mrpack,
-        prefix,
-    });
-    let mut found: Vec<Detected> = [instance(&hestia::Hestia), mrpack, instance(&prism::Prism)]
         .into_iter()
-        .flatten()
         .collect();
     found.extend(packs.iter().filter_map(|pack| {
         pack.root_of(names).map(|prefix| Detected {
@@ -260,7 +191,6 @@ pub(crate) struct Source<'a> {
 #[derive(Clone)]
 pub(crate) enum Exporter {
     Hestia,
-    Mrpack,
     Plugin(Arc<PluginPack>),
 }
 
@@ -269,7 +199,6 @@ impl Exporter {
     pub(crate) fn extension(&self) -> &str {
         match self {
             Exporter::Hestia => "hestia",
-            Exporter::Mrpack => "mrpack",
             Exporter::Plugin(pack) => &pack.info().extension,
         }
     }
@@ -277,7 +206,6 @@ impl Exporter {
     pub(crate) fn id(&self) -> &str {
         match self {
             Exporter::Hestia => "hestia",
-            Exporter::Mrpack => pack::MRPACK,
             Exporter::Plugin(pack) => pack.id(),
         }
     }
@@ -293,7 +221,6 @@ pub(crate) async fn export(
 ) -> Result<(Written, Vec<WarningInfo>)> {
     match exporter {
         Exporter::Hestia => hestia::export(source, destination, job).map(|w| (w, Vec::new())),
-        Exporter::Mrpack => mrpack::export(source, destination, loaders, job),
         Exporter::Plugin(pack) => plugin::export(source, pack, destination, loaders, job).await,
     }
 }
@@ -311,13 +238,6 @@ pub(crate) fn loader_of(profile: &InstanceProfile) -> String {
 mod tests {
     use super::*;
 
-    fn provider_id(format: ImportFormat) -> String {
-        match format {
-            ImportFormat::Provider(provider) => provider.id,
-            ImportFormat::Hestia => "hestia".to_string(),
-        }
-    }
-
     fn reader_of(list: &[&str]) -> (tempfile::TempDir, Reader) {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("a.zip");
@@ -334,51 +254,24 @@ mod tests {
         (dir, reader)
     }
 
-    async fn detected(list: &[&str]) -> Detected {
-        let (_dir, mut reader) = reader_of(list);
-        detect(&mut reader, "a", &[], false).await.unwrap()
+    #[tokio::test]
+    async fn a_nested_hestia_archive_is_found_and_its_directory_reported() {
+        let (_dir, mut reader) = reader_of(&[
+            "Cozy/",
+            "Cozy/hestia.instance.json",
+            "Cozy/data/options.txt",
+        ]);
+        let detected = detect(&mut reader, "a", &[], false).await.unwrap();
+        assert_eq!(detected.kind.id(), ImportFormat::Hestia);
+        assert_eq!(detected.prefix, "Cozy/");
     }
 
     #[tokio::test]
-    async fn each_format_is_recognised_by_its_own_marker() {
-        let hestia = detected(&["hestia.instance.json", "data/options.txt"]).await;
-        assert_eq!(hestia.kind.id(), ImportFormat::Hestia);
-        assert!(hestia.prefix.is_empty());
+    async fn without_a_pack_plugin_a_foreign_archive_is_unrecognised() {
+        let (_dir, mut reader) = reader_of(&["modrinth.index.json", "overrides/config/x"]);
+        assert!(detect(&mut reader, "a", &[], false).await.is_err());
 
-        let mrpack = detected(&["modrinth.index.json", "overrides/config/x"]).await;
-        assert_eq!(provider_id(mrpack.kind.id()), "mrpack");
-
-        let prism = detected(&["instance.cfg", "mmc-pack.json"]).await;
-        assert_eq!(provider_id(prism.kind.id()), "prism");
-    }
-
-    #[tokio::test]
-    async fn a_nested_instance_is_found_and_its_directory_reported() {
-        let detected = detected(&[
-            "My Pack/",
-            "My Pack/instance.cfg",
-            "My Pack/.minecraft/options.txt",
-        ])
-        .await;
-        assert_eq!(provider_id(detected.kind.id()), "prism");
-        assert_eq!(detected.prefix, "My Pack/");
-    }
-
-    #[tokio::test]
-    async fn a_pack_index_the_instance_merely_ships_does_not_masquerade_as_the_pack() {
-        let detected = detected(&[
-            "instance.cfg",
-            "mmc-pack.json",
-            "config/modrinth.index.json",
-        ])
-        .await;
-        assert_eq!(provider_id(detected.kind.id()), "prism");
-        assert_eq!(detected.prefix, "");
-    }
-
-    #[tokio::test]
-    async fn a_modpack_install_leaves_the_instance_formats_out() {
-        let (_dir, mut reader) = reader_of(&["instance.cfg", "mmc-pack.json"]);
+        let (_dir, mut reader) = reader_of(&["hestia.instance.json"]);
         assert!(detect(&mut reader, "a", &[], true).await.is_err());
     }
 }

@@ -5,7 +5,6 @@ use std::path::Path;
 use anyhow::{Context, Result};
 use proto::content::ContentKind;
 
-use super::pack;
 use crate::transfer::archive::Reader;
 
 // Loader-agnostic: a new flavor adds its manifest name here.
@@ -17,9 +16,8 @@ const MOD_MANIFESTS: [&str; 5] = [
     "mcmod.info",
 ];
 
-/// Errors only when the file is not a readable archive or is a modpack — both
-/// un-installable as single-file content. An unrecognised but valid zip is
-/// `None`.
+/// Errors only when the file is not a readable archive. An unrecognised but
+/// valid zip is `None`.
 pub(crate) fn classify(path: &Path) -> Result<Option<ContentKind>> {
     let reader = Reader::open(path).with_context(|| {
         format!(
@@ -31,9 +29,6 @@ pub(crate) fn classify(path: &Path) -> Result<Option<ContentKind>> {
     let has = |entry: &str| names.iter().any(|n| n == entry);
     let under = |dir: &str| names.iter().any(|n| n.starts_with(dir));
 
-    if pack::locate(&names).is_some() {
-        return Err(modpack_refusal(path));
-    }
     if MOD_MANIFESTS.iter().any(|m| has(m)) {
         return Ok(Some(ContentKind::Mod));
     }
@@ -133,13 +128,7 @@ mod tests {
     }
 
     #[test]
-    fn modpack_and_non_archive_are_rejected() {
-        let pack = archive("modpack", &["modrinth.index.json"]);
-        assert!(classify(pack.path()).is_err());
-
-        let plain = archive("plain-manifest", &["manifest.json"]);
-        assert!(matches!(classify(plain.path()), Ok(None)));
-
+    fn a_non_archive_is_rejected() {
         let junk = tempfile::Builder::new()
             .prefix("hestia-inspect-junk-")
             .suffix(".jar")

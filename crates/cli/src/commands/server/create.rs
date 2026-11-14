@@ -55,12 +55,12 @@ pub struct CreateArgs {
         help = "Set any other server.properties entry (repeatable; wins over the dedicated flags)"
     )]
     prop: Vec<String>,
-    /// Build the server from a modpack — a slug, a URL, or a .mrpack path. The
+    /// Build the server from a modpack — a slug, a URL, or a pack file path. The
     /// pack names the flavor and version, so both are ignored.
     #[arg(
         long,
         conflicts_with_all = ["flavor", "version", "loader"],
-        help = "Build from a modpack (slug, URL, or .mrpack path)"
+        help = "Build from a modpack (slug, URL, or pack file path)"
     )]
     modpack: Option<String>,
 }

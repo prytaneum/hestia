@@ -7,23 +7,32 @@
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use proto::provider::pack::{PackInstance, PoolItem, WriteQuery};
 use proto::warning::WarningInfo;
 
 use super::archive::{self, Member, Writer, Written};
 use super::exclude::Rules;
 use super::pool::Pooled;
-use super::{loader_of, mrpack, pool, Source};
+use super::{loader_of, pool, Source};
 use crate::cancel::Job;
+use crate::checksum;
 use crate::content::install;
 use crate::minecraft::Loaders;
 use crate::plugins::PluginPack;
 
+/// A file's size and SHA-512, in one read. Pack formats name their files by
+/// SHA-512 beside the SHA-1 hestia stores, so it is hashed on demand rather
+/// than kept — it is wanted once, at export.
+fn sha512_file(path: &Path) -> Result<(u64, String)> {
+    checksum::digest_sized::<sha2::Sha512>(path)
+        .with_context(|| format!("cannot hash {}", path.display()))
+}
+
 fn pool_item(pooled: &Pooled) -> Result<PoolItem> {
     let referenceable = install::referenceable(&pooled.item);
     let (size, sha512) = match referenceable {
-        true => mrpack::sha512_file(&pooled.managed)?,
+        true => sha512_file(&pooled.managed)?,
         false => (0, String::new()),
     };
     Ok(PoolItem {

@@ -6,8 +6,8 @@
 //! instances have no backup channels of their own. Import is deliberately
 //! *format-detecting* rather than format-declared: the caller names a file, the
 //! daemon reads its marker and answers with what it found, so a person who was
-//! handed a `.mrpack` and a person who zipped a Prism instance both run the
-//! same command.
+//! handed a pack another launcher wrote and a person with a hestia archive both
+//! run the same command.
 //!
 //! Both are jobs — an archive is an arbitrary number of files and an import may
 //! download every mod a pack names — so the call answers with a job id and the
@@ -26,9 +26,8 @@ use crate::warning::WarningInfo;
 
 /// What an export writes. `Hestia` is hestia's own archive — the instance's
 /// record, files and local content, with tracked content downloaded again on
-/// import; a `Provider` is a format other launchers read — the Modrinth pack
-/// the launcher writes itself, or one a pack provider contributes — and carries
-/// only what that format can express. A request names a provider by its `id`.
+/// import; a `Provider` is a format other launchers read, contributed by a pack
+/// provider, and carries only what that format can express. A request names a provider by its `id`.
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Default)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
 #[serde(rename_all = "snake_case")]
@@ -39,13 +38,6 @@ pub enum ExportFormat {
 }
 
 impl ExportFormat {
-    /// The id of the Modrinth pack format, which the launcher writes itself.
-    pub const MRPACK: &'static str = "mrpack";
-
-    pub fn mrpack() -> Self {
-        ExportFormat::Provider(Provider::new(Self::MRPACK, "Modrinth pack"))
-    }
-
     pub fn id(&self) -> &str {
         match self {
             ExportFormat::Hestia => "hestia",

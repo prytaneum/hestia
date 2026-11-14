@@ -6,16 +6,14 @@
 //! partway removes the entry it had started, rather than leaving a registered
 //! instance nobody asked for that cannot launch.
 //!
-//! Nothing here knows which instance formats exist. A format is read into a
-//! [`Blueprint`] whose [`Recipe`] is all the record needs — so adding a format
-//! is a module under `transfer/` and a line in its detection, and this file does
-//! not change. A modpack, whichever pack format read it, is the exception: it is
+//! Hestia's own archive is read into a [`Blueprint`] whose [`Recipe`] is all
+//! the record needs. A modpack, whichever pack format a plugin read it with, is
 //! handed, already open, to the modpack flow.
 
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
-use proto::content::{ContentFailure, LOCAL_SOURCE};
+use proto::content::ContentFailure;
 use proto::error::{ErrorInfo, Field, Reason};
 use proto::modpack::ModpackTarget;
 use proto::transfer::{ArchiveEntry, ArchiveInfo, ExportFormat, ExportFormatInfo, ImportFormat};
@@ -31,8 +29,7 @@ use crate::registry;
 use crate::schema;
 use crate::transfer::archive::{self, Reader};
 use crate::transfer::{
-    self, contents, hestia, Blueprint, Carried, Descriptor, Detected, Exporter, Kind, Recipe,
-    Source, Target,
+    self, contents, hestia, Blueprint, Descriptor, Detected, Exporter, Kind, Recipe, Source, Target,
 };
 
 /// Where an export with no destination lands, under the data home.
@@ -77,15 +74,10 @@ impl Engine {
     /// The formats an instance can be exported as: the launcher's own, and
     /// every pack format a plugin contributes that can write.
     pub fn export_formats(&self) -> Vec<ExportFormatInfo> {
-        let own = [
-            (ExportFormat::Hestia, Exporter::Hestia),
-            (ExportFormat::mrpack(), Exporter::Mrpack),
-        ]
-        .into_iter()
-        .map(|(format, exporter)| ExportFormatInfo {
-            format,
-            extension: exporter.extension().to_string(),
-        });
+        let own = ExportFormatInfo {
+            format: ExportFormat::Hestia,
+            extension: Exporter::Hestia.extension().to_string(),
+        };
         let contributed = self
             .packs
             .snapshot()
@@ -98,7 +90,7 @@ impl Engine {
                 )),
                 extension: pack.info().extension.clone(),
             });
-        own.chain(contributed).collect()
+        std::iter::once(own).chain(contributed).collect()
     }
 
     pub(super) async fn detect_archive(
@@ -120,7 +112,6 @@ impl Engine {
         let unknown = |id: &str| ErrorInfo::ExportFormatUnknown { id: id.to_string() };
         match format {
             ExportFormat::Hestia => Ok(Exporter::Hestia),
-            ExportFormat::Provider(provider) if provider.id == pack::MRPACK => Ok(Exporter::Mrpack),
             ExportFormat::Provider(provider) => self
                 .packs
                 .snapshot()
@@ -207,14 +198,11 @@ impl Engine {
                 .read
                 .pack
                 .into(),
-            Kind::Instance(instance) => {
-                instance
-                    .read(&mut reader, &detected.prefix, &self.minecraft.loaders())?
+            Kind::Hestia => {
+                hestia::Hestia
+                    .read(&mut reader, &detected.prefix)?
                     .descriptor
             }
-            Kind::Mrpack => pack::Archive::mrpack(reader, detected.prefix)
-                .index(&self.minecraft.loaders())?
-                .into(),
         };
         let Descriptor {
             name,
@@ -247,18 +235,13 @@ impl Engine {
         let format = detected.kind.id();
         tracing::info!(path = %path.display(), format = ?format, "importing an instance");
 
-        let instance = match detected.kind {
-            Kind::Instance(instance) => instance,
-            kind => {
-                let (archive, resolved) = self
-                    .open_pack(reader, Detected { kind, ..detected })
-                    .await?;
-                return self
-                    .import_pack(archive, resolved, &path, name, format, chain, job)
-                    .await;
-            }
-        };
-        let blueprint = instance.read(&mut reader, &detected.prefix, &self.minecraft.loaders())?;
+        if matches!(detected.kind, Kind::Plugin(_)) {
+            let (archive, resolved) = self.open_pack(reader, detected).await?;
+            return self
+                .import_pack(archive, resolved, &path, name, format, chain, job)
+                .await;
+        }
+        let blueprint = hestia::Hestia.read(&mut reader, &detected.prefix)?;
         let Blueprint { descriptor, recipe } = blueprint;
         let name = pick_name(name, &descriptor.name);
 
@@ -271,14 +254,13 @@ impl Engine {
 
         let target = Target {
             entry_dir: &entry_dir,
-            data_dir: &data_dir,
         };
-        let landed = instance.land(&mut reader, &detected.prefix, &target, job);
-        let landed = self.unwind_on_failure(&record, landed)?;
+        let landed = hestia::Hestia.land(&mut reader, &detected.prefix, &target, job);
+        let files = self.unwind_on_failure(&record, landed)?;
         tracing::info!(
             id = %record.id,
             name = %record.name,
-            files = landed.files,
+            files,
             "instance imported"
         );
 
@@ -286,7 +268,6 @@ impl Engine {
         crate::content::validate(&entry_dir);
         let restored = self.restore_tracked_content(&entry_dir, job).await;
         let mut warnings = self.unwind_on_failure(&record, restored)?;
-        warnings.extend(self.untracked_adoptions(&entry_dir, &landed.adopted).await);
         warnings.extend(quarantined_under(mark, &entry_dir));
 
         Ok(ImportOutcome {
@@ -295,33 +276,6 @@ impl Engine {
             failures: Vec::new(),
             warnings,
         })
-    }
-
-    /// A lookup that cannot run leaves them untracked rather than failing an import that has already landed.
-    async fn untracked_adoptions(&self, entry_dir: &Path, adopted: &[String]) -> Vec<WarningInfo> {
-        if adopted.is_empty() {
-            return Vec::new();
-        }
-        if let Err(e) = self.recognise_pool(entry_dir).await {
-            tracing::warn!(error = %format!("{e:#}"), "cannot record recognised imports");
-        }
-        let files: Vec<String> = crate::content::install::load(entry_dir)
-            .into_iter()
-            .filter(|item| item.source == LOCAL_SOURCE && adopted.contains(&item.filename))
-            .map(|item| item.filename)
-            .collect();
-        tracing::info!(
-            adopted = adopted.len(),
-            untracked = files.len(),
-            "imported content looked up"
-        );
-        match files.is_empty() {
-            true => Vec::new(),
-            false => vec![WarningInfo::ImportFilesUntracked {
-                count: files.len() as u32,
-                files,
-            }],
-        }
     }
 
     /// Register the instance an archive describes. The profile is always
@@ -343,12 +297,7 @@ impl Engine {
                 Some(&self.cache),
             )
             .await?;
-        let carried = recipe.carried.unwrap_or_else(|| Carried {
-            created_unix: common::now_unix(),
-            last_played_unix: None,
-            playtime_seconds: 0,
-            sharing: Default::default(),
-        });
+        let carried = recipe.carried;
         let template = InstanceRecord {
             created_unix: carried.created_unix,
             last_played_unix: carried.last_played_unix,

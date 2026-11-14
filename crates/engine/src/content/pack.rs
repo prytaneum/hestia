@@ -1,36 +1,23 @@
-//! A modpack archive: the zip a pack is distributed as, its manifest, and the
-//! trees it writes straight into the game directory. This module owns what the
-//! launcher itself reads — the `.mrpack` index and its fixed `overrides/`,
-//! `client-overrides/` and `server-overrides/` — and the [`Archive`] every pack
-//! is installed from, whichever format read it: a pack format a plugin
-//! contributes hands over the trees it names and the policy its files are
-//! fetched under, so no caller is told which platform served it.
-//!
-//! A pack picked off disk has no source; only its files' Modrinth CDN URLs are read for ids.
+//! A modpack archive: the zip a pack is distributed as and the trees it writes
+//! straight into the game directory. This module owns the [`Archive`] every
+//! pack is installed from. The launcher reads no pack format itself: a pack
+//! format a plugin contributes hands over the trees it names and the policy its
+//! files are fetched under, so no caller is told which platform served it.
 
 use std::path::{Component, Path, PathBuf};
 use std::sync::Arc;
 
 use anyhow::Result;
-use proto::content::{ModpackFile, ResolvedModpack, SideSupport};
-use proto::download::{Checksum, HashAlgorithm};
+use proto::content::{ModpackFile, SideSupport};
 use proto::error::ArchiveFault;
-use proto::minecraft::{Artifact, ConfigEntry, ProvisionPhase};
+use proto::minecraft::{ConfigEntry, ProvisionPhase};
 use proto::provider::pack::OverrideTrees;
-use proto::provider::Provider;
-use proto::transfer::ImportFormat;
 use proto::warning::WarningInfo;
-use serde_json::{Map, Value};
 
-use super::json::{parse_side, str_field};
 use crate::cancel::Job;
 use crate::icon;
-use crate::minecraft::Loaders;
 use crate::plugins::vouch::Policy;
 use crate::transfer::archive::{Extracted, Reader};
-
-pub(crate) const INDEX: &str = "modrinth.index.json";
-const MINECRAFT_DEPENDENCY: &str = "minecraft";
 
 /// Which side an install is for — which of the two side-specific override trees
 /// applies, and which `env` field decides whether a file is wanted.
@@ -63,26 +50,14 @@ impl Side {
     }
 }
 
-pub(crate) const MRPACK: &str = "mrpack";
-
-pub(crate) fn mrpack_format() -> ImportFormat {
-    ImportFormat::Provider(Provider::new(MRPACK, "Modrinth pack"))
-}
-
-/// The directory a `.mrpack` starts at, when the archive is one: a zip made
-/// from a folder nests it one level down.
-pub(crate) fn locate(names: &[String]) -> Option<String> {
-    shallowest(names, INDEX)
-}
-
 /// An opened pack archive, handed to the modpack flow without being reopened.
 pub(crate) struct Archive {
     reader: Reader,
     /// The directory the pack starts at.
     root: String,
     trees: OverrideTrees,
-    /// What the files the pack names are fetched under: a plugin's grant, or
-    /// none for the launcher's own `.mrpack`.
+    /// What the files the pack names are fetched under: the grant of the plugin
+    /// that read it, or of the source it delegated its files to.
     policy: Option<Arc<Policy>>,
     /// The vetted JVM settings the pack asks for, as `config` entries, for the
     /// instance an install creates.
@@ -107,23 +82,6 @@ pub(crate) struct Contributed {
 }
 
 impl Archive {
-    pub(crate) fn mrpack(reader: Reader, root: String) -> Self {
-        Archive {
-            reader,
-            root,
-            trees: OverrideTrees {
-                shared: vec!["overrides".to_string()],
-                client: vec!["client-overrides".to_string()],
-                server: vec!["server-overrides".to_string()],
-            },
-            policy: None,
-            config: Vec::new(),
-            format: String::new(),
-            icon: None,
-            warnings: Vec::new(),
-        }
-    }
-
     pub(crate) fn contributed(reader: Reader, root: String, contributed: Contributed) -> Self {
         Archive {
             reader,
@@ -163,19 +121,6 @@ impl Archive {
         self.policy.clone()
     }
 
-    /// The `.mrpack` manifest. Ids are left empty; see `Content::recognise_files`.
-    pub(crate) fn index(&mut self, loaders: &Loaders) -> Result<ResolvedModpack> {
-        let text = self
-            .reader
-            .read_text(&format!("{}{INDEX}", self.root))
-            .map_err(|_| invalid(ArchiveFault::ManifestMissing))?;
-        let index: Value = serde_json::from_str(&text).map_err(|e| {
-            tracing::warn!(error = %e, "{INDEX} is malformed");
-            invalid(ArchiveFault::ManifestMalformed)
-        })?;
-        parse_index(loaders, &index)
-    }
-
     /// `place` maps a path in the override trees to where it goes; `None` leaves what is on disk untouched.
     pub(crate) fn extract_overrides(
         &mut self,
@@ -207,119 +152,8 @@ pub(crate) fn shallowest(names: &[String], marker: &str) -> Option<String> {
         .min_by_key(|root| root.matches('/').count())
 }
 
-/// Parse a `modrinth.index.json` into a resolved pack. Pure — the source and the
-/// project/version ids come from whoever recognises the file URLs, not the index.
-/// Rejects an unsupported format version, a file with an unsafe (absolute or
-/// parent-escaping) path, and a manifest that pins no Minecraft version.
-pub fn parse_index(loaders: &Loaders, index: &Value) -> Result<ResolvedModpack> {
-    let format = index
-        .get("formatVersion")
-        .and_then(Value::as_u64)
-        .unwrap_or(0);
-    if format != 1 {
-        tracing::warn!(format, "unsupported modpack format version");
-        return Err(invalid(ArchiveFault::FormatVersion));
-    }
-
-    let mut files = Vec::new();
-    if let Some(arr) = index.get("files").and_then(Value::as_array) {
-        for f in arr {
-            let path = f.get("path").and_then(Value::as_str).unwrap_or_default();
-            if !is_safe_path(path) {
-                tracing::warn!(path, "a modpack file escapes its directory");
-                return Err(invalid(ArchiveFault::UnsafePath));
-            }
-            let url = f
-                .get("downloads")
-                .and_then(Value::as_array)
-                .and_then(|d| d.first())
-                .and_then(Value::as_str)
-                .unwrap_or_default()
-                .to_string();
-            let size = f.get("fileSize").and_then(Value::as_u64).unwrap_or(0);
-            let sha1 = f
-                .get("hashes")
-                .and_then(|h| h.get("sha1"))
-                .and_then(Value::as_str)
-                .unwrap_or_default()
-                .to_string();
-            let env = f.get("env");
-            // A missing `env` means the file applies to both sides (the spec).
-            let client = env
-                .and_then(|e| e.get("client"))
-                .and_then(Value::as_str)
-                .map(parse_side)
-                .unwrap_or(SideSupport::Required);
-            let server = env
-                .and_then(|e| e.get("server"))
-                .and_then(Value::as_str)
-                .map(parse_side)
-                .unwrap_or(SideSupport::Required);
-            files.push(ModpackFile {
-                path: path.to_string(),
-                artifact: Artifact {
-                    url,
-                    filename: filename_of(path),
-                    size,
-                    checksum: (!sha1.is_empty()).then_some(Checksum {
-                        algorithm: HashAlgorithm::Sha1,
-                        hex: sha1,
-                    }),
-                    unhashed: false,
-                },
-                client,
-                server,
-                ..ModpackFile::default()
-            });
-        }
-    }
-
-    let deps = index.get("dependencies").and_then(Value::as_object);
-    let game_version = deps
-        .and_then(|d| d.get("minecraft"))
-        .and_then(Value::as_str)
-        .ok_or_else(|| invalid(ArchiveFault::NoGameVersion))?
-        .to_string();
-    let (loader, loader_version) = deps
-        .and_then(|deps| find_loader(deps, loaders))
-        .map(|(l, v)| (Some(l), Some(v)))
-        .unwrap_or((None, None));
-
-    Ok(ResolvedModpack {
-        source: String::new(),
-        project_id: String::new(),
-        version_id: String::new(),
-        version_number: str_field(index, "versionId"),
-        name: str_field(index, "name"),
-        summary: str_field(index, "summary"),
-        game_version,
-        loader,
-        loader_version,
-        files,
-    })
-}
-
-/// The loader a pack's `dependencies` pin. The index lists nothing but
-/// `minecraft` and the loader, so a key no registered flavor claims is a loader
-/// this build has no flavor for: it is named as the pack names it, and
-/// whatever creates the entry reports it unsupported.
-fn find_loader(deps: &Map<String, Value>, loaders: &Loaders) -> Option<(String, String)> {
-    deps.iter()
-        .filter(|(key, _)| key.as_str() != MINECRAFT_DEPENDENCY)
-        .find_map(|(key, version)| {
-            let flavor = loaders
-                .flavor_of(MRPACK, key)
-                .unwrap_or_else(|| key.strip_suffix("-loader").unwrap_or(key));
-            Some((flavor.to_string(), version.as_str()?.to_string()))
-        })
-}
-
 pub(crate) fn invalid(reason: ArchiveFault) -> anyhow::Error {
     proto::error::ErrorInfo::ModpackInvalid { reason }.into()
-}
-
-fn filename_of(path: &str) -> String {
-    path.rsplit(['/', '\\']).next().unwrap_or(path).to_string()
 }
 
 /// A relative path that stays inside the game directory: not empty, not
@@ -339,82 +173,8 @@ pub fn is_safe_path(path: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use serde_json::json;
 
-    fn loaders() -> Loaders {
-        crate::minecraft::Minecraft::default().loaders()
-    }
-
-    #[test]
-    fn index_maps_files_loader_and_game_version() {
-        let pack = parse_index(
-            &loaders(),
-            &json!({
-                "formatVersion": 1,
-                "name": "Cozy Pack",
-                "versionId": "1.4.0",
-                "summary": "warm",
-                "files": [{
-                    "path": "mods/sodium.jar",
-                    "downloads": ["https://cdn.modrinth.com/data/AAA/versions/BBB/sodium.jar"],
-                    "fileSize": 12,
-                    "hashes": {"sha1": "abc"},
-                }],
-                "dependencies": {"minecraft": "1.21.1", "fabric-loader": "0.16.9"},
-            }),
-        )
-        .unwrap();
-
-        assert_eq!(pack.name, "Cozy Pack");
-        assert_eq!(pack.version_number, "1.4.0");
-        assert_eq!(pack.game_version, "1.21.1");
-        assert_eq!(pack.loader.as_deref(), Some("fabric"));
-        assert_eq!(pack.loader_version.as_deref(), Some("0.16.9"));
-        assert_eq!(pack.files[0].artifact.filename, "sodium.jar");
-        assert_eq!(pack.files[0].client, SideSupport::Required);
-    }
-
-    #[test]
-    fn a_missing_env_means_both_sides_want_the_file() {
-        let pack = parse_index(
-            &loaders(),
-            &json!({
-                "formatVersion": 1,
-                "files": [
-                    {"path": "mods/shared.jar", "downloads": ["https://x/y.jar"]},
-                    {"path": "mods/client.jar", "downloads": ["https://x/z.jar"],
-                     "env": {"client": "required", "server": "unsupported"}},
-                ],
-                "dependencies": {"minecraft": "1.21.1"},
-            }),
-        )
-        .unwrap();
-
-        assert!(Side::Server.wants(&pack.files[0]));
-        assert!(Side::Client.wants(&pack.files[0]));
-        assert!(Side::Client.wants(&pack.files[1]));
-        assert!(
-            !Side::Server.wants(&pack.files[1]),
-            "a client-unsupported file is not the server's"
-        );
-    }
-
-    #[test]
-    fn unsupported_format_and_unsafe_paths_are_rejected() {
-        assert!(parse_index(&loaders(), &json!({"formatVersion": 2})).is_err());
-        assert!(parse_index(
-            &loaders(),
-            &json!({
-                "formatVersion": 1,
-                "files": [{"path": "../escape.jar", "downloads": ["https://x/y"]}],
-                "dependencies": {"minecraft": "1.21.1"},
-            })
-        )
-        .is_err());
-        assert!(parse_index(&loaders(), &json!({"formatVersion": 1, "dependencies": {}})).is_err());
-    }
-
-    fn archive(entries: &[(&str, &str)]) -> Archive {
+    fn archive(entries: &[(&str, &str)], root: &str) -> Archive {
         let dir = temp("zip");
         let path = dir.path().join("pack.zip");
         let mut writer = crate::transfer::archive::Writer::create(&path).unwrap();
@@ -423,13 +183,27 @@ mod tests {
         }
         writer.finish().unwrap();
         let reader = Reader::open(&path).unwrap();
-        let root = locate(&reader.names()).expect("an mrpack");
-        Archive::mrpack(reader, root)
+        Archive::contributed(
+            reader,
+            root.to_string(),
+            Contributed {
+                trees: OverrideTrees {
+                    shared: vec!["overrides".to_string()],
+                    client: vec!["client-overrides".to_string()],
+                    server: vec!["server-overrides".to_string()],
+                },
+                policy: None,
+                config: Vec::new(),
+                format: String::new(),
+                icon: None,
+                warnings: Vec::new(),
+            },
+        )
     }
 
     fn temp(tag: &str) -> tempfile::TempDir {
         tempfile::Builder::new()
-            .prefix(&format!("hestia-mrpack-{tag}-"))
+            .prefix(&format!("hestia-pack-{tag}-"))
             .tempdir()
             .expect("temp dir")
     }
@@ -445,12 +219,14 @@ mod tests {
 
     #[test]
     fn a_side_takes_the_shared_tree_and_its_own() {
-        let mut pack = archive(&[
-            ("modrinth.index.json", "{}"),
-            ("overrides/config/shared.toml", "shared"),
-            ("client-overrides/options.txt", "client"),
-            ("server-overrides/server-icon.png", "server"),
-        ]);
+        let mut pack = archive(
+            &[
+                ("overrides/config/shared.toml", "shared"),
+                ("client-overrides/options.txt", "client"),
+                ("server-overrides/server-icon.png", "server"),
+            ],
+            "",
+        );
         let dest_dir = temp("sides");
         let dest = dest_dir.path();
 
@@ -467,11 +243,13 @@ mod tests {
 
     #[test]
     fn a_side_tree_wins_where_both_name_the_same_path() {
-        let mut pack = archive(&[
-            ("modrinth.index.json", "{}"),
-            ("overrides/config/cozy.toml", "shared value"),
-            ("client-overrides/config/cozy.toml", "client value"),
-        ]);
+        let mut pack = archive(
+            &[
+                ("overrides/config/cozy.toml", "shared value"),
+                ("client-overrides/config/cozy.toml", "client value"),
+            ],
+            "",
+        );
         let dest_dir = temp("precedence");
         let dest = dest_dir.path();
 
@@ -486,27 +264,22 @@ mod tests {
 
     #[test]
     fn a_pack_zipped_inside_a_folder_is_read_from_that_folder() {
-        let mut mrpack = archive(&[
-            (
-                "Cozy/modrinth.index.json",
-                r#"{"formatVersion":1,"name":"Cozy","dependencies":{"minecraft":"1.21.1"}}"#,
-            ),
-            ("Cozy/overrides/config/a.toml", "a"),
-        ]);
+        let mut pack = archive(&[("Cozy/overrides/config/a.toml", "a")], "Cozy/");
         let dest_dir = temp("nested");
-        assert_eq!(mrpack.index(&loaders()).unwrap().name, "Cozy");
-        let written = extract(&mut mrpack, Side::Client, dest_dir.path());
+        let written = extract(&mut pack, Side::Client, dest_dir.path());
         assert_eq!(written.len(), 1);
         assert_eq!(written[0].path, "config/a.toml");
     }
 
     #[test]
     fn refusing_a_file_leaves_what_is_there() {
-        let mut pack = archive(&[
-            ("modrinth.index.json", "{}"),
-            ("overrides/config/mine.toml", "the pack's"),
-            ("overrides/config/theirs.toml", "the pack's"),
-        ]);
+        let mut pack = archive(
+            &[
+                ("overrides/config/mine.toml", "the pack's"),
+                ("overrides/config/theirs.toml", "the pack's"),
+            ],
+            "",
+        );
         let dest_dir = temp("keep");
         let dest = dest_dir.path();
         std::fs::create_dir_all(dest.join("config")).unwrap();
@@ -532,10 +305,7 @@ mod tests {
 
     #[test]
     fn an_override_escaping_the_game_directory_is_refused() {
-        let mut pack = archive(&[
-            ("modrinth.index.json", "{}"),
-            ("overrides/../../escape.txt", "no"),
-        ]);
+        let mut pack = archive(&[("overrides/../../escape.txt", "no")], "");
         let dest_dir = temp("escape");
         let dest = dest_dir.path();
         let cancel = crate::cancel::Cancel::new();

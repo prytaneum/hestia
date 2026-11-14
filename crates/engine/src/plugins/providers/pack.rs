@@ -22,7 +22,7 @@ use proto::warning::WarningInfo;
 use proto::Empty;
 
 use super::{connect_each, registered, Guest};
-use crate::content::pack::{is_safe_path, INDEX};
+use crate::content::pack::is_safe_path;
 use crate::engine::Engine;
 use crate::jvm::{JavaSettings, JVM_ARGS_KEY, MEMORY_KEY};
 use crate::minecraft::Loaders;
@@ -42,8 +42,8 @@ const MAX_WARNINGS: usize = 32;
 const MAX_WARNING_CHARS: usize = 512;
 const MAX_EXTENSION_CHARS: usize = 16;
 
-/// The ids the launcher's own formats answer to.
-const RESERVED: &[&str] = &["hestia", crate::content::pack::MRPACK];
+/// The id the launcher's own format answers to.
+const RESERVED: &[&str] = &["hestia"];
 
 /// Why a guest's answer was refused.
 #[derive(Debug, thiserror::Error)]
@@ -280,11 +280,11 @@ impl PluginPack {
         {
             return Err(guest.failed(format!("`{bad}` is not a usable member")));
         }
-        if let Some(taken) = info.members.iter().find(|pattern| {
-            [hestia::MANIFEST, INDEX]
-                .iter()
-                .any(|marker| member_matches(pattern, marker))
-        }) {
+        if let Some(taken) = info
+            .members
+            .iter()
+            .find(|pattern| member_matches(pattern, hestia::MANIFEST))
+        {
             return Err(guest.failed(format!(
                 "`{taken}` would claim a format the launcher reads itself"
             )));
