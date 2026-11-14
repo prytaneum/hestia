@@ -27,18 +27,12 @@ describe('filterCards', () => {
     expect(filterCards(cards, 'brav').map((c) => c.id)).toEqual(['b']);
     expect(filterCards(cards, 'FABRIC').map((c) => c.id)).toEqual(['a', 'c']);
     expect(filterCards(cards, '1.20').map((c) => c.id)).toEqual(['b']);
-  });
-
-  it('ignores surrounding whitespace', () => {
     expect(filterCards(cards, '  alpha  ').map((c) => c.id)).toEqual(['a']);
   });
 
   it('narrows by flavor alongside the query', () => {
     expect(filterCards(cards, '', 'neoforge').map((c) => c.id)).toEqual(['b']);
     expect(filterCards(cards, 'charlie', 'neoforge')).toHaveLength(0);
-  });
-
-  it('treats "all" as no flavor constraint', () => {
     expect(filterCards(cards, '', 'all')).toHaveLength(3);
   });
 });

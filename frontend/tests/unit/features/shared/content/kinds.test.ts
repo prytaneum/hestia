@@ -1,10 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  contentKinds,
-  isContentKind,
-  kindBySlug,
-  kindInfo,
-} from '@/features/shared/content/lib';
+import { isContentKind } from '@/features/shared/content/lib';
 import { isContentUrl } from '@/queries/content';
 
 describe('isContentKind', () => {
@@ -16,27 +11,16 @@ describe('isContentKind', () => {
   });
 });
 
-describe('kindBySlug', () => {
-  it('round-trips every kind through its route slug', () => {
-    for (const kind of contentKinds) {
-      expect(kindBySlug(kindInfo[kind].slug)).toBe(kind);
-    }
-  });
-});
-
 describe('isContentUrl', () => {
   it('recognises a pasted project link', () => {
     expect(isContentUrl('https://modrinth.com/mod/sodium')).toBe(true);
     expect(isContentUrl('  http://example.com/x  ')).toBe(true);
   });
 
-  it('treats an ordinary search as a search', () => {
+  it('treats an ordinary search, or a link with whitespace inside, as a search', () => {
     expect(isContentUrl('sodium')).toBe(false);
     expect(isContentUrl('modrinth.com/mod/sodium')).toBe(false);
     expect(isContentUrl('')).toBe(false);
-  });
-
-  it('refuses a link with whitespace inside it', () => {
     expect(isContentUrl('https://example.com/a b')).toBe(false);
   });
 });

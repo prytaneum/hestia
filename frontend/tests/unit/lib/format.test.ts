@@ -23,18 +23,12 @@ describe('memGb', () => {
 });
 
 describe('bytes', () => {
-  it('stays in bytes below a kilobyte', () => {
+  it('climbs one unit at a time and stops at gigabytes', () => {
     expect(bytes(0)).toBe('0 B');
     expect(bytes(1023)).toBe('1023 B');
-  });
-
-  it('climbs one unit at a time', () => {
     expect(bytes(1024)).toBe('1.0 KB');
     expect(bytes(1024 ** 2)).toBe('1.0 MB');
     expect(bytes(1024 ** 3)).toBe('1.0 GB');
-  });
-
-  it('stops at gigabytes rather than inventing a larger unit', () => {
     expect(bytes(1024 ** 4)).toBe('1024 GB');
   });
 

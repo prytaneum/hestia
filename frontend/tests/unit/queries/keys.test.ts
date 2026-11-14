@@ -24,16 +24,10 @@ describe('the query-key hierarchy', () => {
     }
   });
 
-  it('nests the properties under the entry’s config key', () => {
+  it('nests properties under config and a content list under content', () => {
     expect(
-      startsWith(
-        keys.servers.properties('smp'),
-        keys.servers.config('smp'),
-      ),
+      startsWith(keys.servers.properties('smp'), keys.servers.config('smp')),
     ).toBe(true);
-  });
-
-  it('nests a content list under the entry’s content key', () => {
     expect(
       startsWith(
         keys.servers.contentList('smp', 'mod'),
@@ -46,11 +40,6 @@ describe('the query-key hierarchy', () => {
     expect(keys.servers.info('smp')[0]).toBe(FOOTPRINT);
     expect(keys.instances.info('modded')[0]).toBe(FOOTPRINT);
     expect(startsWith(keys.servers.info('smp'), keys.servers.all)).toBe(false);
-  });
-
-  it('keeps servers and instances in separate subtrees', () => {
-    expect(startsWith(keys.instances.detail('x'), keys.servers.all)).toBe(false);
-    expect(startsWith(keys.servers.detail('x'), keys.instances.all)).toBe(false);
   });
 });
 

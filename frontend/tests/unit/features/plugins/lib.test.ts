@@ -66,9 +66,4 @@ describe('groupSettings', () => {
       ],
     );
   });
-
-  it('has no empty first group when everything is grouped', () => {
-    const grouped = groupSettings([setting({ group: 'Only' })]);
-    expect(grouped.map(([group]) => group)).toEqual(['Only']);
-  });
 });

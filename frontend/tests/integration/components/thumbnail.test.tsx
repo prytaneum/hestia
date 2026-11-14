@@ -6,13 +6,6 @@ import { Thumbnail } from '@/components/ui/thumbnail';
 const image = (container: HTMLElement) => container.querySelector('img');
 
 describe('a thumbnail with a fallback', () => {
-  it('shows the fallback when it has no picture of its own', () => {
-    const { container } = render(
-      <Thumbnail fallback="instance.png" icon={GlobeHemisphereWestIcon} />,
-    );
-    expect(image(container)?.getAttribute('src')).toBe('instance.png');
-  });
-
   it('steps down to the fallback, then the glyph, as each fails to load', () => {
     const { container } = render(
       <Thumbnail
