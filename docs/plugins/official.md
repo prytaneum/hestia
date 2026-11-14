@@ -21,8 +21,10 @@ third party's ([0106](../decisions/0106-the-plugin-api-is-mechanisms-not-feature
 
 A source that is not ready says why instead of failing: CurseForge is listed by `hestia sources` as waiting on its
 `api-key`, and is not offered for browsing or installing until the setting holds a value. Set it in Settings > Plugins or
-with `hestia plugin config curseforge api-key`. A distributor can also ship a default for a setting inside the package,
-which the user's own value overrides ([0132](../decisions/0132-a-distributor-ships-setting-defaults-in-the-package.md)).
+with `hestia plugin config curseforge api-key`. The official build of the plugin ships a default key inside its package,
+so the source works as installed, and the user's own value overrides it
+([0132](../decisions/0132-a-distributor-ships-setting-defaults-in-the-package.md)); a build packed without that default
+waits on the setting.
 
 ## How they reach you
 

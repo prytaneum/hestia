@@ -96,8 +96,8 @@ to your account.
 Vanilla and Hestia's own archive are the only things built into the launcher; the rest comes from the
 [official plugins](docs/plugins/official.md), which the installers bundle and keep up to date. NeoForge builds its game
 jar locally from the installer, and Spigot/CraftBukkit compile on your machine with SpigotMC's BuildTools (needs `git`)
-— so a first create on those takes a few minutes. CurseForge needs an API key (`hestia plugin config curseforge
-api-key`) and isn't offered until one is set. Without the official plugins Hestia runs vanilla only and has no content
+— so a first create on those takes a few minutes. CurseForge needs an API key: the official plugin ships with one, and
+`hestia plugin config curseforge api-key` sets your own. Without the official plugins Hestia runs vanilla only and has no content
 source or Java download.
 
 A few more things it does: several concurrent sessions of one instance, starting straight into a world or onto a server,
