@@ -34,7 +34,7 @@
       "content_kind_mismatch": "'{title}' é conteúdo do tipo {actual}, não {expected}.",
       "content_kind_rejected": "{entry} {flavor} não aceita conteúdo do tipo {requested} — aceita {accepts}.",
       "content_not_found": "Nenhum conteúdo instalado corresponde a '{reference}'.",
-      "content_source_unavailable": "{source} precisa de uma chave de API para ser usada — adicione uma nas Configurações.",
+      "content_source_unavailable": "{source} precisa de uma configuração preenchida para ser usada.",
       "create_in_progress": "Esse servidor já está sendo criado.",
       "developer_mode_off": "O modo desenvolvedor está desativado. Ative em Configurações > Geral > Avançado.",
       "download_failed": "O download falhou: {detail}",

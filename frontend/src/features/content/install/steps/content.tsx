@@ -15,6 +15,7 @@ import { contentIcon, contentKindLabel } from '@/components/icons';
 import { OfflineState } from '@/components/offline-state';
 import { PickerPanel } from '@/components/picker-panel';
 import {
+  SourceSettingLink,
   selectionKey,
   sourceGroup,
   useSourceOptions,
@@ -187,9 +188,10 @@ function LinkResult({
   }
   if (query.error || !query.data) {
     return (
-      <p className="px-1 py-8 text-center text-xs text-destructive">
-        {errorMessage(query.error)}
-      </p>
+      <div className="flex flex-col items-center gap-2 px-1 py-8 text-center text-xs text-destructive">
+        <p>{errorMessage(query.error)}</p>
+        <SourceSettingLink error={query.error} />
+      </div>
     );
   }
 

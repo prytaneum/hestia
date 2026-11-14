@@ -1,4 +1,5 @@
 import { FunnelSimpleIcon } from '@phosphor-icons/react';
+import { Link, type LinkProps } from '@tanstack/react-router';
 import { Fragment, type ReactNode } from 'react';
 
 import { Button } from '@/components/ui/button';
@@ -6,6 +7,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuGroup,
+  DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
@@ -24,6 +26,8 @@ export type FilterGroup = {
     label: ReactNode;
     className?: string;
     disabled?: boolean;
+    /** An entry that cannot be chosen but points somewhere, rather than a radio. */
+    link?: LinkProps;
   }[];
   /** The value that reads as unfiltered; without one the group never tints. */
   neutral?: string;
@@ -79,17 +83,30 @@ export function FilterMenu({
                 value={group.value}
                 onValueChange={(value) => group.onChange(String(value))}
               >
-                {group.options.map((option) => (
-                  <DropdownMenuRadioItem
+                {group.options
+                  .filter((option) => !option.link)
+                  .map((option) => (
+                    <DropdownMenuRadioItem
+                      key={option.value}
+                      value={option.value}
+                      disabled={option.disabled}
+                      className={option.className}
+                    >
+                      {option.label}
+                    </DropdownMenuRadioItem>
+                  ))}
+              </DropdownMenuRadioGroup>
+              {group.options
+                .filter((option) => option.link)
+                .map((option) => (
+                  <DropdownMenuItem
                     key={option.value}
-                    value={option.value}
-                    disabled={option.disabled}
+                    render={<Link {...(option.link as LinkProps)} />}
                     className={option.className}
                   >
                     {option.label}
-                  </DropdownMenuRadioItem>
+                  </DropdownMenuItem>
                 ))}
-              </DropdownMenuRadioGroup>
             </DropdownMenuGroup>
           </Fragment>
         ))}

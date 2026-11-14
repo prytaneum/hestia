@@ -40,9 +40,11 @@ const TAB_LABELS: Record<SettingsTab, () => string> = {
  */
 export function SettingsPage({
   tab,
+  plugin,
   onTabChange,
 }: {
   tab: SettingsTab;
+  plugin?: string;
   onTabChange: (tab: SettingsTab) => void;
 }) {
   const { pending } = useConfig();
@@ -129,7 +131,7 @@ export function SettingsPage({
               </TabsContent>
               <TabsContent value="plugins">
                 <FieldGroup>
-                  <PluginsTab />
+                  <PluginsTab open={plugin} />
                 </FieldGroup>
               </TabsContent>
               <TabsContent value="storage">

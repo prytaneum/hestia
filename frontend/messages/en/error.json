@@ -34,7 +34,7 @@
       "content_kind_mismatch": "'{title}' is {actual} content, not {expected}.",
       "content_kind_rejected": "A {flavor} {entry} cannot take {requested} content — it takes {accepts}.",
       "content_not_found": "No installed content matches '{reference}'.",
-      "content_source_unavailable": "{source} needs an API key before it can be used — add one in Settings.",
+      "content_source_unavailable": "{source} needs a setting filled in before it can be used.",
       "create_in_progress": "That server is already being created.",
       "developer_mode_off": "Developer mode is off. Turn it on in Settings > General > Advanced.",
       "download_failed": "Download failed: {detail}",

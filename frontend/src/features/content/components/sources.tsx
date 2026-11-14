@@ -1,7 +1,14 @@
 import { useQuery } from '@tanstack/react-query';
-import type { ContentKind, ContentSource } from '@/api';
+import { Link } from '@tanstack/react-router';
+import {
+  type ContentKind,
+  type ContentSource,
+  HestiaError,
+  type RequiredSetting,
+} from '@/api';
 import type { FilterGroup } from '@/components/filter-menu';
 import { Badge } from '@/components/ui/badge';
+import { settingLocation } from '@/features/settings/lib';
 import { m } from '@/paraglide/messages.js';
 import { contentQueries } from '@/queries/content';
 
@@ -23,6 +30,34 @@ export function useSourceOptions(kind: ContentKind | undefined, value: string) {
   return { list, waiting, active };
 }
 
+function settingLink(setting: RequiredSetting) {
+  return { to: '/settings', search: settingLocation(setting) } as const;
+}
+
+/**
+ * Under a source-unavailable error: a link to where the setting it names is
+ * edited. Nothing for any other error, or one that names no setting.
+ */
+export function SourceSettingLink({ error }: { error: unknown }) {
+  if (
+    !(error instanceof HestiaError) ||
+    error.info?.kind !== 'content_source_unavailable' ||
+    !error.info.setting
+  ) {
+    return null;
+  }
+  return (
+    <Link
+      {...settingLink(error.info.setting)}
+      className="text-xs underline underline-offset-2"
+    >
+      {m['content.browse.set_source_setting']({
+        setting: error.info.setting.key,
+      })}
+    </Link>
+  );
+}
+
 /** The source dimension; absent when there is nothing to choose between. */
 export function sourceGroup(
   list: ContentSource[],
@@ -38,14 +73,20 @@ export function sourceGroup(
     neutral: first.id,
     options: [
       ...list.map((s) => ({ value: s.id, label: s.name })),
-      ...waiting.map((s) => ({
-        value: s.id,
-        label: m['content.browse.source_needs_setting']({
-          name: s.name,
-          setting: s.requiresSetting?.key ?? '',
-        }),
-        disabled: true,
-      })),
+      ...waiting.flatMap((s) =>
+        s.requiresSetting
+          ? [
+              {
+                value: s.id,
+                label: m['content.browse.source_needs_setting']({
+                  name: s.name,
+                  setting: s.requiresSetting.key,
+                }),
+                link: settingLink(s.requiresSetting),
+              },
+            ]
+          : [],
+      ),
     ],
     onChange,
   };

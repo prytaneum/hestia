@@ -53,12 +53,14 @@ const SOURCE_LABEL: Record<PluginSource, () => string> = {
  */
 export function PluginRow({
   plugin,
+  defaultOpen = false,
   update,
   busy,
   onUpdate,
   onCheck,
 }: {
   plugin: PluginInfo;
+  defaultOpen?: boolean;
   update?: OutdatedPlugin;
   busy: boolean;
   onUpdate: (offer: OutdatedPlugin) => void;
@@ -67,7 +69,7 @@ export function PluginRow({
   const enable = useMutation(pluginMutations.enable());
   const disable = useMutation(pluginMutations.disable());
   const remove = useMutation(pluginMutations.remove());
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(defaultOpen);
   const commands = usePluginCommands({ plugin: plugin.manifest.id });
   const repositories = useQuery(pluginQueries.repositories());
   const store = repositories.data?.find(

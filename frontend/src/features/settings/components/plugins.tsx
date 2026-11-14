@@ -21,7 +21,7 @@ import {
 import { PluginRow } from './plugin-row';
 
 /** Installed and Browse, one level below the Plugins tab. */
-export function PluginsPanel() {
+export function PluginsPanel({ open }: { open?: string }) {
   const outdated = useQuery(pluginQueries.outdated());
   const updates = outdated.data?.plugins.length ?? 0;
   return (
@@ -45,7 +45,7 @@ export function PluginsPanel() {
         </TabsChip>
       </TabsList>
       <TabsContent value="installed">
-        <PluginList />
+        <PluginList open={open} />
       </TabsContent>
       <TabsContent value="browse">
         <PluginBrowse />
@@ -55,7 +55,7 @@ export function PluginsPanel() {
 }
 
 /** Installed plugins, one row each; the list also takes a dropped `.hplugin`. */
-export function PluginList() {
+export function PluginList({ open }: { open?: string }) {
   const plugins = useQuery(pluginQueries.list());
   const outdated = useQuery(pluginQueries.outdated());
   const daemon = useDaemon();
@@ -126,6 +126,7 @@ export function PluginList() {
             <PluginRow
               key={plugin.manifest.id}
               plugin={plugin}
+              defaultOpen={plugin.manifest.id === open}
               update={outdated.data?.plugins.find(
                 (offer) => offer.id === plugin.manifest.id,
               )}

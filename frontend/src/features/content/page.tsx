@@ -13,6 +13,7 @@ import { CardGridSkeleton } from '@/components/skeleton';
 import {
   ContentCard,
   ResultGrid,
+  SourceSettingLink,
   sourceGroup,
   useSourceOptions,
 } from '@/features/content/components';
@@ -114,7 +115,11 @@ export function BrowsePage({
                 />
               </div>
             ) : (
-              <Empty icon={WarningCircleIcon} tone="destructive">
+              <Empty
+                icon={WarningCircleIcon}
+                tone="destructive"
+                action={<SourceSettingLink error={link.error} />}
+              >
                 {errorMessage(link.error)}
               </Empty>
             )
