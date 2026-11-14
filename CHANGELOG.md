@@ -7,6 +7,31 @@ is what is written here.
 One `## <version>` heading per release. Everything until the next heading is
 that release's notes, rendered as markdown.
 
+## Unreleased
+
+Most of what a launcher offers beyond vanilla is now an official plugin, signed by
+Hestia's key and bundled with every installer.
+
+- **Official plugins.** Modrinth, CurseForge, Fabric, NeoForge, Paper and Folia,
+  Spigot and CraftBukkit, the Adoptium Java distribution, `.mrpack`, CurseForge
+  and Prism / MultiMC packs, Discord presence and the players page are plugins
+  installed on first start, kept up to date from the official repository, and
+  listed in the plugin guide. A build without them runs vanilla only, reads and
+  writes Hestia's own archive only, and has no content source or Java download.
+- **Removed from core.** The built-in Modrinth and CurseForge sources, every
+  flavor but vanilla, the Adoptium provider, the pack formats other than Hestia's
+  own, the Discord presence loop, and the `content.curseforge-key` and
+  `discord.enabled` settings. Set the CurseForge key with
+  `hestia plugin config curseforge api-key` and Discord presence with
+  `hestia plugin config discord enabled <true|false>`.
+- **Players.** The server whitelist, operator and ban verbs now come from the
+  `players` plugin: `hestia server <name> players list|allow|disallow|op|deop|ban|pardon|kick`,
+  and a Players tab on the server page.
+- **Plugins.** Plugins can add content sources, flavors, pack formats and Java
+  distributions, commands, pages, themes and hooks, with only the permissions
+  you approve at install; `hestia plugin` manages them and the plugin guide
+  covers writing one.
+
 ## 1.0.0-beta.3
 
 Every running job in one place, launch progress where you press Play, and
