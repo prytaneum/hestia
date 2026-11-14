@@ -37,8 +37,6 @@ use crate::roster::{Live, RegisterError, Roster};
 use profile::{InstanceProfile, ServerProfile};
 
 pub use loaders::Loaders;
-#[cfg(test)]
-pub(crate) use provider::unmet_by;
 pub use provider::{accepted_kinds, unmet, InstallRequest, Prerequisite, Side};
 pub use provider::{FlavorInfo, FlavorProvider, Loads, ResolveRequest};
 pub use provider::{BOTH_SIDES, CLIENT_ONLY, SERVER_ONLY};

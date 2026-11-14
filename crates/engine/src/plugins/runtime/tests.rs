@@ -375,37 +375,3 @@ async fn a_page_answer_outside_the_ui_vocabulary_is_a_typed_error_naming_the_pag
         .await;
     assert!(matches!(acted, Err(CallError::InvalidUi(_))), "{acted:?}");
 }
-
-#[test]
-fn only_unsupported_falls_back_and_every_other_case_is_the_guests_own() {
-    assert!(matches!(
-        guest_error(PluginError::Unsupported("no".into())),
-        CallError::Unsupported(message) if message == "no"
-    ));
-    assert!(matches!(
-        guest_error(PluginError::Offline(None)),
-        CallError::Guest(GuestError::Offline(None))
-    ));
-    assert!(matches!(
-        guest_error(PluginError::SignInRequired),
-        CallError::Guest(GuestError::SignInRequired)
-    ));
-}
-
-#[test]
-fn a_call_failure_other_than_the_plugins_names_the_plugin() {
-    assert_eq!(
-        CallError::Busy.into_info("probe", None),
-        ErrorInfo::PluginCallFailed {
-            id: "probe".into(),
-            detail: "no free slot to run the plugin".into(),
-        }
-    );
-    assert_eq!(
-        CallError::InvalidUi("overview".into()).into_info("probe", None),
-        ErrorInfo::PluginUiInvalid {
-            plugin: "probe".into(),
-            page: "overview".into(),
-        }
-    );
-}

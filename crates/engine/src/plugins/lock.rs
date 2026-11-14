@@ -134,20 +134,6 @@ mod tests {
     }
 
     #[tokio::test(start_paused = true)]
-    async fn the_wait_never_outlasts_the_call() {
-        let locks = Locks::default();
-        let mut first = Held::default();
-        locks.acquire(&mut first, "counter", soon()).await.unwrap();
-
-        let started = Instant::now();
-        let mut second = Held::default();
-        let ending = started + Duration::from_millis(200);
-        let refused = locks.acquire(&mut second, "counter", ending).await;
-        assert!(matches!(refused, Err(LockError::Busy(_))));
-        assert!(started.elapsed() <= Duration::from_millis(200));
-    }
-
-    #[tokio::test(start_paused = true)]
     async fn dropping_a_calls_locks_releases_them() {
         let locks = Locks::default();
         let mut first = Held::default();

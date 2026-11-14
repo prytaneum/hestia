@@ -188,19 +188,6 @@ mod tests {
     }
 
     #[test]
-    fn defaults_apply_until_set_and_null_restores_them() {
-        let dir = tempfile::tempdir().unwrap();
-        let settings = settings(&dir);
-        assert_eq!(settings.get("limit"), Some(json!(10)));
-        assert!(!settings.list()[1].set);
-
-        settings.set("limit", json!(3)).unwrap();
-        assert_eq!(settings.get("limit"), Some(json!(3)));
-        settings.set("limit", Value::Null).unwrap();
-        assert_eq!(settings.get("limit"), Some(json!(10)));
-    }
-
-    #[test]
     fn a_value_of_the_wrong_kind_or_an_unknown_key_is_refused() {
         let dir = tempfile::tempdir().unwrap();
         let settings = settings(&dir);

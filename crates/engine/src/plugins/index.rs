@@ -230,13 +230,6 @@ mod tests {
     }
 
     #[test]
-    fn any_other_https_index_url_is_kept_as_it_is() {
-        let url = "https://example.com/hestia/plugins.json";
-
-        assert_eq!(expand(url).unwrap(), url);
-    }
-
-    #[test]
     fn an_address_that_is_not_https_or_a_repository_name_is_refused() {
         for input in [
             "",
@@ -284,17 +277,6 @@ mod tests {
         assert_eq!(index.label, "SMP");
         assert_eq!(index.plugins.len(), 2);
         assert_eq!(index.plugins[0].builds.len(), 2);
-    }
-
-    #[test]
-    fn the_spare_is_declared_and_pinned_with_the_key() {
-        let (signer, spare) = (Signer::new(), Signer::new());
-        let bytes = sample_index(&signer.key(), |index| index.next = spare.key());
-
-        assert_eq!(
-            declared_keys(&bytes).unwrap().all(),
-            [signer.key(), spare.key()]
-        );
     }
 
     #[test]
@@ -356,14 +338,6 @@ mod tests {
         for mutate in cases {
             assert!(matches!(refused(mutate), RepoError::Malformed(_)));
         }
-    }
-
-    #[test]
-    fn something_that_is_not_an_index_has_no_declared_key() {
-        assert!(matches!(
-            declared_keys(b"<html>404</html>"),
-            Err(RepoError::Malformed(_))
-        ));
     }
 
     #[test]

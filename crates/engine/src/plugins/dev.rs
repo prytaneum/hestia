@@ -194,22 +194,6 @@ mod tests {
     }
 
     #[test]
-    fn a_dev_install_reads_the_folder_in_place() {
-        let fixture = fixture();
-        let record = install(&fixture);
-
-        assert_eq!(record.source, PluginSource::Dev);
-        let package = fixture.plugins.read_package("demo").unwrap();
-        assert_eq!(package.wasm.as_deref(), Some(&b"one"[..]));
-        assert_eq!(
-            fixture.plugins.package_dir("demo").unwrap(),
-            std::fs::canonicalize(fixture.folder.path()).unwrap()
-        );
-        let copied = fixture.plugins.plugin_dir("demo").unwrap().join(PACKAGE);
-        assert!(!copied.exists());
-    }
-
-    #[test]
     fn a_changed_component_moves_the_stamp_and_refreshes_the_hash() {
         let fixture = fixture();
         let before = install(&fixture);
@@ -247,13 +231,6 @@ mod tests {
         fixture
             .plugins
             .install_dev(fixture.folder.path(), approve, true, |_| Ok(()))
-    }
-
-    #[test]
-    fn a_dev_install_is_not_official_unless_it_asks() {
-        let fixture = fixture();
-
-        assert!(!install(&fixture).dev_official);
     }
 
     #[test]

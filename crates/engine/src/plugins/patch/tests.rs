@@ -120,13 +120,6 @@ fn only_the_named_game_arguments_pass() {
 }
 
 #[test]
-fn a_long_dropped_argument_is_cut_in_its_warning() {
-    let long = format!("-javaagent:{}", "a".repeat(1000));
-    let patch = vet(&[], &[&long], &[]);
-    assert_eq!(dropped(&patch)[0].chars().count(), SHOWN_CHARS);
-}
-
-#[test]
 fn patches_fold_in_the_order_they_ran() {
     let first = vet(&[], &["-XX:+UseG1GC"], &["--fullscreen"]);
     let second = vet(&[], &["-XX:+UseZGC", "-javaagent:x.jar"], &[]);

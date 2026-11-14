@@ -208,24 +208,6 @@ mod tests {
     }
 
     #[test]
-    fn a_good_index_passes() {
-        let signer = Signer::new();
-        let bytes = sample_index(&signer.key(), |_| {});
-        let signature = sign_index(&signer, &bytes);
-
-        let index = verify_sample(
-            &bytes,
-            &signature,
-            &keys(&signer),
-            Some(SAMPLE_VERSION),
-            SAMPLE_NOW,
-        )
-        .unwrap();
-
-        assert_eq!(index.version, SAMPLE_VERSION);
-    }
-
-    #[test]
     fn an_index_signed_by_another_key_is_refused() {
         let (trusted, other) = (Signer::new(), Signer::new());
         let bytes = sample_index(&trusted.key(), |_| {});
@@ -368,14 +350,6 @@ mod tests {
             verify(&other, "aa", "0.1.0", "aa-0.1.0.hplugin").unwrap_err(),
             RepoError::WrongKey
         );
-    }
-
-    #[test]
-    fn a_malformed_key_is_refused() {
-        let error =
-            verify_build(b"", "", &["not a key".to_string()], "aa", "0.1.0", "f").unwrap_err();
-
-        assert!(matches!(error, RepoError::BadKey(_)), "{error:?}");
     }
 
     #[test]

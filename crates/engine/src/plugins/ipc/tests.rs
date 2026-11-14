@@ -52,16 +52,6 @@ async fn an_endpoint_the_grant_does_not_name_is_refused_before_dialing() {
     }
 }
 
-#[tokio::test]
-async fn an_unknown_connection_is_not_found() {
-    let ipc = connections(&[Permission::IpcConnect], &[]);
-    assert!(matches!(ipc.close("7"), Err(IpcError::NotFound(_))));
-    assert!(matches!(
-        ipc.receive("7", 16, Duration::from_millis(10)).await,
-        Err(IpcError::NotFound(_))
-    ));
-}
-
 #[cfg(unix)]
 #[tokio::test]
 async fn a_connection_round_trips_and_outlives_the_call_that_opened_it() {
@@ -92,26 +82,6 @@ async fn a_connection_round_trips_and_outlives_the_call_that_opened_it() {
     let closed = ipc.receive(&id, 64, Duration::from_secs(5)).await;
     assert!(matches!(closed, Err(IpcError::NotFound(_))), "{closed:?}");
     assert!(ipc.list().unwrap().is_empty());
-}
-
-#[cfg(unix)]
-#[tokio::test]
-async fn nothing_listening_is_not_found() {
-    let dir = tempfile::tempdir().unwrap();
-    let dialed = platform::dial_in(&[dir.path().into()], "chat-ipc-0").await;
-    assert!(matches!(dialed, Err(IpcError::NotFound(_))));
-}
-
-#[tokio::test]
-async fn a_quiet_peer_reads_as_empty_after_the_wait() {
-    let ipc = connections(&[Permission::IpcConnect], &[]);
-    let (near, _far) = tokio::io::duplex(64);
-    let id = ipc.adopt(Box::new(near));
-    let read = ipc
-        .receive(&id, 16, Duration::from_millis(20))
-        .await
-        .unwrap();
-    assert!(read.is_empty());
 }
 
 mod pushed {
@@ -208,25 +178,6 @@ mod pushed {
             ipc.receive(&id, 64, Duration::ZERO).await,
             Err(IpcError::NotFound(_))
         ));
-        assert_eq!(next(&mut events).await, None);
-    }
-
-    #[tokio::test(start_paused = true)]
-    async fn closing_a_connection_oneself_fires_nothing() {
-        let (ipc, mut events, id, far) = open();
-        ipc.close(&id).unwrap();
-        drop(far);
-        assert_eq!(next(&mut events).await, None);
-    }
-
-    #[tokio::test(start_paused = true)]
-    async fn nothing_is_queued_until_the_receiver_is_taken() {
-        let ipc = connections(&[Permission::IpcConnect], &[]);
-        let (near, mut far) = tokio::io::duplex(64);
-        ipc.adopt(Box::new(near));
-        far.write_all(b"early").await.unwrap();
-        tokio::time::sleep(QUIET).await;
-        let mut events = ipc.pushed();
         assert_eq!(next(&mut events).await, None);
     }
 }

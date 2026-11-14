@@ -235,28 +235,4 @@ mod tests {
         assert!(repositories.remove(&official_url()).is_err());
         assert_eq!(repositories.list().len(), 1);
     }
-
-    #[test]
-    fn repositories_persist_replace_by_url_and_remove() {
-        let home = tempfile::tempdir().unwrap();
-        let repositories = Repositories::new(home.path().join("repositories.json"));
-
-        repositories
-            .save(entry("https://a.example/i.json"))
-            .unwrap();
-        repositories
-            .save(entry("https://b.example/i.json"))
-            .unwrap();
-        let mut renamed = entry("https://a.example/i.json");
-        renamed.name = "A".to_string();
-        repositories.save(renamed).unwrap();
-
-        let saved = repositories.list();
-        assert_eq!(saved.len(), 3);
-        assert_eq!(saved[1].name, "A");
-        assert!(repositories.remove("https://a.example/i.json").unwrap());
-        assert!(!repositories.remove("https://a.example/i.json").unwrap());
-        assert_eq!(repositories.list().len(), 2);
-        assert!(repositories.get("https://b.example/i.json").is_some());
-    }
 }

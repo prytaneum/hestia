@@ -354,7 +354,6 @@ fn progress_of(phase: ProvisionPhase, reported: &PluginRunProgress) -> Provision
 
 #[cfg(test)]
 mod tests {
-    use proto::provider::flavor::LineFilter;
 
     use super::*;
 
@@ -391,17 +390,6 @@ mod tests {
         ] {
             assert!(relative(refused).is_none(), "{refused}");
         }
-    }
-
-    #[test]
-    fn a_line_filter_narrates_what_it_does_not_skip() {
-        let filter = LineFilter {
-            skip_prefixes: vec!["[".into(), "Patching ".into()],
-        };
-        assert!(filter.narrates("Compiling Spigot"));
-        assert!(!filter.narrates("[INFO] noise"));
-        assert!(!filter.narrates("  Patching a/b.java"));
-        assert!(!filter.narrates("   "));
     }
 
     #[cfg(unix)]

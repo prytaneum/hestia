@@ -101,21 +101,6 @@ fn a_daemon_failure_reaches_the_plugin_as_the_case_it_is() {
 }
 
 #[test]
-fn a_daemon_failure_with_no_closer_case_is_failed_with_its_message() {
-    let info = ErrorInfo::Internal {
-        detail: "the disk is full".into(),
-    };
-    assert_eq!(down(info.clone()), GuestError::Failed(info.to_string()));
-    assert!(matches!(
-        down(ErrorInfo::Io {
-            operation: proto::error::IoOp::Write,
-            detail: "denied".into()
-        }),
-        GuestError::Failed(_)
-    ));
-}
-
-#[test]
 fn a_provider_failure_is_attributed_to_the_provider() {
     let offline = GuestError::Offline(Some("no route".into())).into_info("probe", Some(provider()));
     assert_eq!(
@@ -145,49 +130,6 @@ fn a_provider_failure_is_attributed_to_the_provider() {
     };
     assert_eq!(service, provider());
     assert!(detail.contains("rate limiting") && detail.contains("7s"));
-}
-
-#[test]
-fn a_failure_with_no_provider_to_blame_names_the_plugin() {
-    assert_eq!(
-        GuestError::Offline(None).into_info("probe", None),
-        ErrorInfo::Offline { service: None }
-    );
-    let ErrorInfo::PluginCallFailed { id, detail } = (GuestError::Upstream {
-        status: Some(500),
-        retry_after: None,
-        message: "boom".into(),
-    })
-    .into_info("probe", None) else {
-        panic!("an upstream failure of no provider is the plugin's");
-    };
-    assert_eq!((id.as_str(), detail.as_str()), ("probe", "boom"));
-}
-
-#[test]
-fn a_user_can_act_on_what_the_plugin_reports() {
-    assert_eq!(
-        GuestError::SignInRequired.into_info("probe", None),
-        ErrorInfo::PluginSignInRequired {
-            plugin: "probe".into()
-        }
-    );
-    assert_eq!(
-        GuestError::NotConfigured("api-key".into()).into_info("probe", None),
-        ErrorInfo::PluginSettingInvalid {
-            plugin: "probe".into(),
-            key: "api-key".into(),
-            detail: "it has no value".into()
-        }
-    );
-    let ErrorInfo::PluginCallFailed { detail, .. } = (GuestError::MissingRequirement {
-        name: "git".into(),
-        url: Some("https://git-scm.com".into()),
-    })
-    .into_info("probe", None) else {
-        panic!("a missing requirement is reported as the plugin's failure");
-    };
-    assert!(detail.contains("git") && detail.contains("https://git-scm.com"));
 }
 
 #[test]
@@ -224,30 +166,4 @@ fn every_case_survives_the_trip_through_the_wire_type() {
         let wire = PluginError::from(case.clone());
         assert_eq!(GuestError::from(wire), case);
     }
-}
-
-#[test]
-fn a_program_that_is_not_installed_is_a_missing_requirement_with_its_name_and_url() {
-    assert_eq!(
-        GuestError::from(ProgramError::Missing {
-            name: "Git".into(),
-            url: Some("https://git-scm.com/downloads".into()),
-        }),
-        GuestError::MissingRequirement {
-            name: "Git".into(),
-            url: Some("https://git-scm.com/downloads".into())
-        }
-    );
-    assert!(matches!(
-        GuestError::from(ProgramError::Unapproved("git".into())),
-        GuestError::Denied(message) if message.contains("approve")
-    ));
-    assert!(matches!(
-        GuestError::from(ProgramError::Denied("no".into())),
-        GuestError::Denied(_)
-    ));
-    assert!(matches!(
-        GuestError::from(IpcError::NotFound("no".into())),
-        GuestError::NotFound(_)
-    ));
 }

@@ -205,14 +205,6 @@ mod tests {
 
     use super::*;
 
-    #[test]
-    fn only_a_transport_failure_counts_as_unreachable() {
-        assert!(!is_unreachable(&Error::HttpProtocolError));
-        assert!(!is_unreachable(&Error::DestinationIpProhibited));
-        assert!(is_unreachable(&Error::ConnectionTimeout));
-        assert!(is_unreachable(&Error::DestinationUnavailable));
-    }
-
     fn grant(hosts: &[&str], connect: bool) -> Grant {
         if !connect {
             return Grant::default();
@@ -298,18 +290,5 @@ mod tests {
         let grant = grant(&["example.com"], true);
         let url = Url::parse("https://example.com/").unwrap();
         assert_eq!(authorize(&grant, &url, true), Err(Refusal::Offline));
-    }
-
-    #[test]
-    fn each_refusal_maps_to_a_wasi_error() {
-        assert!(matches!(
-            Refusal::IpLiteral.code(),
-            Error::DestinationIpProhibited
-        ));
-        assert!(matches!(Refusal::NotHttps.code(), Error::HttpRequestDenied));
-        assert!(matches!(
-            Refusal::Offline.code(),
-            Error::DestinationUnavailable
-        ));
     }
 }

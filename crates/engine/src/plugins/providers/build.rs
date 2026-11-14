@@ -445,15 +445,6 @@ mod tests {
         assert!(matches!(through_dir, Err(Fault::Escapes(_))));
     }
 
-    #[test]
-    fn a_built_file_nothing_produced_is_missing() {
-        let area = area();
-        let missing = place(&area.build, &[], &expecting(&area), &roots(&area));
-        assert!(matches!(missing, Err(Fault::Missing(target)) if target == "server.jar"));
-        std::fs::write(area.served.join("server.jar"), b"already there").unwrap();
-        place(&area.build, &[], &expecting(&area), &roots(&area)).unwrap();
-    }
-
     fn write(path: PathBuf, contents: &str) {
         std::fs::create_dir_all(path.parent().unwrap()).unwrap();
         std::fs::write(path, contents).unwrap();

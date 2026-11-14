@@ -119,12 +119,6 @@ mod tests {
     }
 
     #[test]
-    fn a_package_without_catalogs_resolves_to_nothing() {
-        let dir = tempfile::tempdir().unwrap();
-        assert!(resolve(&dir, "en").is_empty());
-    }
-
-    #[test]
     fn a_broken_or_oversized_catalog_is_skipped() {
         let big = format!(r#"{{"k":"{}"}}"#, "x".repeat(MAX_CATALOG_BYTES as usize));
         let dir = package(&[

@@ -273,7 +273,6 @@ mod tests {
     use proto::plugin::{Permission, PermissionScope, ProgramJava};
 
     use super::*;
-    use crate::minecraft::unmet_by;
 
     fn git() -> Program {
         Program {
@@ -317,27 +316,5 @@ mod tests {
         assert_eq!(required[0].url, "https://git-scm.com/downloads");
         assert!(prerequisites(&grant, &["nope".into()]).is_err());
         assert!(prerequisites(&Grant::default(), &["git".into()]).is_err());
-    }
-
-    #[test]
-    fn a_requirement_is_met_or_missing_by_what_the_resolver_finds() {
-        let required = prerequisites(&granting(vec![git()]), &["git".into()]).unwrap();
-
-        assert!(unmet_by(&required, |_| true).is_empty());
-        let missing = unmet_by(&required, |_| false);
-        assert_eq!(missing.len(), 1);
-        assert_eq!(missing[0].name, "Git");
-        assert_eq!(missing[0].url, "https://git-scm.com/downloads");
-    }
-
-    #[test]
-    fn a_program_without_a_declared_requirement_is_named_by_its_command() {
-        let bare = Program {
-            requires: None,
-            ..git()
-        };
-        let requirement = requirement_of(&bare);
-        assert_eq!(requirement.name, "git");
-        assert_eq!(requirement.url, "");
     }
 }

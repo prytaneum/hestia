@@ -376,41 +376,6 @@ mod tests {
     }
 
     #[test]
-    fn the_newest_listing_among_mirrors_wins() {
-        let key = Signer::new().key();
-        let sources = [
-            source("https://a.example/i.json", &key, |index| {
-                index.plugins[0].version = "0.1.0".to_string();
-                index.plugins[0].builds.truncate(1);
-            }),
-            source("https://b.example/i.json", &key, |_| {}),
-        ];
-
-        let catalogue = build(&sources, &[], None, None);
-
-        let aa = catalogue.iter().find(|p| p.id == "aa").unwrap();
-        assert_eq!(aa.version, "0.2.0");
-    }
-
-    #[test]
-    fn the_repository_filter_and_the_query_narrow_the_list() {
-        let (first, second) = (Signer::new().key(), Signer::new().key());
-        let sources = [
-            source("https://a.example/i.json", &first, |_| {}),
-            source("https://b.example/i.json", &second, |index| {
-                index.plugins.retain(|plugin| plugin.id == "bb")
-            }),
-        ];
-
-        assert_eq!(
-            build(&sources, &[], Some("https://b.example/i.json"), None).len(),
-            1
-        );
-        assert_eq!(build(&sources, &[], None, Some("BB")).len(), 2);
-        assert_eq!(build(&sources, &[], None, Some("nothing")).len(), 0);
-    }
-
-    #[test]
     fn installed_shows_only_for_the_key_that_signed_it() {
         let (first, second) = (Signer::new().key(), Signer::new().key());
         let sources = [

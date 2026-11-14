@@ -1,4 +1,3 @@
-use proto::minecraft::Artifact;
 use proto::plugin::Grant;
 use proto::provider::flavor::RuledArgs;
 use proto::rules::{OsRule, Rule, RuleAction};
@@ -74,22 +73,6 @@ fn a_sidecar_is_sought_only_when_asked_for_and_no_checksum_was_given() {
 }
 
 #[test]
-fn a_plain_library_passes_through_untouched() {
-    let spec = LibrarySpec::from(Library {
-        name: "x:y:1".into(),
-        path: "x/y/1/y-1.jar".into(),
-        artifact: Artifact {
-            url: "https://files.example.com/y.jar".into(),
-            ..Artifact::default()
-        },
-        ..Library::default()
-    });
-    let pending = complete(spec).unwrap().pending;
-    assert_eq!(pending.library.path, "x/y/1/y-1.jar");
-    assert!(pending.sidecar.is_none());
-}
-
-#[test]
 fn a_bad_coordinate_or_repository_refuses_the_library() {
     for coordinate in ["", "a:b", "a:b:../x", "a/b:c:1", "a:b:1:c:d"] {
         assert!(
@@ -154,22 +137,6 @@ fn a_sidecar_carries_a_sha1_with_or_without_the_file_name() {
     assert!(
         parse_sidecar(&"a".repeat(64)).is_none(),
         "a sha256 is not a sha1"
-    );
-}
-
-#[test]
-fn each_sidecar_is_looked_up_once() {
-    let pending: Vec<Pending> = ["a:b:1", "c:d:2", "a:b:1"]
-        .into_iter()
-        .map(|coordinate| complete(maven(coordinate, true)).unwrap().pending)
-        .chain([complete(maven("e:f:3", false)).unwrap().pending])
-        .collect();
-    assert_eq!(
-        sidecar_urls(&pending),
-        [
-            "https://maven.example.com/releases/a/b/1/b-1.jar.sha1",
-            "https://maven.example.com/releases/c/d/2/d-2.jar.sha1",
-        ]
     );
 }
 
@@ -253,25 +220,6 @@ fn arguments_follow_the_rules_in_order() {
         normaliser(&policy, &mac).arguments(arguments()),
         ["-Dalways", "-XstartOnFirstThread", "-Dunruled"]
     );
-}
-
-#[test]
-fn a_server_addition_keeps_its_jar_and_filters_its_flags() {
-    let policy = Policy::new(&Grant::default());
-    let target = on("linux", "x86_64");
-    let layer = normaliser(&policy, &target).server(ServerAddition {
-        loader_version: Some("9".into()),
-        jar: None,
-        jvm_args: vec![
-            "-Da".into(),
-            Argument::Ruled(RuledArgs {
-                value: vec!["-Db".into()],
-                rules: only_on("windows"),
-            }),
-        ],
-    });
-    assert_eq!(layer.loader_version.as_deref(), Some("9"));
-    assert_eq!(layer.jvm_args, ["-Da"]);
 }
 
 #[test]

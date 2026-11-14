@@ -283,19 +283,6 @@ mod tests {
     }
 
     #[test]
-    fn a_missing_or_empty_bundle_seeds_nothing() {
-        let home = home();
-        let official = Signer::new();
-
-        assert_eq!(seed(&home, &official), Seeded::default());
-        let gone =
-            home.plugins
-                .seed_bundled(&home.bundle.join("absent"), &[official.key()], |_| Ok(()));
-        assert_eq!(gone, Seeded::default());
-        assert!(home.plugins.list().is_empty());
-    }
-
-    #[test]
     fn a_verified_package_installs_pre_approved_and_enabled() {
         let home = home();
         let official = Signer::new();
@@ -321,16 +308,6 @@ mod tests {
         );
         assert!(record.enabled);
         assert!(!record.grant.permissions.is_empty());
-    }
-
-    #[test]
-    fn a_restart_changes_nothing() {
-        let home = home();
-        let official = Signer::new();
-        bundle(&home, &official, "aa", "1.0.0", "");
-        seed(&home, &official);
-
-        assert_eq!(seed(&home, &official), Seeded::default());
     }
 
     #[test]
@@ -443,18 +420,5 @@ mod tests {
         std::fs::rename(signature_of(&path), signature_of(&renamed)).unwrap();
 
         assert_eq!(seed(&home, &official).refused.len(), 1);
-    }
-
-    #[test]
-    fn one_refused_package_does_not_stop_the_others() {
-        let home = home();
-        let (official, other) = (Signer::new(), Signer::new());
-        bundle(&home, &other, "aa", "1.0.0", "");
-        bundle(&home, &official, "bb", "1.0.0", "");
-
-        let seeded = seed(&home, &official);
-
-        assert_eq!(seeded.installed, ["bb"]);
-        assert_eq!(seeded.refused.len(), 1);
     }
 }

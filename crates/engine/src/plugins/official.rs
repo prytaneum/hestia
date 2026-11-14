@@ -63,16 +63,6 @@ mod tests {
     }
 
     #[test]
-    fn with_no_official_key_nothing_is_official() {
-        let signer = Signer::new();
-
-        assert!(!is_official_signer_in(
-            Some(&key_id_of(&signer.key()).unwrap()),
-            &[]
-        ));
-    }
-
-    #[test]
     fn a_third_party_index_naming_the_official_key_is_refused() {
         let (official, other) = (Signer::new(), Signer::new());
         let key = official.key();

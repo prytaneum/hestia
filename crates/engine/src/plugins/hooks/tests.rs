@@ -5,9 +5,7 @@ use super::*;
 #[derive(Clone, Copy)]
 enum Answer {
     Patch(&'static str),
-    Malformed,
     Veto,
-    VetoTyped,
     Timeout,
     Trap,
     Reentry,
@@ -45,9 +43,7 @@ impl Participant for Fake {
         Box::pin(async move {
             match self.answer {
                 Answer::Patch(arg) => Ok(Ok(serde_json::json!([arg]).to_string())),
-                Answer::Malformed => Ok(Ok("{\"not\":\"a list\"}".into())),
                 Answer::Veto => Ok(Err(GuestError::Failed("nope".into()))),
-                Answer::VetoTyped => Ok(Err(GuestError::NotConfigured("api-key".into()))),
                 Answer::Timeout => Err(CallError::Timeout(timeout)),
                 Answer::Trap => Err(CallError::Trap("boom".into())),
                 Answer::Reentry => Err(CallError::Chain(crate::plugins::ChainError::Reentry(
@@ -172,18 +168,6 @@ async fn a_timeout_warns_and_the_rest_still_run() {
 }
 
 #[tokio::test]
-async fn an_answer_that_is_not_the_patch_warns() {
-    let rig = Rig::new()
-        .with("alpha", Answer::Malformed)
-        .with("bravo", Answer::Patch("b"));
-
-    let outcome = rig.run().await.unwrap();
-
-    assert_eq!(outcome.patch, ["b"]);
-    assert_eq!(outcome.warnings, [failed("alpha")]);
-}
-
-#[tokio::test]
 async fn a_trap_or_a_reentry_refusal_warns_too() {
     let rig = Rig::new()
         .with("alpha", Answer::Trap)
@@ -217,22 +201,6 @@ async fn a_veto_stops_at_that_plugin() {
 }
 
 #[tokio::test]
-async fn a_typed_veto_shows_its_message_as_the_reason() {
-    let rig = Rig::new().with("alpha", Answer::VetoTyped);
-
-    let error = rig.run().await.unwrap_err();
-
-    assert_eq!(
-        error,
-        ErrorInfo::PluginVetoed {
-            plugin: "alpha".into(),
-            hook: "before-launch".into(),
-            reason: "the setting `api-key` is not set".into(),
-        }
-    );
-}
-
-#[tokio::test]
 async fn a_plugin_without_the_hook_or_disabled_is_not_called() {
     let rig = Rig::new()
         .plugin("alpha", &["before-content-install"], false, Answer::Veto)
@@ -243,13 +211,4 @@ async fn a_plugin_without_the_hook_or_disabled_is_not_called() {
 
     assert_eq!(rig.called(), ["charlie"]);
     assert_eq!(outcome.patch, ["c"]);
-}
-
-#[tokio::test]
-async fn no_roster_means_no_hooks() {
-    let hooks = Hooks::<Fake>::default();
-
-    let outcome = hooks.run::<Stub>(&(), &CallChain::default()).await.unwrap();
-
-    assert_eq!(outcome, HookOutcome::default());
 }

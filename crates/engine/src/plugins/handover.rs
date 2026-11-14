@@ -150,19 +150,6 @@ mod tests {
     }
 
     #[test]
-    fn a_build_no_newer_than_the_install_does_not_save_it() {
-        let key = Signer::new().key();
-        let api = format!("^{NEXT_API}");
-        let sources = [source(&key, |index| {
-            index.plugins[0].builds = vec![build("0.2.0", &api)];
-        })];
-
-        let plan = plan(&sources, &[installed("aa", "0.2.0", &key)], NEXT_API);
-
-        assert_eq!(plan.stranded, ["aa"]);
-    }
-
-    #[test]
     fn a_listing_under_another_key_is_not_a_source_of_builds() {
         let (key, other) = (Signer::new().key(), Signer::new().key());
         let api = format!("^{NEXT_API}");

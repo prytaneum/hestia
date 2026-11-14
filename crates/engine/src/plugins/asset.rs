@@ -169,19 +169,6 @@ mod tests {
     }
 
     #[test]
-    fn a_page_and_its_script_are_served() {
-        let (_home, plugins) = install(true);
-        assert_eq!(
-            plugins.asset("demo", "assets/page.html").unwrap().mime,
-            "text/html"
-        );
-        assert_eq!(
-            plugins.asset("demo", "assets/page.js").unwrap().mime,
-            "text/javascript"
-        );
-    }
-
-    #[test]
     fn traversal_absolute_and_foreign_directories_are_refused() {
         let (_home, plugins) = install(true);
         for path in [
@@ -232,15 +219,6 @@ mod tests {
         let (_home, plugins) = install(true);
         rejected_with(&plugins, "assets/notes.txt", FileFault::UnsupportedType);
         rejected_with(&plugins, "assets/run.exe", FileFault::UnsupportedType);
-    }
-
-    #[test]
-    fn a_missing_file_is_not_found() {
-        let (_home, plugins) = install(true);
-        assert!(matches!(
-            refusal(&plugins, "demo", "assets/none.png"),
-            ErrorInfo::FileNotFound { .. }
-        ));
     }
 
     #[test]

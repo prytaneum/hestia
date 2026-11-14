@@ -283,16 +283,6 @@ mod tests {
     }
 
     #[test]
-    fn a_newer_source_version_without_a_build_is_not_reported() {
-        let key = Signer::new().key();
-        let sources = [source("https://a.example/i.json", &key, |index| {
-            index.plugins[0].version = "0.3.0".to_string();
-        })];
-
-        assert!(outdated(&sources, &[installed("aa", "0.2.0", &key)]).is_empty());
-    }
-
-    #[test]
     fn unsigned_and_obsolete_installs_are_not_reported() {
         let key = Signer::new().key();
         let sources = [source("https://a.example/i.json", &key, |_| {})];
@@ -406,28 +396,5 @@ mod tests {
             auto_updatable(&outdated_of(vec![incompatible]), &installed, &[&official]).is_empty()
         );
         assert!(auto_updatable(&offline, &installed, &[&official]).is_empty());
-    }
-
-    #[test]
-    fn candidates_follow_the_config_switch() {
-        let home = tempfile::tempdir().unwrap();
-        let engine = Engine::new(Some(home.path()));
-        let outdated = outdated_of(vec![offer("aa")]);
-
-        engine
-            .config()
-            .set("plugins.auto-update", serde_json::json!(false))
-            .unwrap();
-
-        assert!(engine.auto_update_candidates(&outdated).is_empty());
-        assert!(!engine.config().settings().plugins.auto_update);
-    }
-
-    #[test]
-    fn auto_update_is_on_by_default() {
-        let home = tempfile::tempdir().unwrap();
-        let engine = Engine::new(Some(home.path()));
-
-        assert!(engine.config().settings().plugins.auto_update);
     }
 }

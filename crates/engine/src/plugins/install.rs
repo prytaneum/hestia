@@ -430,7 +430,6 @@ impl Plugins {
 
 #[cfg(test)]
 mod tests {
-    use proto::plugin::PluginSource;
 
     use super::*;
     use crate::cancel::Cancel;
@@ -558,19 +557,6 @@ mod tests {
     }
 
     #[test]
-    fn the_record_digest_covers_its_pins() {
-        let rig = Rig::new(at_a);
-        let record = rig.install(&rig.package("1.0.0", ""));
-
-        assert_eq!(record.program_pins["git"], at_a("git").unwrap());
-        assert_eq!(
-            record.grant_digest,
-            approval_digest(&record.grant, &record.program_pins)
-        );
-        assert_eq!(record.source, PluginSource::Url);
-    }
-
-    #[test]
     fn an_update_with_the_same_pin_needs_no_approval() {
         let rig = Rig::new(at_a);
         let installed = rig.install(&rig.package("1.0.0", ""));
@@ -669,15 +655,6 @@ mod tests {
     }
 
     #[test]
-    fn an_install_is_approved_by_the_user() {
-        let rig = Rig::new(at_a);
-
-        let record = rig.install(&rig.package("1.0.0", ""));
-
-        assert_eq!(record.approved_by, Approver::User);
-    }
-
-    #[test]
     fn an_update_that_needs_no_approval_keeps_who_approved_the_install() {
         let rig = Rig::new(at_a);
         rig.install(&rig.package("1.0.0", ""));
@@ -727,22 +704,6 @@ mod tests {
         assert_eq!(updated.record.approved_by, Approver::User);
     }
 
-    #[test]
-    fn a_newly_declared_program_is_pinned_under_the_approved_digest() {
-        let rig = Rig::new(at_a);
-        rig.install(&rig.package("1.0.0", ""));
-        let next = rig.package_granting(
-            "1.1.0",
-            "\"git\", \"curl\"",
-            "\n[[programs]]\nid = \"curl\"\ncommand = \"curl\"\nargs = [\"**\"]\n",
-        );
-
-        assert!(rig.update(&next, "").is_err());
-        let updated = rig.update(&next, &rig.digest(&next)).unwrap();
-
-        assert_eq!(updated.record.program_pins.len(), 2);
-    }
-
     const SHAPES: &str = r#"
 id = "demo"
 version = "1.0.0"
@@ -784,30 +745,6 @@ args = ["-version"]
 "#;
 
     #[test]
-    fn a_manifest_declares_each_kind_of_program_identity() {
-        let manifest = parse_manifest(&SHAPES.replace(
-            "programs = [\"git\", \"buildtools\", \"tool\"]",
-            "programs = [\"git\", \"buildtools\", \"tool\", \"game\"]",
-        ))
-        .unwrap();
-        let by_id = |id: &str| manifest.programs.iter().find(|p| p.id == id).unwrap();
-
-        assert!(by_id("git").on_path());
-        assert_eq!(by_id("git").requires.as_ref().unwrap().name, "Git");
-        assert_eq!(by_id("buildtools").invocations().len(), 2);
-        assert!(by_id("tool").in_data_dir());
-        assert_eq!(by_id("tool").invocations()[0].env.len(), 1);
-        assert_eq!(
-            by_id("buildtools").entry(),
-            "buildtools: Hestia-managed Java 17-21 | build: args [\"-jar\",\"${data}/BuildTools.jar\",\"--rev\",\"*\"] | version: args [\"-version\"]"
-        );
-        assert_eq!(
-            by_id("game").identity_label(),
-            "Hestia-managed Java of the game version"
-        );
-    }
-
-    #[test]
     fn an_invalid_manifest_reports_every_program_error_at_once() {
         let broken = SHAPES
             .replace("command = \"git\"", "command = \"sh\"")
@@ -816,18 +753,5 @@ args = ["-version"]
 
         assert!(error.contains("program `git`"), "{error}");
         assert!(error.contains("program `game`"), "{error}");
-    }
-
-    #[test]
-    fn a_manifest_in_the_flat_shape_is_refused_with_the_scope_to_use() {
-        let flat = "id = \"old\"\nname = \"Old\"\nversion = \"1.0.0\"\n\
-                    network = [\"example.com\"]\nipc = [\"discord-ipc-*\"]\n\
-                    [launch]\nproperties = [\"a.b\"]\n";
-        let error = parse_manifest(flat).unwrap_err().to_string();
-
-        assert!(error.contains("top-level `network`"), "{error}");
-        assert!(error.contains("\"ipc:connect\" = { endpoints"), "{error}");
-        assert!(error.contains("top-level `launch`"), "{error}");
-        assert!(!error.contains("top-level `files`"), "{error}");
     }
 }

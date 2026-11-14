@@ -82,6 +82,8 @@ async fn a_url_install_uses_the_file_inspect_downloaded() {
         .expect("install");
 
     assert_eq!(record.source, PluginSource::Url);
+    assert_eq!(record.signer, None);
+    assert_eq!(record.repository, None);
     assert_eq!(record.url.as_deref(), Some(url.as_str()));
     assert_eq!(server.requests.load(Ordering::SeqCst), 1);
 
@@ -127,28 +129,6 @@ async fn an_attested_package_installs_as_a_repository_build_with_its_signer() {
     );
     assert_eq!(record.url.as_deref(), Some(url.as_str()));
     assert_eq!(staged.warnings.len(), 1);
-}
-
-#[tokio::test]
-async fn a_plain_url_install_records_no_signer() {
-    let home = tempfile::tempdir().unwrap();
-    let remote = Remote::new(home.path().join("tmp"));
-    let plugins = Plugins::new(home.path().join("plugins"));
-    let archive = package();
-    let server = serve(move |_| ok(&archive)).await;
-
-    let token = remote
-        .download(&format!("{}/tunnel.hplugin", server.base), 1 << 20)
-        .await
-        .expect("download");
-    let staged = remote.staged(&token).expect("held");
-    let digest = plugins.inspect(&staged.path).unwrap().grant_digest;
-    let record = plugins
-        .install_downloaded(&staged, &digest, &Cancel::new(), &|_| {}, |_| Ok(()))
-        .expect("install");
-
-    assert_eq!(record.signer, None);
-    assert_eq!(record.repository, None);
 }
 
 #[tokio::test]
