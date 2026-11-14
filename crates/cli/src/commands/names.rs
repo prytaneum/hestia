@@ -16,20 +16,10 @@ impl Names {
         Names(ids.into_iter().collect())
     }
 
-    /// The flavors of both sides.
-    pub async fn flavors(client: &Client) -> Result<Self> {
-        let mut ids = Vec::new();
-        for kind in [EntryKind::Server, EntryKind::Instance] {
-            ids.extend(
-                client
-                    .entry()
-                    .flavors(kind)
-                    .await?
-                    .into_iter()
-                    .map(|f| f.id),
-            );
-        }
-        Ok(Names::of(ids))
+    /// The flavors of one side, the scope a bare flavor name resolves in.
+    pub async fn flavors(client: &Client, kind: EntryKind) -> Result<Self> {
+        let flavors = client.entry().flavors(kind).await?;
+        Ok(Names::of(flavors.into_iter().map(|f| f.id)))
     }
 
     pub async fn sources(client: &Client) -> Result<Self> {

@@ -427,7 +427,7 @@ pub async fn list_versions(
 
 pub async fn list_flavors(client: &Client, kind: EntryKind) -> Result<()> {
     let flavors = fetch_flavors(client, kind).await?;
-    show_flavors(&flavors, &Names::flavors(client).await?)
+    show_flavors(&flavors, &Names::of(flavors.iter().map(|f| f.id.clone())))
 }
 
 /// Show a version table, releases only unless `all` includes snapshots and old

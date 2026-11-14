@@ -1,6 +1,7 @@
 //! Selecting a server and rendering one: the vocabulary the verb modules share.
 
 use anyhow::{bail, Context, Result};
+use client::proto::error::EntryKind;
 use client::proto::process::{ProcessInfo, ProcessState};
 use client::proto::server::{JvmArgsSource, ServerDetails, ServerInfo, ServerPingResult};
 use client::Client;
@@ -39,7 +40,7 @@ pub(super) async fn list(client: &Client) -> Result<()> {
     if servers.is_empty() {
         return ui::show(View::note("no servers yet (hestia server create)"));
     }
-    let names = Names::flavors(client).await?;
+    let names = Names::flavors(client, EntryKind::Server).await?;
     let rows = servers
         .iter()
         .map(|s| {
@@ -65,7 +66,7 @@ pub(super) async fn show_status(
     info: &ServerInfo,
     ping: Option<&ServerPingResult>,
 ) -> Result<()> {
-    let names = Names::flavors(client).await?;
+    let names = Names::flavors(client, EntryKind::Server).await?;
     let mut rows = vec![
         ("name", info.name.clone()),
         ("id", info.id.clone()),
@@ -96,7 +97,7 @@ pub(super) async fn show_status(
 }
 
 pub(super) async fn show_info(client: &Client, info: &ServerDetails) -> Result<()> {
-    let names = Names::flavors(client).await?;
+    let names = Names::flavors(client, EntryKind::Server).await?;
     ui::show(View::detail([
         ("name", info.name.clone()),
         ("id", info.id.clone()),

@@ -2,6 +2,7 @@
 //! share.
 
 use anyhow::{bail, Context, Result};
+use client::proto::error::EntryKind;
 use client::proto::instance::{InstanceDetails, InstanceInfo};
 use client::proto::process::{ProcessInfo, ProcessState};
 use client::Client;
@@ -84,7 +85,7 @@ pub(super) async fn list(client: &Client) -> Result<()> {
     if instances.is_empty() {
         return ui::show(View::note("no instances yet (hestia instance create)"));
     }
-    let names = Names::flavors(client).await?;
+    let names = Names::flavors(client, EntryKind::Instance).await?;
     let rows = instances
         .iter()
         .map(|i| {
@@ -113,7 +114,7 @@ pub(super) async fn list(client: &Client) -> Result<()> {
 }
 
 pub(super) async fn show_info(client: &Client, info: &InstanceInfo) -> Result<()> {
-    let names = Names::flavors(client).await?;
+    let names = Names::flavors(client, EntryKind::Instance).await?;
     ui::show(View::detail([
         ("name", info.name.clone()),
         ("id", info.id.clone()),
@@ -138,7 +139,7 @@ pub(super) async fn show_detail(
     info: &InstanceDetails,
     sessions: &[ProcessInfo],
 ) -> Result<()> {
-    let names = Names::flavors(client).await?;
+    let names = Names::flavors(client, EntryKind::Instance).await?;
     ui::show(View::detail([
         ("name", info.name.clone()),
         ("id", info.id.clone()),
