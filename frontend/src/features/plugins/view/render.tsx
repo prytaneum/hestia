@@ -40,10 +40,13 @@ export function UiView({ node }: { node: UiNode }) {
       return (
         <div className="flex flex-col gap-4">
           <Heading text={node.title} level={2} />
-          {[...node.actions, ...node.children].map((child, i) => (
-            // biome-ignore lint/suspicious/noArrayIndexKey: a tree is positional
-            <UiView key={i} node={child} />
-          ))}
+          <UiView
+            node={{
+              type: 'stack',
+              direction: 'vertical',
+              children: [...node.actions, ...node.children],
+            }}
+          />
         </div>
       );
     case 'copy':
