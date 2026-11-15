@@ -38,12 +38,15 @@ fn push_views(node: &UiNode, out: &mut Vec<View>) {
         UiNode::Section {
             title,
             description,
+            actions,
             children,
-            ..
         } => {
             out.push(View::line(title));
             out.extend(description.iter().map(View::note));
-            children.iter().for_each(|c| push_views(c, out));
+            actions
+                .iter()
+                .chain(children)
+                .for_each(|c| push_views(c, out));
         }
         UiNode::Copy { text, label } => out.push(View::line(match label {
             Some(label) => format!("{label}: {text}"),
@@ -96,10 +99,16 @@ fn push_views(node: &UiNode, out: &mut Vec<View>) {
                             .iter()
                             .map(|badge| format!(" [{}]", badge.text))
                             .collect();
-                        vec![
-                            format!("{}{badges}", item.title),
-                            item.subtitle.clone().unwrap_or_default(),
-                        ]
+                        let details: Vec<&str> = item
+                            .subtitle
+                            .iter()
+                            .map(String::as_str)
+                            .chain(item.actions.iter().filter_map(|action| match action {
+                                UiNode::Copy { text, .. } => Some(text.as_str()),
+                                _ => None,
+                            }))
+                            .collect();
+                        vec![format!("{}{badges}", item.title), details.join(" · ")]
                     })
                     .collect(),
             )),
@@ -283,13 +292,19 @@ mod tests {
                     text: "new".into(),
                     tone: Tone::Info,
                 }],
-                actions: vec![button("Go", "go")],
+                actions: vec![
+                    button("Go", "go"),
+                    UiNode::Copy {
+                        text: "a.b:1".into(),
+                        label: None,
+                    },
+                ],
                 ..ListItem::default()
             }],
             empty: None,
         };
         assert!(matches!(&views(&list)[0], View::Table { rows, .. }
-            if rows == &[vec![Cell::from("t [new]"), Cell::from("s")]]));
+            if rows == &[vec![Cell::from("t [new]"), Cell::from("s · a.b:1")]]));
         let empty_list = UiNode::List {
             items: vec![],
             empty: Some("no items".into()),
@@ -334,11 +349,11 @@ mod tests {
         let section = UiNode::Section {
             title: "Address".into(),
             description: Some("share it".into()),
-            actions: vec![button("Rotate", "rotate")],
-            children: vec![UiNode::Copy {
+            actions: vec![UiNode::Copy {
                 text: "a.b:1".into(),
                 label: Some("Join".into()),
             }],
+            children: vec![button("Rotate", "rotate")],
         };
         let shown = views(&section);
         assert!(matches!(&shown[0], View::Line(t) if t == "Address"));
