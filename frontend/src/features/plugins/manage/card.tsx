@@ -25,6 +25,7 @@ export const PLUGIN_GRID = 'grid grid-cols-1 gap-3 xl:grid-cols-2';
 /**
  * The card both lists share, shaped like a content card: icon, name and
  * byline, a description, then a meta line that ends in the card's one action.
+ * A problem takes the description's line, so every card is the same height.
  */
 function Shell({
   icon,
@@ -69,11 +70,17 @@ function Shell({
               {badges}
             </span>
           </div>
-          <p className="mt-1 truncate text-xs text-muted-foreground">
-            {description || ' '}
-          </p>
-          {problem && (
-            <p className="line-clamp-2 text-xs text-destructive">{problem}</p>
+          {problem ? (
+            <p
+              className="mt-1 truncate text-xs text-destructive"
+              title={problem}
+            >
+              {problem}
+            </p>
+          ) : (
+            <p className="mt-1 truncate text-xs text-muted-foreground">
+              {description || '\u00a0'}
+            </p>
           )}
           <div className="mt-2 flex min-h-6 items-center gap-3 text-[11px] text-muted-foreground">
             {meta}
