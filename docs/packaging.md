@@ -127,7 +127,7 @@ portable build empty `bundle.resources` through `TAURI_CONFIG` for the Tauri she
 
 **Staged builds** take the same path. An app update that changes the plugin API leaves the official builds for the new API
 in `<data home>/updates/plugins/<api>/`, and the daemon that exposes that API seeds from there before it loads anything,
-then removes the directory ([decision 0112](decisions/0112-the-app-and-official-plugins-update-together.md)). A fresh
+then removes the directory. A fresh
 installer needs none of that: it carries plugins built for its own API, so the coordination is satisfied by construction.
 
 **Bumping the lock.** Publish the plugin to `prytaneum/plugins`, then put its new version and the sha256 of
@@ -151,10 +151,10 @@ with `xdg-open 'hestia://add-repo?url=…'`.
 
 The **daemon** owns self-update — `engine/src/update/`, reached over `update.check`,
 `update.download` and `update.apply`. Every front-end is a caller; none reads the manifest, holds a key, or runs an
-installer ([decision 0062](decisions/0062-the-daemon-owns-self-update.md)).
+installer.
 
 It polls the feed API, one manifest per release channel — `…/updates/stable` or `…/updates/beta`, chosen by the
-`update.channel` setting ([decision 0066](decisions/0066-a-channel-picks-the-feed-not-the-entry.md)). On a `v*` tag the
+`update.channel` setting. On a `v*` tag the
 release workflow's `manifest` job composes `latest.json`, attaches it to the Release as provenance, and **publishes** it
 to the channel the tag names — a prerelease suffix (`v1.3.0-beta.1`) is beta, a plain `v1.3.0` is stable. Nothing reads
 the repository's releases to decide what is current. The full HTTP contract, both directions, is in
@@ -198,7 +198,7 @@ which the API answers wrapped in its `{success, message, data}` envelope:
 `manifest` job reads it from that file, so it cannot drift from the code, and fails the release if it cannot. When it
 differs from what installed official plugins can run on, `update.download` stages compatible builds of them in the data
 home before it fetches the installer, and the new daemon installs them at its first start; with none to be had, the
-update is refused ([decision 0112](decisions/0112-the-app-and-official-plugins-update-together.md)). A manifest without
+update is refused. A manifest without
 the field asks for no coordination.
 
 A platform's top-level entry is its default artifact — the NSIS setup, the AppImage. `formats` carries the rest, and is
@@ -303,35 +303,23 @@ nothing to paste in and nothing to put back. A release build reads neither.
 configured — the guard is in the `preflight` job, which runs before anything is built, so a release that could never
 publish a `latest.json` fails in seconds rather than after every platform has compiled.
 
-### Authenticode — the path, not the requirement
+### Authenticode
 
-Windows installers currently ship **unsigned**. This is deliberate and costs only warnings:
+Windows installers currently ship **unsigned**, which costs only warnings:
 
 | Install mode | First install                             | Auto-update      |
 |--------------|-------------------------------------------|------------------|
 | per-user     | SmartScreen once                          | silent           |
 | per-machine  | SmartScreen once, UAC "Unknown publisher" | UAC every update |
 
-`nsis.installMode` is `both`, so the user chooses; the template's
-`MULTIUSER_EXECUTIONLEVEL Highest` means an admin account elevates at launch. Signing does **not** remove the UAC
-prompt — a per-machine install requires elevation regardless — it changes the dialog from "Unknown publisher" to the
-publisher name, and it removes the SmartScreen block. The recurring per-machine update prompt is the real argument for a
-certificate; the install-day scare is the lesser one.
+`nsis.installMode` is `both`, so the user chooses. Signing does not remove the per-machine UAC prompt; it replaces
+"Unknown publisher" with the publisher name and removes the SmartScreen block.
 
-The intended route is [SignPath Foundation](https://signpath.org/terms.html), which issues a free OV certificate to
-qualifying open source projects and signs in its own pipeline (the key is never held here). Hestia meets the licence
-(GPL-3.0-only, with `proto` and the plugin SDK under the permissive MIT OR Apache-2.0; no commercial dual-licensing),
-no-proprietary-components, maintained and documented conditions. Two things are outstanding, and their order is forced:
-
-1. **A release must exist first** — the Foundation signs already-released software, so the first tags necessarily ship
-   unsigned.
-2. **Role separation** — Authors, Reviewers and Approvers as distinct people with MFA, plus a published code signing
-   policy page. This is the condition a single-maintainer project has to resolve with them.
-
-Expect OV, not EV: SmartScreen reputation accrues per certificate over downloads and time, so warnings fade rather than
-vanish on approval. Switching or renewing a certificate later is cheap — reputation resets, nothing breaks — which is
-the opposite of the updater key above. Always timestamp Authenticode signatures once a certificate is in use, or every
-shipped binary becomes untrusted the day it expires.
+The intended route is [SignPath Foundation](https://signpath.org/terms.html), which signs open source projects in its own
+pipeline (the key is never held here). Two things are outstanding: a release must exist first (the Foundation signs
+already-released software), and its role-separation requirement (distinct Authors, Reviewers and Approvers with MFA, plus
+a published signing policy). Expect OV, not EV: SmartScreen reputation accrues over downloads and time. Always timestamp
+Authenticode signatures once a certificate is in use, or every shipped binary becomes untrusted when it expires.
 
 ## Runtime dependency: the system WebView
 
@@ -362,8 +350,7 @@ which breaks EGL init against a newer host Mesa — a blank window. Tauri expose
 image around the original's runtime.
 
 **The CurseForge key is not part of a build.** Core has no CurseForge source and no `content.curseforge-key`. The
-official CurseForge plugin ships a key as a setting default packed into its package
-([0132](decisions/0132-a-distributor-ships-setting-defaults-in-the-package.md)), supplied by the plugins repository's
+official CurseForge plugin ships a key as a setting default packed into its package, supplied by the plugins repository's
 publish workflow.
 
 ## CI

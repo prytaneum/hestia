@@ -10,10 +10,8 @@ flowchart LR
     D -->|"artifact url + signature"| GH["release artifacts"]
 ```
 
-Nothing reads GitHub to decide what is current — the feed is the record. The
-artifacts themselves still live wherever the manifest's `url` points, and the
-daemon verifies every one against its compiled-in minisign keys, so the API is
-trusted to say *which* version, never to be the source of the bytes.
+The feed is the record of what is current. Artifacts live wherever the manifest's `url` points, and the daemon verifies
+each against its compiled-in minisign keys, so the API says *which* version, never supplies the bytes.
 
 The API is the `apps/api` workspace of
 [hestia-web](https://github.com/prytaneum/hestia-web); its live reference is at
@@ -123,7 +121,7 @@ stripped, so the document is additive in both directions.
 | `version` | yes | semver. The daemon compares it against its own by full semver precedence, prerelease included |
 | `channel` | no | which feed this document belongs to. The path decides it; a body that disagrees is overwritten |
 | `notes` | no | markdown, rendered by the desktop after an upgrade. Defaults to `""`, never null |
-| `plugin_api` | no | the plugin API (a semver) the release's daemon exposes. Present, it lets the daemon stage compatible official plugins before applying the update, or refuse it when one has none ([0112](decisions/0112-the-app-and-official-plugins-update-together.md)). Absent, no coordination |
+| `plugin_api` | no | the plugin API (a semver) the release's daemon exposes. Present, it lets the daemon stage compatible official plugins before applying the update, or refuse it when one has none. Absent, no coordination |
 | `pub_date` | no | RFC 3339. Not read by the daemon |
 | `platforms` | yes | keyed `{os}-{arch}` in Rust's `consts` spelling (`linux-x86_64`, `windows-x86_64`) |
 
