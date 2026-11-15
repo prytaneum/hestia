@@ -1,5 +1,5 @@
 use std::collections::BTreeMap;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
 use anyhow::{bail, Context, Result};
@@ -232,6 +232,7 @@ impl Plugins {
         let data = dir.join(DATA);
         std::fs::create_dir_all(&data)
             .with_context(|| format!("cannot create {}", data.display()))?;
+        owner_only(&dir).with_context(|| format!("cannot restrict {}", dir.display()))?;
         registry::write_record(&dir, record)
     }
 
@@ -272,4 +273,19 @@ impl Plugins {
         tracing::info!(plugin = %id, "plugin removed");
         Ok(true)
     }
+}
+
+/// A plugin's directory is owner-only: its `data/` holds what the plugin
+/// keeps, agent keys and tokens among them, and a sandboxed plugin cannot set
+/// a file mode itself. Windows keeps the data home under the user's profile,
+/// which its ACL already closes to other users.
+#[cfg(unix)]
+fn owner_only(dir: &Path) -> std::io::Result<()> {
+    use std::os::unix::fs::PermissionsExt;
+    std::fs::set_permissions(dir, std::fs::Permissions::from_mode(0o700))
+}
+
+#[cfg(not(unix))]
+fn owner_only(_dir: &Path) -> std::io::Result<()> {
+    Ok(())
 }

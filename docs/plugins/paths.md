@@ -14,7 +14,8 @@ empty. The mounts are WASI preopens, so a path outside them does not resolve at 
 | `/files` | the files being identified, as `/files/0`, `/files/1`, ... | read-only | a content source's `identify` |
 
 Every call gets a fresh instance and its mounts are made for it, so a mount of one call is gone in the next. `/data` is
-the only place state outlives a call ([data.md](data.md)). `/build` is shared by every entry and every flavor of the
+the only place state outlives a call ([data.md](data.md)). The host keeps `plugins/<id>/` owner-only on Unix, since a
+guest cannot set a file mode, so a file written there is closed to the computer's other users. `/build` is shared by every entry and every flavor of the
 plugin and survives calls, which is what lets a build skip work it already did
 ([0121](../decisions/0121-a-build-places-trees-and-the-profile-launches-from-an-args-file.md)). `/vanilla` holds the jar
 and nothing beside it, because a server's own directory holds `server.properties` and its RCON password. `/files` holds

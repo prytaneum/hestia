@@ -641,3 +641,17 @@ fn plugin_ids_that_escape_the_directory_are_refused() {
     assert!(plugins.remove("..").is_err());
     assert!(plugins.save(&plugin_record("Bad/Id")).is_err());
 }
+
+#[cfg(unix)]
+#[test]
+fn a_plugin_directory_is_closed_to_other_users() {
+    use std::os::unix::fs::PermissionsExt;
+    let dir = temp_dir("plugins-mode");
+    let plugins = Plugins::new(dir.path().join("plugins"));
+    plugins.save(&plugin_record("probe")).unwrap();
+    let mode = std::fs::metadata(plugins.plugin_dir("probe").unwrap())
+        .unwrap()
+        .permissions()
+        .mode();
+    assert_eq!(mode & 0o777, 0o700);
+}

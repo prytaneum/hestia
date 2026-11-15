@@ -721,7 +721,7 @@ minisign public key and an optional spare, added by its index URL. It has one sh
 ├── plugins/
 │   ├── repositories.json   the added repositories and their pinned keys
 │   ├── bundled.json        the bundled plugin ids already seeded, so a removed one stays removed
-│   └── <id>/
+│   └── <id>/               owner-only on Unix: a plugin cannot set a file mode from the sandbox
 │       ├── plugin.json     the record: source, signer, grant, grant digest, who approved it, enabled, pinned programs (path and hash)
 │       ├── package/        the extracted package
 │       ├── data/           the plugin's own directory; the only one it can write
