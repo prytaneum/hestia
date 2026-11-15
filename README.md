@@ -102,8 +102,9 @@ source or Java download.
 
 A few more things it does: several concurrent sessions of one instance, starting straight into a world or onto a server,
 in-place version changes both ways (downgrades warn, and a server is backed up first), game settings and multiplayer
-lists shared across instances, a system tray, and self-update. Two more official plugins show what you are playing on
-Discord and add a server's player lists (online, whitelist, operators, bans).
+lists shared across instances, a system tray, and self-update. More official plugins show what you are playing on
+Discord, add a server's player lists (online, whitelist, operators, bans), give a server a public playit.gg address
+with no port forwarding, and show the address your Tailscale tailnet joins it on.
 
 Plugins extend the launcher itself: sandboxed WASM components that add commands, pages and themes, adjust a launch,
 and supply content sources, flavors, pack formats and Java distributions, with only the permissions you approve at

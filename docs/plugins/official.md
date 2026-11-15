@@ -2,7 +2,7 @@
 
 Core ships mechanisms and one game flavor, vanilla. Everything else a launcher user expects is a plugin built from
 `plugins/<id>/` of the official repository (`prytaneum/plugins`), written against the same API and permissions as any
-third party's ([0106](../decisions/0106-the-plugin-api-is-mechanisms-not-features.md)). Twelve exist:
+third party's ([0106](../decisions/0106-the-plugin-api-is-mechanisms-not-features.md)). Fourteen exist:
 
 | Id | Provides | Permissions it asks, and why | Settings |
 |---|---|---|---|
@@ -18,6 +18,8 @@ third party's ([0106](../decisions/0106-the-plugin-api-is-mechanisms-not-feature
 | `prism` | pack format: import of Prism Launcher, MultiMC and PolyMC instances | `pack:provide` | none |
 | `discord` | Discord Rich Presence for what you are playing; reacts to `process.started`, `process.exit` and `ipc.closed`, and retries its connection every 30 seconds | `entry:read` and `process:read` to name the game; `ipc:connect` to `discord-ipc-*`, the local Discord socket | `enabled` (bool, default on): publish to your profile; off clears the card |
 | `players` | a *Players* tab on a server and `hestia server <name> players …` commands: who is online, the whitelist, operators and bans | `entry:read` limited to `whitelist.json`, `ops.json` and `banned-players.json`; `process:control` to send console commands to a running server; `network:connect` to `api.mineatar.io` for player heads | none |
+| `tailscale` | a *Tailscale* tab on a server and `hestia server <name> tailscale`: the MagicDNS name and IPv4 address players on your tailnet join on, with the game port | `entry:read` for the server's edition and port; `process:spawn` for the declared `tailscale status --json`. Needs Tailscale installed and signed in | none |
+| `playit` | a *playit.gg* tab on a server and `hestia server <name> playit [enable\|disable]`: a public tunnel to the server, up while it runs; `hestia playit setup` approves an agent on playit.gg and fetches it, `hestia playit reset` forgets it | `entry:read` for the server's edition, name and port; `process:read` to follow server starts and exits; `process:spawn` for the declared `agent` (playitd 2.0.2, fetched into `data/` and pinned by hash) and `playitd` (one on `PATH`); `network:connect` to `api.playit.gg`, `github.com` and GitHub's release asset hosts | `agent` (`download` or `installed`, default `download`); `secret-key` (secret): the agent's key, filled in by setup |
 
 A source that is not ready says why instead of failing: CurseForge is listed by `hestia sources` as waiting on its
 `api-key`, and is not offered for browsing or installing until the setting holds a value. Set it on the plugin's page under Plugins or
