@@ -9,3 +9,4 @@ export type { OsArgsFile } from "./generated/OsArgsFile";
 export type { ServerJar } from "./generated/ServerJar";
 export type { ServerLaunch } from "./generated/ServerLaunch";
 export type { ServerProfile } from "./generated/ServerProfile";
+export type { ServerRuntime } from "./generated/ServerRuntime";

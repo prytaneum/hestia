@@ -12,10 +12,12 @@ mod config;
 mod console;
 mod content;
 mod download;
+mod edition;
 mod engine;
 mod error;
 mod extract;
 mod files;
+mod hold;
 pub mod host;
 mod icon;
 mod instances;
@@ -46,12 +48,14 @@ pub use accounts::{Accounts, LoginChallenge, ReauthRequired};
 pub use cache::{Cache, CacheEntry, CacheUsage};
 pub use cancel::{is_cancelled, Cancel, Cancelled, Job};
 pub use config::{Config, ConfigError, Settings};
-pub use content::provider::{ContentProvider, LocalFile, UrlRef};
+pub use content::provider::{ContentProvider, InstalledFile, LatestQuery, LocalFile, UrlRef};
 pub use content::Content;
 pub use download::Downloader;
+pub use edition::{config_rules, has_console, process_io, ProcessIo};
 pub use engine::{
-    Engine, EntryRef, ExportOutcome, ImportOutcome, InstanceUpdateSpec, LaunchRequest,
-    ModpackOutcome, Repin, ServerCreateSpec, ServerListWrite, ServerUpdateSpec, VersionChange,
+    Checked, Engine, EntryRef, ExportOutcome, ImportOutcome, InstanceUpdateSpec, LaunchRequest,
+    ModpackOutcome, Repin, ServerCreateSpec, ServerListWrite, ServerUpdateSpec, Swept,
+    VersionChange,
 };
 pub use error::error_info;
 pub use files::FileTree;
@@ -60,11 +64,12 @@ pub use java::{Java, JavaInstallOutcome, JavaPackage, JavaProvider, JavaTarget};
 pub use jvm::JavaSettings;
 pub use minecraft::launch::LaunchPlan;
 pub use minecraft::profile::{
-    AssetIndex, InstanceProfile, Library, Native, ServerJar, ServerProfile,
+    AssetIndex, InstanceProfile, Library, Native, ServerJar, ServerLaunch, ServerProfile,
+    ServerRuntime,
 };
 pub use minecraft::{
-    FlavorInfo, FlavorProvider, InstallRequest, Loads, Minecraft, ResolveRequest, Side,
-    REQUIRED_JAVA_MAJORS,
+    FlavorInfo, FlavorProvider, InstallRequest, JavaInstall, Loads, Minecraft, ResolveRequest,
+    Side, REQUIRED_JAVA_MAJORS,
 };
 pub use net::Network;
 pub use plugins::{
@@ -80,7 +85,9 @@ pub use plugins::{
     COMMAND_TIMEOUT, EVENT_TIMEOUT, HOOK_TIMEOUT, MAX_ASSET_BYTES, MAX_CHAIN_DEPTH,
     MAX_DOWNLOAD_BYTES, PROVIDER_TIMEOUT, UI_TIMEOUT,
 };
-pub use process::{ExitObserver, ProcessEvents, ProcessSupervisor, StartError};
+#[cfg(windows)]
+pub use process::run_relay;
+pub use process::{ExitObserver, ProcessEvents, ProcessSupervisor, StartError, StdinError};
 pub use roster::{RegisterError, Standing};
 pub use schema::notices as quarantined;
 pub use servers::{RconConfig, ServerPhase, ServerRecord, Servers};

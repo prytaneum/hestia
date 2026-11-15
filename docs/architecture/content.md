@@ -4,7 +4,8 @@
 
 Content is everything you add to an entry that Mojang did not ship: mods,
 plugins, resourcepacks, shaders, datapacks — and modpacks, which are all of the
-above bundled with a loader and a version.
+above bundled with a loader and a version. A Bedrock server takes behaviour and
+resource packs instead ([below](#bedrock-packs)).
 
 Three layers, deliberately separate:
 
@@ -63,6 +64,15 @@ Every platform response is mapped into the normalized `proto::content` types at
 this boundary, so a front-end never sees a platform's raw shape
 ([0010](../decisions/0010-one-content-provider-trait.md)).
 
+**A source declares the editions it serves.** `ContentProvider::editions()`
+defaults to Java, and `ContentSource.editions` carries it on `content.sources`, so
+a front-end offers a source only to entries of those editions and a daemon call
+naming the wrong one is refused (`ContentSourceEdition`). Modrinth and CurseForge
+are Java sources: Modrinth has no Bedrock content at all, and CurseForge's is a
+separate catalogue that is not wired. A source also skips the kinds it does not
+catalogue, so a mixed request does not fail per kind
+([0140](../decisions/0140-a-bedrock-pack-is-a-file-extracted-at-sync.md)).
+
 A provider also recognises its own site's project and version page URLs, so a
 pasted project link installs exactly like a slug. A source that has no datapack
 project type says so with `datapacks_as_mods`, and a datapack request then accepts
@@ -108,6 +118,11 @@ loader consumes, and what the **side** reads for itself.
 | vanilla server | | | | | ✓ |
 | instance on a modloader | ✓ | | ✓ | ✓ | ✓ |
 | vanilla instance | | | ✓ | ✓ | ✓ |
+| Bedrock server | | | ✓ (+ behaviour packs) | | |
+
+The edition supplies the base set: a Java server reads datapacks, an instance
+reads resourcepacks and shaders, and a Bedrock server reads behaviour packs and
+resourcepacks. That set plus the flavor's loader is `accepts`.
 
 A refusal carries the accepted set rather than a sentence, and `ServerInfo` /
 `InstanceInfo` carry `accepts` on the wire so no front-end keeps its own copy
@@ -192,7 +207,8 @@ it.
 | Operation | Behaviour |
 |---|---|
 | `enable` | flips a flag in `content.json`. Enforced at the single point it needs — the launch-time mirror keeps a disabled item out of `data/`, so it can never be resurrected by a restore. A datapack's mirror is per world, so disabling drops the mirror in the chosen worlds |
-| `check_updates` | a *separate* on-demand call, not baked into `list`, so `list` stays fast and offline |
+| `check_updates` | a *separate* call, not baked into `list`, so `list` stays fast and offline. Answered from the update cache inside its TTL; `refresh` asks upstream anyway (see [Update checks](#update-checks)) |
+| `hold` | keeps an item at its version: "update all" (an empty batch) and auto-update pass it by. `set_version` holds the item it re-pins; an `update` naming it releases the hold |
 | `update` / `remove` | take a *batch* of references — one job, one call. Named items are resolved before the first one moves, so a batch naming something that does not exist changes nothing; an empty batch means every item of the kind (`update`) and is refused (`remove`). Past that an update is per-item like an install: every item resolves, the moves download side by side under one progress extent, and an item that cannot move comes back as a failure while every one that did is recorded |
 | `update` with a `path` | moves the one named *local* item onto that file, keeping its enabled flag and worlds; a tracked or pack-owned item is refused. The old mirrors go first, so a rebuild under the same name is what loads next ([0079](../decisions/0079-a-local-item-updates-from-a-file.md)) |
 | `set_version` | re-pins one item to a chosen published version — the update path with an explicit pin instead of "newest". With a `source`, the version comes from that source instead: the installed file's hash finds the project there (`matches` lists which sources recognise it), and the record moves to it. A local file adopts a source the same way ([0075](../decisions/0075-a-local-file-is-identified-by-its-hash.md)) |
@@ -200,6 +216,39 @@ it.
 All of them refuse a running or busy entry: open jars lock on Windows, and
 changes only take effect at the next start anyway
 ([0014](../decisions/0014-enable-update-check-and-pin.md)).
+
+### Update checks
+
+A check runs when its answer is used, never on a timer
+([0141](../decisions/0141-content-updates-are-checked-when-they-matter.md)):
+
+| Trigger | Checks |
+|---|---|
+| daemon start, network back online | every ready Java entry, in one pass |
+| `content.check_updates` (a content tab opening, `<kind> list`) | that entry and kind |
+| an instance launch | every entry, off the launch's path, unless auto-update runs inside the launch |
+
+The engine's `UpdateCache` (`content/updates.rs`) keeps one answer per
+installed release, game version and loader for 30 minutes. A check inside the
+TTL costs no request, and `content.available_updates` lists what the cache
+holds, whatever its age, without asking upstream. The flow
+(`flows/content/updates.rs`) groups the remaining items by source, game version
+and loader across entries, asks each group through `ContentProvider::latest` in
+one request (Modrinth `/version_files/update`, release channel first;
+CurseForge bulk `/mods` and its `latestFilesIndexes`), and resolves exactly only
+the items whose bulk answer differs from the installed version. A source without
+`latest` resolves each item exactly. An update with no pin plans from the same
+answers, so a check followed by "update all" asks nothing twice.
+
+A check that finds an update no earlier answer reported publishes
+`content.updates_found { fresh }`, and the desktop notifies once per event.
+
+**Auto-update** (`content.auto-update`, off by default) moves every item that
+is platform-sourced, not held, and not installed by a modpack. For an instance
+it runs inside the launch, in the first session only, and items it cannot move
+come back as a `ContentNotUpdated` warning on the launch. For a server it starts
+a `content.update` job as soon as a check finds updates while the server is
+stopped and unclaimed. A running server is caught by a later check.
 
 ### Local files are inspected, not trusted
 
@@ -265,6 +314,23 @@ One index entry per pack carries the worlds it loads in, so a removal clears
 every mirror unless narrowed. The client-side support flag is waived for
 datapacks: a datapack runs on a world's server side, including a client's
 integrated server ([0016](../decisions/0016-datapacks-are-world-of-record.md)).
+
+## Bedrock packs
+
+A Bedrock add-on is a `.mcpack` or `.mcaddon` zip, and BDS loads folders listed
+per world by pack uuid. The pack **file** is still the item of record, so sha1,
+provenance, pin, enable and removal work as for a mod: behaviour packs live in the
+managed `behavior_packs/`, resource packs in the existing `resourcepacks/`, and a
+`.mcaddon` is split into its packs on install. Packs come from a local file or a
+direct link, since no Bedrock source is wired yet.
+
+At each start the entry's sync extracts every enabled pack into
+`data/behavior_packs/<uuid>/` or `data/resource_packs/<uuid>/` (marked with a
+`.hestia` file) and rewrites the world's `world_behavior_packs.json` or
+`world_resource_packs.json`. Only Hestia's own uuids are touched there: packs
+the server ships (recorded in `.bds-packs` at install) and packs a user dropped
+in are left as found, and the latter show as untracked
+([0140](../decisions/0140-a-bedrock-pack-is-a-file-extracted-at-sync.md)).
 
 ## Modpacks
 
@@ -406,3 +472,4 @@ update *does* carry the game version with it — that is what updating a pack me
 - [0075 — A local file is identified by its hash](../decisions/0075-a-local-file-is-identified-by-its-hash.md)
 - [0076 — A pack file is identified wherever it came from](../decisions/0076-a-pack-file-is-identified-wherever-it-came-from.md)
 - [0078 — A pack updates from a file, and leaves an entry two ways](../decisions/0078-a-pack-updates-from-a-file.md)
+- [0140 — A Bedrock pack is a file of record, extracted at sync](../decisions/0140-a-bedrock-pack-is-a-file-extracted-at-sync.md)

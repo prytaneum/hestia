@@ -2,6 +2,7 @@
 //! catalogue. Fetch + parse only; the provider assembles the results into
 //! launch profiles.
 
+pub mod bedrock;
 pub mod mojang;
 
 use anyhow::{Context, Result};

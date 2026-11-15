@@ -1,7 +1,7 @@
 import { ArrowsClockwiseIcon } from '@phosphor-icons/react';
 import { useState } from 'react';
 
-import type { EntryKind } from '@/api';
+import type { Edition, EntryKind } from '@/api';
 import {
   SavedInput,
   SettingGroup,
@@ -14,7 +14,13 @@ import { ChangeVersionDialog, type UpdateHandle } from '../dialogs';
 
 interface GeneralSettingsProps {
   kind: EntryKind;
-  entry: { id: string; name: string; flavor: string; gameVersion: string };
+  entry: {
+    id: string;
+    name: string;
+    edition?: Edition;
+    flavor: string;
+    gameVersion: string;
+  };
   running: boolean;
   rename: (name: string) => Promise<unknown>;
   update: UpdateHandle;
@@ -84,6 +90,7 @@ export function GeneralSettings({
       <ChangeVersionDialog
         kind={kind}
         id={entry.id}
+        edition={entry.edition}
         flavor={entry.flavor}
         gameVersion={entry.gameVersion}
         update={update}

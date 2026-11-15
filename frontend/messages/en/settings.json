@@ -254,6 +254,11 @@
       "title": "Updates",
       "up_to_date": "Hestia is up to date"
     },
+    "content_updates": {
+      "auto_update_description": "Apply mod, pack and shader updates as an instance launches, and to a stopped server as soon as they are found. Held items and a modpack's own content are left alone.",
+      "auto_update_label": "Update content automatically",
+      "section": "Content updates"
+    },
     "advanced": "Advanced",
     "developer": {
       "label": "Developer mode",

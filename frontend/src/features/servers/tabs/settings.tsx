@@ -34,7 +34,7 @@ export function ServerSettingsTab({
           label: m['server.properties.title'](),
           content: <PropertiesSettings id={server.id} running={running} />,
         },
-        java,
+        ...java,
         {
           id: 'tasks',
           label: m['server.tasks.tab'](),

@@ -2,7 +2,7 @@ import { CaretLeftIcon, CaretRightIcon } from '@phosphor-icons/react';
 import { revalidateLogic } from '@tanstack/react-form';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { ConfigEntry, Flavor } from '@/api';
+import type { ConfigEntry, Edition, KeyRule } from '@/api';
 import { dialog } from '@/api';
 import { AppDialog, DialogFooter } from '@/components/dialog';
 import { FileDropButton } from '@/components/file-drop-button';
@@ -10,6 +10,7 @@ import { useAppForm } from '@/components/form';
 import { entryIcon } from '@/components/icons';
 import { StepDots } from '@/components/step-dots';
 import { Button } from '@/components/ui/button';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { ProvisionProgressView } from '@/features/shared/entry/components';
 import {
   bakeIcon,
@@ -19,7 +20,9 @@ import {
   createWizardDefaults,
   createWizardSchema,
   detailsStepSchema,
+  editionLabel,
   flavorStepSchema,
+  hasRule,
   versionStepSchema,
   type WizardValues,
 } from '@/features/shared/entry/lib';
@@ -70,14 +73,13 @@ export function CreateEntryDialog({
   const archiveExtensions = useArchiveExtensions();
 
   const flavorsQuery = useQuery(catalogueQueries.flavors(kind));
-  const flavors: Flavor[] = useMemo(
-    () => flavorsQuery.data?.flavors ?? [],
+  const groups = useMemo(
+    () => flavorsQuery.data?.editions ?? [],
     [flavorsQuery.data],
   );
-  const rules = useMemo(
-    () => flavorsQuery.data?.rules ?? [],
-    [flavorsQuery.data],
-  );
+  const [editionTab, setEditionTab] = useState<Edition>();
+  const catalogue = groups.find((g) => g.edition === editionTab) ?? groups[0];
+  const shownFlavors = catalogue?.flavors ?? [];
 
   const config = useQuery(configQueries.list());
   const defaultMemory = launcherDefaults(config.data).memory ?? '';
@@ -104,6 +106,9 @@ export function CreateEntryDialog({
       .catch(() => undefined);
   };
 
+  const edition = catalogue?.edition;
+  const rules = useMemo(() => catalogue?.rules ?? [], [catalogue]);
+
   const form = useAppForm({
     defaultValues: createWizardDefaults('', defaultMemoryGb),
     validationLogic: revalidateLogic(),
@@ -112,14 +117,21 @@ export function CreateEntryDialog({
       // Inherit the launcher default when the slider is left on it: store no
       // per-entry override, so a later change to the global default cascades.
       const memoryEntries: ConfigEntry[] =
-        defaultMemory !== '' &&
-        value.details.memory === defaultMemoryRef.current
+        !hasRule(rules, 'memory') ||
+        (defaultMemory !== '' &&
+          value.details.memory === defaultMemoryRef.current)
           ? []
           : [{ key: 'memory', value: `${value.details.memory}G` }];
       try {
         if (kind === 'server') {
           const created = await createServer.mutateAsync(
-            serverParams(value, memoryEntries),
+            serverParams(
+              value,
+              memoryEntries,
+              rules,
+              edition,
+              catalogue?.nameKey,
+            ),
           );
           applyRandomIcon(created.server.id);
         } else {
@@ -140,6 +152,7 @@ export function CreateEntryDialog({
   useEffect(() => {
     if (!open) return;
     setStep('flavor');
+    setEditionTab(undefined);
     setSearch('');
     setShowSnapshots(false);
     form.reset(createWizardDefaults('', defaultMemoryRef.current));
@@ -225,7 +238,37 @@ export function CreateEntryDialog({
               <form.AppField name="flavor.flavor">
                 {(field) => (
                   <div className="grid gap-2">
-                    {flavors.map((f) => (
+                    {groups.length > 1 && (
+                      <ToggleGroup
+                        variant="outline"
+                        value={edition ? [edition] : []}
+                        onValueChange={(values: string[]) => {
+                          const next = groups.find(
+                            (g) => g.edition === values[values.length - 1],
+                          );
+                          if (!next) return;
+                          setEditionTab(next.edition);
+                          const first = next.flavors[0];
+                          field.handleChange(first.id);
+                          form.setFieldValue(
+                            'version',
+                            createWizardDefaults('', 0).version,
+                          );
+                          form.setFieldValue(
+                            'details',
+                            createWizardDefaults('', defaultMemoryRef.current)
+                              .details,
+                          );
+                        }}
+                      >
+                        {groups.map((g) => (
+                          <ToggleGroupItem key={g.edition} value={g.edition}>
+                            {editionLabel[g.edition]()}
+                          </ToggleGroupItem>
+                        ))}
+                      </ToggleGroup>
+                    )}
+                    {shownFlavors.map((f) => (
                       <FlavorOption
                         key={f.id}
                         flavor={f}
@@ -251,7 +294,7 @@ export function CreateEntryDialog({
                         }}
                       />
                     )}
-                    {flavors.length === 0 && (
+                    {shownFlavors.length === 0 && (
                       <p className="px-1 py-6 text-center text-xs text-muted-foreground">
                         {flavorsQuery.isPending
                           ? m['app.status.loading']()
@@ -277,6 +320,7 @@ export function CreateEntryDialog({
                   <VersionStep
                     form={form}
                     kind={kind}
+                    edition={edition}
                     flavor={flavor}
                     search={search}
                     onSearch={setSearch}
@@ -298,7 +342,12 @@ export function CreateEntryDialog({
         >
           {(group) => (
             <StepForm onSubmit={group.handleSubmit} footer={nav}>
-              <DetailsStep form={form} kind={kind} />
+              <DetailsStep
+                form={form}
+                kind={kind}
+                rules={rules}
+                nameKey={catalogue?.nameKey}
+              />
             </StepForm>
           )}
         </form.FormGroup>
@@ -308,21 +357,32 @@ export function CreateEntryDialog({
 }
 
 /** Build the server create params from the wizard's collected values. */
-function serverParams(value: WizardValues, memoryEntries: ConfigEntry[]) {
+function serverParams(
+  value: WizardValues,
+  memoryEntries: ConfigEntry[],
+  rules: KeyRule[],
+  edition: Edition | undefined,
+  nameKey: string | undefined,
+) {
   const d = value.details;
   const config: ConfigEntry[] = [
     ...memoryEntries,
-    { key: 'motd', value: d.motd },
+    ...(nameKey && d.motd ? [{ key: nameKey, value: d.motd }] : []),
     { key: 'gamemode', value: d.gamemode },
     { key: 'difficulty', value: d.difficulty },
     { key: 'max-players', value: d.maxPlayers },
-    { key: 'hardcore', value: String(d.hardcore) },
-    { key: 'online-mode', value: String(d.onlineMode) },
+    ...(['hardcore', 'online-mode'] as const)
+      .filter((key) => hasRule(rules, key))
+      .map((key) => ({
+        key,
+        value: String(key === 'hardcore' ? d.hardcore : d.onlineMode),
+      })),
   ];
   const seed = d.seed.trim();
   if (seed) config.push({ key: 'level-seed', value: seed });
   return {
     ...instanceParams(value, memoryEntries),
+    edition,
     eula: true,
     port: d.port ? Number(d.port) : undefined,
     config,

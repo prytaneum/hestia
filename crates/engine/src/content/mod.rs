@@ -3,6 +3,7 @@
 //! points over it. Stateless — every result is fetched upstream — so it needs no
 //! data directory, exactly like the `minecraft` aggregate.
 
+pub(crate) mod bedrock;
 pub(crate) mod exclude;
 pub(crate) mod icon;
 pub(crate) mod inspect;
@@ -12,6 +13,7 @@ pub(crate) mod pack;
 pub(crate) mod pool;
 pub(crate) mod provider;
 pub(crate) mod record;
+pub(crate) mod updates;
 
 use std::collections::{BTreeSet, HashMap};
 use std::path::Path;
@@ -282,10 +284,21 @@ impl Content {
                     id: p.id().to_string(),
                     name: p.name().to_string(),
                     kinds: p.kinds(),
+                    editions: p.editions(),
                     requires_setting,
                 })
             })
             .collect()
+    }
+
+    pub fn ensure_serves(&self, source: &str, edition: proto::minecraft::Edition) -> Result<()> {
+        let provider = self.provider(source)?;
+        if provider.editions().contains(&edition) {
+            return Ok(());
+        }
+        anyhow::bail!(proto::error::ErrorInfo::ContentSourceEdition {
+            source: provider.name().to_string(),
+        })
     }
 
     pub async fn search(&self, query: &SearchQuery) -> Result<SearchResult> {
@@ -361,6 +374,23 @@ impl Content {
     }
 
     /// Several versions by id — the bulk twin of [`Content::projects`].
+    /// One source's bulk update lookup; `None` when it has none.
+    pub(crate) async fn latest(
+        &self,
+        source: &str,
+        query: &provider::LatestQuery,
+    ) -> Result<Option<HashMap<String, String>>> {
+        let provider = self.provider(source)?;
+        tracing::debug!(
+            source = provider.id(),
+            files = query.files.len(),
+            game_version = %query.game_version,
+            loaders = ?query.loaders,
+            "content update lookup"
+        );
+        provider.latest(query).await
+    }
+
     pub async fn versions_by_id(
         &self,
         source: &str,
@@ -449,6 +479,8 @@ impl Content {
 mod tests {
     use super::*;
     use proto::content::SourceFileRef;
+    use proto::error::ErrorInfo;
+    use proto::minecraft::Edition;
 
     struct Recogniser {
         id: &'static str,
@@ -520,5 +552,16 @@ mod tests {
         assert_eq!(files[0].project_id, "sodium");
         assert_eq!(files[0].version_id, "v1");
         assert!(files[1].source.is_empty() && files[1].project_id.is_empty());
+    }
+
+    #[test]
+    fn a_java_source_refuses_a_bedrock_entry() {
+        let content = recognisers();
+        assert!(content.ensure_serves("mods", Edition::Java).is_ok());
+        let refused = content.ensure_serves("mods", Edition::Bedrock).unwrap_err();
+        assert!(matches!(
+            refused.downcast_ref::<ErrorInfo>(),
+            Some(ErrorInfo::ContentSourceEdition { .. })
+        ));
     }
 }

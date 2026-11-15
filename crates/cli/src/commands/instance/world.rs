@@ -3,7 +3,7 @@
 
 use anyhow::{bail, Result};
 use clap::Subcommand;
-use client::proto::instance::{QuickPlay, WorldInfo};
+use client::proto::instance::QuickPlay;
 use client::Client;
 
 use crate::commands::mc;
@@ -78,7 +78,7 @@ pub(super) async fn list(client: &Client, instance: &str) -> Result<()> {
                 world.name.clone().into(),
                 world.folder.clone().into(),
                 world.version.clone().into(),
-                mode_cell(world),
+                mc::world_mode_cell(world),
                 mc::last_played_cell(world.last_played_unix),
                 Cell::bytes(world.size_bytes),
             ]
@@ -89,24 +89,6 @@ pub(super) async fn list(client: &Client, instance: &str) -> Result<()> {
         ["NAME", "FOLDER", "VERSION", "MODE", "PLAYED", "SIZE"],
         rows,
     ))
-}
-
-/// The world's game mode, with the flags that change how it plays. `--json`
-/// carries the mode's own token, null for a world that could not be read.
-fn mode_cell(world: &WorldInfo) -> Cell {
-    if !world.read {
-        return Cell::absent("unreadable");
-    }
-    let mut label = world.game_mode.to_string();
-    if world.hardcore {
-        label.push_str(" hardcore");
-    } else {
-        label = format!("{label} ({})", world.difficulty);
-    }
-    if world.cheats {
-        label.push_str(" +cheats");
-    }
-    Cell::token(label, &world.game_mode)
 }
 
 /// A world is named by its folder on the wire, but recognised by its in-game

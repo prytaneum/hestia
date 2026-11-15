@@ -7,7 +7,8 @@ export type KindSlug =
   | 'resourcepacks'
   | 'shaders'
   | 'datapacks'
-  | 'plugins';
+  | 'plugins'
+  | 'behaviorpacks';
 
 export const kindInfo: Record<
   ContentKind,
@@ -22,6 +23,10 @@ export const kindInfo: Record<
   shader: { slug: 'shaders', label: m['domain.kind.shaders'] },
   data_pack: { slug: 'datapacks', label: m['domain.kind.datapacks'] },
   plugin: { slug: 'plugins', label: m['domain.kind.plugins'] },
+  behavior_pack: {
+    slug: 'behaviorpacks',
+    label: m['domain.kind.behaviorpacks'],
+  },
 };
 
 /**

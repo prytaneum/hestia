@@ -65,6 +65,26 @@ pub struct IdentifyQuery {
     pub files: Vec<IdentifyFile>,
 }
 
+/// One installed file a bulk update lookup asks about.
+#[derive(Serialize, Deserialize, Default, Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
+#[serde(default, rename_all = "camelCase")]
+pub struct InstalledFile {
+    pub project_id: String,
+    pub sha1: String,
+}
+
+/// What one bulk update lookup covers: files sharing a game version and the
+/// loaders their kind installs for.
+#[derive(Serialize, Deserialize, Default, Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
+#[serde(default, rename_all = "camelCase")]
+pub struct LatestQuery {
+    pub game_version: String,
+    pub loaders: Vec<String>,
+    pub files: Vec<InstalledFile>,
+}
+
 /// A pack manifest, as the pack's archive carries it.
 #[derive(Serialize, Deserialize, Default, Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
@@ -145,6 +165,18 @@ impl ProviderOp for VersionsById {
     const OP: &'static str = "versions-by-id";
     type Args = IdQuery;
     type Reply = Vec<ContentVersion>;
+}
+
+/// The newest compatible version id of each file's project (the newest
+/// release, else the newest of any channel), keyed by project id, in as few
+/// requests as the source allows. A project missing from the map has no
+/// compatible version. Optional: unsupported asks [`Versions`] for each item.
+pub struct Latest;
+impl ProviderOp for Latest {
+    type Kind = Source;
+    const OP: &'static str = "latest";
+    type Args = LatestQuery;
+    type Reply = HashMap<String, String>;
 }
 
 /// The version each file is a release of, keyed by the file's sha1. During the

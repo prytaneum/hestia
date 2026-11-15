@@ -130,7 +130,7 @@ async fn the_flavor_is_offered_while_the_plugin_is_enabled_and_gone_after() {
     let offered = |engine: &engine::Engine| {
         engine
             .minecraft()
-            .flavors(engine::Side::Client)
+            .flavors(engine::Side::Client, proto::minecraft::Edition::Java)
             .into_iter()
             .find(|flavor| flavor.id == FLAVOR)
     };
@@ -192,7 +192,14 @@ async fn a_profile_without_a_checksum_is_refused() {
 
     engine
         .minecraft()
-        .resolve_server(FLAVOR, "unsigned", None, home.path(), None)
+        .resolve_server(
+            proto::minecraft::Edition::Java,
+            FLAVOR,
+            "unsigned",
+            None,
+            home.path(),
+            None,
+        )
         .await
         .expect_err("an artifact that cannot be verified is not downloaded");
 }
@@ -254,7 +261,11 @@ async fn a_server_built_on_vanilla_runs_the_jar_the_flavor_names() {
         .expect("provision a server built on vanilla");
 
     assert_eq!(record.profile.loader_version.as_deref(), Some("9.9"));
-    assert_eq!(record.profile.java_major, 21, "the Java major is vanilla's");
+    assert_eq!(
+        record.profile.runtime.java_major(),
+        Some(21),
+        "the Java major is vanilla's"
+    );
     assert!(engine
         .servers()
         .data_dir(&record)
@@ -452,18 +463,22 @@ async fn a_built_client_library_lands_under_the_shared_libraries() {
         .minecraft()
         .install(
             engine::Side::Client,
+            proto::minecraft::Edition::Java,
             FLAVOR,
             &engine::InstallRequest {
                 game_version: "built",
                 loader_version: None,
                 root: &meta,
                 meta: &meta,
-                minecraft_jar: Some(&client_jar),
                 built: &built,
-                java_major: 21,
-                java: std::path::Path::new("java"),
+                java: Some(engine::JavaInstall {
+                    minecraft_jar: Some(&client_jar),
+                    java_major: 21,
+                    java: std::path::Path::new("java"),
+                }),
                 cache: None,
                 processes: engine.processes(),
+                schema: None,
             },
             &job(&cancel, &report),
         )
@@ -492,18 +507,22 @@ async fn install_client(
         .minecraft()
         .install(
             engine::Side::Client,
+            proto::minecraft::Edition::Java,
             FLAVOR,
             &engine::InstallRequest {
                 game_version: version,
                 loader_version: None,
                 root: &meta,
                 meta: &meta,
-                minecraft_jar: Some(&client_jar),
                 built,
-                java_major: 21,
-                java: std::path::Path::new("java"),
+                java: Some(engine::JavaInstall {
+                    minecraft_jar: Some(&client_jar),
+                    java_major: 21,
+                    java: std::path::Path::new("java"),
+                }),
                 cache: None,
                 processes: engine.processes(),
+                schema: None,
             },
             &job(&cancel, &report),
         )
@@ -530,7 +549,11 @@ async fn a_server_built_as_trees_is_placed_and_launches_from_the_args_file_of_th
         b"loader",
         "a tree aimed at the libraries root lands there, not in the server"
     );
-    let proto::profile::ServerLaunch::ArgsFile(args) = &record.profile.launch else {
+    let proto::profile::ServerRuntime::Java {
+        launch: proto::profile::ServerLaunch::ArgsFile(args),
+        ..
+    } = &record.profile.runtime
+    else {
         panic!("the profile launches from an args file");
     };
     assert_eq!(args.for_os("windows"), "tree/win_args.txt");
@@ -545,7 +568,11 @@ async fn an_addition_over_vanilla_may_launch_from_an_args_file() {
         .await
         .expect("provision");
 
-    let proto::profile::ServerLaunch::ArgsFile(args) = &record.profile.launch else {
+    let proto::profile::ServerRuntime::Java {
+        launch: proto::profile::ServerLaunch::ArgsFile(args),
+        ..
+    } = &record.profile.runtime
+    else {
         panic!("the addition names the launch");
     };
     assert_eq!(args.for_os("linux"), "tree/unix_args.txt");
@@ -736,7 +763,10 @@ async fn libraries_and_arguments_the_rules_disallow_here_never_persist() {
     assert_eq!(profile.jvm_args, ["-Dloader", "-Dhere"]);
 
     let server = provision(&engine, "onvanilla").await.expect("server");
-    assert_eq!(server.profile.jvm_args, ["-Dloader", "-Dhere"]);
+    let proto::profile::ServerRuntime::Java { jvm_args, .. } = &server.profile.runtime else {
+        panic!("a Java server");
+    };
+    assert_eq!(jvm_args, &["-Dloader", "-Dhere"]);
 }
 
 #[tokio::test]
@@ -962,7 +992,7 @@ async fn a_flavor_declares_its_loader_and_leaves_its_versions_to_the_host() {
     let minecraft = engine.minecraft();
 
     let versions = minecraft
-        .versions(engine::Side::Server, bare)
+        .versions(engine::Side::Server, proto::minecraft::Edition::Java, bare)
         .await
         .expect("bare ids are typed against the vanilla catalogue");
     let ids: Vec<_> = versions.iter().map(|v| v.id.as_str()).collect();
@@ -973,7 +1003,7 @@ async fn a_flavor_declares_its_loader_and_leaves_its_versions_to_the_host() {
     );
 
     assert_eq!(
-        minecraft.content_loaders(engine::Side::Server, bare),
+        minecraft.content_loaders(engine::Side::Server, proto::minecraft::Edition::Java, bare),
         ["bare-loader", "replay-compat"]
     );
     assert_eq!(
@@ -988,12 +1018,26 @@ async fn a_flavor_declares_its_loader_and_leaves_its_versions_to_the_host() {
     );
 
     let profile = minecraft
-        .resolve_server(bare, "1.21", None, home.path(), None)
+        .resolve_server(
+            proto::minecraft::Edition::Java,
+            bare,
+            "1.21",
+            None,
+            home.path(),
+            None,
+        )
         .await
         .expect("a supported Java major overrides vanilla's");
-    assert_eq!(profile.java_major, 17);
+    assert_eq!(profile.runtime.java_major(), Some(17));
     minecraft
-        .resolve_server(bare, "1.20.1", None, home.path(), None)
+        .resolve_server(
+            proto::minecraft::Edition::Java,
+            bare,
+            "1.20.1",
+            None,
+            home.path(),
+            None,
+        )
         .await
         .expect_err("a Java major the launcher cannot provide is refused");
 }
@@ -1002,7 +1046,9 @@ async fn a_flavor_declares_its_loader_and_leaves_its_versions_to_the_host() {
 async fn a_flavor_declaring_an_unusable_loader_name_is_not_registered() {
     let (engine, _home) = rig(&["127.0.0.1"]).await;
 
-    let offered = engine.minecraft().flavors(engine::Side::Server);
+    let offered = engine
+        .minecraft()
+        .flavors(engine::Side::Server, proto::minecraft::Edition::Java);
 
     assert!(offered
         .iter()

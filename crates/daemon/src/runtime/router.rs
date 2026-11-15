@@ -254,7 +254,12 @@ mod tests {
         let engine = engine::Engine::new(Some(home.path()));
         let record = engine
             .servers()
-            .create("My Server", ServerProfile::default(), None)
+            .create(
+                "My Server",
+                Default::default(),
+                ServerProfile::default(),
+                None,
+            )
             .unwrap();
         engine.servers().mark_ready(&record.id).unwrap();
         let runtime = Arc::new(Runtime::over(engine, home.path().join("d.log"), false));

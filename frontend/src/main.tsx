@@ -14,6 +14,7 @@ import { watchFileDrops } from './lib/file-drop';
 import { log } from './lib/log';
 import { reportReady } from './lib/splash';
 import { queryClient, startInvalidation, startJobs } from './queries';
+import { startUpdateNotices } from './queries/content-updates';
 import { startSessionTracking } from './queries/sessions';
 import { getRouter } from './router';
 import './styles.css';
@@ -34,6 +35,7 @@ startJobs().catch(() => {
 watchOpenedArchives();
 watchFileDrops();
 startSessionTracking();
+startUpdateNotices();
 const router = getRouter();
 watchRepositoryLinks(() => {
   void router.navigate({ to: '/settings', search: { tab: 'plugins' } });

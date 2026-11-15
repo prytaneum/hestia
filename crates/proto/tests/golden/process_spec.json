@@ -11,5 +11,7 @@
     "JAVATOOLOPTIONS": "-Xmx4G"
   },
   "clearEnv": false,
-  "log": "capture"
+  "log": "capture",
+  "stdin": false,
+  "stop": "signal"
 }

@@ -2,9 +2,105 @@
 //! servers, instances).
 
 use engine::{
-    Config, InstanceProfile, Instances, PluginRecord, Plugins, ServerJar, ServerPhase,
-    ServerProfile, Servers,
+    Config, InstanceProfile, Instances, PluginRecord, Plugins, ServerJar, ServerLaunch,
+    ServerPhase, ServerProfile, ServerRuntime, Servers,
 };
+use proto::minecraft::Edition;
+
+fn java_runtime(jar: &str) -> ServerRuntime {
+    ServerRuntime::Java {
+        jar: ServerJar::Download(proto::minecraft::Artifact {
+            filename: jar.into(),
+            ..Default::default()
+        }),
+        launch: ServerLaunch::Jar,
+        java_major: 21,
+        jvm_args: Vec::new(),
+    }
+}
+
+#[test]
+fn a_native_server_refuses_the_java_only_keys() {
+    let dir = temp_dir("native-keys");
+    let servers = Servers::new(dir.path().join("servers"));
+    let profile = ServerProfile {
+        flavor: "vanilla".into(),
+        runtime: ServerRuntime::Native {
+            archive: proto::minecraft::Artifact {
+                filename: "bedrock.zip".into(),
+                ..Default::default()
+            },
+            executable: "bedrock_server".into(),
+            env: Vec::new(),
+        },
+        ..Default::default()
+    };
+    let record = servers
+        .create("bds", Edition::Bedrock, profile, None)
+        .unwrap();
+    for key in ["memory", "jvm-args"] {
+        let refused = servers.config_set(&record.id, key, "4G").unwrap_err();
+        assert!(matches!(
+            refused.downcast_ref::<proto::error::ErrorInfo>(),
+            Some(proto::error::ErrorInfo::ConfigKeyNotApplicable { .. })
+        ));
+        assert!(servers.config_get(&record.id, key).is_err());
+    }
+    assert!(servers
+        .config_list(&record.id)
+        .unwrap()
+        .iter()
+        .all(|(key, _)| key != "memory"));
+}
+
+fn native_profile() -> ServerProfile {
+    ServerProfile {
+        flavor: "vanilla".into(),
+        runtime: ServerRuntime::Native {
+            archive: proto::minecraft::Artifact {
+                filename: "bedrock.zip".into(),
+                ..Default::default()
+            },
+            executable: "bedrock_server".into(),
+            env: Vec::new(),
+        },
+        ..Default::default()
+    }
+}
+
+#[test]
+fn bedrock_servers_claim_two_distinct_udp_ports_each() {
+    let dir = temp_dir("bedrock-ports");
+    let servers = Servers::new(dir.path().join("servers"));
+    let mut seen = std::collections::HashSet::new();
+    for name in ["one", "two"] {
+        let record = servers
+            .create(name, Edition::Bedrock, native_profile(), None)
+            .unwrap();
+        std::fs::create_dir_all(servers.data_dir(&record)).unwrap();
+        let started = servers.ensure_start_config(&record.id).unwrap();
+        let v6 = started
+            .second_port
+            .expect("a bedrock server gains a second port");
+        assert!(started.game_port >= 19132 && v6 >= 19133);
+        assert!(started.rcon.is_none(), "bedrock has no rcon");
+        assert!(
+            seen.insert(started.game_port) && seen.insert(v6),
+            "no port is shared"
+        );
+        let file =
+            std::fs::read_to_string(servers.data_dir(&started).join("server.properties")).unwrap();
+        assert!(file.contains(&format!("server-port={}", started.game_port)));
+        assert!(file.contains(&format!("server-portv6={v6}")));
+        assert!(file.contains(&format!("server-udp-ports={v6}")));
+    }
+    assert!(servers
+        .config_set(&servers.list()[0].id, "server-portv6", "1")
+        .is_err());
+    assert!(servers
+        .config_set(&servers.list()[0].id, "server-udp-ports", "1")
+        .is_err());
+}
 
 /// A directory that removes itself when the test ends, named after the test so
 /// a leftover under a debugger says which one left it.
@@ -57,10 +153,12 @@ fn servers_store_round_trips_records() {
     let profile = ServerProfile {
         flavor: "vanilla".into(),
         game_version: "1.21.1".into(),
-        java_major: 21,
+        runtime: java_runtime("server.jar"),
         ..Default::default()
     };
-    let record = servers.create("My Server!", profile.clone(), None).unwrap();
+    let record = servers
+        .create("My Server!", Edition::Java, profile.clone(), None)
+        .unwrap();
     assert!(
         record.id.len() == 32 && record.id.chars().all(|c| c.is_ascii_hexdigit()),
         "id is an opaque uuid, not the slug: {}",
@@ -79,12 +177,21 @@ fn servers_store_round_trips_records() {
         !servers.data_dir(&record).exists(),
         "data/ appears on demand, not at create"
     );
-    assert!(servers.create("My Server!", profile.clone(), None).is_err());
+    assert!(servers
+        .create("My Server!", Edition::Java, profile.clone(), None)
+        .is_err());
 
-    let second = servers.create("Other", profile.clone(), None).unwrap();
+    let second = servers
+        .create("Other", Edition::Java, profile.clone(), None)
+        .unwrap();
     assert_ne!(second.game_port, record.game_port);
     assert!(servers
-        .create("Third", profile.clone(), Some(record.game_port))
+        .create(
+            "Third",
+            Edition::Java,
+            profile.clone(),
+            Some(record.game_port)
+        )
         .is_err());
     assert!(servers.remove(&second.id).unwrap());
 
@@ -117,15 +224,19 @@ fn recovery_discards_a_half_created_server_but_never_a_half_updated_one() {
     // What a daemon killed mid-create leaves: registered to hold its port
     // claim, never provisioned, and — before this — un-startable forever.
     let orphan = servers
-        .create("Half Created", profile.clone(), None)
+        .create("Half Created", Edition::Java, profile.clone(), None)
         .unwrap();
     assert_eq!(orphan.phase, ServerPhase::Provisioning);
 
     // A ready server, and one caught mid-update: the latter was ready before,
     // so its world is on disk and discarding it would destroy real data.
-    let ready = servers.create("Fine", profile.clone(), None).unwrap();
+    let ready = servers
+        .create("Fine", Edition::Java, profile.clone(), None)
+        .unwrap();
     servers.mark_ready(&ready.id).unwrap();
-    let updating = servers.create("Mid Update", profile, None).unwrap();
+    let updating = servers
+        .create("Mid Update", Edition::Java, profile, None)
+        .unwrap();
     servers.mark_ready(&updating.id).unwrap();
     servers
         .mark_phase(&updating.id, ServerPhase::Updating)
@@ -160,11 +271,15 @@ fn server_rename_keeps_the_id_moves_the_directory() {
         game_version: "1.21.1".into(),
         ..Default::default()
     };
-    let created = servers.create("Old Name", profile.clone(), None).unwrap();
+    let created = servers
+        .create("Old Name", Edition::Java, profile.clone(), None)
+        .unwrap();
     let id = created.id.clone();
     let port = created.game_port;
     let old_dir = servers.server_dir(&created);
-    servers.create("Keeper", profile, None).unwrap();
+    servers
+        .create("Keeper", Edition::Java, profile, None)
+        .unwrap();
 
     // Renaming onto another entry's name is refused.
     assert!(servers.rename(&id, "Keeper").is_err());
@@ -320,13 +435,12 @@ async fn server_update_swaps_profile_and_keeps_settings() {
     let profile = |version: &str| ServerProfile {
         flavor: "paper".into(),
         game_version: version.into(),
-        jar: ServerJar::Download(proto::minecraft::Artifact {
-            filename: "server.jar".into(),
-            ..Default::default()
-        }),
+        runtime: java_runtime("server.jar"),
         ..ServerProfile::default()
     };
-    let record = servers.create("SMP", profile("1.21"), None).unwrap();
+    let record = servers
+        .create("SMP", Edition::Java, profile("1.21"), None)
+        .unwrap();
     servers.config_set(&record.id, "memory", "4G").unwrap();
     let claimed = servers.get(&record.id).unwrap().game_port;
 
@@ -356,7 +470,7 @@ fn server_config_covers_jvm_and_properties() {
     let dir = temp_dir("server-config");
     let servers = Servers::new(dir.path().join("servers"));
     let record = servers
-        .create("SMP", ServerProfile::default(), None)
+        .create("SMP", Edition::Java, ServerProfile::default(), None)
         .unwrap();
     let id = &record.id;
 
@@ -443,7 +557,7 @@ fn server_config_enforces_hardcore_invariant() {
     let dir = temp_dir("server-hardcore");
     let servers = Servers::new(dir.path().join("servers"));
     let record = servers
-        .create("HC", ServerProfile::default(), None)
+        .create("HC", Edition::Java, ServerProfile::default(), None)
         .unwrap();
     let id = &record.id;
 

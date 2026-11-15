@@ -8,14 +8,14 @@
 mod flows;
 
 pub use flows::{
-    EntryRef, ExportOutcome, ImportOutcome, LaunchRequest, ModpackOutcome, ServerListWrite,
-    VersionChange,
+    Checked, EntryRef, ExportOutcome, ImportOutcome, LaunchRequest, ModpackOutcome,
+    ServerListWrite, Swept, VersionChange,
 };
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use proto::minecraft::ConfigEntry;
+use proto::minecraft::{ConfigEntry, Edition};
 
 use crate::accounts::Accounts;
 use crate::cache::Cache;
@@ -40,6 +40,7 @@ use crate::update::Update;
 #[derive(Debug, Clone, Default)]
 pub struct ServerCreateSpec {
     pub name: String,
+    pub edition: Edition,
     pub flavor: String,
     pub version: String,
     pub loader_version: Option<String>,
@@ -94,6 +95,7 @@ pub struct Engine {
     minecraft: Minecraft,
     content: Content,
     packs: Roster<PluginPack>,
+    content_updates: crate::content::updates::UpdateCache,
     servers: Servers,
     instances: Instances,
     plugins: Plugins,
@@ -144,6 +146,7 @@ impl Engine {
             minecraft,
             content,
             packs: Roster::builtin([]),
+            content_updates: Default::default(),
             servers,
             instances,
             plugins,

@@ -20,6 +20,7 @@ import type {
   ContentSource,
   ContentUpdate,
   ContentVersion,
+  EntryUpdates,
   ResolvedUrl,
   SearchQuery,
   SearchResult,
@@ -116,12 +117,31 @@ export async function enable(
   await call('content.enable', { target, kind, item, enabled, worlds });
 }
 
-/** Which platform items of the kind have a newer compatible version. */
+/**
+ * Which platform items of the kind have a newer compatible version. The daemon
+ * answers from its own recent checks; `refresh` asks upstream anyway.
+ */
 export function checkUpdates(
   target: EntryTarget,
   kind: ContentKind,
+  refresh = false,
 ): Promise<ContentUpdate[]> {
-  return call('content.check_updates', { target, kind });
+  return call('content.check_updates', { target, kind, refresh });
+}
+
+/** Every entry's updates as the daemon's checks found them; never upstream. */
+export function availableUpdates(): Promise<EntryUpdates[]> {
+  return call('content.available_updates');
+}
+
+/** Hold one item at its version, or let it update again. */
+export async function hold(
+  target: EntryTarget,
+  kind: ContentKind,
+  item: string,
+  held: boolean,
+): Promise<void> {
+  await call('content.hold', { target, kind, item, held });
 }
 
 export function matches(

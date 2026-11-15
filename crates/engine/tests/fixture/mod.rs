@@ -9,18 +9,20 @@ pub mod probe;
 pub mod replay;
 
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
 
 use anyhow::{bail, Result};
 use async_trait::async_trait;
 use engine::{
-    AssetIndex, Content, ContentProvider, FlavorInfo, FlavorProvider, InstanceProfile, LocalFile,
-    Minecraft, ServerJar, ServerProfile, Side, UrlRef,
+    AssetIndex, Content, ContentProvider, FlavorInfo, FlavorProvider, InstanceProfile, LatestQuery,
+    LocalFile, Minecraft, ServerJar, ServerLaunch, ServerProfile, ServerRuntime, Side, UrlRef,
 };
 use proto::content::{
     ContentKind, ContentProject, ContentVersion, SearchQuery, SearchResult, VersionQuery,
 };
 
-use proto::minecraft::{Artifact, GameVersion};
+use proto::minecraft::{Artifact, Edition, GameVersion};
 
 /// One compiled-component cache for the whole test binary, kept across runs so
 /// each fixture is compiled once rather than once per test.
@@ -43,6 +45,7 @@ fn info(id: &'static str) -> FlavorInfo {
         id: id.into(),
         name: "Fixture".into(),
         summary: "a flavor that exists only in tests".into(),
+        edition: Edition::Java,
         loads: Some(ContentKind::Mod),
         requires: std::borrow::Cow::Borrowed(&[]),
         sides: &[Side::Server, Side::Client],
@@ -128,8 +131,12 @@ impl FlavorProvider for Flavor {
         Ok(ServerProfile {
             flavor: self.info.id.to_string(),
             game_version: request.version.clone(),
-            jar: ServerJar::Download(self.primary()?),
-            java_major: 21,
+            runtime: ServerRuntime::Java {
+                jar: ServerJar::Download(self.primary()?),
+                launch: ServerLaunch::Jar,
+                java_major: 21,
+                jvm_args: Vec::new(),
+            },
             ..ServerProfile::default()
         })
     }
@@ -158,11 +165,14 @@ impl FlavorProvider for Flavor {
     }
 }
 
-/// A content source that serves whatever it was built with.
+/// A content source that serves whatever it was built with. `bulk` gives it a
+/// bulk update lookup; `lookups` counts the per-project version lookups made.
 #[derive(Default)]
 pub struct Source {
     pub projects: Vec<ContentProject>,
     pub versions: Vec<ContentVersion>,
+    pub bulk: bool,
+    pub lookups: Arc<AtomicUsize>,
 }
 
 #[async_trait]
@@ -191,6 +201,7 @@ impl ContentProvider for Source {
             .ok_or_else(|| anyhow::anyhow!("no such project"))
     }
     async fn versions(&self, query: &VersionQuery) -> Result<Vec<ContentVersion>> {
+        self.lookups.fetch_add(1, Ordering::SeqCst);
         Ok(self
             .versions
             .iter()
@@ -213,6 +224,24 @@ impl ContentProvider for Source {
     }
     async fn parse_url(&self, _url: &str) -> Option<UrlRef> {
         None
+    }
+    async fn latest(&self, query: &LatestQuery) -> Result<Option<HashMap<String, String>>> {
+        if !self.bulk {
+            return Ok(None);
+        }
+        Ok(Some(
+            query
+                .files
+                .iter()
+                .filter_map(|file| {
+                    let newest = self.versions.iter().find(|v| {
+                        v.project_id == file.project_id
+                            && v.game_versions.contains(&query.game_version)
+                    })?;
+                    Some((file.project_id.clone(), newest.id.clone()))
+                })
+                .collect(),
+        ))
     }
     async fn versions_by_id(&self, ids: &[String]) -> Result<Vec<ContentVersion>> {
         Ok(self

@@ -134,6 +134,7 @@ pub enum Reason {
     RealmId,
     ProcessIdCharset,
     ScheduleFormat,
+    ConsoleLine,
 }
 
 impl fmt::Display for Reason {
@@ -164,6 +165,9 @@ impl fmt::Display for Reason {
             Reason::ScheduleFormat => f.write_str(
                 "a schedule is an interval of at least 5m (30m, 6h, 1d) or a daily time (04:30)",
             ),
+            Reason::ConsoleLine => {
+                f.write_str("a console command is one plain line of at most 1024 characters")
+            }
         }
     }
 }
@@ -179,6 +183,8 @@ pub enum Unsupported {
     ModpackNotUpdatable,
     FileUpdatesOneItem,
     FileUpdatesLocalOnly,
+    BedrockHost,
+    WorldImportBedrockOnly,
 }
 
 impl fmt::Display for Unsupported {
@@ -196,6 +202,10 @@ impl fmt::Display for Unsupported {
             Unsupported::FileUpdatesLocalOnly => {
                 "only a local file can be updated from a file; change a tracked item's version instead"
             }
+            Unsupported::BedrockHost => {
+                "Bedrock Dedicated Server is published for x86_64 Linux and Windows only"
+            }
+            Unsupported::WorldImportBedrockOnly => "only a Bedrock server imports a .mcworld",
         })
     }
 }
@@ -239,6 +249,8 @@ pub enum ArchiveFault {
     NoComponents,
     /// The pack lists a file its source no longer publishes.
     FileUnpublished,
+    /// A world archive with no `level.dat` at its root or in its one top folder.
+    WorldMissing,
 }
 
 impl fmt::Display for ArchiveFault {
@@ -253,6 +265,7 @@ impl fmt::Display for ArchiveFault {
             ArchiveFault::NoGameVersion => "it pins no Minecraft version",
             ArchiveFault::NoComponents => "it lists no components",
             ArchiveFault::FileUnpublished => "it lists a file that is not published any more",
+            ArchiveFault::WorldMissing => "it holds no world (no level.dat)",
         })
     }
 }
@@ -332,6 +345,8 @@ pub enum Service {
     Release,
     /// A service a provider owns: a loader's metadata host, a content platform.
     Provider(Provider),
+    /// The community feed listing every Bedrock Dedicated Server build.
+    BedrockVersions,
 }
 
 impl fmt::Display for Service {
@@ -342,6 +357,7 @@ impl fmt::Display for Service {
             Service::Xbox => "Xbox",
             Service::Release => "the release feed",
             Service::Provider(provider) => &provider.name,
+            Service::BedrockVersions => "the Bedrock version feed",
         })
     }
 }
@@ -618,6 +634,10 @@ pub enum ErrorInfo {
     ConfigKeyDenied {
         key: String,
     },
+    /// A Java-only setting asked of a server that does not run on Java.
+    ConfigKeyNotApplicable {
+        key: String,
+    },
     ConfigTypeMismatch {
         key: String,
         expected: ValueKind,
@@ -791,11 +811,25 @@ pub enum ErrorInfo {
     /// No content source is registered, so a request that names none has none
     /// to default to.
     NoContentSource,
+    /// A Bedrock pack whose manifest declares a module a server cannot load
+    /// (a skin pack, a world template, client data).
+    ContentPackUnsupported {
+        name: String,
+        module: String,
+    },
+    /// A Marketplace pack: its contents are encrypted and cannot be read.
+    ContentPackEncrypted {
+        name: String,
+    },
     /// A registered source that cannot serve requests as configured. `setting`
     /// names the one it waits on, so a front-end can point at where to set it.
     ContentSourceUnavailable {
         source: String,
         setting: Option<RequiredSetting>,
+    },
+    /// The source catalogues content for another edition of the game.
+    ContentSourceEdition {
+        source: String,
     },
     /// The source lists the file but publishes no download for it: CurseForge
     /// lets an author opt out of third-party distribution. Nothing to retry —
@@ -1110,6 +1144,9 @@ impl fmt::Display for ErrorInfo {
             ConfigKeyUnknown { key } => write!(f, "unknown config key '{key}'"),
             ConfigKeyUnset { key } => write!(f, "'{key}' is not set"),
             ConfigKeyDenied { key } => write!(f, "plugins may not use the setting '{key}'"),
+            ConfigKeyNotApplicable { key } => {
+                write!(f, "'{key}' only applies to servers that run on Java")
+            }
             ConfigTypeMismatch { key, expected } => write!(f, "{key} expects a {expected}"),
             ConfigRejected { key } => write!(f, "invalid value for {key}"),
             ConfigInvalid { key, reason } => write!(f, "invalid value for {key}: {reason}"),
@@ -1219,6 +1256,13 @@ impl fmt::Display for ErrorInfo {
                 expected,
             } => write!(f, "'{title}' is {actual} content, not {expected}"),
             NoContentSource => f.write_str("no content source is installed"),
+            ContentPackUnsupported { name, module } => write!(
+                f,
+                "'{name}' is a {module} pack, which a server cannot load"
+            ),
+            ContentPackEncrypted { name } => {
+                write!(f, "'{name}' is encrypted and cannot be installed")
+            }
             ContentSourceUnavailable { source, setting } => match setting {
                 None => write!(f, "the {source} content source is not configured"),
                 Some(RequiredSetting { plugin, key }) => write!(
@@ -1226,6 +1270,9 @@ impl fmt::Display for ErrorInfo {
                     "the {source} content source needs the {key} setting of the {plugin} plugin"
                 ),
             },
+            ContentSourceEdition { source } => {
+                write!(f, "{source} has no content for this edition of the game")
+            }
             ContentDownloadBlocked { title, source } => write!(
                 f,
                 "'{title}' cannot be downloaded through the {source} API — \

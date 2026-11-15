@@ -15,7 +15,7 @@ use engine::{CallChain, Cancel, EntryRef, Job, LaunchRequest, ServerCreateSpec};
 use proto::content::{ContentAddItem, ContentAddSpec, ContentDone, ContentKind};
 use proto::error::ErrorInfo;
 use proto::instance::QuickPlay;
-use proto::minecraft::ProvisionProgress;
+use proto::minecraft::{Edition, ProvisionProgress};
 use proto::modpack::{ModpackMove, ModpackRef, ModpackTarget};
 use proto::sync::SyncUnit;
 
@@ -148,6 +148,7 @@ async fn a_batch_installs_its_roots_and_their_required_dependencies_once() {
             fixture::version("iris", &files, "1.21", &["fabric-api"]),
             fixture::version("fabric-api", &files, "1.21", &[]),
         ],
+        ..Default::default()
     };
     let (engine, id) = instance(home.path(), source).await;
     let (cancel, report) = (Cancel::new(), |_: &ProvisionProgress| {});
@@ -183,6 +184,7 @@ async fn content_from_a_source_that_is_gone_still_lists_with_its_source_missing(
     let source = fixture::Source {
         projects: vec![fixture::project("sodium", ContentKind::Mod)],
         versions: vec![fixture::version("sodium", &files, "1.21", &[])],
+        ..Default::default()
     };
     let (engine, id) = instance(home.path(), source).await;
     let (cancel, report) = (Cancel::new(), |_: &ProvisionProgress| {});
@@ -383,6 +385,7 @@ async fn a_local_file_a_source_recognises_installs_tracked_and_alone() {
             fixture::version("sodium", &files, "1.21", &["fabric-api"]),
             fixture::version("fabric-api", &files, "1.21", &[]),
         ],
+        ..Default::default()
     };
     let (engine, id) = instance(home.path(), source).await;
     let (cancel, report) = (Cancel::new(), |_: &ProvisionProgress| {});
@@ -437,6 +440,7 @@ async fn a_file_kept_local_can_later_move_to_a_source_that_recognises_it() {
     let source = fixture::Source {
         projects: vec![fixture::project("sodium", ContentKind::Mod)],
         versions: vec![fixture::version("sodium", &files, "1.21", &[])],
+        ..Default::default()
     };
     let (engine, id) = instance(home.path(), source).await;
     let (cancel, report) = (Cancel::new(), |_: &ProvisionProgress| {});
@@ -596,6 +600,7 @@ async fn with_referenceable_mod(
     let source = fixture::Source {
         projects: vec![fixture::project("sodium", ContentKind::Mod)],
         versions: vec![version],
+        ..Default::default()
     };
     let (engine, id) = instance(home, source).await;
     let (cancel, report) = (Cancel::new(), |_: &ProvisionProgress| {});
@@ -777,6 +782,7 @@ async fn a_root_that_fails_does_not_stop_the_batch() {
     let source = fixture::Source {
         projects: vec![fixture::project("sodium", ContentKind::Mod)],
         versions: vec![fixture::version("sodium", &files, "1.21", &[])],
+        ..Default::default()
     };
     let (engine, id) = instance(home.path(), source).await;
     let (cancel, report) = (Cancel::new(), |_: &ProvisionProgress| {});
@@ -807,6 +813,7 @@ async fn a_shared_pack_that_does_not_fit_stays_offered_and_never_warns() {
     let source = fixture::Source {
         projects: vec![fixture::project("cozy", ContentKind::ResourcePack)],
         versions: vec![fixture::version("cozy", &files, "1.21", &[])],
+        ..Default::default()
     };
     let (engine, alpha) = instance(home.path(), source).await;
     let beta = engine
@@ -858,6 +865,7 @@ async fn updatable(home: &std::path::Path, icon: &str) -> (engine::Engine, Strin
     let source = fixture::Source {
         projects: vec![sodium],
         versions: vec![newer, older.clone()],
+        ..Default::default()
     };
     let (engine, id) = instance(home, source).await;
     let (cancel, report) = (Cancel::new(), |_: &ProvisionProgress| {});
@@ -978,6 +986,7 @@ async fn an_item_that_cannot_update_leaves_the_rest_of_the_batch_recorded() {
             fixture::version("lithium", &files, "1.21", &[]),
             fixture::version("sodium", &files, "1.21", &[]),
         ],
+        ..Default::default()
     };
     let (engine, id) = instance(home.path(), source).await;
     let (cancel, report) = (Cancel::new(), |_: &ProvisionProgress| {});
@@ -1636,6 +1645,7 @@ mod launch_hooks {
                 fixture::version("sodium", &files, "1.21", &["fabric-api"]),
                 fixture::version("fabric-api", &files, "1.21", &[]),
             ],
+            ..Default::default()
         };
         let (engine, id) = instance(home.path(), source).await;
         let refused = json!(["fabric-api.jar"]);
@@ -1814,4 +1824,235 @@ mod launch_hooks {
             .join("instances/modded/mods/homemade.jar")
             .exists());
     }
+}
+
+#[tokio::test]
+async fn a_flavor_is_looked_up_within_its_edition() {
+    let home = tempfile::tempdir().expect("temp home");
+    let engine = fixture::engine(
+        home.path(),
+        vec![fixture::Flavor::resolving("fixture")],
+        vec![],
+    );
+    let (cancel, report) = (Cancel::new(), |_: &ProvisionProgress| {});
+    let bedrock = ServerCreateSpec {
+        edition: Edition::Bedrock,
+        ..spec("fixture")
+    };
+
+    engine
+        .provision_server(bedrock, &job(&cancel, &report))
+        .await
+        .expect_err("the fixture is a Java flavor");
+    assert!(engine.servers().list().is_empty());
+
+    let shipped = engine::Minecraft::new();
+    let ids = |edition| -> Vec<String> {
+        shipped
+            .flavors(engine::Side::Server, edition)
+            .into_iter()
+            .map(|f| f.id)
+            .collect()
+    };
+    assert_eq!(ids(Edition::Bedrock), ["vanilla"]);
+    assert!(ids(Edition::Java).contains(&"vanilla".to_string()));
+    assert!(!ids(Edition::Java).contains(&"bedrock".to_string()));
+    assert!(shipped
+        .versions(engine::Side::Client, Edition::Bedrock, "vanilla")
+        .await
+        .is_err());
+}
+
+#[tokio::test]
+async fn a_check_reports_the_newer_version_and_answers_from_cache_inside_the_ttl() {
+    let home = tempfile::tempdir().expect("temp home");
+    let (engine, id, _files) = updatable(home.path(), "").await;
+
+    let checked = engine
+        .check_entry_updates(EntryRef::Instance(&id), ContentKind::Mod, false)
+        .await
+        .expect("check");
+    assert_eq!(checked.updates.len(), 1);
+    assert!(checked.updates[0].updatable);
+    assert_eq!(checked.updates[0].latest_version_id, "sodium-2");
+    assert_eq!(checked.fresh, 1, "a first sighting is fresh");
+
+    let again = engine
+        .check_entry_updates(EntryRef::Instance(&id), ContentKind::Mod, false)
+        .await
+        .expect("check again");
+    assert!(again.updates[0].updatable);
+    assert_eq!(again.fresh, 0, "the same update is not news twice");
+
+    let known = engine.known_updates();
+    assert_eq!(known.len(), 1);
+    assert_eq!(known[0].target.entry, id);
+    assert_eq!(known[0].updates[0].latest_version_id, "sodium-2");
+}
+
+#[tokio::test]
+async fn a_check_inside_the_ttl_asks_upstream_nothing_until_refreshed() {
+    let home = tempfile::tempdir().expect("temp home");
+    let files = fixture::Files::serve().await;
+    let older = fixture::version("sodium", &files, "1.21", &[]);
+    let mut newer = fixture::version("sodium", &files, "1.21", &[]);
+    newer.id = "sodium-2".into();
+    let lookups = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let source = fixture::Source {
+        projects: vec![fixture::project("sodium", ContentKind::Mod)],
+        versions: vec![newer, older.clone()],
+        lookups: lookups.clone(),
+        ..Default::default()
+    };
+    let (engine, id) = instance(home.path(), source).await;
+    let (cancel, report) = (Cancel::new(), |_: &ProvisionProgress| {});
+    let mut spec = add(&["sodium"]);
+    spec.items[0].version = older.id.clone();
+    engine
+        .add_entry_content(
+            EntryRef::Instance(&id),
+            &spec,
+            &CallChain::default(),
+            &job(&cancel, &report),
+        )
+        .await
+        .expect("install the older version");
+    let count = || lookups.load(std::sync::atomic::Ordering::SeqCst);
+
+    let before = count();
+    engine
+        .check_entry_updates(EntryRef::Instance(&id), ContentKind::Mod, false)
+        .await
+        .expect("check");
+    let after_first = count();
+    assert!(after_first > before, "a first check resolves upstream");
+
+    engine
+        .check_entry_updates(EntryRef::Instance(&id), ContentKind::Mod, false)
+        .await
+        .expect("cached check");
+    assert_eq!(count(), after_first, "inside the TTL nothing is asked");
+
+    engine
+        .check_entry_updates(EntryRef::Instance(&id), ContentKind::Mod, true)
+        .await
+        .expect("refreshed check");
+    assert!(count() > after_first, "a refresh asks again");
+}
+
+#[tokio::test]
+async fn a_bulk_answer_that_the_pin_is_current_needs_no_version_lookup() {
+    let home = tempfile::tempdir().expect("temp home");
+    let files = fixture::Files::serve().await;
+    let lookups = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let source = fixture::Source {
+        projects: vec![fixture::project("sodium", ContentKind::Mod)],
+        versions: vec![fixture::version("sodium", &files, "1.21", &[])],
+        bulk: true,
+        lookups: lookups.clone(),
+    };
+    let (engine, id) = instance(home.path(), source).await;
+    let (cancel, report) = (Cancel::new(), |_: &ProvisionProgress| {});
+    engine
+        .add_entry_content(
+            EntryRef::Instance(&id),
+            &add(&["sodium"]),
+            &CallChain::default(),
+            &job(&cancel, &report),
+        )
+        .await
+        .expect("install");
+    let before = lookups.load(std::sync::atomic::Ordering::SeqCst);
+
+    let checked = engine
+        .check_entry_updates(EntryRef::Instance(&id), ContentKind::Mod, false)
+        .await
+        .expect("check");
+
+    assert!(!checked.updates[0].updatable);
+    assert_eq!(
+        lookups.load(std::sync::atomic::Ordering::SeqCst),
+        before,
+        "the bulk answer settles it"
+    );
+}
+
+#[tokio::test]
+async fn choosing_a_version_holds_the_item_out_of_update_all() {
+    let home = tempfile::tempdir().expect("temp home");
+    let (engine, id, _files) = updatable(home.path(), "").await;
+    let (cancel, report) = (Cancel::new(), |_: &ProvisionProgress| {});
+
+    engine
+        .set_entry_content_version(
+            EntryRef::Instance(&id),
+            ContentKind::Mod,
+            engine::Repin {
+                item: "sodium",
+                version: "sodium-1",
+                source: "",
+            },
+            &CallChain::default(),
+            &job(&cancel, &report),
+        )
+        .await
+        .expect("set the version it already has");
+    let (listed, _) = engine
+        .entry_content(EntryRef::Instance(&id), ContentKind::Mod)
+        .expect("list");
+    assert!(listed[0].held, "choosing a version holds it");
+
+    let updated = engine
+        .update_entry_content(
+            EntryRef::Instance(&id),
+            ContentKind::Mod,
+            &[],
+            &CallChain::default(),
+            &job(&cancel, &report),
+        )
+        .await
+        .expect("update all")
+        .items;
+    assert!(updated.is_empty(), "update all passes a held item by");
+
+    let updated = engine
+        .update_entry_content(
+            EntryRef::Instance(&id),
+            ContentKind::Mod,
+            &["sodium".to_string()],
+            &CallChain::default(),
+            &job(&cancel, &report),
+        )
+        .await
+        .expect("update by name")
+        .items;
+    assert_eq!(updated[0].version_id, "sodium-2");
+    assert!(!updated[0].held, "updating by name releases it");
+}
+
+#[tokio::test]
+async fn auto_update_moves_what_is_not_held() {
+    let home = tempfile::tempdir().expect("temp home");
+    let (engine, id, _files) = updatable(home.path(), "").await;
+    let (cancel, report) = (Cancel::new(), |_: &ProvisionProgress| {});
+
+    engine
+        .hold_entry_content(EntryRef::Instance(&id), ContentKind::Mod, "sodium", true)
+        .expect("hold");
+    assert_eq!(engine.auto_updatable(EntryRef::Instance(&id)), 0);
+    let done = engine
+        .auto_update_entry(EntryRef::Instance(&id), &job(&cancel, &report))
+        .await
+        .expect("auto-update");
+    assert!(done.items.is_empty(), "a held item stays");
+
+    engine
+        .hold_entry_content(EntryRef::Instance(&id), ContentKind::Mod, "sodium", false)
+        .expect("release");
+    let done = engine
+        .auto_update_entry(EntryRef::Instance(&id), &job(&cancel, &report))
+        .await
+        .expect("auto-update");
+    assert!(done.failures.is_empty(), "{:?}", done.failures);
+    assert_eq!(done.items[0].version_id, "sodium-2");
 }

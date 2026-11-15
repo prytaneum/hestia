@@ -86,9 +86,9 @@ to your account.
 | Area          | What works                                                                      |
 |:--------------|:--------------------------------------------------------------------------------|
 | **Instances** | Vanilla · Fabric · NeoForge *(Fabric and NeoForge: official plugins)*           |
-| **Servers**   | Vanilla · Fabric · NeoForge · Paper · Folia · Spigot · CraftBukkit *(all but Vanilla: official plugins)* |
-| **Content**   | Modrinth · CurseForge *(official plugins)* · a page URL · a local file          |
-| **Import**    | Hestia archives · `.mrpack` · Prism / MultiMC · CurseForge packs *(all but Hestia's: official plugins)* |
+| **Servers**   | Vanilla · Bedrock (Vanilla BDS) · Fabric · NeoForge · Paper · Folia · Spigot · CraftBukkit *(all but the two Vanillas: official plugins)* |
+| **Content**   | Modrinth · CurseForge *(official plugins)* · a page URL · a local file · Bedrock behaviour and resource packs from a file or link |
+| **Import**    | Hestia archives · `.mcworld` (Bedrock servers) · `.mrpack` · Prism / MultiMC · CurseForge packs *(the last three: official plugins)* |
 | **Export**    | Hestia archives · `.mrpack` *(`.mrpack`: an official plugin)*                   |
 | **Java**      | Eclipse Temurin from Adoptium *(official plugin)*                               |
 | **Plugins**   | WASM components: commands · pages · themes · hooks · providers                  |

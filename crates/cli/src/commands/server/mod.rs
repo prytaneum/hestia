@@ -15,11 +15,13 @@ mod files;
 pub(crate) mod lifecycle;
 mod tasks;
 mod update;
+mod world;
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 use client::proto::content::ContentKind;
 use client::proto::error::{EntryKind, EntryTarget};
+use client::proto::minecraft::Edition;
 use client::proto::plugin::CommandScope;
 use client::Client;
 
@@ -48,15 +50,19 @@ pub enum ServerCmd {
     List,
     /// Game versions a flavor offers (prompts for the flavor when omitted)
     Versions {
+        #[arg(long, value_enum, default_value = "java")]
+        edition: mc::EditionArg,
         /// Flavor id (see the `flavors` subcommand)
         flavor: Option<String>,
         #[arg(long, help = "Include snapshots and old versions")]
         all: bool,
     },
-    /// The available flavors
+    /// The available flavors, per edition
     Flavors,
     /// Loader builds a flavor offers for a version (modloaders only)
     Loaders {
+        #[arg(long, value_enum, default_value = "java")]
+        edition: mc::EditionArg,
         /// Flavor id; prompts when omitted
         flavor: Option<String>,
         /// Game version the loaders must support; prompts when omitted
@@ -151,6 +157,22 @@ enum ServerAction {
         #[command(subcommand)]
         cmd: ContentCmd,
     },
+    /// Install, list, remove, or update the server's resource packs (Bedrock)
+    Resourcepack {
+        #[command(subcommand)]
+        cmd: ContentCmd,
+    },
+    /// Install, list, remove, or update the server's behavior packs (Bedrock)
+    #[command(visible_alias = "bp")]
+    Behaviorpack {
+        #[command(subcommand)]
+        cmd: ContentCmd,
+    },
+    /// List the server's worlds, or import a .mcworld (Bedrock)
+    World {
+        #[command(subcommand)]
+        cmd: world::WorldCmd,
+    },
     /// The modpack this server runs: status, update, remove
     Modpack {
         #[command(subcommand)]
@@ -210,11 +232,19 @@ pub async fn run(cmd: ServerCmd) -> Result<ExitStatus> {
             match catalogue {
                 ServerCmd::Create(args) => create::run(&client, *args).await,
                 ServerCmd::List => entry::list(&client).await,
-                ServerCmd::Versions { flavor, all } => {
-                    mc::list_versions(&client, EntryKind::Server, flavor, all).await
+                ServerCmd::Versions {
+                    edition,
+                    flavor,
+                    all,
+                } => {
+                    mc::list_versions(&client, EntryKind::Server, edition.into(), flavor, all).await
                 }
                 ServerCmd::Flavors => mc::list_flavors(&client, EntryKind::Server).await,
-                ServerCmd::Loaders { flavor, version } => loaders(&client, flavor, version).await,
+                ServerCmd::Loaders {
+                    edition,
+                    flavor,
+                    version,
+                } => loaders(&client, edition.into(), flavor, version).await,
                 ServerCmd::Entry(_) => unreachable!("handled above"),
             }
             .map(|()| ExitStatus::Active)
@@ -233,7 +263,9 @@ async fn run_action(client: Client, name: String, action: ServerAction) -> Resul
         } else {
             None
         };
-        entry::show_status(&client, &info, ping.as_ref()).await?;
+        let updates = mc::update_counts(&client, EntryKind::Server).await;
+        let pending = updates.get(&info.id).copied().unwrap_or_default();
+        entry::show_status(&client, &info, ping.as_ref(), pending).await?;
         return Ok(ExitStatus::running(running));
     }
     run_unit_action(client, name, action)
@@ -283,6 +315,27 @@ async fn run_unit_action(client: Client, name: String, action: ServerAction) -> 
             )
             .await
         }
+        ServerAction::Resourcepack { cmd } => {
+            content::run_entry(
+                &client,
+                EntryKind::Server,
+                ContentKind::ResourcePack,
+                &name,
+                cmd,
+            )
+            .await
+        }
+        ServerAction::Behaviorpack { cmd } => {
+            content::run_entry(
+                &client,
+                EntryKind::Server,
+                ContentKind::BehaviorPack,
+                &name,
+                cmd,
+            )
+            .await
+        }
+        ServerAction::World { cmd } => world::run(&client, &name, cmd).await,
         ServerAction::Modpack { cmd } => {
             crate::commands::modpack::run_entry(EntryKind::Server, name, cmd).await
         }
@@ -309,16 +362,21 @@ async fn run_unit_action(client: Client, name: String, action: ServerAction) -> 
     }
 }
 
-async fn loaders(client: &Client, flavor: Option<String>, version: Option<String>) -> Result<()> {
-    let flavors = mc::fetch_flavors(client, EntryKind::Server).await?;
+async fn loaders(
+    client: &Client,
+    edition: Edition,
+    flavor: Option<String>,
+    version: Option<String>,
+) -> Result<()> {
+    let flavors = mc::fetch_flavors(client, EntryKind::Server, edition).await?;
     let flavor = mc::pick_flavor(flavors, flavor)?;
-    let versions = mc::fetch_versions(client, EntryKind::Server, &flavor).await?;
+    let versions = mc::fetch_versions(client, EntryKind::Server, edition, &flavor).await?;
     let version = mc::pick_version(versions, version)?;
     let loaders = {
         let _spinner = Spinner::start("fetching loaders");
         client
             .entry()
-            .loaders(EntryKind::Server, &flavor, &version)
+            .loaders(EntryKind::Server, edition, &flavor, &version)
             .await?
     };
     if loaders.is_empty() {

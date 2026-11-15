@@ -4,6 +4,7 @@
 use anyhow::Result;
 use client::proto::error::EntryKind;
 use client::proto::instance::InstanceUpdateParams;
+use client::proto::minecraft::Edition;
 use client::Client;
 
 use super::entry;
@@ -20,7 +21,8 @@ pub(super) async fn run(
     keep_pack: bool,
 ) -> Result<()> {
     let info = entry::pick_instance(client.instance().list().await?, Some(instance))?;
-    let versions = mc::fetch_versions(client, EntryKind::Instance, &info.flavor).await?;
+    let versions =
+        mc::fetch_versions(client, EntryKind::Instance, Edition::Java, &info.flavor).await?;
     let version = mc::pick_version(versions.clone(), version)?;
     let is_downgrade =
         client::proto::minecraft::downgrade_between(&versions, &info.game_version, &version)

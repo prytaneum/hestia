@@ -52,7 +52,11 @@ type JobKeys = { [K in keyof Jobs]?: (done: Jobs[K]['done']) => QueryKey[] };
 // sweep the whole entry subtree (refreshes an open Content/Backups tab). The
 // footprint walk lives outside `all` and is never triggered.
 const sweepServers = (): QueryKey[] => [keys.servers.all];
-const sweepEntries = (): QueryKey[] => [keys.servers.all, keys.instances.all];
+const sweepEntries = (): QueryKey[] => [
+  keys.servers.all,
+  keys.instances.all,
+  keys.content.available(),
+];
 
 const JOB_DONE: JobKeys = {
   'server.create': () => [keys.servers.list()],
@@ -64,6 +68,7 @@ const JOB_DONE: JobKeys = {
   'plugin.install': () => [keys.plugins.all],
   'server.backup.create': sweepServers,
   'server.backup.restore': sweepServers,
+  'server.worlds.import': sweepServers,
   'content.add': sweepEntries,
   'content.update': sweepEntries,
   'content.set_version': sweepEntries,
@@ -100,7 +105,7 @@ function jobKeys(event: Topics['job']): QueryKey[] {
 // refreshes everything under it — as an entry-wide job does. The footprint walk
 // stays out of `Entries` for the same reason it stays out of a job sweep.
 const CHANGED: Record<Topics['changed']['scope'], QueryKey[]> = {
-  entries: [keys.servers.all, keys.instances.all],
+  entries: [keys.servers.all, keys.instances.all, keys.content.available()],
   accounts: [keys.accounts.all, keys.skins.all],
   skins: [keys.skins.all],
   config: [keys.config.all, keys.content.all],
@@ -128,6 +133,8 @@ export function invalidationKeys(event: DaemonEvent): QueryKey[] {
     case 'plugin.rolled_back':
     case 'plugin.auto_updated':
       return [keys.plugins.all];
+    case 'content.updates_found':
+      return [keys.content.available()];
     default:
       return [];
   }
@@ -168,6 +175,16 @@ function announceAutoUpdate(update: Topics['plugin.auto_updated']): void {
   });
 }
 
+function isEntryUpdatesKey({ queryKey }: { queryKey: QueryKey }): boolean {
+  const [root, detail, , content, updates] = queryKey;
+  return (
+    (root === 'servers' || root === 'instances') &&
+    detail === 'detail' &&
+    content === 'content' &&
+    updates === 'updates'
+  );
+}
+
 let started = false;
 
 /** Install the feed once, at app bootstrap. */
@@ -179,6 +196,10 @@ export function startInvalidation(): void {
     if (event.topic === 'plugin.rolled_back') announceRollback(event.payload);
     if (event.topic === 'plugin.auto_updated')
       announceAutoUpdate(event.payload);
+    // An entry's own update list nests under its id, so a check that found
+    // something reaches every open one by the key's shape instead.
+    if (event.topic === 'content.updates_found')
+      void queryClient.invalidateQueries({ predicate: isEntryUpdatesKey });
     // Coming back online is the other reconnect: everything upstream-backed
     // failed or answered from a cached catalogue while we were out.
     if (event.topic === 'net.state') sweepOnReturnToOnline(event.payload);

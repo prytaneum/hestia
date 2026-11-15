@@ -29,6 +29,8 @@ import {
   PluginTabContents,
   PluginTabTriggers,
 } from '@/features/plugins';
+import { ServerWorlds } from '@/features/servers/components';
+import { formatPorts } from '@/features/servers/lib';
 import {
   ServerBackupsTab,
   ServerConsoleTab,
@@ -37,6 +39,7 @@ import {
 } from '@/features/servers/tabs';
 import {
   busyReason,
+  EditionBadge,
   EntryActionsMenu,
   EntryIconMenu,
   EntryJobProgress,
@@ -49,9 +52,11 @@ import {
   StatCard,
   useLiveResources,
 } from '@/features/shared/entry/detail';
+import { useFlavorName } from '@/features/shared/entry/hooks';
+import { configValue } from '@/features/shared/entry/settings';
 import { agoLabel, bytes } from '@/lib/format';
+import { cn } from '@/lib/utils';
 import { m } from '@/paraglide/messages.js';
-import { useProviderNamer } from '@/queries/catalogue';
 import { entryMutations, entryQueries } from '@/queries/entry';
 import { useBusyJob } from '@/queries/jobs';
 import { serverMutations, serverQueries, useServer } from '@/queries/server';
@@ -127,17 +132,18 @@ function ServerDetail({
   onOpenFile,
 }: DetailProps & { server: Server }) {
   const id = server.id;
-  const providerName = useProviderNamer();
   const info = useQuery(serverQueries.info(id));
   useAutoTour('server', Boolean(info.data));
   const config = useQuery(entryQueries.config('server', id));
-  const install = useEntryInstall(server.name);
+  const install = useEntryInstall(server.name, server.accepts ?? []);
   const start = useMutation(serverMutations.start(id));
   const stop = useMutation(entryMutations.stop('server', id));
   const restart = useMutation(serverMutations.restart(id));
   const job = useBusyJob('server', id);
+  const flavorName = useFlavorName('server', server.edition, server.flavor);
 
   const running = isRunning(server);
+  const runsOnJava = server.javaMajor != null;
   const ping = useQuery({ ...serverQueries.ping(id), enabled: running });
   const { live, memoryLimitGb } = useLiveResources({
     running,
@@ -166,8 +172,9 @@ function ServerDetail({
         badges={
           <>
             <Badge variant="secondary" className="uppercase">
-              {providerName(server.flavor)}
+              {flavorName}
             </Badge>
+            <EditionBadge edition={server.edition} />
             <Badge variant="outline" className="font-mono">
               {server.gameVersion}
             </Badge>
@@ -277,7 +284,12 @@ function ServerDetail({
                   {ping.data.motd}
                 </p>
               )}
-              <div className="grid grid-cols-3 gap-3">
+              <div
+                className={cn(
+                  'grid gap-3',
+                  runsOnJava ? 'grid-cols-3' : 'grid-cols-2',
+                )}
+              >
                 <StatCard
                   value={
                     ping.data
@@ -286,10 +298,12 @@ function ServerDetail({
                   }
                   label={m['app.label.players']()}
                 />
-                <StatCard
-                  value={memoryLimitGb ? `${memoryLimitGb}G` : '—'}
-                  label={m['app.label.memory']()}
-                />
+                {runsOnJava && (
+                  <StatCard
+                    value={memoryLimitGb ? `${memoryLimitGb}G` : '—'}
+                    label={m['app.label.memory']()}
+                  />
+                )}
                 <StatCard
                   value={
                     info.data?.diskBytes != null
@@ -300,6 +314,15 @@ function ServerDetail({
                 />
               </div>
               <ResourceCards live={live} />
+              {server.edition === 'bedrock' && (
+                <ServerWorlds
+                  id={id}
+                  running={running}
+                  activeWorld={
+                    configValue(config.data, 'level-name') || undefined
+                  }
+                />
+              )}
             </div>
 
             <div className="space-y-4">
@@ -310,6 +333,12 @@ function ServerDetail({
                       label={m['app.label.address']()}
                       value={`localhost:${server.gamePort}`}
                     />
+                    {server.ports.length > 1 && (
+                      <Stat
+                        label={m['app.label.ports']()}
+                        value={formatPorts(server.ports)}
+                      />
+                    )}
                     <Stat
                       label={m['app.label.loader']()}
                       value={server.flavor}
@@ -318,10 +347,12 @@ function ServerDetail({
                       label={m['app.label.version']()}
                       value={server.gameVersion}
                     />
-                    <Stat
-                      label={m['app.label.java']()}
-                      value={server.javaMajor}
-                    />
+                    {server.javaMajor != null && (
+                      <Stat
+                        label={m['app.label.java']()}
+                        value={server.javaMajor}
+                      />
+                    )}
                     <Stat
                       label={m['app.label.created']()}
                       value={agoLabel(server.createdUnix)}

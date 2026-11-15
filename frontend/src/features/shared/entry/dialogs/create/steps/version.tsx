@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useEffect } from 'react';
-import type { GameVersion } from '@/api';
+import type { Edition, GameVersion } from '@/api';
 import { withForm } from '@/components/form';
 import { StaleNotice } from '@/components/offline-state';
 import { SearchInput } from '@/components/search-input';
@@ -18,6 +18,7 @@ export const VersionStep = withForm({
   defaultValues: createWizardDefaults(''),
   props: {
     kind: 'instance' as Kind,
+    edition: 'java' as Edition,
     flavor: '',
     search: '',
     onSearch: (_value: string) => {},
@@ -27,6 +28,7 @@ export const VersionStep = withForm({
   render: function VersionStep({
     form,
     kind,
+    edition,
     flavor,
     search,
     onSearch,
@@ -36,12 +38,14 @@ export const VersionStep = withForm({
     const selected = form.state.values.version.version;
 
     const offline = useOffline();
-    const versionsQuery = useQuery(catalogueQueries.versions(kind, flavor));
+    const versionsQuery = useQuery(
+      catalogueQueries.versions(kind, edition, flavor),
+    );
     const versions: GameVersion[] = versionsQuery.data ?? [];
 
     // Loaders resolve only once a version is chosen, so gate on both.
     const loadersQuery = useQuery({
-      ...catalogueQueries.loaders(kind, flavor, selected),
+      ...catalogueQueries.loaders(kind, edition, flavor, selected),
       enabled: flavor !== '' && selected !== '',
     });
     const loaders = loadersQuery.data;

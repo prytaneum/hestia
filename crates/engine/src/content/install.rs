@@ -17,6 +17,7 @@ use proto::content::{
 use serde::{Deserialize, Serialize};
 use sha1::Sha1;
 
+use super::bedrock;
 use crate::checksum;
 use crate::registry;
 use crate::schema::{self, Document};
@@ -45,6 +46,7 @@ pub(crate) fn kind_dir(kind: ContentKind) -> Result<&'static str> {
         ContentKind::ResourcePack => Ok("resourcepacks"),
         ContentKind::Shader => Ok("shaderpacks"),
         ContentKind::DataPack => Ok("datapacks"),
+        ContentKind::BehaviorPack => Ok("behavior_packs"),
         ContentKind::Modpack => bail!(proto::error::ErrorInfo::UnsupportedOperation {
             reason: proto::error::Unsupported::ModpackNotSingleFile
         }),
@@ -60,6 +62,7 @@ pub(crate) fn is_content_file(kind: ContentKind, filename: &str) -> bool {
     let extensions: &[&str] = match kind {
         ContentKind::Mod | ContentKind::Plugin => &["jar"],
         ContentKind::ResourcePack | ContentKind::Shader | ContentKind::DataPack => &["zip", "jar"],
+        ContentKind::BehaviorPack => &["mcpack", "zip"],
         ContentKind::Modpack => &[],
     };
     Path::new(filename)
@@ -120,6 +123,9 @@ fn place(
     worlds: &[String],
     excluded: bool,
 ) -> Result<(u32, u32)> {
+    if bedrock::is_pack_item(item) {
+        return Ok((0, 0));
+    }
     let managed = managed_path(entry_dir, item)?;
     let wanted: HashSet<PathBuf> = match excluded {
         true => HashSet::new(),

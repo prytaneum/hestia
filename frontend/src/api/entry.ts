@@ -5,6 +5,7 @@ import type { EntryKind, EntryTarget } from './types/error';
 import type { EntryIcon, IconSource } from './types/icon';
 import type {
   ConfigEntry,
+  Edition,
   FlavorsResult,
   GameVersion,
 } from './types/minecraft';
@@ -16,18 +17,20 @@ export function flavors(kind: EntryKind): Promise<FlavorsResult> {
 
 export function versions(
   kind: EntryKind,
+  edition: Edition,
   flavor: string,
 ): Promise<GameVersion[]> {
-  return call('entry.versions', { kind, flavor });
+  return call('entry.versions', { kind, edition, flavor });
 }
 
 /** Loader builds for a flavor/version, newest first; empty for vanilla. */
 export function loaders(
   kind: EntryKind,
+  edition: Edition,
   flavor: string,
   version: string,
 ): Promise<string[]> {
-  return call('entry.loaders', { kind, flavor, version });
+  return call('entry.loaders', { kind, edition, flavor, version });
 }
 
 export function rename(

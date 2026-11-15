@@ -108,6 +108,15 @@ describe('the daemon-topic invalidation map', () => {
     ).toEqual([keys.instances.list(), keys.instances.detail('vanilla')]);
   });
 
+  it('refreshes the known updates when a check found new ones', () => {
+    expect(
+      invalidationKeys({
+        topic: 'content.updates_found',
+        payload: { fresh: 2 },
+      }),
+    ).toEqual([keys.content.available()]);
+  });
+
   it('outdates nothing while a job is still reporting progress', () => {
     expect(
       invalidationKeys({

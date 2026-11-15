@@ -16,6 +16,7 @@ interface ConfigEntries {
   autostart?: boolean;
   developer?: boolean;
   defaults?: { memory?: string; 'jvm-args'?: string };
+  content?: { 'auto-update'?: boolean };
   instance?: { 'multi-session'?: boolean };
   modpack?: ModpackConfig;
   update?: { channel?: UpdateChannel };

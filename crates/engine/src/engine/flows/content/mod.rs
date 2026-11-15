@@ -11,6 +11,7 @@
 mod add;
 pub(crate) mod entry;
 mod manage;
+pub(crate) mod updates;
 
 use std::path::Path;
 
@@ -24,7 +25,7 @@ pub(in crate::engine::flows) use self::add::artifact_context;
 use self::add::{file_name, local_context};
 use self::entry::EntryContent;
 pub(in crate::engine) use self::entry::EntryRef;
-use self::manage::{list_content, remove_content, set_enabled, update_from_file};
+use self::manage::{hold_items, list_content, remove_content, set_enabled, update_from_file};
 use super::phase_progress;
 use crate::content::inspect::modpack_refusal;
 use crate::content::install;
@@ -33,6 +34,7 @@ use crate::minecraft::materialize::OnProgress;
 use crate::minecraft::Side;
 use crate::plugins::CallChain;
 use crate::transfer::{self, archive::Reader};
+use proto::minecraft::Edition;
 
 impl Engine {
     /// Install a batch of content into an entry — each item a platform project,
@@ -217,16 +219,26 @@ impl Engine {
         set_enabled(&ctx, kind, item, enabled, worlds)
     }
 
-    /// For each platform-sourced item of the kind, resolve the newest
-    /// compatible version and report whether it differs from the current pin.
-    /// An item whose versions cannot be resolved is skipped, not fatal.
-    pub async fn check_entry_updates(
+    /// Hold one item at its version, or release it.
+    pub fn hold_entry_content(
         &self,
         entry: EntryRef<'_>,
         kind: ContentKind,
-    ) -> Result<Vec<proto::content::ContentUpdate>> {
+        item: &str,
+        held: bool,
+    ) -> Result<()> {
         let ctx = self.content_ctx(entry)?;
-        self.content_updates(&ctx, kind).await
+        let index = install::load(&ctx.entry_dir);
+        let matched: Vec<InstalledContent> = index
+            .into_iter()
+            .filter(|i| i.kind == kind && install::matches(i, item))
+            .collect();
+        if matched.is_empty() {
+            bail!(proto::error::ErrorInfo::ContentNotFound {
+                reference: item.to_string(),
+            });
+        }
+        hold_items(&ctx, &matched, held)
     }
 
     /// Resolve an entry into the shape every content and pack flow works
@@ -244,6 +256,7 @@ impl Engine {
                     id: record.id,
                     name: record.name,
                     game_version: record.profile.game_version,
+                    edition: record.edition,
                     flavor: record.profile.flavor,
                     side: Side::Server,
                 })
@@ -256,6 +269,7 @@ impl Engine {
                     id: record.id,
                     name: record.name,
                     game_version: record.profile.game_version,
+                    edition: Edition::Java,
                     flavor: record.profile.flavor,
                     side: Side::Client,
                 })

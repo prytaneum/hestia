@@ -26,7 +26,8 @@ pub(super) async fn run(
     if was_running && !restart {
         confirm_update_restart(&info.name)?;
     }
-    let versions = mc::fetch_versions(client, EntryKind::Server, &info.flavor).await?;
+    let versions =
+        mc::fetch_versions(client, EntryKind::Server, info.edition, &info.flavor).await?;
     let version = mc::pick_version(versions.clone(), version)?;
     let is_downgrade =
         client::proto::minecraft::downgrade_between(&versions, &info.game_version, &version)
@@ -56,7 +57,7 @@ pub(super) async fn run(
         "server '{}' updated to {}",
         done.server.name, done.server.game_version
     )))?;
-    entry::show_status(client, &done.server, None).await?;
+    entry::show_status(client, &done.server, None, 0).await?;
     modpack::show_failures(&done.failures)?;
     ui::show_warnings(&done.warnings)
 }

@@ -57,25 +57,32 @@ Fully provisioned at create; run under the daemon; each server claims its own po
 Catalogue verbs take no entry:
 
 ```bash
-hestia server create             # the fullscreen wizard — flavor →
-                                 #   version (type to filter; Tab pulls
-                                 #   snapshots in) → name → settings
-                                 #   (skippable) → confirm (EULA); Esc steps
-                                 #   back. Arguments prefill it, so `server
-                                 #   create vanilla` opens at the version step;
-                                 #   it opens whenever flavor, version, name or
+hestia server create             # the fullscreen wizard — edition (java or
+                                 #   bedrock) → provider (flavor) → version
+                                 #   (type to filter; Tab pulls snapshots in)
+                                 #   → name → settings (skippable) → confirm
+                                 #   (EULA); Esc steps back. Arguments prefill
+                                 #   it, so `server create --edition bedrock`
+                                 #   opens at the provider step and `server
+                                 #   create fabric` at the edition step; it
+                                 #   opens whenever flavor, version, name or
                                  #   the EULA is missing and stdin and stderr
-                                 #   are terminals
-hestia server create vanilla 1.21.1 --eula -n smp   # fully specified, so no
+                                 #   are terminals. Settings follow the chosen
+                                 #   edition's rules
+hestia server create [--edition java|bedrock] vanilla 1.21.1 --eula -n smp
+                                 #   --edition defaults to java; fully
+                                 #   specified, so no
                                  #   wizard and scriptable (-l pins a
                                  #   loader, -p pins the game port, --memory 4G
                                  #   sets -Xms/-Xmx; --motd, --max-players,
                                  #   --difficulty, --gamemode, --seed cover the
                                  #   common properties, --prop KEY=VALUE the rest)
 hestia server list               # managed servers, their address and state
-hestia server versions [flavor]  # game versions a flavor offers
-hestia server flavors            # the available flavors, what each takes, and
-                                 #   a line on what it is — all from the daemon
+hestia server versions [--edition bedrock] [flavor]  # game versions a flavor offers
+hestia server loaders [--edition bedrock] [flavor] [version]
+hestia server flavors            # the available flavors per edition, what each
+                                 #   takes, and a line on what it is — all from
+                                 #   the daemon
 ```
 
 A provider (flavor, content source, pack format, Java distribution) is `<plugin>.<id>` (`fabric.fabric`). Anywhere one
@@ -153,6 +160,12 @@ hestia server smp mod add <slug> # a modloader server takes mods
 hestia server smp plugin add <slug>     # a plugin-platform server takes plugins
 hestia server smp datapack add <slug>   # datapacks install into the server's world
 hestia server smp datapack add --file ./pack.zip   # any kind imports a local file
+hestia server bds world list     # a server's worlds (the one it runs is marked *)
+hestia server bds world import ./w.mcworld --use   # Bedrock, stopped; --use
+                                 #   makes it the world the server runs
+hestia server bds behaviorpack add ./x.mcpack   # alias: bp; a .mcpack/.mcaddon
+                                 #   path or an https link to one
+hestia server bds resourcepack add ./x.mcpack
 ```
 
 What a server takes depends on its flavor: `vanilla` takes datapacks only, and a flavor a plugin provides (a modloader,
@@ -164,6 +177,16 @@ Only `vanilla` is built in; the other distributions come from plugins (the offic
 *loader version*: `--loader-version <build>` pins one, and omitted, create takes the flavor's newest. A flavor may
 recommend JVM flags, used unless the entry or `defaults.jvm-args` sets its own; `server <name> info` reports the
 effective flags and where they came from.
+
+`bedrock` is Mojang's Bedrock Dedicated Server, for phones, consoles and Windows players. Create one with
+`hestia server create --edition bedrock vanilla <version>`; its flavor id is `vanilla`, the same as Java's, told apart by the edition. `server flavors` and
+`server list` carry an EDITION column, and the wizard asks for the edition before the provider. A Bedrock server
+runs natively, so its wizard has no memory field and `status` shows a `ports` row (game port over TCP, a second over UDP) and no `java` row. It takes
+`behaviorpacks` and `resourcepacks` from a local `.mcpack`/`.mcaddon` file or a direct https link (the Modrinth and
+CurseForge plugins serve Java only, so adding from them fails per item). What it refuses, and why:
+
+- `config set memory|jvm-args` — there is no JVM to size.
+- `world import` — the server must be stopped, and the file a `.mcworld`.
 
 ## Instances
 
@@ -379,9 +402,16 @@ hestia instance modded mod set-version sodium 0.6.0 -S curseforge
                                  # ...taken from another source that carries
                                  #   the installed file
 hestia instance modded mod list  # installed mods (+ any untracked jars in the
-                                 #   game dir)
-hestia instance modded mod update [sodium ...]   # newest compatible (all, or
-                                 #   the ones you name — one job either way)
+                                 #   game dir); UPDATE names the version each
+                                 #   can move to, and whether it is held
+hestia instance modded mod update [sodium ...]   # newest compatible (all but
+                                 #   the held ones, or the ones you name — one
+                                 #   job either way; naming one releases it)
+hestia instance modded mod update --check        # ask upstream now, past the
+                                 #   daemon's 30-minute answer cache
+hestia instance modded mod hold sodium    # keep it at its version; set-version
+                                 #   holds too
+hestia instance modded mod unhold sodium  # let it update again
 hestia instance modded mod remove sodium [iris ...]   # one call; a name that
                                  #   matches nothing removes none of them
 hestia instance modded resourcepack add <slug>   # same verbs for packs/shaders
@@ -498,6 +528,21 @@ version needs `--downgrade`. A pack file is the only way a pack no source publis
 a file holding a different pack needs `--other-pack`. On a terminal both are asked rather than refused. Files the pack wrote into the game directory that you have since edited are never
 overwritten or deleted; the command says which it kept.
 
+## Content updates
+
+```bash
+hestia updates                   # every entry's known content updates: entry,
+                                 #   item, current and latest version, held
+hestia updates --apply           # move them, entry by entry, kind by kind;
+                                 #   held items stay, a running entry is refused
+```
+
+The daemon checks for content updates when it starts, when the network comes back, as an instance launches and when an
+entry's content is listed, and keeps each answer for 30 minutes — so `hestia updates` answers at once without asking
+upstream. `instance list` and `server list` carry an UPDATES column, and `server <name> status` an `updates` row, from the
+same answers. With `content.auto-update` on, an instance's updates apply as it launches (held items and a modpack's own
+content excepted) and a stopped server's as soon as they are found.
+
 ## Jobs
 
 ```bash
@@ -593,6 +638,8 @@ hestia config set home <dir>     # persist the data dir (empty reverts) and rest
 hestia config get autostart      # true if the daemon starts at login
 hestia config set autostart true # register the daemon to start at login
 hestia config set instance.multi-session true # allow an instance to run several sessions
+hestia config set content.auto-update true    # apply content updates on launch,
+                                              #   and to a stopped server when found
 hestia config set network.offline true        # stop reaching the network at all
 hestia config set plugins.auto-update false   # stop applying official plugin updates unattended
 hestia config set developer true              # show the plugin authoring tools (see Launcher plugins)

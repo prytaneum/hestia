@@ -58,6 +58,15 @@ pub struct ConfigEntry {
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Default)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
 #[serde(rename_all = "snake_case")]
+pub enum Edition {
+    #[default]
+    Java,
+    Bedrock,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
+#[serde(rename_all = "snake_case")]
 pub enum VersionKind {
     #[default]
     Release,
@@ -105,8 +114,23 @@ pub fn downgrade_between(versions: &[GameVersion], from: &str, to: &str) -> Opti
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
 #[serde(default, rename_all = "camelCase")]
 pub struct FlavorsResult {
-    pub flavors: Vec<Flavor>,
+    pub editions: Vec<EditionCatalogue>,
+}
+
+/// One edition's slice of the catalogue: the providers it offers and the
+/// property rules its entries are validated against. A flavor id is unique
+/// only within its edition.
+#[derive(Serialize, Deserialize, Default, Debug, Clone)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
+#[serde(default, rename_all = "camelCase")]
+pub struct EditionCatalogue {
+    pub edition: Edition,
     pub rules: Vec<KeyRule>,
+    pub flavors: Vec<Flavor>,
+    /// The `server.properties` key holding the name a server is listed under;
+    /// absent for instances.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name_key: Option<String>,
 }
 
 /// Where a provisioning job (server create, instance launch preparation) is.

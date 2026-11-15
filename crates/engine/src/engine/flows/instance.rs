@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 use anyhow::{bail, Context, Result};
 use proto::error::{ErrorInfo, Field, Reason};
 use proto::instance::{InstanceDetails, QuickPlay, WorldInfo};
-use proto::minecraft::{ConfigEntry, ProvisionPhase, ProvisionProgress};
+use proto::minecraft::{ConfigEntry, Edition, ProvisionPhase, ProvisionProgress};
 use proto::warning::WarningInfo;
 
 use super::{guard_downgrade, meta_dir, pick_name};
@@ -98,7 +98,7 @@ impl Engine {
         let record = self.instances.require(reference)?;
         let versions = self
             .minecraft
-            .versions(Side::Client, &record.profile.flavor)
+            .versions(Side::Client, Edition::Java, &record.profile.flavor)
             .await?;
         guard_downgrade(
             "saves",
@@ -131,7 +131,7 @@ impl Engine {
         loader_version: Option<String>,
         config: &[ConfigEntry],
     ) -> Result<InstanceRecord> {
-        self.ensure_flavor_ready(Side::Client, flavor)?;
+        self.ensure_flavor_ready(Side::Client, Edition::Java, flavor)?;
         let profile = self
             .minecraft
             .resolve_instance(
@@ -195,6 +195,11 @@ impl Engine {
             )?;
         }
         let (account, mut warnings) = self.launch_account(account, offline).await?;
+        // Only the first session reconciles: another one has the mirror in use,
+        // so the pool must not move under it.
+        if reconcile && self.config.settings().content.auto_update {
+            warnings.extend(self.auto_update_for_launch(&record.id, on_progress).await?);
+        }
 
         materialize::validate_filename(&record.profile.game_version)?;
         let meta = meta_dir(self.data_home());
@@ -212,9 +217,9 @@ impl Engine {
         let assets_root = meta.join("assets");
         let game_dir = self.instances.data_dir(&record);
 
-        let flavor = self
-            .minecraft
-            .provider(Side::Client, &record.profile.flavor)?;
+        let flavor =
+            self.minecraft
+                .provider(Side::Client, Edition::Java, &record.profile.flavor)?;
         let store = materialize::read_assets(
             Some(&self.cache),
             flavor.download_policy(&record.profile.asset_index.artifact.url),
@@ -301,18 +306,22 @@ impl Engine {
         self.minecraft
             .install(
                 Side::Client,
+                Edition::Java,
                 &record.profile.flavor,
                 &crate::minecraft::InstallRequest {
                     game_version: &record.profile.game_version,
                     loader_version: record.profile.loader_version.as_deref(),
                     root: &meta,
                     meta: &meta,
-                    minecraft_jar: Some(&client_jar),
                     built: &built,
-                    java_major: record.profile.java_major,
-                    java: &java,
+                    java: Some(crate::minecraft::JavaInstall {
+                        minecraft_jar: Some(&client_jar),
+                        java_major: record.profile.java_major,
+                        java: &java,
+                    }),
                     cache: None,
                     processes: self.processes(),
+                    schema: None,
                 },
                 &job,
             )

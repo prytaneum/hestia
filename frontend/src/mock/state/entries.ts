@@ -9,9 +9,11 @@
  */
 import type {
   ConfigEntry,
+  Edition,
   InstalledModpack,
   InstanceInfo,
   ServerInfo,
+  WorldInfo,
 } from '@/api/types';
 
 import { ago, fail, now, slug } from '../support';
@@ -65,11 +67,13 @@ const servers: ServerInfo[] = [
     id: 'smp',
     name: 'SMP',
     flavor: 'vanilla',
+    edition: 'java',
     gameVersion: '1.21.4',
     javaMajor: 21,
     createdUnix: ago(86_400 * 30),
     ready: true,
     gamePort: 25_565,
+    ports: [{ port: 25_565, protocol: 'tcp' }],
     console: true,
     accepts: accepts('vanilla', true),
   },
@@ -77,14 +81,32 @@ const servers: ServerInfo[] = [
     id: 'creative',
     name: 'Creative',
     flavor: 'paper',
+    edition: 'java',
     gameVersion: '1.21.1',
     loaderVersion: '196',
     javaMajor: 21,
     createdUnix: ago(86_400 * 8),
     ready: true,
     gamePort: 25_566,
+    ports: [{ port: 25_566, protocol: 'tcp' }],
     console: true,
     accepts: accepts('paper', true),
+  },
+  {
+    id: 'bedrock-realm',
+    name: 'Bedrock Realm',
+    flavor: 'vanilla',
+    edition: 'bedrock',
+    gameVersion: '1.21.50',
+    createdUnix: ago(86_400 * 3),
+    ready: true,
+    gamePort: 19_132,
+    ports: [
+      { port: 19_132, protocol: 'tcp' },
+      { port: 19_134, protocol: 'udp' },
+    ],
+    console: true,
+    accepts: accepts('vanilla', true, 'bedrock'),
   },
 ];
 
@@ -121,6 +143,16 @@ const settings = new Map<string, ConfigEntry[]>([
       { key: 'rcon.password', value: 'mock-rcon-password' },
     ],
   ],
+]);
+
+settings.set('bedrock-realm', [
+  { key: 'server-name', value: 'A Mock Bedrock Server' },
+  { key: 'max-players', value: '10' },
+  { key: 'difficulty', value: 'normal' },
+  { key: 'gamemode', value: 'survival' },
+  { key: 'online-mode', value: 'true' },
+  { key: 'level-name', value: 'Bedrock level' },
+  { key: 'server-port', value: '19132' },
 ]);
 
 const packs = new Map<string, InstalledModpack>();
@@ -177,24 +209,38 @@ export function addInstance(params: {
 
 export function addServer(params: {
   name: string;
+  edition?: Edition;
   flavor: string;
   version: string;
   loaderVersion?: string;
   port?: number;
 }): ServerInfo {
   const name = params.name || 'New Server';
+  const bedrock = params.edition === 'bedrock';
+  const gamePort = params.port ?? (bedrock ? 19_132 : 25_565) + servers.length;
   const server: ServerInfo = {
     id: mintId(name, servers),
     name,
     flavor: params.flavor || 'vanilla',
+    edition: bedrock ? 'bedrock' : 'java',
     gameVersion: params.version || '1.21.4',
     loaderVersion: params.loaderVersion,
-    javaMajor: javaFor(params.version),
+    javaMajor: bedrock ? undefined : javaFor(params.version),
     createdUnix: now(),
     ready: true,
-    gamePort: params.port ?? 25_565 + servers.length,
+    gamePort: gamePort,
+    ports: bedrock
+      ? [
+          { port: gamePort, protocol: 'tcp' },
+          { port: gamePort + 2, protocol: 'udp' },
+        ]
+      : [{ port: gamePort, protocol: 'tcp' }],
     console: true,
-    accepts: accepts(params.flavor || 'vanilla', true),
+    accepts: accepts(
+      params.flavor || 'vanilla',
+      true,
+      bedrock ? 'bedrock' : 'java',
+    ),
   };
   servers.unshift(server);
   return server;
@@ -247,3 +293,44 @@ export const setPack = (id: string, pack: InstalledModpack): void => {
 export const clearPack = (id: string): void => {
   packs.delete(id);
 };
+
+const bedrockWorld = (
+  folder: string,
+  name: string,
+  gameMode: WorldInfo['gameMode'],
+  playedDaysAgo: number,
+): WorldInfo => ({
+  folder,
+  name,
+  read: true,
+  version: '1.21.50',
+  gameMode,
+  difficulty: 'normal',
+  hardcore: false,
+  cheats: false,
+  lastPlayedUnix: ago(86_400 * playedDaysAgo),
+  sizeBytes: 38 * 1024 * 1024,
+  icon: '',
+});
+
+const serverWorlds = new Map<string, WorldInfo[]>([
+  [
+    'bedrock-realm',
+    [
+      bedrockWorld('Bedrock level', 'Bedrock level', 'survival', 0),
+      bedrockWorld('creative-city', 'Creative City', 'creative', 6),
+    ],
+  ],
+]);
+
+export const worldsOf = (id: string): WorldInfo[] => serverWorlds.get(id) ?? [];
+
+export function importWorld(id: string, path: string, use: boolean): WorldInfo {
+  const file = path.split(/[/\\]/).pop() ?? 'world.mcworld';
+  const name = file.replace(/\.mcworld$/i, '');
+  const world = bedrockWorld(name, name, 'survival', 0);
+  const rest = worldsOf(id).filter((w) => w.folder !== name);
+  serverWorlds.set(id, use ? [world, ...rest] : [...rest, world]);
+  if (use) setEntrySetting(id, 'level-name', name);
+  return world;
+}

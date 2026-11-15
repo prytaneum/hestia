@@ -58,7 +58,7 @@ export function ModpackVersionDialog({
     enabled: open && pack.projectId !== '',
   });
   const catalogue = useQuery({
-    ...catalogueQueries.versions(kind, flavor),
+    ...catalogueQueries.versions(kind, 'java', flavor),
     enabled: open,
   });
   const offline = useOffline();

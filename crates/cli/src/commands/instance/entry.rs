@@ -86,6 +86,7 @@ pub(super) async fn list(client: &Client) -> Result<()> {
         return ui::show(View::empty("no instances yet (hestia instance create)"));
     }
     let names = Names::flavors(client, EntryKind::Instance).await?;
+    let updates = mc::update_counts(client, EntryKind::Instance).await;
     let rows = instances
         .iter()
         .map(|i| {
@@ -96,6 +97,7 @@ pub(super) async fn list(client: &Client) -> Result<()> {
                 Cell::maybe(i.loader_version.clone(), "-"),
                 mc::sessions_cell(&i.sessions),
                 mc::last_played_cell(i.last_played_unix),
+                mc::updates_cell(&updates, &i.id),
             ]
         })
         .collect();
@@ -108,6 +110,7 @@ pub(super) async fn list(client: &Client) -> Result<()> {
             "LOADER",
             "STATE",
             "LAST PLAYED",
+            "UPDATES",
         ],
         rows,
     ))

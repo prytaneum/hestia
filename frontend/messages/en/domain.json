@@ -12,6 +12,10 @@
       "normal": "Normal",
       "peaceful": "Peaceful"
     },
+    "edition": {
+      "bedrock": "Bedrock",
+      "java": "Java"
+    },
     "entry_type": {
       "instance": "instance",
       "server": "server"
@@ -32,6 +36,8 @@
       "hestia": "hestia archive"
     },
     "kind": {
+      "behaviorpack": "Behavior pack",
+      "behaviorpacks": "Behavior packs",
       "datapack": "Datapack",
       "datapacks": "Datapacks",
       "mod": "Mod",

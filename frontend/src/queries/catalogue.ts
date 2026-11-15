@@ -1,7 +1,7 @@
 /** What a server or an instance can be created as, keyed under its kind's tree. */
 import { queryOptions, useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
-import type { EntryKind } from '../api';
+import type { Edition, EntryKind } from '../api';
 import * as api from '../api/entry';
 import { providerNamer } from '../lib/provider-name';
 import { contentQueries } from './content';
@@ -15,32 +15,40 @@ export const catalogueQueries = {
       queryFn: () => api.flavors(kind),
       staleTime: CATALOG_STALE_MS,
     }),
-  versions: (kind: EntryKind, flavor: string) =>
+  versions: (kind: EntryKind, edition: Edition, flavor: string) =>
     queryOptions({
-      queryKey: entryScope(kind).versions(flavor),
-      queryFn: () => api.versions(kind, flavor),
+      queryKey: entryScope(kind).versions(edition, flavor),
+      queryFn: () => api.versions(kind, edition, flavor),
       staleTime: CATALOG_STALE_MS,
     }),
-  loaders: (kind: EntryKind, flavor: string, version: string) =>
+  loaders: (
+    kind: EntryKind,
+    edition: Edition,
+    flavor: string,
+    version: string,
+  ) =>
     queryOptions({
-      queryKey: entryScope(kind).loaders(flavor, version),
-      queryFn: () => api.loaders(kind, flavor, version),
+      queryKey: entryScope(kind).loaders(edition, flavor, version),
+      queryFn: () => api.loaders(kind, edition, flavor, version),
       staleTime: CATALOG_STALE_MS,
     }),
 };
 
 /** The one place the desktop shortens provider ids: flavors of both kinds and content sources. */
 export function useProviderNamer(): (id: string) => string {
-  const servers = useQuery(catalogueQueries.flavors('server')).data?.flavors;
+  const servers = useQuery(catalogueQueries.flavors('server')).data?.editions;
   const instances = useQuery(catalogueQueries.flavors('instance')).data
-    ?.flavors;
+    ?.editions;
   const sources = useQuery(contentQueries.sources()).data;
   return useMemo(
     () =>
       providerNamer(
-        [...(servers ?? []), ...(instances ?? []), ...(sources ?? [])].map(
-          (provider) => provider.id,
-        ),
+        [
+          ...[...(servers ?? []), ...(instances ?? [])].flatMap(
+            (catalogue) => catalogue.flavors,
+          ),
+          ...(sources ?? []),
+        ].map((provider) => provider.id),
       ),
     [servers, instances, sources],
   );

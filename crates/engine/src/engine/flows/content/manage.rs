@@ -5,8 +5,8 @@ use std::path::Path;
 
 use anyhow::{bail, Context, Result};
 use proto::content::{
-    ContentDone, ContentKind, ContentVersion, InstalledContent, UntrackedFile, VersionQuery,
-    LOCAL_SOURCE,
+    ContentDone, ContentFailure, ContentKind, ContentVersion, InstalledContent, UntrackedFile,
+    VersionQuery, LOCAL_SOURCE,
 };
 use proto::minecraft::ProvisionPhase;
 
@@ -16,6 +16,7 @@ use super::entry::EntryContent;
 use super::phase_progress;
 use crate::content::pool::Pool;
 use crate::content::{install, record, Identified, LocalFile};
+use crate::edition;
 use crate::engine::{Engine, Repin};
 use crate::minecraft::materialize::OnProgress;
 use crate::plugins::CallChain;
@@ -23,10 +24,12 @@ use crate::plugins::CallChain;
 impl Engine {
     /// Move matched platform items to a newer version — the newest compatible
     /// when `pin` is empty, or that exact version (id or number) when pinned.
-    /// `references` empty takes every item of the kind; naming several takes
-    /// exactly those, resolved before the first one moves. Past that the batch
-    /// is per-item, like an install: an item that cannot move records a failure,
-    /// and every item that did move is recorded whatever became of the rest.
+    /// `references` empty takes every item of the kind but the held ones;
+    /// naming several takes exactly those, resolved before the first one
+    /// moves. Choosing a version holds the item there, and updating it by name
+    /// lets it go. Past that the batch is per-item, like an install: an item
+    /// that cannot move records a failure, and every item that did move is
+    /// recorded whatever became of the rest.
     pub(super) async fn update_content(
         &self,
         ctx: &EntryContent,
@@ -41,25 +44,39 @@ impl Engine {
         if targets.is_empty() {
             bail!("nothing is installed");
         }
-
-        on_progress.report(&phase_progress(ProvisionPhase::Resolving));
+        let every = references.is_empty();
         let platform: Vec<InstalledContent> = targets
             .into_iter()
-            .filter(|item| !item.project_id.is_empty())
+            .filter(|item| !item.project_id.is_empty() && !(every && item.held))
             .collect();
-        let resolved = self.resolve_versions(ctx, platform, pin).await;
-        on_progress.check()?;
 
-        let mut failures = Vec::new();
-        let mut planned = Vec::new();
-        for (item, version) in resolved {
-            match version {
-                Ok(version) if version.id == item.version_id => {}
-                Ok(version) => planned.push((item, version)),
-                Err(e) => failures.push(failure(&item.filename, &item.title, crate::error_info(e))),
+        on_progress.report(&phase_progress(ProvisionPhase::Resolving));
+        let held = !pin.is_empty();
+        let (planned, failures) = match held {
+            false => self.newer_versions(ctx, platform).await,
+            true => {
+                let resolved = self.resolve_versions(ctx, platform, pin).await;
+                let (planned, failures, unmoved) = split_resolved(resolved);
+                hold_items(ctx, &unmoved, true)?;
+                (planned, failures)
             }
-        }
+        };
+        on_progress.check()?;
+        self.install_updates(ctx, planned, failures, held, chain, on_progress)
+            .await
+    }
 
+    /// Download each planned release and put it where its item stood, under
+    /// the given hold.
+    pub(super) async fn install_updates(
+        &self,
+        ctx: &EntryContent,
+        planned: Vec<(InstalledContent, ContentVersion)>,
+        mut failures: Vec<ContentFailure>,
+        held: bool,
+        chain: &CallChain,
+        on_progress: OnProgress<'_>,
+    ) -> Result<ContentDone> {
         let mut warnings = Vec::new();
         let mut downloads = Vec::new();
         for (item, version) in planned {
@@ -88,7 +105,7 @@ impl Engine {
         for ((item, version), sha1) in fetched {
             let repinned = sha1
                 .and_then(|sha1| release_of(&version, sha1))
-                .map(|release| record::repin(&item, release))
+                .map(|release| record::repin(&item, release, held))
                 .and_then(|repinned| pool.replace(&item, repinned.clone()).map(|()| repinned));
             match repinned {
                 Ok(new_item) => {
@@ -96,6 +113,7 @@ impl Engine {
                         title = %item.title,
                         from = %item.version_number,
                         to = %new_item.version_number,
+                        held,
                         "content updated"
                     );
                     updated.push(new_item);
@@ -165,18 +183,33 @@ impl Engine {
         pin: &str,
     ) -> Result<ContentVersion> {
         let loaders = self.content_loaders(kind, ctx);
+        self.version_for(&ctx.game_version, &loaders, source, project, installed, pin)
+            .await
+    }
+
+    /// [`Engine::target_version`] for a game version and loaders rather than an
+    /// entry, so a check spanning entries resolves through the same rule.
+    pub(super) async fn version_for(
+        &self,
+        game_version: &str,
+        loaders: &[String],
+        source: &str,
+        project: &str,
+        installed: &str,
+        pin: &str,
+    ) -> Result<ContentVersion> {
         let versions = self
             .content
             .versions(&VersionQuery {
                 source: source.to_string(),
                 project: project.to_string(),
-                loaders: loaders.clone(),
-                game_version: Some(ctx.game_version.clone()),
+                loaders: loaders.to_vec(),
+                game_version: Some(game_version.to_string()),
             })
             .await?;
         match pin.is_empty() {
-            true => install::pick_update(&versions, &ctx.game_version, &loaders, installed),
-            false => install::pick_version(&versions, &ctx.game_version, &loaders, pin),
+            true => install::pick_update(&versions, game_version, loaders, installed),
+            false => install::pick_version(&versions, game_version, loaders, pin),
         }
         .cloned()
     }
@@ -284,37 +317,41 @@ impl Engine {
             warnings,
         })
     }
+}
 
-    pub(super) async fn content_updates(
-        &self,
-        ctx: &EntryContent,
-        kind: ContentKind,
-    ) -> Result<Vec<proto::content::ContentUpdate>> {
-        let items: Vec<InstalledContent> = install::load(&ctx.entry_dir)
-            .into_iter()
-            .filter(|i| i.kind == kind && !i.project_id.is_empty())
-            .collect();
-        let mut out = Vec::new();
-        for (item, latest) in self.resolve_versions(ctx, items, "").await {
-            let latest = match latest {
-                Ok(latest) => latest,
-                Err(e) => {
-                    tracing::warn!(title = %item.title, error = %format!("{e:#}"), "update check failed");
-                    continue;
-                }
-            };
-            out.push(proto::content::ContentUpdate {
-                filename: item.filename,
-                project_id: item.project_id,
-                current_version_id: item.version_id.clone(),
-                current_version_number: item.version_number.clone(),
-                latest_version_id: latest.id.clone(),
-                latest_version_number: latest.version_number.clone(),
-                updatable: latest.id != item.version_id,
-            });
+type Planned = Vec<(InstalledContent, ContentVersion)>;
+
+/// Exact resolutions sorted into what moves, what failed, and what already
+/// sits at the version asked for.
+fn split_resolved(
+    resolved: Vec<(InstalledContent, Result<ContentVersion>)>,
+) -> (Planned, Vec<ContentFailure>, Vec<InstalledContent>) {
+    let mut planned = Vec::new();
+    let mut failures = Vec::new();
+    let mut unmoved = Vec::new();
+    for (item, version) in resolved {
+        match version {
+            Ok(version) if version.id == item.version_id => unmoved.push(item),
+            Ok(version) => planned.push((item, version)),
+            Err(e) => failures.push(failure(&item.filename, &item.title, crate::error_info(e))),
         }
-        Ok(out)
     }
+    (planned, failures, unmoved)
+}
+
+/// Set the hold on each of `items` that does not already carry it.
+pub(super) fn hold_items(ctx: &EntryContent, items: &[InstalledContent], held: bool) -> Result<()> {
+    if items.iter().all(|item| item.held == held) {
+        return Ok(());
+    }
+    let mut index = install::load(&ctx.entry_dir);
+    for item in index.iter_mut() {
+        if items.iter().any(|i| i.filename == item.filename) && item.held != held {
+            item.held = held;
+            tracing::info!(title = %item.title, held, "content hold changed");
+        }
+    }
+    install::save(&ctx.entry_dir, index)
 }
 
 fn installed_item(
@@ -375,7 +412,7 @@ pub(super) fn list_content(
         .into_iter()
         .filter(|i| i.kind == kind)
         .collect();
-    let untracked = install::untracked(&ctx.data_dir, kind, &items, &ctx.worlds());
+    let untracked = edition::untracked(ctx.edition, &ctx.data_dir, kind, &items, &ctx.worlds());
     (items, untracked)
 }
 

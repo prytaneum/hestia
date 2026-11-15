@@ -47,17 +47,54 @@ fn extract_zip(archive: &Path, dest: &Path) -> Result<()> {
 /// are counted as they are written: an entry's declared size is the archive's
 /// own claim and a zip bomb lies about it.
 pub fn extract_zip_capped(archive: &Path, dest: &Path, max_bytes: u64) -> Result<()> {
-    std::fs::create_dir_all(dest)?;
+    extract_zip_members(archive, Path::new(""), dest, max_bytes, |_, _| Ok(()))
+}
+
+/// Extract the zip members under `root` into `dest` with `root` stripped
+/// (an empty `root` takes everything). `after_file(done, total)` runs after
+/// each file with uncompressed byte counts and may abort the extraction.
+pub fn extract_zip_under(
+    archive: &Path,
+    root: &Path,
+    dest: &Path,
+    after_file: impl FnMut(u64, u64) -> Result<()>,
+) -> Result<()> {
+    extract_zip_members(archive, root, dest, u64::MAX, after_file)
+}
+
+fn extract_zip_members(
+    archive: &Path,
+    root: &Path,
+    dest: &Path,
+    max_bytes: u64,
+    mut after_file: impl FnMut(u64, u64) -> Result<()>,
+) -> Result<()> {
     let file = File::open(archive).with_context(|| format!("cannot open {}", archive.display()))?;
     let mut zip = zip::ZipArchive::new(file).context("opening zip archive")?;
+    std::fs::create_dir_all(dest)?;
     let mut remaining = max_bytes;
 
+    let mut members = Vec::new();
+    let mut total = 0;
     for i in 0..zip.len() {
-        let mut entry = zip.by_index(i)?;
+        let entry = zip.by_index(i)?;
         let Some(path) = entry.enclosed_name() else {
             bail!("zip archive contains an unsafe path");
         };
-        let out = dest.join(path);
+        let Ok(relative) = path.strip_prefix(root) else {
+            continue;
+        };
+        if relative.as_os_str().is_empty() {
+            continue;
+        }
+        total += entry.size();
+        members.push((i, relative.to_path_buf()));
+    }
+
+    let mut done = 0;
+    for (i, relative) in members {
+        let mut entry = zip.by_index(i)?;
+        let out = dest.join(relative);
         if entry.is_dir() {
             std::fs::create_dir_all(&out)?;
         } else {
@@ -81,6 +118,8 @@ pub fn extract_zip_capped(archive: &Path, dest: &Path, max_bytes: u64) -> Result
                 }
             }
         }
+        done += entry.size();
+        after_file(done, total)?;
     }
     Ok(())
 }

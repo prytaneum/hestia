@@ -44,7 +44,7 @@ use hestia::proto::download::{Checksum, HashAlgorithm};
 use hestia::proto::minecraft::{Artifact, GameVersion};
 use hestia::proto::profile::{
     ArgsFile, AssetIndex, FlavorDescription, InstanceProfile, Library, OsArgsFile, ServerJar,
-    ServerLaunch, ServerProfile,
+    ServerLaunch, ServerProfile, ServerRuntime,
 };
 use hestia::proto::provider::flavor::{
     Argument, Build, BuildFetch, BuildOutput, BuildPlan, BuildStep, LineFilter, BuildQuery, BuildSide, ClientAddition,
@@ -286,9 +286,12 @@ fn resolve_server(flavor: &str, query: ResolveQuery) -> Result<ServerResolution,
     };
     Ok(ServerResolution::Full(Box::new(ServerProfile {
         game_version: version.into(),
-        jar,
-        launch,
-        java_major: 21,
+        runtime: ServerRuntime::Java {
+            jar,
+            launch,
+            java_major: 21,
+            jvm_args: Vec::new(),
+        },
         ..ServerProfile::default()
     })))
 }

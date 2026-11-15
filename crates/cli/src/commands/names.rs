@@ -19,8 +19,13 @@ impl Names {
 
     /// The flavors of one side, the scope a bare flavor name resolves in.
     pub async fn flavors(client: &Client, kind: EntryKind) -> Result<Self> {
-        let flavors = client.entry().flavors(kind).await?;
-        Ok(Names::of(flavors.into_iter().map(|f| f.id)))
+        let catalogues = client.entry().flavors(kind).await?;
+        Ok(Names::of(
+            catalogues
+                .into_iter()
+                .flat_map(|catalogue| catalogue.flavors)
+                .map(|f| f.id),
+        ))
     }
 
     pub async fn sources(client: &Client) -> Result<Self> {

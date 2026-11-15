@@ -27,6 +27,7 @@ export type SettingsGroup =
   | 'plugin-developer'
   | 'java-defaults'
   | 'java-runtimes'
+  | 'content-updates'
   | 'modpack'
   | 'instance-behaviour'
   | 'sync'
@@ -150,6 +151,15 @@ const INDEX: Entry[] = [
       m['settings.java.runtimes'],
       m['settings.java.runtimes_hint'],
       m['settings.java.not_installed'],
+    ),
+  },
+  {
+    id: 'auto-update',
+    tab: 'content',
+    group: 'content-updates',
+    text: text(
+      m['settings.content_updates.auto_update_label'],
+      m['settings.content_updates.auto_update_description'],
     ),
   },
   {

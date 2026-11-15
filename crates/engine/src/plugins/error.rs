@@ -281,6 +281,9 @@ impl From<&ErrorInfo> for GuestError {
             | ConfigTypeMismatch { .. }
             | ConfigRejected { .. }
             | ConfigInvalid { .. }
+            | ConfigKeyNotApplicable { .. }
+            | ContentPackUnsupported { .. }
+            | ContentPackEncrypted { .. }
             | HardcoreLocked { .. }
             | HardcoreRequires { .. }
             | AlreadyExists { .. }
@@ -310,6 +313,7 @@ impl From<&ErrorInfo> for GuestError {
 
             UnsupportedOperation { .. }
             | ContentKindRejected { .. }
+            | ContentSourceEdition { .. }
             | QuickPlayUnsupported { .. }
             | ModpackLoaderUnsupported { .. }
             | UnsupportedContentUrl { .. }

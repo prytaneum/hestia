@@ -11,6 +11,7 @@ const ready: ContentSource = {
   id: 'modrinth',
   name: 'Modrinth',
   kinds: ['mod'],
+  editions: ['java'],
 };
 const waitingOn = (
   id: string,
@@ -19,6 +20,7 @@ const waitingOn = (
   id,
   name: id,
   kinds: ['mod'],
+  editions: ['java'],
   requiresSetting: setting,
 });
 

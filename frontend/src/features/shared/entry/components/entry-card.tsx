@@ -1,8 +1,8 @@
-import { PlayIcon, PowerIcon } from '@phosphor-icons/react';
+import { ArrowCircleUpIcon, PlayIcon, PowerIcon } from '@phosphor-icons/react';
 import { createLink } from '@tanstack/react-router';
 import { motion } from 'motion/react';
 
-import type { ProcessInfo } from '@/api';
+import type { Edition, ProcessInfo } from '@/api';
 import { entryIcon } from '@/components/icons';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -17,6 +17,7 @@ import { m } from '@/paraglide/messages.js';
 import { useProviderNamer } from '@/queries/catalogue';
 import { type Job, useBusyJob } from '@/queries/jobs';
 import type { View } from './collection';
+import { EditionBadge } from './edition-badge';
 import { EntryContextMenu } from './entry-menu';
 import { busyReason, EntryJobChip } from './job-chip';
 import { EntryRunControl } from './run-control';
@@ -26,6 +27,7 @@ export interface EntryCardModel {
   name: string;
   kind: 'instance' | 'server';
   flavor: string;
+  edition?: Edition;
   version: string;
   running: boolean;
   ready: boolean;
@@ -44,6 +46,8 @@ export interface EntryCardModel {
   /** Stop one session and launch it again; absent hides the option. */
   onRestart?: (session: string) => void;
   busy?: boolean;
+  /** Content updates the daemon's checks found; absent or 0 shows nothing. */
+  updates?: number;
   /** Split out of `busy` so a launch in flight still leaves stopping live. */
   launching?: boolean;
   stopping?: boolean;
@@ -238,8 +242,19 @@ export function EntryTile({
           transition={layoutMorph}
           className={cn('min-w-0', grid ? 'w-full p-3 pt-2.5' : 'flex-1')}
         >
-          <span className="block truncate text-sm font-semibold">
-            {entry.name}
+          <span className="flex items-center gap-2">
+            <span className="truncate text-sm font-semibold">{entry.name}</span>
+            <EditionBadge edition={entry.edition} />
+            {!!entry.updates && (
+              <Badge
+                variant="outline"
+                className="shrink-0 text-primary"
+                title={m['entry.updates_available']({ count: entry.updates })}
+              >
+                <ArrowCircleUpIcon weight="bold" />
+                {entry.updates}
+              </Badge>
+            )}
           </span>
           <span className="mt-0.5 block truncate font-mono text-[11px] text-muted-foreground">
             {grid

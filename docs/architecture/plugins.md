@@ -353,7 +353,8 @@ The engine wraps each contribution in the registry's own trait over a `Guest`
 calls the guest with the 30 s provider timeout, and maps a guest failure to
 `PluginCallFailed` naming the plugin. A guest answers `unsupported` for an
 operation it does not implement; an optional operation then takes its
-documented fallback in the host (`projects` asks `project` for each,
+documented fallback in the host (`projects` asks `project` for each, `latest`
+asks `versions` for each item,
 `versions-by-id`, `identify` and `loader-versions` find nothing, and
 `resolve-manifest` fails the import naming the source), a required one
 fails the call. A source's `info` may name a `requires-setting`; the host keeps

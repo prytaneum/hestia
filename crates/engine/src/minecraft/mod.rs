@@ -3,6 +3,7 @@
 //! no state of its own, but the catalogue readers keep regenerable copies of
 //! what they fetch under `meta/`.
 
+pub(crate) mod bedrock;
 pub(crate) mod launch;
 mod loaders;
 pub(crate) mod log4j;
@@ -26,14 +27,14 @@ use std::path::Path;
 use std::sync::Arc;
 
 use anyhow::Result;
-use proto::minecraft::{Flavor, GameVersion};
+use proto::minecraft::{Edition, Flavor, GameVersion};
 
 use crate::cache::Cache;
 use crate::roster::{RegisterError, Roster, Standing};
 use profile::{InstanceProfile, ServerProfile};
 
 pub use loaders::Loaders;
-pub use provider::{accepted_kinds, unmet, InstallRequest, Prerequisite, Side};
+pub use provider::{unmet, InstallRequest, JavaInstall, Prerequisite, Side};
 pub use provider::{FlavorInfo, FlavorProvider, Loads, ResolveRequest};
 pub use provider::{BOTH_SIDES, CLIENT_ONLY, SERVER_ONLY};
 
@@ -48,7 +49,7 @@ pub struct Minecraft {
 
 impl Default for Minecraft {
     fn default() -> Self {
-        Self::with_providers(vec![Box::new(vanilla::Vanilla)])
+        Self::with_providers(vec![Box::new(vanilla::Vanilla), Box::new(bedrock::Bedrock)])
     }
 }
 
@@ -90,17 +91,17 @@ impl Minecraft {
         Loaders::of(&self.flavors.snapshot())
     }
 
-    pub fn flavors(&self, side: Side) -> Vec<Flavor> {
+    pub fn flavors(&self, side: Side, edition: Edition) -> Vec<Flavor> {
         self.flavors
             .snapshot()
             .iter()
             .map(|p| p.info())
-            .filter(|info| info.sides.contains(&side))
+            .filter(|info| info.edition == edition && info.sides.contains(&side))
             .map(|info| Flavor {
                 id: info.id.to_string(),
                 name: info.name.to_string(),
                 summary: info.summary.to_string(),
-                accepts: accepted_kinds(side, info.loads),
+                accepts: crate::edition::accepted_kinds(side, edition, info.loads),
                 requires: Vec::new(),
             })
             .collect()
@@ -109,8 +110,8 @@ impl Minecraft {
     /// What a flavor needs on the machine. Whether it is *there* is a question
     /// about this computer, not about the catalogue — `Engine::flavors`
     /// answers that.
-    pub fn requires(&self, side: Side, flavor: &str) -> Vec<Prerequisite> {
-        self.provider(side, flavor)
+    pub fn requires(&self, side: Side, edition: Edition, flavor: &str) -> Vec<Prerequisite> {
+        self.provider(side, edition, flavor)
             .map(|p| p.info().requires.to_vec())
             .unwrap_or_default()
     }
@@ -118,8 +119,8 @@ impl Minecraft {
     /// The content kind a flavor's own loader consumes. An unregistered
     /// flavor — a record written by a build that had one we no longer ship —
     /// loads nothing rather than failing the read.
-    pub fn loads(&self, side: Side, flavor: &str) -> Loads {
-        self.provider(side, flavor)
+    pub fn loads(&self, side: Side, edition: Edition, flavor: &str) -> Loads {
+        self.provider(side, edition, flavor)
             .ok()
             .and_then(|p| p.info().loads)
     }
@@ -127,8 +128,8 @@ impl Minecraft {
     /// The loader names a content version may carry to run on `flavor`, its own
     /// first. An unregistered flavor — a record written by a build that had one
     /// we no longer ship — is filtered by its id.
-    pub fn content_loaders(&self, side: Side, flavor: &str) -> Vec<String> {
-        self.provider(side, flavor)
+    pub fn content_loaders(&self, side: Side, edition: Edition, flavor: &str) -> Vec<String> {
+        self.provider(side, edition, flavor)
             .map(|p| p.info().loader_names())
             .unwrap_or_else(|_| vec![flavor.to_string()])
     }
@@ -141,7 +142,7 @@ impl Minecraft {
         for name in names.iter().filter(|name| !name.is_empty()) {
             let declared = self
                 .flavors
-                .resolve(name, |_| true)
+                .resolve(name, |p| p.info().edition == Edition::Java)
                 .map(|(_, p)| p.info().loader_names())
                 .unwrap_or_else(|_| vec![name.clone()]);
             for loader in declared {
@@ -153,41 +154,50 @@ impl Minecraft {
         loaders
     }
 
-    /// The flavor a content platform's loader name stands for on `side`: the
-    /// flavor of that id when there is one, else one declaring that loader.
+    /// The Java flavor a content platform's loader name stands for on `side`:
+    /// the flavor of that id when there is one, else one declaring that loader.
     pub fn flavor_of_loader(&self, side: Side, loader: &str) -> Option<String> {
-        if let Ok(id) = self.canonical(side, loader) {
+        if let Ok(id) = self.canonical(side, Edition::Java, loader) {
             return Some(id);
         }
         self.flavors
             .snapshot()
             .iter()
             .map(|p| p.info())
-            .filter(|info| info.sides.contains(&side))
+            .filter(|info| info.edition == Edition::Java && info.sides.contains(&side))
             .find(|info| info.loader_name() == loader)
             .map(|info| info.id.to_string())
     }
 
     /// The full id of the flavor `name` means on `side`, for what is stored.
-    pub fn canonical(&self, side: Side, name: &str) -> Result<String> {
-        self.resolve(side, name).map(|(id, _)| id)
+    pub fn canonical(&self, side: Side, edition: Edition, name: &str) -> Result<String> {
+        self.resolve(side, edition, name).map(|(id, _)| id)
     }
 
-    pub async fn versions(&self, side: Side, flavor: &str) -> Result<Vec<GameVersion>> {
-        self.provider(side, flavor)?.versions().await
+    pub async fn versions(
+        &self,
+        side: Side,
+        edition: Edition,
+        flavor: &str,
+    ) -> Result<Vec<GameVersion>> {
+        self.provider(side, edition, flavor)?.versions().await
     }
 
     pub async fn loader_versions(
         &self,
         side: Side,
+        edition: Edition,
         flavor: &str,
         game: &str,
     ) -> Result<Vec<String>> {
-        self.provider(side, flavor)?.loader_versions(game).await
+        self.provider(side, edition, flavor)?
+            .loader_versions(game)
+            .await
     }
 
     pub async fn resolve_server(
         &self,
+        edition: Edition,
         flavor: &str,
         version: &str,
         loader_version: Option<String>,
@@ -195,7 +205,7 @@ impl Minecraft {
         cache: Option<&Cache>,
     ) -> Result<ServerProfile> {
         tracing::info!(flavor, version, ?loader_version, "resolving server profile");
-        self.provider(Side::Server, flavor)?
+        self.provider(Side::Server, edition, flavor)?
             .resolve_server(&ResolveRequest {
                 version: version.to_string(),
                 loader_version,
@@ -219,7 +229,7 @@ impl Minecraft {
             ?loader_version,
             "resolving instance profile"
         );
-        self.provider(Side::Client, flavor)?
+        self.provider(Side::Client, Edition::Java, flavor)?
             .resolve_client(&ResolveRequest {
                 version: version.to_string(),
                 loader_version,
@@ -235,27 +245,42 @@ impl Minecraft {
     pub async fn install(
         &self,
         side: Side,
+        edition: Edition,
         flavor: &str,
         request: &provider::InstallRequest<'_>,
         on_progress: materialize::OnProgress<'_>,
     ) -> Result<()> {
-        self.provider(side, flavor)?
+        self.provider(side, edition, flavor)?
             .install(side, request, on_progress)
             .await
     }
 
     /// The flavor a plugin's profile builds on: Mojang's game, unchanged.
     pub(crate) fn vanilla(&self) -> Option<Arc<dyn FlavorProvider>> {
-        self.provider(Side::Client, vanilla::ID).ok()
+        self.provider(Side::Client, Edition::Java, vanilla::ID).ok()
     }
 
-    pub(crate) fn provider(&self, side: Side, flavor: &str) -> Result<Arc<dyn FlavorProvider>> {
-        self.resolve(side, flavor).map(|(_, provider)| provider)
+    pub(crate) fn provider(
+        &self,
+        side: Side,
+        edition: Edition,
+        flavor: &str,
+    ) -> Result<Arc<dyn FlavorProvider>> {
+        self.resolve(side, edition, flavor)
+            .map(|(_, provider)| provider)
     }
 
-    fn resolve(&self, side: Side, name: &str) -> Result<(String, Arc<dyn FlavorProvider>)> {
+    fn resolve(
+        &self,
+        side: Side,
+        edition: Edition,
+        name: &str,
+    ) -> Result<(String, Arc<dyn FlavorProvider>)> {
         self.flavors
-            .resolve(name, |p| p.info().sides.contains(&side))
+            .resolve(name, |p| {
+                let info = p.info();
+                info.edition == edition && info.sides.contains(&side)
+            })
             .map_err(|unresolved| unresolved.into_error(name))
     }
 }

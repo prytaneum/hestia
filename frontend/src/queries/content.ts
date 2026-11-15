@@ -31,6 +31,12 @@ export const isContentUrl = (text: string): boolean =>
 type PagedOffsets = Partial<Record<ContentKind, number | null>>;
 
 export const contentQueries = {
+  /** What the daemon's checks found across every entry — never upstream. */
+  available: () =>
+    queryOptions({
+      queryKey: keys.content.available(),
+      queryFn: () => api.availableUpdates(),
+    }),
   sources: () =>
     queryOptions({
       queryKey: keys.content.sources(),

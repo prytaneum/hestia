@@ -4,7 +4,7 @@
 
 use anyhow::Result;
 use client::proto::error::EntryKind;
-use client::proto::minecraft::ConfigEntry;
+use client::proto::minecraft::{ConfigEntry, Edition};
 use client::Client;
 
 use super::entry;
@@ -25,10 +25,10 @@ pub(super) async fn run(
     if ui::is_interactive() && !fully_specified {
         return run_wizard(client, flavor, version, loader, name, memory).await;
     }
-    let flavors = mc::fetch_flavors(client, EntryKind::Instance).await?;
+    let flavors = mc::fetch_flavors(client, EntryKind::Instance, Edition::Java).await?;
     let names = Names::of(flavors.iter().map(|f| f.id.clone()));
     let flavor = mc::pick_flavor(flavors, flavor)?;
-    let versions = mc::fetch_versions(client, EntryKind::Instance, &flavor).await?;
+    let versions = mc::fetch_versions(client, EntryKind::Instance, Edition::Java, &flavor).await?;
     let version = mc::pick_version(versions, version)?;
     let name = name.unwrap_or_else(|| format!("{}-{version}", names.show(&flavor)));
     let config = memory
@@ -60,10 +60,14 @@ async fn run_wizard(
     name: Option<String>,
     memory: Option<String>,
 ) -> Result<()> {
-    let flavors = mc::fetch_flavors(client, EntryKind::Instance).await?;
+    let catalogue = mc::catalogue_for(
+        mc::fetch_catalogues(client, EntryKind::Instance).await?,
+        Edition::Java,
+    )?;
     let seed = WizardSeed {
         kind: EntryKind::Instance,
-        flavors,
+        catalogues: vec![catalogue],
+        edition: Some(Edition::Java),
         flavor,
         version,
         name,

@@ -12,18 +12,17 @@ use std::path::{Path, PathBuf};
 use anyhow::{bail, Context, Result};
 use proto::error::EntryKind;
 use proto::icon::EntryIcon;
-use proto::keys::KeyRule;
-use proto::minecraft::{ProvisionPhase, ProvisionProgress};
-use proto::server::ServerProperty;
+use proto::minecraft::{Edition, ProvisionPhase, ProvisionProgress};
+use proto::server::{ServerPort, ServerProperty};
 use proto::tasks::ServerTask;
 use serde::{Deserialize, Serialize};
 
+use crate::edition;
 use crate::icon;
 use crate::jvm::JavaSettings;
-use crate::keys::invalid;
 use crate::minecraft::launch::{self, LaunchPlan};
 use crate::minecraft::materialize::{self, OnProgress};
-use crate::minecraft::profile::ServerProfile;
+use crate::minecraft::profile::{ServerProfile, ServerRuntime};
 use crate::process::{Outcome, ProcessSupervisor, Task};
 use crate::properties;
 use crate::registry::{self, Entry, Store};
@@ -35,8 +34,6 @@ use crate::schema::Document;
 const SCHEMA: &str = "schema.properties";
 const SCHEMA_RUN: &str = ".schema";
 const DATA: &str = "data";
-const GAME_PORT_BASE: u16 = 25565;
-const RCON_PORT_BASE: u16 = 25575;
 const PORT_SPAN: u16 = 100;
 
 // Pre-EULA servers (before 1.7.10) have no gate and would boot for real; the
@@ -75,10 +72,17 @@ pub struct ServerRecord {
     pub id: String,
     pub name: String,
     pub created_unix: i64,
+    /// Fixed at create; every edition-specific behaviour follows from it.
+    #[serde(default)]
+    pub edition: Edition,
     #[serde(default)]
     pub phase: ServerPhase,
     /// Claimed at create and never moved — players connect to it.
     pub game_port: u16,
+    /// A Bedrock server's second UDP port (its NetherNet client port); claimed
+    /// at first start.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub second_port: Option<u16>,
     /// Claimed at first start; internal, so it may be reallocated freely.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub rcon: Option<RconConfig>,
@@ -171,11 +175,17 @@ impl Servers {
         self.store.require(reference)
     }
 
+    /// Every port the server binds, the game port first — what a user forwards.
+    pub fn ports(&self, record: &ServerRecord) -> Vec<ServerPort> {
+        edition::ports(record)
+    }
+
     /// Register a new server: allocate its id from the name, claim its game
     /// port, create its directory, and write the (not yet ready) record.
     pub fn create(
         &self,
         name: &str,
+        edition: Edition,
         profile: ServerProfile,
         port: Option<u16>,
     ) -> Result<ServerRecord> {
@@ -184,8 +194,10 @@ impl Servers {
                 id,
                 name: name.to_string(),
                 created_unix: common::now_unix(),
+                edition,
                 phase: ServerPhase::Provisioning,
-                game_port: self.claim_game_port(port)?,
+                game_port: self.claim_game_port(port, edition)?,
+                second_port: None,
                 rcon: None,
                 jvm: JavaSettings::default(),
                 tasks: Vec::new(),
@@ -196,59 +208,42 @@ impl Servers {
         Ok(record)
     }
 
-    fn claim_game_port(&self, requested: Option<u16>) -> Result<u16> {
+    fn claim_game_port(&self, requested: Option<u16>, edition: Edition) -> Result<u16> {
         let claimed = self.claimed_ports(None);
+        let (base, transport) = edition::game_port_base(edition);
         match requested {
-            Some(port) if unavailable(&claimed, port) => {
+            Some(port) if unavailable(&claimed, port, transport) => {
                 bail!(proto::error::ErrorInfo::PortUnavailable { port })
             }
             Some(port) => Ok(port),
-            None => allocate_port(GAME_PORT_BASE, &claimed),
+            None => allocate_port(base, &claimed, transport),
         }
     }
 
-    /// Every port any server's record claims (game and rcon), except
+    /// Every port any server's record claims (game, IPv6 and rcon), except
     /// `exclude`'s own.
     fn claimed_ports(&self, exclude: Option<&str>) -> HashSet<u16> {
         self.list()
             .iter()
             .filter(|r| Some(r.id.as_str()) != exclude)
-            .flat_map(|r| [Some(r.game_port), r.rcon.as_ref().map(|c| c.port)])
+            .flat_map(|r| {
+                [
+                    Some(r.game_port),
+                    r.second_port,
+                    r.rcon.as_ref().map(|c| c.port),
+                ]
+            })
             .flatten()
             .collect()
     }
 
     /// Reconcile `server.properties` with the record's claimed ports before a
-    /// spawn. The game port never moves (players depend on it) — an outside
-    /// squatter is an error. The rcon port is internal and reallocates freely;
-    /// a first start gains its rcon here.
+    /// spawn.
     pub fn ensure_start_config(&self, id: &str) -> Result<ServerRecord> {
         self.store.mutate(id, |record| {
             let claimed = self.claimed_ports(Some(&record.id));
-
-            let game_port = record.game_port;
-            if unavailable(&claimed, game_port) {
-                bail!(proto::error::ErrorInfo::PortUnavailable { port: game_port });
-            }
-
-            let rcon = match record.rcon.take() {
-                Some(cfg) if !unavailable(&claimed, cfg.port) => cfg,
-                prior => RconConfig {
-                    port: allocate_port(RCON_PORT_BASE, &claimed)?,
-                    password: prior.map(|c| c.password).unwrap_or_else(generate_password),
-                },
-            };
-
-            properties::merge_properties(
-                &self.data_dir(record).join(properties::PROPERTIES),
-                &[
-                    ("server-port", game_port.to_string()),
-                    ("enable-rcon", "true".to_string()),
-                    ("rcon.port", rcon.port.to_string()),
-                    ("rcon.password", rcon.password.clone()),
-                ],
-            )?;
-            record.rcon = Some(rcon);
+            let file = self.data_dir(record).join(properties::PROPERTIES);
+            edition::configure_start(record, &file, claimed)?;
             Ok(record.clone())
         })
     }
@@ -259,10 +254,19 @@ impl Servers {
         let data = self.data_dir(record);
         std::fs::create_dir_all(&data)
             .with_context(|| format!("cannot create {}", data.display()))?;
-        materialize::validate_filename(record.profile.jar.filename())?;
-        std::fs::write(data.join("eula.txt"), "eula=true\n").context("cannot write eula.txt")?;
+        materialize::validate_filename(record.profile.runtime.filename())?;
+        edition::provision(record.edition, &data)?;
         tracing::info!(id = %record.id, "server provisioned");
         Ok(())
+    }
+
+    /// Seed the live file with the keys the shipped schema has and it lacks.
+    pub(crate) fn seed_from_schema(&self, record: &ServerRecord) {
+        let schema = properties::read_properties(&self.schema_path(record));
+        let live = self.data_dir(record).join(properties::PROPERTIES);
+        if let Err(e) = properties::seed_properties(&live, &schema) {
+            tracing::warn!(id = %record.id, error = format!("{e:#}"), "cannot seed server.properties");
+        }
     }
 
     /// Run the server once to derive this version's `server.properties`
@@ -347,13 +351,11 @@ impl Servers {
         processes: &ProcessSupervisor,
         job: OnProgress<'_>,
     ) -> Result<()> {
-        let plan = launch::server_schema_plan(
-            &record.profile,
-            java,
-            &self.data_dir(record),
-            scratch,
-            &record.jvm,
-        );
+        let ServerRuntime::Java { jar, .. } = &record.profile.runtime else {
+            bail!("only a Java server has a properties schema to derive");
+        };
+        let plan =
+            launch::server_schema_plan(jar, java, &self.data_dir(record), scratch, &record.jvm);
         let outcome = processes
             .run(
                 Task {
@@ -387,8 +389,8 @@ impl Servers {
     /// untouched. Returns the swapped record and the jar it replaces.
     pub fn begin_update(&self, id: &str, profile: ServerProfile) -> Result<(ServerRecord, String)> {
         self.store.mutate(id, |record| {
-            materialize::validate_filename(profile.jar.filename())?;
-            let previous_jar = record.profile.jar.filename().to_string();
+            materialize::validate_filename(profile.runtime.filename())?;
+            let previous_jar = record.profile.runtime.filename().to_string();
             record.profile = profile;
             record.phase = ServerPhase::Updating;
             Ok((record.clone(), previous_jar))
@@ -396,7 +398,7 @@ impl Servers {
     }
 
     pub fn finish_update(&self, record: &ServerRecord, previous_jar: &str) -> Result<ServerRecord> {
-        if previous_jar != record.profile.jar.filename() {
+        if previous_jar != record.profile.runtime.filename() {
             let _ = std::fs::remove_file(self.data_dir(record).join(previous_jar));
         }
         tracing::info!(
@@ -521,19 +523,40 @@ impl Servers {
         self.store.remove(reference)
     }
 
+    /// `java` is the resolved runtime a Java server launches on; a native
+    /// server has none and ignores it.
     pub fn launch_plan(
         &self,
         record: &ServerRecord,
-        java: &Path,
+        java: Option<&Path>,
         jvm: &JavaSettings,
-    ) -> LaunchPlan {
-        launch::server_plan(&record.profile, java, &self.data_dir(record), jvm)
+    ) -> Result<LaunchPlan> {
+        let dir = self.data_dir(record);
+        match &record.profile.runtime {
+            ServerRuntime::Java { jar, launch, .. } => {
+                let java = java.context("a Java server needs a resolved Java runtime")?;
+                Ok(launch::server_plan(jar, launch, java, &dir, jvm))
+            }
+            ServerRuntime::Native {
+                executable, env, ..
+            } => Ok(launch::native_plan(executable, env, &dir)),
+        }
+    }
+
+    fn require_java_key(record: &ServerRecord, key: &str) -> Result<()> {
+        if record.jvm.get(key).is_some() && record.profile.runtime.java_major().is_none() {
+            bail!(proto::error::ErrorInfo::ConfigKeyNotApplicable {
+                key: key.to_string()
+            });
+        }
+        Ok(())
     }
 
     /// Read one setting: a reserved JVM key from the record, or any other key
     /// from `server.properties`. `Ok(None)` means the key is not set.
     pub fn config_get(&self, id: &str, key: &str) -> Result<Option<String>> {
         let record = self.store.require(id)?;
+        Self::require_java_key(&record, key)?;
         if let Some(value) = record.jvm.get(key) {
             return Ok(value);
         }
@@ -554,10 +577,11 @@ impl Servers {
     /// clears a JVM key. Settings take effect on the next start.
     pub fn config_set(&self, id: &str, key: &str, value: &str) -> Result<()> {
         self.store.mutate(id, |record| {
+            Self::require_java_key(record, key)?;
             if record.jvm.set(key, value)? {
                 return Ok(());
             }
-            if properties::MANAGED.contains(&key) {
+            if edition::managed_keys(record.edition).contains(&key) {
                 bail!(
                     "'{key}' is managed by hestia (the game port is fixed at create with -p; \
                      rcon is configured automatically)"
@@ -578,26 +602,19 @@ impl Servers {
                     "no properties schema to validate against; accepting the key"
                 );
             }
-            properties::validate(key, value).map_err(invalid(key))?;
-            if properties::HARDCORE_KEYS.contains(&key) {
-                properties::check_hardcore_invariant(&file, key, value)?;
-            }
+            edition::check_setting(record.edition, &file, key, value)?;
             properties::merge_properties(&file, &[(key, value.to_string())])
         })
-    }
-
-    /// Every rule a server's settings are checked against.
-    pub fn config_rules() -> Vec<KeyRule> {
-        let mut rules = JavaSettings::rules();
-        rules.extend(properties::rules().iter().cloned());
-        rules
     }
 
     /// The reserved JVM settings (always shown) followed by every current
     /// `server.properties` entry.
     pub fn config_list(&self, id: &str) -> Result<Vec<(String, String)>> {
         let record = self.store.require(id)?;
-        let mut entries = record.jvm.entries();
+        let mut entries = match record.profile.runtime.java_major() {
+            Some(_) => record.jvm.entries(),
+            None => Vec::new(),
+        };
         entries.extend(properties::read_properties(
             &self.data_dir(&record).join(properties::PROPERTIES),
         ));
@@ -612,33 +629,52 @@ impl Servers {
         Ok(properties::describe_properties(
             &properties::read_properties(&self.data_dir(&record).join(properties::PROPERTIES)),
             &properties::read_properties(&self.schema_path(&record)),
+            edition::managed_keys(record.edition),
         ))
     }
 }
 
-// Both the game and rcon listeners bind all interfaces, so probe the same way.
-fn can_bind(port: u16) -> bool {
-    std::net::TcpListener::bind(("0.0.0.0", port)).is_ok()
+/// What must be free on a port: TCP, UDP, or both.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Transport {
+    Tcp,
+    Udp,
+    TcpAndUdp,
 }
 
-fn unavailable(claimed: &HashSet<u16>, port: u16) -> bool {
-    claimed.contains(&port) || !can_bind(port)
+// Listeners bind all interfaces, so probe the same way.
+fn can_bind(port: u16, transport: Transport) -> bool {
+    match transport {
+        Transport::Tcp => std::net::TcpListener::bind(("0.0.0.0", port)).is_ok(),
+        Transport::Udp => std::net::UdpSocket::bind(("0.0.0.0", port)).is_ok(),
+        Transport::TcpAndUdp => can_bind(port, Transport::Tcp) && can_bind(port, Transport::Udp),
+    }
 }
 
-fn allocate_port(base: u16, claimed: &HashSet<u16>) -> Result<u16> {
+pub(crate) fn unavailable(claimed: &HashSet<u16>, port: u16, transport: Transport) -> bool {
+    claimed.contains(&port) || !can_bind(port, transport)
+}
+
+pub(crate) fn allocate_port(
+    base: u16,
+    claimed: &HashSet<u16>,
+    transport: Transport,
+) -> Result<u16> {
     (base..base.saturating_add(PORT_SPAN))
-        .find(|port| !unavailable(claimed, *port))
+        .find(|port| !unavailable(claimed, *port, transport))
         .with_context(|| format!("no free port in {base}..{}", base.saturating_add(PORT_SPAN)))
 }
 
-// Vanilla has no rcon bind-address setting — the listener is reachable from
-// the network, so the password is the only barrier. Never log it.
-fn generate_password() -> String {
-    const CHARSET: &[u8] = b"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-    let mut bytes = [0u8; 24];
-    getrandom::fill(&mut bytes).expect("system RNG must be available for the rcon password");
-    bytes
-        .iter()
-        .map(|b| CHARSET[(*b as usize) % CHARSET.len()] as char)
-        .collect()
+#[cfg(test)]
+mod transport_tests {
+    use super::*;
+
+    #[test]
+    fn a_bedrock_game_port_needs_tcp_and_udp_free() {
+        let tcp = std::net::TcpListener::bind(("0.0.0.0", 0)).unwrap();
+        let port = tcp.local_addr().unwrap().port();
+        assert!(unavailable(&HashSet::new(), port, Transport::TcpAndUdp));
+        let claimed = HashSet::from([port.wrapping_add(1)]);
+        assert!(unavailable(&claimed, port.wrapping_add(1), Transport::Udp));
+    }
 }

@@ -29,7 +29,7 @@ export function InstanceSettingsTab({
     <SettingsTabs
       tabs={[
         general,
-        java,
+        ...java,
         {
           id: 'sync',
           label: m['instance.sync.title'](),

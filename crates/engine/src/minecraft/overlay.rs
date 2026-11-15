@@ -3,7 +3,7 @@
 
 use std::collections::HashMap;
 
-use proto::profile::{ServerJar, ServerLaunch};
+use proto::profile::{ServerJar, ServerLaunch, ServerRuntime};
 
 use super::maven::Coordinate;
 use super::profile::{InstanceProfile, Library, ServerProfile};
@@ -51,12 +51,23 @@ pub(crate) fn client(base: InstanceProfile, addition: ClientLayer) -> InstancePr
 }
 
 pub(crate) fn server(base: ServerProfile, addition: ServerLayer) -> ServerProfile {
+    let runtime = match base.runtime {
+        ServerRuntime::Java {
+            jar,
+            launch,
+            java_major,
+            ..
+        } => ServerRuntime::Java {
+            jar: addition.jar.unwrap_or(jar),
+            launch: addition.launch.unwrap_or(launch),
+            jvm_args: addition.jvm_args,
+            java_major: addition.java_major.unwrap_or(java_major),
+        },
+        native @ ServerRuntime::Native { .. } => native,
+    };
     ServerProfile {
         loader_version: addition.loader_version,
-        jar: addition.jar.unwrap_or(base.jar),
-        launch: addition.launch.unwrap_or(base.launch),
-        jvm_args: addition.jvm_args,
-        java_major: addition.java_major.unwrap_or(base.java_major),
+        runtime,
         ..base
     }
 }

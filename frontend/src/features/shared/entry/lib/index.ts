@@ -17,6 +17,12 @@ export {
   worldName,
 } from './content';
 export {
+  choiceValues,
+  editionLabel,
+  hasRule,
+  rulesFor,
+} from './edition';
+export {
   createWizardDefaults,
   createWizardSchema,
   detailsStepSchema,

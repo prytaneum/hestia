@@ -31,7 +31,7 @@ const FAVICON_PREFIX: &str = "data:image/png;base64,";
 const MAX_FAVICON: usize = 64 * 1024;
 pub const DEFAULT_PORT: u16 = 25565;
 
-/// Ping a managed server on loopback.
+/// Ping a managed Java server on loopback.
 pub async fn ping(port: u16) -> Result<ServerPingResult> {
     status("127.0.0.1", port)
         .await

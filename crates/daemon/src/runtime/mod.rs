@@ -12,6 +12,7 @@ mod plugins;
 mod ready;
 pub mod router;
 mod scheduler;
+mod updates;
 
 use std::fmt;
 use std::path::PathBuf;
@@ -19,10 +20,10 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Instant;
 
-use engine::{CallChain, Engine, InstanceRecord, ServerRecord};
+use engine::{CallChain, Engine, InstanceRecord, ProcessIo, ServerRecord};
 use proto::error::ErrorInfo;
 use proto::instance::InstanceInfo;
-use proto::process::{LogSource, ProcessInfo, ProcessSpec};
+use proto::process::{ProcessInfo, ProcessSpec};
 use proto::server::ServerInfo;
 use proto::warning::WarningInfo;
 use tokio::sync::mpsc::UnboundedSender;
@@ -41,6 +42,7 @@ pub use plugins::{Package, Plugins, RouterHost};
 pub use ready::spawn_ready_watcher;
 pub use router::{error_response, require_account, Channels, Router};
 pub use scheduler::{spawn_plugin_update_checker, spawn_task_scheduler};
+pub use updates::spawn_update_watcher;
 
 // The supervisor key vocabulary lives in `proto::naming`: a front-end names the
 // process it follows from the entry's id alone, so both sides must derive the
@@ -59,17 +61,20 @@ pub async fn start_server(
     id: &str,
     chain: &CallChain,
 ) -> Result<(ProcessInfo, Vec<WarningInfo>), ErrorInfo> {
-    let (_, plan, warnings) = engine
+    let (record, plan, warnings) = engine
         .server_launch_plan(id, chain)
         .await
         .map_err(engine_error)?;
+    let ProcessIo { log, stdin, stop } = engine::process_io(record.edition, &plan.cwd);
     let spec = ProcessSpec {
         id: server_process_id(id),
         program: plan.program.to_string_lossy().into_owned(),
         args: plan.args,
-        log: LogSource::File(plan.cwd.join("logs").join("latest.log")),
+        log,
         cwd: Some(plan.cwd),
-        env: Default::default(),
+        env: plan.env.into_iter().collect(),
+        stdin,
+        stop,
         ..ProcessSpec::default()
     };
     match processes.start(spec).await {
@@ -113,19 +118,23 @@ pub fn server_info(
     process: Option<proto::process::ProcessInfo>,
 ) -> ServerInfo {
     let ready = record.ready();
-    let accepts = engine.server_accepts(&record.profile.flavor);
+    let accepts = engine.server_accepts(record.edition, &record.profile.flavor);
+    let ports = engine.servers().ports(&record);
     let icon = engine.servers().icon(&record);
+    let console = engine::has_console(&record);
     ServerInfo {
         id: record.id,
         name: record.name,
         flavor: record.profile.flavor,
         game_version: record.profile.game_version,
         loader_version: record.profile.loader_version,
-        java_major: record.profile.java_major,
+        edition: record.edition,
+        java_major: record.profile.runtime.java_major(),
         created_unix: record.created_unix,
         ready,
         game_port: record.game_port,
-        console: record.rcon.is_some(),
+        ports,
+        console,
         accepts,
         icon,
         process,
@@ -199,6 +208,10 @@ impl Runtime {
         });
         let processes = engine.processes().clone();
         processes.attach(hub.clone(), Some(on_exit));
+        match std::env::current_exe() {
+            Ok(exe) => processes.set_relay_program(exe),
+            Err(e) => tracing::warn!("cannot locate the daemon binary for the stdin relay: {e}"),
+        }
         let claims = Claims::default();
         let jobs = Jobs::new(
             engine.clone(),

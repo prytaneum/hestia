@@ -88,14 +88,40 @@ pub const RESERVED_IDS: &[&str] = &[
     "stop",
     "sync",
     "update",
+    "updates",
 ];
 
 /// Command ids a server-scoped command may not take: the verbs of
 /// `hestia server <name> <verb>`. A CLI test pins it to the grammar.
 pub const RESERVED_SERVER_VERBS: &[&str] = &[
-    "attach", "backup", "cmd", "command", "config", "console", "datapack", "files", "help", "info",
-    "logs", "modpack", "mod", "monitor", "plugin", "remove", "rename", "restart", "rm", "start",
-    "status", "stop", "task", "update",
+    "attach",
+    "backup",
+    "behaviorpack",
+    "bp",
+    "cmd",
+    "command",
+    "config",
+    "console",
+    "datapack",
+    "files",
+    "help",
+    "info",
+    "logs",
+    "modpack",
+    "mod",
+    "monitor",
+    "plugin",
+    "remove",
+    "rename",
+    "resourcepack",
+    "restart",
+    "rm",
+    "start",
+    "status",
+    "stop",
+    "task",
+    "update",
+    "world",
 ];
 
 /// Command ids an instance-scoped command may not take: the verbs of

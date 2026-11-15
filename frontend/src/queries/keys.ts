@@ -8,6 +8,7 @@
 import type { QueryKey } from '@tanstack/react-query';
 import type {
   ContentKind,
+  Edition,
   EntryKind,
   EntryTarget,
   SearchQuery,
@@ -34,9 +35,10 @@ function entryKeys<R extends 'servers' | 'instances'>(
     all,
     list: () => [...all, 'list'] as const,
     flavors: () => [...all, 'flavors'] as const,
-    versions: (flavor: string) => [...all, 'versions', flavor] as const,
-    loaders: (flavor: string, version: string) =>
-      [...all, 'loaders', flavor, version] as const,
+    versions: (edition: Edition, flavor: string) =>
+      [...all, 'versions', edition, flavor] as const,
+    loaders: (edition: Edition, flavor: string, version: string) =>
+      [...all, 'loaders', edition, flavor, version] as const,
     detail,
     info: (id: string) => [FOOTPRINT, kind, id] as const,
     config: (id: string) => [...detail(id), 'config'] as const,
@@ -99,6 +101,7 @@ export const keys = {
     properties: (id: string) =>
       [...keys.servers.config(id), 'properties'] as const,
     backups: (id: string) => [...keys.servers.detail(id), 'backups'] as const,
+    worlds: (id: string) => [...keys.servers.detail(id), 'worlds'] as const,
     complete: (id: string, line: string) =>
       [...keys.servers.detail(id), 'complete', line] as const,
     tasks: (id: string) => [...keys.servers.detail(id), 'tasks'] as const,
@@ -147,6 +150,7 @@ export const keys = {
     url: (url: string) => [...keys.content.all, 'url', url] as const,
     versions: (query: Partial<VersionQuery>) =>
       [...keys.content.all, 'versions', query] as const,
+    available: () => [...keys.content.all, 'available-updates'] as const,
   },
   skins: {
     all: ['skins'] as const,

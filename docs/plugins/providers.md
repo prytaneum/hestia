@@ -25,7 +25,7 @@ id = "index"
 
 | Kind | Permissions | Registers into | Operations | Compiled example |
 |---|---|---|---|---|
-| `content` | `content:read`, `network:connect` | the content source registry | `info`, `parse-url`, `recognise-file-url`, `search`, `project`, `projects`, `versions`, `versions-by-id`, `identify`, `resolve-manifest` | [`static-index`](#content-sources) |
+| `content` | `content:read`, `network:connect` | the content source registry | `info`, `parse-url`, `recognise-file-url`, `search`, `project`, `projects`, `versions`, `versions-by-id`, `latest`, `identify`, `resolve-manifest` | [`static-index`](#content-sources) |
 | `flavor` | `flavor:provide`, `network:connect` | the flavor registry | `info`, `versions`, `loader-versions`, `resolve-server`, `resolve-client`, `build` | [`replay-flavor`](#flavors) |
 | `java` | `java:provide`, `network:connect` | the Java provider roster | `majors`, `resolve` | [`replay-java`](#java-distributions) |
 | `pack` | `pack:provide` | the pack formats import detection ranks and export offers | `info`, `claims`, `read`, `write` | [`replay-pack`](#pack-formats) |
@@ -46,7 +46,8 @@ decodes the arguments and encodes the reply. The handler also gets the provider'
 several. An operation no handler takes answers `unsupported`.
 
 - **Optional** operations fall back when `unsupported`: `parse-url` and `recognise-file-url` read as no match,
-  `projects` asks `project` for each, `versions-by-id`, `identify` and `loader-versions` find nothing,
+  `projects` asks `project` for each, `latest` asks `versions` for each item, `versions-by-id`, `identify` and
+  `loader-versions` find nothing,
   `resolve-manifest` fails the import naming the source, `claims` claims the archive, and a pack's `write` fails the
   export naming the plugin.
 - **Required** operations fail the call as `PluginCallFailed`, naming the plugin.
@@ -63,7 +64,7 @@ A source describes what exists; the host downloads the files. The permissions ar
 
 | Operation | Args | Reply | Notes |
 |---|---|---|---|
-| `info` | none | `SourceInfo` | asked once, when the plugin is enabled |
+| `info` | none | `SourceInfo` | asked once, when the plugin is enabled; `editions` names the game editions the catalogue is for, Java alone when empty |
 | `parse-url` | `{ url }` | `SourceUrl` or null | optional: a page URL on the source's site |
 | `recognise-file-url` | `{ url }` | `SourceFileRef` or null | optional: the project and version behind a download URL |
 | `search` | `SearchQuery` | `SearchResult` | `loaders` names every loader a hit may be built for: match any of them, none when empty |
@@ -71,6 +72,7 @@ A source describes what exists; the host downloads the files. The permissions ar
 | `projects` | `{ ids }` | `ContentProject[]` | optional |
 | `versions` | `VersionQuery` | `ContentVersion[]` | `loaders` as for `search`; a file whose URL is not on a granted host is dropped |
 | `versions-by-id` | `{ ids }` | `ContentVersion[]` | optional |
+| `latest` | `{ gameVersion, loaders, files: [{ projectId, sha1 }] }` | map of project id to version id | optional: the newest compatible version of each file's project (a release first, else any channel), in as few requests as the source allows; a project left out has none |
 | `identify` | `{ files: [{ sha1, path }] }` | map of sha1 to `ContentVersion` | optional; the files are mounted read-only at `path` for the call |
 | `resolve-manifest` | `{ manifest }` | `ResolvedModpack` | optional: a pack manifest the source owns; each file is vetted like any download |
 

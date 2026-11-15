@@ -52,6 +52,7 @@ pub const TOPICS: &[TopicAccess] = &[
     access::<crate::accounts::AccountSignedInEvent>(),
     access::<crate::accounts::AccountSignedOutEvent>(),
     access::<crate::change::ChangedEvent>(),
+    access::<crate::content::ContentUpdatesFoundEvent>(),
     access::<crate::job::JobEvent<(), ()>>(),
     access::<crate::net::NetworkStatus>(),
     access::<crate::plugin::Outdated>(),

@@ -38,6 +38,7 @@ import type { ContentMatch } from "./generated/ContentMatch";
 import type { ContentProject } from "./generated/ContentProject";
 import type { ContentSource } from "./generated/ContentSource";
 import type { ContentUpdate } from "./generated/ContentUpdate";
+import type { ContentUpdatesFoundEvent } from "./generated/ContentUpdatesFoundEvent";
 import type { ContentVersion } from "./generated/ContentVersion";
 import type { DaemonReadyResult } from "./generated/DaemonReadyResult";
 import type { DaemonStatusResult } from "./generated/DaemonStatusResult";
@@ -53,6 +54,7 @@ import type { EntryConfigValue } from "./generated/EntryConfigValue";
 import type { EntryContentAddParams } from "./generated/EntryContentAddParams";
 import type { EntryContentCheckUpdatesParams } from "./generated/EntryContentCheckUpdatesParams";
 import type { EntryContentEnableParams } from "./generated/EntryContentEnableParams";
+import type { EntryContentHoldParams } from "./generated/EntryContentHoldParams";
 import type { EntryContentListParams } from "./generated/EntryContentListParams";
 import type { EntryContentMatchesParams } from "./generated/EntryContentMatchesParams";
 import type { EntryContentRemoveParams } from "./generated/EntryContentRemoveParams";
@@ -72,6 +74,7 @@ import type { EntryRenameParams } from "./generated/EntryRenameParams";
 import type { EntryRenamed } from "./generated/EntryRenamed";
 import type { EntryStopParams } from "./generated/EntryStopParams";
 import type { EntryTarget } from "./generated/EntryTarget";
+import type { EntryUpdates } from "./generated/EntryUpdates";
 import type { EntryVersionsParams } from "./generated/EntryVersionsParams";
 import type { EventsSubscribeParams } from "./generated/EventsSubscribeParams";
 import type { EventsSubscribeResult } from "./generated/EventsSubscribeResult";
@@ -208,6 +211,7 @@ import type { ServerTask } from "./generated/ServerTask";
 import type { ServerTaskRemoveParams } from "./generated/ServerTaskRemoveParams";
 import type { ServerTaskSaveParams } from "./generated/ServerTaskSaveParams";
 import type { ServerUpdateParams } from "./generated/ServerUpdateParams";
+import type { ServerWorldImportParams } from "./generated/ServerWorldImportParams";
 import type { SettingValue } from "./generated/SettingValue";
 import type { Skin } from "./generated/Skin";
 import type { SkinAddParams } from "./generated/SkinAddParams";
@@ -254,8 +258,10 @@ export interface Channels {
   "config.list": { params: Empty; result: ConfigListResult };
   "config.set": { params: ConfigSetParams; result: Empty };
   "content.add": { params: Omit<Partial<EntryContentAddParams>, "target" | "items"> & { "target"?: Partial<EntryTarget>; "items"?: Array<Partial<ContentAddItem>> }; result: JobStarted };
+  "content.available_updates": { params: Empty; result: Array<EntryUpdates> };
   "content.check_updates": { params: Omit<Partial<EntryContentCheckUpdatesParams>, "target"> & { "target"?: Partial<EntryTarget> }; result: Array<ContentUpdate> };
   "content.enable": { params: Omit<Partial<EntryContentEnableParams>, "target"> & { "target"?: Partial<EntryTarget> }; result: Empty };
+  "content.hold": { params: Omit<Partial<EntryContentHoldParams>, "target"> & { "target"?: Partial<EntryTarget> }; result: Empty };
   "content.inspect": { params: Partial<ContentInspectParams>; result: ContentInspectResult };
   "content.list": { params: Omit<Partial<EntryContentListParams>, "target"> & { "target"?: Partial<EntryTarget> }; result: ContentListResult };
   "content.matches": { params: Omit<Partial<EntryContentMatchesParams>, "target"> & { "target"?: Partial<EntryTarget> }; result: Array<ContentMatch> };
@@ -378,6 +384,8 @@ export interface Channels {
   "server.task.remove": { params: Partial<ServerTaskRemoveParams>; result: Empty };
   "server.task.save": { params: Omit<Partial<ServerTaskSaveParams>, "task"> & { "task"?: Partial<ServerTask> }; result: ServerTask };
   "server.update": { params: Partial<ServerUpdateParams>; result: JobStarted };
+  "server.worlds": { params: Partial<ServerRef>; result: Array<WorldInfo> };
+  "server.worlds.import": { params: Partial<ServerWorldImportParams>; result: JobStarted };
   "skin.add": { params: Partial<SkinAddParams>; result: Skin };
   "skin.equip": { params: Partial<SkinEquipParams>; result: Empty };
   "skin.list": { params: Partial<SkinListParams>; result: SkinListResult };
@@ -419,6 +427,7 @@ export interface Jobs {
   "server.create": { progress: ProvisionProgress; done: ServerDone };
   "server.modpack.install": { progress: ProvisionProgress; done: ModpackDone };
   "server.update": { progress: ProvisionProgress; done: ServerDone };
+  "server.worlds.import": { progress: ProvisionProgress; done: WorldInfo };
   "update.download": { progress: DownloadProgress; done: UpdateDone };
 }
 
@@ -430,6 +439,7 @@ export interface Topics {
   "account.signed_in": AccountSignedInEvent;
   "account.signed_out": AccountSignedOutEvent;
   "changed": ChangedEvent;
+  "content.updates_found": ContentUpdatesFoundEvent;
   "ipc.closed": IpcClosedEvent;
   "ipc.readable": IpcReadableEvent;
   "job": JobEvents;

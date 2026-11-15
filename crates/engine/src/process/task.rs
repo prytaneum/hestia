@@ -104,6 +104,7 @@ impl ProcessSupervisor {
                 clear_env: task.clear_env,
                 owner: task.owner.clone(),
                 log: LogSource::Capture,
+                ..Default::default()
             })
             .await
             .map_err(|e| anyhow::anyhow!("cannot run {}: {e:?}", task.program.display()))?;

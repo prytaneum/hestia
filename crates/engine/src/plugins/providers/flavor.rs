@@ -15,10 +15,10 @@ use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use async_trait::async_trait;
-use proto::minecraft::{Artifact, GameVersion, ProvisionPhase};
+use proto::minecraft::{Artifact, Edition, GameVersion, ProvisionPhase};
 use proto::plugin::{Manifest, BUILD_MOUNT, VANILLA_MOUNT};
 use proto::profile::{FlavorDescription, ServerProfile};
-use proto::profile::{InstanceProfile, Library, ServerJar, ServerLaunch};
+use proto::profile::{InstanceProfile, Library, ServerJar, ServerLaunch, ServerRuntime};
 use proto::provider::flavor;
 use proto::provider::flavor::{
     self as op, BuildOutput, BuildQuery, ClientResolution, Flavor, GameQuery, ResolveQuery,
@@ -127,6 +127,8 @@ enum Refusal {
     Java(i32),
     #[error("the profile names no main class")]
     MainClass,
+    #[error("a plugin's flavor cannot run a native server")]
+    Native,
     #[error("the flavor builds on vanilla, which this launcher does not offer")]
     NoVanilla,
     #[error("{0}")]
@@ -154,14 +156,23 @@ fn java(major: i32) -> Result<(), Refusal> {
 }
 
 fn vet_server(policy: &Policy, profile: &ServerProfile) -> Result<(), Refusal> {
-    match &profile.jar {
+    let ServerRuntime::Java {
+        jar,
+        launch: start,
+        java_major,
+        ..
+    } = &profile.runtime
+    else {
+        return Err(Refusal::Native);
+    };
+    match jar {
         ServerJar::Download(jar) => artifact(policy, jar)?,
         ServerJar::Built { filename } => {
             validate_filename(filename).map_err(|e| Refusal::Path(e.to_string()))?
         }
     }
-    launch(&profile.launch)?;
-    java(profile.java_major)
+    launch(start)?;
+    java(*java_major)
 }
 
 fn launch(launch: &ServerLaunch) -> Result<(), Refusal> {
@@ -241,6 +252,7 @@ impl PluginFlavorProvider {
             id: Cow::Owned(guest.id().to_string()),
             name: Cow::Owned(described.name),
             summary: Cow::Owned(described.summary),
+            edition: Edition::Java,
             loads: described.loads,
             requires: Cow::Owned(requires),
             sides,
@@ -300,13 +312,14 @@ impl PluginFlavorProvider {
         request: &InstallRequest<'_>,
         on: OnProgress<'_>,
     ) -> Result<Vec<BuildOutput>> {
+        let java = request.java_install()?;
         let area = self.area(request.meta);
         let mut mounts = vec![Mount {
             host: area.clone(),
             guest: BUILD_MOUNT,
             writable: true,
         }];
-        let vanilla_jar = match request.minecraft_jar.filter(|jar| jar.is_file()) {
+        let vanilla_jar = match java.minecraft_jar.filter(|jar| jar.is_file()) {
             Some(jar) => {
                 let staged = self.stage_vanilla(request.meta, jar)?;
                 let name = staged
@@ -334,7 +347,7 @@ impl PluginFlavorProvider {
             version: request.game_version.to_string(),
             loader_version: request.loader_version.map(str::to_string),
             vanilla_jar,
-            target: host_target(Some(request.java_major)),
+            target: host_target(Some(java.java_major)),
         };
         tracing::info!(
             flavor = %self.guest.id(),
@@ -343,7 +356,7 @@ impl PluginFlavorProvider {
             "building"
         );
         let phase = phase_of(side);
-        let game_java = u32::try_from(request.java_major).ok();
+        let game_java = u32::try_from(java.java_major).ok();
         let (progress, reports) = watch::channel(None);
         let context = CallContext {
             run: Some(CommandRun {

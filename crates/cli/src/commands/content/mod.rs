@@ -19,6 +19,7 @@ use crate::commands::names::Names;
 use crate::ui::{self, Cell, View};
 
 pub use browse::{run_browse, BrowseCmd};
+pub(crate) use manage::update;
 pub use manage::{run_entry, ContentCmd};
 
 const PAGE: u32 = 20;

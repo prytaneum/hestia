@@ -14,7 +14,7 @@ import type {
 import * as api from '../api/content';
 import { mutation } from './core';
 import { type JobOutcome, jobMutation, subjectName } from './jobs';
-import { entryScope, entryTarget } from './keys';
+import { entryScope, entryTarget, keys } from './keys';
 
 /** Silent unless an item failed or something went ahead degraded: the rows already show what landed. */
 function failuresOutcome(
@@ -31,6 +31,8 @@ function failuresOutcome(
     },
   };
 }
+
+const UPDATES_STALE_MS = 10 * 60_000;
 
 export const entryContentQueries = {
   list: (kind: EntryKind, id: string, contentKind: ContentKind) =>
@@ -49,13 +51,16 @@ export const entryContentQueries = {
       queryFn: () => api.matches(entryTarget(kind, id), contentKind, item),
       enabled: item.length > 0,
     }),
+  /**
+   * Checked as the tab opens, like a mod menu: the daemon answers from its
+   * own recent checks and asks upstream only past its TTL, in bulk.
+   */
   updates: (kind: EntryKind, id: string, contentKind: ContentKind) =>
     queryOptions({
       queryKey: entryScope(kind).contentUpdates(id, contentKind),
       queryFn: () => api.checkUpdates(entryTarget(kind, id), contentKind),
-      // A network resolve per item — refetch only when explicitly asked.
-      staleTime: Number.POSITIVE_INFINITY,
-      enabled: false,
+      staleTime: UPDATES_STALE_MS,
+      retry: false,
     }),
 };
 
@@ -115,6 +120,25 @@ export const entryContentMutations = {
           ),
       },
     }),
+  /** Ask upstream now, past the daemon's TTL, then reread the answer. */
+  refreshUpdates: (kind: EntryKind, id: string) =>
+    mutation<void, ContentKind>({
+      mutationKey: [...entryScope(kind).content(id), 'refresh-updates'],
+      mutationFn: async (contentKind) => {
+        await api.checkUpdates(entryTarget(kind, id), contentKind, true);
+      },
+      invalidates: (contentKind) => [
+        entryScope(kind).contentUpdates(id, contentKind),
+        keys.content.available(),
+      ],
+    }),
+  hold: (kind: EntryKind, id: string) =>
+    mutation<void, { kind: ContentKind; item: string; held: boolean }>({
+      mutationKey: [...entryScope(kind).content(id), 'hold'],
+      mutationFn: ({ kind: contentKind, item, held }) =>
+        api.hold(entryTarget(kind, id), contentKind, item, held),
+      invalidates: () => [...invalidates(kind, id), keys.content.available()],
+    }),
   enable: (kind: EntryKind, id: string) =>
     mutation<
       void,
@@ -159,5 +183,5 @@ export const entryContentMutations = {
 
 function invalidates(kind: EntryKind, id: string) {
   const scope = entryScope(kind);
-  return [scope.content(id), scope.info(id)];
+  return [scope.content(id), scope.info(id), keys.content.available()];
 }

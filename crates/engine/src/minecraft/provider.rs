@@ -7,10 +7,10 @@ use std::borrow::Cow;
 use std::path::Path;
 use std::sync::Arc;
 
-use anyhow::{bail, Result};
+use anyhow::{bail, Context, Result};
 use async_trait::async_trait;
 use proto::content::ContentKind;
-use proto::minecraft::{GameVersion, Requirement};
+use proto::minecraft::{Edition, GameVersion, Requirement};
 
 use crate::cache::Cache;
 use crate::minecraft::materialize::OnProgress;
@@ -40,24 +40,41 @@ pub struct InstallRequest<'a> {
     pub root: &'a Path,
     /// The shared `meta/` root, for work no single entry owns.
     pub meta: &'a Path,
-    /// The vanilla jar for this side, already materialized; none for a server
-    /// whose own jar is built.
-    pub minecraft_jar: Option<&'a Path>,
     /// What the profile names as built, which the flavor's build must produce:
     /// the server jar's filename, or the path of each built client library.
     pub built: &'a [String],
+    /// What a Java-based install builds with; `None` for a native server.
+    pub java: Option<JavaInstall<'a>>,
+    pub cache: Option<&'a Cache>,
+    pub processes: &'a ProcessSupervisor,
+    /// Where a native server install stores the `server.properties` it ships,
+    /// the schema its settings are checked against; unused otherwise.
+    pub schema: Option<&'a Path>,
+}
+
+pub struct JavaInstall<'a> {
+    /// The vanilla jar for this side, already materialized; none for a server
+    /// whose own jar is built.
+    pub minecraft_jar: Option<&'a Path>,
     /// The Java major `java` is, the profile's: what a plugin flavor's `build`
     /// is told and what its `profile` programs run on.
     pub java_major: i32,
     pub java: &'a Path,
-    pub cache: Option<&'a Cache>,
-    pub processes: &'a ProcessSupervisor,
+}
+
+impl<'a> InstallRequest<'a> {
+    /// For a flavor whose install runs Java tooling.
+    pub fn java_install(&self) -> Result<&JavaInstall<'a>> {
+        self.java
+            .as_ref()
+            .context("this install needs a Java runtime")
+    }
 }
 
 /// The third-party content a flavor's own loader consumes: mods for a
 /// modloader, plugins for a server platform, nothing for vanilla. Datapacks
 /// (and, client-side, resourcepacks and shaders) belong to the game rather than
-/// the flavor, so they are not named here — [`accepted_kinds`] adds them.
+/// the flavor, so they are not named here — `edition::accepted_kinds` adds them.
 pub type Loads = Option<ContentKind>;
 
 /// Which half of the game an entry is, for the rules that differ between them.
@@ -74,24 +91,6 @@ impl Side {
             Side::Client => "instance",
         }
     }
-}
-
-/// Everything an entry of this flavor and side accepts, composed from two
-/// independent facts: whatever the flavor's own loader takes, plus what the
-/// side reads for itself — a client its resourcepacks and shaders, either side
-/// the datapacks that are world data rather than loader content.
-///
-/// It lives beside `Loads` because it is the same vocabulary: adding a flavor
-/// is one impl plus one registry line, with no table to update here or in any
-/// front-end.
-pub fn accepted_kinds(side: Side, loads: Loads) -> Vec<ContentKind> {
-    let mut kinds: Vec<ContentKind> = loads.into_iter().collect();
-    if side == Side::Client {
-        kinds.push(ContentKind::ResourcePack);
-        kinds.push(ContentKind::Shader);
-    }
-    kinds.push(ContentKind::DataPack);
-    kinds
 }
 
 /// A tool a flavor needs on the machine that Hestia cannot install itself: a
@@ -144,6 +143,7 @@ pub struct FlavorInfo {
     /// running it a user should know before choosing it. Rendered by every
     /// front-end, so a new flavor needs no front-end change to explain itself.
     pub summary: Cow<'static, str>,
+    pub edition: Edition,
     pub loads: Loads,
     /// Tools this flavor needs on the machine; none for all but a flavor that
     /// builds its own artifacts.

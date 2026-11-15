@@ -36,6 +36,7 @@ pub const PLUGIN_ACCESS: &[(&str, PluginAccess)] = &[
     (DEVELOPER_KEY, Closed),
     ("defaults.memory", Read),
     ("defaults.jvm-args", Closed),
+    ("content.auto-update", Closed),
     ("instance.multi-session", Read),
     ("modpack.default-excludes", Read),
     ("modpack.exclude-files", Read),

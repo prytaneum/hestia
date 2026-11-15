@@ -25,6 +25,8 @@ pub struct Settings {
     /// JVM defaults applied to any server or instance whose record leaves the
     /// matching per-entry setting unset.
     pub defaults: JvmDefaults,
+    /// Whether found content updates apply on their own.
+    pub content: ContentSettings,
     /// What an instance is allowed to do beyond the safe default.
     pub instance: InstanceSettings,
     /// Corrections applied over a modpack's own declarations.
@@ -147,6 +149,16 @@ pub struct InstanceSettings {
 pub struct JvmDefaults {
     pub memory: String,
     pub jvm_args: String,
+}
+
+/// The content update policy.
+#[derive(Serialize, Deserialize, Default, Debug, Clone)]
+#[serde(default, rename_all = "camelCase")]
+pub struct ContentSettings {
+    /// `content.auto-update`: apply updates found for an instance as it
+    /// launches, and for a stopped server as soon as a check finds them. Off by
+    /// default — a mod update can break a world, so the user opts in.
+    pub auto_update: bool,
 }
 
 impl Document for Settings {

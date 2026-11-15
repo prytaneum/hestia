@@ -3,7 +3,14 @@
  * each one takes, the game versions they publish, and their loader builds.
  * Read-only — nothing in the fixture daemon rewrites a catalogue.
  */
-import type { ContentKind, Flavor, GameVersion, KeyRule } from '@/api/types';
+import type {
+  ContentKind,
+  Edition,
+  EditionCatalogue,
+  Flavor,
+  GameVersion,
+  KeyRule,
+} from '@/api/types';
 
 const CLIENT_KINDS: ContentKind[] = [
   'mod',
@@ -13,6 +20,7 @@ const CLIENT_KINDS: ContentKind[] = [
 ];
 const SERVER_KINDS: ContentKind[] = ['mod', 'data_pack'];
 const PLUGIN_KINDS: ContentKind[] = ['plugin', 'data_pack'];
+const BEDROCK_KINDS: ContentKind[] = ['behavior_pack', 'resource_pack'];
 
 const vanilla: Flavor = {
   id: 'vanilla',
@@ -38,9 +46,59 @@ const neoforge = (accepts: ContentKind[]): Flavor => ({
   requires: [],
 });
 
-export const serverRules: KeyRule[] = [
+const JAVA_SETTINGS: KeyRule[] = [
+  { key: 'memory', kind: { type: 'memory' } },
+  { key: 'jvm-args', kind: { type: 'jvm_args' } },
+];
+
+const SHARED_RULES: KeyRule[] = [
   { key: 'max-players', kind: { type: 'integer', min: 1, max: 2147483647 } },
   { key: 'server-port', kind: { type: 'integer', min: 1, max: 65535 } },
+  { key: 'online-mode', kind: { type: 'boolean' } },
+];
+
+type Rules = Pick<EditionCatalogue, 'edition' | 'rules'>;
+
+const serverRules: Rules[] = [
+  {
+    edition: 'java',
+    rules: [
+      ...JAVA_SETTINGS,
+      ...SHARED_RULES,
+      { key: 'hardcore', kind: { type: 'boolean' } },
+      {
+        key: 'gamemode',
+        kind: {
+          type: 'choice',
+          values: ['survival', 'creative', 'adventure', 'spectator'],
+        },
+      },
+      {
+        key: 'difficulty',
+        kind: {
+          type: 'choice',
+          values: ['peaceful', 'easy', 'normal', 'hard'],
+        },
+      },
+    ],
+  },
+  {
+    edition: 'bedrock',
+    rules: [
+      ...SHARED_RULES,
+      {
+        key: 'gamemode',
+        kind: { type: 'choice', values: ['survival', 'creative', 'adventure'] },
+      },
+      {
+        key: 'difficulty',
+        kind: {
+          type: 'choice',
+          values: ['peaceful', 'easy', 'normal', 'hard'],
+        },
+      },
+    ],
+  },
 ];
 
 export const instanceFlavors: Flavor[] = [
@@ -77,6 +135,36 @@ export const serverFlavors: Flavor[] = [
   },
 ];
 
+const bedrockVanilla: Flavor = {
+  id: 'vanilla',
+  name: 'Vanilla',
+  summary: "Mojang's Bedrock Dedicated Server, for console and mobile players.",
+  accepts: BEDROCK_KINDS,
+  requires: [],
+};
+
+const rulesOf = (rules: Rules[], edition: Edition): KeyRule[] =>
+  rules.find((r) => r.edition === edition)?.rules ?? [];
+
+export const serverCatalogue: EditionCatalogue[] = [
+  {
+    edition: 'java',
+    rules: rulesOf(serverRules, 'java'),
+    nameKey: 'motd',
+    flavors: serverFlavors,
+  },
+  {
+    edition: 'bedrock',
+    rules: rulesOf(serverRules, 'bedrock'),
+    nameKey: 'server-name',
+    flavors: [bedrockVanilla],
+  },
+];
+
+export const instanceCatalogue: EditionCatalogue[] = [
+  { edition: 'java', rules: JAVA_SETTINGS, flavors: instanceFlavors },
+];
+
 export const versions: GameVersion[] = [
   { id: '1.21.4', kind: 'release', stable: true },
   { id: '1.21.3', kind: 'release', stable: true },
@@ -105,8 +193,16 @@ export function versionsFor(_flavor: string): GameVersion[] {
 }
 
 /** What a flavor accepts, for an entry record's `accepts`. */
-export function accepts(flavor: string, server: boolean): ContentKind[] {
-  const table = server ? serverFlavors : instanceFlavors;
+export function accepts(
+  flavor: string,
+  server: boolean,
+  edition: Edition = 'java',
+): ContentKind[] {
+  const table = !server
+    ? instanceFlavors
+    : edition === 'bedrock'
+      ? [bedrockVanilla]
+      : serverFlavors;
   return table.find((f) => f.id === flavor)?.accepts ?? ['data_pack'];
 }
 

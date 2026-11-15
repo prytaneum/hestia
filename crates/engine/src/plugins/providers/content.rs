@@ -16,11 +16,11 @@ use proto::content::{
     SearchQuery, SearchResult, SourceFileRef, SourceInfo, VersionQuery,
 };
 use proto::error::ArchiveFault;
-use proto::minecraft::Artifact;
+use proto::minecraft::{Artifact, Edition};
 use proto::plugin::Manifest;
 use proto::provider::content::{
-    self as op, IdQuery, IdentifyFile, IdentifyQuery, PackManifestQuery, ProjectQuery, Source,
-    UrlQuery,
+    self as op, IdQuery, IdentifyFile, IdentifyQuery, LatestQuery, PackManifestQuery, ProjectQuery,
+    Source, UrlQuery,
 };
 use proto::Empty;
 use serde_json::Value;
@@ -137,6 +137,13 @@ impl ContentProvider for PluginContentProvider {
         self.info.kinds.clone()
     }
 
+    fn editions(&self) -> Vec<Edition> {
+        match self.info.editions.is_empty() {
+            true => vec![Edition::Java],
+            false => self.info.editions.clone(),
+        }
+    }
+
     fn available(&self) -> bool {
         !self.guest.plugin().is_disabled() && self.missing_setting().is_none()
     }
@@ -229,6 +236,10 @@ impl ContentProvider for PluginContentProvider {
     async fn versions(&self, query: &VersionQuery) -> Result<Vec<ContentVersion>> {
         let found = self.guest.ask::<op::Versions>(query).await?;
         Ok(self.versions_of(found))
+    }
+
+    async fn latest(&self, query: &LatestQuery) -> Result<Option<HashMap<String, String>>> {
+        self.guest.try_ask::<op::Latest>(query).await
     }
 
     async fn versions_by_id(&self, ids: &[String]) -> Result<Vec<ContentVersion>> {

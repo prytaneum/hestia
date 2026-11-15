@@ -90,6 +90,7 @@ the alternative you rejected — that is usually the part nobody can recover lat
 - **0095** — [Interceptors are bounded and fail open, so a hook is customisation and never a control](0095-interceptors-are-bounded-and-fail-open.md)
 - **0101** — [Plugins spawn only the programs they declare](0101-plugins-spawn-only-declared-programs.md)
 - **0119** — [Downloads are host-side: a host download call and declarative Maven libraries](0119-downloads-are-host-side.md)
+- **0136** — [A Bedrock console is a reattachable stdin endpoint](0136-a-bedrock-console-is-a-reattachable-stdin-endpoint.md)
 
 ### [The daemon](../architecture/daemon.md)
 
@@ -113,6 +114,9 @@ the alternative you rejected — that is usually the part nobody can recover lat
 - **0009** — [A flavor may recommend JVM flags; the user still outranks it](0009-flavor-recommends-jvm-flags.md)
 - **0113** — [A flavor builds on the vanilla profile, and the host merges it](0113-a-flavor-builds-on-the-vanilla-profile.md)
 - **0119** — [Downloads are host-side: a host download call and declarative Maven libraries](0119-downloads-are-host-side.md)
+- **0134** — [The edition is the first axis, and one module owns what each edition does](0134-the-edition-is-the-first-axis.md)
+- **0135** — [A server runtime is Java or native, and a native one never meets Java](0135-a-server-runtime-is-java-or-native.md)
+- **0137** — [The BDS catalogue merges Mojang's links with the Bedrock-OSS feed](0137-the-bds-catalogue-merges-mojang-and-the-community-feed.md)
 
 ### [Servers & instances](../architecture/entries.md)
 
@@ -140,6 +144,8 @@ the alternative you rejected — that is usually the part nobody can recover lat
 - **0107** — [An entry's icon lives in the entry's directory, kept by the daemon](0107-an-entry-icon-lives-in-the-entry.md)
 - **0110** — [A flavor builds in an area of its own, and the host places what it builds](0110-a-flavor-builds-in-its-own-area.md)
 - **0127** — [A flavor description declares its loader, its interchange keys and, optionally, only version ids](0127-a-flavor-description-declares-its-loader.md)
+- **0138** — [Bedrock pins NetherNet, and status comes from the console](0138-bedrock-pins-nethernet.md)
+- **0139** — [Bedrock hot backups follow `save hold`, and copy what the server reports](0139-bedrock-hot-backups-follow-save-hold.md)
 
 ### [Content & modpacks](../architecture/content.md)
 
@@ -156,6 +162,8 @@ the alternative you rejected — that is usually the part nobody can recover lat
 - **0078** — [A pack updates from a file, and leaves an entry two ways](0078-a-pack-updates-from-a-file.md)
 - **0079** — [A local item updates from a file](0079-a-local-item-updates-from-a-file.md)
 - **0077** — [The console keeps its RCON connection, and completes from the server's own `help`](0077-the-console-keeps-its-connection.md)
+- **0140** — [A Bedrock pack is a file of record, extracted at sync](0140-a-bedrock-pack-is-a-file-extracted-at-sync.md)
+- **0141** — [Content updates are checked when they matter, not on a timer](0141-content-updates-are-checked-when-they-matter.md)
 
 ### [Accounts & skins](../architecture/accounts.md)
 

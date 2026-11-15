@@ -21,6 +21,9 @@ pub struct ProcessRecord {
     pub pid_started: u64,
     pub spec: ProcessSpec,
     pub started_unix: i64,
+    /// FIFO path or pipe name a later daemon reopens to reach the process's stdin.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub stdin_endpoint: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ended: Option<Ended>,
 }
@@ -41,7 +44,12 @@ impl ProcessRecord {
     /// in memory long enough to spawn. An owned process (a plugin's) keeps no
     /// arguments at all: they are its owner's secrets, and `process.list`
     /// shows this record to every client.
-    pub fn for_spawn(spec: &ProcessSpec, pid: u32, started_unix: i64) -> Self {
+    pub fn for_spawn(
+        spec: &ProcessSpec,
+        pid: u32,
+        started_unix: i64,
+        stdin_endpoint: Option<String>,
+    ) -> Self {
         let args = if spec.owner.is_some() {
             Vec::new()
         } else {
@@ -56,6 +64,7 @@ impl ProcessRecord {
                 ..spec.clone()
             },
             started_unix,
+            stdin_endpoint,
             ended: None,
         }
     }
@@ -161,7 +170,7 @@ mod tests {
         };
         save(
             &proc_dir,
-            &ProcessRecord::for_spawn(&spec, std::process::id(), 42),
+            &ProcessRecord::for_spawn(&spec, std::process::id(), 42, None),
         );
 
         let on_disk = fs::read_to_string(proc_dir.join(FILE)).unwrap();
@@ -181,7 +190,7 @@ mod tests {
         let proc_dir = dir.path().join("server-x");
         fs::create_dir_all(&proc_dir).unwrap();
 
-        let live = ProcessRecord::for_spawn(&spec("server-x"), 1234, 100);
+        let live = ProcessRecord::for_spawn(&spec("server-x"), 1234, 100, None);
         save(&proc_dir, &live);
         assert!(scan_finished(dir.path()).is_empty());
 

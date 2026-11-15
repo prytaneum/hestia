@@ -11,10 +11,10 @@ use std::time::Duration;
 use serde::{Deserialize, Serialize};
 
 use crate::change::Scope;
-use crate::contract::{Contract, Empty};
+use crate::contract::{Contract, Empty, Topic};
 use crate::error::{EntryTarget, ErrorInfo};
 use crate::job::{Job, JobStarted};
-use crate::minecraft::{Artifact, ProvisionProgress};
+use crate::minecraft::{Artifact, Edition, ProvisionProgress};
 use crate::plugin::Permission;
 use crate::warning::WarningInfo;
 
@@ -30,6 +30,7 @@ pub enum ContentKind {
     Shader,
     DataPack,
     Plugin,
+    BehaviorPack,
 }
 
 impl fmt::Display for ContentKind {
@@ -41,6 +42,7 @@ impl fmt::Display for ContentKind {
             ContentKind::Shader => "shader",
             ContentKind::DataPack => "datapack",
             ContentKind::Plugin => "plugin",
+            ContentKind::BehaviorPack => "behaviour pack",
         })
     }
 }
@@ -80,6 +82,8 @@ pub struct ContentSource {
     pub id: String,
     pub name: String,
     pub kinds: Vec<ContentKind>,
+    /// The game editions its catalogue is for; a front-end offers it to entries of those alone.
+    pub editions: Vec<Edition>,
     /// The setting the user has not set yet, which is why the source does not
     /// serve; absent once it can.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -106,6 +110,8 @@ pub struct SourceInfo {
     /// Whether the source has no datapack project type, so a datapack is a
     /// `Mod` project whose versions carry the `datapack` loader.
     pub datapacks_as_mods: bool,
+    /// The game editions the source's catalogue is for; empty reads as Java alone.
+    pub editions: Vec<Edition>,
     /// The key of one of the plugin's own settings that must be set before the
     /// source serves; the host keeps the source out of use, and says which
     /// setting is missing, until it is.
@@ -381,6 +387,9 @@ pub struct InstalledContent {
     /// For datapacks: worlds it targets but is not loaded in — the per-world
     /// twin of `enabled`. Empty for the other kinds.
     pub disabled_worlds: Vec<String>,
+    /// Kept at its version: "update all" and auto-update pass it by. Choosing
+    /// a version sets it; updating the item by name clears it.
+    pub held: bool,
 }
 
 /// A file found in the entry's game directory that no index entry accounts for
@@ -518,15 +527,53 @@ pub struct EntryContentEnableParams {
     pub worlds: Vec<String>,
 }
 
+/// Hold one installed item at its version, or release it. A held item is
+/// passed by "update all" and auto-update until it is released or updated by
+/// name.
+#[derive(Serialize, Deserialize, Default, Debug, Clone)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
+#[serde(default, rename_all = "camelCase")]
+pub struct EntryContentHoldParams {
+    pub target: EntryTarget,
+    pub kind: ContentKind,
+    pub item: String,
+    pub held: bool,
+}
+
+/// The updates the daemon already knows of for one entry, across every kind.
+#[derive(Serialize, Deserialize, Default, Debug, Clone)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
+#[serde(default, rename_all = "camelCase")]
+pub struct EntryUpdates {
+    pub target: EntryTarget,
+    pub name: String,
+    pub updates: Vec<ContentUpdate>,
+}
+
+/// A check found updates nothing had reported before: `fresh` counts the items
+/// that gained one. Published after a check, whatever triggered it.
+#[derive(Serialize, Deserialize, Default, Debug, Clone)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
+#[serde(default, rename_all = "camelCase")]
+pub struct ContentUpdatesFoundEvent {
+    pub fresh: u32,
+}
+impl Topic for ContentUpdatesFoundEvent {
+    const TOPIC: &'static str = "content.updates_found";
+    const PLUGIN: Option<Permission> = Some(Permission::ContentRead);
+}
+
 /// Ask whether each platform-sourced item of the kind has a newer compatible
-/// version. Resolves upstream, so it is a plain (network-bound) call rather
-/// than an install job.
+/// version. An answer younger than the daemon's update TTL is served without
+/// asking upstream; `refresh` asks anyway. Network-bound on a miss, so a plain
+/// call with a long timeout rather than a job.
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
 #[serde(default, rename_all = "camelCase")]
 pub struct EntryContentCheckUpdatesParams {
     pub target: EntryTarget,
     pub kind: ContentKind,
+    pub refresh: bool,
 }
 
 /// One installed item's update status: its current pin against the newest
@@ -535,6 +582,9 @@ pub struct EntryContentCheckUpdatesParams {
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
 #[serde(default, rename_all = "camelCase")]
 pub struct ContentUpdate {
+    pub kind: ContentKind,
+    pub title: String,
+    pub held: bool,
     pub filename: String,
     pub project_id: String,
     pub current_version_id: String,
@@ -629,6 +679,26 @@ impl Contract for EntryContentCheckUpdates {
     const TIMEOUT: Duration = Duration::from_secs(120);
     type Params = EntryContentCheckUpdatesParams;
     type Result = Vec<ContentUpdate>;
+}
+
+pub struct EntryContentHold;
+impl Contract for EntryContentHold {
+    const CHANNEL: &'static str = "content.hold";
+    const PLUGIN: Option<Permission> = Some(Permission::ContentWrite);
+    const CHANGES: Option<Scope> = Some(Scope::Entries);
+    type Params = EntryContentHoldParams;
+    type Result = Empty;
+}
+
+/// Every entry with an update the daemon already knows of, from what earlier
+/// checks found. Never asks upstream, so it answers at once — and an answer
+/// older than the TTL is still listed until a check replaces it.
+pub struct ContentAvailableUpdates;
+impl Contract for ContentAvailableUpdates {
+    const CHANNEL: &'static str = "content.available_updates";
+    const PLUGIN: Option<Permission> = Some(Permission::ContentRead);
+    type Params = Empty;
+    type Result = Vec<EntryUpdates>;
 }
 
 pub struct EntryContentMatches;

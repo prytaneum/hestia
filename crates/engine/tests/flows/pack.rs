@@ -763,6 +763,7 @@ async fn a_pack_read_off_disk_tracks_whatever_a_source_recognises() {
             fixture::version("sodium", &files, "1.21", &[]),
             fixture::version("iris", &files, "1.21", &[]),
         ],
+        ..Default::default()
     };
     let engine = engine_with(home.path(), source).await;
     let path = pack_file(
@@ -820,6 +821,7 @@ async fn a_pack_removed_keeping_its_content_hands_it_to_the_user() {
     let source = fixture::Source {
         projects: vec![fixture::project("sodium", ContentKind::Mod)],
         versions: vec![fixture::version("sodium", &files, "1.21", &[])],
+        ..Default::default()
     };
     let engine = engine_with(home.path(), source).await;
     let path = pack_file(

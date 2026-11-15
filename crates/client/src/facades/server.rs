@@ -4,13 +4,14 @@ use proto::backup::{
     BackupInfo, ServerBackupCreate, ServerBackupCreateParams, ServerBackupList, ServerBackupRef,
     ServerBackupRemove, ServerBackupRestore, ServerBackupRestoreParams,
 };
+use proto::instance::WorldInfo;
 use proto::minecraft::ProvisionProgress;
 use proto::server::{
     ServerCommand, ServerCommandComplete, ServerCommandCompleteParams, ServerCommandCompleteResult,
     ServerCommandParams, ServerCreate, ServerCreateParams, ServerDetail, ServerDetails, ServerDone,
     ServerInfo, ServerList, ServerPing, ServerPingResult, ServerProperties, ServerProperty,
     ServerRef, ServerRestart, ServerStart, ServerStartResult, ServerStatus, ServerUpdate,
-    ServerUpdateParams,
+    ServerUpdateParams, ServerWorldImport, ServerWorldImportParams, ServerWorlds,
 };
 
 pub struct Server<'a> {
@@ -49,6 +50,25 @@ impl Server<'_> {
         self.session
             .run_job::<ServerUpdate>(&id, &params, on_progress)
             .await
+    }
+
+    /// Unpack a `.mcworld` on the daemon's machine into a stopped Bedrock
+    /// server, blocking until the daemon reports done or error and forwarding
+    /// each progress event to `on_progress`; the job id is filled in here.
+    pub async fn import_world(
+        &self,
+        mut params: ServerWorldImportParams,
+        on_progress: impl Fn(&ProvisionProgress) + Send + Sync + 'static,
+    ) -> Result<WorldInfo, IpcError> {
+        let id = job_id("server-world-import");
+        params.id = id.clone();
+        self.session
+            .run_job::<ServerWorldImport>(&id, &params, on_progress)
+            .await
+    }
+
+    pub async fn worlds(&self, server: &str) -> Result<Vec<WorldInfo>, IpcError> {
+        self.session.call::<ServerWorlds>(&server_ref(server)).await
     }
 
     pub async fn list(&self) -> Result<Vec<ServerInfo>, IpcError> {

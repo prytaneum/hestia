@@ -68,7 +68,7 @@ impl Engine {
         let pack_flavor = self.pack_flavor(resolved, side)?;
         let entry_flavor = self
             .minecraft
-            .canonical(side, &ctx.flavor)
+            .canonical(side, ctx.edition, &ctx.flavor)
             .unwrap_or_else(|_| ctx.flavor.clone());
         if pack_flavor == entry_flavor && resolved.game_version == ctx.game_version {
             return Ok(());

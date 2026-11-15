@@ -90,10 +90,17 @@ pub(crate) fn remove_overrides(
 /// versions, and the tag has to survive that to keep identifying its own items.
 pub(crate) fn origin(pack: &InstalledModpack) -> String {
     match pack.project_id.is_empty() {
-        true => format!("modpack:{}", pack.name),
-        false => format!("modpack:{}", pack.project_id),
+        true => format!("{ORIGIN_PREFIX}{}", pack.name),
+        false => format!("{ORIGIN_PREFIX}{}", pack.project_id),
     }
 }
+
+/// Whether an item's origin names a pack, whichever pack it is.
+pub(crate) fn is_pack_origin(origin: &str) -> bool {
+    origin.starts_with(ORIGIN_PREFIX)
+}
+
+const ORIGIN_PREFIX: &str = "modpack:";
 
 #[cfg(test)]
 mod tests {

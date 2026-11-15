@@ -4,7 +4,8 @@ import type { EntryTarget } from "./EntryTarget";
 
 /**
  * Ask whether each platform-sourced item of the kind has a newer compatible
- * version. Resolves upstream, so it is a plain (network-bound) call rather
- * than an install job.
+ * version. An answer younger than the daemon's update TTL is served without
+ * asking upstream; `refresh` asks anyway. Network-bound on a miss, so a plain
+ * call with a long timeout rather than a job.
  */
-export type EntryContentCheckUpdatesParams = { target: EntryTarget, kind: ContentKind, };
+export type EntryContentCheckUpdatesParams = { target: EntryTarget, kind: ContentKind, refresh: boolean, };

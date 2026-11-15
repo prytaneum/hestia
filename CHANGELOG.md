@@ -34,8 +34,56 @@ Hestia's key and bundled with every installer.
 
 ## 1.0.0-beta.3
 
-Every running job in one place, launch progress where you press Play, and
-quieter, clearer notifications.
+Bedrock servers, content updates that find you, every running job in one place,
+launch progress where you press Play, and quieter, clearer notifications.
+
+### Bedrock servers
+
+- **Bedrock Dedicated Server.** Host a server for phones, consoles and Windows
+  players: `hestia server create --edition bedrock vanilla <version>`, or pick
+  the edition first in the create wizard on the desktop and the CLI. It runs
+  natively on x86_64 Linux and Windows, with no Java to install or size.
+- **Ports.** A Bedrock server claims its game port and a second UDP port, laid
+  out for the transport its settings select (RakNet or NetherNet). `status` and
+  the server header list each port with its protocol, and status pings the
+  server over RakNet.
+- **Console and players.** The console drives the server over stdin and stays
+  reattachable. Players shows the allowlist and operators; `op` takes a player
+  who is online, and there is no ban list on Bedrock.
+- **Worlds.** `hestia server <name> world list` shows a server's worlds, and
+  `world import ./w.mcworld --use` brings one in while the server is stopped.
+  Backups run while the server is live.
+- **Packs.** Behavior and resource packs install from a local `.mcpack` or
+  `.mcaddon`, or a direct https link (`behaviorpack add`, alias `bp`, and
+  `resourcepack add`). A content source is only offered to the editions it
+  serves.
+- **Settings.** `server.properties` is typed and seeded per edition, so settings
+  follow Bedrock's own rules, and Java-only keys such as `memory` and
+  `jvm-args` are refused with a reason.
+
+### Content updates
+
+- **Found for you.** The daemon checks for mod, pack and shader updates when it
+  starts, when the network comes back, as an instance launches and when you open
+  an entry's content. The check is batched, so a library of any size costs a
+  handful of requests, and each answer is kept for 30 minutes. A new update
+  lands in the notification bell.
+- **Where you look.** Library cards show how many updates an entry has. The
+  content list shows the version each item can move to, and "Update all" moves
+  them. On the CLI, `instance list` and `server list` gain an UPDATES column,
+  `<kind> list` an UPDATE column, and `hestia updates [--apply]` lists and
+  applies every entry's updates at once. `update --check` asks upstream right
+  away.
+- **Hold.** Keep an item at its version from its menu, or with
+  `<kind> hold|unhold <item>`. "Update all" and auto-update leave it alone.
+  Choosing a version holds the item, and updating it by name lets it go.
+- **Auto-update.** Off by default: Settings → Content, or
+  `config set content.auto-update true`. An instance's updates apply as it
+  launches, and a stopped server's as soon as they are found. Held items and
+  a modpack's own content are left alone, and an item that cannot move is
+  reported on the launch while the game still starts.
+
+### Jobs and notifications
 
 - **Notifications.** A bell in the status bar opens every running job, with
   progress and cancel, and every notification of the session, so a toast you

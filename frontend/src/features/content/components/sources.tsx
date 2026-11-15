@@ -3,6 +3,7 @@ import { Link } from '@tanstack/react-router';
 import {
   type ContentKind,
   type ContentSource,
+  type Edition,
   HestiaError,
   type RequiredSetting,
 } from '@/api';
@@ -17,10 +18,16 @@ import { contentQueries } from '@/queries/content';
  * this never offers one that would come back empty; `waiting` is the ones that
  * need a setting first, which the filter shows but cannot select.
  */
-export function useSourceOptions(kind: ContentKind | undefined, value: string) {
+export function useSourceOptions(
+  kind: ContentKind | undefined,
+  value: string,
+  edition?: Edition,
+) {
   const sources = useQuery(contentQueries.sources());
   const ofKind = (sources.data ?? []).filter(
-    (s) => !kind || s.kinds.includes(kind),
+    (s) =>
+      (!kind || s.kinds.includes(kind)) &&
+      (!edition || s.editions.includes(edition)),
   );
   const list = ofKind.filter((s) => !s.requiresSetting);
   const waiting = ofKind.filter((s) => s.requiresSetting);

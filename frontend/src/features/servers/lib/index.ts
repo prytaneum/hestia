@@ -9,6 +9,7 @@ export {
   nameIssue,
   pathCrumbs,
 } from './files';
+export { formatPorts } from './ports';
 export {
   matchProperties,
   type PropertyControl,

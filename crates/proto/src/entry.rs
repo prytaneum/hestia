@@ -8,7 +8,7 @@ use crate::change::Scope;
 use crate::contract::{Contract, Empty};
 use crate::error::{EntryKind, EntryTarget};
 use crate::keys::KeyRule;
-use crate::minecraft::{ConfigEntry, FlavorsResult, GameVersion};
+use crate::minecraft::{ConfigEntry, Edition, FlavorsResult, GameVersion};
 use crate::plugin::Permission;
 use crate::process::ProcessLogLine;
 
@@ -32,6 +32,7 @@ impl Contract for EntryFlavors {
 #[serde(default, rename_all = "camelCase")]
 pub struct EntryVersionsParams {
     pub kind: EntryKind,
+    pub edition: Edition,
     pub flavor: String,
 }
 
@@ -48,6 +49,7 @@ impl Contract for EntryVersions {
 #[serde(default, rename_all = "camelCase")]
 pub struct EntryLoadersParams {
     pub kind: EntryKind,
+    pub edition: Edition,
     pub flavor: String,
     pub version: String,
 }

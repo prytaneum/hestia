@@ -19,6 +19,7 @@ pub mod screenshot;
 pub mod server;
 pub mod sync;
 pub mod update;
+pub mod updates;
 mod wizard;
 
 use anyhow::{Context, Result};

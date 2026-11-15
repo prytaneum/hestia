@@ -13,9 +13,11 @@ const MODRINTH: ContentSource = {
   id: 'modrinth',
   name: 'Modrinth',
   kinds: ['mod', 'modpack', 'resource_pack', 'shader', 'data_pack', 'plugin'],
+  editions: ['java'],
 };
 
-const ARCHIVE = /\.(jar|zip)$/i;
+const ARCHIVE = /\.(jar|zip|mcpack|mcaddon)$/i;
+const BEDROCK_PACK = /\.(mcpack|mcaddon)$/i;
 
 export const channels: ChannelHandlers = {
   'content.sources': () => [MODRINTH],
@@ -40,7 +42,11 @@ export const channels: ChannelHandlers = {
     const valid = ARCHIVE.test(filename);
     return {
       valid,
-      kind: valid ? 'mod' : undefined,
+      kind: valid
+        ? BEDROCK_PACK.test(filename)
+          ? 'behavior_pack'
+          : 'mod'
+        : undefined,
       filename,
       reason: valid ? '' : 'not a jar or zip',
       matches: [],

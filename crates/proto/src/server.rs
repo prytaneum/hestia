@@ -11,12 +11,31 @@ use serde::{Deserialize, Serialize};
 use crate::content::{ContentFailure, ContentKind};
 use crate::contract::{Contract, Empty, Topic};
 use crate::icon::EntryIcon;
+use crate::instance::WorldInfo;
 use crate::job::{Job, JobStarted};
-use crate::minecraft::{ConfigEntry, ProvisionProgress};
+use crate::minecraft::{ConfigEntry, Edition, ProvisionProgress};
 use crate::modpack::PackPolicy;
 use crate::plugin::Permission;
 use crate::process::ProcessInfo;
 use crate::warning::WarningInfo;
+
+#[derive(Serialize, Deserialize, Default, Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
+#[serde(rename_all = "snake_case")]
+pub enum PortProtocol {
+    #[default]
+    Tcp,
+    Udp,
+}
+
+/// A port a server binds and the protocol a firewall must open for it.
+#[derive(Serialize, Deserialize, Default, Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
+#[serde(default, rename_all = "camelCase")]
+pub struct ServerPort {
+    pub port: u16,
+    pub protocol: PortProtocol,
+}
 
 /// A managed server: the stored record plus, when it has been started, the
 /// supervised process snapshot.
@@ -30,12 +49,16 @@ pub struct ServerInfo {
     pub game_version: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub loader_version: Option<String>,
-    pub java_major: i32,
+    pub edition: Edition,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub java_major: Option<i32>,
     pub created_unix: i64,
     /// False while the create job is still provisioning files.
     pub ready: bool,
     /// Allocated at create and stable thereafter — players connect to it.
     pub game_port: u16,
+    /// Every port the server binds, the game port first.
+    pub ports: Vec<ServerPort>,
     /// True once RCON is configured, which happens at the first start.
     pub console: bool,
     /// The content kinds this server can take, composed from its flavor's own
@@ -63,7 +86,8 @@ pub struct ServerDetails {
     pub game_version: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub loader_version: Option<String>,
-    pub java_major: i32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub java_major: Option<i32>,
     pub created_unix: i64,
     pub game_port: u16,
     /// The entry root (`servers/<id>/`) — hestia's namespace.
@@ -115,6 +139,7 @@ impl Contract for ServerDetail {
 pub struct ServerCreateParams {
     /// Display name; defaults to `<flavor>-<version>` when empty.
     pub name: String,
+    pub edition: Edition,
     pub flavor: String,
     pub version: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -253,6 +278,47 @@ pub struct ServerPingResult {
     /// [`crate::instance::ServerEntry::icon`]. Empty when the server sends
     /// none, or sends one this build will not inline.
     pub favicon: String,
+}
+
+/// A Java server's one world, or every world a Bedrock server holds with the
+/// active one first and then the most recently played. `folder` is the name
+/// `level-name` takes.
+pub struct ServerWorlds;
+impl Contract for ServerWorlds {
+    const CHANNEL: &'static str = "server.worlds";
+    const PLUGIN: Option<Permission> = Some(Permission::EntryRead);
+    type Params = ServerRef;
+    type Result = Vec<WorldInfo>;
+}
+
+#[derive(Serialize, Deserialize, Default, Debug, Clone)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
+#[serde(default, rename_all = "camelCase")]
+pub struct ServerWorldImportParams {
+    /// Server name or id.
+    pub server: String,
+    /// A `.mcworld` on the daemon's machine; absolute.
+    pub path: String,
+    /// Make the imported world the server's `level-name`.
+    #[serde(rename = "use")]
+    pub activate: bool,
+    /// Client-supplied job id; empty asks the daemon to allocate one.
+    pub id: String,
+}
+
+/// A job, Bedrock servers only, refused while the server runs. A cancel or a
+/// failure leaves no partial world folder.
+pub struct ServerWorldImport;
+impl Contract for ServerWorldImport {
+    const CHANNEL: &'static str = "server.worlds.import";
+    const PLUGIN: Option<Permission> = Some(Permission::EntryWrite);
+    type Params = ServerWorldImportParams;
+    type Result = JobStarted;
+}
+
+impl Job for ServerWorldImport {
+    type Progress = ProvisionProgress;
+    type Done = WorldInfo;
 }
 
 pub struct ServerPing;

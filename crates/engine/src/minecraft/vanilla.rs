@@ -5,10 +5,10 @@ use std::borrow::Cow;
 
 use anyhow::Result;
 use async_trait::async_trait;
-use proto::minecraft::GameVersion;
+use proto::minecraft::{Edition, GameVersion};
 
 use super::meta::mojang;
-use super::profile::{InstanceProfile, ServerJar, ServerLaunch, ServerProfile};
+use super::profile::{InstanceProfile, ServerJar, ServerLaunch, ServerProfile, ServerRuntime};
 use super::provider::{FlavorInfo, FlavorProvider, ResolveRequest, BOTH_SIDES};
 
 pub(super) const ID: &str = "vanilla";
@@ -17,6 +17,7 @@ const INFO: FlavorInfo = FlavorInfo {
     id: Cow::Borrowed(ID),
     name: Cow::Borrowed("Vanilla"),
     summary: Cow::Borrowed("Mojang's game, unchanged. Takes datapacks only — no mods or plugins."),
+    edition: Edition::Java,
     loads: None,
     requires: Cow::Borrowed(&[]),
     sides: BOTH_SIDES,
@@ -60,10 +61,12 @@ impl FlavorProvider for Vanilla {
             flavor: ID.to_string(),
             game_version: request.version.clone(),
             loader_version: None,
-            jar: ServerJar::Download(mojang::server_artifact(&version)?),
-            launch: ServerLaunch::Jar,
-            java_major: mojang::java_major(&version),
-            jvm_args: Vec::new(),
+            runtime: ServerRuntime::Java {
+                jar: ServerJar::Download(mojang::server_artifact(&version)?),
+                launch: ServerLaunch::Jar,
+                java_major: mojang::java_major(&version),
+                jvm_args: Vec::new(),
+            },
         })
     }
 

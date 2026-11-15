@@ -1,7 +1,6 @@
 //! The verbs a server and an instance share, one handler each over the side the
 //! payload names.
 
-use engine::Side;
 use proto::entry::{
     EntryConfigGet, EntryConfigList, EntryConfigListResult, EntryConfigSet, EntryConfigValue,
     EntryFlavors, EntryLoaders, EntryLogs, EntryRemove, EntryRename, EntryRenamed, EntryStop,
@@ -20,8 +19,7 @@ pub(super) fn register(on: &mut Channels<'_>) {
     on.handle::<EntryFlavors, _, _>(|p, ctx| async move {
         let side = side_for(&ctx, p.kind)?;
         Ok(FlavorsResult {
-            flavors: ctx.runtime.engine().flavors(side).await,
-            rules: config_rules(side),
+            editions: ctx.runtime.engine().flavor_catalogue(side).await,
         })
     });
 
@@ -30,7 +28,7 @@ pub(super) fn register(on: &mut Channels<'_>) {
         ctx.runtime
             .engine()
             .minecraft()
-            .versions(side, &p.flavor)
+            .versions(side, p.edition, &p.flavor)
             .await
             .map_err(engine_error)
     });
@@ -40,7 +38,7 @@ pub(super) fn register(on: &mut Channels<'_>) {
         ctx.runtime
             .engine()
             .minecraft()
-            .loader_versions(side, &p.flavor, &p.version)
+            .loader_versions(side, p.edition, &p.flavor, &p.version)
             .await
             .map_err(engine_error)
     });
@@ -189,13 +187,20 @@ pub(super) fn register(on: &mut Channels<'_>) {
         let entry = entry_for(&ctx, &target, Intent::Read)?;
         let engine = ctx.runtime.engine();
         let (values, rules) = match entry.kind {
-            EntryKind::Server => (
-                engine.servers().config_list(&entry.id),
-                config_rules(Side::Server),
-            ),
+            EntryKind::Server => {
+                let edition = engine
+                    .servers()
+                    .require(&entry.id)
+                    .map_err(engine_error)?
+                    .edition;
+                (
+                    engine.servers().config_list(&entry.id),
+                    engine::config_rules(edition),
+                )
+            }
             EntryKind::Instance => (
                 engine.instances().config_list(&entry.id),
-                config_rules(Side::Client),
+                engine::Instances::config_rules(),
             ),
         };
         let entries = values
@@ -205,11 +210,4 @@ pub(super) fn register(on: &mut Channels<'_>) {
             .collect();
         Ok(EntryConfigListResult { entries, rules })
     });
-}
-
-fn config_rules(side: Side) -> Vec<proto::keys::KeyRule> {
-    match side {
-        Side::Server => engine::Servers::config_rules(),
-        Side::Client => engine::Instances::config_rules(),
-    }
 }

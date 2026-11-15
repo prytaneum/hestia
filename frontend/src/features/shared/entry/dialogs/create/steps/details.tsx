@@ -1,7 +1,9 @@
+import type { KeyRule } from '@/api';
 import { ExternalLink } from '@/components/external-link';
 import { withForm } from '@/components/form';
 import { Checkbox } from '@/components/ui/checkbox';
 import { FieldError } from '@/components/ui/field';
+import { choiceValues, hasRule } from '@/features/shared/entry/lib';
 import { createWizardDefaults } from '@/features/shared/entry/lib/schema';
 import { m } from '@/paraglide/messages.js';
 import { useMemoryRange } from '@/queries/host';
@@ -18,9 +20,19 @@ import {
 /** The details step: name + memory, plus the server.properties block. */
 export const DetailsStep = withForm({
   defaultValues: createWizardDefaults(''),
-  props: { kind: 'instance' as Kind },
-  render: function DetailsStep({ form, kind }) {
+  props: {
+    kind: 'instance' as Kind,
+    rules: [] as KeyRule[],
+    nameKey: undefined as string | undefined,
+  },
+  render: function DetailsStep({ form, kind, rules, nameKey }) {
     const memoryRange = useMemoryRange();
+    const allowed = (items: typeof GAMEMODES, key: string) => {
+      const values = choiceValues(rules, key);
+      return options(
+        values ? items.filter((o) => values.includes(o.value)) : items,
+      );
+    };
     return (
       <div className="flex flex-col gap-4">
         <form.Subscribe
@@ -41,17 +53,19 @@ export const DetailsStep = withForm({
           )}
         </form.Subscribe>
 
-        <form.AppField name="details.memory">
-          {(field) => (
-            <field.SliderField
-              label={m['app.label.memory']()}
-              formatValue={(v: number) => m['entry.create.gb']({ value: v })}
-              min={memoryRange.min}
-              max={memoryRange.max}
-              step={1}
-            />
-          )}
-        </form.AppField>
+        {hasRule(rules, 'memory') && (
+          <form.AppField name="details.memory">
+            {(field) => (
+              <field.SliderField
+                label={m['app.label.memory']()}
+                formatValue={(v: number) => m['entry.create.gb']({ value: v })}
+                min={memoryRange.min}
+                max={memoryRange.max}
+                step={1}
+              />
+            )}
+          </form.AppField>
+        )}
 
         {kind === 'server' && (
           <>
@@ -59,11 +73,11 @@ export const DetailsStep = withForm({
               {m['entry.create.properties.title']()}
             </SectionHeader>
 
-            <form.AppField name="details.motd">
-              {(field) => (
-                <field.TextField label={m['entry.create.properties.motd']()} />
-              )}
-            </form.AppField>
+            {nameKey && (
+              <form.AppField name="details.motd">
+                {(field) => <field.TextField label={nameLabel(nameKey)} />}
+              </form.AppField>
+            )}
 
             <form.AppField name="details.seed">
               {(field) => (
@@ -84,7 +98,7 @@ export const DetailsStep = withForm({
                     {(field) => (
                       <field.SelectField
                         label={m['entry.create.properties.gamemode']()}
-                        options={options(GAMEMODES)}
+                        options={allowed(GAMEMODES, 'gamemode')}
                         triggerClassName="w-full"
                         disabled={hardcore}
                       />
@@ -94,7 +108,7 @@ export const DetailsStep = withForm({
                     {(field) => (
                       <field.SelectField
                         label={m['entry.create.properties.difficulty']()}
-                        options={options(DIFFICULTIES)}
+                        options={allowed(DIFFICULTIES, 'difficulty')}
                         triggerClassName="w-full"
                         disabled={hardcore}
                       />
@@ -126,32 +140,36 @@ export const DetailsStep = withForm({
             </div>
 
             <div className="grid grid-cols-2 gap-4 pt-1">
-              <form.AppField name="details.hardcore">
-                {(field) => (
-                  <PropToggle
-                    id="prop-hardcore"
-                    label={m['entry.create.properties.hardcore']()}
-                    checked={field.state.value}
-                    onChange={(checked) => {
-                      field.handleChange(checked);
-                      if (checked) {
-                        form.setFieldValue('details.gamemode', 'survival');
-                        form.setFieldValue('details.difficulty', 'hard');
-                      }
-                    }}
-                  />
-                )}
-              </form.AppField>
-              <form.AppField name="details.onlineMode">
-                {(field) => (
-                  <PropToggle
-                    id="prop-online"
-                    label={m['entry.create.properties.online_mode']()}
-                    checked={field.state.value}
-                    onChange={field.handleChange}
-                  />
-                )}
-              </form.AppField>
+              {hasRule(rules, 'hardcore') && (
+                <form.AppField name="details.hardcore">
+                  {(field) => (
+                    <PropToggle
+                      id="prop-hardcore"
+                      label={m['entry.create.properties.hardcore']()}
+                      checked={field.state.value}
+                      onChange={(checked) => {
+                        field.handleChange(checked);
+                        if (checked) {
+                          form.setFieldValue('details.gamemode', 'survival');
+                          form.setFieldValue('details.difficulty', 'hard');
+                        }
+                      }}
+                    />
+                  )}
+                </form.AppField>
+              )}
+              {hasRule(rules, 'online-mode') && (
+                <form.AppField name="details.onlineMode">
+                  {(field) => (
+                    <PropToggle
+                      id="prop-online"
+                      label={m['entry.create.properties.online_mode']()}
+                      checked={field.state.value}
+                      onChange={field.handleChange}
+                    />
+                  )}
+                </form.AppField>
+              )}
             </div>
 
             <form.AppField name="details.eula">
@@ -192,3 +210,12 @@ export const DetailsStep = withForm({
     );
   },
 });
+
+/** The listed-name property's label, by the key the edition names. */
+function nameLabel(key: string): string {
+  const labels: Record<string, () => string> = {
+    motd: m['entry.create.properties.motd'],
+    'server-name': m['entry.create.properties.server_name'],
+  };
+  return labels[key]?.() ?? key;
+}
