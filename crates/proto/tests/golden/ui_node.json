@@ -13,8 +13,24 @@
         { "cells": ["world", "12 MB"], "payload": { "id": "w1" } }
       ],
       "filter": true,
-      "rowAction": "open"
+      "rowAction": "open",
+      "empty": "No files"
     },
+    {
+      "type": "section",
+      "title": "Tunnels",
+      "description": "Up while the server runs",
+      "actions": [
+        {
+          "type": "button",
+          "label": "Add",
+          "action": { "id": "add", "payload": null },
+          "variant": "secondary"
+        }
+      ],
+      "children": [{ "type": "copy", "text": "abc.example.com:1234", "label": "Address" }]
+    },
+    { "type": "copy", "text": "abc.example.com:1234" },
     { "type": "remote_image", "url": "https://example.com/a.png", "alt": "A", "shape": "avatar" },
     { "type": "badge", "text": "Online", "tone": "success" },
     {
@@ -42,6 +58,7 @@
           "title": "Nightly",
           "subtitle": "03:00",
           "icon": "clock",
+          "badges": [{ "text": "Online", "tone": "success" }],
           "actions": [
             {
               "type": "button",
@@ -51,7 +68,8 @@
             }
           ]
         }
-      ]
+      ],
+      "empty": "No schedules"
     },
     {
       "type": "detail",
@@ -61,8 +79,23 @@
       "type": "form",
       "id": "settings",
       "fields": [
-        { "type": "text", "name": "title", "label": "Title", "value": "a" },
-        { "type": "number", "name": "keep", "label": "Keep", "value": 7.0 },
+        {
+          "type": "text",
+          "name": "title",
+          "label": "Title",
+          "help": "Shown in the list",
+          "value": "a",
+          "placeholder": "Name"
+        },
+        {
+          "type": "number",
+          "name": "keep",
+          "label": "Keep",
+          "value": 7.0,
+          "min": 1.0,
+          "max": 30.0,
+          "step": 1.0
+        },
         { "type": "toggle", "name": "on", "label": "Enabled", "value": true },
         {
           "type": "select",

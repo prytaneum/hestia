@@ -26,7 +26,7 @@ use proto::ui::{Direction, ImageShape, Pair, Submit, Tab, TableRow, Variant};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-pub use proto::ui::{Action, Effect, FormField, Tone, UiNode};
+pub use proto::ui::{Action, Effect, FormField, Input, Tone, UiNode};
 
 /// The [`Action`] a button or form sends, written from the plugin's own enum.
 /// It must serialize as an object with an `id` and, optionally, a `payload`,
@@ -184,6 +184,7 @@ pub fn table<S: Into<String>>(
         rows: rows.into_iter().collect(),
         filter: false,
         row_action: None,
+        empty: None,
     }
 }
 
@@ -198,6 +199,7 @@ pub fn filtered_table<S: Into<String>>(
         rows: rows.into_iter().collect(),
         filter: true,
         row_action: None,
+        empty: None,
     }
 }
 
@@ -288,10 +290,14 @@ mod tests {
             table(["World"], [row(["smp"])]),
             form(
                 "new",
-                [FormField::Text {
+                [FormField {
                     name: "name".into(),
                     label: "Name".into(),
-                    value: String::new(),
+                    help: None,
+                    input: Input::Text {
+                        value: String::new(),
+                        placeholder: None,
+                    },
                 }],
                 "Create",
                 Act::Create,

@@ -14,7 +14,7 @@ import type { Variant } from "./Variant";
 /**
  * One node of a plugin page.
  */
-export type UiNode = { "type": "stack", direction: Direction, children: Array<UiNode>, } | { "type": "heading", text: string, 
+export type UiNode = { "type": "stack", direction: Direction, children: Array<UiNode>, } | { "type": "section", title: string, description?: string, actions: Array<UiNode>, children: Array<UiNode>, } | { "type": "copy", text: string, label?: string, } | { "type": "heading", text: string, 
 /**
  * 1 to 3.
  */
@@ -35,7 +35,15 @@ filter: boolean,
 /**
  * The action id sent, with the row's payload, when a row is chosen.
  */
-rowAction?: string, } | { "type": "list", items: Array<ListItem>, } | { "type": "detail", pairs: Array<Pair>, } | { "type": "form", id: string, fields: Array<FormField>, submit: Submit, } | { "type": "button", label: string, action: Action, variant: Variant, 
+rowAction?: string, 
+/**
+ * Shown instead of the rows when there are none.
+ */
+empty?: string, } | { "type": "list", items: Array<ListItem>, 
+/**
+ * Shown instead of the items when there are none.
+ */
+empty?: string, } | { "type": "detail", pairs: Array<Pair>, } | { "type": "form", id: string, fields: Array<FormField>, submit: Submit, } | { "type": "button", label: string, action: Action, variant: Variant, 
 /**
  * Asks the user to confirm with this text before the action is sent.
  */

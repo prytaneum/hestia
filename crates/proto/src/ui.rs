@@ -97,6 +97,13 @@ pub enum Effect {
     },
     /// Ask the plugin to render the current page again.
     Refresh,
+    /// Starts one of the plugin's own commands as a job.
+    Run {
+        command: String,
+        #[serde(default)]
+        #[cfg_attr(feature = "ts", ts(type = "unknown"))]
+        args: Value,
+    },
 }
 
 #[derive(Serialize, Deserialize, Default, Debug, Clone, PartialEq)]
@@ -119,7 +126,8 @@ pub struct ListItem {
     /// A name from the app's icon set.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub icon: Option<String>,
-    /// Buttons shown on the item.
+    pub badges: Vec<Badge>,
+    /// Buttons and copy values shown at the item's end.
     pub actions: Vec<UiNode>,
 }
 
@@ -148,42 +156,63 @@ pub struct Submit {
     pub action: Action,
 }
 
-/// One input of a form. Its `name` keys the submitted values.
+/// The kind of value a form field takes, and what bounds it.
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
-#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
 #[serde(
     tag = "type",
     rename_all = "snake_case",
     rename_all_fields = "camelCase"
 )]
-pub enum FormField {
+pub enum Input {
     Text {
-        name: String,
-        label: String,
         value: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        placeholder: Option<String>,
     },
     Number {
-        name: String,
-        label: String,
         value: f64,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        min: Option<f64>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        max: Option<f64>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        step: Option<f64>,
     },
     Toggle {
-        name: String,
-        label: String,
         value: bool,
     },
     Select {
-        name: String,
-        label: String,
         options: Vec<SelectOption>,
         value: String,
     },
     /// Picks one existing server or instance; submits its id.
     Entry {
-        name: String,
-        label: String,
         kind: EntryKind,
     },
+}
+
+/// One input of a form. Its `name` keys the submitted values.
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, optional_fields))]
+#[serde(rename_all = "camelCase")]
+pub struct FormField {
+    pub name: String,
+    pub label: String,
+    /// A hint shown under the field.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub help: Option<String>,
+    #[serde(flatten)]
+    pub input: Input,
+}
+
+/// A short status pill on a list item.
+#[derive(Serialize, Deserialize, Default, Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
+#[serde(default, rename_all = "camelCase")]
+pub struct Badge {
+    pub text: String,
+    pub tone: Tone,
 }
 
 /// One node of a plugin page.
@@ -199,6 +228,21 @@ pub enum UiNode {
         #[serde(default)]
         direction: Direction,
         children: Vec<UiNode>,
+    },
+    /// A titled group; `actions` sit beside the title.
+    Section {
+        title: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        description: Option<String>,
+        #[serde(default)]
+        actions: Vec<UiNode>,
+        children: Vec<UiNode>,
+    },
+    /// A value with a copy button; the CLI prints the value.
+    Copy {
+        text: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        label: Option<String>,
     },
     Heading {
         text: String,
@@ -246,9 +290,15 @@ pub enum UiNode {
         /// The action id sent, with the row's payload, when a row is chosen.
         #[serde(skip_serializing_if = "Option::is_none")]
         row_action: Option<String>,
+        /// Shown instead of the rows when there are none.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        empty: Option<String>,
     },
     List {
         items: Vec<ListItem>,
+        /// Shown instead of the items when there are none.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        empty: Option<String>,
     },
     Detail {
         pairs: Vec<Pair>,
@@ -309,6 +359,8 @@ pub enum UiError {
     ImageUrl(String),
     #[error("tabs need 1 to {MAX_TABS} tabs, each with its own non-empty id")]
     Tabs,
+    #[error("copy text must not be empty")]
+    CopyText,
 }
 
 impl UiNode {
@@ -316,7 +368,14 @@ impl UiNode {
     pub fn validate(&self) -> Result<(), UiError> {
         match self {
             UiNode::Stack { children, .. } => children.iter().try_for_each(UiNode::validate),
-            UiNode::List { items } => items
+            UiNode::Section {
+                actions, children, ..
+            } => actions
+                .iter()
+                .chain(children)
+                .try_for_each(UiNode::validate),
+            UiNode::Copy { text, .. } if text.is_empty() => Err(UiError::CopyText),
+            UiNode::List { items, .. } => items
                 .iter()
                 .flat_map(|item| &item.actions)
                 .try_for_each(UiNode::validate),
@@ -455,12 +514,39 @@ mod tests {
     }
 
     #[test]
-    fn a_nested_webview_is_checked() {
-        let tree = UiNode::Stack {
-            direction: Direction::Vertical,
-            children: vec![webview("../x.html", 10)],
+    fn a_nested_node_is_checked() {
+        let bad = || webview("../x.html", 10);
+        let remote = UiNode::RemoteImage {
+            url: "http://example.com/a.png".into(),
+            alt: String::new(),
+            shape: ImageShape::Natural,
         };
-        assert!(tree.validate().is_err());
-        assert!(Effect::Render { tree }.validate().is_err());
+        let section = |actions, children| UiNode::Section {
+            title: "t".into(),
+            description: None,
+            actions,
+            children,
+        };
+        let trees = [
+            UiNode::Stack {
+                direction: Direction::Vertical,
+                children: vec![bad()],
+            },
+            section(vec![], vec![bad()]),
+            section(vec![], vec![remote.clone()]),
+            section(vec![bad()], vec![]),
+            section(vec![remote], vec![]),
+            section(
+                vec![],
+                vec![UiNode::Copy {
+                    text: String::new(),
+                    label: None,
+                }],
+            ),
+        ];
+        for tree in trees {
+            assert!(tree.validate().is_err());
+            assert!(Effect::Render { tree }.validate().is_err());
+        }
     }
 }

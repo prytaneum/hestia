@@ -2,7 +2,7 @@
 //! lists the actions a tree offers. The mapping is total: every node becomes
 //! views, never a panic.
 
-use client::proto::ui::{Action, FormField, ListItem, Tone, UiNode};
+use client::proto::ui::{Action, FormField, Input, ListItem, Tone, UiNode};
 
 use super::{markdown, View};
 
@@ -35,6 +35,16 @@ fn push_views(node: &UiNode, out: &mut Vec<View>) {
     match node {
         UiNode::Stack { children, .. } => children.iter().for_each(|c| push_views(c, out)),
         UiNode::Heading { text, .. } => out.push(View::line(text)),
+        UiNode::Section {
+            title, children, ..
+        } => {
+            out.push(View::line(title));
+            children.iter().for_each(|c| push_views(c, out));
+        }
+        UiNode::Copy { text, label } => out.push(View::line(match label {
+            Some(label) => format!("{label}: {text}"),
+            None => text.clone(),
+        })),
         UiNode::Text { text, tone } => out.push(match tone {
             Tone::Muted => View::note(text),
             Tone::Warning | Tone::Error => View::warning(text),
@@ -61,7 +71,7 @@ fn push_views(node: &UiNode, out: &mut Vec<View>) {
             columns,
             rows.iter().map(|row| row.cells.clone()).collect(),
         )),
-        UiNode::List { items } => out.push(View::table(
+        UiNode::List { items, .. } => out.push(View::table(
             "",
             ["ITEM", "DETAILS"],
             items
@@ -88,14 +98,13 @@ fn push_views(node: &UiNode, out: &mut Vec<View>) {
 }
 
 fn field_summary(field: &FormField) -> (String, String) {
-    match field {
-        FormField::Text { label, value, .. } | FormField::Select { label, value, .. } => {
-            (label.clone(), value.clone())
-        }
-        FormField::Number { label, value, .. } => (label.clone(), value.to_string()),
-        FormField::Toggle { label, value, .. } => (label.clone(), value.to_string()),
-        FormField::Entry { label, kind, .. } => (label.clone(), format!("<{kind}>")),
-    }
+    let value = match &field.input {
+        Input::Text { value, .. } | Input::Select { value, .. } => value.clone(),
+        Input::Number { value, .. } => value.to_string(),
+        Input::Toggle { value } => value.to_string(),
+        Input::Entry { kind } => format!("<{kind}>"),
+    };
+    (field.label.clone(), value)
 }
 
 fn bar(fraction: Option<f32>, label: &Option<String>) -> String {
@@ -118,6 +127,12 @@ fn bar(fraction: Option<f32>, label: &Option<String>) -> String {
 fn push_choices(node: &UiNode, out: &mut Vec<Choice>) {
     match node {
         UiNode::Stack { children, .. } => children.iter().for_each(|c| push_choices(c, out)),
+        UiNode::Section {
+            actions, children, ..
+        } => actions
+            .iter()
+            .chain(children)
+            .for_each(|c| push_choices(c, out)),
         UiNode::Tabs { tabs } => tabs
             .iter()
             .flat_map(|tab| &tab.children)
@@ -152,7 +167,7 @@ fn push_choices(node: &UiNode, out: &mut Vec<Choice>) {
             fields: Vec::new(),
             confirm: None,
         })),
-        UiNode::List { items } => items.iter().for_each(|item| push_item_choices(item, out)),
+        UiNode::List { items, .. } => items.iter().for_each(|item| push_item_choices(item, out)),
         _ => {}
     }
 }
@@ -226,6 +241,7 @@ mod tests {
                 payload: json!(7),
             }],
             row_action: Some("pick".into()),
+            empty: None,
         };
         assert!(
             matches!(&views(&table)[0], View::Table { headers, rows, .. }
@@ -238,6 +254,7 @@ mod tests {
                 actions: vec![button("Go", "go")],
                 ..ListItem::default()
             }],
+            empty: None,
         };
         assert!(matches!(&views(&list)[0], View::Table { rows, .. }
             if rows == &[vec![Cell::from("t"), Cell::from("s")]]));
@@ -313,19 +330,25 @@ mod tests {
         let form = UiNode::Form {
             id: "f".into(),
             fields: vec![
-                FormField::Select {
+                FormField {
                     name: "s".into(),
                     label: "Pick".into(),
-                    options: vec![SelectOption {
+                    help: None,
+                    input: Input::Select {
+                        options: vec![SelectOption {
+                            value: "a".into(),
+                            label: "A".into(),
+                        }],
                         value: "a".into(),
-                        label: "A".into(),
-                    }],
-                    value: "a".into(),
+                    },
                 },
-                FormField::Entry {
+                FormField {
                     name: "e".into(),
                     label: "Server".into(),
-                    kind: EntryKind::Server,
+                    help: None,
+                    input: Input::Entry {
+                        kind: EntryKind::Server,
+                    },
                 },
             ],
             submit: Submit {
@@ -357,6 +380,7 @@ mod tests {
                         payload: json!({"n": 1}),
                     }],
                     row_action: Some("open".into()),
+                    empty: None,
                 },
                 UiNode::List {
                     items: vec![ListItem {
@@ -364,6 +388,7 @@ mod tests {
                         actions: vec![button("Del", "del")],
                         ..ListItem::default()
                     }],
+                    empty: None,
                 },
             ],
         };

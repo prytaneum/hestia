@@ -5,4 +5,4 @@ import type { UiNode } from "./UiNode";
 /**
  * What a plugin asks the host to do after an action.
  */
-export type Effect = { "type": "render", tree: UiNode, } | { "type": "toast", tone: Tone, text: string, } | { "type": "navigate", page: string, } | { "type": "refresh" };
+export type Effect = { "type": "render", tree: UiNode, } | { "type": "toast", tone: Tone, text: string, } | { "type": "navigate", page: string, } | { "type": "refresh" } | { "type": "run", command: string, args: unknown, };

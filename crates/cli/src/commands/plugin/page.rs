@@ -8,7 +8,7 @@ use client::proto::error::EntryKind;
 use client::proto::plugin::{
     PageContext, PageSlot, PluginInfo, PluginUiActionParams, PluginUiRenderParams,
 };
-use client::proto::ui::{Effect, FormField, Tone, UiNode};
+use client::proto::ui::{Effect, FormField, Input, Tone, UiNode};
 use client::Client;
 use serde_json::{Map, Number, Value};
 use tracing::debug;
@@ -117,6 +117,9 @@ pub async fn open(client: &Client, plugin: &PluginInfo, page: &str, argv: &[Stri
                     Tone::Warning | Tone::Error => View::warning(text),
                     _ => View::note(text),
                 })?,
+                Effect::Run { command, .. } => ui::show(View::note(format!(
+                    "asks to run '{command}', which this terminal page cannot start yet"
+                )))?,
                 Effect::Navigate { page: target } => {
                     if !is_page(plugin, &target) {
                         ui::show(View::note(format!(
@@ -206,36 +209,25 @@ fn parse(argv: &[String]) -> Result<Options> {
     Ok(options)
 }
 
-fn name(field: &FormField) -> &str {
-    match field {
-        FormField::Text { name, .. }
-        | FormField::Number { name, .. }
-        | FormField::Toggle { name, .. }
-        | FormField::Select { name, .. }
-        | FormField::Entry { name, .. } => name,
-    }
-}
-
 fn default(field: &FormField) -> Option<Value> {
-    match field {
-        FormField::Text { value, .. } | FormField::Select { value, .. } => {
-            Some(Value::from(value.clone()))
-        }
-        FormField::Number { value, .. } => Number::from_f64(*value).map(Value::Number),
-        FormField::Toggle { value, .. } => Some(Value::Bool(*value)),
-        FormField::Entry { .. } => None,
+    match &field.input {
+        Input::Text { value, .. } | Input::Select { value, .. } => Some(Value::from(value.clone())),
+        Input::Number { value, .. } => Number::from_f64(*value).map(Value::Number),
+        Input::Toggle { value } => Some(Value::Bool(*value)),
+        Input::Entry { .. } => None,
     }
 }
 
 fn coerce(field: &FormField, raw: &str) -> Result<Value> {
-    match field {
-        FormField::Number { name, .. } => raw
+    let name = &field.name;
+    match &field.input {
+        Input::Number { .. } => raw
             .parse::<f64>()
             .ok()
             .and_then(Number::from_f64)
             .map(Value::Number)
             .ok_or_else(|| anyhow!("{name} takes a number, not '{raw}'")),
-        FormField::Toggle { name, .. } => raw
+        Input::Toggle { .. } => raw
             .parse()
             .map(Value::Bool)
             .map_err(|_| anyhow!("{name} takes true or false, not '{raw}'")),
@@ -250,12 +242,16 @@ async fn scripted_values(
 ) -> Result<Value> {
     let mut values = Map::new();
     for field in fields {
-        let key = name(field);
+        let key = field.name.as_str();
         let raw = given.iter().rev().find(|(k, _)| k == key).map(|(_, v)| v);
         let value = match (raw, field) {
-            (Some(raw), FormField::Entry { kind, .. }) => {
-                Value::from(entry_id(client, *kind, raw).await?)
-            }
+            (
+                Some(raw),
+                FormField {
+                    input: Input::Entry { kind },
+                    ..
+                },
+            ) => Value::from(entry_id(client, *kind, raw).await?),
             (Some(raw), field) => coerce(field, raw)?,
             (None, field) => {
                 default(field).ok_or_else(|| anyhow!("pass a value with --set {key}=<name>"))?
@@ -269,26 +265,25 @@ async fn scripted_values(
 async fn prompted_values(client: &Client, fields: &[FormField]) -> Result<Value> {
     let mut values = Map::new();
     for field in fields {
-        let value = match field {
-            FormField::Text { label, value, .. } => Value::from(ui::input(label, value)?),
-            FormField::Number { label, value, .. } => {
-                coerce(field, &ui::input(label, &value.to_string())?)?
-            }
-            FormField::Toggle { label, value, .. } => {
+        let label = &field.label;
+        let value = match &field.input {
+            Input::Text { value, .. } => Value::from(ui::input(label, value)?),
+            Input::Number { value, .. } => coerce(field, &ui::input(label, &value.to_string())?)?,
+            Input::Toggle { value } => {
                 let items = if *value { ["yes", "no"] } else { ["no", "yes"] }.map(String::from);
                 Value::Bool(items[ui::select(label, &items)?] == "yes")
             }
-            FormField::Select { label, options, .. } => {
+            Input::Select { options, .. } => {
                 let labels: Vec<String> = options.iter().map(|o| o.label.clone()).collect();
                 Value::from(options[ui::select(label, &labels)?].value.clone())
             }
-            FormField::Entry { label, kind, .. } => {
+            Input::Entry { kind } => {
                 let entries = entries(client, *kind).await?;
                 let names: Vec<String> = entries.iter().map(|(_, name)| name.clone()).collect();
                 Value::from(entries[ui::select(label, &names)?].0.clone())
             }
         };
-        values.insert(name(field).to_string(), value);
+        values.insert(field.name.clone(), value);
     }
     Ok(Value::Object(values))
 }
@@ -355,17 +350,24 @@ mod tests {
 
     #[test]
     fn values_are_typed_by_their_field() {
-        let number = FormField::Number {
+        let number = FormField {
             name: "n".into(),
             label: String::new(),
-            value: 0.0,
+            help: None,
+            input: Input::Number {
+                value: 0.0,
+                min: None,
+                max: None,
+                step: None,
+            },
         };
         assert_eq!(coerce(&number, "2.5").unwrap(), serde_json::json!(2.5));
         assert!(coerce(&number, "x").is_err());
-        let toggle = FormField::Toggle {
+        let toggle = FormField {
             name: "t".into(),
             label: String::new(),
-            value: false,
+            help: None,
+            input: Input::Toggle { value: false },
         };
         assert_eq!(coerce(&toggle, "true").unwrap(), Value::Bool(true));
         assert!(coerce(&toggle, "maybe").is_err());

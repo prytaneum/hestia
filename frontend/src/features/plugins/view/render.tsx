@@ -36,6 +36,18 @@ export function UiView({ node }: { node: UiNode }) {
           ))}
         </div>
       );
+    case 'section':
+      return (
+        <div className="flex flex-col gap-4">
+          <Heading text={node.title} level={2} />
+          {[...node.actions, ...node.children].map((child, i) => (
+            // biome-ignore lint/suspicious/noArrayIndexKey: a tree is positional
+            <UiView key={i} node={child} />
+          ))}
+        </div>
+      );
+    case 'copy':
+      return <Text text={node.text} tone="neutral" />;
     case 'heading':
       return <Heading text={node.text} level={node.level} />;
     case 'text':

@@ -5,4 +5,8 @@ import type { SelectOption } from "./SelectOption";
 /**
  * One input of a form. Its `name` keys the submitted values.
  */
-export type FormField = { "type": "text", name: string, label: string, value: string, } | { "type": "number", name: string, label: string, value: number, } | { "type": "toggle", name: string, label: string, value: boolean, } | { "type": "select", name: string, label: string, options: Array<SelectOption>, value: string, } | { "type": "entry", name: string, label: string, kind: EntryKind, };
+export type FormField = { name: string, label: string, 
+/**
+ * A hint shown under the field.
+ */
+help?: string, } & ({ "type": "text", value: string, placeholder?: string, } | { "type": "number", value: number, min?: number, max?: number, step?: number, } | { "type": "toggle", value: boolean, } | { "type": "select", options: Array<SelectOption>, value: string, } | { "type": "entry", kind: EntryKind, });
