@@ -2,609 +2,306 @@
 
 *[← Architecture](../architecture.md)*
 
-Three ways to drive one daemon. None of them links the engine; all of them go
-through [`client`](wire.md#client--the-typed-sdk) over the socket.
+Three ways to drive one daemon. None links the engine; all go through [`client`](wire.md#client-the-typed-sdk) over the
+socket.
 
 ```mermaid
-flowchart TD
-    D["hestiad"]
-    CLI["<b>hestia</b><br/>clap + ratatui<br/><i>scriptable, interactive when it can be</i>"]
-    DESK["<b>hestia-desktop</b><br/>Tauri v2 shell + React<br/><i>the visual surface</i>"]
-    TRAY["<b>tray</b><br/>tray-icon + tao<br/><i>always there when the daemon is</i>"]
-
-    CLI <--> D
-    DESK <--> D
-    TRAY <--> D
-    D -->|spawns on serve| TRAY
-    TRAY -->|left-click / Open| DESK
-    DESK -->|starts at launch| D
+flowchart LR
+    CLI["hestia<br/>clap + ratatui"] <--> D["hestiad"]
+    DESK["hestia-desktop<br/>Tauri v2 + React"] <--> D
+    TRAY["tray<br/>tray-icon + tao"] <--> D
+    D -->|"spawns on serve"| TRAY
+    TRAY -->|"Open"| DESK
+    DESK -->|"starts at launch"| D
 ```
 
-Each front-end declares what it means by an ambiguous action rather than
-inheriting a wire default: the CLI asks before stopping a daemon with workloads
-running, while the tray and desktop leave workloads running, because a menu item
-cannot ask ([0036](../decisions/0036-stopping-the-daemon-has-three-meanings.md)).
+Each front-end declares what it means by an ambiguous action. The CLI asks before stopping a daemon with workloads
+running; the tray and desktop leave workloads running, because a menu item cannot ask.
 
----
+# CLI: hestia
 
-# CLI — `hestia`
-
-A thin client built on clap's derive API. `main.rs` defines a `Command` enum;
-each variant is a module under `commands/` exposing a `Subcommand` and a `run()`.
-A domain with many verbs is a directory whose `mod.rs` holds only grammar and
-dispatch.
-
-The full user-facing reference is [cli.md](../cli.md); this covers how it is
-built.
+A thin client on clap's derive API. `main.rs` defines a `Command` enum; each variant is a module under `commands/`
+exposing a `Subcommand` and a `run()`. A domain with many verbs is a directory whose `mod.rs` holds only grammar and
+dispatch. The user reference is [cli.md](../cli.md).
 
 ## Grammar
 
-Noun-first and **entry-first**: catalogue verbs read `hestia server
-create|list|versions|flavors`, but anything acting on a specific entry names it
-once, right after the noun.
+Noun-first and **entry-first**: catalogue verbs read `hestia server create|list|versions|flavors`, and anything acting on
+an entry names it once, right after the noun.
 
 ```
 hestia server smp start
 hestia server smp config set memory 4G
-hestia server smp backup create
 hestia instance modded mod add sodium
 ```
 
-The name occupies one fixed slot instead of floating to a different position per
-subcommand. clap models this with an `external_subcommand` variant on the noun's
-`Subcommand`: an unrecognised first token — the entry name — is captured and
-re-parsed by a `no_binary_name` parser, so per-entry actions keep full clap help
-and validation while catalogue verbs stay ordinary subcommands.
+clap models this with an `external_subcommand` variant on the noun: an unrecognised first token, the entry name, is
+captured and re-parsed by a `no_binary_name` parser, so per-entry actions keep full help and validation.
 
-Two cross-cutting shortcuts sit on top, earned by how often they are used:
+Two shortcuts sit on top: `hestia play [instance]` and verb-first `hestia start|stop|restart|logs|rename <name>`, which
+resolves a name across both registries. Everything scriptable also has the explicit noun-first form.
 
-- `hestia play [instance]` — the launcher's single most common action, picking
-  interactively when several instances exist.
-- verb-first `hestia start|stop|restart|logs|rename <name>` — resolves a name
-  across *both* registries and dispatches, so day-to-day driving need not recall
-  which kind an entry is, nor that `server start` and `instance launch` differ.
+- **Edition first.** `server create` takes `--edition java|bedrock` (default `java`) and the wizard asks for it before
+  the provider, skipping the step when only one is offered. The CLI labels lists `allowlist` or `whitelist` by edition
+  and takes the listed-name property from the catalogue's `nameKey`, never from a flavor table.
+- **Interactive when it can be.** Anything a `create` needs but was not given is asked on a terminal; piped invocations
+  error naming the flag to pass.
+- **Every daemon capability gets a scriptable verb, or a written reason it has none.** Skins are the documented
+  exception. A channel with no verb is fine when the architecture says why and a bug when it does not.
 
-Everything scriptable still has an explicit noun-first form
-([0040](../decisions/0040-entry-first-cli-grammar.md)).
+## Connection, flags and exit codes
 
-**Edition first.** `hestia server create` takes `--edition java|bedrock`
-(default `java`), and the wizard asks for the edition before the provider, skipping
-the step when only one is offered; `server flavors` is grouped by edition, `server
-list` shows an edition column, and `status` shows a server's ports with their protocol.
-A server's `world` verbs and the `behaviorpack`/`resourcepack` kinds appear for a
-Bedrock one. The CLI labels the list `allowlist` or `whitelist` from the server's
-edition and takes the listed-name property from the catalogue's `nameKey`, never
-from a flavor table
-([0134](../decisions/0134-the-edition-is-the-first-axis.md)).
+Global `--verbose`, `--quiet`, `--json` and `--home` sit on the root. `--home` is exported as `$HESTIA_HOME` and only
+takes effect when `hestia daemon start` spawns the daemon. No command auto-spawns: `connect()` and `connect_running()`
+need a running daemon; `start()`, behind `daemon start`, spawns it. `-vv` shows every frame (channel, correlation id,
+size, round trip), never payloads.
 
-Anything a `create` needs but wasn't given is asked for interactively — on a
-terminal the picker *is* the browser; piped invocations error naming the flag to
-pass, so scripts stay explicit.
+A state query answers through its exit code, in systemd's vocabulary (`cli/src/exit.rs`):
 
-**Every daemon capability gets a scriptable verb, or a written reason it has
-none.** Skins are the documented exception — a visual surface. A channel with no
-CLI verb is fine when the architecture says why, and a bug when it does not
-([0041](../decisions/0041-every-capability-gets-a-verb.md)).
+| Code | Meaning                                         |
+|------|-------------------------------------------------|
+| 0    | did what was asked, or the subject is running   |
+| 3    | answered, and the subject is not running        |
+| 1    | the command failed                              |
+| 2    | usage (clap's own)                              |
 
-## Connection and flags
-
-Global `--verbose`/`--quiet`/`--json`/`--home` sit on the root. `--home` is exported as
-`$HESTIA_HOME` and only takes effect when `hestia daemon start` spawns the
-daemon — a running daemon keeps its own directory.
-
-No command auto-spawns: `connect()` and `connect_running()` require a running
-daemon; `start()`, behind `daemon start`, is the one that spawns it.
-
-`-vv` buys **wire visibility** rather than more volume — every frame with its
-channel, correlation id, size and round-trip time. Payloads are never logged
-([0042](../decisions/0042-vv-buys-wire-visibility.md)).
-
-## Exit codes
-
-A state query answers through its exit code, in systemd's vocabulary
-(`cli/src/exit.rs`):
-
-| Code | Meaning |
-|---|---|
-| 0 | did what was asked / the subject is running |
-| 3 | answered, and the subject is **not** running |
-| 1 | the command failed |
-| 2 | usage (clap's own) |
-
-Only the verbs that *assert* one subject's running-ness produce 3 — `daemon
-status`, `server <name> status`. Verbs that merely describe stay 0, because
-"inactive" is not a claim they make
-([0043](../decisions/0043-state-queries-answer-through-exit-codes.md)).
+Only verbs that assert one subject's running-ness produce 3 (`daemon status`, `server <name> status`).
 
 ## Presentation
 
-Commands **never print directly**. They build a `View` (`Line`, `Note`,
-`Detail`, `Status`, `Table`, `Warning`, `Empty`, `Json`) and hand it to `ui::show`, which owns all output.
+Commands never print directly. They build a `View` (`Line`, `Note`, `Detail`, `Status`, `Table`, `Warning`, `Empty`,
+`Json`) and hand it to `ui::show`.
 
-`--json` is decided in that one place (`ui/json.rs`): `ui::show` collects every view into one `{data, warnings}`
-document that `main` writes when the command ends, so no command has a JSON branch. A table carries stable column keys
-beside its headers (derived from them, overridable), and `Empty` is a list with nothing in it, which prints a note for
-a person and `[]` for a script. `is_interactive()` is false under `--json`, so every prompt takes its no-terminal
-error and the progress renderers stay silent. The format is in [cli.md](../cli.md#machine-readable-output---json).
-
-A table or detail value is a `Cell` (`ui/cell.rs`) with two faces: the text a person reads and the typed value a
-script gets. A plain string is both; a command that holds a size, a duration, a time, a flag, a state or a list builds
-the cell with the matching constructor (`Cell::bytes`, `seconds`, `time`, `flag`, `token`, `list`, …), so nothing is
-ever parsed back out of display text. A `Status` view is one thing's state line plus its details: two lines for a
-person, one object with a leading `state` for a script.
-
-A failed command prints its error and, when the failure has one, the next step (`ui/failure.rs`). The daemon's
-`ErrorInfo::hint` derives it from the variant, as `WarningInfo::hint` does, so the hint is never sent on the wire; the
-CLI adds the one failure the daemon cannot report, its own being down. The desktop words its own hint from the same tag
-(`error.hint.<kind>`), naming where in the app to go rather than a command.
-
-Interactive surfaces run as **fullscreen sessions** on a small framework:
-
-- `ui/session/` owns the terminal lifecycle — an RAII `TerminalGuard` for raw
-  mode and the alternate screen, released on drop including on panic — plus the
-  event loop (50 ms poll, drain-before-redraw, dirty-flag drawing, resize
-  re-wrap) and the 80×24 minimum-size notice.
-- A surface implements the `Screen` trait (`draw`, `on_key`, `on_mouse`,
-  `on_event`, `tick`) and composes `ui/components/`: `TextInput`, `SelectList`,
-  `LogView`, the searchable `Picker`, the in-session progress gauge.
-- A session with async input (daemon events, search results) is fed through an
-  mpsc channel by a driver future the command runs alongside it. Its outcome
-  prints plainly to stdout after the terminal is restored, so scrollback keeps a
-  record.
-
-A widget — anything that draws a viewport and takes keys — owns the whole
-alternate screen for as long as it runs. Line prompts (`ui::prompt`, `input`,
-`confirm`) and streams (the `logs -f` follower, the attach after a launch)
-do not: they print to the scrollback, so their output stays searchable and
-copyable. Progress with **no** interaction is one stderr line rewritten in
-place, since flashing the alternate screen for a spinner you cannot act on is
-hostile ([0044](../decisions/0044-fullscreen-interaction-inline-progress.md)).
-
-Piped or redirected, every surface degrades to plain text and widgets degrade to
-arguments, so output stays scriptable.
-
-This is also the seam for the planned TUI: bare `hestia` prints help today, but
-the intended end state is a full-screen TUI over the same `Screen`s and `View`s.
+- **`--json`** is decided in one place (`ui/json.rs`): `ui::show` collects every view into one `{data, warnings}`
+  document written when the command ends. A table carries stable column keys; `Empty` prints a note for a person and
+  `[]` for a script. `is_interactive()` is false under `--json`, so prompts take their no-terminal error and progress is
+  silent. See [cli.md](../cli.md).
+- **Cells.** A table or detail value is a `Cell` (`ui/cell.rs`) with a human face and a typed value
+  (`Cell::bytes`, `seconds`, `time`, `flag`, `token`, `list`), so nothing is parsed back out of display text.
+- **Failures** print the error and, when there is one, the next step (`ui/failure.rs`), derived from
+  `ErrorInfo::hint`, which is never sent on the wire. The desktop words its own hint from the same tag.
+- **Fullscreen sessions** (`ui/session/`): an RAII `TerminalGuard` for raw mode and the alternate screen (released on
+  drop, including panic), an event loop (50 ms poll, drain-before-redraw, resize re-wrap) and an 80x24 minimum notice. A
+  surface implements the `Screen` trait (`draw`, `on_key`, `on_mouse`, `on_event`, `tick`) and composes
+  `ui/components/` (`TextInput`, `SelectList`, `LogView`, `Picker`, the gauge). A session with async input is fed by a
+  driver future through an mpsc channel; its outcome prints plainly after the terminal is restored.
+- **Prompts and streams** (`ui::prompt`, `input`, `confirm`, the `logs -f` follower) are not widgets: they print to
+  scrollback so output stays searchable. Progress with no interaction is one stderr line rewritten in place.
+- Piped or redirected, surfaces degrade to plain text and widgets to arguments. Bare `hestia` prints help today; the
+  intended end state is a full-screen TUI over the same `Screen`s and `View`s.
 
 ---
 
-# Desktop — `hestia-desktop`
+# Desktop: hestia-desktop
 
-A Tauri v2 shell hosting the React frontend in the root `frontend/`, wired to the
-daemon through the same one-way boundary as the CLI. The webview runs under a
-Content Security Policy that allows no remote host
-([0093](../decisions/0093-the-desktop-runs-under-a-csp.md)).
+A Tauri v2 shell hosting the React frontend in the root `frontend/`, behind the same one-way boundary as the CLI. The
+webview runs under a Content Security Policy that allows no remote host.
 
 ## The Rust shell is a pipe
 
-The whole wiring is one seam, `src/bridge.rs`:
+The wiring is one seam, `src/bridge.rs`:
 
-- a shared `Client` held as Tauri managed state, started at shell launch — so
-  opening the app brings its daemon up;
-- **one generic** `ipc_call(channel, payload, timeout_ms)` command forwarding
-  through the session's `call_raw` (a call that names no timeout gets
-  `proto::contract::DEFAULT_TIMEOUT`; the TS layer names the contract's);
-- event forwarding: on connect the bridge registers an unscoped
-  session listener, subscribes to *every* daemon event, and re-emits each as a
+- a shared `Client` as Tauri managed state, started at shell launch, so opening the app brings its daemon up;
+- **one generic** `ipc_call(channel, payload, timeout_ms)` through the session's `call_raw` (no timeout means
+  `DEFAULT_TIMEOUT`; the TS layer names the contract's);
+- event forwarding: an unscoped session listener subscribes to every daemon event and re-emits each as a
   `hestia:event` webview event.
 
-Mirroring ~120 channels as individual Tauri commands would add a third naming
-seam that can drift from both sides while adding no safety — `invoke()` results
-are untyped JSON regardless, and the daemon already validates every payload
-through the wire contract. So the typed layer is TypeScript, checked against a
-channel table generated from the contracts
-([0046](../decisions/0046-desktop-bridge-is-one-generic-command.md),
-[0084](../decisions/0084-the-ts-channel-table-is-generated-from-the-contracts.md)).
+A watcher notices a lost daemon, emits `hestia:connection` transitions and reconnects passively. **Reconnection never
+spawns**: a daemon stopped during the session was stopped on purpose. While down, the bridge answers `connection_lost`
+from held state, so a burst of reads costs one socket attempt per watch interval.
 
-A watcher task notices a lost daemon between calls, emits `hestia:connection`
-transitions, and passively reconnects. **Reconnection never spawns** — a daemon
-stopped during the session was stopped on purpose. While the connection is down
-the bridge answers `connection_lost` from held state rather than attempting the
-socket, so a burst of reads costs one socket attempt per watch interval
-([0050](../decisions/0050-offline-is-one-state.md)).
+Everything else in `commands/` is there because only the shell process can do it:
 
-Everything else in `commands/` is there because it **cannot** be a daemon call —
-each needs something only the shell process has:
-
-| Command | Why it is not generic |
-|---|---|
-| `account_login_sisu` (`auth.rs`) | Microsoft sign-in opens in a native webview window and completes by reading that window's URL on redirect. A cross-origin webview's location is readable only from Rust ([0048](../decisions/0048-sisu-sign-in-is-a-shell-command.md)) |
-| `prefs_list\|set\|remove` (`prefs.rs`) | UI state is the front-end's concern, so it never crosses the socket — written directly to `<data_home>/prefs.json`, resolving the same data home the engine uses ([0049](../decisions/0049-desktop-prefs-live-in-the-data-home.md)) |
-| `icons_allow` (`icons.rs`) | lets the webview load the entries' icons, which the daemon keeps in each entry's directory: the asset scope is widened to exactly `<home>/<servers\|instances>/<entry>/icon.<ext>`, resolved first so a link cannot pass for one, never the directory around it ([0107](../decisions/0107-an-entry-icon-lives-in-the-entry.md)) |
-| `crash_report`, `log_write` (`diagnostics.rs`) | a webview error kills the UI without touching the Rust stack, so the shell records it into the same crash directory the daemon writes to. `log_write` routes console logging into the process `tracing` subscriber under the `ui` target |
-| `open_path`, `open_url` (`opener.rs`) | the host's default handler has to start with the host's environment, which inside an AppImage is not the shell's; `tauri-plugin-opener` passes the shell's on ([0080](../decisions/0080-only-the-shell-runs-in-the-appimage-environment.md)) |
-| `screenshots_allow` (`screenshots.rs`) | widens the asset protocol's scope to an instance's own screenshots folder, which only the shell can do |
-| `hestia-image` scheme (`proxy.rs`) | not a command but the same kind of shell-only plumbing: an asynchronous URI scheme answering `hestia-image://localhost/fetch?u=<encoded https url>` (`http://hestia-image.localhost/…` on WebView2) with the bytes `image.fetch` returns over the bridge's client. SVGs carry `Content-Security-Policy: script-src 'none'`. The frontend rewrites remote image sources through `lib/remote-image.ts` (the markdown renderer, `Thumbnail`, the account avatar), which asks `convertFileSrc` for the per-platform form. Policy lives in the daemon — see [Remote images](engine.md#remote-images) |
-| `pending_archive` (`open.rs`) | hands the webview the `.hestia` archive the app was opened with, once |
-| `pending_repository` (`link.rs`) | hands the webview the https index URL of a `hestia://add-repo?url=` link the app was launched with, once; a link received while running arrives as the `repository-link` event. The shell validates it (https only, host `add-repo`), focuses the window, and the Repositories section opens its add confirmation |
-| `ready` (`splash.rs`) | the webview reports it has painted, which reveals the window |
-| `start_daemon` (`bridge.rs`) | the `Client::start()` spawn path behind the offline overlay's start button |
-| `relaunch_daemon` (`bridge.rs`) | the same spawn, after a restart or a data-home move: it waits for the stopping daemon's connection to close first, since the endpoint is shared and a start before then would reach the daemon on its way out |
+| Command                                  | Why it is not generic                                                                         |
+|------------------------------------------|-----------------------------------------------------------------------------------------------|
+| `account_login_sisu` (`auth.rs`)         | Microsoft sign-in completes by reading a native webview window's redirect URL                 |
+| `prefs_list\|set\|remove` (`prefs.rs`)   | UI state in `<data_home>/prefs.json`, never crossing the socket                               |
+| `icons_allow`, `screenshots_allow`       | widen the asset protocol's scope to entry icons and an instance's screenshots folder          |
+| `crash_report`, `log_write`              | a webview error kills the UI without touching the Rust stack                                  |
+| `open_path`, `open_url` (`opener.rs`)    | the host's default handler must start with the host's environment (AppImage)                  |
+| `hestia-image` scheme (`proxy.rs`)       | an asynchronous URI scheme serving `image.fetch` bytes                                        |
+| `pending_archive`, `pending_repository`  | hand the webview the `.hestia` archive or `hestia://add-repo?url=` link the app was opened with |
+| `ready` (`splash.rs`)                    | the webview reports it has painted, which reveals the window                                  |
+| `start_daemon`, `relaunch_daemon`        | the `Client::start()` spawn path behind the offline overlay and after a restart or home move  |
 
 ## The frontend
 
 ```mermaid
 flowchart TD
-    UI["features/ + routes/<br/><i>components render, nothing else</i>"]
-    Q["queries/<br/>TanStack Query — one module per domain"]
-    API["api/<br/>typed functions over ipc_call"]
-    T["api/types/<br/>generated from proto by ts-rs"]
-    BR["bridge.rs"]
-
-    UI --> Q --> API --> BR
-    T -.->|"scripts/gen-types.sh"| API
+    UI["features/ + routes/"] --> Q["queries/<br/>TanStack Query, one module per domain"] --> API["api/<br/>typed functions over ipc_call"] --> BR["bridge.rs"]
+    T["api/types/ (generated by ts-rs)"] -.-> API
     BR -.->|"hestia:event"| BUS["event bus"] --> Q
 ```
 
-**`api/`** — `core/` holds the `ipc_call` wrapper, the event bus, and a
-`runJob` driver mirroring `Session::run_job` (client-generated job id,
-subscribe-before-start). `types/` is **generated** from `proto`: ts-rs writes the
-payload structs (the feature-gated `#[ts]` derives never enter a production
-build) and `scripts/gen-types.sh` writes `channels.ts`, the `Channels` / `Jobs` /
-`Topics` tables and each contract's timeout. `call('server.status', …)` takes its
-params and returns its result from that table, applies the contract's timeout,
-and `runJob('server.create', params, job)` starts the channel and resolves with
-its `Done` payload; `onDaemonEvent` payloads are narrowed by topic. Then one
-module per domain, mirroring the client facades. The browser mock's handlers
-(`src/mock/channels`) and `queries/invalidation.ts` are typed against the same
-tables, so a renamed channel or a drifted fixture fails typecheck.
+**`api/`**: `core/` holds the `ipc_call` wrapper, the event bus and a `runJob` driver mirroring `Session::run_job`
+(client-generated job id, subscribe before start). `types/` is generated from `proto` (ts-rs payloads, plus
+`channels.ts`). `call('server.status', ...)` takes params and returns results from the `Channels` table and applies the
+contract's timeout; `runJob` resolves with the `Done` payload; `onDaemonEvent` payloads are narrowed by topic. One
+module per domain mirrors the client facades. The browser mock's handlers and `queries/invalidation.ts` are typed
+against the same tables, so a renamed channel or drifted fixture fails typecheck.
 
-**`queries/`** — one module per domain, for the channels a screen uses. Each
-exports **factories** — options objects, not hooks (`serverQueries.detail(id)`,
-`serverMutations.start(id)`) — passed to TanStack's own `useQuery`/`useMutation`.
-One definition then serves a component, a route loader's `ensureQueryData` and an
-imperative fetch alike. A named hook is added only where a factory cannot express
-it: a read composing two sources (`useServer`, `useDaemon`) or one accumulating
-live events (`useServerLogs`, `useProcessMetrics`).
+**`queries/`**: one module per domain, for channels a screen uses. Each exports **factories** (options objects, not
+hooks: `serverQueries.detail(id)`, `serverMutations.start(id)`) passed to TanStack's `useQuery` and `useMutation`, so one
+definition serves a component, a route loader and an imperative fetch. A named hook exists only where a factory cannot
+express it (a read composing two sources, or one accumulating live events).
 
-- Keys come from one hierarchical factory, always keyed by **stable entry ids**,
-  never the renameable display name, with an entry's sub-resources nested under
-  its `detail(id)` prefix so one sweep refreshes the whole entry.
-- Long-running operations are **job mutations** routed through a global job
-  store, so an activity surface sees every in-flight job with live progress,
-  surviving unmount and navigation. The store alone reports a job's outcome
-  ([0089](../decisions/0089-a-job-outcome-is-reported-once.md)).
-- Freshness is belt-and-suspenders: mutations invalidate their own key prefixes
-  on settle, and `queries/invalidation.ts` maps daemon topics (a finished job by its start
-  channel, a `changed` event by its scope) to key prefixes, so changes made by the CLI, the tray or a schedule land without
+- Keys come from one hierarchical factory, always by **stable entry id**, with sub-resources nested under `detail(id)`.
+- Long operations are **job mutations** through a global job store, so an activity surface sees every in-flight job,
+  surviving unmount and navigation. The store alone reports a job's outcome.
+- Freshness: mutations invalidate their own key prefixes on settle, and `queries/invalidation.ts` maps daemon topics (a
+  finished job by start channel, a `changed` event by scope) to prefixes, so CLI, tray and schedule changes land without
   polling. A reconnect invalidates everything.
-- Streaming is hooks too — `useConnection()`, `useDaemonEvent(topic, handler)`,
-  and log hooks that accumulate `process.output` onto the fetched tail. Components
-  never touch the event bus.
+- Streaming is hooks too (`useConnection()`, `useDaemonEvent(topic, handler)`, log hooks). Components never touch the
+  event bus.
 
-[hooks.md](../hooks.md) is the usage guide for this layer.
-
-**`features/` and `routes/`** — pages for the library, servers, instances,
-content browse, skins and settings, over a shared app shell with
-an offline overlay, a first-run sign-in prompt and route guards for the
-account-gated instance surface.
-
-Every feature has the same shape, and a directory only exists once it has
-something in it:
+**`features/` and `routes/`**: pages for the library, servers, instances, content browse, skins, plugins and settings,
+over a shell with an offline overlay, a first-run sign-in prompt and route guards for the account-gated instance
+surface. Every feature has the same shape, and a directory exists only once it has something in it:
 
 ```
 features/<name>/
 ├── page.tsx          the route body; detail.tsx for a $id route
 ├── components/       presentational pieces
-├── dialogs/          one file per dialog, named for what it does
-├── hooks/            use-*.ts — stateful React
+├── dialogs/          one file per dialog
+├── hooks/            use-*.ts
 ├── lib/              pure helpers, no React
 ├── tabs/             a detail page's tab bodies
-└── <flow>/           a wizard: dialog.tsx · steps/ · its own hooks/ + lib/
+└── <flow>/           a wizard: dialog.tsx, steps/, its own hooks/ and lib/
 ```
 
-Rules that keep it from drifting:
-
-- **A directory is reached through its `index.ts`.** Every multi-file directory
-  has one, and an import from outside names the directory, never a file inside
-  it (`@/features/skins/components`). Siblings import each other relatively, so
-  nothing imports its own barrel.
-- **A dialog is a `Dialog`.** One word for the concept, matching the
-  `components/ui/dialog` primitive it is built on.
-- **Every dialog is an `AppDialog`** (`components/dialog`). The parent owns the
-  chrome — the box, its `size` and `height`, the header, the close button — and
-  a dialog supplies only its content: a `DialogBody` (the part that scrolls) and
-  a `DialogFooter`. A feature never composes `DialogContent` itself, so a change
-  to how dialogs are sized happens in one place. `ConfirmDialog` is the same box
-  over the alert primitive.
-- **Vocabulary two features share lives in `features/shared/`,** which is a leaf:
-  `features/shared/*` may not import `features/<feature>/*`. `shared/entry` is
-  what a server and an instance both are (cards, the create wizard, the detail
-  sections, the settings tab); `shared/content` is the content vocabulary the
-  browse pages and the entry content tabs resolve against. Everything else is
-  one-directional — `library → instances`, `instances → content`,
-  `servers → content` — so the feature graph is acyclic.
-- **Plugin approval is a native dialog, never a webview modal.** The Plugins
-  page inspects a package (`plugin.inspect`), shows its grant through
-  `dialog.ask` (`@tauri-apps/plugin-dialog`) with full-access permissions first,
-  and installs against the inspected `grantDigest`. A message box does not
-  scroll, so a grant past `MAX_DIALOG_LINES` gets a summary in the dialog and
-  the full list in an in-page review the user continues from. Permission text
-  is the `domain.plugin.permission.*` messages, keyed by a typed table. Which
-  permissions count as full access is the daemon's answer (`unrestricted` on
-  both `PluginInspection` and `PluginInfo`), so an installed row flags full
-  access without a tier table in the frontend; the row's details drawer reads
-  the same grant through `describeGrant`, which the dialog also uses.
-- **A dropped file goes through one pipeline** (`lib/file-drop`), shaped like
-  `react-dropzone`: `useDropzone({ accept, onDrop, multiple, disabled, label })`
-  returns `getRootProps()` to spread on the element that takes the drop and
-  `isDragActive` to highlight it. The drop goes to the innermost dropzone under
-  the pointer that accepts the file, so an open dialog shields the page behind
-  it with no rule of its own. The library itself does not fit: only the
-  webview's window-wide drag-drop event carries a real path, and the daemon is
-  handed paths, not bytes — so bootstrap starts that one listener and the
-  pipeline hit-tests the pointer by hand. A zone with a `label` gets the shell's
-  `FileDropOverlay`.
+- A directory is reached through its `index.ts`; imports from outside name the directory, never a file inside.
+- Every dialog is an `AppDialog` (`components/dialog`): the parent owns the box, size, header and close button, and a
+  dialog supplies a `DialogBody` and a `DialogFooter`. A feature never composes `DialogContent` itself.
+- Vocabulary two features share lives in `features/shared/`, a leaf that may not import a feature. `shared/entry` is what
+  a server and an instance both are; `shared/content` is the content vocabulary. Everything else is one-directional
+  (`library` to `instances`, `instances` and `servers` to `content`), so the feature graph is acyclic.
+- **Plugin approval is a native dialog**, never a webview modal. The Plugins page inspects a package, shows its grant
+  through `dialog.ask` with full-access permissions first, and installs against the inspected `grantDigest`. A grant
+  past `MAX_DIALOG_LINES` gets a summary in the dialog and the full list in an in-page review. The daemon says which
+  permissions are full access (`unrestricted`), so the frontend keeps no tier table.
+- **A dropped file goes through one pipeline** (`lib/file-drop`, shaped like `react-dropzone`): `useDropzone` returns
+  `getRootProps()` and `isDragActive`. The drop goes to the innermost accepting zone under the pointer. Bootstrap starts
+  the one window-wide drag-drop listener (only it carries a real path, and the daemon takes paths, not bytes) and the
+  pipeline hit-tests by hand.
 
 ### Plugin pages
 
-A plugin never ships UI code: it returns a `UiNode` tree and the desktop draws
-it with its own components (`features/plugins/`). Three fixed slots, named by
-the manifest's `PageSlot`, decide where a page appears:
+The desktop draws a plugin's `UiNode` tree with its own components (`features/plugins/`). Three slots, set by the
+manifest's `PageSlot`:
 
-- **`nav`** adds a sidebar item (`usePluginNav`, after the built-in ones) that
-  opens `/plugins/$plugin/$page`.
-- **`entry`** adds a tab to the server or instance detail whose kind the page
-  names (`PluginTabTriggers` / `PluginTabContents`); the tab value is
-  `plugin:<plugin>/<page>`, and the page receives the entry id as its
-  `PageContext`.
-- **`settings`** adds a section to the plugin's own page, under its declared
-  settings (`PluginSettingsSections`).
+- **`nav`** adds a sidebar item opening `/plugins/$plugin/$page`.
+- **`entry`** adds a tab to a server or instance detail; the page receives the entry id in its `PageContext`.
+- **`settings`** adds a section to the plugin's own page under its declared settings.
 
-`PluginView` fetches the tree (`pluginQueries.render`, keyed under
-`keys.plugins` so a plugin state change refetches it) and `view/render.tsx`
-maps each node type to a component: layout and text nodes in `layout.tsx`,
-table, list, detail and button in `data.tsx`, forms in `form.tsx` (values are
-local state, submitted with the action). A node type the build does not know
-renders a notice instead of failing. Markdown goes through the shared
-`Markdown` with `raw={false}`, so embedded HTML is text, and images and package
-icons resolve to `hestia-plugin` URLs through `pluginAsset`
-([0098](../decisions/0098-plugin-assets-are-served-by-the-daemon.md)).
+`PluginView` fetches the tree (`pluginQueries.render`, keyed by locale and under `keys.plugins`) and `view/render.tsx`
+maps each node type to a component (layout, data, form). An unknown node renders a notice, not a failure. Markdown is
+rendered with `raw={false}`, and images resolve to `hestia-plugin` URLs through `pluginAsset`. An action calls
+`plugin.ui.action` and applies the effects (`render`, `toast`, `navigate`, `refresh`). A page with `topics` or
+`refresh_every` is redrawn on such a topic (at most twice a second) or interval. `remote_image` is a `plugin.image` query
+rendered as a data URL. `usePluginText` loads `plugin.messages` to translate manifest titles and setting labels.
 
-A click or submit calls `plugin.ui.action` and applies the returned effects:
-`render` replaces the cached tree, `toast` goes through `notify`, `navigate`
-opens another page of the plugin, and `refresh` refetches.
-
-The render query is keyed by the app's locale, which the page context carries. A page that declares `topics` or
-`refresh_every` is drawn again on such a daemon topic (throttled to twice a second, `useRedrawOnTopics`) or interval. A
-`remote_image` is a `plugin.image` query rendered as a data URL, never a request the webview makes; `tabs` keeps the chosen
-tab in the component, a `confirm` button asks through `ConfirmDialog`, and a `filter` table narrows its rows locally.
-`usePluginText` loads a plugin's catalog (`plugin.messages`) to translate the manifest's page titles and setting labels,
-help and placeholders ([0123](../decisions/0123-the-ui-vocabulary-grows-by-general-primitives.md)).
-
-### Plugin commands
-
-A plugin's `[[contributes.commands]]` appear where they act, not on a page of
-their own (`features/plugins/commands.tsx`, over `plugin.commands`): a server-
-or instance-scoped command in that entry's actions menu, a top-scoped one on
-the plugin's own page. A command with declared arguments opens
-a form generated from its `CommandArg` list; one without runs at once. Either
-way it is a `plugin.run` job started through `runJobMutation`, so the job store
-shows its progress and reports the outcome once, with text output as the toast's
-description ([0089](../decisions/0089-a-job-outcome-is-reported-once.md)).
+A plugin's `[[contributes.commands]]` appear where they act: server- or instance-scoped ones in that entry's actions
+menu, top-scoped ones on the plugin's page. Arguments open a generated form; each runs as a `plugin.run` job through the
+job store.
 
 ### Themes
 
-A plugin may contribute `[[contributes.themes]]` (id, name, `file`,
-`appearance`), which needs `ui:css`. `plugin.themes` lists those of the enabled
-plugins. The chosen one is the `theme` pref (`{plugin, id}`), picked in Settings
-→ General → Appearance. `ThemeHost` (`components/app-shell/theme-host.tsx`)
-appends one `<link rel="stylesheet">` after the app CSS pointing at the
-plugin's `hestia-plugin` URL, only once a theme is chosen and safe mode has
-answered no; a theme that is removed, disabled or fails to load falls back to
-the built-in look. `hestia-desktop --safe-mode` or `HESTIA_SAFE_MODE=1` loads no
-plugin CSS for that run and shows a notice with a button that clears the pref
-([0100](../decisions/0100-themes-are-plugin-css.md)).
+A theme (`[[contributes.themes]]`, needing `ui:css`) is picked in Settings, Appearance, and stored as the `theme` pref.
+`ThemeHost` appends one stylesheet link to the plugin's `hestia-plugin` URL once a theme is chosen and safe mode has
+answered no. A theme that is removed, disabled or fails to load falls back to the built-in look. `hestia-desktop
+--safe-mode` or `HESTIA_SAFE_MODE=1` loads no plugin CSS and shows a notice with a button that clears the pref.
 
 ## Editions in the desktop
 
-The create wizard consumes `editions[]` directly: an edition switch chooses a
-catalogue, and the provider list, the property rules and the name field come from
-it; versions, loaders and create all send the edition. An entry's pages then
-render what the daemon says rather than testing for Bedrock: ports formatted from
-`ServerInfo.ports`, content tabs and browse sources from `accepts` and
-`ContentSource.editions`, a worlds section from `server.worlds` with `.mcworld`
-import, and a Java row only when `javaMajor` is present. The flavor's display name
-is looked up scoped by edition, since an id is unique only within one.
+The create wizard consumes `editions[]` directly: the provider list, property rules and name field come from the chosen
+edition's catalogue, and versions, loaders and create all send the edition. Pages render what the daemon says rather
+than testing for Bedrock: ports from `ServerInfo.ports`, content tabs and sources from `accepts` and
+`ContentSource.editions`, worlds from `server.worlds` with `.mcworld` import, and a Java row only when `javaMajor` is
+present. A flavor's display name is looked up scoped by edition.
 
 ## Notifications and saves
 
-Every piece of feedback has one surface, and one owner
-([0089](../decisions/0089-a-job-outcome-is-reported-once.md)):
+Every piece of feedback has one surface and one owner:
 
-| Surface | For |
-|---|---|
-| Toast | the moment an outcome arrives that happened off-screen or in the background |
-| Inline | feedback on the control in view, such as a routine "saved" |
-| Notification list | every notice of the session, and anything to come back to |
-| `WarningNotice` | a degraded state that is still true |
+| Surface           | For                                                                          |
+|-------------------|------------------------------------------------------------------------------|
+| Toast             | an outcome that arrives off-screen or in the background                      |
+| Inline            | feedback on the control in view, such as a routine "saved"                   |
+| Notification list | every notice of the session, and anything to come back to                    |
+| `WarningNotice`   | a degraded state that is still true                                          |
 
-Toasts go through `lib/notify.ts`, the only module allowed to import `sonner`
-(a lint rule enforces it). They are plain: bottom-right above the status bar, a
-neutral icon, the title and a muted description, at most three at once.
+Toasts go through `lib/notify.ts`, the only module allowed to import `sonner` (a lint rule enforces it): bottom-right, at
+most three, success and info and warning expire while an error or any toast with an action stays. Each is also recorded
+in the notification list under its id. A finished operation is one toast (`notify.outcome` folds warnings and failed
+items into the description). The job store reports a job's outcome and a call site never toasts a failure; a cancel says
+nothing; jobs another client started, jobs interrupted by a restart and outcomes a dialog already showed are recorded
+quietly.
 
-- Success, info and warning toasts expire; an error, and any toast carrying an
-  action (Retry, Open folder), stays until dismissed and alone has a close
-  button.
-- Every toast is also recorded in the notification list (`lib/notifications.ts`),
-  under the toast's id, so a repeat replaces its entry as it replaces its toast.
-  `quiet` records without a toast.
-- A finished operation is one toast: `notify.outcome` folds its warnings and
-  failed items into the description, never one toast each.
-- The job store reports a job's outcome and a call site never toasts a failure.
-  A cancel says nothing. A job another client started (the CLI, a schedule), a
-  job interrupted by a daemon restart, and an outcome a dialog already showed
-  are recorded quietly.
-
-**The bell** at the right of the status bar opens the notification panel,
-modelled on JetBrains IDEs' notification tool window. While jobs run, a spinner
-and their count sit beside it; a dot on it marks unread notices, red when one is
-an error. The panel lists running jobs first (title, stage, percent, a bar and
-Cancel), then the session's notices newest first (title, time, description, its
-one action, remove on hover), with Clear all. Opening it clears the toasts off
-the screen, since each is already listed; closing it marks everything read. A
-polite status region announces when a job starts, changes stage or settles,
-never on a percentage tick. The store mirrors the daemon's registry
-(`job.list`, then `job` events carrying each job's subject), so jobs started
-from the CLI or before a reload appear too.
-
-**Inline saves.** A routine write confirms on the control that made it, through
-`useSaveState` (idle, saving, saved) and `SaveButton`: a spinner only if the
-write outlasts a short delay, a check for two seconds after. A failure
-returns the control to idle and is reported by the mutation cache, so a save
-never toasts "Saved".
-
-**The launch readout.** The Play (or Join) button becomes the launch's progress
-readout while the instance launches: ember fill, stage, percent, bytes, rate and
-ETA from the job's overall byte totals, with Cancel beside it. It appears once a
-launch outlasts a short threshold, counted from the job's start, so a quick
-launch never flashes. While a launch downloads, the play bar carries it on every
-route, pinned to its instance and quick-play target, and holds its outcome
-briefly once it settles.
+The **bell** in the status bar opens the notification panel: running jobs first (title, stage, percent, Cancel), then
+the session's notices newest first. The job store mirrors the daemon's registry (`job.list`, then `job` events carrying
+each job's subject), so CLI-started and pre-reload jobs appear. **Inline saves** use `useSaveState` and `SaveButton`: a
+spinner only if the write outlasts a short delay, a check for two seconds after. The **launch readout** replaces the Play
+button during a launch (stage, percent, bytes, rate, ETA from the job's overall totals, Cancel), appears only once a
+launch outlasts a short threshold and is pinned on every route while it downloads.
 
 ## Two kinds of offline
 
-The daemon being down and the *internet* being unreachable are separate states
-with separate treatments, and conflating them is the mistake the UI is shaped to
-avoid.
+A lost **daemon** covers the window (`OfflineOverlay`), since nothing works without it. A lost **connection** blocks
+nothing: instances launch, servers run, installed content is there. It gets its own light in the status bar, seeded from
+`net.status` and kept live by `net.state` (`queries/net.ts`), and each surface that needs upstream says so itself:
 
-A lost **daemon** covers the window (`OfflineOverlay`): nothing works without it,
-so every page would otherwise render its own empty state
-([0050](../decisions/0050-offline-is-one-state.md)).
+| Surface                                             | Offline treatment                                             |
+|-----------------------------------------------------|---------------------------------------------------------------|
+| Content browse, project detail, install and version dialogs | `OfflineState` for the whole surface                  |
+| Skin library                                        | `OfflineState` when nothing is cached                         |
+| Version pickers in the create wizard                | `StaleNotice`: answered from the cached catalogue             |
+| Java runtimes, update checks, sign-in               | `OfflineNotice` and a disabled action                         |
+| `/offline`                                          | the dedicated page: which state, what still works, a retry    |
 
-A lost **connection** must not block anything — instances still launch, servers
-still run, installed content is still there. So it gets its own light in the
-status bar beside the daemon's, seeded from `net.status` and kept live by the
-`net.state` topic (`queries/net.ts`), and each surface that genuinely needs
-upstream says so itself:
+The `offline` code is silenced in the query toast path (the status bar already reports it) but not for mutations: a
+mutation is something the user asked for, so being offline is an answer they are owed.
 
-| Surface | Offline treatment |
-|---|---|
-| Content browse, project detail, the install picker, the version dialog | `OfflineState` — the whole surface, since there is nothing local to show |
-| Skin library | `OfflineState` when nothing is cached; Mojang owns the profile |
-| Version pickers in the create wizard | `StaleNotice` — the list answers from the cached catalogue |
-| Java runtimes, update check, entry content updates, sign-in | `OfflineNotice` and a disabled action — the content is local, only the download is not |
-| `/offline` | the dedicated page: which state, what still works, what does not, and a retry |
+## Browser dev: the fixture daemon
 
-The `offline` error code is silenced in the query toast path for the same reason
-a lost socket is — the status bar already reports it — but **not** for
-mutations: a mutation is something the user asked for, so being offline is an
-answer they are owed rather than a silent no-op.
+`frontend/src/mock/` fakes `window.__TAURI_INTERNALS__` so the UI runs under plain `vite dev` with no shell or daemon. It
+is installed from `main.tsx` only in a dev build and only when the real shell is absent. It mirrors what it replaces:
+`state/` (the engine's mutable world), `channels/` (one registrar per domain), `commands/` (the shell's commands),
+`router.ts`, `job.ts` and `bus.ts`.
 
-## Browser dev — the fixture daemon
-
-`frontend/src/mock/` fakes `window.__TAURI_INTERNALS__` so the UI runs under a
-plain `vite dev` with no shell and no `hestiad` behind it. It is installed from
-`main.tsx` only in a dev build, and only when the real shell is absent, so it
-never reaches a desktop bundle.
-
-It is laid out like the thing it replaces, one module per domain on each side:
-
-| In the mock | Stands in for |
-|---|---|
-| `state/` | `crates/engine` — the mutable world (entries, content pools, processes, worlds, settings) |
-| `channels/` | `crates/daemon/src/services/` — one registrar per domain |
-| `commands/` | `crates/desktop/src/commands/` plus the bundled Tauri plugins |
-| `router.ts` | the daemon's router and the shell's `ipc_call` bridge |
-| `job.ts`, `bus.ts` | the job managers and the event hub |
-
-It is a **stateful** fake, because the two things a canned response cannot do
-are the two that matter in dev: a create must show up in the list it was made
-from, and a job must **settle** — `runJob` blocks until a terminal event
-arrives, so a fixture that answers the start call and publishes nothing hangs
-the caller forever. Jobs here walk their phases on a timer, publish progress,
-and settle; a started entry registers a supervised process and broadcasts
-`process.started` / `.output` / `.metrics` / `.exit` like the supervisor does.
-Fixtures are typed against the generated channel table, params and result both
-(a payload reader only takes a key the channel's params have), so a wire change
-fails the typecheck here rather than silently serving a stale shape. An unlisted
-channel or command fails a test outright; in browser dev it answers with an
-empty-proxy value that degrades instead of crashing the page, and warns.
+It is **stateful**, because a canned response cannot do the two things that matter: a create must appear in the list it
+was made from, and a job must settle (`runJob` blocks until a terminal event). Jobs walk their phases on a timer; a
+started entry registers a process and broadcasts `process.*` events. Fixtures are typed against the generated channel
+table, so a wire change fails typecheck. An unlisted channel fails a test and, in browser dev, answers with an empty
+proxy value and a warning.
 
 ## Messages
 
-The catalogue (paraglide/inlang, `frontend/messages/`) is organised on **one
-axis — where the string is rendered** — and split one file per root:
+The catalogue (paraglide/inlang, `frontend/messages/`) is organised on **one axis, where the string is rendered**, one
+file per root:
 
-| Root | What goes in it |
-|---|---|
-| `app.*` | shell chrome and shared vocabulary — nav, window, action, label, status, toast, search, time, jobs, validation, daemon |
-| `<feature>.*` | one root per `frontend/src/features/` directory |
-| `domain.*` | vocabulary mirroring a `proto` enum — content kinds, flavors, gamemodes, difficulties, provision phases, entry types |
-| `error.*` / `warning.*` | the daemon's own vocabulary, keyed by variant, looked up dynamically |
+| Root                    | Holds                                                                                               |
+|-------------------------|-----------------------------------------------------------------------------------------------------|
+| `app.*`                 | shell chrome and shared vocabulary: nav, window, action, label, status, toast, search, time, jobs, validation, daemon |
+| `<feature>.*`           | one root per `frontend/src/features/` directory                                                     |
+| `domain.*`              | vocabulary mirroring a `proto` enum: content kinds, flavors, gamemodes, provision phases, entry types |
+| `error.*` / `warning.*` | the daemon's vocabulary, keyed by variant, looked up dynamically                                    |
 
-Nest with objects rather than underscores — paraglide flattens a dotted key to
-underscores, so `entry_settings.x` and `entry.settings_x` would compile to one
-identifier.
-
-The guard is a test, not a convention (`frontend/tests/unit/messages.test.ts`): every
-locale must cover the base locale exactly and interpolate the same
-`{placeholders}`, every referenced key must exist, and every defined key must
-have a call site. Dynamically reached tables must be declared in
-`DYNAMIC_PREFIXES` — an undeclared table is exactly what makes dead keys
-unprovable ([0047](../decisions/0047-messages-organised-by-render-surface.md)).
+Nest with objects, not underscores: paraglide flattens dotted keys to underscores. `frontend/tests/unit/messages.test.ts`
+enforces that every locale covers the base exactly with the same placeholders, every referenced key exists and every
+defined key has a call site. Dynamically reached tables must be declared in `DYNAMIC_PREFIXES`.
 
 ---
 
 # Tray
 
-A resident helper wearing the desktop app's icon, so both front-ends share one
-face. It publishes a `org.kde.StatusNotifierItem` over D-Bus on Linux and uses
-Tauri's native tray crates on Windows.
+A resident helper wearing the desktop app's icon. It publishes a `org.kde.StatusNotifierItem` over D-Bus on Linux (the
+`ksni` crate) and uses Tauri's native tray crates on Windows. The menu: **Open Hestia**, a status header (version and
+running or stopped), a start or restart action, a start-at-login toggle bound to the `autostart` key, and a quit that
+stops the daemon while leaving workloads running. A worker thread polls the daemon every two seconds through the client
+SDK and reports changes through a `Sink`, so the loop is platform-agnostic; menu actions return over an mpsc channel so
+nothing rendering the icon blocks on the socket. Left-click launches the desktop shell.
 
-The menu is: **Open Hestia**, a status header (version + running/stopped), a
-start/restart action, a start-at-login toggle bound to the reserved `autostart`
-config key, and a quit that stops the daemon while leaving workloads running.
-
-A worker thread polls the daemon every two seconds over the client SDK and
-reports state changes through a `Sink` — the event loop on Windows, the tray
-handle on Linux — so the polling loop itself is platform-agnostic. Menu actions
-travel back over an mpsc channel, so nothing rendering the icon blocks on the
-socket. Left-click launches the desktop shell.
-
-**The daemon spawns the tray; the tray outlives the daemon.** A stopped daemon is
-exactly when the tray is most useful — the greyed status plus a start action — so
-only its own Quit removes it. A duplicate spawn after a daemon restart is
-absorbed by an exclusive lock keyed by endpoint, so a dev daemon's tray and the
-session's tray coexist ([0051](../decisions/0051-the-daemon-spawns-the-tray.md)).
-
-**The tray speaks the tray protocol, and asks nothing of the machine.** On Linux
-the status area is a D-Bus protocol, `org.kde.StatusNotifierItem`, and the tray
-implements it directly (`ksni`) rather than through libappindicator — a library
-most desktops do not ship, whose absence used to mean no icon and a crash report
-per daemon start. The requirement is now a session bus and a desktop that hosts
-a tray, never a package on the user's machine, which is why the icon appears
-wherever an Electron app's does — Plasma and SteamOS, XFCE, Cinnamon, LXQt, a
-Wayland bar, GNOME with the AppIndicator extension
-([0068](../decisions/0068-the-tray-speaks-the-tray-protocol.md)).
-
-**A session with no host yet is not a failure.** The item stays published and
-registers the moment a watcher appears, so a bar that restarts or an extension
-enabled mid-session finds the tray waiting, with nothing to restart.
-
-Single-instance is enforced deliberately in each front-end: the tray by that
-runtime lock, the desktop by `tauri-plugin-single-instance`, which focuses the
-existing window rather than opening another. They must not share a GApplication
-id, or on Linux each would block the other
-([0052](../decisions/0052-tray-and-desktop-app-ids.md)).
-
-## Decisions
-
-- [0040 — Entry-first, with verb-first shortcuts for the hot path](../decisions/0040-entry-first-cli-grammar.md)
-- [0041 — Every daemon capability gets a scriptable verb, or a written reason](../decisions/0041-every-capability-gets-a-verb.md)
-- [0042 — `-vv` buys wire visibility, not more volume](../decisions/0042-vv-buys-wire-visibility.md)
-- [0043 — A state query answers through its exit code](../decisions/0043-state-queries-answer-through-exit-codes.md)
-- [0044 — Interaction is fullscreen; bare progress is one line](../decisions/0044-fullscreen-interaction-inline-progress.md)
-- [0134 — The edition is the first axis, and one module owns what each edition does](../decisions/0134-the-edition-is-the-first-axis.md)
-- [0046 — The desktop bridge is one generic command](../decisions/0046-desktop-bridge-is-one-generic-command.md)
-- [0047 — Messages are organised by render surface](../decisions/0047-messages-organised-by-render-surface.md)
-- [0048 — Sign-in is the one bespoke shell command](../decisions/0048-sisu-sign-in-is-a-shell-command.md)
-- [0049 — Front-end preferences are desktop-local](../decisions/0049-desktop-prefs-live-in-the-data-home.md)
-- [0050 — Offline is one state, not a failure per read](../decisions/0050-offline-is-one-state.md)
-- [0067 — Reachability is observed from real traffic, and offline is a state the whole system reads](../decisions/0067-reachability-is-observed-not-asked.md)
-- [0051 — The daemon spawns the tray; the tray outlives the daemon](../decisions/0051-the-daemon-spawns-the-tray.md)
-- [0052 — The tray and desktop must not share a GApplication id](../decisions/0052-tray-and-desktop-app-ids.md)
-- [0068 — The tray speaks the tray protocol, not a library that might be installed](../decisions/0068-the-tray-speaks-the-tray-protocol.md)
-- [0080 — Only the shell runs in the AppImage's environment](../decisions/0080-only-the-shell-runs-in-the-appimage-environment.md)
-- [0089 — A job outcome is reported once, by the job store](../decisions/0089-a-job-outcome-is-reported-once.md)
-- [0093 — The desktop runs under a CSP](../decisions/0093-the-desktop-runs-under-a-csp.md)
+A session with no tray host yet is not a failure: the item stays published and registers when a watcher appears.
+Single-instance is enforced in each front-end (the tray by an exclusive lock keyed by endpoint, so a dev daemon's tray
+and the session's coexist; the desktop by `tauri-plugin-single-instance`).

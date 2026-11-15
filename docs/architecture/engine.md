@@ -2,392 +2,249 @@
 
 *[← Architecture](../architecture.md)*
 
-The engine is the launcher itself: config, downloads, Java runtimes, accounts,
-game providers, entry stores, content, process supervision. It is
-daemon-internal — it links neither `ipc` nor `client`, and does not know a socket
-exists. Front-ends reach it only over the wire.
+The engine is the launcher itself: config, downloads, Java, accounts, game providers, entry stores, content, process
+supervision. It is daemon-internal. It links neither `ipc` nor `client` and knows no socket exists.
 
-This page covers the aggregate root and the plumbing subsystems. The bigger
-domains have their own pages: [Minecraft providers](minecraft.md),
-[Servers & instances](entries.md), [Content & modpacks](content.md),
-[Accounts & skins](accounts.md).
+Larger domains have their own pages: [Minecraft providers](minecraft.md), [Servers and instances](entries.md),
+[Content and modpacks](content.md), [Plugins](plugins.md).
 
 ## The aggregate root
 
-`Engine` (`engine/mod.rs`) is constructed exactly once by the daemon and threaded
-through every request handler. It resolves the data directory once and owns each
-subsystem as a member behind a getter — and owns *only* that.
+`Engine` (`engine/mod.rs`) is built once by the daemon and handed to every handler. It resolves the data home once and
+owns each subsystem as a member behind a getter, and nothing else.
 
-```mermaid
-flowchart TD
-    E["<b>Engine</b><br/><i>aggregate root</i>"]
+| Plumbing                                   | Domain                                                    |
+|--------------------------------------------|-----------------------------------------------------------|
+| `config`, `net`, `cache`, `java`, `processes`, `update` | `minecraft`, `content`, `servers`, `instances`, `skins`, `sync`, `accounts` |
 
-    subgraph plumbing["plumbing"]
-        CFG["config"]
-        CACHE["cache"]
-        JAVA["java"]
-        PROC["processes"]
-        UPD["update"]
-    end
-    subgraph domain["domain"]
-        MC["minecraft"]
-        CONTENT["content"]
-        SRV["servers"]
-        INST["instances"]
-        SKIN["skins"]
-        SYNC["sync"]
-        ACC["accounts"]
-    end
-
-    E --> plumbing
-    E --> domain
-
-    FLOWS["<b>engine/flows/</b><br/>server · instance · backup · content<br/>modpack · skins · sync"]
-    E -.->|"impl Engine blocks<br/>composed over the subsystems"| FLOWS
-```
-
-Two rules keep this from becoming a god object:
-
-- **Adding a subsystem is a module, a member and a getter** — the single growth
-  point, with no change to the daemon's serve loop.
-- **A flow that spans subsystems is not a method on the aggregate.** It lives in
-  `engine/flows/<concern>.rs` as its own `impl Engine` block (Rust lets an
-  inherent impl span modules in a crate), so callers still write
-  `engine.provision_server(…)` while the aggregate stays wiring
-  ([0031](../decisions/0031-an-aggregation-point-is-a-directory.md)).
-
-The data home is fixed at construction. `config set home` writes the pointer and
-the daemon stops itself (leaving workloads running); the CLI and desktop start
-it again onto the new home. It is refused while a server, game session or job
-runs ([0087](../decisions/0087-the-data-home-is-fixed-for-a-daemon-process.md)).
+- Adding a subsystem is a module, a member and a getter.
+- A flow that spans subsystems is not a method on the aggregate. It lives in `engine/flows/<concern>.rs` as its own
+  `impl Engine` block, so callers write `engine.provision_server(...)` and the aggregate stays wiring.
+- The data home is fixed at construction. `config set home` writes the pointer and the daemon stops itself, leaving
+  workloads running. The CLI and desktop start it again onto the new home. It is refused while a server, session or job
+  runs (`WorkRunning`).
 
 ### Startup reconciliation
 
-No job survives a daemon stop, so anything half-finished on disk at boot belongs
-to a job that will never come back. the daemon calls
-`processes().recover()` and then `Engine::recover()` once at start, before it
-serves. `Engine::recover()` runs `reclaim_temp` and the server phase reconcile.
+No job survives a daemon stop, so anything half-finished on disk at boot belongs to a job that will not return. The
+daemon runs `processes().recover()` and then `Engine::recover()` before serving.
 
-| Pass | What it settles |
-|---|---|
-| `ProcessSupervisor::recover()` | re-adopt surviving processes; mark ones that died while unsupervised as ended |
-| server phase reconcile | discard a record still `Provisioning`; keep and log one mid-`Updating` ([0023](../decisions/0023-server-phase-over-a-ready-bool.md)) |
-| `reclaim_temp()` | delete abandoned `.part`/`.staging` artifacts and empty the modpack download directory `tmp/`, logging the bytes reclaimed ([0024](../decisions/0024-temp-artifacts-are-reclaimed-at-startup.md)) |
+| Pass                           | Settles                                                                          |
+|--------------------------------|----------------------------------------------------------------------------------|
+| `ProcessSupervisor::recover()` | re-adopts surviving processes; marks ones that died unsupervised as ended        |
+| server phase reconcile         | discards a record still `Provisioning`; keeps and logs one mid-`Updating`        |
+| `reclaim_temp()`               | deletes abandoned `.part` and `.staging` artifacts and empties `tmp/`            |
 
-The reclaim is deliberately **not** recursive: each subsystem knows the one
-directory its artifacts land in, and walking a data home whose asset store is six
-figures of files is not a cost to pay at every start.
+Reclaim is not recursive: each subsystem knows the one directory its artifacts land in.
 
-## Persisted documents — `schema`
+## Persisted documents
 
-Every user-owned file in the data home — the settings, the accounts, an entry's
-record, its content index, the modpack record, the skin library — is a
-`Document`: it carries a top-level `schemaVersion` and is
-read and written through `engine::schema`
-([0060](../decisions/0060-a-managed-document-carries-its-schema-version.md)).
+Every user-owned file (settings, accounts, an entry record, a content index, the skin library) is a `schema::Document`
+carrying a top-level `schemaVersion`, read and written through `engine::schema`.
 
-| Concern | How |
-|---|---|
-| Current version | `Document::VERSION`, 1 for every document; there is no migration chain |
-| No stamp on the file | read as the baseline |
-| Newer than this build or malformed | renamed to `<name>.unreadable-<stamp>`, defaults used, warning recorded |
-| Writing | temp file renamed into place; owner-only mode set *before* the rename where it matters |
+| Concern                            | How                                                                           |
+|------------------------------------|-------------------------------------------------------------------------------|
+| Version                            | `Document::VERSION`, 1 for all; there is no migration chain                   |
+| No stamp                           | read as the baseline                                                          |
+| Newer than this build or malformed | renamed `<name>.unreadable-<stamp>`, defaults used, a warning recorded        |
+| Writing                            | temp file renamed into place; owner-only mode set before the rename where it matters |
 
-Derived state is deliberately excluded — process records, Java runtime records,
-the download cache. Discarding one loses nothing, which is
-already what happens when it fails to read.
+Derived state (process records, Java records, the download cache) is not a document. Quarantines collect in one
+process-wide sink and surface through `daemon.status` and on an import's own result. Archives are documents too, but an
+archive is not Hestia's to rename aside, so a schema failure there is refused (`ArchiveTooNew`, `ArchiveInvalid`).
 
-Quarantines are not caused by the request that hit them, so they collect in one
-process-wide sink and surface through `daemon.status` and, for the documents an
-import lands, on the import's own result.
+## Settings
 
-Both archive formats are documents under the same rule: the `.hestia` manifest
-carries the instance record stamped rather than inlined, and a backup archive
-leads with `hestia.backup.json`. An archive is not hestia's to rename aside, so a
-schema failure there is refused (`ArchiveTooNew` / `ArchiveInvalid`) rather
-than quarantined.
+`config` is one `Settings` struct: a setting is a field with a default, persisted as JSON. Code reads a `settings()`
+snapshot and writes through `update()`. Dotted-path `get` and `set` serve the `config.*` channels and reject unknown
+keys and mistyped values, so the struct is the validation. `normalize()` handles rules a type cannot carry.
 
-## Settings — `config`
+- Every `config set` value passes one typed schema. Property values for `server.properties` come from a curated table.
+- `defaults.jvm-args` and `defaults.memory` fall back into any start or launch whose record leaves the field unset
+  (`JavaSettings::or_defaults`).
+- `home` routes to the path pointer and `autostart` to the platform login registration; neither is stored.
+- What a plugin may do with each setting is `proto::config::PLUGIN_ACCESS`. A test fails when a setting has no entry, so
+  a new setting is closed to plugins until someone decides.
+- Keys are kebab-case on the wire while the file stores camelCase.
 
-The schema is one `Settings` struct: a setting is a field with its default,
-persisted as JSON through serde. Internal code reads a `settings()` snapshot and
-writes through `update()`.
+## The network
 
-The dotted-path `get`/`set` serve the `config.*` channels and reject unknown keys
-and type-mismatched values — **the struct is the validation** — plus a
-`normalize()` pass for value rules a type cannot carry (`defaults.memory` and
-`defaults.jvm-args` reuse the per-entry validation).
+Every outbound request crosses `net`.
 
-What a plugin may do with each setting is a separate table, `proto::config::PLUGIN_ACCESS`; a test in `config.rs` fails
-when a setting is added to `Settings` without an entry there, so a new setting is closed to plugins until someone decides.
-
-Those JVM defaults fall back into any server start or instance launch whose
-record leaves the matching per-entry setting unset (`JavaSettings::or_defaults`).
-Two reserved keys are not stored here at all: `home` routes to the path pointer
-and `autostart` to the platform login registration.
-
-Keys are kebab-case even though the file stores camelCase — a deliberate,
-translated exception ([0028](../decisions/0028-camelcase-except-the-config-vocabulary.md)).
-
-## The network — `net`
-
-Every outbound HTTP request the engine makes crosses one seam. `net` owns the
-pooled `reqwest` client and its timeouts (10s connect, 30s between bytes, and a
-45s total budget for a metadata call — a download sets none, since a large
-artifact on a slow line is not a failure), a bounded retry with jittered backoff
-that honours `Retry-After`, and the classification of what went wrong. A fetch
-written anywhere else would be a request with no timeout, which is the shape
-that turns a dropped connection into a job that hangs until it is cancelled.
-
-Only transport failures are retried — a connect error, a timeout, a body that
-stops arriving — never a 4xx and never a checksum mismatch. A 429 or 5xx is
-retried because the service asked to be.
-
-**`net::Network` is the reachability state** (`Online | Offline | Unknown`),
-derived from those requests rather than from a separate connectivity check: any
-answer marks the network up, and only a transport failure with its retries spent
-marks it down, so one blip cannot flip every front-end. It is process-global for
-the same reason the client is — reachability is a property of that pool's
-traffic, and the catalogue readers are provider impls holding no aggregate
-reference — and `Engine::network()` is the handle the daemon reads and publishes
-it through. `network.offline` pins it, and nothing is attempted while set.
-
-The daemon ticks `Network::refresh`, which probes only when the state has gone
-stale: every 10s while offline, so recovery is noticed without the user acting,
-and while online only once traffic has been quiet for a minute
-([0067](../decisions/0067-reachability-is-observed-not-asked.md)).
-
-**`net::store`** keeps the last good copy of each catalogue response under
-`meta/catalogue/`, keyed by URL. A version list that fails to fetch while
-offline is served from it, so creating an entry on a version picked before still
-works; front-ends label it stale from the network state rather than the wire.
-
-## Downloads and the cache
-
-**`Downloader`** streams a URL to disk through a `.part` temp file, hashing
-incrementally when a checksum is given and renaming into place only on success.
-It is stateless; the daemon constructs one per download. `checksum.rs` is the
-incremental SHA-1/SHA-256 hasher.
-
-**`Cache`** is a content-addressed store of verified downloads under
-`<data_home>/cache/<algorithm>/<hex[..2]>/<hex>`, keyed by checksum — so a file
-fetched once is reused regardless of which URL asked for it. It serves per-entry
-destinations: server jars and server libraries, mods and modpack files. Files
-that land in the shared `meta/` tree (an instance's client jar and libraries) and
-the JDK archive bypass it, since `meta/` already is the shared store and the
-archive is deleted after extraction.
-
-```mermaid
-flowchart LR
-    REQ["need file<br/>sha256:abc…"] --> HIT{"in cache?"}
-    HIT -->|yes| REHASH["re-hash on the way out"]
-    REHASH -->|matches| USE["copy into place"]
-    REHASH -->|"differs"| EVICT["evict"] --> NET
-    HIT -->|no| NET["download → verify → store"] --> USE
-```
-
-Hits are **re-hashed on the way out**, so a damaged blob is evicted and the fetch
-falls back to the network. The cache can make things faster; it can never make
-them wrong.
-
-**`Downloader::untrusted(max_bytes)`** is for a link a user typed rather than one
-a catalogue vouches for: it uses a client whose redirect policy refuses any hop
-off https, and aborts a body larger than the cap. A plugin installed from a URL
-goes through it: `plugin.inspect` with a `url` checks the link is https and
-credential-free, downloads it (64 MiB cap) into `tmp/plugins/` and returns an
-opaque token (`PluginInspection::staged`); `plugin.install` takes that token back
-and installs the held file, so nothing is downloaded twice and the file approved
-is the file installed. The token is a random id looked up in memory, never a
-path; an uninstalled package is dropped 15 minutes after it was fetched, and
-`tmp/` is emptied at startup. The record keeps the `url` and the `url` source.
+- **Client.** One pooled `reqwest` client: 10 s connect, 30 s between bytes, 45 s total for a metadata call. A download
+  sets no total. Retries are bounded with jittered backoff and honour `Retry-After`. Only transport failures, 429 and
+  5xx are retried, never a 4xx or a checksum mismatch.
+- **Reachability.** `net::Network` is `Online | Offline | Unknown`, derived from real traffic: any answer marks it up,
+  and only a transport failure with retries spent marks it down. `network.offline` pins it, and nothing is attempted
+  while set. The daemon ticks `Network::refresh`, which probes only when state is stale: every 10 s while offline, and
+  while online only after a quiet minute.
+- **Catalogue store.** `net::store` keeps the last good copy of each catalogue response under `meta/catalogue/`, keyed
+  by URL, so a version list fetched while offline is served stale.
+- **Untrusted fetches.** `net::guard::client()` refuses names resolving to loopback, private, link-local, CGNAT,
+  multicast or unspecified addresses, uses no proxy or cookies, and dials the addresses it vetted.
 
 ### Remote images
 
-The webview never contacts an image host. `image.fetch` (`net/image/`) fetches
-for it, and the desktop serves the bytes over the `hestia-image` scheme (see
-[Front-ends](frontends.md#the-rust-shell-is-a-pipe)). Because the URL comes from
-untrusted content (a project description, a theme), the fetch runs on
-`net::guard::client()`: a client whose `dns_resolver` refuses any name that
-resolves to a loopback, private, link-local, CGNAT, multicast or unspecified
-address (IPv4, IPv6 and IPv4-mapped IPv6) and dials the addresses it vetted, with
-no proxy and no cookies. Redirects are walked by the proxy itself, at most five,
-each hop re-checked: https only, a host name rather than an IP literal, no
-credentials. The body is capped at 10 MiB while streaming, the whole fetch at
-15 s, and the bytes must sniff as png, jpeg, gif, webp, avif or svg — the
-sniffed type is the one returned. `net::guard` is the shared piece other
-untrusted-URL fetches reuse.
+The webview never contacts an image host. `image.fetch` (`net/image/`) fetches for it and the desktop serves the bytes
+over the `hestia-image` scheme. The fetch uses the guarded client, follows at most five redirects each re-checked
+(https, a host name, no credentials), caps the body at 10 MiB and the fetch at 15 s, and sniffs the bytes as png, jpeg,
+gif, webp, avif or svg. Results are stored in the cache by SHA-256, with `cache/images.json` mapping URL to blob (256
+entries, oldest dropped). A repeat view, or any view while offline, makes no request.
 
-A fetched image is stored in the cache by its SHA-256, and `cache/images.json`
-maps URL to `{sha256, mime, fetchedUnix}` (written through a temp and renamed,
-bounded to 256 entries, oldest dropped along with blobs nothing else references).
-A repeat view — or any view while offline — is served from there without a
-request; a missing or damaged blob behind an entry is a miss and refetches.
-`cache usage` counts the index and `cache clear` deletes it.
+## Downloads and the cache
+
+- **`Downloader`** streams a URL to a `.part` file, hashes incrementally, and renames only on success.
+  `Downloader::untrusted(max_bytes)` is for a link a user typed: its client refuses any redirect off https and aborts a
+  body above the cap.
+- **`Cache`** is content-addressed under `cache/<algorithm>/<hex[..2]>/<hex>`, keyed by checksum, so a file fetched once
+  is reused whatever URL asked. It serves per-entry destinations (server jars and libraries, mods, modpack files).
+  Files in the shared `meta/` tree and the JDK archive bypass it. Hits are re-hashed on the way out; a damaged blob is
+  evicted and refetched. The cache can make things faster, never wrong.
+- **Plugin packages** installed from a URL go through `plugin.inspect`, which checks the link is https and
+  credential-free, downloads it (64 MiB) into `tmp/plugins/` and returns an opaque token. `plugin.install` takes the
+  token back, so the file approved is the file installed. The token is a random in-memory id, never a path, and
+  expires after 15 minutes.
 
 ## Java runtimes
 
-`Java` installs and tracks runtimes under `<data_home>/java/<vendor>-<major>/`
-beside a `runtime.json` record. Listing scans the directory — the disk is the
-registry.
+`Java` installs runtimes under `<data_home>/java/<vendor>-<major>/` beside a `runtime.json`. Listing scans the
+directory. A runtime already on disk is used without any provider.
 
-A `JavaProvider` resolves a build. None is built in: a plugin contributes one under `java:provide` (`<plugin>.<id>`;
-the official `adoptium` plugin, Eclipse Temurin, is `adoptium.adoptium`), registered in the same roster as content
-sources and flavors. The `java.provider` setting names the default (`adoptium`, a shorthand the roster resolves) and
-`install` takes a provider name; one nobody provides is `ProviderUnknown`, listing what is installed. A runtime already on disk is
-used without any provider, so only an install or a launch needing a missing major reaches the roster. A provider only resolves: the host validates the build (https on the plugin's hosts, a sha256, a
-`tar.gz` or `zip` archive) and does everything after ([0105](../decisions/0105-a-java-provider-only-resolves.md)).
-`install()` runs a blocking pipeline:
+A `JavaProvider` resolves a build and nothing else. None is built in: a plugin contributes one (the official `adoptium`
+plugin). The `java.provider` setting names the default; with none registered an install fails `ProviderUnknown`. The
+host vets the build (https on the plugin's granted hosts, a sha256, a `tar.gz` or `zip` archive, a plain vendor name)
+and runs the pipeline in-process:
 
 ```mermaid
 flowchart LR
-    R["resolve<br/><i>selected provider</i>"] --> D["download<br/><i>SHA-256 verified</i>"] --> X["extract<br/><i>tar+flate2 / zip</i>"] --> REG["register"]
-    X -.->|"staged in .staging,<br/>renamed on success"| REG
+    R["resolve<br/>(provider)"] --> D["download<br/>SHA-256 verified"] --> X["extract<br/>staged in .staging"] --> REG["register"]
 ```
-
-Everything is in-process — no shelling out to system tools — and staging means a
-failure leaves nothing behind. The async wrapper and `java.install.*` progress
-events live in the daemon's `Jobs::start_java_install`.
 
 ## Process supervision
 
-`ProcessSupervisor` owns every process Hestia starts: Minecraft servers, game
-sessions, a plugin flavor's build programs, the `server.properties` schema run. It lives in the engine — not the daemon — because its directory is
-engine-owned like every other registry, and because engine flows that shell out
-must not spawn bare children
-([0033](../decisions/0033-supervision-is-engine-state.md)).
+`ProcessSupervisor` owns every process Hestia starts: servers, game sessions, a plugin flavor's build programs, the
+`server.properties` schema run. It is engine state because its directory is engine-owned and because engine flows that
+shell out must not spawn bare children.
 
-A supervised process is **decoupled from the daemon's lifetime**: its own process
-group (a job object on Windows), no `kill_on_drop`, no pipes back. The daemon is
-restartable and upgradable under live workloads, and stopping one is always
-something you asked for ([0034](../decisions/0034-workloads-outlive-the-daemon.md)).
+A supervised process is decoupled from the daemon: its own process group (a job object on Windows), no `kill_on_drop`,
+no pipes back.
 
 ```mermaid
 stateDiagram-v2
-    [*] --> Running: spawn → record.json {pid, start-time token, spec}
-    Running --> Running: tail.rs polls the log file → process.output
-    Running --> Stopping: stop (SIGTERM to the whole tree)
-    Stopping --> Exited: exited
-    Stopping --> Killed: grace period elapsed → hard kill
+    [*] --> Running: spawn, write record.json
+    Running --> Stopping: stop (SIGTERM to the tree)
+    Stopping --> Exited
+    Stopping --> Killed: grace elapsed, hard kill
     Running --> Exited: exited on its own
-    Exited --> Finished: record.json gains an ended section
+    Exited --> Finished: record gains "ended"
     Killed --> Finished
-    Finished --> [*]: pruned by retention (oldest first)
-
-    note right of Running
-        a daemon restart re-adopts by
-        pid + start-time token, so pid
-        reuse is never mistaken for it
-    end note
+    Finished --> [*]: pruned by retention, oldest first
 ```
 
-**Records and identity.** Each live process has a record under
-`<data_home>/processes/<id>/` — `{pid, start-time token, spec}`, written through
-a temp file renamed into place and owner-only (the spec's env is recorded). The
-spec's args are stored with credentials masked, so no token reaches the disk.
-`recover()` re-adopts survivors at
-the next daemon start, verifying the pid against its start-time token
-(`identity.rs`, per platform). An adopted process is not our child, so its exit
-is detected by polling and its exit code reports `null`.
-
-**Output lives on disk, not in pipes.** `LogSource::File` points at a log the
-process writes itself (Minecraft's `logs/latest.log`; a `jvm.log` catches
-pre-log4j stderr); `LogSource::Capture` redirects into a supervisor-owned
-`output.log`. Either way `tail.rs` polls the file for `process.output` events and
-`process.logs` reads its tail on demand — so log history survives daemon
-restarts, and following logs is scoped to the *entry* rather than one run of it
-([0037](../decisions/0037-following-logs-is-entry-scoped.md)). Both paths stamp
-each line with the byte `offset` it starts at, so a line has the same identity
-streamed or read back; it holds within one log file, and a rotation or a new
-run starts again from zero.
-
-**Stops are polite and reach the tree.** SIGTERM first (the JVM saves and exits),
-a hard kill only after a grace period — both addressed at the whole process tree,
-never a single pid. A spec can instead name `StopMethod::Line("stop")`, which
-writes that line to the process's stdin first; a Bedrock server needs it because
-BDS saves on `stop`, and the signal and kill path still follows it.
-
-**A process can keep a stdin endpoint.** `ProcessSpec.stdin` asks the supervisor
-for one that lives as long as the process and is recorded in `record.json`, so an
-adopted process reattaches after a daemon restart like its log does
-(`process/stdin/`). On unix it is a FIFO in the process directory that the child
-holds open read-write; on Windows it is a named pipe served by a relay, `hestiad
-stdin-relay`, which parents the program
-([0136](../decisions/0136-a-bedrock-console-is-a-reattachable-stdin-endpoint.md)).
-The `console` module's pipe transport writes a line there and reads the reply
-from the captured log.
-
-**A finished process is labelled, not merely unrecorded.** On exit the same
-`record.json` gains an `ended` section (state, exit code, when it ended) and keeps
-its spec, so the directory keeps its logs *and* says what it is. The startup
-sweep then deletes only directories with no readable record — a true stray — and
-retention prunes the oldest finished ones
-([0035](../decisions/0035-a-finished-process-is-tombstoned.md)).
-
-`task.rs` is the provisioning half: `run(Task, Job)` drives a program to
-completion, relays what it narrates as progress, and is cancelled through the
-supervisor.
+- **Records and identity.** `<data_home>/processes/<id>/record.json` holds `{pid, start-time token, spec}`, written
+  through a temp file, owner-only. Args are stored with credentials masked. `recover()` re-adopts survivors after
+  verifying the pid against its start-time token (`identity.rs`, per platform), so pid reuse is never mistaken for the
+  process. An adopted process is not our child: its exit is detected by polling and its exit code is `null`.
+- **Output lives on disk.** `LogSource::File` points at a log the process writes itself (`logs/latest.log`, with a
+  `jvm.log` for pre-log4j stderr). `LogSource::Capture` redirects into a supervisor-owned `output.log`. `tail.rs` polls
+  the file for `process.output` events, and `process.logs` reads the tail on demand. Each line carries the byte
+  `offset` it starts at, so it has one identity streamed or read back (within one file).
+- **Stops are polite and reach the tree.** SIGTERM first, a hard kill after a grace period, both at the whole tree.
+  `StopMethod::Line("stop")` writes a line to stdin first; BDS needs it because it saves on `stop`.
+- **A process can keep a stdin endpoint.** `ProcessSpec.stdin` gives it one that lives as long as the process and is
+  recorded in `record.json`, so an adopted process reattaches after a daemon restart (`process/stdin/`). On unix it is
+  a FIFO the child holds open read-write. On Windows it is a named pipe served by a relay, `hestiad stdin-relay`, which
+  parents the program.
+- **A finished process is labelled.** On exit `record.json` gains an `ended` section (state, exit code, time) and keeps
+  its spec. The startup sweep deletes only directories with no readable record.
+- `task.rs` runs a program to completion, relays what it narrates as progress, and is cancelled through the supervisor.
 
 ## Editions
 
-`edition/` is where the engine keeps what differs between a Java and a Bedrock
-server: `mod.rs` holds the shared vocabulary and a closed `match` on the record's
-`Edition`, `java.rs` and `bedrock.rs` hold each side. It answers property rules
-and managed keys, port layout and start config, process I/O (log source, stdin,
-stop line), console transport, status, backup pause and resume, worlds and
-import, content sync, and the player lists and commands. A flow calls
-`edition::…` and never branches on an edition
-([0134](../decisions/0134-the-edition-is-the-first-axis.md)).
+`edition/` holds what differs between a Java and a Bedrock server: `mod.rs` has the shared vocabulary and a closed
+`match` on the record's `Edition`; `java.rs` and `bedrock.rs` each side. It answers property rules, ports, start
+config, process I/O, console transport, status, backup pause and resume, worlds and import, content sync and player
+lists. A flow calls `edition::...` and never branches on an edition.
 
 ## Self-update
 
-`update/` owns the whole path — the check against the published release manifest
-(`latest.json`), the download of the artifact for this platform, its minisign
-verification against `update_pubkeys()`, and running it. No front-end does any of
-it ([0062](../decisions/0062-the-daemon-owns-self-update.md)).
+`update/` owns the whole path: the check against the release manifest (`latest.json`), the download for this platform,
+minisign verification against `update_pubkeys()`, and running it. No front-end does any of it.
 
-| Module | What it is |
-|---|---|
-| `mod.rs` | the manifest, the check, the download, and the guard that `apply` is only ever handed a file this daemon staged |
-| `install.rs` | how this copy was installed — NSIS, AppImage, deb, rpm, or unmanaged — detected rather than recorded, since a build that writes it down is wrong the moment someone moves it |
-| `apply.rs` | one entry point per platform, so no caller branches on the install shape |
+| Module       | Role                                                                                              |
+|--------------|---------------------------------------------------------------------------------------------------|
+| `mod.rs`     | the manifest, check and download, and the guard that `apply` takes only a file this daemon staged |
+| `install.rs` | how this copy was installed (NSIS, AppImage, deb, rpm, unmanaged), detected rather than recorded  |
+| `apply.rs`   | one entry point per platform                                                                      |
 
-The install shape picks the artifact *and* the installer. A package asks the
-manifest's `formats` map for its own format and accepts nothing else — offering a
-deb install an AppImage would download something it has no way to apply. The
-`portable` feature short-circuits detection to unmanaged: an archive the user
-unpacked by hand has no installer to update through.
+The install shape picks the artifact and the installer: a package asks the manifest's `formats` map for its own format
+and accepts nothing else. The `portable` feature short-circuits to unmanaged. The channel (`update.channel`) is the last
+segment of the feed URL (`.../updates/stable`, `.../beta`).
 
-When a release's `plugin_api` is one the installed official plugins cannot run on, `Engine::download_update` first stages
-compatible builds of them (`engine/src/engine/flows/handover.rs`, planned by `plugins/handover.rs`) into
-`updates/plugins/<api>/`, or refuses with `update_plugins_incompatible` (no build) or `update_plugins_need_approval` (a wider grant) before
-downloading anything; the new daemon
-installs them at start, before it loads a plugin
-([0112](../decisions/0112-the-app-and-official-plugins-update-together.md)).
+When a release's `plugin_api` is one the installed official plugins cannot run on, `Engine::download_update` first
+stages compatible builds into `updates/plugins/<api>/` (`flows/handover.rs`), or refuses with
+`update_plugins_incompatible` (no build) or `update_plugins_need_approval` (a wider grant) before downloading anything.
+The new daemon installs them at start, before loading a plugin. An unparsable version compares as no answer and every
+caller treats that as a refusal.
 
-Network reads are stateless; the staging directory only holds the downloads.
+## Accounts and skins
 
-`version.rs` is the comparison the check rests on: anything unparsable compares
-as *no answer*, and every caller treats that as a refusal — a malformed version
-cannot trigger an update.
+Playing needs a Microsoft account that owns the game. Hestia signs in through Microsoft's own flows, keeps tokens in the
+daemon and never sends them over the socket. A stored account is also proof of ownership, so the `instance.*` surface
+is refused until one exists (enforced once, in the router).
+
+### Sign-in
+
+Accounts live in `<data_home>/accounts.json` (owner-only on POSIX). Both methods use the well-known Minecraft client
+id, so no per-distribution Azure app is needed. Sign-in is two steps so a front-end can render what the user must do:
+
+```mermaid
+sequenceDiagram
+    participant F as front-end
+    participant D as daemon
+    participant MS as Microsoft
+    participant XB as Xbox Live
+    F->>D: account.login.begin { method }
+    alt device_code (CLI)
+        D->>MS: device-code grant
+        D-->>F: code and URL
+        F->>D: account.login.complete
+        D->>MS: poll until approved
+    else sisu (desktop)
+        D->>D: mint ECDSA P-256 proof key
+        D->>XB: PKCE sisu /authenticate
+        D-->>F: sign-in URL
+        F->>D: account.login.complete { code }
+        D->>MS: redeem the code
+    end
+    D->>XB: device token, sisu /authorize, XSTS
+    D-->>F: stored account { uuid, name }
+```
+
+- `access_token()` runs the signed tail to rotate a token only within 5 minutes of expiry. With Microsoft unreachable
+  it yields the stored token flagged stale.
+- `accounts/microsoft.rs` holds the HTTP steps. `accounts/signing.rs` signs Xbox requests (the proof key and a
+  FILETIME-stamped `Signature` header) with one cross-platform `p256` implementation.
+- `account.switch` picks the account launches run as.
+
+### The skin library
+
+`<data_home>/skins/` holds PNG blobs as `<key>.png` beside `library.json`. A row is keyed by Mojang's texture hash, so
+matching the equipped skin is a key comparison.
+
+- One `skin.list` answer merges the saved library, 18 vanilla defaults (`defaults.rs`, listed by public texture URL,
+  not bundled) and whatever the account currently wears.
+- Before any change, the equipped skin is saved into the library if neither it nor a default already records it.
+- `skins/mojang.rs` holds the profile calls (fetch, upload, by-URL change, reset, cape set and clear), authenticated
+  with the rotated token. A 30 s per-account profile cache absorbs `skin.list` bursts, because Mojang rate-limits.
+- Skins are a desktop-only surface; the CLI has no skin command.
 
 ## Small shared pieces
 
-| Module | What it is |
-|---|---|
-| `cancel.rs` | `Cancel`, the cooperative cancellation flag, and `Job`, which carries it beside the progress reporter — a step that reports progress is exactly a step that can stop between reports |
-| `registry.rs` | id allocation (`allocate_id`) and directory naming (`dir_name`) shared by the entry stores ([0020](../decisions/0020-id-is-a-uuid-directory-is-a-slug.md)) |
-| `usage.rs` | directory footprint, treating a symlink as a boundary so a linked sync folder is not counted into the instance that points at it |
-| `signature.rs` | minisign verification for the updater |
-| `error.rs` | the engine's `thiserror` enums, mapped to `ipc::errors` codes at the daemon's service boundary |
-
-## Decisions
-
-- [0024 — A temp artifact is only valid while its job holds the claim](../decisions/0024-temp-artifacts-are-reclaimed-at-startup.md)
-- [0033 — Supervision is engine state, and one stop reaches the whole tree](../decisions/0033-supervision-is-engine-state.md)
-- [0034 — Workloads outlive the daemon by design](../decisions/0034-workloads-outlive-the-daemon.md)
-- [0035 — A finished process is labelled, not merely unrecorded](../decisions/0035-a-finished-process-is-tombstoned.md)
-- [0037 — Following logs is scoped to the entry, not to one run of it](../decisions/0037-following-logs-is-entry-scoped.md)
-- [0106 — The plugin API is mechanisms, not features](../decisions/0106-the-plugin-api-is-mechanisms-not-features.md)
-- [0134 — The edition is the first axis, and one module owns what each edition does](../decisions/0134-the-edition-is-the-first-axis.md)
-- [0136 — A Bedrock console is a reattachable stdin endpoint](../decisions/0136-a-bedrock-console-is-a-reattachable-stdin-endpoint.md)
-- [0067 — Reachability is observed from real traffic, and offline is a state the whole system reads](../decisions/0067-reachability-is-observed-not-asked.md)
+| Module         | Role                                                                                                    |
+|----------------|---------------------------------------------------------------------------------------------------------|
+| `cancel.rs`    | `Cancel`, the cooperative flag, and `Job`, which carries it beside the progress reporter               |
+| `registry.rs`  | `allocate_id` (a UUIDv7) and `dir_name` (a slug), shared by the entry stores                           |
+| `usage.rs`     | directory footprint; a symlink is a boundary                                                           |
+| `signature.rs` | minisign verification for the updater                                                                  |
+| `error.rs`     | the engine's `thiserror` enums, mapped at the daemon's service boundary                                |

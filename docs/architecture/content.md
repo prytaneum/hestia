@@ -1,475 +1,225 @@
-# Content & modpacks
+# Content and modpacks
 
 *[← Architecture](../architecture.md)*
 
-Content is everything you add to an entry that Mojang did not ship: mods,
-plugins, resourcepacks, shaders, datapacks — and modpacks, which are all of the
-above bundled with a loader and a version. A Bedrock server takes behaviour and
-resource packs instead ([below](#bedrock-packs)).
+Content is everything you add to an entry that Mojang did not ship: mods, plugins, resourcepacks, shaders, datapacks,
+and modpacks (all of those bundled with a loader and a version). A Bedrock server takes behaviour and resource packs
+instead ([below](#bedrock-packs)).
 
-Three layers, deliberately separate:
+Three layers, kept separate:
 
 ```mermaid
 flowchart TD
-    SRC["<b>sources</b> — content/<br/>search · project · versions · resolve<br/><i>plugin-provided (Modrinth, CurseForge: official plugins); the trait is the seam</i>"]
-    INST["<b>install</b> — content/install.rs<br/>managed dir + content.json provenance + data/ mirror"]
-    PACK["<b>modpacks</b> — content/pack · modpack<br/>the opened archive, and which files a pack owns"]
-
-    SRC --> INST
-    PACK --> INST
+    SRC["sources (content/)<br/>search, project, versions, resolve<br/>plugin-provided"] --> INST["install (content/install.rs)<br/>managed dir + content.json + data/ mirror"]
+    PACK["modpacks (content/pack, modpack)<br/>the opened archive, which files a pack owns"] --> INST
 ```
 
 ## Sources
 
-`ContentProvider` is the trait: search with pagination, project detail, version
-resolution filtered by loader and game version, modpack resolution, URL
-recognition, the kinds a source catalogues, and whether it is configured enough
-to serve. Core ships no source: `modrinth` and `curseforge` are official plugins
-([0133](../decisions/0133-a-provider-has-one-id.md)), and a
-fresh Hestia with none installed has an empty source list. Stateless.
+`ContentProvider` is the trait: paginated search, project detail, version resolution filtered by loader and game
+version, modpack resolution, URL recognition, the kinds and editions it serves, and whether it can serve now. Core ships
+none: `modrinth` and `curseforge` are official plugins, and a fresh Hestia has an empty source list. The registry is
+runtime-mutable (`register(owner, standing, provider)`, `unregister(owner)`); an id reads `<owner>.<id>`, and a bare
+name is resolved by the roster.
 
-The registry is runtime-mutable: `Content::register(owner, standing, provider)`
-adds a source and `unregister(owner)` removes everything that owner added. A
-source's id always reads `<owner>.<id>`; a bare name (`modrinth`) is resolved by
-the roster ([0133](../decisions/0133-a-provider-has-one-id.md)), which also stores and
-reports the full id (`modrinth.modrinth`) of the source that served.
-
-With no source registered every content channel still answers: `content.sources`
-is empty, and a search, lookup or install that names no source fails
-`NoContentSource` (one that names an id nobody registered fails
-`ContentSourceUnknown`). The CLI says no source is installed and the desktop's
-browse page shows an empty state pointing at the Plugins page.
-
-A plugin adds a source with `contributes.providers = [{ kind = "content", id }]`
-and answers the operations of `proto::provider::content` through `provider.invoke`
-(the SDK's `Plugin::provide`, routing each with `.on::<Op>(…)`). The manifest must also hold `content:read`,
-`network:connect` and at least one network host, or it does not validate. When
-the daemon enables the plugin it asks each contributed source to describe itself
-and registers a `PluginContentProvider` as `<plugin>.<id>`; disabling, removing
-or replacing the plugin unregisters it. The adapter calls the guest with a 30 s
-deadline (`PROVIDER_TIMEOUT`), stamps its own id on everything returned, and maps
-a guest failure to `PluginCallFailed` naming the plugin, never a raw message. The
-guest only describes files; the engine downloads them, and the adapter drops any
-version file whose URL is not https on one of the plugin's granted hosts, using
-the same host matching as `wasi:http`. The `static-index` example in
-[prytaneum/plugin-examples](https://github.com/prytaneum/plugin-examples/tree/main/plugins/static-index) is a
-source that serves an index compiled into the component. Content already installed from a
-source that is gone keeps its record, still lists and still loads;
-`content.list` names it in `unavailableSources` (from
-`Content::missing_sources`), the CLI marks its rows `unavailable`, the desktop
-badges them and drops their project link and version actions, and a request
-through the source is refused as unknown.
-
-Every platform response is mapped into the normalized `proto::content` types at
-this boundary, so a front-end never sees a platform's raw shape
-([0010](../decisions/0010-one-content-provider-trait.md)).
-
-**A source declares the editions it serves.** `ContentProvider::editions()`
-defaults to Java, and `ContentSource.editions` carries it on `content.sources`, so
-a front-end offers a source only to entries of those editions and a daemon call
-naming the wrong one is refused (`ContentSourceEdition`). Modrinth and CurseForge
-are Java sources: Modrinth has no Bedrock content at all, and CurseForge's is a
-separate catalogue that is not wired. A source also skips the kinds it does not
-catalogue, so a mixed request does not fail per kind
-([0140](../decisions/0140-a-bedrock-pack-is-a-file-extracted-at-sync.md)).
-
-A provider also recognises its own site's project and version page URLs, so a
-pasted project link installs exactly like a slug. A source that has no datapack
-project type says so with `datapacks_as_mods`, and a datapack request then accepts
-its `Mod` projects.
-
-> **A source is only offered when it can serve.** An API key makes
-> *availability* a property of a source rather than a constant (the CurseForge
-> plugin declares one). The trait has `available()`: `content.sources` lists the
-> sources that can serve and those waiting on a plugin setting (with
-> `requiresSetting` naming the plugin and key), and `content.*` refuses a
-> named-but-unconfigured one with `ContentSourceUnavailable` (carrying the same
-> `RequiredSetting`, so the desktop links to where it is edited and the CLI says
-> how to set it, rather than the "unknown source" a filtered registry would have
-> to claim). A secret is never logged.
->
-> Two shapes follow from several sources. A `ContentSource` now carries the `kinds` it
-> catalogues, because "which sources can I browse mods on" is a daemon fact and a
-> front-end must not keep its own table (the same no-drift rule `accepts` follows
-> on the entry views). And a `ContentAddItem` may name its **own** source,
-> overriding the batch's: with two sources a user's selection is naturally mixed,
-> and a spec-wide source would have forced the front-end to split a batch it has
-> no other reason to split — a URL item already resolved its own source this way.
-
-> **A blocked file fails its item, and nothing else.** A platform may let an
-> author opt out of third-party distribution; the source then lists the file with
-> no download URL. The `ContentDownloadBlocked` refusal says so and names the source,
-> the rest of the batch installs, and local-file import is the documented way
-> through — Hestia deliberately does not reconstruct a CDN path to download it
-> anyway. The check lives in the one download step every flow shares
-> (`flows/download.rs`) rather than the provider, because an artifact with no URL
-> is unusable whoever produced it — and a blocked file is routine in a pack: a
-> pack listing one still installs, minus that file, naming it.
+- **No source.** Every content channel still answers: `content.sources` is empty, and a search or install that names
+  none fails `NoContentSource` (an unregistered id fails `ContentSourceUnknown`).
+- **A plugin source** declares `contributes.providers = [{ kind = "content", id }]`, answers `proto::provider::content`
+  through `provider.invoke`, and must hold `content:read`, `network:connect` and a network host. `PluginContentProvider`
+  stamps its own id on results, calls the guest under a 30 s deadline, maps a guest failure to `PluginCallFailed`, and
+  drops any version file whose URL is not https on a granted host. The guest describes files; the engine downloads them.
+- **Missing source.** Content installed from a source that is gone keeps its record and still loads; `content.list`
+  names it in `unavailableSources` and front-ends mark it.
+- **Normalized types.** Every response is mapped into `proto::content` at this boundary.
+- **Editions and kinds.** `ContentProvider::editions()` defaults to Java and rides on `content.sources`; a call naming
+  the wrong edition is refused (`ContentSourceEdition`). A source skips kinds it does not catalogue, and one with no
+  datapack type says `datapacks_as_mods`.
+- **Availability.** `available()` lets a source be listed while waiting on a plugin setting (`requiresSetting`);
+  `content.*` then refuses it with `ContentSourceUnavailable` carrying the same setting, so a front-end can link to it.
+- **Per-item source.** A `ContentAddItem` may name its own source, so a mixed selection need not be split.
+- **A blocked file fails its item only.** An author who opts out of third-party distribution leaves no download URL;
+  `ContentDownloadBlocked` names the source, the rest of the batch installs, and a pack with one still installs minus
+  that file. The check is in the one download step all flows share (`flows/download.rs`). Local import is the way
+  through; Hestia does not reconstruct a CDN path.
 
 ## What an entry accepts
 
-Not a table anywhere — composed from two independent facts: what the **flavor's**
-loader consumes, and what the **side** reads for itself.
+Composed from what the flavor's loader consumes and what the side reads itself, never a table:
 
-| | mods | plugins | resourcepacks | shaders | datapacks |
-|---|:--:|:--:|:--:|:--:|:--:|
-| server on a modloader flavor | ✓ | | | | ✓ |
-| server on a plugin-platform flavor | | ✓ | | | ✓ |
-| vanilla server | | | | | ✓ |
-| instance on a modloader | ✓ | | ✓ | ✓ | ✓ |
-| vanilla instance | | | ✓ | ✓ | ✓ |
-| Bedrock server | | | ✓ (+ behaviour packs) | | |
+|                                    | mods | plugins | resourcepacks | shaders | datapacks |
+|------------------------------------|:----:|:-------:|:-------------:|:-------:|:---------:|
+| server on a modloader flavor       | yes  |         |               |         | yes       |
+| server on a plugin-platform flavor |      | yes     |               |         | yes       |
+| vanilla server                     |      |         |               |         | yes       |
+| instance on a modloader            | yes  |         | yes           | yes     | yes       |
+| vanilla instance                   |      |         | yes           | yes     | yes       |
+| Bedrock server                     |      |         | yes (+ behaviour packs) |  |           |
 
-The edition supplies the base set: a Java server reads datapacks, an instance
-reads resourcepacks and shaders, and a Bedrock server reads behaviour packs and
-resourcepacks. That set plus the flavor's loader is `accepts`.
-
-A refusal carries the accepted set rather than a sentence, and `ServerInfo` /
-`InstanceInfo` carry `accepts` on the wire so no front-end keeps its own copy
-([0008](../decisions/0008-flavor-declares-accepted-content.md)).
+A refusal carries the accepted set, and `ServerInfo` and `InstanceInfo` carry `accepts`, so no front-end keeps a copy.
 
 ## The install model
 
-Content is written to a **managed directory in the entry root** — Hestia's
-namespace — with its provenance in `content.json`, then hardlinked (or copied)
-into the game directory.
+Content is written to a **managed directory in the entry root** with provenance in `content.json`, then hardlinked (or
+copied) into the game directory. Managed names are the game's own load-dir names (`mods/`, `plugins/`, `resourcepacks/`,
+`shaderpacks/`).
 
 ```mermaid
 flowchart LR
-    SRCF["source / URL / local file"] --> MANAGED["&lt;entry&gt;/mods/sodium.jar<br/><b>source of truth</b>"]
-    MANAGED --> IDX["content.json<br/>kind · source · project · version · sha1 · enabled · origin"]
-    MANAGED -->|"hardlink, else copy"| MIRROR["data/mods/sodium.jar<br/><i>what the game loads</i>"]
-    MIRROR -.->|"backup restore swaps data/"| GONE["mirror lost"]
-    GONE -.->|"reconcile at next start"| MIRROR
+    SRCF["source / URL / local file"] --> MANAGED["entry/mods/sodium.jar<br/>source of truth"]
+    MANAGED --> IDX["content.json<br/>kind, source, project, version, sha1, enabled, origin"]
+    MANAGED -->|"hardlink, else copy"| MIRROR["data/mods/sodium.jar<br/>what the game loads"]
 ```
 
-The managed copy — not the one in `data/` — is the source of truth, which pays
-off three ways:
+The managed copy is the record, so:
 
-1. **Restore heals itself.** A backup restore swaps `data/`, but the managed dirs
-   live outside it and are on the backup exclude list, so a reconcile pass
-   re-mirrors them at the next start. Archives stay world-focused. Server mods
-   and plugins also survive a restore through the backup's preserve list, which
-   carries them over from the live tree; datapacks, which live inside the world
-   archive, rely on the mirror.
-2. **Provenance survives**, so `update` knows each item's project and current
-   version.
-3. **A hand-dropped jar in `data/` is surfaced as untracked**, never silently
-   adopted. A file placed by hand in the managed directory itself is neither
-   indexed nor reported: that directory is Hestia's namespace.
+1. **Restore heals itself.** A backup restore swaps `data/` but not the managed directories, and a reconcile pass
+   re-mirrors them at next start. Archives stay world-focused. Server mods and plugins also survive through the
+   backup's preserve list; datapacks live inside the world archive and rely on the mirror.
+2. **Provenance survives**, so `update` knows each item's project and version.
+3. **A hand-dropped jar in `data/` is surfaced as untracked**, never adopted. A file placed in the managed directory is
+   neither indexed nor reported.
 
-([0013](../decisions/0013-managed-dir-of-record.md))
+All index writes go through one `Pool`, opened after downloads finish: `upsert` for an install or pack item, `replace`
+for an update, source move or update from a file. It saves the index first and deletes superseded files after, so a
+crash leaves an orphan file rather than an index naming a missing one. Downloads share `download_batch` and
+`target_version`.
 
-Managed directory names are the game's own load-dir names (`mods/`, `plugins/`,
-`resourcepacks/`, `shaderpacks/`), so the mirror is symmetric.
+**Resolution.** A platform install picks the newest version compatible with the entry's game version and (for mods)
+loader, and resolves required dependencies breadth-first. A URL or local file records `source: "file"`.
 
-Every write to the index goes through one `Pool`, opened after the downloads
-finish: `upsert` for an install or a pack item, `replace` for an update, a source
-move or an update from a file. Downloads share one batched step
-(`download_batch`) and one version lookup (`target_version`). The pool saves the
-index first and deletes the files it superseded after, so a crash leaves an
-orphan file rather than an index naming one that is gone.
+**Who owns which field.** An `InstalledContent` mixes three groups no single flow owns:
 
-### Resolution and dependencies
+| Group     | Fields                                                  | Written by                                  |
+|-----------|---------------------------------------------------------|---------------------------------------------|
+| `Project` | id, slug, title, icon                                   | the install; carried unchanged afterwards   |
+| `Release` | source, version, filename, sha1, url                    | an install, update or re-supply             |
+| `Holding` | origin, `enabled`, per-world disables, world targeting  | the entry alone, never anything upstream    |
 
-A platform install picks the newest compatible version — filtered by the entry's
-game version and, for mods, its loader — and resolves required dependencies
-breadth-first. A direct URL or local file import records `source: "file"` with no
-version to update against: no source updates it, and a newer build is supplied
-as a file instead ([0079](../decisions/0079-a-local-item-updates-from-a-file.md)).
+`content::record::assemble` is the only writer: an update is `repin(item, release)` and a pack re-supply is
+`rehold(item, holding)`. It is exhaustive, so a new field does not compile until classified. The launch-time mirror
+reads `enabled` and per-world disables off the record, so losing a group would put a disabled item back where the game
+loads it.
 
-### Who owns which field of a record
+### Operations
 
-An `InstalledContent` mixes three independently-owned groups, and no flow owns
-all of them: an install has a project and a version but no prior record, an
-update has a record and a version but no project, a modpack re-supply has both
-over an item the entry is already holding a particular way.
+| Operation        | Behaviour                                                                                                    |
+|------------------|--------------------------------------------------------------------------------------------------------------|
+| `enable`         | flips a flag; enforced at the launch-time mirror, which keeps a disabled item out of `data/`                 |
+| `check_updates`  | separate from `list`, so `list` stays fast and offline; served from the update cache within its TTL         |
+| `hold`           | keeps an item at its version; "update all" and auto-update skip it                                           |
+| `update`, `remove` | take a batch of references as one job; named items are resolved before the first moves                     |
+| `update` + `path` | moves one local item onto a file, keeping its enabled flag and worlds; tracked or pack-owned items refused |
+| `set_version`    | re-pins one item to a chosen published version, optionally from another source                              |
 
-| Group | Fields | Who writes it |
-|---|---|---|
-| `Project` | id, slug, title, icon | the install; carried unchanged by everything after |
-| `Release` | source, version, filename, sha1, url | an install, an update, a re-supply |
-| `Holding` | origin, `enabled`, per-world disables, world targeting | the entry alone — never anything upstream |
-
-`content::record::assemble` is the only place those fields are written, so a
-flow cannot reset a group it does not own: an update is `repin(item, release)`
-and a modpack re-supply is `rehold(item, holding)`. The assembler is exhaustive,
-so a new field on the record does not compile until it has been classified
-([0064](../decisions/0064-a-record-is-mutated-not-rebuilt.md)).
-
-This matters beyond bookkeeping: the launch-time mirror reads `enabled` and the
-per-world disables straight off the record, so a group lost in a rebuild does
-not merely misreport an item — it puts a disabled one back where the game loads
-it.
-
-### Beyond add and remove
-
-| Operation | Behaviour |
-|---|---|
-| `enable` | flips a flag in `content.json`. Enforced at the single point it needs — the launch-time mirror keeps a disabled item out of `data/`, so it can never be resurrected by a restore. A datapack's mirror is per world, so disabling drops the mirror in the chosen worlds |
-| `check_updates` | a *separate* call, not baked into `list`, so `list` stays fast and offline. Answered from the update cache inside its TTL; `refresh` asks upstream anyway (see [Update checks](#update-checks)) |
-| `hold` | keeps an item at its version: "update all" (an empty batch) and auto-update pass it by. `set_version` holds the item it re-pins; an `update` naming it releases the hold |
-| `update` / `remove` | take a *batch* of references — one job, one call. Named items are resolved before the first one moves, so a batch naming something that does not exist changes nothing; an empty batch means every item of the kind (`update`) and is refused (`remove`). Past that an update is per-item like an install: every item resolves, the moves download side by side under one progress extent, and an item that cannot move comes back as a failure while every one that did is recorded |
-| `update` with a `path` | moves the one named *local* item onto that file, keeping its enabled flag and worlds; a tracked or pack-owned item is refused. The old mirrors go first, so a rebuild under the same name is what loads next ([0079](../decisions/0079-a-local-item-updates-from-a-file.md)) |
-| `set_version` | re-pins one item to a chosen published version — the update path with an explicit pin instead of "newest". With a `source`, the version comes from that source instead: the installed file's hash finds the project there (`matches` lists which sources recognise it), and the record moves to it. A local file adopts a source the same way ([0075](../decisions/0075-a-local-file-is-identified-by-its-hash.md)) |
-
-All of them refuse a running or busy entry: open jars lock on Windows, and
-changes only take effect at the next start anyway
-([0014](../decisions/0014-enable-update-check-and-pin.md)).
+All refuse a running or busy entry (open jars lock on Windows, and changes take effect at next start anyway).
 
 ### Update checks
 
-A check runs when its answer is used, never on a timer
-([0141](../decisions/0141-content-updates-are-checked-when-they-matter.md)):
+A check runs when its answer is used, never on a timer:
 
-| Trigger | Checks |
-|---|---|
-| daemon start, network back online | every ready Java entry, in one pass |
-| `content.check_updates` (a content tab opening, `<kind> list`) | that entry and kind |
-| an instance launch | every entry, off the launch's path, unless auto-update runs inside the launch |
+| Trigger                                                 | Checks                                                       |
+|---------------------------------------------------------|--------------------------------------------------------------|
+| daemon start, network back online                       | every ready Java entry, in one pass                          |
+| `content.check_updates` (a content tab opens, `list`)   | that entry and kind                                          |
+| an instance launch                                      | every entry, off the launch path, unless auto-update runs in it |
 
-The engine's `UpdateCache` (`content/updates.rs`) keeps one answer per
-installed release, game version and loader for 30 minutes. A check inside the
-TTL costs no request, and `content.available_updates` lists what the cache
-holds, whatever its age, without asking upstream. The flow
-(`flows/content/updates.rs`) groups the remaining items by source, game version
-and loader across entries, asks each group through `ContentProvider::latest` in
-one request (Modrinth `/version_files/update`, release channel first;
-CurseForge bulk `/mods` and its `latestFilesIndexes`), and resolves exactly only
-the items whose bulk answer differs from the installed version. A source without
-`latest` resolves each item exactly. An update with no pin plans from the same
-answers, so a check followed by "update all" asks nothing twice.
+`UpdateCache` (`content/updates.rs`) keeps one answer per installed release, game version and loader for 30 minutes.
+`content.available_updates` lists what it holds without asking upstream. The flow (`flows/content/updates.rs`) groups
+items by source, game version and loader across entries and asks each group in one request through
+`ContentProvider::latest`, resolving exactly only items whose bulk answer differs. A source without `latest` resolves
+each item. An unpinned update plans from the same answers. A new finding publishes `content.updates_found { fresh }`.
 
-A check that finds an update no earlier answer reported publishes
-`content.updates_found { fresh }`, and the desktop notifies once per event.
+**Auto-update** (`content.auto-update`, off by default) moves every platform-sourced, unheld item not installed by a
+modpack. On an instance it runs inside the first session's launch, with failures as a `ContentNotUpdated` warning. On a
+server it starts a `content.update` job when a check finds updates while the server is stopped and unclaimed.
 
-**Auto-update** (`content.auto-update`, off by default) moves every item that
-is platform-sourced, not held, and not installed by a modpack. For an instance
-it runs inside the launch, in the first session only, and items it cannot move
-come back as a `ContentNotUpdated` warning on the launch. For a server it starts
-a `content.update` job as soon as a check finds updates while the server is
-stopped and unclaimed. A running server is caught by a later check.
+### Local files
 
-### Local files are inspected, not trusted
+- **Inspected.** `content.inspect(path)` reads the archive's central directory and returns kind, validity and a reason.
+  Detection is loader-agnostic (any loader's manifest; a datapack versus resourcepack by `data/` versus `assets/`).
+  The kind is a suggestion: `content.add` hard-rejects only what cannot be single-file content (an unreadable archive or
+  a modpack) and otherwise honours the requested kind.
+- **Identified.** `ContentProvider::identify` hands each source the files and gets back the version each is. A
+  recognised file is recorded as that release, so it updates and exports like a sourced one. The installed bytes stay
+  local, dependencies are not resolved, and a failed lookup leaves the import untracked. `content.inspect` runs the
+  same lookup so the review step can list matches.
+- **Updated from a file.** A local item has no source, so a newer build is supplied as a file, which replaces the
+  record in place (keeping its enabled flag, per-world disables and targeting).
+- **Icons.** An untracked record takes the icon the archive carries (`fabric.mod.json`, `quilt.mod.json`, `mods.toml`,
+  `mcmod.info`, or a root `pack.png`), decoded under size limits, shrunk to a 64 px PNG and stored as a `data:` URI on
+  the record. Where an archive has none, the record borrows the icon of the project a source knows it as, and stays
+  `file` with nothing to update against.
 
-`content.inspect(path)` reads the archive's central directory and classifies it,
-returning the detected kind, validity and a reason. Detection is
-**loader-agnostic** — a mod is any loader's manifest (`fabric.mod.json`,
-`quilt.mod.json`, `META-INF/mods.toml`, `neoforge.mods.toml`, …) — and a datapack
-is told from a resourcepack by the `data/` vs `assets/` tree under a shared
-`pack.mcmeta`.
+## Datapacks
 
-The detected kind is a **suggestion, not a verdict**: `content.add` hard-rejects
-only what genuinely cannot be single-file content (an unreadable archive, or a
-modpack) and otherwise honours the requested kind, so a review-step override
-installs where you asked
-([0015](../decisions/0015-local-imports-are-inspected.md)).
+A datapack loads from inside a world, so its mirror is per world, but it still has a managed copy,
+`<entry>/datapacks/<file>`.
 
-A local file is also **identified**. `ContentProvider::identify` hands each
-source the files and gets back the version each one is — however that platform
-recognises a file — and a recognised file is recorded as that
-release rather than as source `file`, so it updates and exports like anything
-installed from a source. The bytes installed are still the local ones, its
-dependencies are not resolved, and a lookup that fails (offline, unknown file)
-leaves the import untracked rather than failing it. Every source is asked, and
-the add item's `source` says which match to track (`file` for none);
-`content.inspect` runs the same lookup, which is how the review step lists the
-matches to choose from before install
-([0075](../decisions/0075-a-local-file-is-identified-by-its-hash.md)).
+|             | Server                          | Instance                                                              |
+|-------------|---------------------------------|-----------------------------------------------------------------------|
+| Mirrored to | `data/<level-name>/datapacks/`  | `data/saves/<world>/datapacks/`                                       |
+| Which world | the one in `server.properties`  | named (repeatable `--world`); none named means every world, now or later |
 
-A file left untracked has no project to borrow an icon from, so `content::icon`
-reads the one the archive carries: the `icon` a `fabric.mod.json` or
-`quilt.mod.json` names, the `logoFile` of a `mods.toml`, `neoforge.mods.toml` or
-`mcmod.info`, and otherwise a root `pack.png` — which covers resource packs,
-datapacks and the shader packs that ship one. The lookup is the same for every
-kind; a plugin's `plugin.yml` has no icon field, so a plugin has one only when
-its jar happens to carry one of those. The image is decoded under size limits,
-shrunk to a 64px PNG and stored on the record as a `data:` URI, so it travels in
-`content.json`, over the socket and inside an exported archive with no second
-file to keep in step. The same read runs wherever an untracked record is made: a
-local import, a modpack's override jars, and an imported instance's loose files.
-
-A shader pack and a plugin carry no icon at all, so an import kept untracked is
-still looked up by hash, and where the archive has no icon of its own the record
-borrows the one of the project a source knows it as. Only the icon is borrowed:
-the item stays source `file`, with no project id and nothing to update against.
-A file no source recognises and that embeds nothing keeps the placeholder.
-
-## Datapacks are the exception
-
-A datapack loads from *inside a world*, not a flat directory, so its mirror is
-per world. It still has a managed copy, `<entry>/datapacks/<file>`, like every
-other kind: an instance with no world yet can take one, a world created later
-receives the packs installed before it, and a server backup restore — which swaps
-the world, and with it any datapack installed since — is healed by the launch-time
-sync. Mods and plugins survive a restore through the backup's preserve list; a
-datapack, being inside the archive, relies on the mirror.
-
-| | Server | Instance |
-|---|---|---|
-| Mirrored to | `data/<level-name>/datapacks/` | `data/saves/<world>/datapacks/` |
-| Which world | the one, from `server.properties` | named — repeatable `--world`, or an interactive multi-select; none named means every world, now or later |
-
-One index entry per pack carries the worlds it loads in, so a removal clears
-every mirror unless narrowed. The client-side support flag is waived for
-datapacks: a datapack runs on a world's server side, including a client's
-integrated server ([0016](../decisions/0016-datapacks-are-world-of-record.md)).
+One index entry per pack carries its worlds, so removal clears every mirror unless narrowed. The client-side support
+flag is waived for datapacks: they run on a world's server side, including the integrated server.
 
 ## Bedrock packs
 
-A Bedrock add-on is a `.mcpack` or `.mcaddon` zip, and BDS loads folders listed
-per world by pack uuid. The pack **file** is still the item of record, so sha1,
-provenance, pin, enable and removal work as for a mod: behaviour packs live in the
-managed `behavior_packs/`, resource packs in the existing `resourcepacks/`, and a
-`.mcaddon` is split into its packs on install. Packs come from a local file or a
-direct link, since no Bedrock source is wired yet.
+An add-on is a `.mcpack` or `.mcaddon` zip; BDS loads folders listed per world by uuid. The pack file is the item of
+record (sha1, provenance, pin, enable, removal work as for a mod): behaviour packs in `behavior_packs/`, resource packs
+in `resourcepacks/`, a `.mcaddon` split on install. Packs come from a file or direct link; no Bedrock source is wired.
 
-At each start the entry's sync extracts every enabled pack into
-`data/behavior_packs/<uuid>/` or `data/resource_packs/<uuid>/` (marked with a
-`.hestia` file) and rewrites the world's `world_behavior_packs.json` or
-`world_resource_packs.json`. Only Hestia's own uuids are touched there: packs
-the server ships (recorded in `.bds-packs` at install) and packs a user dropped
-in are left as found, and the latter show as untracked
-([0140](../decisions/0140-a-bedrock-pack-is-a-file-extracted-at-sync.md)).
+At each start sync extracts every enabled pack into `data/behavior_packs/<uuid>/` or `data/resource_packs/<uuid>/`
+(marked `.hestia`) and rewrites the world's `world_behavior_packs.json` or `world_resource_packs.json`. Only Hestia's
+own uuids are touched; shipped packs (recorded in `.bds-packs`) and hand-dropped ones are left as found, the latter
+shown as untracked.
 
 ## Modpacks
 
-A pack installs into a new or existing server or instance from a project, a page
-URL, or a local pack file. `pack.rs` owns the opened `Archive` (its root and which
-override trees to extract), deliberately apart from the platform that serves the
-pack and from the format that read it — a pack picked off disk has no source and
-is read the same way. The zip itself is
-read by the one reader import and export share (`transfer/archive.rs`), which
-validates every path before the first write and hashes only when asked; the
-install flow receives the archive already open, whether it came from a download
-or from `instance import`.
+A pack installs into a new or existing entry from a project, a page URL or a local file. `pack.rs` owns the opened
+`Archive` (its root and the override trees to extract), apart from the source that served it and the format that read
+it. The zip is read by the reader import and export share (`transfer/archive.rs`), which validates every path before
+the first write.
 
-**A pack archive is read by a plugin.** The launcher reads no pack format itself:
-every format is a plugin's `pack` provider ([0125](../decisions/0125-a-pack-is-a-provider-kind-and-export-formats-are-open.md)), which hands the
-`Archive` the install flow extracts from the override trees it names, so the flow
-extracts any of them without being told where the archive came from. A pack that
-names its files by id rather than URL delegates its manifest to the content
-source that owns it (`ContentProvider::resolve_manifest`), so it installs whenever
-that source can serve and is refused as `ContentSourceUnavailable` — naming the
-setting to set — when it cannot. The files are fetched under the policy of whoever
-vetted them: the plugin's grant for a file it names, the source's for a delegated one.
+- **Formats are plugins.** Core reads no pack format. Each format is a plugin `pack` provider that hands the install
+  flow the archive and the trees to extract. A pack that names files by id delegates its manifest to the owning source
+  (`resolve_manifest`), so it installs when that source can serve and is refused `ContentSourceUnavailable` otherwise.
+  Files are fetched under the policy of whoever vetted them.
+- **Download.** A pack from a source is fetched like any file into a unique file under `tmp/`, read, and removed at
+  once. A zip without a pack manifest is `NotAModpack`; an artifact with no URL is `ContentDownloadBlocked`.
 
-**A pack from a source goes through the downloader.** The version the flow picks
-already carries the archive's artifact, so it is fetched like any other file: into
-a uniquely named file under the data home's `tmp/`, with progress, cancellation
-and the download cache. The archive is read from there and the file is removed at
-once; `reclaim_temp()` empties the directory at start. A zip with no pack manifest
-is refused as `NotAModpack`, and an artifact with no URL as
-`ContentDownloadBlocked`.
-
-A pack decomposes into three things Hestia already has, and each goes where it
-belongs:
+A pack decomposes into three parts, each going where it already belongs:
 
 ```mermaid
 flowchart TD
-    PACK["a pack archive"]
-    PACK --> A["loader + game version"]
-    PACK --> B["files under a managed load dir<br/><i>from the index or an override tree</i>"]
-    PACK --> C["the rest of overrides/ and everything else"]
-
-    A --> A1["become the entry's flavor and version<br/><i>create --modpack and modpack install<br/>are one code path</i>"]
-    B --> B1["ordinary pool items tagged modpack:&lt;project&gt;<br/><i>individually listable, enableable, updatable</i>"]
-    C --> C1["written into data/, recorded in modpack.json<br/>with the sha1 each was written with"]
+    PACK["pack archive"] --> A["loader + game version"] --> A1["the entry's flavor and version<br/>create --modpack and modpack install are one path"]
+    PACK --> B["files under a managed load dir"] --> B1["pool items tagged modpack:project<br/>listable, enableable, updatable"]
+    PACK --> C["the rest of overrides/"] --> C1["written to data/, recorded in modpack.json with the sha1 written"]
 ```
 
-Only the third needed anything new, and for one reason: those files are configs
-and keymaps **you edit**. So an update replaces a file the pack still owns and
-leaves a tweaked one exactly as found, reporting which through
-`WarningInfo::ModpackOverridesKept`. A *first* install writes over whatever is on
-disk — nothing there is yours yet
-([0011](../decisions/0011-modpack-decomposes-into-existing-parts.md)).
+Only the third needed anything new, because those files are configs you edit. An update replaces a file the pack still
+owns and leaves a tweaked one as found, reporting `WarningInfo::ModpackOverridesKept`. A first install overwrites.
 
-**Taking a pack out is two different things**, so `modpack.remove` is told
-which. The default deletes the pack's pool items and the override files it still
-owns. With `keepContent` only the pack goes: `modpack.json` is cleared and its
-pool items lose their origin tag, so they become removable and syncable like
-anything the user installed, and the override files simply stop being recorded.
-
-**Whether there is an update is asked, not assumed.**
-`modpack.check_update` resolves the pack's newest published version
-through the same pick an unpinned update makes, and answers with both version
-numbers plus `updatable` — so what a front-end offers and what an update would
-install cannot disagree. A pack read off disk is first asked after by hash: an
-archive a source published is recorded as that release, and updates like one
-installed from the source. One no source recognises has no catalogue behind it
-and answers with nothing to check, the same reason `fetch_update` refuses it.
-
-**A version change moves the pack.** `server.update` and `instance.update` take a
-pack policy (`move` by default, or `keep`). With `move` the daemon asks the same
-`entry_modpack_update` for the pack version built for the target game version and
-runs one job: a pack update when there is one, the plain version change plus a
-`PackNotMoved` warning when the pack has no build for the target
-([0088](../decisions/0088-the-daemon-sequences-a-version-change.md)). The
-`gameVersion` of `modpack.check_update` stays as the preview a front-end shows
-before the request.
-
-**A pack file updates any pack.** `modpack.update` takes a `path` in place
-of a version, and the file goes through the same update: the game-version move
-behind the downgrade gate, the stale-item sweep, the keep-if-edited rule. It is
-the only way an unpublished pack moves, and a published one may take it too — a
-file no source recognises then leaves it unpublished. A pack file carries a name
-and a free-text version but no id, so whether it is *the same pack* is the
-project where a source recognises both and the name otherwise; a different one is
-refused as `ModpackDifferentPack` unless `allowOtherPack` says it is meant.
-`modpack.preview_update` answers both questions — same pack, downgrade —
-before a job starts, so a front-end asks once instead of failing a job to find
-out ([0078](../decisions/0078-a-pack-updates-from-a-file.md)).
-
-**A resolved pack file carries its identity.** A pack that names its files by id
-delegates to the source that owns them, and resolving already fetches the file and
-project records, so every `ModpackFile` leaves the resolve with its source, ids,
-version number and project. A pack that names files by URL and hash alone has
-each file URL put to every source (`ContentProvider::recognise_file_url`), and the
-source that answers is recorded. `hydrate` then asks only for what is still
-missing (a file's version number and project), in one bulk call per source.
-Best-effort: a pack still installs when the catalogue is unreachable, it just
-reads less well.
-
-What the pack does not identify — a jar shipped in an override tree, a file
-hosted where no source recognises the URL — is asked after
-by hash once it is on disk, the same lookup a local-file import makes; where
-several sources publish it, the pack's own wins. A jar in `overrides/mods/` is
-therefore a pool item like any other, in the managed directory rather than
-written straight into `data/`. A jar kept as `<name>.jar.disabled` there is the same
-item, recorded disabled and kept out of `data/` until it is enabled. Only a file no source recognises records as
-`source: "file"`: installable, just not updatable
-([0076](../decisions/0076-a-pack-file-is-identified-wherever-it-came-from.md)).
-
-**A pack's `env.server` is a claim, not a fact.** Packs routinely declare
-client-only mods as server-required, so a *server* install filters them using
-`itzg/docker-minecraft-server`'s list, adopted verbatim. What is held back rides
-on the result as `WarningInfo::ModpackFilesExcluded`, naming each file. The
-correction is server-side only — applied to an instance it would strip out
-precisely the mods the pack was installed for
-([0012](../decisions/0012-pack-server-declarations-are-corrected.md)).
-
-Where a pack's platform publishes no per-project side support, the correction is
-not a refinement but the *only* signal: every required file reads as wanted by
-both sides and the exclude table is what tells a server's mods from a client's.
-The table's per-pack rules are keyed by the pack's source project slug, so a pack
-from another platform matches the global rules but not its per-pack entry, and
-`modpack.exclude-files` is the way to correct one.
-
-**What a pack cannot do:** be installed into an entry whose flavor or game
-version differs from what it pins, or pin a loader with no Hestia flavor. An
-update *does* carry the game version with it — that is what updating a pack means
-— behind the same explicit downgrade gate as any version move.
-
-## Decisions
-
-- [0010 — Content is normalized behind one trait](../decisions/0010-one-content-provider-trait.md)
-- [0011 — A modpack is three things at once](../decisions/0011-modpack-decomposes-into-existing-parts.md)
-- [0012 — A pack's `env.server` is a claim, not a fact](../decisions/0012-pack-server-declarations-are-corrected.md)
-- [0013 — Installed content is managed-dir-of-record, mirrored into `data/`](../decisions/0013-managed-dir-of-record.md)
-- [0014 — Enable/disable, update-check and pin extend the same model](../decisions/0014-enable-update-check-and-pin.md)
-- [0015 — A local-file import is inspected, not trusted](../decisions/0015-local-imports-are-inspected.md)
-- [0016 — Datapacks are managed like every other kind, mirrored per world](../decisions/0016-datapacks-are-world-of-record.md)
-- [0075 — A local file is identified by its hash](../decisions/0075-a-local-file-is-identified-by-its-hash.md)
-- [0076 — A pack file is identified wherever it came from](../decisions/0076-a-pack-file-is-identified-wherever-it-came-from.md)
-- [0078 — A pack updates from a file, and leaves an entry two ways](../decisions/0078-a-pack-updates-from-a-file.md)
-- [0140 — A Bedrock pack is a file of record, extracted at sync](../decisions/0140-a-bedrock-pack-is-a-file-extracted-at-sync.md)
+- **Removal** is told which of two things you mean. The default deletes the pool items and owned override files.
+  `keepContent` clears `modpack.json` and the items' origin tag, so they become ordinary items.
+- **Updates are asked.** `modpack.check_update` resolves the newest version through the pick an unpinned update makes
+  and answers both version numbers plus `updatable`. A pack read off disk is first looked up by hash; one no source
+  recognises has nothing to check.
+- **A version change moves the pack.** `server.update` and `instance.update` take a pack policy (`move`, the default,
+  or `keep`). `move` runs one job: a pack update when the pack has a build for the target game version, otherwise the
+  plain version change plus a `PackNotMoved` warning.
+- **A file updates any pack.** `modpack.update` with a `path` goes through the same update (downgrade gate, stale-item
+  sweep, keep-if-edited). It is the only way an unpublished pack moves. A file carries a name and free-text version but
+  no id, so "the same pack" is the project where a source recognises both and the name otherwise; a different pack is
+  refused `ModpackDifferentPack` unless `allowOtherPack`. `modpack.preview_update` answers both questions first.
+- **Identity.** Every resolved `ModpackFile` leaves with source, ids, version and project. A pack naming files by URL
+  and hash has each URL put to every source (`recognise_file_url`); `hydrate` fills what is missing in one bulk call
+  per source, best-effort. A jar in an override tree is looked up by hash once on disk, and the pack's own source wins
+  a tie. A jar in `overrides/mods/` becomes a pool item in the managed directory; `<name>.jar.disabled` becomes a
+  disabled item. Only an unrecognised file records as `file`.
+- **`env.server` is a claim.** A server install filters files with itzg/docker-minecraft-server's exclude list, adopted
+  verbatim, and reports them as `WarningInfo::ModpackFilesExcluded`. It is server-side only. Per-pack rules key on the
+  source project slug, so a pack from another platform matches only the global rules; `modpack.exclude-files` corrects
+  one.
+- **Limits.** A pack cannot install into an entry whose flavor or game version differs from what it pins, or pin a
+  loader with no Hestia flavor. An update does carry the game version, behind the explicit downgrade gate.
