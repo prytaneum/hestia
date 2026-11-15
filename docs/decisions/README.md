@@ -199,3 +199,4 @@ the alternative you rejected — that is usually the part nobody can recover lat
 - **0098** — [Plugin assets are served by the daemon, not read by the webview](0098-plugin-assets-are-served-by-the-daemon.md)
 - **0100** — [A plugin theme is raw CSS behind a permission, a CSP and a safe mode](0100-themes-are-plugin-css.md)
 - **0109** — [A plugin webview is an opaque-origin iframe with a mediated message bridge](0109-plugin-webviews-are-opaque-iframes.md)
+- **0142** — [The page vocabulary grows by need, and a page can run a command](0142-the-ui-vocabulary-grows-by-need-and-a-page-can-run-a-command.md)

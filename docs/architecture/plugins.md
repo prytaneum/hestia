@@ -823,3 +823,4 @@ plugins the tests build are fixtures
 | [0130](../decisions/0130-a-plugin-reaches-all-entries.md) | a plugin's entry access is every entry |
 | [0131](../decisions/0131-plugin-tooling-reports-everything-and-builds-quickly.md) | plugin tooling builds quickly, builds against a local SDK and reports every problem |
 | [0132](../decisions/0132-a-distributor-ships-setting-defaults-in-the-package.md) | a distributor ships a setting's default inside the package |
+| [0142](../decisions/0142-the-ui-vocabulary-grows-by-need-and-a-page-can-run-a-command.md) | the page vocabulary grows by need; a page runs a command as a job, on the page's entry |

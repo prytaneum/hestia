@@ -108,12 +108,22 @@ one, use `Action { id, payload }`, which is itself an action and decodes as itse
 | `toast` | `{ "type": "toast", "tone": "success", "text": "Saved" }` | shows a short message |
 | `navigate` | `{ "type": "navigate", "page": "overview" }` | opens another page of the same plugin |
 | `refresh` | `{ "type": "refresh" }` | renders the current page again |
+| `run` | `{ "type": "run", "command": "setup", "args": { "x": 1 } }` | starts one of the plugin's own commands as a job |
+
+`run` is for work longer than an action's 10 s: the action answers at once and the command runs as a `plugin.run` job,
+so it has progress, outlives the page and reports its outcome once, through the job store
+([0089](../decisions/0089-a-job-outcome-is-reported-once.md)); the plugin adds no toast of its own. The command is a
+`[[contributes.commands]]` of the same plugin, and `args` are checked against its declaration as on the command line.
+The entry is never in the effect: a command scoped to servers or instances runs on the entry of the page being shown, so
+a plugin cannot aim a run at an entry the user did not open. The daemon refuses the action's answer when a `run` names
+an undeclared command, or a `server` or `instance` command on a page that is not an `entry` page of that kind. A `top`
+command runs from any page.
 
 Source: `crates/proto/tests/golden/ui_effects.json`, a pinned encoding.
 
 ## Nodes
 
-Sixteen node types make the vocabulary. Each JSON sample below is the wire form, copied from the pinned fixture
+Eighteen node types make the vocabulary. Each JSON sample below is the wire form, copied from the pinned fixture
 `crates/proto/tests/golden/ui_node.json`. A node's `type` is `snake_case`, its other fields `camelCase`. A node that
 sets a field to its default may omit it: `direction`, `tone` and `variant` default to `vertical`, `neutral` and
 `primary`. Tones are `neutral`, `muted`, `info`, `success`, `warning`, `error`.
@@ -124,6 +134,20 @@ Lays children out in a column (`vertical`, the default) or a row (`horizontal`).
 
 ```json
 { "type": "stack", "direction": "vertical", "children": [ { "type": "heading", "text": "Backups", "level": 1 } ] }
+```
+
+### section
+
+Groups nodes under a `title`, with an optional `description` and header `actions` (buttons) beside the title.
+
+```json
+{
+  "type": "section",
+  "title": "Tunnels",
+  "description": "Up while the server runs",
+  "actions": [ { "type": "button", "label": "Add", "action": { "id": "add", "payload": null }, "variant": "secondary" } ],
+  "children": [ { "type": "copy", "text": "abc.example.com:1234", "label": "Address" } ]
+}
 ```
 
 ### heading
@@ -167,6 +191,15 @@ contacts the host. `shape` is `natural` (the default) or `avatar`, a small round
 { "type": "remote_image", "url": "https://example.com/a.png", "alt": "A", "shape": "avatar" }
 ```
 
+### copy
+
+A value with a copy button, for what people paste elsewhere, such as an address. `label` is optional. It composes
+anywhere a node does, including a list item's `actions`.
+
+```json
+{ "type": "copy", "text": "abc.example.com:1234" }
+```
+
 ### badge
 
 A short label with a tone, for a status.
@@ -187,7 +220,7 @@ tab.
 ### table
 
 Cells are strings. When `rowAction` is set, choosing a row sends that action id with the row's `payload`. With
-`filter: true` the table shows a search box that hides the rows whose cells do not contain what was typed.
+`filter: true` the table shows a search box that hides the rows whose cells do not contain what was typed. `empty` is the text drawn when there are no rows.
 
 ```json
 {
@@ -195,14 +228,19 @@ Cells are strings. When `rowAction` is set, choosing a row sends that action id 
   "columns": ["Name", "Size"],
   "rows": [ { "cells": ["world", "12 MB"], "payload": { "id": "w1" } } ],
   "filter": true,
-  "rowAction": "open"
+  "rowAction": "open",
+  "empty": "No files"
 }
 ```
 
 ### list
 
-Items with a title, an optional subtitle and icon (a name or package path, as for a [page](#declaring-a-page)), and
-buttons. The CLI prints a two-column table of title and subtitle.
+Items with a title, an optional subtitle and icon (a name or package path, as for a [page](#declaring-a-page)), `badges`
+(`{ text, tone }` status pills) and buttons. `empty` is the text drawn when there are no items. The CLI prints a
+two-column table of title and subtitle, with the badges as `[text]`.
+
+An item may carry an `image`, `{ url, shape }`, drawn before the title in place of `icon`; `url` is `https` under the
+rule of [`remote_image`](#remote_image) and `shape` is `natural` (the default) or `avatar`. The CLI draws nothing for it.
 
 ```json
 {
@@ -210,9 +248,15 @@ buttons. The CLI prints a two-column table of title and subtitle.
   "items": [
     {
       "title": "Nightly", "subtitle": "03:00", "icon": "clock",
+      "badges": [ { "text": "Online", "tone": "success" } ],
       "actions": [ { "type": "button", "label": "Run", "action": { "id": "run", "payload": null }, "variant": "secondary" } ]
+    },
+    {
+      "title": "Steve",
+      "image": { "url": "https://example.com/a.png", "shape": "avatar" }
     }
-  ]
+  ],
+  "empty": "No schedules"
 }
 ```
 
@@ -227,23 +271,26 @@ Label and value pairs.
 ### form
 
 Fields are keyed by `name`; their values arrive in `action`'s `values`, and the submit button's `action` says what was
-asked. Field types:
+asked. Every field has a `name`, a `label` and an optional `help` hint shown under it; the rest depends on its `type`:
 
-| Field `type` | Fields besides `name` and `label` | Submits |
+| Field `type` | Fields besides `name`, `label` and `help` | Submits |
 |---|---|---|
-| `text` | `value`: string | string |
-| `number` | `value`: number | number |
+| `text` | `value`: string, `placeholder` | string |
+| `number` | `value`: number, `min`, `max`, `step` | number |
 | `toggle` | `value`: boolean | boolean |
 | `select` | `options`: `{ value, label }[]`, `value`: the selected `value` | string |
 | `entry` | `kind`: `server` or `instance` | the id of an existing server or instance |
+
+`min`, `max` and `step` are hints the front-end applies; a number left empty blocks the submit instead of sending 0. The
+bounds are not enforced by the daemon, so the plugin still validates what it receives.
 
 ```json
 {
   "type": "form",
   "id": "settings",
   "fields": [
-    { "type": "text", "name": "title", "label": "Title", "value": "a" },
-    { "type": "number", "name": "keep", "label": "Keep", "value": 7.0 },
+    { "type": "text", "name": "title", "label": "Title", "help": "Shown in the list", "value": "a", "placeholder": "Name" },
+    { "type": "number", "name": "keep", "label": "Keep", "value": 7.0, "min": 1.0, "max": 30.0, "step": 1.0 },
     { "type": "toggle", "name": "on", "label": "Enabled", "value": true },
     { "type": "select", "name": "mode", "label": "Mode", "options": [ { "value": "fast", "label": "Fast" } ], "value": "fast" },
     { "type": "entry", "name": "target", "label": "Server", "kind": "server" }
@@ -291,11 +338,23 @@ An HTML page from your `assets/` in a sandboxed frame, for what the nodes above 
 
 ## Building trees in Rust
 
-`hestia::ui` has builders for the common nodes and re-exports the types, so anything a builder does not cover is the
-enum written out. Builders exist for `stack`, `row_of` (a horizontal stack), `heading`, `text`, `markdown`, `notice`,
-`image`, `remote_image`, `avatar`, `badge`, `tabs` with `tab`, `table` with `row` (and `filtered_table`), `detail`,
-`button` (and `button_confirming`), `form`, `progress` and `webview`. `list`, a table's `row_action`, a progress
-`label`, a button `variant` and a text `tone` have none; build `UiNode::List { .. }` and the others directly.
+`hestia::ui` has builders for every node and re-exports the types, so anything a builder does not cover is the enum
+written out. Nodes without options are free functions: `stack`, `row_of` (a horizontal stack), `heading`, `text`,
+`markdown`, `notice`, `image`, `remote_image`, `avatar`, `badge`, `copy` and `copy_labelled`, `tabs` with `tab`,
+`detail`, `progress` and `webview`. `table` with `row`, `filtered_table`, `button`, `button_confirming` and `form` are
+one-liners over the builders. A node with optional parts has a builder that converts into a node (or a part of one):
+
+| Builder | Makes | Methods |
+|---|---|---|
+| `Section::new(title)` | `section` | `description`, `action`, `children` |
+| `Item::new(title)` | a list item | `subtitle`, `icon`, `image`, `avatar`, `badge`, `action` |
+| `List::new(items)` | `list` | `empty` |
+| `Table::new(columns, rows)` | `table` | `filter`, `row_action`, `empty` |
+| `Button::new(label, action)` | `button` | `secondary`, `danger`, `confirm` |
+| `Field::text`, `number`, `toggle`, `select`, `entry` | a form field | `help`; `placeholder` (text); `min`, `max`, `step` (number) |
+
+A `progress` `label` and a text `tone` have no builder; build `UiNode::Progress { .. }` directly. `Effect::Run { command,
+args }` is written out as an effect.
 
 From the SDK's doctest, `crates/sdk/src/ui.rs`:
 
@@ -358,11 +417,7 @@ fn notes(entry: &str) -> Result<UiNode, Error> {
         ui::heading("Notes", 1),
         ui::form(
             "note",
-            [FormField::Text {
-                name: "note".into(),
-                label: "Note".into(),
-                value: note,
-            }],
+            [ui::Field::text("note", "Note", note).help("Kept per server")],
             "Save",
             Act::Save,
         ),
@@ -390,8 +445,9 @@ fn save(values: Values, context: PageContext) -> Result<Vec<Effect>, Error> {
 |---|---|---|
 | `stack`, `heading`, `text` | layout and text components | lines; `muted` prints as a note, `warning` and `error` as warnings |
 | `markdown`, `image` | the shared markdown component without raw HTML; package images by URL | formatted text; the `alt` text |
-| `table`, `list`, `detail` | data components | tables and a key/value block |
-| `form`, `button` | inputs and buttons; a `confirm` asks first | an action menu entry, asking a `confirm` first; a form prompts field by field |
+| `section`, `copy` | a titled group with header buttons; a value with a copy button | the section's title and children; the value as a line, `label: value` |
+| `table`, `list`, `detail` | data components; a list item's `badges` and `image`, and `empty` | tables and a key/value block; badges as `[text]`, no `image`, `empty` as a note |
+| `form`, `button` | inputs and buttons; a `confirm` asks first; a `run` effect starts the job and the job store reports it | an action menu entry, asking a `confirm` first; a form prompts field by field; a `run` effect runs the command as `hestia <plugin> <command>` does, then draws the page again |
 | `remote_image`, `badge`, `tabs` | the image through the daemon, round for `avatar`; a pill; a tab strip | the `alt` text; `[text]`; each tab's label, then its children |
 | `notice` | an inline notice | a note; `warning` and `error` as warnings |
 | `progress` | a bar | a text bar |
