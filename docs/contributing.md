@@ -1,35 +1,23 @@
-# Contributing — conventions & recipes
+# Contributing
 
-Practical, copy-and-adapt guides for extending Hestia. Read
-[architecture.md](architecture.md) first for the lay of the land, and the
-[subsystem page](architecture.md#subsystem-pages) for whatever you are touching.
+Conventions and copy-and-adapt recipes. Read [architecture.md](architecture.md) first, then the page for whatever you
+are touching.
 
 ## Conventions
 
-A few rules hold everywhere; the recipes below assume them.
-
-- **`rustfmt` + `clippy -D warnings` stay clean.** No exceptions; CI enforces both, plus `cargo-deny`.
-- **Wire-in is one line.** Each kind of thing has exactly one place it is added — a
-  `Command` enum variant (CLI), a `handle::<C>` in the domain's registrar (daemon), a facade accessor (client). Adding a
-  feature should not touch the serve loop or the transport.
-- **One thing per file / module.** A CLI domain is its own module under
-  `commands/`; an engine domain is its own module under `engine/src/`. An aggregation point (the daemon's router, the
-  client's facades, the engine aggregate) is a module *directory*, never one growing file: the thing that aggregates
-  stays thin and each domain gets its own file beside it.
-- **Single-word module names** (`config`, not `config_store`). Follow Rust naming throughout.
-- **Errors:** `thiserror` enums in library crates, mapped to an `ErrorInfo` variant at the daemon's service boundary (handlers return
-  `ServiceResult`); `anyhow` at binary edges and for multi-step engine operations. Don't panic on recoverable errors.
-- **Logging:** `tracing` at appropriate levels. **Never log tokens or secrets.**
-- **Identity comes from one place:** `common::app` (`NAME`, `VERSION`, `ID`,
-  `VENDOR`, `CHANNEL`). Don't hard-code the product name or version.
-- **Immutable/at-the-edge validation:** validate external data where it enters (payloads decode through the contract;
-  the config schema rejects unknown keys).
+- `rustfmt` and `clippy -D warnings` stay clean; CI also runs `cargo-deny`.
+- Wire-in is one line per seam (table below). Adding a feature never touches the serve loop or the transport.
+- One concept per file. An aggregation point (the daemon's router, the client's facades, the engine aggregate) is a
+  module directory, never one growing file.
+- Single-word module names (`config`, not `config_store`).
+- Errors: `thiserror` enums in libraries, mapped to an `ErrorInfo` variant at the daemon's service boundary (handlers
+  return `ServiceResult`); `anyhow` at binary edges and multi-step engine operations. No panics on recoverable errors.
+- Logging: `tracing`. Never log tokens or secrets.
+- Identity (name, version, id) comes from `common::app`; do not hard-code it.
+- Validate external data where it enters: payloads decode through the contract, the config schema rejects unknown keys,
+  client-supplied paths are checked for escape.
 
 ## The wire-in map
-
-Most features touch the same five seams, one line each. The `config` channels are the shipped end-to-end reference
-(`hestia config get home` round-trips
-`config.get` → `ConfigService` handler → `engine.config()`).
 
 | Seam           | Where                                                  | What                                                  |
 |----------------|--------------------------------------------------------|-------------------------------------------------------|
@@ -44,15 +32,10 @@ Most features touch the same five seams, one line each. The `config` channels ar
 
 ## Add a wire contract
 
-Contracts live in `crates/proto`, one module per domain. A call contract names its channel once and pairs it with
-`Params`/`Result`; serde derive is the codec, so both sides marshal through this single definition and cannot drift.
+One module per domain in `crates/proto`; add `pub mod <domain>;` to `lib.rs`. A contract names its channel once and pairs
+it with `Params`/`Result`.
 
 ```rust
-// crates/proto/src/instances.rs
-use serde::{Deserialize, Serialize};
-
-use crate::contract::{Contract, Empty};
-
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
 #[serde(default, rename_all = "camelCase")]
 pub struct Instance {
@@ -68,147 +51,64 @@ impl Contract for InstanceList {
 }
 ```
 
-**A result that is one list or one struct is that value, bare** — no wrapper struct. A result stays a struct when it
-carries a second field, when it is an `Option`, `bool` or `Value` (the field name is the meaning, and a bare `null`
-would read as "not found"), or when it is a list on a mutating channel that may report a degraded outcome as a
-`warnings` field ([0026](decisions/0026-degraded-outcomes-ride-on-the-result.md)).
+Rules:
 
-Add `pub mod instances;` to `crates/proto/src/lib.rs`. Use `#[serde(default)]` on payloads so an older/newer peer that
-omits a field still decodes (additive fields need no protocol bump). **Only an `Option` is skipped when
-absent** (`skip_serializing_if = "Option::is_none"`): the generated TypeScript type declares every other field present,
-so a list, string, number or flag omitted when empty arrives as `undefined` — and a list throws when iterated.
-`tests/omission.rs` enforces it.
-
-**A slow handler says so on its contract.** `Contract::TIMEOUT` defaults to `DEFAULT_TIMEOUT` (10 s). A contract whose
-handler waits on the network, a disk tree or a person overrides it with
-`const TIMEOUT: Duration = Duration::from_secs(120);`, written as `Duration::from_secs(<int> [* <int>])` because
-`scripts/lib/gen-channels.py` reads it. `Session::call` and the desktop bridge both apply it, so no facade method or
-API function passes a timeout of its own. A job's start channel answers at once and keeps the default.
-
-**The wire is camelCase.** Every fielded proto struct carries
-`#[serde(rename_all = "camelCase")]`, so the socket speaks camelCase and the front-ends consume it with no key
-conversion (the frontend's type mirrors are camelCase). Rust field names stay `snake_case`; only the serialized form is
-renamed. **Enums are the exception** — their variant *values* stay
-`snake_case`/`lowercase` (the frontend's string-literal union types depend on them), so leave an enum's existing
-`rename_all` alone. `tests/casing.rs` enforces the struct rule: a new serialized struct without the attribute fails the
-build. The one deliberate non-camel exception is the `config.*` key vocabulary (`jvm-args`, `memory`, …), which
-stays kebab-case — see
-[decision 0028](decisions/0028-camelcase-except-the-config-vocabulary.md). For a daemon→client push, implement `Topic` instead of
-`Contract` — the type is its own event payload (a long-running operation is a `Job` instead, see
-[Add a daemon channel](#add-a-daemon-channel)):
-
-```rust
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct ProcessStartedEvent {
-    pub id: String,
-    pub pid: u32,
-}
-impl Topic for ProcessStartedEvent {
-    const TOPIC: &'static str = "process.started";
-}
-```
-
-A call that mutates state another client renders sets `const CHANGES: Option<Scope> = Some(Scope::…)` on its
-contract; the daemon then publishes `changed` after it succeeds, and the desktop maps the scope in
-`queries/invalidation.ts` ([0085](decisions/0085-a-mutating-call-names-what-it-changed.md)).
-
-A contract a plugin may call sets `const PLUGIN: Option<Permission> = Some(Permission::…)`; one it must never reach goes
-on `DENIED` in `crates/proto/tests/permission.rs` ([0092](decisions/0092-a-contract-names-the-permission-a-plugin-needs.md)).
-A contract whose whole result is a harmless fact sets `const AMBIENT: bool = true` instead and goes on that test's
-`AMBIENT` list ([0126](decisions/0126-an-ambient-channel-needs-no-permission.md)).
-A plugin channel that is narrower than its permission names the scope kind that narrows it
-(`const NARROWED_BY: Option<ScopeKind> = Some(ScopeKind::Files)`) and a `touches(&Params) -> Vec<String>` that returns
-the entries one call reaches; the plugin gate checks them against the caller's grant, so no handler checks a grant by
-hand ([0117](decisions/0117-a-grant-is-permission-to-scope.md)). A new permission is a `Permission::spec` arm (tier,
-accepted scope kinds, whether a scope is required) and an entry in `Permission::ALL`; a new scope kind is a
-`ScopeKind` variant with its entry rule in `scope.rs`.
-
-If you change an existing payload's shape, update `crates/proto/tests/` (the
-`wire`/`golden` encodings are pinned on purpose). A plugin-reachable contract's shape is also snapshotted by
-`tests/plugin_api.rs`: regenerate it with
-`HESTIA_UPDATE_GOLDEN=1 cargo test -p proto --features ts --test plugin_api` and review the diff. The plugin
-API is unreleased, so a change does not bump `API_VERSION`; once it ships,
-[0091](decisions/0091-plugins-are-wasm-components.md)'s additive vs breaking rule applies. It needs the `ts`
-feature, so plain `cargo test` skips it; CI and the pre-push hook run it. A new contract, job or topic goes in its
-`api()` list, which the test checks against every `impl` in `src/`.
+- **Camel case on the wire.** Every fielded struct carries `#[serde(rename_all = "camelCase")]`
+  (`tests/casing.rs` enforces it). Enum variant values keep their existing `snake_case`/`lowercase` form. The one
+  kebab-case vocabulary is the `config.*` keys.
+- **`#[serde(default)]` on payloads**, so a peer that omits a field still decodes.
+- **Only an `Option` is skipped when absent** (`skip_serializing_if = "Option::is_none"`). The generated TypeScript
+  declares every other field present, so an omitted list would arrive `undefined` and throw when iterated
+  (`tests/omission.rs` enforces it).
+- **A result that is one list or one struct is that value, bare.** It stays a struct when it carries a second field, is
+  an `Option`, `bool` or `Value`, or is a list on a mutating channel that may report `warnings`.
+- **A slow handler says so on its contract:** `const TIMEOUT: Duration = Duration::from_secs(120);`, written as
+  `Duration::from_secs(<int> [* <int>])` because `scripts/lib/gen-channels.py` reads it. The default is 10 s.
+  `Session::call` and the desktop bridge both apply it; a job's start channel keeps the default.
+- **A call that mutates state another client renders** sets `const CHANGES: Option<Scope> = Some(Scope::…)`; the daemon
+  then publishes `changed`, and the desktop maps the scope in `queries/invalidation.ts`.
+- **A contract a plugin may call** sets `const PLUGIN: Option<Permission> = Some(Permission::…)`. One it must never
+  reach goes on `DENIED` in `crates/proto/tests/permission.rs`. One whose whole result is a harmless fact sets
+  `const AMBIENT: bool = true` and goes on that test's `AMBIENT` list. A plugin channel narrower than its permission
+  sets `NARROWED_BY: Option<ScopeKind>` and a `touches(&Params) -> Vec<String>`; the plugin gate checks the entries
+  against the grant, so no handler checks a grant by hand. A new permission is a `Permission::spec` arm plus an entry in
+  `Permission::ALL`; a new scope kind is a `ScopeKind` variant with its rule in `scope.rs`.
+- **A daemon-to-client push** implements `Topic` (the type is its own event payload). A long-running operation is a
+  `Job` (see [Add a daemon channel](#add-a-daemon-channel)).
+- **Changing an existing payload** means updating `crates/proto/tests/` (`wire` and `golden` are pinned on purpose).
+  A plugin-reachable contract is also snapshotted: regenerate with
+  `HESTIA_UPDATE_GOLDEN=1 cargo test -p proto --features ts --test plugin_api` and review the diff. A new contract, job
+  or topic goes in that test's `api()` list.
 
 ---
 
 ## Add an engine domain
 
-Launcher/domain logic lives in `crates/engine`, daemon-internal. A subsystem hangs off the `Engine` aggregate root
-(`engine/mod.rs`), which the daemon owns and hands to every handler. The worked example adds an `instances` store; model
-it on
-`config`.
-
-**1. Write the subsystem** as a module under `crates/engine/src/instances/` (or a single `instances.rs` if small). Take
-a path under the data dir in the constructor and keep it as a plain `PathBuf` (the data home is fixed for the life of
-the daemon, [0087](decisions/0087-the-data-home-is-fixed-for-a-daemon-process.md)); guard only mutable state with a
-`Mutex`.
+Launcher logic lives in `crates/engine` and is daemon-internal. Write the subsystem as `crates/engine/src/<domain>/`,
+taking its path under the data home as a plain `PathBuf` and guarding only mutable state with a `Mutex`. Add `mod` and
+`pub use` to `lib.rs`, then hang it off `Engine` (`engine/mod.rs`): a field, a getter, construction in `new()`. That is
+the only wiring change.
 
 ```rust
-// crates/engine/src/instances/mod.rs
-use std::path::PathBuf;
-use std::sync::Mutex;
-
-use proto::instances::Instance;
-
-pub struct Instances {
-    dir: PathBuf,
-}
+pub struct Instances { dir: PathBuf }
 
 impl Instances {
-    pub fn new(dir: PathBuf) -> Self {
-        Instances { dir }
-    }
-
-    pub fn list(&self) -> Vec<Instance> {
-        // ... scan self.dir ...
-        Vec::new()
-    }
+    pub fn new(dir: PathBuf) -> Self { Instances { dir } }
 }
-```
 
-Add `mod instances;` and a `pub use` to `crates/engine/src/lib.rs`.
-
-**2. Hang it off `Engine`** (`engine/mod.rs`) — a field, a getter, construction in
-`new()`. This is the *only* change to the engine's wiring; `HandlerContext`
-already carries the `Engine`.
-
-```rust
-// crates/engine/src/engine/mod.rs — inside struct Engine
-instances: Instances,
-
-// in new():
-let instances = Instances::new(data_home.join("instances"));
-
-// a getter:
+// engine/mod.rs: field `instances`, built in new() with data_home.join("instances"), and
 pub fn instances(&self) -> &Instances { &self.instances }
 ```
 
-A helper with no state of its own (like `minecraft`, which is handed the `meta` root per call) can be constructed without a path; a stateless *free*
-function needs no aggregate member at all.
-
-A subsystem with an **open set of implementations** — a content platform, an
-archive format — gets a trait plus a registry list, so adding one is a module
-beside the others and a line in that list ([0010](decisions/0010-one-content-provider-trait.md),
-[0057](decisions/0057-an-archive-format-is-a-module.md)). Keep what needs the
-aggregate out of the implementations: express it as data the flow matches on,
-and the flow stops growing a branch per implementation.
-
-**3. A flow that spans subsystems** — provisioning, launching, backups, content — is *not* a method on the aggregate. It
-goes in `engine/flows/<concern>.rs` as an
-`impl Engine` block (Rust lets an inherent impl span modules in a crate), so the aggregate stays wiring and callers
-still write `engine.provision_server(…)`.
-
----
+- A flow that spans subsystems (provisioning, launching, backups, content) is not a method on the aggregate. It goes in
+  `engine/flows/<concern>.rs` as an `impl Engine` block.
+- A subsystem with an open set of implementations (a content platform, an archive format) gets a trait plus a registry
+  list, so adding one is a module and a line in that list. Express what needs the aggregate as data the flow matches on.
 
 ## Persist something, or change its shape
 
-Anything of the user's that the engine writes to the data home is a
-`schema::Document`: it declares its name, and `schema::load`/`save` handle the stamping,
-the temp-file write and the quarantine of a file this build cannot read
-([0060](decisions/0060-a-managed-document-carries-its-schema-version.md)).
+Anything of the user's that the engine writes is a `schema::Document`; `schema::load`/`save` handle the schema stamp,
+the temp-file write and quarantine of a file this build cannot read.
 
 ```rust
 impl Document for InstanceRecord {
@@ -216,39 +116,29 @@ impl Document for InstanceRecord {
 }
 ```
 
-For a record living under an entry directory, that is all — `registry::read_record`/`write_record`/`scan` take the file
-name from `NAME`, so there is no second constant to pass. A document with its own path (the settings, the accounts)
-calls `schema::load`/`save` directly.
-
-**An additive field needs no migration.** `#[serde(default)]` already decodes an older file. There is no migration
-chain; it is re-added, keyed on the stamp already on every file, when a released document first needs one.
+For a record under an entry directory that is all: `registry::read_record`/`write_record`/`scan` take the name from
+`NAME`. A document with its own path (settings, accounts) calls `schema::load`/`save` directly. An additive field needs
+no migration (`#[serde(default)]`); there is no migration chain until a released document first needs one.
 
 ---
 
 ## Add a daemon channel
 
-One `on.handle::<C>(…)` in the domain's `register()`
-(`crates/daemon/src/services/<domain>.rs`). The registrar decodes `C::Params` (a malformed payload answers `bad_request`
-for you) and encodes the returned
-`C::Result`; the handler reaches collaborators through `ctx.runtime.*()` and returns an `ErrorInfo` variant for a typed
-failure.
+One `on.handle::<C>(…)` in the domain's `register()` (`crates/daemon/src/services/<domain>.rs`). The registrar decodes
+`C::Params` (a malformed payload answers `bad_request`) and encodes the result; the handler reaches collaborators through
+`ctx.runtime.*()` and returns an `ErrorInfo` variant for a typed failure.
 
 ```rust
-// crates/daemon/src/services/instance.rs — inside register()
-use proto::instances::InstanceList;
-
-on.handle::<InstanceList, _, _ > ( | _: Empty, ctx| async move {
-Ok(ctx.runtime.engine().instances().list())
+on.handle::<InstanceList, _, _>(|_: Empty, ctx| async move {
+    Ok(ctx.runtime.engine().instances().list())
 });
 ```
 
-A brand-new domain adds `mod <domain>;` plus one `<domain>::register(&mut on);`
-line to `services/mod.rs` — the only change `make_router()` ever needs. A handler that touches an entry resolves it
-through `guards::server_for` / `guards::instance_for` with an `Intent`, which applies every exclusion that intent
-implies — never a checklist of its own.
+A new domain adds `mod <domain>;` and `<domain>::register(&mut on);` to `services/mod.rs`. A handler that touches an
+entry resolves it through `guards::server_for` / `guards::instance_for` with an `Intent`; never write an exclusion
+checklist of your own.
 
-Map engine errors to an `ErrorInfo` variant. For a long-running operation, make the start contract a `Job`
-in `proto`:
+**Long-running work is a job.** Make the start contract a `Job` in `proto`:
 
 ```rust
 impl Contract for JavaInstall {
@@ -256,66 +146,40 @@ impl Contract for JavaInstall {
     type Params = JavaInstallParams;
     type Result = JobStarted;
 }
-
 impl Job for JavaInstall {
     type Progress = JavaInstallProgress;
     type Done = JavaInstallDone;
 }
 ```
 
-Then follow `Jobs::start_java_install` (`runtime/managers/java.rs`): add a
-`start_*` function on `Jobs` that hands `Jobs::run::<JavaInstall>` a `Spec` and
-a closure returning `JavaInstallDone`; the runner publishes the `job` events
-(progress, done, failed, cancelled) with the contract's channel, and the handler
-answers `JobStarted { id }`. A job that changes an entry takes the entry's claim
-in the handler (`guards::server_held` / `instance_held` / `entry_held`) and
-passes it in the `Spec`; the guard releases on drop
-([0086](decisions/0086-an-entry-has-one-claim.md)). Document on the contract
-what a cancel leaves behind.
-
----
+Then add a `start_*` function on `Jobs` (model: `Jobs::start_java_install` in `runtime/managers/java.rs`) that hands
+`Jobs::run::<JavaInstall>` a `Spec` and a closure returning the `Done` payload. The runner publishes the `job` events;
+the handler answers `JobStarted { id }`. A job that changes an entry takes its claim in the handler
+(`guards::server_held` / `instance_held` / `entry_held`) and passes it in the `Spec`. Document on the contract what a
+cancel leaves behind.
 
 ## Add a client facade method
 
-Facade methods are one-liners over `Session::call::<C>()` that return `proto` types directly
-(`crates/client/src/facades/<domain>.rs`).
+A one-liner over `Session::call::<C>()` in `crates/client/src/facades/<domain>.rs`, returning `proto` types directly.
 
 ```rust
-pub struct Instance<'a> {
-    pub(crate) session: &'a Session,
-}
-
 impl Instance<'_> {
     pub async fn list(&self) -> Result<Vec<proto::instances::Instance>, IpcError> {
-        self.session
-            .call::<proto::instances::InstanceList>(&proto::Empty {})
-            .await
+        self.session.call::<proto::instances::InstanceList>(&proto::Empty {}).await
     }
 }
 ```
 
-If the domain is new, add its module and `pub use` to `facades/mod.rs`, the accessor on `Client`
-(`crates/client/src/lib.rs`), and the export from the crate root. Use `try_call` when a `not_found` should surface as
-`None`, and `run_job::<C>` to block on a job — a facade method is that call and
-nothing else (see `Java::install`). A long call is long on its contract (`Contract::TIMEOUT`), not at the call site.
-
----
+A new domain adds its module and `pub use` to `facades/mod.rs`, an accessor on `Client` (`crates/client/src/lib.rs`) and
+a root export. Use `try_call` when `not_found` should surface as `None`, and `run_job::<C>` to block on a job. The
+timeout lives on the contract, never at the call site.
 
 ## Add a CLI command
 
-Commands are clap `Subcommand` enums, one module per domain under
-`crates/cli/src/commands/`, dispatched from `main.rs`. Commands **never print directly** — they build a `View` and hand
-it to `ui::show`.
-
-**1. The module** (`crates/cli/src/commands/example.rs`):
+One module per domain under `crates/cli/src/commands/`. Commands never print directly: they build a `View`
+(`line`, `note`, `detail`, `table`) and hand it to `ui::show`.
 
 ```rust
-use anyhow::Result;
-use clap::Subcommand;
-
-use crate::commands::connect;
-use crate::ui::{self, View};
-
 #[derive(Subcommand)]
 pub enum ExampleCmd {
     /// List instances
@@ -331,9 +195,6 @@ pub async fn run(cmd: ExampleCmd) -> Result<()> {
 async fn list() -> Result<()> {
     let client = connect().await?;
     let instances = client.instance().list().await?;
-    if instances.is_empty() {
-        return ui::show(View::note("no instances yet"));
-    }
     ui::show(View::table(
         "Instances",
         ["ID", "NAME"],
@@ -342,154 +203,133 @@ async fn list() -> Result<()> {
 }
 ```
 
-Use `connect()` for a command that needs a running daemon (it never spawns one), or `start()` for the deliberate
-`daemon start` path that spawns `hestiad`. Build
-`View::line` / `note` / `detail` / `table`; call
-`ui::select` for an interactive pick (it errors when stdin is not a terminal, so offer an argument as the fallback), and
-`ui::human_bytes` for sizes.
-
-Once a domain grows past a handful of verbs, make it a directory: `mod.rs` keeps the `Subcommand` enum and the dispatch,
-and each verb group gets its own file — as `commands/server/` (`create`, `update`, `backup`, `config`, `lifecycle`,
-`console`) and `commands/instance/` do, each over an `entry` module for the select/render helpers they share.
-
-**2. Wire it in** `crates/cli/src/main.rs`:
-
-```rust
-#[derive(Subcommand)]
-enum Command {
-    // ...
-    /// Minecraft instances
-    Instance {
-        #[command(subcommand)]
-        cmd: commands::instance::InstanceCmd,
-    },
-}
-
-// in dispatch():
-Command::Instance { cmd } => commands::instance::run(cmd).await,
-```
-
-Add `pub mod instance;` to `crates/cli/src/commands/mod.rs`.
+- `connect()` needs a running daemon and never spawns one; `start()` is the deliberate `daemon start` path.
+- `ui::select` is an interactive pick and errors off a terminal, so offer an argument as the fallback.
+- Past a handful of verbs, make the domain a directory: `mod.rs` keeps the `Subcommand` enum and dispatch, each verb
+  group gets a file (see `commands/server/`).
+- Wire in with a variant on `Command` in `main.rs` (`Command::Instance { cmd } => commands::instance::run(cmd).await`)
+  and `pub mod <domain>;` in `commands/mod.rs`.
 
 ---
 
 ## Add a desktop API method
 
-The desktop's Rust side is a fixed, generic bridge (`crates/desktop/src/bridge.rs`
-— one `ipc_call` command over the shared client, plus event forwarding); it never grows per feature. A desktop feature
-is TypeScript in `frontend/src/api/` (and, usually, a hook in `frontend/src/queries/`) — the desktop's equivalent of a
-client facade method. See [the desktop front-end](architecture/frontends.md#desktop--hestia-desktop) and
-[decision 0046](decisions/0046-desktop-bridge-is-one-generic-command.md);
-[hooks.md](hooks.md) is the usage guide for *consuming* the queries layer (patterns, the job store, the full hook
-inventory).
+The desktop's Rust side is one generic bridge (`crates/desktop/src/bridge.rs`: an `ipc_call` command plus event
+forwarding) and never grows per feature. A feature is TypeScript: a typed function in `frontend/src/api/` and,
+usually, a factory in `frontend/src/queries/`. See [the front-ends page](architecture/frontends.md).
 
-**1. The typed function**, in the domain's module (`frontend/src/api/<domain>.ts`). Payload types are **generated** from
-`proto` by ts-rs into
-`frontend/src/api/types/` (a flat `generated/` dir plus one per-module barrel); run `scripts/gen-types.sh` after
-changing a wire type or a contract. They carry the proto names verbatim (camelCase fields).
-
-The same script writes `api/types/channels.ts`, a projection of every `impl Contract`, `impl Job` and `impl Topic` in
-`crates/proto`: `Channels` maps each channel to its params and result, `Jobs` to its progress and done payloads, `Topics`
-to its event payload, and `TIMEOUTS` carries the contracts that override `TIMEOUT`. `call`, `tryCall`, `runJob`,
-`onDaemonEvent` and the browser mock are checked against it, so a function names a channel and the compiler supplies the
-rest — no `call<{ … }>` assertion, no timeout:
+**1. The typed function** in `frontend/src/api/<domain>.ts`. Payload types are generated from `proto` by ts-rs into
+`frontend/src/api/types/`; run `scripts/gen-types.sh` after changing a wire type or contract. The same script writes
+`api/types/channels.ts`: `Channels` maps each channel to its params and result, `Jobs` to progress and done payloads,
+`Topics` to event payloads, and `TIMEOUTS` carries overridden timeouts. `call`, `tryCall`, `runJob`, `onDaemonEvent` and
+the browser mock are checked against it, so a function names a channel and the compiler supplies the rest:
 
 ```ts
-// frontend/src/api/instance.ts
 export function list(): Promise<InstanceInfo[]> {
     return call("instance.list");
 }
 ```
 
-A request struct with a struct-level `#[serde(default)]` is typed `Partial<…>` in the table (and so are any such structs
-nested in it): the daemon fills what is omitted, so the API function may too. Params that are `Empty` or all-default can
-be left out of the call entirely. Use `tryCall` when a `not_found` should surface as `null`, and wrap a
-progress-streaming operation in `runJob(channel, params, job)` (`core/jobs.ts`), which adds the job id to the params,
-starts the channel and resolves with its `Done` payload — see `server.create` or `java.install`. Add a fixture for the
-channel to `src/mock/channels/` only when a screen needs it; it is typed against the same table.
+A request struct with a struct-level `#[serde(default)]` is typed `Partial<…>`, so params that are `Empty` or all-default
+can be left out. Use `tryCall` when `not_found` should surface as `null`; wrap a progress-streaming operation in
+`runJob(channel, params, job)` (`core/jobs.ts`). A brand-new domain adds its module and an `export * as <domain>` line
+in `api/index.ts`. Add a fixture to `src/mock/channels/` only when a screen needs it.
 
-**2. The query bindings**, in the domain's `frontend/src/queries/<domain>.ts` — a factory exists when a screen uses
-it, so a channel nothing renders gets no factory, key or mock handler until a screen needs it. A read is a `queryOptions` maker in `<domain>Queries` (its key from `keys.ts` —
-per-entry keys take the **stable id**, never the display name, and nest under `detail(id)` so one sweep refreshes the
-whole entry). A write is a `mutation({ mutationKey, mutationFn, invalidates })` maker in `<domain>Mutations`, where
-`invalidates` declares the key prefixes swept on settle. Components pass these to TanStack's own
-`useQuery`/`useMutation`; add a named hook only when a factory cannot express it (a read composing two sources, or one
-accumulating live events):
+**2. The query bindings** in `frontend/src/queries/<domain>.ts`. A factory exists only when a screen uses it. A read is a
+`queryOptions` maker in `<domain>Queries` (key from `keys.ts`); a write is a `mutation({ mutationKey, mutationFn,
+invalidates })` maker in `<domain>Mutations`.
 
 ```ts
-// frontend/src/queries/instance.ts
 export const instanceQueries = {
-    list: () =>
-        queryOptions({ queryKey: keys.instances.list(), queryFn: () => api.list() }),
+    list: () => queryOptions({ queryKey: keys.instances.list(), queryFn: () => api.list() }),
 };
 
 export const instanceMutations = {
     rename: (id: string) =>
         mutation<InstanceInfo, string>({
-            mutationKey: [ ...keys.instances.detail(id), "rename" ],
+            mutationKey: [...keys.instances.detail(id), "rename"],
             mutationFn: (name) => api.rename(id, name),
-            invalidates: () => [ keys.instances.all ],
+            invalidates: () => [keys.instances.all],
         }),
 };
 ```
 
+If a daemon event should refresh a query, add its topic to the map in `queries/invalidation.ts` (for a job, its start
+channel to the done or failed table).
+
+### Consuming the queries layer
+
+`frontend/src/queries/` holds `client.ts` (the `QueryClient`), `keys.ts` (hierarchical keys), `core.ts` (`mutation()`),
+`jobs.ts` (the job store, `jobMutation()`/`useJobMutation`), `invalidation.ts`, `connection.ts`, `events.ts`, `logs.ts`
+and one `<domain>.ts` per domain. Import from the barrel: `import { serverQueries, serverMutations, keys } from '#/queries'`.
+
+Factories are options objects, not hooks; pass them to TanStack's own `useQuery`/`useMutation`. The same definition then
+serves a component, a route loader and an imperative fetch. Named `use*` hooks exist only where a factory cannot
+express it (a read composing two sources, or one accumulating live events).
+
+- **Per-entry keys take the stable `id`**, never the display name, and nest under `detail(id)` so one sweep refreshes
+  the entry.
+- **Errors are `HestiaError`** (`error.code` is the daemon's code vocabulary). No retries: the daemon is a local socket,
+  so an error is real the first time. An errored query clears when something invalidates it.
+- **Freshness is automatic.** Mutations invalidate on settle and `invalidation.ts` sweeps on daemon events; components
+  never call `invalidateQueries`.
+
 ```tsx
-// at the call site
-const { data: instances } = useQuery(instanceQueries.list());
-const rename = useMutation(instanceMutations.rename(id));
+const { data: servers, isPending, error } = useQuery(serverQueries.list());
+const rename = useMutation(entryMutations.rename('server', id));
+rename.mutate('Cozy SMP');          // variables are what the verb needs beyond the bound entry
 ```
 
-A progress-streaming operation is a `jobMutation({ mutationKey, meta, run,
-invalidates, notify })` consumed through `useJobMutation` — the run registers in the global job store (so `useJobs`/
-`useEntryJobs` and the notification bell see it, outliving the component) and the hook's result adds `progress`/`job` for
-the inline case; see `serverMutations.create` or `javaMutations.install`. `meta` names the job's `channel` and, when it
-acts on an entry, its `subject`. The store reports the job's outcome once
-([0089](decisions/0089-a-job-outcome-is-reported-once.md)): a failure toasts with Retry on its own, and a success toasts
-only what `notify.done(done, variables)` returns — a title, plus any warnings and failed items, which fold into that one
-toast — or nothing when it returns `null`. Never toast a job's outcome at the call site, and never import `sonner`
-outside `lib/notify.ts` (biome refuses it): every other toast goes through `notify`, and a write the user is looking at
-confirms inline with `useSaveState` instead. A new job channel needs an `app.jobs.kind.<channel>` title and an
-`app.jobs.verb.<channel>` verb in every locale; the message test fails a channel without a title. Factories are the source of truth: a route
-loader preloads through them (`context.queryClient.ensureQueryData(serverQueries.list())`). If a daemon event should
-refresh a query, add its topic to the map in `queries/invalidation.ts` — for a job, its start channel to the done (or
-failed) table.
+**Jobs.** Anything that streams progress is a job mutation. Every run lands in the global job store whether or not the
+component stays mounted (`useJobs()`, `useBusyJob(kind, id)`, `useEntryJobs(kind, id)`). `useJobMutation` adds the
+local `progress` and `job` for the run this call site started. A dialog that renders a job's progress claims it with
+`useJobDisplay(job, shown)` so the status bar does not show it twice.
 
-A brand-new domain adds one module file per layer plus its `export * as <domain>`
-line in `frontend/src/api/index.ts` — nothing in the Rust shell changes.
+```tsx
+const create = useJobMutation(serverMutations.create());
+create.mutate(form, { onSuccess: (server) => navigate({ to: `/servers/${server.id}` }) });
+// create.isPending, create.progress?.phase, create.progress?.current / total
+```
+
+The store reports a job's outcome once: a failure toasts with Retry on its own, and a success toasts only what the
+factory's `notify.done(done, variables)` returns, or nothing when it returns `null`. Never toast a job outcome at the
+call site, and never import `sonner` outside `lib/notify.ts` (biome refuses it); a write the user is looking at confirms
+inline with `useSaveState`. A new job channel needs `app.jobs.kind.<channel>` and `app.jobs.verb.<channel>` in every
+locale.
+
+**Live data.** `useConnection()` reports `'connected' | 'disconnected'` (the layer invalidates everything on reconnect).
+`useServerLogs(id, { tail, follow })` and `useInstanceLogs(id, { session, follow })` merge the fetched tail with
+`process.output` events (`lines`); following is scoped to the entry, so leave it on while stopped. `useDaemonEvent(topic,
+handler)` subscribes to a raw topic.
+
+**Finding a factory.** Each `queries/<domain>.ts` is an object literal of named factories, and a job mutation is marked
+by `jobMutation(...)`. A channel with no factory is one no screen uses yet.
 
 ---
 
 ## Add a user-facing string
 
-Every string the desktop renders is a message (paraglide/inlang), reached as
-`m['<root>.<path>']()`. Messages live in `frontend/messages/{locale}/<root>.json`, one file per root, and there are four
-roots — put the string where it is *rendered*, not where it happens to be defined:
+Every string the desktop renders is a paraglide message, `m['<root>.<path>']()`, in
+`frontend/messages/{locale}/<root>.json`. Put it where it is rendered:
 
-| Root                    | What goes in it                                                                                                                                         |
-|-------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `app.*`                 | shell chrome and shared vocabulary — `nav`, `window`, `action`, `label`, `status`, `toast`, `search`, `time`, `jobs`, `validation`, `daemon`            |
-| `<feature>.*`           | one root per `frontend/src/features/` directory — `library`, `entry`, `server`, `instance`, `content`, `skin`, `settings`, `account` |
-| `domain.*`              | vocabulary mirroring a `proto` enum — content kinds, flavors, gamemodes, difficulties, provision phases, entry types                                    |
-| `error.*` / `warning.*` | the daemon's own `ErrorInfo`/`WarningInfo` vocabulary, keyed by variant (`kind`, `code`, `token`, `hint`)                                               |
+| Root                    | What goes in it                                                                                          |
+|-------------------------|----------------------------------------------------------------------------------------------------------|
+| `app.*`                 | shell chrome and shared vocabulary: `nav`, `window`, `action`, `label`, `status`, `toast`, `jobs`, ...   |
+| `<feature>.*`           | one root per `frontend/src/features/` directory (`entry` is what servers and instances share)            |
+| `domain.*`              | vocabulary mirroring a `proto` enum: content kinds, flavors, gamemodes, entry types                      |
+| `error.*` / `warning.*` | the daemon's `ErrorInfo`/`WarningInfo` vocabulary, keyed by variant                                      |
 
-`entry.*` is what a server and an instance share (the create wizard, per-entry settings, the stop dialogs); a string
-only one side renders goes in `server.*` or
-`instance.*`. Nest with objects rather than underscores — `entry.settings.remove.title`, not
-`entry_settings.remove_title` — since paraglide flattens a dotted key to underscores and the two spellings compile to
-one identifier.
-
-Add the key to **every** locale, and run `bun run test`: the guard (`frontend/tests/unit/messages.test.ts`) fails a locale
-that has fallen behind, a translation whose `{placeholders}` differ, a referenced key that does not exist, and a defined
-key with no call site. A key reached dynamically (``m[`error.kind.${kind}`]``) has no literal call site, so its table
-must be listed in that test's `DYNAMIC_PREFIXES` — otherwise the whole table reads as dead.
+Nest with objects, not underscores (`entry.settings.remove.title`), since paraglide flattens dots to underscores. Add
+the key to every locale and run `bun run test`: it fails a lagging locale, mismatched `{placeholders}`, a missing key
+and a dead key. A key reached dynamically (``m[`error.kind.${kind}`]``) needs its table listed in `DYNAMIC_PREFIXES` in
+`frontend/tests/unit/messages.test.ts`.
 
 ---
 
 ## Build & run
 
-The core loop needs no webview or frontend deps. The tests build the fixture plugins under `crates/*/tests/fixture/plugins/` into
-components, so `cargo test` needs the `wasm32-wasip2` target. Example plugins for authors live in
-[prytaneum/plugin-examples](https://github.com/prytaneum/plugin-examples) ([0103](decisions/0103-example-plugins-live-in-their-own-repository.md)):
+The tests build fixture plugins into components, so `cargo test` needs the `wasm32-wasip2` target. Example plugins for
+authors live in [prytaneum/plugin-examples](https://github.com/prytaneum/plugin-examples):
 
 ```bash
 rustup target add wasm32-wasip2
@@ -498,101 +338,56 @@ cargo clippy --all-targets -- -D warnings
 cargo test
 ```
 
-Run these at the root without `-p`: every member but `desktop` is a default member, and a `-p` selection resolves its
-own features and compiles a second wasmtime and Cranelift into `target/`. Narrow a test run by name instead
-(`cargo test plugins::`) ([0102](decisions/0102-one-feature-resolution-for-dev-builds.md)).
+Run these at the root without `-p` (every member but `desktop` is a default member; `-p` re-resolves features and
+compiles a second wasmtime). Narrow a test run by name: `cargo test plugins::`.
 
-`scripts/run.sh` is the one way to run a development build. Every form builds first and talks to the same dev daemon,
-so a shell in one terminal and the desktop in another show one state:
+`scripts/run.sh` is the one way to run a development build. Every form builds first and uses the same dev daemon:
 
 ```bash
-scripts/run.sh --shell          # a subshell with hestia and hestiad on PATH, daemon running (the default)
+scripts/run.sh --shell          # a subshell with hestia and hestiad on PATH, daemon running (default)
 scripts/run.sh --desktop        # the desktop app, with frontend hot reload
-scripts/run.sh --daemon         # hestiad in the foreground, logging to the terminal
-scripts/run.sh server list      # one `hestia` command, then back to your shell
-scripts/run.sh --plugins=../hestia-plugins --desktop   # the same, with the plugins of that checkout
-scripts/run.sh --release --desktop   # the optimised app, as a release runs, on its own data
-scripts/run.sh --help
+scripts/run.sh --daemon         # hestiad in the foreground
+scripts/run.sh server list      # one `hestia` command
+scripts/run.sh --plugins=../hestia-plugins --desktop   # with the plugins of that checkout
+scripts/run.sh --release --desktop   # the optimised app, on its own data
 ```
 
-`--release` runs the optimised build with its data in `target/release/data` and its own daemon endpoint, so trying a
-release locally cannot reach an installed Hestia or `~/.hestia`; `--home=DIR` points any form at another data directory.
+Debug builds keep data in `target/debug/data` and scope their daemon endpoint to it, so nothing touches an installed
+Hestia; `--release` uses `target/release/data`, and `--home=DIR` picks another. The `hestia` CLI never starts a daemon
+itself (`hestia daemon status|start|stop|restart`).
 
-Debug builds keep their data in `target/debug/data` and scope their daemon endpoint to it, so none of this touches an
-installed Hestia. The script starts the dev daemon when a form needs one, restarts a running one when the build
-produced a new `hestiad`. The shell, the desktop and the foreground daemon can be opened in any order, in separate
-terminals; a daemon the script started is stopped when the last of them leaves. The `hestia` CLI itself still
-never starts a daemon behind your back: `hestia daemon status|start|stop|restart` manages it.
+A run has no plugins unless it asks: `--plugins=DIR` builds every plugin of that checkout of the
+[plugins repository](https://github.com/prytaneum/plugins) against this checkout's SDK, installs each as a dev plugin
+(`hestia plugin dev <dir> --once`) under its signed id, and removes them when the run ends. Builds are cached.
 
-A run has no plugins unless it asks for them, so by default you get core alone: vanilla, Hestia archives, no content
-source. `--plugins=DIR` adds plugins for that run, and the directory is always named: it builds every plugin of `DIR`,
-a checkout of the [plugins repository](https://github.com/prytaneum/plugins), against this checkout's SDK, installs
-each as a dev plugin (`hestia plugin dev <dir> --once`) under the same ids as the signed builds (`fabric.fabric`), and
-removes them again when the run ends, so the next plain run is clean. In developer mode the bare `fabric` resolves to
-them.
-
-Each plugin is compiled twice, both cached. `plugin dev` runs `cargo build --release --target wasm32-wasip2` for the
-plugin's crate in the plugins checkout, with `hestia-sdk` patched to this checkout on cargo's command line, and stages
-`plugin.toml`, the component and its assets into `<plugins checkout>/dist/dev/<id>/`, which the daemon reads in place.
-The daemon then compiles the component to native code with wasmtime and keeps the result under
-`<data home>/meta/plugins/`, keyed by the component's hash. A second run with nothing changed rebuilds nothing.
-
-The desktop app needs the system webview (WebKitGTK on Linux, WebView2 on Windows), [Bun](https://bun.sh/) and
-`cargo install tauri-cli --version '^2'`; `--desktop` installs the frontend's dependencies on first use.
-
-The frontend's own checks — the same ones CI's `frontend` job runs, in this order:
+The desktop needs the system webview, [Bun](https://bun.sh/) and `cargo install tauri-cli --version '^2'`. The
+frontend's checks, in CI's order:
 
 ```bash
 cd frontend
-bun run generate:messages   # src/paraglide/ is generated and untracked
-bun run check               # biome: lint + format
-bun run typecheck           # tsc --noEmit
-bun run test                # vitest
+bun run generate:messages   # src/paraglide/ is generated and untracked; run first
+bun run check               # biome
+bun run typecheck
+bun run test
 bun run build
 ```
 
-`generate:messages` comes first because the app imports from `src/paraglide/`,
-which is compiled from `messages/` and never committed — a fresh checkout has no
-such directory, so a typecheck or build before it fails on unresolved imports.
-(`vite dev`/`vite build` run the same compile through the paraglide plugin;
-the script is what makes it available on its own.) `generate:routes` regenerates
-`routeTree.gen.ts`, which *is* committed — run it after adding a route.
-
-See [packaging.md](packaging.md) for installers and sidecar bundling.
+`generate:routes` regenerates the committed `routeTree.gen.ts`; run it after adding a route. See
+[packaging.md](packaging.md) for installers.
 
 ## Git hooks
 
-The hooks live in [`.husky/`](../.husky) and are tracked, so they are the same
-for everyone. `husky-rs` (a dev-dependency of `common`) points `core.hooksPath`
-at that directory from its build script, so **one `cargo test` installs them** —
-there is nothing to run by hand. `NO_HUSKY_HOOKS=1` skips the install, which is
-what CI sets.
+The tracked hooks in [`.husky/`](../.husky) are installed by one `cargo test` (`NO_HUSKY_HOOKS=1` skips it).
 
-| Hook | What it does |
-|---|---|
-| `pre-commit` | refuses staged conflict markers, then `cargo fmt` and `biome check --write` over the *staged* files, re-staging what they rewrite; runs the message-catalogue test when `frontend/messages/` is touched |
-| `commit-msg` | enforces `<type>(<scope>): <description>`, exempting git's own merge/revert/fixup subjects |
-| `pre-push` | the CI gates: `fmt --check` + `clippy -D warnings` + `test` for Rust, and the full Bun chain for the frontend |
+| Hook         | What it does                                                                                              |
+|--------------|-----------------------------------------------------------------------------------------------------------|
+| `pre-commit` | refuses conflict markers; `cargo fmt` and `biome check --write` over staged files; message test if `frontend/messages/` changed |
+| `commit-msg` | enforces `<type>(<scope>): <description>`, exempting merge/revert/fixup subjects                          |
+| `pre-push`   | `fmt --check`, `clippy -D warnings`, `test`, and the Bun chain, for whichever side changed (skips `desktop`) |
 
-The split is by cost. A commit pays for formatters and millisecond greps; a push
-pays for clippy and the test suites. `pre-push` reads the ranges being pushed and
-runs only the side that changed, so a docs-only push is instant, and it skips the
-`desktop` crate on purpose — that one needs the system webview and a staged
-sidecar set, so CI covers it in its own job rather than every push paying for it.
-A hook stricter than CI would block pushes CI would pass; looser is fine.
-
-Either hook takes `--no-verify` when you need to bypass it
-(`git commit --no-verify`, `git push --no-verify`).
+`--no-verify` bypasses either hook.
 
 ## Plugins
 
-Plugin authors write against the SDK, not the engine; the author's guide is [plugins/](plugins/README.md). The wire-in
-points for the plugin API (a contract's `PLUGIN` permission, a hook point, a provider kind) are described in
-[architecture/plugins.md](architecture/plugins.md).
-
-## Recording a decision
-
-When a non-trivial architectural choice is made, write it down in
-[decisions/](decisions/README.md) — what changed, why, and what you rejected —
-and link it from the subsystem page in [architecture/](architecture.md) it explains. The architecture pages stay a
-description of the system; the reasoning lives beside them, not in commit messages or chat logs.
+Plugin authors write against the SDK; the guide is [plugins/](plugins/README.md). The wire-in points for the plugin API
+are in [architecture/plugins.md](architecture/plugins.md).

@@ -5,8 +5,8 @@ Tauri v2 webview. There is no Node server at runtime: Tauri opens the dev server
 
 Everything the UI knows comes from the daemon over the shell's one generic
 `ipc_call` bridge. See [../docs/architecture/frontends.md](../docs/architecture/frontends.md)
-for the design, [../docs/contributing.md](../docs/contributing.md) for the copy-and-adapt recipes,
-and [../docs/hooks.md](../docs/hooks.md) for consuming the queries layer.
+for the design and [../docs/contributing.md](../docs/contributing.md) for the copy-and-adapt recipes and the
+queries-layer guide.
 
 ## Layout
 
