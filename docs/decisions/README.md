@@ -1,202 +1,21 @@
-# Design decisions
+# Decisions
 
-Every non-trivial architectural choice in Hestia, recorded next to the reason it
-was made — what changed, what it replaced, and what was rejected. The
-[architecture](../architecture.md) pages describe *what the system is*; these
-describe *why it is that*.
+The owner's audit trail of non-trivial choices: what was decided, why, and what was rejected. It is not a description of
+the system (that is [architecture.md](../architecture.md)) and it is pruned periodically, so an entry that no longer
+holds is deleted rather than marked superseded.
 
-Each entry is one decision, numbered in the order it was written down, and links
-back to the subsystem page it explains. The numbering stays contiguous and a decision is never deleted. One that a later change overtakes keeps its text under a
-`> Superseded …` line that says what replaced it and what still holds. A feature that moved from the launcher to an
-[official plugin](../plugins/official.md) is marked this way, since the reasoning outlives the code.
+Each entry is one file, `NNNN-kebab-title.md`, numbered from `0001` in the order written. Keep it to about 15 lines.
 
-**Adding one:** when you make a call that a future reader would otherwise have to
-reverse-engineer, add a file here (`NNNN-kebab-title.md`, next number free), open
-with an *Applies to* line pointing at its subsystem page, and list it below. State
-the alternative you rejected — that is usually the part nobody can recover later.
+## Template
 
----
+```markdown
+# Title, stated as the decision
 
-### [The socket boundary](../architecture/wire.md)
+*Applies to: [Architecture page](../architecture/page.md)*
 
-- **0001** — [The envelope seam fails closed, so no decode site can forget the version check](0001-envelope-fails-closed.md)
-- **0026** — [A degraded outcome rides on the result, never only in the log](0026-degraded-outcomes-ride-on-the-result.md)
-- **0027** — [A warning the user did not cause is a bug in the launcher, not a notice](0027-warnings-the-user-did-not-cause.md)
-- **0028** — [Everything serialized is camelCase, except the `config.*` key vocabulary and upstream DTOs](0028-camelcase-except-the-config-vocabulary.md)
-- **0032** — [A job is cancelled by asking, at safe checkpoints — never by disconnecting](0032-jobs-are-cancelled-by-asking.md)
-- **0045** — [A session routes events to its listeners, so event-driven calls do not exclude each other](0045-a-session-routes-events-to-its-listeners.md)
-- **0063** — [An endpoint is scoped exactly as the data home behind it](0063-an-endpoint-is-scoped-like-its-data-home.md)
-- **0083** — [A job is its start contract, and every job reports on one topic](0083-a-job-is-its-contract-and-reports-on-one-topic.md)
-- **0084** — [The TypeScript channel table is generated from the contracts, and a contract owns its timeout](0084-the-ts-channel-table-is-generated-from-the-contracts.md)
-- **0085** — [A mutating call names the state it changes, and the registrar publishes it on one topic](0085-a-mutating-call-names-what-it-changed.md)
-- **0086** — [An entry's tree has one claim, held for as long as a job or handler changes it](0086-an-entry-has-one-claim.md)
-- **0090** — [The daemon keeps the job registry](0090-the-daemon-keeps-the-job-registry.md)
-- **0092** — [A contract names the permission a plugin needs, and an unnamed one is closed](0092-a-contract-names-the-permission-a-plugin-needs.md)
-- **0094** — [A plugin repository has one shape, and it is also the store it declares](0094-a-plugin-repository-has-one-shape.md)
-- **0097** — [Trust follows the repository's key, not its address](0097-trust-follows-the-repository-key.md)
-- **0099** — [Official plugins are the ones signed by Hestia's own key](0099-official-plugins-are-signed.md)
-- **0100** — [A plugin theme is raw CSS behind a permission, a CSP and a safe mode](0100-themes-are-plugin-css.md)
-- **0101** — [Plugins spawn only the programs they declare](0101-plugins-spawn-only-declared-programs.md)
-- **0105** — [A Java provider only resolves; the host downloads, verifies and extracts](0105-a-java-provider-only-resolves.md)
-- **0106** — [The plugin API is mechanisms, not features](0106-the-plugin-api-is-mechanisms-not-features.md)
-- **0108** — [A schedule is an event delivered to its own plugin](0108-a-schedule-is-an-event-to-its-own-plugin.md)
-- **0109** — [A plugin webview is an opaque-origin iframe with a mediated message bridge](0109-plugin-webviews-are-opaque-iframes.md)
-- **0110** — [A flavor builds in an area of its own, and the host places what it builds](0110-a-flavor-builds-in-its-own-area.md)
-- **0111** — [A plugin repository publishes to its own orphan branch](0111-a-repository-publishes-to-its-own-branch.md)
-- **0112** — [The app and the official plugins update together](0112-the-app-and-official-plugins-update-together.md)
-- **0113** — [A flavor builds on the vanilla profile, and the host merges it](0113-a-flavor-builds-on-the-vanilla-profile.md)
-- **0114** — [An unhashed download is declared, and the user approves the host](0114-an-unhashed-download-is-declared.md)
-- **0115** — [A plugin error is its own typed enum, mapped to and from ErrorInfo by the host](0115-a-plugin-error-is-its-own-typed-enum.md)
-- **0116** — [An official provider shadows the built-in of the same id](0116-an-official-provider-shadows-the-builtin.md)
-- **0117** — [A grant is permission to scope, driven by one table](0117-a-grant-is-permission-to-scope.md)
-- **0118** — [Host-pushed events and a call budget instead of a resident instance](0118-host-pushed-events-and-a-call-budget-instead-of-a-resident-instance.md)
-- **0120** — [A program's identity is separate from its invocations; pins are lazy and approved](0120-a-programs-identity-is-separate-from-its-invocations.md)
-- **0121** — [A build places trees, and a server may launch from an args file](0121-a-build-places-trees-and-the-profile-launches-from-an-args-file.md)
-- **0122** — [A source declares the setting it needs, and one vet checks every download a plugin names](0122-a-source-declares-its-setting-and-one-vet-checks-every-download.md)
-- **0123** — [The plugin UI grows by general primitives, live pages and message catalogs](0123-the-ui-vocabulary-grows-by-general-primitives.md)
-- **0124** — [A build is a plan the guest returns and the host runs](0124-a-build-is-a-plan-the-host-runs.md)
-- **0125** — [A pack is one provider kind that replaces `format`, and export formats are an open set](0125-a-pack-is-a-provider-kind-and-export-formats-are-open.md)
-- **0126** — [An ambient channel hands out harmless facts and needs no permission](0126-an-ambient-channel-needs-no-permission.md)
-- **0127** — [A flavor description declares its loader, its interchange keys and, optionally, only version ids](0127-a-flavor-description-declares-its-loader.md)
-- **0129** — [A plugin reaches a setting, a host or a download only by an entry that names it](0129-a-plugin-reaches-only-what-is-listed.md)
-- **0130** — [A plugin's entry access is every entry](0130-a-plugin-reaches-all-entries.md)
-- **0131** — [Plugin tooling builds quickly, builds against a local SDK, and reports every problem](0131-plugin-tooling-reports-everything-and-builds-quickly.md)
-- **0132** — [A distributor ships a setting's default inside the package](0132-a-distributor-ships-setting-defaults-in-the-package.md)
-- **0133** — [A provider has one id, and a bare name is a lookup shorthand](0133-a-provider-has-one-id.md)
+**Decision.** What is done now, in one or two sentences.
 
-### [Cross-cutting foundations](../architecture/common.md)
+**Why.** The problem or constraint that forced it.
 
-- **0002** — [Two log files, because one file cannot be both readable and complete](0002-two-log-files.md)
-- **0003** — [A crash must survive the process that had no console](0003-crash-reports-survive-the-process.md)
-- **0054** — [Materialised game files live under one `meta/` root](0054-meta-root-for-materialised-files.md)
-- **0102** — [A dev build resolves features once, and keeps debug info out of the binaries](0102-one-feature-resolution-for-dev-builds.md)
-- **0131** — [Plugin tooling builds quickly, builds against a local SDK, and reports every problem](0131-plugin-tooling-reports-everything-and-builds-quickly.md)
-- **0103** — [Example plugins live in their own repository; test plugins are fixtures](0103-example-plugins-live-in-their-own-repository.md)
-
-### [The engine](../architecture/engine.md)
-
-- **0024** — [A temp artifact is only valid while its job holds the claim — so a restart invalidates every one](0024-temp-artifacts-are-reclaimed-at-startup.md)
-- **0033** — [Supervision is engine state, and one stop reaches the whole tree](0033-supervision-is-engine-state.md)
-- **0034** — [Workloads outlive the daemon by design](0034-workloads-outlive-the-daemon.md)
-- **0035** — [A finished process is labelled, not merely unrecorded](0035-a-finished-process-is-tombstoned.md)
-- **0037** — [Following logs is scoped to the entry, not to one run of it](0037-following-logs-is-entry-scoped.md)
-- **0060** — [A managed document carries its own schema version, and an unreadable one is set aside](0060-a-managed-document-carries-its-schema-version.md)
-- **0062** — [The daemon owns self-update; the shell asks like everything else](0062-the-daemon-owns-self-update.md)
-- **0112** — [The app and the official plugins update together](0112-the-app-and-official-plugins-update-together.md)
-- **0066** — [A channel picks the feed, not an entry inside one](0066-a-channel-picks-the-feed-not-the-entry.md)
-- **0067** — [Reachability is observed from real traffic, and offline is a state the whole system reads](0067-reachability-is-observed-not-asked.md)
-- **0068** — [The tray speaks the tray protocol, not a library that might be installed](0068-the-tray-speaks-the-tray-protocol.md)
-- **0091** — [Plugins are WASM components on wasmtime, with WIT as the one ABI](0091-plugins-are-wasm-components.md)
-- **0095** — [Interceptors are bounded and fail open, so a hook is customisation and never a control](0095-interceptors-are-bounded-and-fail-open.md)
-- **0101** — [Plugins spawn only the programs they declare](0101-plugins-spawn-only-declared-programs.md)
-- **0119** — [Downloads are host-side: a host download call and declarative Maven libraries](0119-downloads-are-host-side.md)
-- **0136** — [A Bedrock console is a reattachable stdin endpoint](0136-a-bedrock-console-is-a-reattachable-stdin-endpoint.md)
-
-### [The daemon](../architecture/daemon.md)
-
-- **0029** — [No Service-class-per-prefix — but one registrar function per domain](0029-one-registrar-per-domain.md)
-- **0030** — [Instances are gated on a signed-in account, in the router](0030-instance-surface-gated-on-an-account.md)
-- **0031** — [An aggregation point is a directory, not a file](0031-an-aggregation-point-is-a-directory.md)
-- **0036** — [Stopping the daemon has three meanings; the front-end picks one, the wire carries two](0036-stopping-the-daemon-has-three-meanings.md)
-- **0061** — [A job declares what differs; the runner owns the rest](0061-a-job-declares-what-differs.md)
-- **0059** — [Discord presence belongs to the daemon, and is a loop rather than a hook](0059-discord-presence-is-a-daemon-loop.md)
-- **0106** — [The plugin API is mechanisms, not features](0106-the-plugin-api-is-mechanisms-not-features.md)
-- **0108** — [A schedule is an event delivered to its own plugin](0108-a-schedule-is-an-event-to-its-own-plugin.md)
-- **0110** — [A flavor builds in an area of its own, and the host places what it builds](0110-a-flavor-builds-in-its-own-area.md)
-
-### [Minecraft providers](../architecture/minecraft.md)
-
-- **0004** — [NeoForge's game jar is built, not downloaded — so a flavor can install](0004-neoforge-builds-its-own-jar.md)
-- **0005** — [A Paper build is a loader version, and Mojang orders the catalogue](0005-paper-build-is-a-loader-version.md)
-- **0006** — [A flavor states what it needs, before the user commits to it](0006-flavor-states-its-requirements.md)
-- **0007** — [Spigot and CraftBukkit are compiled here, because no one may ship them](0007-spigot-is-compiled-locally.md)
-- **0008** — [What an entry takes is a property of its flavor, and the flavor says so](0008-flavor-declares-accepted-content.md)
-- **0009** — [A flavor may recommend JVM flags; the user still outranks it](0009-flavor-recommends-jvm-flags.md)
-- **0113** — [A flavor builds on the vanilla profile, and the host merges it](0113-a-flavor-builds-on-the-vanilla-profile.md)
-- **0119** — [Downloads are host-side: a host download call and declarative Maven libraries](0119-downloads-are-host-side.md)
-- **0134** — [The edition is the first axis, and one module owns what each edition does](0134-the-edition-is-the-first-axis.md)
-- **0135** — [A server runtime is Java or native, and a native one never meets Java](0135-a-server-runtime-is-java-or-native.md)
-- **0137** — [The BDS catalogue merges Mojang's links with the Bedrock-OSS feed](0137-the-bds-catalogue-merges-mojang-and-the-community-feed.md)
-
-### [Servers & instances](../architecture/entries.md)
-
-- **0018** — [The entry root is hestia's; `data/` is the game's](0018-entry-root-versus-data-dir.md)
-- **0019** — [Sync is a closed catalogue, and each unit names its own mechanism](0019-sync-is-a-closed-catalogue.md)
-- **0065** — [A synced unit reconciles against a baseline, not a clock](0065-sync-reconciles-against-a-baseline.md)
-- **0069** — [A unit shares only what its game version writes](0069-a-unit-shares-only-what-its-version-writes.md)
-- **0070** — [The merge writes the game's own file, not its own rendering of it](0070-the-merge-writes-the-games-own-file.md)
-- **0071** — [Options sync through a typed catalogue, not raw key-value pairs](0071-options-sync-through-a-typed-catalogue.md)
-- **0072** — [A pack syncs by identity, not by file — and only where it fits](0072-a-pack-syncs-by-identity.md)
-- **0073** — [Screenshots aggregate rather than sync — nothing is copied](0073-screenshots-aggregate-rather-than-sync.md)
-- **0082** — [Config values pass one typed schema, and property values come from a curated table](0082-config-values-pass-one-typed-schema.md)
-- **0020** — [The id is an opaque uuid; the directory is the slug — decoupled](0020-id-is-a-uuid-directory-is-a-slug.md)
-- **0021** — [Backups follow docker-mc-backup, minus what the launcher already owns](0021-backups-follow-docker-mc-backup.md)
-- **0022** — [A world describes itself; a directory listing does not](0022-a-world-describes-itself.md)
-- **0023** — [An unfinished record says which kind of unfinished, so recovery can act on it](0023-server-phase-over-a-ready-bool.md)
-- **0025** — [The properties schema is generated, not maintained — and it is not the file](0025-properties-schema-is-generated.md)
-- **0038** — [An instance runs many sessions; a server runs one](0038-an-instance-runs-many-sessions.md)
-- **0039** — [Per-session logs come from a generated Log4j2 config, not a captured pipe](0039-per-session-log4j-config.md)
-- **0053** — [Server provisioning is front-loaded by design](0053-server-provisioning-is-front-loaded.md)
-- **0055** — [The server console is RCON, not a stdin pipe](0055-the-console-is-rcon-not-a-pipe.md)
-- **0058** — [Joining directly is a launch parameter, not a second launch path](0058-joining-directly-is-a-launch-parameter.md)
-- **0074** — [The game reports what was played; the launcher only keeps the history](0074-the-game-reports-what-was-played.md)
-- **0088** — [The daemon sequences a version change, its restart and its modpack](0088-the-daemon-sequences-a-version-change.md)
-- **0107** — [An entry's icon lives in the entry's directory, kept by the daemon](0107-an-entry-icon-lives-in-the-entry.md)
-- **0110** — [A flavor builds in an area of its own, and the host places what it builds](0110-a-flavor-builds-in-its-own-area.md)
-- **0127** — [A flavor description declares its loader, its interchange keys and, optionally, only version ids](0127-a-flavor-description-declares-its-loader.md)
-- **0138** — [Bedrock pins NetherNet, and status comes from the console](0138-bedrock-pins-nethernet.md)
-- **0139** — [Bedrock hot backups follow `save hold`, and copy what the server reports](0139-bedrock-hot-backups-follow-save-hold.md)
-
-### [Content & modpacks](../architecture/content.md)
-
-- **0010** — [Content is normalized behind one trait, following Prism's `ResourceAPI`](0010-one-content-provider-trait.md)
-- **0011** — [A modpack is three things at once, and each goes where it already belongs](0011-modpack-decomposes-into-existing-parts.md)
-- **0012** — [A pack's `env.server` is a claim, not a fact — so a server install corrects it](0012-pack-server-declarations-are-corrected.md)
-- **0013** — [Installed content is managed-dir-of-record, mirrored into `data/`](0013-managed-dir-of-record.md)
-- **0014** — [Enable/disable, update-check, and pin extend the same model](0014-enable-update-check-and-pin.md)
-- **0015** — [A local-file import is inspected, not trusted](0015-local-imports-are-inspected.md)
-- **0016** — [Datapacks are managed like every other kind, mirrored per world](0016-datapacks-are-world-of-record.md)
-- **0064** — [A record of the user's is mutated, never rebuilt](0064-a-record-is-mutated-not-rebuilt.md)
-- **0075** — [A local file is identified by its hash](0075-a-local-file-is-identified-by-its-hash.md)
-- **0076** — [A pack file is identified wherever it came from](0076-a-pack-file-is-identified-wherever-it-came-from.md)
-- **0078** — [A pack updates from a file, and leaves an entry two ways](0078-a-pack-updates-from-a-file.md)
-- **0079** — [A local item updates from a file](0079-a-local-item-updates-from-a-file.md)
-- **0077** — [The console keeps its RCON connection, and completes from the server's own `help`](0077-the-console-keeps-its-connection.md)
-- **0140** — [A Bedrock pack is a file of record, extracted at sync](0140-a-bedrock-pack-is-a-file-extracted-at-sync.md)
-- **0141** — [Content updates are checked when they matter, not on a timer](0141-content-updates-are-checked-when-they-matter.md)
-
-### [Accounts & skins](../architecture/accounts.md)
-
-- **0017** — [Skins follow Modrinth's shape, minus its couplings — and skip the CLI](0017-skins-follow-modrinth-minus-couplings.md)
-
-### [Import & export](../architecture/transfer.md)
-
-- **0057** — [An archive format is a module, not a branch — and the launcher matches on the recipe](0057-an-archive-format-is-a-module.md)
-- **0081** — [The archive carries the instance's identity and references](0081-the-archive-carries-identity-and-references.md)
-- **0104** — [An archive-format plugin maps files; the host copies them](0104-an-archive-format-plugin-maps-files-the-host-copies.md)
-- **0125** — [A pack is one provider kind that replaces `format`, and export formats are an open set](0125-a-pack-is-a-provider-kind-and-export-formats-are-open.md)
-
-### [Front-ends](../architecture/frontends.md)
-
-- **0040** — [Entry-first, with verb-first shortcuts for the hot path](0040-entry-first-cli-grammar.md)
-- **0041** — [Every daemon capability gets a scriptable verb, or a written reason it has none](0041-every-capability-gets-a-verb.md)
-- **0042** — [`-vv` buys wire visibility, not more volume](0042-vv-buys-wire-visibility.md)
-- **0043** — [A state query answers through its exit code, not only its stdout](0043-state-queries-answer-through-exit-codes.md)
-- **0044** — [Interaction is fullscreen; bare progress is one line](0044-fullscreen-interaction-inline-progress.md)
-- **0046** — [The desktop bridge is one generic command, not a facade mirror](0046-desktop-bridge-is-one-generic-command.md)
-- **0047** — [Messages are organised on one axis — where the string is rendered — and split one file per root](0047-messages-organised-by-render-surface.md)
-- **0048** — [Sign-in is the one bespoke shell command — it must be](0048-sisu-sign-in-is-a-shell-command.md)
-- **0049** — [Front-end preferences are desktop-local, in the data home — not the daemon](0049-desktop-prefs-live-in-the-data-home.md)
-- **0050** — [Offline is one state, not a failure per read — and the shell brings its own daemon up](0050-offline-is-one-state.md)
-- **0051** — [The daemon spawns the tray; the tray outlives the daemon](0051-the-daemon-spawns-the-tray.md)
-- **0052** — [The tray and desktop must not share a GApplication id](0052-tray-and-desktop-app-ids.md)
-- **0056** — [Job progress paints once per frame, because the store re-renders synchronously](0056-job-progress-paints-once-per-frame.md)
-- **0080** — [Only the shell runs in the AppImage's environment](0080-only-the-shell-runs-in-the-appimage-environment.md)
-- **0087** — [The data home is fixed for the life of a daemon process](0087-the-data-home-is-fixed-for-a-daemon-process.md)
-- **0089** — [A job outcome is reported once, by the job store](0089-a-job-outcome-is-reported-once.md)
-- **0093** — [The desktop runs under a CSP, and style-src is left to the page](0093-the-desktop-runs-under-a-csp.md)
-- **0096** — [Plugin UI is a declarative tree the host renders](0096-plugin-ui-is-a-declarative-tree.md)
-- **0098** — [Plugin assets are served by the daemon, not read by the webview](0098-plugin-assets-are-served-by-the-daemon.md)
-- **0100** — [A plugin theme is raw CSS behind a permission, a CSP and a safe mode](0100-themes-are-plugin-css.md)
-- **0109** — [A plugin webview is an opaque-origin iframe with a mediated message bridge](0109-plugin-webviews-are-opaque-iframes.md)
-- **0142** — [The page vocabulary grows by need, and a page can run a command](0142-the-ui-vocabulary-grows-by-need-and-a-page-can-run-a-command.md)
+**Rejected.** Each alternative and the reason it lost.
+```
