@@ -156,10 +156,9 @@ function DevPluginRow({ plugin }: { plugin: PluginInfo }) {
             {m['settings.plugins.developer.log_empty']()}
           </span>
         ) : (
-          lines.map((line, index) => (
+          lines.map((line) => (
             <div
-              // biome-ignore lint/suspicious/noArrayIndexKey: an append-only tail has no other identity
-              key={index}
+              key={line.seq}
               className={
                 line.level === 'error' ? 'text-destructive' : undefined
               }

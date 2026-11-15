@@ -39,11 +39,13 @@ export function InstalledCard({
   const on = plugin.state === 'enabled';
 
   return (
-    <Link
-      to="/plugins/$plugin"
-      params={{ plugin: id }}
-      className="group block outline-none focus-visible:ring-1 focus-visible:ring-ring"
-    >
+    <div className="group relative">
+      <Link
+        to="/plugins/$plugin"
+        params={{ plugin: id }}
+        aria-label={name || id}
+        className="absolute inset-0 outline-none focus-visible:ring-1 focus-visible:ring-ring"
+      />
       <ListingCard
         icon={PuzzlePieceIcon}
         image={icon}
@@ -64,12 +66,7 @@ export function InstalledCard({
           </>
         }
         action={
-          // biome-ignore lint/a11y/noStaticElementInteractions: keeps the controls from following the card's link
-          // biome-ignore lint/a11y/useKeyWithClickEvents: the controls inside handle their own keys
-          <span
-            className="flex items-center gap-2"
-            onClick={(event) => event.preventDefault()}
-          >
+          <span className="relative z-10 flex items-center gap-2">
             {update && (
               <Button
                 size="xs"
@@ -105,7 +102,7 @@ export function InstalledCard({
           </span>
         }
       />
-    </Link>
+    </div>
   );
 }
 

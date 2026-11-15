@@ -4,6 +4,7 @@ import { m } from '@/paraglide/messages.js';
 
 import { ActionButton, Detail, List, Table } from './data';
 import { UiForm } from './form';
+import { keyed } from './keys';
 import {
   Heading,
   Image,
@@ -30,9 +31,8 @@ export function UiView({ node }: { node: UiNode }) {
               : 'flex-col',
           )}
         >
-          {node.children.map((child, i) => (
-            // biome-ignore lint/suspicious/noArrayIndexKey: a tree is positional
-            <UiView key={i} node={child} />
+          {keyed(node.children).map(({ key, item }) => (
+            <UiView key={key} node={item} />
           ))}
         </div>
       );

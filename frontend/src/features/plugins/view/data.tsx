@@ -8,6 +8,7 @@ import { m } from '@/paraglide/messages.js';
 
 import { PluginIcon } from '../icon';
 import { useView } from './context';
+import { keyed } from './keys';
 import { UiView } from './render';
 
 type Node<T extends UiNode['type']> = Extract<UiNode, { type: T }>;
@@ -37,35 +38,36 @@ export function Table({ columns, rows, rowAction, filter }: Node<'table'>) {
         <table className="w-full text-left text-xs">
           <thead className="border-b border-border bg-muted/40 text-muted-foreground">
             <tr>
-              {columns.map((column, i) => (
-                // biome-ignore lint/suspicious/noArrayIndexKey: columns carry no id
-                <th key={i} className="px-3 py-2 font-medium">
-                  {column}
+              {keyed(columns).map(({ key, item }) => (
+                <th key={key} className="px-3 py-2 font-medium">
+                  {item}
                 </th>
               ))}
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
-            {shown.map((row, r) => (
-              <tr
-                // biome-ignore lint/suspicious/noArrayIndexKey: rows carry no id
-                key={r}
-                className={rowAction ? 'cursor-pointer hover:bg-muted/50' : ''}
-                aria-disabled={pending || undefined}
-                onClick={
-                  rowAction
-                    ? () => void run({ id: rowAction, payload: row.payload })
-                    : undefined
-                }
-              >
-                {row.cells.map((cell, c) => (
-                  // biome-ignore lint/suspicious/noArrayIndexKey: cells carry no id
-                  <td key={c} className="px-3 py-2">
-                    {cell}
-                  </td>
-                ))}
-              </tr>
-            ))}
+            {keyed(shown, (row) => row.cells.join('\u0000')).map(
+              ({ key, item: row }) => (
+                <tr
+                  key={key}
+                  className={
+                    rowAction ? 'cursor-pointer hover:bg-muted/50' : ''
+                  }
+                  aria-disabled={pending || undefined}
+                  onClick={
+                    rowAction
+                      ? () => void run({ id: rowAction, payload: row.payload })
+                      : undefined
+                  }
+                >
+                  {keyed(row.cells).map(({ key: cellKey, item: cell }) => (
+                    <td key={cellKey} className="px-3 py-2">
+                      {cell}
+                    </td>
+                  ))}
+                </tr>
+              ),
+            )}
           </tbody>
         </table>
       </div>
@@ -77,12 +79,8 @@ export function List({ items }: Node<'list'>) {
   const { plugin } = useView();
   return (
     <div className="divide-y divide-border border border-border">
-      {items.map((item, i) => (
-        <div
-          // biome-ignore lint/suspicious/noArrayIndexKey: items carry no id
-          key={i}
-          className="flex min-h-11 items-center gap-3 px-3 py-2"
-        >
+      {keyed(items).map(({ key, item }) => (
+        <div key={key} className="flex min-h-11 items-center gap-3 px-3 py-2">
           {item.icon && (
             <PluginIcon
               plugin={plugin}
@@ -99,9 +97,8 @@ export function List({ items }: Node<'list'>) {
             )}
           </div>
           <div className="flex items-center gap-2">
-            {item.actions.map((action, a) => (
-              // biome-ignore lint/suspicious/noArrayIndexKey: actions carry no id
-              <UiView key={a} node={action} />
+            {keyed(item.actions).map(({ key: actionKey, item: action }) => (
+              <UiView key={actionKey} node={action} />
             ))}
           </div>
         </div>
@@ -113,10 +110,9 @@ export function List({ items }: Node<'list'>) {
 export function Detail({ pairs }: Node<'detail'>) {
   return (
     <div className="divide-y divide-border border border-border px-3">
-      {pairs.map((pair, i) => (
+      {keyed(pairs).map(({ key, item: pair }) => (
         <div
-          // biome-ignore lint/suspicious/noArrayIndexKey: pairs carry no id
-          key={i}
+          key={key}
           className="flex items-baseline justify-between gap-4 py-1.5"
         >
           <span className="text-xs text-muted-foreground">{pair.label}</span>
