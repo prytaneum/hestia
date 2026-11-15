@@ -88,7 +88,7 @@ hestia server flavors            # the available flavors per edition, what each
 A provider (flavor, content source, pack format, Java distribution) is `<plugin>.<id>` (`fabric.fabric`). Anywhere one
 is named, the bare `fabric` works too: core's own, else the official plugin's, else the only one with that name; two
 plugins sharing a name make it ambiguous and the error lists the full ids. Listings show the bare name while it is
-unambiguous ([0133](decisions/0133-a-provider-has-one-id.md)).
+unambiguous.
 
 Everything that acts on one server is entry-first — `hestia server <name> <action>`:
 
@@ -742,8 +742,7 @@ more than one key asks which (`<label>/<id>` names it); without a terminal the e
 
 ### Plugin repositories
 
-A repository is trusted by the minisign key it declares, not by its address
-([0097](decisions/0097-trust-follows-the-repository-key.md)). Adding one shows what it is, with the key id, and asks
+A repository is trusted by the minisign key it declares, not by its address. Adding one shows what it is, with the key id, and asks
 before trusting it.
 
 ```bash
