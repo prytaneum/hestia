@@ -1,9 +1,8 @@
 # A plugin repository
 
-Every plugin repository has this one shape, whether it holds one plugin or twenty. Hestia never adapts to a
-repository; `hestia plugin check` enforces the shape, and `pack` and `publish` run it first. Each plugin is judged on
-its own: one invalid plugin is reported, and the others are still checked, packed and published. The decision behind it is
-[0094](../decisions/0094-a-plugin-repository-has-one-shape.md).
+Every plugin repository has this one shape, whether it holds one plugin or twenty. Hestia never adapts to a repository;
+`hestia plugin check` enforces the shape, and `pack` and `publish` run it first. Each plugin is judged on its own: an
+invalid one is reported while the others are still checked, packed and published.
 
 ```
 <repo>/
@@ -19,29 +18,26 @@ its own: one invalid plugin is reported, and the others are still checked, packe
 └── README.md
 ```
 
-The workspace `Cargo.toml` and each `plugins/<id>/plugin.toml` are the whole contract; there is no other manifest.
-
 ```toml
 [workspace]
 members = ["plugins/*"]
-exclude = ["plugins/dark-themes"]     # theme-only plugins, see below
+exclude = ["plugins/dark-themes"]     # theme-only plugins
 
 [workspace.metadata.hestia]
 name = "Acme plugins"                  # the store's name
 label = "ACME"                         # the store badge, 1 to 4 characters
 website = "https://acme.example"       # https
 key = "RWQ..."                         # minisign public key, written by `hestia plugin keygen`
-next = "RWR..."                        # optional spare key, kept offline; see Keys and signatures
+next = "RWR..."                        # optional spare key, kept offline
 ```
 
 - The directory name equals the manifest `id`.
-- A theme-only plugin keeps `plugin.toml` and `themes/` and has no `Cargo.toml`. Cargo refuses a `plugins/*` match
-  without one, so it **must** be listed in `exclude`; a plugin with a `Cargo.toml` must not be.
+- A theme-only plugin has no `Cargo.toml`, so cargo refuses a `plugins/*` match for it: it **must** be in `exclude`, and
+  a plugin with a `Cargo.toml` must not be.
 
 ## The listing
 
-The publish workflow commits the listing and the packages to an orphan `repo` branch of the repository itself, and
-nothing else writes there ([0111](../decisions/0111-a-repository-publishes-to-its-own-branch.md)):
+The publish workflow ([publishing.md](publishing.md)) commits the listing and packages to an orphan `repo` branch:
 
 ```
 repo (orphan branch)
@@ -49,8 +45,8 @@ repo (orphan branch)
 └── packages/<id>-<version>.hplugin + .minisig
 ```
 
-The index is read by raw URL, `https://raw.githubusercontent.com/<owner>/<repo>/repo/plugins.json` on GitHub, or from
-any https address that serves the same tree. It is signed (see [Keys and signatures](#keys-and-signatures)).
+The index is read from `https://raw.githubusercontent.com/<owner>/<repo>/repo/plugins.json` on GitHub, or any https
+address serving the same tree:
 
 ```
 { schemaVersion, version, expires, repository, commit, name, label, website, key, next?,
@@ -59,111 +55,77 @@ any https address that serves the same tree. It is signed (see [Keys and signatu
   revoked: [{ id, versions, reason }] }
 ```
 
-- `plugins` is the source as the default branch declares it; `builds` are the packages on the branch.
-- `file` is a path relative to the index URL (`packages/<id>-<version>.hplugin`), so a mirror serves the same tree.
-- `api` per build is the caret requirement `pack` wrote; the newest build the host's API satisfies is the one installed.
-- `version` is the signing time in unix seconds and `expires` is `version` plus 30 days. `repository` and `commit`
-  trace the listing to its source.
-- A plugin whose `version` has no build is **unreleased**: listed, not installable.
-- `revoked` comes from `revoked.toml` on the default branch.
+- `plugins` is the source as the default branch declares it; `builds` are the packages on the branch. `file` is
+  relative to the index URL, so a mirror serves the same tree.
+- `api` per build is the caret requirement `pack` wrote; the newest build the host's API satisfies is installed.
+- `version` is the signing time in unix seconds and `expires` is `version` plus 30 days.
+- A plugin whose `version` has no build is **unreleased**: listed, not installable. `revoked` comes from `revoked.toml`.
 
-## Builds
-
-A build happens when its author bumps the plugin's `version` on the default branch: the publish workflow packs and
-signs every plugin whose version has no package on the branch yet, then regenerates the index. There is no tag. A
-published package is never rebuilt or replaced: a version already on the branch with another sha256 is refused. The
-same run, weekly, re-signs the index so `expires` never lapses.
-
-The workflow, and the same steps for another host, are in [publishing.md](publishing.md).
+A build happens when its author bumps the plugin's `version` on the default branch. A published package is never rebuilt
+or replaced: a version already on the branch with another sha256 is refused.
 
 ## Adding a repository
 
-Users add a repository by `owner/repo` or `github.com/owner/repo` (read at the `repo` branch URL above) or by any https
-URL of a `plugins.json`, which is how a repository on GitLab, Forgejo or a static host is added. Hestia fetches the
-index and its `<url>.minisig` (https only, every redirect https, 8 MiB at most), verifies the signature against the key
-the index declares and shows the repository's name, label, website, **key id** and plugin count. Nothing is saved until
-the user agrees; saving pins `key` and `next`. The list lives in `<data home>/plugins/repositories.json`, the last good
-index of each beside the other catalogue caches.
+Users add one by `owner/repo`, `github.com/owner/repo`, or the https URL of a `plugins.json` (how GitLab, Forgejo or a
+static host is added). Hestia fetches the index and its `.minisig` (https only, 8 MiB at most), verifies the signature
+against the key the index declares and shows the name, label, website, **key id** and plugin count. Nothing is saved
+until the user agrees; saving pins `key` and `next`.
 
-- A refresh checks the pinned keys, never one the index merely declares. A bad signature, a lower `version` than the
-  cached one or a past `expires` is refused and the cached index stays; an index signed by the pinned `next` verifies
-  and moves the pins to what it declares. An unreachable repository (404, offline) keeps its cached index and warns.
-  Only adding treats a missing index as "not a Hestia repository".
-- An expired index is stale: no new installs from it until a fresh one is fetched; installed plugins keep running.
-- The catalogue merges every repository by plugin id and key: repositories pinning the same key are mirrors and show as
-  one entry naming each of them, the same id under another key is another entry. Each entry is `available` (a build of
-  the latest version matches this Hestia's API), `unreleased` (the latest version has no build yet) or `incompatible`
-  (its builds need another API); an older compatible build is named when there is one.
-- Installing picks the newest compatible, unrevoked build, downloads it from its `file` resolved against the index URL
-  (any host: the signature, not the host, proves the origin), checks its sha256 and its `.minisig` against the
-  repository's key, then runs the usual review and approval. The approval uses the permissions of the package itself; an
-  index that lists others is reported as a warning. The install records the signer's key id and the repository.
-- On every refresh an installed plugin whose version the index revokes is disabled, with the reason as its error.
-- A plugin whose signer's key no configured repository lists is **obsolete**: it keeps running and gets no updates.
-  Removing a repository makes its plugins obsolete until a repository with that key is added again. A plugin installed
-  from a file, folder or plain link has no signer and is never obsolete.
+- A refresh checks the pinned keys, never one the index merely declares. A bad signature, a lower `version` than cached
+  or a past `expires` is refused and the cached index stays. An index signed by the pinned `next` moves the pins to what
+  it declares. An unreachable repository keeps its cached index.
+- An expired index is stale: no new installs from it, but installed plugins keep running.
+- Repositories pinning the same key are mirrors and show as one catalogue entry; the same id under another key is
+  another entry. An entry is `available`, `unreleased` or `incompatible` (its builds need another API).
+- Installing picks the newest compatible, unrevoked build, checks its sha256 and `.minisig` against the repository key,
+  then runs the usual review and approval on the package's own permissions. The origin is proved by the signature, not
+  the host, so a `file` may live anywhere.
+- An installed plugin whose version the index revokes is disabled, with the reason as its error.
+- A plugin whose signer's key no configured repository lists is **obsolete**: it keeps running and gets no updates. A
+  plugin installed from a file, folder or plain link has no signer and is never obsolete.
 
 ### The official repository
 
-`prytaneum/plugins` is configured in every install: seeded into `repositories.json` on first start and again whenever
-it is missing, pinned to the official keys compiled into the build (current and spare) and re-pinned to them on every start, so a
-release that rotates a key needs nothing from the user. It cannot be removed (`repo
-remove` refuses, and the desktop shows no remove button for it). It is the only repository that pins the official keys;
-a repository the user adds that declares one is refused. A bare id (`hestia plugin add modrinth`) searches every
-configured repository, official included; an id offered under several keys asks which.
+`prytaneum/plugins` is configured in every install, seeded on first start, pinned to the official keys compiled into the
+build, and cannot be removed. It is the only repository that may pin them; a repository the user adds that declares one
+is refused. A bare id (`hestia plugin add modrinth`) searches every configured repository; an id offered under several
+keys asks which.
 
 ### Add from a link
 
-A repository's website can offer one click to add it, with a `hestia://add-repo` link carrying the index URL:
-
-```
-hestia://add-repo?url=https%3A%2F%2Fexample.com%2Fplugins.json
-```
-
-The desktop app opens Plugins > Repositories and shows the same confirmation as typing the URL does (name, label, website,
-key id, plugin count, and whether it is already configured). Nothing is added until the user agrees. The `url` must be
-https; any other scheme, another host or path under `hestia://`, or a missing `url` is ignored. To paste into a README
-or site:
+A website can offer one click to add a repository with a `hestia://add-repo` link carrying the percent-encoded index
+URL:
 
 ```markdown
 [![Add to Hestia](https://img.shields.io/badge/Add%20to-Hestia-e8873d?style=flat-square)](hestia://add-repo?url=https%3A%2F%2Fexample.com%2Fplugins.json)
 ```
 
-Percent-encode the index URL. Only the installers register the scheme (NSIS on Windows, `.deb` and `.rpm` on Linux);
-the AppImage and the portable archives do not, so the link does nothing there and the URL has to be added by hand
-(`hestia plugin repo add <url>`). This lives here rather than in a separate publishing page because this is the page
-for repository authors.
+The desktop opens Plugins > Repositories with the same confirmation as typing the URL; nothing is added until the user
+agrees. The `url` must be https; any other form is ignored. Only the installers register the scheme (NSIS, `.deb`,
+`.rpm`); the AppImage and portable archives do not, so there the URL is added by hand
+(`hestia plugin repo add <url>`).
 
 ## Keys and signatures
 
-A repository is the minisign key it declares ([0097](../decisions/0097-trust-follows-the-repository-key.md)).
-
-A plugin is **official** when its recorded signer is one of the official-plugins keys, a current key and an offline
-spare ([0099](../decisions/0099-official-plugins-are-signed.md)); `repo add` refuses an index that declares one.
+A repository is the minisign key it declares. A plugin is **official** when its recorded signer is one of the
+official-plugins keys; `repo add` refuses an index that declares one.
 
 ```bash
 hestia plugin keygen [--out <dir>] [--unencrypted]
 hestia plugin pack  --sign <secret key>
 ```
 
-- `keygen` writes `hestia.key` (secret, encrypted with a password unless `--unencrypted`, for a CI secret) and
-  `hestia.pub` into `--out` (the current directory), and sets `key` in `[workspace.metadata.hestia]`. It never
-  overwrites a key. Keep the secret key out of the repository.
+- `keygen` writes `hestia.key` (secret, password-encrypted unless `--unencrypted`, for a CI secret) and `hestia.pub`
+  into `--out`, and sets `key` in `[workspace.metadata.hestia]`. It never overwrites a key. Keep the secret out of the
+  repository.
 - `next` is an optional spare key. Generate it the same way, keep its secret offline, and add its public half as `next`
-  before it is needed: a client trusts only what it pinned. To rotate, sign with the spare; the index then declares it as
-  `key`, and a client that pinned it follows.
-- `pack --sign` writes `<id>-<version>.hplugin.minisig` beside each package; `hestia plugin publish --sign` signs each package it builds and the index the
-  same way. Publish each `.minisig` next to its file. `--sign` refuses a secret key that is not the declared `key`.
-- Keys and signatures are standard minisign text: the key is the `RW...` base64 string, a signature is the `.minisig`
-  file. `check` requires the declared keys to parse.
-- The **trusted comment** binds a signature to its subject and is compared exactly:
-
-  | Signs | Trusted comment |
-  |---|---|
-  | a build | `hestia-build id=<id> version=<version> file=<file name>` |
-  | an index | `hestia-index version=<index version> expires=<expiry>` |
-
-- A client checks an index in this order and caches it only after the last step: the signature against the pinned
-  key(s) (nothing is parsed before it verifies), the declared `key`, the `version` against the one it cached (lower is
-  refused), then `expires`. A failed check never replaces the cache.
-- `revoked` is honoured only for plugins signed by the repository's own key.
+  before it is needed, since a client trusts only what it pinned. To rotate, sign with the spare: the index then declares
+  it as `key`, and a client that pinned it follows.
+- `pack --sign` writes `<id>-<version>.hplugin.minisig` beside each package; `publish --sign` signs each package it
+  builds and the index. `--sign` refuses a secret key that is not the declared `key`. `check` requires the declared
+  keys to parse.
+- The signature's trusted comment binds it to its subject and is compared exactly: `hestia-build id=<id>
+  version=<version> file=<file name>` for a build, `hestia-index version=<index version> expires=<expiry>` for an index.
+- A client verifies the signature against the pinned keys before parsing anything, then the declared `key`, then
+  `version` (lower than cached is refused), then `expires`, and caches the index only after the last step. `revoked` is
+  honoured only for plugins signed by the repository's own key.

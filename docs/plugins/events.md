@@ -1,10 +1,12 @@
-# Events
+# Events, schedules and hooks
 
-A plugin hears daemon events by listing topic globs in the manifest. The daemon decides, once per event and before
-anything is queued, whether this plugin may receive it. The rules live in `proto::events` and
-`daemon/src/runtime/plugins/events.rs`.
+Three ways a plugin reacts instead of being asked: it hears daemon events, it wakes on a timer, and it adjusts or
+vetoes an operation at a hook point.
 
-## Subscribing
+## Events
+
+Subscribe by listing topic globs in the manifest. The daemon decides once per event, before anything is queued,
+whether this plugin may receive it.
 
 ```toml
 [permissions]
@@ -15,13 +17,11 @@ anything is queued, whether this plugin may receive it. The rules live in `proto
 events = ["process.started", "process.exit"]
 ```
 
+A glob is an exact topic (`process.exit`) or a prefix with a trailing `.*` (`process.*`, which matches every topic
+beneath `process.` but not `process` itself). Topics are lowercase letters, digits, `.`, `-` and `_`. The globs are
+part of the grant.
 
-A glob is an exact topic (`job`, `process.exit`) or a prefix with a trailing `.*` (`process.*`). `process.*` matches every
-topic beneath `process.` but not `process` itself. Topics are lowercase letters, digits, `.`, `-` and `_`; `*` alone,
-`server*` and `a.*.b` are refused. The globs are part of the grant the user approves.
-
-The plugin receives events in `Plugin::event(call: Events)`. Route each topic to a handler with `call.on::<T>(…)`, typed
-by the topic's `proto` type (`T: Topic`, the payload is `T` itself):
+Events arrive in `Plugin::event(call: Events)`. Route each topic to a handler typed by its `proto` payload:
 
 ```rust
 impl Plugin for Watcher {
@@ -42,85 +42,52 @@ impl Plugin for Watcher {
 }
 ```
 
-Source: `Events` in `crates/sdk/src/events.rs` (a no-run doctest).
+Source: `Events` in `crates/sdk/src/events.rs`.
 
-- The first handler that matches takes the event; one no handler takes is ignored.
-- A payload that does not decode as `T` is logged with `hestia::log::warn` and dropped: `event` returns nothing, so an
-  event cannot be answered.
-- `call.glob("server.*", |topic, payload| …)` takes every topic the pattern matches (an exact topic, a prefix such as
-  `server.*`, or `*`), with the topic and the raw JSON payload, camelCase as the proto type serializes it. Put typed
-  handlers before it.
+The first matching handler takes the event; one no handler takes is ignored. A payload that does not decode is logged
+and dropped. `glob` takes every topic its pattern matches with the raw camelCase JSON payload; put typed handlers
+first.
 
-## Topics and the permission each needs
+### Topics and the permission each needs
 
-A topic is delivered only if the grant also holds the permission below. A topic with no permission is never delivered,
-even when a glob matches it.
+A topic is delivered only if the grant also holds its permission. A topic with no permission is never delivered, even
+when a glob matches.
 
-| Topic | Payload (`proto`) | Needs |
+| Topic | Payload | Needs |
 |---|---|---|
-| `process.started` | `ProcessStartedEvent` `{ id, pid }` | `process:read` |
-| `process.exit` | `ProcessExitEvent` `{ id, state, exitCode?, success }` | `process:read` |
-| `process.metrics` | `ProcessMetricsEvent` `{ samples: [{ id, cpuPct, memBytes }] }` | `process:read` |
-| `process.output` | `ProcessOutputEvent` | nothing: never delivered |
-| `changed` | `ChangedEvent` `{ scope, ids }` | the scope's permission, below |
-| `account.signed_in` | `AccountSignedInEvent` `{ uuid, name }` | `account:read` |
-| `account.signed_out` | `AccountSignedOutEvent` `{ uuid, name }` | `account:read` |
-| `server.ready` | `ServerReadyEvent` `{ id }` | `entry:read` |
-| `ipc.readable` | `IpcReadableEvent` `{ connection }` | `ipc:connect`; only the plugin that owns the connection ([below](#local-connections)) |
-| `ipc.closed` | `IpcClosedEvent` `{ connection }` | `ipc:connect`; only the plugin that owns the connection |
+| `process.started` | `ProcessStartedEvent { id, pid }` | `process:read` |
+| `process.exit` | `ProcessExitEvent { id, state, exitCode?, success }` | `process:read` |
+| `process.metrics` | `ProcessMetricsEvent { samples: [{ id, cpuPct, memBytes }] }` | `process:read` |
+| `changed` | `ChangedEvent { scope, ids }` | the scope's permission, below |
+| `account.signed_in`, `account.signed_out` | `{ uuid, name }`; never a token | `account:read` |
+| `server.ready` | `ServerReadyEvent { id }`; fires once per start, when the server answers a Server List Ping | `entry:read` |
+| `ipc.readable`, `ipc.closed` | `{ connection }`; only to the owning plugin | `ipc:connect` |
 | `job` | `JobEvent` | the permission of the channel that started the job |
 | `net.state` | `NetworkStatus` | `network:connect` |
-| `plugin.state` | `{ id, state }` | nothing; cut to those two fields |
-| `plugin.schedule` | `ScheduleEvent` `{ id }` | nothing; only to the plugin that declared it ([below](#schedules)) |
-| `plugin.log` | `PluginLogEvent` | nothing: never delivered |
-| `plugin.updates`, `plugin.auto_updated`, `plugin.rolled_back` | `Outdated`, `PluginAutoUpdatedEvent`, `PluginRolledBackEvent` | nothing: never delivered |
+| `plugin.state` | `{ id, state }` | nothing |
+| `plugin.schedule` | `ScheduleEvent { id }`; only to the plugin that declared it | nothing |
 
-`changed` names the scope that changed and, in `ids`, the stable ids the call touched, never what changed in them. `ids`
-holds entry ids for `entries` (a server or instance the caller named by display name arrives as its id, and a rename
-lists both the old id and the new one) and plugin ids for `plugins`; it is empty when the call touched nothing
-the daemon could name, which means the whole scope. Always read `ids` as "at least these": refetch the scope when it is
-empty.
+`process.output`, `plugin.log`, `plugin.updates`, `plugin.auto_updated` and `plugin.rolled_back` are never delivered, and
+a topic the daemon adds later is closed to plugins until it is classified.
 
-The account topics carry the profile only, never a token. `account.signed_in` also fires when an account that needed
-re-authentication signs in again. `server.ready` fires once per start, when the started server answers a Server List Ping
-on its game port, so it accepts players; a server the daemon re-adopts after its own restart announces itself again.
-The daemon gives up after ten minutes without an answer.
+`changed` names a scope and the stable `ids` the call touched (entry ids, or plugin ids for `plugins`). Read `ids` as
+"at least these", and refetch the whole scope when it is empty. Scope permissions: `entries`, `sync` and `screenshots`
+need `entry:read`; `accounts` needs `account:read`; `config` needs `config:read`; `java` needs `java:read`; `skins`,
+`cache` and `plugins` are never delivered.
 
-| Scope | Needs |
-|---|---|
-| `entries`, `sync`, `screenshots` | `entry:read` |
-| `accounts` | `account:read` |
-| `config` | `config:read` |
-| `java` | `java:read` |
-| `skins`, `cache`, `plugins` | nothing: never delivered |
+### Delivery
 
-Every topic the daemon publishes is listed in `proto::events::TOPICS`; a test fails one that is missing, and a topic
-added later is closed to plugins until someone classifies it
-([0092](../decisions/0092-a-contract-names-the-permission-a-plugin-needs.md)).
-
-## Delivery
-
-- **One at a time, in order.** Each event runs on a fresh instance of the plugin with a 5 second limit. Nothing kept in
-  memory survives from one event to the next; keep state in `hestia::data`.
-- **Bounded.** Each plugin has an inbox of 256 events. When it is full the oldest is dropped (a warning is logged at most
-  once a minute), so a slow plugin loses history rather than growing the daemon.
-- **Budgeted.** The host will not wake a plugin faster than its call budget: a token bucket of 30 calls that refills at
-  one call per second. Every schedule tick and every delivered event spends one token. When the bucket is empty a tick
-  is skipped (it is not queued and not made up later) and an event waits for the next token while the inbox behind it
-  drops its oldest. The log says so at most once a minute, and `plugin.info` counts the wake-ups held back as
-  `throttled`. Calls somebody asked for (a command, a page, a provider operation, a hook) never spend from it. A plugin
-  that must react to something rare is well served; one that wants a call a millisecond should keep the work in the
-  peer, or batch it.
-- **A plugin that keeps timing out stops hearing events.** Three timeouts in a row end delivery until the plugin is loaded
-  again (disabled and enabled, or reloaded). Three traps within ten minutes disable the plugin as for any call.
-- **Lifecycle.** Delivery starts when the plugin is loaded enabled and stops when it is disabled, removed or reloaded.
-- **Calls made from a handler** are gated like any other, and the call chain still stops loops
-  ([architecture](../architecture/plugins.md#calling-the-daemon)).
+- **One at a time, in order**, each on a fresh instance with a 5 second limit. Keep state in `hestia::data`.
+- **Bounded.** The inbox holds 256 events; when full, the oldest is dropped.
+- **Budgeted.** Every schedule tick and delivered event spends one token from a bucket of 30 that refills one per second.
+  When it is empty a tick is skipped and an event waits. Calls somebody asked for (a command, a page, a provider
+  operation, a hook) never spend from it. A plugin that wants a call a millisecond should batch the work.
+- **Three timeouts in a row** end delivery until the plugin is reloaded. Three traps within ten minutes disable it.
+- Delivery starts when the plugin is loaded enabled and stops when it is disabled, removed or reloaded.
 
 ## Schedules
 
-A plugin that must act on a clock declares timers instead of subscribing to a topic
-([0108](../decisions/0108-a-schedule-is-an-event-to-its-own-plugin.md)):
+A plugin that must act on a clock declares timers instead of subscribing to a topic:
 
 ```toml
 [[contributes.schedules]]
@@ -128,28 +95,14 @@ id = "poll"
 every = 300
 ```
 
-The manifest is written from `proto::plugin::ScheduleContribution`.
-
-- `every` is whole seconds, 1 to 2592000 (30 days). At most 8 schedules per plugin; ids are unique slugs. The
-  [call budget](#delivery) is what limits how often a plugin really runs, so a short `every` is allowed but a plugin
-  that ticks every second has nothing left for its events.
-- Each tick is a `plugin.schedule` event `{ "id": "poll" }` pushed into that plugin's own inbox. It is never published to
-  the hub, so no other plugin or client hears it, a `plugin.*` glob does not reach it and it needs no permission. The
-  schedules are part of the grant and listed when the user approves.
-- The first tick comes one full period after the plugin loads. A tick missed while the machine slept is skipped, not
-  replayed, and a tick is dropped while one of the same schedule still waits in the inbox.
-- Timers start and stop with the plugin's event delivery.
-
-A tick is the `proto::plugin::ScheduleEvent` topic, so it routes like any other event (see the handler above).
-
-A plugin with schedules but no `events` still gets its ticks.
+`every` is whole seconds, 1 to 2592000, and a plugin has at most 8. Each tick is a `plugin.schedule` event
+`{ "id": "poll" }` for that plugin alone; it needs no permission and no `events` entry. The first tick comes one period
+after the plugin loads; ticks missed while the machine slept are skipped, and a tick is dropped while one of the same
+schedule still waits. Ticks share the call budget above. No example plugin uses a schedule.
 
 ## Local connections
 
-A plugin that holds a connection open with [`hestia::ipc`](ipc.md) is told when something happens on it, so it need
-not poll from a schedule. The host reads each connection itself and pushes two topics into the owning plugin's inbox,
-nowhere else: they are never published to the hub, so no client and no other plugin hears them, and a topic the hub
-claims to carry under these names is refused. The plugin subscribes like to any topic and needs `ipc:connect`:
+A plugin holding a connection open with [`hestia::ipc`](api.md#local-sockets) is told when something happens on it:
 
 ```toml
 [permissions]
@@ -172,10 +125,111 @@ fn event(call: Events) {
 }
 ```
 
-- `ipc.readable` is edge-triggered. It fires once when bytes arrive while no call is waiting in `receive`, and not
-  again until the plugin has called `receive` on that connection, so a chatty peer produces one event, not one per
-  frame. A `receive` that leaves bytes behind (a `max` smaller than what arrived) fires it again. Drain with one large
-  `receive`, or until it returns empty.
-- `ipc.closed` fires once, when the peer closes the connection or it fails. Bytes that arrived first can still be
-  read; the `receive` after them answers `not-found`. It does not fire for a connection the plugin closed itself.
-- The events share the inbox, the one-at-a-time order and the [call budget](#delivery) of every other event.
+`ipc.readable` is edge-triggered: it fires once when bytes arrive while no `receive` is waiting, and again only after the
+plugin has called `receive` on that connection (or when a `receive` left bytes behind). Drain with one large `receive`.
+`ipc.closed` fires once when the peer closes or the connection fails, not for one the plugin closed itself; bytes that
+arrived first can still be read.
+
+## Hooks
+
+A hook point is a moment an operation lets plugins adjust or refuse it. A hook is customisation, not a control: it is
+bounded and fails open, so do not present one as a policy or a scanner.
+
+| Point | Runs | Context | Patch | Permissions to declare it |
+|---|---|---|---|---|
+| `before-launch` | once per instance launch, after the plan is assembled | `LaunchContext` | `LaunchPatch` | `launch:patch`, `account:read` |
+| `before-server-start` | once per server start, before spawn | `ServerContext` | `LaunchPatch` (game arguments ignored) | `launch:patch`, `account:read` |
+| `before-content-install` | once per file about to land in an entry | `InstallContext` | none (`Empty`) | `content:read` |
+
+The contexts (`crates/proto/src/hook.rs`) carry what the plugin needs to decide: the entry, game version, flavor,
+Java path and memory for a launch; the source, project, version and file name and sha1 for an install. They never carry
+the access token, the raw command line or the file's bytes. Declaring a point without its permissions is refused at
+`pack` and at install.
+
+```toml
+[permissions]
+"launch:patch" = {}
+"account:read" = {}
+
+[contributes]
+hooks = ["before-launch"]
+```
+
+Source: `plugins/launch-flags/plugin.toml`.
+
+Route each point with `Intercept::on`. The handler returns the patch to add, or an `Err(reason)` that vetoes the
+operation. From the doc example of `crates/sdk/src/hooks.rs`:
+
+```rust
+use hestia::hooks::{Intercept, Intercepted};
+use hestia::proto::hook::{BeforeLaunch, LaunchPatch};
+
+struct Tuner;
+
+impl hestia::Plugin for Tuner {
+    fn intercept(call: Intercept) -> Intercepted {
+        call.on::<BeforeLaunch>(|context| {
+            let mut patch = LaunchPatch::default();
+            if context.memory.is_none() {
+                patch.extra_jvm_args.push("-XX:+UseZGC".into());
+            }
+            Ok(patch)
+        })
+        .finish()
+    }
+}
+
+hestia::plugin!(Tuner);
+```
+
+A handler vetoes with `Err(Error::Denied("not on this list".into()))`; `before-content-install` answers `Ok(Empty {})` to allow.
+
+The [`launch-flags`](https://github.com/prytaneum/plugin-examples/tree/main/plugins/launch-flags) example reads a
+`select` setting and returns garbage collector flags.
+
+- Each plugin runs under a 2 second limit. A timeout, a trap or an answer that is not the point's patch skips that
+  plugin with a `PluginHookFailed` warning, and the operation goes ahead.
+- Only an `Err` stops the operation: later plugins are not called and it fails with `PluginVetoed { plugin, hook,
+  reason }`. For `before-content-install` the veto refuses that file only, with the file name in the reason.
+- Plugins run in plugin-id order and their patches fold in that order.
+- A hook cannot change the account, the Java runtime or the game version.
+
+### What a launch patch may add
+
+`LaunchPatch` has `extra_jvm_args`, `extra_game_args` and `wrapper`. The host keeps what an allowlist
+(`crates/engine/src/plugins/patch.rs`) names and drops the rest with a `LaunchArgDropped` warning each.
+
+- `-XX:+Flag` / `-XX:-Flag` for `UseG1GC`, `UseZGC`, `UseParallelGC`, `ZGenerational`, `UnlockExperimentalVMOptions`,
+  `AlwaysPreTouch`, `ParallelRefProcEnabled`, `DisableExplicitGC`.
+- `-XX:Name=value` for `MaxGCPauseMillis`, `G1NewSizePercent`, `G1ReservePercent`, `G1MixedGCCountTarget`,
+  `InitiatingHeapOccupancyPercent`, `ParallelGCThreads`, `ConcGCThreads` (digits), and `G1HeapRegionSize`,
+  `MetaspaceSize`, `MaxMetaspaceSize`, `ReservedCodeCacheSize` (digits with an optional `k`, `m` or `g`).
+- `-Dkey=value` only for a key in the `properties` of the grant's `launch:patch`; the value is at most 1024 characters.
+- No code-loading option (`-javaagent`, `-cp`, `--module-path`, ...) and no heap option (`-Xmx`).
+- Game arguments: `--fullscreen`, `--width N` and `--height N`. All are dropped for a server start.
+
+`wrapper` names one of the plugin's own `[[programs]]` (a `PATH` program), and the host runs the game or server through
+it, such as `gamemoderun` or `mangohud`. It needs `process:spawn` for that program; otherwise it is dropped with the same
+warning. Wrappers nest, the first plugin in id order outermost. No example plugin wraps a launch; this is written from
+the types and not compiled:
+
+```toml
+[permissions]
+"launch:patch" = {}
+"account:read" = {}
+"process:spawn" = { programs = ["mangohud"] }
+
+[[programs]]
+id = "mangohud"
+command = "mangohud"
+
+[contributes]
+hooks = ["before-launch"]
+```
+
+```rust
+LaunchPatch {
+    wrapper: Some("mangohud".into()),
+    ..LaunchPatch::default()
+}
+```

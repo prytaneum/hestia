@@ -1,49 +1,42 @@
 # The official plugins
 
-Core ships mechanisms and one game flavor, vanilla. Everything else a launcher user expects is a plugin built from
-`plugins/<id>/` of the official repository (`prytaneum/plugins`), written against the same API and permissions as any
-third party's ([0106](../decisions/0106-the-plugin-api-is-mechanisms-not-features.md)). Fourteen exist:
+Core ships mechanisms and one game flavor, vanilla. Everything else a launcher user expects is a plugin in the official
+repository (`prytaneum/plugins`), written against the same API and permissions as any third party's. Fourteen exist:
 
-| Id | Provides | Permissions it asks, and why | Settings |
+| Id | Provides | Permissions it asks | Settings |
 |---|---|---|---|
-| `modrinth` | content source: mods, modpacks, resource packs, shaders, data packs and plugins from Modrinth | `content:read` to answer searches and lookups; `network:connect` to `api.modrinth.com` and `cdn.modrinth.com` | none |
-| `curseforge` | content source: mods, modpacks, resource packs, shaders and data packs from CurseForge | `content:read`; `network:connect` to `api.curseforge.com` and `*.forgecdn.net` | `api-key` (secret, required): CurseForge serves nothing without one |
-| `fabric` | flavor `fabric`, for instances and servers | `flavor:provide` to name what the game runs; `network:connect` to `meta.fabricmc.net` (its version metadata, which publishes no checksums) and `maven.fabricmc.net` | none |
-| `neoforge` | flavor `neoforge`, for instances and servers; builds the game jar from NeoForge's installer | `flavor:provide`; `network:connect` to `maven.neoforged.net` and `libraries.minecraft.net`; `process:spawn` for the one declared `java` program, run on the entry's own Java | none |
-| `paper` | flavors `paper` and `folia`, for servers | `flavor:provide`; `network:connect` to `fill.papermc.io` and `fill-data.papermc.io` | none |
-| `spigot` | flavors `spigot` and `bukkit` (CraftBukkit), for servers; compiled on this computer with SpigotMC's BuildTools | `flavor:provide`; `network:connect` to `hub.spigotmc.org` (BuildTools, which publishes no checksum); `process:spawn` for the declared `git` and `buildtools` programs. Needs `git` installed | none |
-| `adoptium` | Java distribution: Eclipse Temurin runtimes | `java:provide` to name the runtime Hestia executes; `network:connect` to `api.adoptium.net`, `github.com` and `release-assets.githubusercontent.com` | none |
-| `mrpack` | pack format: import and export of Modrinth `.mrpack` | `pack:provide`; `network:connect` to Modrinth's CDN and the code hosts a pack may link files from | none |
-| `curseforge-pack` | pack format: import of CurseForge modpacks; its files resolve through the `curseforge` source | `pack:provide` | none |
+| `modrinth` | content source: mods, modpacks, resource packs, shaders, data packs and plugins | `content:read`; `network:connect` to `api.modrinth.com`, `cdn.modrinth.com` | none |
+| `curseforge` | content source: mods, modpacks, resource packs, shaders and data packs | `content:read`; `network:connect` to `api.curseforge.com`, `*.forgecdn.net` | `api-key` (secret, required) |
+| `fabric` | flavor `fabric`, for instances and servers | `flavor:provide`; `network:connect` to `meta.fabricmc.net` (no checksums published) and `maven.fabricmc.net` | none |
+| `neoforge` | flavor `neoforge`, for instances and servers; builds the game jar from NeoForge's installer | `flavor:provide`; `network:connect` to `maven.neoforged.net`, `libraries.minecraft.net`; `process:spawn` for one `java` program | none |
+| `paper` | flavors `paper` and `folia`, for servers | `flavor:provide`; `network:connect` to `fill.papermc.io`, `fill-data.papermc.io` | none |
+| `spigot` | flavors `spigot` and `bukkit`, for servers; compiled locally with SpigotMC's BuildTools (needs `git`) | `flavor:provide`; `network:connect` to `hub.spigotmc.org`; `process:spawn` for `git` and `buildtools` | none |
+| `adoptium` | Java distribution: Eclipse Temurin | `java:provide`; `network:connect` to `api.adoptium.net`, `github.com`, `release-assets.githubusercontent.com` | none |
+| `mrpack` | pack format: import and export of Modrinth `.mrpack` | `pack:provide`; `network:connect` to Modrinth's CDN and the code hosts a pack may link | none |
+| `curseforge-pack` | pack format: import of CurseForge modpacks, resolved through the `curseforge` source | `pack:provide` | none |
 | `prism` | pack format: import of Prism Launcher, MultiMC and PolyMC instances | `pack:provide` | none |
-| `discord` | Discord Rich Presence for what you are playing; reacts to `process.started`, `process.exit` and `ipc.closed`, and retries its connection every 30 seconds | `entry:read` and `process:read` to name the game; `ipc:connect` to `discord-ipc-*`, the local Discord socket | `enabled` (bool, default on): publish to your profile; off clears the card |
-| `players` | a *Players* tab on a server and `hestia server <name> players …` commands: who is online, the whitelist, operators and bans | `entry:read` limited to `whitelist.json`, `ops.json` and `banned-players.json`; `process:control` to send console commands to a running server; `network:connect` to `api.mineatar.io` for player heads | none |
-| `tailscale` | a *Tailscale* tab on a server and `hestia server <name> tailscale`: the MagicDNS name and IPv4 address players on your tailnet join on, with the game port | `entry:read` for the server's edition and port; `process:spawn` for the declared `tailscale status --json`. Needs Tailscale installed and signed in | none |
-| `playit` | a *playit.gg* tab on a server and `hestia server <name> playit [enable\|disable]`: a public tunnel to the server, up while it runs; `hestia playit setup` approves an agent on playit.gg and fetches it, `hestia playit reset` forgets it | `entry:read` for the server's edition, name and port; `process:read` to follow server starts and exits; `process:spawn` for the declared `agent` (playitd 2.0.2, fetched into `data/` and pinned by hash) and `playitd` (one on `PATH`); `network:connect` to `api.playit.gg`, `github.com` and GitHub's release asset hosts | `agent` (`download` or `installed`, default `download`); `secret-key` (secret): the agent's key, filled in by setup |
+| `discord` | Discord Rich Presence for what you are playing | `entry:read`, `process:read`; `ipc:connect` to `discord-ipc-*` | `enabled` (bool, default on) |
+| `players` | a *Players* tab and `hestia server <name> players ...`: online players, whitelist, operators, bans | `entry:read` limited to `whitelist.json`, `ops.json`, `banned-players.json`; `process:control`; `network:connect` to `api.mineatar.io` | none |
+| `tailscale` | a *Tailscale* tab and `hestia server <name> tailscale`: the tailnet address players join on (needs Tailscale installed and signed in) | `entry:read`; `process:spawn` for `tailscale status --json` | none |
+| `playit` | a *playit.gg* tab and `hestia server <name> playit`: a public tunnel, up while the server runs; `hestia playit setup` and `reset` | `entry:read`, `process:read`; `process:spawn` for `agent` (playitd, fetched into `data/` and pinned by hash) and `playitd` (on `PATH`); `network:connect` to `api.playit.gg`, `github.com` and its release asset hosts | `agent` (`download` or `installed`), `secret-key` (secret) |
 
-A source that is not ready says why instead of failing: CurseForge is listed by `hestia sources` as waiting on its
-`api-key`, and is not offered for browsing or installing until the setting holds a value. Set it on the plugin's page under Plugins or
-with `hestia plugin config curseforge api-key`. The official build of the plugin ships a default key inside its package,
-so the source works as installed, and the user's own value overrides it
-([0132](../decisions/0132-a-distributor-ships-setting-defaults-in-the-package.md)); a build packed without that default
-waits on the setting.
+A source that is not ready says why: `hestia sources` lists CurseForge as waiting on its `api-key`, and it is not offered
+for browsing or installing until the setting has a value (the plugin's page under Plugins, or
+`hestia plugin config curseforge api-key`). The official build ships a default key in its package, so it works as
+installed, and the user's own value overrides it.
 
 ## How they reach you
 
-They are signed by Hestia's own key, which is what makes a plugin official
-([0099](../decisions/0099-official-plugins-are-signed.md)): their providers are `modrinth.modrinth` like any plugin's,
-and the bare `modrinth` is the shorthand that resolves to them before another plugin's of that name
-([0133](../decisions/0133-a-provider-has-one-id.md)). Every installer carries them, pinned in `plugins.lock`, and the daemon installs
-the ones that are missing on its first start with their grant already approved, since you approved the installer that
-carries them ([packaging.md](../packaging.md#the-bundled-official-plugins)). One you remove stays removed. The official
-repository is preconfigured and cannot be removed; installed official plugins are updated from it, unattended when the
+Hestia's own key signs them, which is what makes a plugin official. Their providers are `modrinth.modrinth` like any
+plugin's, and the bare `modrinth` resolves to them before another plugin's of that name. Every installer carries them,
+pinned in `plugins.lock`, and the daemon installs the missing ones on first start with the grant already approved, since
+you approved the installer. One you remove stays removed. They update from the official repository, unattended when the
 update asks for no more than is already granted (`plugins.auto-update`), and an app update that changes the plugin API
-brings compatible builds with it ([0112](../decisions/0112-the-app-and-official-plugins-update-together.md)).
+brings compatible builds with it ([packaging.md](../packaging.md)).
 
 ## Without them
 
-A build with none of them installed is the launcher core: vanilla servers and instances only (`server flavors` lists
-one flavor), import and export of Hestia's own archive only, no content source (the browse pages are empty and content
-installs from a local file), and no Java distribution to download. A Java runtime already on disk still launches;
-`java install` and a create that needs a missing runtime fail with a message that a Java distribution plugin is needed.
-Installing, disabling or removing any of them takes effect at once, with no restart.
+With none installed Hestia is the launcher core: vanilla servers and instances, import and export of Hestia's own
+archive, no content source (browse pages are empty; content installs from a local file) and no Java distribution to
+download. A Java runtime already on disk still launches; `java install` and a create that needs a missing runtime say a
+Java distribution plugin is needed. Installing, disabling or removing one takes effect at once.

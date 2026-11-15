@@ -1,67 +1,39 @@
 # Pages
 
-A plugin never ships markup, scripts or styles into the app. A page is a tree of `UiNode` values that the plugin
-returns; the desktop draws it with its own components and the CLI prints it, so a page is written once
-([0096](../decisions/0096-plugin-ui-is-a-declarative-tree.md)). A page needs no permission. The design is in
-[architecture/plugins.md](../architecture/plugins.md#declarative-ui-and-themes).
+A plugin never ships markup, scripts or styles into the app. A page is a tree of `UiNode` values the plugin returns; the
+desktop draws it with its own components and the CLI prints it, so a page is written once. A page needs no permission.
 
 ## Declaring a page
 
 ```toml
 [[contributes.pages]]
-id = "overview"          # the page id; `hestia <plugin> overview` on the CLI
+id = "overview"          # also `hestia <plugin> overview` on the CLI
 title = "Overview"
 slot = "entry"           # nav (default) | entry | settings
 kind = "server"          # required for an entry page: server or instance
-icon = "server"          # optional: a name from the app's icon set, or a path inside the package
+icon = "server"          # a name from the app's icon set, or a path inside the package
 ```
 
 | Slot | Desktop | CLI |
 |---|---|---|
-| `nav` | a sidebar item that opens the page | `hestia <plugin> <page>` |
-| `entry` | a tab on the detail of every server or instance of `kind`; the page gets the entry id in its context | `hestia <plugin> <page> --entry <name>` |
-| `settings` | a section on the plugin's own page, under Plugins | `hestia <plugin> <page>` |
+| `nav` | a sidebar item | `hestia <plugin> <page>` |
+| `entry` | a tab on every server or instance of `kind`; the page gets the entry id | `hestia <plugin> <page> --entry <name>` |
+| `settings` | a section on the plugin's own page under Plugins | `hestia <plugin> <page>` |
 
-An `icon` containing `/` or `.` is a path inside the package and must stay inside it; anything else is an icon name:
-`instance`, `server`, `mod`, `resource_pack`, `shader`, `data_pack`, `modpack` or `plugin` (`NAMED_ICONS` in
-`frontend/src/components/icons.ts`). An unknown name draws the plugin glyph.
-A manifest with an `entry` page and no `kind` is refused. A page id that is also one of the plugin's command ids is a
-command on the CLI.
+An `icon` containing `/` or `.` is a package path; anything else is a name: `instance`, `server`, `mod`,
+`resource_pack`, `shader`, `data_pack`, `modpack` or `plugin` (an unknown name draws the plugin glyph). A page id that
+is also a command id is a command on the CLI.
 
-### Live pages
-
-A page can ask to be drawn again while it is open, so it never goes stale and the plugin needs no schedule for it:
-
-```toml
-[[contributes.pages]]
-id = "overview"
-title = "Overview"
-topics = ["server.*", "process.exit"]   # at most 8 topic globs
-refreshEvery = 30                       # seconds, 5 to 3600
-```
-
-While the page is open the front-end calls `render` again whenever one of the topics is published (throttled) or the
-interval passes. The plugin is never sent the event, so `topics` needs no permission and is not part of the grant; the
-page's `render` reads what it needs through its own calls, which are gated as usual.
-
-### Language
-
-`PageContext.locale` is the language of the app. A package may carry `messages/<locale>.json`, a flat object of texts by
-key with `{name}` placeholders (at most 256 KiB each), and `hestia::messages::Messages::load(locale)` reads the best
-match, from the exact locale to its language to `en`. `format("key", &[("name", "value")])` fills the placeholders, and
-a missing key reads as the key itself. The app translates the manifest's own texts from the same file by convention:
-`page.<id>.title`, `setting.<key>.label`, `setting.<key>.help`, `setting.<key>.placeholder` and `group.<name>`, and shows
-the manifest's text when a key is missing.
+A page can ask to be drawn again while open, with `topics` (at most 8 topic globs) and `refreshEvery` (5 to 3600
+seconds). The front-end calls `render` again when a topic is published (throttled) or the interval passes. The plugin
+is never sent the event, so `topics` needs no permission.
 
 ## Rendering and actions
 
-`Plugin::page(call: Pages)` carries a page, routed like commands: `call.on(page, render, action)` handles one page id with
-two handlers, and `finish()` ends the chain. A page no handler takes answers `unsupported`, so a plugin with no pages
-implements nothing. `call.view(page, render)` is the short form for a page that only displays.
+`Plugin::page(call: Pages)` routes by page id: `call.on(page, render, action)`, or `call.view(page, render)` for a page
+that only displays, then `finish()`. A page no handler takes answers `unsupported`.
 
 ```rust
-fn page(call: Pages) -> Paged;
-
 call.on(
     "overview",
     |context: PageContext| -> Result<UiNode, Error> { /* ... */ },
@@ -69,19 +41,18 @@ call.on(
 )
 ```
 
-- `context.entry` holds the server or instance id on an `entry` page, and is `None` elsewhere.
-- `render` is called each time the page is shown or refreshed. The returned tree is checked against the vocabulary
-  below; anything outside it fails the render. The channel's timeout is 10 s. Every call runs on
-  a fresh instance, so keep state in the plugin's data directory, not in memory.
-- `action` runs when the user clicks a button or submits a form. `values` is the submitted form's fields by name, and
-  empty for a button: `values.get::<T>("name")?` reads one field, `values.parse::<Form>()?` decodes them all into the
-  plugin's own struct. An action that does not decode, or a field of the wrong type, is `Error::Invalid`.
+- `context.entry` is the server or instance id on an `entry` page, else `None`; `context.locale` is the app's language
+  ([api.md](api.md#messages)).
+- `render` runs each time the page is shown or refreshed, with a 10 second limit. The tree is checked against the
+  vocabulary below; anything outside it fails the render.
+- `action` runs when the user clicks a button or submits a form. `values` holds the submitted fields, empty for a
+  button: `values.get::<T>("name")?` reads one, `values.parse::<Form>()?` decodes all into your struct. A payload that
+  does not decode is `Error::Invalid`.
 
 ### Actions are the plugin's own enum
 
-The same enum goes out on the node and comes back typed. Tag it so it has the wire form of an `Action` (`id`, and
-`payload` for its data); `ui::button(label, action)`, `ui::form(.., submit_label, action)` and `ui::action(action)` take
-any `Serialize` value:
+Tag the enum so it has the wire form of an `Action` (`id`, and `payload` for its data). The same enum goes out on the
+node and comes back typed; `ui::button`, `ui::form` and `ui::action` take any `Serialize` value:
 
 ```rust
 #[derive(Serialize, Deserialize)]
@@ -94,9 +65,8 @@ enum Act {
 ui::button("Back up now", Act::Backup)
 ```
 
-A table's `rowAction` is the variant's `id` and the row's `payload` is its data, so a row action is a variant with a
-payload too. An enum that is not tagged this way serializes to a node whose click answers `Error::Invalid`; to hand-write
-one, use `Action { id, payload }`, which is itself an action and decodes as itself.
+A table's `rowAction` is the variant's `id`, and the row's `payload` is its data. An enum not tagged this way produces a
+node whose click answers `Error::Invalid`.
 
 ### Effects
 
@@ -104,269 +74,88 @@ one, use `Action { id, payload }`, which is itself an action and decodes as itse
 
 | Effect | JSON | Does |
 |---|---|---|
-| `render` | `{ "type": "render", "tree": { ... } }` | replaces the page with a new tree |
+| `render` | `{ "type": "render", "tree": { ... } }` | replaces the page |
 | `toast` | `{ "type": "toast", "tone": "success", "text": "Saved" }` | shows a short message |
-| `navigate` | `{ "type": "navigate", "page": "overview" }` | opens another page of the same plugin |
+| `navigate` | `{ "type": "navigate", "page": "overview" }` | opens another page of the plugin |
 | `refresh` | `{ "type": "refresh" }` | renders the current page again |
-| `run` | `{ "type": "run", "command": "setup", "args": { "x": 1 } }` | starts one of the plugin's own commands as a job |
+| `run` | `{ "type": "run", "command": "setup", "args": { "x": 1 } }` | starts one of the plugin's commands as a job |
 
-`run` is for work longer than an action's 10 s: the action answers at once and the command runs as a `plugin.run` job,
-so it has progress, outlives the page and reports its outcome once, through the job store
-([0089](../decisions/0089-a-job-outcome-is-reported-once.md)); the plugin adds no toast of its own. The command is a
-`[[contributes.commands]]` of the same plugin, and `args` are checked against its declaration as on the command line.
-The entry is never in the effect: a command scoped to servers or instances runs on the entry of the page being shown, so
-a plugin cannot aim a run at an entry the user did not open. The daemon refuses the action's answer when a `run` names
-an undeclared command, or a `server` or `instance` command on a page that is not an `entry` page of that kind. A `top`
-command runs from any page.
-
-Source: `crates/proto/tests/golden/ui_effects.json`, a pinned encoding.
+`run` is for work longer than an action's 10 seconds: the action answers at once and the command runs as a job with
+progress, outliving the page and reporting its outcome once, so the plugin adds no toast of its own. `args` are checked
+against the command's declaration. A `server` or `instance` command runs on the entry of the page being shown, and is
+refused from a page that is not an entry page of that kind; a `top` command runs from any page.
 
 ## Nodes
 
-Eighteen node types make the vocabulary. Each JSON sample below is the wire form, copied from the pinned fixture
-`crates/proto/tests/golden/ui_node.json`. A node's `type` is `snake_case`, its other fields `camelCase`. A node that
-sets a field to its default may omit it: `direction`, `tone` and `variant` default to `vertical`, `neutral` and
-`primary`. Tones are `neutral`, `muted`, `info`, `success`, `warning`, `error`.
+A node's `type` is `snake_case` and its other fields `camelCase`. `direction`, `tone` and `variant` default to
+`vertical`, `neutral` and `primary`. Tones: `neutral`, `muted`, `info`, `success`, `warning`, `error`. The samples are
+the pinned encodings in `crates/proto/tests/golden/ui_node.json`.
 
-### stack
-
-Lays children out in a column (`vertical`, the default) or a row (`horizontal`). Nest stacks for layout.
-
-```json
-{ "type": "stack", "direction": "vertical", "children": [ { "type": "heading", "text": "Backups", "level": 1 } ] }
-```
-
-### section
-
-Groups nodes under a `title`, with an optional `description` and header `actions` (buttons) beside the title.
+| Node | Fields | Notes |
+|---|---|---|
+| `stack` | `direction` (`vertical`, `horizontal`), `children` | nest for layout |
+| `section` | `title`, `description?`, `actions?` (buttons), `children` | |
+| `heading` | `text`, `level` (1 to 3) | |
+| `text` | `text`, `tone?` | |
+| `markdown` | `source` | no raw HTML: markup shows as text |
+| `image` | `src`, `alt` | `src` is a path in the package, e.g. `assets/logo.png`; the daemon serves it |
+| `remote_image` | `url`, `alt`, `shape` (`natural`, `avatar`) | https, at most 2048 bytes; the host and every redirect hop must be granted by `network:connect`. The daemon fetches it |
+| `copy` | `text`, `label?` | a value with a copy button; composes anywhere, including a list item's `actions` |
+| `badge` | `text`, `tone` | |
+| `tabs` | `tabs`: 1 to 12 of `{ id, label, children }` | |
+| `table` | `columns`, `rows: [{ cells, payload? }]`, `filter?`, `rowAction?`, `empty?` | cells are strings; `filter: true` adds a search box |
+| `list` | `items`, `empty?` | an item has `title`, `subtitle?`, `icon?`, `image?` (`{ url, shape }`, https as `remote_image`), `badges` (`{ text, tone }`) and `actions` |
+| `detail` | `pairs: [{ label, value }]` | |
+| `form` | `id`, `fields`, `submit: { label, action }` | see below |
+| `button` | `label`, `action`, `variant` (`primary`, `secondary`, `danger`), `confirm?` | `confirm` asks the user first; use it for what cannot be undone |
+| `notice` | `tone`, `text` | |
+| `progress` | `fraction?` (0 to 1), `label?` | no fraction is an indeterminate bar |
+| `webview` | `src`, `height` | [below](#webview) |
 
 ```json
 {
   "type": "section",
   "title": "Tunnels",
-  "description": "Up while the server runs",
   "actions": [ { "type": "button", "label": "Add", "action": { "id": "add", "payload": null }, "variant": "secondary" } ],
   "children": [ { "type": "copy", "text": "abc.example.com:1234", "label": "Address" } ]
 }
 ```
 
-### heading
+A form's fields are keyed by `name` and arrive in `action`'s `values`. Every field has `name`, `label` and an optional
+`help`:
 
-`level` is 1 to 3.
-
-```json
-{ "type": "heading", "text": "Backups", "level": 1 }
-```
-
-### text
-
-```json
-{ "type": "text", "text": "Last run 2h ago", "tone": "muted" }
-```
-
-### markdown
-
-Rendered without raw HTML: embedded markup shows as text. The CLI prints it as formatted terminal text.
-
-```json
-{ "type": "markdown", "source": "**Hello** [docs](https://example.com)" }
-```
-
-### image
-
-`src` is a path inside the plugin's package, such as `assets/logo.png`; the daemon serves it
-([0098](../decisions/0098-plugin-assets-are-served-by-the-daemon.md)). The CLI prints `alt`.
-
-```json
-{ "type": "image", "src": "assets/logo.png", "alt": "Logo" }
-```
-
-### remote_image
-
-An image from the web, for what a plugin cannot ship, such as a player's head. `url` is `https` and at most 2048 bytes,
-and its host (and every redirect hop) must be one `network:connect` grants. The daemon fetches it, so the app never
-contacts the host. `shape` is `natural` (the default) or `avatar`, a small round picture.
-
-```json
-{ "type": "remote_image", "url": "https://example.com/a.png", "alt": "A", "shape": "avatar" }
-```
-
-### copy
-
-A value with a copy button, for what people paste elsewhere, such as an address. `label` is optional. It composes
-anywhere a node does, including a list item's `actions`.
-
-```json
-{ "type": "copy", "text": "abc.example.com:1234" }
-```
-
-### badge
-
-A short label with a tone, for a status.
-
-```json
-{ "type": "badge", "text": "Online", "tone": "success" }
-```
-
-### tabs
-
-One to 12 tabs, each with an `id` unique among them, a `label` and its own children; the front-end keeps the chosen
-tab.
-
-```json
-{ "type": "tabs", "tabs": [ { "id": "one", "label": "One", "children": [ { "type": "text", "text": "Hello" } ] } ] }
-```
-
-### table
-
-Cells are strings. When `rowAction` is set, choosing a row sends that action id with the row's `payload`. With
-`filter: true` the table shows a search box that hides the rows whose cells do not contain what was typed. `empty` is the text drawn when there are no rows.
-
-```json
-{
-  "type": "table",
-  "columns": ["Name", "Size"],
-  "rows": [ { "cells": ["world", "12 MB"], "payload": { "id": "w1" } } ],
-  "filter": true,
-  "rowAction": "open",
-  "empty": "No files"
-}
-```
-
-### list
-
-Items with a title, an optional subtitle and icon (a name or package path, as for a [page](#declaring-a-page)), `badges`
-(`{ text, tone }` status pills) and buttons. `empty` is the text drawn when there are no items. The CLI prints a
-two-column table of title and subtitle, with the badges as `[text]`.
-
-An item may carry an `image`, `{ url, shape }`, drawn before the title in place of `icon`; `url` is `https` under the
-rule of [`remote_image`](#remote_image) and `shape` is `natural` (the default) or `avatar`. The CLI draws nothing for it.
-
-```json
-{
-  "type": "list",
-  "items": [
-    {
-      "title": "Nightly", "subtitle": "03:00", "icon": "clock",
-      "badges": [ { "text": "Online", "tone": "success" } ],
-      "actions": [ { "type": "button", "label": "Run", "action": { "id": "run", "payload": null }, "variant": "secondary" } ]
-    },
-    {
-      "title": "Steve",
-      "image": { "url": "https://example.com/a.png", "shape": "avatar" }
-    }
-  ],
-  "empty": "No schedules"
-}
-```
-
-### detail
-
-Label and value pairs.
-
-```json
-{ "type": "detail", "pairs": [ { "label": "Retention", "value": "7 days" } ] }
-```
-
-### form
-
-Fields are keyed by `name`; their values arrive in `action`'s `values`, and the submit button's `action` says what was
-asked. Every field has a `name`, a `label` and an optional `help` hint shown under it; the rest depends on its `type`:
-
-| Field `type` | Fields besides `name`, `label` and `help` | Submits |
+| Field `type` | Other fields | Submits |
 |---|---|---|
-| `text` | `value`: string, `placeholder` | string |
-| `number` | `value`: number, `min`, `max`, `step` | number |
-| `toggle` | `value`: boolean | boolean |
-| `select` | `options`: `{ value, label }[]`, `value`: the selected `value` | string |
-| `entry` | `kind`: `server` or `instance` | the id of an existing server or instance |
+| `text` | `value`, `placeholder` | string |
+| `number` | `value`, `min`, `max`, `step` | number |
+| `toggle` | `value` | boolean |
+| `select` | `options: { value, label }[]`, `value` | string |
+| `entry` | `kind`: `server` or `instance` | the id of an existing entry |
 
-`min`, `max` and `step` are hints the front-end applies; a number left empty blocks the submit instead of sending 0. The
-bounds are not enforced by the daemon, so the plugin still validates what it receives.
+`min`, `max` and `step` are front-end hints; the daemon does not enforce them, so validate what you receive.
 
 ```json
 {
   "type": "form",
   "id": "settings",
   "fields": [
-    { "type": "text", "name": "title", "label": "Title", "help": "Shown in the list", "value": "a", "placeholder": "Name" },
     { "type": "number", "name": "keep", "label": "Keep", "value": 7.0, "min": 1.0, "max": 30.0, "step": 1.0 },
-    { "type": "toggle", "name": "on", "label": "Enabled", "value": true },
-    { "type": "select", "name": "mode", "label": "Mode", "options": [ { "value": "fast", "label": "Fast" } ], "value": "fast" },
-    { "type": "entry", "name": "target", "label": "Server", "kind": "server" }
+    { "type": "select", "name": "mode", "label": "Mode", "options": [ { "value": "fast", "label": "Fast" } ], "value": "fast" }
   ],
   "submit": { "label": "Save", "action": { "id": "save", "payload": { "x": 1 } } }
 }
 ```
 
-### button
-
-`variant` is `primary`, `secondary` or `danger`. A `confirm` text makes the front-end ask the user before the action is
-sent, for what cannot be undone.
-
-```json
-{ "type": "button", "label": "Run", "action": { "id": "run", "payload": null }, "variant": "secondary" }
-```
-
-```json
-{ "type": "button", "label": "Delete", "action": { "id": "delete", "payload": null }, "variant": "danger", "confirm": "Delete it?" }
-```
-
-### notice
-
-An inline message with a tone.
-
-```json
-{ "type": "notice", "tone": "warning", "text": "Careful" }
-```
-
-### progress
-
-`fraction` is 0 to 1; leave it out when the length of the work is unknown (an indeterminate bar). `label` is optional.
-
-```json
-{ "type": "progress", "fraction": 0.5, "label": "Halfway" }
-```
-
-### webview
-
-An HTML page from your `assets/` in a sandboxed frame, for what the nodes above cannot draw. See [webview.md](webview.md).
-
-```json
-{ "type": "webview", "src": "assets/chart.html", "height": 320 }
-```
-
 ## Building trees in Rust
 
-`hestia::ui` has builders for every node and re-exports the types, so anything a builder does not cover is the enum
-written out. Nodes without options are free functions: `stack`, `row_of` (a horizontal stack), `heading`, `text`,
-`markdown`, `notice`, `image`, `remote_image`, `avatar`, `badge`, `copy` and `copy_labelled`, `tabs` with `tab`,
-`detail`, `progress` and `webview`. `table` with `row`, `filtered_table`, `button`, `button_confirming` and `form` are
-one-liners over the builders. A node with optional parts has a builder that converts into a node (or a part of one):
-
-| Builder | Makes | Methods |
-|---|---|---|
-| `Section::new(title)` | `section` | `description`, `action`, `children` |
-| `Item::new(title)` | a list item | `subtitle`, `icon`, `image`, `avatar`, `badge`, `action` |
-| `List::new(items)` | `list` | `empty` |
-| `Table::new(columns, rows)` | `table` | `filter`, `row_action`, `empty` |
-| `Button::new(label, action)` | `button` | `secondary`, `danger`, `confirm` |
-| `Field::text`, `number`, `toggle`, `select`, `entry` | a form field | `help`; `placeholder` (text); `min`, `max`, `step` (number) |
-
-A `progress` `label` and a text `tone` have no builder; build `UiNode::Progress { .. }` directly. `Effect::Run { command,
-args }` is written out as an effect.
-
-From the SDK's doctest, `crates/sdk/src/ui.rs`:
-
-```rust
-use hestia::ui;
-
-let page = ui::stack([
-    ui::heading("Backups", 1),
-    ui::table(["World", "Size"], [ui::row(["smp", "1.2 GB"])]),
-    ui::button("Back up now", Act::Backup),
-]);
-```
+`hestia::ui` has a builder for every node and re-exports the types, so anything a builder lacks is the enum written
+out. Free functions: `stack`, `row_of`, `heading`, `text`, `markdown`, `notice`, `image`, `remote_image`, `avatar`,
+`badge`, `copy`, `copy_labelled`, `tabs` with `tab`, `detail`, `progress`, `webview`, `table` with `row`,
+`filtered_table`, `button`, `button_confirming` and `form`. Nodes with options have builders: `Section::new`
+(`description`, `action`, `children`), `Item::new` and `List::new`, `Table::new` (`filter`, `row_action`, `empty`),
+`Button::new` (`secondary`, `danger`, `confirm`) and `Field::text`, `number`, `toggle`, `select`, `entry` (`help`, and
+`placeholder`, `min`, `max`, `step` where they apply). A progress `label` and a text `tone` need `UiNode::Progress { .. }`
+or `UiNode::Text { .. }` written out, and `Effect::Run { command, args }` is built directly.
 
 From the doctest in `crates/sdk/src/pages.rs`, a page whose button and form answer with effects:
 
@@ -397,65 +186,66 @@ impl Plugin for Backups {
 }
 ```
 
-A form and the action that saves it, for an `entry` page that keeps a note per server:
+## In the CLI
 
-```rust
-#[derive(Serialize, Deserialize)]
-#[serde(tag = "id", content = "payload", rename_all = "kebab-case")]
-enum Act {
-    Save,
-}
+On a terminal, `hestia <plugin> <page>` draws the page and offers its buttons, list-item buttons, table rows (with a
+`rowAction`) and form submits as one menu, applying each action's effects; a `confirm` asks first, a form prompts field
+by field and a `run` effect runs the command and redraws. Without a terminal it draws once. `--action <id>` runs one
+action, `--set name=value` fills a form field and `--entry <name>` names the entry of an `entry` page
+([cli.md](../cli.md)). The CLI prints text for what it cannot draw: `alt` for images, `[text]` for badges,
+a note for a webview. The desktop shows a node type it does not know as a notice.
 
-#[derive(Deserialize)]
-struct Note {
-    note: String,
-}
+## Webview
 
-fn notes(entry: &str) -> Result<UiNode, Error> {
-    let note = hestia::data::load::<String>(entry)?.unwrap_or_default();
-    Ok(ui::stack([
-        ui::heading("Notes", 1),
-        ui::form(
-            "note",
-            [ui::Field::text("note", "Note", note).help("Kept per server")],
-            "Save",
-            Act::Save,
-        ),
-    ]))
-}
+When the nodes cannot draw what you need, such as a chart or a map, return a `webview` node: an HTML file from your
+`assets/` in a sandboxed frame on the desktop (the CLI prints a note).
 
-fn save(values: Values, context: PageContext) -> Result<Vec<Effect>, Error> {
-    let entry = context
-        .entry
-        .ok_or_else(|| Error::Invalid("no entry".into()))?;
-    hestia::data::save(&entry, &values.parse::<Note>()?.note)?;
-    Ok(vec![
-        Effect::Toast {
-            tone: Tone::Success,
-            text: "Note saved".into(),
-        },
-        Effect::Refresh,
-    ])
-}
+```json
+{ "type": "webview", "src": "assets/chart.html", "height": 320 }
 ```
 
-## How each front-end draws it
+In Rust, `ui::webview("assets/chart.html", 320)`. `src` is an `.html` file under `assets/`, `height` 1 to 2000 pixels.
 
-| Node | Desktop | CLI |
+The page can run its own scripts and styles from your `assets/` (`.js`, `.css`, images, fonts, `.json`, by relative
+path). It has no network, no other frames, no forms, no shared cookies or storage and no access to the app's DOM, so
+bundle everything it needs. It talks to the host with `postMessage`, only for your plugin:
+
+| Request | Does | Reply `result` |
 |---|---|---|
-| `stack`, `heading`, `text` | layout and text components | lines; `muted` prints as a note, `warning` and `error` as warnings |
-| `markdown`, `image` | the shared markdown component without raw HTML; package images by URL | formatted text; the `alt` text |
-| `section`, `copy` | a titled group with header buttons; a value with a copy button | the section's title and children; the value as a line, `label: value` |
-| `table`, `list`, `detail` | data components; a list item's `badges` and `image`, and `empty` | tables and a key/value block; badges as `[text]`, no `image`, `empty` as a note |
-| `form`, `button` | inputs and buttons; a `confirm` asks first; a `run` effect starts the job and the job store reports it | an action menu entry, asking a `confirm` first; a form prompts field by field; a `run` effect runs the command as `hestia <plugin> <command>` does, then draws the page again |
-| `remote_image`, `badge`, `tabs` | the image through the daemon, round for `avatar`; a pill; a tab strip | the `alt` text; `[text]`; each tab's label, then its children |
-| `notice` | an inline notice | a note; `warning` and `error` as warnings |
-| `progress` | a bar | a text bar |
-| `webview` | a sandboxed frame ([0109](../decisions/0109-plugin-webviews-are-opaque-iframes.md)) | a note |
+| `{ id, type: "run", command, args }` | runs one of your `top` commands | the command's output |
+| `{ id, type: "action", action, payload }` | sends a UI action to the page being shown, as a button does | `null` |
 
-The desktop renders a node type it does not know as a notice instead of failing.
+Replies are `{ id, ok: true, result }` or `{ id, ok: false, error }`. A message that is not exactly one of these, or is
+over 64 KiB, gets no reply. A helper to copy:
 
-On a CLI terminal, `hestia <plugin> <page>` draws the page and offers its buttons, list-item buttons, table rows (when
-the table has a `rowAction`) and form submits as one menu, applying the effects of each action. Without a terminal it
-draws once. `--action <id>` runs one action by id, `--set name=value` fills a form field and `--entry <name>` names the
-server or instance of an `entry` page. The full flags are in [cli.md](../cli.md#plugin-pages).
+```js
+const pending = new Map();
+
+window.addEventListener("message", (event) => {
+  if (event.source !== window.parent) return;
+  const reply = event.data;
+  const waiting = pending.get(reply?.id);
+  if (!waiting) return;
+  pending.delete(reply.id);
+  clearTimeout(waiting.timer);
+  reply.ok ? waiting.resolve(reply.result) : waiting.reject(new Error(reply.error));
+});
+
+function hestia(type, body, timeoutMs = 30000) {
+  const id = crypto.randomUUID();
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      pending.delete(id);
+      reject(new Error("the host did not answer"));
+    }, timeoutMs);
+    pending.set(id, { resolve, reject, timer });
+    window.parent.postMessage({ id, type, ...body }, "*");
+  });
+}
+
+const runCommand = (command, args = {}) => hestia("run", { command, args });
+const sendAction = (action, payload = null) => hestia("action", { action, payload });
+```
+
+`"*"` is required because the host's origin is not addressable from an opaque-origin frame; the host only accepts
+messages from the frame it created, and the helper only accepts replies from `window.parent`.

@@ -1,13 +1,9 @@
 # Testing a plugin
 
-The SDK ships a mock host, `hestia::mock`, so the code of a plugin that calls the daemon, makes http requests or reads
-its settings runs in a plain `cargo test` on your own machine: no daemon, no `wasm32-wasip2` build, no component to load.
-
-The mock replaces only the transport underneath `hestia::call`, `hestia::run_job`, `hestia::http` and `hestia::settings`.
-Your code calls the same functions it ships with. It exists on every target except `wasm32`, so there is nothing to
-enable: write the tests in a `#[cfg(test)]` module beside the code and run `cargo test`.
-
-## A test
+The SDK ships a mock host, `hestia::mock`, so plugin code that calls the daemon, makes HTTP requests, reads settings or
+runs programs is tested with a plain `cargo test`: no daemon, no `wasm32-wasip2` build. The mock replaces only the
+transport under `hestia::call`, `hestia::run_job`, `hestia::http`, `hestia::settings`, `process`, `download`, `data`
+and `ipc`. It exists on every target except `wasm32`, so write tests in a `#[cfg(test)]` module beside the code.
 
 ```rust
 fn refresh() -> Result<usize, hestia::Error> {
@@ -44,49 +40,29 @@ mod tests {
 }
 ```
 
-Source: the doc example in `crates/sdk/src/mock.rs` and `crates/sdk/tests/mock.rs`, which run in CI.
+Source: the doc example in `crates/sdk/src/mock.rs` and `crates/sdk/tests/mock.rs`.
 
-## What it scripts
+`hestia::mock::install()` returns a `Mock` bound to the current thread; dropping it removes it, so parallel tests never
+see each other's answers.
 
-`hestia::mock::install()` returns a `Mock` bound to the current thread. Each test owns its mock, and dropping it removes
-it, so tests running in parallel never see each other's answers.
-
-| Call | Does |
+| Script | Inspect |
 |---|---|
-| `mock.reply::<C>(&result)` | answers every `hestia::call::<C>` with `result` |
-| `mock.done::<J>(&done)` | settles every `hestia::run_job::<J>` with `done` |
-| `mock.fail::<C>(error)` | fails a call or job with `error` |
-| `mock.respond(method, url, response)` | answers that method and exact URL |
-| `mock.refuse(method, url, error)` | fails that request, such as `Error::Offline(None)` or `Error::Denied(..)` |
-| `mock.setting(key, &value)` | sets a setting, as the user would |
-| `mock.setting_value(key)` | the setting's value now, including what the plugin wrote with `settings::set` |
-| `mock.exec(program, output)` | finishes every `process::exec` of that program with `output`; `mock.fail_exec` fails it |
-| `mock.process_logs(id, lines)` | the captured lines `process::logs` returns for a spawned process |
-| `mock.file(url, size)` | serves that exact URL to `download::download`; `mock.fail_download` fails it |
-| `mock.data(key, &value)` | saves a value under a data key, as an earlier call would have |
-| `mock.data_value(key)` | what is saved under the key now |
-| `mock.endpoint(name)` | makes that endpoint connectable by `ipc::open`; any other is `Error::NotFound` |
-| `mock.incoming(endpoint, bytes)` | queues bytes for `Connection::receive` on that endpoint, and makes it connectable |
-| `mock.sent(endpoint)` | every write the plugin sent to that endpoint |
-| `mock.messages(locale, entries)` | the catalog `Messages::load` gets for that locale; empty for any other |
-| `mock.runs()` | every program run or spawned, with its args, env, cwd and Java major |
-| `mock.downloads()` | every download asked for, with its URL, destination and digest |
-| `mock.calls()` | every call and job made, with its channel, params and whether it was a job |
-| `mock.requests()` | every request sent, with method, URL, headers and body |
+| `reply::<C>(&result)`, `done::<J>(&done)`, `fail::<C>(error)`: daemon calls and jobs | `calls()` |
+| `respond(method, url, response)`, `refuse(method, url, error)`: HTTP | `requests()` |
+| `setting(key, &value)` | `setting_value(key)` |
+| `data(key, &value)` | `data_value(key)` |
+| `exec(program, output)`, `fail_exec`, `process_logs(id, lines)` | `runs()` |
+| `file(url, size)`, `fail_download` | `downloads()` |
+| `endpoint(name)`, `incoming(endpoint, bytes)` | `sent(endpoint)` |
+| `messages(locale, entries)` | |
 
-An answer stays until you script it again. A call, job, request, program run or download you did not script fails with
-`Error::Failed` naming the channel, the method and URL, the program or the URL, so a missing answer is never mistaken
-for an empty one. A setting or data key you did not script reads as unset. `process::spawn` always succeeds and returns
-an id (`mock-1`, `mock-2`, ...) that `status`, `stop` and `list` then track. Nothing touches the disk: data values live
-in the mock, and a download writes no file at its destination. `hestia::log` and `progress::report` do nothing, and
-`progress::cancelled` is always false.
+A call, job, request, program run or download you did not script fails with `Error::Failed` naming it, so a missing
+answer is never mistaken for an empty one. An unscripted setting or data key reads as unset. `process::spawn` always
+succeeds and returns `mock-1`, `mock-2`, ... Nothing touches the disk, `hestia::log` and `progress::report` do nothing,
+and `progress::cancelled` is always false. Calling an SDK function with no mock installed panics.
 
-`hestia plugin test [id…]` runs the tests of the repository's plugins, all of them or the ones named. With `--sdk <dir>`
-(or `HESTIA_SDK`) it runs them against a local checkout of the SDK crate, as `dev`, `pack` and `publish` build against
-one, without a `[patch]` in `Cargo.toml`. Calling an SDK function with no mock installed panics.
+`hestia plugin test [id...]` runs the tests of the repository's plugins, all or the ones named, and takes `--sdk <dir>`.
 
-## What it does not do
-
-The mock does not check permissions, scopes, manifest settings or hosts: it proves your code's logic, not what the user
-granted. It does not run the plugin's entry points either; call the functions your `Plugin` methods delegate to. Check
-permissions and the manifest with `hestia plugin check`, and the whole plugin with `hestia plugin dev`.
+The mock does not check permissions, scopes, manifest settings or hosts, and does not run your `Plugin` entry points;
+call the functions they delegate to. Check the manifest and grant with `hestia plugin check`, and the whole plugin with
+`hestia plugin dev`.

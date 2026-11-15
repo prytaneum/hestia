@@ -1,14 +1,13 @@
 # Publishing a plugin repository
 
-A repository is published by one command, `hestia plugin publish`, run by one workflow on every push to the default
-branch and weekly. It commits the signed packages and the index to an orphan `repo` branch of the repository itself, and
-users add the repository by its URL ([0111](../decisions/0111-a-repository-publishes-to-its-own-branch.md)). The shape
-the command expects is in [repository.md](repository.md).
+One command, `hestia plugin publish`, run by one workflow on every push to the default branch and weekly, commits the
+signed packages and the index to an orphan `repo` branch of the repository itself. Users add the repository by its URL.
+The shape it expects is in [repository.md](repository.md).
 
 ## On GitHub
 
 Start from [prytaneum/plugin-template](https://github.com/prytaneum/plugin-template) (the output of
-`hestia plugin new`): one example plugin, a pull request check, and one workflow that calls Hestia's reusable one.
+`hestia plugin new`): an example plugin, a pull request check and one workflow that calls Hestia's reusable one.
 
 ```yaml
 # .github/workflows/publish.yml: on push to the default branch, and weekly
@@ -20,49 +19,55 @@ jobs:
     secrets: { HESTIA_SIGNING_KEY: "${{ secrets.HESTIA_SIGNING_KEY }}" }
 ```
 
-- `<tag>` is the Hestia release the workflow and the `hestia` CLI come from. `uses:` cannot hold an expression, so the
-  ref is written twice. `hestia-ref` is read by `cargo install --rev`, which takes a commit or a full ref.
-- The secret is passed by name: `secrets: inherit` only reaches workflows of the same organisation.
-- The caller job grants `contents: write`; a called workflow can only narrow its caller's permissions.
-- `HESTIA_SIGNING_KEY` holds the file `hestia plugin keygen --unencrypted` wrote (`gh secret set HESTIA_SIGNING_KEY <
-  hestia.key`). With the secret unset the workflow warns and publishes nothing. Make the key with `hestia plugin keygen`:
-  an unencrypted key written by the `minisign` 0.12 CLI fails its checksum in the library Hestia signs with.
-- There is no tag to push: bump `version` in `plugins/<id>/plugin.toml` on the default branch to release it.
+- `<tag>` is the Hestia release the workflow and the `hestia` CLI come from; it is written twice because `uses:` cannot
+  hold an expression.
+- Pass the secret by name; `secrets: inherit` only reaches workflows of the same organisation.
+- `HESTIA_SIGNING_KEY` holds the file `hestia plugin keygen --unencrypted` wrote
+  (`gh secret set HESTIA_SIGNING_KEY < hestia.key`). With it unset the workflow warns and publishes nothing. Generate
+  the key with `hestia plugin keygen`: an unencrypted key from the `minisign` 0.12 CLI fails its checksum.
+- There is no tag to push. Bump `version` in `plugins/<id>/plugin.toml` on the default branch to release it.
 
-**Publish** (push to the default branch, and weekly):
+Each run:
 
-1. Check out the default branch and the `repo` branch (created orphan on the first run).
-2. `hestia plugin publish --out <repo checkout> --sign <key>`: runs `check`, packs and signs every valid plugin whose
-   version has no package in `packages/` yet (an invalid plugin gets no new build, keeps the builds already listed, and
-   fails the run once the index is written), refuses a version already there with another sha256, then regenerates
-   `plugins.json` from `packages/`, the sources and `revoked.toml`, with `expires` set 30 days out, and signs it.
-   Packing refuses, before anything is signed, a component built against another WIT (a stale `Cargo.lock` pinning an
-   old `hestia-sdk`): fix it with `cargo update -p hestia-sdk`.
-3. Commit the result to the `repo` branch as a bot and push.
+1. Checks out the default branch and the `repo` branch (created orphan on the first run).
+2. Runs `hestia plugin publish --out <repo checkout> --sign <key>`: `check`, then packs and signs every valid plugin
+   whose version has no package in `packages/` yet, refuses a version already there with another sha256, regenerates
+   `plugins.json` from the packages, sources and `revoked.toml` with `expires` 30 days out, and signs it. An invalid
+   plugin gets no new build, keeps its listed builds, and fails the run once the index is written. Packing refuses a
+   component built against another WIT, such as a stale `Cargo.lock`; fix it with `cargo update -p hestia-sdk`.
+3. Commits the result to the `repo` branch as a bot and pushes.
 
-`raw.githubusercontent.com` caches each file for about five minutes, so for a few minutes after a publish a client may
-read the new `plugins.json` with the old signature, or the reverse, and refuse the index as not verifying. It keeps its
-last good copy, and the next refresh succeeds once the cache turns over.
-
-The weekly run changes nothing but the signature and `expires`. GitHub disables a public repository's scheduled
-workflows after 60 days without activity, so a repository nobody touches goes stale: its index expires and new installs
-stop until the workflow runs again.
+`raw.githubusercontent.com` caches each file for about five minutes, so a client may briefly read a new `plugins.json`
+with the old signature and refuse it. It keeps its last good copy and the next refresh succeeds. The weekly run only
+re-signs and moves `expires`; GitHub disables scheduled workflows of a public repository after 60 days without
+activity, after which the index expires and new installs stop until the workflow runs again.
 
 ## Setting defaults
 
-A setting the users of your builds should not have to fill in, such as an API key your project holds, takes a default
-at pack time. Set `HESTIA_SETTING_<ID>_<KEY>` (the plugin id and the setting key in upper case, every other character
-as `_`: `HESTIA_SETTING_CURSEFORGE_API_KEY`) in the environment of `hestia plugin pack` or `publish`. On GitHub, put
-the lines `HESTIA_SETTING_<ID>_<KEY>=value`, one per setting, in a repository secret named `HESTIA_SETTING_DEFAULTS`
-and pass it to the publish workflow beside `HESTIA_SIGNING_KEY`; a line naming any other variable is skipped. The value is checked like one a user would store and written into the
-package as `defaults.json`; a user's own value wins over it. It is in the package, so anyone who installs the plugin
-can read it: it keeps a key out of your repository, it does not keep it secret.
+A setting your users should not have to fill in, such as an API key your project holds, takes a default at pack time.
+Set `HESTIA_SETTING_<ID>_<KEY>` (plugin id and setting key in upper case, other characters as `_`:
+`HESTIA_SETTING_CURSEFORGE_API_KEY`) in the environment of `hestia plugin pack` or `publish`. On GitHub, put one
+`HESTIA_SETTING_<ID>_<KEY>=value` line per setting in a repository secret named `HESTIA_SETTING_DEFAULTS` and pass it to
+the workflow beside `HESTIA_SIGNING_KEY`; lines naming other variables are skipped. The value is checked like a user's
+and written into the package as `defaults.json`; the user's own value wins. Anyone who installs the plugin can read it,
+so it keeps a key out of your repository but does not keep it secret.
 
 ## On any other host
 
-Do the same from your CI, with the `hestia` CLI and the Rust `wasm32-wasip2` target installed: run `hestia plugin
-publish --out <dir> --sign hestia.key` over a checkout of the branch, then serve `<dir>` over https so that
-`plugins.json` and `plugins.json.minisig` sit side by side and each package is at its `file` path under them. Users add
-the repository by the URL of `plugins.json` (`hestia plugin repo add <url>`); Hestia fetches `<url>.minisig` beside it.
+From your CI, with the `hestia` CLI and the `wasm32-wasip2` target installed, run
+`hestia plugin publish --out <dir> --sign hestia.key` over a checkout of the branch, and serve `<dir>` over https so
+`plugins.json` and `plugins.json.minisig` sit side by side and each package is at its `file` path. Users add it with
+`hestia plugin repo add <url of plugins.json>`. Write the secret key to a file only for the job.
 
-Keep the secret key out of the repository and write it to a file only for the job.
+## Updates
+
+Hestia checks for newer builds a minute after the daemon starts and every six hours. What reaches users:
+
+- A plugin installed from a repository (or a link signed by a known key) is checked against every configured repository
+  that pins its signing key. The newest build this Hestia's API can run is offered; a newer version with no build yet is
+  not reported.
+- An unsigned link is checked only on request. A file, folder, dev folder, or obsolete plugin is never checked.
+- An update is verified against the key that signed the installed plugin. If it asks for more than was approved
+  (`widened`), nothing changes until the user approves that grant; an unattended update never widens one.
+- `data/` is kept. If the new version fails to initialise, or traps or is disabled within its first minute, the previous
+  package is restored.
