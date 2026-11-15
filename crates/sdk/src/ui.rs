@@ -180,13 +180,7 @@ pub fn table<S: Into<String>>(
     columns: impl IntoIterator<Item = S>,
     rows: impl IntoIterator<Item = TableRow>,
 ) -> UiNode {
-    UiNode::Table {
-        columns: columns.into_iter().map(Into::into).collect(),
-        rows: rows.into_iter().collect(),
-        filter: false,
-        row_action: None,
-        empty: None,
-    }
+    Table::new(columns, rows).into()
 }
 
 /// A [`table`] with a search box above it that hides the rows whose cells do
@@ -195,12 +189,66 @@ pub fn filtered_table<S: Into<String>>(
     columns: impl IntoIterator<Item = S>,
     rows: impl IntoIterator<Item = TableRow>,
 ) -> UiNode {
-    UiNode::Table {
-        columns: columns.into_iter().map(Into::into).collect(),
-        rows: rows.into_iter().collect(),
-        filter: true,
-        row_action: None,
-        empty: None,
+    Table::new(columns, rows).filter().into()
+}
+
+/// A table; converts into a [`UiNode`].
+///
+/// ```
+/// use hestia::ui;
+///
+/// let node: ui::UiNode = ui::Table::new(["World"], [])
+///     .filter()
+///     .row_action("open")
+///     .empty("No worlds yet.")
+///     .into();
+/// assert!(matches!(node, ui::UiNode::Table { filter: true, empty: Some(_), .. }));
+/// ```
+pub struct Table(UiNode);
+
+impl Table {
+    pub fn new<S: Into<String>>(
+        columns: impl IntoIterator<Item = S>,
+        rows: impl IntoIterator<Item = TableRow>,
+    ) -> Self {
+        Table(UiNode::Table {
+            columns: columns.into_iter().map(Into::into).collect(),
+            rows: rows.into_iter().collect(),
+            filter: false,
+            row_action: None,
+            empty: None,
+        })
+    }
+
+    /// A search box above the table that hides the rows whose cells do not
+    /// contain what was typed.
+    pub fn filter(mut self) -> Self {
+        if let UiNode::Table { filter, .. } = &mut self.0 {
+            *filter = true;
+        }
+        self
+    }
+
+    /// The action id sent, with the row's payload, when a row is chosen.
+    pub fn row_action(mut self, id: impl Into<String>) -> Self {
+        if let UiNode::Table { row_action, .. } = &mut self.0 {
+            *row_action = Some(id.into());
+        }
+        self
+    }
+
+    /// Shown instead of the rows when there are none.
+    pub fn empty(mut self, text: impl Into<String>) -> Self {
+        if let UiNode::Table { empty, .. } = &mut self.0 {
+            *empty = Some(text.into());
+        }
+        self
+    }
+}
+
+impl From<Table> for UiNode {
+    fn from(table: Table) -> UiNode {
+        table.0
     }
 }
 
@@ -297,6 +345,14 @@ pub fn copy(text: impl Into<String>) -> UiNode {
     UiNode::Copy {
         text: text.into(),
         label: None,
+    }
+}
+
+/// A [`copy`] value with a label before it.
+pub fn copy_labelled(label: impl Into<String>, text: impl Into<String>) -> UiNode {
+    UiNode::Copy {
+        text: text.into(),
+        label: Some(label.into()),
     }
 }
 
