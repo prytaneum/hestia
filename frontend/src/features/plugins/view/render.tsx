@@ -2,6 +2,7 @@ import type { UiNode } from '@/api/types/ui';
 import { cn } from '@/lib/utils';
 import { m } from '@/paraglide/messages.js';
 
+import { CopyValue } from './copy';
 import { ActionButton, Detail, List, Table } from './data';
 import { UiForm } from './form';
 import { keyed } from './keys';
@@ -38,19 +39,27 @@ export function UiView({ node }: { node: UiNode }) {
       );
     case 'section':
       return (
-        <div className="flex flex-col gap-4">
-          <Heading text={node.title} level={2} />
-          <UiView
-            node={{
-              type: 'stack',
-              direction: 'vertical',
-              children: [...node.actions, ...node.children],
-            }}
-          />
-        </div>
+        <section className="flex flex-col gap-4 border border-border p-4">
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0 space-y-1">
+              <Heading text={node.title} level={2} />
+              {node.description && (
+                <Text text={node.description} tone="muted" />
+              )}
+            </div>
+            <div className="flex shrink-0 items-center gap-2">
+              {keyed(node.actions).map(({ key, item }) => (
+                <UiView key={key} node={item} />
+              ))}
+            </div>
+          </div>
+          {keyed(node.children).map(({ key, item }) => (
+            <UiView key={key} node={item} />
+          ))}
+        </section>
       );
     case 'copy':
-      return <Text text={node.text} tone="neutral" />;
+      return <CopyValue text={node.text} label={node.label} />;
     case 'heading':
       return <Heading text={node.text} level={node.level} />;
     case 'text':

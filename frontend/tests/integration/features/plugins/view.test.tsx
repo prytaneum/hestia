@@ -8,6 +8,7 @@ import { UiView } from '@/features/plugins/view/render';
 import { PluginView } from '@/features/plugins/view';
 import { publish } from '@/mock/bus';
 import { channels } from '@/mock/channels';
+import { jobIdOf, runPlan } from '@/mock/job';
 import { m } from '@/paraglide/messages.js';
 import {
   installFakeDaemon,
@@ -156,5 +157,86 @@ describe('a live page', () => {
     } finally {
       channels['plugin.ui.render'] = original;
     }
+  });
+});
+
+describe('a page action answering run', () => {
+  it('starts the command for the view plugin and entry, whatever the effect carries', async () => {
+    installFakeDaemon();
+    const originals = {
+      render: channels['plugin.ui.render'],
+      action: channels['plugin.ui.action'],
+      run: channels['plugin.run'],
+    };
+    const started = vi.fn((p: Record<string, unknown>) =>
+      runPlan({
+        id: jobIdOf(p, 'plugin-run'),
+        channel: 'plugin.run',
+        ticks: [],
+        done: () => ({ output: null }),
+      }),
+    );
+    channels['plugin.ui.render'] = () => button();
+    channels['plugin.ui.action'] = () => [
+      {
+        type: 'run',
+        command: 'setup',
+        args: { port: 1 },
+        plugin: 'evil',
+        entry: 'other',
+      },
+    ];
+    channels['plugin.run'] = started;
+    try {
+      renderWithProviders(
+        <PluginView plugin="hello" page="greeter" entry="srv" kind="server" />,
+        { route: true },
+      );
+      await userEvent.click(
+        await screen.findByRole('button', { name: 'Reset' }),
+      );
+      await waitFor(() => expect(started).toHaveBeenCalledTimes(1));
+      expect(started.mock.calls[0][0]).toMatchObject({
+        plugin: 'hello',
+        command: 'setup',
+        entry: 'srv',
+        args: { port: 1 },
+      });
+    } finally {
+      channels['plugin.ui.render'] = originals.render;
+      channels['plugin.ui.action'] = originals.action;
+      channels['plugin.run'] = originals.run;
+    }
+  });
+});
+
+describe('a form with a number field', () => {
+  const form = (): UiNode =>
+    ({
+      type: 'form',
+      id: 'port',
+      fields: [
+        { type: 'number', name: 'port', label: 'Port', value: 80, min: 1, max: 100 },
+      ],
+      submit: { label: 'Save', action: { id: 'save', payload: null } },
+    }) as UiNode;
+
+  it('does not submit while the number is empty or out of range', async () => {
+    const run = show(form());
+    const save = screen.getByRole('button', { name: 'Save' });
+    const input = screen.getByLabelText('Port');
+
+    await userEvent.clear(input);
+    expect((save as HTMLButtonElement).disabled).toBe(true);
+    await userEvent.click(save);
+
+    await userEvent.type(input, '500');
+    expect((save as HTMLButtonElement).disabled).toBe(true);
+
+    await userEvent.clear(input);
+    await userEvent.type(input, '25');
+    await userEvent.click(save);
+    expect(run).toHaveBeenCalledTimes(1);
+    expect(run).toHaveBeenCalledWith({ id: 'save', payload: null }, { port: 25 });
   });
 });

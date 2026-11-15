@@ -35,6 +35,14 @@
         "details": "Details",
         "no_description": "No description."
       }
+    },
+    "copy": {
+      "action": "Copy",
+      "failed": "Copy failed"
+    },
+    "field": {
+      "out_of_range": "The number is outside the allowed range",
+      "required": "Enter a number"
     }
   }
 }

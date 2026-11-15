@@ -35,6 +35,14 @@
         "details": "Detalhes",
         "no_description": "Sem descrição."
       }
+    },
+    "copy": {
+      "action": "Copiar",
+      "failed": "Falha ao copiar"
+    },
+    "field": {
+      "out_of_range": "O número está fora do intervalo permitido",
+      "required": "Informe um número"
     }
   }
 }

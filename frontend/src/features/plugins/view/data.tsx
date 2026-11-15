@@ -9,11 +9,18 @@ import { m } from '@/paraglide/messages.js';
 import { PluginIcon } from '../icon';
 import { useView } from './context';
 import { keyed } from './keys';
+import { PluginBadge } from './layout';
 import { UiView } from './render';
 
 type Node<T extends UiNode['type']> = Extract<UiNode, { type: T }>;
 
-export function Table({ columns, rows, rowAction, filter }: Node<'table'>) {
+export function Table({
+  columns,
+  rows,
+  rowAction,
+  filter,
+  empty,
+}: Node<'table'>) {
   const { run, pending } = useView();
   const [query, setQuery] = useState('');
   const needle = query.trim().toLowerCase();
@@ -70,15 +77,21 @@ export function Table({ columns, rows, rowAction, filter }: Node<'table'>) {
             )}
           </tbody>
         </table>
+        {rows.length === 0 && empty && <EmptyText text={empty} />}
       </div>
     </div>
   );
 }
 
-export function List({ items }: Node<'list'>) {
+function EmptyText({ text }: { text: string }) {
+  return <p className="px-3 py-3 text-xs text-muted-foreground">{text}</p>;
+}
+
+export function List({ items, empty }: Node<'list'>) {
   const { plugin } = useView();
   return (
     <div className="divide-y divide-border border border-border">
+      {items.length === 0 && empty && <EmptyText text={empty} />}
       {keyed(items).map(({ key, item }) => (
         <div key={key} className="flex min-h-11 items-center gap-3 px-3 py-2">
           {item.icon && (
@@ -89,7 +102,12 @@ export function List({ items }: Node<'list'>) {
             />
           )}
           <div className="min-w-0 flex-1">
-            <p className="truncate text-xs">{item.title}</p>
+            <div className="flex min-w-0 items-center gap-2">
+              <p className="truncate text-xs">{item.title}</p>
+              {keyed(item.badges).map(({ key: badgeKey, item: badge }) => (
+                <PluginBadge key={badgeKey} {...badge} />
+              ))}
+            </div>
             {item.subtitle && (
               <p className="truncate text-[11px] text-muted-foreground">
                 {item.subtitle}

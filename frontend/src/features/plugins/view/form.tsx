@@ -4,7 +4,13 @@ import { useState } from 'react';
 import type { EntryKind } from '@/api';
 import type { FormField, UiNode } from '@/api/types/ui';
 import { Button } from '@/components/ui/button';
-import { Field, FieldGroup, FieldLabel } from '@/components/ui/field';
+import {
+  Field,
+  FieldDescription,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+} from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import {
   Select,
@@ -91,17 +97,36 @@ function initial(fields: FormField[]): Record<string, Value> {
   );
 }
 
+function numberProblem(field: FormField, value: Value): string | null {
+  if (field.type !== 'number') return null;
+  if (value === '') return m['plugins.field.required']();
+  const number = Number(value);
+  const outOfRange =
+    !Number.isFinite(number) ||
+    (field.min !== undefined && number < field.min) ||
+    (field.max !== undefined && number > field.max);
+  return outOfRange ? m['plugins.field.out_of_range']() : null;
+}
+
 export function UiForm({ fields, submit }: FormNode) {
   const { run, pending } = useView();
   const [values, setValues] = useState(() => initial(fields));
   const set = (name: string, value: Value) =>
     setValues((previous) => ({ ...previous, [name]: value }));
+  const problems = new Map(
+    fields.map((field) => [
+      field.name,
+      numberProblem(field, values[field.name]),
+    ]),
+  );
+  const blocked = [...problems.values()].some((problem) => problem !== null);
 
   return (
     <form
       className="max-w-md"
       onSubmit={(event) => {
         event.preventDefault();
+        if (blocked) return;
         void run(submit.action, values);
       }}
     >
@@ -112,6 +137,7 @@ export function UiForm({ fields, submit }: FormNode) {
             {field.type === 'text' && (
               <Input
                 id={field.name}
+                placeholder={field.placeholder}
                 value={String(values[field.name])}
                 onChange={(event) => set(field.name, event.target.value)}
               />
@@ -120,9 +146,16 @@ export function UiForm({ fields, submit }: FormNode) {
               <Input
                 id={field.name}
                 type="number"
-                value={Number(values[field.name])}
+                min={field.min}
+                max={field.max}
+                step={field.step}
+                aria-invalid={problems.get(field.name) !== null}
+                value={values[field.name] as number | ''}
                 onChange={(event) =>
-                  set(field.name, event.target.valueAsNumber || 0)
+                  set(
+                    field.name,
+                    event.target.value === '' ? '' : event.target.valueAsNumber,
+                  )
                 }
               />
             )}
@@ -147,10 +180,14 @@ export function UiForm({ fields, submit }: FormNode) {
                 onChange={(next) => set(field.name, next)}
               />
             )}
+            {field.help && <FieldDescription>{field.help}</FieldDescription>}
+            {problems.get(field.name) && (
+              <FieldError>{problems.get(field.name)}</FieldError>
+            )}
           </Field>
         ))}
         <div>
-          <Button type="submit" disabled={pending}>
+          <Button type="submit" disabled={pending || blocked}>
             {submit.label}
           </Button>
         </div>

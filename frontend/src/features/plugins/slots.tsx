@@ -80,6 +80,7 @@ export function PluginTabContents({
         plugin={contribution.plugin}
         page={contribution.page.id}
         entry={entry}
+        kind={kind}
       />
     </TabsContent>
   ));

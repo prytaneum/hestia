@@ -8,12 +8,13 @@ import {
 import { useNavigate } from '@tanstack/react-router';
 import { useEffect, useMemo } from 'react';
 
-import { errorMessage, onDaemonEvent } from '@/api';
+import { type EntryKind, errorMessage, onDaemonEvent } from '@/api';
 import type { Action, Effect } from '@/api/types/ui';
 import { Empty } from '@/components/empty';
 import { Bone } from '@/components/skeleton';
 import { notify } from '@/lib/notify';
 import { m } from '@/paraglide/messages.js';
+import { useJobMutation } from '@/queries/jobs';
 import { pluginMutations, pluginQueries } from '@/queries/plugin';
 
 import { topicMatches } from './lib';
@@ -56,6 +57,11 @@ const TOAST = {
   error: notify.error,
 } as const;
 
+const runArgs = (args: unknown): Record<string, unknown> =>
+  typeof args === 'object' && args !== null && !Array.isArray(args)
+    ? (args as Record<string, unknown>)
+    : {};
+
 /**
  * One plugin page: asks the plugin for its tree, draws it, and sends its
  * actions back. `entry` is the server or instance an entry page sits on.
@@ -64,10 +70,12 @@ export function PluginView({
   plugin,
   page,
   entry,
+  kind,
 }: {
   plugin: string;
   page: string;
   entry?: string;
+  kind?: EntryKind;
 }) {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
@@ -83,6 +91,12 @@ export function PluginView({
   });
   useRedrawOnTopics(render.queryKey, contribution?.topics);
   const action = useMutation(pluginMutations.uiAction());
+  const command = useJobMutation({
+    ...pluginMutations.run(),
+    onSettled: () =>
+      queryClient.invalidateQueries({ queryKey: render.queryKey }),
+  });
+  const startCommand = command.mutate;
 
   const view = useMemo(() => {
     const apply = (effect: Effect) => {
@@ -104,6 +118,15 @@ export function PluginView({
         case 'refresh':
           void queryClient.invalidateQueries({ queryKey: render.queryKey });
           break;
+        case 'run':
+          startCommand({
+            plugin,
+            command: effect.command,
+            title: effect.command,
+            args: runArgs(effect.args),
+            entry: entry && kind ? { kind, id: entry } : undefined,
+          });
+          break;
       }
     };
     return {
@@ -124,7 +147,17 @@ export function PluginView({
         }
       },
     };
-  }, [action, entry, navigate, page, plugin, queryClient, render.queryKey]);
+  }, [
+    action,
+    entry,
+    kind,
+    navigate,
+    page,
+    plugin,
+    queryClient,
+    render.queryKey,
+    startCommand,
+  ]);
 
   if (tree.isPending) {
     return (
