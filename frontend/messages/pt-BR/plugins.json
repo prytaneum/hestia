@@ -27,12 +27,13 @@
         "missing": "Este plugin não está instalado.",
         "commands": "Comandos",
         "access": "Acesso",
-        "about": "Sobre",
         "id": "ID",
         "authors": "Autores",
         "source": "Instalado de",
         "signer": "Chave de assinatura",
-        "homepage": "Site"
+        "homepage": "Site",
+        "details": "Detalhes",
+        "no_description": "Sem descrição."
       }
     }
   }

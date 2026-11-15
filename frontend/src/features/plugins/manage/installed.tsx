@@ -1,11 +1,11 @@
-import { PuzzlePieceIcon } from '@phosphor-icons/react';
+import { MagnifyingGlassIcon, PuzzlePieceIcon } from '@phosphor-icons/react';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 
 import { dialog, type OutdatedPlugin, type PluginInfo } from '@/api';
 import { Empty } from '@/components/empty';
 import { Section } from '@/components/page';
-import { Bone } from '@/components/skeleton';
+import { CardGridSkeleton } from '@/components/skeleton';
 import { Button } from '@/components/ui/button';
 import { useConfig } from '@/features/settings/use-config';
 import { useDropzone } from '@/hooks/use-dropzone';
@@ -13,10 +13,10 @@ import { cn } from '@/lib/utils';
 import { m } from '@/paraglide/messages.js';
 import { pluginQueries } from '@/queries/plugin';
 
+import { InstalledCard, PLUGIN_GRID } from './card';
 import { PluginDeveloper } from './developer';
 import type { PluginInstall } from './install';
-import { PluginRow } from './row';
-import { needsAttention } from './state';
+import { matchesQuery, needsAttention } from './state';
 
 interface Listed {
   plugin: PluginInfo;
@@ -25,13 +25,15 @@ interface Listed {
 
 /**
  * Installed plugins in the order they want the user: the ones that stopped,
- * the ones with an update, then the rest. The tab also takes a dropped
- * `.hplugin`.
+ * the ones with an update, then the rest, narrowed by the page's search. The
+ * tab also takes a dropped `.hplugin`.
  */
 export function Installed({
+  query,
   install,
   onBrowse,
 }: {
+  query: string;
   install: PluginInstall;
   onBrowse: () => void;
 }) {
@@ -46,14 +48,20 @@ export function Installed({
     onDrop: ([path]) => void install.start({ path }),
   });
 
-  if (plugins.isPending) return <Bone className="h-32" />;
+  if (plugins.isPending)
+    return <CardGridSkeleton grid={PLUGIN_GRID} count={4} card="h-24" />;
 
-  const listed: Listed[] = (plugins.data ?? []).map((plugin) => ({
-    plugin,
-    update: outdated.data?.plugins.find(
-      (offer) => offer.id === plugin.manifest.id,
-    ),
-  }));
+  const installed = plugins.data ?? [];
+  const listed: Listed[] = installed
+    .filter(({ manifest }) =>
+      matchesQuery(query, [manifest.id, manifest.name, manifest.description]),
+    )
+    .map((plugin) => ({
+      plugin,
+      update: outdated.data?.plugins.find(
+        (offer) => offer.id === plugin.manifest.id,
+      ),
+    }));
   const attention = listed.filter(({ plugin }) => needsAttention(plugin));
   const updates = listed.filter(
     ({ plugin, update }) => update && !needsAttention(plugin),
@@ -78,9 +86,9 @@ export function Installed({
   const group = (title: string, rows: Listed[], action?: React.ReactNode) =>
     rows.length > 0 && (
       <Section title={title} count={rows.length} action={action}>
-        <div className="divide-y divide-border border border-border">
+        <div className={PLUGIN_GRID}>
           {rows.map(({ plugin, update }) => (
-            <PluginRow
+            <InstalledCard
               key={plugin.manifest.id}
               plugin={plugin}
               update={update}
@@ -100,7 +108,12 @@ export function Installed({
         isDragActive && 'border-dashed border-primary',
       )}
     >
-      {listed.length === 0 && (
+      {installed.length > 0 && listed.length === 0 && (
+        <Empty icon={MagnifyingGlassIcon}>
+          {m['settings.plugins.browse.empty']()}
+        </Empty>
+      )}
+      {installed.length === 0 && (
         <Empty
           icon={PuzzlePieceIcon}
           description={m['plugins.manage.empty_hint']()}

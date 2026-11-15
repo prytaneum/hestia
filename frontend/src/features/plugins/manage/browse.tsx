@@ -1,97 +1,56 @@
-import { ArrowClockwiseIcon, PuzzlePieceIcon } from '@phosphor-icons/react';
-import { useQuery } from '@tanstack/react-query';
-import { Link } from '@tanstack/react-router';
-import { useMemo, useState } from 'react';
-
 import {
-  type Availability,
-  type CataloguePlugin,
-  errorHint,
-  errorMessage,
-} from '@/api';
+  ArrowClockwiseIcon,
+  MagnifyingGlassIcon,
+  PuzzlePieceIcon,
+} from '@phosphor-icons/react';
+import { useQuery } from '@tanstack/react-query';
+import { useState } from 'react';
+
+import { errorHint, errorMessage } from '@/api';
 import { Empty } from '@/components/empty';
 import { FilterMenu } from '@/components/filter-menu';
-import { SearchInput } from '@/components/search-input';
-import { Bone } from '@/components/skeleton';
-import { Badge } from '@/components/ui/badge';
+import { CardGridSkeleton } from '@/components/skeleton';
 import { Button } from '@/components/ui/button';
-import { Thumbnail } from '@/components/ui/thumbnail';
 import { WarningNotice } from '@/components/warning-notice';
 import { m } from '@/paraglide/messages.js';
 import { pluginQueries } from '@/queries/plugin';
 
+import { CatalogueCard, PLUGIN_GRID } from './card';
 import type { PluginInstall } from './install';
+import { matchesQuery } from './state';
 
 const ALL = 'all';
 
-const AVAILABILITY_LABEL: Record<Availability, () => string> = {
-  prebuilt: m['domain.plugin.availability.prebuilt'],
-  unreleased: m['domain.plugin.availability.unreleased'],
-  incompatible: m['domain.plugin.availability.incompatible'],
-};
-
-function availabilityHint(plugin: CataloguePlugin): string | undefined {
-  const reason =
-    plugin.availability === 'unreleased'
-      ? m['settings.plugins.unreleased_hint']({ version: plugin.version })
-      : plugin.availability === 'incompatible'
-        ? m['settings.plugins.incompatible_hint']({
-            requires: plugin.requires ?? '',
-          })
-        : undefined;
-  if (!reason) return undefined;
-  return plugin.build
-    ? `${reason} ${m['settings.plugins.installable_hint']({ version: plugin.build })}`
-    : reason;
-}
-
-function matches(plugin: CataloguePlugin, query: string, repo: string) {
-  if (repo !== ALL && !plugin.listedBy.some((lister) => lister.url === repo))
-    return false;
-  const text = query.trim().toLowerCase();
-  return (
-    !text ||
-    [plugin.id, plugin.name, plugin.description].some((field) =>
-      field.toLowerCase().includes(text),
-    )
-  );
-}
-
 /**
- * Everything the added repositories offer, one row per plugin and signing key.
- * A row names every repository that lists it; installing goes through the same
+ * Everything the added repositories offer, one card per plugin and signing
+ * key, narrowed by the page's search. Installing goes through the same
  * inspect, native approval and install as any other package.
  */
 export function PluginBrowse({
+  query,
   install,
   onRepositories,
 }: {
+  query: string;
   install: PluginInstall;
   onRepositories: () => void;
 }) {
   const catalogue = useQuery(pluginQueries.catalogue());
-  const [query, setQuery] = useState('');
   const [repo, setRepo] = useState(ALL);
 
-  const repositories = catalogue.data?.repositories ?? [];
-  const shown = useMemo(
-    () =>
-      (catalogue.data?.plugins ?? []).filter((plugin) =>
-        matches(plugin, query, repo),
-      ),
-    [catalogue.data, query, repo],
-  );
-
-  if (catalogue.isPending) return <Bone className="h-32" />;
+  if (catalogue.isPending)
+    return <CardGridSkeleton grid={PLUGIN_GRID} count={6} card="h-24" />;
   if (catalogue.isError)
     return (
-      <div className="space-y-1 text-xs">
-        <p className="text-destructive">{errorMessage(catalogue.error)}</p>
-        {errorHint(catalogue.error) && (
-          <p className="text-muted-foreground">{errorHint(catalogue.error)}</p>
-        )}
-      </div>
+      <Empty
+        tone="destructive"
+        description={errorHint(catalogue.error) || undefined}
+      >
+        {errorMessage(catalogue.error)}
+      </Empty>
     );
+
+  const { repositories, plugins, warnings } = catalogue.data;
   if (repositories.length === 0)
     return (
       <Empty
@@ -106,15 +65,15 @@ export function PluginBrowse({
       </Empty>
     );
 
+  const shown = plugins.filter(
+    (plugin) =>
+      (repo === ALL || plugin.listedBy.some((lister) => lister.url === repo)) &&
+      matchesQuery(query, [plugin.id, plugin.name, plugin.description]),
+  );
+
   return (
     <div className="space-y-3">
-      <div className="flex items-center gap-2">
-        <SearchInput
-          className="flex-1"
-          value={query}
-          onChange={setQuery}
-          placeholder={m['settings.plugins.browse.search']()}
-        />
+      <div className="flex items-center justify-end gap-2">
         <FilterMenu
           groups={[
             repositories.length > 1
@@ -145,16 +104,16 @@ export function PluginBrowse({
         </Button>
       </div>
 
-      <WarningNotice warnings={catalogue.data?.warnings} />
+      <WarningNotice warnings={warnings} />
 
-      <div className="divide-y divide-border border border-border">
-        {shown.length === 0 ? (
-          <p className="px-3 py-2 text-xs text-muted-foreground">
-            {m['settings.plugins.browse.empty']()}
-          </p>
-        ) : (
-          shown.map((plugin) => (
-            <CatalogueRow
+      {shown.length === 0 ? (
+        <Empty icon={MagnifyingGlassIcon}>
+          {m['settings.plugins.browse.empty']()}
+        </Empty>
+      ) : (
+        <div className={PLUGIN_GRID}>
+          {shown.map((plugin) => (
+            <CatalogueCard
               key={`${plugin.keyId}/${plugin.id}`}
               plugin={plugin}
               busy={install.busy}
@@ -165,85 +124,9 @@ export function PluginBrowse({
                 })
               }
             />
-          ))
-        )}
-      </div>
-    </div>
-  );
-}
-
-function CatalogueRow({
-  plugin,
-  busy,
-  onInstall,
-}: {
-  plugin: CataloguePlugin;
-  busy: boolean;
-  onInstall: () => void;
-}) {
-  const current = plugin.installed === plugin.build;
-  const action = plugin.installed
-    ? m['settings.plugins.update']()
-    : m['app.action.install']();
-
-  const label = plugin.name || plugin.id;
-
-  return (
-    <div className="flex items-center gap-3 px-3 py-2.5">
-      <Thumbnail
-        src={plugin.icon ?? undefined}
-        icon={PuzzlePieceIcon}
-        size="md"
-      />
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2 text-sm">
-          {plugin.installed ? (
-            <Link
-              to="/plugins/$plugin"
-              params={{ plugin: plugin.id }}
-              className="truncate hover:underline"
-            >
-              {label}
-            </Link>
-          ) : (
-            <span className="truncate">{label}</span>
-          )}
-          {plugin.availability !== 'prebuilt' && (
-            <Badge variant="secondary" title={availabilityHint(plugin)}>
-              {AVAILABILITY_LABEL[plugin.availability]()}
-            </Badge>
-          )}
-          {plugin.installed && (
-            <Badge variant="outline">
-              {m['settings.plugins.installed_version']({
-                version: plugin.installed,
-              })}
-            </Badge>
-          )}
+          ))}
         </div>
-        {plugin.description && (
-          <div className="truncate text-xs text-muted-foreground">
-            {plugin.description}
-          </div>
-        )}
-        <div className="truncate font-mono text-[11px] text-muted-foreground">
-          {[
-            plugin.version,
-            plugin.listedBy.map((lister) => lister.label).join(', '),
-            m['settings.plugins.key_id']({ key: plugin.keyId }),
-          ]
-            .filter(Boolean)
-            .join(' · ')}
-        </div>
-      </div>
-      <Button
-        variant="outline"
-        size="sm"
-        disabled={busy || !plugin.build || current}
-        onClick={onInstall}
-      >
-        {action}
-      </Button>
+      )}
     </div>
   );
 }

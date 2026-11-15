@@ -6,7 +6,7 @@ import {
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
 
-import type { PluginInfo, PluginSource } from '@/api';
+import type { PluginInfo } from '@/api';
 import { DetailHero } from '@/components/detail-hero';
 import { Empty } from '@/components/empty';
 import { ExternalLink } from '@/components/external-link';
@@ -16,6 +16,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { Switch } from '@/components/ui/switch';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Notice } from '@/components/warning-notice';
 import { m } from '@/paraglide/messages.js';
 import { pluginMutations, pluginQueries } from '@/queries/plugin';
@@ -29,20 +30,25 @@ import { PluginSettings } from './settings';
 import {
   attentionReason,
   FullAccessBadge,
+  SOURCE_LABEL,
   StateBadge,
   usePluginIcon,
 } from './state';
 
-const SOURCE_LABEL: Record<PluginSource, () => string> = {
-  file: m['domain.plugin.source.file'],
-  folder: m['domain.plugin.source.folder'],
-  url: m['domain.plugin.source.url'],
-  repo: m['domain.plugin.source.repo'],
-  dev: m['domain.plugin.source.dev'],
-};
+export const PLUGIN_DETAIL_TABS = ['details', 'settings', 'access'] as const;
+
+export type PluginDetailTab = (typeof PLUGIN_DETAIL_TABS)[number];
 
 /** One installed plugin: its state and actions, settings, commands, access and origin. */
-export function PluginDetailPage({ id }: { id: string }) {
+export function PluginDetailPage({
+  id,
+  tab,
+  onTabChange,
+}: {
+  id: string;
+  tab: PluginDetailTab;
+  onTabChange: (tab: PluginDetailTab) => void;
+}) {
   const plugins = useQuery(pluginQueries.list());
   const plugin = plugins.data?.find((listed) => listed.manifest.id === id);
 
@@ -62,13 +68,22 @@ export function PluginDetailPage({ id }: { id: string }) {
       </div>
     );
   }
-  return <Detail plugin={plugin} />;
+  return <Detail plugin={plugin} tab={tab} onTabChange={onTabChange} />;
 }
 
-function Detail({ plugin }: { plugin: PluginInfo }) {
+function Detail({
+  plugin,
+  tab,
+  onTabChange,
+}: {
+  plugin: PluginInfo;
+  tab: PluginDetailTab;
+  onTabChange: (tab: PluginDetailTab) => void;
+}) {
   const navigate = useNavigate();
   const outdated = useQuery(pluginQueries.outdated());
   const repositories = useQuery(pluginQueries.repositories());
+  const pages = useQuery(pluginQueries.pages());
   const enable = useMutation(pluginMutations.enable());
   const disable = useMutation(pluginMutations.disable());
   const remove = useMutation(pluginMutations.remove());
@@ -81,6 +96,13 @@ function Detail({ plugin }: { plugin: PluginInfo }) {
   const on = plugin.state === 'enabled';
   const reason = attentionReason(plugin);
   const update = outdated.data?.plugins.find((offer) => offer.id === id);
+  const configurable =
+    settings.length > 0 ||
+    (pages.data ?? []).some(
+      (contribution) =>
+        contribution.plugin === id && contribution.page.slot === 'settings',
+    );
+  const active = tab === 'settings' && !configurable ? 'details' : tab;
   const store = repositories.data?.find(
     (repository) => repository.url === plugin.repository,
   );
@@ -198,90 +220,126 @@ function Detail({ plugin }: { plugin: PluginInfo }) {
         }
       />
 
-      <div className="min-h-0 flex-1 overflow-y-auto p-5">
-        <div className="max-w-3xl space-y-8">
-          {reason && <Notice message={reason} />}
-          {install.review && (
-            <InstallReview
-              inspection={install.review.inspection}
-              onContinue={() => {
-                if (install.review) void install.approve(install.review);
-              }}
-              onCancel={install.dismiss}
-            />
+      <Tabs
+        value={active}
+        onValueChange={(value) => onTabChange(value as PluginDetailTab)}
+        className="min-h-0 flex-1 gap-0 overflow-y-auto p-0"
+      >
+        <TabsList variant="line" className="h-auto gap-6 px-5">
+          <TabsTrigger value="details">
+            {m['plugins.manage.detail.details']()}
+          </TabsTrigger>
+          {configurable && (
+            <TabsTrigger value="settings">
+              {m['settings.plugins.settings.title']()}
+            </TabsTrigger>
           )}
-          {description && <p className="text-sm">{description}</p>}
+          <TabsTrigger value="access">
+            {m['plugins.manage.detail.access']()}
+          </TabsTrigger>
+        </TabsList>
 
-          {settings.length > 0 && (
-            <Section title={m['settings.plugins.settings.title']()}>
-              <PluginSettings plugin={plugin} />
-            </Section>
-          )}
-          <PluginSettingsSections plugin={id} />
+        {(reason || install.review) && (
+          <div className="max-w-3xl space-y-4 px-5 pt-5">
+            {reason && <Notice message={reason} />}
+            {install.review && (
+              <InstallReview
+                inspection={install.review.inspection}
+                onContinue={() => {
+                  if (install.review) void install.approve(install.review);
+                }}
+                onCancel={install.dismiss}
+              />
+            )}
+          </div>
+        )}
 
-          {commands.commands.length > 0 && (
-            <Section title={m['plugins.manage.detail.commands']()}>
-              <div className="flex flex-wrap gap-2">
-                {commands.commands.map((command) => (
-                  <Button
-                    key={command.command.id}
-                    variant="outline"
-                    size="sm"
-                    title={command.command.description || undefined}
-                    onClick={() => commands.run(command)}
-                  >
-                    {command.command.title || command.command.id}
-                  </Button>
-                ))}
+        <TabsContent value="details" className="p-5">
+          <div className="grid gap-6 lg:grid-cols-[1fr_260px]">
+            <div className="max-w-2xl space-y-6">
+              <p className="text-sm">
+                {description || m['plugins.manage.detail.no_description']()}
+              </p>
+              {commands.commands.length > 0 && (
+                <Section title={m['plugins.manage.detail.commands']()}>
+                  <div className="flex flex-wrap gap-2">
+                    {commands.commands.map((command) => (
+                      <Button
+                        key={command.command.id}
+                        variant="outline"
+                        size="sm"
+                        title={command.command.description || undefined}
+                        onClick={() => commands.run(command)}
+                      >
+                        {command.command.title || command.command.id}
+                      </Button>
+                    ))}
+                  </div>
+                </Section>
+              )}
+            </div>
+
+            <aside>
+              <div className="divide-y divide-border border border-border px-3">
+                <Stat label={m['plugins.manage.detail.id']()} value={id} />
+                <Stat label={m['app.label.version']()} value={version} />
+                {authors.length > 0 && (
+                  <Stat
+                    label={m['plugins.manage.detail.authors']()}
+                    value={authors.join(', ')}
+                  />
+                )}
+                <Stat
+                  label={m['plugins.manage.detail.source']()}
+                  value={SOURCE_LABEL[plugin.source]()}
+                />
+                {store && (
+                  <Stat
+                    label={m['settings.plugins.browse.repository']()}
+                    value={store.name || store.label}
+                  />
+                )}
+                {plugin.signer && (
+                  <Stat
+                    label={m['plugins.manage.detail.signer']()}
+                    value={plugin.signer}
+                  />
+                )}
+                {homepage && (
+                  <Stat
+                    label={m['plugins.manage.detail.homepage']()}
+                    value={
+                      <ExternalLink
+                        href={homepage}
+                        className="break-all hover:underline"
+                      >
+                        {homepage}
+                      </ExternalLink>
+                    }
+                  />
+                )}
               </div>
-            </Section>
-          )}
+            </aside>
+          </div>
+        </TabsContent>
 
-          <Section title={m['plugins.manage.detail.access']()}>
+        {configurable && (
+          <TabsContent value="settings" className="p-5">
+            <div className="max-w-3xl space-y-8">
+              <PluginSettings plugin={plugin} />
+              <PluginSettingsSections plugin={id} />
+            </div>
+          </TabsContent>
+        )}
+
+        <TabsContent value="access" className="p-5">
+          <div className="max-w-3xl">
             <GrantList
               sections={describeGrant(plugin.grant, plugin.unrestricted)}
             />
-          </Section>
-
-          <Section title={m['plugins.manage.detail.about']()}>
-            <div className="divide-y divide-border border border-border px-3">
-              <Stat label={m['plugins.manage.detail.id']()} value={id} />
-              {authors.length > 0 && (
-                <Stat
-                  label={m['plugins.manage.detail.authors']()}
-                  value={authors.join(', ')}
-                />
-              )}
-              <Stat
-                label={m['plugins.manage.detail.source']()}
-                value={SOURCE_LABEL[plugin.source]()}
-              />
-              {store && (
-                <Stat
-                  label={m['settings.plugins.browse.repository']()}
-                  value={store.name || store.label}
-                />
-              )}
-              {plugin.signer && (
-                <Stat
-                  label={m['plugins.manage.detail.signer']()}
-                  value={plugin.signer}
-                />
-              )}
-              {homepage && (
-                <Stat
-                  label={m['plugins.manage.detail.homepage']()}
-                  value={
-                    <ExternalLink href={homepage} className="hover:underline">
-                      {homepage}
-                    </ExternalLink>
-                  }
-                />
-              )}
-            </div>
-          </Section>
-        </div>
-      </div>
+          </div>
+        </TabsContent>
+      </Tabs>
       {commands.dialog}
     </div>
   );

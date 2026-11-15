@@ -1,7 +1,7 @@
 import { ShieldWarningIcon } from '@phosphor-icons/react';
 import { useQuery } from '@tanstack/react-query';
 
-import type { PluginInfo, PluginState } from '@/api';
+import type { PluginInfo, PluginSource, PluginState } from '@/api';
 import { Badge } from '@/components/ui/badge';
 import { m } from '@/paraglide/messages.js';
 import { pluginQueries } from '@/queries/plugin';
@@ -13,6 +13,24 @@ const STATE_LABEL: Record<PluginState, () => string> = {
   needs_approval: m['domain.plugin.state.needs_approval'],
   needs_update: m['domain.plugin.state.needs_update'],
 };
+
+export const SOURCE_LABEL: Record<PluginSource, () => string> = {
+  file: m['domain.plugin.source.file'],
+  folder: m['domain.plugin.source.folder'],
+  url: m['domain.plugin.source.url'],
+  repo: m['domain.plugin.source.repo'],
+  dev: m['domain.plugin.source.dev'],
+};
+
+/** Whether every word of `query` appears somewhere in `fields`. */
+export function matchesQuery(query: string, fields: string[]): boolean {
+  const haystack = fields.join(' ').toLowerCase();
+  return query
+    .toLowerCase()
+    .split(/\s+/)
+    .filter(Boolean)
+    .every((term) => haystack.includes(term));
+}
 
 /** A state the user has to act on before the plugin runs again. */
 export function needsAttention({ state }: PluginInfo): boolean {
