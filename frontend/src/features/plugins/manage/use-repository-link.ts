@@ -3,7 +3,7 @@
  *
  * `hestia://add-repo?url=` reaches the shell, which validates it as https and
  * forwards the index URL — at launch as a pending value, afterwards as an
- * event. The Repositories section answers it with its add confirmation;
+ * event. The Repositories tab of the Plugins page answers it with its add confirmation;
  * nothing is added until the user confirms there.
  */
 import { listen } from '@tauri-apps/api/event';
@@ -33,7 +33,7 @@ let started = false;
 
 /**
  * Start receiving repository links. Called once, at app bootstrap; `show`
- * brings up the page whose Repositories section answers them.
+ * brings up the tab that answers them.
  */
 export function watchRepositoryLinks(show: () => void): void {
   if (started) return;

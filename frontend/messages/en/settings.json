@@ -79,7 +79,6 @@
         "search": "Search plugins"
       },
       "continue": "Continue",
-      "details": "Details",
       "drop": "Drop to install",
       "incompatible_hint": "Needs plugin API {requires}.",
       "installable_hint": "{version} can be installed instead.",
@@ -149,7 +148,6 @@
       },
       "hint": "Plugins extend Hestia. A plugin only gets what you approve when you install it.",
       "install_file": "Install from file",
-      "install_link": "From link",
       "installed": "{name} installed",
       "link_hint": "An https link to a .hplugin file. Hestia downloads it once and shows what it asks for before installing anything.",
       "link_title": "Install from a link",
@@ -222,7 +220,6 @@
       "general": "General",
       "instances": "Instances",
       "java": "Java",
-      "plugins": "Plugins",
       "storage": "Storage"
     },
     "theme": {

@@ -24,11 +24,12 @@ import {
   settingProblem,
 } from '@/features/plugins/lib';
 import { usePluginText } from '@/features/plugins/text';
-import { pluginFieldId } from '@/features/settings/lib';
-import { useLinkedField } from '@/features/settings/use-linked-field';
 import { useSaveState } from '@/hooks/use-save-state';
 import { m } from '@/paraglide/messages.js';
 import { pluginMutations, pluginQueries } from '@/queries/plugin';
+
+import { pluginFieldId } from './location';
+import { useLinkedField } from './use-linked-field';
 
 /** The settings a plugin's manifest declares, one control per kind. */
 export function PluginSettings({ plugin }: { plugin: PluginInfo }) {
@@ -44,9 +45,6 @@ export function PluginSettings({ plugin }: { plugin: PluginInfo }) {
 
   return (
     <div className="space-y-1.5">
-      <div className="font-medium text-xs">
-        {m['settings.plugins.settings.title']()}
-      </div>
       {groupSettings(settings).map(([group, rows]) => (
         <div key={group} className="space-y-1.5">
           {group && (

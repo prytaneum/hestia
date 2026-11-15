@@ -15,13 +15,13 @@
       "version_mismatch": "Este app e o serviço em segundo plano estão em versões diferentes. Atualize o Hestia."
     },
     "hint": {
-      "content_source_unavailable": "Preencha a configuração do plugin em Configurações > Plugins.",
+      "content_source_unavailable": "Preencha a configuração do plugin na página Plugins.",
       "developer_mode_off": "Ative em Configurações > Geral > Avançado.",
       "multi_session_disabled": "Ative Permitir várias sessões ao mesmo tempo em Configurações > Instâncias.",
-      "no_content_source": "Instale uma em Configurações > Plugins.",
+      "no_content_source": "Instale uma na página Plugins.",
       "offline_mode": "Desative nas Configurações para voltar a ficar online.",
-      "provider_unknown": "Instale um plugin que o forneça em Configurações > Plugins.",
-      "repository_expired": "Atualize o repositório em Configurações > Plugins quando ele estiver acessível.",
+      "provider_unknown": "Instale um plugin que o forneça na página Plugins.",
+      "repository_expired": "Atualize o repositório na página Plugins quando ele estiver acessível.",
       "session_expired": "Use Entrar novamente no menu da conta.",
       "sign_in_required": "Use Entrar no menu da conta."
     },

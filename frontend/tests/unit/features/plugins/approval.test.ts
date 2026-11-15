@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Grant, PermissionScope, Program, ScopeKind } from '@/api/types';
-import { describeGrant } from '@/features/settings/lib';
+import { describeGrant } from '@/features/plugins/manage/approval';
 
 const ENTRY: Record<ScopeKind, string> = {
   hosts: 'api.example.com',

@@ -1,4 +1,4 @@
-import { LinkIcon } from '@phosphor-icons/react';
+import { FileArrowUpIcon, PlusIcon } from '@phosphor-icons/react';
 import { useMutation } from '@tanstack/react-query';
 import { useState } from 'react';
 
@@ -19,13 +19,13 @@ import {
   PopoverTitle,
   PopoverTrigger,
 } from '@/components/ui/popover';
-import { approvalDialog, describeApproval } from '@/features/settings/lib';
 import { notify } from '@/lib/notify';
 import { m } from '@/paraglide/messages.js';
 import { useJobMutation } from '@/queries/jobs';
 import { pluginMutations } from '@/queries/plugin';
 
-import { GrantList } from './plugin-grant';
+import { approvalDialog, describeApproval } from './approval';
+import { GrantList } from './grant';
 
 interface Candidate {
   source: PluginPackage;
@@ -52,6 +52,9 @@ function installTarget({
  * that grant's digest. A grant too long for the dialog is reviewed on the page
  * first (`review`). An update takes the same road to the `plugin.update` job,
  * and is applied without asking when it adds nothing to the approved grant.
+ *
+ * `start` and `update` resolve once the job has settled; the job store reports
+ * its outcome, so a failure is not rethrown here.
  */
 export function usePluginInstall() {
   const inspect = useMutation(pluginMutations.inspect());
@@ -71,17 +74,18 @@ export function usePluginInstall() {
         : m['app.action.install'](),
       cancelLabel: m['app.action.cancel'](),
     });
-    if (approved && candidate.updates)
-      update.mutate({
-        plugin: candidate.updates,
-        approve: inspection.grantDigest,
-      });
-    else if (approved)
-      install.mutate({
-        id: inspection.manifest.id,
-        approve: inspection.grantDigest,
-        ...installTarget(candidate),
-      });
+    if (!approved) return;
+    const job = candidate.updates
+      ? update.mutateAsync({
+          plugin: candidate.updates,
+          approve: inspection.grantDigest,
+        })
+      : install.mutateAsync({
+          id: inspection.manifest.id,
+          approve: inspection.grantDigest,
+          ...installTarget(candidate),
+        });
+    await job.catch(() => undefined);
   };
 
   const start = async (source: PluginPackage, dev = false) => {
@@ -95,7 +99,11 @@ export function usePluginInstall() {
     }
   };
 
-  const startUpdate = async (offer: OutdatedPlugin, link?: string) => {
+  /** False when the update now waits on the page's review instead of having run. */
+  const startUpdate = async (
+    offer: OutdatedPlugin,
+    link?: string,
+  ): Promise<boolean> => {
     try {
       const source: PluginPackage = offer.repository
         ? { repo: offer.repository, plugin: offer.id }
@@ -103,15 +111,18 @@ export function usePluginInstall() {
       const inspection = await inspect.mutateAsync(source);
       const candidate = { source, inspection, dev: false, updates: offer.id };
       if (describeApproval(inspection).length === 0)
-        update.mutate({
-          plugin: offer.id,
-          approve: inspection.grantDigest,
-        });
+        await update
+          .mutateAsync({ plugin: offer.id, approve: inspection.grantDigest })
+          .catch(() => undefined);
       else if (approvalDialog(inspection).complete) await approve(candidate);
-      else setReview(candidate);
+      else {
+        setReview(candidate);
+        return false;
+      }
     } catch (error) {
       notify.fail(error);
     }
+    return true;
   };
 
   const checkLink = async (plugin: PluginInfo) => {
@@ -144,31 +155,33 @@ export function usePluginInstall() {
   };
 }
 
-/** The link variant of install, tucked into a popover beside the file button. */
-export function InstallFromLink({
-  busy,
-  onSubmit,
-}: {
-  busy: boolean;
-  onSubmit: (url: string) => void;
-}) {
+export type PluginInstall = ReturnType<typeof usePluginInstall>;
+
+/** The page's one way in for a package that is not in a repository: a link or a file. */
+export function InstallMenu({ install }: { install: PluginInstall }) {
   const [open, setOpen] = useState(false);
   const [url, setUrl] = useState('');
   const link = url.trim();
+
+  const pickFile = async () => {
+    setOpen(false);
+    const [path] = await dialog.pickPluginPackage();
+    if (path) await install.start({ path });
+  };
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger
         render={
-          <Button variant="outline" size="sm" disabled={busy}>
-            <LinkIcon />
-            {m['settings.plugins.install_link']()}
+          <Button variant="outline" size="sm" disabled={install.busy}>
+            <PlusIcon />
+            {m['plugins.manage.install.open']()}
           </Button>
         }
       />
       <PopoverContent align="end" className="w-80">
         <PopoverHeader>
-          <PopoverTitle>{m['settings.plugins.link_title']()}</PopoverTitle>
+          <PopoverTitle>{m['plugins.manage.install.title']()}</PopoverTitle>
           <PopoverDescription>
             {m['settings.plugins.link_hint']()}
           </PopoverDescription>
@@ -180,7 +193,7 @@ export function InstallFromLink({
             if (!link) return;
             setOpen(false);
             setUrl('');
-            onSubmit(link);
+            void install.start({ url: link });
           }}
         >
           <Input
@@ -194,6 +207,10 @@ export function InstallFromLink({
             {m['app.action.install']()}
           </Button>
         </form>
+        <Button variant="outline" size="sm" onClick={() => void pickFile()}>
+          <FileArrowUpIcon />
+          {m['settings.plugins.install_file']()}
+        </Button>
       </PopoverContent>
     </Popover>
   );

@@ -1,6 +1,7 @@
-import type { DescribedSection, GrantScope } from '@/features/settings/lib';
 import { cn } from '@/lib/utils';
 import { m } from '@/paraglide/messages.js';
+
+import type { DescribedSection, GrantScope } from './approval';
 
 function ScopeList({ scopes }: { scopes: GrantScope[] }) {
   return scopes.map((scope) => (

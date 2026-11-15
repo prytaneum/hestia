@@ -1,7 +1,7 @@
 import { getRouteApi } from '@tanstack/react-router';
 import { useEffect } from 'react';
 
-const route = getRouteApi('/_app/settings/');
+const route = getRouteApi('/_app/plugins/$plugin/');
 
 /**
  * Brings the field a link named (`?field=<element id>`) into view and focuses

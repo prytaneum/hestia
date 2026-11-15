@@ -9,6 +9,31 @@
     "missing": "This plugin page is not available",
     "pick": "Choose one",
     "unknown_node": "This plugin uses an element this version does not support ({type}).",
-    "webview_title": "Content from {plugin}"
+    "webview_title": "Content from {plugin}",
+    "manage": {
+      "install": {
+        "open": "Install",
+        "title": "Install a plugin"
+      },
+      "empty_hint": "Browse the repositories you added, or install a .hplugin file or link.",
+      "browse": "Browse plugins",
+      "add_repository": "Add a repository",
+      "update_all": "Update all",
+      "group": {
+        "attention": "Needs attention",
+        "updates": "Updates available"
+      },
+      "detail": {
+        "missing": "This plugin is not installed.",
+        "commands": "Commands",
+        "access": "Access",
+        "about": "About",
+        "id": "ID",
+        "authors": "Authors",
+        "source": "Installed from",
+        "signer": "Signing key",
+        "homepage": "Website"
+      }
+    }
   }
 }

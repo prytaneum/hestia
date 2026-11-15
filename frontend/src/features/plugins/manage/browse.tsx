@@ -1,5 +1,6 @@
 import { ArrowClockwiseIcon, PuzzlePieceIcon } from '@phosphor-icons/react';
 import { useQuery } from '@tanstack/react-query';
+import { Link } from '@tanstack/react-router';
 import { useMemo, useState } from 'react';
 
 import {
@@ -8,6 +9,7 @@ import {
   errorHint,
   errorMessage,
 } from '@/api';
+import { Empty } from '@/components/empty';
 import { FilterMenu } from '@/components/filter-menu';
 import { SearchInput } from '@/components/search-input';
 import { Bone } from '@/components/skeleton';
@@ -18,7 +20,7 @@ import { WarningNotice } from '@/components/warning-notice';
 import { m } from '@/paraglide/messages.js';
 import { pluginQueries } from '@/queries/plugin';
 
-import { InstallReview, usePluginInstall } from './plugin-install';
+import type { PluginInstall } from './install';
 
 const ALL = 'all';
 
@@ -57,12 +59,17 @@ function matches(plugin: CataloguePlugin, query: string, repo: string) {
 
 /**
  * Everything the added repositories offer, one row per plugin and signing key.
- * A row carries the badge of every repository that lists it; installing goes
- * through the same inspect, native approval and install as any other package.
+ * A row names every repository that lists it; installing goes through the same
+ * inspect, native approval and install as any other package.
  */
-export function PluginBrowse() {
+export function PluginBrowse({
+  install,
+  onRepositories,
+}: {
+  install: PluginInstall;
+  onRepositories: () => void;
+}) {
   const catalogue = useQuery(pluginQueries.catalogue());
-  const install = usePluginInstall();
   const [query, setQuery] = useState('');
   const [repo, setRepo] = useState(ALL);
 
@@ -87,9 +94,16 @@ export function PluginBrowse() {
     );
   if (repositories.length === 0)
     return (
-      <p className="px-3 py-2 text-xs text-muted-foreground">
+      <Empty
+        icon={PuzzlePieceIcon}
+        action={
+          <Button variant="outline" size="sm" onClick={onRepositories}>
+            {m['plugins.manage.add_repository']()}
+          </Button>
+        }
+      >
         {m['settings.plugins.browse.none']()}
-      </p>
+      </Empty>
     );
 
   return (
@@ -133,16 +147,6 @@ export function PluginBrowse() {
 
       <WarningNotice warnings={catalogue.data?.warnings} />
 
-      {install.review && (
-        <InstallReview
-          inspection={install.review.inspection}
-          onContinue={() => {
-            if (install.review) void install.approve(install.review);
-          }}
-          onCancel={install.dismiss}
-        />
-      )}
-
       <div className="divide-y divide-border border border-border">
         {shown.length === 0 ? (
           <p className="px-3 py-2 text-xs text-muted-foreground">
@@ -182,25 +186,33 @@ function CatalogueRow({
     ? m['settings.plugins.update']()
     : m['app.action.install']();
 
+  const label = plugin.name || plugin.id;
+
   return (
-    <div className="flex items-center gap-3 px-3 py-2">
-      <Thumbnail src={plugin.icon ?? undefined} icon={PuzzlePieceIcon} />
+    <div className="flex items-center gap-3 px-3 py-2.5">
+      <Thumbnail
+        src={plugin.icon ?? undefined}
+        icon={PuzzlePieceIcon}
+        size="md"
+      />
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2 text-sm">
-          <span className="truncate">{plugin.name || plugin.id}</span>
-          {plugin.listedBy.map((lister) => (
-            <Badge key={lister.url} variant="outline" title={lister.name}>
-              {lister.label}
+          {plugin.installed ? (
+            <Link
+              to="/plugins/$plugin"
+              params={{ plugin: plugin.id }}
+              className="truncate hover:underline"
+            >
+              {label}
+            </Link>
+          ) : (
+            <span className="truncate">{label}</span>
+          )}
+          {plugin.availability !== 'prebuilt' && (
+            <Badge variant="secondary" title={availabilityHint(plugin)}>
+              {AVAILABILITY_LABEL[plugin.availability]()}
             </Badge>
-          ))}
-          <Badge
-            variant={
-              plugin.availability === 'prebuilt' ? 'outline' : 'secondary'
-            }
-            title={availabilityHint(plugin)}
-          >
-            {AVAILABILITY_LABEL[plugin.availability]()}
-          </Badge>
+          )}
           {plugin.installed && (
             <Badge variant="outline">
               {m['settings.plugins.installed_version']({
@@ -209,11 +221,16 @@ function CatalogueRow({
             </Badge>
           )}
         </div>
+        {plugin.description && (
+          <div className="truncate text-xs text-muted-foreground">
+            {plugin.description}
+          </div>
+        )}
         <div className="truncate font-mono text-[11px] text-muted-foreground">
           {[
             plugin.version,
+            plugin.listedBy.map((lister) => lister.label).join(', '),
             m['settings.plugins.key_id']({ key: plugin.keyId }),
-            plugin.description,
           ]
             .filter(Boolean)
             .join(' · ')}
