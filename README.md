@@ -182,8 +182,7 @@ Your data lives in `~/.hestia` (`%APPDATA%\Hestia` on Windows), overridable with
 |----------------------------------------------|------------------------------------------------------------------------------------|
 | [docs/cli.md](docs/cli.md)                   | every `hestia` command                                                             |
 | [docs/plugins/](docs/plugins/README.md)      | writing, packaging and publishing a plugin                                         |
-| [docs/architecture.md](docs/architecture.md) | how it's put together — the daemon boundary, the crate graph, a page per subsystem |
-| [docs/decisions/](docs/decisions/README.md)  | why it's put together that way                                                     |
+| [docs/architecture.md](docs/architecture.md) | how it's put together and why, a page per subsystem                                |
 | [docs/contributing.md](docs/contributing.md) | conventions and copy-and-adapt recipes                                             |
 | [docs/packaging.md](docs/packaging.md)       | installers and release artifacts                                                   |
 
