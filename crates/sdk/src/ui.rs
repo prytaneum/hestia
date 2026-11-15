@@ -22,7 +22,9 @@
 //! ]);
 //! ```
 
-use proto::ui::{Badge, Direction, ImageShape, Pair, SelectOption, Submit, Tab, TableRow, Variant};
+use proto::ui::{
+    Badge, Direction, ImageShape, ItemImage, Pair, SelectOption, Submit, Tab, TableRow, Variant,
+};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -439,6 +441,7 @@ impl From<Section> for UiNode {
 ///     .confirm("Remove voice?");
 /// let item: ui::ListItem = ui::Item::new("voice")
 ///     .subtitle("UDP · local 24454")
+///     .avatar("https://example.com/voice.png")
 ///     .badge(ui::Tone::Success, "Online")
 ///     .action(ui::copy("abc.gl.joinmc.link:12345"))
 ///     .action(remove)
@@ -463,6 +466,24 @@ impl Item {
     /// A name from the app's icon set.
     pub fn icon(mut self, icon: impl Into<String>) -> Self {
         self.0.icon = Some(icon.into());
+        self
+    }
+
+    /// A remote picture before the title; the same fetch rules as [`remote_image`].
+    pub fn image(self, url: impl Into<String>) -> Self {
+        self.picture(url, ImageShape::Natural)
+    }
+
+    /// A small round picture, like a player head.
+    pub fn avatar(self, url: impl Into<String>) -> Self {
+        self.picture(url, ImageShape::Avatar)
+    }
+
+    fn picture(mut self, url: impl Into<String>, shape: ImageShape) -> Self {
+        self.0.image = Some(ItemImage {
+            url: url.into(),
+            shape,
+        });
         self
     }
 

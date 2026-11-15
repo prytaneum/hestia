@@ -58,6 +58,7 @@
           "title": "Nightly",
           "subtitle": "03:00",
           "icon": "clock",
+          "image": { "url": "https://example.com/a.png", "shape": "avatar" },
           "badges": [{ "text": "Online", "tone": "success" }],
           "actions": [
             {

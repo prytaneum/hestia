@@ -126,9 +126,23 @@ pub struct ListItem {
     /// A name from the app's icon set.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub icon: Option<String>,
+    /// A remote picture drawn before the title; it takes the place of `icon`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub image: Option<ItemImage>,
     pub badges: Vec<Badge>,
     /// Buttons and copy values shown at the item's end.
     pub actions: Vec<UiNode>,
+}
+
+/// A picture on a [`ListItem`], fetched like [`UiNode::RemoteImage`].
+#[derive(Serialize, Deserialize, Default, Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
+#[serde(rename_all = "camelCase")]
+pub struct ItemImage {
+    /// An `https` URL.
+    pub url: String,
+    #[serde(default)]
+    pub shape: ImageShape,
 }
 
 #[derive(Serialize, Deserialize, Default, Debug, Clone, PartialEq)]
@@ -363,6 +377,16 @@ pub enum UiError {
     CopyText,
 }
 
+fn check_image_url(url: &str) -> Result<(), UiError> {
+    let https = url
+        .get(..8)
+        .is_some_and(|scheme| scheme.eq_ignore_ascii_case("https://"));
+    if !https || url.len() > MAX_IMAGE_URL || url.len() == 8 {
+        return Err(UiError::ImageUrl(url.to_owned()));
+    }
+    Ok(())
+}
+
 impl UiNode {
     /// Checks every node of the tree; a plugin's output is untrusted.
     pub fn validate(&self) -> Result<(), UiError> {
@@ -375,19 +399,13 @@ impl UiNode {
                 .chain(children)
                 .try_for_each(UiNode::validate),
             UiNode::Copy { text, .. } if text.is_empty() => Err(UiError::CopyText),
-            UiNode::List { items, .. } => items
-                .iter()
-                .flat_map(|item| &item.actions)
-                .try_for_each(UiNode::validate),
-            UiNode::RemoteImage { url, .. } => {
-                let https = url
-                    .get(..8)
-                    .is_some_and(|scheme| scheme.eq_ignore_ascii_case("https://"));
-                if !https || url.len() > MAX_IMAGE_URL || url.len() == 8 {
-                    return Err(UiError::ImageUrl(url.clone()));
+            UiNode::List { items, .. } => items.iter().try_for_each(|item| {
+                if let Some(image) = &item.image {
+                    check_image_url(&image.url)?;
                 }
-                Ok(())
-            }
+                item.actions.iter().try_for_each(UiNode::validate)
+            }),
+            UiNode::RemoteImage { url, .. } => check_image_url(url),
             UiNode::Tabs { tabs } => {
                 let mut seen = std::collections::HashSet::new();
                 let distinct = tabs
@@ -536,6 +554,16 @@ mod tests {
             section(vec![], vec![remote.clone()]),
             section(vec![bad()], vec![]),
             section(vec![remote], vec![]),
+            UiNode::List {
+                items: vec![ListItem {
+                    image: Some(ItemImage {
+                        url: "http://example.com/a.png".into(),
+                        shape: ImageShape::Avatar,
+                    }),
+                    ..ListItem::default()
+                }],
+                empty: None,
+            },
             section(
                 vec![],
                 vec![UiNode::Copy {

@@ -6,6 +6,7 @@ export type { Effect } from "./generated/Effect";
 export type { FormField } from "./generated/FormField";
 export type { ImageShape } from "./generated/ImageShape";
 export type { Input } from "./generated/Input";
+export type { ItemImage } from "./generated/ItemImage";
 export type { ListItem } from "./generated/ListItem";
 export type { Pair } from "./generated/Pair";
 export type { SelectOption } from "./generated/SelectOption";

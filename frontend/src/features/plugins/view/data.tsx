@@ -9,7 +9,7 @@ import { m } from '@/paraglide/messages.js';
 import { PluginIcon } from '../icon';
 import { useView } from './context';
 import { keyed } from './keys';
-import { PluginBadge } from './layout';
+import { PluginBadge, RemoteImage } from './layout';
 import { UiView } from './render';
 
 type Node<T extends UiNode['type']> = Extract<UiNode, { type: T }>;
@@ -94,12 +94,20 @@ export function List({ items, empty }: Node<'list'>) {
       {items.length === 0 && empty && <EmptyText text={empty} />}
       {keyed(items).map(({ key, item }) => (
         <div key={key} className="flex min-h-11 items-center gap-3 px-3 py-2">
-          {item.icon && (
-            <PluginIcon
-              plugin={plugin}
-              icon={item.icon}
-              className="size-4 shrink-0 text-muted-foreground"
+          {item.image ? (
+            <RemoteImage
+              url={item.image.url}
+              alt={item.title}
+              shape={item.image.shape}
             />
+          ) : (
+            item.icon && (
+              <PluginIcon
+                plugin={plugin}
+                icon={item.icon}
+                className="size-4 shrink-0 text-muted-foreground"
+              />
+            )
           )}
           <div className="min-w-0 flex-1">
             <div className="flex min-w-0 items-center gap-2">
