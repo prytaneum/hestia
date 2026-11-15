@@ -173,16 +173,26 @@ async fn execute(
     if json {
         ui::json::enable();
     }
-    let spinner = Arc::new(Spinner::start(format!("running {plugin} {}", command.id)));
+    start(client, plugin, &command.id, entry, Value::Object(args)).await
+}
+
+pub async fn start(
+    client: &Client,
+    plugin: &str,
+    command: &str,
+    entry: Option<&str>,
+    args: Value,
+) -> Result<()> {
+    let spinner = Arc::new(Spinner::start(format!("running {plugin} {command}")));
     let reporter = spinner.clone();
     let done = client
         .plugin()
         .run(
             PluginRunParams {
                 plugin: plugin.to_string(),
-                command: command.id.clone(),
+                command: command.to_string(),
                 entry: entry.map(str::to_string),
-                args: Value::Object(args),
+                args,
                 ..PluginRunParams::default()
             },
             move |progress| {

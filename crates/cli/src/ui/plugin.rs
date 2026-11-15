@@ -36,9 +36,13 @@ fn push_views(node: &UiNode, out: &mut Vec<View>) {
         UiNode::Stack { children, .. } => children.iter().for_each(|c| push_views(c, out)),
         UiNode::Heading { text, .. } => out.push(View::line(text)),
         UiNode::Section {
-            title, children, ..
+            title,
+            description,
+            children,
+            ..
         } => {
             out.push(View::line(title));
+            out.extend(description.iter().map(View::note));
             children.iter().for_each(|c| push_views(c, out));
         }
         UiNode::Copy { text, label } => out.push(View::line(match label {
@@ -66,24 +70,40 @@ fn push_views(node: &UiNode, out: &mut Vec<View>) {
             }
         }
         UiNode::Webview { .. } => out.push(View::note("[web content: open in the desktop app]")),
-        UiNode::Table { columns, rows, .. } => out.push(View::table(
-            "",
+        UiNode::Table {
             columns,
-            rows.iter().map(|row| row.cells.clone()).collect(),
-        )),
-        UiNode::List { items, .. } => out.push(View::table(
-            "",
-            ["ITEM", "DETAILS"],
-            items
-                .iter()
-                .map(|item| {
-                    vec![
-                        item.title.clone(),
-                        item.subtitle.clone().unwrap_or_default(),
-                    ]
-                })
-                .collect(),
-        )),
+            rows,
+            empty,
+            ..
+        } => match empty {
+            Some(note) if rows.is_empty() => out.push(View::note(note)),
+            _ => out.push(View::table(
+                "",
+                columns,
+                rows.iter().map(|row| row.cells.clone()).collect(),
+            )),
+        },
+        UiNode::List { items, empty } => match empty {
+            Some(note) if items.is_empty() => out.push(View::note(note)),
+            _ => out.push(View::table(
+                "",
+                ["ITEM", "DETAILS"],
+                items
+                    .iter()
+                    .map(|item| {
+                        let badges: String = item
+                            .badges
+                            .iter()
+                            .map(|badge| format!(" [{}]", badge.text))
+                            .collect();
+                        vec![
+                            format!("{}{badges}", item.title),
+                            item.subtitle.clone().unwrap_or_default(),
+                        ]
+                    })
+                    .collect(),
+            )),
+        },
         UiNode::Detail { pairs } => out.push(View::detail(
             pairs.iter().map(|p| (p.label.clone(), p.value.clone())),
         )),
@@ -185,7 +205,7 @@ fn push_item_choices(item: &ListItem, out: &mut Vec<Choice>) {
 #[cfg(test)]
 mod tests {
     use client::proto::error::EntryKind;
-    use client::proto::ui::{Direction, Pair, SelectOption, Submit, TableRow, Variant};
+    use client::proto::ui::{Badge, Direction, Pair, SelectOption, Submit, TableRow, Variant};
     use serde_json::json;
 
     use super::*;
@@ -233,6 +253,14 @@ mod tests {
 
     #[test]
     fn tables_lists_and_details_map_to_their_views() {
+        let empty_table = UiNode::Table {
+            filter: false,
+            columns: vec!["A".into()],
+            rows: vec![],
+            row_action: None,
+            empty: Some("nothing here".into()),
+        };
+        assert!(matches!(&views(&empty_table)[..], [View::Note(t)] if t == "nothing here"));
         let table = UiNode::Table {
             filter: false,
             columns: vec!["A".into()],
@@ -251,13 +279,22 @@ mod tests {
             items: vec![ListItem {
                 title: "t".into(),
                 subtitle: Some("s".into()),
+                badges: vec![Badge {
+                    text: "new".into(),
+                    tone: Tone::Info,
+                }],
                 actions: vec![button("Go", "go")],
                 ..ListItem::default()
             }],
             empty: None,
         };
         assert!(matches!(&views(&list)[0], View::Table { rows, .. }
-            if rows == &[vec![Cell::from("t"), Cell::from("s")]]));
+            if rows == &[vec![Cell::from("t [new]"), Cell::from("s")]]));
+        let empty_list = UiNode::List {
+            items: vec![],
+            empty: Some("no items".into()),
+        };
+        assert!(matches!(&views(&empty_list)[..], [View::Note(t)] if t == "no items"));
         let detail = UiNode::Detail {
             pairs: vec![Pair {
                 label: "k".into(),
@@ -290,6 +327,24 @@ mod tests {
         };
         assert!(matches!(&views(&info)[0], View::Note(t) if t == "fyi"));
         assert!(matches!(&views(&button("Go", "go"))[0], View::Note(t) if t == "[ Go ]"));
+    }
+
+    #[test]
+    fn a_section_shows_title_description_and_children_and_a_copy_its_value() {
+        let section = UiNode::Section {
+            title: "Address".into(),
+            description: Some("share it".into()),
+            actions: vec![button("Rotate", "rotate")],
+            children: vec![UiNode::Copy {
+                text: "a.b:1".into(),
+                label: Some("Join".into()),
+            }],
+        };
+        let shown = views(&section);
+        assert!(matches!(&shown[0], View::Line(t) if t == "Address"));
+        assert!(matches!(&shown[1], View::Note(t) if t == "share it"));
+        assert!(matches!(&shown[2], View::Line(t) if t == "Join: a.b:1"));
+        assert_eq!(choices(&section)[0].action.id, "rotate");
     }
 
     #[test]

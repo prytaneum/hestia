@@ -117,9 +117,14 @@ pub async fn open(client: &Client, plugin: &PluginInfo, page: &str, argv: &[Stri
                     Tone::Warning | Tone::Error => View::warning(text),
                     _ => View::note(text),
                 })?,
-                Effect::Run { command, .. } => ui::show(View::note(format!(
-                    "asks to run '{command}', which this terminal page cannot start yet"
-                )))?,
+                Effect::Run { command, args } => {
+                    let entry = session.context.entry.as_deref();
+                    if let Err(error) = super::run::start(client, id, &command, entry, args).await {
+                        ui::show(View::warning(format!("{command} failed: {error}")))?;
+                    }
+                    tree = session.render(&page).await?;
+                    redraw = true;
+                }
                 Effect::Navigate { page: target } => {
                     if !is_page(plugin, &target) {
                         ui::show(View::note(format!(
@@ -221,12 +226,22 @@ fn default(field: &FormField) -> Option<Value> {
 fn coerce(field: &FormField, raw: &str) -> Result<Value> {
     let name = &field.name;
     match &field.input {
-        Input::Number { .. } => raw
-            .parse::<f64>()
-            .ok()
-            .and_then(Number::from_f64)
-            .map(Value::Number)
-            .ok_or_else(|| anyhow!("{name} takes a number, not '{raw}'")),
+        Input::Number { min, max, .. } => {
+            let number = raw
+                .parse::<f64>()
+                .ok()
+                .filter(|n| n.is_finite())
+                .ok_or_else(|| anyhow!("{name} takes a number, not '{raw}'"))?;
+            if min.is_some_and(|m| number < m) || max.is_some_and(|m| number > m) {
+                let bound = |b: &Option<f64>| b.map_or("any".to_string(), |b| b.to_string());
+                bail!(
+                    "{name} must be between {} and {}, not {raw}",
+                    bound(min),
+                    bound(max)
+                );
+            }
+            Ok(Value::from(number))
+        }
         Input::Toggle { .. } => raw
             .parse()
             .map(Value::Bool)
@@ -266,9 +281,25 @@ async fn prompted_values(client: &Client, fields: &[FormField]) -> Result<Value>
     let mut values = Map::new();
     for field in fields {
         let label = &field.label;
+        if let Some(help) = &field.help {
+            ui::show(View::note(help))?;
+        }
         let value = match &field.input {
-            Input::Text { value, .. } => Value::from(ui::input(label, value)?),
-            Input::Number { value, .. } => coerce(field, &ui::input(label, &value.to_string())?)?,
+            Input::Text {
+                value, placeholder, ..
+            } => {
+                let hinted = match placeholder {
+                    Some(hint) if value.is_empty() => format!("{label} ({hint})"),
+                    _ => label.clone(),
+                };
+                Value::from(ui::input(&hinted, value)?)
+            }
+            Input::Number { value, .. } => loop {
+                match coerce(field, &ui::input(label, &value.to_string())?) {
+                    Ok(number) => break number,
+                    Err(error) => ui::show(View::warning(error.to_string()))?,
+                }
+            },
             Input::Toggle { value } => {
                 let items = if *value { ["yes", "no"] } else { ["no", "yes"] }.map(String::from);
                 Value::Bool(items[ui::select(label, &items)?] == "yes")
@@ -363,6 +394,18 @@ mod tests {
         };
         assert_eq!(coerce(&number, "2.5").unwrap(), serde_json::json!(2.5));
         assert!(coerce(&number, "x").is_err());
+        let bounded = FormField {
+            input: Input::Number {
+                value: 1.0,
+                min: Some(1.0),
+                max: Some(4.0),
+                step: None,
+            },
+            ..number
+        };
+        assert!(coerce(&bounded, "4").is_ok());
+        assert!(coerce(&bounded, "0.5").is_err());
+        assert!(coerce(&bounded, "5").is_err());
         let toggle = FormField {
             name: "t".into(),
             label: String::new(),
