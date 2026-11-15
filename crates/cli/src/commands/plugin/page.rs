@@ -13,6 +13,7 @@ use client::Client;
 use serde_json::{Map, Number, Value};
 use tracing::debug;
 
+use crate::commands::mc;
 use crate::ui::plugin::{choices, views, Choice};
 use crate::ui::{self, View};
 
@@ -312,10 +313,7 @@ async fn entries(client: &Client, kind: EntryKind) -> Result<Vec<(String, String
 }
 
 async fn entry_id(client: &Client, kind: EntryKind, given: &str) -> Result<String> {
-    entries(client, kind)
-        .await?
-        .into_iter()
-        .find(|(id, name)| id == given || name == given)
+    mc::find_by_reference(entries(client, kind).await?, given, |(id, name)| (id, name))
         .map(|(id, _)| id)
         .ok_or_else(|| anyhow!("no {kind} '{given}'"))
 }
