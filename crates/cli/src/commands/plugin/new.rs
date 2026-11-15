@@ -15,8 +15,8 @@ const LIB: &str = include_str!("templates/lib.rs.tmpl");
 /// The Hestia a new repository builds against: its SDK, its CLI and the shared
 /// workflows. `cargo` reads the full ref, `uses:` the bare one; both move to the
 /// release tag when the plugin system ships.
-const HESTIA_REV: &str = "refs/heads/feature/plugins";
-const WORKFLOW_REF: &str = "feature/plugins";
+const HESTIA_REV: &str = "refs/heads/develop";
+const WORKFLOW_REF: &str = "develop";
 const WORKFLOWS: [(&str, &str); 2] = [
     ("ci.yml", include_str!("templates/ci.yml.tmpl")),
     ("publish.yml", include_str!("templates/publish.yml.tmpl")),
