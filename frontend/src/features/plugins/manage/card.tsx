@@ -1,14 +1,12 @@
 import { DownloadSimpleIcon, PuzzlePieceIcon } from '@phosphor-icons/react';
 import { useMutation } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
-import type { ReactNode } from 'react';
 
 import type { CataloguePlugin, OutdatedPlugin, PluginInfo } from '@/api';
+import { ListingCard } from '@/components/listing-card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
-import { Thumbnail } from '@/components/ui/thumbnail';
 import { m } from '@/paraglide/messages.js';
 import { pluginMutations } from '@/queries/plugin';
 
@@ -21,78 +19,6 @@ import {
 } from './state';
 
 export const PLUGIN_GRID = 'grid grid-cols-1 gap-3 xl:grid-cols-2';
-
-/**
- * The card both lists share, shaped like a content card: icon, name and
- * byline, a description, then a meta line that ends in the card's one action.
- * A problem takes the description's line, so every card is the same height.
- */
-function Shell({
-  icon,
-  name,
-  byline,
-  badges,
-  description,
-  problem,
-  meta,
-  action,
-}: {
-  icon?: string;
-  name: string;
-  byline?: string;
-  badges?: ReactNode;
-  description?: string;
-  problem?: string;
-  meta: ReactNode;
-  action: ReactNode;
-}) {
-  return (
-    <Card
-      size="sm"
-      className="h-full transition-colors group-hover:bg-muted/40"
-    >
-      <div className="flex gap-3 px-3">
-        <Thumbnail
-          src={icon}
-          icon={PuzzlePieceIcon}
-          size="2xl"
-          className="aspect-square size-auto self-stretch"
-        />
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <span className="truncate text-sm font-medium">{name}</span>
-            {byline && (
-              <span className="shrink-0 text-[11px] text-muted-foreground">
-                {m['content.browse.by_author']({ name: byline })}
-              </span>
-            )}
-            <span className="ml-auto flex shrink-0 items-center gap-1.5">
-              {badges}
-            </span>
-          </div>
-          {problem ? (
-            <p
-              className="mt-1 truncate text-xs text-destructive"
-              title={problem}
-            >
-              {problem}
-            </p>
-          ) : (
-            <p className="mt-1 truncate text-xs text-muted-foreground">
-              {description || '\u00a0'}
-            </p>
-          )}
-          <div className="mt-2 flex min-h-6 items-center gap-3 text-[11px] text-muted-foreground">
-            {meta}
-            <span className="ml-auto flex shrink-0 items-center gap-2">
-              {action}
-            </span>
-          </div>
-        </div>
-      </div>
-    </Card>
-  );
-}
 
 /** An installed plugin; the card opens its page. */
 export function InstalledCard({
@@ -118,10 +44,11 @@ export function InstalledCard({
       params={{ plugin: id }}
       className="group block outline-none focus-visible:ring-1 focus-visible:ring-ring"
     >
-      <Shell
-        icon={icon}
-        name={name || id}
-        byline={authors.join(', ') || undefined}
+      <ListingCard
+        icon={PuzzlePieceIcon}
+        image={icon}
+        title={name || id}
+        author={authors.join(', ') || undefined}
         badges={
           <>
             <FullAccessBadge plugin={plugin} />
@@ -224,10 +151,11 @@ export function CatalogueCard({
 }) {
   const current = plugin.installed === plugin.build;
   const card = (
-    <Shell
-      icon={plugin.icon ?? undefined}
-      name={plugin.name || plugin.id}
-      byline={plugin.listedBy.map((lister) => lister.name).join(', ')}
+    <ListingCard
+      icon={PuzzlePieceIcon}
+      image={plugin.icon ?? undefined}
+      title={plugin.name || plugin.id}
+      author={plugin.listedBy.map((lister) => lister.name).join(', ')}
       badges={
         <>
           {plugin.availability !== 'prebuilt' && (
