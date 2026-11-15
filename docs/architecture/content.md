@@ -37,7 +37,7 @@ With no source registered every content channel still answers: `content.sources`
 is empty, and a search, lookup or install that names no source fails
 `NoContentSource` (one that names an id nobody registered fails
 `ContentSourceUnknown`). The CLI says no source is installed and the desktop's
-browse page shows an empty state pointing at Settings > Plugins.
+browse page shows an empty state pointing at the Plugins page.
 
 A plugin adds a source with `contributes.providers = [{ kind = "content", id }]`
 and answers the operations of `proto::provider::content` through `provider.invoke`
