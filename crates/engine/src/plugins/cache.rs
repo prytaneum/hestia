@@ -23,9 +23,9 @@ impl Hasher for StableHasher {
 }
 
 /// Compiled components under `meta/plugins/`, regenerable like the rest of
-/// `meta/` ([0054](../../../../docs/decisions/0054-meta-root-for-materialised-files.md)).
+/// `meta/`.
 /// The artifact's own sha256 guards against corruption only; a local writer of
-/// the data home is out of scope ([0091](../../../../docs/decisions/0091-plugins-are-wasm-components.md)).
+/// the data home is out of scope.
 pub(super) struct ComponentCache {
     dir: PathBuf,
     stamp: String,

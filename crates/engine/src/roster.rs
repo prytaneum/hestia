@@ -1,8 +1,7 @@
 //! The runtime-mutable provider list shared by the content, Minecraft, Java and
 //! pack aggregates. Every provider has an owner: the built-ins are `builtin`
 //! and are never removed, a plugin's are registered as `<plugin-id>.<id>` and
-//! leave with it
-//! ([0133](../../../docs/decisions/0133-a-provider-has-one-id.md)).
+//! leave with it.
 //!
 //! A caller may name a provider by its full id or by a bare name, and
 //! [`Roster::resolve`] is the one place a bare name becomes a provider.

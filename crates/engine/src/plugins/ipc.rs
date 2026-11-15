@@ -1,8 +1,7 @@
 //! What a plugin's `ipc` import does: connect to the local endpoints its grant
 //! names and keep those connections open across calls, which each run on a
 //! fresh instance. A general capability, not a service: the plugin speaks the
-//! peer's protocol itself
-//! ([0106](../../../../docs/decisions/0106-the-plugin-api-is-mechanisms-not-features.md)).
+//! peer's protocol itself.
 
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};

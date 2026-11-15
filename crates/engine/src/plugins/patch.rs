@@ -1,7 +1,6 @@
 //! What a hook may add to a launch. An allowlist, not a denylist: anything not
 //! named here is dropped with a warning, so a new JVM option is refused until
-//! someone decides it is safe. Hooks are customisation, never a control
-//! ([0095](../../../../docs/decisions/0095-interceptors-are-bounded-and-fail-open.md)),
+//! someone decides it is safe. Hooks are customisation, never a control,
 //! but a plugin that may only tune the heap must not be able to load code.
 
 use std::collections::BTreeSet;

@@ -1,9 +1,7 @@
 //! How a declared program becomes a path the host will execute: a `PATH` name
 //! pinned (path and content hash) when the grant is approved, a managed Java of
 //! a major the call picks, or a data-directory file copied into a host-owned
-//! directory and verified there
-//! ([0101](../../../../docs/decisions/0101-plugins-spawn-only-declared-programs.md),
-//! [0120](../../../../docs/decisions/0120-a-programs-identity-is-separate-from-its-invocations.md)).
+//! directory and verified there.
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};

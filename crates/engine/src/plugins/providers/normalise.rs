@@ -1,8 +1,7 @@
 //! Turns what a flavor's guest declared it adds into the plain libraries and
 //! arguments the rest of the engine knows: a Maven library gets its path, URL
 //! and checksum, and whatever the rules disallow on this machine is dropped.
-//! It runs before vetting, so nothing downstream ever sees an unresolved form
-//! ([0119](../../../../../docs/decisions/0119-downloads-are-host-side.md)).
+//! It runs before vetting, so nothing downstream ever sees an unresolved form.
 
 use std::collections::{HashMap, HashSet};
 

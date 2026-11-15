@@ -1,6 +1,6 @@
 //! Staging the official plugins an app update that changes the plugin API
 //! needs, so the daemon that exposes the new API installs them before it loads
-//! any plugin ([0112](../../../../../docs/decisions/0112-the-app-and-official-plugins-update-together.md)).
+//! any plugin.
 
 use std::path::{Path, PathBuf};
 

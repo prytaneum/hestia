@@ -2,11 +2,9 @@
 //! point a chance to adjust or refuse it. A point is data, like a [`Contract`](crate::Contract):
 //! its name, the permissions it needs, what the plugin is shown and what it may
 //! answer. The ABI carries any point through one `hooks.intercept` export, so
-//! adding a point never changes the WIT
-//! ([0106](../../../docs/decisions/0106-the-plugin-api-is-mechanisms-not-features.md)).
+//! adding a point never changes the WIT.
 //!
-//! A hook is customisation that fails open, never a control
-//! ([0095](../../../docs/decisions/0095-interceptors-are-bounded-and-fail-open.md)).
+//! A hook is customisation that fails open, never a control.
 
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};

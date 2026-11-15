@@ -1,6 +1,5 @@
 //! Interceptors: a plugin's chance to adjust or refuse an operation just before
-//! it happens. Bounded and fail-open
-//! ([0095](../../../../docs/decisions/0095-interceptors-are-bounded-and-fail-open.md)):
+//! it happens. Bounded and fail-open:
 //! a plugin that times out, traps or cannot run is skipped with a warning, and
 //! only an explicit veto stops the operation.
 

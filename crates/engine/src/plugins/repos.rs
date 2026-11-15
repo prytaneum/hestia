@@ -1,6 +1,5 @@
 //! Trust in a plugin repository follows its minisign key, never its URL, host
-//! or name ([0097](../../../../docs/decisions/0097-trust-follows-the-repository-key.md),
-//! [0111](../../../../docs/decisions/0111-a-repository-publishes-to-its-own-branch.md)).
+//! or name.
 //! These checks are pure: the caller fetches the bytes and holds the pinned keys.
 
 use proto::error::ErrorInfo;

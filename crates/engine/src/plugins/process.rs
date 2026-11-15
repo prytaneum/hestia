@@ -1,6 +1,5 @@
 //! What a plugin's `process` import does: run the programs its grant declares
-//! and supervise the ones it starts
-//! ([0101](../../../../docs/decisions/0101-plugins-spawn-only-declared-programs.md)).
+//! and supervise the ones it starts.
 //! Program ids, never paths, cross the boundary, and argument lists and
 //! environment names are checked against the grant on every call. Arguments
 //! and values may carry credentials, so only program ids and statuses are logged.

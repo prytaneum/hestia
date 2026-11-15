@@ -11,8 +11,7 @@
 //! operation pairs its name with typed arguments and reply, like a
 //! [`Contract`](crate::Contract) in the other direction. The ABI carries every
 //! operation of every kind through one `provider.invoke` export, so adding a
-//! kind or an operation never changes the WIT
-//! ([0106](../../../docs/decisions/0106-the-plugin-api-is-mechanisms-not-features.md)).
+//! kind or an operation never changes the WIT.
 
 pub mod content;
 pub mod flavor;

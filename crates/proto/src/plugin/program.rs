@@ -1,6 +1,5 @@
 //! A program a plugin may run: what runs (its identity) and how it may be
-//! invoked, kept apart so one program can serve several invocations
-//! ([0120](../../../../docs/decisions/0120-a-programs-identity-is-separate-from-its-invocations.md)).
+//! invoked, kept apart so one program can serve several invocations.
 
 use std::collections::{BTreeMap, BTreeSet};
 

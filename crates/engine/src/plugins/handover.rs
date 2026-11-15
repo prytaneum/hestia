@@ -1,7 +1,6 @@
 //! Which official plugins an app update that changes the plugin API must carry
 //! over, and the build to carry for each. Pure, like the update check: the
-//! caller supplies the indexes and what is installed
-//! ([0112](../../../../docs/decisions/0112-the-app-and-official-plugins-update-together.md)).
+//! caller supplies the indexes and what is installed.
 
 use proto::plugin::{api_supported_by, compare_versions, PluginSource};
 use proto::repository::Build;

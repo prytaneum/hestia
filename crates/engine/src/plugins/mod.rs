@@ -1,7 +1,7 @@
 //! Installed plugins: one directory each under `<data_home>/plugins/`, holding
 //! the extracted `package/`, the plugin's private `data/` and its `plugin.json`
 //! record. The directory scan is the registry. The [`PluginRuntime`] runs an enabled
-//! plugin's component sandboxed ([0091](../../../../docs/decisions/0091-plugins-are-wasm-components.md)).
+//! plugin's component sandboxed.
 
 mod asset;
 mod bundled;

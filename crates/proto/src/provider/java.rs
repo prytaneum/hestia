@@ -1,7 +1,7 @@
 //! The `java` provider kind: a Java distribution. A runtime is native code the
 //! launcher executes, so the guest only names a build: the host downloads it,
 //! only from the plugin's network hosts and only against a sha256, and extracts
-//! it itself ([0105](../../../../docs/decisions/0105-a-java-provider-only-resolves.md)).
+//! it itself.
 
 use serde::{Deserialize, Serialize};
 

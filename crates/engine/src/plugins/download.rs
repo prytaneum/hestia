@@ -1,6 +1,5 @@
 //! What a plugin's `download` import does: the engine fetches a file to a path
-//! the call may write, so the plugin never holds the body
-//! ([0119](../../../../docs/decisions/0119-downloads-are-host-side.md)). The
+//! the call may write, so the plugin never holds the body. The
 //! transfer is the engine's own: the guarded [`Policy`] holds every redirect
 //! hop to the grant, a checksum is verified before the file appears, the cache
 //! serves a repeat, and progress reaches the call that asked.

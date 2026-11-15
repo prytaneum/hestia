@@ -1,7 +1,6 @@
 //! Plugin repositories as users see them: the stores they add, and the one
 //! catalogue of what those stores offer. The index a repository publishes is
-//! [`crate::repository`]; trust follows its key
-//! ([0097](../../docs/decisions/0097-trust-follows-the-repository-key.md)).
+//! [`crate::repository`]; trust follows its key.
 
 use std::time::Duration;
 

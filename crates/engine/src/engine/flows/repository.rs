@@ -1,6 +1,6 @@
 //! Plugin repositories: adding one, keeping its index fresh, merging every
 //! index into one catalogue and staging a build for install. Trust follows the
-//! key pinned at add time ([0097](../../../../../docs/decisions/0097-trust-follows-the-repository-key.md)).
+//! key pinned at add time.
 
 use std::collections::BTreeSet;
 

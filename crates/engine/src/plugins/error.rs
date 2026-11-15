@@ -1,8 +1,7 @@
 //! The one typed error between host and plugin. [`GuestError`] mirrors the WIT
 //! `plugin-error` in Rust, so nothing outside the sandbox sees the generated
 //! type. [`ErrorInfo`] maps down into it for a plugin's host calls, and it maps
-//! up into [`ErrorInfo`] when a plugin answers the host
-//! ([0115](../../../../docs/decisions/0115-a-plugin-error-is-its-own-typed-enum.md)).
+//! up into [`ErrorInfo`] when a plugin answers the host.
 
 use proto::error::{ErrorInfo, Service};
 

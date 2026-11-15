@@ -1,8 +1,7 @@
 //! Choosing how one call runs a program: the invocation its arguments and
 //! environment fit, and the Java major a managed-Java program runs on. A pure
 //! function of the declared program and the call, so whatever runs programs
-//! applies the same rules
-//! ([0120](../../../../docs/decisions/0120-a-programs-identity-is-separate-from-its-invocations.md)).
+//! applies the same rules.
 
 use proto::plugin::{Invocation, InvocationMismatch, JavaChoiceError, Program};
 

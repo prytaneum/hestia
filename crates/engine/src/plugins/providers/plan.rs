@@ -1,6 +1,5 @@
 //! Running a flavor's build plan: the host downloads what the plan names, then
-//! runs its steps under the process supervisor
-//! ([0124](../../../../../docs/decisions/0124-a-build-is-a-plan-the-host-runs.md)).
+//! runs its steps under the process supervisor.
 //! A plan is guest-supplied data, so all of it is vetted before anything runs:
 //! every step goes through the checks a guest's own `exec` meets, and every path
 //! it names stays under the build area.

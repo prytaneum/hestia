@@ -1,6 +1,6 @@
 //! What makes a plugin official: it was signed by an official-plugins key,
 //! and nothing else — not its id, its URL or the name of the store that lists
-//! it ([0099](../../../../docs/decisions/0099-official-plugins-are-signed.md)).
+//! it.
 //! The key set is `common::app::official_plugin_pubkeys`: the current key and
 //! an offline spare.
 
