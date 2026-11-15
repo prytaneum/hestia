@@ -85,13 +85,15 @@ export function PluginTabContents({
   ));
 }
 
-/** The settings slot: a section per contributed page. */
-export function PluginSettingsSections() {
-  const pages = usePluginPages('settings');
-  const text = usePluginText(pages.map(({ plugin }) => plugin));
-  return pages.map(({ plugin, page }) => (
+/** The settings slot: a section per page the plugin contributes, on its own page. */
+export function PluginSettingsSections({ plugin }: { plugin: string }) {
+  const pages = usePluginPages('settings').filter(
+    (contribution) => contribution.plugin === plugin,
+  );
+  const text = usePluginText([plugin]);
+  return pages.map(({ page }) => (
     <SettingGroup
-      key={`${plugin}/${page.id}`}
+      key={page.id}
       legend={text(plugin, `page.${page.id}.title`, page.title)}
     >
       <PluginView plugin={plugin} page={page.id} />

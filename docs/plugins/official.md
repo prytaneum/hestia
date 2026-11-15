@@ -20,7 +20,7 @@ third party's ([0106](../decisions/0106-the-plugin-api-is-mechanisms-not-feature
 | `players` | a *Players* tab on a server and `hestia server <name> players …` commands: who is online, the whitelist, operators and bans | `entry:read` limited to `whitelist.json`, `ops.json` and `banned-players.json`; `process:control` to send console commands to a running server; `network:connect` to `api.mineatar.io` for player heads | none |
 
 A source that is not ready says why instead of failing: CurseForge is listed by `hestia sources` as waiting on its
-`api-key`, and is not offered for browsing or installing until the setting holds a value. Set it in Settings > Plugins or
+`api-key`, and is not offered for browsing or installing until the setting holds a value. Set it on the plugin's page under Plugins or
 with `hestia plugin config curseforge api-key`. The official build of the plugin ships a default key inside its package,
 so the source works as installed, and the user's own value overrides it
 ([0132](../decisions/0132-a-distributor-ships-setting-defaults-in-the-package.md)); a build packed without that default

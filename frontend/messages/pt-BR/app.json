@@ -213,7 +213,8 @@
       "screenshots": "Capturas",
       "servers": "Servidores",
       "settings": "Configurações",
-      "skins": "Skins"
+      "skins": "Skins",
+      "plugins": "Plugins"
     },
     "network": {
       "blocked_body": "Navegar e instalar conteúdo, entrar na conta, instalar versões do Java e verificar atualizações.",

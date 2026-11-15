@@ -27,7 +27,7 @@
       "back": "Back",
       "browse": {
         "filters": {
-          "body": "The chips narrow by kind — mods, resource packs, shaders, data packs, modpacks. Modrinth works out of the box; CurseForge appears once you add an API key in Settings, with a filter beside the search to switch source.",
+          "body": "The chips narrow by kind — mods, resource packs, shaders, data packs, modpacks. Modrinth works out of the box; CurseForge appears once you add an API key on its plugin's page, with a filter beside the search to switch source.",
           "title": "Narrow it down"
         },
         "search": {

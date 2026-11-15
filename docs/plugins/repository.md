@@ -120,7 +120,7 @@ A repository's website can offer one click to add it, with a `hestia://add-repo`
 hestia://add-repo?url=https%3A%2F%2Fexample.com%2Fplugins.json
 ```
 
-The desktop app opens Settings > Plugins and shows the same confirmation as typing the URL does (name, label, website,
+The desktop app opens Plugins > Repositories and shows the same confirmation as typing the URL does (name, label, website,
 key id, plugin count, and whether it is already configured). Nothing is added until the user agrees. The `url` must be
 https; any other scheme, another host or path under `hestia://`, or a missing `url` is ignored. To paste into a README
 or site:

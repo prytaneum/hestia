@@ -27,7 +27,7 @@
       "back": "Voltar",
       "browse": {
         "filters": {
-          "body": "Os chips filtram por tipo — mods, pacotes de recursos, shaders, data packs, modpacks. O Modrinth funciona de imediato; o CurseForge aparece assim que você adiciona uma chave de API nas Configurações, com um filtro ao lado da busca para trocar de fonte.",
+          "body": "Os chips filtram por tipo — mods, pacotes de recursos, shaders, data packs, modpacks. O Modrinth funciona de imediato; o CurseForge aparece assim que você adiciona uma chave de API na página do plugin, com um filtro ao lado da busca para trocar de fonte.",
           "title": "Refine a busca"
         },
         "search": {

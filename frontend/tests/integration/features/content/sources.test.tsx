@@ -44,7 +44,7 @@ describe('a source waiting on a setting', () => {
 
     const plugin = await screen.findByRole('menuitem', { name: /api-key/ });
     expect(plugin.getAttribute('href')).toBe(
-      '/settings?tab=plugins&plugin=static&field=static-api-key',
+      '/plugins/static?field=static-api-key',
     );
   });
 });

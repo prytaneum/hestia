@@ -129,7 +129,7 @@ like a page without actions ([ui.md](ui.md)).
 | | |
 |---|---|
 | CLI | `hestia <plugin>` lists the plugin's commands; `hestia <plugin> <command> --help` prints the declared arguments; arguments are `--name value` or `--name=value`. Reads `plugin.list` |
-| Desktop | `plugin.commands` returns every command of every enabled plugin that can run them. A scoped command appears in the server's or instance's actions menu; a `top` command in that plugin's row on the settings page. A form asks for the arguments |
+| Desktop | `plugin.commands` returns every command of every enabled plugin that can run them. A scoped command appears in the server's or instance's actions menu; a `top` command on that plugin's page. A form asks for the arguments |
 | Both | start `plugin.run` with `{ plugin, command, entry?, args }` and follow the job |
 
 `plugin.run` carries no plugin permission, so a plugin cannot start another's command through `host.call`

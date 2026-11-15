@@ -6,12 +6,12 @@ import { dialog, onTopic, type PluginInfo } from '@/api';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Field, FieldDescription } from '@/components/ui/field';
-import { appendDevLog, type DevLogLine } from '@/features/settings/lib';
 import { notify } from '@/lib/notify';
 import { m } from '@/paraglide/messages.js';
 import { pluginMutations, pluginQueries } from '@/queries/plugin';
 
-import { usePluginInstall } from './plugin-install';
+import { appendDevLog, type DevLogLine } from './dev-log';
+import { usePluginInstall } from './install';
 
 const STATS_REFRESH_MS = 3000;
 
@@ -42,7 +42,7 @@ function useDevLog(id: string): DevLogLine[] {
   return lines;
 }
 
-/** Developer mode's half of the Plugins tab: folder plugins, their log and their counters. */
+/** Developer mode's part of the Plugins page: folder plugins, their log and their counters. */
 export function PluginDeveloper() {
   const plugins = useQuery({
     ...pluginQueries.list(),

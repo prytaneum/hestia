@@ -10,10 +10,11 @@ import { Button } from '@/components/ui/button';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { Field, FieldDescription } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
-import { useRepositoryLink } from '@/features/settings/hooks';
 import { notify } from '@/lib/notify';
 import { m } from '@/paraglide/messages.js';
 import { pluginMutations, pluginQueries } from '@/queries/plugin';
+
+import { useRepositoryLink } from './use-repository-link';
 
 /**
  * The repositories the user trusts, as stores. Adding one fetches its index and

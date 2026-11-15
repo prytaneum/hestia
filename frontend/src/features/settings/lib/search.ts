@@ -13,7 +13,6 @@ export const SETTINGS_TABS = [
   'java',
   'content',
   'instances',
-  'plugins',
   'storage',
 ] as const;
 
@@ -24,15 +23,12 @@ export type SettingsGroup =
   | 'appearance'
   | 'updates'
   | 'advanced'
-  | 'plugin-developer'
   | 'java-defaults'
   | 'java-runtimes'
   | 'content-updates'
   | 'modpack'
   | 'instance-behaviour'
   | 'sync'
-  | 'plugins'
-  | 'plugin-repositories'
   | 'storage'
   | 'daemon';
 
@@ -204,38 +200,6 @@ const INDEX: Entry[] = [
     text: text(
       m['settings.sync.options.label'],
       m['settings.sync.options.hint'],
-    ),
-  },
-  {
-    id: 'plugins',
-    tab: 'plugins',
-    group: 'plugins',
-    text: text(
-      m['settings.tabs.plugins'],
-      m['settings.plugins.hint'],
-      m['settings.plugins.install_file'],
-      m['settings.plugins.install_link'],
-      m['settings.plugins.tabs.browse'],
-    ),
-  },
-  {
-    id: 'plugin-developer',
-    tab: 'plugins',
-    group: 'plugin-developer',
-    text: text(
-      m['settings.plugins.developer.title'],
-      m['settings.plugins.developer.hint'],
-      m['settings.plugins.developer.load'],
-    ),
-  },
-  {
-    id: 'plugin-repositories',
-    tab: 'plugins',
-    group: 'plugin-repositories',
-    text: text(
-      m['settings.plugins.repos.title'],
-      m['settings.plugins.repos.hint'],
-      m['settings.plugins.repos.add'],
     ),
   },
   {

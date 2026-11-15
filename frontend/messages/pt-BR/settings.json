@@ -79,7 +79,6 @@
         "search": "Buscar plugins"
       },
       "continue": "Continuar",
-      "details": "Detalhes",
       "drop": "Solte para instalar",
       "incompatible_hint": "Precisa da API de plugins {requires}.",
       "installable_hint": "A versão {version} pode ser instalada no lugar.",
@@ -149,7 +148,6 @@
       },
       "hint": "Plugins estendem o Hestia. Um plugin só recebe o que você aprova ao instalá-lo.",
       "install_file": "Instalar de arquivo",
-      "install_link": "De um link",
       "installed": "{name} instalado",
       "link_hint": "Um link https para um arquivo .hplugin. O Hestia baixa uma vez e mostra o que ele pede antes de instalar qualquer coisa.",
       "link_title": "Instalar de um link",
@@ -222,7 +220,6 @@
       "general": "Geral",
       "instances": "Instâncias",
       "java": "Java",
-      "plugins": "Plugins",
       "storage": "Armazenamento"
     },
     "theme": {

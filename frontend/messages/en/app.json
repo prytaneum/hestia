@@ -213,7 +213,8 @@
       "screenshots": "Screenshots",
       "servers": "Servers",
       "settings": "Settings",
-      "skins": "Skins"
+      "skins": "Skins",
+      "plugins": "Plugins"
     },
     "network": {
       "blocked_body": "Browsing and installing content, signing in, installing Java runtimes, and checking for updates.",

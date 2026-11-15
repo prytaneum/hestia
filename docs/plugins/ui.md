@@ -20,7 +20,7 @@ icon = "server"          # optional: a name from the app's icon set, or a path i
 |---|---|---|
 | `nav` | a sidebar item that opens the page | `hestia <plugin> <page>` |
 | `entry` | a tab on the detail of every server or instance of `kind`; the page gets the entry id in its context | `hestia <plugin> <page> --entry <name>` |
-| `settings` | a section at the end of Settings, Plugins | `hestia <plugin> <page>` |
+| `settings` | a section on the plugin's own page, under Plugins | `hestia <plugin> <page>` |
 
 An `icon` containing `/` or `.` is a path inside the package and must stay inside it; anything else is an icon name:
 `instance`, `server`, `mod`, `resource_pack`, `shader`, `data_pack`, `modpack` or `plugin` (`NAMED_ICONS` in

@@ -3,12 +3,14 @@
  * enough to exercise the approval dialog.
  */
 import type {
+  CataloguePlugin,
   Grant,
   Manifest,
   Permission,
   PluginInfo,
   PluginPage,
   PluginState,
+  RepositoryInfo,
   Setting,
   UiNode,
 } from '@/api/types';
@@ -327,6 +329,58 @@ const greeter = {
   ],
 } as unknown as UiNode;
 
+const repository: RepositoryInfo = {
+  url: 'https://plugins.example/plugins.json',
+  name: 'Example plugins',
+  label: 'EX',
+  website: 'https://plugins.example',
+  keyId: 'A1B2C3D4E5F60718',
+  official: false,
+  plugins: 3,
+  version: 4,
+};
+
+const offered = (
+  id: string,
+  name: string,
+  description: string,
+  rest: Partial<CataloguePlugin> = {},
+): CataloguePlugin => ({
+  id,
+  name,
+  description,
+  version: '1.2.0',
+  permissions: [],
+  keyId: repository.keyId,
+  listedBy: [
+    { url: repository.url, label: repository.label, name: repository.name },
+  ],
+  availability: 'prebuilt',
+  build: '1.2.0',
+  ...rest,
+});
+
+const catalogue: CataloguePlugin[] = [
+  offered(
+    'hello',
+    'Hello',
+    'Greets you in the log every time the daemon starts.',
+    {
+      installed: '1.0.0',
+    },
+  ),
+  offered(
+    'world-map',
+    'World Map',
+    'Renders a top-down map of a server world.',
+  ),
+  offered('metrics', 'Metrics', 'Exports server metrics for a dashboard.', {
+    availability: 'incompatible',
+    requires: '^2.0.0',
+    build: undefined,
+  }),
+];
+
 export const channels: ChannelHandlers = {
   'plugin.pages': () => pages,
   'plugin.commands': () => [],
@@ -338,7 +392,26 @@ export const channels: ChannelHandlers = {
     { type: 'toast', tone: 'success', text: 'Hello from the mock plugin' },
   ],
   'plugin.list': () => plugins,
-  'plugin.outdated': () => ({ plugins: [], offline: false, warnings: [] }),
+  'plugin.outdated': () => ({
+    plugins: [
+      {
+        id: 'hello',
+        installed: '1.0.0',
+        available: '1.2.0',
+        apiCompatible: true,
+        widened: emptyGrant,
+        repository: repository.url,
+      },
+    ],
+    offline: false,
+    warnings: [],
+  }),
+  'plugin.repo.list': () => [repository],
+  'plugin.catalogue': () => ({
+    plugins: catalogue,
+    repositories: [repository],
+    warnings: [],
+  }),
   'plugin.settings.get': (p) =>
     find(str(p, 'id'))?.manifest.settings.map((setting) => ({
       key: setting.key,

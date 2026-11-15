@@ -315,7 +315,7 @@ Rules that keep it from drifting:
   one-directional — `library → instances`, `instances → content`,
   `servers → content` — so the feature graph is acyclic.
 - **Plugin approval is a native dialog, never a webview modal.** The Plugins
-  settings tab inspects a package (`plugin.inspect`), shows its grant through
+  page inspects a package (`plugin.inspect`), shows its grant through
   `dialog.ask` (`@tauri-apps/plugin-dialog`) with full-access permissions first,
   and installs against the inspected `grantDigest`. A message box does not
   scroll, so a grant past `MAX_DIALOG_LINES` gets a summary in the dialog and
@@ -348,8 +348,8 @@ the manifest's `PageSlot`, decide where a page appears:
   names (`PluginTabTriggers` / `PluginTabContents`); the tab value is
   `plugin:<plugin>/<page>`, and the page receives the entry id as its
   `PageContext`.
-- **`settings`** adds a section at the end of Settings → Plugins
-  (`PluginSettingsSections`), hidden while the settings search narrows the page.
+- **`settings`** adds a section to the plugin's own page, under its declared
+  settings (`PluginSettingsSections`).
 
 `PluginView` fetches the tree (`pluginQueries.render`, keyed under
 `keys.plugins` so a plugin state change refetches it) and `view/render.tsx`
@@ -377,7 +377,7 @@ help and placeholders ([0123](../decisions/0123-the-ui-vocabulary-grows-by-gener
 A plugin's `[[contributes.commands]]` appear where they act, not on a page of
 their own (`features/plugins/commands.tsx`, over `plugin.commands`): a server-
 or instance-scoped command in that entry's actions menu, a top-scoped one on
-the plugin's row in Settings → Plugins. A command with declared arguments opens
+the plugin's own page. A command with declared arguments opens
 a form generated from its `CommandArg` list; one without runs at once. Either
 way it is a `plugin.run` job started through `runJobMutation`, so the job store
 shows its progress and reports the outcome once, with text output as the toast's
