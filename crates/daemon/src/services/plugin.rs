@@ -203,10 +203,13 @@ pub(super) fn register(on: &mut Channels<'_>) {
     on.handle::<PluginUiAction, _, _>(|p, ctx| async move {
         let (page, loaded) = ctx.runtime.plugins().page(&p.plugin, &p.page).await?;
         let context = page_context(&ctx, &p.plugin, &page, p.context)?;
-        loaded
+        let effects = loaded
             .page_action(&ctx.chain, &p.page, &p.action, &p.values, &context)
             .await
-            .map_err(|error| error.into_info(&p.plugin, None))
+            .map_err(|error| error.into_info(&p.plugin, None))?;
+        let manifest = ctx.runtime.plugins().manifest(&p.plugin).await?;
+        engine::check_run_effects(&manifest, &page, &effects)?;
+        Ok(effects)
     });
 
     on.handle::<PluginRun, _, _>(|p, ctx| async move {

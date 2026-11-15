@@ -46,7 +46,7 @@ pub(crate) use bundled::{PACKAGE_EXTENSION, SIGNATURE_SUFFIX};
 pub use catalogue::Listings;
 pub(crate) use catalogue::{build as build_catalogue, pick, Installed, Pick, Source};
 pub use chain::{CallChain, ChainError, MAX_CHAIN_DEPTH};
-pub use command::{command_args, find_command};
+pub use command::{check_run_effects, command_args, find_command};
 pub use context::{CallContext, Mount};
 pub use download::MAX_DOWNLOAD_BYTES;
 pub use error::GuestError;

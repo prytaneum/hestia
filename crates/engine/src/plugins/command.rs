@@ -2,10 +2,12 @@
 //! call's arguments against what the manifest declares. The declared list is the
 //! schema; the guest is never called with arguments that do not match it.
 
-use proto::error::ErrorInfo;
+use proto::error::{EntryKind, ErrorInfo};
 use proto::plugin::{
-    CommandArg, CommandArgKind, CommandContribution, CommandScope, Manifest, ENTRY_ARG,
+    CommandArg, CommandArgKind, CommandContribution, CommandScope, Manifest, PageContribution,
+    PageSlot, ENTRY_ARG,
 };
+use proto::ui::Effect;
 use serde_json::{Map, Value};
 
 fn refuse(plugin: &str, command: &str, detail: String) -> ErrorInfo {
@@ -27,6 +29,39 @@ pub fn find_command<'a>(
         .iter()
         .find(|command| command.id == name)
         .ok_or_else(|| refuse(&manifest.id, name, "no such command".into()))
+}
+
+/// Refuses a page action's `run` effect that names a command `manifest` does not
+/// declare, or a scoped command on a page that is not an entry page of that kind.
+pub fn check_run_effects(
+    manifest: &Manifest,
+    page: &PageContribution,
+    effects: &[Effect],
+) -> Result<(), ErrorInfo> {
+    let page_kind = (page.slot == PageSlot::Entry).then(|| page.kind.unwrap_or_default());
+    for effect in effects {
+        let Effect::Run { command, .. } = effect else {
+            continue;
+        };
+        let declared = find_command(manifest, command)?;
+        let fits = match declared.scope {
+            CommandScope::Top => true,
+            CommandScope::Server => page_kind == Some(EntryKind::Server),
+            CommandScope::Instance => page_kind == Some(EntryKind::Instance),
+        };
+        if !fits {
+            tracing::warn!(plugin = %manifest.id, %command, page = %page.id, "run effect refused: scope does not fit the page");
+            return Err(refuse(
+                &manifest.id,
+                command,
+                format!(
+                    "a {:?} command cannot run from page '{}'",
+                    declared.scope, page.id
+                ),
+            ));
+        }
+    }
+    Ok(())
 }
 
 /// The arguments object to hand the guest: `args` checked against the

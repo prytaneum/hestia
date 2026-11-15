@@ -11,13 +11,15 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use engine::{
-    command_args, pin_on_path, CallChain, CallError, Cancel, CommandRun, GuestError, HostCalls,
-    LoadedPlugin, PluginRecord, PluginRuntime, PluginSettings, ProcessSupervisor,
+    check_run_effects, command_args, pin_on_path, CallChain, CallError, Cancel, CommandRun,
+    GuestError, HostCalls, LoadedPlugin, PluginRecord, PluginRuntime, PluginSettings,
+    ProcessSupervisor,
 };
-use proto::error::{ErrorInfo, Service};
+use proto::error::{EntryKind, ErrorInfo, Service};
 use proto::plugin::{
-    CommandArg, CommandArgKind, CommandContribution, CommandScope, Grant, PageContext, Permission,
-    PermissionScope, PluginRunProgress, ProgramPin, ScopeKind, Setting, SettingKind, Touched,
+    CommandArg, CommandArgKind, CommandContribution, CommandScope, Contributions, Grant, Manifest,
+    PageContext, PageContribution, PageSlot, Permission, PermissionScope, PluginRunProgress,
+    ProgramPin, ScopeKind, Setting, SettingKind, Touched,
 };
 use proto::ui::{Action, Effect, UiNode};
 use serde_json::{json, Value};
@@ -310,6 +312,74 @@ async fn a_page_action_answers_effects() {
     assert_eq!(effects.len(), 2);
     assert!(matches!(&effects[0], Effect::Toast { text, .. } if text == r#"go {"name":"smp"}"#));
     assert!(matches!(effects[1], Effect::Refresh));
+}
+
+#[tokio::test]
+async fn a_run_effect_must_name_a_declared_command_that_fits_the_page() {
+    let probe = Probe::load(&[]);
+    let command = |id: &str, scope| CommandContribution {
+        id: id.into(),
+        scope,
+        ..CommandContribution::default()
+    };
+    let manifest = Manifest {
+        id: "probe".into(),
+        contributes: Contributions {
+            commands: vec![
+                command("setup", CommandScope::Top),
+                command("restart", CommandScope::Server),
+                command("rebuild", CommandScope::Instance),
+            ],
+            ..Contributions::default()
+        },
+        ..Manifest::default()
+    };
+    let page = |slot, kind| PageContribution {
+        id: "overview".into(),
+        slot,
+        kind,
+        ..PageContribution::default()
+    };
+    let nav = page(PageSlot::Nav, None);
+    let server = page(PageSlot::Entry, Some(EntryKind::Server));
+    let instance = page(PageSlot::Entry, Some(EntryKind::Instance));
+
+    let cases = [
+        ("setup", &nav, true),
+        ("restart", &server, true),
+        ("rebuild", &instance, true),
+        ("undeclared", &server, false),
+        ("restart", &nav, false),
+        ("restart", &instance, false),
+        ("rebuild", &server, false),
+    ];
+    for (name, page, allowed) in cases {
+        let action = Action {
+            id: "run".into(),
+            payload: json!(name),
+        };
+        let effects = probe
+            .plugin
+            .page_action(
+                &CallChain::default(),
+                "overview",
+                &action,
+                &json!({}),
+                &PageContext::default(),
+            )
+            .await
+            .unwrap();
+        assert!(matches!(&effects[..], [Effect::Run { command, .. }] if command == name));
+
+        let checked = check_run_effects(&manifest, page, &effects);
+        assert_eq!(checked.is_ok(), allowed, "{name} on {page:?}: {checked:?}");
+        if let Err(error) = checked {
+            assert!(
+                matches!(error, ErrorInfo::PluginCommandInvalid { .. }),
+                "{error:?}"
+            );
+        }
+    }
 }
 
 #[tokio::test]

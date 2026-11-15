@@ -18,6 +18,7 @@ struct Probe;
 #[serde(tag = "id", content = "payload", rename_all = "kebab-case")]
 enum Act {
     Go,
+    Run(String),
 }
 
 #[derive(Deserialize)]
@@ -156,6 +157,10 @@ impl Plugin for Probe {
                     },
                     Effect::Refresh,
                 ]),
+                Act::Run(command) => Ok(vec![Effect::Run {
+                    command,
+                    args: Value::Null,
+                }]),
             },
         )
         .finish()

@@ -625,7 +625,7 @@ impl Plugins {
             .collect()
     }
 
-    async fn manifest(&self, id: &str) -> ServiceResult<Manifest> {
+    pub async fn manifest(&self, id: &str) -> ServiceResult<Manifest> {
         self.record(id)?;
         let engine = self.engine.clone();
         let plugin = id.to_string();
