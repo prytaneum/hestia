@@ -1,0 +1,22 @@
+package hestia:kernel@0.1.0;
+
+/// No permission, but budgeted per call. The front-ends draw all of it with the
+/// plugin's name; a plugin cannot imitate Hestia.
+interface notify {
+    use types.{plugin-error};
+
+    enum level {
+        info,
+        warn,
+        error,
+    }
+
+    notify: func(level: level, message: string) -> result<_, plugin-error>;
+
+    /// Asks the user to confirm; `unsupported` in a call no person started. The
+    /// call's time budget is paused while the user decides, for up to two minutes.
+    confirm: func(message: string) -> result<bool, plugin-error>;
+
+    /// Offers an https address. The user sees the destination and decides.
+    open-url: func(url: string) -> result<_, plugin-error>;
+}

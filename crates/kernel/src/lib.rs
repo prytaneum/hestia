@@ -3,6 +3,7 @@
 
 mod builtin;
 mod error;
+pub mod id;
 mod registry;
 mod runtime;
 pub mod vetting;
@@ -10,4 +11,6 @@ pub mod vetting;
 pub use builtin::{Builtin, Busy, Descriptor};
 pub use error::PluginError;
 pub use registry::Plugins;
-pub use runtime::{GuestError, Limits, Loaded, Sandbox, SandboxError};
+pub use runtime::{
+    Answer, GuestError, Limits, Loaded, NoticeLevel, Sandbox, SandboxError, Services,
+};

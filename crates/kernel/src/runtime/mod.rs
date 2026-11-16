@@ -5,29 +5,48 @@
 mod admission;
 mod bindings;
 mod cache;
+mod data;
 mod error;
 mod host;
 mod limits;
+mod messages;
+mod notify;
+mod pause;
+mod progress;
+mod services;
+mod settings;
+mod shared;
 mod ticker;
 
 use std::path::{Path, PathBuf};
+use std::pin::pin;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::time::Duration;
 
 use tokio::time::{error::Elapsed, timeout_at, Instant};
 use wasmtime::component::{HasSelf, InstancePre, Linker};
 use wasmtime::{Config, Engine, InstanceAllocationStrategy, PoolingAllocationConfig, Store};
 
 use admission::Admission;
-use bindings::exports::hestia::kernel::lifecycle;
+use bindings::exports::hestia::kernel::{lifecycle, settings_changed};
 use cache::Cache;
 pub use error::{GuestError, SandboxError};
-use host::State;
+use host::{Call, State};
 pub use limits::Limits;
 use limits::MemoryCap;
+pub use services::{Answer, NoticeLevel, Services};
+use shared::Shared;
 use ticker::Ticker;
 
 const LIFECYCLE: &str = "hestia:kernel/lifecycle@0.1.0";
+const SETTINGS_CHANGED: &str = "hestia:kernel/settings-changed@0.1.0";
+
+/// The export a call runs.
+enum Entry<'a> {
+    Init(&'a lifecycle::GuestIndices),
+    SettingChanged(&'a settings_changed::GuestIndices, &'a str, &'a str),
+}
 
 /// Runs plugin components. Calls need a tokio runtime; dropping a call's future
 /// stops the guest.
@@ -39,6 +58,7 @@ pub struct Sandbox {
     ticker: Ticker,
     limits: Limits,
     online: Arc<AtomicBool>,
+    shared: Shared,
 }
 
 /// A component ready to run. Each export is found on its own; one the component
@@ -48,12 +68,18 @@ pub struct Loaded {
     plugin: String,
     pre: InstancePre<State>,
     lifecycle: Option<lifecycle::GuestIndices>,
+    settings_changed: Option<settings_changed::GuestIndices>,
 }
 
 impl Loaded {
     /// Whether the component exports `lifecycle`.
     pub fn provides_lifecycle(&self) -> bool {
         self.lifecycle.is_some()
+    }
+
+    /// Whether the component exports `settings-changed`.
+    pub fn provides_settings_changed(&self) -> bool {
+        self.settings_changed.is_some()
     }
 }
 
@@ -77,7 +103,14 @@ impl Sandbox {
             ticker,
             limits,
             online: Arc::new(AtomicBool::new(true)),
+            shared: Shared::new(Arc::new(services::Unavailable)),
         })
+    }
+
+    /// Gives plugins the files, grants and front-ends of the host around the sandbox.
+    pub fn with_services(mut self, services: Arc<dyn Services>) -> Self {
+        self.shared = Shared::new(services);
+        self
     }
 
     /// What `app.info` reports as network status to calls that start later.
@@ -104,11 +137,16 @@ impl Sandbox {
             Some(_) => Some(lifecycle::GuestIndices::new(&pre).map_err(SandboxError::Load)?),
             None => None,
         };
+        let settings_changed = match component.get_export_index(None, SETTINGS_CHANGED) {
+            Some(_) => Some(settings_changed::GuestIndices::new(&pre).map_err(SandboxError::Load)?),
+            None => None,
+        };
         tracing::info!(plugin, lifecycle = lifecycle.is_some(), "component loaded");
         Ok(Loaded {
             plugin: plugin.to_owned(),
             pre,
             lifecycle,
+            settings_changed,
         })
     }
 
@@ -117,29 +155,97 @@ impl Sandbox {
         let Some(indices) = &loaded.lifecycle else {
             return Ok(());
         };
+        let budget = self.limits.init_timeout;
+        self.run(loaded, budget, Call::default(), Entry::Init(indices))
+            .await
+    }
+
+    /// Stores a setting the user changed, then tells the plugin if it listens.
+    /// A plugin that fails the notice keeps the stored value.
+    pub async fn change_setting(
+        &self,
+        loaded: &Loaded,
+        key: &str,
+        value: &str,
+    ) -> Result<(), SandboxError> {
+        settings::save_setting(&self.shared, &loaded.plugin, key, value)
+            .map_err(SandboxError::Setting)?;
+        let Some(indices) = &loaded.settings_changed else {
+            return Ok(());
+        };
+        let person = Call {
+            person: true,
+            ..Call::default()
+        };
+        let budget = self.limits.event_timeout;
+        self.run(
+            loaded,
+            budget,
+            person,
+            Entry::SettingChanged(indices, key, value),
+        )
+        .await
+    }
+
+    /// Stores a secret the user entered for the plugin.
+    pub fn store_secret(&self, plugin: &str, key: &str, value: &str) -> Result<(), SandboxError> {
+        settings::save_secret(&self.shared, plugin, key, value).map_err(SandboxError::Setting)
+    }
+
+    /// One call under the sandbox's bounds: a slot, a fresh store, and `budget`
+    /// of wall clock, paused while the call waits on a person.
+    async fn run(
+        &self,
+        loaded: &Loaded,
+        budget: Duration,
+        call: Call,
+        entry: Entry<'_>,
+    ) -> Result<(), SandboxError> {
         let plugin = loaded.plugin.as_str();
-        let deadline = Instant::now() + self.limits.init_timeout;
-        let _permit = match timeout_at(deadline, self.admission.admit(plugin)).await {
+        let start = Instant::now();
+        let _permit = match timeout_at(start + budget, self.admission.admit(plugin)).await {
             Ok(Ok(permit)) => permit,
             Ok(Err(_)) | Err(_) => return Err(SandboxError::Saturated(plugin.to_owned())),
         };
         let _ticking = self.ticker.running();
-        let mut store = self.store(plugin);
-        let outcome = timeout_at(deadline, async {
-            let instance = loaded.pre.instantiate_async(&mut store).await?;
-            indices
-                .load(&mut store, &instance)?
-                .call_init(&mut store)
-                .await
-        })
-        .await;
+        let pause = call.pause.clone();
+        let mut store = self.store(plugin, call);
+        let outcome = {
+            let mut guest = pin!(async {
+                let instance = loaded.pre.instantiate_async(&mut store).await?;
+                match entry {
+                    Entry::Init(indices) => {
+                        indices
+                            .load(&mut store, &instance)?
+                            .call_init(&mut store)
+                            .await
+                    }
+                    Entry::SettingChanged(indices, key, value) => {
+                        indices
+                            .load(&mut store, &instance)?
+                            .call_changed(&mut store, key, value)
+                            .await
+                    }
+                }
+            });
+            loop {
+                let deadline = start + budget + pause.paused();
+                match timeout_at(deadline, &mut guest).await {
+                    Err(_) if start + budget + pause.paused() > Instant::now() => continue,
+                    outcome => break outcome,
+                }
+            }
+        };
         self.settle(plugin, outcome, store.data().memory.exceeded)
     }
 
-    fn store(&self, plugin: &str) -> Store<State> {
+    fn store(&self, plugin: &str, call: Call) -> Store<State> {
         let online = self.online.load(Ordering::Relaxed);
         let memory = MemoryCap::new(self.limits.memory_bytes);
-        let mut store = Store::new(&self.engine, State::new(plugin, online, memory));
+        let mut store = Store::new(
+            &self.engine,
+            State::new(plugin, online, memory, self.shared.clone(), call),
+        );
         store.limiter(|state| &mut state.memory);
         store.set_epoch_deadline(1);
         store.epoch_deadline_async_yield_and_update(1);

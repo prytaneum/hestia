@@ -10,6 +10,7 @@ const TABLE_ELEMENTS: usize = 100_000;
 #[derive(Debug, Clone)]
 pub struct Limits {
     pub(super) init_timeout: Duration,
+    pub(super) event_timeout: Duration,
     pub(super) memory_bytes: usize,
     pub(super) calls_per_plugin: usize,
     pub(super) calls_total: usize,
@@ -18,11 +19,12 @@ pub struct Limits {
 }
 
 impl Default for Limits {
-    /// 10 s for `init`, 256 MiB per memory, 4 calls per plugin and 16 overall,
+    /// 10 s for `init`, 5 s for an event such as `settings-changed`, 256 MiB per memory, 4 calls per plugin and 16 overall,
     /// three traps in ten minutes.
     fn default() -> Self {
         Limits {
             init_timeout: Duration::from_secs(10),
+            event_timeout: Duration::from_secs(5),
             memory_bytes: 256 << 20,
             calls_per_plugin: 4,
             calls_total: 16,
@@ -33,10 +35,12 @@ impl Default for Limits {
 }
 
 impl Limits {
-    /// The wall-clock budget of `init`, including any wait for a call slot.
-    pub fn with_init_timeout(self, budget: Duration) -> Self {
+    /// The wall-clock budget of every call kind, including any wait for a call
+    /// slot and excluding any wait on a person.
+    pub fn with_timeout(self, budget: Duration) -> Self {
         Limits {
             init_timeout: budget,
+            event_timeout: budget,
             ..self
         }
     }

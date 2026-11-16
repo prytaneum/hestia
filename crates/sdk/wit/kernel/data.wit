@@ -1,0 +1,13 @@
+package hestia:kernel@0.1.0;
+
+/// No permission. The plugin's files are the `/data` preopen; this interface
+/// holds the named locks that keep concurrent calls from interleaving them.
+interface data {
+    use types.{plugin-error};
+
+    /// Takes the lock `name` unless another call holds it. A lock lasts until
+    /// `unlock` or the end of the call.
+    try-lock: func(name: string) -> result<bool, plugin-error>;
+
+    unlock: func(name: string);
+}

@@ -1,0 +1,8 @@
+package hestia:kernel@0.1.0;
+
+/// No permission. The plugin's message catalogue.
+interface messages {
+    /// The text for `key` with each `{name}` replaced from `args`; the key
+    /// itself when the catalogue has none. At most 16 args and 4 KiB of text.
+    text: func(key: string, args: list<tuple<string, string>>) -> string;
+}

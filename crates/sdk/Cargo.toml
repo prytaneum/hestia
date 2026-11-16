@@ -14,3 +14,4 @@ wit-bindgen = { workspace = true }
 
 [features]
 lifecycle = []
+settings-changed = []

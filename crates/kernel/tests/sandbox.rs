@@ -3,12 +3,13 @@
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use std::sync::{Mutex, OnceLock};
+use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
 use futures_util::future::join_all;
-use kernel::{Limits, Sandbox, SandboxError};
+use kernel::{Answer, Limits, NoticeLevel, Sandbox, SandboxError, Services};
 use sha2::{Digest, Sha256};
+use tokio::sync::Notify;
 
 static LOG: Mutex<Vec<u8>> = Mutex::new(Vec::new());
 
@@ -33,32 +34,47 @@ fn scratch() -> PathBuf {
     PathBuf::from(env!("CARGO_TARGET_TMPDIR"))
 }
 
+/// Every guest workspace shares one target directory, so their common
+/// dependencies compile once.
+fn build(package: &str) -> PathBuf {
+    let target = scratch().join("guest");
+    let manifest = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests")
+        .join(package)
+        .join("Cargo.toml");
+    let output = Command::new(std::env::var("CARGO").unwrap_or_else(|_| "cargo".into()))
+        .args([
+            "build",
+            "--release",
+            "--locked",
+            "--target",
+            "wasm32-wasip2",
+            "--manifest-path",
+        ])
+        .arg(manifest)
+        .env("CARGO_TARGET_DIR", &target)
+        .output()
+        .expect("run cargo for the guest plugins");
+    assert!(
+        output.status.success(),
+        "guest plugins failed to build:\n{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    target.join("wasm32-wasip2/release")
+}
+
 fn guest(name: &str) -> PathBuf {
     static BUILT: OnceLock<PathBuf> = OnceLock::new();
-    let dir = BUILT.get_or_init(|| {
-        let target = scratch().join("guest");
-        let manifest = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/guest/Cargo.toml");
-        let output = Command::new(std::env::var("CARGO").unwrap_or_else(|_| "cargo".into()))
-            .args([
-                "build",
-                "--release",
-                "--locked",
-                "--target",
-                "wasm32-wasip2",
-                "--manifest-path",
-            ])
-            .arg(manifest)
-            .env("CARGO_TARGET_DIR", &target)
-            .output()
-            .expect("run cargo for the guest plugins");
-        assert!(
-            output.status.success(),
-            "guest plugins failed to build:\n{}",
-            String::from_utf8_lossy(&output.stderr)
-        );
-        target.join("wasm32-wasip2/release")
-    });
-    dir.join(format!("{name}.wasm"))
+    BUILT
+        .get_or_init(|| build("guest"))
+        .join(format!("{name}.wasm"))
+}
+
+fn service_guest(name: &str) -> PathBuf {
+    static BUILT: OnceLock<PathBuf> = OnceLock::new();
+    BUILT
+        .get_or_init(|| build("guest-services"))
+        .join(format!("{name}.wasm"))
 }
 
 fn cache_dir() -> PathBuf {
@@ -74,8 +90,12 @@ fn sandbox(limits: Limits) -> Sandbox {
     Sandbox::new(cache_dir(), &scratch().join("plugin-cache.key"), limits).expect("sandbox")
 }
 
+fn sandbox_services(limits: Limits, host: Arc<Host>) -> Sandbox {
+    sandbox(limits).with_services(host)
+}
+
 fn quick() -> Limits {
-    Limits::default().with_init_timeout(Duration::from_millis(200))
+    Limits::default().with_timeout(Duration::from_millis(200))
 }
 
 fn cache_entry(plugin: &str) -> PathBuf {
@@ -217,4 +237,198 @@ async fn calls_past_the_concurrency_bounds_wait_for_a_slot() {
         overall >= Duration::from_millis(100),
         "naps past sixteen overall wait: {overall:?}"
     );
+}
+
+/// A host for the service tests: files under a scratch root, a catalogue of
+/// one message, and a person who answers `confirm` after `answer_after`.
+#[derive(Default)]
+struct Host {
+    root: PathBuf,
+    confirm: bool,
+    answer_after: Duration,
+    locked: Notify,
+    seen: Mutex<Vec<String>>,
+}
+
+impl Host {
+    fn new(name: &str, confirm: bool) -> Arc<Self> {
+        Self::slow(name, confirm, Duration::ZERO)
+    }
+
+    fn slow(name: &str, confirm: bool, answer_after: Duration) -> Arc<Self> {
+        let root = scratch().join("services").join(name);
+        let _ = std::fs::remove_dir_all(&root);
+        Arc::new(Host {
+            root,
+            confirm,
+            answer_after,
+            ..Host::default()
+        })
+    }
+
+    fn data(&self, plugin: &str) -> PathBuf {
+        self.root.join("data").join(plugin)
+    }
+
+    fn state(&self, plugin: &str) -> PathBuf {
+        self.root.join("state").join(plugin)
+    }
+
+    fn mode(&self, plugin: &str, mode: &str) {
+        std::fs::create_dir_all(self.data(plugin)).unwrap();
+        std::fs::write(self.data(plugin).join("mode"), mode).unwrap();
+    }
+
+    fn saw(&self, prefix: &str) -> Vec<String> {
+        let seen = self.seen.lock().unwrap();
+        seen.iter()
+            .filter(|line| line.starts_with(prefix))
+            .cloned()
+            .collect()
+    }
+
+    fn record(&self, line: String) {
+        self.seen.lock().unwrap().push(line);
+    }
+}
+
+impl Services for Host {
+    fn data_dir(&self, plugin: &str) -> Option<PathBuf> {
+        Some(self.data(plugin))
+    }
+
+    fn state_dir(&self, plugin: &str) -> Option<PathBuf> {
+        Some(self.state(plugin))
+    }
+
+    fn message(&self, _plugin: &str, key: &str) -> Option<String> {
+        (key == "greeting").then(|| "Hello {name}".to_owned())
+    }
+
+    fn notify(&self, plugin: &str, _level: NoticeLevel, message: &str) {
+        self.record(format!("notify {plugin}: {message}"));
+        if message == "locked" {
+            self.locked.notify_one();
+        }
+    }
+
+    fn confirm<'a>(&'a self, plugin: &'a str, message: &'a str) -> Answer<'a> {
+        self.record(format!("confirm {plugin}: {message}"));
+        Box::pin(async move {
+            tokio::time::sleep(self.answer_after).await;
+            self.confirm
+        })
+    }
+
+    fn open_url(&self, plugin: &str, url: &str) -> bool {
+        self.record(format!("url {plugin}: {url}"));
+        true
+    }
+}
+
+#[tokio::test]
+async fn a_plugin_keeps_files_settings_and_secrets_and_draws_only_through_the_host() {
+    let host = Host::new("tour", true);
+    let sandbox = sandbox_services(Limits::default(), host.clone());
+    let tour = sandbox.load("tour", &service_guest("tour")).await.unwrap();
+
+    host.mode("tour", "tour");
+    sandbox.init(&tour).await.unwrap();
+    assert_eq!(
+        std::fs::read_to_string(host.data("tour").join("note.txt")).unwrap(),
+        "kept"
+    );
+    let settings = std::fs::read_to_string(host.state("tour").join("settings.json")).unwrap();
+    assert!(settings.contains("\"volume\": 7"), "{settings}");
+    assert_eq!(host.saw("notify tour: notice").len(), 5, "budget is five");
+    assert_eq!(
+        host.saw("url"),
+        ["url tour: https://example.com/docs".to_owned()]
+    );
+    assert!(host.saw("confirm").is_empty(), "no person started the call");
+
+    host.mode("tour", "secret");
+    sandbox.init(&tour).await.unwrap();
+    let secrets = host.state("tour").join("secrets.json");
+    assert!(std::fs::read_to_string(&secrets)
+        .unwrap()
+        .contains("s3cret"));
+    assert!(
+        !captured().contains("s3cret"),
+        "a secret never reaches a log"
+    );
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mode = std::fs::metadata(&secrets).unwrap().permissions().mode();
+        assert_eq!(mode & 0o077, 0, "secrets are owner-only");
+    }
+
+    std::fs::write(host.state("tour").join("settings.json"), "{ not json").unwrap();
+    let fresh = sandbox_services(Limits::default(), host.clone());
+    let tour = fresh.load("tour", &service_guest("tour")).await.unwrap();
+    host.mode("tour", "tour");
+    fresh.init(&tour).await.unwrap();
+    let aside = std::fs::read_dir(host.state("tour"))
+        .unwrap()
+        .filter_map(|entry| entry.ok())
+        .any(|entry| entry.file_name().to_string_lossy().contains("unreadable"));
+    assert!(
+        aside,
+        "an unreadable settings file is set aside, not written over"
+    );
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_changed_setting_reaches_the_plugin_which_may_wait_on_the_user_past_its_budget() {
+    let host = Host::slow("changed", true, Duration::from_secs(30));
+    let sandbox = sandbox_services(quick(), host.clone());
+    let tour = sandbox.load("tour", &service_guest("tour")).await.unwrap();
+    assert!(tour.provides_settings_changed());
+
+    sandbox.change_setting(&tour, "volume", "9").await.unwrap();
+    assert_eq!(
+        std::fs::read_to_string(host.data("tour").join("changed")).unwrap(),
+        "volume=9"
+    );
+    assert_eq!(
+        host.saw("confirm"),
+        ["confirm tour: apply volume?".to_owned()]
+    );
+
+    assert!(matches!(
+        sandbox.change_setting(&tour, "volume", "{").await,
+        Err(SandboxError::Setting(_))
+    ));
+
+    let declining = Host::new("declined", false);
+    let sandbox = sandbox_services(Limits::default(), declining.clone());
+    let tour = sandbox.load("tour", &service_guest("tour")).await.unwrap();
+    assert!(matches!(
+        sandbox.change_setting(&tour, "volume", "3").await,
+        Err(SandboxError::Guest(_))
+    ));
+    let settings = std::fs::read_to_string(declining.state("tour").join("settings.json")).unwrap();
+    assert!(settings.contains("\"volume\": 3"), "{settings}");
+}
+
+#[tokio::test]
+async fn a_named_lock_excludes_other_calls_until_its_holder_ends_even_by_timeout() {
+    let host = Host::new("locks", true);
+    let sandbox = sandbox_services(quick(), host.clone());
+    let tour = sandbox.load("tour", &service_guest("tour")).await.unwrap();
+
+    host.mode("tour", "hold");
+    let holding = sandbox.init(&tour);
+    let meanwhile = async {
+        host.locked.notified().await;
+        host.mode("tour", "contend");
+        sandbox.init(&tour).await
+    };
+    let (held, contended) = tokio::join!(holding, meanwhile);
+    assert!(matches!(held, Err(SandboxError::Timeout)), "{held:?}");
+    contended.unwrap();
+
+    host.mode("tour", "free");
+    sandbox.init(&tour).await.unwrap();
 }

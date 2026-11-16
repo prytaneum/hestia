@@ -5,6 +5,12 @@ world base {
     import types;
     import log;
     import app;
+    import data;
+    import settings;
+    import secrets;
+    import messages;
+    import progress;
+    import notify;
 }
 
 /// One world per export; the SDK's feature of the same name enables it.
@@ -13,8 +19,14 @@ world lifecycle-plugin {
     export lifecycle;
 }
 
+world settings-changed-plugin {
+    include base;
+    export settings-changed;
+}
+
 /// The host's view: every import and every export, each export found on its own.
 world host {
     include base;
     export lifecycle;
+    export settings-changed;
 }

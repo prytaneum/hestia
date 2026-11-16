@@ -1,0 +1,9 @@
+package hestia:kernel@0.1.0;
+
+/// No permission. Progress of the job the call runs in.
+interface progress {
+    report: func(current: u64, total: u64, message: string);
+
+    /// Whether the user cancelled the job.
+    cancelled: func() -> bool;
+}

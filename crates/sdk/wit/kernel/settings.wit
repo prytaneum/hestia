@@ -1,0 +1,17 @@
+package hestia:kernel@0.1.0;
+
+/// No permission. Values are JSON text; the plugin's manifest declares their shape.
+interface settings {
+    use types.{plugin-error};
+
+    get: func(key: string) -> result<option<string>, plugin-error>;
+
+    set: func(key: string, value: string) -> result<_, plugin-error>;
+}
+
+/// Called after the user changes one of the plugin's settings.
+interface settings-changed {
+    use types.{plugin-error};
+
+    changed: func(key: string, value: string) -> result<_, plugin-error>;
+}

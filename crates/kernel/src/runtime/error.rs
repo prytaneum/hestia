@@ -19,6 +19,8 @@ pub enum SandboxError {
     /// the owner of the plugin's state disables it.
     #[error("{0}; the plugin reached its trap limit")]
     TrapLimit(Box<SandboxError>),
+    #[error("cannot store the setting: {0:?}")]
+    Setting(GuestError),
     #[error("plugin returned an error: {0:?}")]
     Guest(GuestError),
 }

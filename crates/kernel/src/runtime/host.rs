@@ -1,36 +1,96 @@
+use std::sync::atomic::AtomicBool;
+use std::sync::{Arc, PoisonError};
+
 use wasmtime::component::ResourceTable;
-use wasmtime_wasi::{WasiCtx, WasiCtxBuilder, WasiCtxView, WasiView};
+use wasmtime_wasi::{FsPerms, WasiCtx, WasiCtxBuilder, WasiCtxView, WasiView};
 
 use super::bindings::hestia::kernel::{app, log, types};
 use super::limits::MemoryCap;
+use super::notify::Drawn;
+use super::pause::Pause;
+use super::shared::Shared;
 
 const LOG_LINE_BYTES: usize = 4096;
 const LOG_LINES_PER_CALL: usize = 1000;
 
-/// The store data of one call. WASI sees no preopen, no network and an empty
-/// environment.
+/// What a call is for, set by whoever starts it.
+#[derive(Default)]
+pub(super) struct Call {
+    /// Whether a person started the call; only such a call may ask them to confirm.
+    pub person: bool,
+    /// The job the call runs in, which its progress reports belong to.
+    pub job: Option<String>,
+    pub cancelled: Arc<AtomicBool>,
+    pub pause: Arc<Pause>,
+}
+
+/// The store data of one call. WASI sees one preopen, `/data`, no network and
+/// an empty environment.
 pub(super) struct State {
-    plugin: String,
+    pub plugin: String,
     online: bool,
     log_lines: usize,
+    pub shared: Shared,
+    pub call: Call,
+    /// The named locks this call holds, released when it ends however it ends.
+    pub held: Vec<String>,
+    pub drawn: Drawn,
     wasi: WasiCtx,
     table: ResourceTable,
     pub memory: MemoryCap,
 }
 
 impl State {
-    pub fn new(plugin: &str, online: bool, memory: MemoryCap) -> Self {
+    pub fn new(plugin: &str, online: bool, memory: MemoryCap, shared: Shared, call: Call) -> Self {
+        let mut wasi = WasiCtxBuilder::new();
+        wasi.allow_tcp(false)
+            .allow_udp(false)
+            .allow_ip_name_lookup(false);
+        if let Some(dir) = shared.services.data_dir(plugin) {
+            let mounted = prepare(&shared, plugin, &dir).and_then(|()| {
+                wasi.preopened_dir(&dir, "/data", FsPerms::ReadWrite)
+                    .map(drop)
+            });
+            if let Err(error) = mounted {
+                tracing::warn!(plugin, %error, "plugin data directory not mounted");
+            }
+        }
         State {
             plugin: plugin.to_owned(),
             online,
             log_lines: 0,
-            wasi: WasiCtxBuilder::new()
-                .allow_tcp(false)
-                .allow_udp(false)
-                .allow_ip_name_lookup(false)
-                .build(),
+            shared,
+            call,
+            held: Vec::new(),
+            drawn: Drawn::default(),
+            wasi: wasi.build(),
             table: ResourceTable::new(),
             memory,
+        }
+    }
+}
+
+fn prepare(shared: &Shared, plugin: &str, dir: &std::path::Path) -> wasmtime::Result<()> {
+    let mut mounted = shared
+        .mounted
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner);
+    if !mounted.contains(plugin) {
+        std::fs::create_dir_all(dir)?;
+        mounted.insert(plugin.to_owned());
+    }
+    Ok(())
+}
+
+impl Drop for State {
+    fn drop(&mut self) {
+        let mut locks = self
+            .shared
+            .locks
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
+        for name in self.held.drain(..) {
+            locks.remove(&(self.plugin.clone(), name));
         }
     }
 }
