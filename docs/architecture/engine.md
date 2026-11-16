@@ -15,7 +15,7 @@ owns each subsystem as a member behind a getter, and nothing else.
 
 | Plumbing                                   | Domain                                                    |
 |--------------------------------------------|-----------------------------------------------------------|
-| `config`, `net`, `cache`, `java`, `processes`, `update` | `minecraft`, `content`, `servers`, `instances`, `skins`, `sync`, `accounts` |
+| `config`, `net`, `cache`, `java`, `processes` | `minecraft`, `content`, `servers`, `instances`, `skins`, `sync`, `accounts` |
 
 - Adding a subsystem is a module, a member and a getter.
 - A flow that spans subsystems is not a method on the aggregate. It lives in `engine/flows/<concern>.rs` as its own
@@ -75,13 +75,13 @@ Every outbound request crosses `net`.
   vetted. The client keeps no cookies and follows no redirect itself: `Policy::get` walks them and vets every hop; an
   API call (`Policy::request`) follows none. A body is checksummed, or comes from a host the policy declares as serving
   unhashed files. An API or metadata call runs under `Limits::REQUEST` (30 s, 32 MiB), its body read only through
-  `net::Answer` or `net::read`; a file download under `Limits::DOWNLOAD` (2 GiB and 30 s without data, no total, since
-  a Java runtime on a slow line is not a failure). A policy that lists its hosts goes through the proxy
+  `net::Answer` or `net::read`; a file download under `Limits::DOWNLOAD` (2 GiB and 30 s without data, no total, since a
+  Java runtime on a slow line is not a failure). A policy that lists its hosts goes through the proxy
   `HTTPS_PROXY`/`ALL_PROXY` names (minus `NO_PROXY`); an open one goes direct, so a URL from content cannot reach what
   the proxy sees. The hosts Hestia itself reaches are listed in `net/hosts.rs` (`mojang`, `bedrock_catalogue`,
-  `bedrock`, `accounts`, `adoptium`, `release`), plus `typed` (a URL the user typed) and `untrusted` (a file an archive
-  named; a checksum is required). Plain-http loopback is reached only through `Hosts::with_loopback`, which exists in a
-  build with the kernel's `loopback` feature, enabled by the engine's tests.
+  `bedrock`, `accounts`, `adoptium`), plus `typed` (a URL the user typed) and `untrusted` (a file an archive named; a
+  checksum is required). Plain-http loopback is reached only through `Hosts::with_loopback`, which exists in a build
+  with the kernel's `loopback` feature, enabled by the engine's tests.
 - **Client.** Retries are bounded with jittered backoff and honour `Retry-After`. Only transport failures, 429 and
   5xx are retried, never a 4xx or a checksum mismatch.
 - **Reachability.** `net::Network` is `Online | Offline | Unknown`, derived from real traffic: any answer marks it up,

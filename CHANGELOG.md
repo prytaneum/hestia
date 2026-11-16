@@ -14,7 +14,8 @@ Hestia is being rebuilt around a plugin kernel. Until plugins return, it plays a
   Hestia's own, and Discord presence, with the `content.curseforge-key` and `discord.enabled` settings. They return as
   plugins.
 - **Self-update is removed.** `hestia update`, the desktop's update panel, the `update.channel` setting and the signed
-  release feed are gone, to be revisited later. Install a newer release by hand.
+  release feed are gone, to be revisited later. Install a newer release by hand; the `updates/` folder in the data
+  home is no longer used and can be deleted.
 - **Plugins.** `hestia plugin list`, `enable` and `disable` show and switch Hestia's plugins.
 
 ## 1.0.0-beta.3

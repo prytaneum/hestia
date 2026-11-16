@@ -12,7 +12,7 @@ path = "src/main.rs"
 
 [features]
 # Build the portable archive's binaries: data lives inside the install.
-portable = ["common/portable", "engine/portable"]
+portable = ["common/portable"]
 
 [dependencies]
 engine = { workspace = true }

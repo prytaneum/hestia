@@ -47,17 +47,6 @@ impl Coalescible for JavaInstallProgress {
     }
 }
 
-impl Coalescible for proto::download::DownloadProgress {
-    type Phase = ();
-    fn phase(&self) {}
-    fn ratio(&self) -> f64 {
-        match self.total {
-            0 => 0.0,
-            total => self.downloaded as f64 / total as f64,
-        }
-    }
-}
-
 /// Coalesce a high-frequency progress stream so a phase made of thousands of
 /// tiny units (or a per-chunk download) can't flood every subscribed front-end
 /// (the desktop re-renders per event; the freeze this fixes). An update is

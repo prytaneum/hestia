@@ -12,9 +12,6 @@ name = "integration"
 path = "tests/main.rs"
 
 [features]
-# The portable archive carries its own data directory and is unpacked by hand,
-# so it has no installer to update through.
-portable = ["common/portable"]
 # Integration tests are a separate crate, so cfg(test) cannot reach loopback;
 # enabled only by the self dev-dependency below, never by a build that ships.
 loopback = ["kernel/loopback"]

@@ -51,8 +51,8 @@ is not enabled in the runtime's plugin registry. The kernel's own channels have 
 ### Job managers
 
 `runtime/managers/` holds one value, `Jobs`, and a file per family: Java install, server create and update, instance
-launch, backup, content, modpack, transfer. Each answers at once with a job id, runs blocking
-engine work off-thread and publishes `JobEvent`s through the hub.
+launch, backup, content, modpack, transfer. Each answers at once with a job id, runs blocking engine work off-thread and
+publishes `JobEvent`s through the hub.
 
 A `start_*` function builds a `Spec` (id, prefix, the claim it holds) and hands `Jobs::run::<C>` a closure taking the
 engine and a `Reporter` and returning `C::Done`. The runner owns spawning, progress coalescing, cancellation, terminal
