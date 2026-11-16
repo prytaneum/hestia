@@ -180,8 +180,14 @@ Flavors (`FlavorProvider`), content sources (`ContentProvider`), Java distributi
 Java and Bedrock, Adoptium, and Hestia's own archive. No content source is built in. `engine/src/plugins/` keeps only
 download vetting (`vouch`: `Policy` and host matching), program pinning (`program.rs`, `invocation.rs`) and the signed
 repository index code (`index.rs`, `catalogue.rs`, `repositories.rs`, `repos.rs`, `official.rs`, `api.rs`). Nothing
-calls it yet. Flavors, content sources, pack formats and Java distributions beyond the built-ins return with the new
+calls those yet. Flavors, content sources, pack formats and Java distributions beyond the built-ins return with the new
 plugin system.
+
+Beside them sits the registry (`registry.rs`, `builtin.rs`): built-ins implement `Builtin` (a descriptor with `provides`
+and `requires`, plus `enable` and `disable`) and are enabled in dependency order. Disabling is refused while an enabled
+plugin requires it or it has work running. The disabled ids persist in `plugins.json`; start-up never enables what the
+user turned off, so a plugin whose requirement is off stays `failed`. `plugins::all()` lists the compiled-in built-ins
+and is empty until servers, instances and content become plugins; tests pass their own to `Plugins::new`.
 
 ## Accounts and skins
 

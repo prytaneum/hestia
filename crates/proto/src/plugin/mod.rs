@@ -4,9 +4,13 @@
 
 mod host;
 mod program;
+mod registry;
 
 pub use host::{is_network_host, network_matches, stays_inside};
 pub use program::{
     is_program_env, Invocation, InvocationMismatch, JavaChoiceError, JavaProfile, JavaRange,
     Program, ProgramJava, ProgramPin,
+};
+pub use registry::{
+    PluginDisable, PluginEnable, PluginInfo, PluginKind, PluginList, PluginState, PluginTarget,
 };

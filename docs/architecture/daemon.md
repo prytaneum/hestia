@@ -45,6 +45,9 @@ The router also enforces the account gate: the whole `instance.*` surface (and t
 `unauthorized` until an account exists. Verbs both sides share (`content.add`, `modpack.update`) have no prefix, so
 `guards::entry_for` applies the same gate by the target in the payload.
 
+The router also gates by owner: a contract that sets `const OWNER` is answered with `plugin_disabled` while that plugin
+is not enabled in the engine's registry. The kernel's own channels have no owner.
+
 ### Job managers
 
 `runtime/managers/` holds one value, `Jobs`, and a file per family: Java install, server create and update, instance

@@ -50,14 +50,20 @@ fn is_polled(channel: &str) -> bool {
 type BoxFuture = Pin<Box<dyn Future<Output = Response> + Send>>;
 type Handler = Arc<dyn Fn(Request, HandlerContext) -> BoxFuture + Send + Sync>;
 
+struct Route {
+    owner: Option<&'static str>,
+    handler: Handler,
+}
+
 #[derive(Default)]
 pub struct Router {
-    handlers: HashMap<String, Handler>,
+    routes: HashMap<String, Route>,
 }
 
 impl Router {
-    pub fn on(&mut self, channel: &str, handler: Handler) {
-        self.handlers.insert(channel.to_string(), handler);
+    pub fn on(&mut self, channel: &str, owner: Option<&'static str>, handler: Handler) {
+        self.routes
+            .insert(channel.to_string(), Route { owner, handler });
     }
 
     pub async fn route(&self, request: Request, ctx: HandlerContext) -> Response {
@@ -69,8 +75,16 @@ impl Router {
             caller = %ctx.caller
         );
         async move {
-            match self.handlers.get(&request.channel) {
-                Some(handler) => {
+            match self.routes.get(&request.channel) {
+                Some(Route { owner, handler }) => {
+                    if let Some(owner) = owner {
+                        if !ctx.runtime.engine().plugins().is_enabled(owner) {
+                            tracing::warn!(plugin = owner, "rejected: owner plugin is not enabled");
+                            return error_response(ErrorInfo::PluginDisabled {
+                                plugin: owner.to_string(),
+                            });
+                        }
+                    }
                     if requires_account(&request.channel) {
                         if let Err(refusal) = require_account(&ctx) {
                             return error_response(refusal);
@@ -128,6 +142,7 @@ impl<'r> Channels<'r> {
     {
         self.router.on(
             C::CHANNEL,
+            C::OWNER,
             Arc::new(move |req: Request, ctx: HandlerContext| {
                 let f = f.clone();
                 Box::pin(async move {
@@ -159,6 +174,7 @@ impl<'r> Channels<'r> {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::atomic::{AtomicBool, Ordering};
     use std::sync::{Arc, Mutex};
 
     use ipc::protocol::Request;
@@ -200,6 +216,48 @@ mod tests {
             .await;
         assert!(response.error.is_none(), "{:?}", response.error);
         response.payload
+    }
+
+    struct Ghost;
+    impl proto::Contract for Ghost {
+        const CHANNEL: &'static str = "ghost.ping";
+        const OWNER: Option<&'static str> = Some("ghost");
+        type Params = proto::Empty;
+        type Result = proto::Empty;
+    }
+
+    #[tokio::test]
+    async fn a_channel_whose_owner_is_not_enabled_answers_plugin_disabled_and_never_runs() {
+        let home = tempfile::tempdir().unwrap();
+        let engine = engine::Engine::new(Some(home.path()));
+        let runtime = Arc::new(Runtime::over(engine, home.path().join("d.log")));
+        let ran = Arc::new(AtomicBool::new(false));
+        let witness = ran.clone();
+        let mut router = super::Router::default();
+        super::Channels::new(&mut router).handle::<Ghost, _, _>(move |_, _| {
+            let witness = witness.clone();
+            async move {
+                witness.store(true, Ordering::SeqCst);
+                Ok(proto::Empty {})
+            }
+        });
+        let (out, _) = unbounded_channel();
+        let ctx = HandlerContext {
+            runtime,
+            conn_id: 0,
+            out,
+            caller: Caller::Client,
+            changed: Changed::default(),
+        };
+
+        let response = router
+            .route(Request::new("ghost.ping", json!({}), None), ctx)
+            .await;
+
+        let error = response.error.expect("refused");
+        assert_eq!(error["kind"], "plugin_disabled");
+        assert_eq!(error["plugin"], "ghost");
+        assert!(!ran.load(Ordering::SeqCst));
     }
 
     #[tokio::test]

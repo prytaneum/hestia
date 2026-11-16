@@ -119,6 +119,8 @@ import type { ModpackStatusResult } from "./generated/ModpackStatusResult";
 import type { ModpackUpdateResult } from "./generated/ModpackUpdateResult";
 import type { NetworkStatus } from "./generated/NetworkStatus";
 import type { PingResult } from "./generated/PingResult";
+import type { PluginInfo } from "./generated/PluginInfo";
+import type { PluginTarget } from "./generated/PluginTarget";
 import type { ProcessExitEvent } from "./generated/ProcessExitEvent";
 import type { ProcessInfo } from "./generated/ProcessInfo";
 import type { ProcessLogLine } from "./generated/ProcessLogLine";
@@ -276,6 +278,9 @@ export interface Channels {
   "modpack.status": { params: Omit<Partial<EntryModpackStatusParams>, "target"> & { "target"?: Partial<EntryTarget> }; result: ModpackStatusResult };
   "modpack.update": { params: Omit<Partial<EntryModpackUpdateParams>, "target" | "to"> & { "target"?: Partial<EntryTarget>; "to"?: Partial<ModpackMove> }; result: JobStarted };
   "net.status": { params: Empty; result: NetworkStatus };
+  "plugin.disable": { params: Partial<PluginTarget>; result: PluginInfo };
+  "plugin.enable": { params: Partial<PluginTarget>; result: PluginInfo };
+  "plugin.list": { params: Empty; result: Array<PluginInfo> };
   "process.list": { params: Empty; result: Array<ProcessInfo> };
   "process.logs": { params: Partial<ProcessLogsParams>; result: Array<ProcessLogLine> };
   "process.start": { params: Partial<ProcessSpec>; result: ProcessStartResult };

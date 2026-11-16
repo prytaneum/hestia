@@ -7,8 +7,8 @@ mod spawn;
 
 pub use facades::{
     Accounts, App, Cache, Config, Content, Daemon, Entry, Files, Host, Instance, Java, Jobs,
-    LaunchOptions, Modpack, Net, Process, ProcessEvent, Screenshot, Server, Skins, Sync, Tasks,
-    Transfer, Update,
+    LaunchOptions, Modpack, Net, Plugin, Process, ProcessEvent, Screenshot, Server, Skins, Sync,
+    Tasks, Transfer, Update,
 };
 pub use ipc::errors::IpcError;
 
@@ -105,6 +105,12 @@ impl Client {
 
     pub fn config(&self) -> Config<'_> {
         Config {
+            session: &self.session,
+        }
+    }
+
+    pub fn plugin(&self) -> Plugin<'_> {
+        Plugin {
             session: &self.session,
         }
     }

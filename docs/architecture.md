@@ -93,6 +93,7 @@ What is yours sits at the top level. What the launcher can regenerate sits under
 <data_home>/
 ├── config.json          settings
 ├── accounts.json        signed-in accounts (owner-only)
+├── plugins.json         the plugins you turned off
 ├── servers/<slug>/      one directory per server
 ├── instances/<slug>/    one directory per instance
 ├── skins/               the skin library

@@ -26,6 +26,7 @@ use crate::instances::Instances;
 use crate::java::Java;
 use crate::minecraft::Minecraft;
 use crate::net::image::ImageProxy;
+use crate::plugins::{self, Plugins};
 use crate::process::ProcessSupervisor;
 use crate::roster::Roster;
 use crate::servers::Servers;
@@ -100,6 +101,7 @@ pub struct Engine {
     skins: Skins,
     sync: Sync,
     update: Update,
+    plugins: Plugins,
     processes: Arc<ProcessSupervisor>,
     consoles: Consoles,
 }
@@ -126,6 +128,9 @@ impl Engine {
         let sync = Sync::new(data_home.join("shared"));
         crate::net::store::set_root(catalogue_dir(&data_home));
         let update = Update::new(data_home.join("updates"));
+        let plugins = Plugins::new(data_home.join("plugins.json"), plugins::all()).expect(
+            "plugins::all() must list unique ids whose requirements exist and do not cycle",
+        );
         let processes = Arc::new(ProcessSupervisor::new(data_home.join("processes")));
         let engine = Engine {
             data_home,
@@ -143,6 +148,7 @@ impl Engine {
             skins,
             sync,
             update,
+            plugins,
             processes,
             consoles: Consoles::default(),
         };
@@ -267,5 +273,9 @@ impl Engine {
 
     pub fn update(&self) -> &Update {
         &self.update
+    }
+
+    pub fn plugins(&self) -> &Plugins {
+        &self.plugins
     }
 }

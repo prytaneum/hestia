@@ -24,6 +24,7 @@ export type * from "./keys";
 export type * from "./minecraft";
 export type * from "./modpack";
 export type * from "./net";
+export type * from "./plugin";
 export type * from "./process";
 export type * from "./profile";
 export type * from "./provider";

@@ -27,6 +27,9 @@ pub trait Contract {
     /// [`ChangedEvent`](crate::change::ChangedEvent) so other clients refresh;
     /// a read leaves it `None`, and a job reports on the `job` topic instead.
     const CHANGES: Option<Scope> = None;
+    /// The plugin that owns this channel. The router answers `plugin_disabled`
+    /// while it is off; `None` is the kernel's own.
+    const OWNER: Option<&'static str> = None;
     type Params: Serialize + DeserializeOwned;
     type Result: Serialize + DeserializeOwned;
 }

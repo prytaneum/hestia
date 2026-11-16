@@ -763,6 +763,26 @@ pub enum ErrorInfo {
         unit: crate::sync::SyncUnit,
     },
 
+    // --- plugins ---
+    PluginNotFound {
+        plugin: String,
+    },
+    PluginDisabled {
+        plugin: String,
+    },
+    PluginRequired {
+        plugin: String,
+        dependents: Vec<String>,
+    },
+    PluginBusy {
+        plugin: String,
+    },
+    /// A built-in's start-up failed; `detail` is its English reason.
+    PluginFailed {
+        plugin: String,
+        detail: String,
+    },
+
     // --- protocol ---
     UnknownChannel {
         channel: String,
@@ -844,6 +864,7 @@ impl ErrorInfo {
             | VersionNotFound { .. }
             | FileNotFound { .. }
             | TaskNotFound { .. }
+            | PluginNotFound { .. }
             | RepositoryNotFound { .. }
             | ConfigKeyUnknown { .. }
             | ConfigKeyUnset { .. } => code::NOT_FOUND,
@@ -858,6 +879,7 @@ impl ErrorInfo {
             | Upstream { .. }
             | DownloadFailed { .. }
             | StopTimedOut { .. }
+            | PluginFailed { .. }
             | Internal { .. } => "handler_error",
             _ => code::BAD_REQUEST,
         }
@@ -1121,6 +1143,17 @@ impl fmt::Display for ErrorInfo {
             ),
             SyncUnitDisabled { unit } => {
                 write!(f, "{unit} is not shared between your instances")
+            }
+            PluginNotFound { plugin } => write!(f, "no plugin '{plugin}'"),
+            PluginDisabled { plugin } => write!(f, "plugin '{plugin}' is disabled"),
+            PluginRequired { plugin, dependents } => write!(
+                f,
+                "plugin '{plugin}' is required by {}",
+                dependents.join(", ")
+            ),
+            PluginBusy { plugin } => write!(f, "plugin '{plugin}' has work running"),
+            PluginFailed { plugin, detail } => {
+                write!(f, "plugin '{plugin}' failed to start: {detail}")
             }
             UnknownChannel { channel } => write!(f, "unknown channel: {channel}"),
             MalformedRequest { detail } => write!(f, "malformed request: {detail}"),

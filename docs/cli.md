@@ -529,6 +529,14 @@ hestia job list                  # running jobs: id, channel, entry, age, stage
 hestia job cancel <id>           # cancel one by the id `job list` shows
 ```
 
+## Plugins
+
+```bash
+hestia plugin list               # every plugin: id, name, version, state, requires
+hestia plugin enable <id>        # also enables what it requires, first
+hestia plugin disable <id>       # refused while an enabled plugin requires it
+```
+
 ## Download cache
 
 ```bash

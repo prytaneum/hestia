@@ -78,6 +78,7 @@ pub use plugins::{
     resolve_on_path, revocation, target_triple, verify_build, verify_index, Listings, ManagedJava,
     RepoError, Resolver,
 };
+pub use plugins::{Builtin, Busy, Descriptor, PluginError, Plugins};
 #[cfg(windows)]
 pub use process::run_relay;
 pub use process::{ExitObserver, ProcessEvents, ProcessSupervisor, StartError, StdinError};

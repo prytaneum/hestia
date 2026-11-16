@@ -185,6 +185,11 @@ enum Command {
         #[command(subcommand)]
         cmd: commands::job::JobCmd,
     },
+    /// Launcher plugins
+    Plugin {
+        #[command(subcommand)]
+        cmd: commands::plugin::PluginCmd,
+    },
     /// Download cache
     Cache {
         #[command(subcommand)]
@@ -362,6 +367,7 @@ async fn dispatch(command: Command) -> anyhow::Result<ExitStatus> {
         }
         Command::Sources => commands::content::run_sources().await,
         Command::Updates(args) => commands::updates::run(args).await,
+        Command::Plugin { cmd } => commands::plugin::run(cmd).await,
         Command::Cache { cmd } => commands::cache::run(cmd).await,
         Command::Config { cmd } => commands::config::run(cmd).await,
         Command::Screenshot { cmd } => commands::screenshot::run(cmd).await,

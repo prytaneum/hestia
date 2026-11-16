@@ -121,6 +121,18 @@ async fn daemon_serves_the_full_client_surface() {
     let cache = client.cache().info().await.expect("cache.info");
     assert!(cache.path.starts_with(&daemon.home));
 
+    assert!(client
+        .plugin()
+        .list()
+        .await
+        .expect("plugin.list")
+        .is_empty());
+    let unknown = client.plugin().enable("nope").await.unwrap_err();
+    assert!(matches!(
+        client::error_info(&unknown),
+        client::proto::error::ErrorInfo::PluginNotFound { .. }
+    ));
+
     // Run a process to completion and capture its output and exit code.
     let captured = Arc::new(Mutex::new(Vec::<String>::new()));
     let sink = captured.clone();
