@@ -1,0 +1,12 @@
+{
+  "name": "hestia-plugin-typescript-example",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "bun build plugin.ts --outfile dist/plugin.js --format esm && bun x --bun jco componentize dist/plugin.js --wit ../../crates/sdk/wit/kernel --world-name lifecycle-plugin --disable http --disable fetch-event -o dist/plugin.wasm",
+    "check": "bun check.ts"
+  },
+  "devDependencies": {
+    "@bytecodealliance/jco": "1.42.0"
+  }
+}

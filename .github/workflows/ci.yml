@@ -43,6 +43,25 @@ jobs:
       - name: test
         run: cargo test --workspace --exclude desktop
 
+  # Another toolchain's component must still fit the SDK's world: only
+  # `lifecycle` exported, nothing imported from wasi:http or wasi:sockets.
+  plugin-example:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: examples/typescript
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - name: install
+        run: bun install --frozen-lockfile
+      - name: build
+        run: bun run build
+      - name: check the world
+        run: bun run check
+
   frontend:
     runs-on: ubuntu-latest
     defaults:
