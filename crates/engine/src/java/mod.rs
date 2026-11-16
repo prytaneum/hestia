@@ -2,6 +2,7 @@
 //! `<dir>/<vendor>-<major>/` beside a `runtime.json` record, and listing scans
 //! that directory — the disk is the registry.
 
+mod adoptium;
 mod platform;
 mod provider;
 
@@ -16,12 +17,12 @@ use crate::download::Downloader;
 use crate::minecraft::materialize;
 use crate::roster::{RegisterError, Roster, Standing};
 
+pub use adoptium::Adoptium;
 pub use platform::JavaTarget;
 pub use provider::{JavaPackage, JavaProvider};
 
-/// The bare name of the official Adoptium plugin's provider; no distribution
-/// is built in, so this names a provider that exists only while that plugin does.
-pub const DEFAULT_PROVIDER: &str = "adoptium";
+/// The built-in provider a bare Java install uses: Eclipse Temurin from Adoptium.
+pub const DEFAULT_PROVIDER: &str = adoptium::ID;
 
 const RUNTIME_RECORD: &str = "runtime.json";
 /// An install extracts here and is renamed into place, so a runtime is only ever
@@ -42,9 +43,14 @@ pub struct Java {
 
 impl Java {
     pub fn new(dir: PathBuf) -> Self {
+        Self::with_default(dir, Arc::new(Adoptium::new()))
+    }
+
+    /// Build over another built-in provider: the seam a test crosses to serve a recorded index.
+    pub fn with_default(dir: PathBuf, provider: Arc<dyn JavaProvider>) -> Self {
         Java {
             dir,
-            providers: Roster::builtin([]),
+            providers: Roster::builtin([(provider.id().to_string(), provider)]),
         }
     }
 
@@ -408,7 +414,7 @@ mod tests {
         assert!(matches!(
             error.downcast_ref::<proto::error::ErrorInfo>(),
             Some(proto::error::ErrorInfo::ProviderUnknown { name, available })
-                if name == "nope" && available == &["acme.zulu"]
+                if name == "nope" && available == &["adoptium", "acme.zulu"]
         ));
 
         assert_eq!(java.unregister("acme"), 1);

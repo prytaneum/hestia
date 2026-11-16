@@ -60,7 +60,7 @@ pub use engine::{
 pub use error::error_info;
 pub use files::FileTree;
 pub use instances::{InstanceRecord, Instances};
-pub use java::{Java, JavaInstallOutcome, JavaPackage, JavaProvider, JavaTarget};
+pub use java::{Adoptium, Java, JavaInstallOutcome, JavaPackage, JavaProvider, JavaTarget};
 pub use jvm::JavaSettings;
 pub use minecraft::launch::LaunchPlan;
 pub use minecraft::profile::{
