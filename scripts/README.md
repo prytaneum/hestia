@@ -20,7 +20,7 @@ having.
 | Verb            | What it does                                                        |
 |-----------------|---------------------------------------------------------------------|
 | `build.sh`      | `cargo build` a target (`cli`, `daemon`, `desktop`, or `all`)        |
-| `run.sh`        | run a development build: a subshell, one `hestia` command, or the desktop (`--desktop`); `--plugins` installs the official plugins; all forms share one dev daemon |
+| `run.sh`        | run a development build: a subshell, one `hestia` command, or the desktop (`--desktop`); all forms share one dev daemon |
 | `clean.sh`      | `cargo clean` plus the frontend `dist`/`node_modules` and Tauri `gen` |
 | `sidecars.sh`   | build + stage `hestia`/`hestiad`/`tray` as Tauri sidecars for bundling |
 | `package.sh`    | release artifacts: Tauri installers + portable archive (`all`/`bundle`/`portable`) |
@@ -47,7 +47,6 @@ Examples:
 scripts/run.sh                    # subshell: hestia + hestiad on PATH, dev daemon running
 scripts/run.sh java list          # one hestia command (builds first)
 scripts/run.sh --desktop          # desktop app with frontend hot reload
-scripts/run.sh --plugins=../hestia-plugins --desktop   # with the plugins of that checkout, for this run
 scripts/run.sh --help
 
 scripts/build.sh cli --release

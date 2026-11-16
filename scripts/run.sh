@@ -23,9 +23,6 @@ what to run (one of):
   --daemon          the daemon in the foreground; Ctrl-C stops it
 
 options:
-  --plugins=DIR     run with plugins: every plugin of DIR, a checkout of a plugins
-                    repository, is installed for this run and removed when it
-                    ends. Without it a run has no plugins
   --release         run the optimised build, as a release would be: `--release
                     --desktop` is the app without hot reload. Its data goes to
                     target/release/data, never ~/.hestia
@@ -33,7 +30,7 @@ options:
                     the build against your real data)
   -h, --help        show this
 
-Options combine with what to run: `scripts/run.sh --plugins=../plugins --desktop`.
+Options combine with what to run: `scripts/run.sh --release --desktop`.
 Runs share one daemon: with the desktop open, `scripts/run.sh` in another
 terminal is a shell on the same state, and leaving it leaves the desktop's
 daemon running.
@@ -61,7 +58,6 @@ PATH="$(strip_installed_hestia)"
 mode=debug
 flags=()
 what=""
-plugins=""
 home=""
 
 pick() {
@@ -76,12 +72,6 @@ while [ "$#" -gt 0 ]; do
     --desktop) pick desktop; shift ;;
     --daemon) pick daemon; shift ;;
     --home=*) home="${1#--home=}"; shift ;;
-    --plugins) die "--plugins needs the checkout to take them from: --plugins=<plugins repository>" ;;
-    --plugins=*)
-      plugins="${1#--plugins=}"
-      [ -n "$plugins" ] || die "--plugins= names no directory"
-      shift
-      ;;
     -h | --help) usage; exit 0 ;;
     --) shift; break ;;
     --*) usage >&2; die "unknown flag $1 (hestia's own flags go after \`--\`)" ;;
@@ -160,20 +150,8 @@ others_remain() {
 
 # Nothing below `exec`s: bash does not run an EXIT trap across exec. The signals
 # matter as much as EXIT: `run.sh … | head` dies of SIGPIPE, and an untrapped
-# one skips EXIT entirely. A run leaves things as it found them: the plugins it
-# installed are removed, and the daemon is stopped only by the last session.
-installed=()
-developer_was=""
+# one skips EXIT entirely. The daemon is stopped only by the last session.
 cleanup() {
-  local id
-  for id in ${installed[@]+"${installed[@]}"}; do
-    "$hestia" --quiet plugin remove "$id" --yes > /dev/null 2>&1 || true
-  done
-  installed=()
-  if [ "$developer_was" = false ]; then
-    "$hestia" --quiet config set developer false > /dev/null 2>&1 || true
-    developer_was=""
-  fi
   [ -n "$session" ] || return 0
   rm -f "$session"
   session=""
@@ -188,31 +166,6 @@ trap cleanup EXIT
 trap 'cleanup; exit 130' INT
 trap 'cleanup; exit 143' TERM HUP PIPE
 
-# A run has no plugins unless it asks for them. The official plugins are signed
-# in CI, so a local build has none: `--plugins` installs each one as a dev
-# plugin for this run only, read in place from the checkout. In developer mode
-# a dev install's providers answer to bare names (`fabric`) when no signed
-# plugin does.
-install_plugins() {
-  local repo="$1" dir
-  local dirs=()
-  [ -d "$repo/plugins" ] || die "no plugins/ in $repo — pass --plugins=<checkout of the plugins repository>"
-  repo="$(cd "$repo" && pwd)"
-  local sdk="$PWD/crates/sdk"
-  for dir in "$repo"/plugins/*/; do
-    [ -f "$dir/plugin.toml" ] || continue
-    dirs+=("$dir")
-    installed+=("$(basename "$dir")")
-  done
-  [ "${#dirs[@]}" -gt 0 ] || die "no plugin in $repo/plugins"
-  developer_was="$("$hestia" --quiet config get developer 2> /dev/null | tr -d '[:space:]')"
-  "$hestia" --quiet config set developer true
-  log "building and installing ${#dirs[@]} plugins from $repo"
-  # One call, so the crates compile in a single cargo run.
-  (cd "$repo" && "$hestia" plugin dev "${dirs[@]}" --yes --once --sdk "$sdk" > /dev/null)
-  log "${#installed[@]} plugins installed for this run; they are removed when it ends"
-}
-
 if [ "$what" = daemon ]; then
   if daemon_running; then
     log "stopping the background dev daemon"
@@ -224,8 +177,7 @@ if [ "$what" = daemon ]; then
     daemon_running && die "the dev daemon did not stop; see \`hestia daemon status\`"
   fi
   log "hestiad in the foreground; Ctrl-C stops it"
-  # Its own session, so the terminal's Ctrl-C reaches this script alone: the
-  # plugins of this run are removed while the daemon is still there to ask.
+  # Its own session, so the terminal's Ctrl-C reaches this script alone.
   if command -v setsid > /dev/null 2>&1; then
     setsid "$bindir/hestiad" serve &
   else
@@ -234,20 +186,8 @@ if [ "$what" = daemon ]; then
   daemon_pid=$!
   join
   foreground=1
-  if [ -n "$plugins" ]; then
-    for _ in $(seq 100); do
-      daemon_running && break
-      sleep 0.1
-    done
-    install_plugins "$plugins"
-  fi
   wait "$daemon_pid" || true
   exit 0
-fi
-
-if [ -n "$plugins" ]; then
-  ensure_daemon
-  install_plugins "$plugins"
 fi
 
 if [ "$what" = desktop ]; then

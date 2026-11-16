@@ -13,7 +13,7 @@
 # cargo target. Bare `run` is pure PowerShell and needs only cargo.
 #
 #   scripts\win.ps1                                         # the verbs it found
-#   scripts\win.ps1 run      [--shell|--desktop|--daemon] [--plugins] [--release] [hestia args...]
+#   scripts\win.ps1 run      [--shell|--desktop|--daemon] [--release] [hestia args...]
 #   scripts\win.ps1 build    [cli|daemon|desktop|all] [cargo flags...]
 #   scripts\win.ps1 package  [all|bundle|portable]
 param(
@@ -81,7 +81,7 @@ if ($Command -eq "run") {
     ForEach-Object { Remove-Item "Env:$($_.Name)" }
 
   # Bare `run` is the interactive loop: build, then open a PowerShell subshell
-  # with the dev binaries on PATH. Forms with args (--desktop, --plugins, a
+  # with the dev binaries on PATH. Forms with args (--desktop, a
   # one-shot CLI) forward to run.sh, which owns that logic.
   if (-not $Rest) {
     Write-Host "Building daemon + tray + CLI (debug)"

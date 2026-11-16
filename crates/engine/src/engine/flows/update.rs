@@ -23,12 +23,4 @@ impl Engine {
         let path = self.update.download(&release, on_progress).await?;
         Ok((path, release.version))
     }
-
-    pub fn staged_plugins(&self, api: &str) -> PathBuf {
-        self.update.staged_plugins(api)
-    }
-
-    pub fn discard_staged_plugins(&self) {
-        self.update.discard_staged_plugins()
-    }
 }
